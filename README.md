@@ -76,7 +76,7 @@ We also provide a sample user interface named `rag-playground`.
   </p>
 
 
-The image represents the architecture and workflow of the reference architecture. The core business logic is defined in the `rag_chain_with_multiturn()` method of `chains.py` file. Here's a step-by-step explanation of the workflow from the end-user perspective:
+The image represents the architecture and workflow. The core business logic is defined in the `rag_chain_with_multiturn()` method of `chains.py` file. Here's a step-by-step explanation of the workflow from end-user perspective:
 
 1. **User Interaction via RAG Playground**:
    - The user interacts with this blueprint by typing queries into the sample UI microservice named as **RAG Playground**. These queries are sent to the system through the `POST /generate` API exposed by the RAG server microservice. There are seperate [notebooks](./notebooks/) available which showcase API usage as well.
@@ -126,7 +126,7 @@ The overall hardware requirements depend on whether you
 ### Minimum hardware requirements for self hosting all NIMs
 
 **The NIM and hardware requirements only need to be met if you are self-hosting them.**
-See [Using self-hosted NIMs](#build-and-start-the-containers-using-on-prem-models).
+See [Using self-hosted NIMs](#start-the-containers-using-on-prem-models).
 
 - 8XH100, 8XA100 or 8xL40
 
@@ -143,8 +143,8 @@ See [Using self-hosted NIMs](#build-and-start-the-containers-using-on-prem-model
 
    The following are the deployment options:
 
-   * [Docker Compose](#docker-compose-based-deployment) — for a single node deployment
-   * [Helm Chart](#helm-chart-based-deployment) — to deploy on a kubernetes cluster
+   * [Docker Compose](#deploy-with-docker-compose) — for a single node deployment
+   * [Helm Chart](#deploy-with-helm-chart) — to deploy on a kubernetes cluster
 
 
 ### Deploy With Docker Compose
@@ -254,7 +254,7 @@ See [Using self-hosted NIMs](#build-and-start-the-containers-using-on-prem-model
 
      ```bash
      export APP_LLM_SERVERURL="nemollm-inference:8000"
-     export APP_EMBEDDINGS_SERVERURL="nemollm-embedding:8000"
+     export APP_EMBEDDINGS_SERVERURL="embedding-ms:8000"
      export APP_RANKING_SERVERURL="ranking-ms:8000"
      ```
 
