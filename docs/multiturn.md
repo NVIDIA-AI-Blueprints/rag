@@ -3,30 +3,27 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-# Supporting Multi-Turn Conversations
+# Customizing Multi-Turn Conversations
 
-The RAG API exposed by the RAG Server is OpenAI compatible.
-You can access the [openapi_schema](./api_reference/openapi_schema.json) for more information.
+The RAG server exposes an OpenAI-compatible API, using which developers can provide custom conversation history.
+For full details, see [APIs for RAG Server](./api_reference/openapi_schema.json).
 
-The `/generate` API endpoint in the Server of a RAG pipeline enables you to generate responses based on the provided prompts.
-To support multi-turn conversations, the request body must include a sequence of messages that represent the conversation history.
+Use the `/generate` endpoint in the RAG server of a RAG pipeline to generate responses to prompts using custom conversation history.
 
-## Parameters
+To support multi-turn conversations, include the following parameters in the request body.
 
-**messages (array of Message objects, required)**
 
-Description: A list of messages comprising the conversation so far. Each message should have a role and content.
+| Parameter   | Description | Type   |
+|-------------|-------------|--------|
+| messages | A sequence of messages that form a conversation history. Each message contains a `role` field, which can be `user`, `assistant`, or `system`, and a `content` field that contains the message text. | Array |
+| use_knowledge_base | `true` to use a knowledge base; otherwise `false`. | Boolean |
 
-* role (string, required): The role of the message, such as `user`, `assistant`, or `system`.
-* content (string, required): The content of the message.
 
-**use_knowledge_base (boolean, required)**
 
-Description: Whether to use a knowledge base.
+### Example payload for customization
 
-Default: False
+The following example payload includes a `messages` parameter that passes a custom conversation history to `/generate` endpoint for better contextual answers. You can include or change the following parameters in the request body while trying out the generate API using [this notebook](../notebooks/retriever_api_usage.ipynb).
 
-### Example Request for Multi-Turn Conversations to the Generate Endpoint
 
 ```json
 {
@@ -51,9 +48,3 @@ Default: False
     "use_knowledge_base": true
 }
 ```
-
-In the preceding example, the LLM configuration includes:
-
-- The system message sets the context for the assistant.
-- The user and assistant messages form the conversation history.
-- The last user message continues the conversation by asking for key features of FastAPI.

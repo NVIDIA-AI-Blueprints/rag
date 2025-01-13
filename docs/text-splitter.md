@@ -3,25 +3,19 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-# Text Splitter Customizations
-<!-- TOC -->
+# Customize Your Text Splitter
 
-- [Text Splitter Customizations](#text-splitter-customizations)
-  - [Adjusting Chunk Size and Overlap](#adjusting-chunk-size-and-overlap)
-  - [Using a Custom Text Splitter](#using-a-custom-text-splitter)
-  - [Build and Start the Container](#build-and-start-the-container)
-
-<!-- /TOC -->
-
+The text splitter divides documents into smaller chunks for processing. 
 The default text splitter is a `RecursiveCharacterTextSplitter` instance.
 
-## Adjusting Chunk Size and Overlap
 
-The text splitter divides documents into smaller chunks for processing.
-You can control the chunk size and overlap using environment variables in `rag-server` service of your `docker-compose.yaml` file:
 
-- `APP_TEXTSPLITTER_CHUNKSIZE`: Sets the maximum number of tokens allowed in each chunk.
-- `APP_TEXTSPLITTER_CHUNKOVERLAP`: Defines the number of tokens that overlap between consecutive chunks.
+## Adjust Chunk Size and Overlap
+
+You can control the chunk size and overlap by using environment variables in the `rag-server` section of your `docker-compose.yaml` file.
+
+- **APP_TEXTSPLITTER_CHUNKSIZE** — Set the maximum number of tokens allowed in each chunk
+- **APP_TEXTSPLITTER_CHUNKOVERLAP** — Define the number of tokens that overlap between consecutive chunks
 
 ```yaml
 services:
@@ -31,12 +25,16 @@ services:
       APP_TEXTSPLITTER_CHUNKOVERLAP: 128
 ```
 
-## Using a Custom Text Splitter
 
-While the default text splitter works well, you can also implement a custom splitter for specific needs.
 
-1. Modify the `get_text_splitter` method in `src/utils.py`.
-   Update it to incorporate your custom text splitter class. Make sure to install its dependency in `requirements.txt` file.
+## Use a Custom Text Splitter
+
+Use the following procedure to implement a custom text splitter for your specific needs. 
+Make sure the chunks created by the custom text splitter have a smaller number of tokens than the context length of the embedding model.
+
+1. Install any dependencies for your text splitter in `requirements.txt` file.
+
+1. Modify the `get_text_splitter` method in `src/utils.py` to incorporate your custom text splitter class. 
 
    ```python
    def get_text_splitter():
@@ -49,12 +47,8 @@ While the default text splitter works well, you can also implement a custom spli
       )
    ```
 
-   Make sure the chunks created by the function have a smaller number of tokens than the context length of the embedding model.
-
-## Build and Start the Container
-
-After you change the `get_text_splitter` function, build and start the container.
+1. Restart the service by running the following code.
+   
    ```console
    docker compose -f deploy/compose/docker-compose.yaml up -d --build
    ```
-

@@ -1,4 +1,12 @@
-### Pull Requests
+# Contributing Guidelines
+
+We're posting these examples on GitHub to support the NVIDIA LLM community and facilitate feedback. 
+We invite contributions! 
+
+Use the following guidelines to contribute to this project.
+
+
+## Pull Requests
 Developer workflow for code contributions is as follows:
 
 1. Developers must first [fork](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/working-with-forks/fork-a-repo) the upstream this repository.
@@ -7,7 +15,7 @@ Developer workflow for code contributions is as follows:
 4. Since there is no CI/CD process in place yet, the PR will be accepted and the corresponding issue closed only after adequate testing has been completed, manually, by the developer and/or repository owners reviewing the code.
 
 
-#### Signing Your Work
+## Signing Your Work
 We require that all contributors "sign-off" on their commits. This certifies that the contribution is your original work, or you have rights to submit it under the same license, or a compatible license.
 
 Any contribution which contains commits that are not Signed-Off will not be accepted.
@@ -19,7 +27,7 @@ This will append the following to your commit message:
 Signed-off-by: Your Name <your@email.com>
 
 
-#### Developer Certificate of Origin
+## Developer Certificate of Origin
 Version 1.1
 
 Copyright (C) 2004, 2006 The Linux Foundation and its contributors.

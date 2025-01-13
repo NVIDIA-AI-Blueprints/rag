@@ -2,9 +2,9 @@ imagePullSecret:
   name: "ngc-secret"
 
 ragServer:
-  concurrentWorkers: 8
+  concurrentWorkers: 64
   image:
-    repository: nvcr.io/nvstaging/blueprint/foundational-rag-server
+    repository: nvcr.io/nvstaging/blueprint/rag-server
     tag: "1.0.0"
     pullPolicy: IfNotPresent
   name: rag-server

@@ -10,7 +10,7 @@ services:
     expose:
     - "8000"
     environment:
-      NGC_API_KEY: ${NGC_API_KEY}
+      NGC_API_KEY: ${NVIDIA_API_KEY}
     shm_size: 20gb
     deploy:
       resources:
@@ -37,7 +37,7 @@ services:
     expose:
     - "8000"
     environment:
-      NGC_API_KEY: ${NGC_API_KEY}
+      NGC_API_KEY: ${NVIDIA_API_KEY}
     user: "${USERID}"
     shm_size: 16GB
     deploy:
@@ -66,7 +66,7 @@ services:
     expose:
     - "8000"
     environment:
-      NGC_API_KEY: ${NGC_API_KEY}
+      NGC_API_KEY: ${NVIDIA_API_KEY}
     user: "${USERID}"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/v1/health/ready"]

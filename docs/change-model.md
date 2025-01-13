@@ -3,29 +3,27 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-# Changing the Inference or Embedding Model
+# Change the Inference or Embedding Model
 
-<!-- TOC -->
+You can change inference or embedding models by using the following procedures.
 
-- [Changing the Inference or Embedding Model](#changing-the-inference-or-embedding-model)
-  - [Models from the API Catalog](#models-from-the-api-catalog)
-    - [Changing the Inference Model](#changing-the-inference-model)
-    - [Changing the Embedding Model](#changing-the-embedding-model)
-  - [On Premises Microservices](#on-premises-microservices)
+- [Change the Inference Model](#change-the-inference-model)
+- [Change the Embedding Model](#change-the-embedding-model)
+- [On Premises Microservices](#on-premises-microservices)
 
-<!-- /TOC -->
 
-## Models from the API Catalog
 
-### Changing the Inference Model
+## Change the Inference Model
 
-You can specify the model to use in the `APP_LLM_MODELNAME` environment variable when you start the RAG Server. The following sample command uses the Mistral AI Mixtral 8x7B Instruct model.
+To change the inference model to a model from the API catalog, 
+specify the model in the `APP_LLM_MODELNAME` environment variable when you start the RAG Server. 
+The following example uses the `Mistral AI Mixtral 8x7B Instruct` model.
 
 ```console
 APP_LLM_MODELNAME='mistralai/mixtral-8x7b-instruct-v0.1' docker compose -f deploy/compose/docker-compose.yaml up -d
 ```
 
-You can determine the available model names using one of the following methods:
+To get a list of valid model names, use one of the following methods:
 
 - Browse the models at <https://build.ngc.nvidia.com/explore/discover>.
   View the sample Python code and get the model name from the `model` argument to the `client.chat.completions.create` method.
@@ -34,16 +32,19 @@ You can determine the available model names using one of the following methods:
   Use the `get_available_models()` method on an instance of a `ChatNVIDIA` object to list the models.
   Refer to the package web page for sample code to list the models.
 
-### Changing the Embedding Model
 
-You can specify the embedding model to use in the `APP_EMBEDDINGS_MODELNAME` environment variable when you start the rag server.
-The following sample command uses the NVIDIA Embed QA 4 model.
+
+## Change the Embedding Model to a Model from the API Catalog
+
+To change the embedding model to a model from the API catalog, 
+specify the model in the `APP_EMBEDDINGS_MODELNAME` environment variable when you start the RAG server. 
+The following example uses the `NVIDIA Embed QA 4` model. 
 
 ```console
 APP_EMBEDDINGS_MODELNAME='NV-Embed-QA' docker compose -f deploy/compose/docker-compose.yaml up -d
 ```
 
-You can determine the available model names using one of the following methods:
+To get a list of valid model names, use one of the following methods:
 
 - Browse the models at <https://build.ngc.nvidia.com/explore/retrieval>.
   View the sample Python code and get the model name from the `model` argument to the `client.embeddings.create` method.
@@ -53,11 +54,12 @@ You can determine the available model names using one of the following methods:
   Refer to the package web page for sample code to list the models.
 
 
+
 ## On Premises Microservices
 
 You can specify the model for NVIDIA NIM containers to use in the [nims.yaml](../deploy/compose/nims.yaml) file.
 
-1. Edit the `deploy/nims.yaml` file and specify an image name that includes the name of the model to deploy.
+1. Edit the `deploy/nims.yaml` file and specify an image that includes the model to deploy.
 
    ```yaml
    services:
@@ -76,11 +78,10 @@ You can specify the model for NVIDIA NIM containers to use in the [nims.yaml](..
        image: nvcr.io/nim/<image>:<tag>
    ```
 
-   You can determine the available model names using one of the following methods:
+   To get a list of valid model names, use one of the following methods:
 
    - Run `ngc registry image list "nim/*"`.
 
    - Browse the NGC catalog at <https://catalog.ngc.nvidia.com/containers>.
 
-2. Follow the steps specified [here](../README.md#start-the-containers-using-on-prem-models) to relaunch the containers with the updated models.
-
+1. Follow the steps specified [here](quickstart.md#start-the-containers-using-on-prem-models) to relaunch the containers with the updated models.

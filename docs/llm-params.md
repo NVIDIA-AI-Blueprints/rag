@@ -3,67 +3,45 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-# Customizing LLM Parameters at Runtime
+# Customize LLM Parameters at Runtime
 
-The RAG API exposed by the rag server is OpenAI compatible.
-You can access the [openapi_schema](./api_reference/openapi_schema.json) for more information.
+The RAG server exposes an OpenAI-compatible API, using which developers can customize different LLM parameters at runtime.
+For full details, see [APIs for RAG Server](./api_reference/openapi_schema.json).
 
-The `/generate` API endpoint in the rag server of a RAG pipeline enables you to generate responses based on the provided prompts.
-You can configure the behavior of the language model (LLM) dynamically at runtime by specifying various parameters in the request body.
+Use the `/generate` endpoint in the RAG server of a RAG pipeline to generate responses to prompts.
 
-To tailor the behavior of the language model, you can include the following parameters in the request body.
+To configure the behavior of the LLM dynamically at runtime, you can include or change the following parameters in the request body while trying out the generate API using [the notebook](../notebooks/retriever_api_usage.ipynb).
 
-## Parameters
+| Parameter   | Description | Type   | Valid Values | Default | Optional? |
+|-------------|-------------|--------|--------------|---------|-----------|
+| max_tokens | The maximum number of tokens to generate during inference. This limits the length of the generated text. | Integer | — | 1024 | Yes       |
+| stop | A list of strings to use as stop tokens in the text generation. The text returned does not include the stop tokens. | Array | — | [] | Yes       |
+| temperature | Adjusts the randomness of token selection. Higher values increase randomness and creativity; lower values promote deterministic and conservative output. | Number | 0.1 - 1.0 | 0.2 | Yes       |
+| top_p | A threshold that selects from the most probable tokens until the cumulative probability exceeds p. | Number | 0.1 - 1.0 | 0.7 | Yes       |
 
-**temperature (number, optional)**
 
-Description: Controls the randomness of the generated text. A higher value results in more random outputs, while a lower value makes the output more deterministic.
 
-Range: `0.1` to `1`
+## Example payload for customization
 
-Default: `0.2`
+You can include or change the following parameters in the request body while trying out the generate API using [this notebook](../notebooks/retriever_api_usage.ipynb).
 
-**top_p (number, optional)**
-
-Description: Defines the cumulative probability for token selection. The top-p value determines the most likely tokens considered during sampling.
-
-Range: `0.1` to `1`
-
-Default: `0.7`
-
-**max_tokens (integer, optional)**
-
-Description: Specifies the maximum number of tokens to generate in the response. This limits the length of the generated text.
-
-Default: `1024`
-
-**stop (array of strings, optional)**
-
-Description: A list of strings where the API will stop generating further tokens. The returned text does not include the stop sequences.
-
-Default: []
-
-## Example Request for Runtime LLM Configuration to the Generate Endpoint
+- max_tokens=150 — limits response length to 150 tokens
+- stop=["\n"] — generation stops at the newline character
+- temperature=0.3 — moderate randomness
+- top_p=0.8 — considers tokens with cumulative probability up to 0.8
 
 ```json
 {
-    "messages": [
-        {
-            "role": "user",
-            "content": "Explain the key features of FastAPI."
-        }
-    ],
-    "use_knowledge_base": true,
-    "temperature": 0.3,
-    "top_p": 0.8,
-    "max_tokens": 150,
-    "stop": ["\n"]
+   "messages": [
+      {
+         "role": "user",
+         "content": "Explain the key features of FastAPI."
+      }
+   ],
+   "max_tokens": 150,
+   "stop": ["\n"],
+   "temperature": 0.3,
+   "top_p": 0.8,
+   "use_knowledge_base": true
 }
 ```
-
-In the preceding example, the LLM configuration includes:
-
-- temperature: 0.3 (moderate randomness)
-- top_p: 0.8 (considers tokens with cumulative probability up to 0.8)
-- max_tokens: 150 (limits response length to 150 tokens)
-- stop: ["\n"] (generation stops at newline character)

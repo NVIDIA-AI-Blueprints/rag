@@ -3,29 +3,20 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-# Customizing Prompts
-
-<!-- TOC -->
-
-- [Customizing Prompts](#customizing-prompts)
-  - [About the Prompt File](#about-the-prompt-file)
-  - [Accessing Prompts](#accessing-prompts)
-  - [Example: Adding a Pirate Prompt](#example-adding-a-pirate-prompt)
-
-<!-- /TOC -->
-
-## About the Prompt File
+# Customize Prompts
 
 Each example uses a `prompt.yaml` file that defines prompts for different contexts.
 These prompts guide the RAG model in generating appropriate responses.
-You can tailor these prompts to fit your specific needs and achieve desired responses from the models.
+You can customize these prompts to fit your specific needs and achieve desired responses from the models.
 
-## Accessing Prompts
-The prompts are loaded as a Python dictionary within the application.
-To access this dictionary, you can use the `get_prompts()` function provided by the `utils` module.
-This function retrieves the complete dictionary of prompts.
 
-Consider we have following `prompt.yaml` file:
+
+## Example: Access a Prompt
+
+The `prompt.yaml` file is loaded as a Python dictionary in the application.
+To access this dictionary, use the `get_prompts()` function provided by the `utils` module.
+
+For example, if we have the following `prompt.yaml` file:
 
 ```yaml
 chat_template: |
@@ -39,7 +30,7 @@ rag_template: |
     If something is out of context, you will refrain from replying and politely decline to respond to the user.
 ```
 
-You can access the chat_template using following the code in your rag server:
+Use the following code to access the chat_template:
 
 ```python3
 from .utils import get_prompts
@@ -50,23 +41,24 @@ chat_template = prompts.get("chat_template", "")
 ```
 
 
-## Example: Adding a Pirate Prompt
 
-Let's create a prompt that will make llm respond in a way that resonse is coming from a pirate.
+## Example: Add a Pirate Template
 
-1. Add the prompt to `prompt.yaml`:
+Use the following procedure to create a template that makes the LLM respond as a pirate.
+
+1. Add a new template to `prompt.yaml`:
 
    ```yaml
-   pirate_prompt: |
+   pirate_template: |
       You are a pirate and for every question you are asked you respond in the same way.
    ```
 
-2. Update the `llm_chain` method in `chains.py` and use `pirate_prompt` to generate responses:
+1. Update the `llm_chain` method in `chains.py` and use `pirate_template` to generate responses.
 
    ```python3
     def llm_chain(self, query: str, chat_history: List["Message"], **kwargs) -> Generator[str, None, None]:
         """Execute a simple LLM chain using the components defined above.
-        It's called when the `/generate` API is invoked with `use_knowledge_base` set to `False`.
+        It's called when the `/generate` API is invoked with `use_knowledge_base` set to `false`.
 
         Args:
             query (str): Query to be answered by llm.
@@ -74,7 +66,7 @@ Let's create a prompt that will make llm respond in a way that resonse is coming
         """
 
         logger.info("Using llm to generate response directly without knowledge base.")
-        prompt = prompts.get("pirate_prompt", "")
+        prompt = prompts.get("pirate_template", "")
 
         logger.info(f"Prompt used for response generation: {prompt}")
         system_message = [("system", prompt)]
@@ -86,10 +78,11 @@ Let's create a prompt that will make llm respond in a way that resonse is coming
 
         # Simple langchain chain to generate response based on user's query
         chain = prompt_template | llm | StrOutputParser()
-        return chain.stream({"query_str": query}, config={"callbacks": [self.cb_handler]},)
+        return chain.stream({"query_str": query})
    ```
 
-3. After you update the prompt, you can restart the service by performing the following steps:
+1. Restart the service by running the following code.
+
    ```console
    docker compose -f deploy/compose/docker-compose.yaml up -d --build
    ```

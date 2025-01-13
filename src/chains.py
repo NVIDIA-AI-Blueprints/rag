@@ -85,6 +85,7 @@ class UnstructuredRAG(BaseExample):
                     TEXT_SPLITTER = get_text_splitter()
 
                 # split documents based on configuration provided
+                logger.info(f"Using text splitter instance: {TEXT_SPLITTER}")
                 documents = TEXT_SPLITTER.split_documents(raw_documents)
                 vs = get_vectorstore(VECTOR_STORE, document_embedder, collection_name)
                 # ingest documents into vectorstore
@@ -128,16 +129,15 @@ class UnstructuredRAG(BaseExample):
         system_message = []
         conversation_history = []
         user_message = []
-
         system_prompt = ""
-        conversation_history = []
+
         system_prompt += prompts.get("chat_template", "")
 
         for message in chat_history:
             if message.role ==  "system":
                 system_prompt = system_prompt + " " + message.content
             else:
-                conversation_history.append((nessage.role, message.content))
+                conversation_history.append((message.role, message.content))
 
         system_message = [("system", system_prompt)]
 
@@ -198,8 +198,6 @@ class UnstructuredRAG(BaseExample):
             for message in chat_history:
                 if message.role ==  "system":
                     system_prompt = system_prompt + " " + message.content
-                else:
-                    conversation_history.append((message.role, message.content))
 
             system_message = [("system", system_prompt)]
             user_message = [("user", "{question}")]
@@ -211,7 +209,7 @@ class UnstructuredRAG(BaseExample):
 
             if ranker:
                 logger.info(
-                    "Narrowing the collection from %s results and further narrowing it to"
+                    "Narrowing the collection from %s results and further narrowing it to "
                     "%s with the reranker for rag chain.",
                     top_k,
                     top_n)

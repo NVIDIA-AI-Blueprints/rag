@@ -12,7 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""The definition of the RAG rag server which acts as the main orchestrator."""
+"""The definition of the NVIDIA RAG server which acts as the main orchestrator."""
 import importlib
 import logging
 import os
@@ -59,8 +59,8 @@ tags_metadata = [
 ]
 
 # create the FastAPI server
-app = FastAPI(title="Retriever API's for Foundational RAG Server",
-    description="This API schema describes all the retriever endpoints exposed for Foundational RAG server Blueprint",
+app = FastAPI(title="APIs for NVIDIA RAG Server",
+    description="This API schema describes all the retriever endpoints exposed for NVIDIA RAG server Blueprint",
     version="1.0.0",
         docs_url="/docs",
     redoc_url="/redoc",
