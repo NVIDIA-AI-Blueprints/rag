@@ -28,7 +28,7 @@ Use one of the following methods to generate an API key:
       - Later, you use this key in the `NVIDIA_API_KEY` environment variables.
 
 ## Common Prerequisites
-1. Export your NVIDIA API key as an environment variable. Follow steps [here](#obtain-an-api-key) to get an API key.
+1. Export your NVIDIA API key as an environment variable. Ensure you followed steps [in previous section](#obtain-an-api-key) to get an API key.
 
    ```bash
    export NVIDIA_API_KEY="nvapi-..."
@@ -42,7 +42,7 @@ Use these procedures to deploy with Docker Compose for a single node deployment.
 
 ### Prerequisites
 
-1. Verify that you meet the [common prerequisites](../README.md#common-prerequisites).
+1. Verify that you meet the [common prerequisites](#common-prerequisites).
 
 1. Install Docker Engine. For more information, see [Ubuntu](https://docs.docker.com/engine/install/ubuntu/).
 
@@ -183,11 +183,9 @@ Use these procedures to deploy with Helm Chart to deploy on a Kubernetes cluster
 
 ### Prerequisites
 
-- Verify that you meet the [common prerequisites](../README.md#common-prerequisites).
+- Verify that you meet the [common prerequisites](#common-prerequisites).
 
 - Verify that you meet the [hardware requirements](../README.md#hardware-requirements).
-
-- Verify that you have a `NVIDIA_API_KEY`. For more information, see [Obtain an API Key](#obtain-an-api-key).
 
 - Verify that you have the NGC CLI available on your client machine. You can download the CLI from <https://ngc.nvidia.com/setup/installers/cli>.
 
@@ -211,9 +209,6 @@ Use these procedures to deploy with Helm Chart to deploy on a Kubernetes cluster
   ```
 
 - Verify that you have installed the NVIDIA GPU Operator following steps [here](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/getting-started.html).
-
-
-- Export `NVIDIA_API_KEY` environment variable to pull the containers and models. Check the [Common Prerequisites](#common-prerequisites) section for the same.
 
 ### Helm deployment
 
