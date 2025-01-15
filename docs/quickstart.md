@@ -3,9 +3,9 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-# Get Started With NVIDIA NIM Agent Blueprint: AI Chatbot
+# Get Started With NVIDIA RAG Blueprint
 
-Use the following documentation to get started with the NVIDIA NIM Agent Blueprint: AI Chatbot.
+Use the following documentation to get started with the NVIDIA RAG Blueprint.
 
 - [Obtain an API Key](#obtain-an-api-key)
 - [Deploy With Docker Compose](#deploy-with-docker-compose)
@@ -363,4 +363,4 @@ Follow the cells in the notebook to ingest the PDF files from the data/dataset f
 - [Customize Prompts](prompt-customization.md)
 - [Customize LLM Parameters at Runtime](llm-params.md)
 - [Support Multi-Turn Conversations](multiturn.md)
-- [Troubleshoot NVIDIA NIM Agent Blueprint: AI Chatbot](troubleshooting.md)
+- [Troubleshoot NVIDIA RAG Blueprint](troubleshooting.md)

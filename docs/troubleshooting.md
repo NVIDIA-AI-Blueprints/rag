@@ -3,9 +3,9 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-# Troubleshoot NVIDIA NIM Agent Blueprint: AI Chatbot
+# Troubleshoot NVIDIA RAG Blueprint
 
-The following issues might arise when you work with the NVIDIA NIM Agent Blueprint: AI Chatbot.
+The following issues might arise when you work with the NVIDIA RAG Blueprint.
 
 
 ## Known issues
