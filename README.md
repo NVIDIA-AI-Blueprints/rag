@@ -150,4 +150,4 @@ To open a GitHub issue or pull request, see the [contributing guidelines](./CONT
 
 ## License
 
-This NVIDIA NIM-AGENT BLUEPRINT is licensed under the [Apache License, Version 2.0.](./LICENSE)
+This NVIDIA NIM-AGENT BLUEPRINT is licensed under the [Apache License, Version 2.0.](./LICENSE) This project will download and install additional third-party open source software projects. Review [the license terms of these open source projects](./LICENSE-3rd-party.txt) before use.
