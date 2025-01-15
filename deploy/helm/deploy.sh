@@ -2,7 +2,7 @@
 
 kubectl create namespace rag
 kubectl create secret -n rag docker-registry ngc-secret --docker-server=nvcr.io --docker-username='$oauthtoken' --docker-password=$NVIDIA_API_KEY
-kubectl label secret ngc-secret -n -rag app.kubernetes.io/managed-by=Helm
+kubectl label secret ngc-secret -n rag app.kubernetes.io/managed-by=Helm
 kubectl annotate secret ngc-secret -n rag meta.helm.sh/release-name=rag meta.helm.sh/release-namespace=rag
 
 helm upgrade --install rag . -n rag \
