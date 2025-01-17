@@ -4,7 +4,7 @@ imagePullSecret:
 ragServer:
   concurrentWorkers: 64
   image:
-    repository: nvcr.io/nvstaging/blueprint/rag-server
+    repository: nvcr.io/nvidia/blueprint/rag-server
     tag: "1.0.0"
     pullPolicy: IfNotPresent
   name: rag-server
@@ -49,7 +49,7 @@ ragServer:
 
 ragPlayground:
   image:
-    repository: nvcr.io/nvstaging/blueprint/rag-playground
+    repository: nvcr.io/nvidia/blueprint/rag-playground
     tag: "1.0.0"
     pullPolicy: IfNotPresent
   name: rag-playground
