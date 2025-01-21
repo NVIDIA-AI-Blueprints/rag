@@ -3,7 +3,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-# Get Started With NVIDIA RAG Blueprint
+# Get Started With AI Blueprint: RAG
 
 Use the following documentation to get started with the NVIDIA RAG Blueprint.
 

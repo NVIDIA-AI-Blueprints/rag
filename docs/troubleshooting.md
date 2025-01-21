@@ -3,7 +3,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-# Troubleshoot NVIDIA RAG Blueprint
+# Troubleshoot AI Blueprint: RAG
 
 The following issues might arise when you work with the NVIDIA RAG Blueprint.
 
