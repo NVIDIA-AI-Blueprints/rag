@@ -107,7 +107,7 @@ services:
       # reflection llm
       REFLECTION_LLM: ${REFLECTION_LLM:-"mistralai/mixtral-8x22b-instruct-v0.1"}
       # reflection llm server url. If "", Nvidia hosted API is used
-      REFLECTION_LLM_SERVERURL: ${REFLECTION_LLM_SERVERURL-"http://nim-llm-mixtral-8x22b:8000"}
+      REFLECTION_LLM_SERVERURL: ${REFLECTION_LLM_SERVERURL-"nim-llm-mixtral-8x22b:8000"}
 
     ports:
       - "8081:8081"
