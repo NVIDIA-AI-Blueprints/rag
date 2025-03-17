@@ -517,6 +517,11 @@ To enable tracing and view the Zipkin or Grafana UI, follow these steps:
       Update the `values.yaml` file to enable the OpenTelemetry Collector and Zipkin:
 
       ```yaml
+      env:
+      # ... existing code ...
+      APP_TRACING_ENABLED: "True"
+
+      # ... existing code ...
       serviceMonitor:
       enabled: true
       opentelemetry-collector:
