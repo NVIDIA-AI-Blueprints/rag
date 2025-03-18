@@ -165,7 +165,7 @@ export DEFAULT_CONFIG=nemoguard_cloud
 export NIM_ENDPOINT_URL=https://integrate.api.nvidia.com/v1
 
 # Start only the guardrails microservice
-docker compose -f deploy/compose/docker-compose-nemo-guardrails.yaml up -d nemo-guardrails-microservice
+docker compose -f deploy/compose/docker-compose-nemo-guardrails.yaml up -d --no-deps nemo-guardrails-microservice
 ```
 
 **Note:** Before starting the cloud deployment, verify that the model names in the configuration file are correct:
