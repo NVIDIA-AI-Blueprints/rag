@@ -242,8 +242,8 @@ ingestor-server:
 
     nim-vlm-text-extraction:
       image:
-        repository: "nvcr.io/nvidia/nemo-microservices/nemoretriever-parse"
-        tag: "1.2.0ea"
+        repository: "nvcr.io/nim/nvidia/nemoretriever-parse"
+        tag: "1.2"
       deployed: false
 
     nim-vlm-image-captioning:
