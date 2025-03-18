@@ -430,11 +430,6 @@ def get_llm(**kwargs) -> LLM | SimpleChatModel:
 
     logger.info("Using %s as model engine for llm. Model name: %s", settings.llm.model_engine, kwargs.get('model'))
     if settings.llm.model_engine == "nvidia-ai-endpoints":
-        unused_params = [key for key in kwargs if key not in ['temperature', 'top_p', 'max_tokens']]
-        if unused_params:
-            logger.warning("The following parameters from kwargs are not supported: %s for %s",
-                           unused_params,
-                           kwargs.get('model'))
 
         # Use ChatOpenAI with guardrails if enabled
         # TODO Add the ChatNVIDIA implementation when available

@@ -21,6 +21,8 @@ The NeMo Guardrails models have specific hardware requirements:
 - **Llama 3.1 NemoGuard 8B Content Safety Model**: Requires 48 GB of GPU memory
 - **Llama 3.1 NemoGuard 8B Topic Control Model**: Requires 48 GB of GPU memory
 
+**Note:** You need two separate GPUs (2 x H100 or 2 x A100) for deployment, as each model must be deployed on its own dedicated GPU - one for the Content Safety model and another for the Topic Control model.
+
 NVIDIA developed and tested these microservices using H100 and A100 GPUs.
 
 For detailed hardware compatibility and support information:
@@ -60,6 +62,15 @@ After setting these environment variables, you must restart the RAG server for `
 docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d
 ```
 
+**Note:** For on-premises deployment, the default NIM service must be up and running. If you're unable to run the NIM service locally, you can use NVIDIA's cloud-hosted LLM by exporting the NIM endpoint URL:
+
+```bash
+# Use NVIDIA's cloud-hosted LLM
+export NIM_ENDPOINT_URL=https://integrate.api.nvidia.com/v1
+# Or provide your own custom NIM endpoint URL
+# export NIM_ENDPOINT_URL=<your-custom-nim-endpoint-url>
+```
+
 ---
 
 ### Step 2: Create Model Cache Directory
@@ -79,6 +90,27 @@ Set the model directory path:
 ```bash
 export MODEL_DIRECTORY=~/.cache/model-cache
 ```
+
+---
+
+### Step 3a: Check Available GPUs and Set GPU IDs
+
+Check your available GPUs and their IDs:
+
+```bash
+nvidia-smi
+```
+
+This will display all available GPUs with their IDs, memory usage, and utilization. Based on this information, you can export specific GPU IDs for the guardrails services:
+
+```bash
+# By default, the services use GPU IDs 7 and 6
+# Set these to appropriate values based on your system configuration
+export CONTENT_SAFETY_GPU_ID=0  # Choose GPU ID for content safety model
+export TOPIC_CONTROL_GPU_ID=1   # Choose GPU ID for topic control model
+```
+
+**Note:** Each model requires a dedicated GPU with at least 48GB of memory. Make sure to select GPUs with sufficient available memory.
 
 ---
 
@@ -149,7 +181,9 @@ Ensure that the model names in this file match the models available in your NVID
 ## Current Limitations
 
 - The Jailbreak detection model is currently not available. This feature will be added in future updates.
-- For cloud deployment, only the guardrails microservice is needed; content safety and topic control services are provided through NVIDIA's cloud infrastructure.
+- User queries which attempt to jailbreak the system (asking the bot to behave in a certain way) may not work as expected in the current version. These jailbreak attempts could be better addressed with the [NemoGuard-Jailbreak-Detect](https://build.nvidia.com/nvidia/nemoguard-jailbreak-detect) NIM Micro-service, which currently does not offer out-of-the-box support.
+- Both the content-safety and topic-control models are trained on single-turn datasets, meaning they don't handle multi-turn conversations as effectively. When the bot combines multiple queries and previous context, it may inconsistently flag certain phrases as safe or unsafe.
+- The current version of Guardrails is tuned to provide simple safe responses, such as "I'm sorry. I can't respond to that." More meaningful responses with enhanced caution notes will be available in future releases.
 
 ---
 
@@ -157,13 +191,15 @@ Ensure that the model names in this file match the models available in your NVID
 
 ### GPU Device ID Issues
 
-If you encounter GPU device errors, you can customize the GPU device IDs used by the guardrails services by setting these environment variables before starting the service:
+If you encounter GPU device errors, you can customize the GPU device IDs used by the guardrails services. By default, the services use GPUs 6 and 7, but you can set specific GPUs by setting these environment variables before starting the service:
 
 ```bash
-# Use specific GPUs for guardrail services (default is GPU 6 and 7)
-export CONTENT_SAFETY_GPU_ID=0
-export TOPIC_CONTROL_GPU_ID=1
+# Specify which GPUs to use for guardrail services
+export CONTENT_SAFETY_GPU_ID=0  # Default is GPU 0
+export TOPIC_CONTROL_GPU_ID=1   # Default is GPU 1
 ```
+
+This allows you to control which specific GPUs are assigned to each model in multi-GPU systems.
 
 ### Service Health Check
 
