@@ -28,6 +28,10 @@ This blueprint demonstrates how to set up a RAG solution that uses NVIDIA NIM an
 By default, this blueprint leverages locally-deployed NVIDIA NIM microservices to meet specific data governance and latency requirements.
 However, you can replace these models with your NVIDIA-hosted models available in the [NVIDIA API Catalog](https://build.nvidia.com).
 
+| :exclamation: Important |
+| :-----------------------|
+| Users running this blueprint with [NVIDIA AI Workbench](https://www.nvidia.com/en-us/deep-learning-ai/solutions/data-science/workbench/) should skip to the quickstart section [here](workbench/README.md#get-started)! |
+
 ## Key Features
 - Multimodal data extraction support with text, tables, charts, and infographics
 - Hybrid search with dense and sparse search
