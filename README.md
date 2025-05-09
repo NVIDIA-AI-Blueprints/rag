@@ -57,7 +57,7 @@ The following are the default components included in this blueprint:
 
 * NVIDIA NIM Microservices
    * Response Generation (Inference)
-      * [NIM of meta/llama-3.1-70b-instruct](https://build.nvidia.com/meta/llama-3_1-70b-instruct)
+      * [NIM of nvidia/llama-3.3-nemotron-super-49b-v1](https://build.nvidia.com/nvidia/llama-3_3-nemotron-super-49b-v1)
     * Retriever Models
       * [NIM of nvidia/llama-3_2-nv-embedqa-1b-v2]( https://build.nvidia.com/nvidia/llama-3_2-nv-embedqa-1b-v2)
       * [NIM of nvidia/llama-3_2-nv-rerankqa-1b-v2](https://build.nvidia.com/nvidia/llama-3_2-nv-rerankqa-1b-v2)
@@ -78,14 +78,19 @@ The following are the default components included in this blueprint:
 * Milvus Vector Database - accelerated with NVIDIA cuVS
 * Ingestion - [Nvidia-Ingest](https://github.com/NVIDIA/nv-ingest/tree/main) is leveraged for ingestion of files. NVIDIA-Ingest is a scalable, performance-oriented document content and metadata extraction microservice. Including support for parsing PDFs, Word and PowerPoint documents, it uses specialized NVIDIA NIM microservices to find, contextualize, and extract text, tables, charts and images for use in downstream generative applications.
 * File Types: File types supported by Nvidia-Ingest are supported by this blueprint. This includes `.pdf`, `.pptx`, `.docx` having images. Image captioning support is turned off by default to improve latency, so questions about images in documents will yield poor accuracy. Files with following extensions are supported:
-  - pdf
-  - docx
-  - pptx
-  - jpeg
-  - png
-  - svg
-  - tiff
-  - txt
+
+- `bmp`
+- `docx`
+- `html` (treated as text)
+- `jpeg`
+- `json` (treated as text)
+- `md` (treated as text)
+- `pdf`
+- `png`
+- `pptx`
+- `sh` (treated as text)
+- `tiff`
+- `txt`
 
 We provide Docker Compose scripts that deploy the microservices on a single node.
 When you are ready for a large-scale deployment,
@@ -146,8 +151,8 @@ Ubuntu 22.04 OS
 
 ### Hardware Requirements
 By default, this blueprint deploys the referenced NIM microservices locally. For this, you will require a minimum of:
- - 4xH100
- - 6xA100
+ - 2xH100
+ - 3xA100
 The blueprint can be also modified to use NIM microservices hosted by NVIDIA in [NVIDIA API Catalog](https://build.nvidia.com/explore/discover).
 
 Following are the hardware requirements for each component.
@@ -163,7 +168,7 @@ The overall hardware requirements depend on whether you
 See [Using self-hosted NVIDIA NIM microservices](./docs/quickstart.md#deploy-with-docker-compose).
 
 - **Pipeline operation**: 1x L40 GPU or similar recommended. It is needed for Milvus vector store database, as GPU acceleration is enabled by default.
-- **LLM NIM**: [Meta Llama 3.1 70B Instruct Support Matrix](https://docs.nvidia.com/nim/large-language-models/latest/support-matrix.html#llama-3-1-70b-instruct)
+- **LLM NIM**: [Nvidia llama-3.3-nemotron-super-49b-v1](https://docs.nvidia.com/nim/large-language-models/latest/supported-models.html#id83)
   - For improved paralleled performance, we recommend 8x or more H100s/A100s for LLM inference.
   - The pipeline can share the GPU with the LLM NIM, but it is recommended to have a separate GPU for the LLM NIM for optimal performance.
 - **Embedding NIM**: [Llama-3.2-NV-EmbedQA-1B-v2 Support Matrix](https://docs.nvidia.com/nim/nemo-retriever/text-embedding/latest/support-matrix.html#llama-3-2-nv-embedqa-1b-v2)
