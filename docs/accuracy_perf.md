@@ -65,7 +65,7 @@ These parameters allow fine-tuning RAG performance based on specific accuracy vs
 - **Customize PDF Splitting**
   - ✅ PDFs are extracted at the page level by default. When PDF splitting is enabled, chunk-based splitting is performed after page-level extraction for more granular content segmentation. Recommended for PDFs with pages with more text content
   - ❌ This may increase number of chunks and slightly slow down ingestion process
-  - Controlled by `APP_NVINGEST_ENABLE_PDF_SPLITTER` environment variable. Default value is `True`.
+  - Controlled by `APP_NVINGEST_ENABLEPDFSPLITTER` environment variable. Default value is `True`.
 
 - **Enable Batch mode Ingestion**
   - ✅ Enabling batch-based ingestion can help manage memory usage of `ingestor-server` more effectively.

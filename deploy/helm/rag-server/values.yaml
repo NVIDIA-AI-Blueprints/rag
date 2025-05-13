@@ -186,7 +186,7 @@ ingestor-server:
     # === NV-Ingest splitting configurations ===
     APP_NVINGEST_CHUNKSIZE: "512"  # Size of chunks for splitting
     APP_NVINGEST_CHUNKOVERLAP: "150"  # Overlap size for chunks
-    APP_NVINGEST_ENABLE_PDF_SPLITTER: "True"  # Enable PDF splitter
+    APP_NVINGEST_ENABLEPDFSPLITTER: "True"  # Enable PDF splitter
 
     # === Redis configurations ===
     REDIS_HOST: "rag-redis-master"
