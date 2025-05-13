@@ -13,10 +13,9 @@ The following issues might arise when you work with the NVIDIA RAG Blueprint.
 - The Blueprint responses can have significant latency when using [NVIDIA API Catalog cloud hosted models](quickstart.md#deploy-with-docker-compose).
 - The accuracy of the pipeline is optimized for certain file types like `.pdf`, `.txt`, `.docx`. The accuracy may be poor for other file types supported by NvIngest, since image captioning is disabled by default.
 - The `rag-playground` container needs to be rebuild if the `APP_LLM_MODELNAME`, `APP_EMBEDDINGS_MODELNAME` or `APP_RANKING_MODELNAME` environment variable values are changed.
-- Optional features reflection, nemoguardrails and image captioning are not available in helm based deployment.
 - The NeMo LLM microservice may take upto 5-6 mins to start for every deployment.
 - While trying to upload multiple files at the same time, there may be a timeout error `Error uploading documents: [Error: aborted] { code: 'ECONNRESET' }`. Developers are encouraged to use API's directly for bulk uploading, instead of using the sameple rag-playground. The default timeout is set to 1 hour from UI side, while uploading.
-- In case of failure while uploading files, error messages are not shown in the user interface of rag-playground. Developers are encouraged to check the `ingestor-server` logs for details.
+- In case of failure while uploading files, error messages may not be shown in the user interface of rag-playground. Developers are encouraged to check the `ingestor-server` logs for details.
 
 ## ERROR: pip's dependency resolver during container building
 ```
