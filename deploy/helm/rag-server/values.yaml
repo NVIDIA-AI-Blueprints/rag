@@ -17,7 +17,7 @@ ngcApiSecret:
 
 # RAG server config
 image:
-  repository: nvcr.io/nvstaging/blueprint/rag-server
+  repository: nvcr.io/nvidia/blueprint/rag-server
   tag: "2.1.0"
   pullPolicy: IfNotPresent
 
@@ -132,7 +132,7 @@ ingestor-server:
     name: "ngc-secret"
     create: false
   image:
-    repository: nvcr.io/nvstaging/blueprint/ingestor-server
+    repository: nvcr.io/nvidia/blueprint/ingestor-server
     tag: "2.1.0"
     pullPolicy: IfNotPresent
   server:
@@ -465,7 +465,7 @@ kube-prometheus-stack:
 frontend:
   enabled: true
   image:
-    repository: nvcr.io/nvstaging/blueprint/rag-playground
+    repository: nvcr.io/nvidia/blueprint/rag-playground
     pullPolicy: IfNotPresent
     tag: "2.1.0"
   imagePullSecret:
