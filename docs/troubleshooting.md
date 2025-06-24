@@ -16,6 +16,20 @@ The following issues might arise when you work with the NVIDIA RAG Blueprint.
 - The NeMo LLM microservice may take upto 5-6 mins to start for every deployment.
 - While trying to upload multiple files at the same time, there may be a timeout error `Error uploading documents: [Error: aborted] { code: 'ECONNRESET' }`. Developers are encouraged to use API's directly for bulk uploading, instead of using the sameple rag-playground. The default timeout is set to 1 hour from UI side, while uploading.
 - In case of failure while uploading files, error messages may not be shown in the user interface of rag-playground. Developers are encouraged to check the `ingestor-server` logs for details.
+- B200 GPUs are not supported for the following advanced features:
+  - Self-Reflection to improve accuracy
+  - Query rewriting to Improve accuracy of Multi-Turn Conversations
+  - Image captioning support for ingested documents
+  - NeMo Guardrails for guardrails at input/output
+  - VLM based inferencing in RAG
+  - PDF extraction with Nemoretriever Parse
+  For these features, please use H100 or A100 GPUs instead.
+- Sometimes when HTTP cloud NIM endpoints are used from `deploy/compose/.env`, the `nv-ingest-ms-runtime` still logs gRPC environment variables. Following log entries can be ignored.
+- Poor retrieval accuracy is observed with Milvus GPU indexing and search in B200 and A100. Switch to cpu based search and indexing.
+- Large audio files are not supported for ingestion due to processing constraints and LLM context-length limitations.
+- If one of the file in a bulk ingestion job is of type svg, which is a unsupported format, the full bulk ingestion job fails.
+- Complicated filter expressions with custom metadata while sending a query, are not supported from the sample user interface.
+- Due to a known issue with MIG support, currently the ingestion profile has been scaled down while deploying the chart with MIG slicing This affects the ingestion performance during bulk ingestion, specifically large bulk ingestion jobs might fail.
 
 ## ERROR: pip's dependency resolver during container building
 ```
@@ -123,51 +137,3 @@ kube-prometheus-stack:
       port: 9101 # Changed from 9100 to 9101
       targetPort: 9101  # Changed from 9100 to 9101
 ```
-
-## Out of Memory (OOM) Issues During Ingestion:
-
-If you encounter Out of Memory (OOM) errors during the ingestion process, enabling batch-based ingestion can help manage memory usage more effectively. This can be done by setting the `ENABLE_NV_INGEST_BATCH_MODE` flag to `True`. Additionally you may tweak the value of `NV_INGEST_FILES_PER_BATCH` for optimized memory usage
-
-### For Docker Compose Deployment
-
-1. Locate your `.env` file in the deployment directory and add or modify:
-   ```bash
-   export ENABLE_NV_INGEST_BATCH_MODE=True
-   ```
-
-2. If you're not using an `.env` file, you can modify the environment variable directly in your `docker-compose-ingestor-server.yaml` and restart the `ingestor-server` micro-service:
-   ```yaml
-   ingestor-server:
-     environment:
-       ENABLE_NV_INGEST_BATCH_MODE: "True"
-   ```
-
-### For Helm Deployment
-
-1. Edit your `rag-server/values.yaml` file and set the following parameter:
-   ```yaml
-   ingestor-server:
-     envVars:
-       ENABLE_NV_INGEST_BATCH_MODE: "True"
-   ```
-
-2. Upgrade your Helm release:
-   ```bash
-   helm upgrade rag https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.1.0.tgz -f rag-server/values.yaml -n rag
-   ```
-
-## Missing Documents in Milvus Vector Database
-
-If you notice that some documents are missing from your ingested dataset in Milvus, try the following:
-
-1. Ensure batch mode ingestion is enabled by setting:
-   ```bash
-   export ENABLE_NV_INGEST_BATCH_MODE=True
-   ```
-
-2. If batch mode is already enabled but documents are still missing, try reducing the batch size by lowering the value of:
-   ```bash
-   export NV_INGEST_FILES_PER_BATCH=50  # Default is 128
-   ```
-
-This helps prevent memory issues during ingestion that could cause documents to be dropped. The optimal batch size will depend on your available system resources and document characteristics.

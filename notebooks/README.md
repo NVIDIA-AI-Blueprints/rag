@@ -7,6 +7,7 @@ This repository contains Jupyter notebooks demonstrating the usage of NVIDIA RAG
 1. **`ingestion_api_usage.ipynb`**: Demonstrates how to interact with the NVIDIA RAG ingestion service, showcasing how to upload and process documents for retrieval-augmented generation (RAG).
 2. **`retriever_api_usage.ipynb`**: Illustrates the use of the NVIDIA RAG retriever service, highlighting different querying techniques and retrieval strategies.
 3. **`launchable.ipynb`**: A deployment-ready notebook intended for execution within the brev.dev environment.
+4. **`rag_library_usage.ipynb`**: Demonstrates native usage of the NVIDIA RAG Python client, including environment setup, document ingestion, collection management, and querying. This notebook provides end-to-end API usage examples for interacting directly with the RAG system from Python, covering both ingestion and retrieval workflows.
 
 ## Setting Up the Environment
 To run these notebooks in a Python virtual environment, follow the steps below:

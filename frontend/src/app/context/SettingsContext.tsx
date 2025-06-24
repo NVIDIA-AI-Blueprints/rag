@@ -17,6 +17,12 @@
 
 import { createContext, useContext, useState, ReactNode } from "react";
 
+export interface MetadataField {
+  name: string;
+  type: "string" | "datetime";
+  optional?: boolean;
+}
+
 interface SettingsContextType {
   temperature: number;
   topP: number;
@@ -25,6 +31,8 @@ interface SettingsContextType {
   confidenceScoreThreshold: number;
   useGuardrails: boolean;
   includeCitations: boolean;
+  metadataSchema: MetadataField[];
+  setMetadataSchema: (schema: MetadataField[]) => void;
   setTemperature: (value: number) => void;
   setTopP: (value: number) => void;
   setVdbTopK: (value: number) => void;
@@ -54,6 +62,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const [confidenceScoreThreshold, setConfidenceScoreThresholdState] = useState(DEFAULT_CONFIDENCE_THRESHOLD);
   const [useGuardrails, setUseGuardrails] = useState(false);
   const [includeCitations, setIncludeCitations] = useState(true);
+  const [metadataSchema, setMetadataSchema] = useState<MetadataField[]>([]);
 
   const setTemperature = (value: number) => {
     setTemperatureState(Math.max(MIN_TEMPERATURE, value));
@@ -91,6 +100,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         confidenceScoreThreshold,
         useGuardrails,
         includeCitations,
+        metadataSchema,
+        setMetadataSchema,
         setTemperature,
         setTopP,
         setVdbTopK,

@@ -1,10 +1,16 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: rag-server
+  name: {{ .Values.appName }}
+  labels:
+    app.kubernetes.io/name: {{ .Values.appName }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version }}
 spec:
   selector:
-    app: rag-server
+    app: {{ .Values.appName }}
   ports:
     - protocol: TCP
       port: 8081

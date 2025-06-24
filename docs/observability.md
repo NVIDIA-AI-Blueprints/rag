@@ -1,3 +1,8 @@
+<!--
+  SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+  SPDX-License-Identifier: Apache-2.0
+-->
+
 # Observability Setup for RAG Server
 
 This guide provides step-by-step instructions to enable **tracing and observability** for the **RAG Server** using **OpenTelemetry (OTel) Collector** and **Zipkin**.

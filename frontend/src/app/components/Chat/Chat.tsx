@@ -21,21 +21,22 @@ import RightSidebar from "../RightSidebar/RightSidebar";
 import MessageInput from "./MessageInput";
 import { v4 as uuidv4 } from "uuid";
 import { useApp } from "../../context/AppContext";
-import { API_CONFIG } from "@/app/config/api";
 import { marked } from "marked";
 import { useChatStream } from "../../hooks/useChatStream";
 import { ChatMessage, GenerateRequest } from "@/types/chat";
 import { useSettings } from "../../context/SettingsContext";
 import { useSidebar } from "../../context/SidebarContext";
+import { Filter } from "./FilterInput";
 
 export default function Chat() {
   const { activePanel, toggleSidebar, setActiveCitations } = useSidebar();
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [filters, setFilters] = useState<Filter[]>([]);
   const { streamState, processStream, startStream, resetStream, stopStream } =
     useChatStream();
 
-  const { selectedCollection } = useApp();
+  const { selectedCollections } = useApp(); // updated
   const {
     temperature,
     topP,
@@ -144,24 +145,30 @@ export default function Chat() {
   });
 
   const createRequestBody = (userMessage: ChatMessage) => {
-    // Create base request body
     const requestBody: GenerateRequest = {
       messages: messages.concat(userMessage).map((msg) => ({
         role: msg.role,
         content: msg.content,
       })),
-      collection_name: selectedCollection || "",
+      collection_names: selectedCollections,
       temperature,
       top_p: topP,
       reranker_top_k: rerankerTopK,
       vdb_top_k: vdbTopK,
       confidence_threshold: confidenceScoreThreshold,
-      use_knowledge_base: !!selectedCollection,
+      use_knowledge_base: selectedCollections.length > 0,
       enable_citations: includeCitations,
       enable_guardrails: useGuardrails,
     };
 
-    // Only include model parameters if the environment variables are set
+    if (filters.length > 0) {
+      requestBody.filter_expr = filters
+        .map(
+          (f) => `content_metadata["${f.field}"] ${f.operator} "${f.value}"`
+        )
+        .join(" or ");
+    }
+
     if (process.env.NEXT_PUBLIC_MODEL_NAME) {
       requestBody.model = process.env.NEXT_PUBLIC_MODEL_NAME;
     }
@@ -257,6 +264,8 @@ export default function Chat() {
                 onAbort={stopStream}
                 isStreaming={streamState.isTyping}
                 onReset={handleReset}
+                filters={filters}
+                setFilters={setFilters}
               />
             </div>
           </div>

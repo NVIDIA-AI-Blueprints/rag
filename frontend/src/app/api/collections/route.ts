@@ -13,10 +13,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { NextResponse, NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import {
   createErrorResponse,
-  validateRequiredFields,
 } from "../utils/api-utils";
 import { API_CONFIG, buildQueryUrl } from "@/app/config/api";
 
@@ -29,7 +28,7 @@ export async function GET(request: NextRequest) {
     );
 
     const response = await fetch(url);
-
+    
     if (!response.ok) {
       throw new Error(`Failed to fetch collections: ${response.statusText}`);
     }
@@ -38,38 +37,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(data);
   } catch (error) {
     console.error("Error fetching collections:", error);
-    return createErrorResponse(error);
-  }
-}
-
-// POST /collections
-export async function POST(request: NextRequest) {
-  try {
-    const { collection_names } = await request.json();
-
-    const url = buildQueryUrl(
-      `${API_CONFIG.VDB.BASE_URL}${API_CONFIG.VDB.ENDPOINTS.COLLECTIONS.CREATE}`,
-      {}
-    );
-
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(
-        Array.isArray(collection_names) ? collection_names : [collection_names]
-      ),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to create collection: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    return NextResponse.json(data);
-  } catch (error) {
-    console.error("Error creating collection:", error);
     return createErrorResponse(error);
   }
 }
@@ -101,7 +68,7 @@ export async function DELETE(request: NextRequest) {
     const data = await response.json();
     return NextResponse.json(data);
   } catch (error) {
-    console.error("Error deleting collection:", error);
+    console.error("Error deleting collections:", error);
     return createErrorResponse(error);
   }
 }

@@ -15,15 +15,31 @@
 
 import { BaseResponse, VDBConfig } from "./common";
 
+export type DocumentMetadata = Record<string, string>;
+
+export interface UIMetadataField {
+  name: string;
+  type: string;
+  optional?: boolean;
+}
+
+export interface APIMetadataField {
+  name: string;
+  type: string;
+}
+
 export interface Collection {
   collection_name: string;
   document_count: number;
   index_count: number;
+  embedding_dimension: number;
+  metadata_schema?: APIMetadataField[];
 }
 
 export interface CollectionResponse {
   collection_name: string;
   num_entities: number;
+  metadata_schema?: APIMetadataField[];
 }
 
 export interface CollectionsAPIResponse extends BaseResponse {

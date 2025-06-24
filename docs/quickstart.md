@@ -8,6 +8,7 @@
 Use the following documentation to get started with the NVIDIA RAG Blueprint.
 
 - [Obtain an API Key](#obtain-an-api-key)
+- [Interact using native python APIs](#interact-using-native-python-apis)
 - [Deploy With Docker Compose](#deploy-with-docker-compose)
 - [Deploy With Helm Chart](#deploy-with-helm-chart)
 - [Data Ingestion](#data-ingestion)
@@ -34,6 +35,15 @@ export NGC_API_KEY="<your-ngc-api-key>"
 ```
 
 
+## Interact using native python APIs
+
+You can interact with and deploy the NVIDIA RAG Blueprint directly from Python using the provided Jupyter notebook. This approach is ideal for users who prefer a programmatic interface for setup, ingestion, and querying, or for those who want to automate workflows and integrate with other Python tools.
+
+- **Notebook:** [rag_library_usage.ipynb](../notebooks/rag_library_usage.ipynb)
+
+The notebook demonstrates environment setup, document ingestion, collection management, and querying using the NVIDIA RAG Python client. Follow the cells in the notebook for an end-to-end example of using the RAG system natively from Python.
+
+
 ## Deploy With Docker Compose
 
 Use these procedures to deploy with Docker Compose for a single node deployment. Alternatively, you can [Deploy With Helm Chart](#deploy-with-helm-chart) to deploy on a Kubernetes cluster.
@@ -43,7 +53,7 @@ For both retrieval and ingestion services, by default all the models are deploye
 
 - Start the Microservices
   - [Using on-prem models](#start-using-on-prem-models)
-  - [Using Nvidia hosted models](#start-using-nvidia-hosted-models)
+  - [Using NVIDIA hosted models](#start-using-nvidia-hosted-models)
 
 ### Prerequisites
 
@@ -64,14 +74,14 @@ For both retrieval and ingestion services, by default all the models are deploye
 
 4. Some containers with are enabled with GPU acceleration, such as Milvus and NVIDIA NIMS deployed on-prem. To configure Docker for GPU-accelerated containers, [install](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html), the NVIDIA Container Toolkit
 
-5. Ensure you meet [the hardware requirements if you are deploying models on-prem](../README.md#hardware-requirements).
+5. Ensure you meet [the hardware requirements if you are deploying models on-prem](./support-matrix.md).
 
 
 ### Start using on-prem models
 
 Use the following procedure to start all containers needed for this blueprint. This launches the ingestion services followed by the rag services and all of its dependent NIMs on-prem.
 
-1. Fulfill the [prerequisites](#prerequisites). Ensure you meet [the hardware requirements](../README.md#hardware-requirements).
+1. Fulfill the [prerequisites](#prerequisites). Ensure you meet [the hardware requirements](./support-matrix.md).
 
 2. Create a directory to cache the models and export the path to the cache as an environment variable.
 
@@ -111,7 +121,7 @@ Use the following procedure to start all containers needed for this blueprint. T
 
    - The nemo LLM service may take upto 30 mins to start for the first time as the model is downloaded and cached. The models are downloaded and cached in the path specified by `MODEL_DIRECTORY`. Subsequent deployments will take 2-5 mins to startup based on the GPU profile.
 
-   - The default configuration allocates one GPU (GPU ID 1) to `nim-llm-ms` which defaults to minimum GPUs needed for H100 profile. If you are deploying the solution on A100, please allocate 2 available GPUs by exporting below env variable before launching:
+   - The default configuration allocates one GPU (GPU ID 1) to `nim-llm-ms` which defaults to minimum GPUs needed for H100 or B200 profile. If you are deploying the solution on A100, please allocate 2 available GPUs by exporting below env variable before launching:
      ```bash
      export LLM_MS_GPU_ID=1,2
      ```
@@ -146,6 +156,12 @@ Use the following procedure to start all containers needed for this blueprint. T
    By default GPU accelerated Milvus DB is deployed. You can choose the GPU ID to be allocated using below env variable.
    ```bash
    VECTORSTORE_GPU_DEVICE_ID=0
+   ```
+
+   For B200 and A100 GPUs, use Milvus CPU indexing due to known retrieval accuracy issues with Milvus GPU indexing and search. Export following environment variables to disable Milvus GPU ingexing and search.
+   ```bash
+   export APP_VECTORSTORE_ENABLEGPUSEARCH=False
+   export APP_VECTORSTORE_ENABLEGPUINDEX=False
    ```
 
 6. Start the ingestion containers from the repo root. This pulls the prebuilt containers from NGC and deploys it on your system.
@@ -218,7 +234,7 @@ Use the following procedure to start all containers needed for this blueprint. T
 
 **📝 Notes:**
 
-1. A single NVIDIA A100-80GB or H100-80GB GPU can be used to start non-LLM NIMs (nemoretriever-embedding-ms, nemoretriever-ranking-ms, and ingestion services like page-elements, paddle, graphic-elements, and table-structure) for ingestion and RAG workflows. You can control which GPU is used for each service by setting these environment variables in `deploy/compose/.env` file before launching:
+1. A single NVIDIA A100-80GB or H100-80GB, B200 GPU can be used to start non-LLM NIMs (nemoretriever-embedding-ms, nemoretriever-ranking-ms, and ingestion services like page-elements, paddle, graphic-elements, and table-structure) for ingestion and RAG workflows. You can control which GPU is used for each service by setting these environment variables in `deploy/compose/.env` file before launching:
    ```bash
    EMBEDDING_MS_GPU_ID=0
    RANKING_MS_GPU_ID=0
@@ -280,12 +296,19 @@ Use the following procedure to start all containers needed for this blueprint. T
 
    **📝 Note:**
    When using NVIDIA hosted endpoints, you may encounter rate limiting with larger file ingestions (>10 files).
-   Setting `export ENABLE_NV_INGEST_BATCH_MODE=True` in your terminal mitigates this by processing files in smaller batches.
-   Additionally you may tweak the value of `export NV_INGEST_FILES_PER_BATCH=100` for optimized memory usage.
 
 3. Start the vector db containers from the repo root.
    ```bash
    docker compose -f deploy/compose/vectordb.yaml up -d
+   ```
+   [!NOTE]
+   If you don't have a GPU available, you can switch to CPU-only Milvus by following the instructions in [milvus-configuration.md](./milvus-configuration.md).
+
+   [!TIP]
+   For B200 and A100 GPUs, use Milvus CPU indexing due to known retrieval accuracy issues with Milvus GPU indexing and search. Export following environment variables to disable Milvus GPU ingexing and search.
+   ```bash
+   export APP_VECTORSTORE_ENABLEGPUSEARCH=False
+   export APP_VECTORSTORE_ENABLEGPUINDEX=False
    ```
 
 4. Start the ingestion containers from the repo root. This pulls the prebuilt containers from NGC and deploys it on your system.
@@ -363,6 +386,7 @@ Use these procedures to deploy with Helm Chart to deploy on a Kubernetes cluster
   - The total GPU requirement for deploying this chart is as follows:
     - 8xH100-80GB
     - 9xA100-80GB
+    - 8xB200
 
 - Verify that you have the NGC CLI available on your client machine. You can download the CLI from <https://ngc.nvidia.com/setup/installers/cli>.
 
@@ -421,12 +445,67 @@ kubectl create namespace rag
 Run the following command to install the RAG server with the Ingestor Server and Frontend enabled:
 
 ```sh
-helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.1.0.tgz \
+helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.2.0.tgz \
 --username '$oauthtoken' \
 --password "${NGC_API_KEY}" \
 --set imagePullSecret.password=$NGC_API_KEY \
 --set ngcApiSecret.password=$NGC_API_KEY
 ```
+
+[!NOTE]
+For B200 based deployment, you need to add an environment variable to the `nvidia-nim-llama-32-nv-embedqa-1b-v2` deployment. 
+Due to a known issue in the chart, we currently need to manually edit the deployment and add this env variable.
+
+1. Edit the embedding deployment with the command below.
+
+```bash
+kubectl edit deployment `rag-nvidia-nim-llama-32-nv-embedqa-1b-v2`  -n rag
+```
+
+2. Add the env variable `NIM_TRT_ENGINE_HOST_CODE_ALLOWED` and set its value to `1`.
+
+```yaml
+spec:
+      containers:
+      - env:
+        - name: NIM_CACHE_PATH
+          value: /opt/nim/.cache
+        - name: NGC_API_KEY
+          valueFrom:
+            secretKeyRef:
+              key: NGC_API_KEY
+              name: ngc-api
+        - name: NIM_TRT_ENGINE_HOST_CODE_ALLOWED
+          value: "1"
+```
+
+[!TIP]
+For B200 and A100 GPUs, it is recommended to use CPU indexing and search for better response. You can set this by either:
+
+1. Using helm set command:
+```sh
+helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.2.0.tgz \
+--username '$oauthtoken' \
+--password "${NGC_API_KEY}" \
+--set imagePullSecret.password=$NGC_API_KEY \
+--set ngcApiSecret.password=$NGC_API_KEY \
+--set ingestor-server.envVars.APP_VECTORSTORE_ENABLEGPUINDEX=False \
+--set ingestor-server.envVars.APP_VECTORSTORE_ENABLEGPUSEARCH=False
+```
+
+2. Or by modifying values.yaml:
+```yaml
+ingestor-server:
+  envVars:
+    APP_VECTORSTORE_ENABLEGPUINDEX: "False"
+    APP_VECTORSTORE_ENABLEGPUSEARCH: "False"
+```
+
+> **Note:** If you're using the source Helm chart, make these changes in `deploy/helm/rag-server/values.yaml`.
+
+> [!NOTE]
+> To deploy the Helm chart within 3xH100 using MIG slicing, see [RAG Deployment with MIG Support](./mig-deployment.md).
+
 
 #### Deploying E2E From the Source (Optional)
 
@@ -439,7 +518,6 @@ helm repo add nvidia-nim https://helm.ngc.nvidia.com/nim/nvidia/ --username='$oa
 helm repo add nim https://helm.ngc.nvidia.com/nim/ --username='$oauthtoken' --password=$NGC_API_KEY
 helm repo add nemo-microservices https://helm.ngc.nvidia.com/nvidia/nemo-microservices --username='$oauthtoken' --password=$NGC_API_KEY
 helm repo add baidu-nim https://helm.ngc.nvidia.com/nim/baidu --username='$oauthtoken' --password=$NGC_API_KEY
-helm repo add nemo-microservices https://helm.ngc.nvidia.com/nvidia/nemo-microservices/ --username='$oauthtoken' --password=$NGC_API_KEY
 ```
 
 ##### Updating Helm Chart Dependencies
@@ -556,7 +634,7 @@ rag-zipkin                          ClusterIP      <none>        9411/TCP       
 #### Patching the deployment
 For patching an existing deployment, modify `values.yaml` with required changes and run
 ```sh
-helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.1.0.tgz \
+helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.2.0.tgz \
 --username '$oauthtoken' \
 --password "${NGC_API_KEY}" \
 --set imagePullSecret.password=$NGC_API_KEY \
@@ -598,7 +676,7 @@ To enable tracing and view the Zipkin or Grafana UI, follow these steps:
 
       ```sh
       helm uninstall rag -n rag
-      helm install rag -n rag https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.1.0.tgz \
+      helm install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.2.0.tgz \
       --username '$oauthtoken' \
       --password "${NGC_API_KEY}" \
       --set imagePullSecret.password=$NGC_API_KEY \
@@ -669,7 +747,7 @@ helm uninstall rag -n rag
 Run the following command to install the RAG Server:
 
 ```sh
-helm upgrade --install rag https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.1.0.tgz -n rag \
+helm upgrade --install rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.2.0.tgz -n rag \
   --username '$oauthtoken' \
   --password "${NGC_API_KEY}" \
   --set imagePullSecret.password=$NGC_API_KEY \
@@ -747,12 +825,14 @@ To use a custom Milvus endpoint, you need to update the `APP_VECTORSTORE_URL` en
    Redeploy the Helm chart to apply these changes:
 
    ```sh
-   helm upgrade rag https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.1.0.tgz -f rag-server/values.yaml -n rag
+   helm upgrade rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.2.0.tgz -f rag-server/values.yaml -n rag
    ```
 
 #### (Optional) Customizing the RAG Server UI
 
-`NOTE:` Current Frontend doesnt't support dynamic variables, current default ones are
+Currently, Frontend doesn't support dynamic variables.
+The default variables and values are the following:
+
    ```
       name: NEXT_PUBLIC_MODEL_NAME
       value: "meta/llama-3.1-70b-instruct"
@@ -817,7 +897,7 @@ To use a custom Milvus endpoint, you need to update the `APP_VECTORSTORE_URL` en
    - Run the following command to install the RAG server with the Ingestor Server and New Frontend with updated `<new-image-repository>` and `<new-image-tag>`:
 
       ```sh
-      helm install rag -n rag https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.1.0.tgz \
+      helm install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.2.0.tgz \
       --username '$oauthtoken' \
       --password "${NGC_API_KEY}" \
       --set imagePullSecret.password=$NGC_API_KEY \
@@ -875,12 +955,30 @@ Follow the cells in the notebook to ingest the PDF files from the data/dataset f
 - [Customize LLM Parameters at Runtime](llm-params.md)
 - [Support Multi-Turn Conversations](multiturn.md)
 - [Enable NeMo Guardrails for Content Safety](nemo-guardrails.md)
+- [Query Across Multiple Collections](multi_collection_retrieval.md)
 - [Troubleshoot NVIDIA RAG Blueprint](troubleshooting.md)
 - [Understand latency breakdowns and debug errors using observability services](observability.md)
 - [Enable Self-Reflection to improve accuracy](self-reflection.md)
 - [Enable Query rewriting to Improve accuracy of Multi-Turn Conversations](query_rewriter.md)
 - [Enable Image captioning support for ingested documents](image_captioning.md)
 - [Enable hybrid search for milvus](hybrid_search.md)
+- [Add custom metadata while uploaded documents](custom-metadata.md)
 - [Enable low latency, low compute text only pipeline](text_only_ingest.md)
+- [Enable VLM based inferencing in RAG](docs/vlm.md)
+- [Enable PDF extraction with Nemoretriever Parse](docs/nemoretriever-parse-extraction.md)
+- [Enable standalone NV-Ingest for direct document ingestion without ingestor server](docs/nv-ingest-standalone.md)
 - Explore [best practices for enhancing accuracy or latency](accuracy_perf.md)
 - Explore [migration guide](migration_guide.md) if you are migrating from rag v1.0.0 to this version.
+
+> **⚠️ Important B200 Limitation Notice:**
+>
+> B200 GPUs are **not supported** for the following advanced features:
+> - Self-Reflection to improve accuracy
+> - Query rewriting to Improve accuracy of Multi-Turn Conversations
+> - Image captioning support for ingested documents
+> - NeMo Guardrails for guardrails at input/output
+> - VLM based inferencing in RAG
+> - PDF extraction with Nemoretriever Parse
+> - Poor retrieval accuracy is observed with Milvus GPU indexing and search.
+>
+> For these features, please use H100 or A100 GPUs instead.

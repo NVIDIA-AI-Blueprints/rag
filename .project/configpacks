@@ -1,0 +1,10 @@
+*defaults.ContainerUser
+*bash.PreBuild
+*defaults.EnvVars
+*defaults.Readme
+*defaults.Entrypoint
+*apt.PackageManager
+*bash.PreLanguage
+*python.PipPackageManager
+*bash.PostBuild
+*jupyterlab.JupyterLab

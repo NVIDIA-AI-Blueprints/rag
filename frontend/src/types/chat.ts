@@ -50,7 +50,7 @@ export interface GenerateRequest {
   vdb_top_k?: number;
   confidence_threshold?: number;
   vdb_endpoint?: string;
-  collection_name: string;
+  collection_names: string[];
   enable_query_rewriting?: boolean;
   enable_reranker?: boolean;
   enable_citations?: boolean;
@@ -62,4 +62,5 @@ export interface GenerateRequest {
   reranker_model?: string;
   reranker_endpoint?: string;
   stop?: string[];
+  filter_expr?: string;
 }

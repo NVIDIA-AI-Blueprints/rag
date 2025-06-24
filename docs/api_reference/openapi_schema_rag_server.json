@@ -240,6 +240,121 @@
           }
         }
       }
+    },
+    "/summary": {
+      "get": {
+        "tags": [
+          "Retrieval APIs"
+        ],
+        "summary": "Get Summary",
+        "description": "Retrieve document summary from the collection.\n\nThis endpoint fetches the pre-generated summary of a document. It supports both\nblocking and non-blocking behavior through the 'wait' parameter.\n\nArgs:\n    request (Request): FastAPI request object\n    collection_name (str): Name of the document collection\n    file_name (str): Name of the file to get summary for\n    blocking (bool, optional): If True, waits for summary generation. Defaults to False\n    timeout (int, optional): Maximum time to wait in seconds. Defaults to 300\n\nReturns:\n    JSONResponse: Contains either:\n        - Summary data: {\"summary\": str, \"file_name\": str, \"collection_name\": str}\n        - Error message: {\"message\": str, \"status\": str}\n\nStatus Codes:\n    404: Summary not found (non-blocking mode)\n    408: Timeout waiting for summary (blocking mode)\n    499: Client Closed Request\n    500: Internal server error",
+        "operationId": "get_summary_summary_get",
+        "parameters": [
+          {
+            "name": "collection_name",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Collection Name"
+            }
+          },
+          {
+            "name": "file_name",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "File Name"
+            }
+          },
+          {
+            "name": "blocking",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Blocking"
+            }
+          },
+          {
+            "name": "timeout",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 300,
+              "title": "Timeout"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SummaryResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Summary not found (non-blocking mode)",
+            "content": {
+              "application/json": {
+                "example": {
+                  "message": "Summary for example.pdf not found. Set wait=true to wait for generation.",
+                  "status": "pending"
+                }
+              }
+            }
+          },
+          "408": {
+            "description": "Request timeout (blocking mode)",
+            "content": {
+              "application/json": {
+                "example": {
+                  "message": "Timeout waiting for summary generation for example.pdf",
+                  "status": "timeout"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
+          "499": {
+            "description": "Client Closed Request",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "The client cancelled the request"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "example": {
+                  "message": "Error occurred while getting summary.",
+                  "error": "Internal server error details"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -445,7 +560,7 @@
             "pattern": "[\\s\\S]*",
             "title": "Query",
             "description": "The content or keywords to search for within documents.",
-            "default": "Tell me about robert frost's poems"
+            "default": "Tell me something interesting"
           },
           "reranker_top_k": {
             "type": "integer",
@@ -477,7 +592,19 @@
             "pattern": "[\\s\\S]*",
             "title": "Collection Name",
             "description": "Name of collection to be used for searching document.",
-            "default": "multimodal_data"
+            "default": "",
+            "deprecated": true
+          },
+          "collection_names": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Collection Names",
+            "description": "Name of the collections in the vector database.",
+            "default": [
+              "multimodal_data"
+            ]
           },
           "messages": {
             "items": {
@@ -535,6 +662,14 @@
             "title": "Reranker Endpoint",
             "description": "Endpoint URL for the reranker model server.",
             "default": "nemoretriever-ranking-ms:8000"
+          },
+          "filter_expr": {
+            "type": "string",
+            "maxLength": 100,
+            "pattern": "[\\s\\S]*",
+            "title": "Filter Expr",
+            "description": "Filter expression to filter the retrieved documents from Milvus collection.",
+            "default": ""
           }
         },
         "type": "object",
@@ -749,7 +884,19 @@
             "pattern": "[\\s\\S]*",
             "title": "Collection Name",
             "description": "Name of collection to be used for inference.",
-            "default": "multimodal_data"
+            "default": "",
+            "deprecated": true
+          },
+          "collection_names": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Collection Names",
+            "description": "Name of the collections in the vector database.",
+            "default": [
+              "multimodal_data"
+            ]
           },
           "enable_query_rewriting": {
             "type": "boolean",
@@ -775,13 +922,19 @@
             "description": "Enable or disable citations as part of response.",
             "default": true
           },
+          "enable_vlm_inference": {
+            "type": "boolean",
+            "title": "Enable Vlm Inference",
+            "description": "Enable or disable VLM inference.",
+            "default": false
+          },
           "model": {
             "type": "string",
             "maxLength": 4096,
             "pattern": "[\\s\\S]*",
             "title": "Model",
             "description": "Name of NIM LLM model to be used for inference.",
-            "default": "nvdev/nvidia/llama-3.3-nemotron-super-49b-v1"
+            "default": "nvidia/llama-3.3-nemotron-super-49b-v1"
           },
           "llm_endpoint": {
             "type": "string",
@@ -832,6 +985,27 @@
             "description": "Endpoint URL for the reranker model server.",
             "default": "nemoretriever-ranking-ms:8000"
           },
+          "vlm_model": {
+            "type": "string",
+            "maxLength": 256,
+            "title": "Vlm Model",
+            "description": "Name of the VLM model used for inference.",
+            "default": "nvidia/llama-cosmos-nemotron-8b-instruct"
+          },
+          "vlm_endpoint": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2048
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vlm Endpoint",
+            "description": "Endpoint URL for the VLM model server.",
+            "default": "http://vlm-ms:8000/v1"
+          },
           "stop": {
             "items": {
               "type": "string",
@@ -842,6 +1016,14 @@
             "title": "Stop",
             "description": "A string or a list of strings where the API will stop generating further tokens.The returned text will not contain the stop sequence.",
             "default": []
+          },
+          "filter_expr": {
+            "type": "string",
+            "maxLength": 100,
+            "pattern": "[\\s\\S]*",
+            "title": "Filter Expr",
+            "description": "Filter expression to filter the retrieved documents from Milvus collection.",
+            "default": ""
           }
         },
         "type": "object",
@@ -929,6 +1111,12 @@
             "title": "Location Max Dimensions",
             "description": "Maximum dimensions of the document",
             "default": []
+          },
+          "content_metadata": {
+            "type": "object",
+            "title": "Content Metadata",
+            "description": "Metadata about the content",
+            "default": {}
           }
         },
         "type": "object",
@@ -966,7 +1154,8 @@
               "image",
               "text",
               "table",
-              "chart"
+              "chart",
+              "audio"
             ],
             "title": "Document Type",
             "description": "Type of document content",
@@ -1050,6 +1239,43 @@
         ],
         "title": "StorageHealthInfo",
         "description": "Health info specific to object storage services"
+      },
+      "SummaryResponse": {
+        "properties": {
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "description": "Message of the summary",
+            "default": ""
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "description": "Status of the summary",
+            "default": ""
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary",
+            "description": "Summary of the document",
+            "default": ""
+          },
+          "file_name": {
+            "type": "string",
+            "title": "File Name",
+            "description": "Name of the document",
+            "default": ""
+          },
+          "collection_name": {
+            "type": "string",
+            "title": "Collection Name",
+            "description": "Name of the collection",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "SummaryResponse",
+        "description": "Represents a summary of a document."
       },
       "Usage": {
         "properties": {

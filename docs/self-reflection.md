@@ -1,3 +1,8 @@
+<!--
+  SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+  SPDX-License-Identifier: Apache-2.0
+-->
+
 # Enable Self-Reflection
 
 The RAG Blueprint supports self-reflection capabilities to improve response quality through two key mechanisms:
@@ -37,6 +42,9 @@ The reflection feature supports multiple deployment options:
 2. Verify you have sufficient GPU resources:
    - **Required**: 8x A100 80GB or H100 80GB GPUs for optimal latency-optimized deployment
    - For detailed GPU requirements and supported model configurations, refer to the [NVIDIA NIM documentation](https://docs.nvidia.com/nim/large-language-models/latest/supported-models.html#mixtral-8x22b-instruct-v0-1).
+
+   [!NOTE]
+   The Mixtral 8x22B Instruct model is not supported on NVIDIA B200 GPUs. Relection will not function on B200 systems with this model.
 
 ### Deployment Steps
 
@@ -230,7 +238,7 @@ You can enable self-reflection through Helm when you deploy the RAG Blueprint.
    Follow the steps from [Quick Start Helm Deployment](./quickstart.md#deploy-with-helm-chart) and run:
 
    ```bash
-   helm install rag -n rag https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.1.0.tgz \
+   helm install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.2.0.tgz \
      --username '$oauthtoken' \
      --password "${NGC_API_KEY}" \
      --set imagePullSecret.password=$NGC_API_KEY \
@@ -291,4 +299,4 @@ You can enable self-reflection through Helm when you deploy the RAG Blueprint.
   - Requires significant GPU resources (8x A100/H100 GPUs recommended)
   - Initial model download time may vary based on network bandwidth
 
-For more details on implementation, see the [reflection.py](../src/reflection.py) source code.
+For more details on implementation, see the [reflection.py](../src/nvidia_rag/rag_server/reflection.py) source code.

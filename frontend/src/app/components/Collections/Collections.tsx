@@ -15,7 +15,7 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import Image from "next/image";
 import NewCollectionModal from "./NewCollectionModal";
 import CollectionItem from "./CollectionItem";
@@ -24,15 +24,19 @@ import AddSourceModal from "./AddSourceModal";
 import { useApp } from "../../context/AppContext";
 import { CollectionResponse } from "@/types/collections";
 import { DocumentResponse } from "@/types/documents";
+import React from "react";
 
 export default function Collections() {
   // State and Context
   const {
     collections,
-    selectedCollection,
-    setSelectedCollection,
+    selectedCollections,
+    setSelectedCollections,
     setCollections,
+    onDocumentsUpdated,
   } = useApp();
+  const selectedCollection = selectedCollections[0] || null;
+
   const [searchQuery, setSearchQuery] = useState("");
   const [isNewCollectionModalOpen, setIsNewCollectionModalOpen] =
     useState(false);
@@ -42,17 +46,70 @@ export default function Collections() {
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingCollections, setIsLoadingCollections] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [modalCollectionName, setModalCollectionName] = useState("");
 
   // Data Fetching
   useEffect(() => {
     fetchCollections();
   }, [setCollections]);
 
+  // Define fetchDocuments with useCallback to avoid recreating it in each render
+  const fetchDocuments = useCallback(async () => {
+    if (!selectedCollection) return;
+
+    try {
+      // Only set loading to true if we don't already have documents loaded
+      // This prevents the flickering when refreshing existing documents
+      if (sourceItems.length === 0) {
+        setIsLoading(true);
+      }
+
+      setError(null);
+      const response = await fetch(
+        `/api/documents?collection_name=${selectedCollection}`
+      );
+      if (!response.ok) throw new Error("Failed to fetch documents");
+
+      const data = await response.json();
+
+      // Only update state if the documents have actually changed
+      if (JSON.stringify(data.documents) !== JSON.stringify(sourceItems)) {
+        setSourceItems(data.documents);
+      }
+    } catch (error) {
+      console.error("Error fetching documents:", error);
+      setError("Failed to load documents");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [selectedCollection, sourceItems]);
+
   useEffect(() => {
     if (selectedCollection && showSourceItems) {
-      fetchDocuments();
+      // Use a slight delay to ensure state updates have been processed
+      const timer = setTimeout(() => {
+        fetchDocuments();
+      }, 0);
+
+      return () => clearTimeout(timer);
     }
-  }, [selectedCollection, showSourceItems]);
+  }, [selectedCollection, showSourceItems, fetchDocuments]);
+
+  // Subscribe to document updates for the selected collection
+  useEffect(() => {
+    if (!selectedCollection) return;
+
+    // Set up the callback for updating documents when tasks complete
+    const unsubscribe = onDocumentsUpdated(selectedCollection, () => {
+      // Only fetch documents if we're currently viewing them
+      if (showSourceItems) {
+        fetchDocuments();
+      }
+    });
+
+    // Clean up the subscription when component unmounts or selectedCollection changes
+    return unsubscribe;
+  }, [selectedCollection, showSourceItems, onDocumentsUpdated, fetchDocuments]);
 
   // API Calls
   const fetchCollections = async () => {
@@ -68,6 +125,7 @@ export default function Collections() {
           collection_name: collection.collection_name,
           document_count: collection.num_entities,
           index_count: collection.num_entities,
+          metadata_schema: collection.metadata_schema,
         }))
       );
     } catch (error) {
@@ -75,25 +133,6 @@ export default function Collections() {
       setError("Failed to load collections");
     } finally {
       setIsLoadingCollections(false);
-    }
-  };
-
-  const fetchDocuments = async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      const response = await fetch(
-        `/api/documents?collection_name=${selectedCollection}`
-      );
-      if (!response.ok) throw new Error("Failed to fetch documents");
-
-      const data = await response.json();
-      setSourceItems(data.documents);
-    } catch (error) {
-      console.error("Error fetching documents:", error);
-      setError("Failed to load documents");
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -109,8 +148,8 @@ export default function Collections() {
       if (!response.ok) throw new Error("Failed to delete collection");
 
       setCollections(collections.filter((c) => c.collection_name !== name));
+      setSelectedCollections((prev) => prev.filter((c) => c !== name));
       if (selectedCollection === name) {
-        setSelectedCollection(null);
         setShowSourceItems(false);
       }
     } catch (error) {
@@ -158,22 +197,31 @@ export default function Collections() {
   };
 
   const handleViewFiles = (collectionName: string) => {
-    setSelectedCollection(collectionName);
-    setShowSourceItems(true);
+    // Use React 18's automatic batching or wrap in a function to batch these updates
+    React.startTransition(() => {
+      setSelectedCollections([collectionName]);
+      setShowSourceItems(true);
+    });
   };
 
   const handleCollectionSelect = (collectionName: string) => {
-    if (selectedCollection === collectionName) {
-      setSelectedCollection(null);
-    } else {
-      setSelectedCollection(collectionName);
-    }
+    setSelectedCollections((prev) =>
+      prev.includes(collectionName)
+        ? prev.filter((name) => name !== collectionName)
+        : [...prev, collectionName]
+    );
     setShowSourceItems(false);
   };
 
   const handleBackToCollections = () => {
     setShowSourceItems(false);
     setSourceItems([]);
+  };
+
+  // Function to open AddSourceModal for a specific collection
+  const openAddSourceModal = (collectionName: string) => {
+    setModalCollectionName(collectionName);
+    setIsAddSourceModalOpen(true);
   };
 
   // Render Helpers
@@ -208,17 +256,26 @@ export default function Collections() {
   );
 
   const renderContent = () => {
-    if (isLoadingCollections)
+    if (isLoadingCollections) {
       return <LoadingState message="Loading collections..." />;
-    if (error && !showSourceItems) return <ErrorState error={error} />;
-    if (collections.length === 0) return <EmptyState />;
-    if (showSourceItems && selectedCollection) return <DocumentsList />;
+    }
+
+    if (error) {
+      return <ErrorState error={error} />;
+    }
+
+    if (collections.length === 0) {
+      return <EmptyState />;
+    }
+
     return (
-      <div className="collections-container relative">
-        <div className="max-h-[calc(100vh-260px)] overflow-y-auto pr-2">
-          <CollectionsList />
+      <>
+        <div className="collections-container relative">
+          <div className="max-h-[calc(100vh-260px)] overflow-y-auto pr-2">
+            {showSourceItems ? <DocumentsList /> : <CollectionsList />}
+          </div>
         </div>
-      </div>
+      </>
     );
   };
 
@@ -272,63 +329,81 @@ export default function Collections() {
     </div>
   );
 
-  const DocumentsList = () => (
-    <div className="documents-container relative">
-      <div className="max-h-[calc(100vh-260px)] space-y-1 overflow-y-auto pr-2">
-        {isLoading ? (
-          <LoadingState message="Loading documents..." />
-        ) : sourceItems.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-8 text-center">
-            <Image
-              src="/document.svg"
-              alt="No documents"
-              width={48}
-              height={48}
-              className="mb-4 opacity-50"
-            />
-            <p className="text-sm text-gray-400">
-              No documents in this collection
-            </p>
-          </div>
-        ) : (
-          sourceItems.map((item) => (
-            <SourceItem
-              key={item.document_name}
-              name={item.document_name}
-              onDelete={() => handleDeleteDocument(item.document_name)}
-            />
-          ))
-        )}
-        {error && (
-          <div className="mt-2 rounded-md bg-red-900/50 p-2 text-sm text-red-200">
-            {error}
-          </div>
-        )}
+  // Memoize the rendered components to prevent unnecessary re-renders
+  const DocumentsList = useMemo(() => {
+    return () => (
+      <div className="documents-container relative">
+        <div className="max-h-[calc(100vh-260px)] space-y-1 overflow-y-auto pr-2">
+          {isLoading ? (
+            <LoadingState message="Loading documents..." />
+          ) : sourceItems.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-8 text-center">
+              <Image
+                src="/document.svg"
+                alt="No documents"
+                width={48}
+                height={48}
+                className="mb-4 opacity-50"
+              />
+              <p className="text-sm text-gray-400">
+                No documents in this collection
+              </p>
+            </div>
+          ) : (
+            sourceItems.map((item) => (
+              console.log("item.metadata", item),
+              <SourceItem
+                key={item.document_name}
+                name={item.document_name}
+                metadata={item.metadata}
+                onDelete={() => handleDeleteDocument(item.document_name)}
+              />
+            ))
+          )}
+          {error && (
+            <div className="mt-2 rounded-md bg-red-900/50 p-2 text-sm text-red-200">
+              {error}
+            </div>
+          )}
+        </div>
       </div>
-    </div>
-  );
+    );
+  }, [sourceItems, isLoading, error, handleDeleteDocument]);
 
-  const CollectionsList = () => (
-    <>
-      {collections
-        .filter((collection) =>
-          collection.collection_name
-            .toLowerCase()
-            .includes(searchQuery.toLowerCase())
-        )
-        .map((collection) => (
-          <CollectionItem
-            key={collection.collection_name}
-            name={collection.collection_name}
-            isSelected={selectedCollection === collection.collection_name}
-            onSelect={() => handleCollectionSelect(collection.collection_name)}
-            onDelete={() => handleDeleteCollection(collection.collection_name)}
-            handleViewFiles={handleViewFiles}
-            onDocumentsUpdate={fetchDocuments}
-          />
-        ))}
-    </>
-  );
+  const CollectionsList = useMemo(() => {
+    return () => (
+      <>
+        {collections
+          .filter((collection) =>
+            collection.collection_name
+              .toLowerCase()
+              .includes(searchQuery.toLowerCase())
+          )
+          .map((collection) => (
+            <CollectionItem
+              key={collection.collection_name}
+              name={collection.collection_name}
+              metadataSchema={collection.metadata_schema}
+              isSelected={selectedCollections.includes(collection.collection_name)}
+              onSelect={() => handleCollectionSelect(collection.collection_name)}
+              onDelete={() => handleDeleteCollection(collection.collection_name)}
+              handleViewFiles={handleViewFiles}
+              onDocumentsUpdate={fetchDocuments}
+              onShowTaskStatus={() => openAddSourceModal(collection.collection_name)}
+            />
+          ))}
+      </>
+    );
+  }, [
+    collections,
+    searchQuery,
+    selectedCollections,
+    handleCollectionSelect,
+    handleDeleteCollection,
+    handleViewFiles,
+    fetchDocuments,
+    openAddSourceModal,
+  ]);
 
   return (
     <div className="flex w-[320px] flex-col bg-black p-4 text-white">
@@ -363,19 +438,26 @@ export default function Collections() {
             isLoadingCollections ||
             (showSourceItems && !selectedCollection)
           }
-          onClick={() => setIsAddSourceModalOpen(true)}
+          onClick={() => {
+            setModalCollectionName(selectedCollection || "");
+            setIsAddSourceModalOpen(true);
+          }}
         >
           <span className="text-sm">Add Source</span>
         </button>
 
         <NewCollectionModal
           isOpen={isNewCollectionModalOpen}
+          onSuccess={() => {
+            fetchCollections(); // ← trigger immediate reload
+          }}
           onClose={() => setIsNewCollectionModalOpen(false)}
         />
         <AddSourceModal
+          key={modalCollectionName || selectedCollection || ""}
           isOpen={isAddSourceModalOpen}
           onClose={() => setIsAddSourceModalOpen(false)}
-          collectionName={selectedCollection || ""}
+          collectionName={modalCollectionName || selectedCollection || ""}
           onDocumentsUpdate={fetchDocuments}
         />
       </div>

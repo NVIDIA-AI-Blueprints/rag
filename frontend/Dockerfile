@@ -1,4 +1,4 @@
-FROM nvcr.io/nvidia/base/ubuntu:22.04_20240212
+FROM nvcr.io/nvidia/base/ubuntu:jammy-20250415.1
 
 RUN apt-get update && apt-get install -y \
     curl \

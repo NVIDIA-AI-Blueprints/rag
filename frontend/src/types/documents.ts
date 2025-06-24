@@ -16,9 +16,8 @@
 import {
   DocumentMetadata,
   VDBConfig,
-  ExtractionOptions,
-  SplitOptions,
 } from "@/types/common";
+import { UIMetadataField } from "./collections";
 
 export interface Document {
   document_id?: string;
@@ -41,7 +40,7 @@ export interface DocumentResponse {
   score?: number;
   size_bytes?: number;
   timestamp?: string;
-  metadata?: DocumentMetadata;
+  metadata?: UIMetadataField;
   message?: string;
   status?: string;
 }

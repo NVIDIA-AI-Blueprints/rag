@@ -1,6 +1,8 @@
 # Python Exclusions
 .venv
 **__pycache__**
+src/nvidia_rag.egg-info/
+dist/*
 
 # Helm Exclusions
 **/helm-charts/*.tgz
@@ -8,6 +10,7 @@
 # Docker Compose exclusions
 deploy/compose/volumes
 uploaded_files/
+**tmp-data**
 
 # Visual Studio Code
 .vscode
@@ -19,4 +22,60 @@ uploaded_files/
 docs/_*
 
 # Notebook checkpoints
-notebooks/.ipynb_checkpoints
+**.ipynb_checkpoints**
+
+# Ignore generated or temporary files managed by the Workbench
+.project/*
+!.project/spec.yaml
+!.project/configpacks
+
+# General ignores
+.DS_Store
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Temp directories, notebooks created by jupyterlab
+.ipynb_checkpoints
+.Trash-*/
+.jupyter/
+.local/
+
+# Python distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# Workbench Project Layout

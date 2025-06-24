@@ -35,8 +35,60 @@ body {
   }
 }
 
+@keyframes subtle-pulse {
+  0% {
+    background-color: rgba(40, 40, 40, 0);
+  }
+  50% {
+    background-color: rgba(118, 185, 0, 0.05);
+  }
+  100% {
+    background-color: rgba(40, 40, 40, 0);
+  }
+}
+
+.animate-subtle-pulse {
+  animation: subtle-pulse 2s infinite ease-in-out;
+}
+
+.processing-item {
+  position: relative;
+}
+
+.processing-item::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 2px;
+  height: 100%;
+  background-color: var(--nv-green);
+  opacity: 0.7;
+}
+
 .typing-dots::after {
   content: "";
   display: inline-block;
   animation: typing 1.5s infinite;
 }
+
+/* Custom scrollbar styling */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+

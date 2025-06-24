@@ -3,18 +3,25 @@ services:
   # Main ingestor server which is responsible for ingestion
   ingestor-server:
     container_name: ingestor-server
-    image: nvcr.io/nvidia/blueprint/ingestor-server:${TAG:-2.1.0}
+    image: nvcr.io/nvstaging/blueprint/ingestor-server:${TAG:-2.2.0}
     build:
       # Set context to repo's root directory
       context: ../../
-      dockerfile: src/ingestor_server/Dockerfile
+      dockerfile: ./src/nvidia_rag/ingestor_server/Dockerfile
     # start the server on port 8082 with 4 workers for improved latency on concurrent requests.
     command: --port 8082 --host 0.0.0.0 --workers 1
+
+    volumes:
+      # Mount the prompt.yaml file to the container, path should be absolute
+      - ${PROMPT_CONFIG_FILE}:${PROMPT_CONFIG_FILE}
 
     # Common customizations to the pipeline can be controlled using env variables
     environment:
       # Path to example directory relative to root
-      EXAMPLE_PATH: 'src/ingestor_server'
+      EXAMPLE_PATH: 'src/nvidia_rag/ingestor_server'
+
+      # Absolute path to custom prompt.yaml file
+      PROMPT_CONFIG_FILE: ${PROMPT_CONFIG_FILE:-/prompt.yaml}
 
       ##===Vector DB specific configurations===
       # URL on which vectorstore is hosted
@@ -36,6 +43,7 @@ services:
       MINIO_SECRETKEY: "minioadmin"
 
       NGC_API_KEY: ${NGC_API_KEY:?"NGC_API_KEY is required"}
+      NVIDIA_API_KEY: ${NGC_API_KEY:?"NGC_API_KEY is required"}
 
       ##===Embedding Model specific configurations===
       # url on which embedding model is hosted. If "", Nvidia hosted API is used
@@ -49,6 +57,7 @@ services:
 
       ##===NV-Ingest Extract Configurations==========
       APP_NVINGEST_EXTRACTTEXT: ${APP_NVINGEST_EXTRACTTEXT:-True}
+      APP_NVINGEST_EXTRACTINFOGRAPHICS: ${APP_NVINGEST_EXTRACTINFOGRAPHICS:-False}
       APP_NVINGEST_EXTRACTTABLES: ${APP_NVINGEST_EXTRACTTABLES:-True}
       APP_NVINGEST_EXTRACTCHARTS: ${APP_NVINGEST_EXTRACTCHARTS:-True}
       APP_NVINGEST_EXTRACTIMAGES: ${APP_NVINGEST_EXTRACTIMAGES:-False}
@@ -59,7 +68,7 @@ services:
       ##===NV-Ingest Splitting Configurations========
       APP_NVINGEST_CHUNKSIZE: ${APP_NVINGEST_CHUNKSIZE:-512}
       APP_NVINGEST_CHUNKOVERLAP: ${APP_NVINGEST_CHUNKOVERLAP:-150}
-      APP_NVINGEST_ENABLEPDFSPLITTER: ${APP_NVINGEST_ENABLEPDFSPLITTER:-True}
+      APP_NVINGEST_ENABLEPDFSPLITTER: ${APP_NVINGEST_ENABLEPDFSPLITTER:-False}
 
       ##===NV-Ingest Caption Model configurations====
       APP_NVINGEST_CAPTIONMODELNAME: ${APP_NVINGEST_CAPTIONMODELNAME:-"meta/llama-3.2-11b-vision-instruct"}
@@ -69,12 +78,11 @@ services:
       # Choose whether to store the extracted content in the vector store for citation support
       ENABLE_CITATIONS: ${ENABLE_CITATIONS:-True}
 
-      # Enable ingestion in chunks for multi-user support (Recommended to increase number of workers when set to True)
-      # Also, recommended to set when API endpoints are used for nv-ingest NIMs instead of self-hosted endpoints
-      # In case you encounter OOM errors, set to True to optimize memory usage
-      ENABLE_NV_INGEST_BATCH_MODE: ${ENABLE_NV_INGEST_BATCH_MODE:-True}
-      NV_INGEST_FILES_PER_BATCH: ${NV_INGEST_FILES_PER_BATCH:-128} # Number of documents to process in each chunk
-
+      # Choose the summary model to use for document summary
+      SUMMARY_LLM: ${SUMMARY_LLM:-nvidia/llama-3.3-nemotron-super-49b-v1}
+      SUMMARY_LLM_SERVERURL: ${SUMMARY_LLM_SERVERURL-"nim-llm:8000"}
+      SUMMARY_LLM_MAX_CHUNK_LENGTH: ${SUMMARY_LLM_MAX_CHUNK_LENGTH:-50000}
+      SUMMARY_CHUNK_OVERLAP: ${SUMMARY_CHUNK_OVERLAP:-200}
       # Log level for server, supported level NOTSET, DEBUG, INFO, WARN, ERROR, CRITICAL
       LOGLEVEL: ${LOGLEVEL:-INFO}
 
@@ -84,7 +92,12 @@ services:
       REDIS_DB: ${REDIS_DB:-0}
 
       # Bulk upload to MinIO
-      ENABLE_MINIO_BULK_UPLOAD: ${ENABLE_MINIO_BULK_UPLOAD:-False}
+      ENABLE_MINIO_BULK_UPLOAD: ${ENABLE_MINIO_BULK_UPLOAD:-True}
+      TEMP_DIR: ${TEMP_DIR:-/tmp-data}
+
+      # NV-Ingest Batch Mode Configurations
+      NV_INGEST_FILES_PER_BATCH: ${NV_INGEST_FILES_PER_BATCH:-16}
+      NV_INGEST_CONCURRENT_BATCHES: ${NV_INGEST_CONCURRENT_BATCHES:-4}
 
     ports:
       - "8082:8082"
@@ -98,7 +111,7 @@ services:
       - "6379:6379"
 
   nv-ingest-ms-runtime:
-    image: nvcr.io/nvidia/nemo-microservices/nv-ingest:25.4.1
+    image: nvcr.io/nvidia/nemo-microservices/nv-ingest:25.6.2
     cpuset: "0-15"
     volumes:
       - ${DATASET_ROOT:-./data}:/workspace/data
@@ -120,6 +133,9 @@ services:
       - EMBEDDING_NIM_ENDPOINT=${EMBEDDING_NIM_ENDPOINT:-${APP_EMBEDDINGS_SERVERURL-http://nemoretriever-embedding-ms:8000/v1}}
       - INGEST_LOG_LEVEL=DEFAULT
       - INGEST_EDGE_BUFFER_SIZE=64
+      - INGEST_DYNAMIC_MEMORY_THRESHOLD=0.8
+      - INGEST_DISABLE_DYNAMIC_SCALING=${INGEST_DISABLE_DYNAMIC_SCALING:-True}
+      - INSTALL_AUDIO_EXTRACTION_DEPS=true
       # Message client for development
       #- MESSAGE_CLIENT_HOST=0.0.0.0
       #- MESSAGE_CLIENT_PORT=7671
@@ -130,11 +146,13 @@ services:
       - MESSAGE_CLIENT_TYPE=redis
       - MINIO_BUCKET=${MINIO_BUCKET:-nv-ingest}
       - MRC_IGNORE_NUMA_CHECK=1
-      - NEMORETRIEVER_PARSE_HTTP_ENDPOINT=http://nemoretriever-parse:8000/v1/chat/completions
-      - NEMORETRIEVER_PARSE_INFER_PROTOCOL=http
+      - NEMORETRIEVER_PARSE_HTTP_ENDPOINT=${NEMORETRIEVER_PARSE_HTTP_ENDPOINT:-http://nemoretriever-parse:8000/v1/chat/completions}
+      - NEMORETRIEVER_PARSE_INFER_PROTOCOL=${NEMORETRIEVER_PARSE_INFER_PROTOCOL:-http}
+      - NEMORETRIEVER_PARSE_MODEL_NAME=${NEMORETRIEVER_PARSE_MODEL_NAME:-nvidia/nemoretriever-parse}
       - NVIDIA_API_KEY=${NVIDIA_API_KEY:-nvidiaapikey}
       - NGC_API_KEY=${NGC_API_KEY:-nvidiaapikey}
       - NVIDIA_BUILD_API_KEY=${NGC_API_KEY:-nvidiaapikey}
+      - NV_INGEST_MAX_UTIL=${NV_INGEST_MAX_UTIL:-48}
       - OTEL_EXPORTER_OTLP_ENDPOINT=otel-collector:4317
       # Self-hosted paddle endpoints.
       - PADDLE_GRPC_ENDPOINT=${PADDLE_GRPC_ENDPOINT:-paddle:8001}

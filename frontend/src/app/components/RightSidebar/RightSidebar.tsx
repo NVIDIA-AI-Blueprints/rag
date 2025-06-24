@@ -35,33 +35,47 @@ export default function RightSidebar() {
     }
   }, [activePanel]);
 
+  if (!activePanel && !displayPanel) return null;
+
   return (
-    <div
-      className={`fixed bottom-0 right-0 top-14 w-[400px] transform border-l border-neutral-800 bg-black transition-transform duration-300 ease-in-out ${
-        !!activePanel ? "translate-x-0" : "translate-x-full"
-      }`}
-    >
-      <div className="flex h-full flex-col">
-        <div className="flex items-center justify-between border-b border-neutral-800 p-4">
-          <h2 className="text-xl font-semibold text-white">
-            {displayPanel === "citations" ? "Citations" : "Settings"}
-          </h2>
-          <button
-            onClick={closeSidebar}
-            className="text-gray-400 transition-colors hover:text-white"
-            aria-label="Close sidebar"
-          >
-            ×
-          </button>
-        </div>
-        <div className="flex-1 overflow-y-auto p-4">
-          {displayPanel === "citations" ? (
-            <Citations citations={activeCitations} />
-          ) : (
-            <Settings />
-          )}
+    <>
+      {/* Backdrop */}
+      {activePanel && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 z-40"
+          onClick={closeSidebar}
+        />
+      )}
+
+      {/* Sidebar */}
+      <div
+        className={`fixed bottom-0 right-0 top-0 w-[70%] transform border-l border-neutral-800 bg-black transition-transform duration-300 ease-in-out z-50 ${
+          !!activePanel ? "translate-x-0" : "translate-x-full"
+        }`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex h-full flex-col">
+          <div className="flex items-center justify-between border-b border-neutral-800 p-4">
+            <h2 className="text-xl font-semibold text-white">
+              {displayPanel === "citations" ? "Citations" : "Settings"}
+            </h2>
+            <button
+              onClick={closeSidebar}
+              className="text-gray-400 transition-colors hover:text-white"
+              aria-label="Close sidebar"
+            >
+              ×
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto p-4">
+            {displayPanel === "citations" ? (
+              <Citations citations={activeCitations} />
+            ) : (
+              <Settings />
+            )}
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }

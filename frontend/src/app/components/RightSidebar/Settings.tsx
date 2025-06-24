@@ -17,6 +17,7 @@
 
 import { useState, useEffect } from "react";
 import { useSettings } from "../../context/SettingsContext";
+import MetadataSchemaEditor from "./MetadataSchemaEditor"; // ✅ NEW
 
 export default function Settings() {
   const {
@@ -36,9 +37,10 @@ export default function Settings() {
     setIncludeCitations,
   } = useSettings();
 
-  const [expandedSections, setExpandedSections] = useState({
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     ragConfig: true,
     outputPrefs: true,
+    metadata: true,
   });
 
   const [vdbTopKInput, setVdbTopKInput] = useState(vdbTopK.toString());
@@ -46,7 +48,7 @@ export default function Settings() {
     rerankerTopK.toString()
   );
 
-  const toggleSection = (section: "ragConfig" | "outputPrefs") => {
+  const toggleSection = (section: string) => {
     setExpandedSections((prev) => ({
       ...prev,
       [section]: !prev[section],

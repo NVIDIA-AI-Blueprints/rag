@@ -1,0 +1,76 @@
+[project]
+name = "nvidia_rag"
+version = "2.2.0"
+description = "This blueprint serves as a reference solution for a foundational Retrieval Augmented Generation (RAG) pipeline."
+readme = "README.md"
+license = "Apache-2.0"
+license-files = [
+  "LICENSE"
+]
+
+authors = [
+    { name = "NVIDIA RAG", email = "foundational-rag-dev@exchange.nvidia.com" }
+]
+requires-python = ">=3.13"
+
+dependencies = [
+    "bleach==6.2.0",
+    "dataclass-wizard==0.27.0",
+    "fastapi==0.115.5",
+    "langchain==0.3.7",
+    "langchain-community==0.3.7",
+    "langchain-milvus>=0.1.10",
+    "langchain-nvidia-ai-endpoints==0.3.10",
+    "minio==7.2.15",
+    "pdfplumber>=0.6",
+    "pydantic==2.9.2",
+    "pymilvus==2.5.8",
+    "pymilvus-model==0.3.2",
+    "python-multipart==0.0.18",
+    "pyyaml==6.0.2",
+    "unstructured[all-docs]>=0.15.1",
+    "uvicorn[standard]==0.32.0",
+    "langchain-core>=0.3.31",
+    "redis==5.2.1"
+]
+
+[project.optional-dependencies]
+rag = [
+    "langchain-openai==0.2.8",
+    "opentelemetry-api==1.29.0",
+    "opentelemetry-exporter-otlp==1.29.0",
+    "opentelemetry-exporter-prometheus==0.50b0",
+    "opentelemetry-instrumentation==0.50b0",
+    "opentelemetry-instrumentation-fastapi==0.50b0",
+    "opentelemetry-instrumentation-milvus==0.36.0",
+    "opentelemetry-processor-baggage==0.50b0",
+    "opentelemetry-sdk==1.29.0",
+]
+ingest = [
+    "nv-ingest-api==25.6.2",
+    "nv-ingest-client==25.6.2",
+    "tritonclient==2.57.0",
+    "overrides==7.7.0",
+    "tqdm==4.67.1",
+]
+all = [
+    "nvidia-rag[ingest,rag]",
+]
+
+[tool.uv.sources]
+nvidia-rag = { workspace = true }
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+# Include all YAML files inside rag_server
+"nvidia_rag.rag_server" = ["*.yaml"]
+
+[project.urls]
+Homepage = "https://github.com/NVIDIA-AI-Blueprints/rag"
+Documentation = "https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/README.md"

@@ -35,11 +35,27 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const documents = formData.getAll("documents") as File[];
     const dataStr = formData.get("data") as string;
-    const metadata = { ...JSON.parse(dataStr), blocking: true };
+    const queryBlocking = request.nextUrl.searchParams.get("blocking");
+    
+    // Parse the metadata from the form
+    const parsedMetadata = JSON.parse(dataStr);
+    
+    // Use blocking parameter from URL query first, then from metadata, defaulting to false
+    const blocking = queryBlocking !== null 
+      ? queryBlocking === "true"
+      : parsedMetadata.blocking !== undefined 
+        ? parsedMetadata.blocking 
+        : false;
+    
+    const metadata = {
+      ...parsedMetadata,
+      blocking
+    };
 
     // Log the request details
     console.log("=== DOCUMENT UPLOAD REQUEST ===");
     console.log("Metadata:", metadata);
+    console.log(`Blocking: ${blocking} (from ${queryBlocking !== null ? 'URL' : 'metadata'})`);
     console.log("===========================");
 
     // Create a new FormData instance for the upstream request

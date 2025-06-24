@@ -31,7 +31,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "RAG Blueprint 2.0",
+  title: "RAG Blueprint",
   description: "By NVIDIA",
 };
 

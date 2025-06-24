@@ -3,6 +3,28 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
+# Migration Guide: RAG v2.1.0 to RAG v2.2.0
+
+## Overview
+
+This guide summarizes the key API changes and new features introduced in RAG v2.2.0. Update your integrations to take advantage of new summarization, metadata, and multi-collection capabilities, and to prepare for upcoming deprecations.
+
+## API changes
+
+- Summarization support
+  - A `generate_summary: bool` field has been added to the `POST /documents` and `PATCH /documents` endpoints.
+  - A new `GET /summary` endpoint has been added to the `rag-server`, allowing users to retrieve summaries of uploaded files.
+
+- Custom metadata support
+  - `POST /collections` will be deprecated in favor of `POST /collection` for the ingestor-server.
+    - `POST /collection` allows only a single collection to be created at a time.
+    - Developers can now define a custom metadata schema for all files uploaded to a collection.
+    - `POST /collections` will be deprecated in a future release; developers are encouraged to migrate to `POST /collection`.
+  - Metadata information is now available in the responses of the `GET /collections` and `GET /documents APIs`.
+
+- Multi-collection support
+  - The `collection_names: List[str]` field has been added to the request schema of the `POST /generate` and `POST /search` endpoints, replacing `collection_name: str`. The old `collection_name: str` field will be deprecated in a future release.
+
 # Migration Guide: RAG v2.0.0 to RAG v2.1.0
 
 ## Overview

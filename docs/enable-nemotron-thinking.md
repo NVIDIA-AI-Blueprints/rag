@@ -1,3 +1,8 @@
+<!--
+  SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+  SPDX-License-Identifier: Apache-2.0
+-->
+
 ## Enabling Reasoning in Nemotron Model
 
 To enable reasoning in the Nemotron model, you need to set the `ENABLE_NEMOTRON_THINKING` environment variable to `true`.

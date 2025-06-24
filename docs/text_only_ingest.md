@@ -18,7 +18,7 @@ For ingesting text only files, developers do not need to deploy the complete pip
    USERID=$(id -u) docker compose -f deploy/compose/nims.yaml up page-elements -d
    ```
 
-   Confirm all the below mentioned NIMs are running and the one's specified below are in healthy state before proceeding further. Make sure to allocate GPUs according to your hardware (2xH100 or 4xA100 to `nim-llm-ms` based on your deployment GPU profile) as stated in the quickstart guide.
+   Confirm all the below mentioned NIMs are running and the one's specified below are in healthy state before proceeding further. Make sure to allocate GPUs according to your hardware (2xH100, 2xB200 or 4xA100 to `nim-llm-ms` based on your deployment GPU profile) as stated in the quickstart guide.
 
    ```bash
    watch -n 2 'docker ps --format "table {{.Names}}\t{{.Status}}"'
@@ -35,7 +35,7 @@ For ingesting text only files, developers do not need to deploy the complete pip
 
 3. Continue following the rest of steps in quickstart to deploy the ingestion-server and rag-server containers.
 
-4. Once the ingestion and rag servers are deployed, open the [ingestion notebook](../notebooks/ingestion_api_usage.ipynb) and follow the steps. While trying out the the `Upload Document Endpoint` set the payload to below. We are setting `extract_tables`, `extract_charts` to `False`.
+4. Once the ingestion and rag servers are deployed, open the [ingestion notebook](../notebooks/ingestion_api_usage.ipynb) and follow the steps. While trying out the the `Upload Document Endpoint` set the payload to below.
    ```bash
        data = {
         "vdb_endpoint": "http://milvus:19530",
@@ -63,7 +63,7 @@ In case you are [interacting with cloud hosted models](quickstart.md#start-using
 # Enable text only ingestion support in Helm
 
 
-To ingest text-only files, you do not need to deploy the complete pipeline with all NIMs connected.
+To ingest text-only files, you do not need to deploy the complete pipeline with all NIMs connected. 
 If your scenario requires only text extraction from files, use the following steps to deploy only the necessary components using Helm.
 
 When you install the Helm chart, enable only the following services that are required for text ingestion:
@@ -83,7 +83,7 @@ Additionally, ensure that **table extraction**, **chart extraction**, and **imag
 Example Helm install command:
 
 ```bash
-helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.1.0.tgz \
+helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.2.0.tgz \
   --username '$oauthtoken' \
   --password "${NGC_API_KEY}" \
   --set nim-llm.enabled=true \

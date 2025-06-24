@@ -3,18 +3,23 @@ services:
   # Main orchestrator server which stiches together all calls to different services to fulfill the user request
   rag-server:
     container_name: rag-server
-    image: nvcr.io/nvidia/blueprint/rag-server:${TAG:-2.1.0}
+    image: nvcr.io/nvstaging/blueprint/rag-server:${TAG:-2.2.0}
     build:
       # Set context to repo's root directory
       context: ../../
-      dockerfile: src/Dockerfile
+      dockerfile: src/nvidia_rag/rag_server/Dockerfile
     # start the server on port 8081 with 8 workers for improved latency on concurrent requests.
     command: --port 8081 --host 0.0.0.0 --workers 8
-
+    volumes:
+      # Mount the prompt.yaml file to the container, path should be absolute
+      - ${PROMPT_CONFIG_FILE}:${PROMPT_CONFIG_FILE}
     # Common customizations to the pipeline can be controlled using env variables
     environment:
       # Path to example directory relative to root
-      EXAMPLE_PATH: 'src/'
+      EXAMPLE_PATH: './nvidia_rag/rag_server'
+
+      # Absolute path to custom prompt.yaml file
+      PROMPT_CONFIG_FILE: ${PROMPT_CONFIG_FILE:-/prompt.yaml}
 
       ##===MINIO specific configurations which is used to store the multimodal base64 content===
       MINIO_ENDPOINT: "minio:9010"
@@ -26,6 +31,8 @@ services:
       APP_VECTORSTORE_URL: "http://milvus:19530"
       # Type of vectordb used to store embedding supported type milvus
       APP_VECTORSTORE_NAME: "milvus"
+      # Type of index to be used for vectorstore
+      APP_VECTORSTORE_INDEXTYPE: ${APP_VECTORSTORE_INDEXTYPE:-"GPU_CAGRA"}
       # Type of vectordb search to be used
       APP_VECTORSTORE_SEARCHTYPE: ${APP_VECTORSTORE_SEARCHTYPE:-"dense"} # Can be dense or hybrid
       # vectorstore collection name to store embeddings
@@ -42,7 +49,7 @@ services:
       ##===Query Rewriter Model specific configurations===
       APP_QUERYREWRITER_MODELNAME: ${APP_QUERYREWRITER_MODELNAME:-"meta/llama-3.1-8b-instruct"}
       # url on which query rewriter model is hosted. If "", Nvidia hosted API is used
-      APP_QUERYREWRITER_SERVERURL: ${APP_QUERYREWRITER_SERVERURL-"nim-llm-llama-8b-ms:8000"}
+      APP_QUERYREWRITER_SERVERURL: ${APP_QUERYREWRITER_SERVERURL-"nim-llm-llama-8b:8000"}
 
       ##===Embedding Model specific configurations===
       # url on which embedding model is hosted. If "", Nvidia hosted API is used
@@ -54,6 +61,11 @@ services:
       APP_RANKING_SERVERURL: ${APP_RANKING_SERVERURL-"nemoretriever-ranking-ms:8000"}
       APP_RANKING_MODELNAME: ${APP_RANKING_MODELNAME:-"nvidia/llama-3.2-nv-rerankqa-1b-v2"}
       ENABLE_RERANKER: ${ENABLE_RERANKER:-True}
+
+      ##===VLM Model specific configurations===
+      ENABLE_VLM_INFERENCE: ${ENABLE_VLM_INFERENCE:-false}
+      APP_VLM_SERVERURL: ${APP_VLM_SERVERURL-"http://vlm-ms:8000/v1"}
+      APP_VLM_MODELNAME: ${APP_VLM_MODELNAME:-"nvidia/llama-cosmos-nemotron-8b-instruct"}
 
       NVIDIA_API_KEY: ${NGC_API_KEY:?"NGC_API_KEY is required"}
 
@@ -121,7 +133,7 @@ services:
   # Sample UI container which interacts with APIs exposed by rag-server container
   rag-playground:
     container_name: rag-playground
-    image: nvcr.io/nvidia/blueprint/rag-playground:${TAG:-2.1.0}
+    image: nvcr.io/nvstaging/blueprint/rag-playground:${TAG:-2.2.0}
     build:
       # Set context to repo's root directory
       context: ../../frontend

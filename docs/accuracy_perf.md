@@ -1,4 +1,9 @@
-# Best practices for common Nvidia RAG Blueprint settings
+<!--
+  SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+  SPDX-License-Identifier: Apache-2.0
+-->
+
+# Best practices for common NVIDIA RAG Blueprint settings
 
 These parameters allow fine-tuning RAG performance based on specific accuracy vs. latency trade-offs. Choose the configurations based on use case needs! The default values are kept considering a balance between accuracy and performance. The default values and the environment variables controlling these settings are mentioned in (brackets)
 
@@ -8,6 +13,24 @@ These parameters allow fine-tuning RAG performance based on specific accuracy vs
   - ✅ This improves accuracy by selecting better documents for response generation.
   - ❌ Increases latency due to additional processing. Additional model deployment will be needed for on-prem setting of NIMS.
   - Controlled using `ENABLE_RERANKER` environment variable. Default is on.
+
+- **Enable Vision-Language Model (VLM) Inference for response generation**
+  - ✅ Enables analysis of retrieved images alongside text for richer, multimodal responses
+  - ✅ Can process up to 4 images per citation
+  - ✅ Useful for document Q&A, visual search, and multimodal chatbots
+  - ❌ Requires additional GPU resources for VLM model deployment
+  - ❌ Increases latency due to image processing
+  - Controlled via `ENABLE_VLM_INFERENCE` environment variable. Default is off.
+  - Check out [this](./vlm.md) section to learn more.
+
+- **Enable Nemoretriever Parse for PDF Extraction**
+  - ✅ Provides enhanced PDF parsing and structure understanding
+  - ✅ Better extraction of complex PDF layouts and content
+  - ❌ Requires additional GPU resources for the Nemoretriever Parse service
+  - ❌ Only supports PDF format documents
+  - ❌ Not supported on NVIDIA B200 GPUs
+  - Controlled via `APP_NVINGEST_PDFEXTRACTMETHOD` environment variable. Default is pdfium.
+  - Check out [this](./nemoretriever-parse-extraction.md) section to learn more.
 
 - **Increase VDB TOP K and reranker TOP K**
   - ✅ VDB TOP K provides a larger candidate pool for reranking, which may improve accuracy. Reranker TOP K increases the probability of relevant context being part of the top-k contexts.
@@ -41,6 +64,11 @@ These parameters allow fine-tuning RAG performance based on specific accuracy vs
 
 ## Ingestion and Chunking
 
+- **Extracting infographics**
+  - ✅ Improves accuracy for documents containing text in image format (e.g. infographics in PDFs/PPTs)
+  - ❌ Increases ingestion time. Can be disabled if documents don't contain text-as-images
+  - Controlled via `APP_NVINGEST_EXTRACTINFOGRAPHICS` environment variable. Default is off
+
 - **Extracting tables and charts**
   - ✅ Improves accuracy for documents having images of tables and charts.
   - ❌ Increases ingestion time. You can turn these off in case there are no images present in the ingested doc. refer to [this](./text_only_ingest.md) section.
@@ -55,7 +83,7 @@ These parameters allow fine-tuning RAG performance based on specific accuracy vs
   - ✅ Larger chunks retain more context, improving coherence
   - ❌ Larger increases embedding size, slowing retrieval
   - ❌ Longer chunks may increase latency due to larger prompt size
-  - Controlled via `APP_NVINGEST_CHUNKSIZE` environment variable. Default value is 1024.
+  - Controlled via `APP_NVINGEST_CHUNKSIZE` environment variable. Default value is 512.
 
 - **Customize Chunk overlap**
   - ✅ More overlap ensures smooth transitions between chunks
@@ -65,11 +93,24 @@ These parameters allow fine-tuning RAG performance based on specific accuracy vs
 - **Customize PDF Splitting**
   - ✅ PDFs are extracted at the page level by default. When PDF splitting is enabled, chunk-based splitting is performed after page-level extraction for more granular content segmentation. Recommended for PDFs with pages with more text content
   - ❌ This may increase number of chunks and slightly slow down ingestion process
-  - Controlled by `APP_NVINGEST_ENABLEPDFSPLITTER` environment variable. Default value is `True`.
+  - Controlled by `APP_NVINGEST_ENABLEPDFSPLITTER` environment variable. Default value is `False`.
 
-- **Enable Batch mode Ingestion**
-  - ✅ Enabling batch-based ingestion can help manage memory usage of `ingestor-server` more effectively.
-  - ❌ May slightly increase processing overhead and ingestion time.
-  - Controlled using `ENABLE_NV_INGEST_BATCH_MODE` and `NV_INGEST_FILES_PER_BATCH` variables. Default value is `True` and `100` respectively.
+## Ingestion Batch Mode Optimization
+
+The ingestor server processes files in parallel batches by default, distributing the workload to nv-ingest workers for efficient ingestion. This parallel processing architecture helps optimize throughput while managing system resources effectively. The following parameters help fine-tune this batch processing behavior:
+
+- **Files per batch (`NV_INGEST_FILES_PER_BATCH`)**
+  - ✅ Controls how many files are processed in a single batch during ingestion
+  - ✅ Helps optimize memory usage and processing efficiency
+  - ❌ Setting too high may cause memory pressure
+  - ❌ Setting too low may reduce throughput
+
+- **Concurrent batches (`NV_INGEST_CONCURRENT_BATCHES`)**
+  - ✅ Controls number of parallel batch processing streams
+  - ✅ Can be increased for systems with high memory capacity
+  - ❌ Higher values require more system memory
+  - ❌ Requires careful tuning based on available system resources
+  - ⚠️ Note: `NV_INGEST_CONCURRENT_BATCHES * NV_INGEST_FILES_PER_BATCH` should approximately equal `MAX_INGEST_PROCESS_WORKERS` for optimal resource utilization
+  - ⚠️ Advanced users only: These parameters require trial and error tuning for optimal performance
 
 These parameters allow fine-tuning RAG performance based on specific accuracy vs. latency trade-offs. Choose the configurations based on use case needs!

@@ -3,6 +3,46 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
 
+## [2.2.0] - 2025-06-27
+
+This release adds B200 platform support, a native Python API, and major enhancements for multimodal and metadata features. It also improves deployment flexibility and customization across the RAG blueprint.
+
+### Added
+- Support deploying the blueprint on B200 platform.
+- Support for [native python API](./docs/python-client.md)
+  - Refactoring code and directory to support python API
+  - Better modularization for easier customization
+- [Capability to add custom metadata](./docs/custom-metadata.md) for files and metadata based filtering
+- Documentation of [using Multi Instance GPUs](./docs/mig-deployment.md). Reduces minimum GPU requirement for helm charts to 3xH100.
+- [Multi collection based retrieval](./docs/multi-collection-retrieval.md) support
+- [Audio files (.mp3 and .wav) support](./docs/audio_ingestion.md)
+- Support of using [Vision Language Model](./docs/vlm.md) based generation for charts and images
+- Support for [generating summaries](./docs/summarization.md) of uploaded files
+- Sample user interface enhancements
+  - Support for non-blocking file upload
+  - More efficient error reporting for ingestion failures
+- [Prompt customization](./docs/prompt-customization.md) support without rebuilding images
+- Added support to enable infographics, which improves accuracy for documents containing text in image format.
+  - See [this guide](./docs/accuracy_perf.md#ingestion-and-chunking) for details
+- New customizations
+  - How to support non nvingest based ingestion + retrieval
+  - How to enable [CPU based milvus](./docs/milvus-configuration.md)
+  - How to enable [nemoretriever-parse](./docs/nemoretriever-parse-extraction.md) as an alternate PDF parser
+  - How to use [standalone nv-ingest python client](./docs/nv-ingest-standalone.md) to do ingestion
+- [Nvidia AI Workbench support](./deploy/workbench/)
+
+### Changed
+- `APP_NVINGEST_ENABLEPDFSPLITTER` Default value is set to `False` instead of `True`.
+- [Changed API schema](./docs/api_reference/) to support newly added features
+  - POST /collections to be deprecated in favour of POST /collection for ingestor-server
+  - New endpoint GET /summary added for rag-server
+  - Metadata information available as part of GET /collections and GET /documents API
+  - Check out [migration guide](./docs/migration_guide.md#migration-guide-rag-v210-to-rag-v220) for detailed changes at API level
+- [Optimized batch mode](./docs/accuracy_perf.md#ingestion-batch-mode-optimization) ingestion support to improve perf for multi user concurrent file upload.
+
+### Known Issues
+Check out [this section](./docs/troubleshooting.md#known-issues) to understand the known issues present for this release.
+
 ## [2.1.0] - 2025-05-13
 
 This release reduces overall GPU requirement for the deployment of the blueprint. It also improves the performance and stability for both docker and helm based deployments.

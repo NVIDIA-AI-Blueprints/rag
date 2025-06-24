@@ -15,7 +15,7 @@
       }
     ]
   },
-  "editable": true,
+  "editable": false,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
   "id": 2,
@@ -24,7 +24,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "prometheus"
+        "uid": "${datasource}"
       },
       "fieldConfig": {
         "defaults": {
@@ -77,7 +77,7 @@
         {
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "total_tokens",
+          "expr": "total_tokens{job=~\"$job\", instance=~\"$instance\"}",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "__auto",
@@ -87,12 +87,13 @@
         }
       ],
       "title": "Avg Total (Input + Output)  words",
+      "description": "Avg total (input + output) tokens",
       "type": "stat"
     },
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "prometheus"
+        "uid": "${datasource}"
       },
       "fieldConfig": {
         "defaults": {
@@ -145,7 +146,7 @@
         {
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "output_tokens",
+          "expr": "output_tokens{job=~\"$job\", instance=~\"$instance\"}",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "__auto",
@@ -155,12 +156,13 @@
         }
       ],
       "title": "Avg Output Words",
+      "description": "Avg output words",
       "type": "stat"
     },
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "prometheus"
+        "uid": "${datasource}"
       },
       "fieldConfig": {
         "defaults": {
@@ -214,7 +216,7 @@
           "disableTextWrap": false,
           "editorMode": "builder",
           "exemplar": false,
-          "expr": "input_tokens",
+          "expr": "input_tokens{job=~\"$job\", instance=~\"$instance\"}",
           "format": "time_series",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
@@ -227,12 +229,13 @@
         }
       ],
       "title": "Avg Input Words",
+      "description": "Avg input words",
       "type": "stat"
     },
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "prometheus"
+        "uid": "${datasource}"
       },
       "fieldConfig": {
         "defaults": {
@@ -285,7 +288,7 @@
         {
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "avg(avg_words_per_chunk)",
+          "expr": "avg(avg_words_per_chunk{job=~\"$job\", instance=~\"$instance\"})",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "__auto",
@@ -295,6 +298,7 @@
         }
       ],
       "title": "Avg words per chunk",
+      "description": "Avg words per chunk",
       "type": "stat"
     },
     {
@@ -313,7 +317,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "prometheus"
+        "uid": "${datasource}"
       },
       "fieldConfig": {
         "defaults": {
@@ -413,11 +417,11 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "${datasource}"
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "input_tokens",
+          "expr": "input_tokens{job=~\"$job\", instance=~\"$instance\"}",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "__auto",
@@ -427,12 +431,13 @@
         }
       ],
       "title": "Input tokens per request",
+      "description": "Input tokens per request",
       "type": "timeseries"
     },
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "prometheus"
+        "uid": "${datasource}"
       },
       "fieldConfig": {
         "defaults": {
@@ -532,7 +537,7 @@
         {
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "output_tokens",
+          "expr": "output_tokens{job=~\"$job\", instance=~\"$instance\"}",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "__auto",
@@ -542,12 +547,13 @@
         }
       ],
       "title": "Output tokens per request",
+      "description": "Output tokens per request",
       "type": "timeseries"
     },
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "prometheus"
+        "uid": "${datasource}"
       },
       "fieldConfig": {
         "defaults": {
@@ -646,7 +652,7 @@
         {
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "total_tokens",
+          "expr": "total_tokens{instance=~\"$instance\", job=~\"$job\"}",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "__auto",
@@ -656,12 +662,13 @@
         }
       ],
       "title": "Total tokens per request",
+      "description": "Total tokens per request",
       "type": "timeseries"
     },
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "prometheus"
+        "uid": "${datasource}"
       },
       "fieldConfig": {
         "defaults": {
@@ -744,7 +751,7 @@
         {
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "avg_words_per_chunk",
+          "expr": "avg_words_per_chunk{instance=~\"$instance\", job=~\"$job\"}",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "__auto",
@@ -754,6 +761,7 @@
         }
       ],
       "title": "Avg words per chunk per request",
+      "description": "Avg words per chunk per request",
       "type": "timeseries"
     }
   ],
@@ -762,7 +770,47 @@
   "schemaVersion": 40,
   "tags": [],
   "templating": {
-    "list": []
+    "list": [
+      {
+        "current": {
+          "selected": true,
+          "text": "Prometheus",
+          "value": "prometheus"
+        },
+        "hide": 0,
+        "includeAll": false,
+        "label": "Prometheus data source",
+        "multi": false,
+        "name": "datasource",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "datasource"
+      },
+      {
+        "name": "job",
+        "label": "Job",
+        "datasource": "$datasource",
+        "type": "query",
+        "query": "query_result(up{})",
+        "multi": true,
+        "allValue": ".+",
+        "refresh": 2
+      },
+      {
+        "name": "instance",
+        "label": "Instance",
+        "datasource": "$datasource",
+        "type": "query",
+        "query": "query_result(up{})",
+        "multi": true,
+        "allValue": ".+",
+        "refresh": 2
+      }
+    ]
   },
   "time": {
     "from": "now-5m",

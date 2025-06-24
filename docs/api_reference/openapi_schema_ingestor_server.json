@@ -108,15 +108,15 @@
         "tags": [
           "Ingestion APIs"
         ],
-        "summary": "Delete And Upload Document",
+        "summary": "Update Documents",
         "description": "Upload a document to the vector store. If the document already exists, it will be replaced.",
-        "operationId": "delete_and_upload_document_documents_patch",
+        "operationId": "update_documents_documents_patch",
         "requestBody": {
           "required": true,
           "content": {
             "multipart/form-data": {
               "schema": {
-                "$ref": "#/components/schemas/Body_delete_and_upload_document_documents_patch"
+                "$ref": "#/components/schemas/Body_update_documents_documents_patch"
               }
             }
           }
@@ -402,8 +402,9 @@
           "Vector DB APIs"
         ],
         "summary": "Create Collections",
-        "description": "Endpoint to create a collection from the Milvus server.\nReturns status message.",
+        "description": "This endpoint is deprecated. Use POST /collection instead. Custom metadata is not supported in this endpoint.",
         "operationId": "create_collections_collections_post",
+        "deprecated": true,
         "parameters": [
           {
             "name": "collection_type",
@@ -448,7 +449,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CollectionResponse"
+                  "$ref": "#/components/schemas/CollectionsResponse"
                 }
               }
             }
@@ -514,7 +515,69 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CollectionResponse"
+                  "$ref": "#/components/schemas/CollectionsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
+          "499": {
+            "description": "Client Closed Request",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "The client cancelled the request"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "Internal server error occurred"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/collection": {
+      "post": {
+        "tags": [
+          "Vector DB APIs"
+        ],
+        "summary": "Create Collection",
+        "description": "Endpoint to create a collection from the Milvus server.\nReturns status message.",
+        "operationId": "create_collection_collection_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCollectionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateCollectionResponse"
                 }
               }
             }
@@ -555,7 +618,7 @@
   },
   "components": {
     "schemas": {
-      "Body_delete_and_upload_document_documents_patch": {
+      "Body_update_documents_documents_patch": {
         "properties": {
           "documents": {
             "items": {
@@ -570,7 +633,7 @@
             "title": "Data",
             "description": "JSON data in string format containing metadata about the documents which needs to be uploaded.",
             "examples": [
-              "{\"collection_name\": \"multimodal_data\", \"blocking\": false, \"split_options\": {\"chunk_size\": 1024, \"chunk_overlap\": 150}}"
+              "{\"collection_name\": \"multimodal_data\", \"blocking\": false, \"split_options\": {\"chunk_size\": 512, \"chunk_overlap\": 150}, \"custom_metadata\": [], \"generate_summary\": false}"
             ]
           }
         },
@@ -579,7 +642,7 @@
           "documents",
           "data"
         ],
-        "title": "Body_delete_and_upload_document_documents_patch"
+        "title": "Body_update_documents_documents_patch"
       },
       "Body_upload_document_documents_post": {
         "properties": {
@@ -596,7 +659,7 @@
             "title": "Data",
             "description": "JSON data in string format containing metadata about the documents which needs to be uploaded.",
             "examples": [
-              "{\"collection_name\": \"multimodal_data\", \"blocking\": false, \"split_options\": {\"chunk_size\": 1024, \"chunk_overlap\": 150}}"
+              "{\"collection_name\": \"multimodal_data\", \"blocking\": false, \"split_options\": {\"chunk_size\": 512, \"chunk_overlap\": 150}, \"custom_metadata\": [], \"generate_summary\": false}"
             ]
           }
         },
@@ -635,7 +698,7 @@
         "title": "CollectionListResponse",
         "description": "Response model for uploading a document."
       },
-      "CollectionResponse": {
+      "CollectionsResponse": {
         "properties": {
           "message": {
             "type": "string",
@@ -675,8 +738,63 @@
         "required": [
           "message"
         ],
-        "title": "CollectionResponse",
+        "title": "CollectionsResponse",
         "description": "Response model for creation or deletion of collections in Milvus."
+      },
+      "CreateCollectionRequest": {
+        "properties": {
+          "vdb_endpoint": {
+            "type": "string",
+            "title": "Vdb Endpoint",
+            "description": "Endpoint of the vector database.",
+            "default": "http://milvus:19530"
+          },
+          "collection_name": {
+            "type": "string",
+            "title": "Collection Name",
+            "description": "Name of the collection.",
+            "default": "multimodal_data"
+          },
+          "embedding_dimension": {
+            "type": "integer",
+            "title": "Embedding Dimension",
+            "description": "Embedding dimension of the collection.",
+            "default": 2048
+          },
+          "metadata_schema": {
+            "items": {
+              "$ref": "#/components/schemas/MetadataField"
+            },
+            "type": "array",
+            "title": "Metadata Schema",
+            "description": "Metadata schema of the collection.",
+            "default": []
+          }
+        },
+        "type": "object",
+        "title": "CreateCollectionRequest",
+        "description": "Request model for creating a collection."
+      },
+      "CreateCollectionResponse": {
+        "properties": {
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "description": "Status message of the process."
+          },
+          "collection_name": {
+            "type": "string",
+            "title": "Collection Name",
+            "description": "Name of the collection."
+          }
+        },
+        "type": "object",
+        "required": [
+          "message",
+          "collection_name"
+        ],
+        "title": "CreateCollectionResponse",
+        "description": "Response model for creation or deletion of a collection in Milvus."
       },
       "DocumentListResponse": {
         "properties": {
@@ -809,6 +927,35 @@
         "title": "IngestionTaskStatusResponse",
         "description": "Response model for getting the status of an ingestion task."
       },
+      "MetadataField": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Name of the metadata field.",
+            "default": ""
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "string",
+              "datetime"
+            ],
+            "title": "Type",
+            "description": "Type of the metadata field from the following: 'string', 'datetime'.",
+            "default": ""
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "description": "Optional description of the metadata field.",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "MetadataField",
+        "description": "Model representing a metadata field."
+      },
       "UploadDocumentResponse": {
         "properties": {
           "message": {
@@ -840,6 +987,15 @@
             "title": "Failed Documents",
             "description": "List of failed documents.",
             "default": []
+          },
+          "validation_errors": {
+            "items": {
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Validation Errors",
+            "description": "List of validation errors.",
+            "default": []
           }
         },
         "type": "object",
@@ -859,6 +1015,15 @@
             "title": "Num Entities",
             "description": "Number of rows or entities in the collection.",
             "default": 0
+          },
+          "metadata_schema": {
+            "items": {
+              "$ref": "#/components/schemas/MetadataField"
+            },
+            "type": "array",
+            "title": "Metadata Schema",
+            "description": "Metadata schema of the collection.",
+            "default": []
           }
         },
         "type": "object",
@@ -872,6 +1037,12 @@
             "title": "Document Name",
             "description": "Name of the document.",
             "default": ""
+          },
+          "metadata": {
+            "type": "object",
+            "title": "Metadata",
+            "description": "Metadata of the document.",
+            "default": {}
           }
         },
         "type": "object",

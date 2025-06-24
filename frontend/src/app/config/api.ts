@@ -27,9 +27,10 @@ export const API_CONFIG = {
       },
       COLLECTIONS: {
         LIST: "/collections",
-        CREATE: "/collections",
+        CREATE: "/collection",
         DELETE: "/collections",
       },
+      TASK_STATUS: "/status",
     },
     VDB_ENDPOINT: process.env.NEXT_PUBLIC_VDB_ENDPOINT ?? "http://milvus:19530",
   },

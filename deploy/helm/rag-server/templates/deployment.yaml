@@ -1,30 +1,47 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: rag-server
+  name: {{ .Values.appName }}
   labels:
-    app: rag-server
+    app.kubernetes.io/name: {{ .Values.appName }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version }}
 spec:
   replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
-      app: rag-server
+      app: {{ .Values.appName }}
   template:
     metadata:
       labels:
-        app: rag-server
+        app: {{ .Values.appName }}
+        app.kubernetes.io/name: {{ .Values.appName }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/version: {{ .Chart.AppVersion }}
+        app.kubernetes.io/managed-by: {{ .Release.Service }}
+        helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version }}
     spec:
       {{- if .Values.imagePullSecret }}
       imagePullSecrets:
         - name: {{ .Values.imagePullSecret.name }}
       {{- end }}
+      {{- if .Values.nodeSelector }}
+      nodeSelector:
+{{ toYaml .Values.nodeSelector | nindent 8 }}
+      {{- end }}
+      {{- if .Values.affinity }}
+      affinity:
+{{ toYaml .Values.affinity | nindent 8 }}
+      {{- end }}
       containers:
-        - name: rag-server
+        - name: {{ .Values.appName }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command:
           - "uvicorn"
-          - "src.server:app"
+          - "nvidia_rag.rag_server.server:app"
           - "--port"
           - "8081"
           - "--host"
@@ -41,6 +58,11 @@ spec:
               value: "{{ $v }}"
             {{- end }}
             {{- end }}
+            - name: NVIDIA_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.ngcApiSecret.name }}
+                  key: NVIDIA_API_KEY
           {{- end }}
           {{- if .Values.resources }}
           resources:
