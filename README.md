@@ -56,7 +56,7 @@ The following are the default components included in this blueprint:
     * [Llama 3.1 NemoGuard 8B Content Safety NIM](https://build.nvidia.com/nvidia/llama-3_1-nemoguard-8b-content-safety)
     * [Llama 3.1 NemoGuard 8B Topic Control NIM](https://build.nvidia.com/nvidia/llama-3_1-nemoguard-8b-topic-control)
     * [Mixtral 8x22B Instruct 0.1](https://build.nvidia.com/mistralai/mixtral-8x22b-instruct)
-    * [Llama 3.2 11B Vision Instruct NIM](https://build.nvidia.com/meta/llama-3.2-11b-vision-instruct)
+    * [Llama-3.1 Nemotron-nano-vl-8b-v1 NIM](https://build.nvidia.com/nvidia/llama-3.1-nemotron-nano-vl-8b-v1)
     * [NeMo Retriever Parse NIM](https://build.nvidia.com/nvidia/nemoretriever-parse)
 
 * RAG Orchestrator server - Langchain based
@@ -65,7 +65,7 @@ The following are the default components included in this blueprint:
 * File Types: File types supported by Nemo Retriever Extraction are supported by this blueprint. This includes `.pdf`, `.pptx`, `.docx` having images. Image captioning support is turned off by default to improve latency, so questions about images in documents will yield poor accuracy. For the full list of supported file types, see [What is NeMo Retriever Extraction?](https://docs.nvidia.com/nemo/retriever/extraction/overview/)
 
 We provide Docker Compose scripts that deploy the microservices on a single node.
-Alternatively, developers can launch this blueprint directly in an [NVIDIA AI Workbench](https://www.nvidia.com/en-us/deep-learning-ai/solutions/data-science/workbench/) developer environment. 
+Alternatively, developers can launch this blueprint directly in an [NVIDIA AI Workbench](https://www.nvidia.com/en-us/deep-learning-ai/solutions/data-science/workbench/) developer environment.
 When you are ready for a large-scale deployment,
 you can use the included Helm charts to deploy the necessary microservices.
 You use sample Jupyter notebooks with the JupyterLab service to interact with the code directly.

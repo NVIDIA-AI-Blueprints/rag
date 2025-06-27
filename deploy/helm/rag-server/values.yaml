@@ -134,7 +134,7 @@ envVars:
   ##===VLM Model specific configurations===
   ENABLE_VLM_INFERENCE: "false"
   APP_VLM_SERVERURL: "http://nim-vlm:8000/v1"
-  APP_VLM_MODELNAME: "nvidia/llama-cosmos-nemotron-8b-instruct"
+  APP_VLM_MODELNAME: "nvidia/llama-3.1-nemotron-nano-vl-8b-v1"
 
 # Ingestor Server
 ingestor-server:
@@ -193,7 +193,7 @@ ingestor-server:
     APP_NVINGEST_TEXTDEPTH: "page"  # Extract text by "page" or "document"
 
     # === NV-Ingest caption configurations ===
-    APP_NVINGEST_CAPTIONMODELNAME: "meta/llama-3.2-11b-vision-instruct"  # Model name for captioning
+    APP_NVINGEST_CAPTIONMODELNAME: "nvidia/llama-3.1-nemotron-nano-vl-8b-v1"  # Model name for captioning
     APP_NVINGEST_CAPTIONENDPOINTURL: ""  # Endpoint URL for captioning model
 
     # === General ===
@@ -210,7 +210,7 @@ ingestor-server:
     # === NV-Ingest splitting configurations ===
     APP_NVINGEST_CHUNKSIZE: "512"  # Size of chunks for splitting
     APP_NVINGEST_CHUNKOVERLAP: "150"  # Overlap size for chunks
-    APP_NVINGEST_ENABLEPDFSPLITTER: "False"  # Enable PDF splitter
+    APP_NVINGEST_ENABLEPDFSPLITTER: "True"  # Enable PDF splitter
 
     # === Redis configurations ===
     REDIS_HOST: "rag-redis-master"
@@ -234,7 +234,7 @@ ingestor-server:
     ngcImagePullSecret:
       create: false
     image:
-      repository: "nvcr.io/nvstaging/nim/nv-ingest"
+      repository: "nvcr.io/nvidia/nemo-microservices/nv-ingest"
       tag: "25.6.2"
     resources:
       limits:
@@ -433,8 +433,8 @@ nim-vlm:
   service:
     name: "nim-vlm"
   image:
-    repository: nvcr.io/nvidia/nim/llama-cosmos-nemotron-8b-instruct
-    tag: "1.2.1ea"
+    repository: nvcr.io/nvstaging/nim/llama-3.1-nemotron-nano-vl-8b-v1
+    tag: "1.3.0-RC8-GA-30584428"
   resources:
     limits:
       nvidia.com/gpu: 1

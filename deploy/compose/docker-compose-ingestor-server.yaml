@@ -68,11 +68,11 @@ services:
       ##===NV-Ingest Splitting Configurations========
       APP_NVINGEST_CHUNKSIZE: ${APP_NVINGEST_CHUNKSIZE:-512}
       APP_NVINGEST_CHUNKOVERLAP: ${APP_NVINGEST_CHUNKOVERLAP:-150}
-      APP_NVINGEST_ENABLEPDFSPLITTER: ${APP_NVINGEST_ENABLEPDFSPLITTER:-False}
+      APP_NVINGEST_ENABLEPDFSPLITTER: ${APP_NVINGEST_ENABLEPDFSPLITTER:-True}
 
       ##===NV-Ingest Caption Model configurations====
-      APP_NVINGEST_CAPTIONMODELNAME: ${APP_NVINGEST_CAPTIONMODELNAME:-"meta/llama-3.2-11b-vision-instruct"}
-      # Incase of nvidia-hosted caption model, use the endpoint url as - https://ai.api.nvidia.com/v1/gr/meta/llama-3.2-11b-vision-instruct/chat/completions
+      APP_NVINGEST_CAPTIONMODELNAME: ${APP_NVINGEST_CAPTIONMODELNAME:-"nvidia/llama-3.1-nemotron-nano-vl-8b-v1"}
+      # Incase of nvidia-hosted caption model, use the endpoint url as - https://integrate.api.nvidia.com/v1
       APP_NVINGEST_CAPTIONENDPOINTURL: ${APP_NVINGEST_CAPTIONENDPOINTURL:-"http://vlm-ms:8000/v1/chat/completions"}
 
       # Choose whether to store the extracted content in the vector store for citation support
@@ -182,9 +182,9 @@ services:
       - YOLOX_TABLE_STRUCTURE_GRPC_ENDPOINT=${YOLOX_TABLE_STRUCTURE_GRPC_ENDPOINT:-table-structure:8001}
       - YOLOX_TABLE_STRUCTURE_HTTP_ENDPOINT=${YOLOX_TABLE_STRUCTURE_HTTP_ENDPOINT:-http://table-structure:8000/v1/infer}
       - YOLOX_TABLE_STRUCTURE_INFER_PROTOCOL=${YOLOX_TABLE_STRUCTURE_INFER_PROTOCOL:-grpc}
-      # Incase of nvidia-hosted caption model, use the endpoint url as - https://ai.api.nvidia.com/v1/gr/meta/llama-3.2-11b-vision-instruct/chat/completions
+      # Incase of nvidia-hosted caption model, use the endpoint url as - https://integrate.api.nvidia.com/v1/chat/completions
       - VLM_CAPTION_ENDPOINT=${VLM_CAPTION_ENDPOINT:-http://vlm-ms:8000/v1/chat/completions}
-      - VLM_CAPTION_MODEL_NAME=${VLM_CAPTION_MODEL_NAME:-meta/llama-3.2-11b-vision-instruct}
+      - VLM_CAPTION_MODEL_NAME=${VLM_CAPTION_MODEL_NAME:-nvidia/llama-3.1-nemotron-nano-vl-8b-v1}
       - MODEL_PREDOWNLOAD_PATH=${MODEL_PREDOWNLOAD_PATH:-/workspace/models/}
     healthcheck:
       test: curl --fail http://nv-ingest-ms-runtime:7670/v1/health/ready || exit 1

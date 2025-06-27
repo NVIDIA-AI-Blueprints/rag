@@ -10,45 +10,46 @@ ingestor-server:
     envVars:
       NV_INGEST_MAX_UTIL: 8
       MAX_INGEST_PROCESS_WORKERS: 2
-
     # PaddleOCR NIM
     paddleocr-nim:
       resources:
         limits:
-          nvidia.com/mig-1g.10gb: 1
+          nvidia.com/mig-2g.20gb: 1
           nvidia.com/gpu: 0
         requests:
-          nvidia.com/mig-1g.10gb: 1
+          nvidia.com/mig-2g.20gb: 1
           nvidia.com/gpu: 0
 
     # Nemoretriever Graphic Elements NIM
     nemoretriever-graphic-elements-v1:
       resources:
         limits:
-          nvidia.com/mig-1g.10gb: 1
+          nvidia.com/mig-2g.20gb: 1
           nvidia.com/gpu: 0
         requests:
-          nvidia.com/mig-1g.10gb: 1
+          nvidia.com/mig-2g.20gb: 1
           nvidia.com/gpu: 0
 
     # Nemoretriever Page Elements NIM
     nemoretriever-page-elements-v2:
       resources:
         limits:
-          nvidia.com/mig-1g.10gb: 1
+          #nvidia.com/mig-1g.10gb: 1
+          nvidia.com/mig-2g.20gb: 1
           nvidia.com/gpu: 0
         requests:
-          nvidia.com/mig-1g.10gb: 1
+          nvidia.com/mig-2g.20gb: 1
+          #nvidia.com/mig-1g.10gb: 1
           nvidia.com/gpu: 0
 
     # Nemoretriever Table Structure NIM
     nemoretriever-table-structure-v1:
       resources:
         limits:
-          nvidia.com/mig-1g.10gb: 1
+          nvidia.com/mig-2g.20gb: 1
           nvidia.com/gpu: 0
         requests:
-          nvidia.com/mig-1g.10gb: 1
+          nvidia.com/mig-2g.20gb: 1
           nvidia.com/gpu: 0
 
     # Milvus
@@ -57,10 +58,10 @@ ingestor-server:
         resources:
           limits:
             nvidia.com/gpu: 0
-            nvidia.com/mig-1g.10gb: 1
+            nvidia.com/mig-2g.20gb: 1
           requests:
             nvidia.com/gpu: 0
-            nvidia.com/mig-1g.10gb: 1
+            nvidia.com/mig-2g.20gb: 1
 # Retrieval NIMs
 # LLM NIM
 nim-llm:

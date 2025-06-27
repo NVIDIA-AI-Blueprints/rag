@@ -11,7 +11,7 @@ license-files = [
 authors = [
     { name = "NVIDIA RAG", email = "foundational-rag-dev@exchange.nvidia.com" }
 ]
-requires-python = ">=3.13"
+requires-python = ">=3.12"
 
 dependencies = [
     "bleach==6.2.0",
@@ -31,7 +31,8 @@ dependencies = [
     "unstructured[all-docs]>=0.15.1",
     "uvicorn[standard]==0.32.0",
     "langchain-core>=0.3.31",
-    "redis==5.2.1"
+    "redis==5.2.1",
+    "protobuf>=5.29.5",
 ]
 
 [project.optional-dependencies]

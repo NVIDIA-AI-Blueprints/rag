@@ -14,7 +14,7 @@ These parameters allow fine-tuning RAG performance based on specific accuracy vs
   - ❌ Increases latency due to additional processing. Additional model deployment will be needed for on-prem setting of NIMS.
   - Controlled using `ENABLE_RERANKER` environment variable. Default is on.
 
-- **Enable Vision-Language Model (VLM) Inference for response generation**
+- **Enable Vision-Language Model (VLM) for response generation**
   - ✅ Enables analysis of retrieved images alongside text for richer, multimodal responses
   - ✅ Can process up to 4 images per citation
   - ✅ Useful for document Q&A, visual search, and multimodal chatbots
@@ -93,7 +93,7 @@ These parameters allow fine-tuning RAG performance based on specific accuracy vs
 - **Customize PDF Splitting**
   - ✅ PDFs are extracted at the page level by default. When PDF splitting is enabled, chunk-based splitting is performed after page-level extraction for more granular content segmentation. Recommended for PDFs with pages with more text content
   - ❌ This may increase number of chunks and slightly slow down ingestion process
-  - Controlled by `APP_NVINGEST_ENABLEPDFSPLITTER` environment variable. Default value is `False`.
+  - Controlled by `APP_NVINGEST_ENABLEPDFSPLITTER` environment variable. Default value is `True`.
 
 ## Ingestion Batch Mode Optimization
 

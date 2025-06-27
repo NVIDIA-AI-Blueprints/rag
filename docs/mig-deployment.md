@@ -87,7 +87,7 @@ kubectl patch clusterpolicies.nvidia.com/cluster-policy \
 Label the node with MIG configuration, by running the following code.
 
 ```bash
-kubectl label nodes <node-name> nvidia.com/mig.config=balanced-7-10gb-3-20gb-1-80gb --overwrite
+kubectl label nodes <node-name> nvidia.com/mig.config=balanced-3-20gb-3-20gb-3-20gb-1-80gb --overwrite
 ```
 
 Verify that the MIG configuration is successfully applied, by running the following code.
@@ -100,8 +100,7 @@ You should see output similar to the following.
 
 ```json
 "nvidia.com/mig.config.state": "success"
-"nvidia.com/mig-1g.10gb.count": "7"
-"nvidia.com/mig-2g.20gb.count": "3"
+"nvidia.com/mig-2g.20gb.count": "9"
 "nvidia.com/mig-7g.80gb.count": "1"
 ```
 
@@ -138,16 +137,14 @@ You should see output similar to the following.
 
 ```
 Resource                                    Requested   Limit    Allocatable  Free
-nvidia.com/mig-1g.10gb                      (71%) 5.0   (71%) 5.0     7.0        2.0
+nvidia.com/mig-2g.20gb                      (100%) 9.0   (100%) 9.0     3.0        0.0
+├─ rag-nvidia-nim-llama-...                1.0     1.0
+├─ rag-text-reranking-nim-...              1.0     1.0
 ├─ milvus-standalone-...                   1.0     1.0
 ├─ nv-ingest-paddle-...                    1.0     1.0
 ├─ rag-nemoretriever-graphic-...           1.0     1.0
 ├─ rag-nemoretriever-page-...              1.0     1.0
 └─ rag-nemoretriever-table-...             1.0     1.0
-
-nvidia.com/mig-2g.20gb                      (67%) 2.0   (67%) 2.0     3.0        1.0
-├─ rag-nvidia-nim-llama-...                1.0     1.0
-└─ rag-text-reranking-nim-...              1.0     1.0
 
 nvidia.com/mig-7g.80gb                      (100%) 1.0  (100%) 1.0     1.0        0.0
 └─ rag-nim-llm-0                            1.0     1.0

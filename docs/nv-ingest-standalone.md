@@ -24,7 +24,8 @@ When using NV-Ingest in standalone mode, please be aware of the following limita
 ## Prerequisites
 
 1. Ensure you have Docker and Docker Compose installed
-2. Have Python 3.13 or later installed
+2. Have Python 3.12 or later installed
+   > ℹ️ If you're using **Python 3.13**, make sure you've `python3.13-dev` installed.
 3. Have an NGC API key (see [Obtain an API Key](../quickstart.md#obtain-an-api-key))
 4. Install a package manager (either uv or pip):
 ```bash

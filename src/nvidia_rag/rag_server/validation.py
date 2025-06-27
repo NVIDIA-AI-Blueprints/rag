@@ -81,7 +81,7 @@ def validate_reranker_top_k(reranker_top_k: int, vdb_top_k: Optional[int], field
     Raises:
         ValueError: If reranker_top_k is greater than vdb_top_k
     """
-    if vdb_top_k is not None and reranker_top_k >= vdb_top_k:
+    if vdb_top_k is not None and reranker_top_k > vdb_top_k:
         raise ValueError(f"{field_name} must be less than or equal to vdb_top_k ({vdb_top_k})")
     return reranker_top_k
 

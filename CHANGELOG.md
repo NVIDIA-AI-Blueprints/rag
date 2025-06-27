@@ -3,7 +3,7 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
 
-## [2.2.0] - 2025-06-27
+## [2.2.0] - 2025-06-25
 
 This release adds B200 platform support, a native Python API, and major enhancements for multimodal and metadata features. It also improves deployment flexibility and customization across the RAG blueprint.
 
@@ -32,7 +32,6 @@ This release adds B200 platform support, a native Python API, and major enhancem
 - [Nvidia AI Workbench support](./deploy/workbench/)
 
 ### Changed
-- `APP_NVINGEST_ENABLEPDFSPLITTER` Default value is set to `False` instead of `True`.
 - [Changed API schema](./docs/api_reference/) to support newly added features
   - POST /collections to be deprecated in favour of POST /collection for ingestor-server
   - New endpoint GET /summary added for rag-server

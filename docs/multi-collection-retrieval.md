@@ -15,16 +15,50 @@ The RAG system supports retrieving chunks from multiple collections in both sear
 2. A reranker is used to rank chunks across collections
 3. The top-ranked chunks are used for response generation
 
+## Limitations
+
+Multi-collection retrieval has the following limitations:
+
+1. Multi-collection retrieval is only supported when reranking is enabled. The reranker is mandatory to properly rank and merge chunks from different collections.
+
+2. Currently limited to a maximum of 5 collections per query. Exceeding this limit may result in performance degradation or re-ranker context-length errors.
+
 ## Prerequisites
 
-The reranker must be enabled for multi-collection retrieval to work. Set the following environment variables:
+Multi-collection retrieval requires reranking to be enabled. The reranker service and environment variables are enabled by default in Docker and HELM deployments. Ensure the reranking microservice is deployed and accessible at the configured URL.
+
+### For Docker Compose Deployment
+
+The reranker settings are configured in `deploy/compose/docker-compose-rag-server.yaml`. Ensure the following environment variables are set before deploying (these are enabled by default):
 
 ```bash
-# Enable reranker
+# Note: These export statements are only needed if reranking is disabled (its enabled by default)
+# and you want to enable it for multi-collection retrieval.
+
+# Enable reranker (default: True)
 export ENABLE_RERANKER=True
 
-# Set reranker model (default is already set in docker-compose)
+# Set reranker model (default is already configured)
 export APP_RANKING_MODELNAME="nvidia/llama-3.2-nv-rerankqa-1b-v2"
+
+# Reranker service URL (default is already configured)
+export APP_RANKING_SERVERURL="nemoretriever-ranking-ms:8000"
+```
+
+### For Helm Deployment
+
+The reranker settings are configured in `deploy/helm/rag-server/values.yaml`. Ensure the following settings are enabled (these are enabled by default):
+
+```yaml
+envVars:
+  # Enable reranker (default: "True")
+  ENABLE_RERANKER: "True"
+  
+  # Reranker model name (default is already configured)
+  APP_RANKING_MODELNAME: "nvidia/llama-3.2-nv-rerankqa-1b-v2"
+  
+  # Reranker service URL (default is already configured)
+  APP_RANKING_SERVERURL: "nemoretriever-reranking-ms:8000"
 ```
 
 ## Multiple Collection Setup during Ingestion
@@ -95,4 +129,26 @@ Multi-collection retrieval is useful in scenarios where you need to maintain sep
 2. **Domain-Specific Collections**: Maintain separate collections for different domains (e.g., `technical_docs`, `marketing_docs`, `legal_docs`) while enabling cross-domain search.
 
 In all cases, the reranker ensures the most relevant chunks are selected from across collections, providing a unified search experience.
+
+## Troubleshooting
+
+When using multi-collection retrieval with multiple collections and high `vdb_top_k` values, the reranking context length may increase significantly due to the large number of chunks retrieved (calculated as `vdb_top_k × number_of_collections`). This can lead to potential context length limit errors.
+
+**Solution**: Reduce the `VECTOR_DB_TOPK` value in your deployment configuration:
+
+**For Docker Compose**: Edit `deploy/compose/docker-compose-rag-server.yaml`:
+```yaml
+environment:
+  # Reduce from default 100 to a lower value (e.g., 50 or 25)
+  VECTOR_DB_TOPK: ${VECTOR_DB_TOPK:-50}
+```
+
+**For Helm**: Edit `deploy/helm/rag-server/values.yaml`:
+```yaml
+envVars:
+  # Reduce from default "100" to a lower value
+  VECTOR_DB_TOPK: "50"
+```
+
+Start with a lower value (e.g., 25-50) and adjust based on your retrieval quality requirements and system performance.
 

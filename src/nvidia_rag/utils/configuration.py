@@ -163,13 +163,13 @@ class NvIngestConfig(ConfigWizard):
     # Captioning Configuration Parameters
     caption_model_name: str = configfield(
         "caption_model_name",
-        default="meta/llama-3.2-11b-vision-instruct",
+        default="nvidia/llama-3.1-nemotron-nano-vl-8b-v1",
         help_txt="NV Ingest Captioning model name",
     )
 
     caption_endpoint_url: str = configfield(
         "caption_endpoint_url",
-        default="https://ai.api.nvidia.com/v1/gr/meta/llama-3.2-11b-vision-instruct/chat/completions",
+        default="https://integrate.api.nvidia.com/v1/chat/completions",
         help_txt="NV Ingest Captioning model Endpoint URL",
     )
 
@@ -448,7 +448,7 @@ class VLMConfig(ConfigWizard):
     )
     model_name: str = configfield(
         "model_name",
-        default="nvidia/llama-cosmos-nemotron-8b-instruct",
+        default="nvidia/llama-3.1-nemotron-nano-vl-8b-v1",
         help_txt="The name of the VLM model",
     )
 

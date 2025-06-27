@@ -31,6 +31,12 @@ The following issues might arise when you work with the NVIDIA RAG Blueprint.
 - Complicated filter expressions with custom metadata while sending a query, are not supported from the sample user interface.
 - Due to a known issue with MIG support, currently the ingestion profile has been scaled down while deploying the chart with MIG slicing This affects the ingestion performance during bulk ingestion, specifically large bulk ingestion jobs might fail.
 
+## Ingestion failures
+
+In case a PDF or PPTx file is not ingested properly, check if that PDF/PPTx only contains images. If the images contain text that you want to extract, try enabling `APP_NVINGEST_EXTRACTINFOGRAPHICS` from [`deploy/compose/docker-compose-ingestor-server.yaml`](../deploy/compose/docker-compose-ingestor-server.yaml).
+
+You may also enable image captioning to better extract content from images. For more details on enabling image captioning, refer to [image_captioning.md](image_captioning.md).
+
 ## ERROR: pip's dependency resolver during container building
 ```
 ERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts.

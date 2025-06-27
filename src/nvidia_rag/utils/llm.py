@@ -52,11 +52,11 @@ def get_prompts() -> Dict:
     default_config_path = os.path.join(os.environ.get("EXAMPLE_PATH", os.path.dirname(__file__)), "..", "rag_server", "prompt.yaml")
     cur_dir_path = os.path.join(os.path.dirname(__file__), "..", "rag_server", "prompt.yaml")
     default_config = {}
-    if Path(default_config_path).exists():
+    if Path(default_config_path).is_file():
         with open(default_config_path, 'r', encoding="utf-8") as file:
             logger.info("Using prompts config file from: %s", default_config_path)
             default_config = yaml.safe_load(file)
-    elif Path(cur_dir_path).exists():
+    elif Path(cur_dir_path).is_file():
         # if prompt.yaml is not found in the default path, check in the current directory(use default config)
         # this is for packaging
         with open(cur_dir_path, 'r', encoding="utf-8") as file:
@@ -68,7 +68,7 @@ def get_prompts() -> Dict:
     config_file = os.environ.get("PROMPT_CONFIG_FILE", "/prompt.yaml")
 
     config = {}
-    if Path(config_file).exists():
+    if Path(config_file).is_file():
         with open(config_file, 'r', encoding="utf-8") as file:
             logger.info("Using prompts config file from: %s", config_file)
             config = yaml.safe_load(file)

@@ -990,7 +990,7 @@
             "maxLength": 256,
             "title": "Vlm Model",
             "description": "Name of the VLM model used for inference.",
-            "default": "nvidia/llama-cosmos-nemotron-8b-instruct"
+            "default": "nvidia/llama-3.1-nemotron-nano-vl-8b-v1"
           },
           "vlm_endpoint": {
             "anyOf": [

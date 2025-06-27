@@ -36,12 +36,37 @@ Once you have followed [steps in quick start guide](./quickstart.md#deploy-with-
        '../data/audio/sample.mp3',
        '../data/audio/sample.wav'
    ]
-   
+
    await upload_documents(collection_name="audio_data")
    ```
 
 > [!Note]
 > The audio transcription service requires GPU resources. Make sure you have sufficient GPU resources available before enabling this feature.
+
+### Customizing GPU Usage for Audio Service (Optional)
+
+By default, the `audio` service uses GPU ID 0. You can customize which GPU to use by setting the `AUDIO_MS_GPU_ID` environment variable before starting the service:
+
+```bash
+export AUDIO_MS_GPU_ID=3  # Use GPU 3 instead of GPU 0
+USERID=$(id -u) docker compose -f deploy/compose/nims.yaml --profile audio up -d
+```
+
+Alternatively, you can modify the `nims.yaml` file directly to change the GPU assignment:
+
+```yaml
+# In deploy/compose/nims.yaml, locate the audio service and modify:
+deploy:
+  resources:
+    reservations:
+      devices:
+        - driver: nvidia
+          device_ids: ["${AUDIO_MS_GPU_ID:-0}"]  # Change 0 to your desired GPU ID
+          capabilities: [gpu]
+```
+
+> [!Note]
+> Ensure the specified GPU is available and has sufficient memory for the audio transcription model. The Riva ASR model typically requires at least 8GB of GPU memory.
 
 ### Helm Flow
 

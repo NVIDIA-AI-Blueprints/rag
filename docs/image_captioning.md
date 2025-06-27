@@ -34,14 +34,15 @@ Once you have followed [steps in quick start guide](./quickstart.md#deploy-with-
    Export the below environment variable and relaunch the ingestor-server container.
    ```bash
    export APP_NVINGEST_EXTRACTIMAGES="True"
-   export VLM_CAPTION_ENDPOINT="http://vlm-ms:8000/v1/chat/completions"
+   export APP_NVINGEST_CAPTIONENDPOINTURL="http://vlm-ms:8000/v1/chat/completions"
    docker compose -f deploy/compose/docker-compose-ingestor-server.yaml up -d
    ```
 
 ## Using cloud hosted VLM model
-1. Set caption endpoint to API catalog
+1. Set caption endpoint and model to API catalog
    ```bash
-   export VLM_CAPTION_ENDPOINT="https://ai.api.nvidia.com/v1/gr/meta/llama-3.2-11b-vision-instruct/chat/completions"
+   export APP_NVINGEST_CAPTIONENDPOINTURL="https://integrate.api.nvidia.com/v1/chat/completions"
+   export APP_NVINGEST_CAPTIONMODELNAME="nvidia/llama-3.1-nemotron-nano-vl-8b-v1"
    ```
 
 2. Enable image captioning
@@ -53,8 +54,8 @@ Once you have followed [steps in quick start guide](./quickstart.md#deploy-with-
 
 [!TIP]: You can change the model name and model endpoint in case of an externally hosted VLM model by setting these two environment variables and restarting the ingestion services
 ```bash
-export VLM_CAPTION_ENDPOINT="<vlm_nim_http_endpoint_url>"
-export VLM_CAPTION_MODEL_NAME="<model_name>"
+export APP_NVINGEST_CAPTIONMODELNAME="<vlm_nim_http_endpoint_url>"
+export APP_NVINGEST_CAPTIONMODELNAME="<model_name>"
 ```
 
 ## Using Helm chart deployment (On-prem only)
@@ -67,7 +68,7 @@ To enable image captioning in Helm-based deployments by using an on-prem VLM mod
    ```yaml
    APP_NVINGEST_EXTRACTIMAGES: "True"
    APP_NVINGEST_CAPTIONENDPOINTURL: "http://nim-vlm-image-captioning:8000/v1/chat/completions"
-   APP_NVINGEST_CAPTIONMODELNAME: "meta/llama-3.2-11b-vision-instruct"
+   APP_NVINGEST_CAPTIONMODELNAME: "nvidia/llama-3.1-nemotron-nano-vl-8b-v1"
    ```
 
 2. Enable the VLM image captioning model in your `values.yaml` file.

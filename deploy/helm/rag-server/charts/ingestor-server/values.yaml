@@ -60,7 +60,7 @@ envVars:
   APP_NVINGEST_TEXTDEPTH: "page"  # Extract text by "page" or "document"
 
   # === NV-Ingest caption configurations ===
-  APP_NVINGEST_CAPTIONMODELNAME: "meta/llama-3.2-11b-vision-instruct"  # Model name for captioning
+  APP_NVINGEST_CAPTIONMODELNAME: "nvidia/llama-3.1-nemotron-nano-vl-8b-v1"  # Model name for captioning
   APP_NVINGEST_CAPTIONENDPOINTURL: ""  # Endpoint URL for captioning model
 
   # === General ===
@@ -75,7 +75,7 @@ envVars:
   # === NV-Ingest splitting configurations ===
   APP_NVINGEST_CHUNKSIZE: "512"
   APP_NVINGEST_CHUNKOVERLAP: "150"
-  APP_NVINGEST_ENABLEPDFSPLITTER: "False"
+  APP_NVINGEST_ENABLEPDFSPLITTER: "True"
 
   # === Redis configurations ===
   REDIS_HOST: "rag-redis-master"
@@ -99,7 +99,7 @@ nv-ingest:
   ngcImagePullSecret:
     create: false
   image:
-    repository: "nvcr.io/nvstaging/nim/nv-ingest"
+    repository: "nvcr.io/nvidia/nemo-microservices/nv-ingest"
     tag: "25.6.2"
   resources:
     limits:

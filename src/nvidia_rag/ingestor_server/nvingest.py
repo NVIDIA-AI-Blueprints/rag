@@ -119,7 +119,7 @@ def get_nv_ingest_ingestor(
 
     # Add captioning task if extract_images is enabled
     if config.nv_ingest.extract_images:
-        logger.info("Adding captioning task to NV-Ingest Ingestor")
+        logger.info(f"Enabling captioning task. Captioning Endpoint URL: {config.nv_ingest.caption_endpoint_url}, Captioning Model Name: {config.nv_ingest.caption_model_name}")
         ingestor = ingestor.caption(
                         api_key=get_env_variable(variable_name="NGC_API_KEY", default_value=""),
                         endpoint_url=config.nv_ingest.caption_endpoint_url,

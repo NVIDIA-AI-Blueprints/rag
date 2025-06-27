@@ -453,13 +453,13 @@ helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprin
 ```
 
 [!NOTE]
-For B200 based deployment, you need to add an environment variable to the `nvidia-nim-llama-32-nv-embedqa-1b-v2` deployment. 
+For B200 based deployment, you need to add an environment variable to the `nvidia-nim-llama-32-nv-embedqa-1b-v2` deployment.
 Due to a known issue in the chart, we currently need to manually edit the deployment and add this env variable.
 
 1. Edit the embedding deployment with the command below.
 
 ```bash
-kubectl edit deployment `rag-nvidia-nim-llama-32-nv-embedqa-1b-v2`  -n rag
+kubectl edit deployment 'rag-nvidia-nim-llama-32-nv-embedqa-1b-v2'  -n rag
 ```
 
 2. Add the env variable `NIM_TRT_ENGINE_HOST_CODE_ALLOWED` and set its value to `1`.
@@ -478,6 +478,13 @@ spec:
         - name: NIM_TRT_ENGINE_HOST_CODE_ALLOWED
           value: "1"
 ```
+
+3. Delete the NIM Embedding pod for the changes in the deployment to reflect.
+
+```bash
+kubectl delete deployment 'rag-nvidia-nim-llama-32-nv-embedqa-1b-v2'  -n rag
+```
+
 
 [!TIP]
 For B200 and A100 GPUs, it is recommended to use CPU indexing and search for better response. You can set this by either:
@@ -504,7 +511,7 @@ ingestor-server:
 > **Note:** If you're using the source Helm chart, make these changes in `deploy/helm/rag-server/values.yaml`.
 
 > [!NOTE]
-> To deploy the Helm chart within 3xH100 using MIG slicing, see [RAG Deployment with MIG Support](./mig-deployment.md).
+> To deploy the Helm chart within 4xH100 using MIG slicing, see [RAG Deployment with MIG Support](./mig-deployment.md).
 
 
 #### Deploying E2E From the Source (Optional)
@@ -955,7 +962,7 @@ Follow the cells in the notebook to ingest the PDF files from the data/dataset f
 - [Customize LLM Parameters at Runtime](llm-params.md)
 - [Support Multi-Turn Conversations](multiturn.md)
 - [Enable NeMo Guardrails for Content Safety](nemo-guardrails.md)
-- [Query Across Multiple Collections](multi_collection_retrieval.md)
+- [Query Across Multiple Collections](multi-collection-retrieval.md)
 - [Troubleshoot NVIDIA RAG Blueprint](troubleshooting.md)
 - [Understand latency breakdowns and debug errors using observability services](observability.md)
 - [Enable Self-Reflection to improve accuracy](self-reflection.md)
@@ -964,9 +971,9 @@ Follow the cells in the notebook to ingest the PDF files from the data/dataset f
 - [Enable hybrid search for milvus](hybrid_search.md)
 - [Add custom metadata while uploaded documents](custom-metadata.md)
 - [Enable low latency, low compute text only pipeline](text_only_ingest.md)
-- [Enable VLM based inferencing in RAG](docs/vlm.md)
-- [Enable PDF extraction with Nemoretriever Parse](docs/nemoretriever-parse-extraction.md)
-- [Enable standalone NV-Ingest for direct document ingestion without ingestor server](docs/nv-ingest-standalone.md)
+- [Enable VLM based inferencing in RAG](vlm.md)
+- [Enable PDF extraction with Nemoretriever Parse](nemoretriever-parse-extraction.md)
+- [Enable standalone NV-Ingest for direct document ingestion without ingestor server](nv-ingest-standalone.md)
 - Explore [best practices for enhancing accuracy or latency](accuracy_perf.md)
 - Explore [migration guide](migration_guide.md) if you are migrating from rag v1.0.0 to this version.
 
