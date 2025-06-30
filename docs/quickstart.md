@@ -482,7 +482,7 @@ spec:
 3. Delete the NIM Embedding pod for the changes in the deployment to reflect.
 
 ```bash
-kubectl delete deployment 'rag-nvidia-nim-llama-32-nv-embedqa-1b-v2'  -n rag
+kubectl delete pod <embedqa-pod-name>  -n rag
 ```
 
 
@@ -766,10 +766,24 @@ helm upgrade --install rag https://helm.ngc.nvidia.com/nvstaging/blueprint/chart
 
 #### (Optional) Deploying Standalone Ingestor Server
 
-Run the following command to install the Ingestor Server:
+Before installing the standalone Ingestor Server, update `rag-server/charts/ingestor-server/values.yaml` to enable the required secrets and the embedding NIM:
+
+```yaml
+nv-ingest:
+  ngcApiSecret:
+    create: true
+  ngcImagePullSecret:
+    create: true
+  nvidia-nim-llama-32-nv-embedqa-1b-v2:
+    deployed: true
+  envVars:
+    EMBEDDING_NIM_ENDPOINT: "http://nv-ingest-embedqa:8000/v1"
+```
+
+Then run the following command to install (or upgrade) the Ingestor Server:
 
 ```sh
-helm upgrade --install ingestor-server rag-server/charts/ingestor-server -n rag \
+helm upgrade --install rag rag-server/charts/ingestor-server -n rag \
   --set imagePullSecret.password="$NGC_API_KEY" \
   --set nv-ingest.ngcImagePullSecret.password="$NGC_API_KEY" \
   --set nv-ingest.ngcApiSecret.password="$NGC_API_KEY"
