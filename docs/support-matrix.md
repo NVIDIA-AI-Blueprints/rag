@@ -11,8 +11,8 @@ The following are the system requirements for the NVIDIA RAG Blueprint.
 Ubuntu 22.04 OS
 
 ## Deployment Options
-- [Docker](./docs/quickstart.md#deploy-with-docker-compose)
-- [Kubernetes](./docs/quickstart.md#deploy-with-helm-chart)
+- [Docker](quickstart.md#deploy-with-docker-compose)
+- [Kubernetes](quickstart.md#deploy-with-helm-chart)
 
 ## Driver versions
 
@@ -30,13 +30,13 @@ Following are the hardware requirements for each component.
 The reference code in the solution (glue code) is referred to as as the "pipeline".
 
 The overall hardware requirements depend on whether you
-[Deploy With Docker Compose](./docs/quickstart.md#deploy-with-docker-compose) or [Deploy With Helm Chart](./docs/quickstart.md#deploy-with-helm-chart) or [Interact using native python package](./notebooks/rag_library_usage.ipynb).
+[Deploy With Docker Compose](quickstart.md#deploy-with-docker-compose) or [Deploy With Helm Chart](quickstart.md#deploy-with-helm-chart) or [Interact using native python package](../notebooks/rag_library_usage.ipynb).
 
 
 ## Hardware requirements for self hosting all NVIDIA NIM microservices
 
-The NIM and hardware requirements only need to be met if you are self-hosting them with default settings of RAG. 
-See [Using self-hosted NVIDIA NIM microservices](./docs/quickstart.md#deploy-with-docker-compose).
+The NIM and hardware requirements only need to be met if you are self-hosting them with default settings of RAG.
+See [Using self-hosted NVIDIA NIM microservices](quickstart.md#deploy-with-docker-compose).
 
 - **Pipeline operation**: 1x L40 GPU or similar recommended. It is needed for Milvus vector store database, as GPU acceleration is enabled by default.
 - **LLM NIM**: [NVIDIA llama-3.3-nemotron-super-49b-v1](https://docs.nvidia.com/nim/large-language-models/latest/supported-models.html#id83)

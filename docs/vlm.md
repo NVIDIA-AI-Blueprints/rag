@@ -92,7 +92,7 @@ NVIDIA RAG uses the [**llama-3.1-nemotron-nano-vl-8b-v1**](https://build.nvidia.
 To start the local VLM NIM service, run:
 
 ```bash
-docker compose -f deploy/compose/nims.yaml --profile vlm up -d
+USERID=$(id -u) docker compose -f deploy/compose/nims.yaml --profile vlm up -d
 ```
 
 This will launch the `vlm-ms` container, which serves the model on port 1977 (internal port 8000).
@@ -103,7 +103,7 @@ By default, the `vlm-ms` service uses GPU ID 5. You can customize which GPU to u
 
 ```bash
 export VLM_MS_GPU_ID=2  # Use GPU 2 instead of GPU 5
-docker compose -f deploy/compose/nims.yaml --profile vlm up -d
+USERID=$(id -u) docker compose -f deploy/compose/nims.yaml --profile vlm up -d
 ```
 
 Alternatively, you can modify the `nims.yaml` file directly to change the GPU assignment:

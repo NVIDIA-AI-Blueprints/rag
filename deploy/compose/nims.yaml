@@ -229,7 +229,7 @@ services:
         reservations:
           devices:
             - driver: nvidia
-              device_ids: ["0"]
+              device_ids: ["${AUDIO_MS_GPU_ID:-0}"]
               capabilities: [gpu]
     runtime: nvidia
     profiles: ["audio"]
