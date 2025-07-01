@@ -24,8 +24,9 @@ Endpoints:
 import asyncio
 import logging
 import os
+import time
 import bleach
-from typing import Any, Dict, Optional, List
+from typing import Any, Dict, Optional, List, Generator
 from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
@@ -528,6 +529,7 @@ async def health_check(check_dependencies: bool = False):
 )
 async def generate_answer(request: Request, prompt: Prompt) -> StreamingResponse:
     """Generate and stream the response to the provided prompt."""
+    generate_start_time = time.time()
 
     if metrics:
         metrics.update_api_requests(method=request.method, endpoint=request.url.path)
@@ -535,35 +537,41 @@ async def generate_answer(request: Request, prompt: Prompt) -> StreamingResponse
         # Convert messages to list of dicts
         messages_dict = [{'role': msg.role, 'content': msg.content} for msg in prompt.messages]
 
-        # Call generate with explicit arguments
+        # Get the streaming generator from NVIDIA_RAG.generate
+        response_generator = NVIDIA_RAG.generate(
+            messages=messages_dict,
+            use_knowledge_base=prompt.use_knowledge_base,
+            temperature=prompt.temperature,
+            top_p=prompt.top_p,
+            max_tokens=prompt.max_tokens,
+            stop=prompt.stop,
+            reranker_top_k=prompt.reranker_top_k,
+            vdb_top_k=prompt.vdb_top_k,
+            vdb_endpoint=prompt.vdb_endpoint,
+            collection_name=prompt.collection_name,
+            collection_names=prompt.collection_names,
+            enable_query_rewriting=prompt.enable_query_rewriting,
+            enable_reranker=prompt.enable_reranker,
+            enable_guardrails=prompt.enable_guardrails,
+            enable_citations=prompt.enable_citations,
+            enable_vlm_inference=prompt.enable_vlm_inference,
+            model=prompt.model,
+            llm_endpoint=prompt.llm_endpoint,
+            embedding_model=prompt.embedding_model,
+            embedding_endpoint=prompt.embedding_endpoint,
+            reranker_model=prompt.reranker_model,
+            reranker_endpoint=prompt.reranker_endpoint,
+            vlm_model=prompt.vlm_model,
+            vlm_endpoint=prompt.vlm_endpoint,
+            filter_expr=prompt.filter_expr,
+        )
+
+        # Wrap the generator with TTFT calculation and buffering fixes
+        ttft_generator = optimized_streaming_wrapper(response_generator, generate_start_time)
+
+        # Return streaming response with proper headers to prevent buffering
         return StreamingResponse(
-            NVIDIA_RAG.generate(
-                messages=messages_dict,
-                use_knowledge_base=prompt.use_knowledge_base,
-                temperature=prompt.temperature,
-                top_p=prompt.top_p,
-                max_tokens=prompt.max_tokens,
-                stop=prompt.stop,
-                reranker_top_k=prompt.reranker_top_k,
-                vdb_top_k=prompt.vdb_top_k,
-                vdb_endpoint=prompt.vdb_endpoint,
-                collection_name=prompt.collection_name,
-                collection_names=prompt.collection_names,
-                enable_query_rewriting=prompt.enable_query_rewriting,
-                enable_reranker=prompt.enable_reranker,
-                enable_guardrails=prompt.enable_guardrails,
-                enable_citations=prompt.enable_citations,
-                enable_vlm_inference=prompt.enable_vlm_inference,
-                model=prompt.model,
-                llm_endpoint=prompt.llm_endpoint,
-                embedding_model=prompt.embedding_model,
-                embedding_endpoint=prompt.embedding_endpoint,
-                reranker_model=prompt.reranker_model,
-                reranker_endpoint=prompt.reranker_endpoint,
-                vlm_model=prompt.vlm_model,
-                vlm_endpoint=prompt.vlm_endpoint,
-                filter_expr=prompt.filter_expr,
-            ),
+            ttft_generator,
             media_type="text/event-stream"
         )
 
@@ -763,3 +771,36 @@ async def get_summary(
             },
             status_code=500
         )
+
+
+async def optimized_streaming_wrapper(
+        generator: Generator,
+        start_time: float
+    ):
+    """
+    Optimized wrapper for streaming generator to calculate TTFT with minimal buffering.
+    
+    Args:
+        generator: The streaming generator from NVIDIA_RAG.generate()
+        start_time: The timestamp when the request started
+        
+    Yields:
+        The same chunks as the original generator, but with proper flushing and timing
+    """
+    token_count = 0
+    
+    async for chunk in generator:
+        current_time = time.time()
+        token_count += 1
+        
+        if token_count == 1:
+            ttft = (current_time - start_time) * 1000  # Convert to milliseconds
+            logger.info("    == RAG Time to First Token (TTFT): %.2f ms ==", ttft)
+            
+        # Yield the chunk immediately without additional processing
+        yield chunk
+        
+        # Force flush by yielding an empty chunk (this helps with some ASGI servers)
+        # Only do this for the first few tokens to ensure TTFT
+        if token_count <= 1:
+            await asyncio.sleep(0)  # Allow event loop to process

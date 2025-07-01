@@ -29,6 +29,7 @@
 
 import logging
 import os
+import time
 import requests
 import math
 from traceback import print_exc
@@ -39,6 +40,7 @@ from langchain_core.prompts import MessagesPlaceholder
 from langchain_core.prompts.chat import ChatPromptTemplate
 from langchain_core.runnables import RunnableAssign, RunnablePassthrough
 from requests import ConnectTimeout
+from opentelemetry import context as otel_context
 
 from nvidia_rag.utils.common import get_config, validate_filter_expr
 from nvidia_rag.utils.embedding import get_embedding_model
@@ -358,6 +360,7 @@ class NvidiaRAG():
                     retriever_query = ". ".join([*user_queries, query])
                     logger.info("Combined retriever query: %s", retriever_query)
             # Get relevant documents with optional reflection
+            otel_ctx = otel_context.get_current()
             if os.environ.get("ENABLE_REFLECTION", "false").lower() == "true":
                 max_loops = int(os.environ.get("MAX_REFLECTION_LOOP", 3))
                 reflection_counter = ReflectionCounter(max_loops)
@@ -389,11 +392,13 @@ class NvidiaRAG():
                     # Perform parallel retrieval from all vector stores
                     docs = []
                     with ThreadPoolExecutor() as executor:
-                        futures = [executor.submit(retreive_docs_from_retriever, retriever=retriever, retriever_query=retriever_query, expr=filter_expr) for retriever in retrievers]
+                        futures = [executor.submit(retreive_docs_from_retriever, retriever=retriever, retriever_query=retriever_query, expr=filter_expr, otel_ctx=otel_ctx) for retriever in retrievers]
                         for future in futures:
                             docs.extend(future.result())
 
+                    start_time = time.time()
                     docs = context_reranker.invoke({"context": docs, "question": retriever_query}, config={'run_name':'context_reranker'})
+                    logger.info("    == Context reranker time: %.2f ms ==", (time.time() - start_time) * 1000)
 
                     # Normalize scores to 0-1 range"
                     docs = self.__normalize_relevance_scores(docs.get("context", []))
@@ -402,7 +407,7 @@ class NvidiaRAG():
                                              force_citations=True)
 
             # Multiple retrievers are not supported when reranking is disabled
-            docs = retreive_docs_from_retriever(retriever=retrievers[0], retriever_query=retriever_query, expr=filter_expr)
+            docs = retreive_docs_from_retriever(retriever=retrievers[0], retriever_query=retriever_query, expr=filter_expr, otel_ctx=otel_ctx)
             # TODO: Check how to get the relevance score from milvus
             return prepare_citations(retrieved_documents=docs,
                                      force_citations=True)
@@ -659,6 +664,7 @@ class NvidiaRAG():
                     logger.warning("Could not find sufficiently relevant context after %d attempts",
                                   reflection_counter.current_count)
             else:
+                otel_ctx = otel_context.get_current()
                 if ranker and enable_reranker:
                     logger.info(
                         "Narrowing the collection from %s results and further narrowing it to "
@@ -674,17 +680,19 @@ class NvidiaRAG():
                     # Perform parallel retrieval from all vector stores
                     docs = []
                     with ThreadPoolExecutor() as executor:
-                        futures = [executor.submit(retreive_docs_from_retriever, retriever=retriever, retriever_query=query, expr=filter_expr) for retriever in retrievers]
+                        futures = [executor.submit(retreive_docs_from_retriever, retriever=retriever, retriever_query=query, expr=filter_expr, otel_ctx=otel_ctx) for retriever in retrievers]
                         for future in futures:
                             docs.extend(future.result())
 
+                    start_time = time.time()
                     docs = context_reranker.invoke({"context": docs, "question": query}, config={'run_name':'context_reranker'})
+                    logger.info("    == Context reranker time: %.2f ms ==", (time.time() - start_time) * 1000)
                     context_to_show = docs.get("context", [])
                     # Normalize scores to 0-1 range
                     context_to_show = self.__normalize_relevance_scores(context_to_show)
                 else:
                     # Multiple retrievers are not supported when reranking is disabled
-                    docs = retreive_docs_from_retriever(retriever=retrievers[0], retriever_query=query, expr=filter_expr)
+                    docs = retreive_docs_from_retriever(retriever=retrievers[0], retriever_query=query, expr=filter_expr, otel_ctx=otel_ctx)
                     context_to_show = docs
 
             if enable_vlm_inference:
@@ -770,8 +778,8 @@ class NvidiaRAG():
     def __print_conversation_history(self, conversation_history: List[str] = None, query: str | None = None):
         if conversation_history is not None:
             for role, content in conversation_history:
-                logger.info("Role: %s", role)
-                logger.info("Content: %s\n", content)
+                logger.debug("Role: %s", role)
+                logger.debug("Content: %s\n", content)
 
 
     def __normalize_relevance_scores(self, documents: List["Document"]) -> List["Document"]:

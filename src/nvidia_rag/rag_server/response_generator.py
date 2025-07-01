@@ -283,6 +283,7 @@ async def generate_answer(
             logger.debug("Generated response chunks\n")
             # Create ChainResponse object for every token generated
             first_chunk = True
+            start_time = time.time()
             for chunk in generator:
                 # TODO: This is a hack to clear contexts if we get an error response from nemoguardrails
                 if chunk == "I'm sorry, I can't respond to that.":
@@ -301,6 +302,7 @@ async def generate_answer(
                 chain_response.object = "chat.completion.chunk"
                 chain_response.created = int(time.time())
                 if first_chunk:
+                    logger.info("    == LLM Time to First Token (TTFT): %.2f ms ==", (time.time() - start_time) * 1000)
                     chain_response.citations = prepare_citations(
                         retrieved_documents=contexts,
                         enable_citations=enable_citations,

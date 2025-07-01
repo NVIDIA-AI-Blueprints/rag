@@ -23,6 +23,7 @@
 """
 
 import os
+import time
 import logging
 from typing import List, Dict, Any
 from pathlib import Path
@@ -32,6 +33,8 @@ from langchain_core.vectorstores import VectorStore
 from pymilvus import connections, utility, Collection, MilvusClient, DataType, MilvusException
 from pymilvus.orm.types import CONSISTENCY_STRONG
 from langchain_milvus import Milvus
+from langchain_core.runnables import RunnableAssign
+from opentelemetry import context as otel_context
 
 from nvidia_rag.utils.common import get_config
 
@@ -568,7 +571,7 @@ def delete_entities(collection_name: str, vdb_endpoint: str, filter: str) -> Non
         logger.exception(f"Failed to delete entity from the collection {collection_name} with filter {filter}: {str(e)}")
         raise Exception(f"Failed to delete entity from the collection {collection_name} with filter {filter}: {str(e)}")
 
-def retreive_docs_from_retriever(retriever, retriever_query: str, expr: str) -> List[Document]:
+def retreive_docs_from_retriever(retriever, retriever_query: str, expr: str, otel_ctx: otel_context) -> List[Document]:
     """Retreive documents from the retriever.
 
     Args:
@@ -579,8 +582,19 @@ def retreive_docs_from_retriever(retriever, retriever_query: str, expr: str) -> 
     Returns:
         docs (List[Document]): The list of documents from the retriever.
     """
-    docs = retriever.invoke(retriever_query, config={'run_name':'retriever'}, expr=expr)
+
+    token = otel_context.attach(otel_ctx)
+    start_time = time.time()
+    retriever_docs = []
+    docs = []
+    retriever_chain = {"context": retriever} | RunnableAssign({"context": lambda input: input["context"]})
+    retriever_docs = retriever_chain.invoke(retriever_query, config={'run_name':'retriever'}, expr=expr)
+    docs = retriever_docs.get("context", [])
     collection_name = retriever.vectorstore.collection_name
+    end_time = time.time()
+    latency = end_time - start_time
+    logger.info(f"Retriever latency: {latency:.4f} seconds")
+    otel_context.detach(token)
     return add_collection_name_to_retreived_docs(docs, collection_name)
 
 def add_collection_name_to_retreived_docs(docs: List[Document], collection_name: str) -> List[Document]:

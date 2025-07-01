@@ -53,6 +53,14 @@ ingest = [
     "tritonclient==2.57.0",
     "overrides==7.7.0",
     "tqdm==4.67.1",
+    "opentelemetry-api==1.29.0",
+    "opentelemetry-exporter-otlp==1.29.0",
+    "opentelemetry-exporter-prometheus==0.50b0",
+    "opentelemetry-instrumentation==0.50b0",
+    "opentelemetry-instrumentation-fastapi==0.50b0",
+    "opentelemetry-instrumentation-milvus==0.36.0",
+    "opentelemetry-processor-baggage==0.50b0",
+    "opentelemetry-sdk==1.29.0",
 ]
 all = [
     "nvidia-rag[ingest,rag]",
