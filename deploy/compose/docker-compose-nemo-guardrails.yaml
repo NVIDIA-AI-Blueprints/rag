@@ -1,7 +1,7 @@
 services:
   nemo-guardrails-microservice:
     container_name: nemo-guardrails-microservice
-    image: nvcr.io/nvidia/nemo-microservices/guardrails:25.02
+    image: nvcr.io/nvidia/nemo-microservices/guardrails:25.06
     ports:
       - "7331:7331"
     volumes:
@@ -9,6 +9,7 @@ services:
     environment:
       CONFIG_STORE_PATH: /config-store
       NIM_ENDPOINT_API_KEY: ${NGC_API_KEY}
+      NVIDIA_API_KEY: ${NGC_API_KEY}
       NIM_ENDPOINT_URL: ${NIM_ENDPOINT_URL:-http://nim-llm:8000/v1}
       DEFAULT_CONFIG_ID: ${DEFAULT_CONFIG:-nemoguard}
     depends_on:
