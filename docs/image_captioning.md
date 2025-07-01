@@ -67,16 +67,15 @@ To enable image captioning in Helm-based deployments by using an on-prem VLM mod
 
    ```yaml
    APP_NVINGEST_EXTRACTIMAGES: "True"
-   APP_NVINGEST_CAPTIONENDPOINTURL: "http://nim-vlm-image-captioning:8000/v1/chat/completions"
+   APP_NVINGEST_CAPTIONENDPOINTURL: "http://nim-vlm:8000/v1/chat/completions"
    APP_NVINGEST_CAPTIONMODELNAME: "nvidia/llama-3.1-nemotron-nano-vl-8b-v1"
    ```
 
 2. Enable the VLM image captioning model in your `values.yaml` file.
 
    ```yaml
-   nv-ingest:
-     nim-vlm-image-captioning:
-       deployed: true
+   nim-vlm:
+      enabled: true
    ```
 
 3. Apply the updated Helm chart by running the following code.
@@ -91,4 +90,7 @@ To enable image captioning in Helm-based deployments by using an on-prem VLM mod
    ```
 
 > [!Note]
-> Enabling the on-prem VLM model increases the total GPU requirement to 10xH100 GPUs.
+> Enabling the on-prem VLM model increases the total GPU requirement to 9xH100 GPUs.
+
+> [!Warning]
+> With [image captioning enabled](image_captioning.md), uploaded files will fail to get ingested, if they do not contain any graphs, charts, tables or plots. This is currently a known limitation and will be fixed in a future release.

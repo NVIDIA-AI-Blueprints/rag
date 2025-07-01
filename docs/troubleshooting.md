@@ -30,6 +30,7 @@ The following issues might arise when you work with the NVIDIA RAG Blueprint.
 - If one of the file in a bulk ingestion job is of type svg, which is a unsupported format, the full bulk ingestion job fails.
 - Complicated filter expressions with custom metadata while sending a query, are not supported from the sample user interface.
 - Due to a known issue with MIG support, currently the ingestion profile has been scaled down while deploying the chart with MIG slicing This affects the ingestion performance during bulk ingestion, specifically large bulk ingestion jobs might fail.
+- With [image captioning enabled](image_captioning.md), uploaded files will fail to get ingested, if they do not contain any graphs, charts, tables or plots. This is currently a known limitation and will be fixed in a future release.
 
 ## Ingestion failures
 

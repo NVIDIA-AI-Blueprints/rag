@@ -160,6 +160,10 @@ Continue following the rest of steps [in quickstart](quickstart.md) to deploy th
 
 ## Using Helm Chart Deployment
 
+> [!Note]
+> On prem deployment of the VLM model requires an additional 1xH100 or 1xB200 GPU in default deployment configuration.
+> If MIG slicing is enabled on the cluster, ensure to assign a dedicated slice to the VLM. Check [mig-deployment.md](./mig-deployment.md) and  [values-mig.yaml](../deploy/helm/mig-slicing/values-mig.yaml) for more information. 
+
 To enable VLM inference in Helm-based deployments, follow these steps:
 
 1. **Set VLM environment variables in `values.yaml`**
@@ -190,6 +194,15 @@ To enable VLM inference in Helm-based deployments, follow these steps:
      --set ngcApiSecret.password=$NGC_API_KEY \
      -f rag-server/values.yaml
    ```
+
+3. **Check if the VLM pod has come up**
+
+  A pod with the name `rag-0` will start, this pod corresponds to the VLM model deployment.
+    
+    ```
+      rag       rag-0       0/1     ContainerCreating   0          6m37s
+    ```
+
 
 > [!Note]
 > For local VLM inference, ensure the VLM NIM service is running and accessible at the configured `APP_VLM_SERVERURL`. For remote endpoints, the `NGC_API_KEY` is required for authentication.
