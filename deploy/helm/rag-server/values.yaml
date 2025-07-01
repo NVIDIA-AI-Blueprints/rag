@@ -433,8 +433,8 @@ nim-vlm:
   service:
     name: "nim-vlm"
   image:
-    repository: nvcr.io/nvstaging/nim/llama-3.1-nemotron-nano-vl-8b-v1
-    tag: "1.3.0-RC8-GA-30584428"
+    repository: nvcr.io/nim/nvidia/llama-3.1-nemotron-nano-vl-8b-v1
+    tag: "1.3.0"
   resources:
     limits:
       nvidia.com/gpu: 1
