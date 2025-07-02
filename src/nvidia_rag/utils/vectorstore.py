@@ -33,7 +33,7 @@ from langchain_core.vectorstores import VectorStore
 from pymilvus import connections, utility, Collection, MilvusClient, DataType, MilvusException
 from pymilvus.orm.types import CONSISTENCY_STRONG
 from langchain_milvus import Milvus
-from langchain_core.runnables import RunnableAssign
+from langchain_core.runnables import RunnableAssign, RunnableLambda
 from opentelemetry import context as otel_context
 
 from nvidia_rag.utils.common import get_config
@@ -587,8 +587,9 @@ def retreive_docs_from_retriever(retriever, retriever_query: str, expr: str, ote
     start_time = time.time()
     retriever_docs = []
     docs = []
-    retriever_chain = {"context": retriever} | RunnableAssign({"context": lambda input: input["context"]})
-    retriever_docs = retriever_chain.invoke(retriever_query, config={'run_name':'retriever'}, expr=expr)
+    retriever_lambda = RunnableLambda(lambda x: retriever.invoke(x, expr=expr))
+    retriever_chain = {"context": retriever_lambda} | RunnableAssign({"context": lambda input: input["context"]})
+    retriever_docs = retriever_chain.invoke(retriever_query, config={'run_name':'retriever'})
     docs = retriever_docs.get("context", [])
     collection_name = retriever.vectorstore.collection_name
     end_time = time.time()
