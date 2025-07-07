@@ -81,7 +81,7 @@ class VectorStoreConfig(ConfigWizard):
 
     consistency_level: str = configfield(
         "consistency_level",
-        default="Bounded", # "Bounded", "Strong", "Session", "Eventual"
+        default="Strong", # "Bounded", "Strong", "Session"
         env_name="APP_VECTORSTORE_CONSISTENCYLEVEL",
         help_txt="Consistency level for vector store",
     )

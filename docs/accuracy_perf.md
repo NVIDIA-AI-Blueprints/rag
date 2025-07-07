@@ -58,11 +58,10 @@ These parameters allow fine-tuning RAG performance based on specific accuracy vs
   - ❌ May induce slightly higher latency for large number of documents; default setting is dense search.
 
 - **Vector Store Retriever Consistency Level**
-  - ✅ **Bounded** (recommended): Searches with tolerance for some data loss, providing better performance for most use cases
-  - ✅ **Strong**: Waits for the latest data to be available before executing searches, ensuring highest accuracy
+  - ✅ **Bounded** : Searches with tolerance for some data loss, providing better performance for most use cases. If you are using a pre-ingested knowledge base which is not frequently updated, then use this consistency level to achieve better latency at the cost of no accuracy drop.
+  - ✅ **Strong** : Waits for the latest data to be available before executing searches, ensuring highest accuracy. This is the recommended setting for continuous data ingestion pipelines, where retrieval time is within few minutes after ingestion is completed to achieve best accuracy.
   - ✅ **Session**: Searches include all data inserted by the current client session
-  - ✅ **Eventual**: Immediate search execution on batch data with minimal consistency checks
-  - Controlled via `APP_VECTORSTORE_CONSISTENCYLEVEL` environment variable. Default is "Bounded".
+  - Controlled via `APP_VECTORSTORE_CONSISTENCYLEVEL` environment variable. Default is "Strong".
   - **Trade-off**: Use "Bounded" consistency level for better performance, and "Strong" to ensure highest accuracy
   - **Reference**: [Milvus Consistency Level Documentation](https://milvus.io/docs/consistency.md)
 

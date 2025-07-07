@@ -967,6 +967,11 @@ Before you can use this procedure, you must deploy the blueprint by using [Deplo
 
 Follow the cells in the notebook to ingest the PDF files from the data/dataset folder into the vector store.
 
+> [!TIP]
+> **Important Configuration Tip**
+>
+> Check out the [best practices guide](accuracy_perf.md) especially the **Vector Store Retriever Consistency Level** section to configure the required settings before starting the ingestion/retrieval process based on your use case.
+
 
 
 ## Next Steps
