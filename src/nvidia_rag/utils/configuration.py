@@ -79,6 +79,13 @@ class VectorStoreConfig(ConfigWizard):
         help_txt="Default collection name for vector store",
     )
 
+    consistency_level: str = configfield(
+        "consistency_level",
+        default="Bounded", # "Bounded", "Strong", "Session", "Eventual"
+        env_name="APP_VECTORSTORE_CONSISTENCYLEVEL",
+        help_txt="Consistency level for vector store",
+    )
+
 
 @configclass
 class NvIngestConfig(ConfigWizard):

@@ -799,8 +799,5 @@ async def optimized_streaming_wrapper(
             
         # Yield the chunk immediately without additional processing
         yield chunk
-        
-        # Force flush by yielding an empty chunk (this helps with some ASGI servers)
-        # Only do this for the first few tokens to ensure TTFT
-        if token_count <= 1:
-            await asyncio.sleep(0)  # Allow event loop to process
+
+        await asyncio.sleep(0)  # Allow event loop to process

@@ -587,7 +587,7 @@ def retreive_docs_from_retriever(retriever, retriever_query: str, expr: str, ote
     start_time = time.time()
     retriever_docs = []
     docs = []
-    retriever_lambda = RunnableLambda(lambda x: retriever.invoke(x, expr=expr))
+    retriever_lambda = RunnableLambda(lambda x: retriever.invoke(x, expr=expr, consistency_level=CONFIG.vector_store.consistency_level))
     retriever_chain = {"context": retriever_lambda} | RunnableAssign({"context": lambda input: input["context"]})
     retriever_docs = retriever_chain.invoke(retriever_query, config={'run_name':'retriever'})
     docs = retriever_docs.get("context", [])

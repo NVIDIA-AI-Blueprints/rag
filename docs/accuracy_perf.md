@@ -57,6 +57,15 @@ These parameters allow fine-tuning RAG performance based on specific accuracy vs
   - ✅ May provide better retrieval accuracy for domain-specific content
   - ❌ May induce slightly higher latency for large number of documents; default setting is dense search.
 
+- **Vector Store Retriever Consistency Level**
+  - ✅ **Bounded** (recommended): Searches with tolerance for some data loss, providing better performance for most use cases
+  - ✅ **Strong**: Waits for the latest data to be available before executing searches, ensuring highest accuracy
+  - ✅ **Session**: Searches include all data inserted by the current client session
+  - ✅ **Eventual**: Immediate search execution on batch data with minimal consistency checks
+  - Controlled via `APP_VECTORSTORE_CONSISTENCYLEVEL` environment variable. Default is "Bounded".
+  - **Trade-off**: Use "Bounded" consistency level for better performance, and "Strong" to ensure highest accuracy
+  - **Reference**: [Milvus Consistency Level Documentation](https://milvus.io/docs/consistency.md)
+
 - **Enable NeMo Guardrails**
   - ✅ Applies input/output constraints for better safety and consistency
   - ❌ Significant increased processing overhead for additional LLM calls. It always needs additional GPUs to deploy the guardrails specific models on-prem.

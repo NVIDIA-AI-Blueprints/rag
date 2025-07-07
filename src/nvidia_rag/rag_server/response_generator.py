@@ -368,7 +368,8 @@ def prepare_citations(
                 file_name = os.path.basename(doc.metadata.get("source"))
                 content = doc.page_content
                 source_metadata = SourceMetadata(
-                    description=doc.page_content
+                    description=doc.page_content,
+                    content_metadata=doc.metadata.get("content_metadata", {})
                 )
                 document_type = "text"
             else:
