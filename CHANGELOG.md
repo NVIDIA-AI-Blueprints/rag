@@ -3,7 +3,7 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
 
-## [2.2.0] - 2025-06-25
+## [2.2.0] - 2025-07-08
 
 This release adds B200 platform support, a native Python API, and major enhancements for multimodal and metadata features. It also improves deployment flexibility and customization across the RAG blueprint.
 
@@ -12,6 +12,7 @@ This release adds B200 platform support, a native Python API, and major enhancem
 - Support for [native python API](./docs/python-client.md)
   - Refactoring code and directory to support python API
   - Better modularization for easier customization
+  - Moved to `uv` as the package manager for this project
 - [Capability to add custom metadata](./docs/custom-metadata.md) for files and metadata based filtering
 - Documentation of [using Multi Instance GPUs](./docs/mig-deployment.md). Reduces minimum GPU requirement for helm charts to 3xH100.
 - [Multi collection based retrieval](./docs/multi-collection-retrieval.md) support
