@@ -1,7 +1,7 @@
 replicaCount: 1
 
 image:
-  repository: nvcr.io/nvstaging/blueprint/rag-playground
+  repository: nvcr.io/nvidia/blueprint/rag-playground
   pullPolicy: IfNotPresent
   tag: "2.2.0"
 

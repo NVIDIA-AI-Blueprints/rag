@@ -54,7 +54,7 @@ For enhanced PDF extraction capabilities, you can use the Nemoretriever Parse se
 To enable PDF extraction with Nemoretriever Parse using Helm, you need to enable the Nemoretriever Parse service along with other required services:
 
 ```bash
-helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.2.0.tgz \
+helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.2.0.tgz \
   --username '$oauthtoken' \
   --password "${NGC_API_KEY}" \
   --set nim-llm.enabled=true \

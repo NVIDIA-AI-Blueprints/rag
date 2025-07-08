@@ -162,7 +162,7 @@ Continue following the rest of steps [in quickstart](quickstart.md) to deploy th
 
 > [!Note]
 > On prem deployment of the VLM model requires an additional 1xH100 or 1xB200 GPU in default deployment configuration.
-> If MIG slicing is enabled on the cluster, ensure to assign a dedicated slice to the VLM. Check [mig-deployment.md](./mig-deployment.md) and  [values-mig.yaml](../deploy/helm/mig-slicing/values-mig.yaml) for more information. 
+> If MIG slicing is enabled on the cluster, ensure to assign a dedicated slice to the VLM. Check [mig-deployment.md](./mig-deployment.md) and  [values-mig.yaml](../deploy/helm/mig-slicing/values-mig.yaml) for more information.
 
 To enable VLM inference in Helm-based deployments, follow these steps:
 
@@ -187,7 +187,7 @@ To enable VLM inference in Helm-based deployments, follow these steps:
    Run the following command to upgrade or install your deployment:
 
    ```
-   helm upgrade --install rag -n <namespace> https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.2.0.tgz \
+   helm upgrade --install rag -n <namespace> https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.2.0.tgz \
      --username '$oauthtoken' \
      --password "${NGC_API_KEY}" \
      --set imagePullSecret.password=$NGC_API_KEY \
@@ -198,7 +198,7 @@ To enable VLM inference in Helm-based deployments, follow these steps:
 3. **Check if the VLM pod has come up**
 
   A pod with the name `rag-0` will start, this pod corresponds to the VLM model deployment.
-    
+
     ```
       rag       rag-0       0/1     ContainerCreating   0          6m37s
     ```

@@ -63,7 +63,7 @@ In case you are [interacting with cloud hosted models](quickstart.md#start-using
 # Enable text only ingestion support in Helm
 
 
-To ingest text-only files, you do not need to deploy the complete pipeline with all NIMs connected. 
+To ingest text-only files, you do not need to deploy the complete pipeline with all NIMs connected.
 If your scenario requires only text extraction from files, use the following steps to deploy only the necessary components using Helm.
 
 When you install the Helm chart, enable only the following services that are required for text ingestion:
@@ -83,7 +83,7 @@ Additionally, ensure that **table extraction**, **chart extraction**, and **imag
 Example Helm install command:
 
 ```bash
-helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.2.0.tgz \
+helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.2.0.tgz \
   --username '$oauthtoken' \
   --password "${NGC_API_KEY}" \
   --set nim-llm.enabled=true \

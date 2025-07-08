@@ -93,7 +93,7 @@ To deploy the `llama-3.1-8b-instruct` model in a separate namespace (`query-rewr
       --docker-server=nvcr.io \
       --docker-username='$oauthtoken' \
       --docker-password=$NGC_API_KEY
-    
+
     kubectl create secret -n query-rewriter generic ngc-api \
       --from-literal=NGC_API_KEY=$NGC_API_KEY
     ```
@@ -113,7 +113,7 @@ To deploy the `llama-3.1-8b-instruct` model in a separate namespace (`query-rewr
       requests:
         nvidia.com/gpu: 1
     model:
-      ngcAPISecret: ngc-api  
+      ngcAPISecret: ngc-api
       name: "meta/llama-3.1-8b-instruct"
     persistence:
       enabled: true
@@ -145,7 +145,7 @@ To deploy the `llama-3.1-8b-instruct` model in a separate namespace (`query-rewr
 Follow the steps from [Quick Start Helm Deployment](./quickstart.md#deploy-with-helm-chart) and use the following command to deploy the chart.
 
 ```bash
-helm install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.2.0.tgz \
+helm install rag -n rag https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.2.0.tgz \
    --username '$oauthtoken' \
    --password "${NGC_API_KEY}" \
    --set imagePullSecret.password=$NGC_API_KEY \
