@@ -13,6 +13,7 @@ This release adds B200 platform support, a native Python API, and major enhancem
   - Refactoring code and directory to support python API
   - Better modularization for easier customization
   - Moved to `uv` as the package manager for this project
+- Added support for configurable vector store consistency levels (Bounded/Strong/Session) to optimize retrieval performance vs accuracy trade-offs.
 - [Capability to add custom metadata](./docs/custom-metadata.md) for files and metadata based filtering
 - Documentation of [using Multi Instance GPUs](./docs/mig-deployment.md). Reduces minimum GPU requirement for helm charts to 3xH100.
 - [Multi collection based retrieval](./docs/multi-collection-retrieval.md) support
