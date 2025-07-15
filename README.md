@@ -223,3 +223,4 @@ This blueprint is governed by the [NVIDIA Agreements | Enterprise Software | NVI
 
 The following models that are built with Llama are governed by the [Llama 3.2 Community License Agreement](https://www.llama.com/llama3_2/license/): llama-3.3-nemotron-super-49b-v1, nvidia/llama-3.2-nv-embedqa-1b-v2, and nvidia/llama-3.2-nv-rerankqa-1b-v2.
 
+Brian test text
