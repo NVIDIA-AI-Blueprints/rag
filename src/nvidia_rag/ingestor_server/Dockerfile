@@ -57,7 +57,7 @@ WORKDIR /workspace
 COPY --from=builder /build/pyproject.toml /workspace/
 COPY --from=builder /build/uv.lock /workspace/
 
-RUN uv sync --locked --no-install-project --no-dev --extra ingest
+RUN uv sync --no-install-project --no-dev --extra ingest
 
 COPY --from=builder /build/dist/*.whl /workspace/
 

@@ -49,7 +49,7 @@ rag = [
 ]
 ingest = [
     "nv-ingest-api==25.6.2",
-    "nv-ingest-client==25.6.3",
+    "nv-ingest-client==25.6.4rc6",
     "tritonclient==2.57.0",
     "overrides==7.7.0",
     "tqdm==4.67.1",
