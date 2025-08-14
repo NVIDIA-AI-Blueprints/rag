@@ -20,7 +20,7 @@ This is the module for NV-Ingest client wrapper.
 
 import os
 import logging
-from typing import List
+from typing import List, Dict, Any
 
 from nvidia_rag.utils.common import get_config, get_env_variable, prepare_custom_metadata_dataframe
 from nv_ingest_client.client import NvIngestClient, Ingestor
@@ -50,7 +50,8 @@ def get_nv_ingest_ingestor(
         collection_name: str = "multimodal_data",
         vdb_endpoint: str = None,
         split_options = None,
-        custom_metadata = None
+        custom_metadata = None,
+        document_metadata_map: Dict[str, Dict[str, Any]] = None
     ):
     """
     Prepare NV-Ingest ingestor instance based on nv-ingest configuration
@@ -63,18 +64,20 @@ def get_nv_ingest_ingestor(
         vdb_endpoint: URL of the vector database endpoint
         split_options: Options for splitting documents
         custom_metadata: Custom metadata to be added to documents
+        document_metadata_map: Map from filename to document-level metadata
 
     Returns:
         - ingestor: Ingestor - NV-Ingest ingestor instance with configured tasks
     """
     config = get_config()
 
-    # Prepare custom metadata dataframe
-    if csv_file_path is not None:
+    # Prepare custom metadata dataframe including document metadata
+    if csv_file_path is not None:        
         meta_source_field, meta_fields = prepare_custom_metadata_dataframe(
             all_file_paths=filepaths,
             csv_file_path=csv_file_path,
-            custom_metadata=custom_metadata or []
+            custom_metadata=custom_metadata or [],
+            document_metadata_map=document_metadata_map
         )
 
     logger.debug("Preparing NV Ingest Ingestor instance for filepaths: %s", filepaths)

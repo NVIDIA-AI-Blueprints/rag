@@ -280,12 +280,31 @@ class NvidiaRAGIngestor():
                 connections.disconnect(connection_alias)
 
             start_time = time.time()
+            
+            # Prepare document-level metadata
+            timestamp = datetime.utcnow().isoformat()
+            document_metadata_map = {}
+            for filepath in filepaths:
+                filename = os.path.basename(filepath)
+                if filename not in [failed_doc.get("document_name") for failed_doc in failed_validation_documents]:
+                    document_id = str(uuid4())
+                    try:
+                        size_bytes = os.path.getsize(filepath)
+                    except OSError:
+                        size_bytes = 0
+                    document_metadata_map[filename] = {
+                        "document_id": document_id,
+                        "timestamp": timestamp,
+                        "size_bytes": size_bytes
+                    }
+            
             results, failures = await self.__nvingest_upload_doc(
                 filepaths=filepaths,
                 collection_name=collection_name,
                 vdb_endpoint=vdb_endpoint,
                 split_options=split_options,
                 custom_metadata=custom_metadata,
+                document_metadata_map=document_metadata_map,
                 generate_summary=generate_summary
             )
 
@@ -296,20 +315,21 @@ class NvidiaRAGIngestor():
             failures_filepaths = [failed_document.get("document_name") for failed_document in failed_documents]
 
             filename_to_metadata_map = {custom_metadata_item.get("filename"): custom_metadata_item.get("metadata") for custom_metadata_item in custom_metadata}
-            # Generate response dictionary
-            uploaded_documents = [
-                {
-                    "document_id": str(uuid4()),  # Generate a document_id from filename
-                    "document_name": os.path.basename(filepath),
-                    "size_bytes": os.path.getsize(filepath),
-                    "metadata": filename_to_metadata_map.get(os.path.basename(filepath), {})
-                }
-                for filepath in filepaths if os.path.basename(filepath) not in failures_filepaths
-            ]
+            # Generate response dictionary using the document metadata that was stored
+            uploaded_documents = []
+            for filepath in filepaths:
+                filename = os.path.basename(filepath)
+                if filename not in failures_filepaths:
+                    doc_metadata = document_metadata_map.get(filename, {})
+                    uploaded_documents.append({
+                        "document_id": doc_metadata.get("document_id", str(uuid4())),
+                        "document_name": filename,
+                        "timestamp": doc_metadata.get("timestamp", ""),
+                        "size_bytes": doc_metadata.get("size_bytes", 0),
+                        "metadata": filename_to_metadata_map.get(filename, {})
+                    })
 
-             # Get current timestamp in ISO format
-            timestamp = datetime.utcnow().isoformat()
-            # TODO: Store document_id, timestamp and document size as metadata
+            # Document metadata is now stored in the vector database through the ingestion process
 
             response_data = {
                 "message": "Document upload job successfully completed.",
@@ -584,13 +604,13 @@ class NvidiaRAGIngestor():
 
             documents_list = get_docs_vectorstore_langchain(vs, collection_name, vdb_endpoint)
 
-            # Generate response format
+            # Generate response format using actual metadata from vectorstore
             documents = [
                 {
-                    "document_id": "",  # TODO - Use actual document_id
+                    "document_id": doc_item.get("document_id", ""),
                     "document_name": os.path.basename(doc_item.get("document_name")),  # Extract file name
-                    "timestamp": "",  # TODO - Use actual timestamp
-                    "size_bytes": 0,  # TODO - Use actual size
+                    "timestamp": doc_item.get("timestamp", ""),
+                    "size_bytes": doc_item.get("size_bytes", 0),
                     "metadata": doc_item.get("metadata", {})
                 }
                 for doc_item in documents_list
@@ -631,14 +651,28 @@ class NvidiaRAGIngestor():
             if not len(document_names):
                 raise ValueError("No document names provided for deletion. Please provide document names to delete.")
 
-            # TODO: Delete based on document_ids if provided
+            # Get document metadata before deletion for accurate response
+            documents_list = get_docs_vectorstore_langchain(vs, collection_name, vdb_endpoint)
+            
+            # Create a map of document names to metadata for response
+            document_metadata = {}
+            for doc_item in documents_list:
+                doc_name = os.path.basename(doc_item.get("document_name"))
+                if doc_name in document_names:
+                    document_metadata[doc_name] = {
+                        "document_id": doc_item.get("document_id", ""),
+                        "timestamp": doc_item.get("timestamp", ""),
+                        "size_bytes": doc_item.get("size_bytes", 0)
+                    }
+
             if del_docs_vectorstore_langchain(vs, document_names, collection_name, include_upload_path):
-                # Generate response dictionary
+                # Generate response dictionary using retrieved metadata
                 documents = [
                     {
-                        "document_id": "",  # TODO - Use actual document_id
+                        "document_id": document_metadata.get(doc, {}).get("document_id", ""),
                         "document_name": doc,
-                        "size_bytes": 0 # TODO - Use actual size
+                        "timestamp": document_metadata.get(doc, {}).get("timestamp", ""),
+                        "size_bytes": document_metadata.get(doc, {}).get("size_bytes", 0)
                     }
                     for doc in document_names
                 ]
@@ -720,6 +754,7 @@ class NvidiaRAGIngestor():
         vdb_endpoint: str,
         split_options: Dict[str, Any] = {"chunk_size": CONFIG.nv_ingest.chunk_size, "chunk_overlap": CONFIG.nv_ingest.chunk_overlap},
         custom_metadata: List[Dict[str, Any]] = [],
+        document_metadata_map: Dict[str, Dict[str, Any]] = None,
         generate_summary: bool = False
     ) -> Tuple[List[List[Dict[str, Union[str, dict]]]], List[Dict[str, Any]]]:
         """
@@ -731,6 +766,7 @@ class NvidiaRAGIngestor():
             - vdb_endpoint: str - URL of the vector database endpoint
             - split_options: SplitOptions - Options for splitting documents
             - custom_metadata: List[CustomMetadata] - Custom metadata to be added to documents
+            - document_metadata_map: Dict[str, Dict[str, Any]] - Map from filename to document-level metadata
         """
         if not ENABLE_NV_INGEST_BATCH_MODE:
             # Single batch mode
@@ -743,7 +779,8 @@ class NvidiaRAGIngestor():
                 collection_name=collection_name,
                 vdb_endpoint=vdb_endpoint,
                 split_options=split_options,
-                custom_metadata=custom_metadata
+                custom_metadata=custom_metadata,
+                document_metadata_map=document_metadata_map
             )
             return results, failures
 
@@ -771,7 +808,8 @@ class NvidiaRAGIngestor():
                         vdb_endpoint=vdb_endpoint,
                         batch_number=batch_num,
                         split_options=split_options,
-                        custom_metadata=custom_metadata
+                        custom_metadata=custom_metadata,
+                        document_metadata_map=document_metadata_map
                     )
                     all_results.extend(results)
                     all_failures.extend(failures)
@@ -799,6 +837,7 @@ class NvidiaRAGIngestor():
                             batch_number=batch_num,
                             split_options=split_options,
                             custom_metadata=custom_metadata,
+                            document_metadata_map=document_metadata_map,
                             generate_summary=generate_summary
                         )
 
@@ -826,6 +865,7 @@ class NvidiaRAGIngestor():
         batch_number: int=0,
         split_options: Dict[str, Any] = {"chunk_size": CONFIG.nv_ingest.chunk_size, "chunk_overlap": CONFIG.nv_ingest.chunk_overlap},
         custom_metadata: List[Dict[str, Any]] = [],
+        document_metadata_map: Dict[str, Dict[str, Any]] = None,
         generate_summary: bool = False
     ) -> Tuple[List[List[Dict[str, Union[str, dict]]]], List[Dict[str, Any]]]:
         """
@@ -857,7 +897,8 @@ class NvidiaRAGIngestor():
             collection_name=collection_name,
             vdb_endpoint=vdb_endpoint,
             split_options=split_options,
-            custom_metadata=custom_metadata
+            custom_metadata=custom_metadata,
+            document_metadata_map=document_metadata_map
         )
         start_time = time.time()
         logger.info(f"Performing ingestion for batch {batch_number} with parameters: {split_options}")

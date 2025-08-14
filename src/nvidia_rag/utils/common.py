@@ -151,19 +151,30 @@ def sanitize_nim_url(url:str, model_name:str, model_type:str) -> str:
 def prepare_custom_metadata_dataframe(
         all_file_paths: List[str],
         csv_file_path: str,
-        custom_metadata: List[Dict[str, Any]]
+        custom_metadata: List[Dict[str, Any]],
+        document_metadata_map: Dict[str, Dict[str, Any]] = None
     ) -> Tuple[str, List[str]]:
     """
     Prepare custom metadata for a document and write it to a dataframe in csv format
+
+    Args:
+        all_file_paths: List of file paths
+        csv_file_path: Path to write the CSV file
+        custom_metadata: List of custom metadata per file
+        document_metadata_map: Map from filename to document-level metadata (e.g., document_id, timestamp, size_bytes)
 
     Returns:
         - meta_source_field: str - Source field name
         - all_metadata_fields: List[str] - All metadata fields
     """
+    from datetime import datetime
+    from uuid import uuid4
+    
     meta_source_field = "source"
     custom_metadata_df_dict = {
         meta_source_field: all_file_paths,
     }
+    
     # Prepare map for filename to metadata
     filename_to_metadata = {item["filename"]: item["metadata"] for item in custom_metadata}
 
@@ -171,13 +182,44 @@ def prepare_custom_metadata_dataframe(
     all_metadata_fields = set()
     for metadata in filename_to_metadata.values():
         all_metadata_fields.update(metadata.keys())
+    
+    # Add document-level metadata fields from the document metadata map
+    if document_metadata_map:
+        for doc_metadata in document_metadata_map.values():
+            all_metadata_fields.update(doc_metadata.keys())
+    else:
+        # Add default document-level metadata fields
+        all_metadata_fields.update(["document_id", "timestamp", "size_bytes"])
 
     for metadata_field in all_metadata_fields:
         metadata_list = list()
         for file_path in all_file_paths:
             filename = os.path.basename(file_path)
             metadata = filename_to_metadata.get(filename, {})
-            metadata_list.append(metadata.get(metadata_field, ""))
+            
+            # Check if this field exists in document metadata for this file
+            if document_metadata_map and filename in document_metadata_map:
+                doc_metadata = document_metadata_map[filename]
+                if metadata_field in doc_metadata:
+                    metadata_list.append(doc_metadata[metadata_field])
+                else:
+                    # Fall back to custom metadata
+                    metadata_list.append(metadata.get(metadata_field, ""))
+            elif metadata_field == "document_id" and not document_metadata_map:
+                # Generate unique document_id per file if not provided
+                metadata_list.append(str(uuid4()))
+            elif metadata_field == "timestamp" and not document_metadata_map:
+                # Add current timestamp if not provided
+                metadata_list.append(datetime.utcnow().isoformat())
+            elif metadata_field == "size_bytes" and not document_metadata_map:
+                # Get file size if not provided
+                try:
+                    metadata_list.append(os.path.getsize(file_path))
+                except OSError:
+                    metadata_list.append(0)
+            else:
+                # Use custom metadata or empty string
+                metadata_list.append(metadata.get(metadata_field, ""))
         custom_metadata_df_dict[metadata_field] = metadata_list
 
     # Write to csv

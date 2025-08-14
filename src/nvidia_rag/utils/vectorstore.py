@@ -360,19 +360,33 @@ def get_docs_vectorstore_langchain(
                 documents_list = list()
 
                 for item in milvus_data:
-                    if extract_filename(item) not in filepaths_added:
+                    filename = extract_filename(item)
+                    if filename not in filepaths_added:
                         metadata_dict = {}
+                        content_metadata = item.get("content_metadata", {})
+                        
+                        # Extract document-level metadata first
+                        document_id = content_metadata.get("document_id", "")
+                        timestamp = content_metadata.get("timestamp", "")
+                        size_bytes = content_metadata.get("size_bytes", 0)
+                        
+                        # Extract other metadata fields from schema
                         for metadata_item in metadata_schema:
                             metadata_name = metadata_item.get("name")
-                            metadata_value = item.get("content_metadata", {}).get(metadata_name, None)
-                            metadata_dict[metadata_name] = metadata_value
+                            if metadata_name not in ["document_id", "timestamp", "size_bytes"]:
+                                metadata_value = content_metadata.get(metadata_name, None)
+                                metadata_dict[metadata_name] = metadata_value
+                        
                         documents_list.append(
                             {
-                                "document_name": extract_filename(item),
+                                "document_id": document_id,
+                                "document_name": filename,
+                                "timestamp": timestamp,
+                                "size_bytes": size_bytes,
                                 "metadata": metadata_dict
                             }
                         )
-                    filepaths_added.add(extract_filename(item))
+                    filepaths_added.add(filename)
 
                 return documents_list
     except Exception as e:
