@@ -280,12 +280,31 @@ class NvidiaRAGIngestor():
                 connections.disconnect(connection_alias)
 
             start_time = time.time()
+            
+            # Prepare document-level metadata
+            timestamp = datetime.utcnow().isoformat()
+            document_metadata_map = {}
+            for filepath in filepaths:
+                filename = os.path.basename(filepath)
+                if filename not in [failed_doc.get("document_name") for failed_doc in failed_validation_documents]:
+                    document_id = str(uuid4())
+                    try:
+                        size_bytes = os.path.getsize(filepath)
+                    except OSError:
+                        size_bytes = 0
+                    document_metadata_map[filename] = {
+                        "document_id": document_id,
+                        "timestamp": timestamp,
+                        "size_bytes": size_bytes
+                    }
+            
             results, failures = await self.__nvingest_upload_doc(
                 filepaths=filepaths,
                 collection_name=collection_name,
                 vdb_endpoint=vdb_endpoint,
                 split_options=split_options,
                 custom_metadata=custom_metadata,
+                document_metadata_map=document_metadata_map,
                 generate_summary=generate_summary
             )
 
@@ -296,20 +315,20 @@ class NvidiaRAGIngestor():
             failures_filepaths = [failed_document.get("document_name") for failed_document in failed_documents]
 
             filename_to_metadata_map = {custom_metadata_item.get("filename"): custom_metadata_item.get("metadata") for custom_metadata_item in custom_metadata}
-            # Generate response dictionary
-            uploaded_documents = [
-                {
-                    "document_id": str(uuid4()),  # Generate a document_id from filename
-                    "document_name": os.path.basename(filepath),
-                    "size_bytes": os.path.getsize(filepath),
-                    "metadata": filename_to_metadata_map.get(os.path.basename(filepath), {})
-                }
-                for filepath in filepaths if os.path.basename(filepath) not in failures_filepaths
-            ]
+            # Generate response dictionary using the document metadata that was stored
+            uploaded_documents = []
+            for filepath in filepaths:
+                filename = os.path.basename(filepath)
+                if filename not in failures_filepaths:
+                    doc_metadata = document_metadata_map.get(filename, {})
+                    uploaded_documents.append({
+                        "document_id": doc_metadata.get("document_id", str(uuid4())),
+                        "document_name": filename,
+                        "size_bytes": doc_metadata.get("size_bytes", 0),
+                        "metadata": filename_to_metadata_map.get(filename, {})
+                    })
 
-             # Get current timestamp in ISO format
-            timestamp = datetime.utcnow().isoformat()
-            # TODO: Store document_id, timestamp and document size as metadata
+            # Document metadata is now stored in the vector database through the ingestion process
 
             response_data = {
                 "message": "Document upload job successfully completed.",
