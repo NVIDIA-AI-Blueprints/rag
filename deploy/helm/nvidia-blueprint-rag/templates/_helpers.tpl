@@ -55,10 +55,17 @@ Service account name
 {{- end -}}
 
 {{/*
-Generate DockerConfigJson for image pull secrets
+Generate DockerConfigJson for NGC image pull secrets
+*/}}
+{{- define "imagePullSecretNgc" -}}
+{{- printf "{\"auths\":{\"%s\":{\"auth\":\"%s\"}}}" .Values.imagePullSecretNgc.registry (printf "%s:%s" .Values.imagePullSecretNgc.username .Values.imagePullSecretNgc.password | b64enc) | b64enc -}}
+{{- end -}}
+
+{{/*
+Generate DockerConfigJson for custom registry image pull secrets
 */}}
 {{- define "imagePullSecret" -}}
-{{- printf "{\"auths\":{\"%s\":{\"auth\":\"%s\"}}}" .Values.imagePullSecret.registry (printf "%s:%s" .Values.imagePullSecret.username .Values.imagePullSecret.password | b64enc) | b64enc -}}
+{{- printf "{\"auths\":{\"%s\":{\"auth\":\"%s\"}}}" .Values.customRegistry.registry (printf "%s:%s" .Values.customRegistry.username .Values.customRegistry.password | b64enc) | b64enc -}}
 {{- end -}}
 
 {{/*
@@ -66,4 +73,26 @@ Create secret to access NGC Api
 */}}
 {{- define "ngcApiSecret" -}}
 {{- printf "%s" .Values.ngcApiSecret.password | b64enc -}}
+{{- end -}}
+
+{{/*
+Generate custom registry image repository
+*/}}
+{{- define "customRegistryImage" -}}
+{{- if .Values.customRegistry.enabled -}}
+{{- printf "%s/%s/%s" .Values.customRegistry.registry .Values.customRegistry.namespace . -}}
+{{- else -}}
+{{- . -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Generate custom registry image tag
+*/}}
+{{- define "customRegistryTag" -}}
+{{- if .Values.customRegistry.enabled -}}
+{{- .Values.customRegistry.tag -}}
+{{- else -}}
+{{- . -}}
+{{- end -}}
 {{- end -}}

@@ -21,19 +21,31 @@ replicaCount: 1
 # -- Namespace for documentation/reference; not actively used in templates
 namespace: "nv-nvidia-blueprint-rag"
 
-# -- Image pull secret for all images used by this chart
-imagePullSecret:
+# -- Image pull secret for NGC registry (for NGC images)
+imagePullSecretNgc:
   name: "ngc-secret"
   registry: "nvcr.io"
   username: "$oauthtoken"
   password: ""
   create: true
 
+
 # -- Secret containing API keys for NVIDIA NGC model registry
 ngcApiSecret:
   name: "ngc-api"
   password: ""
   create: true
+
+# -- Global registry configuration for custom container registry
+# This allows users to override the registry for rag-server, ingestor-server, and frontend
+customRegistry:
+  enabled: false
+  registry: ""  # e.g., "ghcr.io" or "docker.io"
+  namespace: ""  # e.g., "your-username/rag" or "your-org/your-repo"
+  tag: "latest"  # Default tag for all custom images
+  username: ""  # Registry username
+  password: ""  # Registry password/token
+  create: false  # Create image pull secret
 
 # -- RAG server container image
 image:
@@ -229,12 +241,6 @@ ingestor-server:
 
   replicaCount: 1
 
-  imagePullSecret:
-    create: false
-    name: "ngc-secret"
-    registry: "nvcr.io"
-    username: "$oauthtoken"
-    password: ""
 
   image:
     repository: nvcr.io/nvstaging/blueprint/ingestor-server
@@ -369,11 +375,6 @@ frontend:
     pullPolicy: IfNotPresent
     tag: "2.3.0.rc2.2"
 
-  imagePullSecret:
-    name: "ngc-secret"
-    registry: "nvcr.io"
-    username: "$oauthtoken"
-    password: ""
 
   service:
     type: NodePort

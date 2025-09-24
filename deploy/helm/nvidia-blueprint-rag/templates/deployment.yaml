@@ -17,9 +17,16 @@ spec:
         app.kubernetes.io/component: rag-server
     spec:
       serviceAccountName: {{ include "nvidia-blueprint-rag.serviceAccountName" . }}
-      {{- if .Values.imagePullSecret.name }}
+      {{- if .Values.customRegistry.enabled }}
+      {{- if .Values.customRegistry.create }}
       imagePullSecrets:
-        - name: {{ .Values.imagePullSecret.name }}
+        - name: custom-registry-secret
+      {{- end }}
+      {{- else }}
+      {{- if .Values.imagePullSecretNgc.name }}
+      imagePullSecrets:
+        - name: {{ .Values.imagePullSecretNgc.name }}
+      {{- end }}
       {{- end }}
       {{- if .Values.nodeSelector }}
       nodeSelector:
@@ -31,7 +38,7 @@ spec:
       {{- end }}
       containers:
         - name: {{ include "nvidia-blueprint-rag.name" . }}
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          image: "{{ include "customRegistryImage" .Values.image.repository }}:{{ include "customRegistryTag" .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command:
           - "uvicorn"

@@ -20,9 +20,16 @@ spec:
         app.kubernetes.io/component: ingestor-server
         {{- include "nvidia-blueprint-rag.selectorLabels" . | nindent 8 }}
     spec:
-      {{- if $cfg.imagePullSecret.name }}
+      {{- if .Values.customRegistry.enabled }}
+      {{- if .Values.customRegistry.create }}
       imagePullSecrets:
-        - name: {{ $cfg.imagePullSecret.name }}
+        - name: custom-registry-secret
+      {{- end }}
+      {{- else }}
+      {{- if .Values.imagePullSecretNgc.name }}
+      imagePullSecrets:
+        - name: {{ .Values.imagePullSecretNgc.name }}
+      {{- end }}
       {{- end }}
       {{- if $cfg.nodeSelector }}
       nodeSelector:
@@ -34,7 +41,7 @@ spec:
       {{- end }}
       containers:
         - name: {{ $cfg.appName }}
-          image: "{{ $cfg.image.repository }}:{{ $cfg.image.tag }}"
+          image: "{{ include "customRegistryImage" $cfg.image.repository }}:{{ include "customRegistryTag" $cfg.image.tag }}"
           imagePullPolicy: {{ $cfg.image.pullPolicy }}
           command:
           - "uvicorn"
