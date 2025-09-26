@@ -6,6 +6,7 @@ dist/*
 
 # Helm Exclusions
 **/helm-charts/*.tgz
+**/helm/**/*.tgz
 
 # Docker Compose exclusions
 deploy/compose/volumes
@@ -79,3 +80,11 @@ coverage.xml
 cover/
 
 # Workbench Project Layout
+
+**/cleanup.sh
+**/rag-scc-deploy.sh
+**/**/CLAUDE.md
+
+# Cluster-specific MIG configuration
+**/helm/**/ocp-mig-config.yaml
+**/helm/**/ocp-values-mig.yaml

@@ -1,52 +1,38 @@
-
-
+# This values file overrides the default service account names for the workloads
+# listed below and has them use a global service account that are bound to a 
+# cluster role with the necessary permissions to be deployed on an OpenShift cluster
 
 ingestor-server:
 
   nv-ingest:
-    resources:
-      limits:
-        memory: "200Gi"
-        cpu: "16"
-      requests:
-        memory: "24Gi"
-        cpu: "8"
-    envVars:
-      CONDA_PKGS_DIRS: "/scratch/.cache/conda-pkgs"
-      MAMBA_PKGS_DIRS: "/scratch/.cache/conda-pkgs"
-      CONDA_BLD_PATH: "/scratch/.cache/conda-bld"
-      CONDA_ENVS_PATH: "/scratch/.conda/envs"
-      NV_INGEST_MAX_UTIL: "16"
-      MAX_INGEST_PROCESS_WORKERS: "8"
-  
-  
+
     paddleocr-nim:
-      deployed: false
+      deployed: true
       serviceAccount:
         create: false
         name: nvidia-blueprint-ocp
         
     nemoretriever-graphic-elements-v1:
-      deployed: false
+      deployed: true
       serviceAccount:
         create: false
         name: nvidia-blueprint-ocp
 
     nemoretriever-page-elements-v2:
-      deployed: false
+      deployed: true
       serviceAccount:
         create: false
         name: nvidia-blueprint-ocp
 
     nemoretriever-table-structure-v1:
-      deployed: false
+      deployed: true
       serviceAccount:
         create: false
         name: nvidia-blueprint-ocp
 
     milvus:
       etcd:
-        deployed: false
+        enabled: true
         serviceAccount:
           create: false
           name: nvidia-blueprint-ocp
@@ -55,25 +41,6 @@ nim-llm:
   serviceAccount:
     create: false
     name: nvidia-blueprint-ocp
-  resources:
-    limits:
-      nvidia.com/gpu: 2
-      memory: "300Gi"
-      cpu: "32"
-    requests:
-      nvidia.com/gpu: 2
-      memory: "300Gi"
-      cpu: "16"
-  env:
-    - name: QUANTIZATION
-      value: "fp16"
-  image:
-      repository: nvcr.io/nim/nvidia/nvidia-nemotron-nano-9b-v2
-      pullPolicy: IfNotPresent
-      tag: "latest"
-  model:
-    ngcAPIKey: ""
-    name: "nvidia/nvidia-nemotron-nano-9b-v2"
 
 nvidia-nim-llama-32-nv-embedqa-1b-v2:
   serviceAccount:
