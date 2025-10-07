@@ -39,6 +39,7 @@ interface SettingSliderProps {
   step: number;
   'aria-label'?: string;
   'data-testid'?: string;
+  disabled?: boolean;
 }
 
 /**
@@ -95,29 +96,44 @@ export const SettingSlider = ({
   max, 
   step,
   'aria-label': ariaLabel,
-  'data-testid': dataTestId
+  'data-testid': dataTestId,
+  disabled
 }: SettingSliderProps) => {
+  const handleClick = () => {
+    if (disabled) {
+      // Activate by setting to current display value
+      onChange(value);
+    }
+  };
+
   return (
     <FormField
       slotLabel={label}
       slotHelp={description}
     >
       {(args) => (
-        <Flex align="center" gap="3">
-          <Slider
-            {...args}
-            value={value}
-            onValueChange={(newValue) => onChange(newValue)}
-            min={min}
-            max={max}
-            step={step}
-            style={{ flex: 1 }}
-            aria-label={ariaLabel || label}
-            data-testid={dataTestId}
-          />
-          <Text kind="body/regular/sm" style={{ minWidth: '3rem', textAlign: 'right' }}>
-            {value}
-          </Text>
+        <Flex align="center" gap="3" onClick={handleClick} style={{ flex: 1, cursor: disabled ? 'pointer' : 'default' }}>
+            <Slider
+              {...args}
+              value={value}
+              onValueChange={(newValue) => onChange(newValue)}
+              min={min}
+              max={max}
+              step={step}
+              style={{ flex: 1 }}
+              aria-label={ariaLabel || label}
+              data-testid={dataTestId}
+              disabled={disabled}
+            />
+          {!disabled ? (
+            <Text kind="body/regular/sm" style={{ minWidth: '3rem', textAlign: 'right' }}>
+              {value}
+            </Text>
+          ) : (
+            <Text kind="body/regular/sm" style={{ minWidth: '3rem', textAlign: 'right', color: 'var(--text-secondary)' }}>
+              Default value - click to change
+            </Text>
+          )}
         </Flex>
       )}
     </FormField>

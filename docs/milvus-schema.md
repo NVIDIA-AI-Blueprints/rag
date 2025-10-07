@@ -3,11 +3,9 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-# Milvus Collection Schema Requirements
+# Milvus Collection Schema Requirements for NVIDIA RAG Blueprint
 
-## Overview
-
-When creating a collection in Milvus for use with the RAG server, there are specific schema requirements that must be followed to ensure compatibility with the search and generate APIs. This document outlines the required fields and their configurations.
+When you create a collection in Milvus to use with the [NVIDIA RAG Blueprint](readme.md) server, there are specific schema requirements that must be followed to ensure compatibility with the search and generate APIs. This document outlines the required fields and their configurations.
 
 > **Note**: If you are using either LangChain's Milvus integration or NVIDIA's nv-ingest tool for data ingestion, these schema requirements are automatically handled for you. Both tools will create and configure the collection with the correct schema fields. You only need to ensure these requirements when manually creating collections or using custom ingestion methods.
 

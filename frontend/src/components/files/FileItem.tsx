@@ -27,7 +27,7 @@ interface FileItemProps {
 }
 
 const RemoveIcon = () => (
-  <svg style={{ width: '16px', height: '16px' }} fill="none" stroke="#ffffff" strokeWidth="2" viewBox="0 0 24 24">
+  <svg style={{ width: '16px', height: '16px', color: 'white' }} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
   </svg>
 );
@@ -162,7 +162,7 @@ const FileDetails = ({ uploadFile }: { uploadFile: UploadFile }) => {
 
 export const FileItem = ({ uploadFile, onRemove }: FileItemProps) => (
   <Flex 
-    gap="density-md" 
+    gap="density-md"
   >
     <Block style={{ flexShrink: 0 }}>
       <FileIcon uploadFile={uploadFile} />

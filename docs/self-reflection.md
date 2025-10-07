@@ -2,10 +2,9 @@
   SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
   SPDX-License-Identifier: Apache-2.0
 -->
+# Enable Self-Reflection for NVIDIA RAG Blueprint
 
-# Enable Self-Reflection
-
-The RAG Blueprint supports self-reflection capabilities to improve response quality through two key mechanisms:
+The [NVIDIA RAG Blueprint](readme.md) supports self-reflection capabilities to improve response quality through two key mechanisms:
 
 1. Context Relevance Check: Evaluates and potentially improves retrieved document relevance
 2. Response Groundedness Check: Ensures generated responses are well-grounded in the retrieved context
@@ -24,23 +23,51 @@ ENABLE_REFLECTION=true
 MAX_REFLECTION_LOOP=3                    # Maximum number of refinement attempts (default: 3)
 CONTEXT_RELEVANCE_THRESHOLD=1            # Minimum relevance score 0-2 (default: 1)
 RESPONSE_GROUNDEDNESS_THRESHOLD=1        # Minimum groundedness score 0-2 (default: 1)
-REFLECTION_LLM="nvidia/llama-3-3-nemotron-super-49b-v1-5"  # Model for reflection (default)
+REFLECTION_LLM="nvidia/llama-3.3-nemotron-super-49b-v1.5"  # Model for reflection (default)
 REFLECTION_LLM_SERVERURL="nim-llm:8000"  # Default on-premises endpoint for reflection LLM
 ```
 
-The reflection feature supports multiple deployment options:
+The reflection feature supports the following deployment options:
+
+- [On-Premises Deployment](#on-premises-deployment-recommended) (Recommended)
+- [NVIDIA-Hosted Models](#nvidia-hosted-models-alternative) (Alternative)
+
+
+## Prerequisites
+
+1. [Get an API Key](api-key.md).
+
+2. Install Docker Engine. For more information, see [Ubuntu](https://docs.docker.com/engine/install/ubuntu/).
+
+3. Install Docker Compose. For more information, see [install the Compose plugin](https://docs.docker.com/compose/install/linux/).
+
+   a. Ensure the Docker Compose plugin version is 2.29.1 or later.
+
+   b. After you get the Docker Compose plugin installed, run `docker compose version` to confirm.
+
+4. To pull images required by the blueprint from NGC, you must first authenticate Docker with nvcr.io. Use the NGC API Key you created in [Obtain an API Key](api-key.md).
+
+   ```bash
+   export NGC_API_KEY="nvapi-..."
+   echo "${NGC_API_KEY}" | docker login nvcr.io -u '$oauthtoken' --password-stdin
+   ```
+
+5. Some containers with are enabled with GPU acceleration, such as Milvus and NVIDIA NIMS deployed on-prem. To configure Docker for GPU-accelerated containers, [install](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html), the NVIDIA Container Toolkit
+
+
 
 ## On-Premises Deployment (Recommended)
 
-### Prerequisites
+### On-Premises Deployment Prerequisites
 
-1. Ensure you have completed the [general prerequisites](quickstart.md#prerequisites) for the RAG Blueprint.
+1. Ensure you have completed the [general prerequisites](#prerequisites).
 
 2. Verify you have sufficient GPU resources:
    - **Required**: 8x A100 80GB or H100 80GB GPUs for optimal latency-optimized deployment
    - For detailed GPU requirements and supported model configurations, refer to the [NVIDIA NIM documentation](https://docs.nvidia.com/nim/large-language-models/latest/supported-models.html).
 
-### Deployment Steps
+
+### On-Premises Deployment Steps
 
 1. Authenticate Docker with NGC using your NVIDIA API key:
 
@@ -68,20 +95,19 @@ The reflection feature supports multiple deployment options:
    docker ps --format "table {{.Names}}\t{{.Status}}"
    ```
 
-5. Test the reflection capability:
-   - Access the rag frontend UI at http://localhost:8090
+5. Open the [RAG UI](user-interface.md) and test the reflection capability.
 
-## NVIDIA AI Playground (Alternative)
+
+## NVIDIA-Hosted Models (Alternative)
 
 If you don't have sufficient GPU resources for on-premises deployment, you can use NVIDIA's hosted models:
 
-### Prerequisites
+### NVIDIA-Hosted Models Prerequisites
 
-1. Ensure you have completed the [general prerequisites](quickstart.md#prerequisites) for the RAG Blueprint.
+1. Ensure you have completed the [general prerequisites](#prerequisites).
 
-2. [Obtain an NVIDIA API key](quickstart.md#obtain-an-api-key) for accessing the hosted models.
 
-### Deployment Steps
+### NVIDIA-Hosted Models Deployment Steps
 
 1. Set your NVIDIA API key as an environment variable:
 
@@ -99,7 +125,7 @@ If you don't have sufficient GPU resources for on-premises deployment, you can u
    export REFLECTION_LLM_SERVERURL="nim-llm:8000"
 
    # Choose the reflection model (options below)
-   export REFLECTION_LLM="nvidia/llama-3-3-nemotron-super-49b-v1-5"  # Default option
+   export REFLECTION_LLM="nvidia/llama-3.3-nemotron-super-49b-v1.5"  # Default option
    # export REFLECTION_LLM="meta/llama-3.1-405b-instruct"  # Alternative option
    ```
 
@@ -115,11 +141,11 @@ If you don't have sufficient GPU resources for on-premises deployment, you can u
    docker ps --format "table {{.Names}}\t{{.Status}}"
    ```
 
-5. Test the reflection capability:
-   - Access the rag frontend UI at http://localhost:8090
+5. Open the [RAG UI](user-interface.md) and test the reflection capability.
+
 
 [!NOTE]
-When using NVIDIA AI Playground models, you must obtain an API key. See [Obtain an API Key](quickstart.md#obtain-an-api-key) for instructions.
+When using NVIDIA-hosted models, you must obtain an API key. See [Get an API Key](api-key.md) for instructions.
 
 ## Reflection Support via Helm Deployment
 
@@ -128,7 +154,7 @@ You can enable self-reflection through Helm when you deploy the RAG Blueprint.
 ### Prerequisites
 
 - Only on-premises reflection deployment is supported in Helm
-- The model used is: `nvidia/llama-3-3-nemotron-super-49b-v1-5`.
+- The model used is: `nvidia/llama-3.3-nemotron-super-49b-v1.5`.
 
 ### Deployment Steps
 
@@ -140,16 +166,16 @@ You can enable self-reflection through Helm when you deploy the RAG Blueprint.
    MAX_REFLECTION_LOOP: "3"
    CONTEXT_RELEVANCE_THRESHOLD: "1"
    RESPONSE_GROUNDEDNESS_THRESHOLD: "1"
-   REFLECTION_LLM: "nvidia/llama-3-3-nemotron-super-49b-v1-5"
+   REFLECTION_LLM: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
    REFLECTION_LLM_SERVERURL: "nim-llm:8000"
    ```
 
 2. Deploy the RAG Helm chart:
 
-   Follow the steps from [Quick Start Helm Deployment](./quickstart.md#deploy-with-helm-chart) and run:
+   Follow the steps from [Deploy with Helm](deploy-helm.md) and run:
 
    ```bash
-   helm install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.3.0-rc2.2.tgz \
+   helm install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.3.0.tgz \
      --username '$oauthtoken' \
      --password "${NGC_API_KEY}" \
      --set imagePullSecret.password=$NGC_API_KEY \
@@ -190,7 +216,7 @@ You can enable self-reflection through Helm when you deploy the RAG Blueprint.
   ```bash
   LOGLEVEL=INFO
   ```
-- Feel free to customize the reflection prompts in `src/prompt.yaml`:
+- Feel free to customize the reflection prompts in `src/rag_server/prompt.yaml`:
   ```yaml
   reflection_relevance_check_prompt: # Evaluates context relevance
   reflection_query_rewriter_prompt:  # Rewrites queries for better retrieval

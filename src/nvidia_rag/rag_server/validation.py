@@ -90,7 +90,7 @@ def validate_reranker_top_k(
     """
     if vdb_top_k is not None and reranker_top_k > vdb_top_k:
         raise ValueError(
-            f"{field_name} must be less than or equal to vdb_top_k ({vdb_top_k})"
+            f"reranker_top_k({reranker_top_k}) must be less than or equal to vdb_top_k ({vdb_top_k}). Please check your settings and try again."
         )
     return reranker_top_k
 
@@ -118,3 +118,23 @@ def validate_model_info(value: Any, field_name: str) -> str:
 def validate_reranker_k(reranker_top_k: int, vdb_top_k: int | None) -> int:
     """Direct validator for reranker_top_k field."""
     return validate_reranker_top_k(reranker_top_k, vdb_top_k, "reranker_top_k")
+
+
+def validate_vdb_top_k(vdb_top_k: int) -> int:
+    """Validate that vdb_top_k is greater than 0.
+
+    Args:
+        vdb_top_k: The vector database top k value to validate
+
+    Returns:
+        int: The validated vdb_top_k value
+
+    Raises:
+        ValueError: If vdb_top_k is 0 or negative
+    """
+    if vdb_top_k <= 0:
+        raise ValueError(
+            f"vdb_top_k must be greater than 0, got {vdb_top_k}. "
+            f"Please provide a positive integer for the number of documents to retrieve from the vector database."
+        )
+    return vdb_top_k

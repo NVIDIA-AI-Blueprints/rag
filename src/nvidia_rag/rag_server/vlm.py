@@ -40,6 +40,8 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 from PIL import Image as PILImage
+from PIL import UnidentifiedImageError
+import binascii
 
 from nvidia_rag.utils.common import get_config
 from nvidia_rag.utils.llm import get_llm, get_prompts
@@ -287,8 +289,28 @@ class VLM:
                         object_name=unique_thumbnail_id
                     )
                     content = payload.get("content", "")
-                    image_bytes = base64.b64decode(content)
-                    img = PILImage.open(io.BytesIO(image_bytes)).convert("RGB")
+                    if not content:
+                        logger.warning(
+                            "Empty image content for %s; skipping", unique_thumbnail_id
+                        )
+                        continue
+                    try:
+                        image_bytes = base64.b64decode(content)
+                    except (binascii.Error, ValueError) as decode_err:
+                        logger.warning(
+                            "Invalid base64 image content for %s; skipping (%s)",
+                            unique_thumbnail_id,
+                            decode_err,
+                        )
+                        continue
+
+                    try:
+                        img = PILImage.open(io.BytesIO(image_bytes)).convert("RGB")
+                    except UnidentifiedImageError:
+                        logger.warning(
+                            "Unidentified image content for %s; skipping", unique_thumbnail_id
+                        )
+                        continue
                     image_objects.append(img)
             except Exception as e:
                 logger.warning(
@@ -299,7 +321,7 @@ class VLM:
 
         if not image_objects and isinstance(question, str):
             logger.warning(
-                "No valid images extracted from document context and no query images provided."
+                "Skipping VLM: no images extracted from context and no query images provided."
             )
             return ""
 

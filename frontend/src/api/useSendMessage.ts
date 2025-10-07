@@ -62,8 +62,6 @@ export const useSendMessage = () => {
         signal: controller.signal,
       });
 
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
       await processStream(
         res,
         assistantId,
@@ -72,10 +70,21 @@ export const useSendMessage = () => {
       
       clearStreaming();
     },
-    onError: (_err, vars) => {
+    onError: (err, vars) => {
       clearStreaming();
+      
+      // Extract error message from the error object
+      let errorMessage = "Sorry, there was an error processing your request.";
+      
+      if (err instanceof Error) {
+        // Use the actual error message from the backend
+        errorMessage = err.message;
+      } else if (typeof err === 'string') {
+        errorMessage = err;
+      }
+      
       updateMessage(vars.assistantId, {
-        content: "Sorry, there was an error processing your request.",
+        content: errorMessage,
       });
     },
   });

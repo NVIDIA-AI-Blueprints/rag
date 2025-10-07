@@ -26,7 +26,11 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_nvidia_ai_endpoints import ChatNVIDIA, NVIDIAEmbeddings, NVIDIARerank
 from opentelemetry import context as otel_context
 
-from nvidia_rag.rag_server.response_generator import generate_answer
+from nvidia_rag.rag_server.response_generator import (
+    ErrorCodeMapping,
+    RAGResponse,
+    generate_answer,
+)
 from nvidia_rag.utils.common import filter_documents_by_confidence, get_config
 from nvidia_rag.utils.llm import get_llm, get_prompts
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
@@ -472,19 +476,22 @@ def generate_final_response(
 
     logger.info("Generating final comprehensive response")
 
-    return generate_answer(
-        final_response_chain.stream(
-            {
-                "conversation_history": format_conversation_history(history),
-                "context": f"{contexts}",
-                "question": original_query,
-            },
-            config={"run_name": "final-response-generation"},
+    return RAGResponse(
+        generate_answer(
+            final_response_chain.stream(
+                {
+                    "conversation_history": format_conversation_history(history),
+                    "context": f"{contexts}",
+                    "question": original_query,
+                },
+                config={"run_name": "final-response-generation"},
+            ),
+            contexts=contexts,
+            model=llm.model,
+            collection_name=collection_name,
+            enable_citations=enable_citations,
         ),
-        contexts=contexts,
-        model=llm.model,
-        collection_name=collection_name,
-        enable_citations=enable_citations,
+        status_code=ErrorCodeMapping.SUCCESS,
     )
 
 

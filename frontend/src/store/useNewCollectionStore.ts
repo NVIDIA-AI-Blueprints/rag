@@ -58,6 +58,7 @@ interface NewCollectionState {
   setError: (msg: string | null) => void;
   setHasInvalidFiles: (hasInvalidFiles: boolean) => void; // New setter
   addFiles: (files: File[]) => void;
+  setFiles: (files: File[]) => void; // Replace files instead of appending
   removeFile: (index: number) => void;
   updateMetadataField: (filename: string, field: string, value: unknown) => void;
   reset: () => void;
@@ -133,6 +134,25 @@ export const useNewCollectionStore = create<NewCollectionState>((set, get) => ({
       selectedFiles: updated,
       fileMetadata: updatedMetadata,
     });
+  },
+
+  setFiles: (files) => {
+    console.log('🟢 Store: setFiles called with', files.length, 'files');
+    const { metadataSchema } = get();
+    const fileMetadata: Record<string, Record<string, unknown>> = {};
+
+    for (const file of files) {
+      fileMetadata[file.name] = {};
+      for (const field of metadataSchema) {
+        fileMetadata[file.name][field.name] = getDefaultValueForField(field);
+      }
+    }
+
+    set({
+      selectedFiles: files,
+      fileMetadata,
+    });
+    console.log('🟢 Store: selectedFiles is now', get().selectedFiles.length, 'files');
   },
 
   removeFile: (index) => {

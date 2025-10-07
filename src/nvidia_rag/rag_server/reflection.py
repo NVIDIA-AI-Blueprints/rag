@@ -142,7 +142,7 @@ def check_context_relevance(
     reflection_llm_name = (
         get_env_variable(
             variable_name="REFLECTION_LLM",
-            default_value="nvidia/llama-3-3-nemotron-super-49b-v1-5",
+            default_value="nvidia/llama-3.3-nemotron-super-49b-v1.5",
         )
         .strip('"')
         .strip("'")
@@ -294,7 +294,7 @@ def check_response_groundedness(
 
     Environment Variables:
         RESPONSE_GROUNDEDNESS_THRESHOLD: Minimum score required for response to be considered grounded (default: 1)
-        REFLECTION_LLM: Model name for the reflection LLM (default: nvidia/llama-3-3-nemotron-super-49b-v1-5)
+        REFLECTION_LLM: Model name for the reflection LLM (default: nvidia/llama-3.3-nemotron-super-49b-v1.5)
         REFLECTION_LLM_SERVERURL: Optional custom endpoint for the reflection LLM
 
     Note:
@@ -309,7 +309,7 @@ def check_response_groundedness(
     reflection_llm_name = (
         get_env_variable(
             variable_name="REFLECTION_LLM",
-            default_value="nvidia/llama-3-3-nemotron-super-49b-v1-5",
+            default_value="nvidia/llama-3.3-nemotron-super-49b-v1.5",
         )
         .strip('"')
         .strip("'")

@@ -40,11 +40,53 @@ from pymilvus.exceptions import MilvusException, MilvusUnavailableException
 from nvidia_rag.utils.minio_operator import get_minio_operator, get_unique_thumbnail_id
 from observability.otel_metrics import OtelMetrics
 
+
+class RAGResponse:
+    """Wrapper class to hold both the generator and HTTP status code"""
+
+    def __init__(self, generator, status_code: int = 200):
+        self.generator = generator
+        self.status_code = status_code
+
+
+class ErrorCodeMapping:
+    """Centralized mapping for HTTP status codes based on error types"""
+
+    # Success codes
+    SUCCESS = 200
+
+    # Client error codes (4xx)
+    BAD_REQUEST = (
+        400  # General errors, collection errors, VLM errors, validation errors
+    )
+    UNAUTHORIZED = 401  # Authentication required
+    FORBIDDEN = 403  # Authentication/authorization errors
+    NOT_FOUND = 404  # Model not found, resource not found
+    METHOD_NOT_ALLOWED = 405  # HTTP method not allowed
+    REQUEST_TIMEOUT = 408  # Connection timeout errors
+    UNPROCESSABLE_ENTITY = 422  # Validation errors (FastAPI default)
+    CLIENT_CLOSED_REQUEST = 499  # Client closed connection
+
+    # Server error codes (5xx)
+    INTERNAL_SERVER_ERROR = 500  # Unexpected server errors
+    SERVICE_UNAVAILABLE = 503  # Connection pool errors, service unavailable
+
+
 logger = logging.getLogger(__name__)
 
 FALLBACK_EXCEPTION_MSG = (
     "Error from rag-server. Please check rag-server logs for more details."
 )
+
+MINIO_OPERATOR = None
+
+
+def get_minio_operator_instance():
+    """Lazy initialize the MinioOperator instance"""
+    global MINIO_OPERATOR
+    if MINIO_OPERATOR is None:
+        MINIO_OPERATOR = get_minio_operator()
+    return MINIO_OPERATOR
 
 
 class Usage(BaseModel):
@@ -354,7 +396,7 @@ def prepare_llm_request(messages: list[dict[str, Any]], **kwargs) -> dict[str, A
     return last_user_message, processed_chat_history
 
 
-async def generate_answer(
+def generate_answer(
     generator: "Generator[str]",
     contexts: list[Any],
     model: str = "",
@@ -573,7 +615,7 @@ def prepare_citations(
                             page_number=page_number,
                             location=location,
                         )
-                        payload = get_minio_operator().get_payload(
+                        payload = get_minio_operator_instance().get_payload(
                             object_name=unique_thumbnail_id
                         )
                         content = payload.get("content", "")
@@ -669,7 +711,9 @@ async def retrieve_summary(
         )
 
         # First attempt to get existing summary
-        payload = get_minio_operator().get_payload(object_name=unique_thumbnail_id)
+        payload = get_minio_operator_instance().get_payload(
+            object_name=unique_thumbnail_id
+        )
 
         if payload:
             return {
@@ -692,7 +736,9 @@ async def retrieve_summary(
         # If wait=True, poll for summary with timeout
         start_time = time.time()
         while time.time() - start_time < min(3600, timeout):
-            payload = get_minio_operator().get_payload(object_name=unique_thumbnail_id)
+            payload = get_minio_operator_instance().get_payload(
+                object_name=unique_thumbnail_id
+            )
             if payload:
                 return {
                     "message": "Summary retrieved successfully.",

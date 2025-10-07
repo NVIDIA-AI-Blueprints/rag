@@ -44,8 +44,8 @@ export default function NewCollection() {
   }, []);
 
   const handleFilesChange = useCallback((files: File[]) => {
-    const { addFiles } = useNewCollectionStore.getState();
-    addFiles(files);
+    const { setFiles } = useNewCollectionStore.getState();
+    setFiles(files);
   }, []);
 
   return (

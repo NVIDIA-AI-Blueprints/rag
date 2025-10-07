@@ -30,6 +30,8 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 from fastapi.testclient import TestClient
 
+from nvidia_rag.rag_server.response_generator import ErrorCodeMapping
+
 
 class MockNvidiaRAGSummary:
     """Mock class for NvidiaRAG summary functionality with configurable responses"""
@@ -41,7 +43,12 @@ class MockNvidiaRAGSummary:
         self._get_summary_side_effect = None
         self._get_summary_return_value = None
 
-    def set_get_summary_success(self, summary_text="Test summary", file_name="test.pdf", collection_name="test_collection"):
+    def set_get_summary_success(
+        self,
+        summary_text="Test summary",
+        file_name="test.pdf",
+        collection_name="test_collection",
+    ):
         """Set up successful summary response"""
         self._get_summary_return_value = {
             "message": "Summary retrieved successfully.",
@@ -82,7 +89,13 @@ class MockNvidiaRAGSummary:
         self._get_summary_side_effect = exception
         self._get_summary_return_value = None
 
-    async def get_summary(self, collection_name: str, file_name: str, blocking: bool = False, timeout: int = 300):
+    async def get_summary(
+        self,
+        collection_name: str,
+        file_name: str,
+        blocking: bool = False,
+        timeout: int = 300,
+    ):
         """Mock get_summary method"""
         if self._get_summary_side_effect:
             raise self._get_summary_side_effect
@@ -99,6 +112,7 @@ def client():
     """Create test client with mocked dependencies"""
     with patch("nvidia_rag.rag_server.server.NVIDIA_RAG", mock_nvidia_rag_summary):
         from nvidia_rag.rag_server.server import app
+
         with TestClient(app) as test_client:
             yield test_client
 
@@ -124,7 +138,7 @@ class TestSummaryEndpointTimeoutValidation:
 
         response = client.get("/v1/summary", params=params)
 
-        assert response.status_code == 400
+        assert response.status_code == ErrorCodeMapping.BAD_REQUEST
         response_data = response.json()
         assert "message" in response_data
         assert "Invalid timeout value" in response_data["message"]
@@ -139,7 +153,7 @@ class TestSummaryEndpointTimeoutValidation:
 
         response = client.get("/v1/summary", params=params)
 
-        assert response.status_code == 400
+        assert response.status_code == ErrorCodeMapping.BAD_REQUEST
         response_data = response.json()
         assert "Invalid timeout value" in response_data["message"]
         assert response_data["error"] == "Provided timeout value: -999"
@@ -153,7 +167,7 @@ class TestSummaryEndpointTimeoutValidation:
 
         response = client.get("/v1/summary", params=params)
 
-        assert response.status_code == 200
+        assert response.status_code == ErrorCodeMapping.SUCCESS
         response_data = response.json()
         assert response_data["status"] == "SUCCESS"
 
@@ -166,7 +180,7 @@ class TestSummaryEndpointTimeoutValidation:
 
         response = client.get("/v1/summary", params=params)
 
-        assert response.status_code == 200
+        assert response.status_code == ErrorCodeMapping.SUCCESS
         response_data = response.json()
         assert response_data["status"] == "SUCCESS"
 
@@ -179,7 +193,7 @@ class TestSummaryEndpointTimeoutValidation:
 
         response = client.get("/v1/summary", params=params)
 
-        assert response.status_code == 200
+        assert response.status_code == ErrorCodeMapping.SUCCESS
         response_data = response.json()
         assert response_data["status"] == "SUCCESS"
 
@@ -192,12 +206,12 @@ class TestSummaryEndpointSuccessScenarios:
         mock_nvidia_rag_summary.set_get_summary_success(
             summary_text="This is a test summary",
             file_name="test.pdf",
-            collection_name="test_collection"
+            collection_name="test_collection",
         )
 
         response = client.get("/v1/summary", params=valid_summary_params)
 
-        assert response.status_code == 200
+        assert response.status_code == ErrorCodeMapping.SUCCESS
         response_data = response.json()
         assert response_data["status"] == "SUCCESS"
         assert response_data["summary"] == "This is a test summary"
@@ -214,7 +228,7 @@ class TestSummaryEndpointSuccessScenarios:
 
         response = client.get("/v1/summary", params=params)
 
-        assert response.status_code == 200
+        assert response.status_code == ErrorCodeMapping.SUCCESS
         response_data = response.json()
         assert response_data["status"] == "SUCCESS"
 
@@ -227,7 +241,7 @@ class TestSummaryEndpointSuccessScenarios:
 
         response = client.get("/v1/summary", params=params)
 
-        assert response.status_code == 200
+        assert response.status_code == ErrorCodeMapping.SUCCESS
         response_data = response.json()
         assert response_data["status"] == "SUCCESS"
 
@@ -241,7 +255,7 @@ class TestSummaryEndpointErrorScenarios:
 
         response = client.get("/v1/summary", params=valid_summary_params)
 
-        assert response.status_code == 404
+        assert response.status_code == ErrorCodeMapping.NOT_FOUND
         response_data = response.json()
         assert response_data["status"] == "FAILED"
         assert "not found" in response_data["message"]
@@ -252,7 +266,7 @@ class TestSummaryEndpointErrorScenarios:
 
         response = client.get("/v1/summary", params=valid_summary_params)
 
-        assert response.status_code == 408
+        assert response.status_code == ErrorCodeMapping.REQUEST_TIMEOUT
         response_data = response.json()
         assert response_data["status"] == "TIMEOUT"
         assert "Timeout waiting" in response_data["message"]
@@ -263,7 +277,7 @@ class TestSummaryEndpointErrorScenarios:
 
         response = client.get("/v1/summary", params=valid_summary_params)
 
-        assert response.status_code == 500
+        assert response.status_code == ErrorCodeMapping.INTERNAL_SERVER_ERROR
         response_data = response.json()
         assert response_data["status"] == "ERROR"
         assert "Error occurred" in response_data["message"]
@@ -274,7 +288,7 @@ class TestSummaryEndpointErrorScenarios:
 
         response = client.get("/v1/summary", params=valid_summary_params)
 
-        assert response.status_code == 500
+        assert response.status_code == ErrorCodeMapping.INTERNAL_SERVER_ERROR
         response_data = response.json()
         assert "Error occurred while getting summary" in response_data["message"]
         assert "Unexpected error" in response_data["error"]
@@ -293,7 +307,7 @@ class TestSummaryEndpointParameterValidation:
 
         response = client.get("/v1/summary", params=params)
 
-        assert response.status_code == 422
+        assert response.status_code == ErrorCodeMapping.UNPROCESSABLE_ENTITY
 
     def test_missing_file_name_returns_422(self, client):
         """Test missing file_name returns 422"""
@@ -305,7 +319,7 @@ class TestSummaryEndpointParameterValidation:
 
         response = client.get("/v1/summary", params=params)
 
-        assert response.status_code == 422
+        assert response.status_code == ErrorCodeMapping.UNPROCESSABLE_ENTITY
 
     def test_invalid_blocking_type_returns_422(self, client):
         """Test invalid blocking type returns 422"""
@@ -318,7 +332,7 @@ class TestSummaryEndpointParameterValidation:
 
         response = client.get("/v1/summary", params=params)
 
-        assert response.status_code == 422
+        assert response.status_code == ErrorCodeMapping.UNPROCESSABLE_ENTITY
 
     def test_invalid_timeout_type_returns_422(self, client):
         """Test invalid timeout type returns 422"""
@@ -331,7 +345,7 @@ class TestSummaryEndpointParameterValidation:
 
         response = client.get("/v1/summary", params=params)
 
-        assert response.status_code == 422
+        assert response.status_code == ErrorCodeMapping.UNPROCESSABLE_ENTITY
 
 
 class TestSummaryEndpointEdgeCases:
@@ -346,7 +360,7 @@ class TestSummaryEndpointEdgeCases:
 
         response = client.get("/v1/summary", params=params)
 
-        assert response.status_code == 200
+        assert response.status_code == ErrorCodeMapping.SUCCESS
         response_data = response.json()
         assert response_data["status"] == "SUCCESS"
 
@@ -359,7 +373,7 @@ class TestSummaryEndpointEdgeCases:
 
         response = client.get("/v1/summary", params=params)
 
-        assert response.status_code == 200
+        assert response.status_code == ErrorCodeMapping.SUCCESS
         response_data = response.json()
         assert response_data["status"] == "SUCCESS"
 
@@ -372,7 +386,7 @@ class TestSummaryEndpointEdgeCases:
 
         response = client.get("/v1/summary", params=params)
 
-        assert response.status_code == 200
+        assert response.status_code == ErrorCodeMapping.SUCCESS
         response_data = response.json()
         assert response_data["status"] == "SUCCESS"
 
@@ -385,7 +399,7 @@ class TestSummaryEndpointEdgeCases:
 
         response = client.get("/v1/summary", params=params)
 
-        assert response.status_code == 200
+        assert response.status_code == ErrorCodeMapping.SUCCESS
         response_data = response.json()
         assert response_data["status"] == "SUCCESS"
 
@@ -393,23 +407,27 @@ class TestSummaryEndpointEdgeCases:
 class TestSummaryEndpointMockVerification:
     """Tests to verify mock interactions"""
 
-    def test_get_summary_called_with_correct_parameters(self, client, valid_summary_params):
+    def test_get_summary_called_with_correct_parameters(
+        self, client, valid_summary_params
+    ):
         """Test that get_summary is called with correct parameters"""
         mock_nvidia_rag_summary.set_get_summary_success()
 
         response = client.get("/v1/summary", params=valid_summary_params)
 
-        assert response.status_code == 200
+        assert response.status_code == ErrorCodeMapping.SUCCESS
         # Note: In a real test, you would verify the mock was called with correct parameters
         # This would require more sophisticated mocking setup
 
-    def test_timeout_validation_prevents_downstream_calls(self, client, valid_summary_params):
+    def test_timeout_validation_prevents_downstream_calls(
+        self, client, valid_summary_params
+    ):
         """Test that negative timeout validation prevents downstream calls"""
         params = valid_summary_params.copy()
         params["timeout"] = -1
 
         response = client.get("/v1/summary", params=params)
 
-        assert response.status_code == 400
+        assert response.status_code == ErrorCodeMapping.BAD_REQUEST
         # The mock should not be called due to early validation
         # This would require more sophisticated mocking to verify

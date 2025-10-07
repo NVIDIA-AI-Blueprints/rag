@@ -5,56 +5,7 @@
 
 # Advanced Metadata Filtering with Natural Language Generation
 
-## Table of Contents
-
-1. [Overview](#overview)
-2. [Quick Start](#quick-start)
-   - [1. Enable Natural Language Filter Generation](#1-enable-natural-language-filter-generation)
-   - [2. Define Metadata Schema](#2-define-metadata-schema)
-   - [3. Add Metadata During Ingestion](#3-add-metadata-during-ingestion)
-   - [4. Use Natural Language Filtering](#4-use-natural-language-filtering)
-3. [📓 Interactive Notebook](#-interactive-notebook)
-4. [Important Notes](#important-notes)
-   - [🎯 Vector Database Support](#-vector-database-support)
-   - [🚨 Key Limitations](#-key-limitations)
-5. [Vector Database Support](#vector-database-support)
-   - [Key Differences](#key-differences)
-6. [Natural Language Filter Generation](#natural-language-filter-generation)
-   - [What It Does](#what-it-does)
-   - [How to Use It](#how-to-use-it)
-   - [How It Helps You](#how-it-helps-you)
-   - [Example Queries and Generated Filters](#example-queries-and-generated-filters)
-   - [Improving Existing Filters](#improving-existing-filters)
-   - [Error Handling](#error-handling)
-7. [Metadata Schema Definition](#metadata-schema-definition)
-   - [Supported Data Types](#supported-data-types)
-   - [Schema Validation Rules](#schema-validation-rules)
-   - [Example Schemas](#example-schemas)
-8. [Adding Metadata During Ingestion](#adding-metadata-during-ingestion)
-   - [Metadata Structure](#metadata-structure)
-   - [Validation During Ingestion](#validation-during-ingestion)
-9. [Filter Expression Syntax](#filter-expression-syntax)
-   - [Basic Syntax](#basic-syntax)
-   - [Supported Operators by Type](#supported-operators-by-type)
-   - [Filter Expression Examples](#filter-expression-examples)
-   - [Using Filters in API Calls](#using-filters-in-api-calls)
-   - [Elasticsearch Filter Example](#elasticsearch-filter-example)
-10. [Advanced Filtering Features](#advanced-filtering-features)
-    - [Array Functions](#array-functions)
-11. [Configuration and Setup](#configuration-and-setup)
-    - [Filter Expression Generator Configuration](#filter-expression-generator-configuration)
-    - [Metadata Configuration](#metadata-configuration)
-    - [Environment Variables](#environment-variables)
-    - [Partial Filtering Modes](#partial-filtering-modes)
-12. [Troubleshooting](#troubleshooting)
-    - [Common Issues](#common-issues)
-13. [API Reference](#api-reference)
-    - [API Endpoints](#api-endpoints)
-14. [Summary](#summary)
-
-## Overview
-
-The NVIDIA RAG system now features **advanced metadata filtering with natural language generation**, enabling you to:
+The [NVIDIA RAG Blueprint](readme.md) features **advanced metadata filtering with natural language generation**, enabling you to:
 
 - **Generate filter expressions from natural language** using LLMs
 - **Define comprehensive metadata schemas** with type validation
@@ -72,7 +23,7 @@ The NVIDIA RAG system now features **advanced metadata filtering with natural la
 config = {
     "filter_expression_generator": {
         "enable_filter_generator": True,
-        "model_name": "nvidia/llama-3-3-nemotron-super-49b-v1-5",
+        "model_name": "nvidia/llama-3.3-nemotron-super-49b-v1.5",
         "temperature": 0.1,
         "max_tokens": 1024
     }
@@ -494,7 +445,7 @@ filter_expr = [
 # Configuration file (config.yaml)
 filter_expression_generator:
   enable_filter_generator: true  # Set to true to enable filter generation (default is false)
-  model_name: "nvidia/llama-3-3-nemotron-super-49b-v1-5"
+  model_name: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
   server_url: ""  # Leave empty for default endpoint
   temperature: 0.1  # Low temperature for consistent results
   top_p: 0.9
@@ -518,7 +469,7 @@ metadata:
 export ENABLE_FILTER_GENERATOR=true
 
 # LLM configuration
-export APP_FILTEREXPRESSIONGENERATOR_MODELNAME="nvidia/llama-3-3-nemotron-super-49b-v1-5"
+export APP_FILTEREXPRESSIONGENERATOR_MODELNAME="nvidia/llama-3.3-nemotron-super-49b-v1.5"
 export APP_FILTEREXPRESSIONGENERATOR_SERVERURL=""
 
 # Note: Metadata configuration is not currently exposed via environment variables

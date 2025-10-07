@@ -19,7 +19,7 @@ import { useCollectionDrawerStore } from "../../store/useCollectionDrawerStore";
 import { useCollectionActions } from "../../hooks/useCollectionActions";
 import { DrawerActions } from "../drawer/DrawerActions";
 import { ConfirmationModal } from "../modals/ConfirmationModal";
-import { Block, Notification, SidePanel } from "@kui/react";
+import { Block, Button, Flex, Notification, SidePanel, Text } from "@kui/react";
 import { DocumentsList } from "../tasks/DocumentsList";
 import { UploaderSection } from "../drawer/UploaderSection";
 
@@ -31,6 +31,18 @@ export { DocumentItem } from "../tasks/DocumentItem";
 export { DocumentsList } from "../tasks/DocumentsList";
 export { UploaderSection } from "../drawer/UploaderSection";
 export { DrawerActions } from "../drawer/DrawerActions";
+
+const CloseIcon = () => (
+  <svg 
+    style={{ width: '20px', height: '20px', color: 'var(--text-color-inverse)' }} 
+    fill="none" 
+    stroke="currentColor" 
+    strokeWidth="2" 
+    viewBox="0 0 24 24"
+  >
+    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+  </svg>
+);
 
 export default function CollectionDrawer() {
   const { activeCollection, closeDrawer, toggleUploader, deleteError, showUploader } = useCollectionDrawerStore();
@@ -52,6 +64,11 @@ export default function CollectionDrawer() {
     setMetadataSchema(activeCollection?.metadata_schema || []);
     toggleUploader(true);
   }, [activeCollection, setMetadataSchema, toggleUploader]);
+
+  const handleCloseUploader = useCallback(() => {
+    toggleUploader(false);
+    useNewCollectionStore.getState().reset();
+  }, [toggleUploader]);
 
   const handleDeleteClick = useCallback(() => {
     if (activeCollection?.collection_name) {
@@ -80,22 +97,31 @@ export default function CollectionDrawer() {
         }
       }}
       side="right"
-      slotHeading={<span style={{ color: 'var(--text-color-inverse)' }}>{title}</span>}
+      slotHeading={
+        <Flex align="center" justify="between" gap="3" style={{ width: '100%' }}>
+          <Text kind="body/bold/lg" style={{ color: 'var(--text-color-inverse)' }}>{title}</Text>
+          <Button kind="tertiary" size="tiny" onClick={handleClose}>
+            <CloseIcon />
+          </Button>
+        </Flex>
+      }
       slotFooter={
         <DrawerActions 
           onDelete={handleDeleteClick}
           onAddSource={handleAddSource}
+          onCloseUploader={handleCloseUploader}
           isDeleting={isDeleting}
+          showUploader={showUploader}
         />
       }
       closeOnClickOutside
+      hideCloseButton
     >
       <Block 
           style={{ 
             overflowY: 'auto',
             flex: 1,
             height: '100%',
-            padding: '16px'
           }}
         >
           <>

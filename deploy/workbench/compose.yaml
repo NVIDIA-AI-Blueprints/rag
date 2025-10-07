@@ -2,7 +2,7 @@ services:
 
   nim-llm:
     container_name: nim-llm-ms
-    image: nvcr.io/nim/nvidia/llama-3.3-nemotron-super-49b-v1.5:1.12.0
+    image: nvcr.io/nim/nvidia/llama-3.3-nemotron-super-49b-v1.5:1.13.1
     volumes:
     - ${MODEL_DIRECTORY:-/tmp}:/opt/nim/.cache
     user: "${USERID}"
@@ -175,7 +175,7 @@ services:
     profiles: ["local"]
 
   paddle:
-    image: ${PADDLE_IMAGE:-nvcr.io/nim/baidu/paddleocr}:${PADDLE_TAG:-1.4.0}
+    image: ${PADDLE_IMAGE:-nvcr.io/nim/baidu/paddleocr}:${PADDLE_TAG:-1.5.0}
     shm_size: 2gb
     ports:
       - "8009:8000"
@@ -203,7 +203,7 @@ services:
   # Main ingestor server which is responsible for ingestion
   ingestor-server:
     container_name: ingestor-server
-    image: nvcr.io/nvstaging/blueprint/ingestor-server:${TAG:-2.3.0.rc2.2}
+    image: nvcr.io/nvstaging/blueprint/ingestor-server:${TAG:-2.3.0}
     build:
       # Set context to repo's root directory
       context: ../../
@@ -286,7 +286,7 @@ services:
       ENABLE_CITATIONS: ${ENABLE_CITATIONS:-True}
 
       # Choose the summary model to use for document summary
-      SUMMARY_LLM: ${SUMMARY_LLM:-nvidia/llama-3-3-nemotron-super-49b-v1-5}
+      SUMMARY_LLM: ${SUMMARY_LLM:-nvidia/llama-3.3-nemotron-super-49b-v1.5}
       SUMMARY_LLM_SERVERURL: ${SUMMARY_LLM_SERVERURL-"nim-llm:8000"}
       SUMMARY_LLM_MAX_CHUNK_LENGTH: ${SUMMARY_LLM_MAX_CHUNK_LENGTH:-50000}
       SUMMARY_CHUNK_OVERLAP: ${SUMMARY_CHUNK_OVERLAP:-200}
@@ -405,7 +405,7 @@ services:
   # Main orchestrator server which stiches together all calls to different services to fulfill the user request
   rag-server:
     container_name: rag-server
-    image: nvcr.io/nvstaging/blueprint/rag-server:${TAG:-2.3.0.rc2.2}
+    image: nvcr.io/nvstaging/blueprint/rag-server:${TAG:-2.3.0}
     build:
       # Set context to repo's root directory
       context: ../../
@@ -444,7 +444,7 @@ services:
       VECTOR_DB_TOPK: ${VECTOR_DB_TOPK:-100}
 
       ##===LLM Model specific configurations===
-      APP_LLM_MODELNAME: ${APP_LLM_MODELNAME:-"nvidia/llama-3-3-nemotron-super-49b-v1-5"}
+      APP_LLM_MODELNAME: ${APP_LLM_MODELNAME:-"nvidia/llama-3.3-nemotron-super-49b-v1.5"}
       # url on which llm model is hosted. If "", Nvidia hosted API is used
       APP_LLM_SERVERURL: ${APP_LLM_SERVERURL-"nim-llm:8000"}
 
@@ -454,7 +454,7 @@ services:
       LLM_TOP_P: ${LLM_TOP_P:-1.0}
 
       ##===Query Rewriter Model specific configurations===
-      APP_QUERYREWRITER_MODELNAME: ${APP_QUERYREWRITER_MODELNAME:-"nvidia/llama-3-3-nemotron-super-49b-v1-5"}
+      APP_QUERYREWRITER_MODELNAME: ${APP_QUERYREWRITER_MODELNAME:-"nvidia/llama-3.3-nemotron-super-49b-v1.5"}
       # url on which query rewriter model is hosted. If "", Nvidia hosted API is used
       APP_QUERYREWRITER_SERVERURL: ${APP_QUERYREWRITER_SERVERURL-"nim-llm:8000"}
 
@@ -520,7 +520,7 @@ services:
       # Minimum groundedness score threshold (0-2)
       RESPONSE_GROUNDEDNESS_THRESHOLD: ${RESPONSE_GROUNDEDNESS_THRESHOLD:-1}
       # reflection llm
-      REFLECTION_LLM: ${REFLECTION_LLM:-"nvidia/llama-3-3-nemotron-super-49b-v1-5"}
+      REFLECTION_LLM: ${REFLECTION_LLM:-"nvidia/llama-3.3-nemotron-super-49b-v1.5"}
       # reflection llm server url. If "", Nvidia hosted API is used
       REFLECTION_LLM_SERVERURL: ${REFLECTION_LLM_SERVERURL-"nim-llm:8000"}
 
@@ -534,7 +534,7 @@ services:
   # Sample UI container which interacts with APIs exposed by rag-server container
   rag-frontend:
     container_name: rag-frontend
-    image: nvcr.io/nvstaging/blueprint/rag-frontend:${TAG:-2.3.0.rc2.2}
+    image: nvcr.io/nvstaging/blueprint/rag-frontend:${TAG:-2.3.0}
     build:
       # Set context to repo's root directory
       context: ../../frontend

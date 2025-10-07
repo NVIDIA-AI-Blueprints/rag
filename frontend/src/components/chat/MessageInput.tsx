@@ -19,7 +19,7 @@ import { useCollectionsStore } from "../../store/useCollectionsStore";
 import { CollectionChips } from "../collections/CollectionChips";
 import { MessageInputContainer } from "./MessageInputContainer";
 import SimpleFilterBar from "../filtering/SimpleFilterBar";
-import { Flex } from "@kui/react";
+import { Flex, Banner, Block } from "@kui/react";
 
 // Export all message input components for external use
 export { CollectionChips } from "../collections/CollectionChips";
@@ -31,13 +31,27 @@ export default function MessageInput() {
   const { filters, setFilters } = useChatStore();
   const { selectedCollections } = useCollectionsStore();
 
+  // Debug: Check if MessageInput renders multiple times
+  console.log('💬 MessageInput RENDER:', {
+    selectedCollections: selectedCollections.length,
+    filters: filters.length,
+    timestamp: Date.now()
+  });
+
   return (
     <Flex direction="col" padding="density-sm">
       <CollectionChips />
       
       <>
-        {selectedCollections.length > 0 && (
+        {selectedCollections.length === 1 && (
           <SimpleFilterBar filters={filters} setFilters={setFilters} />
+        )}
+        {selectedCollections.length > 1 && (
+          <Block paddingY="density-sm">
+            <Banner status="warning" kind="inline">
+              Filters not available with more than one collection selected
+            </Banner>
+          </Block>
         )}
         <MessageInputContainer />
       </>

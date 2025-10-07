@@ -15,7 +15,6 @@
 
 import "./index.css";
 
-import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
 
@@ -36,9 +35,10 @@ const queryClient = new QueryClient();
  * for the NVIDIA RAG frontend application.
  */
 ReactDOM.createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>
+  // Temporary: Disabled StrictMode to fix double popover in development
+  // <React.StrictMode>
     <QueryClientProvider client={queryClient}>
       <App />
     </QueryClientProvider>
-  </React.StrictMode>
+  // </React.StrictMode>
 );

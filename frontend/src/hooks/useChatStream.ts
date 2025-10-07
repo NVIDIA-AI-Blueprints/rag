@@ -79,6 +79,9 @@ export const useChatStream = () => {
     let buffer = "";
     let content = "";
     let latestCitations: ChatMessage["citations"] = [];
+    
+    // Detect if this is an error response based on HTTP status code
+    const isError = response.status >= 400;
 
     try {
       while (true) {
@@ -125,6 +128,7 @@ export const useChatStream = () => {
           updateMessage(assistantId, {
             content,
             citations: latestCitations && latestCitations.length ? latestCitations : undefined,
+            is_error: isError,
           });
 
           if (json.choices?.[0]?.finish_reason === "stop") {

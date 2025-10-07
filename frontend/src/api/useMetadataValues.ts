@@ -45,7 +45,18 @@ export function useMetadataValues(collectionNames: string[], field: string) {
         const json = await res.json();
         (json.documents || []).forEach((doc: DocumentItem) => {
           const v = doc.metadata?.[field];
-          if (v != null && v !== "") seen.add(String(v));
+          if (v != null && v !== "") {
+            // Handle arrays by adding each element individually
+            if (Array.isArray(v)) {
+              v.forEach(item => {
+                if (item != null && item !== "") {
+                  seen.add(String(item));
+                }
+              });
+            } else {
+              seen.add(String(v));
+            }
+          }
         });
       }
       return Array.from(seen).sort();

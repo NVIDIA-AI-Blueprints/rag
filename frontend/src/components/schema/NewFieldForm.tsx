@@ -95,7 +95,6 @@ export const NewFieldForm = () => {
               <Block style={{ flex: 1 }}>
                 <FormField
                   slotLabel="Field Name"
-                  required
                   status={fieldNameError ? "error" : undefined}
                   slotHelp={fieldNameError}
                 >
@@ -113,7 +112,6 @@ export const NewFieldForm = () => {
               <Block style={{ flex: 1 }}>
                 <FormField
                   slotLabel="Field Type"
-                  required
                 >
                   <Select
                     value={newField.type}

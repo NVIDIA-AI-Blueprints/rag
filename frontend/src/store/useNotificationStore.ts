@@ -424,11 +424,19 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     return get().notifications
       .filter(n => !n.dismissed)
       .sort((a, b) => {
-        // Sort by unread status first
+        // Sort by unread status first (unread items first)
         if (a.read !== b.read) return a.read ? 1 : -1;
         
-        // Then by creation time (newest first)
-        return b.createdAt - a.createdAt;
+        // Then by most recent relevant timestamp (newest first)
+        // For completed tasks, use completedAt; otherwise use createdAt
+        const aTime = a.type === "task" && (a as TaskNotification).task.completedAt 
+          ? (a as TaskNotification).task.completedAt!
+          : a.createdAt;
+        const bTime = b.type === "task" && (b as TaskNotification).task.completedAt
+          ? (b as TaskNotification).task.completedAt!
+          : b.createdAt;
+        
+        return bTime - aTime;
       });
   },
 

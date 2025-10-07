@@ -42,7 +42,7 @@ async def test_generate_answer_updates_metrics(monkeypatch):
     gen = make_sync_generator(chunks)
 
     outputs = []
-    async for out in generate_answer(
+    for out in generate_answer(
         generator=gen,
         contexts=[],
         model="test-model",
@@ -75,7 +75,7 @@ async def test_generate_answer_skips_metrics_when_none():
 
     # Do not pass metrics client
     outputs = []
-    async for out in generate_answer(
+    for out in generate_answer(
         generator=gen,
         contexts=[],
         model="test-model",

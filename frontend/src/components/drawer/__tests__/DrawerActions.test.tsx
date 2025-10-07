@@ -5,7 +5,8 @@ import { DrawerActions } from '../DrawerActions';
 describe('DrawerActions', () => {
   const defaultProps = {
     onDelete: vi.fn(),
-    onAddSource: vi.fn()
+    onAddSource: vi.fn(),
+    onCloseUploader: vi.fn()
   };
 
   beforeEach(() => {
@@ -21,12 +22,22 @@ describe('DrawerActions', () => {
       expect(defaultProps.onDelete).toHaveBeenCalledOnce();
     });
 
-    it('calls onAddSource when add source button clicked', () => {
-      render(<DrawerActions {...defaultProps} />);
+    it('calls onAddSource when add source button clicked and uploader is closed', () => {
+      render(<DrawerActions {...defaultProps} showUploader={false} />);
       
       fireEvent.click(screen.getByText('Add Source to Collection'));
       
       expect(defaultProps.onAddSource).toHaveBeenCalledOnce();
+      expect(defaultProps.onCloseUploader).not.toHaveBeenCalled();
+    });
+
+    it('calls onCloseUploader when close uploader button clicked and uploader is open', () => {
+      render(<DrawerActions {...defaultProps} showUploader={true} />);
+      
+      fireEvent.click(screen.getByText('Close Uploader'));
+      
+      expect(defaultProps.onCloseUploader).toHaveBeenCalledOnce();
+      expect(defaultProps.onAddSource).not.toHaveBeenCalled();
     });
 
     it('does not call onDelete when button is disabled', () => {
@@ -77,18 +88,40 @@ describe('DrawerActions', () => {
     });
   });
 
-  describe('Add Source Button', () => {
-    it('always shows add source text', () => {
-      render(<DrawerActions {...defaultProps} isDeleting={true} />);
+  describe('Dynamic Source Button', () => {
+    it('shows "Add Source to Collection" text when uploader is closed', () => {
+      render(<DrawerActions {...defaultProps} showUploader={false} />);
       
       expect(screen.getByText('Add Source to Collection')).toBeInTheDocument();
+      expect(screen.queryByText('Close Uploader')).not.toBeInTheDocument();
     });
 
-    it('add source button is never disabled', () => {
-      render(<DrawerActions {...defaultProps} isDeleting={true} />);
+    it('shows "Add Source to Collection" text when showUploader prop not provided', () => {
+      render(<DrawerActions {...defaultProps} />);
+      
+      expect(screen.getByText('Add Source to Collection')).toBeInTheDocument();
+      expect(screen.queryByText('Close Uploader')).not.toBeInTheDocument();
+    });
+
+    it('shows "Close Uploader" text when uploader is open', () => {
+      render(<DrawerActions {...defaultProps} showUploader={true} />);
+      
+      expect(screen.getByText('Close Uploader')).toBeInTheDocument();
+      expect(screen.queryByText('Add Source to Collection')).not.toBeInTheDocument();
+    });
+
+    it('source button is never disabled even when delete is in progress', () => {
+      render(<DrawerActions {...defaultProps} isDeleting={true} showUploader={false} />);
       
       const addButton = screen.getByRole('button', { name: /add source to collection/i });
       expect(addButton).not.toBeDisabled();
+    });
+
+    it('close uploader button is never disabled even when delete is in progress', () => {
+      render(<DrawerActions {...defaultProps} isDeleting={true} showUploader={true} />);
+      
+      const closeButton = screen.getByRole('button', { name: /close uploader/i });
+      expect(closeButton).not.toBeDisabled();
     });
   });
 

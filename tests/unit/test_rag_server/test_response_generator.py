@@ -399,10 +399,10 @@ class TestPrepareCitations:
         }
         contexts = [mock_doc1, mock_doc2]
 
-        with patch('nvidia_rag.rag_server.response_generator.get_minio_operator') as mock_minio, \
+        with patch('nvidia_rag.rag_server.response_generator.MINIO_OPERATOR') as mock_minio, \
              patch('nvidia_rag.rag_server.response_generator.get_unique_thumbnail_id') as mock_get_thumbnail:
             # Mock the MinIO operator methods to handle collection_name parameter
-            mock_minio.return_value.get_payload = Mock(return_value={"content": "base64_thumbnail"})
+            mock_minio.get_payload.return_value = {"content": "base64_thumbnail"}
             mock_get_thumbnail.return_value = "test_thumbnail_id"
 
             result = prepare_citations(contexts, enable_citations=True)
@@ -427,12 +427,10 @@ class TestPrepareCitations:
         }
         contexts = [mock_doc]
 
-        with patch('nvidia_rag.rag_server.response_generator.get_minio_operator') as mock_minio, \
+        with patch('nvidia_rag.rag_server.response_generator.MINIO_OPERATOR') as mock_minio, \
              patch('nvidia_rag.rag_server.response_generator.get_unique_thumbnail_id') as mock_get_thumbnail:
-            mock_minio.return_value.get_payload.return_value = {"content": "base64_thumbnail"}
+            mock_minio.get_payload.return_value = {"content": "base64_thumbnail"}
             mock_get_thumbnail.return_value = "test_thumbnail_id"
-            # Mock the MinIO operator methods to handle collection_name parameter
-            mock_minio.return_value.get_payload = Mock(return_value={"content": "base64_thumbnail"})
 
             result = prepare_citations(contexts, enable_citations=True)
 
@@ -594,7 +592,7 @@ class TestGenerateAnswer:
         contexts = [mock_doc]
 
         result = []
-        async for chunk in generate_answer(
+        for chunk in generate_answer(
             generator=mock_generator(),
             contexts=contexts,
             model="test-model",
@@ -621,7 +619,7 @@ class TestGenerateAnswer:
         contexts = [mock_doc]
 
         result = []
-        async for chunk in generate_answer(
+        for chunk in generate_answer(
             generator=mock_generator(),
             contexts=contexts,
             model="test-model"
@@ -647,7 +645,7 @@ class TestGenerateAnswer:
         contexts = [mock_doc]
 
         result = []
-        async for chunk in generate_answer(
+        for chunk in generate_answer(
             generator=mock_generator(),
             contexts=contexts,
             model="test-model"
@@ -667,9 +665,9 @@ class TestRetrieveSummary:
     @pytest.mark.asyncio
     async def test_retrieve_summary_success(self):
         """Test retrieve_summary with successful retrieval"""
-        with patch('nvidia_rag.rag_server.response_generator.get_minio_operator') as mock_minio, \
+        with patch('nvidia_rag.rag_server.response_generator.MINIO_OPERATOR') as mock_minio, \
              patch('nvidia_rag.rag_server.response_generator.get_unique_thumbnail_id') as mock_get_thumbnail:
-            mock_minio.return_value.get_payload.return_value = {"summary": "Test summary", "file_name": "test.pdf"}
+            mock_minio.get_payload.return_value = {"summary": "Test summary", "file_name": "test.pdf"}
             mock_get_thumbnail.return_value = "test_thumbnail_id"
 
             result = await retrieve_summary(
@@ -683,9 +681,9 @@ class TestRetrieveSummary:
     @pytest.mark.asyncio
     async def test_retrieve_summary_exception(self):
         """Test retrieve_summary with exception"""
-        with patch('nvidia_rag.rag_server.response_generator.get_minio_operator') as mock_minio, \
+        with patch('nvidia_rag.rag_server.response_generator.MINIO_OPERATOR') as mock_minio, \
              patch('nvidia_rag.rag_server.response_generator.get_unique_thumbnail_id') as mock_get_thumbnail:
-            mock_minio.return_value.get_payload.side_effect = Exception("Summary error")
+            mock_minio.get_payload.side_effect = Exception("Summary error")
             mock_get_thumbnail.return_value = "test_thumbnail_id"
 
             result = await retrieve_summary(

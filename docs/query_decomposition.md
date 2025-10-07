@@ -1,10 +1,24 @@
-# Query Decomposition in NVIDIA RAG
+<!--
+  SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+  SPDX-License-Identifier: Apache-2.0
+-->
+# Query Decomposition for NVIDIA RAG Blueprint
 
-## Overview
+You can use query decomposition with the [NVIDIA RAG Blueprint](readme.md). Query decomposition is an advanced RAG (Retrieval-Augmented Generation) technique that breaks down complex, multi-faceted queries into simpler, focused subqueries. Each subquery is processed independently to gather comprehensive context, which is then synthesized into a final comprehensive response.
 
-Query decomposition is an advanced RAG (Retrieval-Augmented Generation) technique that breaks down complex, multi-faceted queries into simpler, focused subqueries. Each subquery is processed independently to gather comprehensive context, which is then synthesized into a final comprehensive response.
 
-### Deployment Options
+## Key Benefits
+- **Better Context Coverage** – Captures multiple aspects of complex queries.
+- **Iterative Refinement** – Follows up with additional questions based on initial findings.
+- **Multi-perspective Analysis** – Approaches queries from different angles.
+
+## Core Components
+- **Subquery Generation** – LLM-powered breakdown of complex queries.
+- **Iterative Processing** – Multi-round refinement with follow-up questions.
+- **Response Synthesis** – Combines insights from all subqueries.
+
+
+## Deployment Options
 You can enable query decomposition in both Docker and Helm deployments:
 
 1. **Docker Deployment** – Use Docker to deploy RAG on your hardware
@@ -13,7 +27,8 @@ You can enable query decomposition in both Docker and Helm deployments:
 ## Option 1: Docker Deployment (Default)
 
 ### Step 1: Deploy all the dependent services
-You can follow instructions from [quickstart.md](./quickstart.md#deploy-with-docker-compose) to deploy on-prem or cloud deployment.
+
+Follow the deployment guide for [Self-Hosted Models](deploy-docker-self-hosted.md) or [NVIDIA-Hosted Models](deploy-docker-nvidia-hosted.md).
 
 ### Step 2: Enable query decomposition
 
@@ -32,14 +47,14 @@ docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d
 
 ## Option 2: Helm Deployment (Local Deployment Only)
 
-Alternatively, you can deploy RAG with query decomposition using Helm for Kubernetes environments.
+Alternatively, you can deploy RAG with query decomposition using Helm for Kubernetes environments. For details, see [Deploy with Helm](deploy-helm.md).
 
 ### Update RAG Blueprint Deployment with Query Decomposition
 
 Use the Helm upgrade command below to enable query decomposition in RAG Blueprint by setting `ENABLE_QUERY_DECOMPOSITION` and `MAX_RECURSION_DEPTH`:
 
 ```bash
-helm upgrade rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.3.0-rc2.2.tgz \
+helm upgrade rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.3.0.tgz \
   --username '$oauthtoken' \
   --password "${NGC_API_KEY}" \
   --set imagePullSecret.password=${NGC_API_KEY} \
@@ -48,21 +63,12 @@ helm upgrade rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/n
   --set envVars.MAX_RECURSION_DEPTH="3"
 ```
 
-### Key Benefits
-- **Better Context Coverage**: Captures multiple aspects of complex queries
-- **Iterative Refinement**: Follows up with additional questions based on initial findings
-- **Multi-perspective Analysis**: Approaches queries from different angles
-
-### Core Components
-- **Subquery Generation**: LLM-powered breakdown of complex queries
-- **Iterative Processing**: Multi-round refinement with follow-up questions
-- **Response Synthesis**: Combines insights from all subqueries
-
 ## When to Use Query Decomposition
 
 Query decomposition is especially valuable for multi-hop or complex queries that involve multiple steps or aspects. By breaking down a complex question into smaller, focused subqueries, the system can generate intermediate answers for each part. These intermediate responses are then combined to produce a comprehensive and accurate final answer.
 
-### Example: Complex Multihop Query
+**Example: Complex Multihop Query**
+
 ```
 "If my future wife has the same first name as the 15th first lady of the United States' mother
 and her surname is the same as the second assassinated president's mother's maiden name,
@@ -76,27 +82,27 @@ This query requires multiple interconnected steps:
 5. Combine the two names to form the final answer
 ```
 
-### ❌ When NOT to Use Query Decomposition
+## When NOT to Use Query Decomposition
 
-#### 1. **Simple Factual Questions**
+**Simple Factual Questions**
 ```
 "What is the capital of France?" 
 (Simple lookup, no decomposition needed)
 ```
 
-#### 2. **Single-concept Queries**
+**Single-concept Queries**
 ```
 "Define machine learning"
 (Direct definition, no sub-aspects needed)
 ```
 
-#### 3. **Time-sensitive Queries**
+**Time-sensitive Queries**
 ```
 "What's the current stock price of NVIDIA?"
 (Real-time data, decomposition adds latency)
 ```
 
-#### 4. **Highly Specific Technical Questions**
+**Highly Specific Technical Questions**
 ```
 "What's the syntax for creating a Python dictionary?"
 (Specific syntax, no multiple perspectives needed)
@@ -109,7 +115,6 @@ To visualize how query decomposition works, see the diagram below:
 
 **Figure:** *Query Decomposition Flow — The system breaks down a complex query into subqueries, processes each iteratively, and synthesizes a comprehensive answer.*
 
----
 
 ### Core Algorithm
 
@@ -124,8 +129,7 @@ To visualize how query decomposition works, see the diagram below:
 4. **Termination Check**: Stop if no follow-up needed or max depth reached
 5. **Final Synthesis**: Generate comprehensive response from all contexts and conversation
 
----
 
-## ⚠️ Note
 
-**Query decomposition is not available for direct LLM calls** (when `use_kb=false`). This feature requires the knowledge base integration to process subqueries and retrieve relevant documents. For direct LLM interactions, queries are processed without decomposition.
+> [!IMPORTANT]
+> Query decomposition is not available for direct LLM calls (when `use_kb=false`). This feature requires the knowledge base integration to process subqueries and retrieve relevant documents. For direct LLM interactions, queries are processed without decomposition.

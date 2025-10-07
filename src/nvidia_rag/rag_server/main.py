@@ -27,6 +27,7 @@ Private methods:
 
 """
 
+import json
 import logging
 import math
 import os
@@ -54,6 +55,8 @@ from nvidia_rag.rag_server.reflection import (
 )
 from nvidia_rag.rag_server.response_generator import (
     Citations,
+    ErrorCodeMapping,
+    RAGResponse,
     generate_answer,
     prepare_citations,
     prepare_llm_request,
@@ -65,6 +68,7 @@ from nvidia_rag.rag_server.validation import (
     validate_temperature,
     validate_top_p,
     validate_use_knowledge_base,
+    validate_vdb_top_k,
 )
 from nvidia_rag.rag_server.vlm import VLM
 from nvidia_rag.utils.common import (
@@ -138,7 +142,7 @@ StreamingFilterThinkParser = get_streaming_filter_think_parser()
 class APIError(Exception):
     """Custom exception class for API errors."""
 
-    def __init__(self, message: str, code: int = 400):
+    def __init__(self, message: str, code: int = ErrorCodeMapping.BAD_REQUEST):
         logger.error("APIError occurred: %s with HTTP status: %d", message, code)
         print_exc()
         self.message = message
@@ -224,7 +228,7 @@ class NvidiaRAG:
                 raise APIError(
                     f"Collection {collection_name} does not exist. Ensure a collection is created using POST /collection endpoint first "
                     f"and documents are uploaded using POST /document endpoint",
-                    400,
+                    ErrorCodeMapping.BAD_REQUEST,
                 )
 
     def generate(
@@ -297,6 +301,7 @@ class NvidiaRAG:
         top_p = validate_top_p(top_p)
 
         # Validate top_k parameters
+        vdb_top_k = validate_vdb_top_k(vdb_top_k)
         reranker_top_k = validate_reranker_k(reranker_top_k, vdb_top_k)
 
         # Normalize all model and endpoint values using validation functions
@@ -428,6 +433,7 @@ class NvidiaRAG:
             collection_names = [CONFIG.vector_store.default_collection_name]
 
         # Validate top_k parameters
+        vdb_top_k = validate_vdb_top_k(vdb_top_k)
         reranker_top_k = validate_reranker_k(reranker_top_k, vdb_top_k)
 
         # Normalize all model and endpoint values using validation functions
@@ -444,18 +450,20 @@ class NvidiaRAG:
                 collection_names = [collection_name]
 
             if not collection_names:
-                raise APIError("Collection names are not provided.", 400)
+                raise APIError(
+                    "Collection names are not provided.", ErrorCodeMapping.BAD_REQUEST
+                )
 
             if len(collection_names) > 1 and not enable_reranker:
                 raise APIError(
                     "Reranking is not enabled but multiple collection names are provided.",
-                    400,
+                    ErrorCodeMapping.BAD_REQUEST,
                 )
 
             if len(collection_names) > MAX_COLLECTION_NAMES:
                 raise APIError(
                     f"Only {MAX_COLLECTION_NAMES} collections are supported at a time.",
-                    400,
+                    ErrorCodeMapping.BAD_REQUEST,
                 )
 
             self._validate_collections_exist(collection_names, vdb_op)
@@ -491,8 +499,8 @@ class NvidiaRAG:
                 error_details = validation_result.get("details", "")
                 full_error = f"Invalid filter expression: {error_message}"
                 if error_details:
-                    full_error += f" Details: {error_details}"
-                raise APIError(full_error, 400)
+                    full_error += f"\n Details: {error_details}"
+                raise APIError(full_error, ErrorCodeMapping.BAD_REQUEST)
 
             validated_collections = validation_result.get(
                 "validated_collections", collection_names
@@ -997,31 +1005,37 @@ class NvidiaRAG:
             chain = (
                 prompt_template | llm | StreamingFilterThinkParser | StrOutputParser()
             )
-            return generate_answer(
-                chain.stream(
-                    {"question": query_text}, config={"run_name": "llm-stream"}
+            return RAGResponse(
+                generate_answer(
+                    chain.stream(
+                        {"question": query_text}, config={"run_name": "llm-stream"}
+                    ),
+                    [],
+                    model=model,
+                    collection_name=collection_name,
+                    enable_citations=enable_citations,
+                    otel_metrics_client=metrics,
                 ),
-                [],
-                model=model,
-                collection_name=collection_name,
-                enable_citations=enable_citations,
-                otel_metrics_client=metrics,
+                status_code=ErrorCodeMapping.SUCCESS,
             )
         except ConnectTimeout as e:
             logger.warning(
                 "Connection timed out while making a request to the LLM endpoint: %s", e
             )
-            return generate_answer(
-                iter(
-                    [
-                        "Connection timed out while making a request to the NIM endpoint. Verify if the NIM server is available."
-                    ]
+            return RAGResponse(
+                generate_answer(
+                    iter(
+                        [
+                            "Connection timed out while making a request to the NIM endpoint. Verify if the NIM server is available."
+                        ]
+                    ),
+                    [],
+                    model=model,
+                    collection_name=collection_name,
+                    enable_citations=enable_citations,
+                    otel_metrics_client=metrics,
                 ),
-                [],
-                model=model,
-                collection_name=collection_name,
-                enable_citations=enable_citations,
-                otel_metrics_client=metrics,
+                status_code=ErrorCodeMapping.REQUEST_TIMEOUT,
             )
 
         except Exception as e:
@@ -1032,42 +1046,48 @@ class NvidiaRAG:
                 logger.warning(
                     "Authentication or permission error: Verify the validity and permissions of your NVIDIA API key."
                 )
-                return generate_answer(
-                    iter(
-                        [
-                            "Authentication or permission error: Verify the validity and permissions of your NVIDIA API key."
-                        ]
+                return RAGResponse(
+                    generate_answer(
+                        iter(
+                            [
+                                "Authentication or permission error: Verify the validity and permissions of your NVIDIA API key."
+                            ]
+                        ),
+                        [],
+                        model=model,
+                        collection_name=collection_name,
+                        enable_citations=enable_citations,
+                        otel_metrics_client=metrics,
                     ),
-                    [],
-                    model=model,
-                    collection_name=collection_name,
-                    enable_citations=enable_citations,
-                    otel_metrics_client=metrics,
+                    status_code=ErrorCodeMapping.FORBIDDEN,
                 )
             elif "[404] Not Found" in str(e):
-                logger.warning(
-                    "Please verify the API endpoint and your payload. Ensure that the model name is valid."
-                )
-                return generate_answer(
-                    iter(
-                        [
-                            "Please verify the API endpoint and your payload. Ensure that the model name is valid."
-                        ]
+                # Check if this is a VLM-related error
+                error_msg = "Model or endpoint not found. Please verify the API endpoint and your payload. Ensure that the model name is valid."
+                logger.warning(f"Model not found: {error_msg}")
+
+                return RAGResponse(
+                    generate_answer(
+                        iter([error_msg]),
+                        [],
+                        model=model,
+                        collection_name=collection_name,
+                        enable_citations=enable_citations,
+                        otel_metrics_client=metrics,
                     ),
-                    [],
-                    model=model,
-                    collection_name=collection_name,
-                    enable_citations=enable_citations,
-                    otel_metrics_client=metrics,
+                    status_code=ErrorCodeMapping.NOT_FOUND,
                 )
             else:
-                return generate_answer(
-                    iter([f"Failed to generate RAG chain response. {str(e)}"]),
-                    [],
-                    model=model,
-                    collection_name=collection_name,
-                    enable_citations=enable_citations,
-                    otel_metrics_client=metrics,
+                return RAGResponse(
+                    generate_answer(
+                        iter([f"{str(e)}"]),
+                        [],
+                        model=model,
+                        collection_name=collection_name,
+                        enable_citations=enable_citations,
+                        otel_metrics_client=metrics,
+                    ),
+                    status_code=ErrorCodeMapping.BAD_REQUEST,
                 )
 
     def _extract_text_from_content(self, content: Any) -> str:
@@ -1205,17 +1225,19 @@ class NvidiaRAG:
                 collection_names = [collection_name]
             # Check if collection names are provided
             if not collection_names:
-                raise APIError("Collection names are not provided.", 400)
+                raise APIError(
+                    "Collection names are not provided.", ErrorCodeMapping.BAD_REQUEST
+                )
 
             if len(collection_names) > 1 and not enable_reranker:
                 raise APIError(
                     "Reranking is not enabled but multiple collection names are provided.",
-                    400,
+                    ErrorCodeMapping.BAD_REQUEST,
                 )
             if len(collection_names) > MAX_COLLECTION_NAMES:
                 raise APIError(
                     f"Only {MAX_COLLECTION_NAMES} collections are supported at a time.",
-                    400,
+                    ErrorCodeMapping.BAD_REQUEST,
                 )
 
             self._validate_collections_exist(collection_names, vdb_op)
@@ -1249,8 +1271,8 @@ class NvidiaRAG:
                 error_details = validation_result.get("details", "")
                 full_error = f"Invalid filter expression: {error_message}"
                 if error_details:
-                    full_error += f" Details: {error_details}"
-                raise APIError(full_error, 400)
+                    full_error += f"\n Details: {error_details}"
+                raise APIError(full_error, ErrorCodeMapping.BAD_REQUEST)
 
             validated_collections = validation_result.get(
                 "validated_collections", collection_names
@@ -1649,75 +1671,123 @@ class NvidiaRAG:
                 )
 
             if enable_vlm_inference:
-                logger.info("Calling VLM to analyze images cited in the context")
-                vlm_response: str = ""
+                # Fast pre-check: skip VLM entirely if no images in query or context
+                has_images_in_query = self._contains_images(query)
+                has_images_in_context = False
                 try:
-                    vlm = VLM(vlm_model, vlm_endpoint)
-                    vlm_response = vlm.analyze_images_from_context(
-                        context_to_show, query
-                    )
-                    should_use_vlm_response = False
-                    if vlm_response:
-                        if CONFIG.vlm.enable_vlm_response_reasoning:
-                            should_use_vlm_response = vlm.reason_on_vlm_response(
-                                query, vlm_response, context_to_show, llm_settings
-                            )
-                        else:
-                            # Reasoning gate disabled: always include VLM output
-                            should_use_vlm_response = True
+                    for d in context_to_show:
+                        meta = getattr(d, "metadata", {}) or {}
+                        content_md = meta.get("content_metadata", {}) or {}
+                        if content_md.get("type") in ["image", "structured"]:
+                            has_images_in_context = True
+                            break
+                except Exception:
+                    # If metadata inspection fails, be conservative and proceed
+                    has_images_in_context = False
 
-                    # If query contains images, or vlm_response_as_final_answer is enabled, return the vlm_response as the final answer
-                    if CONFIG.vlm.vlm_response_as_final_answer or self._contains_images(
-                        query
-                    ):
-                        logger.info("VLM response as final answer: %s", vlm_response)
-                        return generate_answer(
-                            iter([vlm_response]),
-                            context_to_show,
-                            model=model,
-                            collection_name=collection_name,
-                            enable_citations=enable_citations,
-                        )
-                    else:
-                        logger.info("Query type: %s", type(query))
-                        logger.info(
-                            "VLM response not as final answer: %s", vlm_response
-                        )
-
-                    if vlm_response and should_use_vlm_response:
-                        logger.info(
-                            "VLM response validated and added to prompt: %s",
-                            vlm_response,
-                        )
-                        injection_tmpl = prompts.get(
-                            "vlm_response_injection_template",
-                            "The following is an answer generated by a Vision-Language Model (VLM) based solely on images cited in the context:\n---\n{vlm_response}\n---\nConsider this visual insight when answering the user's query, especially where the textual context is ambiguous or limited.",
-                        )
-                        vlm_response_prompt = injection_tmpl.format(
-                            vlm_response=vlm_response.strip()
-                        )
-                        vlm_message += [("user", vlm_response_prompt)]
-                    else:
-                        logger.info(
-                            "VLM response skipped (empty or rejected by reasoning gate)."
-                        )
-                except (OSError, ValueError) as e:
+                if not (has_images_in_query or has_images_in_context):
                     logger.warning(
-                        "VLM processing failed for query='%s', collection='%s': %s",
-                        query,
-                        collection_name,
-                        e,
-                        exc_info=True,
+                        "Skipping VLM: no images found in query or retrieved context."
                     )
+                    # fall through without VLM
+                else:
+                    logger.info("Calling VLM to analyze images cited in the context")
+                    vlm_response: str = ""
+                    try:
+                        vlm = VLM(vlm_model, vlm_endpoint)
+                        vlm_response = vlm.analyze_images_from_context(
+                            context_to_show, query
+                        )
 
-                except Exception as e:
-                    logger.error(
-                        "Unexpected error during VLM processing for query='%s', collection='%s': %s",
-                        query,
-                        collection_name,
-                        e,
-                        exc_info=True,
-                    )
+                        vlm_response_stripped = (
+                            vlm_response.strip()
+                            if isinstance(vlm_response, str)
+                            else ""
+                        )
+                        if vlm_response_stripped:
+                            if CONFIG.vlm.enable_vlm_response_reasoning:
+                                should_use_vlm_response = vlm.reason_on_vlm_response(
+                                    query,
+                                    vlm_response_stripped,
+                                    context_to_show,
+                                    llm_settings,
+                                )
+                            else:
+                                # Reasoning gate disabled: always include VLM output
+                                should_use_vlm_response = True
+
+                            # If query contains images, or vlm_response_as_final_answer is enabled, return as final answer
+                            if should_use_vlm_response and (
+                                CONFIG.vlm.vlm_response_as_final_answer
+                                or self._contains_images(query)
+                            ):
+                                logger.info(
+                                    "VLM response as final answer: %s",
+                                    vlm_response_stripped,
+                                )
+                                return RAGResponse(
+                                    generate_answer(
+                                        iter([vlm_response_stripped]),
+                                        context_to_show,
+                                        model=model,
+                                        collection_name=collection_name,
+                                        enable_citations=enable_citations,
+                                    ),
+                                    status_code=ErrorCodeMapping.SUCCESS,
+                                )
+                            else:
+                                logger.info("Query type: %s", type(query))
+                                logger.info(
+                                    "VLM response not as final answer: %s",
+                                    vlm_response_stripped,
+                                )
+
+                            if should_use_vlm_response:
+                                logger.info(
+                                    "VLM response validated and added to prompt: %s",
+                                    vlm_response_stripped,
+                                )
+                                injection_tmpl = prompts.get(
+                                    "vlm_response_injection_template",
+                                    "The following is an answer generated by a Vision-Language Model (VLM) based solely on images cited in the context:\n---\n{vlm_response}\n---\nConsider this visual insight when answering the user's query, especially where the textual context is ambiguous or limited.",
+                                )
+                                vlm_response_prompt = injection_tmpl.format(
+                                    vlm_response=vlm_response_stripped
+                                )
+                                vlm_message += [("user", vlm_response_prompt)]
+                            else:
+                                logger.info("VLM response skipped by reasoning gate.")
+                        else:
+                            logger.info("VLM response is empty.")
+                    except (OSError, ValueError) as e:
+                        logger.warning(
+                            "VLM processing failed for query='%s', collection='%s': %s",
+                            query,
+                            collection_name,
+                            e,
+                            exc_info=True,
+                        )
+                        # Provide specific error message for VLM issues
+                        vlm_error_msg = f"VLM processing failed: {str(e)}. Please check your VLM configuration and ensure the VLM service is running."
+                        # Don't yield here, let the exception propagate to be caught by the server
+                        raise APIError(
+                            vlm_error_msg, ErrorCodeMapping.BAD_REQUEST
+                        ) from e
+
+                    except Exception as e:
+                        logger.error(
+                            "Unexpected error during VLM processing for query='%s', collection='%s': %s",
+                            query,
+                            collection_name,
+                            e,
+                            exc_info=True,
+                        )
+                        # Provide specific error message for unexpected VLM issues
+                        vlm_error_msg = f"Unexpected VLM error: {str(e)}. Please check your VLM configuration and try again."
+                        # Don't yield here, let the exception propagate to be caught by the server
+                        raise APIError(
+                            vlm_error_msg, ErrorCodeMapping.BAD_REQUEST
+                        ) from e
 
             docs = [self.__format_document_with_source(d) for d in context_to_show]
 
@@ -1736,7 +1806,7 @@ class NvidiaRAG:
 
             # Add vlm response and user query to prompt
             message += vlm_message
-            user_query = [("user", "Query: {question}")]
+            user_query = [("user", "Query: {question}\n\nAnswer: ")]
             message += user_query
 
             self.__print_conversation_history(message)
@@ -1759,57 +1829,48 @@ class NvidiaRAG:
                         "Could not generate sufficiently grounded response after %d total reflection attempts",
                         reflection_counter.current_count,
                     )
-                return generate_answer(
-                    iter([final_response]),
-                    context_to_show,
-                    model=model,
-                    collection_name=collection_name,
-                    enable_citations=enable_citations,
-                    context_reranker_time_ms=context_reranker_time_ms,
-                    retrieval_time_ms=retrieval_time_ms,
-                    rag_start_time_sec=rag_start_time_sec,
-                    otel_metrics_client=metrics,
+                return RAGResponse(
+                    generate_answer(
+                        iter([final_response]),
+                        context_to_show,
+                        model=model,
+                        collection_name=collection_name,
+                        enable_citations=enable_citations,
+                        context_reranker_time_ms=context_reranker_time_ms,
+                        retrieval_time_ms=retrieval_time_ms,
+                        rag_start_time_sec=rag_start_time_sec,
+                        otel_metrics_client=metrics,
+                    ),
+                    status_code=ErrorCodeMapping.SUCCESS,
                 )
             else:
-                return generate_answer(
-                    chain.stream(
-                        {"question": query, "context": docs},
-                        config={"run_name": "llm-stream"},
+                return RAGResponse(
+                    generate_answer(
+                        chain.stream(
+                            {"question": query, "context": docs},
+                            config={"run_name": "llm-stream"},
+                        ),
+                        context_to_show,
+                        model=model,
+                        collection_name=collection_name,
+                        enable_citations=enable_citations,
+                        context_reranker_time_ms=context_reranker_time_ms,
+                        retrieval_time_ms=retrieval_time_ms,
+                        rag_start_time_sec=rag_start_time_sec,
+                        otel_metrics_client=metrics,
                     ),
-                    context_to_show,
-                    model=model,
-                    collection_name=collection_name,
-                    enable_citations=enable_citations,
-                    context_reranker_time_ms=context_reranker_time_ms,
-                    retrieval_time_ms=retrieval_time_ms,
-                    rag_start_time_sec=rag_start_time_sec,
-                    otel_metrics_client=metrics,
+                    status_code=ErrorCodeMapping.SUCCESS,
                 )
 
         except ConnectTimeout as e:
             logger.warning(
                 "Connection timed out while making a request to the LLM endpoint: %s", e
             )
-            return generate_answer(
-                iter(
-                    [
-                        "Connection timed out while making a request to the NIM endpoint. Verify if the NIM server is available."
-                    ]
-                ),
-                [],
-                model=model,
-                collection_name=collection_name,
-                enable_citations=enable_citations,
-                otel_metrics_client=metrics,
-            )
-
-        except requests.exceptions.ConnectionError as e:
-            if "HTTPConnectionPool" in str(e):
-                logger.error("Connection pool error while connecting to service: %s", e)
-                return generate_answer(
+            return RAGResponse(
+                generate_answer(
                     iter(
                         [
-                            "Connection error: Failed to connect to service. Please verify if all required NIMs are running and accessible."
+                            "Connection timed out while making a request to the NIM endpoint. Verify if the NIM server is available."
                         ]
                     ),
                     [],
@@ -1817,6 +1878,29 @@ class NvidiaRAG:
                     collection_name=collection_name,
                     enable_citations=enable_citations,
                     otel_metrics_client=metrics,
+                ),
+                status_code=ErrorCodeMapping.REQUEST_TIMEOUT,
+            )
+
+        except requests.exceptions.ConnectionError as e:
+            if "HTTPConnectionPool" in str(e):
+                logger.exception(
+                    "Connection pool error while connecting to service: %s", e
+                )
+                return RAGResponse(
+                    generate_answer(
+                        iter(
+                            [
+                                "Connection error: Failed to connect to service. Please verify if all required NIMs are running and accessible."
+                            ]
+                        ),
+                        [],
+                        model=model,
+                        collection_name=collection_name,
+                        enable_citations=enable_citations,
+                        otel_metrics_client=metrics,
+                    ),
+                    status_code=ErrorCodeMapping.SERVICE_UNAVAILABLE,
                 )
 
         except Exception as e:
@@ -1827,46 +1911,56 @@ class NvidiaRAG:
                 logger.warning(
                     "Authentication or permission error: Verify the validity and permissions of your NVIDIA API key."
                 )
-                return generate_answer(
-                    iter(
-                        [
-                            "Authentication or permission error: Verify the validity and permissions of your NVIDIA API key."
-                        ]
+                return RAGResponse(
+                    generate_answer(
+                        iter(
+                            [
+                                "Authentication or permission error: Verify the validity and permissions of your NVIDIA API key."
+                            ]
+                        ),
+                        [],
+                        model=model,
+                        collection_name=collection_name,
+                        enable_citations=enable_citations,
+                        otel_metrics_client=metrics,
                     ),
-                    [],
-                    model=model,
-                    collection_name=collection_name,
-                    enable_citations=enable_citations,
-                    otel_metrics_client=metrics,
+                    status_code=ErrorCodeMapping.FORBIDDEN,
                 )
             elif "[404] Not Found" in str(e):
-                logger.warning(
-                    "Please verify the API endpoint and your payload. Ensure that the model name is valid."
-                )
-                return generate_answer(
-                    iter(
-                        [
-                            "Please verify the API endpoint and your payload. Ensure that the model name is valid."
-                        ]
+                # Check if this is a VLM-related error
+                if enable_vlm_inference and vlm_model:
+                    error_msg = f"VLM model '{vlm_model}' not found. Please verify the VLM model name and ensure it's available in your NVIDIA API account."
+                    logger.warning(f"VLM model not found: {error_msg}")
+                else:
+                    error_msg = "Model or endpoint not found. Please verify the API endpoint and your payload. Ensure that the model name is valid."
+                    logger.warning(f"Model not found: {error_msg}")
+
+                return RAGResponse(
+                    generate_answer(
+                        iter([error_msg]),
+                        [],
+                        model=model,
+                        collection_name=collection_name,
+                        enable_citations=enable_citations,
+                        otel_metrics_client=metrics,
                     ),
-                    [],
-                    model=model,
-                    collection_name=collection_name,
-                    enable_citations=enable_citations,
-                    otel_metrics_client=metrics,
+                    status_code=ErrorCodeMapping.NOT_FOUND,
                 )
             else:
-                return generate_answer(
-                    iter(
-                        [
-                            f"Failed to generate RAG chain with multi-turn response. {str(e)}"
-                        ]
+                return RAGResponse(
+                    generate_answer(
+                        iter(
+                            [
+                                f"{str(e)}"
+                            ]
+                        ),
+                        [],
+                        model=model,
+                        collection_name=collection_name,
+                        enable_citations=enable_citations,
+                        otel_metrics_client=metrics,
                     ),
-                    [],
-                    model=model,
-                    collection_name=collection_name,
-                    enable_citations=enable_citations,
-                    otel_metrics_client=metrics,
+                    status_code=ErrorCodeMapping.BAD_REQUEST,
                 )
 
     def __print_conversation_history(

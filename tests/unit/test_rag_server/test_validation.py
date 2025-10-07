@@ -204,7 +204,7 @@ class TestValidateRerankerTopK:
 
     def test_validate_reranker_top_k_invalid_case(self):
         """Test validating reranker_top_k when it's greater than vdb_top_k raises ValueError"""
-        with pytest.raises(ValueError, match="reranker_top_k must be less than or equal to vdb_top_k \\(10\\)"):
+        with pytest.raises(ValueError, match="reranker_top_k\\(15\\) must be less than or equal to vdb_top_k \\(10\\)\\. Please check your settings and try again\\."):
             validate_reranker_top_k(15, 10, "reranker_top_k")
 
     def test_validate_reranker_top_k_zero_values(self):
@@ -214,7 +214,7 @@ class TestValidateRerankerTopK:
 
     def test_validate_reranker_top_k_negative_values(self):
         """Test validating reranker_top_k with negative values"""
-        with pytest.raises(ValueError, match="reranker_top_k must be less than or equal to vdb_top_k \\(-10\\)"):
+        with pytest.raises(ValueError, match="reranker_top_k\\(-5\\) must be less than or equal to vdb_top_k \\(-10\\)\\. Please check your settings and try again\\."):
             validate_reranker_top_k(-5, -10, "reranker_top_k")
 
 
@@ -289,5 +289,5 @@ class TestValidateRerankerK:
 
     def test_validate_reranker_k_invalid(self):
         """Test validating reranker_k with invalid values"""
-        with pytest.raises(ValueError, match="reranker_top_k must be less than or equal to vdb_top_k \\(10\\)"):
+        with pytest.raises(ValueError, match="reranker_top_k\\(15\\) must be less than or equal to vdb_top_k \\(10\\)\\. Please check your settings and try again\\."):
             validate_reranker_k(15, 10)

@@ -88,7 +88,7 @@ export type FilterOperator =
   // Datetime operators
   | "before" | "BEFORE" | "after" | "AFTER"
   // Array operators
-  | "array_contains" | "array_contains_all" | "array_contains_any" | "array_length"
+  | "array_contains" | "array_contains_all" | "array_contains_any"
   // Logical operators
   | "AND" | "OR" | "NOT";
 

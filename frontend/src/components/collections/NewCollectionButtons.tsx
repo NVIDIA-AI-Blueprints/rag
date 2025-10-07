@@ -78,10 +78,10 @@ export default function NewCollectionButtons() {
       return;
     }
 
-    const valid = /^[_a-zA-Z][_a-zA-Z0-9]*$/.test(trimmed);
+    const valid = /^[_a-zA-Z][_a-zA-Z0-9_]*$/.test(trimmed);
     if (!valid) {
       setNameError(
-        "Name must start with a letter/underscore and contain only alphanumerics or underscores"
+        "Name must start with a letter/underscore and contain only alphanumerics and underscores"
       );
       return;
     }

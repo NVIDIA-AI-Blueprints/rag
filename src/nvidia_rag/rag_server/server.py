@@ -42,7 +42,13 @@ from starlette.status import HTTP_422_UNPROCESSABLE_ENTITY
 
 from nvidia_rag.rag_server.health import print_health_report
 from nvidia_rag.rag_server.main import APIError, NvidiaRAG
-from nvidia_rag.rag_server.response_generator import ChainResponse, Citations, Message
+from nvidia_rag.rag_server.response_generator import (
+    ChainResponse,
+    Citations,
+    ErrorCodeMapping,
+    Message,
+    error_response_generator,
+)
 from nvidia_rag.utils.common import get_config
 
 logging.basicConfig(level=os.environ.get("LOGLEVEL", "INFO").upper())
@@ -707,7 +713,7 @@ async def generate_answer(request: Request, prompt: Prompt) -> StreamingResponse
                 messages_dict.append({"role": msg.role, "content": msg.content})
 
         # Get the streaming generator from NVIDIA_RAG.generate
-        response_generator = NVIDIA_RAG.generate(
+        rag_response = NVIDIA_RAG.generate(
             messages=messages_dict,
             use_knowledge_base=prompt.use_knowledge_base,
             temperature=prompt.temperature,
@@ -739,18 +745,42 @@ async def generate_answer(request: Request, prompt: Prompt) -> StreamingResponse
             metrics=metrics,
         )
 
-        # Wrap the generator with TTFT calculation and buffering fixes
-        ttft_generator = optimized_streaming_wrapper(
-            response_generator, generate_start_time
-        )
+        # Extract generator and status code from RAGResponse
+        response_generator = rag_response.generator
+        status_code = rag_response.status_code
 
-        # Return streaming response with proper headers to prevent buffering
-        return StreamingResponse(ttft_generator, media_type="text/event-stream")
+        # Return streaming response with appropriate status code
+        return StreamingResponse(
+            response_generator, media_type="text/event-stream", status_code=status_code
+        )
 
     except asyncio.CancelledError as e:
         logger.warning(f"Request cancelled during response generation. {str(e)}")
         return JSONResponse(
-            content={"message": "Request was cancelled by the client."}, status_code=499
+            content={"message": "Request was cancelled by the client."},
+            status_code=ErrorCodeMapping.CLIENT_CLOSED_REQUEST,
+        )
+
+    except ValueError as e:
+        # Handle validation errors with specific messages
+        logger.warning("Validation error in /generate endpoint: %s", e)
+        error_message = str(e)
+        return StreamingResponse(
+            error_response_generator(error_message),
+            media_type="text/event-stream",
+            status_code=ErrorCodeMapping.BAD_REQUEST,
+        )
+
+    except APIError as e:
+        # Handle API errors with specific messages (metadata filtering, etc.)
+        logger.warning("API error in /generate endpoint: %s", e)
+        error_message = str(e)
+        # Use the status code from the APIError if available, otherwise use centralized mapping
+        status_code = getattr(e, "code", ErrorCodeMapping.BAD_REQUEST)
+        return StreamingResponse(
+            error_response_generator(error_message),
+            media_type="text/event-stream",
+            status_code=status_code,
         )
 
     except Exception as e:
@@ -758,6 +788,13 @@ async def generate_answer(request: Request, prompt: Prompt) -> StreamingResponse
             "Error from /generate endpoint. Error details: %s",
             e,
             exc_info=logger.getEffectiveLevel() <= logging.DEBUG,
+        )
+        return StreamingResponse(
+            error_response_generator(
+                "Sorry, there was an error processing your request. Please check the server logs for more details."
+            ),
+            media_type="text/event-stream",
+            status_code=ErrorCodeMapping.INTERNAL_SERVER_ERROR,
         )
 
 
@@ -840,11 +877,12 @@ async def document_search(
     except asyncio.CancelledError as e:
         logger.warning(f"Request cancelled during document search. {str(e)}")
         return JSONResponse(
-            content={"message": "Request was cancelled by the client."}, status_code=499
+            content={"message": "Request was cancelled by the client."},
+            status_code=ErrorCodeMapping.CLIENT_CLOSED_REQUEST,
         )
     except APIError as e:
         # Handle APIError with specific status codes
-        status_code = getattr(e, "code", 500)
+        status_code = getattr(e, "code", ErrorCodeMapping.INTERNAL_SERVER_ERROR)
         logger.error("API Error from POST /search endpoint. Error details: %s", e)
         return JSONResponse(content={"message": str(e)}, status_code=status_code)
     except Exception as e:
@@ -855,7 +893,7 @@ async def document_search(
         )
         return JSONResponse(
             content={"message": "Error occurred while searching documents. " + str(e)},
-            status_code=500,
+            status_code=ErrorCodeMapping.INTERNAL_SERVER_ERROR,
         )
 
 
@@ -959,7 +997,7 @@ async def get_summary(
                 "message": "Invalid timeout value. Timeout must be a non-negative integer.",
                 "error": f"Provided timeout value: {timeout}",
             },
-            status_code=400,
+            status_code=ErrorCodeMapping.BAD_REQUEST,
         )
 
     try:
@@ -971,13 +1009,19 @@ async def get_summary(
         )
 
         if response.get("status") == "FAILED":
-            return JSONResponse(content=response, status_code=404)
+            return JSONResponse(
+                content=response, status_code=ErrorCodeMapping.NOT_FOUND
+            )
         elif response.get("status") == "TIMEOUT":
-            return JSONResponse(content=response, status_code=408)
+            return JSONResponse(
+                content=response, status_code=ErrorCodeMapping.REQUEST_TIMEOUT
+            )
         elif response.get("status") == "SUCCESS":
-            return JSONResponse(content=response, status_code=200)
+            return JSONResponse(content=response, status_code=ErrorCodeMapping.SUCCESS)
         elif response.get("status") == "ERROR":
-            return JSONResponse(content=response, status_code=500)
+            return JSONResponse(
+                content=response, status_code=ErrorCodeMapping.INTERNAL_SERVER_ERROR
+            )
 
     except Exception as e:
         logger.error("Error from GET /summary endpoint. Error details: %s", e)
@@ -986,32 +1030,5 @@ async def get_summary(
                 "message": "Error occurred while getting summary.",
                 "error": str(e),
             },
-            status_code=500,
+            status_code=ErrorCodeMapping.INTERNAL_SERVER_ERROR,
         )
-
-
-async def optimized_streaming_wrapper(generator: Generator, start_time: float):
-    """
-    Optimized wrapper for streaming generator to calculate TTFT with minimal buffering.
-
-    Args:
-        generator: The streaming generator from NVIDIA_RAG.generate()
-        start_time: The timestamp when the request started
-
-    Yields:
-        The same chunks as the original generator, but with proper flushing and timing
-    """
-    token_count = 0
-
-    async for chunk in generator:
-        current_time = time.time()
-        token_count += 1
-
-        if token_count == 1:
-            ttft_ms = (current_time - start_time) * 1000  # Convert to milliseconds
-            logger.info("    == RAG Time to First Token (TTFT): %.2f ms ==", ttft_ms)
-
-        # Yield the chunk immediately without additional processing
-        yield chunk
-
-        await asyncio.sleep(0)  # Allow event loop to process

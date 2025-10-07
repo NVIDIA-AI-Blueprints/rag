@@ -22,6 +22,8 @@ import pytest
 from fastapi.testclient import TestClient
 from pymilvus.exceptions import MilvusException
 
+from nvidia_rag.rag_server.response_generator import ErrorCodeMapping, RAGResponse
+
 
 class MockNvidiaRAG:
     """Mock class for NvidiaRAG with configurable responses and error states"""
@@ -55,7 +57,10 @@ class MockNvidiaRAG:
     def generate(self, *args, **kwargs):
         if self._generate_side_effect:
             return self._generate_side_effect(*args, **kwargs)
-        return self._async_gen(self.rag_generator_items)
+        return RAGResponse(
+            self._async_gen(self.rag_generator_items),
+            status_code=ErrorCodeMapping.SUCCESS,
+        )
 
     def search(self, *args, **kwargs):
         if self._search_side_effect:
@@ -79,55 +84,77 @@ class MockNvidiaRAG:
 
     def return_llm_response(self):
         def llm(*args, **kwargs):
-            return self._async_gen(self.llm_generator_items)
+            return RAGResponse(
+                self._async_gen(self.llm_generator_items),
+                status_code=ErrorCodeMapping.SUCCESS,
+            )
 
         self._generate_side_effect = llm
 
     def return_llm_empty_response(self):
         def empty(*args, **kwargs):
-            return self._async_gen([])
+            return RAGResponse(
+                self._async_gen([]), status_code=ErrorCodeMapping.SUCCESS
+            )
 
         self._generate_side_effect = empty
 
     def return_empty_response(self):
         def empty(*args, **kwargs):
-            return self._async_gen([])
+            return RAGResponse(
+                self._async_gen([]), status_code=ErrorCodeMapping.SUCCESS
+            )
 
         self._generate_side_effect = empty
 
     def return_milvus_error(self):
         def error(*args, **kwargs):
-            return self._async_error_gen(
-                "Error from milvus server. Please ensure you have ingested some documents."
+            return RAGResponse(
+                self._async_error_gen(
+                    "Error from milvus server. Please ensure you have ingested some documents."
+                ),
+                status_code=ErrorCodeMapping.BAD_REQUEST,
             )
 
         self._generate_side_effect = error
 
     def return_general_error(self):
         def error(*args, **kwargs):
-            return self._async_error_gen(
-                "Error from rag server. Please check rag-server logs for more details."
+            return RAGResponse(
+                self._async_error_gen(
+                    "Error from rag server. Please check rag-server logs for more details."
+                ),
+                status_code=ErrorCodeMapping.INTERNAL_SERVER_ERROR,
             )
 
         self._generate_side_effect = error
 
     def return_llm_general_error(self):
         def error(*args, **kwargs):
-            return self._async_error_gen(
-                "Error from rag server. Please check rag-server logs for more details."
+            return RAGResponse(
+                self._async_error_gen(
+                    "Error from rag server. Please check rag-server logs for more details."
+                ),
+                status_code=ErrorCodeMapping.INTERNAL_SERVER_ERROR,
             )
 
         self._generate_side_effect = error
 
     def return_cancelled_error(self):
         def error(*args, **kwargs):
-            return self._async_error_gen("Request was cancelled by the client.")
+            return RAGResponse(
+                self._async_error_gen("Request was cancelled by the client."),
+                status_code=ErrorCodeMapping.CLIENT_CLOSED_REQUEST,
+            )
 
         self._generate_side_effect = error
 
     def return_llm_cancelled_error(self):
         def error(*args, **kwargs):
-            return self._async_error_gen("Request was cancelled by the client.")
+            return RAGResponse(
+                self._async_error_gen("Request was cancelled by the client."),
+                status_code=ErrorCodeMapping.CLIENT_CLOSED_REQUEST,
+            )
 
         self._generate_side_effect = error
 
@@ -217,7 +244,7 @@ class TestGenerateEndpoint:
 
     def test_generate_answer_rag_success(self, client, valid_prompt_data):
         response = client.post("/v1/generate", json=valid_prompt_data)
-        assert response.status_code == 200
+        assert response.status_code == ErrorCodeMapping.SUCCESS
 
         # Check first chunk (existing test)
         response_text = [
@@ -234,21 +261,21 @@ class TestGenerateEndpoint:
     def test_generate_answer_milvus_error(self, client, valid_prompt_data):
         mock_nvidia_rag_instance.return_milvus_error()
         response = client.post("/v1/generate", json=valid_prompt_data)
-        assert response.status_code == 200
+        assert response.status_code == ErrorCodeMapping.BAD_REQUEST
         error_data = read_streaming_response(response)
         assert "Error from milvus server" in error_data
 
     def test_generate_answer_general_error(self, client, valid_prompt_data):
         mock_nvidia_rag_instance.return_general_error()
         response = client.post("/v1/generate", json=valid_prompt_data)
-        assert response.status_code == 200
+        assert response.status_code == ErrorCodeMapping.INTERNAL_SERVER_ERROR
         error_data = read_streaming_response(response)
         assert "Error from rag server" in error_data
 
     def test_generate_answer_cancelled_request(self, client, valid_prompt_data):
         mock_nvidia_rag_instance.return_cancelled_error()
         response = client.post("/v1/generate", json=valid_prompt_data)
-        assert response.status_code == 200
+        assert response.status_code == ErrorCodeMapping.CLIENT_CLOSED_REQUEST
         error_data = read_streaming_response(response)
         assert "Request was cancelled by the client" in error_data
 
@@ -257,7 +284,7 @@ class TestGenerateEndpoint:
             "messages": [{"role": "invalid_role", "content": "test content"}]
         }
         response = client.post("/v1/generate", json=invalid_data)
-        assert response.status_code == 422
+        assert response.status_code == ErrorCodeMapping.UNPROCESSABLE_ENTITY
         assert any(
             "Input should be 'user', 'assistant', 'system' or None" in error["msg"]
             for error in response.json()["detail"]
@@ -268,7 +295,7 @@ class TestGenerateEndpoint:
         mock_nvidia_rag_instance.return_empty_response()
         response = client.post("/v1/generate", json=valid_prompt_data)
 
-        assert response.status_code == 200
+        assert response.status_code == ErrorCodeMapping.SUCCESS
         # Check the full streamed response
         full_message = read_streaming_response(response)
         assert full_message == ""  # Verify the concatenated content is empty
@@ -278,7 +305,7 @@ class TestGenerateEndpoint:
         valid_prompt_data["use_knowledge_base"] = False
         mock_nvidia_rag_instance.return_llm_response()
         response = client.post("/v1/generate", json=valid_prompt_data)
-        assert response.status_code == 200
+        assert response.status_code == ErrorCodeMapping.SUCCESS
 
         # Check first chunk
         response_text = [
@@ -297,7 +324,7 @@ class TestGenerateEndpoint:
         valid_prompt_data["use_knowledge_base"] = False
         mock_nvidia_rag_instance.return_llm_empty_response()
         response = client.post("/v1/generate", json=valid_prompt_data)
-        assert response.status_code == 200
+        assert response.status_code == ErrorCodeMapping.SUCCESS
         full_message = read_streaming_response(response)
         assert full_message == ""
 
@@ -306,7 +333,7 @@ class TestGenerateEndpoint:
         valid_prompt_data["use_knowledge_base"] = False
         mock_nvidia_rag_instance.return_llm_general_error()
         response = client.post("/v1/generate", json=valid_prompt_data)
-        assert response.status_code == 200
+        assert response.status_code == ErrorCodeMapping.INTERNAL_SERVER_ERROR
         error_data = read_streaming_response(response)
         assert "Error from rag server" in error_data
 
@@ -315,7 +342,7 @@ class TestGenerateEndpoint:
         valid_prompt_data["use_knowledge_base"] = False
         mock_nvidia_rag_instance.return_llm_cancelled_error()
         response = client.post("/v1/generate", json=valid_prompt_data)
-        assert response.status_code == 200
+        assert response.status_code == ErrorCodeMapping.CLIENT_CLOSED_REQUEST
         error_data = read_streaming_response(response)
         assert "Request was cancelled by the client" in error_data
 
@@ -341,7 +368,7 @@ class TestDocumentSearchEndpoint:
 
     def test_document_search_success(self, client, search_data):
         response = client.post("/v1/search", json=search_data)
-        assert response.status_code == 200
+        assert response.status_code == ErrorCodeMapping.SUCCESS
         response_data = response.json()
         assert "total_results" in response_data
         assert "results" in response_data
@@ -359,13 +386,13 @@ class TestDocumentSearchEndpoint:
         }
         mock_nvidia_rag_instance.return_empty_search()
         response = client.post("/v1/search", json=search_data)
-        assert response.status_code == 200
+        assert response.status_code == ErrorCodeMapping.SUCCESS
         assert response.json()["total_results"] == 0
 
     def test_document_search_milvus_error(self, client, search_data):
         mock_nvidia_rag_instance.raise_search_milvus_error()
         response = client.post("/v1/search", json=search_data)
-        assert response.status_code == 500
+        assert response.status_code == ErrorCodeMapping.INTERNAL_SERVER_ERROR
         error_data = response.json()
         assert "message" in error_data
         assert "Error occurred while searching documents" in error_data["message"]
@@ -381,7 +408,7 @@ class TestDocumentSearchEndpoint:
         }
 
         response = client.post("/v1/search", json=invalid_data)
-        assert response.status_code == 422
+        assert response.status_code == ErrorCodeMapping.UNPROCESSABLE_ENTITY
         assert "detail" in response.json()
 
     def test_document_search_cancelled_request(self, client, search_data):
@@ -389,7 +416,7 @@ class TestDocumentSearchEndpoint:
         mock_nvidia_rag_instance.raise_search_cancelled_error()
         response = client.post("/v1/search", json=search_data)
 
-        assert response.status_code == 499
+        assert response.status_code == ErrorCodeMapping.CLIENT_CLOSED_REQUEST
         error_data = response.json()
         assert "message" in error_data
         assert "Request was cancelled by the client" in error_data["message"]
@@ -400,7 +427,7 @@ class TestHealthEndpoint:
 
     def test_health_check(self, client):
         response = client.get("/v1/health")
-        assert response.status_code == 200
+        assert response.status_code == ErrorCodeMapping.SUCCESS
         assert response.json()["message"] == "Service is up."
 
 
@@ -409,7 +436,7 @@ class TestChatCompletionsEndpoint:
 
     def test_chat_completions_endpoint(self, client, valid_prompt_data):
         response = client.post("/v1/chat/completions", json=valid_prompt_data)
-        assert response.status_code == 200
+        assert response.status_code == ErrorCodeMapping.SUCCESS
         response_text = [
             line.replace("data: ", "") for line in response.iter_lines() if line
         ]

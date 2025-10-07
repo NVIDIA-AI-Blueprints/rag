@@ -542,7 +542,8 @@ class TestGenerateFinalResponse:
             
             result = generate_final_response(history, contexts, "Tell me about AI", mock_llm)
             
-            assert result == "Final comprehensive answer"
+            assert hasattr(result, 'generator')
+            assert hasattr(result, 'status_code')
             mock_generate_answer.assert_called_once()
 
 

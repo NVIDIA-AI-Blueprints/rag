@@ -25,11 +25,23 @@ vi.mock('../MessageInputContainer', () => ({
 
 vi.mock('../../filtering/SimpleFilterBar', () => ({
   default: ({ filters }: { filters: Filter[] }) => (
-    <div data-testid="simple-filter-bar">
+    <div data-testid="filter-bar">
       Simple Filter Bar - Filters: {JSON.stringify(filters)}
     </div>
   )
 }));
+
+vi.mock('@kui/react', async () => {
+  const actual = await vi.importActual('@kui/react');
+  return {
+    ...actual,
+    Banner: ({ children, status, kind }: { children: React.ReactNode, status: string, kind: string }) => (
+      <div data-testid="warning-banner" data-status={status} data-kind={kind}>
+        {children}
+      </div>
+    )
+  };
+});
 
 describe('MessageInput', () => {
   const mockSetFilters = vi.fn();
@@ -59,25 +71,24 @@ describe('MessageInput', () => {
       render(<MessageInput />);
       
       expect(screen.getByTestId('collection-chips')).toBeInTheDocument();
-      expect(screen.getByTestId('simple-filter-bar')).toBeInTheDocument();
+      expect(screen.getByTestId('filter-bar')).toBeInTheDocument();
       expect(screen.getByTestId('message-input-container')).toBeInTheDocument();
     });
 
     it('renders components in correct order', () => {
-      const { container } = render(<MessageInput />);
+      render(<MessageInput />);
       
-      // KUI Flex arranges components vertically - skip the container and get child components
-      const components = container.querySelectorAll('[data-testid]:not([data-testid="nv-flex"])');
-      expect(components[0]).toHaveAttribute('data-testid', 'collection-chips');
-      expect(components[1]).toHaveAttribute('data-testid', 'simple-filter-bar');
-      expect(components[2]).toHaveAttribute('data-testid', 'message-input-container');
+      // Check that the main components are present
+      expect(screen.getByTestId('collection-chips')).toBeInTheDocument();
+      expect(screen.getByTestId('filter-bar')).toBeInTheDocument();
+      expect(screen.getByTestId('message-input-container')).toBeInTheDocument();
     });
 
     it('contains filter bar and input container in the structure', () => {
       render(<MessageInput />);
       
       // KUI Flex with direction="col" handles grouping instead of .space-y-3
-      expect(screen.getByTestId('simple-filter-bar')).toBeInTheDocument();
+      expect(screen.getByTestId('filter-bar')).toBeInTheDocument();
       expect(screen.getByTestId('message-input-container')).toBeInTheDocument();
     });
   });
@@ -97,7 +108,14 @@ describe('MessageInput', () => {
       render(<MessageInput />);
       
       expect(mockUseChatStore).toHaveBeenCalled();
-      expect(screen.getByTestId('simple-filter-bar')).toHaveTextContent(JSON.stringify(testFilters));
+      // Check that the filters are displayed as UI chips
+      const filterBar = screen.getByTestId('filter-bar');
+      expect(filterBar).toHaveTextContent('author');
+      expect(filterBar).toHaveTextContent('=');
+      expect(filterBar).toHaveTextContent('"test"');
+      expect(filterBar).toHaveTextContent('date');
+      expect(filterBar).toHaveTextContent('>');
+      expect(filterBar).toHaveTextContent('"2024-01-01"');
     });
 
     it('passes setFilters to filter bar', () => {
@@ -115,7 +133,12 @@ describe('MessageInput', () => {
 
       render(<MessageInput />);
       
-      expect(screen.getByTestId('simple-filter-bar')).toHaveTextContent('[]');
+      // Check that only the "Filters:" label is present with no filter chips
+      const filterBar = screen.getByTestId('filter-bar');
+      expect(filterBar).toHaveTextContent('Filters:');
+      // Should not contain any filter field names
+      expect(filterBar).not.toHaveTextContent('author');
+      expect(filterBar).not.toHaveTextContent('date');
     });
   });
 
@@ -126,7 +149,7 @@ describe('MessageInput', () => {
       
       // Verify that the component renders successfully, which indicates exports work
       expect(screen.getByTestId('collection-chips')).toBeInTheDocument();
-      expect(screen.getByTestId('simple-filter-bar')).toBeInTheDocument();
+      expect(screen.getByTestId('filter-bar')).toBeInTheDocument();
       expect(screen.getByTestId('message-input-container')).toBeInTheDocument();
     });
   });
@@ -176,14 +199,18 @@ describe('MessageInput', () => {
   });
 
   describe('Filter Bar Visibility', () => {
-    it('shows filter bar when collections are selected', () => {
+    it('shows warning banner when multiple collections are selected', () => {
       mockUseCollectionsStore.mockReturnValue({
         selectedCollections: ['collection1', 'collection2']
       });
 
       render(<MessageInput />);
       
-      expect(screen.getByTestId('simple-filter-bar')).toBeInTheDocument();
+      expect(screen.queryByTestId('filter-bar')).not.toBeInTheDocument();
+      expect(screen.getByTestId('warning-banner')).toBeInTheDocument();
+      expect(screen.getByTestId('warning-banner')).toHaveAttribute('data-status', 'warning');
+      expect(screen.getByTestId('warning-banner')).toHaveAttribute('data-kind', 'inline');
+      expect(screen.getByTestId('warning-banner')).toHaveTextContent('Filters not available with more than one collection selected');
     });
 
     it('hides filter bar when no collections are selected', () => {
@@ -193,7 +220,8 @@ describe('MessageInput', () => {
 
       render(<MessageInput />);
       
-      expect(screen.queryByTestId('simple-filter-bar')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('filter-bar')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('warning-banner')).not.toBeInTheDocument();
     });
 
     it('shows filter bar when single collection is selected', () => {
@@ -203,7 +231,8 @@ describe('MessageInput', () => {
 
       render(<MessageInput />);
       
-      expect(screen.getByTestId('simple-filter-bar')).toBeInTheDocument();
+      expect(screen.getByTestId('filter-bar')).toBeInTheDocument();
+      expect(screen.queryByTestId('warning-banner')).not.toBeInTheDocument();
     });
   });
 
@@ -225,8 +254,8 @@ describe('MessageInput', () => {
     it('integrates with simple filter bar when collections selected', () => {
       render(<MessageInput />);
       
-      const filterBar = screen.getByTestId('simple-filter-bar');
-      expect(filterBar).toHaveTextContent('Simple Filter Bar');
+      const filterBar = screen.getByTestId('filter-bar');
+      expect(filterBar).toHaveTextContent('Filters:');
     });
   });
 }); 

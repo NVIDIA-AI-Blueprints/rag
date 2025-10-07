@@ -2,10 +2,9 @@
   SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
   SPDX-License-Identifier: Apache-2.0
 -->
+# Multi-Collection Retrieval for NVIDIA RAG Blueprint
 
-# Multi-Collection Retrieval
-
-This document describes how to use the NVIDIA RAG system to retrieve and generate responses from multiple vector collections simultaneously.
+This document describes how to use the [NVIDIA RAG Blueprint](readme.md) to retrieve and generate responses from multiple vector collections simultaneously.
 
 ## Overview
 
@@ -25,7 +24,7 @@ Multi-collection retrieval has the following limitations:
 
 ## Prerequisites
 
-Multi-collection retrieval requires reranking to be enabled. The reranker service and environment variables are enabled by default in Docker and HELM deployments. Ensure the reranking microservice is deployed and accessible at the configured URL.
+Multi-collection retrieval requires reranking to be enabled. The reranker service and environment variables are enabled by default in Docker and Helm deployments. Ensure the reranking microservice is deployed and accessible at the configured URL.
 
 ### For Docker Compose Deployment
 

@@ -10,15 +10,19 @@ vi.mock('../../../store/useCollectionDrawerStore', () => ({
 
 vi.mock('../../../hooks/useCollectionActions', () => ({
   useCollectionActions: () => ({
-    handleUploadDocuments: vi.fn()
+    handleUploadDocuments: vi.fn(),
+    isUploading: false
   })
 }));
 
 vi.mock('../../../store/useNewCollectionStore', () => {
   const mockStore = {
     selectedFiles: [],
+    hasInvalidFiles: false,
     reset: vi.fn(),
-    addFiles: vi.fn()
+    addFiles: vi.fn(),
+    setFiles: vi.fn(),
+    setHasInvalidFiles: vi.fn()
   };
   
   const useNewCollectionStore = () => mockStore;
@@ -54,12 +58,7 @@ describe('UploaderSection', () => {
     it('renders close button', () => {
       render(<UploaderSection />);
       
-      const buttons = screen.getAllByRole('button');
-      // Look for the KUI button with neutral color and small size (close button)
-      const closeButton = buttons.find(button => 
-        button.classList.contains('nv-button--color-neutral') && 
-        button.classList.contains('nv-button--size-small')
-      );
+      const closeButton = screen.getByTestId('uploader-close-button');
       expect(closeButton).toBeInTheDocument();
     });
 
@@ -74,16 +73,11 @@ describe('UploaderSection', () => {
     it('has clickable close button', () => {
       render(<UploaderSection />);
       
-      const buttons = screen.getAllByRole('button');
-      // Look for the KUI button with neutral color and small size (close button)
-      const closeButton = buttons.find(button => 
-        button.classList.contains('nv-button--color-neutral') && 
-        button.classList.contains('nv-button--size-small')
-      );
+      const closeButton = screen.getByTestId('uploader-close-button');
       expect(closeButton).toBeInTheDocument();
       
       // Test that clicking doesn't crash
-      fireEvent.click(closeButton!);
+      fireEvent.click(closeButton);
     });
 
     it('handles file addition through NvidiaUpload', () => {

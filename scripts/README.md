@@ -58,7 +58,7 @@ Notes:
 
 ### Retriever API CLI — Quick Guide
 
-> Prerequisite: Before running any scripts in this folder, deploy and start the services by following the [Quickstart guide](../docs/quickstart.md). Once services are up (RAG server and Ingestor server), proceed with the commands below.
+> Prerequisite: Before running any scripts in this folder, deploy and start the services by following the [Quickstart guide](../docs/deploy-docker-self-hosted.md). Once services are up (RAG server and Ingestor server), proceed with the commands below.
 
 Use `scripts/retriever_api_usage.py` to talk to the RAG server.
 

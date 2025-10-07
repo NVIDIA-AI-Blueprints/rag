@@ -32,6 +32,7 @@ export interface ChatMessage {
   content: string;
   timestamp: string;
   citations?: Citation[];
+  is_error?: boolean;
 }
 
 /**
@@ -39,10 +40,8 @@ export interface ChatMessage {
  */
 export interface Filter {
   field: string;
-  operator: "=" | "!=" | ">" | "<" | ">=" | "<=" | "in" | "contains" | "like" | "not in" | "between" | "before" | "after" | "array_contains" | "array_contains_all" | "array_contains_any" | "array_length";
+  operator: "=" | "!=" | ">" | "<" | ">=" | "<=" | "in" | "includes" | "does not include" | "like" | "not in" | "before" | "after" | "array_contains" | "array_contains_all" | "array_contains_any";
   value: string | number | boolean | (string | number | boolean)[];
-  // For operators like "between" that need two values
-  secondValue?: string | number | boolean;
   // Logical operator to join this filter with the previous one (undefined for first filter)
   logicalOperator?: "AND" | "OR";
 }

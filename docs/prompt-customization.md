@@ -2,10 +2,9 @@
   SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
   SPDX-License-Identifier: Apache-2.0
 -->
+# Customize Prompts in NVIDIA RAG Blueprint
 
-# Customize Prompts
-
-This blueprint uses a [prompt.yaml](../src/nvidia_rag/rag_server/prompt.yaml) file that defines prompts for different contexts.
+The [NVIDIA RAG Blueprint](readme.md) uses a [prompt.yaml](../src/nvidia_rag/rag_server/prompt.yaml) file that defines prompts for different contexts.
 These prompts guide the RAG model in generating appropriate responses.
 You can customize these prompts to fit your specific needs and achieve desired responses from the models.
 
@@ -27,19 +26,19 @@ The `prompt.yaml` file contains a set of prompt templates used throughout the RA
 
 ### 4. `reflection_relevance_check_prompt`
 - **Purpose:** Evaluates the relevance of a context chunk to a user question.
-- **Usage:** Assigns a relevance score (0, 1, or 2) to each context chunk. Used by the [reflection module](./reflection.md) for context filtering.
+- **Usage:** Assigns a relevance score (0, 1, or 2) to each context chunk. Used by the [reflection module](./self-reflection.md) for context filtering.
 
 ### 5. `reflection_query_rewriter_prompt`
 - **Purpose:** Optimizes queries for high-precision vectorstore retrieval.
-- **Usage:** Refines user questions for better semantic search performance. Used by the [reflection module](./reflection.md) during query rewriting.
+- **Usage:** Refines user questions for better semantic search performance. Used by the [reflection module](./self-reflection.md) during query rewriting.
 
 ### 6. `reflection_groundedness_check_prompt`
 - **Purpose:** Checks if a generated response is grounded in the provided context.
-- **Usage:** Assigns a groundedness score (0, 1, or 2) to the response. Used by the [reflection module](./reflection.md) for response validation.
+- **Usage:** Assigns a groundedness score (0, 1, or 2) to the response. Used by the [reflection module](./self-reflection.md) for response validation.
 
 ### 7. `reflection_response_regeneration_prompt`
 - **Purpose:** Regenerates a response to be more grounded in the context.
-- **Usage:** Produces a new answer using only information supported by the context. Used by the [reflection module](./reflection.md) if the original response is not sufficiently grounded.
+- **Usage:** Produces a new answer using only information supported by the context. Used by the [reflection module](./self-reflection.md) if the original response is not sufficiently grounded.
 
 ### 8. `document_summary_prompt`
 - **Purpose:** Summarizes a document, preserving key metadata and findings.
@@ -92,7 +91,7 @@ Suppose you want to make the RAG model respond as a pirate. You can override the
 
 ```yaml
 rag_template:
-  system: |
+  human: |
     Arrr matey! Ye be speakin' to a pirate now. I answer all yer questions with the heart of a true buccaneer!
     Context: {context}
 ```
@@ -118,9 +117,9 @@ You can override multiple templates at once by specifying multiple keys in your 
 
 ## Prompt customization in Helm chart
 
-The [prompt.yaml](../deploy/helm/rag-server/files/prompt.yaml) resides within `rag-server/files/prompt.yaml` in the chart. This is converted into a ConfigMap within the Helm deployment.
+The [prompt.yaml](../deploy/helm/nvidia-blueprint-rag/files/prompt.yaml) resides within the chart. This is converted into a ConfigMap within the Helm deployment.
 
-To provide custom instructions in the prompt, you can edit the [prompt.yaml](../deploy/helm/rag-server/files/prompt.yaml) and update the `chat_template`, `rag_template` or `query_rewriter_prompt`.
+To provide custom instructions in the prompt, you can edit the [prompt.yaml](../deploy/helm/nvidia-blueprint-rag/files/prompt.yaml) and update the `chat_template`, `rag_template` or `query_rewriter_prompt`.
 
 ```yaml
 chat_template:
@@ -136,7 +135,7 @@ query_rewriter_prompt:
     <custom prompt instructions>
 ```
 
-After the required changes have been made, you can deploy the Helm chart from source by following the steps [here](./quickstart.md#deploying-e2e-from-the-source-optional).
+After the required changes have been made, you can deploy the Helm chart from source by following the steps [here](deploy-helm.md#optional-deploying-e2e-from-the-source).
 
 
 ## Example: Access a Prompt in code

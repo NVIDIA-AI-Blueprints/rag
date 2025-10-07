@@ -19,6 +19,7 @@ import { useFileUtils } from "./useFileUtils";
 
 /**
  * Interface representing a file in the upload state.
+ * Contains the file, validation status, and upload progress information.
  */
 export interface UploadFile {
   id: string;
@@ -29,54 +30,90 @@ export interface UploadFile {
 }
 
 /**
- * Configuration options for the upload file state hook.
+ * Options for configuring the upload file state hook.
  */
 interface UploadFileStateOptions {
-  acceptedTypes: string[];
-  maxFileSize: number;
-  maxFiles: number;
-  audioFileMaxSize?: number; // in MB, for .mp3 and .wav files
+  acceptedTypes?: string[];
+  maxFileSize?: number; // in MB
+  maxFiles?: number;
+  audioFileMaxSize?: number; // in MB, overrides maxFileSize for audio files
   onFilesChange?: (files: File[]) => void;
 }
 
 /**
  * Custom hook for managing file upload state with validation and progress tracking.
+ * Provides methods to add, remove, and clear files with built-in validation.
  * 
- * @param options - Configuration options for file uploads
- * @returns Object with upload files, validation methods, and file management functions
+ * @param options Configuration options for file validation and limits
+ * @returns Object containing upload files and methods to manipulate them
  * 
  * @example
  * ```tsx
- * const { uploadFiles, addFiles, removeFile, clearFiles } = useUploadFileState({
- *   acceptedTypes: ['.pdf', '.txt'],
- *   maxFileSize: 10 * 1024 * 1024, // 10MB
- *   maxFiles: 5
+ * const { uploadFiles, addFiles, removeFile } = useUploadFileState({
+ *   acceptedTypes: ['.pdf', '.doc'],
+ *   maxFileSize: 10,
+ *   maxFiles: 5,
+ *   onFilesChange: (files) => console.log('Files changed:', files)
  * });
  * ```
  */
-export const useUploadFileState = ({ 
-  acceptedTypes, 
-  maxFileSize, 
-  maxFiles, 
+export const useUploadFileState = ({
+  acceptedTypes,
+  maxFileSize,
+  maxFiles = 100,
   audioFileMaxSize,
-  onFilesChange 
+  onFilesChange
 }: UploadFileStateOptions) => {
   const [uploadFiles, setUploadFiles] = useState<UploadFile[]>([]);
-  const { validateFile } = useFileValidation({ acceptedTypes, maxFileSize, audioFileMaxSize });
+  const { validateFile } = useFileValidation({ 
+    acceptedTypes: acceptedTypes || [], 
+    maxFileSize: maxFileSize || 10, 
+    audioFileMaxSize 
+  });
   const { generateFileId } = useFileUtils();
 
   const addFiles = useCallback((files: FileList | File[]) => {
+    const newFilesToAdd = Array.from(files);
+    
+    setUploadFiles(prev => {
+      // Get existing file names to avoid duplicates
+      const existingFileNames = new Set(prev.map(f => f.file.name));
+      
+      // Filter out duplicates and respect max limit
+      const uniqueNewFiles = newFilesToAdd.filter(file => !existingFileNames.has(file.name));
+      const remainingSlots = maxFiles - prev.length;
+      const filesToProcess = uniqueNewFiles.slice(0, remainingSlots);
+      
+      // Create upload file objects
+      const newUploadFiles = filesToProcess.map(file => {
+        const error = validateFile(file);
+        return {
+          id: generateFileId(),
+          file,
+          status: error ? 'error' : 'uploaded',
+          progress: error ? 0 : 100,
+          errorMessage: error || undefined,
+        } as UploadFile;
+      });
+      
+      const updatedFiles = [...prev, ...newUploadFiles];
+      
+      // Call parent with all valid files
+      const allValidFiles = updatedFiles
+        .filter(f => f.status !== 'error')
+        .map(f => f.file);
+      console.log('🔵 useUploadFileState: calling onFilesChange with', allValidFiles.length, 'files');
+      onFilesChange?.(allValidFiles);
+      
+      return updatedFiles;
+    });
+  }, [maxFiles, validateFile, generateFileId, onFilesChange]);
+
+  const replaceFiles = useCallback((files: FileList | File[]) => {
     const newFiles: UploadFile[] = [];
     const validFiles: File[] = [];
-    const totalFiles = Array.from(files);
     
-    // Check if user is trying to upload more files than the limit allows
-    const availableSlots = maxFiles - uploadFiles.length;
-    const filesToProcess = totalFiles.slice(0, availableSlots);
-    const excessFiles = totalFiles.length - filesToProcess.length;
-
-    filesToProcess.forEach((file) => {
-
+    Array.from(files).slice(0, maxFiles).forEach((file) => {
       const error = validateFile(file);
       const uploadFile: UploadFile = {
         id: generateFileId(),
@@ -85,36 +122,27 @@ export const useUploadFileState = ({
         progress: error ? 0 : 100,
         errorMessage: error || undefined,
       };
-
       newFiles.push(uploadFile);
       if (!error) {
         validFiles.push(file);
       }
     });
 
-    setUploadFiles(prev => [...prev, ...newFiles]);
-    if (validFiles.length > 0) {
-      onFilesChange?.(validFiles);
-    }
-    
-    // Warn user if some files were skipped due to limit
-    if (excessFiles > 0) {
-      console.warn(`File upload limit reached: ${excessFiles} files were not added. Maximum ${maxFiles} files per batch.`);
-      // TODO: Consider showing user notification instead of console warning
-    }
-  }, [uploadFiles.length, maxFiles, validateFile, onFilesChange, generateFileId]);
+    setUploadFiles(newFiles);
+    onFilesChange?.(validFiles);
+  }, [maxFiles, validateFile, onFilesChange, generateFileId]);
 
   const removeFile = useCallback((id: string) => {
     setUploadFiles(prev => {
       const updatedFiles = prev.filter(f => f.id !== id);
       
-      // Calculate remaining files using the updated state, not stale closure
-      const remainingFiles = updatedFiles
+      // Calculate remaining valid files
+      const remainingValidFiles = updatedFiles
         .filter(f => f.status !== 'error')
         .map(f => f.file);
       
       // Call onFilesChange with the correct remaining files
-      onFilesChange?.(remainingFiles);
+      onFilesChange?.(remainingValidFiles);
       
       return updatedFiles;
     });
@@ -127,15 +155,16 @@ export const useUploadFileState = ({
 
   const getValidFiles = useCallback(() => {
     return uploadFiles
-      .filter(f => f.status !== 'error')
-      .map(f => f.file);
+      .filter(uploadFile => uploadFile.status !== 'error')
+      .map(uploadFile => uploadFile.file);
   }, [uploadFiles]);
 
   return {
     uploadFiles,
     addFiles,
+    replaceFiles,
     removeFile,
     clearAllFiles,
     getValidFiles,
   };
-}; 
+};

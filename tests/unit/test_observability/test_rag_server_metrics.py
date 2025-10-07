@@ -29,6 +29,7 @@ import pytest
 from fastapi.testclient import TestClient
 from prometheus_client import CollectorRegistry
 
+from nvidia_rag.rag_server.response_generator import ErrorCodeMapping
 from nvidia_rag.rag_server.server import app
 
 
@@ -139,7 +140,7 @@ class TestRAGServerMetricsEndpoint:
             response = client.get("/metrics")
 
             # Verify response
-            assert response.status_code == 200
+            assert response.status_code == ErrorCodeMapping.SUCCESS
             assert response.headers["content-type"] == "text/plain; charset=utf-8"
             assert b"test_metric_total 42" in response.content
 
@@ -154,7 +155,7 @@ class TestRAGServerMetricsEndpoint:
 
             response = client.get("/metrics")
 
-            assert response.status_code == 200
+            assert response.status_code == ErrorCodeMapping.SUCCESS
             assert response.headers["content-type"] == "text/plain; charset=utf-8"
             assert "Error generating metrics" in response.text
 
@@ -167,7 +168,7 @@ class TestRAGServerMetricsEndpoint:
 
             response = client.get("/metrics")
 
-            assert response.status_code == 200
+            assert response.status_code == ErrorCodeMapping.SUCCESS
             assert response.headers["content-type"] == "text/plain; charset=utf-8"
             assert "Error generating metrics" in response.text
 
@@ -178,7 +179,7 @@ class TestRAGServerMetricsEndpoint:
 
             response = client.get("/metrics")
 
-            assert response.status_code == 200
+            assert response.status_code == ErrorCodeMapping.SUCCESS
             assert response.headers["content-type"] == "text/plain; charset=utf-8"
             assert "Error generating metrics" in response.text
 
@@ -200,7 +201,7 @@ class TestRAGServerMetricsEndpoint:
             with caplog.at_level("DEBUG"):
                 response = client.get("/metrics")
 
-                assert response.status_code == 200
+                assert response.status_code == ErrorCodeMapping.SUCCESS
                 # Check for any debug message containing "Generated" and "bytes"
                 debug_messages = [
                     record.message
@@ -215,7 +216,7 @@ class TestRAGServerMetricsEndpoint:
         """Test that metrics endpoint returns correct content type"""
         response = client.get("/metrics")
 
-        assert response.status_code == 200
+        assert response.status_code == ErrorCodeMapping.SUCCESS
         assert response.headers["content-type"] == "text/plain; charset=utf-8"
 
     def test_metrics_endpoint_empty_response(self, client):
@@ -235,7 +236,7 @@ class TestRAGServerMetricsEndpoint:
 
             response = client.get("/metrics")
 
-            assert response.status_code == 200
+            assert response.status_code == ErrorCodeMapping.SUCCESS
             assert response.text == ""
 
     def test_metrics_endpoint_with_real_prometheus_components(
@@ -257,7 +258,7 @@ class TestRAGServerMetricsEndpoint:
 
             response = client.get("/metrics")
 
-            assert response.status_code == 200
+            assert response.status_code == ErrorCodeMapping.SUCCESS
             assert response.headers["content-type"] == "text/plain; charset=utf-8"
 
             # Verify the response contains some Prometheus format
@@ -270,21 +271,21 @@ class TestRAGServerMetricsEndpoint:
         """Test that metrics endpoint only accepts GET requests"""
         # Test POST method (should return 405 Method Not Allowed)
         response = client.post("/metrics")
-        assert response.status_code == 405
+        assert response.status_code == ErrorCodeMapping.METHOD_NOT_ALLOWED
 
         # Test PUT method (should return 405 Method Not Allowed)
         response = client.put("/metrics")
-        assert response.status_code == 405
+        assert response.status_code == ErrorCodeMapping.METHOD_NOT_ALLOWED
 
         # Test DELETE method (should return 405 Method Not Allowed)
         response = client.delete("/metrics")
-        assert response.status_code == 405
+        assert response.status_code == ErrorCodeMapping.METHOD_NOT_ALLOWED
 
     def test_metrics_endpoint_with_query_params(self, client):
         """Test metrics endpoint with query parameters (should be ignored)"""
         response = client.get("/metrics?format=prometheus&debug=true")
 
-        assert response.status_code == 200
+        assert response.status_code == ErrorCodeMapping.SUCCESS
         assert response.headers["content-type"] == "text/plain; charset=utf-8"
 
     def test_metrics_endpoint_performance(self, client):
@@ -293,7 +294,7 @@ class TestRAGServerMetricsEndpoint:
         response = client.get("/metrics")
         end_time = time.time()
 
-        assert response.status_code == 200
+        assert response.status_code == ErrorCodeMapping.SUCCESS
         # Should respond within reasonable time (less than 1 second)
         assert (end_time - start_time) < 1.0
 
@@ -323,4 +324,4 @@ class TestRAGServerMetricsEndpoint:
         # All requests should succeed
         assert len(errors) == 0
         assert len(results) == 5
-        assert all(status == 200 for status in results)
+        assert all(status == ErrorCodeMapping.SUCCESS for status in results)

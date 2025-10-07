@@ -22,7 +22,9 @@ import {
 interface DrawerActionsProps {
   onDelete: () => void;
   onAddSource: () => void;
+  onCloseUploader: () => void;
   isDeleting?: boolean;
+  showUploader?: boolean;
 }
 
 const DeleteIcon = () => (
@@ -49,10 +51,24 @@ const AddIcon = () => (
   </svg>
 );
 
+const CloseIcon = () => (
+  <svg 
+    style={{ width: '16px', height: '16px' }}
+    fill="none" 
+    stroke="currentColor" 
+    strokeWidth="2" 
+    viewBox="0 0 24 24"
+  >
+    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+  </svg>
+);
+
 export const DrawerActions = ({ 
   onDelete, 
   onAddSource, 
-  isDeleting = false 
+  onCloseUploader,
+  isDeleting = false,
+  showUploader = false
 }: DrawerActionsProps) => (
   <Flex gap="3" justify="stretch" style={{ width: '100%' }}>
     <Button
@@ -75,11 +91,11 @@ export const DrawerActions = ({
     </Button>
     
     <Button
-      color="brand"
-      onClick={onAddSource}
+      color={showUploader ? "neutral" : "brand"}
+      onClick={showUploader ? onCloseUploader : onAddSource}
     >
-      <AddIcon />
-      Add Source to Collection
+      {showUploader ? <CloseIcon /> : <AddIcon />}
+      {showUploader ? "Close Uploader" : "Add Source to Collection"}
     </Button>
   </Flex>
 ); 

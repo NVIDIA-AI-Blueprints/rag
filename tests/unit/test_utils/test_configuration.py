@@ -80,7 +80,7 @@ class TestLLMConfig:
         config = LLMConfig.from_dict({})
 
         assert config.server_url == ""
-        assert config.model_name == "nvidia/llama-3-3-nemotron-super-49b-v1-5"
+        assert config.model_name == "nvidia/llama-3.3-nemotron-super-49b-v1.5"
         assert config.model_engine == "nvidia-ai-endpoints"
         assert isinstance(config.parameters, ModelParametersConfig)
         assert config.parameters.max_tokens == 32768
@@ -122,7 +122,7 @@ class TestQueryRewriterConfig:
         """Test default configuration values."""
         config = QueryRewriterConfig.from_dict({})
 
-        assert config.model_name == "nvidia/llama-3-3-nemotron-super-49b-v1-5"
+        assert config.model_name == "nvidia/llama-3.3-nemotron-super-49b-v1.5"
         assert config.server_url == ""
         assert config.enable_query_rewriter is False
 
@@ -200,7 +200,7 @@ class TestSummarizerConfig:
         """Test default configuration values."""
         config = SummarizerConfig.from_dict({})
 
-        assert config.model_name == "nvidia/llama-3-3-nemotron-super-49b-v1-5"
+        assert config.model_name == "nvidia/llama-3.3-nemotron-super-49b-v1.5"
         assert config.server_url == ""
         assert config.max_chunk_length == 50000
         assert config.chunk_overlap == 200

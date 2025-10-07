@@ -1,7 +1,7 @@
 services:
   nemo-guardrails-microservice:
     container_name: nemo-guardrails-microservice
-    image: nvcr.io/nvidia/nemo-microservices/guardrails:25.08
+    image: nvcr.io/nvidia/nemo-microservices/guardrails:25.09
     ports:
       - "7331:7331"
     volumes:

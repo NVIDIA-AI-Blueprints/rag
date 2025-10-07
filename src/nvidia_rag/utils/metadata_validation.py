@@ -1583,6 +1583,17 @@ class FilterSemanticValidator(Visitor):
             )
         return tree
 
+    def array_membership_negated(self, tree) -> Any:
+        """Validate that negated array membership is only used on array fields."""
+        field_name, field_info = self.field_validator.validate_field_existence(
+            tree.children[2]
+        )
+        if not is_array_type(field_info.type):
+            raise FilterSemanticError(
+                f"Array membership operations (like 'not in') can only be used on array fields, not '{field_info.type}' fields like '{field_name}'."
+            )
+        return tree
+
     def array_comparison(self, tree) -> Any:
         field_name, field_info = self.field_validator.validate_field_existence(
             tree.children[0]
@@ -1781,15 +1792,16 @@ class FilterSemanticValidator(Visitor):
         self._check_null_contradictions(tree.children, "OR")
         return tree
 
-    def field_in_list(self, tree) -> Any:
-        field_token = tree.children[0]
-        value_token = tree.children[2]
+    def _validate_field_in_list_common(
+        self, field_token, value_token, operator="in", tree=None
+    ) -> Any:
+        """Common validation logic for field in/not in list operations."""
         field_name, field_info = self.field_validator.validate_field_existence(
             field_token
         )
 
         self.operator_validator.validate_operator_for_type(
-            "in", field_info.type, field_name
+            operator, field_info.type, field_name
         )
 
         elements = []
@@ -1898,6 +1910,16 @@ class FilterSemanticValidator(Visitor):
                         ) from e
 
         return tree
+
+    def field_in_list(self, tree) -> Any:
+        return self._validate_field_in_list_common(
+            tree.children[0], tree.children[2], "in", tree
+        )
+
+    def field_not_in_list(self, tree) -> Any:
+        return self._validate_field_in_list_common(
+            tree.children[0], tree.children[2], "not in", tree
+        )
 
 
 class MilvusQueryTransformer(Transformer):
@@ -2141,11 +2163,17 @@ class MilvusQueryTransformer(Transformer):
                 is_array_field = True
 
         if "includes" in op_lower and "not" not in op_lower:
-            return f"array_contains({field_val}, {value_val})"
+            if value_val.startswith("["):
+                return f"array_contains_all({field_val}, {value_val})"
+            else:
+                return f"array_contains({field_val}, {value_val})"
         elif "does not include" in op_lower or (
             "not" in op_lower and "includes" in op_lower
         ):
-            return f"not array_contains({field_val}, {value_val})"
+            if value_val.startswith("["):
+                return f"not array_contains_any({field_val}, {value_val})"
+            else:
+                return f"not array_contains({field_val}, {value_val})"
         elif op_lower == "in":
             if is_array_field:
                 if value_val.startswith("["):
@@ -2211,6 +2239,18 @@ class MilvusQueryTransformer(Transformer):
             )
 
         return f"array_contains({field_val}, {value_val})"
+
+    def array_membership_negated(self, args) -> str:
+        value_val = str(args[0])
+        field_val = str(args[2])
+
+        if value_val.strip() == "[]":
+            raise FilterSemanticError(
+                f"Empty array comparisons are not supported for field '{field_val}'. "
+                f"Please provide non-empty array values or use explicit field comparisons."
+            )
+
+        return f"not array_contains({field_val}, {value_val})"
 
     def field(self, args) -> str:
         return str(args[0])
@@ -2382,6 +2422,24 @@ class MilvusQueryTransformer(Transformer):
             if field_info and is_array_type(field_info.type):
                 return f"array_contains_any({field_val}, {value_val})"
         return f"{field_val} in {value_val}"
+
+    def field_not_in_list(self, args) -> str:
+        field_val = str(args[0])
+        value_val = str(args[2])
+
+        if value_val.strip() == "[]":
+            raise FilterSemanticError(
+                f"Empty array comparisons are not supported for field '{field_val}'. "
+                f"Please provide non-empty array values or use explicit field comparisons."
+            )
+
+        field_name = self._extract_field_name(field_val)
+
+        if self.metadata_schema and field_name:
+            field_info = self.metadata_schema.field_dict.get(field_name)
+            if field_info and is_array_type(field_info.type):
+                return f"not array_contains_any({field_val}, {value_val})"
+        return f"{field_val} not in {value_val}"
 
 
 class FilterExpressionParser:

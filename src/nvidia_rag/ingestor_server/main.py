@@ -79,8 +79,21 @@ logger = logging.getLogger(__name__)
 
 CONFIG = get_config()
 NV_INGEST_CLIENT_INSTANCE = get_nv_ingest_client()
-MINIO_OPERATOR = get_minio_operator()
-MINIO_OPERATOR._make_bucket(bucket_name="a-bucket")  # Create a-bucket if not exists
+
+MINIO_OPERATOR = None
+
+
+def get_minio_operator_instance():
+    """Lazy initialize the MinioOperator instance"""
+    global MINIO_OPERATOR
+    if MINIO_OPERATOR is None:
+        MINIO_OPERATOR = get_minio_operator()
+    return MINIO_OPERATOR
+
+
+get_minio_operator_instance()._make_bucket(
+    bucket_name="a-bucket"
+)  # Create a-bucket if not exists
 
 # NV-Ingest Batch Mode Configuration
 ENABLE_NV_INGEST_BATCH_MODE = (
@@ -797,17 +810,21 @@ class NvidiaRAGIngestor:
                 collection_prefix = get_unique_thumbnail_id_collection_prefix(
                     collection
                 )
-                delete_object_names = MINIO_OPERATOR.list_payloads(collection_prefix)
-                MINIO_OPERATOR.delete_payloads(delete_object_names)
+                delete_object_names = get_minio_operator_instance().list_payloads(
+                    collection_prefix
+                )
+                get_minio_operator_instance().delete_payloads(delete_object_names)
 
             # Delete document summary from Minio
             for collection in collection_names:
                 collection_prefix = get_unique_thumbnail_id_collection_prefix(
                     f"summary_{collection}"
                 )
-                delete_object_names = MINIO_OPERATOR.list_payloads(collection_prefix)
+                delete_object_names = get_minio_operator_instance().list_payloads(
+                    collection_prefix
+                )
                 if len(delete_object_names):
-                    MINIO_OPERATOR.delete_payloads(delete_object_names)
+                    get_minio_operator_instance().delete_payloads(delete_object_names)
                     logger.info(
                         f"Deleted all document summaries from Minio for collection: {collection}"
                     )
@@ -968,17 +985,23 @@ class NvidiaRAGIngestor:
                     filename_prefix = get_unique_thumbnail_id_file_name_prefix(
                         collection_name, doc
                     )
-                    delete_object_names = MINIO_OPERATOR.list_payloads(filename_prefix)
-                    MINIO_OPERATOR.delete_payloads(delete_object_names)
+                    delete_object_names = get_minio_operator_instance().list_payloads(
+                        filename_prefix
+                    )
+                    get_minio_operator_instance().delete_payloads(delete_object_names)
 
                 # Delete document summary from Minio
                 for doc in document_names:
                     filename_prefix = get_unique_thumbnail_id_file_name_prefix(
                         f"summary_{collection_name}", doc
                     )
-                    delete_object_names = MINIO_OPERATOR.list_payloads(filename_prefix)
+                    delete_object_names = get_minio_operator_instance().list_payloads(
+                        filename_prefix
+                    )
                     if len(delete_object_names):
-                        MINIO_OPERATOR.delete_payloads(delete_object_names)
+                        get_minio_operator_instance().delete_payloads(
+                            delete_object_names
+                        )
                         logger.info(f"Deleted summary for doc: {doc} from Minio")
                 return {
                     "message": "Files deleted successfully",
@@ -1049,13 +1072,15 @@ class NvidiaRAGIngestor:
 
         if os.getenv("ENABLE_MINIO_BULK_UPLOAD", "True") in ["True", "true"]:
             logger.info(f"Bulk uploading {len(payloads)} payloads to MinIO")
-            MINIO_OPERATOR.put_payloads_bulk(
+            get_minio_operator_instance().put_payloads_bulk(
                 payloads=payloads, object_names=object_names
             )
         else:
             logger.info(f"Sequentially uploading {len(payloads)} payloads to MinIO")
             for payload, object_name in zip(payloads, object_names, strict=False):
-                MINIO_OPERATOR.put_payload(payload=payload, object_name=object_name)
+                get_minio_operator_instance().put_payload(
+                    payload=payload, object_name=object_name
+                )
 
     async def __nvingest_upload_doc(
         self,
@@ -1339,8 +1364,9 @@ class NvidiaRAGIngestor:
                 f"Raw text elements size: {raw_text_elements_size} bytes"
             )
 
-        summary = f"Successfully processed {total_documents} document(s) with {total_elements} element(s) • " + " • ".join(
-            summary_parts
+        summary = (
+            f"Successfully processed {total_documents} document(s) with {total_elements} element(s) • "
+            + " • ".join(summary_parts)
         )
         if failures:
             summary += f", {len(failures)} files failed ingestion"
@@ -1872,7 +1898,7 @@ class NvidiaRAGIngestor:
                 location=location,
             )
 
-            MINIO_OPERATOR.put_payload(
+            get_minio_operator_instance().put_payload(
                 payload={
                     "summary": summary,
                     "file_name": file_name,

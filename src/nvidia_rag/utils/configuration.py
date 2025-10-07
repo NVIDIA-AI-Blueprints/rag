@@ -263,7 +263,7 @@ class LLMConfig(ConfigWizard):
     )
     model_name: str = configfield(
         "model_name",
-        default="nvidia/llama-3-3-nemotron-super-49b-v1-5",
+        default="nvidia/llama-3.3-nemotron-super-49b-v1.5",
         help_txt="The name of the hosted model.",
     )
     model_engine: str = configfield(
@@ -298,7 +298,7 @@ class QueryRewriterConfig(ConfigWizard):
 
     model_name: str = configfield(
         "model_name",
-        default="nvidia/llama-3-3-nemotron-super-49b-v1-5",
+        default="nvidia/llama-3.3-nemotron-super-49b-v1.5",
         help_txt="The llm name of the query rewriter model",
     )
     server_url: str = configfield(
@@ -322,7 +322,7 @@ class FilterExpressionGeneratorConfig(ConfigWizard):
     model_name: str = configfield(
         "model_name",
         env_name="APP_FILTEREXPRESSIONGENERATOR_MODELNAME",
-        default="nvidia/llama-3-3-nemotron-super-49b-v1-5",
+        default="nvidia/llama-3.3-nemotron-super-49b-v1.5",
         help_txt="The llm name of the filter expression generator model",
     )
     server_url: str = configfield(
@@ -581,7 +581,7 @@ class SummarizerConfig(ConfigWizard):
     model_name: str = configfield(
         "model_name",
         env_name="SUMMARY_LLM",
-        default="nvidia/llama-3-3-nemotron-super-49b-v1-5",
+        default="nvidia/llama-3.3-nemotron-super-49b-v1.5",
         help_txt="The name of the summarizer model",
     )
     server_url: str = configfield(

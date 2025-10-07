@@ -5,7 +5,7 @@ metadata:
 spec:
   image:
     repository: nvcr.io/nim/nvidia/llama-3.3-nemotron-super-49b-v1.5
-    tag: 1.12.0
+    tag: 1.13.1
     pullPolicy: IfNotPresent
     pullSecrets:
       - ngc-secret
@@ -14,18 +14,10 @@ spec:
     nimCache:
       name: nemotron-llama3-49b-super
       profile: ''
+    sharedMemorySizeLimit: 16Gi
   env:
-    # H100 tp 1 profile non-NVL based
-    # - name: NIM_MODEL_PROFILE
-    #   value: "tensorrt_llm-h100-fp8-tp1-pp1-throughput-2330:10de-ed15592b3e4d174a719e8188493420073c39448d9b7ed742cfe614b96fecbdd9-1"
-    # NVL based H100 tp 1 profile
-    # - name: NIM_MODEL_PROFILE
-    #   value: "tensorrt_llm-h100_nvl-fp8-tp1-pp1-throughput-2321:10de-6343e21ba5cccf783d18951c6627c207b81803c3c45f1e8b59eee062ed350143-1"
-    # A100 tp 2 profile
-    # - name: NIM_MODEL_PROFILE
-    #   value: "tensorrt_llm-a100-bf16-tp2-pp1-throughput-20b2:10de-4c44baded168675f277ffcbd4f9bce56cac0239944062c44d81d359f9c718f06-2"
     - name: NIM_MODEL_PROFILE
-      value: ""
+      value: "" # Provide correct profile name here
   replicas: 1
   resources:
     limits:
@@ -33,8 +25,6 @@ spec:
       nvidia.com/gpu: 1
     requests:
       nvidia.com/gpu: 1
-  securityContext:
-    shmSize: 16Gi
   expose:
     service:
       type: ClusterIP
@@ -150,7 +140,7 @@ spec:
 apiVersion: apps.nvidia.com/v1alpha1
 kind: NIMService
 metadata:
-  name: nemoretriever-reranking-ms
+  name: nemoretriever-ranking-ms
 spec:
   image:
     repository: nvcr.io/nim/nvidia/llama-3.2-nv-rerankqa-1b-v2

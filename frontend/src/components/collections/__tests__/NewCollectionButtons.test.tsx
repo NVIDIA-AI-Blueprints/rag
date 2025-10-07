@@ -180,7 +180,7 @@ describe('NewCollectionButtons', () => {
   describe('Name Validation', () => {
     it('shows error for invalid name format', () => {
       mockUseNewCollectionStore.mockReturnValue({
-        collectionName: 'invalid-name',
+        collectionName: '123invalid',
         metadataSchema: [],
         fileMetadata: {},
         selectedFiles: [],
@@ -190,7 +190,7 @@ describe('NewCollectionButtons', () => {
 
       render(<NewCollectionButtons />);
       
-      expect(screen.getByText(/Name must start with a letter\/underscore/)).toBeInTheDocument();
+      expect(screen.getByText(/Name must start with a letter\/underscore and contain only alphanumerics and underscores/)).toBeInTheDocument();
     });
 
     it('shows error for duplicate collection name', () => {
@@ -255,7 +255,7 @@ describe('NewCollectionButtons', () => {
 
       render(<NewCollectionButtons />);
       
-      expect(screen.getByText(/Name must start with a letter\/underscore/)).toBeInTheDocument();
+      expect(screen.getByText(/Name must start with a letter\/underscore and contain only alphanumerics and underscores/)).toBeInTheDocument();
     });
   });
 
@@ -340,7 +340,7 @@ describe('NewCollectionButtons', () => {
 
     it('calls setError when submit is attempted with name error', () => {
       mockUseNewCollectionStore.mockReturnValue({
-        collectionName: 'invalid-name',
+        collectionName: '123invalid',
         metadataSchema: [],
         fileMetadata: {},
         selectedFiles: [],
@@ -379,7 +379,7 @@ describe('NewCollectionButtons', () => {
   describe('Error Display', () => {
     it('shows name error when name is invalid', () => {
       mockUseNewCollectionStore.mockReturnValue({
-        collectionName: 'invalid-name',
+        collectionName: '123invalid',
         metadataSchema: [],
         fileMetadata: {},
         selectedFiles: [],
@@ -389,7 +389,7 @@ describe('NewCollectionButtons', () => {
 
       render(<NewCollectionButtons />);
       
-      expect(screen.getByText(/Name must start with a letter\/underscore/)).toBeInTheDocument();
+      expect(screen.getByText(/Name must start with a letter\/underscore and contain only alphanumerics and underscores/)).toBeInTheDocument();
     });
   });
 

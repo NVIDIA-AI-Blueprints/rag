@@ -2,11 +2,11 @@
   SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
   SPDX-License-Identifier: Apache-2.0
 -->
+# Enable Audio Ingestion Support for NVIDIA RAG Blueprint
 
-# Enable audio ingestion support
-Enabling audio ingestion support allows the system to process and transcribe audio files (.mp3 and .wav) during document ingestion. This enables better search and retrieval capabilities for audio content in your documents.
+Enabling audio ingestion support allows the [NVIDIA RAG Blueprint](readme.md) system to process and transcribe audio files (.mp3 and .wav) during document ingestion. This enables better search and retrieval capabilities for audio content in your documents.
 
-Once you have followed [steps in quick start guide](./quickstart.md#deploy-with-docker-compose) to launch the blueprint, to enable audio ingestion support, follow these steps:
+After you have [deployed the blueprint](readme.md#deploy), to enable audio ingestion support, follow these steps:
 
 ## Using on-prem audio transcription model
 
@@ -72,27 +72,26 @@ deploy:
 
 If you're using Helm for deployment, follow these steps to enable audio ingestion:
 
-1. Enable Riva NIM in your main `values.yaml` file, enable the riva-nim deployment by setting:
+1. Enable Riva NIM by setting `nv-ingest.riva-nim.deployed` to `true` in [values.yaml](../deploy/helm/nvidia-blueprint-rag/values.yaml).
+
    ```yaml
-   ingestor-server:
-     nv-ingest:
-       riva-nim:
+   nv-ingest:
+      riva-nim:
          deployed: true
    ```
 
-2. Ensure that audio extraction dependencies are installed in nv-ingest by verifying this setting in your `values.yaml`:
+2. Verify that audio extraction dependencies are installed by setting `nv-ingest.envVars.INSTALL_AUDIO_EXTRACTION_DEPS` to `true` in [values.yaml](../deploy/helm/nvidia-blueprint-rag/values.yaml).
 
    ```yaml
-   ingestor-server:
-     nv-ingest:
-       envVars:
+   nv-ingest:
+      envVars:
          INSTALL_AUDIO_EXTRACTION_DEPS: "true"
    ```
 
 3. Apply the updated Helm chart by running the following code.
 
    ```bash
-   helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.3.0-rc2.2.tgz \
+   helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.3.0.tgz \
     --username '$oauthtoken' \
     --password "${NGC_API_KEY}" \
     --set imagePullSecret.password=$NGC_API_KEY \
@@ -130,3 +129,13 @@ To enable audio segmentation, add the following export command to your environme
 ```bash
 export APP_NVINGEST_SEGMENTAUDIO=True
 ```
+
+
+
+## Related Topics
+
+- [NVIDIA RAG Blueprint Documentation](readme.md)
+- [Best Practices for Common Settings](accuracy_perf.md).
+- [RAG Pipeline Debugging Guide](debugging.md)
+- [Troubleshoot](troubleshooting.md)
+- [Notebooks](notebooks.md)

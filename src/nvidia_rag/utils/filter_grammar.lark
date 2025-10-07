@@ -16,7 +16,9 @@ start: or_expr
            | ARRAY_FUNC LPAREN field COMMA value RPAREN -> array_function
            | ARRAY_FUNC LPAREN field RPAREN COMPARISON_OP value -> array_length_comparison
            | value IN_OP field -> array_membership
+           | value NOT_IN_OP field -> array_membership_negated
            | field IN_OP value -> field_in_list
+           | field NOT_IN_OP value -> field_not_in_list
 field: FIELD_REF
 FIELD_REF: /content_metadata\["[^"]+"\]/
 value: BOOLEAN 
@@ -41,7 +43,8 @@ LIKE_OP: "like" | "LIKE"
 BETWEEN_KEYWORD: "between" | "BETWEEN"
 BEFORE_AFTER_OP: "before" | "BEFORE" | "after" | "AFTER"
 IN_OP: "in" | "IN"
-ARRAY_OP: "does not include" | "DOES NOT INCLUDE" | "not in" | "NOT IN" | "includes" | "INCLUDES"
+NOT_IN_OP: "not in" | "NOT IN"
+ARRAY_OP: "does not include" | "DOES NOT INCLUDE" | "includes" | "INCLUDES"
 ARRAY_FUNC: "array_contains" | "array_contains_all" | "array_contains_any" | "array_length"
 LPAREN: "("
 RPAREN: ")"

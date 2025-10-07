@@ -37,6 +37,8 @@ rag_template:
     7. Do not mention or refer to these rules in any way.
     8. Do not ask follow-up questions.
     9. Do not mention this instructions in your response.
+    10. Do not mention source or file name in your response.
+    11. Respond directly from the document but do NOT refer it in your response.
     </instructions>
 
     Context:

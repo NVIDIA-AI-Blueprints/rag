@@ -18,6 +18,7 @@ The tests cover:
 
 import pytest
 from lark.exceptions import UnexpectedToken
+
 from nvidia_rag.utils.configuration import MetadataConfig
 from nvidia_rag.utils.metadata_validation import (
     FilterExpressionParser,
@@ -4159,9 +4160,9 @@ class TestFilterValidator:
                     ):
                         # Skip LIKE patterns for this check
                         if "%" not in literal:
-                            assert (
-                                literal == literal.lower()
-                            ), f"String literal '{literal}' is not lowercase"
+                            assert literal == literal.lower(), (
+                                f"String literal '{literal}' is not lowercase"
+                            )
                 print("✅ All string literals converted to lowercase")
 
             elif test_case.get("should_fail", False):
@@ -4273,9 +4274,9 @@ class TestFilterValidator:
                         and not literal.endswith("%")
                     ):
                         if "%" not in literal:
-                            assert (
-                                literal == literal.lower()
-                            ), f"String literal '{literal}' is not lowercase"
+                            assert literal == literal.lower(), (
+                                f"String literal '{literal}' is not lowercase"
+                            )
                 print("✅ All string literals converted to lowercase")
             else:
                 print(f"❌ Failed: {result.get('error_message', 'Unknown error')}")
@@ -4362,12 +4363,214 @@ class TestFilterValidator:
         print(f"Total tests: {total_tests}")
         print(f"Passed tests: {passed_tests}")
         print(f"Failed tests: {total_tests - passed_tests}")
-        print(f"Success rate: {(passed_tests/total_tests)*100:.1f}%")
+        print(f"Success rate: {(passed_tests / total_tests) * 100:.1f}%")
 
         # Use assertions to properly fail the test when individual validations fail
-        assert (
-            passed_tests == total_tests
-        ), f"Expected all {total_tests} tests to pass, but only {passed_tests} passed. {total_tests - passed_tests} tests failed."
+        assert passed_tests == total_tests, (
+            f"Expected all {total_tests} tests to pass, but only {passed_tests} passed. {total_tests - passed_tests} tests failed."
+        )
+
+    def test_includes_operator_multiple_values_semantics(
+        self, mock_config, array_schema
+    ):
+        """Test the semantic behavior of includes operator with multiple values."""
+        parser = FilterExpressionParser(array_schema, mock_config)
+
+        print("\n=== Includes Operator Multiple Values Semantics Tests ===")
+
+        # Test cases to verify the correct semantic behavior
+        test_cases = [
+            # Single value cases (should use array_contains)
+            {
+                "filter": 'content_metadata["tags"] includes "urgent"',
+                "expected_processed": 'array_contains(content_metadata["tags"], "urgent")',
+                "description": "Single value includes should use array_contains",
+            },
+            {
+                "filter": 'content_metadata["tags"] does not include "urgent"',
+                "expected_processed": 'not array_contains(content_metadata["tags"], "urgent")',
+                "description": "Single value does not include should use not array_contains",
+            },
+            # Multiple value cases (should use array_contains_all for includes, not array_contains_any for does not include)
+            {
+                "filter": 'content_metadata["tags"] includes ["urgent", "important"]',
+                "expected_processed": 'array_contains_all(content_metadata["tags"], ["urgent", "important"])',
+                "description": "Multiple value includes should use array_contains_all (ALL logic)",
+            },
+            {
+                "filter": 'content_metadata["tags"] does not include ["urgent", "important"]',
+                "expected_processed": 'not array_contains_any(content_metadata["tags"], ["urgent", "important"])',
+                "description": "Multiple value does not include should use not array_contains_any (NONE logic)",
+            },
+            # Case insensitive tests
+            {
+                "filter": 'content_metadata["tags"] INCLUDES ["urgent", "important"]',
+                "expected_processed": 'array_contains_all(content_metadata["tags"], ["urgent", "important"])',
+                "description": "Case insensitive multiple value includes",
+            },
+            {
+                "filter": 'content_metadata["tags"] DOES NOT INCLUDE ["urgent", "important"]',
+                "expected_processed": 'not array_contains_any(content_metadata["tags"], ["urgent", "important"])',
+                "description": "Case insensitive multiple value does not include",
+            },
+            # Complex scenarios
+            {
+                "filter": 'content_metadata["tags"] includes ["urgent", "important", "critical"]',
+                "expected_processed": 'array_contains_all(content_metadata["tags"], ["urgent", "important", "critical"])',
+                "description": "Three value includes should use array_contains_all",
+            },
+            {
+                "filter": 'content_metadata["tags"] does not include ["spam", "junk", "test"]',
+                "expected_processed": 'not array_contains_any(content_metadata["tags"], ["spam", "junk", "test"])',
+                "description": "Three value does not include should use not array_contains_any",
+            },
+        ]
+
+        total_tests = 0
+        passed_tests = 0
+
+        for test_case in test_cases:
+            total_tests += 1
+            filter_expr = test_case["filter"]
+            expected = test_case["expected_processed"]
+            description = test_case["description"]
+
+            print(f"\nTest: {description}")
+            print(f"Filter: {filter_expr}")
+            print(f"Expected: {expected}")
+
+            # Validate the filter expression
+            validation_result = parser.validate_filter_expression(filter_expr)
+            if not validation_result["status"]:
+                print(
+                    f"❌ VALIDATION FAILED: {validation_result.get('error_message', 'Unknown error')}"
+                )
+                continue
+
+            # Process the filter expression
+            processing_result = parser.process_filter_expression(filter_expr)
+            if not processing_result["status"]:
+                print(
+                    f"❌ PROCESSING FAILED: {processing_result.get('error_message', 'Unknown error')}"
+                )
+                continue
+
+            actual = processing_result.get("processed_expression", "")
+            if actual == expected:
+                print(f"✅ PASS: {actual}")
+                passed_tests += 1
+            else:
+                print(f"❌ FAIL: Expected '{expected}', got '{actual}'")
+
+        print("\n=== Results ===")
+        print(f"Total tests: {total_tests}")
+        print(f"Passed tests: {passed_tests}")
+        print(f"Failed tests: {total_tests - passed_tests}")
+        print(f"Success rate: {(passed_tests / total_tests * 100):.1f}%")
+
+        assert passed_tests == total_tests, (
+            f"Expected all {total_tests} tests to pass, but {total_tests - passed_tests} failed"
+        )
+
+    def test_not_in_operator_value_on_left_syntax(self, mock_config, array_schema):
+        """Test the not in operator with value on the left side (value not in field)."""
+        parser = FilterExpressionParser(array_schema, mock_config)
+
+        print("\n=== Not In Operator Value-On-Left Syntax Tests ===")
+
+        # Test cases for value-on-left not in syntax
+        test_cases = [
+            # Single value tests
+            {
+                "filter": '"urgent" not in content_metadata["tags"]',
+                "expected_processed": 'not array_contains(content_metadata["tags"], "urgent")',
+                "description": "Single value not in with value on left",
+            },
+            {
+                "filter": '"important" not in content_metadata["tags"]',
+                "expected_processed": 'not array_contains(content_metadata["tags"], "important")',
+                "description": "Single value not in for tags field",
+            },
+            # Case insensitive tests
+            {
+                "filter": '"URGENT" not in content_metadata["tags"]',
+                "expected_processed": 'not array_contains(content_metadata["tags"], "URGENT")',
+                "description": "Case insensitive single value not in",
+            },
+            {
+                "filter": '"IMPORTANT" not in content_metadata["tags"]',
+                "expected_processed": 'not array_contains(content_metadata["tags"], "IMPORTANT")',
+                "description": "Case insensitive single value not in for tags",
+            },
+            # Numeric value tests
+            {
+                "filter": '1 not in content_metadata["ids"]',
+                "expected_processed": 'not array_contains(content_metadata["ids"], 1)',
+                "description": "Numeric value not in array field",
+            },
+            {
+                "filter": '4.5 not in content_metadata["scores"]',
+                "expected_processed": 'not array_contains(content_metadata["scores"], 4.5)',
+                "description": "Float value not in array field",
+            },
+            # Boolean value tests (using Python boolean format)
+            {
+                "filter": 'true not in content_metadata["flags"]',
+                "expected_processed": 'not array_contains(content_metadata["flags"], True)',
+                "description": "Boolean value not in array field",
+            },
+            {
+                "filter": 'false not in content_metadata["flags"]',
+                "expected_processed": 'not array_contains(content_metadata["flags"], False)',
+                "description": "Boolean false value not in array field",
+            },
+        ]
+
+        total_tests = 0
+        passed_tests = 0
+
+        for test_case in test_cases:
+            total_tests += 1
+            filter_expr = test_case["filter"]
+            expected = test_case["expected_processed"]
+            description = test_case["description"]
+
+            print(f"\nTest: {description}")
+            print(f"Filter: {filter_expr}")
+            print(f"Expected: {expected}")
+
+            # Validate the filter expression
+            validation_result = parser.validate_filter_expression(filter_expr)
+            if not validation_result["status"]:
+                print(
+                    f"❌ VALIDATION FAILED: {validation_result.get('error_message', 'Unknown error')}"
+                )
+                continue
+
+            # Process the filter expression
+            processing_result = parser.process_filter_expression(filter_expr)
+            if not processing_result["status"]:
+                print(
+                    f"❌ PROCESSING FAILED: {processing_result.get('error_message', 'Unknown error')}"
+                )
+                continue
+
+            actual = processing_result.get("processed_expression", "")
+            if actual == expected:
+                print(f"✅ PASS: {actual}")
+                passed_tests += 1
+            else:
+                print(f"❌ FAIL: Expected '{expected}', got '{actual}'")
+
+        print("\n=== Results ===")
+        print(f"Total tests: {total_tests}")
+        print(f"Passed tests: {passed_tests}")
+        print(f"Failed tests: {total_tests - passed_tests}")
+        print(f"Success rate: {(passed_tests / total_tests * 100):.1f}%")
+
+        assert passed_tests == total_tests, (
+            f"Expected all {total_tests} tests to pass, but {total_tests - passed_tests} failed"
+        )
 
     def test_case_insensitive_all_operators_for_all_data_types(self, mock_config):
         """Test all operators for all data types to ensure complete case-insensitive coverage."""
@@ -4516,6 +4719,23 @@ class TestFilterValidator:
                     'content_metadata["array_string_field"] DOES NOT INCLUDE ["test"]',
                     True,
                 ),
+                # Multiple value includes tests - NEW TEST CASES
+                (
+                    'content_metadata["array_string_field"] includes ["test", "other"]',
+                    True,
+                ),
+                (
+                    'content_metadata["array_string_field"] INCLUDES ["test", "other"]',
+                    True,
+                ),
+                (
+                    'content_metadata["array_string_field"] does not include ["test", "other"]',
+                    True,
+                ),
+                (
+                    'content_metadata["array_string_field"] DOES NOT INCLUDE ["test", "other"]',
+                    True,
+                ),
                 ('content_metadata["array_string_field"] in ["test", "other"]', True),
                 ('content_metadata["array_string_field"] IN ["test", "other"]', True),
                 (
@@ -4574,12 +4794,12 @@ class TestFilterValidator:
         print(f"Total tests: {total_tests}")
         print(f"Passed tests: {passed_tests}")
         print(f"Failed tests: {total_tests - passed_tests}")
-        print(f"Success rate: {(passed_tests/total_tests)*100:.1f}%")
+        print(f"Success rate: {(passed_tests / total_tests) * 100:.1f}%")
 
         # Use assertions to properly fail the test when individual validations fail
-        assert (
-            passed_tests == total_tests
-        ), f"Expected all {total_tests} tests to pass, but only {passed_tests} passed. {total_tests - passed_tests} tests failed."
+        assert passed_tests == total_tests, (
+            f"Expected all {total_tests} tests to pass, but only {passed_tests} passed. {total_tests - passed_tests} tests failed."
+        )
 
     def test_type_validation_quoted_strings(self, mock_config, mixed_schema):
         """Test that quoted strings are properly validated for different field types."""

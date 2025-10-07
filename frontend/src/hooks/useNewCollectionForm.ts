@@ -90,11 +90,6 @@ export function useNewCollectionForm() {
 
   const handleSubmit = async () => {
     try {
-      if (!collectionName.match(/^[a-zA-Z_][a-zA-Z0-9_]*$/)) {
-        setError("Collection name must start with a letter or underscore and contain only alphanumerics or underscores.");
-        return;
-      }
-
       const exists = existingCollections.some((c: Collection) => c.collection_name === collectionName);
       if (exists) {
         setError("A collection with this name already exists.");

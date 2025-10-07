@@ -2,10 +2,9 @@
   SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
   SPDX-License-Identifier: Apache-2.0
 -->
+# Use the NVIDIA RAG Blueprint Python Package
 
-# Use the NVIDIA RAG Python Package
-
-Use this documentation to learn about the NVIDIA RAG Python Package. 
+Use this documentation to learn about the [NVIDIA RAG Blueprint](readme.md) Python Package. 
 For a notebook that walks you through these code examples, see [NVIDIA RAG Python Package](/notebooks/rag_library_usage.ipynb).
 
 

@@ -1,7 +1,7 @@
 services:
   nim-llm:
     container_name: nim-llm-ms
-    image: nvcr.io/nim/nvidia/llama-3.3-nemotron-super-49b-v1.5:1.12.0
+    image: nvcr.io/nim/nvidia/llama-3.3-nemotron-super-49b-v1.5:1.13.1
     shm_size: 16GB
     volumes:
     - ${MODEL_DIRECTORY:-./}:/opt/nim/.cache
@@ -14,10 +14,6 @@ services:
       NGC_API_KEY: ${NGC_API_KEY}
       # Automatic profile detection
       NIM_MODEL_PROFILE: ${NIM_MODEL_PROFILE-""}
-      # H100 tp 1 profile non-NVL based
-      # NIM_MODEL_PROFILE: ${NIM_MODEL_PROFILE-"tensorrt_llm-h100-fp8-tp1-pp1-throughput-2330:10de-ed15592b3e4d174a719e8188493420073c39448d9b7ed742cfe614b96fecbdd9-1"}
-      # NVL based H100 tp 1 profile
-      # NIM_MODEL_PROFILE: ${NIM_MODEL_PROFILE-"tensorrt_llm-h100_nvl-fp8-tp1-pp1-throughput-2321:10de-6343e21ba5cccf783d18951c6627c207b81803c3c45f1e8b59eee062ed350143-1"}
     ulimits:
       nofile:
         soft: 65536
@@ -218,7 +214,7 @@ services:
     profiles: ["", "ingest"]
 
   paddle:
-    image: ${PADDLE_IMAGE:-nvcr.io/nim/baidu/paddleocr}:${PADDLE_TAG:-1.4.0}
+    image: ${PADDLE_IMAGE:-nvcr.io/nim/baidu/paddleocr}:${PADDLE_TAG:-1.5.0}
     shm_size: 16gb
     ports:
       - "8009:8000"
@@ -254,9 +250,15 @@ services:
     environment:
       - NIM_HTTP_API_PORT=8000
       - NIM_TRITON_LOG_VERBOSE=1
+      - NIM_TRITON_RATE_LIMIT=1
       - NVIDIA_API_KEY=${NGC_API_KEY:-nvidiaapikey}
       - NGC_API_KEY=${NGC_API_KEY:-nvidiaapikey}
       - CUDA_VISIBLE_DEVICES=0
+      - NIM_TRITON_MAX_BATCH_SIZE=${NEMORETRIEVER_OCR_BATCH_SIZE:-32}
+      - NIM_TRITON_CUDA_MEMORY_POOL_MB=${NEMORETRIEVER_OCR_CUDA_MEMORY_POOL_MB:-2048}
+      - NIM_TRITON_CPU_THREADS_PRE_PROCESSOR=${NEMORETRIEVER_OCR_CPU_THREADS_PRE_PROCESSOR:-2}
+      - NIM_TRITON_CPU_THREADS_POST_PROCESSOR=${NEMORETRIEVER_OCR_CPU_THREADS_POST_PROCESSOR:-1}
+      - OMP_NUM_THREADS=${NEMORETRIEVER_OCR_OMP_NUM_THREADS:-1}
     deploy:
       resources:
         reservations:

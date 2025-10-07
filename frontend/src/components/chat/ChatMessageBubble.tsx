@@ -32,9 +32,11 @@ interface ChatMessageBubbleProps {
 
 const MessageContainer = ({ 
   role, 
+  isError = false,
   children 
 }: { 
   role: "user" | "assistant"; 
+  isError?: boolean;
   children: React.ReactNode;
 }) => (
   <Flex justify={role === "user" ? "end" : "start"}>
@@ -43,10 +45,15 @@ const MessageContainer = ({
         maxWidth: '32rem',
         backgroundColor: role === "user" 
           ? 'var(--color-brand)' 
-          : 'var(--background-color-component-track-inverse)',
+          : isError 
+            ? 'var(--color-red-100)' 
+            : 'var(--background-color-component-track-inverse)',
         color: role === "user" 
           ? 'black' 
-          : 'var(--text-color-accent-green)'
+          : isError
+            ? 'var(--color-red-900)'
+            : 'var(--text-color-accent-green)',
+        border: isError ? '1px solid var(--color-red-300)' : undefined
       }}
     >
       {children}
@@ -54,8 +61,8 @@ const MessageContainer = ({
   </Flex>
 );
 
-const StreamingMessage = ({ content }: { content: string }) => (
-  <MessageContainer role="assistant">
+const StreamingMessage = ({ content, isError = false }: { content: string; isError?: boolean }) => (
+  <MessageContainer role="assistant" isError={isError}>
     <Flex align="center" gap="2">
       <MessageContent content={content} />
       {!content && <StreamingIndicator />}
@@ -64,7 +71,7 @@ const StreamingMessage = ({ content }: { content: string }) => (
 );
 
 const RegularMessage = ({ msg }: { msg: ChatMessage }) => (
-  <MessageContainer role={msg.role}>
+  <MessageContainer role={msg.role} isError={msg.is_error}>
     <Stack gap="2">
       <Block>
         <MessageContent content={msg.content ?? ""} />
@@ -85,7 +92,7 @@ export default function ChatMessageBubble({ msg }: ChatMessageBubbleProps) {
   );
 
   if (isThisMessageStreaming) {
-    return <StreamingMessage content={msg.content ?? ""} />;
+    return <StreamingMessage content={msg.content ?? ""} isError={msg.is_error} />;
   }
 
   return <RegularMessage msg={msg} />;

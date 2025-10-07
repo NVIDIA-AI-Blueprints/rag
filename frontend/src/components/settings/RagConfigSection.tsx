@@ -76,6 +76,7 @@ export const RagConfigSection = () => {
         max={1}
         step={0.1}
         data-testid="temperature-slider"
+        disabled={temperature === undefined}
       />
 
       <SettingSlider
@@ -87,6 +88,7 @@ export const RagConfigSection = () => {
         max={1}
         step={0.1}
         data-testid="top-p-slider"
+        disabled={topP === undefined}
       />
 
       <SettingSlider
@@ -98,6 +100,7 @@ export const RagConfigSection = () => {
         max={1}
         step={0.05}
         data-testid="confidence-threshold-slider"
+        disabled={confidenceScoreThreshold === undefined}
       />
 
       <SettingInput
@@ -108,6 +111,7 @@ export const RagConfigSection = () => {
         type="number"
         min={1}
         max={100}
+        placeholder="Leave empty for default"
       />
 
       <SettingInput
@@ -118,6 +122,7 @@ export const RagConfigSection = () => {
         type="number"
         min={1}
         max={50}
+        placeholder="Leave empty for default"
       />
 
       <SettingInput
@@ -128,6 +133,7 @@ export const RagConfigSection = () => {
         type="number"
         min={1}
         max={4000}
+        placeholder="Leave empty for default"
       />
     </Stack>
   );
