@@ -91,15 +91,31 @@ If you're using Helm for deployment, use the following steps to configure Elasti
 3. After you modify values.yaml, apply the changes as described in [Change a Deployment](deploy-helm.md#change-a-deployment).
 
 
-4. After the Helm deployment, open the RAG UI at `http://<host-ip>:8090` and set Settings > Endpoint Configuration > Vector Database Endpoint to `http://elasticsearch:9200`.
+4. After the Helm deployment, port-forward the RAG UI service:
+
+   ```bash
+   kubectl port-forward -n rag service/rag-frontend 3000:3000 --address 0.0.0.0
+   ```
+
+5. Access the UI at `http://<host-ip>:3000` and set Settings > Endpoint Configuration > Vector Database Endpoint to `http://elasticsearch:9200`.
 
 
 ## Verify Your Elasticsearch Vector Database Setup
 
 After you complete the setup, verify that Elasticsearch is running correctly:
 
+### For Docker Deployment:
 ```bash
 curl -X GET "localhost:9200/_cluster/health?pretty"
+```
+
+### For Helm deployments:
+```bash
+# 1. Get the name of your Elasticsearch pod (usually "elasticsearch-master-0"):
+kubectl get pods -n rag | grep elasticsearch
+
+# 2. Run the following command, replacing <elasticsearch-pod-name> with the actual pod name:
+kubectl exec -n rag -it <elasticsearch-pod-name> -- curl -X GET "localhost:9200/_cluster/health?pretty"
 ```
 
 You should see a response that indicates the cluster status is green or yellow, confirming that Elasticsearch is operational and ready to store embeddings.
@@ -494,14 +510,22 @@ After deployment, verify that your custom vector database is working correctly:
 
 3. **Test vector database connectivity:**
    ```bash
-   # Replace with your VDB's health check endpoint
-   kubectl exec -n rag deployment/rag-server -- curl -X GET "your-custom-vdb:port/health"
+   # Get your custom VDB pod name:
+   kubectl get pods -n rag
+   
+   # Then run the health check (replace <custom-vdb-pod-name> with your pod name and correct /health endpoint):
+   kubectl exec -n rag <custom-vdb-pod-name> -- curl -X GET "localhost:port/health"
    ```
 
 4. **Access the RAG UI:**
 
-   Open the RAG UI at `http://<host-ip>:8090` and configure:
-   - Settings > Endpoint Configuration > Vector Database Endpoint → set to `http://your-custom-vdb:port`
+   1. Port-forward the RAG UI service:
+      ```bash
+      kubectl port-forward -n rag service/rag-frontend 3000:3000 --address 0.0.0.0
+      ```
+
+   2. Access the UI at `http://<host-ip>:3000` and configure:
+      - Go to Settings > Endpoint Configuration > Vector Database Endpoint and set it to `http://your-custom-vdb:port`
 
 ### Troubleshooting
 
