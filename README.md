@@ -1,21 +1,21 @@
 <h1>NVIDIA RAG Blueprint</h1>
 
-Retrieval-Augmented Generation (RAG) combines the reasoning power of large language models (LLMs) 
-with real-time retrieval from trusted data sources. 
-It grounds AI responses in enterprise knowledge, 
-reducing hallucinations and ensuring accuracy, compliance, and freshness. 
+Retrieval-Augmented Generation (RAG) combines the reasoning power of large language models (LLMs)
+with real-time retrieval from trusted data sources.
+It grounds AI responses in enterprise knowledge,
+reducing hallucinations and ensuring accuracy, compliance, and freshness.
 
 
 
 ## Overview
 
-The NVIDIA RAG Blueprint is a reference solution and foundational starting point 
-for building Retrieval-Augmented Generation (RAG) pipelines with NVIDIA NIM microservices. 
-It enables enterprises to deliver natural language question answering grounded in their own data, 
-while meeting governance, latency, and scalability requirements. 
-Designed to be decomposable and configurable, the blueprint integrates GPU-accelerated components with NeMo Retriever models, Multimodal and Vision Language Models, and guardrailing services, 
-to provide an enterprise-ready framework. 
-With a pre-built reference UI, open-source code, and multiple deployment options — including local docker (with and without NVIDIA Hosted endpoints) and Kubernetes — 
+The NVIDIA RAG Blueprint is a reference solution and foundational starting point
+for building Retrieval-Augmented Generation (RAG) pipelines with NVIDIA NIM microservices.
+It enables enterprises to deliver natural language question answering grounded in their own data,
+while meeting governance, latency, and scalability requirements.
+Designed to be decomposable and configurable, the blueprint integrates GPU-accelerated components with NeMo Retriever models, Multimodal and Vision Language Models, and guardrailing services,
+to provide an enterprise-ready framework.
+With a pre-built reference UI, open-source code, and multiple deployment options — including local docker (with and without NVIDIA Hosted endpoints) and Kubernetes —
 it serves as a flexible starting point that developers can adapt and extend to their specific needs.
 
 
@@ -87,7 +87,7 @@ it serves as a flexible starting point that developers can adapt and extend to t
 The RAG blueprint is built from the following complementary categories of software:
 
 
-- **NVIDIA NIM microservices** – Deliver the core AI functionality. Large-scale inference (e.g.for example, Nemotron LLM models for response generation), retrieval and reranking models, and specialized extractors for text, tables, charts, and graphics. Optional NIMs extend these capabilities with OCR, content safety, topic control, and multimodal embeddings. 
+- **NVIDIA NIM microservices** – Deliver the core AI functionality. Large-scale inference (e.g.for example, Nemotron LLM models for response generation), retrieval and reranking models, and specialized extractors for text, tables, charts, and graphics. Optional NIMs extend these capabilities with OCR, content safety, topic control, and multimodal embeddings.
 
 - **The integration and orchestration layer** – Acts as the glue that binds the system into a complete solution.
 
@@ -164,19 +164,19 @@ The following is a step-by-step explanation of the workflow from the end-user pe
 
 ## Get Started With NVIDIA RAG Blueprint
 
-The recommended way to get started is to deploy the NVIDIA RAG Blueprint 
-with Docker Compose for a single node deployment, and using self-hosted on-premises models. 
+The recommended way to get started is to deploy the NVIDIA RAG Blueprint
+with Docker Compose for a single node deployment, and using self-hosted on-premises models.
 For details, refer to [Get Started](docs/deploy-docker-self-hosted.md).
 
 Refer to the [full documentation](docs/readme.md) to learn about the following:
 
-- Minimum Requirements 
-- Deployment Options 
-- Configuration Settings 
-- Common Customizations 
-- Available Notebooks 
-- Troubleshooting 
-- Additional Resources 
+- Minimum Requirements
+- Deployment Options
+- Configuration Settings
+- Common Customizations
+- Available Notebooks
+- Troubleshooting
+- Additional Resources
 
 
 
@@ -201,7 +201,10 @@ Use of the models in this blueprint is governed by the [NVIDIA AI Foundation Mod
 
 
 ## Terms of Use
-This blueprint is governed by the [NVIDIA Agreements | Enterprise Software | NVIDIA Software License Agreement](https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-software-license-agreement/) and the [NVIDIA Agreements | Enterprise Software | Product Specific Terms for AI Product](https://www.nvidia.com/en-us/agreements/enterprise-software/product-specific-terms-for-ai-products/). The models are governed by the [NVIDIA Agreements | Enterprise Software | NVIDIA Community Model License](https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-community-models-license/) and the [NVIDIA RAG dataset](https://github.com/NVIDIA-AI-Blueprints/rag/tree/v2.0.0/data/multimodal) which is governed by the [NVIDIA Asset License Agreement](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/data/LICENSE.DATA).
+This blueprint is governed by the [NVIDIA Agreements | Enterprise Software | NVIDIA Software License Agreement](https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-software-license-agreement/) and the [NVIDIA Agreements | Enterprise Software | Product Specific Terms for AI Product](https://www.nvidia.com/en-us/agreements/enterprise-software/product-specific-terms-for-ai-products/). The models are governed by the [NVIDIA Agreements | Enterprise Software | NVIDIA Community Model License](https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-community-models-license/) and the [NVIDIA RAG dataset](./data/multimodal/) which is governed by the [NVIDIA Asset License Agreement](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/data/LICENSE.DATA).
+The following models that are built with Llama are governed by the Llama 3.2 Community License Agreement: nvidia/llama-3.2-nv-embedqa-1b-v2 and nvidia/llama-3.2-nv-rerankqa-1b-v2 and llama-3.2-nemoretriever-1b-vlm-embed-v1.
 
-The following models that are built with Llama are governed by the [Llama 3.2 Community License Agreement](https://www.llama.com/llama3_2/license/): llama-3.3-nemotron-super-49b-v1, nvidia/llama-3.2-nv-embedqa-1b-v2, and nvidia/llama-3.2-nv-rerankqa-1b-v2.
+## Additional Information
+
+The [Llama 3.1 Community License Agreement](https://www.llama.com/llama3_1/license/) for the llama-3.1-nemotron-nano-vl-8b-v1, llama-3.1-nemoguard-8b-content-safety and llama-3.1-nemoguard-8b-topic-control models. The [Llama 3.2 Community License Agreement](https://www.llama.com/llama3_2/license/) for the nvidia/llama-3.2-nv-embedqa-1b-v2, nvidia/llama-3.2-nv-rerankqa-1b-v2 and llama-3.2-nemoretriever-1b-vlm-embed-v1 models. The [Llama 3.3 Community License Agreement](https://github.com/meta-llama/llama-models/blob/main/models/llama3_3/LICENSE) for the llama-3.3-nemotron-super-49b-v1.5 models. Built with Llama. Apache 2.0 for NVIDIA Ingest and for the nemoretriever-page-elements-v2, nemoretriever-table-structure-v1, nemoretriever-graphic-elements-v1, paddleocr and nemoretriever-ocr-v1 models.
 
