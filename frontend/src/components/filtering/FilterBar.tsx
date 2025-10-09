@@ -106,6 +106,27 @@ const convertValueToType = (
     }
     case "array": {
       if (operator) {
+        // Special case: array_contains expects a single scalar value (not an array)
+        if (operator === 'array_contains') {
+          const arrayElementType = fieldName ? arrayTypeMap?.[fieldName] : undefined;
+          switch (arrayElementType) {
+            case "integer": {
+              const intValue = parseInt(trimmedValue, 10);
+              return Number.isNaN(intValue) ? trimmedValue : intValue;
+            }
+            case "float":
+            case "number": {
+              const numValue = parseFloat(trimmedValue);
+              return Number.isNaN(numValue) ? trimmedValue : numValue;
+            }
+            case "boolean": {
+              const lowerItem = trimmedValue.toLowerCase();
+              return lowerItem === "true" ? true : lowerItem === "false" ? false : trimmedValue;
+            }
+            default:
+              return trimmedValue;
+          }
+        }
         try {
           if (trimmedValue.startsWith('[') && trimmedValue.endsWith(']')) {
             return JSON.parse(trimmedValue);
@@ -296,7 +317,15 @@ export default function FilterBar({ filters, setFilters }: Props) {
   const fieldType = draft.field ? (fieldMeta.map[draft.field] ?? "string") : "string";
   const isArrayField = fieldType === "array";
   const isDatetimeField = fieldType === "datetime";
-  const shouldUseMultiSelection = isArrayField;
+  // Multi-select only for array operators that accept multiple values
+  const shouldUseMultiSelection = isArrayField && [
+    'array_contains_all',
+    'array_contains_any',
+    'includes',
+    'does not include',
+    'in',
+    'not in',
+  ].includes(draft.op ?? "");
 
   // Event handlers using modern patterns (no setTimeout)
   const commitFilter = useCallback(() => {
