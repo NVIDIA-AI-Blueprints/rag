@@ -45,7 +45,7 @@ The following example uses the `NVIDIA Embed QA 4` model.
 export APP_EMBEDDINGS_MODELNAME='NV-Embed-QA' 
 export APP_RANKING_MODELNAME='NV-Embed-QA' 
 docker compose -f deploy/compose/docker-compose-ingestor-server.yaml up -d
-docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d --build
+docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d
 ```
 
 As an alternative you can also specify the model names at runtime using `/generate` API call. Refer to the `Generate Answer Endpoint` and `Document Search Endpoint` payload schema in [this](../notebooks/retriever_api_usage.ipynb) notebook.

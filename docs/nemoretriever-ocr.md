@@ -85,7 +85,9 @@ For more information about NeMo Retriever OCR, refer to [NeMo Retriever OCR v1 C
 
 ### Helm Deployment to Enable NeMo Retriever OCR
 
-To enable NeMo Retriever OCR using Helm, configure the deployment to enable NeMo Retriever OCR and disable Paddle OCR for resource optimization:
+To enable NeMo Retriever OCR using Helm, we need to set the `nv-ingest.nemoretriever-ocr.deployed=true` and `nv-ingest.envVars.OCR_MODEL_NAME="scene_text_ensemble"`.
+
+Update the deployment to enable NeMo Retriever OCR and disable Paddle OCR for resource optimization with the following command.
 
 ```bash
 # Apply to a fresh deployment (recommended to uninstall existing deployments first)

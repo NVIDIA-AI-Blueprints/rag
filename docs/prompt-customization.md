@@ -135,7 +135,7 @@ query_rewriter_prompt:
     <custom prompt instructions>
 ```
 
-After the required changes have been made, you can deploy the Helm chart from source by following the steps [here](deploy-helm.md#optional-deploying-e2e-from-the-source).
+After the required changes have been made, you can deploy the Helm chart from source by following the steps [here](deploy-helm-from-repo.md#deploy-the-rag-helm-chart-from-the-repository).
 
 
 ## Example: Access a Prompt in code

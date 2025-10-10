@@ -186,7 +186,7 @@ To enable VLM inference in Helm-based deployments, follow these steps:
    APP_VLM_SERVERURL: "http://nim-vlm:8000/v1"  # Local VLM NIM endpoint
    ```
 
-  Also enable the `nim-vlm` helm chart
+  Also enable the `nim-vlm` service.
   ```yaml
   nim-vlm:
     enabled: true

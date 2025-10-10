@@ -61,7 +61,9 @@ For enhanced PDF extraction capabilities, you can use the Nemoretriever Parse se
 
 ## Using Helm
 
-To enable PDF extraction with Nemoretriever Parse using Helm, you need to enable the Nemoretriever Parse service along with other required services:
+To enable PDF extraction with Nemoretriever Parse using Helm, we need to enable the Nemoretriever Parse service `nv-ingest.nim-vlm-text-extraction.deployed=true` and update the PDF extract method `ingestor-server.envVars.APP_NVINGEST_PDFEXTRACTMETHOD="nemoretriever_parse"`.
+
+Update the deployment to enable Nemoretriever Parse with the following command.
 
 ```bash
 helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.3.0.tgz \

@@ -141,23 +141,20 @@ If you use a `.env` file, add the variables there instead of exporting them, the
 
 ## Using Helm chart deployment
 
-To deploy the VLM embedding service with Helm, update the image and model settings, set the corresponding environment variables, and then apply the chart with your updated `values.yaml`.
+To deploy the VLM embedding service with Helm, we need to enable the VLM embedding NIM service and update the corresponding environment variables to point to the VLM embeddding service.
 
-1. Update `deploy/helm/nvidia-blueprint-rag/values.yaml`:
+1. Update the following parameters in the [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml).:
 
 ```yaml
-# Enable VLM embedding NIM and set its image
+# Enable VLM embedding NIM
 nvidia-nim-llama-32-nemoretriever-1b-vlm-embed-v1:
   enabled: true
-  image:
-    repository: nvcr.io/nvidia/nemo-microservices/llama-3.2-nemoretriever-1b-vlm-embed-v1
-    tag: "1.7.0"
 
-# Optional: disable the default text embedding NIM
+# Optional: disable the default text embedding NIM to optimize GPU usage
 nvidia-nim-llama-32-nv-embedqa-1b-v2:
   enabled: false
 
-# Point services to the VLM embedding endpoint and model
+# Point services to the VLM embedding service and model name
 envVars:
   APP_EMBEDDINGS_SERVERURL: "nemoretriever-vlm-embedding-ms:8000"
   APP_EMBEDDINGS_MODELNAME: "nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1"
@@ -173,7 +170,7 @@ nv-ingest:
     EMBEDDING_NIM_MODEL_NAME: "nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1"
 ```
 
-2. Deploy the chart with the updated values:
+2. Update the deployment to reflect the changes with the following command.
 
 ```bash
 helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.3.0.tgz \

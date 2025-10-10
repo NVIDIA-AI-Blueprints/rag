@@ -481,18 +481,7 @@ Update your [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) fil
          memory: "2Gi"
    ```
 
-### Deploy with Helm
-
-Deploy your updated NVIDIA RAG system with the custom vector database:
-
-```bash
-cd deploy/helm/
-
-helm upgrade --install rag -n rag nvidia-blueprint-rag/ \
---set imagePullSecret.password=$NGC_API_KEY \
---set ngcApiSecret.password=$NGC_API_KEY \
--f nvidia-blueprint-rag/values.yaml
-```
+5. Follow the rest of steps from [here](deploy-helm-from-repo.md#deploy-the-rag-helm-chart-from-the-repository).
 
 ### Verify Deployment
 
