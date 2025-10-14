@@ -4,9 +4,9 @@
 -->
 # Deploy NVIDIA RAG Blueprint on Kubernetes with Helm
 
-Use the following documentation to deploy the [NVIDIA RAG Blueprint](readme.md) on a Kubernetes cluster by using Helm. 
+Use the following documentation to deploy the [NVIDIA RAG Blueprint](readme.md) on a Kubernetes cluster by using Helm.
 
-- To deploy the Helm chart with MIG support, refer to [RAG Deployment with MIG Support](./mig-deployment.md). 
+- To deploy the Helm chart with MIG support, refer to [RAG Deployment with MIG Support](./mig-deployment.md).
 - To deploy with Helm from the repository, refer to [Deploy Helm from the repository](deploy-helm-from-repo.md).
 - For other deployment options, refer to [Deployment Options](readme.md#deployment-options-for-rag-blueprint).
 
@@ -60,7 +60,7 @@ To deploy End-to-End RAG Server and Ingestor Server, use the following procedure
 2. Install the Helm chart by running the following command.
 
     ```sh
-    helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.3.0.tgz \
+    helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.3.0.tgz \
     --username '$oauthtoken' \
     --password "${NGC_API_KEY}" \
     --set imagePullSecret.password=$NGC_API_KEY \
@@ -107,7 +107,7 @@ To verify a deployment, use the following procedure.
     ```
 
     > [!Note]
-    > It takes approximately 5 minutes for all pods to come up. You can check Kuberenetes events by running the following code. 
+    > It takes approximately 5 minutes for all pods to come up. You can check Kuberenetes events by running the following code.
     >
     > ```sh
     > kubectl get events -n rag
@@ -167,7 +167,7 @@ To verify a deployment, use the following procedure.
 To Change an existing deployment, after you modify the `values.yaml` file, run the following code.
 
 ```sh
-helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.3.0.tgz \
+helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.3.0.tgz \
 --username '$oauthtoken' \
 --password "${NGC_API_KEY}" \
 --set imagePullSecret.password=$NGC_API_KEY \
@@ -204,7 +204,7 @@ helm uninstall rag -n rag
 For troubleshooting issues with Helm deployment, refer to [Troubleshooting](troubleshooting.md).
 
 > [!NOTE]
-> If the `rag-nim-llm-0` is in a `CrashLoopBackOff` after deployment, then set the model profile explicitly to avoid any errors with NIM LLM pod deployment. 
+> If the `rag-nim-llm-0` is in a `CrashLoopBackOff` after deployment, then set the model profile explicitly to avoid any errors with NIM LLM pod deployment.
 > To set NIM LLM profile according to the GPU type and count, refer to [NIM Model Profile Configuration](model-profiles.md).
 
 

@@ -13,7 +13,7 @@ For other deployment options, refer to [Deployment Options](readme.md#deployment
 1. [Get an API Key](api-key.md).
 
 2. [Install NIM Operator 3.0](https://docs.nvidia.com/nim-operator/latest/install.html).
-   
+
 3. Ensure you meet [the hardware requirements](./support-matrix.md).
 
 4. Verify that you have the NGC CLI available on your client computer. You can download the CLI from <https://ngc.nvidia.com/setup/installers/cli>.
@@ -166,7 +166,7 @@ For other deployment options, refer to [Deployment Options](readme.md#deployment
 8. Use the following `values-nim-operator.yaml` to deploy the RAG with NIM Operator NIM Services
 
   ```sh
-  helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.3.0.tgz \
+  helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.3.0.tgz \
   --username '$oauthtoken' \
   --password "${NGC_API_KEY}" \
   --set imagePullSecret.password=$NGC_API_KEY \

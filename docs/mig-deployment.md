@@ -4,10 +4,10 @@
 -->
 # Deploy NVIDIA RAG Blueprint on Kubernetes with Helm and MIG Support
 
-Use this documentation to deploy the [NVIDIA RAG Blueprint](readme.md) Helm chart with NVIDIA MIG (Multi-Instance GPU) slices for fine-grained GPU allocation. 
+Use this documentation to deploy the [NVIDIA RAG Blueprint](readme.md) Helm chart with NVIDIA MIG (Multi-Instance GPU) slices for fine-grained GPU allocation.
 For other deployment options, refer to [Deployment Options](readme.md#deployment-options-for-rag-blueprint).
 
-To ensure that your GPUs are compatible with MIG, 
+To ensure that your GPUs are compatible with MIG,
 refer to the [MIG Supported Hardware List](https://docs.nvidia.com/datacenter/tesla/mig-user-guide/#mig-supported-gpus).
 
 
@@ -75,7 +75,7 @@ Before you deploy, verify that you have the following:
 
 ## Step 2: Apply the MIG configuration
 
-Edit the MIG configuration file [`mig-config.yaml`](../deploy/helm/mig-slicing/mig-config.yaml) to adjust the slicing pattern as needed. 
+Edit the MIG configuration file [`mig-config.yaml`](../deploy/helm/mig-slicing/mig-config.yaml) to adjust the slicing pattern as needed.
 The following example enables a balanced configuration.
 
 
@@ -150,7 +150,7 @@ You should see output similar to the following.
 Run the following code to install the RAG Blueprint Helm Chart.
 
 ```bash
-helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.3.0.tgz \
+helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.3.0.tgz \
   --username '$oauthtoken' \
   --password "${NGC_API_KEY}" \
   --set imagePullSecret.password=$NGC_API_KEY \
@@ -197,7 +197,7 @@ nvidia.com/mig-7g.80gb                      (100%) 1.0  (100%) 1.0     1.0      
 
 ## Step 5: Check the MIG Slices
 
-To check the MIG slices, run the following code from the GPU Operator driver pod. 
+To check the MIG slices, run the following code from the GPU Operator driver pod.
 This runs `nvidia-smi` within the pod to check GPU MIG slices.
 
 ```bash

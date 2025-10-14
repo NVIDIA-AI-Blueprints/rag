@@ -49,7 +49,7 @@ After tracing is enabled and the system is running, you can **view the traces** 
   <img src="./assets/zipkin_ui.png" width="750">
   </p>
 
-Open the Zipkin UI at: **http://localhost:9411**  
+Open the Zipkin UI at: **http://localhost:9411**
 
 
 
@@ -134,7 +134,7 @@ Redeploy the Helm chart to apply these changes:
 
 ```sh
 helm uninstall rag -n rag
-helm install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.3.0.tgz \
+helm install rag -n rag https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.3.0.tgz \
 --username '$oauthtoken' \
 --password "${NGC_API_KEY}" \
 --set imagePullSecret.password=$NGC_API_KEY \
@@ -151,7 +151,7 @@ For Helm deployments, to port-forward services to your local computer, use the f
   ```sh
   kubectl port-forward -n rag service/rag-zipkin 9411:9411 --address 0.0.0.0
   ```
-  
+
 - [Grafana UI](https://grafana.com/) – Run the following code to port-forward the Grafana service to your local computer. Then access the Grafana UI at `http://localhost:3001` and use the default credentials (`admin`/`admin`).
 
   ```sh

@@ -54,7 +54,7 @@ Alternatively, you can deploy RAG with query decomposition using Helm for Kubern
 Use the Helm upgrade command below to enable query decomposition in RAG Blueprint by setting `ENABLE_QUERY_DECOMPOSITION` and `MAX_RECURSION_DEPTH`:
 
 ```bash
-helm upgrade rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.3.0.tgz \
+helm upgrade rag -n rag https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.3.0.tgz \
   --username '$oauthtoken' \
   --password "${NGC_API_KEY}" \
   --set imagePullSecret.password=${NGC_API_KEY} \
@@ -86,7 +86,7 @@ This query requires multiple interconnected steps:
 
 **Simple Factual Questions**
 ```
-"What is the capital of France?" 
+"What is the capital of France?"
 (Simple lookup, no decomposition needed)
 ```
 

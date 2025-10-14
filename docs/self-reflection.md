@@ -175,7 +175,7 @@ You can enable self-reflection through Helm when you deploy the RAG Blueprint.
    Follow the steps from [Deploy with Helm](deploy-helm.md) and run:
 
    ```bash
-   helm install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.3.0.tgz \
+   helm install rag -n rag https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.3.0.tgz \
      --username '$oauthtoken' \
      --password "${NGC_API_KEY}" \
      --set imagePullSecret.password=$NGC_API_KEY \

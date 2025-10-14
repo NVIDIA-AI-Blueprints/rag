@@ -22,10 +22,10 @@ You can mount a host directory to access NV-Ingest extraction results directly f
    ```bash
    # Enable disk persistence
    export APP_NVINGEST_SAVETODISK=True
-   
+
    # Set host directory path (optional - customize as needed)
    export INGESTOR_SERVER_EXTERNAL_VOLUME_MOUNT=./volumes/ingestor-server
-   
+
    # Set container internal path (optional - customize as needed)
    export INGESTOR_SERVER_DATA_DIR=/data/
    ```
@@ -113,7 +113,7 @@ Using a custom values file:
 
 ```bash
 helm upgrade --install rag -n rag \
-  https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.3.0.tgz \
+  https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.3.0.tgz \
   --username '$oauthtoken' \
   --password "${NGC_API_KEY}" \
   --set imagePullSecret.password=$NGC_API_KEY \
@@ -125,7 +125,7 @@ Or with inline overrides:
 
 ```bash
 helm upgrade --install rag -n rag \
-  https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.3.0.tgz \
+  https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.3.0.tgz \
   --username '$oauthtoken' \
   --password "${NGC_API_KEY}" \
   --set imagePullSecret.password=$NGC_API_KEY \

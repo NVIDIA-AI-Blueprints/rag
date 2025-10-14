@@ -7,8 +7,8 @@
 This documentation contains the system requirements for the [NVIDIA RAG Blueprint](readme.md).
 
 > [!IMPORTANT]
-> You can deploy the RAG Blueprint with Docker, Helm, or NIM Operator, and target dedicated hardware or a Kubernetes cluster. 
-> Some requirements are different depending on your target system and deployment method. 
+> You can deploy the RAG Blueprint with Docker, Helm, or NIM Operator, and target dedicated hardware or a Kubernetes cluster.
+> Some requirements are different depending on your target system and deployment method.
 
 
 ## Operating System
@@ -48,7 +48,7 @@ To install the RAG Blueprint on Kubernetes, you need one of the following:
 - 9 x B200
 - 9 x A100-80GB SXM
 - 8 x RTX PRO 6000
-- 3 x H100 (with [Multi-Instance GPU](./mig-deployment.md) / [DRA with NIM Operator](deploy-nim-operator.md))
+- 4 x H100 (with [Multi-Instance GPU](./mig-deployment.md) / [DRA with NIM Operator](deploy-nim-operator.md))
 
 
 

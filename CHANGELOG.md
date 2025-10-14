@@ -5,7 +5,7 @@ All notable changes to the [NVIDIA RAG Blueprint](README.md) will be documented 
 To upgrade your version, see [Migration Guide](docs/migration_guide.md).
 
 
-## Version 2.3.0 (2025-09-26)
+## Version 2.3.0 (2025-10-14)
 
 This release adds RTX6000 platform support, adds deployment by using NIM operator, improves vector database pluggability with the blueprint, and other changes.
 

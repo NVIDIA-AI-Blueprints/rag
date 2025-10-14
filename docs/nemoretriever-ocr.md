@@ -92,7 +92,7 @@ Update the deployment to enable NeMo Retriever OCR and disable Paddle OCR for re
 ```bash
 # Apply to a fresh deployment (recommended to uninstall existing deployments first)
 # helm uninstall rag -n rag
-helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.3.0.tgz \
+helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.3.0.tgz \
   --username '$oauthtoken' \
   --password "${NGC_API_KEY}" \
   --set nv-ingest.paddleocr-nim.deployed=false \
@@ -122,4 +122,4 @@ The system supports two OCR service options:
 
 ### Hardware Requirements and Support Matrix
 
-For detailed information about hardware requirements and supported GPUs, refer to the [NeMo Retriever OCR Support Matrix](https://docs.nvidia.com/nim/ingestion/image-ocr/latest/support-matrix.html). 
+For detailed information about hardware requirements and supported GPUs, refer to the [NeMo Retriever OCR Support Matrix](https://docs.nvidia.com/nim/ingestion/image-ocr/latest/support-matrix.html).

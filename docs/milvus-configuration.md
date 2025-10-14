@@ -72,7 +72,7 @@ docker compose -f deploy/compose/docker-compose-ingestor-server.yaml up -d
 
 To configure Milvus to run in CPU mode when deploying with Helm:
 
-1. Disable GPU search and indexing by editing [values.yaml](../deploy/helm/nvidia-blueprint-rag/values.yaml). 
+1. Disable GPU search and indexing by editing [values.yaml](../deploy/helm/nvidia-blueprint-rag/values.yaml).
 
     A. In the `envVars` and `ingestor-server.envVars` sections, set the following environment variables:
 
@@ -202,7 +202,7 @@ To use a custom Milvus endpoint, use the following procedure.
 3. Redeploy the Helm chart by running the following code.
 
    ```sh
-   helm upgrade rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.3.0.tgz -f nvidia-blueprint-rag/values.yaml -n rag
+   helm upgrade rag https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.3.0.tgz -f nvidia-blueprint-rag/values.yaml -n rag
    ```
 
 ## Troubleshooting
