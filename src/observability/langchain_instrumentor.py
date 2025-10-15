@@ -16,7 +16,7 @@
 """OpenTelemetry Langchain instrumentation"""
 
 import logging
-from typing import Collection
+from collections.abc import Collection
 
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor
 from opentelemetry.instrumentation.utils import unwrap

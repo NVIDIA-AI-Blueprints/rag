@@ -20,29 +20,25 @@ Python package. That package is in-turn based heavily off of the built-in `datac
 
 This module adds Environment Variable parsing to config file reading.
 """
-# pylint: disable=too-many-lines; this file is meant to be portable between projects so everything is put into one file
+# pylint: disable=too-many-lines; this file is meant to be portable
+# between projects so everything is put into one file
 
 import json
 import logging
 import os
-from dataclasses import _MISSING_TYPE
-from dataclasses import dataclass
-from typing import Any
-from typing import Callable
-from typing import Dict
-from typing import List
-from typing import Optional
-from typing import TextIO
-from typing import Tuple
-from typing import Union
+from collections.abc import Callable
+from dataclasses import _MISSING_TYPE, dataclass
+from typing import Any, Optional, TextIO
 
 import yaml
-from dataclass_wizard import JSONWizard
-from dataclass_wizard import LoadMeta
-from dataclass_wizard import YAMLWizard
-from dataclass_wizard import errors
-from dataclass_wizard import fromdict
-from dataclass_wizard import json_field
+from dataclass_wizard import (
+    JSONWizard,
+    LoadMeta,
+    YAMLWizard,
+    errors,
+    fromdict,
+    json_field,
+)
 from dataclass_wizard.models import JSONField
 from dataclass_wizard.utils.string_conv import to_camel_case
 
@@ -51,7 +47,14 @@ ENV_BASE = "APP"
 _LOGGER = logging.getLogger(__name__)
 
 
-def configfield(name: str, *, env: bool = True, env_name: Optional[str] = None, help_txt: str = "", **kwargs: Any) -> JSONField:
+def configfield(
+    name: str,
+    *,
+    env: bool = True,
+    env_name: str | None = None,
+    help_txt: str = "",
+    **kwargs: Any,
+) -> JSONField:
     """Create a data class field with the specified name in JSON format.
 
     :param name: The name of the field.
@@ -90,7 +93,8 @@ def configfield(name: str, *, env: bool = True, env_name: Optional[str] = None, 
 class _Color:
     """A collection of colors used when writing output to the shell."""
 
-    # pylint: disable=too-few-public-methods; this class does not require methods.
+    # pylint: disable=too-few-public-methods; this class does not require
+    # methods.
 
     PURPLE = "\033[95m"
     BLUE = "\033[94m"
@@ -105,15 +109,16 @@ class _Color:
 class ConfigWizard(JSONWizard, YAMLWizard):  # type: ignore[misc] # dataclass-wizard doesn't provide stubs
     """A configuration wizard class that can read configuration data from YAML, JSON, and environment variables."""
 
-    # pylint: disable=arguments-differ,arguments-renamed; this class intentionally reduces arguments for some methods.
+    # pylint: disable=arguments-differ,arguments-renamed; this class
+    # intentionally reduces arguments for some methods.
 
     @classmethod
     def print_help(
         cls,
         help_printer: Callable[[str], Any],
         *,
-        env_parent: Optional[str] = None,
-        json_parent: Optional[Tuple[str, ...]] = None,
+        env_parent: str | None = None,
+        json_parent: tuple[str, ...] | None = None,
     ) -> None:
         """Print the help documentation for the application configuration with the provided `write` function.
 
@@ -131,10 +136,11 @@ class ConfigWizard(JSONWizard, YAMLWizard):  # type: ignore[misc] # dataclass-wi
             json_parent = ()
 
         for (
-                _,
-                val,
-        ) in (cls.__dataclass_fields__.items()  # pylint: disable=no-member; false positive
-              ):  # pylint: disable=no-member; member is added by dataclass.
+            _,
+            val,
+        ) in (
+            cls.__dataclass_fields__.items()  # pylint: disable=no-member; false positive
+        ):  # pylint: disable=no-member; member is added by dataclass.
             jsonname = val.json.keys[0]
             envname = jsonname.upper()
 
@@ -157,7 +163,9 @@ class ConfigWizard(JSONWizard, YAMLWizard):  # type: ignore[misc] # dataclass-wi
                 default = "NO-DEFAULT-VALUE"
             else:
                 default = val.default
-            help_printer(f"{_Color.BOLD}{' ' * indent}{jsonname}:{_Color.END} {default}\n")
+            help_printer(
+                f"{_Color.BOLD}{' ' * indent}{jsonname}:{_Color.END} {default}\n"
+            )
 
             # print comments
             if is_embedded_config:
@@ -165,7 +173,9 @@ class ConfigWizard(JSONWizard, YAMLWizard):  # type: ignore[misc] # dataclass-wi
             if val.metadata.get("help"):
                 help_printer(f"{' ' * indent}# {val.metadata['help']}\n")
             if not is_embedded_config:
-                typestr = getattr(val.type, "__name__", None) or str(val.type).replace("typing.", "")
+                typestr = getattr(val.type, "__name__", None) or str(val.type).replace(
+                    "typing.", ""
+                )
                 help_printer(f"{' ' * indent}# Type: {typestr}\n")
             if val.metadata.get("env", True):
                 help_printer(f"{' ' * indent}# ENV Variable: {full_envname}\n")
@@ -174,17 +184,19 @@ class ConfigWizard(JSONWizard, YAMLWizard):  # type: ignore[misc] # dataclass-wi
 
             if is_embedded_config:
                 new_env_parent = f"{env_parent}_{envname}"
-                new_json_parent = json_parent + (jsonname, )
-                val.type.print_help(help_printer, env_parent=new_env_parent, json_parent=new_json_parent)
+                new_json_parent = json_parent + (jsonname,)
+                val.type.print_help(
+                    help_printer, env_parent=new_env_parent, json_parent=new_json_parent
+                )
 
         help_printer("\n")
 
     @classmethod
     def envvars(
         cls,
-        env_parent: Optional[str] = None,
-        json_parent: Optional[Tuple[str, ...]] = None,
-    ) -> List[Tuple[str, Tuple[str, ...], type]]:
+        env_parent: str | None = None,
+        json_parent: tuple[str, ...] | None = None,
+    ) -> list[tuple[str, tuple[str, ...], type]]:
         """Calculate valid environment variables and their config structure location.
 
         :param env_parent: The name of the parent environment variable.
@@ -202,10 +214,11 @@ class ConfigWizard(JSONWizard, YAMLWizard):  # type: ignore[misc] # dataclass-wi
         output = []
 
         for (
-                _,
-                val,
-        ) in (cls.__dataclass_fields__.items()  # pylint: disable=no-member; false positive
-              ):  # pylint: disable=no-member; member is added by dataclass.
+            _,
+            val,
+        ) in (
+            cls.__dataclass_fields__.items()  # pylint: disable=no-member; false positive
+        ):  # pylint: disable=no-member; member is added by dataclass.
             jsonname = val.json.keys[0]
             envname = jsonname.upper()
 
@@ -221,15 +234,17 @@ class ConfigWizard(JSONWizard, YAMLWizard):  # type: ignore[misc] # dataclass-wi
             # add entry to output list
             if is_embedded_config:
                 new_env_parent = f"{env_parent}_{envname}"
-                new_json_parent = json_parent + (jsonname, )
-                output += val.type.envvars(env_parent=new_env_parent, json_parent=new_json_parent)
+                new_json_parent = json_parent + (jsonname,)
+                output += val.type.envvars(
+                    env_parent=new_env_parent, json_parent=new_json_parent
+                )
             elif val.metadata.get("env", True):
-                output += [(full_envname, json_parent + (jsonname, ), val.type)]
+                output += [(full_envname, json_parent + (jsonname,), val.type)]
 
         return output
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "ConfigWizard":
+    def from_dict(cls, data: dict[str, Any]) -> "ConfigWizard":
         """Create a ConfigWizard instance from a dictionary.
 
         :param data: The dictionary containing the configuration data.
@@ -260,7 +275,8 @@ class ConfigWizard(JSONWizard, YAMLWizard):  # type: ignore[misc] # dataclass-wi
                 )
 
         LoadMeta(key_transform="CAMEL").bind_to(cls)
-        return fromdict(cls, data)  # type: ignore[no-any-return] # dataclass-wizard doesn't provide stubs
+        # type: ignore[no-any-return] # dataclass-wizard doesn't provide stubs
+        return fromdict(cls, data)
 
     @classmethod
     def from_file(cls, filepath: str) -> Optional["ConfigWizard"]:
@@ -273,13 +289,16 @@ class ConfigWizard(JSONWizard, YAMLWizard):  # type: ignore[misc] # dataclass-wi
         """
         # open the file
         try:
-            # pylint: disable-next=consider-using-with; using a with would make exception handling even more ugly
+            # pylint: disable-next=consider-using-with; using a with would make
+            # exception handling even more ugly
             file = open(filepath, encoding="utf-8")
         except FileNotFoundError:
             _LOGGER.error("The configuration file cannot be found.")
             file = None
         except PermissionError:
-            _LOGGER.error("Permission denied when trying to read the configuration file.")
+            _LOGGER.error(
+                "Permission denied when trying to read the configuration file."
+            )
             file = None
         if not file:
             return None
@@ -302,7 +321,9 @@ class ConfigWizard(JSONWizard, YAMLWizard):  # type: ignore[misc] # dataclass-wi
             try:
                 config = cls.from_dict(data)
             except errors.MissingFields as err:
-                _LOGGER.error("Configuration is missing required fields: \n%s", str(err))
+                _LOGGER.error(
+                    "Configuration is missing required fields: \n%s", str(err)
+                )
                 config = None
             except errors.ParseError as err:
                 _LOGGER.error("Invalid configuration value provided:\n%s", str(err))
@@ -313,7 +334,7 @@ class ConfigWizard(JSONWizard, YAMLWizard):  # type: ignore[misc] # dataclass-wi
         return config
 
 
-def read_json_or_yaml(stream: TextIO) -> Dict[str, Any]:
+def read_json_or_yaml(stream: TextIO) -> dict[str, Any]:
     """Read a file without knowing if it is JSON or YAML formatted.
 
     The file will first be assumed to be JSON formatted. If this fails, an attempt to parse the file with the YAML
@@ -326,11 +347,11 @@ def read_json_or_yaml(stream: TextIO) -> Dict[str, Any]:
     :rtype: typing.Dict[str, typing.Any]:
     :raises ValueError: If the IO stream is not seekable or if the file doesn't appear to be JSON or YAML formatted.
     """
-    exceptions: Dict[str, Union[None, ValueError, yaml.error.YAMLError]] = {
+    exceptions: dict[str, None | ValueError | yaml.error.YAMLError] = {
         "JSON": None,
         "YAML": None,
     }
-    data: Dict[str, Any]
+    data: dict[str, Any]
 
     # ensure we can rewind the file
     if not stream.seekable():
@@ -355,7 +376,9 @@ def read_json_or_yaml(stream: TextIO) -> Dict[str, Any]:
         return data
 
     # neither json nor yaml
-    err_msg = "\n\n".join([key + " Parser Errors:\n" + str(val) for key, val in exceptions.items()])
+    err_msg = "\n\n".join(
+        [key + " Parser Errors:\n" + str(val) for key, val in exceptions.items()]
+    )
     raise ValueError(err_msg)
 
 
@@ -374,8 +397,8 @@ def try_json_load(value: str) -> Any:
 
 
 def update_dict(
-    data: Dict[str, Any],
-    path: Tuple[str, ...],
+    data: dict[str, Any],
+    path: tuple[str, ...],
     value: Any,
     overwrite: bool = False,
 ) -> None:
@@ -408,4 +431,5 @@ def update_dict(
             return
 
         # get next hop
-        target = target.get(key)  # type: ignore[assignment] # type has already been enforced.
+        # type: ignore[assignment] # type has already been enforced.
+        target = target.get(key)

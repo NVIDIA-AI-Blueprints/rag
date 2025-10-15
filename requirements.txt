@@ -1,2 +1,2 @@
-jupyterlab>3.0
+jupyterlab>3.6.8
 aiohttp

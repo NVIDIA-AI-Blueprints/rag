@@ -1,6 +1,6 @@
-services: 
+services:
   otel-collector:
-    image: otel/opentelemetry-collector-contrib:0.91.0
+    image: otel/opentelemetry-collector-contrib:0.131.0
     hostname: otel-collector
     command: ["--config=/etc/otel-collector-config.yaml"]
     volumes:
@@ -45,6 +45,8 @@ services:
     image: grafana/grafana
     ports:
       - "3000:3000"
+    volumes:
+      - ../config/grafana.yaml:/etc/grafana/provisioning/datasources/grafana.yaml
 
 networks:
   default:

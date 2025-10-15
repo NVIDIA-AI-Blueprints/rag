@@ -1,0 +1,54 @@
+start: or_expr
+?or_expr: and_expr
+        | or_expr LOGICAL_OR and_expr   -> or_expr
+?and_expr: not_expr
+         | and_expr LOGICAL_AND not_expr -> and_expr
+?not_expr: LOGICAL_NOT not_expr        -> not_expr
+         | atom
+?atom: comparison
+     | LPAREN or_expr RPAREN           -> paren_expr
+?comparison: field LIKE_OP ESCAPED_STRING   -> like_comparison
+           | field COMPARISON_OP value
+           | field IS_NULL_OP -> is_null_comparison
+           | field BETWEEN_KEYWORD value LOGICAL_AND value -> between_comparison
+           | field BEFORE_AFTER_OP value -> before_after_comparison
+           | field ARRAY_OP value  -> array_comparison
+           | ARRAY_FUNC LPAREN field COMMA value RPAREN -> array_function
+           | ARRAY_FUNC LPAREN field RPAREN COMPARISON_OP value -> array_length_comparison
+           | value IN_OP field -> array_membership
+           | value NOT_IN_OP field -> array_membership_negated
+           | field IN_OP value -> field_in_list
+           | field NOT_IN_OP value -> field_not_in_list
+field: FIELD_REF
+FIELD_REF: /content_metadata\["[^"]+"\]/
+value: BOOLEAN 
+     | ESCAPED_STRING 
+     | SIGNED_NUMBER 
+     | NULL_VALUE
+     | array_literal
+LOGICAL_AND: "and" | "AND"
+LOGICAL_OR: "or" | "OR"
+LOGICAL_NOT: "not" | "NOT"
+BOOLEAN: "true" | "false" | "True" | "False" | "TRUE" | "FALSE" | "1" | "0" | "on" | "off" | "ON" | "OFF"
+NULL_VALUE: "null" | "NULL"
+IS_NULL_OP: "is null" | "IS NULL" | "is not null" | "IS NOT NULL"
+array_literal: LBRACK [array_elements] RBRACK
+array_elements: array_element (COMMA array_element)*
+array_element: ESCAPED_STRING | SIGNED_NUMBER | BOOLEAN | NULL_VALUE
+LBRACK: "["
+RBRACK: "]"
+COMMA: ","
+COMPARISON_OP: "==" | "=" | "!=" | ">" | ">=" | "<" | "<="
+LIKE_OP: "like" | "LIKE"
+BETWEEN_KEYWORD: "between" | "BETWEEN"
+BEFORE_AFTER_OP: "before" | "BEFORE" | "after" | "AFTER"
+IN_OP: "in" | "IN"
+NOT_IN_OP: "not in" | "NOT IN"
+ARRAY_OP: "does not include" | "DOES NOT INCLUDE" | "includes" | "INCLUDES"
+ARRAY_FUNC: "array_contains" | "array_contains_all" | "array_contains_any" | "array_length"
+LPAREN: "("
+RPAREN: ")"
+%import common.ESCAPED_STRING
+%import common.SIGNED_NUMBER
+%import common.WS
+%ignore WS 

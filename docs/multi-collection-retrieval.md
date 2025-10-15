@@ -2,10 +2,9 @@
   SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
   SPDX-License-Identifier: Apache-2.0
 -->
+# Multi-Collection Retrieval for NVIDIA RAG Blueprint
 
-# Multi-Collection Retrieval
-
-This document describes how to use the NVIDIA RAG system to retrieve and generate responses from multiple vector collections simultaneously.
+This document describes how to use the [NVIDIA RAG Blueprint](readme.md) to retrieve and generate responses from multiple vector collections simultaneously.
 
 ## Overview
 
@@ -25,7 +24,7 @@ Multi-collection retrieval has the following limitations:
 
 ## Prerequisites
 
-Multi-collection retrieval requires reranking to be enabled. The reranker service and environment variables are enabled by default in Docker and HELM deployments. Ensure the reranking microservice is deployed and accessible at the configured URL.
+Multi-collection retrieval requires reranking to be enabled. The reranker service and environment variables are enabled by default in Docker and Helm deployments. Ensure the reranking microservice is deployed and accessible at the configured URL.
 
 ### For Docker Compose Deployment
 
@@ -47,7 +46,7 @@ export APP_RANKING_SERVERURL="nemoretriever-ranking-ms:8000"
 
 ### For Helm Deployment
 
-The reranker settings are configured in `deploy/helm/rag-server/values.yaml`. Ensure the following settings are enabled (these are enabled by default):
+The reranker settings are configured in `deploy/helm/nvidia-blueprint-rag/values.yaml`. Ensure the following settings are enabled (these are enabled by default):
 
 ```yaml
 envVars:
@@ -143,7 +142,7 @@ environment:
   VECTOR_DB_TOPK: ${VECTOR_DB_TOPK:-50}
 ```
 
-**For Helm**: Edit `deploy/helm/rag-server/values.yaml`:
+**For Helm**: Edit `deploy/helm/nvidia-blueprint-rag/values.yaml`:
 ```yaml
 envVars:
   # Reduce from default "100" to a lower value

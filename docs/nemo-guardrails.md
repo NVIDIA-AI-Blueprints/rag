@@ -2,241 +2,203 @@
   SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
   SPDX-License-Identifier: Apache-2.0
 -->
+# NeMo Guardrails Support in NVIDIA RAG Blueprint
 
-# NeMo Guardrails Setup for RAG Blueprint
+This guide provides step-by-step instructions to enable NeMo Guardrails for the [NVIDIA RAG Blueprint](readme.md), enabling you to control and safeguard LLM interactions.
 
-This guide provides step-by-step instructions to enable **NeMo Guardrails** for the RAG Blueprint, allowing you to control and safeguard LLM interactions.
+> [!WARNING]
+>
+> B200 GPUs are not supported for NeMo Guardrails for guardrails at input/output.
+> For this feature, use H100 or A100 GPUs instead.
 
-## Overview
 
 NeMo Guardrails is a framework that provides safety and security measures for LLM applications. When enabled, it provides:
+
 - Content safety filtering
 - Topic control to prevent off-topic conversations
 - Jailbreak detection to prevent prompt attacks
 
-## Hardware Requirements
 
-The NeMo Guardrails models have specific hardware requirements:
 
-- **Llama 3.1 NemoGuard 8B Content Safety Model**: Requires 48 GB of GPU memory
-- **Llama 3.1 NemoGuard 8B Topic Control Model**: Requires 48 GB of GPU memory
+## Prerequisites
 
-**Note:** You need two separate GPUs (2 x H100 or 2 x A100) for deployment, as each model must be deployed on its own dedicated GPU - one for the Content Safety model and another for the Topic Control model.
+1. Follow the prerequisites for your deployment method:
 
-NVIDIA developed and tested these microservices using H100 and A100 GPUs.
+    - [Deploy with Docker (Self-Hosted Models)](deploy-docker-self-hosted.md)
+    - [Deploy with Docker (NVIDIA-Hosted Models)](deploy-docker-nvidia-hosted.md)
+    <!-- - [Deploy with Helm](deploy-helm.md) -->
 
-For detailed hardware compatibility and support information:
-- [Llama 3.1 NemoGuard 8B Content Safety Support Matrix](https://docs.nvidia.com/nim/llama-3-1-nemoguard-8b-contentsafety/latest/support-matrix.html)
-- [Llama 3.1 NemoGuard 8B Topic Control Support Matrix](https://docs.nvidia.com/nim/llama-3-1-nemoguard-8b-topiccontrol/latest/support-matrix.html)
 
----
-
-## Setting Up NeMo Guardrails
-
-### Prerequisites
-- Docker and Docker Compose installed
-- NVIDIA API Key configured
-- Docker configured for GPU access
-- RAG Server must be running before starting NeMo Guardrails services
-
----
-
-### Deployment Options
-
-You can deploy NeMo Guardrails using one of the following methods:
-
-1. **Self-hosted Deployment (Docker Compose)** – Default method running all guardrails services locally on your hardware
-2. **Cloud Deployment** – Uses NVIDIA-hosted models instead of running the models locally
-3. **Helm Deployment** – Deploys NeMo Guardrails as a Helm chart on a Kubernetes cluster (local deployment only)
-
----
-
-## Option 1: Self-hosted Deployment (Default)
-
-### Step 1: Enable Guardrails
-
-Set the environment variable to enable guardrails:
-
-```bash
-export ENABLE_GUARDRAILS=true
-export DEFAULT_CONFIG=nemoguard
-```
-
-After setting these environment variables, you must restart the RAG server for `ENABLE_GUARDRAILS` to take effect:
-
-```bash
-docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d
-```
-
-**Note:** For on-premises deployment, the default NIM service must be up and running. If you're unable to run the NIM service locally, you can use NVIDIA's cloud-hosted LLM by exporting the NIM endpoint URL:
-
-```bash
-# Use NVIDIA's cloud-hosted LLM
-export NIM_ENDPOINT_URL=https://integrate.api.nvidia.com/v1
-# Or provide your own custom NIM endpoint URL
-# export NIM_ENDPOINT_URL=<your-custom-nim-endpoint-url>
-```
-
----
-
-### Step 2: Create Model Cache Directory
-
-Create a directory for caching models (if not already created):
-
-```bash
-mkdir -p ~/.cache/model-cache
-```
-
----
-
-### Step 3: Set Model Directory Path
-
-Set the model directory path:
-
-```bash
-export MODEL_DIRECTORY=~/.cache/model-cache
-```
-
----
-
-### Step 3a: Check Available GPUs and Set GPU IDs
-
-Check your available GPUs and their IDs:
-
-```bash
-nvidia-smi
-```
-
-This will display all available GPUs with their IDs, memory usage, and utilization. Based on this information, you can export specific GPU IDs for the guardrails services:
-
-```bash
-# By default, the services use GPU IDs 7 and 6
-# Set these to appropriate values based on your system configuration
-export CONTENT_SAFETY_GPU_ID=0  # Choose GPU ID for content safety model
-export TOPIC_CONTROL_GPU_ID=1   # Choose GPU ID for topic control model
-```
-
-**Note:** Each model requires a dedicated GPU with at least 48GB of memory. Make sure to select GPUs with sufficient available memory.
-
----
-
-### Step 4: Start NeMo Guardrails Service
-
-Start the NeMo Guardrails service using Docker Compose:
-
-```bash
-USERID=$(id -u) docker compose -f deploy/compose/docker-compose-nemo-guardrails.yaml up -d
-```
-
-This command starts the following services:
-- NeMo Guardrails microservice
-- Content safety model
-- Topic control model
-
-**Note:** The NemoGuard services may take several minutes to fully initialize. You can monitor their status with:
-
-```bash
-watch -n 2 'docker ps --format "table {{.Names}}\t{{.Status}}" | grep -E "nemoguard|guardrails"'
-```
-
-Wait until you see all services showing as "healthy" before proceeding:
-
-```
-llama-3.1-nemoguard-8b-topic-control    Up 5 minutes (healthy)
-llama-3.1-nemoguard-8b-content-safety   Up 5 minutes (healthy)
-nemo-guardrails-microservice            Up 4 minutes (healthy)
-```
-
----
-
-### Step 5: Enable Guardrails from the UI or while sending API request
-
-Once the services are running, you can enable guardrails from the RAG Playground UI:
-
-1. Open the RAG Playground UI
-2. Go to Settings by clicking on the top right corner of the UI
-3. In the "Output Preferences" section, toggle "Guardrails" to ON (as shown in the screenshot below)
-4. In case you are using notebooks or APIs to interact directly with `rag-server` instead of RAG Playground UI, set `enable_guardrails` to `True` in your /generate request payload.
-
-![Guardrails toggle in Output Preferences](./assets/toggle_nemo_guardrails.png)
-
----
-
-#### Option 2: Cloud Deployment
-
-For cloud deployment using NVIDIA-hosted models instead of the default self-hosted deployment:
-
-```bash
-# Set configuration for cloud deployment
-export DEFAULT_CONFIG=nemoguard_cloud
-export NIM_ENDPOINT_URL=https://integrate.api.nvidia.com/v1
-
-# Start only the guardrails microservice
-docker compose -f deploy/compose/docker-compose-nemo-guardrails.yaml up -d --no-deps nemo-guardrails-microservice
-```
-
-**Note:** Before starting the cloud deployment, verify that the model names in the configuration file are correct:
-
-```bash
-cat deploy/compose/nemoguardrails/config-store/nemoguard_cloud/config.yml
-```
-
-Ensure that the model names in this file match the models available in your NVIDIA API account. You may need to update these names based on the specific models you have access to.
-
----
-
-## Option 3: Helm Deployment (Local Deployment Only)
-
-Alternatively, you can deploy NeMo Guardrails using Helm for Kubernetes environments.
-
-### Step 1: Install NeMo Guardrails Helm Chart
-
-Follow the instructions to install the chart in inference mode:
-
-👉 [https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo-microservices/helm-charts/nemo-guardrails](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo-microservices/helm-charts/nemo-guardrails)
-
-### Step 2: Retrieve NeMo Guardrails Service URL
-
-After deploying the chart, obtain the URL of the NeMo Guardrails service (external IP or internal cluster service name).
-
-You can retrieve it using:
-
-```bash
-kubectl get svc -n <namespace>
-```
-
-Locate the `nemo-guardrails` service and copy its URL.
-
-### Step 3: Update RAG Blueprint Deployment with NeMo Guardrails
-
-Use the Helm upgrade command below to enable NeMo Guardrails in RAG Blueprint by setting `ENABLE_GUARDRAILS` and the `NEMO_GUARDRAILS_URL`:
-
-```bash
-helm upgrade rag -n rag https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.2.0.tgz \
-  --username '$oauthtoken' \
-  --password "${NGC_API_KEY}" \
-  --set imagePullSecret.password=${NGC_API_KEY} \
-  --set ngcApiSecret.password=${NGC_API_KEY} \
-  --set envVars.ENABLE_GUARDRAILS="True" \
-  --set envVars.NEMO_GUARDRAILS_URL="<URL OF THE NEMO GUARDRAILS SERVICE>"
-```
-
-Replace `<URL OF THE NEMO GUARDRAILS SERVICE>` with the URL you obtained.
-
-This will configure the RAG server to route guardrails functionality to the deployed NeMo Guardrails service.
-
-**⚠️ IMPORTANT NOTE:** In case you are using notebooks or APIs to interact directly with rag-server instead of RAG Playground UI, set `enable_guardrails` to `True` in your `/generate` request payload.
-
----
 
 ## Current Limitations
 
-- The Jailbreak detection model is currently not available. This feature will be added in future updates.
-- User queries which attempt to jailbreak the system (asking the bot to behave in a certain way) may not work as expected in the current version. These jailbreak attempts could be better addressed with the [NemoGuard-Jailbreak-Detect](https://build.nvidia.com/nvidia/nemoguard-jailbreak-detect) NIM Micro-service, which currently does not offer out-of-the-box support.
+- Currently, Helm-based deployment is not supported for NeMo Guardrails.
+- Currently, the Jailbreak detection model is not available.
+- User queries which attempt to jailbreak the system (asking the bot to behave in a certain way) may not work as expected in the current version. These jailbreak attempts could be better addressed with the [NemoGuard-Jailbreak-Detect](https://build.nvidia.com/nvidia/nemoguard-jailbreak-detect) NIM Microservice, which currently does not offer out-of-the-box support.
 - Both the content-safety and topic-control models are trained on single-turn datasets, meaning they don't handle multi-turn conversations as effectively. When the bot combines multiple queries and previous context, it may inconsistently flag certain phrases as safe or unsafe.
-- The current version of Guardrails is tuned to provide simple safe responses, such as "I'm sorry. I can't respond to that." More meaningful responses with enhanced caution notes will be available in future releases.
+- The current version of Guardrails is tuned to provide simple safe responses, such as "I'm sorry. I can't respond to that."
 
----
+
+
+## Hardware Requirements
+
+You need two extra GPUs (2 x H100 or 2 x A100) for deployment, as each model must be deployed on its own dedicated GPU - one for the Content Safety model and another for the Topic Control model.
+
+The NeMo Guardrails models have specific hardware requirements:
+
+- **Llama 3.1 NemoGuard 8B Content Safety Model**: Requires 48 GB of GPU memory. Refer to [Support Matrix](https://docs.nvidia.com/nim/llama-3-1-nemoguard-8b-contentsafety/latest/support-matrix.html).
+- **Llama 3.1 NemoGuard 8B Topic Control Model**: Requires 48 GB of GPU memory. Refer to [Support Matrix](https://docs.nvidia.com/nim/llama-3-1-nemoguard-8b-topiccontrol/latest/support-matrix.html).
+
+
+NVIDIA developed and tested these microservices using H100 and A100 GPUs.
+
+
+
+## Deployment Option 1: Self-Hosted Microservices (Default)
+
+To deploy all guardrails services on your own dedicated hardware, use the following procedure.
+
+1. The RAG Server must be running before you start NeMo Guardrails services.
+
+    > [!Note]
+    > For self-hosted deployment, the default NIM service must be up and running. 
+    > If you're unable to run the NIM service locally, 
+    > you can use NVIDIA's cloud-hosted LLM by exporting the NIM endpoint URL.
+    > 
+    > ```bash
+    > # Use NVIDIA-hosted LLM
+    > export NIM_ENDPOINT_URL=https://integrate.api.nvidia.com/v1
+    > # Or provide your own custom NIM endpoint URL
+    > # export NIM_ENDPOINT_URL=<your-custom-nim-endpoint-url>
+    > ```
+
+2. Set the environment variable to enable guardrails by running the following code.
+
+    ```bash
+    export ENABLE_GUARDRAILS=true
+    export DEFAULT_CONFIG=nemoguard
+    ```
+
+3. After you update the environment variables, you must restart the RAG server by running the following code.
+
+    ```bash
+    docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d
+    ```
+
+4. Create a directory for caching models by running the following code. Ensure that you create a different one than the one used by other models of this blueprint.
+
+    ```bash
+    mkdir -p ~/.cache/nemoguard-model-cache
+    ```
+
+5. Set the model directory path by running the following code.
+
+    ```bash
+    export MODEL_DIRECTORY=~/.cache/nemoguard-model-cache
+    ```
+
+6. Check your available GPUs and their IDs by running the following code.
+
+   This displays all available GPUs with their IDs, memory usage, and utilization. 
+
+    ```bash
+    nvidia-smi
+    ```
+
+7. Use the information in the previous step to export specific GPU IDs for the guardrails services by running the following code.
+
+    ```bash
+    # By default, the services use GPU IDs 7 and 6
+    # Set these to appropriate values based on your system configuration
+    export CONTENT_SAFETY_GPU_ID=0  # Choose GPU ID for content safety model
+    export TOPIC_CONTROL_GPU_ID=1   # Choose GPU ID for topic control model
+    ```
+
+    > [!Note]
+    > Each model requires a dedicated GPU with at least 48GB of memory. Select GPUs with sufficient available memory.
+
+8. Start the NeMo Guardrails service by running the following code.
+
+    ```bash
+    USERID=$(id -u) docker compose -f deploy/compose/docker-compose-nemo-guardrails.yaml up -d
+    ```
+
+    This command starts the following services:
+
+    - NeMo Guardrails microservice
+    - Content safety model
+    - Topic control model
+
+
+9. (Optional) The NemoGuard services might take several minutes to fully initialize. You can monitor their status by running the following code. 
+
+    ```bash
+    watch -n 2 'docker ps --format "table {{.Names}}\t{{.Status}}" | grep -E "nemoguard|guardrails"'
+    ```
+
+    You should see output similar to the following. Wait until all services appear as `healthy` before you proceed to the next step.
+
+    ```
+    llama-3.1-nemoguard-8b-topic-control    Up 5 minutes (healthy)
+    llama-3.1-nemoguard-8b-content-safety   Up 5 minutes (healthy)
+    nemo-guardrails-microservice            Up 4 minutes (healthy)
+    ```
+
+
+## Option 2: NVIDIA-Hosted Deployment
+
+To deploy all guardrails services using NVIDIA-hosted models, use the following procedure.
+
+1. The RAG Server must be running before you start NeMo Guardrails services.
+
+2. Verify that the model names in the configuration file are correct by running the following code.
+
+    ```bash
+    cat deploy/compose/nemoguardrails/config-store/nemoguard_cloud/config.yml
+    ```
+
+    Ensure that the model names in this file match the models available in your NVIDIA API account. You might need to update these names based on the specific models that you have access to.
+
+3. Enable guardrails by running the following code.
+
+    ```bash
+    # Set configuration for cloud deployment
+    export ENABLE_GUARDRAILS=true
+    export DEFAULT_CONFIG=nemoguard_cloud
+    export NIM_ENDPOINT_URL=https://integrate.api.nvidia.com/v1
+    ```
+
+4. Start the Guardrails microservice by running the following code.
+
+    ```bash
+    docker compose -f deploy/compose/docker-compose-nemo-guardrails.yaml up -d --no-deps nemo-guardrails-microservice
+    ```
+
+5. Restart the RAG server by running the following code.
+
+    ```bash
+    docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d
+    ```
+
+
+
+## Enable Guardrails from the UI or while sending API request
+
+After the services are running, you can enable guardrails from the RAG UI:
+
+1. Open the [RAG UI](user-interface.md).
+2. Click **Settings**.
+3. In the **Output Preferences** section, toggle **Guardrails** to on.
+
+    <p align="left">
+        <img src="assets/toggle_nemo_guardrails.png" >
+    </p>
+
+If you are using notebooks or APIs to interact directly with `rag-server`, set `enable_guardrails` to `True` in your /generate request payload.
+
+
+
+
 
 ## Troubleshooting
 
@@ -266,15 +228,10 @@ llama-3.1-nemoguard-8b-topic-control    Up 19 minutes
 llama-3.1-nemoguard-8b-content-safety   Up 19 minutes
 ```
 
----
 
-## Additional Information
 
-For more information about NeMo Guardrails, visit the [NeMo Guardrails documentation](https://docs.nvidia.com/nemo-guardrails/).
+## Related Topics
 
-## References
-
-- [NeMo Guardrails Microservice Overview](https://developer.nvidia.com/docs/nemo-microservices/guardrails/source/overview.html) - Detailed information about the NeMo Guardrails microservice architecture and capabilities
-- [Integrating with NemoGuard NIM Microservices](https://developer.nvidia.com/docs/nemo-microservices/guardrails/source/guides/integrate-nim.html) - Guide for integrating NemoGuard NIM microservices into your application
-
----
+- [NeMo Guardrails](https://docs.nvidia.com/nemo-guardrails/)
+- [NeMo Guardrails Microservice Overview](https://docs.nvidia.com/nemo/microservices/latest/guardrails/index.html)
+- [Integrating with NemoGuard NIM Microservices](https://docs.nvidia.com/nemo/microservices/latest/guardrails/tutorials/integrate-nemoguard-nims.html)

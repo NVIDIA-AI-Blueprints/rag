@@ -42,22 +42,22 @@
               }
             }
           },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          },
           "500": {
             "description": "Internal Server Error",
             "content": {
               "application/json": {
                 "example": {
                   "detail": "Internal server error occurred"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -94,16 +94,6 @@
               }
             }
           },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          },
           "499": {
             "description": "Client Closed Request",
             "content": {
@@ -120,6 +110,16 @@
               "application/json": {
                 "example": {
                   "detail": "Internal server error occurred"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -156,22 +156,22 @@
               }
             }
           },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          },
           "500": {
             "description": "Internal Server Error",
             "content": {
               "application/json": {
                 "example": {
                   "detail": "Internal server error occurred"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -208,16 +208,6 @@
               }
             }
           },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          },
           "499": {
             "description": "Client Closed Request",
             "content": {
@@ -234,6 +224,16 @@
               "application/json": {
                 "example": {
                   "detail": "Internal server error occurred"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -322,16 +322,6 @@
               }
             }
           },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          },
           "499": {
             "description": "Client Closed Request",
             "content": {
@@ -349,6 +339,16 @@
                 "example": {
                   "message": "Error occurred while getting summary.",
                   "error": "Internal server error details"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -446,14 +446,14 @@
             "default": 0
           },
           "message": {
-            "$ref": "#/components/schemas/Message",
+            "$ref": "#/components/schemas/Message-Output",
             "default": {
               "role": "assistant",
               "content": ""
             }
           },
           "delta": {
-            "$ref": "#/components/schemas/Message",
+            "$ref": "#/components/schemas/Message-Output",
             "default": {
               "content": ""
             }
@@ -608,7 +608,7 @@
           },
           "messages": {
             "items": {
-              "$ref": "#/components/schemas/Message"
+              "$ref": "#/components/schemas/Message-Input"
             },
             "type": "array",
             "maxItems": 50000,
@@ -627,6 +627,12 @@
             "title": "Enable Reranker",
             "description": "Enable or disable reranking by the ranker model.",
             "default": true
+          },
+          "enable_filter_generator": {
+            "type": "boolean",
+            "title": "Enable Filter Generator",
+            "description": "Enable or disable automatic filter expression generation from natural language.",
+            "default": false
           },
           "embedding_model": {
             "type": "string",
@@ -664,12 +670,28 @@
             "default": "nemoretriever-ranking-ms:8000"
           },
           "filter_expr": {
-            "type": "string",
-            "maxLength": 100,
-            "pattern": "[\\s\\S]*",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "items": {
+                  "type": "object"
+                },
+                "type": "array"
+              }
+            ],
             "title": "Filter Expr",
             "description": "Filter expression to filter the retrieved documents from Milvus collection.",
             "default": ""
+          },
+          "confidence_threshold": {
+            "type": "number",
+            "maximum": 1,
+            "minimum": 0,
+            "title": "Confidence Threshold",
+            "description": "Minimum confidence score threshold for filtering chunks. Only chunks with relevance scores >= this threshold will be included. Range: 0.0 to 1.0. Default: 0.0 (no filtering). Note: Requires enable_reranker=True to generate relevance scores. Warning: Setting threshold too high may result in 0 documents being returned, causing the RAG server to be unable to provide answers due to lack of context. Recommended threshold range: 0.3-0.5 for optimal balance of quality and coverage. Consider setting a reasonable minimum threshold to ensure sufficient context is available.",
+            "default": 0
           }
         },
         "type": "object",
@@ -724,25 +746,130 @@
         "title": "HealthResponse",
         "description": "Overall health response with specialized fields for each service type"
       },
-      "Message": {
+      "ImageContent": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "image_url"
+            ],
+            "const": "image_url",
+            "title": "Type",
+            "description": "The type of content",
+            "default": "image_url"
+          },
+          "image_url": {
+            "$ref": "#/components/schemas/ImageUrl",
+            "description": "The image URL object"
+          }
+        },
+        "type": "object",
+        "required": [
+          "image_url"
+        ],
+        "title": "ImageContent",
+        "description": "Image content for message."
+      },
+      "ImageUrl": {
+        "properties": {
+          "url": {
+            "type": "string",
+            "maxLength": 20971520,
+            "title": "Url",
+            "description": "Either a URL of the image or the base64 encoded image data. Supports data URIs in the format data:image/jpeg;base64,\u003Cbase64-data\u003E"
+          },
+          "detail": {
+            "type": "string",
+            "enum": [
+              "low",
+              "high",
+              "auto"
+            ],
+            "title": "Detail",
+            "description": "Specifies the detail level for image processing. This field maintains OpenAI API compatibility but may not affect processing in NVIDIA RAG's internal VLM pipeline. Future integrations may utilize this field.",
+            "default": "auto"
+          }
+        },
+        "type": "object",
+        "required": [
+          "url"
+        ],
+        "title": "ImageUrl",
+        "description": "Image URL content for message."
+      },
+      "Message-Input": {
         "properties": {
           "role": {
             "enum": [
               "user",
               "assistant",
               "system",
-              null
-            ],
+              null],
             "title": "Role",
             "description": "Role for a message: either 'user' or 'assistant' or 'system",
             "default": "user"
           },
           "content": {
-            "type": "string",
-            "maxLength": 131072,
-            "pattern": "[\\s\\S]*",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "items": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/TextContent"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ImageContent"
+                    }
+                  ]
+                },
+                "type": "array"
+              }
+            ],
             "title": "Content",
-            "description": "The input query/prompt to the pipeline.",
+            "description": "The input query/prompt to the pipeline. Can be a string for text-only messages, or an array of content objects for multimodal messages containing text and/or images.",
+            "default": "Hello! What can you help me with?"
+          }
+        },
+        "type": "object",
+        "title": "Message",
+        "description": "Definition of the Chat Message type."
+      },
+      "Message-Output": {
+        "properties": {
+          "role": {
+            "enum": [
+              "user",
+              "assistant",
+              "system",
+              null],
+            "title": "Role",
+            "description": "Role for a message: either 'user' or 'assistant' or 'system",
+            "default": "user"
+          },
+          "content": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "items": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/TextContent"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ImageContent"
+                    }
+                  ]
+                },
+                "type": "array"
+              }
+            ],
+            "title": "Content",
+            "description": "The input query/prompt to the pipeline. Can be a string for text-only messages, or an array of content objects for multimodal messages containing text and/or images.",
             "default": "Hello! What can you help me with?"
           }
         },
@@ -816,7 +943,7 @@
         "properties": {
           "messages": {
             "items": {
-              "$ref": "#/components/schemas/Message"
+              "$ref": "#/components/schemas/Message-Input"
             },
             "type": "array",
             "maxItems": 50000,
@@ -928,20 +1055,26 @@
             "description": "Enable or disable VLM inference.",
             "default": false
           },
+          "enable_filter_generator": {
+            "type": "boolean",
+            "title": "Enable Filter Generator",
+            "description": "Enable or disable automatic filter expression generation from natural language.",
+            "default": false
+          },
           "model": {
             "type": "string",
             "maxLength": 4096,
             "pattern": "[\\s\\S]*",
             "title": "Model",
             "description": "Name of NIM LLM model to be used for inference.",
-            "default": "nvidia/llama-3.3-nemotron-super-49b-v1"
+            "default": "nvidia/llama-3.3-nemotron-super-49b-v1.5"
           },
           "llm_endpoint": {
             "type": "string",
             "maxLength": 2048,
             "title": "Llm Endpoint",
             "description": "Endpoint URL for the llm model server.",
-            "default": ""
+            "default": "nim-llm:8000"
           },
           "embedding_model": {
             "type": "string",
@@ -1018,12 +1151,28 @@
             "default": []
           },
           "filter_expr": {
-            "type": "string",
-            "maxLength": 100,
-            "pattern": "[\\s\\S]*",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "items": {
+                  "type": "object"
+                },
+                "type": "array"
+              }
+            ],
             "title": "Filter Expr",
-            "description": "Filter expression to filter the retrieved documents from Milvus collection.",
+            "description": "Filter expression to filter documents from vector database. Can be a string or a list of dictionaries with filter conditions.",
             "default": ""
+          },
+          "confidence_threshold": {
+            "type": "number",
+            "maximum": 1,
+            "minimum": 0,
+            "title": "Confidence Threshold",
+            "description": "Minimum confidence score threshold for filtering chunks. Only chunks with relevance scores \u003E= this threshold will be included. Range: 0.0 to 1.0. Default: 0.0 (no filtering). Note: Requires enable_reranker=True to generate relevance scores.",
+            "default": 0
           }
         },
         "type": "object",
@@ -1116,7 +1265,9 @@
             "type": "object",
             "title": "Content Metadata",
             "description": "Metadata about the content",
-            "default": {}
+            "default": {
+
+            }
           }
         },
         "type": "object",
@@ -1276,6 +1427,33 @@
         "type": "object",
         "title": "SummaryResponse",
         "description": "Represents a summary of a document."
+      },
+      "TextContent": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "text"
+            ],
+            "const": "text",
+            "title": "Type",
+            "description": "The type of content",
+            "default": "text"
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 131072,
+            "pattern": "[\\s\\S]*",
+            "title": "Text",
+            "description": "The text content"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "title": "TextContent",
+        "description": "Text content for message."
       },
       "Usage": {
         "properties": {

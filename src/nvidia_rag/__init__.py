@@ -15,8 +15,13 @@
 
 # Import the necessary modules and classes for the package
 import logging
-logger = logging.getLogger(__name__)
+import os
 
+# Configure logging at the package level to ensure all nvidia_rag modules inherit correct levels
+# This must happen before any other nvidia_rag module imports
+logging.basicConfig(level=os.environ.get("LOGLEVEL", "INFO").upper(), force=True)
+
+logger = logging.getLogger(__name__)
 try:
     from .rag_server.main import NvidiaRAG
 except ModuleNotFoundError as e:
@@ -26,4 +31,3 @@ try:
     from .ingestor_server.main import NvidiaRAGIngestor
 except ModuleNotFoundError as e:
     logger.debug(f"Error importing NvidiaRAGIngestor: {e}")
-

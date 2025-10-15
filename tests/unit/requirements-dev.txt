@@ -1,0 +1,8 @@
+# Development requirements for NVIDIA RAG Blueprint
+# This file includes everything needed for local development and testing
+
+# Install the package with all optional dependencies
+-e .[all]
+
+# Test-specific dependencies
+-r requirements-test.txt 

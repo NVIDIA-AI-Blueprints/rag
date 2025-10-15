@@ -1,0 +1,47 @@
+apiVersion: v2
+appVersion: v2.3.0
+dependencies:
+- condition: nim-llm.enabled
+  name: nim-llm
+  repository: https://helm.ngc.nvidia.com/nim
+  version: 1.13.0
+- condition: nvidia-nim-llama-32-nv-embedqa-1b-v2.enabled
+  name: nvidia-nim-llama-32-nv-embedqa-1b-v2
+  repository: https://helm.ngc.nvidia.com/nim/nvidia
+  version: 1.9.0
+- condition: nvidia-nim-llama-32-nemoretriever-1b-vlm-embed-v1.enabled
+  name: nvidia-nim-llama-32-nemoretriever-1b-vlm-embed-v1
+  repository: https://helm.ngc.nvidia.com/nvidia/nemo-microservices
+  version: 1.7.0
+- condition: nvidia-nim-llama-32-nv-rerankqa-1b-v2.enabled
+  name: nvidia-nim-llama-32-nv-rerankqa-1b-v2
+  repository: https://helm.ngc.nvidia.com/nim/nvidia
+  version: 1.7.0
+- condition: nim-vlm.enabled
+  name: nim-vlm
+  repository: https://helm.ngc.nvidia.com/nim
+  version: 1.3.0
+- condition: nv-ingest.enabled
+  name: nv-ingest
+  repository: https://helm.ngc.nvidia.com/nvidia/nemo-microservices
+  version: 25.9.0
+- condition: elasticsearch.enabled
+  name: elasticsearch
+  repository: https://charts.bitnami.com/bitnami
+  version: 22.0.13
+- condition: zipkin.enabled
+  name: zipkin
+  repository: https://zipkin.io/zipkin-helm
+  version: 0.4.0
+- condition: opentelemetry-collector.enabled
+  name: opentelemetry-collector
+  repository: https://open-telemetry.github.io/opentelemetry-helm-charts
+  version: 0.130.2
+- condition: kube-prometheus-stack.enabled
+  name: kube-prometheus-stack
+  repository: https://prometheus-community.github.io/helm-charts
+  version: 76.3.0
+description: An end to end Helm chart for the NVIDIA RAG Blueprint
+name: nvidia-blueprint-rag
+type: application
+version: v2.3.0

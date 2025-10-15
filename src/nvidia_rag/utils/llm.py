@@ -20,46 +20,57 @@
 4. get_streaming_filter_think_parser: Get the parser for filtering the think tokens from the LLM response.
 """
 
-import os
 import logging
-import yaml
-import requests
+import os
+from collections.abc import Iterable
 from functools import lru_cache
-from typing import Dict, Iterable
 from pathlib import Path
+
+import requests
+import yaml
 from langchain.llms.base import LLM
+from langchain_core.language_models.chat_models import SimpleChatModel
 from langchain_nvidia_ai_endpoints import ChatNVIDIA
+
+from nvidia_rag.utils.common import (
+    combine_dicts,
+    get_config,
+    sanitize_nim_url,
+    utils_cache,
+)
 
 logger = logging.getLogger(__name__)
 
 try:
-  from langchain_openai import ChatOpenAI
+    from langchain_openai import ChatOpenAI
 except ImportError:
-  logger.info("Langchain OpenAI is not installed.")
-  pass
+    logger.info("Langchain OpenAI is not installed.")
+    pass
 
-from langchain_core.language_models.chat_models import SimpleChatModel
-
-from nvidia_rag.utils.common import get_config, sanitize_nim_url, combine_dicts
-from nvidia_rag.utils.common import utils_cache
 
 @lru_cache
-def get_prompts() -> Dict:
-    """Retrieves prompt configurations from YAML file and return a dict.
-    """
+def get_prompts() -> dict:
+    """Retrieves prompt configurations from YAML file and return a dict."""
 
     # default config taking from prompt.yaml
-    default_config_path = os.path.join(os.environ.get("EXAMPLE_PATH", os.path.dirname(__file__)), "..", "rag_server", "prompt.yaml")
-    cur_dir_path = os.path.join(os.path.dirname(__file__), "..", "rag_server", "prompt.yaml")
+    default_config_path = os.path.join(
+        os.environ.get("EXAMPLE_PATH", os.path.dirname(__file__)),
+        "..",
+        "rag_server",
+        "prompt.yaml",
+    )
+    cur_dir_path = os.path.join(
+        os.path.dirname(__file__), "..", "rag_server", "prompt.yaml"
+    )
     default_config = {}
     if Path(default_config_path).is_file():
-        with open(default_config_path, 'r', encoding="utf-8") as file:
+        with open(default_config_path, encoding="utf-8") as file:
             logger.info("Using prompts config file from: %s", default_config_path)
             default_config = yaml.safe_load(file)
     elif Path(cur_dir_path).is_file():
         # if prompt.yaml is not found in the default path, check in the current directory(use default config)
         # this is for packaging
-        with open(cur_dir_path, 'r', encoding="utf-8") as file:
+        with open(cur_dir_path, encoding="utf-8") as file:
             logger.info("Using prompts config file from: %s", cur_dir_path)
             default_config = yaml.safe_load(file)
     else:
@@ -69,7 +80,7 @@ def get_prompts() -> Dict:
 
     config = {}
     if Path(config_file).is_file():
-        with open(config_file, 'r', encoding="utf-8") as file:
+        with open(config_file, encoding="utf-8") as file:
             logger.info("Using prompts config file from: %s", config_file)
             config = yaml.safe_load(file)
 
@@ -78,70 +89,91 @@ def get_prompts() -> Dict:
 
 
 @utils_cache
-@lru_cache()
+@lru_cache
 def get_llm(**kwargs) -> LLM | SimpleChatModel:
     """Create the LLM connection."""
 
     settings = get_config()
 
     # Sanitize the URL
-    url = sanitize_nim_url(kwargs.get('llm_endpoint', ""), kwargs.get('model'), "chat")
+    url = sanitize_nim_url(kwargs.get("llm_endpoint", ""), kwargs.get("model"), "chat")
 
     # Check if guardrails are enabled
-    enable_guardrails = settings.enable_guardrails and kwargs.get('enable_guardrails', False) == True
+    enable_guardrails = (
+        settings.enable_guardrails and kwargs.get("enable_guardrails", False) is True
+    )
 
-    logger.debug("Using %s as model engine for llm. Model name: %s", settings.llm.model_engine, kwargs.get('model'))
+    logger.debug(
+        "Using %s as model engine for llm. Model name: %s",
+        settings.llm.model_engine,
+        kwargs.get("model"),
+    )
     if settings.llm.model_engine == "nvidia-ai-endpoints":
-
         # Use ChatOpenAI with guardrails if enabled
         # TODO Add the ChatNVIDIA implementation when available
         if enable_guardrails:
             logger.info("Guardrails enabled, using ChatOpenAI with guardrails URL")
             guardrails_url = os.getenv("NEMO_GUARDRAILS_URL", "")
             if not guardrails_url:
-                logger.warning("NEMO_GUARDRAILS_URL not set, falling back to default implementation")
+                logger.warning(
+                    "NEMO_GUARDRAILS_URL not set, falling back to default implementation"
+                )
             else:
                 try:
                     # Parse URL and add scheme if missing
-                    if not guardrails_url.startswith(('http://', 'https://')):
-                        guardrails_url = 'http://' + guardrails_url
+                    if not guardrails_url.startswith(("http://", "https://")):
+                        guardrails_url = "http://" + guardrails_url
 
                     # Try to connect with a timeout of 5 seconds
                     response = requests.get(guardrails_url + "/v1/health", timeout=5)
                     response.raise_for_status()
 
-                    x_model_authorization = {"X-Model-Authorization": os.environ.get("NGC_API_KEY", "")}
+                    x_model_authorization = {
+                        "X-Model-Authorization": os.environ.get("NGC_API_KEY", "")
+                    }
                     return ChatOpenAI(
-                        model_name=kwargs.get('model'),
+                        model_name=kwargs.get("model"),
                         openai_api_base=f"{guardrails_url}/v1/guardrail",
                         openai_api_key="dummy-value",
                         default_headers=x_model_authorization,
-                        temperature=kwargs.get('temperature', None),
-                        top_p=kwargs.get('top_p', None),
-                        max_tokens=kwargs.get('max_tokens', None)
+                        temperature=kwargs.get("temperature", None),
+                        top_p=kwargs.get("top_p", None),
+                        max_tokens=kwargs.get("max_tokens", None),
+                        stop=kwargs.get("stop", []),
                     )
                 except (requests.RequestException, requests.ConnectionError) as e:
-                    error_msg = f"Failed to connect to guardrails service at {guardrails_url}: {str(e)} Make sure the guardrails service is running and accessible."
+                    error_msg = f"Failed to connect to guardrails service at {
+                        guardrails_url
+                    }: {
+                        str(e)
+                    } Make sure the guardrails service is running and accessible."
                     logger.error(error_msg)
-                    raise RuntimeError(error_msg)
+                    raise RuntimeError(error_msg) from e
 
         if url:
             logger.debug(f"Length of llm endpoint url string {url}")
-            logger.info("Using llm model %s hosted at %s", kwargs.get('model'), url)
-            return ChatNVIDIA(base_url=url,
-                              model=kwargs.get('model'),
-                              temperature=kwargs.get('temperature', None),
-                              top_p=kwargs.get('top_p', None),
-                              max_tokens=kwargs.get('max_tokens', None))
+            logger.info("Using llm model %s hosted at %s", kwargs.get("model"), url)
+            return ChatNVIDIA(
+                base_url=url,
+                model=kwargs.get("model"),
+                temperature=kwargs.get("temperature", None),
+                top_p=kwargs.get("top_p", None),
+                max_tokens=kwargs.get("max_tokens", None),
+                stop=kwargs.get("stop", []),
+            )
 
-        logger.info("Using llm model %s from api catalog", kwargs.get('model'))
-        return ChatNVIDIA(model=kwargs.get('model'),
-                          temperature=kwargs.get('temperature', None),
-                          top_p=kwargs.get('top_p', None),
-                          max_tokens=kwargs.get('max_tokens', None))
+        logger.info("Using llm model %s from api catalog", kwargs.get("model"))
+        return ChatNVIDIA(
+            model=kwargs.get("model"),
+            temperature=kwargs.get("temperature", None),
+            top_p=kwargs.get("top_p", None),
+            max_tokens=kwargs.get("max_tokens", None),
+            stop=kwargs.get("stop", []),
+        )
 
     raise RuntimeError(
-        "Unable to find any supported Large Language Model server. Supported engine name is nvidia-ai-endpoints.")
+        "Unable to find any supported Large Language Model server. Supported engine name is nvidia-ai-endpoints."
+    )
 
 
 def streaming_filter_think(chunks: Iterable[str]) -> Iterable[str]:
@@ -190,13 +222,13 @@ def streaming_filter_think(chunks: Iterable[str]) -> Iterable[str]:
             output_buffer += before_tag
 
             # Skip over the tag
-            buffer = buffer[start_idx + len(FULL_START_TAG):]
+            buffer = buffer[start_idx + len(FULL_START_TAG) :]
             state = IN_THINK
 
         while state == IN_THINK and FULL_END_TAG in buffer:
             end_idx = buffer.find(FULL_END_TAG)
             # Discard everything up to and including end tag
-            buffer = buffer[end_idx + len(FULL_END_TAG):]
+            buffer = buffer[end_idx + len(FULL_END_TAG) :]
             content = buffer
             state = NORMAL
 
@@ -207,7 +239,7 @@ def streaming_filter_think(chunks: Iterable[str]) -> Iterable[str]:
         if state == NORMAL:
             if content_stripped == START_TAG_PARTS[0].strip():
                 # Save everything except this start token
-                to_output = buffer[:-len(content)]
+                to_output = buffer[: -len(content)]
                 output_buffer += to_output
 
                 buffer = content  # Keep only the start token in buffer
@@ -280,7 +312,10 @@ def streaming_filter_think(chunks: Iterable[str]) -> Iterable[str]:
         if output_buffer:
             yield output_buffer
 
-    logger.info("Finished streaming_filter_think processing after %d chunks", chunk_count)
+    logger.info(
+        "Finished streaming_filter_think processing after %d chunks", chunk_count
+    )
+
 
 def get_streaming_filter_think_parser():
     """
@@ -296,7 +331,7 @@ def get_streaming_filter_think_parser():
     from langchain_core.runnables import RunnableGenerator, RunnablePassthrough
 
     # Check environment variable
-    filter_enabled = os.getenv('FILTER_THINK_TOKENS', 'true').lower() == 'true'
+    filter_enabled = os.getenv("FILTER_THINK_TOKENS", "true").lower() == "true"
 
     if filter_enabled:
         logger.info("Think token filtering is enabled")

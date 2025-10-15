@@ -1,0 +1,33 @@
+dependencies:
+- name: nim-llm
+  repository: https://helm.ngc.nvidia.com/nim
+  version: 1.13.0
+- name: nvidia-nim-llama-32-nv-embedqa-1b-v2
+  repository: https://helm.ngc.nvidia.com/nim/nvidia
+  version: 1.9.0
+- name: nvidia-nim-llama-32-nemoretriever-1b-vlm-embed-v1
+  repository: https://helm.ngc.nvidia.com/nvidia/nemo-microservices
+  version: 1.7.0
+- name: nvidia-nim-llama-32-nv-rerankqa-1b-v2
+  repository: https://helm.ngc.nvidia.com/nim/nvidia
+  version: 1.7.0
+- name: nim-vlm
+  repository: https://helm.ngc.nvidia.com/nim
+  version: 1.3.0
+- name: nv-ingest
+  repository: https://helm.ngc.nvidia.com/nvidia/nemo-microservices
+  version: 25.9.0
+- name: elasticsearch
+  repository: https://charts.bitnami.com/bitnami
+  version: 22.0.13
+- name: zipkin
+  repository: https://zipkin.io/zipkin-helm
+  version: 0.4.0
+- name: opentelemetry-collector
+  repository: https://open-telemetry.github.io/opentelemetry-helm-charts
+  version: 0.130.2
+- name: kube-prometheus-stack
+  repository: https://prometheus-community.github.io/helm-charts
+  version: 76.3.0
+digest: sha256:7a8ef8590ccdb5d286c3799586a28a35bdd5b4f3d39dc170edd80018fca1672f
+generated: "2025-09-18T10:32:36.334064131Z"

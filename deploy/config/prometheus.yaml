@@ -4,8 +4,11 @@
 # SPDX-License-Identifier: Apache-2.0
 
 scrape_configs:
-  - job_name: "otel-collector"
+  # This job scrapes your multi-worker FastAPI application
+  - job_name: "rag-app"
     scrape_interval: 5s
+    metrics_path: /metrics  # The endpoint you added to your app
     static_configs:
-      - targets: ["otel-collector:8889"]
-      - targets: ["otel-collector:9988"]
+      # Use the docker-compose service name and port of your application
+      - targets: ["rag-server:8081"]
+

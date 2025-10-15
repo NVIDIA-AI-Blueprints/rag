@@ -1,7 +1,7 @@
 services:
   nemo-guardrails-microservice:
     container_name: nemo-guardrails-microservice
-    image: nvcr.io/nvidia/nemo-microservices/guardrails:25.06
+    image: nvcr.io/nvidia/nemo-microservices/guardrails:25.09
     ports:
       - "7331:7331"
     volumes:
@@ -28,7 +28,7 @@ services:
 
   content-safety:
     container_name: llama-3.1-nemoguard-8b-content-safety
-    image: nvcr.io/nim/nvidia/llama-3.1-nemoguard-8b-content-safety:1.0.0
+    image: nvcr.io/nim/nvidia/llama-3.1-nemoguard-8b-content-safety:1.10.1
     environment:
       - NGC_API_KEY=${NGC_API_KEY}
       - NIM_SERVED_MODEL_NAME=llama-3.1-nemoguard-8b-content-safety
@@ -53,7 +53,7 @@ services:
 
   topic-control:
     container_name: llama-3.1-nemoguard-8b-topic-control
-    image: nvcr.io/nim/nvidia/llama-3.1-nemoguard-8b-topic-control:1.0.0
+    image: nvcr.io/nim/nvidia/llama-3.1-nemoguard-8b-topic-control:1.10
     environment:
       - NGC_API_KEY=${NGC_API_KEY}
       - NIM_SERVED_MODEL_NAME=llama-3.1-nemoguard-8b-topic-control

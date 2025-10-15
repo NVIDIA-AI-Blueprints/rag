@@ -2,11 +2,11 @@
   SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
   SPDX-License-Identifier: Apache-2.0
 -->
+# Enable Audio Ingestion Support for NVIDIA RAG Blueprint
 
-# Enable audio ingestion support
-Enabling audio ingestion support allows the system to process and transcribe audio files (.mp3 and .wav) during document ingestion. This enables better search and retrieval capabilities for audio content in your documents.
+Enabling audio ingestion support allows the [NVIDIA RAG Blueprint](readme.md) system to process and transcribe audio files (.mp3 and .wav) during document ingestion. This enables better search and retrieval capabilities for audio content in your documents.
 
-Once you have followed [steps in quick start guide](./quickstart.md#deploy-with-docker-compose) to launch the blueprint, to enable audio ingestion support, follow these steps:
+After you have [deployed the blueprint](readme.md#deploy), to enable audio ingestion support, follow these steps:
 
 ## Using on-prem audio transcription model
 
@@ -72,32 +72,31 @@ deploy:
 
 If you're using Helm for deployment, follow these steps to enable audio ingestion:
 
-1. Enable Riva NIM in your main `values.yaml` file, enable the riva-nim deployment by setting:
+1. Enable Riva NIM by setting `nv-ingest.riva-nim.deployed` to `true` in [values.yaml](../deploy/helm/nvidia-blueprint-rag/values.yaml).
+
    ```yaml
-   ingestor-server:
-     nv-ingest:
-       riva-nim:
+   nv-ingest:
+      riva-nim:
          deployed: true
    ```
 
-2. Ensure that audio extraction dependencies are installed in nv-ingest by verifying this setting in your `values.yaml`:
+2. Verify that audio extraction dependencies are installed by setting `nv-ingest.envVars.INSTALL_AUDIO_EXTRACTION_DEPS` to `true` in [values.yaml](../deploy/helm/nvidia-blueprint-rag/values.yaml).
 
    ```yaml
-   ingestor-server:
-     nv-ingest:
-       envVars:
+   nv-ingest:
+      envVars:
          INSTALL_AUDIO_EXTRACTION_DEPS: "true"
    ```
 
 3. Apply the updated Helm chart by running the following code.
 
    ```bash
-   helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.2.0.tgz \
-   --username '$oauthtoken' \
-   --password "${NGC_API_KEY}" \
-   --set imagePullSecret.password=$NGC_API_KEY \
+   helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.3.0.tgz \
+    --username '$oauthtoken' \
+    --password "${NGC_API_KEY}" \
+    --set imagePullSecret.password=$NGC_API_KEY \
    --set ngcApiSecret.password=$NGC_API_KEY \
-   -f rag-server/values.yaml
+   -f deploy/helm/nvidia-blueprint-rag/values.yaml
    ```
 
 4. Verify that the riva-nim pod is running:
@@ -119,10 +118,24 @@ If you're using Helm for deployment, follow these steps to enable audio ingestio
 > [!Important]
 > When using Helm deployment, the Riva NIM service requires an additional H100 or B200 GPU making the total GPU requirement to 9xH100 without MIG slicing.
 
-## Limitations
+## Audio Segmentation:
 
-When ingesting audio files, please note the following limitations:
+The `APP_NVINGEST_SEGMENTAUDIO` environment variable controls whether audio segmentation is enabled during the ingestion process.
 
-- Audio segmentation is not supported. Each audio file is processed as a single unit.
-- Audio ingestion is not recommended for larger files as each audio file transcript forms a single chunk. For optimal performance, it is recommended to use audio files with less than 2 minutes duration each. Large audio file transcripts may exceed the generation LLM context window limits.
-- The chunk size and overlap settings in the ingestion API's `split_options` parameter do not affect audio file processing.
+When set to `True`, NV-Ingest will segment audio files based on commas and other punctuation marks, resulting in more granular audio chunks. This can improve downstream processing and retrieval accuracy for audio content. Note that splitting on captions will occur regardless of this setting; enabling `APP_NVINGEST_SEGMENTAUDIO` simply adds additional segmentation based on punctuation.
+
+To enable audio segmentation, add the following export command to your environment configuration:
+
+```bash
+export APP_NVINGEST_SEGMENTAUDIO=True
+```
+
+
+
+## Related Topics
+
+- [NVIDIA RAG Blueprint Documentation](readme.md)
+- [Best Practices for Common Settings](accuracy_perf.md).
+- [RAG Pipeline Debugging Guide](debugging.md)
+- [Troubleshoot](troubleshooting.md)
+- [Notebooks](notebooks.md)

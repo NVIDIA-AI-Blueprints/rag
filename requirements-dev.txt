@@ -1,0 +1,4 @@
+# Development dependencies for linting and code quality
+ruff==0.2.1
+pylint==3.1.0
+pre-commit==4.2.0

@@ -1,0 +1,18 @@
+envVars:
+  APP_LLM_MODELNAME: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+  APP_LLM_SERVERURL: "nim-llm:8000"
+  APP_QUERYREWRITER_MODELNAME: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+  APP_QUERYREWRITER_SERVERURL: "nim-llm:8000"
+nim-llm:
+  enabled: false
+nvidia-nim-llama-32-nv-embedqa-1b-v2:
+  enabled: false
+nvidia-nim-llama-32-nv-rerankqa-1b-v2:
+  enabled: false
+nv-ingest:
+    nemoretriever-graphic-elements-v1:
+      deployed: false
+    nemoretriever-page-elements-v2:
+      deployed: false
+    nemoretriever-table-structure-v1:
+      deployed: false

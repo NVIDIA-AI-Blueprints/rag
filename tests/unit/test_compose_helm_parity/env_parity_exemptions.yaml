@@ -1,0 +1,48 @@
+envValueExemptions:
+  global: []
+  perService:
+    docker-compose-rag-server.yaml:
+      rag-server:
+        - NEMO_GUARDRAILS_URL
+        - APP_TRACING_OTLPGRPCENDPOINT
+        - APP_TRACING_OTLPHTTPENDPOINT
+        - APP_VLM_SERVERURL
+        - MINIO_ENDPOINT
+    docker-compose-ingestor-server.yaml:
+      ingestor-server:
+        - APP_NVINGEST_CAPTIONENDPOINTURL
+        - APP_NVINGEST_MESSAGECLIENTHOSTNAME
+        - MINIO_ENDPOINT
+        - REDIS_HOST
+      nv-ingest-ms-runtime:
+        - AUDIO_GRPC_ENDPOINT
+        - INGEST_DISABLE_DYNAMIC_SCALING
+        - MESSAGE_CLIENT_HOST
+        - NEMORETRIEVER_PARSE_HTTP_ENDPOINT
+        - OCR_GRPC_ENDPOINT
+        - OCR_HTTP_ENDPOINT
+        - YOLOX_GRAPHIC_ELEMENTS_GRPC_ENDPOINT
+        - YOLOX_GRAPHIC_ELEMENTS_HTTP_ENDPOINT
+        - YOLOX_GRPC_ENDPOINT
+        - YOLOX_HTTP_ENDPOINT
+        - YOLOX_TABLE_STRUCTURE_GRPC_ENDPOINT
+        - YOLOX_TABLE_STRUCTURE_HTTP_ENDPOINT
+        - VLM_CAPTION_ENDPOINT
+
+envMissingKeyExemptions:
+  perService:
+    docker-compose-ingestor-server.yaml:
+      nv-ingest-ms-runtime:
+        - CUDA_VISIBLE_DEVICES
+        - NGC_API_KEY
+        - NVIDIA_API_KEY
+        - NVIDIA_BUILD_API_KEY
+
+# Image parity exemptions allow skipping image repo/tag parity for selected services
+imageParityExemptions:
+  perService:
+    vectordb.yaml:
+      milvus: true
+      etcd: true
+      minio: true
+

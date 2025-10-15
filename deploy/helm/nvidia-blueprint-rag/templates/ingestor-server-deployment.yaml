@@ -1,0 +1,88 @@
+{{- $cfg := index .Values "ingestor-server" -}}
+{{- if $cfg.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $cfg.appName }}
+  labels:
+    {{- include "nvidia-blueprint-rag.labels" . | nindent 4 }}
+spec:
+  replicas: {{ $cfg.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ $cfg.appName }}
+      app.kubernetes.io/component: ingestor-server
+      {{- include "nvidia-blueprint-rag.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        app: {{ $cfg.appName }}
+        app.kubernetes.io/component: ingestor-server
+        {{- include "nvidia-blueprint-rag.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- if $cfg.imagePullSecret.name }}
+      imagePullSecrets:
+        - name: {{ $cfg.imagePullSecret.name }}
+      {{- end }}
+      {{- if $cfg.nodeSelector }}
+      nodeSelector:
+{{ toYaml $cfg.nodeSelector | nindent 8 }}
+      {{- end }}
+      {{- if $cfg.affinity }}
+      affinity:
+{{ toYaml $cfg.affinity | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ $cfg.appName }}
+          image: "{{ $cfg.image.repository }}:{{ $cfg.image.tag }}"
+          imagePullPolicy: {{ $cfg.image.pullPolicy }}
+          command:
+          - "uvicorn"
+          - "nvidia_rag.ingestor_server.server:app"
+          - "--port"
+          - "8082"
+          - "--host"
+          - "0.0.0.0"
+          - "--workers"
+          - "{{ $cfg.server.workers }}"
+          ports:
+            - containerPort: 8082
+          {{- if $cfg.envVars }}
+          env:
+          {{- range $k, $v := $cfg.envVars }}
+            - name: "{{ $k }}"
+              value: "{{ $v }}"
+          {{- end }}
+          {{- end }}
+          {{- if $cfg.livenessProbe }}
+          livenessProbe:
+{{ toYaml $cfg.livenessProbe | nindent 12 }}
+          {{- end }}
+          {{- if $cfg.readinessProbe }}
+          readinessProbe:
+{{ toYaml $cfg.readinessProbe | nindent 12 }}
+          {{- end }}
+          {{- if $cfg.resources }}
+          resources:
+{{ toYaml $cfg.resources | nindent 12 }}
+          {{- end }}
+          {{- if $cfg.persistence.enabled }}
+          volumeMounts:
+            - name: ingestor-server-data
+              mountPath: {{ default $cfg.envVars.INGESTOR_SERVER_DATA_DIR $cfg.persistence.mountPath }}
+              {{- if $cfg.persistence.subPath }}
+              subPath: {{ $cfg.persistence.subPath }}
+              {{- end }}
+          {{- end }}
+      {{- if $cfg.persistence.enabled }}
+      volumes:
+        - name: ingestor-server-data
+          {{- if $cfg.persistence.existingClaim }}
+          persistentVolumeClaim:
+            claimName: {{ $cfg.persistence.existingClaim }}
+          {{- else }}
+          persistentVolumeClaim:
+            claimName: {{ printf "%s-data" $cfg.appName }}
+          {{- end }}
+      {{- end }}
+{{- end }}

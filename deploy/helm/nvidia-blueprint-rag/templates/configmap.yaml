@@ -1,0 +1,11 @@
+{{- if .Values.promptConfig.enabled | default true }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "nvidia-blueprint-rag.fullname" . }}-prompt
+  labels:
+    {{- include "nvidia-blueprint-rag.labels" . | nindent 4 }}
+data:
+  prompt.yaml: |-
+{{ .Files.Get "files/prompt.yaml" | indent 4 }}
+{{- end }}

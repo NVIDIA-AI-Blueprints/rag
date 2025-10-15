@@ -21,10 +21,8 @@
 5. get_unique_thumbnail_id: Get the unique thumbnail id.
 """
 
-import os
 import json
 import logging
-from typing import Dict, List
 from io import BytesIO
 
 from minio import Minio
@@ -34,6 +32,8 @@ from nvidia_rag.utils.common import get_config
 
 logger = logging.getLogger(__name__)
 CONFIG = get_config()
+DEFAULT_BUCKET_NAME = "default-bucket"
+
 
 class MinioOperator:
     """Minio operator Class to store metadata using Minio-client"""
@@ -43,13 +43,10 @@ class MinioOperator:
         endpoint: str,
         access_key: str,
         secret_key: str,
-        default_bucket_name: str = "default-bucket"
+        default_bucket_name: str = DEFAULT_BUCKET_NAME,
     ):
         self.client = Minio(
-            endpoint,
-            access_key=access_key,
-            secret_key=secret_key,
-            secure=False
+            endpoint, access_key=access_key, secret_key=secret_key, secure=False
         )
         self.default_bucket_name = default_bucket_name
         self._make_bucket(bucket_name=self.default_bucket_name)
@@ -57,13 +54,13 @@ class MinioOperator:
     def _make_bucket(self, bucket_name: str):
         """Create new bucket if doesn't exists"""
         if not self.client.bucket_exists(bucket_name):
+            logger.info(f"Creating bucket: {bucket_name}")
             self.client.make_bucket(bucket_name)
+            logger.info(f"Bucket created: {bucket_name}")
+        else:
+            logger.info(f"Bucket already exists: {bucket_name}")
 
-    def put_payload(
-        self,
-        payload: dict,
-        object_name: str
-    ):
+    def put_payload(self, payload: dict, object_name: str):
         """Put dictionary to S3 storage using minio client"""
         # Convert payload dictionary to JSON bytes
         json_data = json.dumps(payload).encode("utf-8")
@@ -74,33 +71,25 @@ class MinioOperator:
             object_name,
             BytesIO(json_data),
             len(json_data),
-            content_type="application/json"
+            content_type="application/json",
         )
 
-    def put_payloads_bulk(
-        self,
-        payloads: List[dict],
-        object_names: List[str]
-    ):
+    def put_payloads_bulk(self, payloads: list[dict], object_names: list[str]):
         """Put list of dictionaries to S3 storage using minio client"""
         json_datas = [json.dumps(payload).encode("utf-8") for payload in payloads]
 
         snowball_objects = []
-        for object_name, json_data in zip(object_names, json_datas):
+        for object_name, json_data in zip(object_names, json_datas, strict=False):
             snowball_objects.append(
-                SnowballObject(object_name, data=BytesIO(json_data), length=len(json_data))
+                SnowballObject(
+                    object_name, data=BytesIO(json_data), length=len(json_data)
+                )
             )
 
         # Bulk upload objects to MinIO
-        self.client.upload_snowball_objects(
-            self.default_bucket_name,
-            snowball_objects
-        )
+        self.client.upload_snowball_objects(self.default_bucket_name, snowball_objects)
 
-    def get_payload(
-        self,
-        object_name: str
-    ) -> Dict:
+    def get_payload(self, object_name: str) -> dict:
         """Get dictionary from S3 storage using minio client"""
         # Retrieve JSON from MinIO
 
@@ -111,29 +100,30 @@ class MinioOperator:
             retrieved_data = json.loads(response.read().decode("utf-8"))
             return retrieved_data
         except Exception as e:
-            logger.warning(f"Error while getting object from Minio! Object name: {object_name}")
+            logger.warning(
+                f"Error while getting object from Minio! Object name: {object_name}"
+            )
             logger.debug(f"Error while getting object from Minio: {e}")
             return {}
 
-    def list_payloads(
-        self,
-        prefix: str = ""
-    ) -> List[str]:
+    def list_payloads(self, prefix: str = "") -> list[str]:
         """List payloads from S3 storage using minio client"""
-        list_of_objects = list()
-        for obj in self.client.list_objects(self.default_bucket_name, prefix=prefix, recursive=True):
+        list_of_objects = []
+        for obj in self.client.list_objects(
+            self.default_bucket_name, prefix=prefix, recursive=True
+        ):
             list_of_objects.append(obj.object_name)
         return list_of_objects
 
-    def delete_payloads(
-        self,
-        object_names: List[str]
-    ) -> None:
+    def delete_payloads(self, object_names: list[str]) -> None:
         """Delete payloads from S3 storage using minio client"""
         for object_name in object_names:
             self.client.remove_object(self.default_bucket_name, object_name)
 
-def get_minio_operator():
+
+def get_minio_operator(
+    default_bucket_name: str = DEFAULT_BUCKET_NAME,
+) -> MinioOperator:
     """
     Prepares and return MinioOperator object
 
@@ -144,12 +134,14 @@ def get_minio_operator():
         endpoint=CONFIG.minio.endpoint,
         access_key=CONFIG.minio.access_key,
         secret_key=CONFIG.minio.secret_key,
+        default_bucket_name=default_bucket_name,
     )
     return minio_operator
 
+
 def get_unique_thumbnail_id_collection_prefix(
-        collection_name: str,
-    ) -> str:
+    collection_name: str,
+) -> str:
     """
     Prepares unique thumbnail id prefix based on input collection name
     Returns:
@@ -158,10 +150,11 @@ def get_unique_thumbnail_id_collection_prefix(
     prefix = f"{collection_name}_::"
     return prefix
 
+
 def get_unique_thumbnail_id_file_name_prefix(
-        collection_name: str,
-        file_name: str,
-    ) -> str:
+    collection_name: str,
+    file_name: str,
+) -> str:
     """
     Prepares unique thumbnail id prefix based on input collection name and file name
     Returns:
@@ -171,12 +164,13 @@ def get_unique_thumbnail_id_file_name_prefix(
     prefix = f"{collection_prefix}_{file_name}_::"
     return prefix
 
+
 def get_unique_thumbnail_id(
-        collection_name: str,
-        file_name: str,
-        page_number: int,
-        location: List[float] # Bbox information
-    ) -> str:
+    collection_name: str,
+    file_name: str,
+    page_number: int,
+    location: list[float],  # Bbox information
+) -> str:
     """
     Prepares unique thumbnail id based on input arguments
     Returns:
@@ -186,6 +180,5 @@ def get_unique_thumbnail_id(
     rounded_bbox = [round(coord, 4) for coord in location]
     prefix = get_unique_thumbnail_id_file_name_prefix(collection_name, file_name)
     # Create a string representation
-    unique_thumbnail_id = f"{prefix}_{page_number}_" + \
-                          "_".join(map(str, rounded_bbox))
+    unique_thumbnail_id = f"{prefix}_{page_number}_" + "_".join(map(str, rounded_bbox))
     return unique_thumbnail_id

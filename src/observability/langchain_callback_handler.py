@@ -18,15 +18,12 @@ import logging
 import os
 import time
 import traceback
-from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field, is_dataclass
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 from uuid import UUID
 
 from langchain_core.callbacks import BaseCallbackHandler
-from langchain_core.documents import Document
-from langchain_core.messages import BaseMessage, AIMessageChunk
-from langchain_core.prompt_values import ChatPromptValue
+from langchain_core.messages import AIMessageChunk, BaseMessage
 from langchain_core.outputs import LLMResult
 from opentelemetry import context as context_api
 from opentelemetry.context.context import Context
@@ -40,6 +37,7 @@ from opentelemetry.semconv_ai import (
 from opentelemetry.trace import SpanKind, Tracer, set_span_in_context
 from opentelemetry.trace.span import Span
 from pydantic import BaseModel
+
 from .otel_metrics import OtelMetrics
 
 
@@ -107,7 +105,7 @@ class SpanHolder:
     entity_name: str
     entity_path: str
     start_time: float = field(default_factory=time.time)
-    request_model: Optional[str] = None
+    request_model: str | None = None
 
 
 def _message_type_to_role(message_type: str) -> str:
@@ -345,8 +343,8 @@ class LangchainCallbackHandler(BaseCallbackHandler):
     @staticmethod
     def _get_name_from_callback(
         serialized: dict[str, Any],
-        _tags: Optional[list[str]] = None,
-        _metadata: Optional[dict[str, Any]] = None,
+        _tags: list[str] | None = None,
+        _metadata: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> str:
         """Get the name to be used for the span. Based on heuristic. Can be extended."""
@@ -374,13 +372,13 @@ class LangchainCallbackHandler(BaseCallbackHandler):
     def _create_span(
         self,
         run_id: UUID,
-        parent_run_id: Optional[UUID],
+        parent_run_id: UUID | None,
         span_name: str,
         kind: SpanKind = SpanKind.INTERNAL,
         workflow_name: str = "",
         entity_name: str = "",
         entity_path: str = "",
-        metadata: Optional[dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
     ) -> Span:
         if metadata is not None:
             current_association_properties = (
@@ -420,13 +418,13 @@ class LangchainCallbackHandler(BaseCallbackHandler):
     def _create_task_span(
         self,
         run_id: UUID,
-        parent_run_id: Optional[UUID],
+        parent_run_id: UUID | None,
         name: str,
         kind: TraceloopSpanKindValues,
         workflow_name: str,
         entity_name: str = "",
         entity_path: str = "",
-        metadata: Optional[dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
     ) -> Span:
         span_name = f"{name}.{kind.value}"
         span = self._create_span(
@@ -447,10 +445,10 @@ class LangchainCallbackHandler(BaseCallbackHandler):
     def _create_llm_span(
         self,
         run_id: UUID,
-        parent_run_id: Optional[UUID],
+        parent_run_id: UUID | None,
         name: str,
         request_type: LLMRequestTypeValues,
-        metadata: Optional[dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
     ) -> Span:
         workflow_name = self.get_workflow_name(parent_run_id)
         entity_path = self.get_entity_path(parent_run_id)
@@ -476,9 +474,9 @@ class LangchainCallbackHandler(BaseCallbackHandler):
         inputs: dict[str, Any],
         *,
         run_id: UUID,
-        parent_run_id: Optional[UUID] = None,
-        tags: Optional[list[str]] = None,
-        metadata: Optional[dict[str, Any]] = None,
+        parent_run_id: UUID | None = None,
+        tags: list[str] | None = None,
+        metadata: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> None:
         """Run when chain starts running."""
@@ -531,7 +529,7 @@ class LangchainCallbackHandler(BaseCallbackHandler):
         outputs: dict[str, Any],
         *,
         run_id: UUID,
-        parent_run_id: Optional[UUID] = None,
+        parent_run_id: UUID | None = None,
         **kwargs: Any,
     ) -> None:
         """Run when chain ends running."""
@@ -581,9 +579,9 @@ class LangchainCallbackHandler(BaseCallbackHandler):
         messages: list[list[BaseMessage]],
         *,
         run_id: UUID,
-        tags: Optional[list[str]] = None,
-        parent_run_id: Optional[UUID] = None,
-        metadata: Optional[dict[str, Any]] = None,
+        tags: list[str] | None = None,
+        parent_run_id: UUID | None = None,
+        metadata: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> Any:
         """Run when Chat Model starts running."""
@@ -613,13 +611,13 @@ class LangchainCallbackHandler(BaseCallbackHandler):
     @dont_throw
     def on_llm_start(
         self,
-        serialized: Dict[str, Any],
-        prompts: List[str],
+        serialized: dict[str, Any],
+        prompts: list[str],
         *,
         run_id: UUID,
-        tags: Optional[list[str]] = None,
-        parent_run_id: Optional[UUID] = None,
-        metadata: Optional[dict[str, Any]] = None,
+        tags: list[str] | None = None,
+        parent_run_id: UUID | None = None,
+        metadata: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> Any:
         """Run when Chat Model starts running."""
@@ -638,7 +636,7 @@ class LangchainCallbackHandler(BaseCallbackHandler):
         response: LLMResult,
         *,
         run_id: UUID,
-        parent_run_id: Union[UUID, None] = None,
+        parent_run_id: UUID | None = None,
         **kwargs: Any,
     ):
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
@@ -695,10 +693,10 @@ class LangchainCallbackHandler(BaseCallbackHandler):
         input_str: str,
         *,
         run_id: UUID,
-        parent_run_id: Optional[UUID] = None,
-        tags: Optional[list[str]] = None,
-        metadata: Optional[dict[str, Any]] = None,
-        inputs: Optional[dict[str, Any]] = None,
+        parent_run_id: UUID | None = None,
+        tags: list[str] | None = None,
+        metadata: dict[str, Any] | None = None,
+        inputs: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> None:
         """Run when tool starts running."""
@@ -740,7 +738,7 @@ class LangchainCallbackHandler(BaseCallbackHandler):
         output: Any,
         *,
         run_id: UUID,
-        parent_run_id: Optional[UUID] = None,
+        parent_run_id: UUID | None = None,
         **kwargs: Any,
     ) -> None:
         """Run when tool ends running."""
@@ -759,7 +757,7 @@ class LangchainCallbackHandler(BaseCallbackHandler):
             )
         self._end_span(span, run_id)
 
-    def get_parent_span(self, parent_run_id: Optional[str] = None):
+    def get_parent_span(self, parent_run_id: str | None = None):
         if parent_run_id is None:
             return None
         return self.spans[parent_run_id]

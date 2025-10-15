@@ -3,9 +3,9 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-# Deploying NV-Ingest Standalone
+# Deploy NV-Ingest Standalone for NVIDIA RAG Blueprint
 
-This guide explains how to deploy and use NV-Ingest as a standalone service without deploying the full ingestor server. This is useful when you want to ingest documents directly using Python scripts.
+This guide explains how to deploy and use NV-Ingest as a standalone service for [NVIDIA RAG Blueprint](readme.md) without deploying the full ingestor server. This is useful when you want to ingest documents directly using Python scripts.
 
 For more details and advanced usage, refer to:
 - [NVIDIA/nv-ingest repository](https://github.com/NVIDIA/nv-ingest)
@@ -13,7 +13,7 @@ For more details and advanced usage, refer to:
 
 ## Limitations
 
-When using NV-Ingest in standalone mode, please be aware of the following limitations:
+When using NV-Ingest in standalone mode, consider the following limitations:
 
 1. **Citations Disabled**: The RAG server's citation feature will be disabled for documents ingested through standalone NV-Ingest. This is because the citation metadata requires additional processing that is handled by the full ingestor server.
 
@@ -23,10 +23,10 @@ When using NV-Ingest in standalone mode, please be aware of the following limita
 
 ## Prerequisites
 
-1. Ensure you have Docker and Docker Compose installed
+1. Ensure you have Docker and Docker Compose installed. For details, refer to [Get Started](deploy-docker-self-hosted.md).
 2. Have Python 3.12 or later installed
    > ℹ️ If you're using **Python 3.13**, make sure you've `python3.13-dev` installed.
-3. Have an NGC API key (see [Obtain an API Key](../quickstart.md#obtain-an-api-key))
+3. [Get an API Key](api-key.md).
 4. Install a package manager (either uv or pip):
 ```bash
 # Option 1: Install uv (recommended for faster installation)
@@ -38,7 +38,7 @@ pip install uv
 
 ## Deployment Steps using Docker
 
-1. Follow the steps in [Deploy With Docker Compose](quickstart.md#deploy-with-docker-compose) section, but skip the `ingestor-server` deployment.
+1. Follow the steps in the deployment guide for [Self-Hosted Models](deploy-docker-self-hosted.md) or [NVIDIA-Hosted Models](deploy-docker-nvidia-hosted.md), but skip the `ingestor-server` deployment.
 
 The key difference while deploying from `docker-compose-ingestor-server.yaml` file deploy only `nv-ingest-ms-runtime` and `redis` using following command:
 ```bash
@@ -56,7 +56,7 @@ source nv-ingest-env/bin/activate  # On Linux/Mac
 .\nv-ingest-env\Scripts\activate  # On Windows
 
 # Install required packages
-uv pip install nv-ingest-api==25.6.2 nv-ingest-client==25.6.3 tritonclient==2.57.0 pymilvus==2.5.8 pymilvus[model] pymilvus[bulk-writer]
+uv pip install nv-ingest-api==25.8.0rc6 nv-ingest-client==25.8.0rc6 tritonclient==2.57.0 pymilvus==2.5.8 pymilvus[model] pymilvus[bulk-writer]
 ```
 
 Using pip:
@@ -68,7 +68,7 @@ source nv-ingest-env/bin/activate  # On Linux/Mac
 .\nv-ingest-env\Scripts\activate  # On Windows
 
 # Install required packages
-pip install nv-ingest-api==25.6.2 nv-ingest-client==25.6.3 tritonclient==2.57.0 pymilvus==2.5.8 pymilvus[model] pymilvus[bulk-writer]
+pip install nv-ingest-api==25.8.0rc6 nv-ingest-client==25.8.0rc6 tritonclient==2.57.0 pymilvus==2.5.8 pymilvus[model] pymilvus[bulk-writer]
 ```
 
 3. Create a Python script to ingest documents. Here's a placeholder script that you can customize:
@@ -103,7 +103,7 @@ ingestor = ingestor.extract(
                 extract_charts=True,
                 extract_images=False,
                 text_depth="page",
-                paddle_output_format="markdown"
+                table_output_format="markdown"
             )
 ingestor = ingestor.split(
                 tokenizer="intfloat/e5-large-unsupervised",

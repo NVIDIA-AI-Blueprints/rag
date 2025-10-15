@@ -17,8 +17,8 @@ COPY ./src ./src
 
 RUN uv build
 
-# -------- Stage 2: Runtime Stage --------
-FROM ${BASE_IMAGE_URL}:${BASE_IMAGE_TAG} AS runtime
+# -------- Stage 2: Python Environment Stage --------
+FROM ${BASE_IMAGE_URL}:${BASE_IMAGE_TAG} AS python-env
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV DEBIAN_FRONTEND noninteractive
@@ -31,26 +31,9 @@ RUN apt update && \
     apt-get clean
 
 # Install uv https://docs.astral.sh/uv/guides/integration/docker/#installing-uv
-COPY --from=ghcr.io/astral-sh/uv:0.7.4 /uv /uvx /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.8.12 /uv /uvx /bin/
 
 RUN rm -rf /var/lib/apt/lists/*
-
-# Uninstall build packages
-RUN apt autoremove -y curl software-properties-common
-
-# Download the sources of apt packages within the container for standard legal compliance
-RUN sed -i 's/# deb-src/deb-src/g' /etc/apt/sources.list
-RUN apt update
-# xz-utils is needed to pull the source and unpack them correctly
-RUN apt install xz-utils -y
-RUN mkdir -p /legal/source
-WORKDIR /legal/source
-# Read installed packages, strip all but the package names, pipe to 'apt source' to download respective packages
-RUN apt list --installed | sed 's|/.*||' | sort -u | \
-    xargs -n 1 bash -c 'apt source --download-only "$0" || true'
-# The source is saved in directories as well as tarballs in the current dir
-RUN rm xz-utils*
-COPY LICENSE-3rd-party.txt /legal/
 
 WORKDIR /workspace
 
@@ -61,16 +44,38 @@ RUN uv sync --locked --no-install-project --no-dev --extra rag
 
 COPY --from=builder /build/dist/*.whl /workspace/
 
-# Place executables in the environment at the front of the path
-ENV PATH="/workspace/.venv/bin:$PATH"
-
 # Find the exact wheel name with version and store it in a variable
 RUN WHEEL_NAME=$(ls /workspace/nvidia_rag-*.whl) && \
     uv pip install --no-deps --no-cache-dir "$WHEEL_NAME"
 
-# Remove executables and wheel
-RUN rm /bin/uv /bin/uvx /workspace/nvidia_rag-*.whl  /workspace/pyproject.toml  /workspace/uv.lock
-RUN apt autoremove -y build-essential
+# -------- Stage 3: Minimal Runtime Stage --------
+FROM ${BASE_IMAGE_URL}:${BASE_IMAGE_TAG} AS runtime
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV DEBIAN_FRONTEND noninteractive
+
+# Install ONLY the essential runtime libraries (no build tools, no Python installation process)
+RUN apt update && \
+    apt install -y libexpat1 && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Copy the entire Python installation and virtual environment from python-env stage
+COPY --from=python-env /usr/bin/python3.13 /usr/bin/python3.13
+COPY --from=python-env /usr/lib/python3.13 /usr/lib/python3.13
+COPY --from=python-env /workspace/.venv /workspace/.venv
+
+# Copy Python shared libraries using runtime detection
+RUN --mount=from=python-env,source=/usr,target=/mnt/usr \
+    find /mnt/usr -name "libpython3.13.so*" -exec cp -P {} /usr/lib/ \;
+
+# Create python3 symlink
+RUN ln -s /usr/bin/python3.13 /usr/bin/python3 && \
+    ln -s /usr/bin/python3.13 /usr/bin/python
+
+# Set up environment
+ENV PATH="/workspace/.venv/bin:$PATH"
+WORKDIR /workspace
 
 # Set environment variables needed for Text splitter
 RUN mkdir /tmp-data/;

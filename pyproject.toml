@@ -1,6 +1,6 @@
 [project]
 name = "nvidia_rag"
-version = "2.2.1"
+version = "2.3.0.dev"
 description = "This blueprint serves as a reference solution for a foundational Retrieval Augmented Generation (RAG) pipeline."
 readme = "README.md"
 license = "Apache-2.0"
@@ -17,22 +17,27 @@ dependencies = [
     "bleach==6.2.0",
     "dataclass-wizard==0.27.0",
     "fastapi==0.115.5",
-    "langchain==0.3.7",
-    "langchain-community==0.3.7",
-    "langchain-milvus>=0.1.10",
-    "langchain-nvidia-ai-endpoints==0.3.10",
+    "langchain>=0.3.27",
+    "langchain-community>=0.3.27",
+    "langchain-milvus>=0.2.1",
+    "langchain-nvidia-ai-endpoints>=0.3.17",
     "minio==7.2.15",
     "pdfplumber>=0.6",
-    "pydantic==2.9.2",
+    "pydantic>=2.11.7",
     "pymilvus==2.5.8",
     "pymilvus-model==0.3.2",
     "python-multipart==0.0.18",
     "pyyaml==6.0.2",
-    "unstructured[all-docs]>=0.15.1",
     "uvicorn[standard]==0.32.0",
-    "langchain-core>=0.3.31",
+    "langchain-core>=0.3.72",
     "redis==5.2.1",
     "protobuf>=5.29.5",
+    "langchain-elasticsearch==0.3.2",
+    "lark>=1.2.2",
+    "python-dateutil>=2.9.0.post0",
+    "nv-ingest-api==25.9.0",
+    "nv-ingest-client==25.9.0",
+    "tritonclient==2.57.0",
 ]
 
 [project.optional-dependencies]
@@ -46,11 +51,13 @@ rag = [
     "opentelemetry-instrumentation-milvus==0.36.0",
     "opentelemetry-processor-baggage==0.50b0",
     "opentelemetry-sdk==1.29.0",
+    "opentelemetry-sdk-extension-prometheus-multiprocess==1.0.0",
+    "prometheus-client==0.20.0",
+    "azure-core>=1.35.0",
+    "azure-storage-blob>=12.26.0",
+    "pyarrow>=21.0.0",
 ]
 ingest = [
-    "nv-ingest-api==25.6.2",
-    "nv-ingest-client==25.6.3",
-    "tritonclient==2.57.0",
     "overrides==7.7.0",
     "tqdm==4.67.1",
     "opentelemetry-api==1.29.0",
@@ -61,9 +68,25 @@ ingest = [
     "opentelemetry-instrumentation-milvus==0.36.0",
     "opentelemetry-processor-baggage==0.50b0",
     "opentelemetry-sdk==1.29.0",
+    "azure-core>=1.35.0",
+    "azure-storage-blob>=12.26.0",
+    "pyarrow>=21.0.0",
 ]
 all = [
-    "nvidia-rag[ingest,rag]",
+    "langchain-openai==0.2.8",
+    "overrides==7.7.0",
+    "tqdm==4.67.1",
+    "opentelemetry-api==1.29.0",
+    "opentelemetry-exporter-otlp==1.29.0",
+    "opentelemetry-exporter-prometheus==0.50b0",
+    "opentelemetry-instrumentation==0.50b0",
+    "opentelemetry-instrumentation-fastapi==0.50b0",
+    "opentelemetry-instrumentation-milvus==0.36.0",
+    "opentelemetry-processor-baggage==0.50b0",
+    "opentelemetry-sdk==1.29.0",
+    "azure-core>=1.35.0",
+    "azure-storage-blob>=12.26.0",
+    "pyarrow>=21.0.0",
 ]
 
 [tool.uv.sources]
@@ -79,7 +102,38 @@ where = ["src"]
 [tool.setuptools.package-data]
 # Include all YAML files inside rag_server
 "nvidia_rag.rag_server" = ["*.yaml"]
+# Include the filter grammar file in utils
+"nvidia_rag.utils" = ["*.lark"]
 
 [project.urls]
 Homepage = "https://github.com/NVIDIA-AI-Blueprints/rag"
 Documentation = "https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/README.md"
+
+# Linting and formatting configuration
+[tool.ruff]
+target-version = "py312"
+line-length = 88
+
+[tool.ruff.lint]
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "B",  # flake8-bugbear
+    "C4", # flake8-comprehensions
+    "UP", # pyupgrade
+]
+ignore = [
+    "E501",  # line too long, handled by ruff format
+    "B008",  # do not perform function calls in argument defaults
+    "C901",  # too complex
+    "F401",  # unused imports (intentionally imported for availability checks)
+    "B007",  # loop control variable not used (intentional in health check)
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"

@@ -2,10 +2,9 @@
   SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
   SPDX-License-Identifier: Apache-2.0
 -->
+# Use the NVIDIA RAG Blueprint Python Package
 
-# Use the NVIDIA RAG Python Package
-
-Use this documentation to learn about the NVIDIA RAG Python Package. 
+Use this documentation to learn about the [NVIDIA RAG Blueprint](readme.md) Python Package. 
 For a notebook that walks you through these code examples, see [NVIDIA RAG Python Package](/notebooks/rag_library_usage.ipynb).
 
 
@@ -245,6 +244,15 @@ print_search_citations(rag.search(
     reranker_top_k=10,
     vdb_top_k=100,
 ))  
+
+# Search with confidence threshold filtering
+print_search_citations(rag.search(
+    query="What is the price of a hammer?",
+    collection_names=["test_library"],
+    reranker_top_k=10,
+    vdb_top_k=100,
+    confidence_threshold=0.5,  # Only include documents with relevance score >= 0.5
+))  
 ```
 
 
@@ -336,5 +344,18 @@ await print_streaming_response_and_citations(rag.generate(
     ],
     use_knowledge_base=True,
     collection_names=["test_library"]
+))
+
+# Generate with confidence threshold filtering
+await print_streaming_response_and_citations(rag.generate(
+    messages=[
+        {
+            "role": "user",
+            "content": "What is the price of a hammer?"
+        }
+    ],
+    use_knowledge_base=True,
+    collection_names=["test_library"],
+    confidence_threshold=0.7,  # Only include documents with relevance score >= 0.7
 ))
 ```

@@ -20,12 +20,14 @@
 
 import logging
 from functools import lru_cache
+
 from langchain_core.documents.compressor import BaseDocumentCompressor
 from langchain_nvidia_ai_endpoints import NVIDIARerank
 
 from nvidia_rag.utils.common import get_config, sanitize_nim_url
 
 logger = logging.getLogger(__name__)
+
 
 @lru_cache
 def _get_ranking_model(model="", url="", top_n=4) -> BaseDocumentCompressor:
@@ -42,17 +44,21 @@ def _get_ranking_model(model="", url="", top_n=4) -> BaseDocumentCompressor:
 
     try:
         if settings.ranking.model_engine == "nvidia-ai-endpoints":
+            if top_n <= 0:
+                logger.warning("top_n must be a positive integer, setting to 4")
+                top_n = 4
+
             if url:
                 logger.info("Using ranking model hosted at %s", url)
-                return NVIDIARerank(base_url=url,
-                                    top_n=top_n,
-                                    truncate="END")
+                return NVIDIARerank(base_url=url, top_n=top_n, truncate="END")
 
             if model:
                 logger.info("Using ranking model %s hosted at api catalog", model)
                 return NVIDIARerank(model=model, top_n=top_n, truncate="END")
         else:
-            logger.warning("Unable to find any supported ranking model. Supported engine is nvidia-ai-endpoints.")
+            logger.warning(
+                "Unable to find any supported ranking model. Supported engine is nvidia-ai-endpoints."
+            )
     except Exception as e:
         logger.error("An error occurred while initializing ranking_model: %s", e)
     return None

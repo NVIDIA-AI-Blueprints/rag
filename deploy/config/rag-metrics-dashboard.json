@@ -1,825 +1,248 @@
 {
-  "annotations": {
-    "list": [
-      {
-        "builtIn": 1,
-        "datasource": {
-          "type": "grafana",
-          "uid": "-- Grafana --"
-        },
-        "enable": true,
-        "hide": true,
-        "iconColor": "rgba(0, 211, 255, 1)",
-        "name": "Annotations & Alerts",
-        "type": "dashboard"
-      }
-    ]
-  },
+  "title": "RAG Metrics",
+  "uid": "rag-metrics",
+  "version": 5,
+  "schemaVersion": 40,
   "editable": false,
-  "fiscalYearStartMonth": 0,
-  "graphTooltip": 0,
-  "id": 2,
-  "links": [],
+  "time": { "from": "now-5m", "to": "now" },
+  "timezone": "browser",
+  "refresh": "30s",
   "panels": [
+    { "type": "row", "title": "Latency overview (avg over $__rate_interval)", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 }, "collapsed": false, "panels": [] },
+
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 0
-      },
-      "id": 9,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "percentChangeColorMode": "standard",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showPercentChange": false,
-        "textMode": "auto",
-        "wideLayout": true
-      },
-      "pluginVersion": "11.5.1",
-      "targets": [
-        {
-          "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "total_tokens{job=~\"$job\", instance=~\"$instance\"}",
-          "fullMetaSearch": false,
-          "includeNullMetadata": true,
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "A",
-          "useBackend": false
-        }
-      ],
-      "title": "Avg Total (Input + Output)  words",
-      "description": "Avg total (input + output) tokens",
-      "type": "stat"
+      "type": "stat",
+      "title": "Avg LLM TTFT (ms)",
+      "description": "Average LLM time-to-first-token over $__rate_interval",
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 },
+      "datasource": "$datasource",
+      "fieldConfig": { "defaults": { "unit": "ms", "decimals": 2 }, "overrides": [] },
+      "targets": [ {
+        "refId": "A",
+        "expr": "sum(increase(llm_ttft_ms_sum{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval])) / sum(increase(llm_ttft_ms_count{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval]))"
+      } ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "orientation": "auto" }
     },
+
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 0
-      },
-      "id": 8,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "percentChangeColorMode": "standard",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showPercentChange": false,
-        "textMode": "auto",
-        "wideLayout": true
-      },
-      "pluginVersion": "11.5.1",
-      "targets": [
-        {
-          "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "output_tokens{job=~\"$job\", instance=~\"$instance\"}",
-          "fullMetaSearch": false,
-          "includeNullMetadata": true,
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "A",
-          "useBackend": false
-        }
-      ],
-      "title": "Avg Output Words",
-      "description": "Avg output words",
-      "type": "stat"
+      "type": "stat",
+      "title": "Avg RAG TTFT (ms)",
+      "description": "Average RAG time-to-first-token over $__rate_interval",
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 },
+      "datasource": "$datasource",
+      "fieldConfig": { "defaults": { "unit": "ms", "decimals": 2 }, "overrides": [] },
+      "targets": [ {
+        "refId": "A",
+        "expr": "sum(increase(rag_ttft_ms_sum{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval])) / sum(increase(rag_ttft_ms_count{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval]))"
+      } ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "orientation": "auto" }
     },
+
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 8
-      },
-      "id": 7,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "percentChangeColorMode": "standard",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showPercentChange": false,
-        "textMode": "auto",
-        "wideLayout": true
-      },
-      "pluginVersion": "11.5.1",
-      "targets": [
-        {
-          "disableTextWrap": false,
-          "editorMode": "builder",
-          "exemplar": false,
-          "expr": "input_tokens{job=~\"$job\", instance=~\"$instance\"}",
-          "format": "time_series",
-          "fullMetaSearch": false,
-          "includeNullMetadata": true,
-          "instant": false,
-          "interval": "1m",
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "A",
-          "useBackend": false
-        }
-      ],
-      "title": "Avg Input Words",
-      "description": "Avg input words",
-      "type": "stat"
+      "type": "stat",
+      "title": "Avg Retrieval Time (ms)",
+      "description": "Average retrieval time over $__rate_interval",
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 1 },
+      "datasource": "$datasource",
+      "fieldConfig": { "defaults": { "unit": "ms", "decimals": 2 }, "overrides": [] },
+      "targets": [ { "refId": "A", "expr": "sum(increase(retrieval_time_ms_sum{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval])) / sum(increase(retrieval_time_ms_count{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval]))" } ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "orientation": "auto" }
     },
+
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 8
-      },
-      "id": 6,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "percentChangeColorMode": "standard",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showPercentChange": false,
-        "textMode": "auto",
-        "wideLayout": true
-      },
-      "pluginVersion": "11.5.1",
-      "targets": [
-        {
-          "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "avg(avg_words_per_chunk{job=~\"$job\", instance=~\"$instance\"})",
-          "fullMetaSearch": false,
-          "includeNullMetadata": true,
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "A",
-          "useBackend": false
-        }
-      ],
-      "title": "Avg words per chunk",
-      "description": "Avg words per chunk",
-      "type": "stat"
+      "type": "stat",
+      "title": "Avg Context Reranker (ms)",
+      "description": "Average context reranker time over $__rate_interval",
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 1 },
+      "datasource": "$datasource",
+      "fieldConfig": { "defaults": { "unit": "ms", "decimals": 2 }, "overrides": [] },
+      "targets": [ { "refId": "A", "expr": "sum(increase(context_reranker_time_ms_sum{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval])) / sum(increase(context_reranker_time_ms_count{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval]))" } ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "orientation": "auto" }
     },
+
     {
-      "collapsed": false,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 16
-      },
-      "id": 5,
-      "panels": [],
-      "title": "Usage metrics",
-      "type": "row"
+      "type": "stat",
+      "title": "Avg Total Time (ms)",
+      "description": "Average end-to-end time over $__rate_interval",
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 1 },
+      "datasource": "$datasource",
+      "fieldConfig": { "defaults": { "unit": "ms", "decimals": 2 }, "overrides": [] },
+              "targets": [ { "refId": "A", "expr": "sum(increase(llm_generation_time_ms_sum{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval])) / sum(increase(llm_generation_time_ms_count{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval]))" } ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "orientation": "auto" }
     },
+
+    { "type": "row", "title": "Latency averages over time ($__rate_interval windows)", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 }, "collapsed": false, "panels": [] },
+
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "{__name__=\"input_tokens\", exported_job=\"rag\", instance=\"otel-collector:8889\", job=\"otel-collector\"}"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "orange",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          }
-        ]
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 17
-      },
-      "id": 1,
-      "interval": "1m",
-      "maxDataPoints": 1000,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "11.5.1",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "input_tokens{job=~\"$job\", instance=~\"$instance\"}",
-          "fullMetaSearch": false,
-          "includeNullMetadata": true,
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "A",
-          "useBackend": false
-        }
-      ],
-      "title": "Input tokens per request",
-      "description": "Input tokens per request",
-      "type": "timeseries"
+      "type": "timeseries",
+      "title": "LLM TTFT avg (ms)",
+      "description": "Average LLM TTFT over $__rate_interval",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "datasource": "$datasource",
+      "fieldConfig": { "defaults": { "unit": "ms", "decimals": 2 }, "overrides": [] },
+      "targets": [ { "refId": "avg", "expr": "sum(increase(llm_ttft_ms_sum{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval])) / sum(increase(llm_ttft_ms_count{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval]))", "legendFormat": "avg" } ],
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } }
     },
+
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "{__name__=\"output_tokens\", exported_job=\"rag\", instance=\"otel-collector:8889\", job=\"otel-collector\"}"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "blue",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          }
-        ]
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 17
-      },
-      "id": 2,
-      "interval": "1m",
-      "maxDataPoints": 1000,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "11.5.1",
-      "targets": [
-        {
-          "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "output_tokens{job=~\"$job\", instance=~\"$instance\"}",
-          "fullMetaSearch": false,
-          "includeNullMetadata": true,
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "A",
-          "useBackend": false
-        }
-      ],
-      "title": "Output tokens per request",
-      "description": "Output tokens per request",
-      "type": "timeseries"
+      "type": "timeseries",
+      "title": "Total time avg (ms)",
+      "description": "Average end-to-end time over $__rate_interval",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "datasource": "$datasource",
+      "fieldConfig": { "defaults": { "unit": "ms", "decimals": 2 }, "overrides": [] },
+        "targets": [ { "refId": "avg", "expr": "sum(increase(llm_generation_time_ms_sum{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval])) / sum(increase(llm_generation_time_ms_count{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval]))", "legendFormat": "avg" } ],
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } }
     },
+
+    { "type": "row", "title": "Requests", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 14 }, "collapsed": false, "panels": [] },
+
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green"
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "{__name__=\"total_tokens\", exported_job=\"rag\", instance=\"otel-collector:8889\", job=\"otel-collector\"}"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "yellow",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          }
-        ]
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 25
-      },
-      "id": 3,
-      "interval": "1m",
-      "maxDataPoints": 1000,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "11.5.1",
-      "targets": [
-        {
-          "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "total_tokens{instance=~\"$instance\", job=~\"$job\"}",
-          "fullMetaSearch": false,
-          "includeNullMetadata": true,
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "A",
-          "useBackend": false
-        }
-      ],
-      "title": "Total tokens per request",
-      "description": "Total tokens per request",
-      "type": "timeseries"
+      "type": "stat",
+      "title": "Reqs/sec (overall)",
+      "description": "Overall request throughput over $__rate_interval",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 15 },
+      "datasource": "$datasource",
+      "fieldConfig": { "defaults": { "unit": "short", "decimals": 2 }, "overrides": [] },
+      "targets": [ { "refId": "A", "expr": "sum(rate(api_requests_total{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval]))" } ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } }
     },
+
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green"
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 25
-      },
-      "id": 4,
-      "interval": "1m",
-      "maxDataPoints": 500,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "11.5.1",
+      "type": "timeseries",
+      "title": "Reqs/sec by endpoint",
+      "description": "Request throughput by endpoint over $__rate_interval",
+      "gridPos": { "h": 8, "w": 9, "x": 6, "y": 15 },
+      "datasource": "$datasource",
+      "fieldConfig": { "defaults": { "unit": "short", "decimals": 2 }, "overrides": [] },
+      "targets": [ { "refId": "A", "expr": "sum by (endpoint) (rate(api_requests_total{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval]))", "legendFormat": "{{endpoint}}" } ],
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } }
+    },
+
+    {
+      "type": "timeseries",
+      "title": "Reqs/sec by method",
+      "description": "Request throughput by method over $__rate_interval",
+      "gridPos": { "h": 8, "w": 9, "x": 15, "y": 15 },
+      "datasource": "$datasource",
+      "fieldConfig": { "defaults": { "unit": "short", "decimals": 2 }, "overrides": [] },
+      "targets": [ { "refId": "A", "expr": "sum by (method) (rate(api_requests_total{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval]))", "legendFormat": "{{method}}" } ],
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } }
+    },
+
+    { "type": "row", "title": "Tokens & context", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 23 }, "collapsed": false, "panels": [] },
+
+    {
+      "type": "stat",
+      "title": "Avg total tokens per request (over $__rate_interval)",
+      "description": "Average total tokens per request based on token_usage_distribution histogram over $__rate_interval",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 24 },
+      "datasource": "$datasource",
+      "fieldConfig": { "defaults": { "unit": "short", "decimals": 2 }, "overrides": [] },
+      "targets": [ { "refId": "A", "expr": "sum(increase(token_usage_distribution_sum{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval])) / sum(increase(token_usage_distribution_count{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval]))" } ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } }
+    },
+
+    {
+      "type": "stat",
+      "title": "Last input tokens ($__rate_interval)",
+      "description": "Last observed input tokens over $__rate_interval",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 24 },
+      "datasource": "$datasource",
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [ { "refId": "A", "expr": "last_over_time(input_tokens{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval])" } ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } }
+    },
+
+    {
+      "type": "stat",
+      "title": "Last output tokens ($__rate_interval)",
+      "description": "Last observed output tokens over $__rate_interval",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 24 },
+      "datasource": "$datasource",
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [ { "refId": "A", "expr": "last_over_time(output_tokens{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval])" } ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } }
+    },
+
+    {
+      "type": "stat",
+      "title": "Last total tokens ($__rate_interval)",
+      "description": "Last observed total tokens over $__rate_interval",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 24 },
+      "datasource": "$datasource",
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [ { "refId": "A", "expr": "last_over_time(total_tokens{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval])" } ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } }
+    },
+
+    {
+      "type": "timeseries",
+      "title": "Total tokens per request (avg, $__rate_interval)",
+      "description": "Average total tokens per request over $__rate_interval",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 28 },
+      "datasource": "$datasource",
+      "fieldConfig": { "defaults": { "unit": "short", "decimals": 2 }, "overrides": [] },
+      "targets": [ { "refId": "A", "expr": "sum(increase(token_usage_distribution_sum{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval])) / sum(increase(token_usage_distribution_count{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval]))", "legendFormat": "avg total tokens" } ],
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } }
+    },
+
+    {
+      "type": "timeseries",
+      "title": "Tokens (gauge, last)",
+      "description": "Last observed token gauges over $__rate_interval",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 28 },
+      "datasource": "$datasource",
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
       "targets": [
-        {
-          "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "avg_words_per_chunk{instance=~\"$instance\", job=~\"$job\"}",
-          "fullMetaSearch": false,
-          "includeNullMetadata": true,
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "A",
-          "useBackend": false
-        }
+        { "refId": "in", "expr": "last_over_time(input_tokens{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval])", "legendFormat": "input (last)" },
+        { "refId": "out", "expr": "last_over_time(output_tokens{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval])", "legendFormat": "output (last)" },
+        { "refId": "tot", "expr": "last_over_time(total_tokens{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval])", "legendFormat": "total (last)" }
       ],
-      "title": "Avg words per chunk per request",
-      "description": "Avg words per chunk per request",
-      "type": "timeseries"
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } }
     }
   ],
-  "preload": false,
-  "refresh": "",
-  "schemaVersion": 40,
-  "tags": [],
+
   "templating": {
     "list": [
       {
-        "current": {
-          "selected": true,
-          "text": "Prometheus",
-          "value": "prometheus"
-        },
-        "hide": 0,
-        "includeAll": false,
-        "label": "Prometheus data source",
-        "multi": false,
         "name": "datasource",
-        "options": [],
+        "type": "datasource",
+        "label": "Data source",
         "query": "prometheus",
         "refresh": 1,
-        "regex": "",
-        "skipUrlSync": false,
-        "sort": 1,
-        "type": "datasource"
+        "current": { "text": "Prometheus", "value": "Prometheus" },
+        "options": []
       },
       {
         "name": "job",
+        "type": "query",
         "label": "Job",
         "datasource": "$datasource",
-        "type": "query",
-        "query": "query_result(up{})",
-        "multi": true,
+        "refresh": 2,
+        "hide": 0,
+        "includeAll": true,
         "allValue": ".+",
-        "refresh": 2
+        "multi": true,
+        "definition": "label_values(up, job)",
+        "query": { "query": "label_values(up, job)", "refId": "StandardVariableQuery" }
       },
       {
         "name": "instance",
+        "type": "query",
         "label": "Instance",
         "datasource": "$datasource",
-        "type": "query",
-        "query": "query_result(up{})",
-        "multi": true,
+        "refresh": 2,
+        "hide": 0,
+        "includeAll": true,
         "allValue": ".+",
-        "refresh": 2
+        "multi": true,
+        "definition": "label_values(up{job=~\"$job\"}, instance)",
+        "query": { "query": "label_values(up{job=~\"$job\"}, instance)", "refId": "StandardVariableQuery" }
       }
     ]
   },
-  "time": {
-    "from": "now-5m",
-    "to": "now"
-  },
-  "timepicker": {},
-  "timezone": "browser",
-  "title": "New dashboard",
-  "uid": "dedfmds1pm1vke",
-  "version": 13,
-  "weekStart": ""
+
+  "annotations": { "list": [] },
+  "links": []
 }

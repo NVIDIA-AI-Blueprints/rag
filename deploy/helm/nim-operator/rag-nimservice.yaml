@@ -1,0 +1,164 @@
+apiVersion: apps.nvidia.com/v1alpha1
+kind: NIMService
+metadata:
+  name: nim-llm
+spec:
+  image:
+    repository: nvcr.io/nim/nvidia/llama-3.3-nemotron-super-49b-v1.5
+    tag: 1.13.1
+    pullPolicy: IfNotPresent
+    pullSecrets:
+      - ngc-secret
+  authSecret: ngc-api-secret
+  storage:
+    nimCache:
+      name: nemotron-llama3-49b-super
+      profile: ''
+    sharedMemorySizeLimit: 16Gi
+  env:
+    - name: NIM_MODEL_PROFILE
+      value: "" # Provide correct profile name here
+  replicas: 1
+  resources:
+    limits:
+# Change the GPU count from 1 to 2 for A100 80GB
+      nvidia.com/gpu: 1
+    requests:
+      nvidia.com/gpu: 1
+  expose:
+    service:
+      type: ClusterIP
+      port: 8000
+---
+apiVersion: apps.nvidia.com/v1alpha1
+kind: NIMService
+metadata:
+  name: nemoretriever-page-elements-v2
+spec:
+  image:
+    repository: nvcr.io/nim/nvidia/nemoretriever-page-elements-v2
+    tag: 1.5.0
+    pullPolicy: IfNotPresent
+    pullSecrets:
+      - ngc-secret
+  authSecret: ngc-api-secret
+  storage:
+    nimCache:
+      name: nemoretriever-page-elements-v2
+      profile: ''
+  replicas: 1
+  resources:
+    limits:
+      nvidia.com/gpu: 1
+  expose:
+    service:
+      name: http
+      type: ClusterIP
+      port: 8000
+      grpcPort: 8001
+---
+apiVersion: apps.nvidia.com/v1alpha1
+kind: NIMService
+metadata:
+  name: nemoretriever-graphic-elements-v1
+spec:
+  image:
+    repository: nvcr.io/nim/nvidia/nemoretriever-graphic-elements-v1
+    tag: 1.5.0
+    pullPolicy: IfNotPresent
+    pullSecrets:
+      - ngc-secret
+  authSecret: ngc-api-secret
+  storage:
+    nimCache:
+      name: nemoretriever-graphic-elements-v1
+      profile: ''
+  replicas: 1
+  resources:
+    limits:
+      nvidia.com/gpu: 1
+  expose:
+    service:
+      name: http
+      type: ClusterIP
+      port: 8000
+      grpcPort: 8001
+---
+apiVersion: apps.nvidia.com/v1alpha1
+kind: NIMService
+metadata:
+  name: nemoretriever-table-structure-v1
+spec:
+  image:
+    repository: nvcr.io/nim/nvidia/nemoretriever-table-structure-v1
+    tag: 1.5.0
+    pullPolicy: IfNotPresent
+    pullSecrets:
+      - ngc-secret
+  authSecret: ngc-api-secret
+  storage:
+    nimCache:
+      name: nemoretriever-table-structure-v1
+      profile: ''
+  replicas: 1
+  resources:
+    limits:
+      nvidia.com/gpu: 1
+  expose:
+    service:
+      name: http
+      type: ClusterIP
+      port: 8000
+      grpcPort: 8001
+---
+apiVersion: apps.nvidia.com/v1alpha1
+kind: NIMService
+metadata:
+  name: nemoretriever-embedding-ms
+spec:
+  image:
+    repository: nvcr.io/nim/nvidia/llama-3.2-nv-embedqa-1b-v2
+    tag: 1.10.0
+    pullPolicy: IfNotPresent
+    pullSecrets:
+      - ngc-secret
+  authSecret: ngc-api-secret
+  storage:
+    nimCache:
+      name: nvidia-nim-llama-32-nv-embedqa-1b-v2
+      profile: ''
+  replicas: 1
+  resources:
+    limits:
+      nvidia.com/gpu: 1
+  expose:
+    service:
+      type: ClusterIP
+      port: 8000
+      grpcPort: 8001
+---
+apiVersion: apps.nvidia.com/v1alpha1
+kind: NIMService
+metadata:
+  name: nemoretriever-ranking-ms
+spec:
+  image:
+    repository: nvcr.io/nim/nvidia/llama-3.2-nv-rerankqa-1b-v2
+    tag: 1.8.0
+    pullPolicy: IfNotPresent
+    pullSecrets:
+      - ngc-secret
+  authSecret: ngc-api-secret
+  storage:
+    nimCache:
+      name: nvidia-nim-llama-32-nv-rerankqa-1b-v2
+      profile: ''
+  replicas: 1
+  resources:
+    limits:
+      nvidia.com/gpu: 1
+  expose:
+    service:
+      type: ClusterIP
+      port: 8000
+      grpcPort: 8001

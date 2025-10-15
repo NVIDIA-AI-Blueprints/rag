@@ -13,36 +13,106 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { Message } from "./chat";
-import { DocumentMetadata } from "./common";
+import type { APIMetadataField } from "./collections";
 
-export interface GenerateResponse {
-  id: string;
-  object: string;
-  created: number;
-  model: string;
-  choices: {
-    index: number;
-    message: Message;
-    finish_reason?: string;
-    logprobs: null;
-  }[];
-  usage: {
-    total_tokens: number;
-    prompt_tokens: number;
-    completion_tokens: number;
-  };
-  sources?: {
-    total_results: number;
-    results: SourceResult[];
+/**
+ * Payload structure for creating a new collection.
+ */
+export interface CreateCollectionPayload {
+  collection_name: string;
+  embedding_dimension: number;
+  metadata_schema: APIMetadataField[];
+  vdb_endpoint?: string;
+}
+
+/**
+ * Represents a document item within a collection.
+ */
+export interface DocumentItem {
+  document_name: string;
+  metadata: Record<string, string>;
+}
+
+/**
+ * Response structure for fetching collection documents.
+ */
+export interface CollectionDocumentsResponse {
+  message: string;
+  total_documents: number;
+  documents: DocumentItem[];
+}
+
+export interface IngestionTask {
+  id: string; // You'll likely assign this manually, since it's not in the /status response
+  collection_name: string; // Also tracked locally, not in the response
+  created_at: string;
+
+  state: "PENDING" | "FINISHED" | "FAILED" | "UNKNOWN";
+
+  documents?: string[];
+
+  result?: {
+    message: string;
+    total_documents: number;
+    documents: {
+      document_id: string;
+      document_name: string;
+      size_bytes?: number;
+    }[];
+    failed_documents: {
+      document_name: string;
+      error_message?: string;
+    }[];
+    validation_errors?: unknown[]; // Fill in if needed
   };
 }
 
-export interface SourceResult {
-  document_id: string;
-  content: string;
-  document_name: string;
-  document_type: "image" | "text" | "table" | "chart";
-  score: number;
-  metadata: DocumentMetadata;
+/**
+ * Health check response from the ingestor server.
+ */
+export interface HealthResponse {
+  message: string;
+  databases: Array<{
+    service: string;
+    url: string;
+    status: string;
+    latency_ms: number;
+    error: string | null;
+    collections: unknown;
+  }>;
+  object_storage: Array<{
+    service: string;
+    url: string;
+    status: string;
+    latency_ms: number;
+    error: string | null;
+    buckets: number;
+    message: string | null;
+  }>;
+  nim: Array<{
+    service: string;
+    url: string;
+    status: string;
+    latency_ms: number;
+    error: string | null;
+    model: string;
+    message: string | null;
+    http_status: number | null;
+  }>;
+  processing: Array<{
+    service: string;
+    url: string;
+    status: string;
+    latency_ms: number;
+    error: string | null;
+    http_status: number;
+  }>;
+  task_management: Array<{
+    service: string;
+    url: string;
+    status: string;
+    latency_ms: number;
+    error: string | null;
+    message: string | null;
+  }>;
 }

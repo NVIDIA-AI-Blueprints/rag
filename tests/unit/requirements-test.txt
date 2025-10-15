@@ -1,0 +1,25 @@
+# Testing frameworks
+pytest>=7.0.0
+pytest-cov>=4.0.0
+pytest-asyncio>=0.21.0  # For async test support
+pytest-mock>=3.10.0
+
+# FastAPI testing
+httpx>=0.28.1
+
+# Code quality
+pylint>=2.17.0
+coverage>=7.0.0
+
+# Note: The main package dependencies (including langchain packages, opentelemetry, etc.)
+# should be installed via: pip install -e .[all]
+# This file only contains testing-specific dependencies
+
+# OpenTelemetry libs for unit tests
+opentelemetry-api
+opentelemetry-sdk
+opentelemetry-instrumentation
+opentelemetry-semantic-conventions-ai
+opentelemetry-sdk-extension-prometheus-multiprocess==1.0.0
+prometheus-client==0.20.0
+

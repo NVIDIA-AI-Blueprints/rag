@@ -1,0 +1,52 @@
+{{- $cfg := .Values.frontend -}}
+{{- if $cfg.enabled }}
+{{- $name := default "rag-frontend" $cfg.appName }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "nvidia-blueprint-rag.labels" . | nindent 4 }}
+spec:
+  replicas: {{ $cfg.replicaCount | default 1 }}
+  selector:
+    matchLabels:
+      app: {{ $name }}
+      app.kubernetes.io/component: rag-frontend
+      {{- include "nvidia-blueprint-rag.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        app: {{ $name }}
+        app.kubernetes.io/component: rag-frontend
+        {{- include "nvidia-blueprint-rag.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- if $cfg.imagePullSecret.name }}
+      imagePullSecrets:
+        - name: {{ $cfg.imagePullSecret.name }}
+      {{- end }}
+      containers:
+        - name: {{ $name }}
+{{- if $cfg.envVars }}
+          env:
+{{- toYaml $cfg.envVars | nindent 12 }}
+{{- end }}
+          image: "{{ $cfg.image.repository }}:{{ $cfg.image.tag }}"
+          imagePullPolicy: {{ $cfg.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ $cfg.service.port }}
+              protocol: TCP
+          {{- if $cfg.livenessProbe }}
+          livenessProbe:
+{{ toYaml $cfg.livenessProbe | nindent 12 }}
+          {{- end }}
+          {{- if $cfg.readinessProbe }}
+          readinessProbe:
+{{ toYaml $cfg.readinessProbe | nindent 12 }}
+          {{- end }}
+          {{- if $cfg.resources }}
+          resources:
+{{- toYaml $cfg.resources | nindent 12 }}
+          {{- end }}
+{{- end }}

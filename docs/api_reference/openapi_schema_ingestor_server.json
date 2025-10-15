@@ -17,8 +17,20 @@
           "Health APIs"
         ],
         "summary": "Health Check",
-        "description": "Perform a Health Check\n\nReturns 200 when service is up. This does not check the health of downstream services.",
+        "description": "Perform a Health Check\n\nArgs:\n    check_dependencies: If True, check health of all dependent services.\n                       If False (default), only report that the API service is up.\n\nReturns 200 when service is up and includes health status of all dependent services when requested.",
         "operationId": "health_check_health_get",
+        "parameters": [
+          {
+            "name": "check_dependencies",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Check Dependencies"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -36,6 +48,16 @@
               "application/json": {
                 "example": {
                   "detail": "Internal server error occurred"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -72,16 +94,6 @@
               }
             }
           },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          },
           "499": {
             "description": "Client Closed Request",
             "content": {
@@ -98,6 +110,16 @@
               "application/json": {
                 "example": {
                   "detail": "Internal server error occurred"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -132,16 +154,6 @@
               }
             }
           },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          },
           "499": {
             "description": "Client Closed Request",
             "content": {
@@ -158,6 +170,16 @@
               "application/json": {
                 "example": {
                   "detail": "Internal server error occurred"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -194,16 +216,6 @@
               }
             }
           },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          },
           "499": {
             "description": "Client Closed Request",
             "content": {
@@ -223,6 +235,16 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
           }
         }
       },
@@ -231,7 +253,6 @@
           "Ingestion APIs"
         ],
         "summary": "Delete Documents",
-        "description": "Delete a document from vectorstore.",
         "operationId": "delete_documents_documents_delete",
         "parameters": [
           {
@@ -253,7 +274,6 @@
                 "items": {
                   "type": "string"
                 },
-                "default": [],
                 "title": "Document Names"
               }
             }
@@ -266,16 +286,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DocumentListResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -296,6 +306,16 @@
               "application/json": {
                 "example": {
                   "detail": "Internal server error occurred"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -365,16 +385,6 @@
               }
             }
           },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          },
           "499": {
             "description": "Client Closed Request",
             "content": {
@@ -391,6 +401,16 @@
               "application/json": {
                 "example": {
                   "detail": "Internal server error occurred"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -435,9 +455,6 @@
                 "items": {
                   "type": "string"
                 },
-                "default": [
-                  "multimodal_data"
-                ],
                 "title": "Collection Names"
               }
             }
@@ -450,16 +467,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CollectionsResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -480,6 +487,16 @@
               "application/json": {
                 "example": {
                   "detail": "Internal server error occurred"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -491,7 +508,6 @@
           "Vector DB APIs"
         ],
         "summary": "Delete Collections",
-        "description": "Endpoint to delete a collection from the Milvus server.\nReturns status message.",
         "operationId": "delete_collections_collections_delete",
         "requestBody": {
           "content": {
@@ -501,9 +517,6 @@
                 "items": {
                   "type": "string"
                 },
-                "default": [
-                  "multimodal_data"
-                ],
                 "title": "Collection Names"
               }
             }
@@ -516,16 +529,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CollectionsResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -546,6 +549,16 @@
               "application/json": {
                 "example": {
                   "detail": "Internal server error occurred"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -582,16 +595,6 @@
               }
             }
           },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          },
           "499": {
             "description": "Client Closed Request",
             "content": {
@@ -608,6 +611,16 @@
               "application/json": {
                 "example": {
                   "detail": "Internal server error occurred"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -796,6 +809,57 @@
         "title": "CreateCollectionResponse",
         "description": "Response model for creation or deletion of a collection in Milvus."
       },
+      "DatabaseHealthInfo": {
+        "properties": {
+          "service": {
+            "type": "string",
+            "title": "Service"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "latency_ms": {
+            "type": "number",
+            "title": "Latency Ms",
+            "default": 0
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "collections": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Collections"
+          }
+        },
+        "type": "object",
+        "required": [
+          "service",
+          "url",
+          "status"
+        ],
+        "title": "DatabaseHealthInfo",
+        "description": "Health info specific to database services"
+      },
       "DocumentListResponse": {
         "properties": {
           "message": {
@@ -882,11 +946,47 @@
             "maxLength": 4096,
             "pattern": "[\\s\\S]*",
             "title": "Message",
-            "default": ""
+            "default": "Service is up."
+          },
+          "databases": {
+            "items": {
+              "$ref": "#/components/schemas/DatabaseHealthInfo"
+            },
+            "type": "array",
+            "title": "Databases"
+          },
+          "object_storage": {
+            "items": {
+              "$ref": "#/components/schemas/StorageHealthInfo"
+            },
+            "type": "array",
+            "title": "Object Storage"
+          },
+          "nim": {
+            "items": {
+              "$ref": "#/components/schemas/NIMServiceHealthInfo"
+            },
+            "type": "array",
+            "title": "Nim"
+          },
+          "processing": {
+            "items": {
+              "$ref": "#/components/schemas/ProcessingHealthInfo"
+            },
+            "type": "array",
+            "title": "Processing"
+          },
+          "task_management": {
+            "items": {
+              "$ref": "#/components/schemas/TaskManagementHealthInfo"
+            },
+            "type": "array",
+            "title": "Task Management"
           }
         },
         "type": "object",
-        "title": "HealthResponse"
+        "title": "HealthResponse",
+        "description": "Overall health response with specialized fields for each service type"
       },
       "IngestionTaskResponse": {
         "properties": {
@@ -939,10 +1039,15 @@
             "type": "string",
             "enum": [
               "string",
-              "datetime"
+              "datetime",
+              "number",
+              "integer",
+              "float",
+              "boolean",
+              "array"
             ],
             "title": "Type",
-            "description": "Type of the metadata field from the following: 'string', 'datetime'.",
+            "description": "Type of the metadata field from the following: 'string', 'datetime', 'number', 'integer', 'float', 'boolean', 'array'.",
             "default": ""
           },
           "description": {
@@ -950,11 +1055,256 @@
             "title": "Description",
             "description": "Optional description of the metadata field.",
             "default": ""
+          },
+          "array_type": {
+            "type": "string",
+            "enum": [
+              "string",
+              "number", 
+              "integer",
+              "float",
+              "boolean"
+            ],
+            "title": "Array Type",
+            "description": "Type of array elements (string, number, integer, float, boolean) - required when type is 'array'.",
+            "nullable": true
+          },
+          "required": {
+            "type": "boolean",
+            "title": "Required",
+            "description": "Whether this field is required in metadata.",
+            "default": false
           }
         },
         "type": "object",
         "title": "MetadataField",
         "description": "Model representing a metadata field."
+      },
+      "NIMServiceHealthInfo": {
+        "properties": {
+          "service": {
+            "type": "string",
+            "title": "Service"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "latency_ms": {
+            "type": "number",
+            "title": "Latency Ms",
+            "default": 0
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "http_status": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Http Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "service",
+          "url",
+          "status"
+        ],
+        "title": "NIMServiceHealthInfo",
+        "description": "Health info specific to NIM services (LLM, embeddings, etc.)"
+      },
+      "ProcessingHealthInfo": {
+        "properties": {
+          "service": {
+            "type": "string",
+            "title": "Service"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "latency_ms": {
+            "type": "number",
+            "title": "Latency Ms",
+            "default": 0
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "http_status": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Http Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "service",
+          "url",
+          "status"
+        ],
+        "title": "ProcessingHealthInfo",
+        "description": "Health info specific to document processing services"
+      },
+      "StorageHealthInfo": {
+        "properties": {
+          "service": {
+            "type": "string",
+            "title": "Service"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "latency_ms": {
+            "type": "number",
+            "title": "Latency Ms",
+            "default": 0
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "buckets": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Buckets"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "service",
+          "url",
+          "status"
+        ],
+        "title": "StorageHealthInfo",
+        "description": "Health info specific to object storage services"
+      },
+      "TaskManagementHealthInfo": {
+        "properties": {
+          "service": {
+            "type": "string",
+            "title": "Service"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "latency_ms": {
+            "type": "number",
+            "title": "Latency Ms",
+            "default": 0
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "service",
+          "url",
+          "status"
+        ],
+        "title": "TaskManagementHealthInfo",
+        "description": "Health info specific to task management services"
       },
       "UploadDocumentResponse": {
         "properties": {
@@ -1042,7 +1392,9 @@
             "type": "object",
             "title": "Metadata",
             "description": "Metadata of the document.",
-            "default": {}
+            "default": {
+
+            }
           }
         },
         "type": "object",

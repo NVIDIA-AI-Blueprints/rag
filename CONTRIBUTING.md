@@ -1,7 +1,7 @@
 # Contributing Guidelines
 
-We're posting these examples on GitHub to support the NVIDIA LLM community and facilitate feedback. 
-We invite contributions! 
+We're posting this blueprint on GitHub to support the NVIDIA LLM community and facilitate feedback.
+We invite contributions!
 
 Use the following guidelines to contribute to this project.
 
@@ -13,6 +13,20 @@ Developer workflow for code contributions is as follows:
 2. Git clone the forked repository and push changes to the personal fork.
 3. Once the code changes are staged on the fork and ready for review, a Pull Request (PR) can be requested to merge the changes from a branch of the fork into a selected branch of upstream.
 4. Since there is no CI/CD process in place yet, the PR will be accepted and the corresponding issue closed only after adequate testing has been completed, manually, by the developer and/or repository owners reviewing the code.
+
+
+## Code Quality and Linting
+
+Before submitting your pull request, please ensure your code follows our quality standards. We use Ruff and Pylint for code quality checks.
+
+For detailed information on setting up and running linting tools, please see our [Linting Guidelines](LINTING.md).
+
+**Quick setup:**
+```bash
+pip install -r requirements-dev.txt
+pre-commit install
+pre-commit run --all-files
+```
 
 
 ## Signing Your Work

@@ -1,0 +1,22 @@
+@import "tailwindcss/theme.css";
+@import "tailwindcss/preflight.css";
+@import "tailwindcss/utilities.css";
+@import "@kui/react/base.css";
+
+@plugin "@kui/foundations" {
+  disable-component-utilities: true;
+  themes: "nv-dark --prefersdark";
+  default-themes: "nv-dark --default, nv-light, nv-density-standard --default";
+}
+
+/* Bounce animation for StreamingIndicator dots */
+@keyframes bounce {
+  0%, 80%, 100% {
+    transform: scale(0);
+    opacity: 0.5;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}

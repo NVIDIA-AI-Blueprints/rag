@@ -30,18 +30,18 @@ Class:
 
 import base64
 import io
-import json
 import os
+import re
 from logging import getLogger
-from typing import Any, Dict, List
+from typing import Any
 
-import requests
-import yaml
 from langchain_core.messages import HumanMessage
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 from PIL import Image as PILImage
+from PIL import UnidentifiedImageError
+import binascii
 
 from nvidia_rag.utils.common import get_config
 from nvidia_rag.utils.llm import get_llm, get_prompts
@@ -58,13 +58,12 @@ class VLM:
     -------
     analyze_image(image_b64_list, question):
         Analyze up to 4 images with a VLM given a question.
-    _resize_and_merge_images(image_objects, target_height=400):
-        Resize and merge images horizontally, returning a base64-encoded PNG.
     analyze_images_from_context(docs, question):
         Extracts images from document context and analyzes them with the VLM.
     reason_on_vlm_response(question, vlm_response, docs, llm_settings):
         Uses an LLM to reason about the VLM's response and decide if it should be used.
     """
+
     def __init__(self, vlm_model: str, vlm_endpoint: str):
         """
         Initialize the VLM with configuration and prompt templates.
@@ -78,7 +77,7 @@ class VLM:
         self.invoke_url = vlm_endpoint
         self.model_name = vlm_model
         if not self.invoke_url or not self.model_name:
-            raise EnvironmentError(
+            raise OSError(
                 "VLM server URL and model name must be set in the environment."
             )
         prompts = get_prompts()
@@ -89,23 +88,30 @@ class VLM:
         logger.info(f"VLM Model Name: {self.model_name}")
         logger.info(f"VLM Server URL: {self.invoke_url}")
 
-    def analyze_image(self, image_b64_list: List[str], question: str) -> str:
+    def analyze_image(
+        self,
+        image_b64_list: list[str],
+        question: str,
+        query_image_list: list[str] | None = None,
+    ) -> str:
         """
         Analyze up to 4 images using the VLM for a given question.
 
         Parameters
         ----------
         image_b64_list : List[str]
-            List of base64-encoded PNG images (max 4).
+            Base64 PNG images from context. Will be truncated to fit total limit.
         question : str
             The question to ask the VLM about the images.
+        query_image_list : Optional[List[str]]
+            Base64 PNG images directly associated with the user query (max 2).
 
         Returns
         -------
         str
             The VLM's response as a string, or an empty string on error.
         """
-        if not image_b64_list:
+        if not image_b64_list and not query_image_list:
             logger.warning("No images provided for VLM analysis.")
             return ""
 
@@ -114,70 +120,125 @@ class VLM:
             openai_api_key=os.getenv("NVIDIA_API_KEY"),
             openai_api_base=self.invoke_url,
         )
+
         formatted_prompt = self.vlm_template.format(question=question)
         message = HumanMessage(content=[{"type": "text", "text": formatted_prompt}])
 
-        if len(image_b64_list) > 4:
-            image_b64_list = image_b64_list[:4]
-            logger.warning(
-                "VLM can only handle up to 4 images at a time. Only the first 4 images will be used."
+        config = get_config()
+        max_total_images = max(0, int(config.vlm.max_total_images))
+        max_query_images = max(0, int(config.vlm.max_query_images))
+        max_context_images = max(0, int(config.vlm.max_context_images))
+
+        logger.info(
+            "VLM image limits - max_total_images=%d, max_query_images=%d, max_context_images=%d",
+            max_total_images,
+            max_query_images,
+            max_context_images,
+        )
+
+        if max_query_images + max_context_images > max_total_images:
+            logger.error(
+                "Configured max_query_images (%d) + max_context_images (%d) exceed max_total_images (%d). Skipping VLM call.",
+                max_query_images,
+                max_context_images,
+                max_total_images,
             )
-        for image_b64 in image_b64_list:
-            message.content.append(
-                {
-                    "type": "image_url",
-                    "image_url": {"url": f"data:image/png;base64,{image_b64}"},
-                }
-            )
+            return ""
+
+        # Determine query images to add (up to per-type cap)
+        query_imgs = (query_image_list or [])[:max_query_images]
+        if query_imgs:
+            self._add_image_urls(query_imgs, max_query_images, message)
+
+        # Add context images within remaining slots (up to per-type cap)
+        if image_b64_list:
+            remaining_slots = max(0, max_total_images - len(query_imgs))
+            context_limit = min(max_context_images, remaining_slots)
+            context_images = image_b64_list[:context_limit]
+            if context_images:
+                self._add_image_urls(context_images, max_context_images, message)
+
+        vlm_response = vlm.invoke([message]).content.strip()
+        logger.info(f"VLM Response: {vlm_response}")
+
         try:
-            return vlm.invoke([message]).content.strip()
+            return vlm_response
         except Exception as e:
             logger.warning(f"Exception during VLM call: {e}", exc_info=True)
             return ""
 
-    def _resize_and_merge_images(
-        self, image_objects: List[PILImage.Image], target_height: int = 400
-    ) -> str:
+    def _convert_image_url_to_png_b64(self, image_url: str) -> str:
         """
-        Resize images to a target height, merge them horizontally, and return as base64 PNG.
+        Convert an image URL (data URL or base64 string) to PNG format base64.
 
         Parameters
         ----------
-        image_objects : List[PILImage.Image]
-            List of PIL Image objects to merge.
-        target_height : int, optional
-            The height to resize all images to (default is 400).
+        image_url : str
+            Image URL in data URL format or base64 string
 
         Returns
         -------
         str
-            Base64-encoded PNG of the merged image.
+            Base64-encoded PNG image string
         """
-        if not image_objects:
-            logger.warning("No image objects provided for merging.")
-            return ""
-        resized_images = []
-        for img in image_objects:
-            aspect_ratio = img.width / img.height
-            new_width = int(target_height * aspect_ratio)
-            resized_images.append(img.resize((new_width, target_height)))
+        try:
+            # Handle data URL format (e.g., "data:image/jpeg;base64,/9j/4AAQ...")
+            if image_url.startswith("data:image/"):
+                # Extract base64 data from data URL
+                match = re.match(r"data:image/[^;]+;base64,(.+)", image_url)
+                if match:
+                    b64_data = match.group(1)
+                else:
+                    logger.warning(f"Invalid data URL format: {image_url[:100]}...")
+                    return image_url
+            else:
+                # Assume it's already a base64 string
+                b64_data = image_url
 
-        total_width = sum(img.width for img in resized_images)
-        composite_image = PILImage.new(
-            "RGB", (total_width, target_height), (255, 255, 255)
-        )
-        current_x = 0
-        for img in resized_images:
-            composite_image.paste(img, (current_x, 0))
-            current_x += img.width
+            # Decode base64 to bytes
+            image_bytes = base64.b64decode(b64_data)
 
-        with io.BytesIO() as buffer:
-            composite_image.save(buffer, format="PNG")
-            merged_image_bytes = buffer.getvalue()
-            return base64.b64encode(merged_image_bytes).decode()
+            # Open image with PIL and convert to RGB (in case it's RGBA or other format)
+            img = PILImage.open(io.BytesIO(image_bytes)).convert("RGB")
+
+            # Convert to PNG format
+            with io.BytesIO() as buffer:
+                img.save(buffer, format="PNG")
+                png_b64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
+
+            logger.debug("Successfully converted image to PNG format")
+            return png_b64
+
+        except Exception as e:
+            logger.warning(f"Failed to convert image URL to PNG: {e}")
+            # Return original if conversion fails
+            return image_url
+
+    def _add_image_urls(
+        self, image_list: list[str], max_images: int, message: HumanMessage
+    ):
+        """
+        Add image URLs to message.content
+
+        Parameters
+        ----------
+        image_list : List[str]
+            List of base64-encoded PNG images.
+        max_images : int
+            Maximum number of images to add.
+        message : Message
+            The message to add the image URLs to.
+        """
+        for b64 in image_list[:max_images]:
+            message.content.append(
+                {
+                    "type": "image_url",
+                    "image_url": {"url": f"data:image/png;base64,{b64}"},
+                }
+            )
 
     def analyze_images_from_context(
-        self, docs: List[dict], question: str
+        self, docs: list[dict], question: str | list[dict[str, Any]]
     ) -> str:
         """
         Extract images from document context and analyze them with the VLM.
@@ -186,7 +247,7 @@ class VLM:
         ----------
         docs : List[dict]
             List of document objects with metadata containing image info.
-        question : str
+        question : str | list[dict[str, Any]]
             The question to ask the VLM about the images.
 
         Returns
@@ -205,6 +266,7 @@ class VLM:
             logger.warning("No documents provided for image context analysis.")
             return ""
 
+        logger.info("Number of documents: %s", len(docs))
         for doc in docs:
             try:
                 content_metadata = doc.metadata.get("content_metadata", {})
@@ -227,15 +289,40 @@ class VLM:
                         object_name=unique_thumbnail_id
                     )
                     content = payload.get("content", "")
-                    image_bytes = base64.b64decode(content)
-                    img = PILImage.open(io.BytesIO(image_bytes)).convert("RGB")
+                    if not content:
+                        logger.warning(
+                            "Empty image content for %s; skipping", unique_thumbnail_id
+                        )
+                        continue
+                    try:
+                        image_bytes = base64.b64decode(content)
+                    except (binascii.Error, ValueError) as decode_err:
+                        logger.warning(
+                            "Invalid base64 image content for %s; skipping (%s)",
+                            unique_thumbnail_id,
+                            decode_err,
+                        )
+                        continue
+
+                    try:
+                        img = PILImage.open(io.BytesIO(image_bytes)).convert("RGB")
+                    except UnidentifiedImageError:
+                        logger.warning(
+                            "Unidentified image content for %s; skipping", unique_thumbnail_id
+                        )
+                        continue
                     image_objects.append(img)
             except Exception as e:
-                logger.warning(f"Failed to process document for image extraction: {e}", exc_info=True)
+                logger.warning(
+                    f"Failed to process document for image extraction: {e}",
+                    exc_info=True,
+                )
                 continue
 
-        if not image_objects:
-            logger.warning("No valid images extracted from document context.")
+        if not image_objects and isinstance(question, str):
+            logger.warning(
+                "Skipping VLM: no images extracted from context and no query images provided."
+            )
             return ""
 
         image_b64_list = []
@@ -245,14 +332,38 @@ class VLM:
                 image_b64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
                 image_b64_list.append(image_b64)
 
-        return self.analyze_image(image_b64_list=image_b64_list, question=question)
+        # Prepare the query for the VLM
+        query_image_list = []
+        vlm_query = question
+        if isinstance(question, list):
+            vlm_query = ""
+            for item in question:
+                if item.get("type") == "image_url":
+                    # Convert image URL to PNG format for consistency
+                    original_url = item.get("image_url").get("url")
+                    png_b64 = self._convert_image_url_to_png_b64(original_url)
+                    query_image_list.append(png_b64)
+                elif item.get("type") == "text":
+                    vlm_query = vlm_query + "\n" + item.get("text")
+                vlm_query = vlm_query.strip()
+            logger.debug("VLM query: %s", vlm_query)
+            logger.debug(
+                "Number of images found in the question: %s", len(query_image_list)
+            )
+        else:
+            logger.debug("No image found in the question")
+        return self.analyze_image(
+            image_b64_list=image_b64_list,
+            question=vlm_query,
+            query_image_list=query_image_list,
+        )
 
     def reason_on_vlm_response(
         self,
         question: str,
         vlm_response: str,
-        docs: List[dict],
-        llm_settings: Dict[str, Any],
+        docs: list[dict],
+        llm_settings: dict[str, Any],
     ) -> bool:
         """
         Use an LLM to reason about the VLM's response and decide if it should be used.
@@ -278,7 +389,15 @@ class VLM:
             return False
 
         llm = get_llm(**llm_settings)
-        prompt = ChatPromptTemplate.from_template(self.vlm_response_reasoning_template)
+
+        template = get_prompts().get("vlm_response_reasoning_template", {})
+        prompt = ChatPromptTemplate.from_messages(
+            [
+                ("system", template.get("system", "")),
+                ("human", template.get("human", "")),
+            ]
+        )
+
         parser = StrOutputParser()
 
         chain = prompt | llm | parser

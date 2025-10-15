@@ -13,54 +13,35 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+/**
+ * Represents a citation in a chat message response.
+ */
 export interface Citation {
   text: string;
   source: string;
   document_type: "text" | "image" | "table" | "chart";
-  score?: number;
+  score?: number | string;
 }
 
+/**
+ * Represents a message in the chat conversation.
+ */
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
   timestamp: string;
   citations?: Citation[];
+  is_error?: boolean;
 }
 
-export interface StreamState {
-  content: string;
-  citations: Citation[];
-  error: string | null;
-  isTyping: boolean;
-}
-
-export interface Message {
-  role: "user" | "assistant" | "system";
-  content: string;
-}
-
-export interface GenerateRequest {
-  messages: Message[];
-  use_knowledge_base?: boolean;
-  temperature?: number;
-  top_p?: number;
-  max_tokens?: number;
-  reranker_top_k?: number;
-  vdb_top_k?: number;
-  confidence_threshold?: number;
-  vdb_endpoint?: string;
-  collection_names: string[];
-  enable_query_rewriting?: boolean;
-  enable_reranker?: boolean;
-  enable_citations?: boolean;
-  enable_guardrails?: boolean;
-  model?: string;
-  llm_endpoint?: string;
-  embedding_model?: string;
-  embedding_endpoint?: string;
-  reranker_model?: string;
-  reranker_endpoint?: string;
-  stop?: string[];
-  filter_expr?: string;
+/**
+ * Represents a filter for search queries.
+ */
+export interface Filter {
+  field: string;
+  operator: "=" | "!=" | ">" | "<" | ">=" | "<=" | "in" | "includes" | "does not include" | "like" | "not in" | "before" | "after" | "array_contains" | "array_contains_all" | "array_contains_any";
+  value: string | number | boolean | (string | number | boolean)[];
+  // Logical operator to join this filter with the previous one (undefined for first filter)
+  logicalOperator?: "AND" | "OR";
 }

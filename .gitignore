@@ -73,18 +73,11 @@ htmlcov/
 .cache
 nosetests.xml
 coverage.xml
+coverage/
 *.cover
 *.py,cover
 .hypothesis/
 .pytest_cache/
 cover/
-
+*.log
 # Workbench Project Layout
-
-**/cleanup.sh
-**/rag-scc-deploy.sh
-**/**/CLAUDE.md
-
-# Cluster-specific MIG configuration
-**/helm/**/ocp-mig-config.yaml
-**/helm/**/ocp-values-mig.yaml

@@ -1,0 +1,79 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "nvidia-blueprint-rag.fullname" . }}
+  labels:
+    {{- include "nvidia-blueprint-rag.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "nvidia-blueprint-rag.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: rag-server
+  template:
+    metadata:
+      labels:
+        {{- include "nvidia-blueprint-rag.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: rag-server
+    spec:
+      serviceAccountName: {{ include "nvidia-blueprint-rag.serviceAccountName" . }}
+      {{- if .Values.imagePullSecret.name }}
+      imagePullSecrets:
+        - name: {{ .Values.imagePullSecret.name }}
+      {{- end }}
+      {{- if .Values.nodeSelector }}
+      nodeSelector:
+{{ toYaml .Values.nodeSelector | nindent 8 }}
+      {{- end }}
+      {{- if .Values.affinity }}
+      affinity:
+{{ toYaml .Values.affinity | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ include "nvidia-blueprint-rag.name" . }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+          - "uvicorn"
+          - "nvidia_rag.rag_server.server:app"
+          - "--port"
+          - "8081"
+          - "--host"
+          - "0.0.0.0"
+          - "--workers"
+          - "{{ .Values.server.workers }}"
+          ports:
+            - containerPort: 8081
+          env:
+          {{- if .Values.envVars }}
+          {{- range $k, $v := .Values.envVars }}
+            - name: "{{ $k }}"
+              value: "{{ $v }}"
+          {{- end }}
+          {{- end }}
+            - name: NVIDIA_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.ngcApiSecret.name }}
+                  key: NVIDIA_API_KEY
+          {{- if .Values.livenessProbe }}
+          livenessProbe:
+{{ toYaml .Values.livenessProbe | nindent 12 }}
+          {{- end }}
+          {{- if .Values.readinessProbe }}
+          readinessProbe:
+{{ toYaml .Values.readinessProbe | nindent 12 }}
+          {{- end }}
+          {{- if .Values.resources }}
+          resources:
+{{ toYaml .Values.resources | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: prompt-volume
+              mountPath: /prompt.yaml
+              subPath: prompt.yaml
+      volumes:
+        - name: prompt-volume
+          configMap:
+            name: {{ include "nvidia-blueprint-rag.fullname" . }}-prompt
+            defaultMode: 0555

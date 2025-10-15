@@ -25,13 +25,15 @@ It is used to submit tasks to the task handler and get the status and result of 
 6. get_task_result: A method that gets the result of a task.
 """
 
-import os
-from typing import Callable, Dict, Any
 import asyncio
+import logging
+import os
+from collections.abc import Callable
+from typing import Any
 from uuid import uuid4
+
 from pydantic import BaseModel
 from redis import Redis
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -40,9 +42,10 @@ class RedisSchema(BaseModel):
     """
     A class that defines the schema of the Redis database.
     """
+
     task_id: str
     state: str
-    result: Dict[str, Any] = {}
+    result: dict[str, Any] = {}
 
 
 class IngestionTaskHandler:
@@ -55,10 +58,14 @@ class IngestionTaskHandler:
     _redis_host: str = os.getenv("REDIS_HOST", "localhost")
     _redis_port: int = int(os.getenv("REDIS_PORT", 6379))
     _redis_db: int = int(os.getenv("REDIS_DB", 0))
-    _enable_redis_backend: bool = os.getenv("ENABLE_REDIS_BACKEND", "False").lower() in ["true", "True"]
+    _enable_redis_backend: bool = os.getenv(
+        "ENABLE_REDIS_BACKEND", "False"
+    ).lower() in ["true", "True"]
 
     if _enable_redis_backend:
-        logger.info(f"Initializing Redis client with host {_redis_host}, port {_redis_port}, db {_redis_db}")
+        logger.info(
+            f"Initializing Redis client with host {_redis_host}, port {_redis_port}, db {_redis_db}"
+        )
         # Initialize the Redis client
         _redis_client: Redis = Redis(host=_redis_host, port=_redis_port, db=_redis_db)
     else:
@@ -67,7 +74,7 @@ class IngestionTaskHandler:
 
     def __init__(self):
         # Local task map to store tasks
-        self.task_map = {} # {task_id: asyncio_task}
+        self.task_map = {}  # {task_id: asyncio_task}
 
     async def _execute_ingestion_task(self, task_id: str, function: Callable):
         """
@@ -83,8 +90,10 @@ class IngestionTaskHandler:
             return result
         except Exception as e:
             self.update_task_status(task_id, "FAILED")
-            logger.error(f"Task {task_id} failed using IngestionTaskHandler with error: {e}",
-                         exc_info=logger.getEffectiveLevel() <= logging.DEBUG)
+            logger.error(
+                f"Task {task_id} failed using IngestionTaskHandler with error: {e}",
+                exc_info=logger.getEffectiveLevel() <= logging.DEBUG,
+            )
             raise e
 
     def submit_task(self, function: Callable):
@@ -96,13 +105,13 @@ class IngestionTaskHandler:
             task_id: The id of the task.
         """
         task_id = str(uuid4())
-        asyncio_task = asyncio.create_task(self._execute_ingestion_task(task_id, function))
+        asyncio_task = asyncio.create_task(
+            self._execute_ingestion_task(task_id, function)
+        )
         self.task_map[task_id] = asyncio_task
         if self._enable_redis_backend:
             self._redis_client.json().set(
-                task_id,
-                "$",
-                RedisSchema(task_id=task_id, state="PENDING").model_dump()
+                task_id, "$", RedisSchema(task_id=task_id, state="PENDING").model_dump()
             )
         return task_id
 
@@ -127,12 +136,10 @@ class IngestionTaskHandler:
         """
         if self._enable_redis_backend:
             self._redis_client.json().set(
-                task_id,
-                "$",
-                RedisSchema(task_id=task_id, state=status).model_dump()
+                task_id, "$", RedisSchema(task_id=task_id, state=status).model_dump()
             )
 
-    def _set_task_result(self, task_id: str, result: Dict[str, Any]):
+    def _set_task_result(self, task_id: str, result: dict[str, Any]):
         """
         Internal function to set the result of a task in Redis.
         Args:
@@ -143,7 +150,9 @@ class IngestionTaskHandler:
             self._redis_client.json().set(
                 task_id,
                 "$",
-                RedisSchema(task_id=task_id, state="FINISHED", result=result).model_dump()
+                RedisSchema(
+                    task_id=task_id, state="FINISHED", result=result
+                ).model_dump(),
             )
 
     def get_task_result(self, task_id: str):
@@ -154,7 +163,9 @@ class IngestionTaskHandler:
         Returns:
             result: The result of the task.
         """
-        logger.info(f"Getting result of task {task_id}, enable_redis_backend: {self._enable_redis_backend}")
+        logger.info(
+            f"Getting result of task {task_id}, enable_redis_backend: {self._enable_redis_backend}"
+        )
         if self._enable_redis_backend:
             return self._redis_client.json().get(task_id).get("result")
         logger.info(f"Task result: {self.task_map[task_id].result()}")

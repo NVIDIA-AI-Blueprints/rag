@@ -1,0 +1,20 @@
+{{- $cfg := .Values.frontend -}}
+{{- if $cfg.enabled }}
+{{- $name := default "rag-frontend" $cfg.appName }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "nvidia-blueprint-rag.labels" . | nindent 4 }}
+spec:
+  type: {{ $cfg.service.type }}
+  ports:
+    - port: {{ $cfg.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    app: {{ $name }}
+    app.kubernetes.io/component: rag-frontend
+{{- end }} 

@@ -2,14 +2,21 @@
   SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
   SPDX-License-Identifier: Apache-2.0
 -->
+# Enable Image Captioning Support for NVIDIA RAG Blueprint
 
-# Enable image captioning support
-Enabling image captioning will yield higher accuracy for querstions relevant to images in the ingested documents at the cost of higher ingestion latency.
-Once you have followed [steps in quick start guide](./quickstart.md#deploy-with-docker-compose) to launch the blueprint, to enable image captioning support, developers have two options:
+You can enable image captioning support for [NVIDIA RAG Blueprint](readme.md). Enabling image captioning will yield higher accuracy for querstions relevant to images in the ingested documents at the cost of higher ingestion latency.
+
+After you have [deployed the blueprint](readme.md#deploy), to enable image captioning support, you have the following options:
 - [Enable image captioning support](#enable-image-captioning-support)
   - [Using on-prem VLM model (Recommended)](#using-on-prem-vlm-model-recommended)
   - [Using cloud hosted VLM model](#using-cloud-hosted-vlm-model)
   - [Using Helm chart deployment (On-prem only)](#using-helm-chart-deployment-on-prem-only)
+
+> [!WARNING]
+>
+> B200 GPUs are not supported for image captioning support for ingested documents.
+> For this feature, use H100 or A100 GPUs instead.
+
 
 ## Using on-prem VLM model (Recommended)
 1. Deploy the VLM model on-prem. You need a H100 or A100 or B200 GPU to deploy this model.
@@ -81,16 +88,16 @@ To enable image captioning in Helm-based deployments by using an on-prem VLM mod
 3. Apply the updated Helm chart by running the following code.
 
    ```bash
-   helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.2.0.tgz \
+   helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.3.0.tgz \
    --username '$oauthtoken' \
    --password "${NGC_API_KEY}" \
    --set imagePullSecret.password=$NGC_API_KEY \
    --set ngcApiSecret.password=$NGC_API_KEY \
-   -f rag-server/values.yaml
+   -f deploy/helm/nvidia-blueprint-rag/values.yaml
    ```
 
 > [!Note]
 > Enabling the on-prem VLM model increases the total GPU requirement to 9xH100 GPUs.
 
 > [!Warning]
-> With [image captioning enabled](image_captioning.md), uploaded files will fail to get ingested, if they do not contain any graphs, charts, tables or plots. This is currently a known limitation and will be fixed in a future release.
+> With [image captioning enabled](image_captioning.md), uploaded files will fail to get ingested, if they do not contain any graphs, charts, tables or plots. This is currently a known limitation.

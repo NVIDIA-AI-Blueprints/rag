@@ -1,0 +1,22 @@
+{{- $cfg := index .Values "ingestor-server" -}}
+{{- if and $cfg.enabled $cfg.persistence.enabled (not $cfg.persistence.existingClaim) }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ printf "%s-data" $cfg.appName }}
+  labels:
+    {{- include "nvidia-blueprint-rag.labels" . | nindent 4 }}
+spec:
+  accessModes:
+  {{- range $mode := $cfg.persistence.accessModes }}
+    - {{ $mode }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ $cfg.persistence.size }}
+  {{- if $cfg.persistence.storageClass }}
+  storageClassName: {{ $cfg.persistence.storageClass }}
+  {{- end }}
+{{- end }}
+
+
