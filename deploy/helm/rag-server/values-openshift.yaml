@@ -1,0 +1,53 @@
+# This values file overrides the default service account names for the workloads
+# listed below and has them use a global service account that are bound to a 
+# cluster role with the necessary permissions to be deployed on an OpenShift cluster
+
+ingestor-server:
+
+  nv-ingest:
+
+    paddleocr-nim:
+      deployed: true
+      serviceAccount:
+        create: false
+        name: nvidia-blueprint-ocp
+        
+    nemoretriever-graphic-elements-v1:
+      deployed: true
+      serviceAccount:
+        create: false
+        name: nvidia-blueprint-ocp
+
+    nemoretriever-page-elements-v2:
+      deployed: true
+      serviceAccount:
+        create: false
+        name: nvidia-blueprint-ocp
+
+    nemoretriever-table-structure-v1:
+      deployed: true
+      serviceAccount:
+        create: false
+        name: nvidia-blueprint-ocp
+
+    milvus:
+      etcd:
+        enabled: true
+        serviceAccount:
+          create: false
+          name: nvidia-blueprint-ocp
+
+nim-llm:
+  serviceAccount:
+    create: false
+    name: nvidia-blueprint-ocp
+
+nvidia-nim-llama-32-nv-embedqa-1b-v2:
+  serviceAccount:
+    create: false
+    name: nvidia-blueprint-ocp
+
+text-reranking-nim:
+  serviceAccount:
+    create: false
+    name: nvidia-blueprint-ocp
