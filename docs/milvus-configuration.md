@@ -59,10 +59,10 @@ After making the configuration changes and setting environment variables, restar
 
 ```bash
 # 1. Stop existing services
-docker compose -f deploy/compose/vectordb.yaml down
+docker compose -f deploy/compose/vectordb.yaml --profile milvus down
 
 # 2. Start Milvus and dependencies
-docker compose -f deploy/compose/vectordb.yaml up -d
+docker compose -f deploy/compose/vectordb.yaml --profile milvus up -d
 
 # 3. Now start the ingestor server
 docker compose -f deploy/compose/docker-compose-ingestor-server.yaml up -d
@@ -134,7 +134,7 @@ Example sequence:
 
 ```bash
 # Start/ensure Milvus is up (GPU image if you want GPU indexing)
-docker compose -f deploy/compose/vectordb.yaml up -d
+docker compose -f deploy/compose/vectordb.yaml --profile milvus up -d
 
 # Set env vars and start the ingestor (GPU indexing + CPU search)
 export APP_VECTORSTORE_ENABLEGPUSEARCH=False
@@ -213,7 +213,7 @@ If you encounter GPU_CAGRA errors that cannot be resolved by when switching to C
 
 1. Stop all running services:
    ```bash
-   docker compose -f deploy/compose/vectordb.yaml down
+   docker compose -f deploy/compose/vectordb.yaml --profile milvus down
    docker compose -f deploy/compose/docker-compose-ingestor-server.yaml down
    ```
 
@@ -224,7 +224,7 @@ If you encounter GPU_CAGRA errors that cannot be resolved by when switching to C
 
 3. Restart the services:
    ```bash
-   docker compose -f deploy/compose/vectordb.yaml up -d
+   docker compose -f deploy/compose/vectordb.yaml --profile milvus up -d
    docker compose -f deploy/compose/docker-compose-ingestor-server.yaml up -d
    ```
 

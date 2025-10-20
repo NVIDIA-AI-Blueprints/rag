@@ -52,7 +52,7 @@ Use the following procedure to start all containers needed for this blueprint.
 2. Start the vector db containers from the repo root.
 
    ```bash
-   docker compose -f deploy/compose/vectordb.yaml up -d
+   docker compose -f deploy/compose/vectordb.yaml --profile milvus up -d
    ```
 
 
@@ -204,7 +204,7 @@ After the RAG Blueprint is deployed, you can use the Ingestion API Usage noteboo
     ```bash
     docker compose -f deploy/compose/docker-compose-ingestor-server.yaml down
     docker compose -f deploy/compose/docker-compose-rag-server.yaml down
-    docker compose -f deploy/compose/vectordb.yaml down
+    docker compose -f deploy/compose/vectordb.yaml --profile milvus down
     ```
 
 
