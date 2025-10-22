@@ -6,10 +6,10 @@
 
 This guide provides step-by-step instructions to enable NeMo Guardrails for the [NVIDIA RAG Blueprint](readme.md), enabling you to control and safeguard LLM interactions.
 
-> [!WARNING]
->
-> B200 GPUs are not supported for NeMo Guardrails for guardrails at input/output.
-> For this feature, use H100 or A100 GPUs instead.
+:::{warning}
+B200 GPUs are not supported for NeMo Guardrails for guardrails at input/output.
+For this feature, use H100 or A100 GPUs instead.
+:::
 
 
 NeMo Guardrails is a framework that provides safety and security measures for LLM applications. When enabled, it provides:
@@ -60,17 +60,17 @@ To deploy all guardrails services on your own dedicated hardware, use the follow
 
 1. The RAG Server must be running before you start NeMo Guardrails services.
 
-    > [!Note]
-    > For self-hosted deployment, the default NIM service must be up and running. 
-    > If you're unable to run the NIM service locally, 
-    > you can use NVIDIA's cloud-hosted LLM by exporting the NIM endpoint URL.
-    > 
-    > ```bash
-    > # Use NVIDIA-hosted LLM
-    > export NIM_ENDPOINT_URL=https://integrate.api.nvidia.com/v1
-    > # Or provide your own custom NIM endpoint URL
-    > # export NIM_ENDPOINT_URL=<your-custom-nim-endpoint-url>
-    > ```
+   :::{note}
+   For self-hosted deployment, the default NIM service must be up and running. 
+   If you're unable to run the NIM service locally, 
+   you can use NVIDIA's cloud-hosted LLM by exporting the NIM endpoint URL.
+   
+   ```bash
+   # Use NVIDIA-hosted LLM
+   export NIM_ENDPOINT_URL=https://integrate.api.nvidia.com/v1
+   # Or provide your own custom NIM endpoint URL
+   # export NIM_ENDPOINT_URL=<your-custom-nim-endpoint-url>
+   ```
 
 2. Set the environment variable to enable guardrails by running the following code.
 
@@ -114,8 +114,9 @@ To deploy all guardrails services on your own dedicated hardware, use the follow
     export TOPIC_CONTROL_GPU_ID=1   # Choose GPU ID for topic control model
     ```
 
-    > [!Note]
-    > Each model requires a dedicated GPU with at least 48GB of memory. Select GPUs with sufficient available memory.
+   :::{note}
+   Each model requires a dedicated GPU with at least 48GB of memory. Select GPUs with sufficient available memory.
+   :::
 
 8. Start the NeMo Guardrails service by running the following code.
 

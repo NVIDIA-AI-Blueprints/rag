@@ -50,9 +50,10 @@ By default, the ingestion server processes files in parallel batches, distributi
 This parallel processing architecture helps optimize throughput while managing system resources effectively.
 You can use the following environment variables to configure the batch processing behavior.
 
-> [!CAUTION]
-> These variables are not "set it and forget it" variables.
-> These variables require trial and error tuning for optimal performance.
+:::{caution}
+These variables are not "set it and forget it" variables.
+These variables require trial and error tuning for optimal performance.
+:::
 
 
 | Name                 | Default    | Description         | Advantages           | Disadvantages            |
@@ -60,9 +61,9 @@ You can use the following environment variables to configure the batch processin
 | `NV_INGEST_CONCURRENT_BATCHES` | 4 | Controls the number of parallel batch processing streams. | - You can increase this for systems with high memory capacity. <br/> | - Higher values require more system memory. <br/> - Requires careful tuning based on available system resources. <br/> |
 | `NV_INGEST_FILES_PER_BATCH` | 16 | Controls how many files are processed in a single batch during ingestion. | - Adjust this to helps optimize memory usage and processing efficiency. <br/> | - Setting this too high can cause memory pressure. <br/> - Setting this too low can reduce throughput. <br/> |
 
-> [!TIP]
-> For optimal resource utilization, `NV_INGEST_CONCURRENT_BATCHES` times `NV_INGEST_FILES_PER_BATCH` should approximately equal `MAX_INGEST_PROCESS_WORKERS`.
-
+:::{tip}
+For optimal resource utilization, `NV_INGEST_CONCURRENT_BATCHES` times `NV_INGEST_FILES_PER_BATCH` should approximately equal `MAX_INGEST_PROCESS_WORKERS`.
+:::
 
 
 ## Related Topics
