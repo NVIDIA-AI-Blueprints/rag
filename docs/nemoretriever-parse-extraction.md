@@ -7,10 +7,10 @@
 
 For enhanced PDF extraction capabilities, you can use the Nemoretriever Parse service with the [NVIDIA RAG Blueprint](readme.md). This service provides improved PDF parsing and structure understanding compared to the default PDF extraction method.
 
-> [!WARNING]
->
-> B200 GPUs are not supported for PDF extraction with Nemoretriever Parse.
-> For this feature, use H100 or A100 GPUs instead.
+:::{warning}
+B200 GPUs are not supported for PDF extraction with Nemoretriever Parse.
+For this feature, use H100 or A100 GPUs instead.
+:::
 
 
 
@@ -56,8 +56,9 @@ For enhanced PDF extraction capabilities, you can use the Nemoretriever Parse se
 
 5. You can now ingest PDF files using the [ingestion API usage notebook](../notebooks/ingestion_api_usage.ipynb).
 
-> [!Note]
-> When using NVIDIA hosted endpoints, you may encounter rate limiting with larger file ingestions (>10 files).
+:::{note}
+When using NVIDIA hosted endpoints, you may encounter rate limiting with larger file ingestions (>10 files).
+:::
 
 ## Using Helm
 
@@ -94,5 +95,6 @@ The `APP_NVINGEST_PDFEXTRACTMETHOD` environment variable supports the following 
 - `pdfium`: Uses the default PDFium-based extraction
 - `None`: Uses the default extraction method
 
-> [!Note]
-> The Nemoretriever Parse service requires GPU resources. Make sure you have sufficient GPU resources available before enabling this feature.
+:::{note}
+The Nemoretriever Parse service requires GPU resources. Make sure you have sufficient GPU resources available before enabling this feature.
+:::

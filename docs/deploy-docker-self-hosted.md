@@ -8,8 +8,9 @@ Use the following documentation to get started quickly with the [NVIDIA RAG Blue
 In this walkthrough you deploy the NVIDIA RAG Blueprint with Docker Compose for a single node deployment, and using self-hosted on-premises models.
 For other deployment options, refer to [Deployment Options](readme.md#deployment-options-for-rag-blueprint).
 
-> [!TIP]
-> If you want to run the RAG Blueprint with [NVIDIA AI Workbench](https://docs.nvidia.com/ai-workbench/user-guide/latest/overview/introduction.html), use [Quickstart for NVIDIA AI Workbench](../deploy/workbench/README.md).
+:::{tip}
+If you want to run the RAG Blueprint with [NVIDIA AI Workbench](https://docs.nvidia.com/ai-workbench/user-guide/latest/overview/introduction.html), use [Quickstart for NVIDIA AI Workbench](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/deploy/workbench/README.md).
+:::
 
 
 ## Prerequisites
@@ -90,8 +91,9 @@ Use the following procedure to start all containers needed for this blueprint.
 
 6. Start all required NIMs by running the following code.
 
-    > [!WARNING]
-    > Do not attempt this step unless you have completed the previous steps.
+   :::{warning}
+   Do not attempt this step unless you have completed the previous steps.
+   :::
 
    ```bash
    USERID=$(id -u) docker compose -f deploy/compose/nims.yaml up -d
@@ -99,8 +101,9 @@ Use the following procedure to start all containers needed for this blueprint.
 
    The NIM LLM service can take 30 mins to start for the first time as the model is downloaded and cached. Subsequent deployments can take 2-5 minutes, depending on the GPU profile.
 
-    > [!TIP]
-    > The models are downloaded and cached in the path specified by `MODEL_DIRECTORY`.
+   :::{tip}
+   The models are downloaded and cached in the path specified by `MODEL_DIRECTORY`.
+   :::
 
 
 7. Check the status of the deployment by running the following code. Wait until all services are up and the `nemoretriever-ranking-ms`, `nemoretriever-embedding-ms` and `nim-llm-ms`  NIMs are in healthy state before proceeding further.

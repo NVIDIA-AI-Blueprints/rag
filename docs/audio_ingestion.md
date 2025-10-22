@@ -4,9 +4,9 @@
 -->
 # Enable Audio Ingestion Support for NVIDIA RAG Blueprint
 
-Enabling audio ingestion support allows the [NVIDIA RAG Blueprint](readme.md) system to process and transcribe audio files (.mp3 and .wav) during document ingestion. This enables better search and retrieval capabilities for audio content in your documents.
+Enabling audio ingestion support allows the [NVIDIA RAG Blueprint](./readme.md) system to process and transcribe audio files (.mp3 and .wav) during document ingestion. This enables better search and retrieval capabilities for audio content in your documents.
 
-After you have [deployed the blueprint](readme.md#deploy), to enable audio ingestion support, follow these steps:
+After you have [deployed the blueprint](readme.md#deployment-options-for-rag-blueprint), to enable audio ingestion support, follow these steps:
 
 ## Using on-prem audio transcription model
 
@@ -40,8 +40,9 @@ After you have [deployed the blueprint](readme.md#deploy), to enable audio inges
    await upload_documents(collection_name="audio_data")
    ```
 
-> [!Note]
-> The audio transcription service requires GPU resources. Make sure you have sufficient GPU resources available before enabling this feature.
+:::{note}
+The audio transcription service requires GPU resources. Make sure you have sufficient GPU resources available before enabling this feature.
+:::
 
 ### Customizing GPU Usage for Audio Service (Optional)
 
@@ -65,8 +66,9 @@ deploy:
           capabilities: [gpu]
 ```
 
-> [!Note]
-> Ensure the specified GPU is available and has sufficient memory for the audio transcription model. The Riva ASR model typically requires at least 8GB of GPU memory.
+:::{note}
+Ensure the specified GPU is available and has sufficient memory for the audio transcription model. The Riva ASR model typically requires at least 8GB of GPU memory.
+:::
 
 ### Helm Flow
 
@@ -115,8 +117,9 @@ If you're using Helm for deployment, follow these steps to enable audio ingestio
       nv-ingest-riva-nim                  ClusterIP   10.103.184.78    <none>        9000/TCP,50051/TCP   4m27s
    ```
 
-> [!Important]
-> When using Helm deployment, the Riva NIM service requires an additional H100 or B200 GPU making the total GPU requirement to 9xH100 without MIG slicing.
+:::{important}
+When using Helm deployment, the Riva NIM service requires an additional H100 or B200 GPU making the total GPU requirement to 9xH100 without MIG slicing.
+:::
 
 ## Audio Segmentation:
 

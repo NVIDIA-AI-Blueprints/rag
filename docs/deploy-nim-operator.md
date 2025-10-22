@@ -80,7 +80,9 @@ For other deployment options, refer to [Deployment Options](readme.md#deployment
 
    - **GPU Sharing with Dynamic Resource Allocation(DRA)**
 
-      > [!TIP] With DRA Setup, All NIM Service can run on 3 GPUs with atleast 80GB memory, it could be A100 or H100 or B200
+      :::{tip}
+      With DRA Setup, All NIM Service can run on 3 GPUs with atleast 80GB memory, it could be A100 or H100 or B200
+      :::
 
       - Prerequisite: [NVIDIA DRA Driver](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/25.3.4/dra-intro-install.html)
 
