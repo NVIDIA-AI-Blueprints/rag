@@ -719,5 +719,5 @@ class TestRetrieveSummary:
                 collection_name="test_collection", file_name="test.pdf"
             )
 
-            assert result["status"] == "ERROR"
+            assert result["status"] == "FAILED"
             assert "error" in result

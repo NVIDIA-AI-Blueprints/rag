@@ -8,6 +8,9 @@ envValueExemptions:
         - APP_TRACING_OTLPHTTPENDPOINT
         - APP_VLM_SERVERURL
         - MINIO_ENDPOINT
+        - REDIS_HOST
+        - REDIS_PORT
+        - REDIS_DB
     docker-compose-ingestor-server.yaml:
       ingestor-server:
         - APP_NVINGEST_CAPTIONENDPOINTURL
