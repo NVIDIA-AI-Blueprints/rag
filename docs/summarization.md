@@ -26,7 +26,7 @@ curl -X "POST" "http://$${RAG_HOSTNAME}/v1/documents" \
     }'
 ```
 
-- **generate_summary**: Set to `true` to enable summary generation for each uploaded document. The summary generation always happens asynchronously in the backend after the ingestion is complete. The ingestion status is reported to be completed irrespective of whether summarization has been successfully completed or not.
+- **generate_summary**: Set to `true` to enable summary generation for each uploaded document. The summary generation always happens asynchronously in the backend after the ingestion is complete. The ingestion status is reported to be completed irrespective of whether summarization has been successfully completed or not. You can track the summary generation status independently using the `GET /summary` endpoint.
 
 #### Python Example with library mode
 
@@ -42,7 +42,7 @@ response = await ingestor.upload_documents(
 
 ## 2. Retrieving Document Summaries
 
-Once a document has been ingested with summarization enabled, you can retrieve its summary using the `GET /summary` endpoint.
+Once a document has been ingested with summarization enabled, you can retrieve its summary using the `GET /summary` endpoint. The endpoint provides real-time status tracking with chunk-level progress information.
 
 ### Endpoint
 
@@ -53,9 +53,19 @@ GET /v1/summary?collection_name=<collection>&file_name=<filename>&blocking=<bool
 - **collection_name** (required): Name of the collection containing the document.
 - **file_name** (required): Name of the file for which to retrieve the summary.
 - **blocking** (optional, default: false):
-    - If `true`, the request will wait (up to `timeout` seconds) for the summary to be generated if it is not yet available.
-    - If `false`, the request will return immediately. If the summary is not ready, a 404 response is returned.
+    - If `true`, the request will wait (up to `timeout` seconds) for the summary to be generated if it is not yet available. During this time, the endpoint polls Redis for status updates.
+    - If `false`, the request will return immediately with the current status. If the summary is not ready, you'll receive the current generation status (PENDING, IN_PROGRESS, or NOT_FOUND).
 - **timeout** (optional, default: 300): Maximum time to wait (in seconds) if `blocking` is true.
+
+### Status Values
+
+The endpoint returns one of the following status values:
+
+- **SUCCESS**: Summary generation completed successfully. The `summary` field contains the generated text.
+- **PENDING**: Summary generation is queued but not yet started.
+- **IN_PROGRESS**: Summary is currently being generated. The response includes `progress` information showing current chunk processing (e.g., "Processing chunk 3/5").
+- **FAILED**: Summary generation failed. The `error` field contains the failure reason.
+- **NOT_FOUND**: No summary was requested for this document (it was not uploaded with `generate_summary=true`).
 
 ### Example Request
 
@@ -88,35 +98,112 @@ print(response)
 
 ```json
 {
+  "message": "Summary retrieved successfully.",
   "summary": "This document provides an overview of ...",
   "file_name": "file1.pdf",
   "collection_name": "my_collection",
-  "status": "SUCCESS",
-  "message": "Summary generated successfully."
+  "status": "SUCCESS"
 }
 ```
 
-### Example Response (Summary Not Ready)
+### Example Response (In Progress)
+
+When summary generation is in progress, you'll receive real-time progress information:
 
 ```json
 {
-  "message": "Summary for file1.pdf not found. Set wait=true to wait for generation.",
-  "status": "FAILED"
+  "message": "Summary generation is in progress. Set blocking=true to wait for completion.",
+  "status": "IN_PROGRESS",
+  "file_name": "file1.pdf",
+  "collection_name": "my_collection",
+  "started_at": "2025-01-24T10:30:00.000Z",
+  "updated_at": "2025-01-24T10:30:15.000Z",
+  "progress": {
+    "current": 3,
+    "total": 5,
+    "message": "Processing chunk 3/5"
+  }
 }
 ```
+
+**HTTP Status Code**: 202 (Accepted)
+
+### Example Response (Pending)
+
+```json
+{
+  "message": "Summary generation is pending. Set blocking=true to wait for completion.",
+  "status": "PENDING",
+  "file_name": "file1.pdf",
+  "collection_name": "my_collection"
+}
+```
+
+**HTTP Status Code**: 202 (Accepted)
+
+**Note**: For PENDING status, timestamp fields (`started_at`, `updated_at`, `progress`) will be `null` since generation hasn't started yet.
+
+### Example Response (Not Found)
+
+```json
+{
+  "message": "Summary for file1.pdf not found. To generate a summary, upload the document with generate_summary=true.",
+  "status": "NOT_FOUND",
+  "file_name": "file1.pdf",
+  "collection_name": "my_collection"
+}
+```
+
+**HTTP Status Code**: 404 (Not Found)
+
+### Example Response (Failed)
+
+```json
+{
+  "message": "Summary generation failed for file1.pdf",
+  "status": "FAILED",
+  "error": "Error details here",
+  "file_name": "file1.pdf",
+  "collection_name": "my_collection",
+  "started_at": "2025-01-24T10:30:00.000Z",
+  "completed_at": "2025-01-24T10:30:30.000Z"
+}
+```
+
+**HTTP Status Code**: 500 (Internal Server Error)
 
 ### Example Response (Timeout)
 
+When using blocking mode, if the summary is not generated within the specified timeout:
+
 ```json
 {
-  "message": "Timeout waiting for summary generation for file1.pdf",
-  "status": "FAILED"
+  "message": "Timeout waiting for summary generation for file1.pdf after 300 seconds",
+  "status": "FAILED",
+  "error": "Timeout after 300 seconds",
+  "file_name": "file1.pdf",
+  "collection_name": "my_collection"
 }
 ```
+
+**HTTP Status Code**: 408 (Request Timeout)
 
 ## 3. Configuration and Environment Variables
 
 The summarization feature can be configured using the following environment variables:
+
+### Redis Configuration (Status Tracking)
+
+Summary generation status is tracked using Redis to enable cross-service visibility (between ingestor and RAG servers). Configure the following environment variables for both services:
+
+- **REDIS_HOST**: Redis server hostname (default: `localhost`)
+- **REDIS_PORT**: Redis server port (default: `6379`)
+- **REDIS_DB**: Redis database number (default: `0`)
+
+**Status Tracking Behavior:**
+- Status information is stored in Redis with a 24-hour TTL (automatically cleaned up)
+- If Redis is unavailable, the system gracefully degrades: summaries will still be generated and stored in MinIO, but real-time status tracking will not be available
+- Status values include: `PENDING`, `IN_PROGRESS` (with chunk progress), `SUCCESS`, `FAILED`, and `NOT_FOUND`
 
 ### Core Configuration
 
@@ -161,11 +248,14 @@ This approach ensures that even very large documents can be summarized effective
 ## 4. Notes and Best Practices
 
 - Summarization is only available if `generate_summary` was set to `true` during document upload.
-- If you request a summary for a document that was not ingested with summarization enabled, the summary will not be available.
-- Use the `blocking` parameter to control whether your request waits for summary generation or returns immediately.
-- The summary is pre-generated and stored in minio database; repeated requests for the same document will return the same summary unless the document is re-uploaded or updated.
+- If you request a summary for a document that was not ingested with summarization enabled, you'll receive a `NOT_FOUND` status.
+- Use the `blocking` parameter to control whether your request waits for summary generation or returns immediately with the current status.
+- The summary is pre-generated and stored in MinIO; repeated requests for the same document will return the same summary unless the document is re-uploaded or updated.
 - For optimal performance, adjust `SUMMARY_LLM_MAX_CHUNK_LENGTH` based on your model's context window and available resources.
 - Larger chunk sizes generally produce better summaries but require more memory and processing time.
+- **Status Tracking**: Monitor summary generation progress in real-time using the `GET /summary` endpoint. The `IN_PROGRESS` status includes chunk-level progress (e.g., "Processing chunk 3/5").
+- **Redis Requirement**: For status tracking to work across services, ensure Redis is configured and accessible to both ingestor and RAG servers. Without Redis, summaries will still be generated but status tracking will be unavailable.
+- **Timeout Handling**: When using `blocking=true`, set an appropriate timeout based on your document size. Large documents may take several minutes to summarize.
 
 ## 5. API Reference
 
