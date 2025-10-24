@@ -81,6 +81,7 @@ from nvidia_rag.utils.minio_operator import (
     get_unique_thumbnail_id_file_name_prefix,
     get_unique_thumbnail_id_from_result,
 )
+from nvidia_rag.utils.summary_status_handler import SUMMARY_STATUS_HANDLER
 from nvidia_rag.utils.vdb import _get_vdb_op
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
 
@@ -689,23 +690,91 @@ class NvidiaRAGIngestor:
         self, results: list[list[dict[str, str | dict]]], collection_name: str
     ) -> None:
         """
-        Generates and ingests document summaries for a list of files.
+        Generates and ingests document summaries for a list of files with status tracking.
+
+        This method processes each document, generates a summary using LLM, and stores it
+        in MinIO. Status is tracked in Redis for each file to enable cross-service queries.
 
         Args:
-            filepaths (List[str]): List of paths to documents to generate summaries for
+            results: List of document extraction results from nv-ingest
+            collection_name: Name of the collection
         """
+        logger.info("Document summary generation started")
 
-        logger.info("Document summary ingestion started")
+        if not SUMMARY_STATUS_HANDLER.is_available():
+            logger.warning(
+                "Redis unavailable - summary status tracking disabled. "
+                "Summaries will still be generated but status cannot be tracked."
+            )
+
         start_time = time.time()
+
         # Prepare summary documents
         documents = await self.__prepare_summary_documents(results, collection_name)
-        # Generate summary for each document
-        documents = await self.__generate_summary_for_documents(documents)
-        # # Add document summary to minio
-        await self.__put_document_summary_to_minio(documents)
+
+        # Generate summary for each document with status tracking
+        for idx, doc in enumerate(documents):
+            file_name = doc.metadata.get("filename", "unknown")
+
+            try:
+                # Set IN_PROGRESS status with initial progress
+                SUMMARY_STATUS_HANDLER.update_progress(
+                    collection_name=collection_name,
+                    file_name=file_name,
+                    status="IN_PROGRESS",
+                    progress={"current": 0, "total": 0, "message": "Starting..."},
+                )
+
+                # Define progress callback for chunk-level updates
+                async def report_chunk_progress(
+                    current: int, total: int, file_name: str
+                ):
+                    """Report chunk processing progress to Redis."""
+                    SUMMARY_STATUS_HANDLER.update_progress(
+                        collection_name=collection_name,
+                        file_name=file_name,
+                        status="IN_PROGRESS",
+                        progress={
+                            "current": current,
+                            "total": total,
+                            "message": f"Processing chunk {current}/{total}",
+                        },
+                    )
+
+                # Generate summary with chunk-level progress tracking
+                logger.info(f"Generating summary for {file_name}")
+                summary_docs = await self.__generate_summary_for_documents(
+                    [doc], progress_callback=report_chunk_progress
+                )
+
+                # Store in MinIO
+                await self.__put_document_summary_to_minio(summary_docs)
+
+                # Set SUCCESS status
+                SUMMARY_STATUS_HANDLER.update_progress(
+                    collection_name=collection_name,
+                    file_name=file_name,
+                    status="SUCCESS",
+                )
+
+                logger.info(f"Summary generation completed for {file_name}")
+
+            except Exception as e:
+                # Set FAILED status with error details
+                SUMMARY_STATUS_HANDLER.update_progress(
+                    collection_name=collection_name,
+                    file_name=file_name,
+                    status="FAILED",
+                    error=str(e),
+                )
+                logger.error(
+                    f"Summary generation failed for {file_name}: {e}",
+                    exc_info=logger.getEffectiveLevel() <= logging.DEBUG,
+                )
+
         end_time = time.time()
         logger.info(
-            f"Document summary ingestion completed! Time taken: {end_time - start_time} seconds"
+            f"Document summary generation completed in {end_time - start_time:.2f} seconds"
         )
 
     async def update_documents(
@@ -1689,7 +1758,34 @@ class NvidiaRAGIngestor:
 
         if generate_summary:
             logger.info(
-                f"Document summary generation starting in background for batch {batch_number}.."
+                f"Setting PENDING status for summary generation in batch {batch_number}"
+            )
+
+            # Set PENDING status for all files BEFORE starting background task
+            for result in results:
+                for result_element in result:
+                    # Extract filename from source_id
+                    source_id = (
+                        result_element.get("metadata", {})
+                        .get("source_metadata", {})
+                        .get("source_id", "")
+                    )
+                    file_name = os.path.basename(source_id) if source_id else "unknown"
+
+                    if file_name and file_name != "unknown":
+                        SUMMARY_STATUS_HANDLER.set_status(
+                            collection_name=collection_name,
+                            file_name=file_name,
+                            status_data={
+                                "status": "PENDING",
+                                "queued_at": datetime.now(UTC).isoformat(),
+                                "file_name": file_name,
+                                "collection_name": collection_name,
+                            },
+                        )
+
+            logger.info(
+                f"Document summary generation starting in background for batch {batch_number}"
             )
             asyncio.create_task(
                 self.__ingest_document_summary(results, collection_name=collection_name)
@@ -2341,7 +2437,9 @@ class NvidiaRAGIngestor:
         return metadata
 
     async def __generate_summary_for_documents(
-        self, documents: list[Document]
+        self,
+        documents: list[Document],
+        progress_callback: callable = None,
     ) -> list[Document]:
         """
         Generate summaries for documents using iterative chunk-wise approach
@@ -2405,10 +2503,23 @@ class NvidiaRAGIngestor:
                 logger.info(
                     f"Processing document {document.metadata['filename']} as single chunk"
                 )
+
+                # Report progress for single chunk
+                if progress_callback:
+                    await progress_callback(
+                        current=0, total=1, file_name=document.metadata["filename"]
+                    )
+
                 summary = await initial_chain.ainvoke(
                     {"document_text": document_text},
                     config={"run_name": "document-summary"},
                 )
+
+                # Report completion for single chunk
+                if progress_callback:
+                    await progress_callback(
+                        current=1, total=1, file_name=document.metadata["filename"]
+                    )
             else:
                 # Process in chunks iteratively using LangChain's text splitter
                 text_splitter = RecursiveCharacterTextSplitter(
@@ -2418,9 +2529,18 @@ class NvidiaRAGIngestor:
                     separators=["\n\n", "\n", ". ", "! ", "? ", " ", ""],
                 )
                 text_chunks = text_splitter.split_text(document_text)
+                total_chunks = len(text_chunks)
                 logger.info(
-                    f"Processing document {document.metadata['filename']} in {len(text_chunks)} chunks"
+                    f"Processing document {document.metadata['filename']} in {total_chunks} chunks"
                 )
+
+                # Notify progress callback about total chunks
+                if progress_callback:
+                    await progress_callback(
+                        current=0,
+                        total=total_chunks,
+                        file_name=document.metadata["filename"],
+                    )
 
                 # Generate initial summary from first chunk
                 summary = await initial_chain.ainvoke(
@@ -2428,18 +2548,34 @@ class NvidiaRAGIngestor:
                     config={"run_name": "document-summary-initial"},
                 )
 
+                # Report progress after first chunk
+                if progress_callback:
+                    await progress_callback(
+                        current=1,
+                        total=total_chunks,
+                        file_name=document.metadata["filename"],
+                    )
+
                 # Iteratively update summary with remaining chunks
                 for i, chunk in enumerate(text_chunks[1:], 1):
                     logger.info(
-                        f"Processing chunk {i + 1}/{len(text_chunks)} for {document.metadata['filename']}"
+                        f"Processing chunk {i + 1}/{total_chunks} for {document.metadata['filename']}"
                     )
                     summary = await iterative_chain.ainvoke(
                         {"previous_summary": summary, "new_chunk": chunk},
                         config={"run_name": f"document-summary-chunk-{i + 1}"},
                     )
                     logger.debug(
-                        f"Summary for chunk {i + 1}/{len(text_chunks)} for {document.metadata['filename']}: {summary}"
+                        f"Summary for chunk {i + 1}/{total_chunks} for {document.metadata['filename']}: {summary}"
                     )
+
+                    # Report progress after each chunk
+                    if progress_callback:
+                        await progress_callback(
+                            current=i + 1,
+                            total=total_chunks,
+                            file_name=document.metadata["filename"],
+                        )
 
             document.metadata["summary"] = summary
             logger.debug(
