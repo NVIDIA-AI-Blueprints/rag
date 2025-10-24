@@ -95,6 +95,11 @@ envVars:
   MINIO_ACCESSKEY: "minioadmin"
   MINIO_SECRETKEY: "minioadmin"
 
+  ##===Redis configurations for summary status tracking===
+  REDIS_HOST: "rag-redis-master"
+  REDIS_PORT: "6379"
+  REDIS_DB: "0"
+
   ##===Vector DB specific configurations===
   # URL on which vectorstore is hosted
   APP_VECTORSTORE_URL: "http://milvus:19530" # Use "http://elasticsearch:9200" for elasticsearch
