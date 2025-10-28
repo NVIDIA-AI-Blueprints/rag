@@ -352,6 +352,7 @@ ingestor-server:
     SUMMARY_CHUNK_OVERLAP: "200"
     SUMMARY_LLM_TEMPERATURE: "0.0"
     SUMMARY_LLM_TOP_P: "1.0"
+    SUMMARY_MAX_PARALLELIZATION: "20"
 
     # === General ===
     ENABLE_CITATIONS: "True"

@@ -29,10 +29,7 @@ Private methods:
 2. __nvingest_upload_doc: Upload documents to the vector store using nvingest.
 3. __get_failed_documents: Get failed documents from the vector store.
 4. __get_non_supported_files: Get non-supported files from the vector store.
-5. __ingest_document_summary: Drives summary generation and ingestion if enabled.
-6. __prepare_summary_documents: Prepare summary documents for ingestion.
-7. __generate_summary_for_documents: Generate summary for documents.
-8. __put_document_summary_to_minio: Put document summaries to minio.
+5. __ingest_document_summary: Trigger parallel summary generation and ingestion if enabled.
 """
 
 import asyncio
@@ -47,9 +44,6 @@ from urllib.parse import urlparse
 from uuid import uuid4
 
 from langchain_core.documents import Document
-from langchain_core.output_parsers.string import StrOutputParser
-from langchain_core.prompts.chat import ChatPromptTemplate
-from langchain_text_splitters import RecursiveCharacterTextSplitter
 from nv_ingest_client.primitives.tasks.extract import _DEFAULT_EXTRACTOR_MAP
 from nv_ingest_client.util.file_processing.extract import EXTENSION_TO_DOCUMENT_TYPE
 from nv_ingest_client.util.vdb.adt_vdb import VDB
@@ -67,7 +61,6 @@ from nvidia_rag.utils.common import (
     get_current_timestamp,
 )
 from nvidia_rag.utils.configuration import NvidiaRAGConfig
-from nvidia_rag.utils.llm import get_llm, get_prompts
 from nvidia_rag.utils.metadata_validation import (
     SYSTEM_MANAGED_FIELDS,
     MetadataField,
@@ -124,6 +117,9 @@ class NvidiaRAGIngestor:
             )
         self.mode = mode
         self.vdb_op = vdb_op
+
+        # Track background summary tasks to prevent garbage collection
+        self._background_tasks = set()
         self.config = config or NvidiaRAGConfig()
 
         # Initialize instance-based clients
@@ -690,92 +686,32 @@ class NvidiaRAGIngestor:
         self, results: list[list[dict[str, str | dict]]], collection_name: str
     ) -> None:
         """
-        Generates and ingests document summaries for a list of files with status tracking.
-
-        This method processes each document, generates a summary using LLM, and stores it
-        in MinIO. Status is tracked in Redis for each file to enable cross-service queries.
+        Trigger parallel summary generation for documents.
 
         Args:
             results: List of document extraction results from nv-ingest
             collection_name: Name of the collection
         """
-        logger.info("Document summary generation started")
+        from nvidia_rag.utils.summarization import generate_document_summaries
 
-        if not SUMMARY_STATUS_HANDLER.is_available():
-            logger.warning(
-                "Redis unavailable - summary status tracking disabled. "
-                "Summaries will still be generated but status cannot be tracked."
+        try:
+            stats = await generate_document_summaries(
+                results=results,
+                collection_name=collection_name,
             )
 
-        start_time = time.time()
+            if stats["failed"] > 0:
+                logger.warning(f"Failed summaries for {collection_name}:")
+                for file_name, file_stats in stats["files"].items():
+                    if file_stats["status"] == "FAILED":
+                        logger.warning(
+                            f"  - {file_name}: {file_stats.get('error', 'unknown error')}"
+                        )
 
-        # Prepare summary documents
-        documents = await self.__prepare_summary_documents(results, collection_name)
-
-        # Generate summary for each document with status tracking
-        for idx, doc in enumerate(documents):
-            file_name = doc.metadata.get("filename", "unknown")
-
-            try:
-                # Set IN_PROGRESS status with initial progress
-                SUMMARY_STATUS_HANDLER.update_progress(
-                    collection_name=collection_name,
-                    file_name=file_name,
-                    status="IN_PROGRESS",
-                    progress={"current": 0, "total": 0, "message": "Starting..."},
-                )
-
-                # Define progress callback for chunk-level updates
-                async def report_chunk_progress(
-                    current: int, total: int, file_name: str
-                ):
-                    """Report chunk processing progress to Redis."""
-                    SUMMARY_STATUS_HANDLER.update_progress(
-                        collection_name=collection_name,
-                        file_name=file_name,
-                        status="IN_PROGRESS",
-                        progress={
-                            "current": current,
-                            "total": total,
-                            "message": f"Processing chunk {current}/{total}",
-                        },
-                    )
-
-                # Generate summary with chunk-level progress tracking
-                logger.info(f"Generating summary for {file_name}")
-                summary_docs = await self.__generate_summary_for_documents(
-                    [doc], progress_callback=report_chunk_progress
-                )
-
-                # Store in MinIO
-                await self.__put_document_summary_to_minio(summary_docs)
-
-                # Set SUCCESS status
-                SUMMARY_STATUS_HANDLER.update_progress(
-                    collection_name=collection_name,
-                    file_name=file_name,
-                    status="SUCCESS",
-                )
-
-                logger.info(f"Summary generation completed for {file_name}")
-
-            except Exception as e:
-                # Set FAILED status with error details
-                SUMMARY_STATUS_HANDLER.update_progress(
-                    collection_name=collection_name,
-                    file_name=file_name,
-                    status="FAILED",
-                    error=str(e),
-                )
-                logger.error(
-                    f"Summary generation failed for {file_name}: {e}",
-                    exc_info=logger.getEffectiveLevel() <= logging.DEBUG,
-                )
-
-        end_time = time.time()
-        logger.info(
-            f"Document summary generation completed in {end_time - start_time:.2f} seconds"
-        )
+        except Exception as e:
+            logger.error(
+                f"Summary batch failed for {collection_name}: {e}", exc_info=True
+            )
 
     async def update_documents(
         self,
@@ -1749,6 +1685,24 @@ class NvidiaRAGIngestor:
             results, failures = [], []
             return results, failures
 
+        # Set PENDING status before NV-Ingest processing
+        if generate_summary:
+            for filepath in filtered_filepaths:
+                file_name = os.path.basename(filepath)
+                SUMMARY_STATUS_HANDLER.set_status(
+                    collection_name=collection_name,
+                    file_name=file_name,
+                    status_data={
+                        "status": "PENDING",
+                        "queued_at": datetime.now(UTC).isoformat(),
+                        "file_name": file_name,
+                        "collection_name": collection_name,
+                    },
+                )
+            logger.info(
+                f"Set PENDING status for {len(filtered_filepaths)} files in batch {batch_number}"
+            )
+
         results, failures = await self._perform_file_ext_based_ingestion(
             batch_number=batch_number,
             filtered_filepaths=filtered_filepaths,
@@ -1757,38 +1711,14 @@ class NvidiaRAGIngestor:
         )
 
         if generate_summary:
-            logger.info(
-                f"Setting PENDING status for summary generation in batch {batch_number}"
-            )
-
-            # Set PENDING status for all files BEFORE starting background task
-            for result in results:
-                for result_element in result:
-                    # Extract filename from source_id
-                    source_id = (
-                        result_element.get("metadata", {})
-                        .get("source_metadata", {})
-                        .get("source_id", "")
-                    )
-                    file_name = os.path.basename(source_id) if source_id else "unknown"
-
-                    if file_name and file_name != "unknown":
-                        SUMMARY_STATUS_HANDLER.set_status(
-                            collection_name=collection_name,
-                            file_name=file_name,
-                            status_data={
-                                "status": "PENDING",
-                                "queued_at": datetime.now(UTC).isoformat(),
-                                "file_name": file_name,
-                                "collection_name": collection_name,
-                            },
-                        )
-
-            logger.info(
-                f"Document summary generation starting in background for batch {batch_number}"
-            )
-            asyncio.create_task(
+            # Create background task for summary generation
+            task = asyncio.create_task(
                 self.__ingest_document_summary(results, collection_name=collection_name)
+            )
+            self._background_tasks.add(task)
+            task.add_done_callback(self._background_tasks.discard)
+            logger.info(
+                f"Started background summary generation for batch {batch_number}"
             )
 
         if not results:
@@ -2299,322 +2229,3 @@ class NvidiaRAGIngestor:
             logger.debug("Custom metadata validated and normalized successfully.")
 
         return validation_status, validation_errors
-
-    async def __prepare_summary_documents(
-        self, results: list[list[dict[str, str | dict]]], collection_name: str
-    ) -> list[Document]:
-        """
-        Prepare summary documents from the results to gather content for each file
-        """
-        summary_documents = []
-
-        for result in results:
-            documents = self.__parse_documents([result])
-            if documents:
-                full_content = " ".join([doc.page_content for doc in documents])
-                metadata = {
-                    "filename": documents[0].metadata["source_name"],
-                    "collection_name": collection_name,
-                }
-                summary_documents.append(
-                    Document(page_content=full_content, metadata=metadata)
-                )
-        return summary_documents
-
-    def __parse_documents(
-        self, results: list[list[dict[str, str | dict]]]
-    ) -> list[Document]:
-        """
-        Extract document page content from the results obtained from nv-ingest
-
-        Arguments:
-            - results: List[List[Dict[str, Union[str, dict]]]] - Results obtained from nv-ingest
-
-        Returns
-            - List[Document] - List of documents with page content
-        """
-        documents = []
-        for result in results:
-            for result_element in result:
-                # Prepare metadata
-                metadata = self.__prepare_metadata(result_element=result_element)
-
-                # Extract documents page_content and prepare docs
-                page_content = None
-                # For textual data
-                if result_element.get("document_type") == "text":
-                    page_content = result_element.get("metadata").get("content")
-
-                # For both tables and charts
-                elif result_element.get("document_type") == "structured":
-                    structured_page_content = (
-                        result_element.get("metadata")
-                        .get("table_metadata")
-                        .get("table_content")
-                    )
-                    subtype = (
-                        result_element.get("metadata")
-                        .get("content_metadata")
-                        .get("subtype")
-                    )
-                    # Check for tables
-                    if subtype == "table" and self.config.nv_ingest.extract_tables:
-                        page_content = structured_page_content
-                    # Check for charts
-                    elif subtype == "chart" and self.config.nv_ingest.extract_charts:
-                        page_content = structured_page_content
-
-                # For image captions
-                elif (
-                    result_element.get("document_type") == "image"
-                    and self.config.nv_ingest.extract_images
-                ):
-                    page_content = (
-                        result_element.get("metadata")
-                        .get("image_metadata")
-                        .get("caption")
-                    )
-
-                # For audio transcripts
-                elif result_element.get("document_type") == "audio":
-                    page_content = (
-                        result_element.get("metadata")
-                        .get("audio_metadata")
-                        .get("audio_transcript")
-                    )
-
-                # Add doc to list
-                if page_content:
-                    documents.append(
-                        Document(page_content=page_content, metadata=metadata)
-                    )
-        return documents
-
-    def __prepare_metadata(
-        self, result_element: dict[str, str | dict]
-    ) -> dict[str, str]:
-        """
-        Prepare metadata object w.r.t. to a single chunk
-
-        Arguments:
-            - result_element: Dict[str, Union[str, dict]]] - Result element for single chunk
-
-        Returns:
-            - metadata: Dict[str, str] - Dict of metadata for s single chunk
-            {
-                "source": "<filepath>",
-                "chunk_type": "<chunk_type>", # ["text", "image", "table", "chart"]
-                "source_name": "<filename>",
-                "content": "<base64_str encoded content>" # Only for ["image", "table", "chart"]
-            }
-        """
-        source_id = (
-            result_element.get("metadata").get("source_metadata").get("source_id")
-        )
-
-        # Get chunk_type
-        if result_element.get("document_type") == "structured":
-            chunk_type = (
-                result_element.get("metadata").get("content_metadata").get("subtype")
-            )
-        else:
-            chunk_type = result_element.get("document_type")
-
-        # Get base64_str encoded content, empty str in case of text
-        # content = (
-        #     result_element.get("metadata").get("content")
-        #     if chunk_type != "text"
-        #     else ""
-        # )
-
-        metadata = {
-            # Add filepath (Key-name same for backward compatibility)
-            "source": source_id,
-            "chunk_type": chunk_type,  # ["text", "image", "table", "chart"]
-            "source_name": os.path.basename(source_id),  # Add filename
-            # "content": content # content encoded in base64_str format [Must not exceed 64KB]
-        }
-        return metadata
-
-    async def __generate_summary_for_documents(
-        self,
-        documents: list[Document],
-        progress_callback: callable = None,
-    ) -> list[Document]:
-        """
-        Generate summaries for documents using iterative chunk-wise approach
-        """
-        # Generate document summary
-        summary_llm_name = self.config.summarizer.model_name
-        summary_llm_endpoint = self.config.summarizer.server_url
-        prompts = get_prompts()
-
-        llm_params = {
-            "model": summary_llm_name,
-            "temperature": self.config.summarizer.temperature,
-            "top_p": self.config.summarizer.top_p,
-        }
-
-        if summary_llm_endpoint:
-            llm_params["llm_endpoint"] = summary_llm_endpoint
-
-        summary_llm = get_llm(config=self.config, **llm_params)
-
-        document_summary_prompt = prompts.get("document_summary_prompt")
-        logger.debug(f"Document summary prompt: {document_summary_prompt}")
-
-        # Initial summary prompt for first chunk
-        initial_summary_prompt = ChatPromptTemplate.from_messages(
-            [
-                ("system", document_summary_prompt["system"]),
-                ("human", document_summary_prompt["human"]),
-            ]
-        )
-
-        # Iterative summary prompt for subsequent chunks
-        iterative_summary_prompt_config = prompts.get("iterative_summary_prompt")
-        iterative_summary_prompt = ChatPromptTemplate.from_messages(
-            [
-                ("system", iterative_summary_prompt_config["system"]),
-                ("human", iterative_summary_prompt_config["human"]),
-            ]
-        )
-
-        initial_chain = initial_summary_prompt | summary_llm | StrOutputParser()
-        iterative_chain = iterative_summary_prompt | summary_llm | StrOutputParser()
-
-        # Use configured chunk size
-        max_chunk_chars = self.config.summarizer.max_chunk_length
-        chunk_overlap = self.config.summarizer.chunk_overlap
-        logger.info(f"Using chunk size: {max_chunk_chars} characters")
-
-        if not len(documents):
-            logger.error(
-                "No content returned from nv-ingest to summarize. Skipping summary generation."
-            )
-            return []
-
-        for document in documents:
-            document_text = document.page_content
-
-            # Check if document fits in single request
-            if len(document_text) <= max_chunk_chars:
-                # Process as single chunk
-                logger.info(
-                    f"Processing document {document.metadata['filename']} as single chunk"
-                )
-
-                # Report progress for single chunk
-                if progress_callback:
-                    await progress_callback(
-                        current=0, total=1, file_name=document.metadata["filename"]
-                    )
-
-                summary = await initial_chain.ainvoke(
-                    {"document_text": document_text},
-                    config={"run_name": "document-summary"},
-                )
-
-                # Report completion for single chunk
-                if progress_callback:
-                    await progress_callback(
-                        current=1, total=1, file_name=document.metadata["filename"]
-                    )
-            else:
-                # Process in chunks iteratively using LangChain's text splitter
-                text_splitter = RecursiveCharacterTextSplitter(
-                    chunk_size=max_chunk_chars,
-                    chunk_overlap=chunk_overlap,
-                    length_function=len,
-                    separators=["\n\n", "\n", ". ", "! ", "? ", " ", ""],
-                )
-                text_chunks = text_splitter.split_text(document_text)
-                total_chunks = len(text_chunks)
-                logger.info(
-                    f"Processing document {document.metadata['filename']} in {total_chunks} chunks"
-                )
-
-                # Notify progress callback about total chunks
-                if progress_callback:
-                    await progress_callback(
-                        current=0,
-                        total=total_chunks,
-                        file_name=document.metadata["filename"],
-                    )
-
-                # Generate initial summary from first chunk
-                summary = await initial_chain.ainvoke(
-                    {"document_text": text_chunks[0]},
-                    config={"run_name": "document-summary-initial"},
-                )
-
-                # Report progress after first chunk
-                if progress_callback:
-                    await progress_callback(
-                        current=1,
-                        total=total_chunks,
-                        file_name=document.metadata["filename"],
-                    )
-
-                # Iteratively update summary with remaining chunks
-                for i, chunk in enumerate(text_chunks[1:], 1):
-                    logger.info(
-                        f"Processing chunk {i + 1}/{total_chunks} for {document.metadata['filename']}"
-                    )
-                    summary = await iterative_chain.ainvoke(
-                        {"previous_summary": summary, "new_chunk": chunk},
-                        config={"run_name": f"document-summary-chunk-{i + 1}"},
-                    )
-                    logger.debug(
-                        f"Summary for chunk {i + 1}/{total_chunks} for {document.metadata['filename']}: {summary}"
-                    )
-
-                    # Report progress after each chunk
-                    if progress_callback:
-                        await progress_callback(
-                            current=i + 1,
-                            total=total_chunks,
-                            file_name=document.metadata["filename"],
-                        )
-
-            document.metadata["summary"] = summary
-            logger.debug(
-                f"Document summary for {document.metadata['filename']}: {summary}"
-            )
-
-        logger.info("Document summary generation complete!")
-        return documents
-
-    async def __put_document_summary_to_minio(self, documents: list[Document]) -> None:
-        """
-        Put document summary to minio
-        """
-        if not len(documents):
-            logger.error("No documents to put to minio")
-            return
-
-        for document in documents:
-            summary = document.metadata["summary"]
-            file_name = document.metadata["filename"]
-            collection_name = document.metadata["collection_name"]
-            page_number = 0
-            location = []
-
-            unique_thumbnail_id = get_unique_thumbnail_id(
-                collection_name=f"summary_{collection_name}",
-                file_name=file_name,
-                page_number=page_number,
-                location=location,
-            )
-
-            self.minio_operator.put_payload(
-                payload={
-                    "summary": summary,
-                    "file_name": file_name,
-                    "collection_name": collection_name,
-                },
-                object_name=unique_thumbnail_id,
-            )
-            logger.debug(f"Document summary for {file_name} ingested to minio")
-
-        logger.info("Document summary insertion completed to minio!")
