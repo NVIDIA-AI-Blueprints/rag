@@ -29,7 +29,7 @@ import os
 from datetime import UTC, datetime
 from typing import Any
 
-from redis import Redis
+from redis import ConnectionPool, Redis
 from redis.exceptions import ConnectionError, RedisError
 
 logger = logging.getLogger(__name__)
@@ -38,6 +38,7 @@ logger = logging.getLogger(__name__)
 REDIS_SOCKET_CONNECT_TIMEOUT_SECONDS = 2
 REDIS_SOCKET_TIMEOUT_SECONDS = 2
 REDIS_STATUS_TTL_SECONDS = 86400  # 24 hours
+REDIS_MAX_CONNECTIONS = 50  # Connection pool size
 
 
 class SummaryStatusHandler:
@@ -57,13 +58,15 @@ class SummaryStatusHandler:
         _redis_port (int): Redis server port from REDIS_PORT env var
         _redis_db (int): Redis database number from REDIS_DB env var
         _redis_available (bool): Whether Redis connection is active
-        _redis_client (Redis): Redis client instance
+        _redis_pool (ConnectionPool): Redis connection pool
+        _redis_client (Redis): Redis client instance using the connection pool
     """
 
     _redis_host: str = os.getenv("REDIS_HOST", "localhost")
     _redis_port: int = int(os.getenv("REDIS_PORT", 6379))
     _redis_db: int = int(os.getenv("REDIS_DB", 0))
     _redis_available: bool = False
+    _redis_pool: ConnectionPool | None = None
     _redis_client: Redis | None = None
 
     def __init__(self):
@@ -71,38 +74,32 @@ class SummaryStatusHandler:
         self._check_redis_connection()
 
     def _check_redis_connection(self) -> None:
-        """
-        Test Redis connection and set availability flag.
-
-        Attempts to connect to Redis and verify connectivity with a ping.
-        If successful, sets _redis_available to True. If connection fails,
-        logs a warning and disables status tracking.
-        """
+        """Test Redis connection and create connection pool."""
         try:
-            self._redis_client = Redis(
+            self._redis_pool = ConnectionPool(
                 host=self._redis_host,
                 port=self._redis_port,
                 db=self._redis_db,
                 socket_connect_timeout=REDIS_SOCKET_CONNECT_TIMEOUT_SECONDS,
                 socket_timeout=REDIS_SOCKET_TIMEOUT_SECONDS,
-                decode_responses=False,  # We use JSON, not string responses
+                max_connections=REDIS_MAX_CONNECTIONS,
+                decode_responses=False,
             )
+
+            self._redis_client = Redis(connection_pool=self._redis_pool)
             self._redis_client.ping()
             self._redis_available = True
             logger.info(
-                f"Connected to Redis for summary status tracking at "
-                f"{self._redis_host}:{self._redis_port}"
+                f"Connected to Redis at {self._redis_host}:{self._redis_port} "
+                f"(pool: {REDIS_MAX_CONNECTIONS})"
             )
         except (ConnectionError, RedisError, OSError) as e:
             self._redis_available = False
+            self._redis_pool = None
             self._redis_client = None
             logger.warning(
-                f"Redis not available for summary status tracking at "
-                f"{self._redis_host}:{self._redis_port}: {e}"
-            )
-            logger.warning(
-                "Summary status tracking disabled. Users will see 'NOT_FOUND' "
-                "status for summary queries until Redis is available."
+                f"Redis unavailable at {self._redis_host}:{self._redis_port} - "
+                f"summary status tracking disabled: {e}"
             )
 
     def is_available(self) -> bool:
