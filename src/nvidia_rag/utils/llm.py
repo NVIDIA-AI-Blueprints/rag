@@ -153,14 +153,20 @@ def get_llm(**kwargs) -> LLM | SimpleChatModel:
         if url:
             logger.debug(f"Length of llm endpoint url string {url}")
             logger.info("Using llm model %s hosted at %s", kwargs.get("model"), url)
+            
+            # For Azure OpenAI endpoints, use LLM_API_KEY if available, otherwise fall back to NVIDIA_API_KEY
+            api_key = os.environ.get("LLM_API_KEY") or os.environ.get("NVIDIA_API_KEY", "")
+            
             return ChatNVIDIA(
                 base_url=url,
                 model=kwargs.get("model"),
+                api_key=api_key if api_key else None,
                 temperature=kwargs.get("temperature", None),
                 top_p=kwargs.get("top_p", None),
                 max_tokens=kwargs.get("max_tokens", None),
                 stop=kwargs.get("stop", []),
             )
+
 
         logger.info("Using llm model %s from api catalog", kwargs.get("model"))
         return ChatNVIDIA(
