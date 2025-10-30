@@ -79,7 +79,11 @@ async def check_service_health(
         if not url.startswith(("http://", "https://")):
             url = "http://" + url
 
-        async with aiohttp.ClientSession() as session:
+        # Disable SSL verification for external endpoints
+        # This only affects health monitoring UI, not actual LLM API calls
+        connector = aiohttp.TCPConnector(ssl=False)
+
+        async with aiohttp.ClientSession(connector=connector) as session:
             request_kwargs = {
                 "timeout": aiohttp.ClientTimeout(total=timeout),
                 "headers": headers or {},

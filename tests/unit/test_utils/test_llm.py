@@ -180,6 +180,7 @@ class TestGetLLM:
         mock_chatnvidia.assert_called_once_with(
             base_url="http://test-url:8000",
             model="test-model",
+            api_key=None,
             temperature=0.7,
             top_p=0.9,
             max_tokens=1024,
@@ -562,6 +563,7 @@ class TestLLMIntegration:
             mock_chatnvidia.assert_called_once_with(
                 base_url="http://test:8000",
                 model="meta/llama-3.1-8b-instruct",
+                api_key=None,
                 temperature=0.7,
                 top_p=0.9,
                 max_tokens=2048,

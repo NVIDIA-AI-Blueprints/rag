@@ -103,6 +103,10 @@ services:
 
       NVIDIA_API_KEY: ${NGC_API_KEY:?"NGC_API_KEY is required"}
 
+      # Set LLM_API_KEY if non-NVIDIA hosted LLM API endpoint is being used
+      # If not set, NVIDIA_API_KEY will be used as fallback
+      LLM_API_KEY: ${LLM_API_KEY:-""}
+
       # Number of document chunks to insert in LLM prompt, used only when ENABLE_RERANKER is set to True
       APP_RETRIEVER_TOPK: ${APP_RETRIEVER_TOPK:-10}
 
