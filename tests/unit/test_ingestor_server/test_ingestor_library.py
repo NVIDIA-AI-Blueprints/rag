@@ -94,7 +94,8 @@ class TestNvidiaRAGIngestor:
         mock_vdb_op,
     ):
         """Create NvidiaRAGIngestor instance with mocked dependencies."""
-        with (            patch(
+        with (
+            patch(
                 "nvidia_rag.ingestor_server.main.get_nv_ingest_client",
                 return_value=mock_nv_ingest_client,
             ),
@@ -108,26 +109,31 @@ class TestNvidiaRAGIngestor:
     @pytest.fixture
     def mock_nvingest_upload_doc(self, ingestor):
         """Mock the __nvingest_upload_doc method."""
+
         async def mock_nvingest(*args, **kwargs):
             # Get filepaths from kwargs
-            filepaths = kwargs.get('filepaths', [])
+            filepaths = kwargs.get("filepaths", [])
             # Create proper result structure for each file
             results = []
             for filepath in filepaths:
-                results.append([{
-                    "document_type": "text",
-                    "metadata": {
-                        "content": "test content",
-                        "source_metadata": {
-                            "source_id": filepath
-                        },
-                        "content_metadata": {}
-                    }
-                }])
+                results.append(
+                    [
+                        {
+                            "document_type": "text",
+                            "metadata": {
+                                "content": "test content",
+                                "source_metadata": {"source_id": filepath},
+                                "content_metadata": {},
+                            },
+                        }
+                    ]
+                )
             return results, []
-        
+
         with patch.object(
-            ingestor, "_NvidiaRAGIngestor__nvingest_upload_doc", side_effect=mock_nvingest
+            ingestor,
+            "_NvidiaRAGIngestor__nvingest_upload_doc",
+            side_effect=mock_nvingest,
         ):
             yield
 
@@ -158,7 +164,8 @@ class TestNvidiaRAGIngestor:
         mock_vdb.vdb_endpoint = "http://localhost:19530"
 
         # Test library mode
-        with (            patch("nvidia_rag.ingestor_server.main.get_nv_ingest_client"),
+        with (
+            patch("nvidia_rag.ingestor_server.main.get_nv_ingest_client"),
         ):
             ingestor_lib = NvidiaRAGIngestor(vdb_op=mock_vdb, mode="library")
             assert ingestor_lib.mode == "library"
@@ -513,45 +520,6 @@ class TestNvidiaRAGIngestor:
             assert "test.xyz" in result
             assert "test.abc" in result
 
-    def test_parse_documents_text_content(self, ingestor):
-        """Test parsing of text documents from nv-ingest results."""
-        results = [
-            [
-                {
-                    "document_type": "text",
-                    "metadata": {
-                        "content": "Sample text content",
-                        "source_metadata": {"source_id": "/path/to/test.pdf"},
-                        "content_metadata": {},
-                    },
-                }
-            ]
-        ]
-
-        documents = ingestor._NvidiaRAGIngestor__parse_documents(results)
-
-        assert len(documents) == 1
-        assert documents[0].page_content == "Sample text content"
-        assert documents[0].metadata["source"] == "/path/to/test.pdf"
-        assert documents[0].metadata["chunk_type"] == "text"
-        assert documents[0].metadata["source_name"] == "test.pdf"
-
-    def test_prepare_metadata(self, ingestor):
-        """Test metadata preparation for a single chunk."""
-        result_element = {
-            "document_type": "text",
-            "metadata": {
-                "source_metadata": {"source_id": "/path/to/document.pdf"},
-                "content_metadata": {},
-            },
-        }
-
-        metadata = ingestor._NvidiaRAGIngestor__prepare_metadata(result_element)
-
-        assert metadata["source"] == "/path/to/document.pdf"
-        assert metadata["chunk_type"] == "text"
-        assert metadata["source_name"] == "document.pdf"
-
     @pytest.mark.asyncio
     async def test_status_pending_task(self):
         """Test status check for pending task."""
@@ -560,7 +528,7 @@ class TestNvidiaRAGIngestor:
         ) as mock_handler:
             mock_handler.get_task_status_and_result.return_value = {
                 "state": "PENDING",
-                "result": {"message": "Task is pending"}
+                "result": {"message": "Task is pending"},
             }
 
             result = await NvidiaRAGIngestor.status("test-task-id")
@@ -576,7 +544,7 @@ class TestNvidiaRAGIngestor:
         ) as mock_handler:
             mock_handler.get_task_status_and_result.return_value = {
                 "state": "FINISHED",
-                "result": {"message": "success"}
+                "result": {"message": "success"},
             }
 
             result = await NvidiaRAGIngestor.status("test-task-id")
@@ -595,7 +563,7 @@ class TestNvidiaRAGIngestor:
                 "result": {
                     "state": "FAILED",
                     "message": "error",
-                }
+                },
             }
 
             result = await NvidiaRAGIngestor.status("test-task-id")
