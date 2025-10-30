@@ -24,6 +24,7 @@ This module tests Redis-based status tracking for document summarization:
 - TTL and expiration behavior
 """
 
+import asyncio
 import os
 from datetime import UTC, datetime
 from unittest.mock import MagicMock, Mock, patch
@@ -32,6 +33,12 @@ import pytest
 from redis.exceptions import ConnectionError as RedisConnectionError
 from redis.exceptions import RedisError
 
+from nvidia_rag.utils.summarization import (
+    acquire_global_summary_slot,
+    get_summarization_semaphore,
+    matches_page_filter,
+    release_global_summary_slot,
+)
 from nvidia_rag.utils.summary_status_handler import (
     REDIS_SOCKET_CONNECT_TIMEOUT_SECONDS,
     REDIS_SOCKET_TIMEOUT_SECONDS,
@@ -45,22 +52,31 @@ class TestSummaryStatusHandlerInitialization:
 
     def test_successful_redis_connection(self):
         """Test successful Redis connection sets available flag to True"""
-        with patch("nvidia_rag.utils.summary_status_handler.Redis") as mock_redis:
+        with (
+            patch(
+                "nvidia_rag.utils.summary_status_handler.ConnectionPool"
+            ) as mock_pool,
+            patch("nvidia_rag.utils.summary_status_handler.Redis") as mock_redis,
+        ):
             mock_client = MagicMock()
             mock_client.ping.return_value = True
             mock_redis.return_value = mock_client
+            mock_pool_instance = MagicMock()
+            mock_pool.return_value = mock_pool_instance
 
             handler = SummaryStatusHandler()
 
             assert handler.is_available() is True
-            mock_redis.assert_called_once_with(
+            mock_pool.assert_called_once_with(
                 host="localhost",
                 port=6379,
                 db=0,
                 socket_connect_timeout=REDIS_SOCKET_CONNECT_TIMEOUT_SECONDS,
                 socket_timeout=REDIS_SOCKET_TIMEOUT_SECONDS,
+                max_connections=50,
                 decode_responses=False,
             )
+            mock_redis.assert_called_once_with(connection_pool=mock_pool_instance)
             mock_client.ping.assert_called_once()
 
     def test_failed_redis_connection_sets_unavailable(self):
@@ -550,3 +566,260 @@ class TestSummaryStatusHandlerEdgeCases:
             )
 
             assert result is True
+
+
+class TestMatchesPageFilter:
+    """Tests for matches_page_filter function in summarization.py"""
+
+    def test_matches_page_filter_no_filter(self):
+        """Test that no filter returns True for all pages"""
+        assert matches_page_filter(1, None) is True
+        assert matches_page_filter(100, None) is True
+        assert matches_page_filter(1, {}) is True
+
+    def test_matches_page_filter_simple_range(self):
+        """Test simple positive range"""
+        page_filter = {"pages": [[1, 10]]}
+
+        assert matches_page_filter(1, page_filter) is True
+        assert matches_page_filter(5, page_filter) is True
+        assert matches_page_filter(10, page_filter) is True
+        assert matches_page_filter(11, page_filter) is False
+        assert matches_page_filter(0, page_filter) is False
+
+    def test_matches_page_filter_multiple_ranges(self):
+        """Test multiple ranges"""
+        page_filter = {"pages": [[1, 10], [20, 30]]}
+
+        assert matches_page_filter(5, page_filter) is True
+        assert matches_page_filter(25, page_filter) is True
+        assert matches_page_filter(15, page_filter) is False
+        assert matches_page_filter(35, page_filter) is False
+
+    def test_matches_page_filter_negative_range(self):
+        """Test negative range with total_pages"""
+        page_filter = {"pages": [[-10, -1]]}
+        total_pages = 100
+
+        # Last 10 pages: 91-100
+        assert matches_page_filter(91, page_filter, total_pages) is True
+        assert matches_page_filter(95, page_filter, total_pages) is True
+        assert matches_page_filter(100, page_filter, total_pages) is True
+        assert matches_page_filter(90, page_filter, total_pages) is False
+        assert matches_page_filter(50, page_filter, total_pages) is False
+
+    def test_matches_page_filter_last_page_only(self):
+        """Test selecting only the last page"""
+        page_filter = {"pages": [[-1, -1]]}
+        total_pages = 100
+
+        assert matches_page_filter(100, page_filter, total_pages) is True
+        assert matches_page_filter(99, page_filter, total_pages) is False
+        assert matches_page_filter(1, page_filter, total_pages) is False
+
+    def test_matches_page_filter_mixed_ranges(self):
+        """Test mixing positive and negative ranges"""
+        page_filter = {"pages": [[1, 10], [-5, -1]]}
+        total_pages = 100
+
+        # First 10 pages
+        assert matches_page_filter(1, page_filter, total_pages) is True
+        assert matches_page_filter(10, page_filter, total_pages) is True
+
+        # Last 5 pages (96-100)
+        assert matches_page_filter(96, page_filter, total_pages) is True
+        assert matches_page_filter(100, page_filter, total_pages) is True
+
+        # Middle pages
+        assert matches_page_filter(50, page_filter, total_pages) is False
+
+    def test_matches_page_filter_negative_range_exceeds_document(self):
+        """Test negative range larger than document gets clamped"""
+        page_filter = {"pages": [[-100, -1]]}
+        total_pages = 10
+
+        # Should clamp to all pages (1-10)
+        assert matches_page_filter(1, page_filter, total_pages) is True
+        assert matches_page_filter(5, page_filter, total_pages) is True
+        assert matches_page_filter(10, page_filter, total_pages) is True
+
+    def test_matches_page_filter_even_pages(self):
+        """Test 'even' string filter"""
+        page_filter = {"pages": "even"}
+
+        assert matches_page_filter(2, page_filter) is True
+        assert matches_page_filter(4, page_filter) is True
+        assert matches_page_filter(100, page_filter) is True
+        assert matches_page_filter(1, page_filter) is False
+        assert matches_page_filter(3, page_filter) is False
+        assert matches_page_filter(99, page_filter) is False
+
+    def test_matches_page_filter_odd_pages(self):
+        """Test 'odd' string filter"""
+        page_filter = {"pages": "odd"}
+
+        assert matches_page_filter(1, page_filter) is True
+        assert matches_page_filter(3, page_filter) is True
+        assert matches_page_filter(99, page_filter) is True
+        assert matches_page_filter(2, page_filter) is False
+        assert matches_page_filter(4, page_filter) is False
+        assert matches_page_filter(100, page_filter) is False
+
+    def test_matches_page_filter_case_insensitive_string(self):
+        """Test case-insensitive string matching"""
+        assert matches_page_filter(2, {"pages": "EVEN"}) is True
+        assert matches_page_filter(2, {"pages": "Even"}) is True
+        assert matches_page_filter(1, {"pages": "ODD"}) is True
+        assert matches_page_filter(1, {"pages": "Odd"}) is True
+
+    def test_matches_page_filter_invalid_string(self):
+        """Test invalid string filter returns False"""
+        page_filter = {"pages": "invalid"}
+
+        # Should log error and return False
+        assert matches_page_filter(1, page_filter) is False
+        assert matches_page_filter(2, page_filter) is False
+
+    def test_matches_page_filter_invalid_format(self):
+        """Test invalid filter format returns False"""
+        # Integer instead of list or string
+        page_filter = {"pages": 123}
+        assert matches_page_filter(1, page_filter) is False
+
+    def test_matches_page_filter_empty_pages_key(self):
+        """Test filter without 'pages' key returns True"""
+        page_filter = {"other_key": "value"}
+        assert matches_page_filter(1, page_filter) is True
+
+
+class TestSummarizationGlobalRateLimiting:
+    """Tests for Redis-based global rate limiting functions"""
+
+    @pytest.mark.asyncio
+    async def test_get_summarization_semaphore_creates_new(self):
+        """Test that semaphore is created for new event loop"""
+        semaphore = get_summarization_semaphore()
+        assert semaphore is not None
+        assert isinstance(semaphore, asyncio.Semaphore)
+
+    @pytest.mark.asyncio
+    async def test_get_summarization_semaphore_reuses_existing(self):
+        """Test that same semaphore is returned for same event loop"""
+        sem1 = get_summarization_semaphore()
+        sem2 = get_summarization_semaphore()
+        assert sem1 is sem2
+
+    @pytest.mark.asyncio
+    async def test_acquire_global_summary_slot_success(self):
+        """Test successful acquisition of global slot"""
+        with (
+            patch(
+                "nvidia_rag.utils.summarization.SUMMARY_STATUS_HANDLER"
+            ) as mock_handler,
+            patch("nvidia_rag.utils.summarization.CONFIG") as mock_config,
+        ):
+            mock_handler.is_available.return_value = True
+            mock_config.summarizer.max_parallelization = 20
+
+            mock_redis = MagicMock()
+            mock_redis.incr.return_value = 5  # Within limit
+            mock_handler._redis_client = mock_redis
+
+            result = await acquire_global_summary_slot()
+
+            assert result is True
+            mock_redis.incr.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_acquire_global_summary_slot_at_limit(self):
+        """Test acquisition when at limit"""
+        with (
+            patch(
+                "nvidia_rag.utils.summarization.SUMMARY_STATUS_HANDLER"
+            ) as mock_handler,
+            patch("nvidia_rag.utils.summarization.CONFIG") as mock_config,
+        ):
+            mock_handler.is_available.return_value = True
+            mock_config.summarizer.max_parallelization = 20
+
+            mock_redis = MagicMock()
+            mock_redis.incr.return_value = 21  # Over limit
+            mock_handler._redis_client = mock_redis
+
+            result = await acquire_global_summary_slot()
+
+            assert result is False
+            mock_redis.decr.assert_called_once()  # Should decrement back
+
+    @pytest.mark.asyncio
+    async def test_acquire_global_summary_slot_redis_unavailable(self):
+        """Test acquisition when Redis is unavailable"""
+        with patch(
+            "nvidia_rag.utils.summarization.SUMMARY_STATUS_HANDLER"
+        ) as mock_handler:
+            mock_handler.is_available.return_value = False
+
+            result = await acquire_global_summary_slot()
+
+            assert result is True  # Should proceed without Redis
+
+    @pytest.mark.asyncio
+    async def test_acquire_global_summary_slot_redis_error(self):
+        """Test acquisition handles Redis errors gracefully"""
+        with (
+            patch(
+                "nvidia_rag.utils.summarization.SUMMARY_STATUS_HANDLER"
+            ) as mock_handler,
+            patch("nvidia_rag.utils.summarization.CONFIG") as mock_config,
+        ):
+            mock_handler.is_available.return_value = True
+            mock_config.summarizer.max_parallelization = 20
+
+            mock_redis = MagicMock()
+            mock_redis.incr.side_effect = RedisError("Connection lost")
+            mock_handler._redis_client = mock_redis
+
+            result = await acquire_global_summary_slot()
+
+            assert result is True  # Should proceed despite error
+
+    @pytest.mark.asyncio
+    async def test_release_global_summary_slot_success(self):
+        """Test successful release of global slot"""
+        with patch(
+            "nvidia_rag.utils.summarization.SUMMARY_STATUS_HANDLER"
+        ) as mock_handler:
+            mock_handler.is_available.return_value = True
+
+            mock_redis = MagicMock()
+            mock_handler._redis_client = mock_redis
+
+            await release_global_summary_slot()
+
+            mock_redis.decr.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_release_global_summary_slot_redis_unavailable(self):
+        """Test release when Redis is unavailable"""
+        with patch(
+            "nvidia_rag.utils.summarization.SUMMARY_STATUS_HANDLER"
+        ) as mock_handler:
+            mock_handler.is_available.return_value = False
+
+            # Should not raise error
+            await release_global_summary_slot()
+
+    @pytest.mark.asyncio
+    async def test_release_global_summary_slot_redis_error(self):
+        """Test release handles Redis errors gracefully"""
+        with patch(
+            "nvidia_rag.utils.summarization.SUMMARY_STATUS_HANDLER"
+        ) as mock_handler:
+            mock_handler.is_available.return_value = True
+
+            mock_redis = MagicMock()
+            mock_redis.decr.side_effect = RedisError("Connection lost")
+            mock_handler._redis_client = mock_redis
+
+            # Should not raise error
+            await release_global_summary_slot()

@@ -52,6 +52,74 @@ _event_loop_semaphores = {}
 REDIS_GLOBAL_SUMMARY_KEY = "summary:global:active_count"
 
 
+def matches_page_filter(
+    page_num: int, page_filter: dict | None, total_pages: int | None = None
+) -> bool:
+    """Check if page number matches filter criteria.
+
+    Args:
+        page_num: Page number to check (1-indexed)
+        page_filter: Filter dict with 'pages' key (may contain negative indices)
+        total_pages: Total pages in document (required for negative index resolution)
+
+    Returns:
+        True if page matches filter, False otherwise
+    """
+    if not page_filter or "pages" not in page_filter:
+        return True
+
+    pages = page_filter["pages"]
+
+    # Handle string filters: "even" or "odd"
+    if isinstance(pages, str):
+        pages_lower = pages.lower()
+        if pages_lower == "even":
+            return page_num % 2 == 0
+        elif pages_lower == "odd":
+            return page_num % 2 != 0
+        else:
+            logger.error(
+                f"Invalid page filter string: '{pages}'. "
+                f"Allowed values: 'even', 'odd'. "
+                f"Please check your page_filter configuration."
+            )
+            return False
+
+    # Handle ranges: [[1, 10], [20, 30]] or with negative indices [[-10, -1]]
+    if isinstance(pages, list):
+        try:
+            for start, end in pages:
+                # Resolve negative indices if total_pages provided
+                if total_pages is not None:
+                    resolved_start = start if start > 0 else total_pages + start + 1
+                    resolved_end = end if end > 0 else total_pages + end + 1
+                    # Clamp to valid range
+                    resolved_start = max(1, min(resolved_start, total_pages))
+                    resolved_end = max(1, min(resolved_end, total_pages))
+                else:
+                    resolved_start = start
+                    resolved_end = end
+
+                if resolved_start <= page_num <= resolved_end:
+                    return True
+            return False
+        except (ValueError, TypeError) as e:
+            logger.error(
+                f"Error processing page filter ranges: {e}. "
+                f"Expected format: [[start, end], ...]. "
+                f"Got: {pages}"
+            )
+            return False
+
+    # Invalid format
+    logger.error(
+        f"Invalid page filter format: {type(pages).__name__}. "
+        f"Allowed formats: list of ranges [[1,10],[20,30]] or string 'even'/'odd'. "
+        f"Please check your page_filter configuration."
+    )
+    return False
+
+
 def get_summarization_semaphore() -> asyncio.Semaphore:
     """Get or create local semaphore for current event loop."""
     try:
@@ -119,6 +187,7 @@ async def release_global_summary_slot() -> None:
 async def generate_document_summaries(
     results: list[list[dict[str, str | dict]]],
     collection_name: str,
+    page_filter: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """
     Generate summaries for multiple documents in parallel with global rate limiting.
@@ -126,6 +195,7 @@ async def generate_document_summaries(
     Args:
         results: NV-Ingest extraction results (nested list structure)
         collection_name: Collection name for status tracking
+        page_filter: Global page filter for all files
 
     Returns:
         dict: Statistics with total_files, successful, failed, duration_seconds, files
@@ -139,7 +209,6 @@ async def generate_document_summaries(
 
     semaphore = get_summarization_semaphore()
 
-    # Extract unique files from NV-Ingest results
     file_results = []
     for result_list in results:
         if not result_list:
@@ -164,6 +233,9 @@ async def generate_document_summaries(
     total_files = len(file_results)
     logger.info(f"Found {total_files} files to summarize")
 
+    if page_filter:
+        logger.info(f"Global page filter: {page_filter.get('pages', page_filter)}")
+
     if total_files == 0:
         logger.warning("No files to summarize")
         return {
@@ -174,21 +246,19 @@ async def generate_document_summaries(
             "files": {},
         }
 
-    # Create async tasks for all files (parallel processing)
     tasks = [
         _process_single_file_summary(
             file_data=file_data,
             collection_name=collection_name,
             results=results,
             semaphore=semaphore,
+            page_filter=page_filter,
         )
         for file_data in file_results
     ]
 
-    # Wait for all summaries to complete
     completed_results = await asyncio.gather(*tasks, return_exceptions=True)
 
-    # Collect statistics
     stats = {
         "total_files": total_files,
         "successful": 0,
@@ -223,6 +293,7 @@ async def _process_single_file_summary(
     collection_name: str,
     results: list[list[dict[str, str | dict]]],
     semaphore: asyncio.Semaphore,
+    page_filter: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """
     Process summary for a single file with global rate limiting.
@@ -232,6 +303,7 @@ async def _process_single_file_summary(
         collection_name: Collection name for status tracking
         results: Full results list for document preparation
         semaphore: Semaphore for concurrency control
+        page_filter: Global page filter for all files
 
     Returns:
         dict: Result with status, duration, and optional error
@@ -239,9 +311,10 @@ async def _process_single_file_summary(
     file_name = file_data["file_name"]
     result_element = file_data["result_element"]
 
+    effective_filter = page_filter
+
     file_start_time = time.time()
 
-    # Set IN_PROGRESS status before acquiring global slot
     SUMMARY_STATUS_HANDLER.update_progress(
         collection_name=collection_name,
         file_name=file_name,
@@ -252,19 +325,16 @@ async def _process_single_file_summary(
     slot_acquired = False
     try:
         async with semaphore:
-            # Wait for global slot availability (coordinated via Redis)
             while not await acquire_global_summary_slot():
                 await asyncio.sleep(0.5)
 
             slot_acquired = True
 
-            logger.info(f"Starting summary: {file_name}")
-
-            # Lazily load document content
             document = await _prepare_single_document(
                 result_element=result_element,
                 results=results,
                 collection_name=collection_name,
+                page_filter=effective_filter,
             )
 
             progress_callback = partial(
@@ -273,16 +343,13 @@ async def _process_single_file_summary(
                 file_name=file_name,
             )
 
-            # Generate summary
             summary_doc = await _generate_single_document_summary(
                 document=document,
                 progress_callback=progress_callback,
             )
 
-            # Store in MinIO
             await _store_summary_in_minio(summary_doc)
 
-            # Update Redis status
             SUMMARY_STATUS_HANDLER.update_progress(
                 collection_name=collection_name,
                 file_name=file_name,
@@ -317,7 +384,6 @@ async def _process_single_file_summary(
             "error": error_msg,
         }
     finally:
-        # Release global slot only if it was acquired
         if slot_acquired:
             await release_global_summary_slot()
 
@@ -326,17 +392,18 @@ async def _prepare_single_document(
     result_element: dict[str, str | dict],
     results: list[list[dict[str, str | dict]]],
     collection_name: str,
+    page_filter: dict[str, Any] | None = None,
 ) -> Document:
-    """
-    Prepare a single document for summarization by lazily loading content.
+    """Prepare document for summarization by loading content with optional page filtering.
 
     Args:
         result_element: Single result element with file metadata
         results: Full results list to search for all chunks of this file
         collection_name: Collection name for metadata
+        page_filter: Optional page filter to apply
 
     Returns:
-        Document: LangChain document with full content and metadata
+        LangChain document with full content and metadata
     """
     source_id = (
         result_element.get("metadata", {})
@@ -345,8 +412,10 @@ async def _prepare_single_document(
     )
     file_name = os.path.basename(source_id)
 
-    # Find all content chunks for this file
-    content_parts = []
+    # Collect pages with their content - nv-ingest provides sorted pages
+    pages_data = []  # List of (page_num, content) tuples in order
+    seen_pages = set()
+
     for result_list in results:
         for elem in result_list:
             elem_source = (
@@ -354,17 +423,39 @@ async def _prepare_single_document(
             )
 
             if os.path.basename(elem_source) == file_name:
+                page_num = (
+                    elem.get("metadata", {})
+                    .get("content_metadata", {})
+                    .get("page_number", 1)
+                )
+
                 content = _extract_content_from_element(elem)
                 if content:
-                    content_parts.append(content)
+                    pages_data.append((page_num, content))
+                    seen_pages.add(page_num)
 
-    # Concatenate all content
+    if not pages_data:
+        raise ValueError(f"No content found in document '{file_name}'")
+
+    # Apply page filter if specified
+    if page_filter:
+        total_pages = max(seen_pages)
+
+        # Filter pages with negative index resolution
+        pages_data = [
+            (page_num, content)
+            for page_num, content in pages_data
+            if matches_page_filter(page_num, page_filter, total_pages)
+        ]
+
+        if not pages_data:
+            raise ValueError(
+                f"No content found for file '{file_name}' with page filter: {page_filter.get('pages')}"
+            )
+
+    # Concatenate content - already in correct order from nv-ingest
+    content_parts = [content for _, content in pages_data]
     full_content = " ".join(content_parts)
-
-    logger.debug(
-        f"Prepared document {file_name}: {len(full_content)} chars "
-        f"from {len(content_parts)} chunks"
-    )
 
     return Document(
         page_content=full_content,
@@ -376,14 +467,13 @@ async def _prepare_single_document(
 
 
 def _extract_content_from_element(elem: dict[str, Any]) -> str | None:
-    """
-    Extract text content from element based on type and config settings.
+    """Extract text content from element based on type and config settings.
 
     Args:
         elem: Result element with document_type and metadata
 
     Returns:
-        str | None: Extracted text content or None
+        Extracted text content or None
     """
     doc_type = elem.get("document_type")
     metadata = elem.get("metadata", {})

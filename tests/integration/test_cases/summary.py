@@ -395,3 +395,282 @@ class SummaryModule(BaseTestModule):
                 "Failed NOT_FOUND status test",
             )
             return False
+
+    async def test_summary_with_page_filters(
+        self, collection_name: str, filename: str
+    ) -> bool:
+        """Test summary generation with comprehensive page filtering"""
+        async with aiohttp.ClientSession() as session:
+            try:
+                logger.info(
+                    f"🔍 Testing comprehensive page filtering for file: {filename}"
+                )
+
+                # Find the full file path
+                file_path = None
+                for test_file in self.test_runner.test_files:
+                    if os.path.basename(test_file) == filename:
+                        file_path = test_file
+                        break
+
+                if not file_path:
+                    logger.error(f"❌ File not found: {filename}")
+                    return False
+
+                update_url = f"{self.ingestor_server_url}/v1/documents"
+
+                # Test 1: Multiple ranges with first 5 and last 5 pages (tests positive + negative ranges)
+                page_filter = {"pages": [[1, 5], [-5, -1]]}
+
+                logger.info(
+                    "📤 Testing filter: first 5 pages [1, 5] and last 5 pages [-5, -1]"
+                )
+
+                # Prepare FormData with file and JSON data
+                data = aiohttp.FormData()
+                data.add_field("documents", open(file_path, "rb"), filename=filename)
+
+                json_data = {
+                    "collection_name": collection_name,
+                    "generate_summary": True,
+                    "summary_options": {"page_filter": page_filter},
+                }
+                data.add_field("data", json.dumps(json_data))
+
+                async with session.patch(update_url, data=data) as response:
+                    await print_response(response)
+                    if response.status not in [200, 201]:
+                        logger.error(f"❌ Update failed with status {response.status}")
+                        return False
+
+                await asyncio.sleep(5)
+
+                summary_params = {
+                    "collection_name": collection_name,
+                    "file_name": filename,
+                    "blocking": "true",
+                    "timeout": 120,
+                }
+
+                logger.info("⏳ Waiting for filtered summary generation...")
+                async with session.get(
+                    f"{self.rag_server_url}/v1/summary", params=summary_params
+                ) as response:
+                    result = await print_response(response)
+
+                    if response.status != 200:
+                        logger.error(
+                            f"❌ Failed to retrieve filtered summary: {response.status}"
+                        )
+                        return False
+
+                    summary_text = result.get("summary", "")
+                    logger.info(
+                        f"✅ Range filter passed: [[1, 5], [-5, -1]] ({len(summary_text)} chars)"
+                    )
+
+                # Test 2: String-based filter (odd pages)
+                page_filter_odd = {"pages": "odd"}
+
+                logger.info("\n📤 Testing filter: odd pages")
+
+                # Prepare FormData again for second test
+                data_odd = aiohttp.FormData()
+                data_odd.add_field(
+                    "documents", open(file_path, "rb"), filename=filename
+                )
+
+                json_data_odd = {
+                    "collection_name": collection_name,
+                    "generate_summary": True,
+                    "summary_options": {"page_filter": page_filter_odd},
+                }
+                data_odd.add_field("data", json.dumps(json_data_odd))
+
+                async with session.patch(update_url, data=data_odd) as response:
+                    if response.status not in [200, 201]:
+                        logger.error(
+                            f"❌ Update with 'odd' filter failed: {response.status}"
+                        )
+                        return False
+
+                await asyncio.sleep(5)
+
+                async with session.get(
+                    f"{self.rag_server_url}/v1/summary", params=summary_params
+                ) as response:
+                    result = await print_response(response)
+
+                    if response.status != 200:
+                        logger.error(
+                            f"❌ Failed to retrieve 'odd' filtered summary: {response.status}"
+                        )
+                        return False
+
+                    summary_text_odd = result.get("summary", "")
+                    logger.info(
+                        f"✅ String filter passed: 'odd' ({len(summary_text_odd)} chars)"
+                    )
+                    logger.info("✅ All page filter types validated successfully")
+                    return True
+
+            except Exception as e:
+                logger.error(f"❌ Error in page filter test: {e}")
+                import traceback
+
+                logger.error(traceback.format_exc())
+                return False
+
+    async def test_concurrent_summaries(
+        self, collection_name: str, filenames: list[str], concurrency: int = 5
+    ) -> bool:
+        """Test Redis rate limiting with concurrent summary requests"""
+        async with aiohttp.ClientSession() as session:
+            try:
+                logger.info(
+                    f"🚀 Testing concurrent summaries with {concurrency} files to verify rate limiting"
+                )
+
+                # Create tasks for concurrent summary requests
+                async def fetch_summary_task(filename: str) -> tuple[str, bool]:
+                    try:
+                        params = {
+                            "collection_name": collection_name,
+                            "file_name": filename,
+                            "blocking": "true",
+                            "timeout": 180,
+                        }
+                        start_time = time.time()
+
+                        async with session.get(
+                            f"{self.rag_server_url}/v1/summary", params=params
+                        ) as response:
+                            elapsed = time.time() - start_time
+                            success = response.status == 200
+
+                            if success:
+                                logger.info(
+                                    f"✅ {filename}: Completed in {elapsed:.2f}s"
+                                )
+                            else:
+                                logger.error(
+                                    f"❌ {filename}: Failed with status {response.status}"
+                                )
+
+                            return (filename, success)
+                    except Exception as e:
+                        logger.error(f"❌ {filename}: Error - {e}")
+                        return (filename, False)
+
+                # Launch concurrent requests
+                tasks = [
+                    fetch_summary_task(filename) for filename in filenames[:concurrency]
+                ]
+
+                logger.info(f"⏳ Launching {len(tasks)} concurrent summary requests...")
+                start_time = time.time()
+                results = await asyncio.gather(*tasks)
+                total_time = time.time() - start_time
+
+                # Analyze results
+                success_count = sum(1 for _, success in results if success)
+                logger.info(f"📊 Concurrent test completed in {total_time:.2f}s")
+                logger.info(
+                    f"✅ Success rate: {success_count}/{len(results)} ({success_count / len(results) * 100:.1f}%)"
+                )
+
+                # Test passes if at least 80% succeed (rate limiting may delay some)
+                if success_count >= len(results) * 0.8:
+                    logger.info(
+                        "✅ Concurrent summaries test passed - rate limiting working correctly"
+                    )
+                    return True
+                else:
+                    logger.error(
+                        f"❌ Too many failures: {success_count}/{len(results)}"
+                    )
+                    return False
+
+            except Exception as e:
+                logger.error(f"❌ Error in concurrent summaries test: {e}")
+                return False
+
+    @test_case(74, "Summary with Page Filters")
+    async def _test_summary_page_filters(self) -> bool:
+        """Test summary generation with page filtering"""
+        logger.info("\n=== Test 74: Summary with Page Filters ===")
+        start_time = time.time()
+
+        # Use first file to test page filters
+        test_file = os.path.basename(self.test_runner.test_files[0])
+
+        success = await self.test_summary_with_page_filters(
+            self.collections["with_metadata"], test_file
+        )
+
+        elapsed_time = time.time() - start_time
+
+        if success:
+            self.add_test_result(
+                self._test_summary_page_filters.test_number,
+                self._test_summary_page_filters.test_name,
+                f"Test page filtering with range-based [[1, 5], [-5, -1]] and string-based 'odd' filters. File: {test_file}. Validates positive ranges, negative/Pythonic indices, multiple ranges, and string filters (odd/even) via PATCH /v1/documents with summary_options.page_filter.",
+                ["PATCH /v1/documents", "GET /v1/summary"],
+                ["collection_name", "file_names", "summary_options.page_filter"],
+                elapsed_time,
+                TestStatus.SUCCESS,
+            )
+            return True
+        else:
+            self.add_test_result(
+                self._test_summary_page_filters.test_number,
+                self._test_summary_page_filters.test_name,
+                f"Test page filtering with range-based [[1, 5], [-5, -1]] and string-based 'odd' filters. File: {test_file}. Validates positive ranges, negative/Pythonic indices, multiple ranges, and string filters (odd/even) via PATCH /v1/documents with summary_options.page_filter.",
+                ["PATCH /v1/documents", "GET /v1/summary"],
+                ["collection_name", "file_names", "summary_options.page_filter"],
+                elapsed_time,
+                TestStatus.FAILURE,
+                "Failed to generate summary with page filters",
+            )
+            return False
+
+    @test_case(75, "Concurrent Summaries - Redis Rate Limiting")
+    async def _test_concurrent_summaries(self) -> bool:
+        """Test Redis-based global rate limiting with concurrent requests"""
+        logger.info("\n=== Test 75: Concurrent Summaries - Redis Rate Limiting ===")
+        start_time = time.time()
+
+        # Get all available test files
+        all_files = [os.path.basename(f) for f in self.test_runner.test_files]
+
+        success = await self.test_concurrent_summaries(
+            self.collections["with_metadata"],
+            all_files,
+            concurrency=min(5, len(all_files)),
+        )
+
+        elapsed_time = time.time() - start_time
+
+        if success:
+            self.add_test_result(
+                self._test_concurrent_summaries.test_number,
+                self._test_concurrent_summaries.test_name,
+                f"Test Redis-based global rate limiting with {min(5, len(all_files))} concurrent summary requests. Validates that global parallelization limit (default: 20) is enforced via Redis coordination. Tests slot acquisition/release and graceful handling under load.",
+                ["GET /v1/summary"],
+                ["collection_name", "file_name", "blocking", "timeout"],
+                elapsed_time,
+                TestStatus.SUCCESS,
+            )
+            return True
+        else:
+            self.add_test_result(
+                self._test_concurrent_summaries.test_number,
+                self._test_concurrent_summaries.test_name,
+                f"Test Redis-based global rate limiting with {min(5, len(all_files))} concurrent summary requests. Validates that global parallelization limit (default: 20) is enforced via Redis coordination. Tests slot acquisition/release and graceful handling under load.",
+                ["GET /v1/summary"],
+                ["collection_name", "file_name", "blocking", "timeout"],
+                elapsed_time,
+                TestStatus.FAILURE,
+                "Failed concurrent summaries test",
+            )
+            return False

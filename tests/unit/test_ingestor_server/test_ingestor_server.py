@@ -20,6 +20,13 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
+
+from nvidia_rag.ingestor_server.server import (
+    DocumentUploadRequest,
+    PageFilter,
+    SummaryOptions,
+)
 
 
 class MockNvidiaRAGIngestor:
@@ -954,3 +961,165 @@ class TestDeleteDocumentsEndpoint:
         response = client.delete("/v1/documents?collection_name=")  # Invalid empty name
         # Server returns 200 with empty results when collection name is empty
         assert response.status_code == 200
+
+
+class TestPageFilterValidation:
+    """Tests for PageFilter Pydantic model validation"""
+
+    def test_page_filter_simple_range(self):
+        """Test simple page range validation"""
+        pf = PageFilter(pages=[[1, 10]])
+        assert pf.pages == [[1, 10]]
+
+    def test_page_filter_multiple_ranges(self):
+        """Test multiple page ranges"""
+        pf = PageFilter(pages=[[1, 10], [20, 30]])
+        assert pf.pages == [[1, 10], [20, 30]]
+
+    def test_page_filter_negative_range(self):
+        """Test negative (Pythonic) page range"""
+        pf = PageFilter(pages=[[-10, -1]])
+        assert pf.pages == [[-10, -1]]
+
+    def test_page_filter_mixed_ranges(self):
+        """Test mixing positive and negative ranges (different ranges, not same range)"""
+        pf = PageFilter(pages=[[1, 10], [-5, -1]])
+        assert pf.pages == [[1, 10], [-5, -1]]
+
+    def test_page_filter_even_string(self):
+        """Test 'even' string filter"""
+        pf = PageFilter(pages="even")
+        assert pf.pages == "even"  # normalized to lowercase
+
+    def test_page_filter_odd_string(self):
+        """Test 'odd' string filter"""
+        pf = PageFilter(pages="odd")
+        assert pf.pages == "odd"
+
+    def test_page_filter_case_insensitive_string(self):
+        """Test case-insensitive string normalization"""
+        pf = PageFilter(pages="EVEN")
+        assert pf.pages == "even"
+
+        pf = PageFilter(pages="ODD")
+        assert pf.pages == "odd"
+
+    def test_page_filter_invalid_string(self):
+        """Test invalid string value"""
+        with pytest.raises(ValidationError, match="Invalid page filter string"):
+            PageFilter(pages="invalid")
+
+    def test_page_filter_zero_page_rejected(self):
+        """Test that page number 0 is rejected"""
+        with pytest.raises(ValidationError, match="page numbers cannot be 0"):
+            PageFilter(pages=[[0, 10]])
+
+        with pytest.raises(ValidationError, match="page numbers cannot be 0"):
+            PageFilter(pages=[[1, 0]])
+
+    def test_page_filter_reversed_positive_range_rejected(self):
+        """Test that reversed positive range is rejected"""
+        with pytest.raises(ValidationError, match="start must be <= end"):
+            PageFilter(pages=[[10, 1]])
+
+    def test_page_filter_reversed_negative_range_rejected(self):
+        """Test that reversed negative range is rejected"""
+        with pytest.raises(ValidationError, match="invalid negative range"):
+            PageFilter(pages=[[-1, -10]])
+
+    def test_page_filter_mixed_positive_negative_same_range_rejected(self):
+        """Test that mixing positive and negative in same range is rejected"""
+        with pytest.raises(ValidationError, match="cannot mix positive and negative"):
+            PageFilter(pages=[[-10, 1]])
+
+        with pytest.raises(ValidationError, match="cannot mix positive and negative"):
+            PageFilter(pages=[[1, -10]])
+
+    def test_page_filter_empty_list_rejected(self):
+        """Test that empty list is rejected"""
+        with pytest.raises(ValidationError, match="Page range list cannot be empty"):
+            PageFilter(pages=[])
+
+    def test_page_filter_non_list_range_rejected(self):
+        """Test that non-list items are rejected"""
+        with pytest.raises(ValidationError, match="Input should be a valid list"):
+            PageFilter(pages=[1, 2, 3])
+
+    def test_page_filter_wrong_range_size_rejected(self):
+        """Test that ranges without exactly 2 elements are rejected"""
+        with pytest.raises(ValidationError, match="must have exactly 2 elements"):
+            PageFilter(pages=[[1]])
+
+        with pytest.raises(ValidationError, match="must have exactly 2 elements"):
+            PageFilter(pages=[[1, 2, 3]])
+
+
+class TestSummaryOptionsValidation:
+    """Tests for SummaryOptions Pydantic model"""
+
+    def test_summary_options_with_page_filter(self):
+        """Test SummaryOptions with page filter"""
+        so = SummaryOptions(page_filter=PageFilter(pages=[[1, 10]]))
+        assert so.page_filter.pages == [[1, 10]]
+
+    def test_summary_options_without_page_filter(self):
+        """Test SummaryOptions without page filter"""
+        so = SummaryOptions()
+        assert so.page_filter is None
+
+    def test_summary_options_none_page_filter(self):
+        """Test SummaryOptions with explicit None"""
+        so = SummaryOptions(page_filter=None)
+        assert so.page_filter is None
+
+
+class TestDocumentUploadRequestValidation:
+    """Tests for DocumentUploadRequest cross-field validation"""
+
+    def test_document_upload_no_summary(self):
+        """Test request without summary generation"""
+        req = DocumentUploadRequest(collection_name="test", generate_summary=False)
+        assert req.generate_summary is False
+        assert req.summary_options is None
+
+    def test_document_upload_summary_all_pages(self):
+        """Test request with summary for all pages"""
+        req = DocumentUploadRequest(collection_name="test", generate_summary=True)
+        assert req.generate_summary is True
+        assert req.summary_options is None
+
+    def test_document_upload_summary_with_filter(self):
+        """Test request with summary and page filter"""
+        req = DocumentUploadRequest(
+            collection_name="test",
+            generate_summary=True,
+            summary_options=SummaryOptions(page_filter=PageFilter(pages=[[1, 10]])),
+        )
+        assert req.generate_summary is True
+        assert req.summary_options.page_filter.pages == [[1, 10]]
+
+    def test_document_upload_summary_options_without_generate_summary_rejected(self):
+        """Test that summary_options without generate_summary is rejected"""
+        with pytest.raises(
+            ValidationError,
+            match="summary_options can only be provided when generate_summary=True",
+        ):
+            DocumentUploadRequest(
+                collection_name="test",
+                generate_summary=False,
+                summary_options=SummaryOptions(page_filter=PageFilter(pages=[[1, 10]])),
+            )
+
+    def test_document_upload_empty_summary_options_without_generate_summary_rejected(
+        self,
+    ):
+        """Test that even empty summary_options without generate_summary is rejected"""
+        with pytest.raises(
+            ValidationError,
+            match="summary_options can only be provided when generate_summary=True",
+        ):
+            DocumentUploadRequest(
+                collection_name="test",
+                generate_summary=False,
+                summary_options=SummaryOptions(),
+            )

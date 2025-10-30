@@ -214,6 +214,7 @@ class NvidiaRAGIngestor:
         split_options: dict[str, Any] | None = None,
         custom_metadata: list[dict[str, Any]] | None = None,
         generate_summary: bool = False,
+        summary_options: dict[str, Any] | None = None,
         additional_validation_errors: list[dict[str, Any]] | None = None,
         documents_catalog_metadata: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
@@ -225,6 +226,8 @@ class NvidiaRAGIngestor:
             collection_name (str, optional): Name of collection in vector database. Defaults to "multimodal_data".
             split_options (Dict[str, Any], optional): Options for splitting documents. Defaults to chunk_size and chunk_overlap from self.config.
             custom_metadata (List[Dict[str, Any]], optional): Custom metadata to add to documents. Defaults to empty list.
+            generate_summary (bool, optional): Whether to generate summaries. Defaults to False.
+            summary_options (Dict[str, Any] | None, optional): Advanced options for summary (e.g., page_filter). Only used when generate_summary=True. Defaults to None.
             additional_validation_errors (List[Dict[str, Any]] | None, optional): Additional validation errors to include in response. Defaults to None.
             documents_catalog_metadata (List[Dict[str, Any]] | None, optional): Per-document catalog metadata (description, tags) to add during upload. Defaults to None.
         """
@@ -260,6 +263,11 @@ class NvidiaRAGIngestor:
         if documents_catalog_metadata is None:
             documents_catalog_metadata = []
 
+        # Extract page_filter from summary_options if provided
+        page_filter = None
+        if summary_options:
+            page_filter = summary_options.get("page_filter")
+
         if not vdb_op.check_collection_exists(collection_name):
             raise ValueError(
                 f"Collection {collection_name} does not exist. Ensure a collection is created using POST /collection endpoint first."
@@ -278,6 +286,7 @@ class NvidiaRAGIngestor:
                         split_options=split_options,
                         custom_metadata=custom_metadata,
                         generate_summary=generate_summary,
+                        page_filter=page_filter,
                         additional_validation_errors=additional_validation_errors,
                         state_manager=state_manager,
                         documents_catalog_metadata=documents_catalog_metadata,
@@ -317,6 +326,7 @@ class NvidiaRAGIngestor:
                     split_options=split_options,
                     custom_metadata=custom_metadata,
                     generate_summary=generate_summary,
+                    page_filter=page_filter,
                     additional_validation_errors=additional_validation_errors,
                     state_manager=state_manager,
                     documents_catalog_metadata=documents_catalog_metadata,
@@ -341,6 +351,7 @@ class NvidiaRAGIngestor:
         split_options: dict[str, Any] | None = None,
         custom_metadata: list[dict[str, Any]] | None = None,
         generate_summary: bool = False,
+        page_filter: dict[str, Any] | None = None,
         additional_validation_errors: list[dict[str, Any]] | None = None,
         state_manager: IngestionStateManager | None = None,
         documents_catalog_metadata: list[dict[str, Any]] | None = None,
@@ -352,10 +363,15 @@ class NvidiaRAGIngestor:
         Arguments:
             - filepaths: List[str] - List of absolute filepaths
             - collection_name: str - Name of the collection in the vector database
+            - vdb_endpoint: str - URL of the vector database endpoint
+            - vdb_op: VDBRag - VDB operator instance
             - split_options: Dict[str, Any] - Options for splitting documents
             - custom_metadata: List[Dict[str, Any]] - Custom metadata to be added to documents
+            - generate_summary: bool - Whether to generate summaries
+            - page_filter: Dict[str, Any] | None - Global page filter for all files
             - additional_validation_errors: List[Dict[str, Any]] | None - Additional validation errors to include in response (defaults to None)
             - documents_catalog_metadata: List[Dict[str, Any]] | None - Per-document catalog metadata (description, tags) to add after upload (defaults to None)
+            - state_manager: IngestionStateManager - State manager for the ingestion process
         """
         logger.info("Performing ingestion in collection_name: %s", collection_name)
         logger.debug("Filepaths for ingestion: %s", filepaths)
@@ -527,6 +543,7 @@ class NvidiaRAGIngestor:
                 vdb_op=vdb_op,
                 split_options=split_options,
                 generate_summary=generate_summary,
+                page_filter=page_filter,
                 state_manager=state_manager,
             )
 
@@ -680,14 +697,18 @@ class NvidiaRAGIngestor:
         return response_data
 
     async def __ingest_document_summary(
-        self, results: list[list[dict[str, str | dict]]], collection_name: str
+        self,
+        results: list[list[dict[str, str | dict]]],
+        collection_name: str,
+        page_filter: dict[str, Any] | None = None,
     ) -> None:
         """
-        Trigger parallel summary generation for documents.
+        Trigger parallel summary generation for documents with optional page filtering.
 
         Args:
             results: List of document extraction results from nv-ingest
             collection_name: Name of the collection
+            page_filter: Global page filter for all files
         """
         from nvidia_rag.utils.summarization import generate_document_summaries
 
@@ -695,6 +716,7 @@ class NvidiaRAGIngestor:
             stats = await generate_document_summaries(
                 results=results,
                 collection_name=collection_name,
+                page_filter=page_filter,
             )
 
             if stats["failed"] > 0:
@@ -719,10 +741,23 @@ class NvidiaRAGIngestor:
         split_options: dict[str, Any] | None = None,
         custom_metadata: list[dict[str, Any]] | None = None,
         generate_summary: bool = False,
+        summary_options: dict[str, Any] | None = None,
         additional_validation_errors: list[dict[str, Any]] | None = None,
         documents_catalog_metadata: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
-        """Upload a document to the vector store. If the document already exists, it will be replaced."""
+        """Upload a document to the vector store. If the document already exists, it will be replaced.
+
+        Args:
+            filepaths: List of absolute filepaths to upload
+            blocking: Whether to block until ingestion completes
+            collection_name: Name of collection in vector database
+            vdb_endpoint: URL of the vector database endpoint
+            split_options: Options for splitting documents
+            custom_metadata: Custom metadata to add to documents
+            generate_summary: Whether to generate summaries
+            summary_options: Advanced options for summary (e.g., page_filter). Only used when generate_summary=True.
+            additional_validation_errors: Additional validation errors to include in response
+        """
 
         # Apply default from config if not provided
         if vdb_endpoint is None:
@@ -773,6 +808,7 @@ class NvidiaRAGIngestor:
             split_options=split_options,
             custom_metadata=custom_metadata,
             generate_summary=generate_summary,
+            summary_options=summary_options,
             additional_validation_errors=additional_validation_errors,
             documents_catalog_metadata=documents_catalog_metadata,
         )
@@ -1509,17 +1545,20 @@ class NvidiaRAGIngestor:
         vdb_op: VDBRag | None = None,
         split_options: dict[str, Any] | None = None,
         generate_summary: bool = False,
+        page_filter: dict[str, Any] | None = None,
         state_manager: IngestionStateManager | None = None,
     ) -> tuple[list[list[dict[str, str | dict]]], list[dict[str, Any]]]:
         """
         Wrapper function to ingest documents in chunks using NV-ingest
 
-        Arguments:
+        Args:
             - filepaths: List[str] - List of absolute filepaths
             - collection_name: str - Name of the collection in the vector database
-            - vdb_endpoint: str - URL of the vector database endpoint
+            - vdb_op: VDBRag - VDB operator instance
             - split_options: SplitOptions - Options for splitting documents
-            - custom_metadata: List[CustomMetadata] - Custom metadata to be added to documents
+            - generate_summary: bool - Whether to generate summaries
+            - page_filter: Dict[str, Any] | None - Global page filter for all files
+            - state_manager: IngestionStateManager - State manager for the ingestion process
         """
         if not self.config.nv_ingest.enable_batch_mode:
             # Single batch mode
@@ -1534,6 +1573,7 @@ class NvidiaRAGIngestor:
                 vdb_op=vdb_op,
                 split_options=split_options,
                 generate_summary=generate_summary,
+                page_filter=page_filter,
                 state_manager=state_manager,
             )
             return results, failures
@@ -1569,6 +1609,7 @@ class NvidiaRAGIngestor:
                         batch_number=batch_num,
                         split_options=split_options,
                         generate_summary=generate_summary,
+                        page_filter=page_filter,
                         state_manager=state_manager,
                     )
                     all_results.extend(results)
@@ -1612,6 +1653,7 @@ class NvidiaRAGIngestor:
                             batch_number=batch_num,
                             split_options=split_options,
                             generate_summary=generate_summary,
+                            page_filter=page_filter,
                             state_manager=state_manager,
                         )
 
@@ -1653,6 +1695,7 @@ class NvidiaRAGIngestor:
         batch_number: int = 0,
         split_options: dict[str, Any] | None = None,
         generate_summary: bool = False,
+        page_filter: dict[str, Any] | None = None,
         state_manager: IngestionStateManager | None = None,
     ) -> tuple[list[list[dict[str, str | dict]]], list[dict[str, Any]]]:
         """
@@ -1664,10 +1707,12 @@ class NvidiaRAGIngestor:
         Arguments:
             - filepaths: List[str] - List of absolute filepaths
             - collection_name: str - Name of the collection in the vector database
-            - vdb_endpoint: str - URL of the vector database endpoint
+            - vdb_op: VDBRag - VDB operator instance
             - batch_number: int - Batch number for the ingestion process
             - split_options: SplitOptions - Options for splitting documents
-            - custom_metadata: List[CustomMetadata] - Custom metadata to be added to documents
+            - generate_summary: bool - Whether to generate summaries
+            - page_filter: Dict[str, Any] | None - Global page filter for all files
+            - state_manager: IngestionStateManager - State manager for the ingestion process
         """
         if split_options is None:
             split_options = {
@@ -1710,7 +1755,11 @@ class NvidiaRAGIngestor:
         if generate_summary:
             # Create background task for summary generation
             task = asyncio.create_task(
-                self.__ingest_document_summary(results, collection_name=collection_name)
+                self.__ingest_document_summary(
+                    results,
+                    collection_name=collection_name,
+                    page_filter=page_filter,
+                )
             )
             self._background_tasks.add(task)
             task.add_done_callback(self._background_tasks.discard)
