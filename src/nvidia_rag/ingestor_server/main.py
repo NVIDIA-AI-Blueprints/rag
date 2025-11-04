@@ -40,10 +40,8 @@ import time
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
 from uuid import uuid4
 
-from langchain_core.documents import Document
 from nv_ingest_client.primitives.tasks.extract import _DEFAULT_EXTRACTOR_MAP
 from nv_ingest_client.util.file_processing.extract import EXTENSION_TO_DOCUMENT_TYPE
 from nv_ingest_client.util.vdb.adt_vdb import VDB
@@ -69,7 +67,6 @@ from nvidia_rag.utils.metadata_validation import (
 )
 from nvidia_rag.utils.minio_operator import (
     get_minio_operator,
-    get_unique_thumbnail_id,
     get_unique_thumbnail_id_collection_prefix,
     get_unique_thumbnail_id_file_name_prefix,
     get_unique_thumbnail_id_from_result,
