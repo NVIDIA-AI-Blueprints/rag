@@ -296,6 +296,17 @@ class SummaryOptions(BaseModel):
         description="Global page filter for all files. Only applicable when generate_summary is enabled.",
     )
 
+    shallow_summary: bool = Field(
+        default=False,
+        description=(
+            "Enable fast summary generation using text-only extraction. "
+            "When True, performs text-only NV-Ingest extraction first to generate summaries quickly, "
+            "then continues with full multimodal ingestion (tables, images, charts) for VDB. "
+            "Summary generation starts immediately with text-only results while full ingestion proceeds in parallel. "
+            "Default: False (summary generated after full multimodal ingestion)."
+        ),
+    )
+
 
 class DocumentUploadRequest(BaseModel):
     """Request model for uploading and processing documents."""

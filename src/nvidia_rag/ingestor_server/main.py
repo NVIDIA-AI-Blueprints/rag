@@ -71,6 +71,7 @@ from nvidia_rag.utils.minio_operator import (
     get_unique_thumbnail_id_file_name_prefix,
     get_unique_thumbnail_id_from_result,
 )
+from nvidia_rag.utils.summarization import generate_document_summaries
 from nvidia_rag.utils.summary_status_handler import SUMMARY_STATUS_HANDLER
 from nvidia_rag.utils.vdb import _get_vdb_op
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
@@ -263,10 +264,12 @@ class NvidiaRAGIngestor:
         if documents_catalog_metadata is None:
             documents_catalog_metadata = []
 
-        # Extract page_filter from summary_options if provided
+        # Extract page_filter and shallow_summary from summary_options if provided
         page_filter = None
+        shallow_summary = False
         if summary_options:
             page_filter = summary_options.get("page_filter")
+            shallow_summary = summary_options.get("shallow_summary", False)
 
         if not vdb_op.check_collection_exists(collection_name):
             raise ValueError(
@@ -287,6 +290,7 @@ class NvidiaRAGIngestor:
                         custom_metadata=custom_metadata,
                         generate_summary=generate_summary,
                         page_filter=page_filter,
+                        shallow_summary=shallow_summary,
                         additional_validation_errors=additional_validation_errors,
                         state_manager=state_manager,
                         documents_catalog_metadata=documents_catalog_metadata,
@@ -327,6 +331,7 @@ class NvidiaRAGIngestor:
                     custom_metadata=custom_metadata,
                     generate_summary=generate_summary,
                     page_filter=page_filter,
+                    shallow_summary=shallow_summary,
                     additional_validation_errors=additional_validation_errors,
                     state_manager=state_manager,
                     documents_catalog_metadata=documents_catalog_metadata,
@@ -352,6 +357,7 @@ class NvidiaRAGIngestor:
         custom_metadata: list[dict[str, Any]] | None = None,
         generate_summary: bool = False,
         page_filter: dict[str, Any] | None = None,
+        shallow_summary: bool = False,
         additional_validation_errors: list[dict[str, Any]] | None = None,
         state_manager: IngestionStateManager | None = None,
         documents_catalog_metadata: list[dict[str, Any]] | None = None,
@@ -369,6 +375,7 @@ class NvidiaRAGIngestor:
             - custom_metadata: List[Dict[str, Any]] - Custom metadata to be added to documents
             - generate_summary: bool - Whether to generate summaries
             - page_filter: Dict[str, Any] | None - Global page filter for all files
+            - shallow_summary: bool - Whether to perform shallow (text-only) extraction for fast summary generation
             - additional_validation_errors: List[Dict[str, Any]] | None - Additional validation errors to include in response (defaults to None)
             - documents_catalog_metadata: List[Dict[str, Any]] | None - Per-document catalog metadata (description, tags) to add after upload (defaults to None)
             - state_manager: IngestionStateManager - State manager for the ingestion process
@@ -544,6 +551,7 @@ class NvidiaRAGIngestor:
                 split_options=split_options,
                 generate_summary=generate_summary,
                 page_filter=page_filter,
+                shallow_summary=shallow_summary,
                 state_manager=state_manager,
             )
 
@@ -710,8 +718,6 @@ class NvidiaRAGIngestor:
             collection_name: Name of the collection
             page_filter: Global page filter for all files
         """
-        from nvidia_rag.utils.summarization import generate_document_summaries
-
         try:
             stats = await generate_document_summaries(
                 results=results,
@@ -1546,6 +1552,7 @@ class NvidiaRAGIngestor:
         split_options: dict[str, Any] | None = None,
         generate_summary: bool = False,
         page_filter: dict[str, Any] | None = None,
+        shallow_summary: bool = False,
         state_manager: IngestionStateManager | None = None,
     ) -> tuple[list[list[dict[str, str | dict]]], list[dict[str, Any]]]:
         """
@@ -1558,6 +1565,7 @@ class NvidiaRAGIngestor:
             - split_options: SplitOptions - Options for splitting documents
             - generate_summary: bool - Whether to generate summaries
             - page_filter: Dict[str, Any] | None - Global page filter for all files
+            - shallow_summary: bool - Whether to perform shallow (text-only) extraction for fast summary generation
             - state_manager: IngestionStateManager - State manager for the ingestion process
         """
         if not self.config.nv_ingest.enable_batch_mode:
@@ -1574,6 +1582,7 @@ class NvidiaRAGIngestor:
                 split_options=split_options,
                 generate_summary=generate_summary,
                 page_filter=page_filter,
+                shallow_summary=shallow_summary,
                 state_manager=state_manager,
             )
             return results, failures
@@ -1610,6 +1619,7 @@ class NvidiaRAGIngestor:
                         split_options=split_options,
                         generate_summary=generate_summary,
                         page_filter=page_filter,
+                        shallow_summary=shallow_summary,
                         state_manager=state_manager,
                     )
                     all_results.extend(results)
@@ -1654,6 +1664,7 @@ class NvidiaRAGIngestor:
                             split_options=split_options,
                             generate_summary=generate_summary,
                             page_filter=page_filter,
+                            shallow_summary=shallow_summary,
                             state_manager=state_manager,
                         )
 
@@ -1696,6 +1707,7 @@ class NvidiaRAGIngestor:
         split_options: dict[str, Any] | None = None,
         generate_summary: bool = False,
         page_filter: dict[str, Any] | None = None,
+        shallow_summary: bool = False,
         state_manager: IngestionStateManager | None = None,
     ) -> tuple[list[list[dict[str, str | dict]]], list[dict[str, Any]]]:
         """
@@ -1712,6 +1724,7 @@ class NvidiaRAGIngestor:
             - split_options: SplitOptions - Options for splitting documents
             - generate_summary: bool - Whether to generate summaries
             - page_filter: Dict[str, Any] | None - Global page filter for all files
+            - shallow_summary: bool - Whether to perform shallow (text-only) extraction for fast summary generation
             - state_manager: IngestionStateManager - State manager for the ingestion process
         """
         if split_options is None:
@@ -1727,7 +1740,7 @@ class NvidiaRAGIngestor:
             results, failures = [], []
             return results, failures
 
-        # Set PENDING status before NV-Ingest processing
+        # Set PENDING status before any NV-Ingest processing
         if generate_summary:
             for filepath in filtered_filepaths:
                 file_name = os.path.basename(filepath)
@@ -1745,6 +1758,47 @@ class NvidiaRAGIngestor:
                 f"Set PENDING status for {len(filtered_filepaths)} files in batch {batch_number}"
             )
 
+        shallow_summary_failed = False
+        if generate_summary and shallow_summary:
+            logger.info(
+                "== SHALLOW EXTRACTION START (text-only for summary) - Batch %d ==",
+                batch_number,
+            )
+
+            shallow_results = await self._perform_shallow_extraction(
+                filtered_filepaths, split_options, batch_number
+            )
+
+            if shallow_results:
+                task = asyncio.create_task(
+                    self.__ingest_document_summary(
+                        shallow_results,
+                        collection_name=collection_name,
+                        page_filter=page_filter,
+                    )
+                )
+                self._background_tasks.add(task)
+                task.add_done_callback(self._background_tasks.discard)
+                logger.info(
+                    "== SHALLOW EXTRACTION COMPLETE - Summary task started for batch %d ==",
+                    batch_number,
+                )
+            else:
+                shallow_summary_failed = True
+                for filepath in filtered_filepaths:
+                    file_name = os.path.basename(filepath)
+                    SUMMARY_STATUS_HANDLER.update_progress(
+                        collection_name=collection_name,
+                        file_name=file_name,
+                        status="FAILED",
+                        error="Shallow extraction failed - no text-only results returned",
+                    )
+                logger.warning(
+                    "== SHALLOW EXTRACTION FAILED - Batch %d: marked %d files as FAILED ==",
+                    batch_number,
+                    len(filtered_filepaths),
+                )
+
         results, failures = await self._perform_file_ext_based_ingestion(
             batch_number=batch_number,
             filtered_filepaths=filtered_filepaths,
@@ -1752,8 +1806,7 @@ class NvidiaRAGIngestor:
             vdb_op=vdb_op,
         )
 
-        if generate_summary:
-            # Create background task for summary generation
+        if generate_summary and not shallow_summary:
             task = asyncio.create_task(
                 self.__ingest_document_summary(
                     results,
@@ -1764,12 +1817,29 @@ class NvidiaRAGIngestor:
             self._background_tasks.add(task)
             task.add_done_callback(self._background_tasks.discard)
             logger.info(
-                f"Started background summary generation for batch {batch_number}"
+                "Started summary generation after full ingestion for batch %d",
+                batch_number,
             )
 
         if not results:
             error_message = "NV-Ingest ingestion failed with no results."
             logger.error(error_message)
+
+            if generate_summary and not shallow_summary_failed:
+                for filepath in filtered_filepaths:
+                    file_name = os.path.basename(filepath)
+                    SUMMARY_STATUS_HANDLER.update_progress(
+                        collection_name=collection_name,
+                        file_name=file_name,
+                        status="FAILED",
+                        error="Ingestion failed - no results returned from NV-Ingest",
+                    )
+                logger.warning(
+                    "Marked %d files as FAILED for batch %d due to ingestion failure",
+                    len(filtered_filepaths),
+                    batch_number,
+                )
+
             if len(failures) > 0:
                 return results, failures
             raise Exception(error_message)
@@ -1809,6 +1879,86 @@ class NvidiaRAGIngestor:
             )
 
         return results, failures
+
+    async def _perform_shallow_extraction(
+        self,
+        filepaths: list[str],
+        split_options: dict[str, Any],
+        batch_number: int,
+    ) -> list[list[dict[str, str | dict]]]:
+        """
+        Perform text-only extraction using NV-Ingest for fast summary generation.
+
+        Extracts only text content without multimodal elements (tables, images, charts).
+        Does not generate embeddings or upload to VDB.
+
+        Args:
+            filepaths: List of file paths to extract
+            split_options: Options for splitting documents
+            batch_number: Batch number for logging
+
+        Returns:
+            List of extraction results (same format as full ingestion)
+        """
+        extract_override = {
+            "extract_text": True,
+            "extract_infographics": False,
+            "extract_tables": False,
+            "extract_charts": False,
+            "extract_images": False,
+            "extract_method": self.config.nv_ingest.pdf_extract_method,
+            "text_depth": self.config.nv_ingest.text_depth,
+            "table_output_format": "pseudo_markdown",
+            "extract_audio_params": {
+                "segment_audio": self.config.nv_ingest.segment_audio
+            },
+            "extract_page_as_image": False,
+        }
+
+        try:
+            nv_ingest_ingestor = get_nv_ingest_ingestor(
+                nv_ingest_client_instance=self.nv_ingest_client,
+                filepaths=filepaths,
+                split_options=split_options,
+                vdb_op=None,
+                extract_override=extract_override,
+                config=self.config,
+            )
+
+            start_time = time.time()
+            results, failures = await asyncio.to_thread(
+                lambda: nv_ingest_ingestor.ingest(
+                    return_failures=True,
+                    show_progress=logger.getEffectiveLevel() <= logging.DEBUG,
+                )
+            )
+            total_time = time.time() - start_time
+
+            logger.debug(
+                "Shallow extraction batch %d: %.2fs, %d results, %d failures",
+                batch_number,
+                total_time,
+                len(results) if results else 0,
+                len(failures) if failures else 0,
+            )
+
+            if failures:
+                logger.debug(
+                    "Shallow extraction: %d failures in batch %d",
+                    len(failures),
+                    batch_number,
+                )
+
+            return results if results else []
+
+        except Exception as e:
+            logger.error(
+                "Shallow extraction failed for batch %d: %s",
+                batch_number,
+                str(e),
+                exc_info=logger.getEffectiveLevel() <= logging.DEBUG,
+            )
+            return []
 
     async def _perform_file_ext_based_ingestion(
         self,
