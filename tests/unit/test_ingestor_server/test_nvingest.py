@@ -275,6 +275,95 @@ class TestGetNvIngestIngestor:
                     self.mock_client, self.filepaths, vdb_op=self.mock_vdb_op
                 )
 
+    @patch("nvidia_rag.utils.common.get_config")
+    @patch("nvidia_rag.ingestor_server.nvingest.get_env_variable")
+    @patch("nvidia_rag.ingestor_server.nvingest.sanitize_nim_url")
+    @patch("nvidia_rag.ingestor_server.nvingest.Ingestor")
+    def test_extract_override_and_vdb_op_none(
+        self, mock_ingestor_class, mock_sanitize_url, mock_get_env, mock_get_config
+    ):
+        """Test extract_override parameter and vdb_op=None behavior for shallow summaries"""
+        mock_config = self._create_mock_config()
+        mock_get_config.return_value = mock_config
+        mock_get_env.return_value = "test_api_key"
+        mock_sanitize_url.return_value = "http://test-embedding-url"
+
+        mock_ingestor_instance = Mock()
+        mock_ingestor_class.return_value = mock_ingestor_instance
+        mock_ingestor_instance.files.return_value = mock_ingestor_instance
+        mock_ingestor_instance.extract.return_value = mock_ingestor_instance
+        mock_ingestor_instance.split.return_value = mock_ingestor_instance
+        mock_ingestor_instance.embed.return_value = mock_ingestor_instance
+        mock_ingestor_instance.vdb_upload.return_value = mock_ingestor_instance
+
+        # Test 1: extract_override with text-only settings
+        extract_override = {
+            "extract_text": True,
+            "extract_infographics": False,
+            "extract_tables": False,
+            "extract_charts": False,
+            "extract_images": False,
+            "extract_method": "pdfium",
+            "text_depth": "document",
+            "table_output_format": "pseudo_markdown",
+            "extract_audio_params": {"segment_audio": False},
+            "extract_page_as_image": False,
+        }
+
+        result = get_nv_ingest_ingestor(
+            self.mock_client,
+            self.filepaths,
+            vdb_op=None,
+            extract_override=extract_override,
+        )
+
+        assert result == mock_ingestor_instance
+        # Verify extract was called with override parameters
+        mock_ingestor_instance.extract.assert_called_once()
+        call_kwargs = mock_ingestor_instance.extract.call_args[1]
+
+        assert call_kwargs["extract_text"] is True
+        assert call_kwargs["extract_infographics"] is False
+        assert call_kwargs["extract_tables"] is False
+        assert call_kwargs["extract_charts"] is False
+        assert call_kwargs["extract_images"] is False
+        assert call_kwargs["extract_page_as_image"] is False
+
+        # Test 2: Verify VDB-related methods were NOT called when vdb_op=None
+        mock_ingestor_instance.embed.assert_not_called()
+        mock_ingestor_instance.vdb_upload.assert_not_called()
+
+        # Test 3: extract_override with different custom parameters
+        mock_ingestor_instance.extract.reset_mock()
+        extract_override_custom = {
+            "extract_text": True,
+            "extract_infographics": False,
+            "extract_tables": False,
+            "extract_charts": False,
+            "extract_images": False,
+            "extract_method": "unstructured_python",
+            "text_depth": "block",
+            "table_output_format": "markdown",
+            "extract_audio_params": {"segment_audio": True},
+            "extract_page_as_image": True,
+        }
+
+        result = get_nv_ingest_ingestor(
+            self.mock_client,
+            self.filepaths,
+            vdb_op=None,
+            extract_override=extract_override_custom,
+        )
+
+        assert result == mock_ingestor_instance
+        call_kwargs = mock_ingestor_instance.extract.call_args[1]
+
+        assert call_kwargs["extract_method"] == "unstructured_python"
+        assert call_kwargs["text_depth"] == "block"
+        assert call_kwargs["table_output_format"] == "markdown"
+        assert call_kwargs["extract_audio_params"] == {"segment_audio": True}
+        assert call_kwargs["extract_page_as_image"] is True
+
     def _create_mock_config(self):
         """Create a mock config object with default values"""
         mock_config = Mock()

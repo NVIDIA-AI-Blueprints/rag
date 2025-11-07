@@ -674,3 +674,146 @@ class SummaryModule(BaseTestModule):
                 "Failed concurrent summaries test",
             )
             return False
+
+    async def test_shallow_summary_with_page_filter(
+        self, collection_name: str, filename: str
+    ) -> bool:
+        """Test shallow_summary with page filtering (fast text-only extraction + filters)"""
+        async with aiohttp.ClientSession() as session:
+            try:
+                logger.info(
+                    f"🚀 Testing shallow_summary with page filter for file: {filename}"
+                )
+
+                # Find the full file path
+                file_path = None
+                for test_file in self.test_runner.test_files:
+                    if os.path.basename(test_file) == filename:
+                        file_path = test_file
+                        break
+
+                if not file_path:
+                    logger.error(f"❌ File not found: {filename}")
+                    return False
+
+                update_url = f"{self.ingestor_server_url}/v1/documents"
+
+                # Test shallow_summary=True with page filter for first 5 and last 5 pages
+                page_filter = {"pages": [[1, 5], [-5, -1]]}
+
+                logger.info(
+                    "📤 Uploading with shallow_summary=True and page_filter=[[1, 5], [-5, -1]]"
+                )
+
+                # Prepare FormData with file and JSON data
+                data = aiohttp.FormData()
+                data.add_field("documents", open(file_path, "rb"), filename=filename)
+
+                json_data = {
+                    "collection_name": collection_name,
+                    "generate_summary": True,
+                    "summary_options": {
+                        "page_filter": page_filter,
+                        "shallow_summary": True,
+                    },
+                }
+                data.add_field("data", json.dumps(json_data))
+
+                async with session.patch(update_url, data=data) as response:
+                    await print_response(response)
+                    if response.status not in [200, 201]:
+                        logger.error(f"❌ Update failed with status {response.status}")
+                        return False
+
+                logger.info(
+                    "⏳ Waiting for shallow summary generation (should be faster than full extraction)..."
+                )
+                await asyncio.sleep(3)  # Shorter wait for shallow summary
+
+                # Check status to verify it's progressing/completed
+                summary_params = {
+                    "collection_name": collection_name,
+                    "file_name": filename,
+                    "blocking": "true",
+                    "timeout": 120,
+                }
+
+                async with session.get(
+                    f"{self.rag_server_url}/v1/summary", params=summary_params
+                ) as response:
+                    result = await print_response(response)
+
+                    if response.status != 200:
+                        logger.error(
+                            f"❌ Failed to retrieve shallow summary: {response.status}"
+                        )
+                        return False
+
+                    summary_text = result.get("summary", "")
+                    if not summary_text:
+                        logger.error("❌ Shallow summary is empty")
+                        return False
+
+                    logger.info(
+                        f"✅ Shallow summary with page filter successful ({len(summary_text)} chars)"
+                    )
+                    logger.info(
+                        "✅ Validated: shallow_summary=True + page_filter work together"
+                    )
+                    return True
+
+            except Exception as e:
+                logger.error(f"❌ Error in shallow summary with page filter test: {e}")
+                import traceback
+
+                logger.error(traceback.format_exc())
+                return False
+
+    @test_case(76, "Shallow Summary with Page Filter")
+    async def _test_shallow_summary_with_page_filter(self) -> bool:
+        """Test shallow_summary feature with page filtering"""
+        logger.info("\n=== Test 76: Shallow Summary with Page Filter ===")
+        start_time = time.time()
+
+        # Use first file to test shallow summary with page filter
+        test_file = os.path.basename(self.test_runner.test_files[0])
+
+        success = await self.test_shallow_summary_with_page_filter(
+            self.collections["with_metadata"], test_file
+        )
+
+        elapsed_time = time.time() - start_time
+
+        if success:
+            self.add_test_result(
+                self._test_shallow_summary_with_page_filter.test_number,
+                self._test_shallow_summary_with_page_filter.test_name,
+                f"Test shallow_summary=True with page_filter=[[1, 5], [-5, -1]]. File: {test_file}. Validates fast text-only extraction for summary generation while full multimodal ingestion proceeds in parallel. Tests integration of shallow_summary flag with page filtering (first 5 + last 5 pages).",
+                ["PATCH /v1/documents", "GET /v1/summary"],
+                [
+                    "collection_name",
+                    "file_names",
+                    "summary_options.shallow_summary",
+                    "summary_options.page_filter",
+                ],
+                elapsed_time,
+                TestStatus.SUCCESS,
+            )
+            return True
+        else:
+            self.add_test_result(
+                self._test_shallow_summary_with_page_filter.test_number,
+                self._test_shallow_summary_with_page_filter.test_name,
+                f"Test shallow_summary=True with page_filter=[[1, 5], [-5, -1]]. File: {test_file}. Validates fast text-only extraction for summary generation while full multimodal ingestion proceeds in parallel. Tests integration of shallow_summary flag with page filtering (first 5 + last 5 pages).",
+                ["PATCH /v1/documents", "GET /v1/summary"],
+                [
+                    "collection_name",
+                    "file_names",
+                    "summary_options.shallow_summary",
+                    "summary_options.page_filter",
+                ],
+                elapsed_time,
+                TestStatus.FAILURE,
+                "Failed shallow summary with page filter test",
+            )
+            return False

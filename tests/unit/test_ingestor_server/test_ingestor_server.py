@@ -1072,6 +1072,27 @@ class TestSummaryOptionsValidation:
         so = SummaryOptions(page_filter=None)
         assert so.page_filter is None
 
+    def test_summary_options_shallow_summary_field(self):
+        """Test shallow_summary field with different values and combinations"""
+        # Test default value (False)
+        so = SummaryOptions()
+        assert so.shallow_summary is False
+
+        # Test explicit True
+        so = SummaryOptions(shallow_summary=True)
+        assert so.shallow_summary is True
+
+        # Test explicit False
+        so = SummaryOptions(shallow_summary=False)
+        assert so.shallow_summary is False
+
+        # Test with page filter combination
+        so = SummaryOptions(
+            page_filter=PageFilter(pages=[[1, 10]]), shallow_summary=True
+        )
+        assert so.page_filter.pages == [[1, 10]]
+        assert so.shallow_summary is True
+
 
 class TestDocumentUploadRequestValidation:
     """Tests for DocumentUploadRequest cross-field validation"""
