@@ -188,6 +188,7 @@ async def generate_document_summaries(
     results: list[list[dict[str, str | dict]]],
     collection_name: str,
     page_filter: dict[str, Any] | None = None,
+    summarization_strategy: str | None = None,
 ) -> dict[str, Any]:
     """
     Generate summaries for multiple documents in parallel with global rate limiting.
@@ -196,6 +197,7 @@ async def generate_document_summaries(
         results: NV-Ingest extraction results (nested list structure)
         collection_name: Collection name for status tracking
         page_filter: Global page filter for all files
+        summarization_strategy: Strategy for summarization ('single', 'hierarchical') or None for default iterative
 
     Returns:
         dict: Statistics with total_files, successful, failed, duration_seconds, files
@@ -253,6 +255,7 @@ async def generate_document_summaries(
             results=results,
             semaphore=semaphore,
             page_filter=page_filter,
+            summarization_strategy=summarization_strategy,
         )
         for file_data in file_results
     ]
@@ -294,6 +297,7 @@ async def _process_single_file_summary(
     results: list[list[dict[str, str | dict]]],
     semaphore: asyncio.Semaphore,
     page_filter: dict[str, Any] | None = None,
+    summarization_strategy: str | None = None,
 ) -> dict[str, Any]:
     """
     Process summary for a single file with global rate limiting.
@@ -304,6 +308,7 @@ async def _process_single_file_summary(
         results: Full results list for document preparation
         semaphore: Semaphore for concurrency control
         page_filter: Global page filter for all files
+        summarization_strategy: Strategy for summarization ('single', 'hierarchical') or None for default iterative
 
     Returns:
         dict: Result with status, duration, and optional error
@@ -346,6 +351,7 @@ async def _process_single_file_summary(
             summary_doc = await _generate_single_document_summary(
                 document=document,
                 progress_callback=progress_callback,
+                summarization_strategy=summarization_strategy,
             )
 
             await _store_summary_in_minio(summary_doc)
@@ -505,17 +511,75 @@ def _extract_content_from_element(elem: dict[str, Any]) -> str | None:
 async def _generate_single_document_summary(
     document: Document,
     progress_callback: Callable | None = None,
+    summarization_strategy: str | None = None,
 ) -> Document:
-    """
-    Generate summary for a single document using single-pass or iterative chunking.
+    """Generate summary for a single document using configured strategy."""
+    file_name = document.metadata.get("filename", "unknown")
 
-    Args:
-        document: LangChain document with page_content and metadata
-        progress_callback: Optional callback for progress updates
+    if summarization_strategy is None:
+        summarization_strategy = "iterative"
 
-    Returns:
-        Document: Same document with summary added to metadata
-    """
+    logger.info(f"Summarizing {file_name} using strategy: {summarization_strategy}")
+
+    if summarization_strategy == "single":
+        return await _summarize_single_pass(document, progress_callback)
+    elif summarization_strategy == "iterative":
+        return await _summarize_iterative(document, progress_callback)
+    elif summarization_strategy == "hierarchical":
+        return await _summarize_hierarchical(document, progress_callback)
+    else:
+        raise ValueError(
+            f"Unknown summarization_strategy: {summarization_strategy}. "
+            f"Supported: 'single', 'hierarchical', or None for default 'iterative'"
+        )
+
+
+async def _summarize_single_pass(
+    document: Document,
+    progress_callback: Callable | None = None,
+) -> Document:
+    """Summarize entire document in one pass, truncating if needed."""
+    file_name = document.metadata.get("filename", "unknown")
+    document_text = document.page_content
+    total_chars = len(document_text)
+    max_chunk_chars = CONFIG.summarizer.max_chunk_length
+
+    if total_chars > max_chunk_chars:
+        logger.warning(
+            f"Truncating {file_name} from {total_chars} to {max_chunk_chars} chars for single-pass"
+        )
+        document_text = document_text[:max_chunk_chars]
+
+    logger.info(
+        f"Single-pass summarization for {file_name}: {len(document_text)} chars"
+    )
+
+    llm = _get_summary_llm()
+    prompts = get_prompts()
+    initial_chain, _ = _create_llm_chains(llm, prompts)
+
+    if progress_callback:
+        await progress_callback(current=0, total=1)
+
+    summary = await initial_chain.ainvoke(
+        {"document_text": document_text},
+        config={"run_name": f"summary-{file_name}"},
+    )
+
+    if progress_callback:
+        await progress_callback(current=1, total=1)
+
+    document.metadata["summary"] = summary
+    logger.debug(f"Summary generated for {file_name}: {summary[:100]}...")
+
+    return document
+
+
+async def _summarize_iterative(
+    document: Document,
+    progress_callback: Callable | None = None,
+) -> Document:
+    """Iterative sequential summarization - processes chunks one by one."""
     file_name = document.metadata.get("filename", "unknown")
     document_text = document.page_content
     total_chars = len(document_text)
@@ -524,7 +588,7 @@ async def _generate_single_document_summary(
     chunk_overlap = CONFIG.summarizer.chunk_overlap
 
     logger.info(
-        f"Summarizing {file_name}: {total_chars} chars (threshold: {max_chunk_chars})"
+        f"Iterative summarization for {file_name}: {total_chars} chars (threshold: {max_chunk_chars})"
     )
 
     llm = _get_summary_llm()
@@ -532,7 +596,7 @@ async def _generate_single_document_summary(
     initial_chain, iterative_chain = _create_llm_chains(llm, prompts)
 
     if total_chars <= max_chunk_chars:
-        logger.info(f"Using single-pass for {file_name}")
+        logger.info(f"Using single-pass for {file_name} (fits in one chunk)")
 
         if progress_callback:
             await progress_callback(current=0, total=1)
@@ -546,8 +610,6 @@ async def _generate_single_document_summary(
             await progress_callback(current=1, total=1)
 
     else:
-        logger.info(f"Using iterative chunking for {file_name}")
-
         text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=max_chunk_chars,
             chunk_overlap=chunk_overlap,
@@ -557,7 +619,9 @@ async def _generate_single_document_summary(
         text_chunks = text_splitter.split_text(document_text)
         total_chunks = len(text_chunks)
 
-        logger.info(f"Split {file_name} into {total_chunks} chunks")
+        logger.info(
+            f"Split {file_name} into {total_chunks} chunks for sequential processing"
+        )
 
         if progress_callback:
             await progress_callback(current=0, total=total_chunks)
@@ -585,6 +649,124 @@ async def _generate_single_document_summary(
     logger.debug(f"Summary generated for {file_name}: {summary[:100]}...")
 
     return document
+
+
+async def _summarize_hierarchical(
+    document: Document,
+    progress_callback: Callable | None = None,
+) -> Document:
+    """Hierarchical parallel summarization with character-based batching."""
+    file_name = document.metadata.get("filename", "unknown")
+    document_text = document.page_content
+    total_chars = len(document_text)
+    max_chunk_chars = CONFIG.summarizer.max_chunk_length
+
+    logger.info(
+        f"Hierarchical summarization for {file_name}: {total_chars} chars (threshold: {max_chunk_chars})"
+    )
+
+    if total_chars <= max_chunk_chars:
+        logger.info(f"Document fits in one chunk, using single-pass for {file_name}")
+        return await _summarize_single_pass(document, progress_callback)
+
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=max_chunk_chars,
+        chunk_overlap=CONFIG.summarizer.chunk_overlap,
+        length_function=len,
+        separators=["\n\n", "\n", ". ", "! ", "? ", " ", ""],
+    )
+    text_chunks = text_splitter.split_text(document_text)
+    total_chunks = len(text_chunks)
+
+    logger.info(f"Split {file_name} into {total_chunks} chunks for parallel processing")
+
+    llm = _get_summary_llm()
+    prompts = get_prompts()
+    initial_chain, iterative_chain = _create_llm_chains(llm, prompts)
+
+    chunk_summaries = await asyncio.gather(
+        *[
+            initial_chain.ainvoke(
+                {"document_text": chunk},
+                config={"run_name": f"summary-{file_name}-chunk-{i}"},
+            )
+            for i, chunk in enumerate(text_chunks, 1)
+        ]
+    )
+
+    if progress_callback:
+        await progress_callback(current=total_chunks, total=total_chunks)
+
+    current_summaries = chunk_summaries
+    level = 2
+
+    while len(current_summaries) > 1:
+        batched_summaries = _batch_summaries_by_length(
+            current_summaries, max_chunk_chars
+        )
+
+        next_level_summaries = await asyncio.gather(
+            *[
+                _combine_summaries_batch(batch, iterative_chain, file_name, level, i)
+                for i, batch in enumerate(batched_summaries)
+            ]
+        )
+
+        current_summaries = next_level_summaries
+        level += 1
+
+    final_summary = current_summaries[0]
+    document.metadata["summary"] = final_summary
+    logger.debug(f"Summary generated for {file_name}: {final_summary[:100]}...")
+
+    return document
+
+
+def _batch_summaries_by_length(
+    summaries: list[str],
+    max_chunk_chars: int,
+) -> list[list[str]]:
+    """Group summaries into batches respecting max character length."""
+    batches = []
+    current_batch = []
+    current_length = 0
+
+    for summary in summaries:
+        summary_length = len(summary)
+
+        if current_batch and (current_length + summary_length) > max_chunk_chars:
+            batches.append(current_batch)
+            current_batch = [summary]
+            current_length = summary_length
+        else:
+            current_batch.append(summary)
+            current_length += summary_length
+
+    if current_batch:
+        batches.append(current_batch)
+
+    return batches
+
+
+async def _combine_summaries_batch(
+    summaries: list[str],
+    iterative_chain,
+    file_name: str,
+    level: int,
+    batch_idx: int,
+) -> str:
+    """Combine a batch of summaries using iterative aggregation."""
+    if len(summaries) == 1:
+        return summaries[0]
+
+    combined = summaries[0]
+    for i, summary in enumerate(summaries[1:], 1):
+        combined = await iterative_chain.ainvoke(
+            {"previous_summary": combined, "new_chunk": summary},
+            config={"run_name": f"summary-{file_name}-L{level}-B{batch_idx}-{i}"},
+        )
+
+    return combined
 
 
 def _get_summary_llm():
