@@ -24,15 +24,21 @@ from functools import lru_cache
 from langchain_core.documents.compressor import BaseDocumentCompressor
 from langchain_nvidia_ai_endpoints import NVIDIARerank
 
-from nvidia_rag.utils.common import ConfigProxy, sanitize_nim_url
+from nvidia_rag.utils.common import sanitize_nim_url
+from nvidia_rag.utils.configuration import NvidiaRAGConfig
 
 logger = logging.getLogger(__name__)
-CONFIG = ConfigProxy()
 
 
 @lru_cache
-def _get_ranking_model(model="", url="", top_n=4) -> BaseDocumentCompressor:
+def _get_ranking_model(model="", url="", top_n=4, config: NvidiaRAGConfig | None = None) -> BaseDocumentCompressor:
     """Create the ranking model.
+    
+    Args:
+        model: Model name
+        url: URL endpoint
+        top_n: Number of top results
+        config: NvidiaRAGConfig instance. If None, creates a new one.
 
     Returns:
         BaseDocumentCompressor: Base class for document compressors.
@@ -40,6 +46,8 @@ def _get_ranking_model(model="", url="", top_n=4) -> BaseDocumentCompressor:
     Raises:
         RuntimeError: If the ranking model engine is not supported or initialization fails.
     """
+    if config is None:
+        config = NvidiaRAGConfig()
 
     # Sanitize the URL
     url = sanitize_nim_url(url, model, "ranking")
@@ -49,7 +57,7 @@ def _get_ranking_model(model="", url="", top_n=4) -> BaseDocumentCompressor:
         logger.warning("top_n must be a positive integer, setting to 4")
         top_n = 4
 
-    if CONFIG.ranking.model_engine == "nvidia-ai-endpoints":
+    if config.ranking.model_engine == "nvidia-ai-endpoints":
         if url:
             logger.info("Using ranking model hosted at %s", url)
             return NVIDIARerank(base_url=url, top_n=top_n, truncate="END")
@@ -67,13 +75,19 @@ def _get_ranking_model(model="", url="", top_n=4) -> BaseDocumentCompressor:
 
     # Unsupported engine
     raise RuntimeError(
-        f"Unsupported ranking model engine: '{CONFIG.ranking.model_engine}'. "
+        f"Unsupported ranking model engine: '{config.ranking.model_engine}'. "
         f"Supported engines: 'nvidia-ai-endpoints'"
     )
 
 
-def get_ranking_model(model="", url="", top_n=4) -> BaseDocumentCompressor:
+def get_ranking_model(model="", url="", top_n=4, config: NvidiaRAGConfig | None = None) -> BaseDocumentCompressor:
     """Create the ranking model.
+    
+    Args:
+        model: Model name
+        url: URL endpoint
+        top_n: Number of top results
+        config: NvidiaRAGConfig instance. If None, creates a new one.
 
     Returns:
         BaseDocumentCompressor: The ranking model instance.
@@ -81,4 +95,6 @@ def get_ranking_model(model="", url="", top_n=4) -> BaseDocumentCompressor:
     Raises:
         RuntimeError: If the ranking model cannot be created.
     """
-    return _get_ranking_model(model, url, top_n)
+    if config is None:
+        config = NvidiaRAGConfig()
+    return _get_ranking_model(model, url, top_n, config)

@@ -70,8 +70,7 @@ from pymilvus import (
 )
 from pymilvus.orm.types import CONSISTENCY_STRONG
 
-from nvidia_rag.utils.common import ConfigProxy, get_config
-from nvidia_rag.utils.embedding import get_embedding_model
+from nvidia_rag.utils.configuration import NvidiaRAGConfig
 from nvidia_rag.utils.vdb import DEFAULT_METADATA_SCHEMA_COLLECTION
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
 
@@ -83,14 +82,13 @@ except ImportError:
     logger.warning("Optional nv_ingest_client module not installed.")
 
 
-CONFIG = ConfigProxy()
-
-
 class MilvusVDB(Milvus, VDBRag):
     def __init__(self, **kwargs):
         self.embedding_model = kwargs.pop(
             "embedding_model"
         )  # Needed in case of retrieval
+        # Extract config before super().__init__ which may need it
+        self.config = kwargs.pop("config", None) or NvidiaRAGConfig()
         super().__init__(**kwargs)
         self.vdb_endpoint = kwargs.get("milvus_uri")
         self._collection_name = kwargs.get("collection_name")
@@ -102,12 +100,17 @@ class MilvusVDB(Milvus, VDBRag):
         )
         self.csv_file_path = kwargs.get("meta_dataframe")
 
+        # Get credentials from kwargs (passed from config via _get_vdb_op)
+        # Fall back to environment variables if not provided
+        username = kwargs.get("username") or os.environ.get("VECTOR_STORE_USERNAME", "")
+        password = kwargs.get("password") or os.environ.get("VECTOR_STORE_PASSWORD", "")
+
         # Establish a single persistent connection for the lifetime of this instance
         try:
             connections.connect(
                 self.connection_alias,
                 uri=self.vdb_endpoint,
-                token=f"{CONFIG.vector_store.username}:{CONFIG.vector_store.password}",
+                token=f"{username}:{password}",
             )
             self._connected = True
             logger.debug(f"Connected to Milvus at {self.vdb_endpoint}")
@@ -186,13 +189,13 @@ class MilvusVDB(Milvus, VDBRag):
         create_nvingest_collection(
             collection_name=collection_name,
             milvus_uri=self.vdb_endpoint,
-            sparse=(CONFIG.vector_store.search_type == "hybrid"),
+            sparse=(self.config.vector_store.search_type == "hybrid"),
             recreate=False,
-            gpu_index=CONFIG.vector_store.enable_gpu_index,
-            gpu_search=CONFIG.vector_store.enable_gpu_search,
+            gpu_index=self.config.vector_store.enable_gpu_index,
+            gpu_search=self.config.vector_store.enable_gpu_search,
             dense_dim=dimension,
-            username=CONFIG.vector_store.username,
-            password=CONFIG.vector_store.password,
+            username=self.config.vector_store.username,
+            password=self.config.vector_store.password,
         )
 
     def check_collection_exists(self, collection_name: str) -> bool:
@@ -209,7 +212,7 @@ class MilvusVDB(Milvus, VDBRag):
         """
         client = MilvusClient(
             self.vdb_endpoint,
-            token=f"{CONFIG.vector_store.username}:{CONFIG.vector_store.password}",
+            token=f"{self.config.vector_store.username}:{self.config.vector_store.password}",
         )
         entities = client.query(
             collection_name=collection_name, filter=filter, limit=1000
@@ -302,7 +305,7 @@ class MilvusVDB(Milvus, VDBRag):
         """
         client = MilvusClient(
             self.vdb_endpoint,
-            token=f"{CONFIG.vector_store.username}:{CONFIG.vector_store.password}",
+            token=f"{self.config.vector_store.username}:{self.config.vector_store.password}",
         )
         if client.has_collection(collection_name):
             client.delete(collection_name=collection_name, filter=filter)
@@ -471,7 +474,7 @@ class MilvusVDB(Milvus, VDBRag):
         # Check if the metadata schema collection exists
         client = MilvusClient(
             self.vdb_endpoint,
-            token=f"{CONFIG.vector_store.username}:{CONFIG.vector_store.password}",
+            token=f"{self.config.vector_store.username}:{self.config.vector_store.password}",
         )
         if not client.has_collection(DEFAULT_METADATA_SCHEMA_COLLECTION):
             # Create the metadata schema collection
@@ -500,7 +503,7 @@ class MilvusVDB(Milvus, VDBRag):
         """
         client = MilvusClient(
             self.vdb_endpoint,
-            token=f"{CONFIG.vector_store.username}:{CONFIG.vector_store.password}",
+            token=f"{self.config.vector_store.username}:{self.config.vector_store.password}",
         )
 
         # Delete the metadata schema from the collection
@@ -595,17 +598,17 @@ class MilvusVDB(Milvus, VDBRag):
             collection_name = os.getenv("COLLECTION_NAME", "vector_db")
 
         search_params = {}
-        if not CONFIG.vector_store.enable_gpu_search:
+        if not self.config.vector_store.enable_gpu_search:
             # ef is required for CPU search
-            search_params.update({"ef": CONFIG.vector_store.ef})
+            search_params.update({"ef": self.config.vector_store.ef})
 
-        if CONFIG.vector_store.search_type == "hybrid":
+        if self.config.vector_store.search_type == "hybrid":
             logger.info("Creating Langchain Milvus object for Hybrid search")
             vectorstore = LangchainMilvus(
                 self.embedding_model,
                 connection_args={
                     "uri": self.vdb_endpoint,
-                    "token": f"{CONFIG.vector_store.username}:{CONFIG.vector_store.password}",
+                    "token": f"{self.config.vector_store.username}:{self.config.vector_store.password}",
                 },
                 builtin_function=BM25BuiltInFunction(
                     output_field_names="sparse", enable_match=True
@@ -616,20 +619,20 @@ class MilvusVDB(Milvus, VDBRag):
                     "sparse",
                 ],  # Dense and Sparse fields set by NV-Ingest
             )
-        elif CONFIG.vector_store.search_type == "dense":
-            search_params.update({"nprobe": CONFIG.vector_store.nprobe})
-            logger.debug("Index type for milvus: %s", CONFIG.vector_store.index_type)
+        elif self.config.vector_store.search_type == "dense":
+            search_params.update({"nprobe": self.config.vector_store.nprobe})
+            logger.debug("Index type for milvus: %s", self.config.vector_store.index_type)
             vectorstore = LangchainMilvus(
                 self.embedding_model,
                 connection_args={
                     "uri": self.vdb_endpoint,
-                    "token": f"{CONFIG.vector_store.username}:{CONFIG.vector_store.password}",
+                    "token": f"{self.config.vector_store.username}:{self.config.vector_store.password}",
                 },
                 collection_name=collection_name,
                 index_params={
-                    "index_type": CONFIG.vector_store.index_type,
+                    "index_type": self.config.vector_store.index_type,
                     "metric_type": "L2",
-                    "nlist": CONFIG.vector_store.nlist,
+                    "nlist": self.config.vector_store.nlist,
                 },
                 search_params=search_params,
                 auto_id=True,
@@ -637,10 +640,10 @@ class MilvusVDB(Milvus, VDBRag):
         else:
             logger.error(
                 "Invalid search_type: %s. Please select from ['hybrid', 'dense']",
-                CONFIG.vector_store.search_type,
+                self.config.vector_store.search_type,
             )
             raise ValueError(
-                f"{CONFIG.vector_store.search_type} search type is not supported. Please select from ['hybrid', 'dense']"
+                f"{self.config.vector_store.search_type} search type is not supported. Please select from ['hybrid', 'dense']"
             )
         end_time = time.time()
         logger.info(
@@ -658,16 +661,14 @@ class MilvusVDB(Milvus, VDBRag):
         """Retrieve documents from a collection using langchain for image query.
 
         Returns LangChain Document objects with metadata and collection name.
+        
+        Note: Uses the embedding_model that was provided during initialization.
         """
         if vectorstore is None:
             vectorstore = self.get_langchain_vectorstore(collection_name)
 
-        settings = get_config()
-        client = get_embedding_model(
-            model=settings.embeddings.model_name,
-            url=settings.embeddings.server_url,
-            truncate=None,  # Disable truncation for VLM embedding model
-        )
+        # Use the embedding model provided during initialization
+        client = self.embedding_model
 
         image_input = query
 

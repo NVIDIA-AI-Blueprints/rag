@@ -33,7 +33,6 @@ Features:
 """
 
 import logging
-import os
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
@@ -42,8 +41,8 @@ from langchain_core.prompts.chat import ChatPromptTemplate
 from langchain_core.runnables import RunnableAssign
 from opentelemetry import context as otel_context
 
-from nvidia_rag.utils.common import get_env_variable
 from nvidia_rag.utils.llm import get_llm, get_prompts
+from nvidia_rag.utils.configuration import NvidiaRAGConfig
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
 
 logger = logging.getLogger(__name__)
@@ -109,6 +108,7 @@ def check_context_relevance(
     top_k: int = 10,
     enable_reranker: bool = True,
     collection_filter_mapping: str | list[dict[str, Any]] = "",
+    config: NvidiaRAGConfig | None = None,
 ) -> tuple[list[str], bool]:
     """Check relevance of retrieved context and optionally rewrite query for better results.
 
@@ -126,6 +126,7 @@ def check_context_relevance(
         top_k (int): Number of top documents to retrieve (default: 10)
         enable_reranker (bool): Whether to use the reranker if available (default: True)
         collection_filter_mapping: Filter expressions for filtering documents from collections
+        config (NvidiaRAGConfig | None): Config instance. If None, creates a new one.
 
     Returns:
         Tuple[List[str], bool]: A tuple containing:
@@ -138,18 +139,13 @@ def check_context_relevance(
         - Employs structured prompts with system and human message pairs for both
           relevance checking and query rewriting
     """
-    relevance_threshold = int(os.environ.get("CONTEXT_RELEVANCE_THRESHOLD", 1))
-    reflection_llm_name = (
-        get_env_variable(
-            variable_name="REFLECTION_LLM",
-            default_value="nvidia/llama-3.3-nemotron-super-49b-v1.5",
-        )
-        .strip('"')
-        .strip("'")
-    )
-    reflection_llm_endpoint = (
-        os.environ.get("REFLECTION_LLM_SERVERURL", "").strip('"').strip("'")
-    )
+    if config is None:
+        config = NvidiaRAGConfig()
+    
+    # Use reflection config
+    relevance_threshold = config.reflection.context_relevance_threshold
+    reflection_llm_name = config.reflection.model_name
+    reflection_llm_endpoint = config.reflection.server_url
 
     llm_params = {
         "model": reflection_llm_name,
@@ -161,7 +157,7 @@ def check_context_relevance(
     if reflection_llm_endpoint:
         llm_params["llm_endpoint"] = reflection_llm_endpoint
 
-    reflection_llm = get_llm(**llm_params)
+    reflection_llm = get_llm(config=config, **llm_params)
 
     relevance_template = ChatPromptTemplate.from_messages(
         [
@@ -270,6 +266,7 @@ def check_response_groundedness(
     response: str,
     context: list[str],
     reflection_counter: ReflectionCounter,
+    config: NvidiaRAGConfig | None = None,
 ) -> tuple[str, bool]:
     """Check groundedness of generated response against retrieved context.
 
@@ -286,37 +283,25 @@ def check_response_groundedness(
         response (str): Generated response to check for groundedness
         context (List[str]): List of context documents used for grounding evaluation
         reflection_counter (ReflectionCounter): Instance to track reflection iteration count
+        config (NvidiaRAGConfig | None): Config instance. If None, creates a new one.
 
     Returns:
         Tuple[str, bool]: A tuple containing:
             - str: The final response (original or regenerated)
             - bool: Whether the response meets the groundedness threshold (True) or not (False)
 
-    Environment Variables:
-        RESPONSE_GROUNDEDNESS_THRESHOLD: Minimum score required for response to be considered grounded (default: 1)
-        REFLECTION_LLM: Model name for the reflection LLM (default: nvidia/llama-3.3-nemotron-super-49b-v1.5)
-        REFLECTION_LLM_SERVERURL: Optional custom endpoint for the reflection LLM
-
     Note:
         - Uses deterministic sampling (temperature=0, top_p=0.1) for reproducible results
         - Supports large context windows (32768 tokens) for comprehensive evaluation
         - Employs structured prompts with system and human message pairs
     """
-    # Get configuration values for groundedness evaluation
-    groundedness_threshold = int(os.environ.get("RESPONSE_GROUNDEDNESS_THRESHOLD", 1))
-
-    # Configure the reflection LLM for groundedness checking and response regeneration
-    reflection_llm_name = (
-        get_env_variable(
-            variable_name="REFLECTION_LLM",
-            default_value="nvidia/llama-3.3-nemotron-super-49b-v1.5",
-        )
-        .strip('"')
-        .strip("'")
-    )
-    reflection_llm_endpoint = (
-        os.environ.get("REFLECTION_LLM_SERVERURL", "").strip('"').strip("'")
-    )
+    if config is None:
+        config = NvidiaRAGConfig()
+    
+    # Use reflection config
+    groundedness_threshold = config.reflection.response_groundedness_threshold
+    reflection_llm_name = config.reflection.model_name
+    reflection_llm_endpoint = config.reflection.server_url
 
     # Set deterministic LLM parameters for consistent and reproducible reflection
     llm_params = {
@@ -329,7 +314,7 @@ def check_response_groundedness(
     if reflection_llm_endpoint:
         llm_params["llm_endpoint"] = reflection_llm_endpoint
 
-    reflection_llm = get_llm(**llm_params)
+    reflection_llm = get_llm(config=config, **llm_params)
 
     # Prepare structured prompt template for groundedness evaluation
     # Uses both system and human messages for more precise instruction following

@@ -32,17 +32,15 @@ from nvidia_rag.rag_server.response_generator import (
     generate_answer,
 )
 from nvidia_rag.utils.common import (
-    ConfigProxy,
     filter_documents_by_confidence,
 )
+from nvidia_rag.utils.configuration import NvidiaRAGConfig
 from nvidia_rag.utils.llm import get_llm, get_prompts
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
 
 # Configure logger
 logger = logging.getLogger(__name__)
 
-# Configuration
-CONFIG = ConfigProxy()
 # While merging the context, documents should be limited to this number to avoid llm
 # TODO: configure this from config
 MAX_DOCUMENTS_FOR_GENERATION = 20
@@ -68,17 +66,27 @@ def format_conversation_history(history: list[tuple[str, str]]) -> str:
 def normalize_relevance_scores(
     documents: list[Document],
     filter_docs: bool = True,
-    confidence_threshold: float = CONFIG.default_confidence_threshold,
+    confidence_threshold: float | None = None,
+    config: NvidiaRAGConfig | None = None,
 ) -> list[Document]:
     """
     Normalize relevance scores in a list of documents to be between 0 and 1 using sigmoid function.
 
     Args:
         documents: List of Document objects with relevance_score in metadata
+        filter_docs: Whether to filter documents
+        confidence_threshold: Confidence threshold for filtering
+        config: NvidiaRAGConfig instance. If None, creates a new one.
 
     Returns:
         The same list of documents with normalized scores (top 3)
     """
+    if config is None:
+        config = NvidiaRAGConfig()
+    
+    if confidence_threshold is None:
+        confidence_threshold = config.default_confidence_threshold
+    
     import math
 
     if not documents:
@@ -242,9 +250,10 @@ def retrieve_and_rank_documents(
     original_query: str,
     vdb_op: VDBRag,
     ranker: NVIDIARerank | None,
-    collection_name: str = CONFIG.vector_store.default_collection_name,
-    top_k: int = CONFIG.retriever.top_k,
-    ranker_top_k: int = CONFIG.retriever.top_k,
+    collection_name: str | None = None,
+    top_k: int | None = None,
+    ranker_top_k: int | None = None,
+    config: NvidiaRAGConfig | None = None,
 ) -> list[Document]:
     """
     Retrieve and optionally rerank documents for a query.
@@ -254,10 +263,25 @@ def retrieve_and_rank_documents(
         original_query: Original user query for reranking
         vdb_op: vectorstore object
         ranker: Optional document ranker instance
+        collection_name: Collection name to query
+        top_k: Number of documents to retrieve
+        ranker_top_k: Number of documents to return after reranking
+        config: NvidiaRAGConfig instance. If None, creates a new one.
 
     Returns:
         List of retrieved and ranked documents
     """
+    if config is None:
+        config = NvidiaRAGConfig()
+    
+    # Apply defaults from config
+    if collection_name is None:
+        collection_name = config.vector_store.default_collection_name
+    if top_k is None:
+        top_k = config.retriever.top_k
+    if ranker_top_k is None:
+        ranker_top_k = config.retriever.top_k
+    
     otel_ctx = otel_context.get_current()
     retrieved_docs = vdb_op.retrieval_langchain(
         query=query,
@@ -376,11 +400,12 @@ def process_subqueries(
     llm: ChatNVIDIA,
     vdb_op: VDBRag,
     ranker: NVIDIARerank | None,
-    collection_name: str = CONFIG.vector_store.default_collection_name,
-    top_k: int = CONFIG.retriever.top_k,
-    ranker_top_k: int = CONFIG.retriever.top_k,
-    confidence_threshold: float = CONFIG.default_confidence_threshold,
+    collection_name: str | None = None,
+    top_k: int | None = None,
+    ranker_top_k: int | None = None,
+    confidence_threshold: float | None = None,
     history: list[tuple[str, str]] | None = None,
+    config: NvidiaRAGConfig | None = None,
 ) -> tuple[list[tuple[str, str]], list[Document]]:
     """
     Process a list of subqueries and return conversation history and contexts.
@@ -390,11 +415,30 @@ def process_subqueries(
         original_query: Original user query
         llm: Language model instance
         vdb_op: vectorstore object
+        collection_name: Collection name to query
+        top_k: Number of documents to retrieve
+        ranker_top_k: Number of documents to return after reranking
+        confidence_threshold: Confidence threshold for filtering
+        history: Conversation history
+        config: NvidiaRAGConfig instance. If None, creates a new one.
         ranker: Optional document ranker
 
     Returns:
         Tuple of (conversation_history, final_contexts)
     """
+    if config is None:
+        config = NvidiaRAGConfig()
+    
+    # Apply defaults from config
+    if collection_name is None:
+        collection_name = config.vector_store.default_collection_name
+    if top_k is None:
+        top_k = config.retriever.top_k
+    if ranker_top_k is None:
+        ranker_top_k = config.retriever.top_k
+    if confidence_threshold is None:
+        confidence_threshold = config.default_confidence_threshold
+    
     if history is None:
         history = []
 
@@ -416,6 +460,7 @@ def process_subqueries(
             collection_name,
             top_k,
             ranker_top_k,
+            config,
         )
 
         final_contexts[question] = {
@@ -503,16 +548,32 @@ def iterative_query_decomposition(
     llm: ChatNVIDIA,
     vdb_op: VDBRag,
     ranker: NVIDIARerank | None = None,
-    recursion_depth: int = CONFIG.query_decomposition.recursion_depth,
+    recursion_depth: int | None = None,
     enable_citations: bool = True,
-    collection_name: str = CONFIG.vector_store.default_collection_name,
-    top_k: int = CONFIG.retriever.top_k,
-    ranker_top_k: int = CONFIG.retriever.top_k,
-    confidence_threshold: float = CONFIG.default_confidence_threshold,
+    collection_name: str | None = None,
+    top_k: int | None = None,
+    ranker_top_k: int | None = None,
+    confidence_threshold: float | None = None,
     llm_settings: dict[str, Any] | None = None,
+    config: NvidiaRAGConfig | None = None,
 ):
     """
     Decompose a complex query into simpler subqueries and generate a comprehensive answer.
+    
+    Args:
+        query: User's question
+        history: Conversation history
+        llm: Language model instance
+        vdb_op: Vector database operation instance
+        ranker: Optional document ranker
+        recursion_depth: Recursion depth for query decomposition
+        enable_citations: Whether to enable citations
+        collection_name: Collection name to query
+        top_k: Number of documents to retrieve
+        ranker_top_k: Number of documents to return after reranking
+        confidence_threshold: Confidence threshold for filtering
+        llm_settings: LLM settings
+        config: NvidiaRAGConfig instance. If None, creates a new one.
 
     This function breaks down complex queries into manageable subqueries, processes them
     iteratively with context awareness, and generates a final comprehensive response.
@@ -531,6 +592,21 @@ def iterative_query_decomposition(
     Raises:
         ValueError: If no vectorstore object is provided
     """
+    if config is None:
+        config = NvidiaRAGConfig()
+    
+    # Apply defaults from config
+    if recursion_depth is None:
+        recursion_depth = config.query_decomposition.recursion_depth
+    if collection_name is None:
+        collection_name = config.vector_store.default_collection_name
+    if top_k is None:
+        top_k = config.retriever.top_k
+    if ranker_top_k is None:
+        ranker_top_k = config.retriever.top_k
+    if confidence_threshold is None:
+        confidence_threshold = config.default_confidence_threshold
+    
     logger.info(f"Starting query decomposition for: '{query[:100]}...'")
 
     if not vdb_op:
@@ -553,7 +629,7 @@ def iterative_query_decomposition(
 
         # Retrieve and rank documents for the single query
         retrieved_docs = retrieve_and_rank_documents(
-            single_query, query, vdb_op, ranker, collection_name, top_k, ranker_top_k
+            single_query, query, vdb_op, ranker, collection_name, top_k, ranker_top_k, config
         )
 
         # Normalize relevance scores if reranker is used
@@ -563,6 +639,7 @@ def iterative_query_decomposition(
                 retrieved_docs,
                 filter_docs=False,
                 confidence_threshold=confidence_threshold,
+                config=config,
             )
 
         # Generate final response directly
@@ -596,6 +673,7 @@ def iterative_query_decomposition(
             ranker_top_k,
             confidence_threshold,
             conversation_history,
+            config,
         )
         final_contexts.update(iteration_contexts)
         # conversation_history.extend(iteration_history)
@@ -614,7 +692,7 @@ def iterative_query_decomposition(
 
     # Search document from original query as well
     retrieved_docs = retrieve_and_rank_documents(
-        query, query, vdb_op, ranker, collection_name, top_k, ranker_top_k
+        query, query, vdb_op, ranker, collection_name, top_k, ranker_top_k, config
     )
 
     contexts = merge_contexts(
