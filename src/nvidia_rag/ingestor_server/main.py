@@ -44,6 +44,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 from uuid import uuid4
+from collections import defaultdict
 
 from langchain_core.documents import Document
 from langchain_core.output_parsers.string import StrOutputParser
@@ -521,6 +522,7 @@ class NvidiaRAGIngestor:
             )
 
             response_data = await self.__build_ingestion_response(
+                results=results,
                 failures=failures,
                 filepaths=filepaths,
                 state_manager=state_manager,
@@ -560,6 +562,7 @@ class NvidiaRAGIngestor:
 
     async def __build_ingestion_response(
         self,
+        results: list[list[dict[str, str | dict]]],
         failures: list[dict[str, Any]],
         filepaths: list[str] | None = None,
         is_final_batch: bool = True,
@@ -589,24 +592,34 @@ class NvidiaRAGIngestor:
             custom_metadata_item.get("filename"): custom_metadata_item.get("metadata")
             for custom_metadata_item in (state_manager.custom_metadata or [])
         }
+        filename_to_result_map = {
+            os.path.basename(result[0].get("metadata").get("source_metadata").get("source_id")): result for result in results
+        }
         # Generate response dictionary
-        uploaded_documents = [
-            {
-                # Generate a document_id from filename
-                "document_id": str(uuid4()),
-                "document_name": os.path.basename(filepath),
-                "size_bytes": os.path.getsize(filepath),
-                "metadata": {
-                    **filename_to_metadata_map.get(os.path.basename(filepath), {}),
-                    "filename": filename_to_metadata_map.get(
-                        os.path.basename(filepath), {}
-                    ).get("filename")
-                    or os.path.basename(filepath),
-                },
-            }
-            for filepath in filepaths
-            if os.path.basename(filepath) not in failures_filepaths
-        ]
+        uploaded_documents = list()
+        for filepath in filepaths:
+            if os.path.basename(filepath) not in failures_filepaths:
+                doc_type_counts, _, total_elements, raw_text_elements_size = \
+                    self._get_document_type_counts([filename_to_result_map.get(os.path.basename(filepath))])
+                uploaded_document = {
+                    # Generate a document_id from filename
+                    "document_id": str(uuid4()),
+                    "document_name": os.path.basename(filepath),
+                    "size_bytes": os.path.getsize(filepath),
+                    "metadata": {
+                        **filename_to_metadata_map.get(os.path.basename(filepath), {}),
+                        "filename": filename_to_metadata_map.get(
+                            os.path.basename(filepath), {}
+                        ).get("filename")
+                        or os.path.basename(filepath),
+                    },
+                    "document_info": {
+                        "doc_type_counts": doc_type_counts,
+                        "total_elements": total_elements,
+                        "raw_text_elements_size": raw_text_elements_size,
+                    }
+                }
+                uploaded_documents.append(uploaded_document)
 
         # Get current timestamp in ISO format
         # TODO: Store document_id, timestamp and document size as metadata
@@ -1462,6 +1475,7 @@ class NvidiaRAGIngestor:
                 f"for batch {batch_number} is complete! Time taken: {end_time - start_time} seconds =="
             )
             batch_progress_response = await self.__build_ingestion_response(
+                results=results,
                 failures=failures,
                 filepaths=filepaths,
                 state_manager=state_manager,
@@ -1600,21 +1614,14 @@ class NvidiaRAGIngestor:
                 failures.extend(failures_non_pdf)
 
             return results, failures
-
-    def _log_result_info(
+    
+    def _get_document_type_counts(
         self,
-        batch_number: int,
-        results: list[list[dict[str, str | dict]]],
-        failures: list[dict[str, Any]],
-        total_ingestion_time: float,
-        additional_summary: str = "",
-    ):
+        results: list[list[dict[str, str | dict]]]
+    ) -> dict[str, int]:
         """
-        Log the results info with document type counts
+        Get document type counts from the results
         """
-        from collections import defaultdict
-
-        # Count document types
         doc_type_counts = defaultdict(int)
         total_documents = 0
         total_elements = 0
@@ -1639,6 +1646,21 @@ class NvidiaRAGIngestor:
                     raw_text_elements_size += len(
                         result_element.get("metadata", {}).get("content", "")
                     )
+        return doc_type_counts, total_documents, total_elements, raw_text_elements_size
+
+    def _log_result_info(
+        self,
+        batch_number: int,
+        results: list[list[dict[str, str | dict]]],
+        failures: list[dict[str, Any]],
+        total_ingestion_time: float,
+        additional_summary: str = "",
+    ):
+        """
+        Log the results info with document type counts
+        """
+        doc_type_counts, total_documents, total_elements, raw_text_elements_size = \
+            self._get_document_type_counts(results)
 
         # Create summary string
         summary_parts = []
