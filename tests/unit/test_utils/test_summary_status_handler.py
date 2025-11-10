@@ -840,3 +840,113 @@ class TestSummarizationGlobalRateLimiting:
 
             # Should not raise error
             await release_global_summary_slot()
+
+
+class TestSummarizationTokenization:
+    """Test token-based text length calculation."""
+
+    def test_get_tokenizer_loads_and_caches(self):
+        """Test that tokenizer is loaded and cached properly"""
+        from nvidia_rag.utils.summarization import _get_tokenizer
+
+        with patch("nvidia_rag.utils.summarization._tokenizer_cache", None):
+            with patch("nvidia_rag.utils.summarization.CONFIG") as mock_config:
+                mock_config.nv_ingest.tokenizer = "intfloat/e5-large-unsupervised"
+
+                with patch(
+                    "nvidia_rag.utils.summarization.AutoTokenizer"
+                ) as mock_auto_tokenizer:
+                    mock_tokenizer = Mock()
+                    mock_auto_tokenizer.from_pretrained.return_value = mock_tokenizer
+
+                    # First call should load tokenizer
+                    result1 = _get_tokenizer()
+                    assert result1 == mock_tokenizer
+                    mock_auto_tokenizer.from_pretrained.assert_called_once_with(
+                        "intfloat/e5-large-unsupervised"
+                    )
+
+                    # Second call should return cached tokenizer
+                    result2 = _get_tokenizer()
+                    assert result2 == mock_tokenizer
+                    # from_pretrained should still have been called only once
+                    assert mock_auto_tokenizer.from_pretrained.call_count == 1
+
+    def test_get_tokenizer_raises_on_failure(self):
+        """Test that tokenizer load failure raises exception"""
+        from nvidia_rag.utils.summarization import _get_tokenizer
+
+        with patch("nvidia_rag.utils.summarization._tokenizer_cache", None):
+            with patch("nvidia_rag.utils.summarization.CONFIG") as mock_config:
+                mock_config.nv_ingest.tokenizer = "invalid/model"
+
+                with patch(
+                    "nvidia_rag.utils.summarization.AutoTokenizer"
+                ) as mock_auto_tokenizer:
+                    mock_auto_tokenizer.from_pretrained.side_effect = Exception(
+                        "Model not found"
+                    )
+
+                    with pytest.raises(Exception, match="Model not found"):
+                        _get_tokenizer()
+
+    def test_token_length_returns_correct_count(self):
+        """Test that _token_length returns the correct token count"""
+        from nvidia_rag.utils.summarization import _token_length
+
+        with patch("nvidia_rag.utils.summarization._get_tokenizer") as mock_get_tok:
+            mock_tokenizer = Mock()
+            mock_tokenizer.encode.return_value = [1, 2, 3, 4, 5]  # 5 tokens
+            mock_get_tok.return_value = mock_tokenizer
+
+            result = _token_length("test text")
+
+            assert result == 5
+            mock_tokenizer.encode.assert_called_once_with(
+                "test text", add_special_tokens=False
+            )
+
+    def test_token_length_with_empty_text(self):
+        """Test _token_length with empty text"""
+        from nvidia_rag.utils.summarization import _token_length
+
+        with patch("nvidia_rag.utils.summarization._get_tokenizer") as mock_get_tok:
+            mock_tokenizer = Mock()
+            mock_tokenizer.encode.return_value = []  # 0 tokens
+            mock_get_tok.return_value = mock_tokenizer
+
+            result = _token_length("")
+
+            assert result == 0
+            mock_tokenizer.encode.assert_called_once_with("", add_special_tokens=False)
+
+    def test_token_length_raises_on_encode_failure(self):
+        """Test that encode failure raises exception"""
+        from nvidia_rag.utils.summarization import _token_length
+
+        with patch("nvidia_rag.utils.summarization._get_tokenizer") as mock_get_tok:
+            mock_tokenizer = Mock()
+            mock_tokenizer.encode.side_effect = Exception("Encoding error")
+            mock_get_tok.return_value = mock_tokenizer
+
+            with pytest.raises(Exception, match="Encoding error"):
+                _token_length("test text")
+
+    def test_token_length_with_long_text(self):
+        """Test _token_length with long text that exceeds model max length"""
+        from nvidia_rag.utils.summarization import _token_length
+
+        with patch("nvidia_rag.utils.summarization._get_tokenizer") as mock_get_tok:
+            mock_tokenizer = Mock()
+            # Simulate a long text that produces many tokens
+            mock_tokenizer.encode.return_value = list(range(1000))  # 1000 tokens
+            mock_get_tok.return_value = mock_tokenizer
+
+            long_text = "a" * 5000
+            result = _token_length(long_text)
+
+            # Should still return the count, even if it exceeds model max_length
+            assert result == 1000
+            mock_tokenizer.encode.assert_called_once_with(
+                long_text, add_special_tokens=False
+            )
