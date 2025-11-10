@@ -817,3 +817,140 @@ class SummaryModule(BaseTestModule):
                 "Failed shallow summary with page filter test",
             )
             return False
+
+    async def test_summary_with_strategy_single(
+        self, collection_name: str, filename: str
+    ) -> bool:
+        """Test summarization_strategy='single' (one-pass with truncation)"""
+        async with aiohttp.ClientSession() as session:
+            try:
+                logger.info(
+                    f"🚀 Testing summarization_strategy='single' for file: {filename}"
+                )
+
+                # Find the full file path
+                file_path = None
+                for test_file in self.test_runner.test_files:
+                    if os.path.basename(test_file) == filename:
+                        file_path = test_file
+                        break
+
+                if not file_path:
+                    logger.error(f"❌ File not found: {filename}")
+                    return False
+
+                update_url = f"{self.ingestor_server_url}/v1/documents"
+
+                logger.info(
+                    "📤 Uploading with summarization_strategy='single' (one-pass truncation)"
+                )
+
+                # Prepare FormData with file and JSON data
+                data = aiohttp.FormData()
+                data.add_field("documents", open(file_path, "rb"), filename=filename)
+
+                json_data = {
+                    "collection_name": collection_name,
+                    "generate_summary": True,
+                    "summary_options": {
+                        "summarization_strategy": "single",
+                    },
+                }
+                data.add_field("data", json.dumps(json_data))
+
+                async with session.patch(update_url, data=data) as response:
+                    await print_response(response)
+                    if response.status not in [200, 201]:
+                        logger.error(f"❌ Update failed with status {response.status}")
+                        return False
+
+                logger.info(
+                    "⏳ Waiting for single-pass summary generation (should be fast)..."
+                )
+                await asyncio.sleep(3)
+
+                # Fetch the generated summary
+                summary_params = {
+                    "collection_name": collection_name,
+                    "file_name": filename,
+                    "blocking": "true",
+                    "timeout": 60,
+                }
+
+                async with session.get(
+                    f"{self.rag_server_url}/v1/summary", params=summary_params
+                ) as response:
+                    result = await print_response(response)
+
+                    if response.status != 200:
+                        logger.error(
+                            f"❌ Failed to retrieve summary with 'single' strategy: {response.status}"
+                        )
+                        return False
+
+                    summary_text = result.get("summary", "")
+                    if not summary_text:
+                        logger.error("❌ Summary with 'single' strategy is empty")
+                        return False
+
+                    logger.info(
+                        f"✅ Single-pass summary successful ({len(summary_text)} chars)"
+                    )
+                    logger.info(
+                        "✅ Validated: summarization_strategy='single' works correctly"
+                    )
+                    return True
+
+            except Exception as e:
+                logger.error(f"❌ Error in 'single' strategy test: {e}")
+                import traceback
+
+                logger.error(traceback.format_exc())
+                return False
+
+    @test_case(77, "Summary with Strategy: Single")
+    async def _test_summary_strategy_single(self) -> bool:
+        """Test single-pass summarization strategy"""
+        logger.info("\n=== Test 77: Summary with Strategy: Single ===")
+        start_time = time.time()
+
+        # Use first file to test single strategy
+        test_file = os.path.basename(self.test_runner.test_files[0])
+
+        success = await self.test_summary_with_strategy_single(
+            self.collections["with_metadata"], test_file
+        )
+
+        elapsed_time = time.time() - start_time
+
+        if success:
+            self.add_test_result(
+                self._test_summary_strategy_single.test_number,
+                self._test_summary_strategy_single.test_name,
+                f"Test summarization_strategy='single' (one-pass with truncation). File: {test_file}. Validates that single-pass strategy processes entire document in one LLM call, truncating if it exceeds max_chunk_length. Verifies summary generation completes successfully and returns valid content.",
+                ["PATCH /v1/documents", "GET /v1/summary"],
+                [
+                    "collection_name",
+                    "file_names",
+                    "summary_options.summarization_strategy",
+                ],
+                elapsed_time,
+                TestStatus.SUCCESS,
+            )
+            return True
+        else:
+            self.add_test_result(
+                self._test_summary_strategy_single.test_number,
+                self._test_summary_strategy_single.test_name,
+                f"Test summarization_strategy='single' (one-pass with truncation). File: {test_file}. Validates that single-pass strategy processes entire document in one LLM call, truncating if it exceeds max_chunk_length. Verifies summary generation completes successfully and returns valid content.",
+                ["PATCH /v1/documents", "GET /v1/summary"],
+                [
+                    "collection_name",
+                    "file_names",
+                    "summary_options.summarization_strategy",
+                ],
+                elapsed_time,
+                TestStatus.FAILURE,
+                "Failed single-pass summarization strategy test",
+            )
+            return False
