@@ -635,14 +635,14 @@ class SummarizerConfig(_ConfigBase):
         description="URL endpoint for summarization service",
     )
     max_chunk_length: int = Field(
-        default=50000,
+        default=9000,
         env="SUMMARY_LLM_MAX_CHUNK_LENGTH",
-        description="Maximum character length for chunks to summarize",
+        description="Maximum chunk size in tokens for the summarizer model",
     )
     chunk_overlap: int = Field(
-        default=200,
+        default=400,
         env="SUMMARY_CHUNK_OVERLAP",
-        description="Character overlap between chunks during summarization",
+        description="Overlap between chunks for iterative summarization (in tokens)",
     )
     temperature: float = Field(
         default=0.0,

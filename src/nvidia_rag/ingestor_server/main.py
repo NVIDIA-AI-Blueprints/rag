@@ -1658,8 +1658,12 @@ class NvidiaRAGIngestor:
             if not self.config.nv_ingest.enable_parallel_batch_mode:
                 # Sequential batch processing
                 total_failed = 0
-                for i in range(0, len(filepaths), self.config.nv_ingest.files_per_batch):
-                    sub_filepaths = filepaths[i : i + self.config.nv_ingest.files_per_batch]
+                for i in range(
+                    0, len(filepaths), self.config.nv_ingest.files_per_batch
+                ):
+                    sub_filepaths = filepaths[
+                        i : i + self.config.nv_ingest.files_per_batch
+                    ]
                     batch_num = i // self.config.nv_ingest.files_per_batch + 1
 
                     failed_files = await self.__process_shallow_batch(
@@ -1693,8 +1697,12 @@ class NvidiaRAGIngestor:
                             batch_num=batch_num,
                         )
 
-                for i in range(0, len(filepaths), self.config.nv_ingest.files_per_batch):
-                    sub_filepaths = filepaths[i : i + self.config.nv_ingest.files_per_batch]
+                for i in range(
+                    0, len(filepaths), self.config.nv_ingest.files_per_batch
+                ):
+                    sub_filepaths = filepaths[
+                        i : i + self.config.nv_ingest.files_per_batch
+                    ]
                     batch_num = i // self.config.nv_ingest.files_per_batch + 1
                     task = process_shallow_batch_parallel(sub_filepaths, batch_num)
                     tasks.append(task)
@@ -2035,10 +2043,11 @@ class NvidiaRAGIngestor:
 
         Extracts only text content without multimodal elements (tables, images, charts).
         Does not generate embeddings or upload to VDB.
+        Does not perform text splitting - summarization will handle its own splitting.
 
         Args:
             filepaths: List of file paths to extract
-            split_options: Options for splitting documents
+            split_options: Options for splitting documents (unused in shallow extraction)
             batch_number: Batch number for logging
 
         Returns:
@@ -2063,7 +2072,7 @@ class NvidiaRAGIngestor:
             nv_ingest_ingestor = get_nv_ingest_ingestor(
                 nv_ingest_client_instance=self.nv_ingest_client,
                 filepaths=filepaths,
-                split_options=split_options,
+                split_options=None,  # Skip splitting for shallow extraction
                 vdb_op=None,
                 extract_override=extract_override,
                 config=self.config,

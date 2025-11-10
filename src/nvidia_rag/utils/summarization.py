@@ -36,6 +36,7 @@ from langchain_core.documents import Document
 from langchain_core.output_parsers.string import StrOutputParser
 from langchain_core.prompts.chat import ChatPromptTemplate
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from transformers import AutoTokenizer
 
 from nvidia_rag.utils.common import ConfigProxy
 from nvidia_rag.utils.llm import get_llm, get_prompts
@@ -50,6 +51,47 @@ _event_loop_semaphores = {}
 
 # Redis key for global rate limiting
 REDIS_GLOBAL_SUMMARY_KEY = "summary:global:active_count"
+
+# Cache for tokenizer to avoid reloading
+_tokenizer_cache = None
+
+
+def _get_tokenizer():
+    """Get or create cached tokenizer instance.
+
+    Uses the same tokenizer as configured in nv-ingest for consistency.
+    The tokenizer is cached to avoid reloading on subsequent calls.
+
+    Returns:
+        AutoTokenizer: The cached tokenizer instance
+
+    Raises:
+        Exception: If tokenizer fails to load
+    """
+    global _tokenizer_cache
+    if _tokenizer_cache is None:
+        tokenizer_name = CONFIG.nv_ingest.tokenizer
+        _tokenizer_cache = AutoTokenizer.from_pretrained(tokenizer_name)
+        logger.info(f"Loaded tokenizer for summarization: {tokenizer_name}")
+    return _tokenizer_cache
+
+
+def _token_length(text: str) -> int:
+    """Calculate text length in tokens.
+
+    Uses the same tokenizer as nv-ingest for consistent token counting.
+
+    Args:
+        text: Input text to measure
+
+    Returns:
+        int: Number of tokens in the text
+
+    Raises:
+        Exception: If tokenizer fails to load or encode
+    """
+    tokenizer = _get_tokenizer()
+    return len(tokenizer.encode(text, add_special_tokens=False))
 
 
 def matches_page_filter(
@@ -582,20 +624,20 @@ async def _summarize_iterative(
     """Iterative sequential summarization - processes chunks one by one."""
     file_name = document.metadata.get("filename", "unknown")
     document_text = document.page_content
-    total_chars = len(document_text)
+    total_tokens = _token_length(document_text)
 
-    max_chunk_chars = CONFIG.summarizer.max_chunk_length
+    max_chunk_tokens = CONFIG.summarizer.max_chunk_length
     chunk_overlap = CONFIG.summarizer.chunk_overlap
 
     logger.info(
-        f"Iterative summarization for {file_name}: {total_chars} chars (threshold: {max_chunk_chars})"
+        f"Iterative summarization for {file_name}: {total_tokens} tokens (threshold: {max_chunk_tokens})"
     )
 
     llm = _get_summary_llm()
     prompts = get_prompts()
     initial_chain, iterative_chain = _create_llm_chains(llm, prompts)
 
-    if total_chars <= max_chunk_chars:
+    if total_tokens <= max_chunk_tokens:
         logger.info(f"Using single-pass for {file_name} (fits in one chunk)")
 
         if progress_callback:
@@ -610,10 +652,11 @@ async def _summarize_iterative(
             await progress_callback(current=1, total=1)
 
     else:
+        # Token-based splitting with recursive character splitting at semantic boundaries
         text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=max_chunk_chars,
+            chunk_size=max_chunk_tokens,
             chunk_overlap=chunk_overlap,
-            length_function=len,
+            length_function=_token_length,
             separators=["\n\n", "\n", ". ", "! ", "? ", " ", ""],
         )
         text_chunks = text_splitter.split_text(document_text)
@@ -655,24 +698,25 @@ async def _summarize_hierarchical(
     document: Document,
     progress_callback: Callable | None = None,
 ) -> Document:
-    """Hierarchical parallel summarization with character-based batching."""
+    """Hierarchical parallel summarization with token-based chunking."""
     file_name = document.metadata.get("filename", "unknown")
     document_text = document.page_content
-    total_chars = len(document_text)
-    max_chunk_chars = CONFIG.summarizer.max_chunk_length
+    total_tokens = _token_length(document_text)
+    max_chunk_tokens = CONFIG.summarizer.max_chunk_length
 
     logger.info(
-        f"Hierarchical summarization for {file_name}: {total_chars} chars (threshold: {max_chunk_chars})"
+        f"Hierarchical summarization for {file_name}: {total_tokens} tokens (threshold: {max_chunk_tokens})"
     )
 
-    if total_chars <= max_chunk_chars:
+    if total_tokens <= max_chunk_tokens:
         logger.info(f"Document fits in one chunk, using single-pass for {file_name}")
         return await _summarize_single_pass(document, progress_callback)
 
+    # Token-based splitting with recursive character splitting at semantic boundaries
     text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=max_chunk_chars,
+        chunk_size=max_chunk_tokens,
         chunk_overlap=CONFIG.summarizer.chunk_overlap,
-        length_function=len,
+        length_function=_token_length,
         separators=["\n\n", "\n", ". ", "! ", "? ", " ", ""],
     )
     text_chunks = text_splitter.split_text(document_text)
@@ -702,7 +746,7 @@ async def _summarize_hierarchical(
 
     while len(current_summaries) > 1:
         batched_summaries = _batch_summaries_by_length(
-            current_summaries, max_chunk_chars
+            current_summaries, max_chunk_tokens
         )
 
         next_level_summaries = await asyncio.gather(

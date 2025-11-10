@@ -213,24 +213,24 @@ def get_nv_ingest_ingestor(
     ingestor = ingestor.extract(**extract_kwargs)
 
     # Add splitting task (By default only works for text documents)
-    split_options = split_options or {}
-    split_source_types = ["text", "html", "mp3", "docx"]
-    split_source_types = (
-        ["PDF"] + split_source_types
-        if config.nv_ingest.enable_pdf_splitter
-        else split_source_types
-    )
-    logger.info(
-        f"Post chunk split status: {config.nv_ingest.enable_pdf_splitter}. Splitting by: {split_source_types}"
-    )
-    ingestor = ingestor.split(
-        tokenizer=config.nv_ingest.tokenizer,
-        chunk_size=split_options.get("chunk_size", config.nv_ingest.chunk_size),
-        chunk_overlap=split_options.get(
-            "chunk_overlap", config.nv_ingest.chunk_overlap
-        ),
-        params={"split_source_types": split_source_types},
-    )
+    if split_options is not None:
+        split_source_types = ["text", "html", "mp3", "docx"]
+        split_source_types = (
+            ["PDF"] + split_source_types
+            if config.nv_ingest.enable_pdf_splitter
+            else split_source_types
+        )
+        logger.info(
+            f"Post chunk split status: {config.nv_ingest.enable_pdf_splitter}. Splitting by: {split_source_types}"
+        )
+        ingestor = ingestor.split(
+            tokenizer=config.nv_ingest.tokenizer,
+            chunk_size=split_options.get("chunk_size", config.nv_ingest.chunk_size),
+            chunk_overlap=split_options.get(
+                "chunk_overlap", config.nv_ingest.chunk_overlap
+            ),
+            params={"split_source_types": split_source_types},
+        )
 
     # Add captioning task if extract_images is enabled
     if config.nv_ingest.extract_images:
