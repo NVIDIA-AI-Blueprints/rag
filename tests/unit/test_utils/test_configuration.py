@@ -206,8 +206,8 @@ class TestSummarizerConfig:
 
         assert config.model_name == "nvidia/llama-3.3-nemotron-super-49b-v1.5"
         assert config.server_url == ""
-        assert config.max_chunk_length == 50000
-        assert config.chunk_overlap == 200
+        assert config.max_chunk_length == 9000
+        assert config.chunk_overlap == 400
         assert config.temperature == 0.0
         assert config.top_p == 1.0
 

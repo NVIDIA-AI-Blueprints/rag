@@ -364,6 +364,73 @@ class TestGetNvIngestIngestor:
         assert call_kwargs["extract_audio_params"] == {"segment_audio": True}
         assert call_kwargs["extract_page_as_image"] is True
 
+    @patch("nvidia_rag.utils.common.get_config")
+    @patch("nvidia_rag.ingestor_server.nvingest.get_env_variable")
+    @patch("nvidia_rag.ingestor_server.nvingest.sanitize_nim_url")
+    @patch("nvidia_rag.ingestor_server.nvingest.Ingestor")
+    def test_split_skipped_when_split_options_none(
+        self, mock_ingestor_class, mock_sanitize_url, mock_get_env, mock_get_config
+    ):
+        """Test that splitting is skipped when split_options is None (shallow extraction)"""
+        mock_config = self._create_mock_config()
+        mock_get_config.return_value = mock_config
+        mock_get_env.return_value = "test_api_key"
+        mock_sanitize_url.return_value = "http://test-embedding-url"
+
+        mock_ingestor_instance = Mock()
+        mock_ingestor_class.return_value = mock_ingestor_instance
+        mock_ingestor_instance.files.return_value = mock_ingestor_instance
+        mock_ingestor_instance.extract.return_value = mock_ingestor_instance
+        mock_ingestor_instance.split.return_value = mock_ingestor_instance
+
+        # Call with split_options=None (shallow extraction use case)
+        result = get_nv_ingest_ingestor(
+            self.mock_client,
+            self.filepaths,
+            split_options=None,
+            vdb_op=None,
+        )
+
+        assert result == mock_ingestor_instance
+        # Verify split was NOT called when split_options is None
+        mock_ingestor_instance.split.assert_not_called()
+        # Verify extract was still called
+        mock_ingestor_instance.extract.assert_called_once()
+
+    @patch("nvidia_rag.utils.common.get_config")
+    @patch("nvidia_rag.ingestor_server.nvingest.get_env_variable")
+    @patch("nvidia_rag.ingestor_server.nvingest.sanitize_nim_url")
+    @patch("nvidia_rag.ingestor_server.nvingest.Ingestor")
+    def test_split_called_with_default_options_when_dict_provided(
+        self, mock_ingestor_class, mock_sanitize_url, mock_get_env, mock_get_config
+    ):
+        """Test that splitting is called with default options when empty dict provided"""
+        mock_config = self._create_mock_config()
+        mock_get_config.return_value = mock_config
+        mock_get_env.return_value = "test_api_key"
+        mock_sanitize_url.return_value = "http://test-embedding-url"
+
+        mock_ingestor_instance = Mock()
+        mock_ingestor_class.return_value = mock_ingestor_instance
+        mock_ingestor_instance.files.return_value = mock_ingestor_instance
+        mock_ingestor_instance.extract.return_value = mock_ingestor_instance
+        mock_ingestor_instance.split.return_value = mock_ingestor_instance
+
+        # Call with empty dict (should use default values from config)
+        result = get_nv_ingest_ingestor(
+            self.mock_client,
+            self.filepaths,
+            split_options={},
+            vdb_op=None,
+        )
+
+        assert result == mock_ingestor_instance
+        # Verify split WAS called with default config values
+        mock_ingestor_instance.split.assert_called_once()
+        call_kwargs = mock_ingestor_instance.split.call_args[1]
+        assert call_kwargs["chunk_size"] == 1000  # from mock config
+        assert call_kwargs["chunk_overlap"] == 200  # from mock config
+
     def _create_mock_config(self):
         """Create a mock config object with default values"""
         mock_config = Mock()
