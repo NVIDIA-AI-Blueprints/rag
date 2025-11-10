@@ -1144,3 +1144,68 @@ class TestDocumentUploadRequestValidation:
                 generate_summary=False,
                 summary_options=SummaryOptions(),
             )
+
+
+class TestSummaryOptionsStrategyValidation:
+    """Tests for SummaryOptions validation, including summarization_strategy"""
+
+    def test_summary_options_no_strategy(self):
+        """Test SummaryOptions without strategy (uses default iterative)"""
+        opts = SummaryOptions()
+        assert opts.summarization_strategy is None
+        assert opts.shallow_summary is False
+
+    def test_summary_options_strategy_single(self):
+        """Test SummaryOptions with 'single' strategy"""
+        opts = SummaryOptions(summarization_strategy="single")
+        assert opts.summarization_strategy == "single"
+
+    def test_summary_options_strategy_hierarchical(self):
+        """Test SummaryOptions with 'hierarchical' strategy"""
+        opts = SummaryOptions(summarization_strategy="hierarchical")
+        assert opts.summarization_strategy == "hierarchical"
+
+    def test_summary_options_invalid_strategy_rejected(self):
+        """Test that invalid summarization_strategy is rejected"""
+        with pytest.raises(
+            ValidationError,
+            match="Invalid summarization_strategy: 'invalid_strategy'. Allowed values: \\['single', 'hierarchical'\\]",
+        ):
+            SummaryOptions(summarization_strategy="invalid_strategy")
+
+    def test_summary_options_strategy_case_sensitive(self):
+        """Test that strategy validation is case-sensitive"""
+        with pytest.raises(
+            ValidationError,
+            match="Invalid summarization_strategy",
+        ):
+            SummaryOptions(summarization_strategy="Single")  # Capital S should fail
+
+    def test_summary_options_with_page_filter_and_strategy(self):
+        """Test SummaryOptions with both page_filter and summarization_strategy"""
+        opts = SummaryOptions(
+            page_filter=PageFilter(pages=[[1, 5]]),
+            summarization_strategy="hierarchical",
+        )
+        assert opts.page_filter.pages == [[1, 5]]
+        assert opts.summarization_strategy == "hierarchical"
+
+    def test_summary_options_with_shallow_and_strategy(self):
+        """Test SummaryOptions with both shallow_summary and summarization_strategy"""
+        opts = SummaryOptions(
+            shallow_summary=True,
+            summarization_strategy="single",
+        )
+        assert opts.shallow_summary is True
+        assert opts.summarization_strategy == "single"
+
+    def test_summary_options_all_features_combined(self):
+        """Test SummaryOptions with all features: page_filter, shallow_summary, and strategy"""
+        opts = SummaryOptions(
+            page_filter=PageFilter(pages="odd"),
+            shallow_summary=True,
+            summarization_strategy="hierarchical",
+        )
+        assert opts.page_filter.pages == "odd"
+        assert opts.shallow_summary is True
+        assert opts.summarization_strategy == "hierarchical"
