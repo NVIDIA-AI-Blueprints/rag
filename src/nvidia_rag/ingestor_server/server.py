@@ -233,6 +233,7 @@ class UploadedDocument(BaseModel):
     # Reserved for future use
     # size_bytes: int = Field(0, description="Size of the document in bytes.")
     metadata: dict[str, Any] = Field({}, description="Metadata of the document.")
+    document_info: dict[str, Any] = Field({}, description="Document information.")
 
 
 class FailedDocument(BaseModel):
