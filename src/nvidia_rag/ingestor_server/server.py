@@ -50,7 +50,7 @@ from pydantic import BaseModel, Field
 from starlette.status import HTTP_422_UNPROCESSABLE_ENTITY
 
 from nvidia_rag.ingestor_server.main import SERVER_MODE, NvidiaRAGIngestor
-from nvidia_rag.utils.common import ConfigProxy
+from nvidia_rag.utils.configuration import NvidiaRAGConfig
 from nvidia_rag.utils.metadata_validation import MetadataField
 
 logging.basicConfig(level=os.environ.get("LOGLEVEL", "INFO").upper())
@@ -96,9 +96,9 @@ app.add_middleware(
 
 EXAMPLE_DIR = "./"
 
-# Initialize the NVIngestIngestor class
-NV_INGEST_INGESTOR = NvidiaRAGIngestor(mode=SERVER_MODE)
-CONFIG = ConfigProxy()
+# Initialize configuration and ingestor
+CONFIG = NvidiaRAGConfig()
+NV_INGEST_INGESTOR = NvidiaRAGIngestor(mode=SERVER_MODE, config=CONFIG)
 
 
 # Define the service health models in server.py

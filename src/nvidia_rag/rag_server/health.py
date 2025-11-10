@@ -31,12 +31,11 @@ import aiohttp
 from elasticsearch import Elasticsearch
 from pymilvus import connections, utility
 
-from nvidia_rag.utils.common import ConfigProxy
+from nvidia_rag.utils.configuration import NvidiaRAGConfig
 from nvidia_rag.utils.minio_operator import MinioOperator
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
 
 logger = logging.getLogger(__name__)
-CONFIG = ConfigProxy()
 
 
 async def check_service_health(
@@ -151,13 +150,19 @@ def is_nvidia_api_catalog_url(url: str) -> bool:
     )
 
 
-async def check_all_services_health(vdb_op: VDBRag) -> dict[str, list[dict[str, Any]]]:
+async def check_all_services_health(vdb_op: VDBRag, config: NvidiaRAGConfig | None = None) -> dict[str, list[dict[str, Any]]]:
     """
     Check health of all services used by the application
+    
+    Args:
+        vdb_op: Vector database operation instance
+        config: NvidiaRAGConfig instance. If None, creates a new one.
 
     Returns:
         Dictionary with service categories and their health status
     """
+    if config is None:
+        config = NvidiaRAGConfig()
 
     # Create tasks for different service types
     tasks = []
@@ -168,9 +173,9 @@ async def check_all_services_health(vdb_op: VDBRag) -> dict[str, list[dict[str, 
     }
 
     # MinIO health check
-    minio_endpoint = CONFIG.minio.endpoint
-    minio_access_key = CONFIG.minio.access_key
-    minio_secret_key = CONFIG.minio.secret_key
+    minio_endpoint = config.minio.endpoint
+    minio_access_key = config.minio.access_key
+    minio_secret_key = config.minio.secret_key
     if minio_endpoint:
         tasks.append(
             (
@@ -199,8 +204,8 @@ async def check_all_services_health(vdb_op: VDBRag) -> dict[str, list[dict[str, 
         )
 
     # LLM service health check
-    if CONFIG.llm.server_url and not is_nvidia_api_catalog_url(CONFIG.llm.server_url):
-        llm_url = CONFIG.llm.server_url
+    if config.llm.server_url and not is_nvidia_api_catalog_url(config.llm.server_url):
+        llm_url = config.llm.server_url
         if not llm_url.startswith(("http://", "https://")):
             llm_url = f"http://{llm_url}/v1/health/ready"
         else:
@@ -209,7 +214,7 @@ async def check_all_services_health(vdb_op: VDBRag) -> dict[str, list[dict[str, 
         # For local services, we need to create a custom result with model info
         async def check_llm_health():
             result = await check_service_health(url=llm_url, service_name="LLM")
-            result["model"] = CONFIG.llm.model_name
+            result["model"] = config.llm.model_name
             return result
 
         tasks.append(("nim", check_llm_health()))
@@ -219,22 +224,22 @@ async def check_all_services_health(vdb_op: VDBRag) -> dict[str, list[dict[str, 
         results["nim"].append(
             {
                 "service": "LLM",
-                "model": CONFIG.llm.model_name,
-                "url": CONFIG.llm.server_url,
+                "model": config.llm.model_name,
+                "url": config.llm.server_url,
                 "status": "healthy",
                 "latency_ms": 0,
                 "message": "Using NVIDIA API Catalog",
             }
         )
 
-    query_rewriter_enabled = CONFIG.query_rewriter.enable_query_rewriter
+    query_rewriter_enabled = config.query_rewriter.enable_query_rewriter
 
     if query_rewriter_enabled:
         # Query rewriter LLM health check
-        if CONFIG.query_rewriter.server_url and not is_nvidia_api_catalog_url(
-            CONFIG.query_rewriter.server_url
+        if config.query_rewriter.server_url and not is_nvidia_api_catalog_url(
+            config.query_rewriter.server_url
         ):
-            qr_url = CONFIG.query_rewriter.server_url
+            qr_url = config.query_rewriter.server_url
             if not qr_url.startswith(("http://", "https://")):
                 qr_url = f"http://{qr_url}/v1/health/ready"
             else:
@@ -245,7 +250,7 @@ async def check_all_services_health(vdb_op: VDBRag) -> dict[str, list[dict[str, 
                 result = await check_service_health(
                     url=qr_url, service_name="Query Rewriter"
                 )
-                result["model"] = CONFIG.query_rewriter.model_name
+                result["model"] = config.query_rewriter.model_name
                 return result
 
             tasks.append(("nim", check_qr_health()))
@@ -255,8 +260,8 @@ async def check_all_services_health(vdb_op: VDBRag) -> dict[str, list[dict[str, 
             results["nim"].append(
                 {
                     "service": "Query Rewriter",
-                    "model": CONFIG.query_rewriter.model_name,
-                    "url": CONFIG.query_rewriter.server_url,
+                    "model": config.query_rewriter.model_name,
+                    "url": config.query_rewriter.server_url,
                     "status": "healthy",
                     "latency_ms": 0,
                     "message": "Using NVIDIA API Catalog",
@@ -264,10 +269,10 @@ async def check_all_services_health(vdb_op: VDBRag) -> dict[str, list[dict[str, 
             )
 
     # Embedding service health check
-    if CONFIG.embeddings.server_url and not is_nvidia_api_catalog_url(
-        CONFIG.embeddings.server_url
+    if config.embeddings.server_url and not is_nvidia_api_catalog_url(
+        config.embeddings.server_url
     ):
-        embed_url = CONFIG.embeddings.server_url
+        embed_url = config.embeddings.server_url
         if not embed_url.startswith(("http://", "https://")):
             embed_url = f"http://{embed_url}/v1/health/ready"
         else:
@@ -278,7 +283,7 @@ async def check_all_services_health(vdb_op: VDBRag) -> dict[str, list[dict[str, 
             result = await check_service_health(
                 url=embed_url, service_name="Embeddings"
             )
-            result["model"] = CONFIG.embeddings.model_name
+            result["model"] = config.embeddings.model_name
             return result
 
         tasks.append(("nim", check_embed_health()))
@@ -288,21 +293,21 @@ async def check_all_services_health(vdb_op: VDBRag) -> dict[str, list[dict[str, 
         results["nim"].append(
             {
                 "service": "Embeddings",
-                "model": CONFIG.embeddings.model_name,
-                "url": CONFIG.embeddings.server_url,
+                "model": config.embeddings.model_name,
+                "url": config.embeddings.server_url,
                 "status": "healthy",
                 "latency_ms": 0,
                 "message": "Using NVIDIA API Catalog",
             }
         )
 
-    enable_reranker = CONFIG.ranking.enable_reranker
+    enable_reranker = config.ranking.enable_reranker
     # Ranking service health check
     if enable_reranker:
-        if CONFIG.ranking.server_url and not is_nvidia_api_catalog_url(
-            CONFIG.ranking.server_url
+        if config.ranking.server_url and not is_nvidia_api_catalog_url(
+            config.ranking.server_url
         ):
-            ranking_url = CONFIG.ranking.server_url
+            ranking_url = config.ranking.server_url
             if not ranking_url.startswith(("http://", "https://")):
                 ranking_url = f"http://{ranking_url}/v1/health/ready"
             else:
@@ -313,7 +318,7 @@ async def check_all_services_health(vdb_op: VDBRag) -> dict[str, list[dict[str, 
                 result = await check_service_health(
                     url=ranking_url, service_name="Ranking"
                 )
-                result["model"] = CONFIG.ranking.model_name
+                result["model"] = config.ranking.model_name
                 return result
 
             tasks.append(("nim", check_ranking_health()))
@@ -323,8 +328,8 @@ async def check_all_services_health(vdb_op: VDBRag) -> dict[str, list[dict[str, 
             results["nim"].append(
                 {
                     "service": "Ranking",
-                    "model": CONFIG.ranking.model_name,
-                    "url": CONFIG.ranking.server_url,
+                    "model": config.ranking.model_name,
+                    "url": config.ranking.server_url,
                     "status": "healthy",
                     "latency_ms": 0,
                     "message": "Using NVIDIA API Catalog",
@@ -332,7 +337,7 @@ async def check_all_services_health(vdb_op: VDBRag) -> dict[str, list[dict[str, 
             )
 
     # NemoGuardrails health check
-    enable_guardrails = CONFIG.enable_guardrails
+    enable_guardrails = config.enable_guardrails
     if enable_guardrails:
         guardrails_url = os.getenv("NEMO_GUARDRAILS_URL", "")
         if guardrails_url:
@@ -432,11 +437,15 @@ def print_health_report(health_results: dict[str, list[dict[str, Any]]]) -> None
     logger.info("================================")
 
 
-async def check_and_print_services_health(vdb_op: VDBRag):
+async def check_and_print_services_health(vdb_op: VDBRag, config: NvidiaRAGConfig | None = None):
     """
     Check health of all services and print a report
+    
+    Args:
+        vdb_op: Vector database operation instance
+        config: NvidiaRAGConfig instance. If None, creates a new one.
     """
-    health_results = await check_all_services_health(vdb_op)
+    health_results = await check_all_services_health(vdb_op, config)
     print_health_report(health_results)
     return health_results
 

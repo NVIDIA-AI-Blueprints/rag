@@ -24,28 +24,35 @@ from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_core.embeddings import Embeddings
 from langchain_nvidia_ai_endpoints import NVIDIAEmbeddings
 
-from nvidia_rag.utils.common import ConfigProxy, sanitize_nim_url
+from nvidia_rag.utils.common import sanitize_nim_url
+from nvidia_rag.utils.configuration import NvidiaRAGConfig
 
 logger = logging.getLogger(__name__)
-CONFIG = ConfigProxy()
 
 
 @lru_cache
-def get_embedding_model(
-    model: str, url: str, truncate: str | None = "END"
-) -> Embeddings:
-    """Create the embedding model."""
+def get_embedding_model(model: str, url: str, config: NvidiaRAGConfig | None = None, truncate: str | None = "END") -> Embeddings:
+    """Create the embedding model.
+    
+    Args:
+        model: Model name
+        url: URL endpoint
+        config: NvidiaRAGConfig instance. If None, creates a new one.
+        truncate: Truncation strategy
+    """
+    if config is None:
+        config = NvidiaRAGConfig()
 
     # Sanitize the URL
     url = sanitize_nim_url(url, model, "embedding")
 
     logger.info(
         "Using %s as model engine and %s and model for embeddings",
-        CONFIG.embeddings.model_engine,
+        config.embeddings.model_engine,
         model,
     )
 
-    if CONFIG.embeddings.model_engine == "nvidia-ai-endpoints":
+    if config.embeddings.model_engine == "nvidia-ai-endpoints":
         if url:
             logger.info("Using embedding model %s hosted at %s", model, url)
             if truncate is not None:
@@ -53,13 +60,13 @@ def get_embedding_model(
                     base_url=url,
                     model=model,
                     truncate=truncate,
-                    dimensions=CONFIG.embeddings.dimensions,
+                    dimensions=config.embeddings.dimensions,
                 )
             else:
                 return NVIDIAEmbeddings(
                     base_url=url,
                     model=model,
-                    dimensions=CONFIG.embeddings.dimensions,
+                    dimensions=config.embeddings.dimensions,
                 )
 
         logger.info("Using embedding model %s hosted at api catalog", model)
@@ -67,12 +74,12 @@ def get_embedding_model(
             return NVIDIAEmbeddings(
                 model=model,
                 truncate=truncate,
-                dimensions=CONFIG.embeddings.dimensions,
+                dimensions=config.embeddings.dimensions,
             )
         else:
             return NVIDIAEmbeddings(
                 model=model,
-                dimensions=CONFIG.embeddings.dimensions,
+                dimensions=config.embeddings.dimensions,
             )
 
     raise RuntimeError(
