@@ -48,7 +48,7 @@ The `prompt.yaml` file contains a set of prompt templates used throughout the RA
 ### 9. `iterative_summary_prompt`
 - **Purpose:** Updates an existing summary with new information from additional document chunks.
 - **Usage:** Used for large documents that require chunked processing. Takes a previous summary and new chunk content to produce an updated comprehensive summary.
-- **Context:** Part of the iterative summarization strategy described in [document summarization](./summarization.md). This ensures that large documents are summarized while maintaining context across chunk boundaries.
+- **Context:** Part of the summarization strategies (single/hierarchical/iterative) described in [document summarization](./summarization.md). The iterative strategy (default, when `summarization_strategy` is `null` or omitted) uses this prompt for multi-chunk documents to maintain context across chunk boundaries.
 
 ### 10. `vlm_template`
 - **Purpose:** Guides the assistant in answering questions using only provided images.

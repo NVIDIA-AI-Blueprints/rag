@@ -44,6 +44,34 @@ This release adds RTX6000 platform support, adds deployment by using NIM operato
 - Added [unit tests](./tests/unit/) and [pre-commit](./LINTING.md) hooks for maintaining code quality.
 - Optimized container sizes by removing unnecessary packages and improving security.
 
+### Enhanced - Document Summarization
+
+The document summarization feature has been significantly enhanced with new capabilities:
+
+- **Page filtering**: Added `page_filter` parameter for selective page summarization
+  - Supports ranges: `[[1, 10], [20, 30]]` for specific page ranges
+  - Supports negative indexing: `[[-5, -1]]` for last 5 pages (Pythonic style)
+  - Supports even/odd filters: `"even"` or `"odd"` for pattern-based selection
+- **Fast shallow summaries**: Added `shallow_summary: true` option for 10x faster text-only extraction (skips OCR/tables/images)
+- **Summarization strategies**: Added `summarization_strategy` parameter with three options:
+  - `"single"`: One-pass with truncation (fastest - one LLM call)
+  - `"hierarchical"`: Parallel tree-based processing (balanced)
+  - `null`: Sequential refinement (best quality, default)
+- **Token-based chunking**: Aligned with nv-ingest using tokenizer `e5-large-unsupervised`
+  - Defaults: `SUMMARY_LLM_MAX_CHUNK_LENGTH=9000` tokens, `SUMMARY_CHUNK_OVERLAP=400` tokens
+  - More accurate chunking and better context preservation
+- **Global rate limiting**: Added Redis-based semaphore limiting concurrent summaries
+  - New environment variable: `SUMMARY_MAX_PARALLELIZATION=20` (default)
+  - Prevents GPU/API overload across all workers
+  - Connection pooling (max 50) for efficient coordination
+- **Redis counter reset**: Automatic reset of summary counter on ingestor startup to prevent stale values from crashed processes
+- **Real-time status tracking**: Enhanced Redis-based status tracking with chunk-level progress
+  - Status values: SUCCESS, PENDING, IN_PROGRESS, FAILED, NOT_FOUND
+  - Blocking/non-blocking modes with configurable timeout
+  - HTTP status codes: 200 (success), 202 (in progress), 404 (not found), 408 (timeout), 500 (failed)
+
+For details, refer to [Document Summarization](./docs/summarization.md).
+
 ### Changed
 - Migrated default LLM model for reflection to `llama-3.3-nemotron-super-49b` instead of `mixtral-8x22b-instruct-v01`.
 - Refactored [rag-playground](./frontend/) code
