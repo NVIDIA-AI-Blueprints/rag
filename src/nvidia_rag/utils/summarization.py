@@ -56,6 +56,35 @@ REDIS_GLOBAL_SUMMARY_KEY = "summary:global:active_count"
 _tokenizer_cache = None
 
 
+def _reset_global_summary_counter() -> None:
+    """
+    Reset the global summary counter in Redis to 0.
+
+    This should be called on server startup to clear any stale counter values
+    from crashed or restarted processes. Runs synchronously on module import.
+    """
+    if not SUMMARY_STATUS_HANDLER.is_available():
+        logger.debug("Redis not available, skipping summary counter reset")
+        return
+
+    try:
+        redis_client = SUMMARY_STATUS_HANDLER._redis_client
+        redis_client.delete(REDIS_GLOBAL_SUMMARY_KEY)
+        logger.debug(
+            f"✅ Reset Redis summary counter '{REDIS_GLOBAL_SUMMARY_KEY}' "
+            f"at {SUMMARY_STATUS_HANDLER._redis_host}:{SUMMARY_STATUS_HANDLER._redis_port}"
+        )
+    except Exception as e:
+        logger.warning(
+            f"⚠️  Could not reset Redis summary counter: {e}. "
+            "This is OK if Redis is not configured."
+        )
+
+
+# Reset counter on module import (runs once when server starts)
+_reset_global_summary_counter()
+
+
 def _get_tokenizer():
     """Get or create cached tokenizer instance.
 
