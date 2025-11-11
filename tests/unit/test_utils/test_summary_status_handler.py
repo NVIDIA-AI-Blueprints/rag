@@ -34,6 +34,7 @@ from redis.exceptions import ConnectionError as RedisConnectionError
 from redis.exceptions import RedisError
 
 from nvidia_rag.utils.summarization import (
+    _reset_global_summary_counter,
     acquire_global_summary_slot,
     get_summarization_semaphore,
     matches_page_filter,
@@ -834,6 +835,50 @@ class TestSummarizationGlobalRateLimiting:
 
             # Should not raise error
             await release_global_summary_slot()
+
+    def test_reset_global_summary_counter_success(self):
+        """Test reset counter deletes Redis key successfully"""
+        with patch(
+            "nvidia_rag.utils.summarization.SUMMARY_STATUS_HANDLER"
+        ) as mock_handler:
+            mock_handler.is_available.return_value = True
+            mock_handler._redis_host = "localhost"
+            mock_handler._redis_port = 6379
+
+            mock_redis = MagicMock()
+            mock_handler._redis_client = mock_redis
+
+            # Call reset function
+            _reset_global_summary_counter()
+
+            # Should delete the key
+            mock_redis.delete.assert_called_once_with("summary:global:active_count")
+
+    def test_reset_global_summary_counter_redis_unavailable(self):
+        """Test reset handles Redis unavailable gracefully"""
+        with patch(
+            "nvidia_rag.utils.summarization.SUMMARY_STATUS_HANDLER"
+        ) as mock_handler:
+            mock_handler.is_available.return_value = False
+
+            # Should not raise error when Redis unavailable
+            _reset_global_summary_counter()
+
+    def test_reset_global_summary_counter_redis_error(self):
+        """Test reset handles Redis errors gracefully"""
+        with patch(
+            "nvidia_rag.utils.summarization.SUMMARY_STATUS_HANDLER"
+        ) as mock_handler:
+            mock_handler.is_available.return_value = True
+            mock_handler._redis_host = "localhost"
+            mock_handler._redis_port = 6379
+
+            mock_redis = MagicMock()
+            mock_redis.delete.side_effect = Exception("Connection error")
+            mock_handler._redis_client = mock_redis
+
+            # Should not raise error, just log warning
+            _reset_global_summary_counter()
 
 
 class TestSummarizationTokenization:
