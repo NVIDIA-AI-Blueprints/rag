@@ -575,11 +575,10 @@ class TestMatchesPageFilter:
         """Test that no filter returns True for all pages"""
         assert matches_page_filter(1, None) is True
         assert matches_page_filter(100, None) is True
-        assert matches_page_filter(1, {}) is True
 
     def test_matches_page_filter_simple_range(self):
         """Test simple positive range"""
-        page_filter = {"pages": [[1, 10]]}
+        page_filter = [[1, 10]]
 
         assert matches_page_filter(1, page_filter) is True
         assert matches_page_filter(5, page_filter) is True
@@ -589,7 +588,7 @@ class TestMatchesPageFilter:
 
     def test_matches_page_filter_multiple_ranges(self):
         """Test multiple ranges"""
-        page_filter = {"pages": [[1, 10], [20, 30]]}
+        page_filter = [[1, 10], [20, 30]]
 
         assert matches_page_filter(5, page_filter) is True
         assert matches_page_filter(25, page_filter) is True
@@ -598,7 +597,7 @@ class TestMatchesPageFilter:
 
     def test_matches_page_filter_negative_range(self):
         """Test negative range with total_pages"""
-        page_filter = {"pages": [[-10, -1]]}
+        page_filter = [[-10, -1]]
         total_pages = 100
 
         # Last 10 pages: 91-100
@@ -610,7 +609,7 @@ class TestMatchesPageFilter:
 
     def test_matches_page_filter_last_page_only(self):
         """Test selecting only the last page"""
-        page_filter = {"pages": [[-1, -1]]}
+        page_filter = [[-1, -1]]
         total_pages = 100
 
         assert matches_page_filter(100, page_filter, total_pages) is True
@@ -619,7 +618,7 @@ class TestMatchesPageFilter:
 
     def test_matches_page_filter_mixed_ranges(self):
         """Test mixing positive and negative ranges"""
-        page_filter = {"pages": [[1, 10], [-5, -1]]}
+        page_filter = [[1, 10], [-5, -1]]
         total_pages = 100
 
         # First 10 pages
@@ -635,7 +634,7 @@ class TestMatchesPageFilter:
 
     def test_matches_page_filter_negative_range_exceeds_document(self):
         """Test negative range larger than document gets clamped"""
-        page_filter = {"pages": [[-100, -1]]}
+        page_filter = [[-100, -1]]
         total_pages = 10
 
         # Should clamp to all pages (1-10)
@@ -645,7 +644,7 @@ class TestMatchesPageFilter:
 
     def test_matches_page_filter_short_document_with_large_ranges(self):
         """Test edge case: 2-page document with filter [[1,5], [-5,-1]]"""
-        page_filter = {"pages": [[1, 5], [-5, -1]]}
+        page_filter = [[1, 5], [-5, -1]]
         total_pages = 2
 
         # Both pages should match (clamped to [1,2] for both ranges)
@@ -654,7 +653,7 @@ class TestMatchesPageFilter:
 
     def test_matches_page_filter_single_page_document_with_ranges(self):
         """Test edge case: 1-page document with various filters"""
-        page_filter = {"pages": [[1, 10], [-10, -1]]}
+        page_filter = [[1, 10], [-10, -1]]
         total_pages = 1
 
         # Only page 1 should match (all ranges clamp to [1,1])
@@ -662,7 +661,7 @@ class TestMatchesPageFilter:
 
     def test_matches_page_filter_even_pages(self):
         """Test 'even' string filter"""
-        page_filter = {"pages": "even"}
+        page_filter = "even"
 
         assert matches_page_filter(2, page_filter) is True
         assert matches_page_filter(4, page_filter) is True
@@ -673,7 +672,7 @@ class TestMatchesPageFilter:
 
     def test_matches_page_filter_odd_pages(self):
         """Test 'odd' string filter"""
-        page_filter = {"pages": "odd"}
+        page_filter = "odd"
 
         assert matches_page_filter(1, page_filter) is True
         assert matches_page_filter(3, page_filter) is True
@@ -684,14 +683,14 @@ class TestMatchesPageFilter:
 
     def test_matches_page_filter_case_insensitive_string(self):
         """Test case-insensitive string matching"""
-        assert matches_page_filter(2, {"pages": "EVEN"}) is True
-        assert matches_page_filter(2, {"pages": "Even"}) is True
-        assert matches_page_filter(1, {"pages": "ODD"}) is True
-        assert matches_page_filter(1, {"pages": "Odd"}) is True
+        assert matches_page_filter(2, "EVEN") is True
+        assert matches_page_filter(2, "Even") is True
+        assert matches_page_filter(1, "ODD") is True
+        assert matches_page_filter(1, "Odd") is True
 
     def test_matches_page_filter_invalid_string(self):
         """Test invalid string filter returns False"""
-        page_filter = {"pages": "invalid"}
+        page_filter = "invalid"
 
         # Should log error and return False
         assert matches_page_filter(1, page_filter) is False
@@ -700,13 +699,8 @@ class TestMatchesPageFilter:
     def test_matches_page_filter_invalid_format(self):
         """Test invalid filter format returns False"""
         # Integer instead of list or string
-        page_filter = {"pages": 123}
+        page_filter = 123
         assert matches_page_filter(1, page_filter) is False
-
-    def test_matches_page_filter_empty_pages_key(self):
-        """Test filter without 'pages' key returns True"""
-        page_filter = {"other_key": "value"}
-        assert matches_page_filter(1, page_filter) is True
 
 
 class TestSummarizationGlobalRateLimiting:
