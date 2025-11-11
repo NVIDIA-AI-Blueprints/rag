@@ -95,42 +95,42 @@ def _token_length(text: str) -> int:
 
 
 def matches_page_filter(
-    page_num: int, page_filter: dict | None, total_pages: int | None = None
+    page_num: int,
+    page_filter: list[list[int]] | str | None,
+    total_pages: int | None = None,
 ) -> bool:
     """Check if page number matches filter criteria.
 
     Args:
         page_num: Page number to check (1-indexed)
-        page_filter: Filter dict with 'pages' key (may contain negative indices)
+        page_filter: Filter specification - either list of ranges [[start,end],...] or string ('even'/'odd')
         total_pages: Total pages in document (required for negative index resolution)
 
     Returns:
         True if page matches filter, False otherwise
     """
-    if not page_filter or "pages" not in page_filter:
+    if not page_filter:
         return True
 
-    pages = page_filter["pages"]
-
     # Handle string filters: "even" or "odd"
-    if isinstance(pages, str):
-        pages_lower = pages.lower()
-        if pages_lower == "even":
+    if isinstance(page_filter, str):
+        page_filter_lower = page_filter.lower()
+        if page_filter_lower == "even":
             return page_num % 2 == 0
-        elif pages_lower == "odd":
+        elif page_filter_lower == "odd":
             return page_num % 2 != 0
         else:
             logger.error(
-                f"Invalid page filter string: '{pages}'. "
+                f"Invalid page filter string: '{page_filter}'. "
                 f"Allowed values: 'even', 'odd'. "
                 f"Please check your page_filter configuration."
             )
             return False
 
     # Handle ranges: [[1, 10], [20, 30]] or with negative indices [[-10, -1]]
-    if isinstance(pages, list):
+    if isinstance(page_filter, list):
         try:
-            for start, end in pages:
+            for start, end in page_filter:
                 # Resolve negative indices if total_pages provided
                 if total_pages is not None:
                     resolved_start = start if start > 0 else total_pages + start + 1
@@ -149,13 +149,13 @@ def matches_page_filter(
             logger.error(
                 f"Error processing page filter ranges: {e}. "
                 f"Expected format: [[start, end], ...]. "
-                f"Got: {pages}"
+                f"Got: {page_filter}"
             )
             return False
 
     # Invalid format
     logger.error(
-        f"Invalid page filter format: {type(pages).__name__}. "
+        f"Invalid page filter format: {type(page_filter).__name__}. "
         f"Allowed formats: list of ranges [[1,10],[20,30]] or string 'even'/'odd'. "
         f"Please check your page_filter configuration."
     )
@@ -229,7 +229,7 @@ async def release_global_summary_slot() -> None:
 async def generate_document_summaries(
     results: list[list[dict[str, str | dict]]],
     collection_name: str,
-    page_filter: dict[str, Any] | None = None,
+    page_filter: list[list[int]] | str | None = None,
     summarization_strategy: str | None = None,
 ) -> dict[str, Any]:
     """
@@ -238,7 +238,7 @@ async def generate_document_summaries(
     Args:
         results: NV-Ingest extraction results (nested list structure)
         collection_name: Collection name for status tracking
-        page_filter: Global page filter for all files
+        page_filter: Optional page filter - either list of ranges [[start,end],...] or string ('even'/'odd')
         summarization_strategy: Strategy for summarization ('single', 'hierarchical') or None for default iterative
 
     Returns:
@@ -278,7 +278,7 @@ async def generate_document_summaries(
     logger.info(f"Found {total_files} files to summarize")
 
     if page_filter:
-        logger.info(f"Global page filter: {page_filter.get('pages', page_filter)}")
+        logger.info(f"Global page filter: {page_filter}")
 
     if total_files == 0:
         logger.warning("No files to summarize")
@@ -338,7 +338,7 @@ async def _process_single_file_summary(
     collection_name: str,
     results: list[list[dict[str, str | dict]]],
     semaphore: asyncio.Semaphore,
-    page_filter: dict[str, Any] | None = None,
+    page_filter: list[list[int]] | str | None = None,
     summarization_strategy: str | None = None,
 ) -> dict[str, Any]:
     """
@@ -440,7 +440,7 @@ async def _prepare_single_document(
     result_element: dict[str, str | dict],
     results: list[list[dict[str, str | dict]]],
     collection_name: str,
-    page_filter: dict[str, Any] | None = None,
+    page_filter: list[list[int]] | str | None = None,
 ) -> Document:
     """Prepare document for summarization by loading content with optional page filtering.
 
@@ -448,7 +448,7 @@ async def _prepare_single_document(
         result_element: Single result element with file metadata
         results: Full results list to search for all chunks of this file
         collection_name: Collection name for metadata
-        page_filter: Optional page filter to apply
+        page_filter: Optional page filter - either list of ranges [[start,end],...] or string ('even'/'odd')
 
     Returns:
         LangChain document with full content and metadata
@@ -498,7 +498,7 @@ async def _prepare_single_document(
 
         if not pages_data:
             raise ValueError(
-                f"No content found for file '{file_name}' with page filter: {page_filter.get('pages')}"
+                f"No content found for file '{file_name}' with page filter: {page_filter}"
             )
 
     # Concatenate content - already in correct order from nv-ingest

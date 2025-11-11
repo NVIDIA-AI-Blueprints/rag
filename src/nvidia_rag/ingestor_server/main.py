@@ -708,7 +708,7 @@ class NvidiaRAGIngestor:
         self,
         results: list[list[dict[str, str | dict]]],
         collection_name: str,
-        page_filter: dict[str, Any] | None = None,
+        page_filter: list[list[int]] | str | None = None,
         summarization_strategy: str | None = None,
     ) -> None:
         """
@@ -717,7 +717,7 @@ class NvidiaRAGIngestor:
         Args:
             results: List of document extraction results from nv-ingest
             collection_name: Name of the collection
-            page_filter: Global page filter for all files
+            page_filter: Optional page filter - either list of ranges [[start,end],...] or string ('even'/'odd')
             summarization_strategy: Strategy for summarization ('single', 'hierarchical') or None for default
         """
         try:
@@ -1552,7 +1552,7 @@ class NvidiaRAGIngestor:
         filepaths: list[str],
         collection_name: str,
         split_options: dict[str, Any],
-        page_filter: dict[str, Any] | None,
+        page_filter: list[list[int]] | str | None,
         summarization_strategy: str | None,
         batch_num: int,
     ) -> set[str]:
@@ -1563,7 +1563,7 @@ class NvidiaRAGIngestor:
             filepaths: List of file paths to process
             collection_name: Name of the collection
             split_options: Options for splitting documents
-            page_filter: Page filter for summarization
+            page_filter: Optional page filter - either list of ranges [[start,end],...] or string ('even'/'odd')
             summarization_strategy: Strategy for summarization
             batch_num: Batch number for logging
 

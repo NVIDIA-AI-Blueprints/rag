@@ -420,7 +420,7 @@ class SummaryModule(BaseTestModule):
                 update_url = f"{self.ingestor_server_url}/v1/documents"
 
                 # Test 1: Multiple ranges with first 5 and last 5 pages (tests positive + negative ranges)
-                page_filter = {"pages": [[1, 5], [-5, -1]]}
+                page_filter = [[1, 5], [-5, -1]]
 
                 logger.info(
                     "📤 Testing filter: first 5 pages [1, 5] and last 5 pages [-5, -1]"
@@ -470,7 +470,7 @@ class SummaryModule(BaseTestModule):
                     )
 
                 # Test 2: String-based filter (odd pages)
-                page_filter_odd = {"pages": "odd"}
+                page_filter_odd = "odd"
 
                 logger.info("\n📤 Testing filter: odd pages")
 
@@ -699,7 +699,7 @@ class SummaryModule(BaseTestModule):
                 update_url = f"{self.ingestor_server_url}/v1/documents"
 
                 # Test shallow_summary=True with page filter for first 5 and last 5 pages
-                page_filter = {"pages": [[1, 5], [-5, -1]]}
+                page_filter = [[1, 5], [-5, -1]]
 
                 logger.info(
                     "📤 Uploading with shallow_summary=True and page_filter=[[1, 5], [-5, -1]]"
