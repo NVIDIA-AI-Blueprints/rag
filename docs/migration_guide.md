@@ -12,7 +12,7 @@ To navigate this page more easily, click the outline button at the top of the pa
 
 ## Migration Guide: v2.2.0 to v2.3.0
 
-This guide summarizes the key API changes and new features introduced in [NVIDIA RAG Blueprint](readme.md) v2.3.0. Update your integrations to take advantage of the new confidence threshold filtering capability and prepare for upcoming deprecations.
+This guide summarizes the key API changes and new features introduced in [NVIDIA RAG Blueprint](readme.md) v2.3.0. Update your integrations to take advantage of the new confidence threshold filtering capability, enhanced summarization features, and prepare for upcoming deprecations.
 
 ### API changes
 
@@ -23,6 +23,82 @@ This guide summarizes the key API changes and new features introduced in [NVIDIA
   - Default value is 0.0 (no filtering).
   - Valid range is 0.0 to 1.0 (inclusive).
   - When confidence threshold is set but reranker is disabled, a warning will be logged.
+
+### Enhanced Summarization Features (v2.3.0)
+
+The summarization API has been significantly enhanced with new capabilities:
+
+#### New `summary_options` Parameter
+
+In v2.2.0, only `generate_summary: bool` was available. v2.3.0 adds a new `summary_options` parameter with the following optional fields:
+
+- **`page_filter`**: Select specific pages to summarize
+  - Supports ranges: `[[1, 10], [20, 30]]` for specific page ranges
+  - Supports negative indexing: `[[-5, -1]]` for last 5 pages (Pythonic style)
+  - Supports even/odd filters: `"even"` or `"odd"` for pattern-based selection
+  
+- **`shallow_summary: bool`** (default: `false`)
+  - Set to `true` for 10x faster text-only extraction (skips OCR/tables/images)
+  - Set to `false` for full multimodal extraction
+  
+- **`summarization_strategy: str | null`** (default: `null`)
+  - `"single"`: Fastest - one-pass with truncation
+  - `"hierarchical"`: Balanced - parallel processing
+  - `null` or omit: Best quality - sequential refinement (iterative)
+
+**Example**:
+```json
+{
+  "collection_name": "my_collection",
+  "generate_summary": true,
+  "summary_options": {
+    "page_filter": [[1, 10], [-5, -1]],
+    "shallow_summary": true,
+    "summarization_strategy": "single"
+  }
+}
+```
+
+#### Updated Environment Variables
+
+**Token-based chunking** (changed from character-based):
+- `SUMMARY_LLM_MAX_CHUNK_LENGTH`: Now `9000` tokens (default)
+- `SUMMARY_CHUNK_OVERLAP`: Now `400` tokens (default)
+
+**New variable**:
+- `SUMMARY_MAX_PARALLELIZATION`: `20` (default) - Global rate limit for concurrent summaries
+
+**Action Required**:
+- If you've customized `SUMMARY_LLM_MAX_CHUNK_LENGTH` or `SUMMARY_CHUNK_OVERLAP`, adjust values from characters to tokens
+- Typical conversion: divide character count by ~4 for token estimate
+- The system now uses the same tokenizer as nv-ingest (`e5-large-unsupervised`) for consistency
+
+#### Migration Example
+
+**Before (v2.2.0)**:
+```python
+await ingestor.upload_documents(
+    collection_name="my_collection",
+    filepaths=["doc.pdf"],
+    generate_summary=True
+)
+```
+
+**After (v2.3.0)** - with new optional features:
+```python
+await ingestor.upload_documents(
+    collection_name="my_collection",
+    filepaths=["doc.pdf"],
+    generate_summary=True,
+    summary_options={
+        "page_filter": [[1, 10]],  # NEW: Select specific pages
+        "shallow_summary": True,  # NEW: Fast extraction
+        "summarization_strategy": "hierarchical"  # NEW: Balanced approach
+    }
+)
+```
+
+For complete details, see [Document Summarization](./summarization.md).
 
 
 
