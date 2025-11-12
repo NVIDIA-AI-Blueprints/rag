@@ -30,7 +30,6 @@ from nvidia_rag.utils.configuration import NvidiaRAGConfig
 logger = logging.getLogger(__name__)
 
 
-@lru_cache
 def _get_ranking_model(model="", url="", top_n=4, config: NvidiaRAGConfig | None = None) -> BaseDocumentCompressor:
     """Create the ranking model.
     
