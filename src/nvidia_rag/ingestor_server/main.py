@@ -242,6 +242,7 @@ class NvidiaRAGIngestor:
             collection_name=collection_name,
             filepaths=filepaths,
         )
+        vdb_op.create_document_info_collection()
 
         # Set default values for mutable arguments
         if split_options is None:
@@ -281,10 +282,12 @@ class NvidiaRAGIngestor:
                 )
                 # Update initial batch progress response to indicate that the ingestion has started
                 batch_progress_response = await self.__build_ingestion_response(
+                    results=[],
                     failures=[],
                     filepaths=[],
                     state_manager=state_manager,
                     is_final_batch=False,
+                    vdb_op=vdb_op,
                 )
                 ingestion_state = await state_manager.update_batch_progress(
                     batch_progress_response=batch_progress_response, is_batch_zero=True,
@@ -527,6 +530,7 @@ class NvidiaRAGIngestor:
                 filepaths=filepaths,
                 state_manager=state_manager,
                 is_final_batch=True,
+                vdb_op=vdb_op,
             )
             ingestion_state = await state_manager.update_total_progress(
                 total_progress_response=response_data,
@@ -567,6 +571,7 @@ class NvidiaRAGIngestor:
         filepaths: list[str] | None = None,
         is_final_batch: bool = True,
         state_manager: IngestionStateManager = None,
+        vdb_op: VDBRag = None,
     ) -> dict[str, Any]:
         """
         Builds the ingestion response dictionary.
@@ -601,6 +606,18 @@ class NvidiaRAGIngestor:
             if os.path.basename(filepath) not in failures_filepaths:
                 doc_type_counts, _, total_elements, raw_text_elements_size = \
                     self._get_document_type_counts([filename_to_result_map.get(os.path.basename(filepath))])
+                document_info = {
+                    "doc_type_counts": doc_type_counts,
+                    "total_elements": total_elements,
+                    "raw_text_elements_size": raw_text_elements_size,
+                }
+                if not is_final_batch:
+                    vdb_op.add_document_info(
+                        info_type="document",
+                        collection_name=state_manager.collection_name,
+                        document_name=os.path.basename(filepath),
+                        info_value=document_info,
+                    )
                 uploaded_document = {
                     # Generate a document_id from filename
                     "document_id": str(uuid4()),
@@ -613,11 +630,7 @@ class NvidiaRAGIngestor:
                         ).get("filename")
                         or os.path.basename(filepath),
                     },
-                    "document_info": {
-                        "doc_type_counts": doc_type_counts,
-                        "total_elements": total_elements,
-                        "raw_text_elements_size": raw_text_elements_size,
-                    }
+                    "document_info": document_info,
                 }
                 uploaded_documents.append(uploaded_document)
 
@@ -1080,6 +1093,7 @@ class NvidiaRAGIngestor:
                         for k, v in doc_item.get("metadata", {}).items()
                         if k in user_defined_fields
                     },
+                    "document_info": doc_item.get("document_info", {}),
                 }
                 for doc_item in documents_list
             ]
@@ -1480,6 +1494,7 @@ class NvidiaRAGIngestor:
                 filepaths=filepaths,
                 state_manager=state_manager,
                 is_final_batch=False,
+                vdb_op=vdb_op,
             )
             ingestion_state = await state_manager.update_batch_progress(
                 batch_progress_response=batch_progress_response,
@@ -1540,7 +1555,13 @@ class NvidiaRAGIngestor:
                 )
             )
             total_ingestion_time = time.time() - start_time
-            self._log_result_info(batch_number, results, failures, total_ingestion_time)
+            document_info = self._log_result_info(batch_number, results, failures, total_ingestion_time)
+            vdb_op.add_document_info(
+                info_type="collection",
+                collection_name=vdb_op.collection_name,
+                document_name="NA",
+                info_value=document_info,
+            )
             return results, failures
         else:
             pdf_filepaths, non_pdf_filepaths = await self.__split_pdf_and_non_pdf_files(
@@ -1572,7 +1593,7 @@ class NvidiaRAGIngestor:
                     )
                 )
                 total_ingestion_time = time.time() - start_time
-                self._log_result_info(
+                document_info = self._log_result_info(
                     batch_number,
                     results,
                     failures,
@@ -1603,7 +1624,7 @@ class NvidiaRAGIngestor:
                     )
                 )
                 total_ingestion_time = time.time() - start_time
-                self._log_result_info(
+                document_info = self._log_result_info(
                     batch_number,
                     results_non_pdf,
                     failures_non_pdf,
@@ -1612,6 +1633,13 @@ class NvidiaRAGIngestor:
                 )
                 results.extend(results_non_pdf)
                 failures.extend(failures_non_pdf)
+            
+            vdb_op.add_document_info(
+                info_type="collection",
+                collection_name=vdb_op.collection_name,
+                document_name="NA",
+                info_value=document_info,
+            )
 
             return results, failures
     
@@ -1638,7 +1666,7 @@ class NvidiaRAGIngestor:
                     .get("subtype", "")
                 )
                 if document_subtype:
-                    document_type_subtype = f"{document_type}({document_subtype})"
+                    document_type_subtype = f"{document_type}_{document_subtype}"
                 else:
                     document_type_subtype = document_type
                 doc_type_counts[document_type_subtype] += 1
@@ -1655,13 +1683,20 @@ class NvidiaRAGIngestor:
         failures: list[dict[str, Any]],
         total_ingestion_time: float,
         additional_summary: str = "",
-    ):
+    ) -> dict[str, Any]:
         """
         Log the results info with document type counts
+
+        Returns:
+            - dict[str, Any] - Document info
         """
         doc_type_counts, total_documents, total_elements, raw_text_elements_size = \
             self._get_document_type_counts(results)
-
+        document_info = {
+            "doc_type_counts": doc_type_counts,
+            "total_elements": total_elements,
+            "raw_text_elements_size": raw_text_elements_size,
+        }
         # Create summary string
         summary_parts = []
         for doc_type in doc_type_counts.keys():
@@ -1686,6 +1721,7 @@ class NvidiaRAGIngestor:
         logger.info(
             f"== Batch {batch_number} Ingestion completed in {total_ingestion_time:.2f} seconds • Summary: {summary} =="
         )
+        return document_info
 
     async def __get_failed_documents(
         self,

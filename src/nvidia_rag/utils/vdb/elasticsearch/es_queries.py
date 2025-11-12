@@ -101,3 +101,84 @@ def create_metadata_collection_mapping():
             }
         }
     }
+
+def create_document_info_collection_mapping():
+    """Generate Elasticsearch index mapping for document info collections."""
+    return {
+        "mappings": {
+            "properties": {
+                "collection_name": {
+                    "type": "keyword"  # or "text" depending on your search needs
+                },
+                "info_type": {
+                    "type": "keyword"  # or "text" depending on your search needs
+                },
+                "document_name": {
+                    "type": "keyword"  # or "text" depending on your search needs
+                },
+                "info_value": {
+                    "type": "object",  # For JSON-like structure
+                    "enabled": True,  # Set to False if you don't want to index its fields
+                },
+            }
+        }
+    }
+
+def get_delete_document_info_query(collection_name: str, document_name: str, info_type: str):
+    """
+    Create deletion query for removing document info by collection name, document name, and info type.
+    """
+    query_delete_document_info = {
+        "query": {
+            "bool": {
+                "must": [
+                    {"term": {"collection_name.keyword": collection_name}},
+                    {"term": {"document_name.keyword": document_name}},
+                    {"term": {"info_type.keyword": info_type}}
+                ]
+            }
+        }
+    }
+    return query_delete_document_info
+
+def get_collection_document_info_query(info_type: str, collection_name: str):
+    """
+    Create search query for retrieving document info by collection name and info type.
+    """
+    query_collection_document_info = {
+        "query": {
+            "bool": {
+                "must": [
+                    {"term": {"collection_name.keyword": collection_name}},
+                    {"term": {"info_type.keyword": info_type}}
+                ]
+            }
+        }
+    }
+    return query_collection_document_info
+
+def get_document_info_query(collection_name: str, document_name: str, info_type: str):
+    """
+    Create search query for retrieving document info by collection name, document name, and info type.
+    """
+    query_document_info = {
+        "query": {
+            "bool": {
+                "must": [
+                    {"term": {"collection_name.keyword": collection_name}},
+                    {"term": {"document_name.keyword": document_name}},
+                    {"term": {"info_type.keyword": info_type}}
+                ]
+            }
+        }
+    }
+    return query_document_info
+
+def get_delete_document_info_query_by_collection_name(collection_name: str):
+    """
+    Create deletion query for removing document info by collection name.
+    """
+    query_delete_document_info = {
+        "query": {"term": {"collection_name.keyword": collection_name}}
+    }
+    return query_delete_document_info

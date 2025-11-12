@@ -80,8 +80,20 @@ class TestNvidiaRAGIngestorCoverageImprovement:
 
         ingestor = NvidiaRAGIngestor(mode=LIBRARY_MODE)
 
+        # Create proper mock result structure
+        mock_results = [[{
+            "document_type": "text",
+            "metadata": {
+                "content": "test content",
+                "source_metadata": {
+                    "source_id": "test.txt"
+                },
+                "content_metadata": {}
+            }
+        }]]
+        
         with patch.object(ingestor, '_NvidiaRAGIngestor__prepare_vdb_op_and_collection_name') as mock_prepare:
-            with patch.object(ingestor, '_NvidiaRAGIngestor__nvingest_upload_doc', return_value=([[{"id": "doc1", "content": "test"}]], [])):
+            with patch.object(ingestor, '_NvidiaRAGIngestor__nvingest_upload_doc', return_value=(mock_results, [])):
                 with patch('os.path.exists', return_value=True):
                     with patch('os.path.isfile', return_value=True):
                         with patch.object(ingestor, 'validate_directory_traversal_attack'):
@@ -384,20 +396,45 @@ class TestNvidiaRAGIngestorCoverageImprovement:
             # Patch the instance's minio_operator directly
             ingestor.minio_operator = Mock()
 
+            # Create proper mock result structure for both files
+            mock_results = [
+                [{
+                    "document_type": "text",
+                    "metadata": {
+                        "content": "test content",
+                        "source_metadata": {
+                            "source_id": test_file1
+                        },
+                        "content_metadata": {}
+                    }
+                }],
+                [{
+                    "document_type": "text",
+                    "metadata": {
+                        "content": "test content",
+                        "source_metadata": {
+                            "source_id": test_file2
+                        },
+                        "content_metadata": {}
+                    }
+                }]
+            ]
+            
             with patch.object(ingestor, '_NvidiaRAGIngestor__prepare_vdb_op_and_collection_name', return_value=(mock_vdb_op, "test_collection")):
                 with patch.object(ingestor, '_validate_custom_metadata', return_value=(True, [])):
-                    with patch.object(ingestor, '_NvidiaRAGIngestor__nvingest_upload_doc', return_value=([["doc1", "doc2"]], [])):
-                        # Mock get_documents to return empty list initially (no existing documents)
-                        # and then return the uploaded documents after ingestion
-                        with patch.object(ingestor, 'get_documents', side_effect=[
-                            {"documents": []},  # First call - no existing documents
-                            {"documents": [{"document_name": "test1.txt"}, {"document_name": "test2.txt"}]}  # Second call - after ingestion
-                        ]):
-                            result = await ingestor.upload_documents(
-                                filepaths=[test_file1, test_file2],
-                                collection_name="test_collection",
-                                blocking=True
-                            )
+                    with patch.object(ingestor, '_NvidiaRAGIngestor__nvingest_upload_doc', return_value=(mock_results, [])):
+                        with patch('nvidia_rag.ingestor_server.main.MINIO_OPERATOR', Mock()):
+                            # Mock get_documents to return empty list initially (no existing documents)
+                            # and then return the uploaded documents after ingestion
+                            with patch.object(ingestor, 'get_documents', side_effect=[
+                                {"documents": []},  # First call - no existing documents
+                                {"documents": [{"document_name": "test1.txt"}, {"document_name": "test2.txt"}]}  # Second call - after ingestion
+                            ]):
+                                result = await ingestor.upload_documents(
+                                    filepaths=[test_file1, test_file2],
+                                    collection_name="test_collection",
+                                    blocking=True
+                                )
 
                             # Verify success response
                             assert result["message"] == "Document upload job successfully completed."

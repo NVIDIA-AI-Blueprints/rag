@@ -305,7 +305,9 @@ class UploadedCollection(BaseModel):
     metadata_schema: list[dict[str, Any]] = Field(
         [], description="Metadata schema of the collection."
     )
-
+    collection_info: dict[str, Any] = Field(
+        {}, description="Collection info of the collection."
+    )
 
 class CollectionListResponse(BaseModel):
     """Response model for uploading a document."""
