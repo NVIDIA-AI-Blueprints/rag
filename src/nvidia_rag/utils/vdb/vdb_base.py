@@ -134,6 +134,33 @@ class VDBRag(VDB):
         pass
 
     # ----------------------------------------------------------------------------------------------
+    # Methods for document info management
+    def create_document_info_collection(
+        self,
+    ) -> None:
+        """Create a document info collection."""
+        pass
+
+    def add_document_info(
+        self,
+        info_type: str,
+        collection_name: str,
+        document_name: str,
+        info_value: dict[str, Any],
+    ) -> None:
+        """Add document info to a collection."""
+        pass
+
+    def get_document_info(
+        self,
+        info_type: str,
+        collection_name: str,
+        document_name: str,
+    ) -> dict[str, Any]:
+        """Get document info from a collection."""
+        return {}
+
+    # ----------------------------------------------------------------------------------------------
     # Abstract methods for the VDBRag class for retrieval
     @abstractmethod
     def get_langchain_vectorstore(
