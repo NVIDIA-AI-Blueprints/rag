@@ -30,7 +30,6 @@ from nvidia_rag.utils.configuration import NvidiaRAGConfig
 logger = logging.getLogger(__name__)
 
 
-@lru_cache
 def get_embedding_model(model: str, url: str, config: NvidiaRAGConfig | None = None, truncate: str | None = "END") -> Embeddings:
     """Create the embedding model.
     

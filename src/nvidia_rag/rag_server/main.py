@@ -674,7 +674,7 @@ class NvidiaRAG:
                         "without the chat history. Do NOT answer the question, "
                         "just reformulate it if needed and otherwise return it as is."
                     )
-                    query_rewriter_prompt_config = prompts.get(
+                    query_rewriter_prompt_config = self.prompts.get(
                         "query_rewriter_prompt", {}
                     )
                     system_prompt = query_rewriter_prompt_config.get(
@@ -700,8 +700,8 @@ class NvidiaRAG:
                     )
                     q_prompt = (
                         contextualize_q_prompt
-                        | query_rewriter_llm
-                        | StreamingFilterThinkParser
+                        | self.query_rewriter_llm
+                        | self.StreamingFilterThinkParser
                         | StrOutputParser()
                     )
 
@@ -764,10 +764,10 @@ class NvidiaRAG:
                                         user_request=processed_query,
                                         collection_name=collection_name,
                                         metadata_schema=metadata_schema_data,
-                                        prompt_template=prompts.get(
+                                        prompt_template=self.prompts.get(
                                             "filter_expression_generator_prompt"
                                         ),
-                                        llm=filter_generator_llm,
+                                        llm=self.filter_generator_llm,
                                         existing_filter_expr=filter_expr,
                                     )
                                 )
@@ -1004,9 +1004,9 @@ class NvidiaRAG:
         """
 
         # Get the base template
-        system_prompt = prompts.get(template_key, {}).get("system", "")
+        system_prompt = self.prompts.get(template_key, {}).get("system", "")
         # Support both "human" and "user" keys with fallback
-        template_dict = prompts.get(template_key, {})
+        template_dict = self.prompts.get(template_key, {})
         user_prompt = template_dict.get("human", template_dict.get("user", ""))
         conversation_history = []
         user_message = []
@@ -1112,7 +1112,7 @@ class NvidiaRAG:
             llm = get_llm(config=self.config, **llm_settings)
 
             chain = (
-                prompt_template | llm | StreamingFilterThinkParser | StrOutputParser()
+                prompt_template | llm | self.StreamingFilterThinkParser | StrOutputParser()
             )
             # Create stream generator
             stream_gen = chain.stream(
@@ -1492,7 +1492,7 @@ class NvidiaRAG:
                         "without the chat history. Do NOT answer the question, "
                         "just reformulate it if needed and otherwise return it as is."
                     )
-                    query_rewriter_prompt_config = prompts.get(
+                    query_rewriter_prompt_config = self.prompts.get(
                         "query_rewriter_prompt", {}
                     )
                     system_prompt = query_rewriter_prompt_config.get(
@@ -1518,8 +1518,8 @@ class NvidiaRAG:
                     )
                     q_prompt = (
                         contextualize_q_prompt
-                        | query_rewriter_llm
-                        | StreamingFilterThinkParser
+                        | self.query_rewriter_llm
+                        | self.StreamingFilterThinkParser
                         | StrOutputParser()
                     )
                     # query to be used for document retrieval
@@ -1592,10 +1592,10 @@ class NvidiaRAG:
                                         user_request=processed_query,
                                         collection_name=collection_name,
                                         metadata_schema=metadata_schema_data,
-                                        prompt_template=prompts.get(
+                                        prompt_template=self.prompts.get(
                                             "filter_expression_generator_prompt"
                                         ),
-                                        llm=filter_generator_llm,
+                                        llm=self.filter_generator_llm,
                                         existing_filter_expr=filter_expr,
                                     )
                                 )
@@ -1894,7 +1894,7 @@ class NvidiaRAG:
                                     "VLM response validated and added to prompt: %s",
                                     vlm_response_stripped,
                                 )
-                                injection_tmpl = prompts.get(
+                                injection_tmpl = self.prompts.get(
                                     "vlm_response_injection_template",
                                     "The following is an answer generated by a Vision-Language Model (VLM) based solely on images cited in the context:\n---\n{vlm_response}\n---\nConsider this visual insight when answering the user's query, especially where the textual context is ambiguous or limited.",
                                 )
@@ -1959,7 +1959,7 @@ class NvidiaRAG:
             self.__print_conversation_history(message)
             prompt = ChatPromptTemplate.from_messages(message)
 
-            chain = prompt | llm | StreamingFilterThinkParser | StrOutputParser()
+            chain = prompt | llm | self.StreamingFilterThinkParser | StrOutputParser()
 
             # Check response groundedness if we still have reflection
             # iterations available

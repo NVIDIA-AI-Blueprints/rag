@@ -48,7 +48,6 @@ except ImportError:
     pass
 
 
-@lru_cache
 def get_prompts() -> dict:
     """Retrieves prompt configurations from YAML file and return a dict."""
 
@@ -88,8 +87,6 @@ def get_prompts() -> dict:
     return config
 
 
-@utils_cache
-@lru_cache
 def get_llm(config: NvidiaRAGConfig | None = None, **kwargs) -> LLM | SimpleChatModel:
     """Create the LLM connection.
     

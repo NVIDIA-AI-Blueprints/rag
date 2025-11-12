@@ -209,7 +209,7 @@ class NvidiaRAGIngestor:
         filepaths: list[str],
         blocking: bool = False,
         collection_name: str = None,
-        vdb_endpoint: str = self.config.vector_store.url,
+        vdb_endpoint: str = None,
         split_options: dict[str, Any] = None,
         custom_metadata: list[dict[str, Any]] = None,
         generate_summary: bool = False,
@@ -225,6 +225,9 @@ class NvidiaRAGIngestor:
             custom_metadata (List[Dict[str, Any]], optional): Custom metadata to add to documents. Defaults to empty list.
             additional_validation_errors (List[Dict[str, Any]] | None, optional): Additional validation errors to include in response. Defaults to None.
         """
+        # Apply default from config if not provided
+        if vdb_endpoint is None:
+            vdb_endpoint = self.config.vector_store.url
 
         state_manager = IngestionStateManager(
             filepaths=filepaths,
@@ -321,7 +324,7 @@ class NvidiaRAGIngestor:
         self,
         filepaths: list[str],
         collection_name: str = None,
-        vdb_endpoint: str = self.config.vector_store.url,
+        vdb_endpoint: str = None,
         vdb_op: VDBRag = None,
         split_options: dict[str, Any] = None,
         custom_metadata: list[dict[str, Any]] = None,
@@ -649,13 +652,17 @@ class NvidiaRAGIngestor:
         filepaths: list[str],
         blocking: bool = False,
         collection_name: str = None,
-        vdb_endpoint: str = self.config.vector_store.url,
+        vdb_endpoint: str = None,
         split_options: dict[str, Any] = None,
         custom_metadata: list[dict[str, Any]] = None,
         generate_summary: bool = False,
         additional_validation_errors: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         """Upload a document to the vector store. If the document already exists, it will be replaced."""
+        
+        # Apply default from config if not provided
+        if vdb_endpoint is None:
+            vdb_endpoint = self.config.vector_store.url
 
         # Set default values for mutable arguments
         if split_options is None:
@@ -748,13 +755,19 @@ class NvidiaRAGIngestor:
     def create_collection(
         self,
         collection_name: str = None,
-        vdb_endpoint: str = self.config.vector_store.url,
-        embedding_dimension: int = 2048,
+        vdb_endpoint: str = None,
+        embedding_dimension: int = None,
         metadata_schema: list[dict[str, str]] = None,
     ) -> str:
         """
         Main function called by ingestor server to create a new collection in vector-DB
         """
+        # Apply defaults from config if not provided
+        if vdb_endpoint is None:
+            vdb_endpoint = self.config.vector_store.url
+        if embedding_dimension is None:
+            embedding_dimension = self.config.embeddings.dimensions
+            
         vdb_op, collection_name = self.__prepare_vdb_op_and_collection_name(
             vdb_endpoint=vdb_endpoint,
             collection_name=collection_name,
@@ -827,13 +840,19 @@ class NvidiaRAGIngestor:
     def create_collections(
         self,
         collection_names: list[str],
-        vdb_endpoint: str = self.config.vector_store.url,
-        embedding_dimension: int = 2048,
+        vdb_endpoint: str = None,
+        embedding_dimension: int = None,
         collection_type: str = "text",
     ) -> dict[str, Any]:
         """
         Main function called by ingestor server to create new collections in vector-DB
         """
+        # Apply defaults from config if not provided
+        if vdb_endpoint is None:
+            vdb_endpoint = self.config.vector_store.url
+        if embedding_dimension is None:
+            embedding_dimension = self.config.embeddings.dimensions
+            
         vdb_op, _ = self.__prepare_vdb_op_and_collection_name(
             vdb_endpoint=vdb_endpoint,
             collection_name="",
@@ -894,11 +913,15 @@ class NvidiaRAGIngestor:
     def delete_collections(
         self,
         collection_names: list[str],
-        vdb_endpoint: str = self.config.vector_store.url,
+        vdb_endpoint: str = None,
     ) -> dict[str, Any]:
         """
         Main function called by ingestor server to delete collections in vector-DB
         """
+        # Apply default from config if not provided
+        if vdb_endpoint is None:
+            vdb_endpoint = self.config.vector_store.url
+            
         logger.info(f"Deleting collections {collection_names}")
 
         try:
@@ -940,7 +963,7 @@ class NvidiaRAGIngestor:
 
     def get_collections(
         self,
-        vdb_endpoint: str = self.config.vector_store.url,
+        vdb_endpoint: str = None,
     ) -> dict[str, Any]:
         """
         Main function called by ingestor server to get all collections in vector-DB.
@@ -951,6 +974,10 @@ class NvidiaRAGIngestor:
         Returns:
             Dict[str, Any]: A dictionary containing the collection list, message, and total count.
         """
+        # Apply default from config if not provided
+        if vdb_endpoint is None:
+            vdb_endpoint = self.config.vector_store.url
+            
         try:
             vdb_op, _ = self.__prepare_vdb_op_and_collection_name(
                 vdb_endpoint=vdb_endpoint,
@@ -990,7 +1017,7 @@ class NvidiaRAGIngestor:
     def get_documents(
         self,
         collection_name: str = None,
-        vdb_endpoint: str = self.config.vector_store.url,
+        vdb_endpoint: str = None,
         bypass_validation: bool = False,
     ) -> dict[str, Any]:
         """
@@ -1000,6 +1027,10 @@ class NvidiaRAGIngestor:
         Returns:
             Dict[str, Any]: Response containing a list of documents with metadata.
         """
+        # Apply default from config if not provided
+        if vdb_endpoint is None:
+            vdb_endpoint = self.config.vector_store.url
+            
         try:
             vdb_op, collection_name = self.__prepare_vdb_op_and_collection_name(
                 vdb_endpoint=vdb_endpoint,
@@ -1052,7 +1083,7 @@ class NvidiaRAGIngestor:
         self,
         document_names: list[str],
         collection_name: str = None,
-        vdb_endpoint: str = self.config.vector_store.url,
+        vdb_endpoint: str = None,
         include_upload_path: bool = False,
     ) -> dict[str, Any]:
         """Delete documents from the vector index.
@@ -1066,6 +1097,9 @@ class NvidiaRAGIngestor:
         Returns:
             Dict[str, Any]: Response containing a list of deleted documents with metadata.
         """
+        # Apply default from config if not provided
+        if vdb_endpoint is None:
+            vdb_endpoint = self.config.vector_store.url
 
         try:
             vdb_op, collection_name = self.__prepare_vdb_op_and_collection_name(
