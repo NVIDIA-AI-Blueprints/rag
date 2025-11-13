@@ -96,24 +96,9 @@ class VectorStoreConfig(_ConfigBase):
     password: str = Field(default="", env="APP_VECTORSTORE_PASSWORD", description="Password for vector store authentication")
 
     # API key authentication for vector store (used by Elasticsearch)
-    api_key: str = configfield(
-        "api_key",
-        env_name="APP_VECTORSTORE_APIKEY",
-        default="",
-        help_txt="API key for vector store authentication (base64 form 'id:secret')",
-    )
-    api_key_id: str = configfield(
-        "api_key_id",
-        env_name="APP_VECTORSTORE_APIKEY_ID",
-        default="",
-        help_txt="API key ID for vector store authentication",
-    )
-    api_key_secret: str = configfield(
-        "api_key_secret",
-        env_name="APP_VECTORSTORE_APIKEY_SECRET",
-        default="",
-        help_txt="API key secret for vector store authentication",
-    )
+    api_key: str = Field(default="", env="APP_VECTORSTORE_APIKEY", description="API key for vector store authentication (base64 form 'id:secret')")
+    api_key_id: str = Field(default="", env="APP_VECTORSTORE_APIKEY_ID", description="API key ID for vector store authentication")
+    api_key_secret: str = Field(default="", env="APP_VECTORSTORE_APIKEY_SECRET", description="API key secret for vector store authentication")
 
 
 class NvIngestConfig(_ConfigBase):
