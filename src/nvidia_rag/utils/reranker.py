@@ -30,9 +30,11 @@ from nvidia_rag.utils.configuration import NvidiaRAGConfig
 logger = logging.getLogger(__name__)
 
 
-def _get_ranking_model(model="", url="", top_n=4, config: NvidiaRAGConfig | None = None) -> BaseDocumentCompressor:
+def _get_ranking_model(
+    model="", url="", top_n=4, config: NvidiaRAGConfig | None = None
+) -> BaseDocumentCompressor:
     """Create the ranking model.
-    
+
     Args:
         model: Model name
         url: URL endpoint
@@ -79,9 +81,11 @@ def _get_ranking_model(model="", url="", top_n=4, config: NvidiaRAGConfig | None
     )
 
 
-def get_ranking_model(model="", url="", top_n=4, config: NvidiaRAGConfig | None = None) -> BaseDocumentCompressor:
+def get_ranking_model(
+    model="", url="", top_n=4, config: NvidiaRAGConfig | None = None
+) -> BaseDocumentCompressor:
     """Create the ranking model.
-    
+
     Args:
         model: Model name
         url: URL endpoint

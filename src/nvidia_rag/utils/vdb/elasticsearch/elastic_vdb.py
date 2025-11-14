@@ -50,7 +50,7 @@ Retrieval Operations:
 import logging
 import os
 import time
-from typing import Any, Optional, Tuple, Union
+from typing import Any
 
 import pandas as pd
 from elasticsearch import Elasticsearch
@@ -96,11 +96,11 @@ class ElasticVDB(VDBRag):
         self.config = config or NvidiaRAGConfig()
         self.index_name = index_name
         self.es_url = es_url
-        
+
         # Resolve authentication from config
         # Prefer API key auth when provided; otherwise fall back to basic auth.
-        resolved_api_key: Optional[Union[str, Tuple[str, str]]] = None
-        resolved_basic_auth: Optional[Tuple[str, str]] = None
+        resolved_api_key: str | tuple[str, str] | None = None
+        resolved_basic_auth: tuple[str, str] | None = None
 
         # Resolve API key from config
         if self.config.vector_store.api_key:

@@ -246,10 +246,12 @@ def is_nvidia_api_catalog_url(url: str) -> bool:
     )
 
 
-async def check_all_services_health(vdb_op: VDBRag, config: NvidiaRAGConfig | None = None) -> dict[str, list[dict[str, Any]]]:
+async def check_all_services_health(
+    vdb_op: VDBRag, config: NvidiaRAGConfig | None = None
+) -> dict[str, list[dict[str, Any]]]:
     """
     Check health of all services used by the ingestor server
-    
+
     Args:
         vdb_op: Vector database operation instance
         config: NvidiaRAGConfig instance. If None, creates a new one.
@@ -474,10 +476,12 @@ def print_health_report(health_results: dict[str, list[dict[str, Any]]]) -> None
     logger.info("=============================================")
 
 
-async def check_and_print_services_health(vdb_op: VDBRag, config: NvidiaRAGConfig | None = None):
+async def check_and_print_services_health(
+    vdb_op: VDBRag, config: NvidiaRAGConfig | None = None
+):
     """
     Check health of all services and print a report
-    
+
     Args:
         vdb_op: Vector database operation instance
         config: NvidiaRAGConfig instance. If None, creates a new one.

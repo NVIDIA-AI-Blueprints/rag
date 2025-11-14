@@ -93,8 +93,6 @@ def filter_documents_by_confidence(
     return filtered_documents
 
 
-
-
 def utils_cache(func: Callable) -> Callable:
     """Use this to convert unhashable args to hashable ones"""
 
@@ -111,8 +109,6 @@ def utils_cache(func: Callable) -> Callable:
         return func(*args_hashable, **kwargs_hashable)
 
     return wrapper
-
-
 
 
 def combine_dicts(dict_a: dict[str, Any], dict_b: dict[str, Any]) -> dict[str, Any]:

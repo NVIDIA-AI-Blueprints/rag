@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 def get_nv_ingest_client(config: NvidiaRAGConfig = None):
     """
     Creates and returns NV-Ingest client
-    
+
     Args:
         config: NvidiaRAGConfig instance. If None, creates a new one.
     """
@@ -59,13 +59,13 @@ def get_nv_ingest_ingestor(
 ):
     """
     Creates and returns NV-Ingest ingestor with configured tasks.
-    
+
     Args:
         nv_ingest_client_instance: NV-Ingest client instance
         filepaths: List of file paths to ingest
         split_options: Split options for document chunking
         vdb_op: Vector database operator instance
-        remove_extract_method: Whether to remove extract method  
+        remove_extract_method: Whether to remove extract method
         config: NvidiaRAGConfig instance. If None, creates a new one.
     """
     if config is None:
@@ -147,7 +147,9 @@ def get_nv_ingest_ingestor(
         )
 
     # Add Embedding task
-    enable_nv_ingest_vdb_upload = True  # When enabled entire ingestion would be performed using nv-ingest
+    enable_nv_ingest_vdb_upload = (
+        True  # When enabled entire ingestion would be performed using nv-ingest
+    )
     if enable_nv_ingest_vdb_upload:
         embedding_url = sanitize_nim_url(
             config.embeddings.server_url, config.embeddings.model_name, "embedding"

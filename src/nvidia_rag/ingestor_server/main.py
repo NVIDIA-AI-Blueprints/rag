@@ -104,7 +104,7 @@ class NvidiaRAGIngestor:
         config: NvidiaRAGConfig | None = None,
     ):
         """Initialize NvidiaRAGIngestor with configuration.
-        
+
         Args:
             vdb_op: Optional vector database operator
             mode: Operating mode (library or server)
@@ -117,11 +117,11 @@ class NvidiaRAGIngestor:
         self.mode = mode
         self.vdb_op = vdb_op
         self.config = config or NvidiaRAGConfig()
-        
+
         # Initialize instance-based clients
         self.nv_ingest_client = get_nv_ingest_client(self.config)
         self.minio_operator = get_minio_operator(config=self.config)
-        
+
         # Ensure default bucket exists (idempotent operation)
         try:
             self.minio_operator._make_bucket(bucket_name="a-bucket")
@@ -659,7 +659,7 @@ class NvidiaRAGIngestor:
         additional_validation_errors: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         """Upload a document to the vector store. If the document already exists, it will be replaced."""
-        
+
         # Apply default from config if not provided
         if vdb_endpoint is None:
             vdb_endpoint = self.config.vector_store.url
@@ -767,7 +767,7 @@ class NvidiaRAGIngestor:
             vdb_endpoint = self.config.vector_store.url
         if embedding_dimension is None:
             embedding_dimension = self.config.embeddings.dimensions
-            
+
         vdb_op, collection_name = self.__prepare_vdb_op_and_collection_name(
             vdb_endpoint=vdb_endpoint,
             collection_name=collection_name,
@@ -852,7 +852,7 @@ class NvidiaRAGIngestor:
             vdb_endpoint = self.config.vector_store.url
         if embedding_dimension is None:
             embedding_dimension = self.config.embeddings.dimensions
-            
+
         vdb_op, _ = self.__prepare_vdb_op_and_collection_name(
             vdb_endpoint=vdb_endpoint,
             collection_name="",
@@ -921,7 +921,7 @@ class NvidiaRAGIngestor:
         # Apply default from config if not provided
         if vdb_endpoint is None:
             vdb_endpoint = self.config.vector_store.url
-            
+
         logger.info(f"Deleting collections {collection_names}")
 
         try:
@@ -933,8 +933,12 @@ class NvidiaRAGIngestor:
             response = vdb_op.delete_collections(collection_names)
             # Delete citation metadata from Minio
             for collection in collection_names:
-                collection_prefix = get_unique_thumbnail_id_collection_prefix(collection)
-                delete_object_names = self.minio_operator.list_payloads(collection_prefix)
+                collection_prefix = get_unique_thumbnail_id_collection_prefix(
+                    collection
+                )
+                delete_object_names = self.minio_operator.list_payloads(
+                    collection_prefix
+                )
                 self.minio_operator.delete_payloads(delete_object_names)
 
             # Delete document summary from Minio
@@ -942,7 +946,9 @@ class NvidiaRAGIngestor:
                 collection_prefix = get_unique_thumbnail_id_collection_prefix(
                     f"summary_{collection}"
                 )
-                delete_object_names = self.minio_operator.list_payloads(collection_prefix)
+                delete_object_names = self.minio_operator.list_payloads(
+                    collection_prefix
+                )
                 if len(delete_object_names):
                     self.minio_operator.delete_payloads(delete_object_names)
                     logger.info(
@@ -977,7 +983,7 @@ class NvidiaRAGIngestor:
         # Apply default from config if not provided
         if vdb_endpoint is None:
             vdb_endpoint = self.config.vector_store.url
-            
+
         try:
             vdb_op, _ = self.__prepare_vdb_op_and_collection_name(
                 vdb_endpoint=vdb_endpoint,
@@ -1030,7 +1036,7 @@ class NvidiaRAGIngestor:
         # Apply default from config if not provided
         if vdb_endpoint is None:
             vdb_endpoint = self.config.vector_store.url
-            
+
         try:
             vdb_op, collection_name = self.__prepare_vdb_op_and_collection_name(
                 vdb_endpoint=vdb_endpoint,
@@ -1141,7 +1147,9 @@ class NvidiaRAGIngestor:
                     filename_prefix = get_unique_thumbnail_id_file_name_prefix(
                         collection_name, doc
                     )
-                    delete_object_names = self.minio_operator.list_payloads(filename_prefix)
+                    delete_object_names = self.minio_operator.list_payloads(
+                        filename_prefix
+                    )
                     self.minio_operator.delete_payloads(delete_object_names)
 
                 # Delete document summary from Minio
@@ -1149,7 +1157,9 @@ class NvidiaRAGIngestor:
                     filename_prefix = get_unique_thumbnail_id_file_name_prefix(
                         f"summary_{collection_name}", doc
                     )
-                    delete_object_names = self.minio_operator.list_payloads(filename_prefix)
+                    delete_object_names = self.minio_operator.list_payloads(
+                        filename_prefix
+                    )
                     if len(delete_object_names):
                         self.minio_operator.delete_payloads(delete_object_names)
                         logger.info(f"Deleted summary for doc: {doc} from Minio")
@@ -1235,7 +1245,9 @@ class NvidiaRAGIngestor:
         else:
             logger.info(f"Sequentially uploading {len(payloads)} payloads to MinIO")
             for payload, object_name in zip(payloads, object_names, strict=False):
-                self.minio_operator.put_payload(payload=payload, object_name=object_name)
+                self.minio_operator.put_payload(
+                    payload=payload, object_name=object_name
+                )
 
     async def __nvingest_upload_doc(
         self,
@@ -1285,8 +1297,12 @@ class NvidiaRAGIngestor:
                 logger.info("Processing batches sequentially")
                 all_results = []
                 all_failures = []
-                for i in range(0, len(filepaths), self.config.nv_ingest.files_per_batch):
-                    sub_filepaths = filepaths[i : i + self.config.nv_ingest.files_per_batch]
+                for i in range(
+                    0, len(filepaths), self.config.nv_ingest.files_per_batch
+                ):
+                    sub_filepaths = filepaths[
+                        i : i + self.config.nv_ingest.files_per_batch
+                    ]
                     batch_num = i // self.config.nv_ingest.files_per_batch + 1
                     logger.info(
                         f"=== Batch Processing Status - Collection: {collection_name} - "
@@ -1346,8 +1362,12 @@ class NvidiaRAGIngestor:
                             state_manager=state_manager,
                         )
 
-                for i in range(0, len(filepaths), self.config.nv_ingest.files_per_batch):
-                    sub_filepaths = filepaths[i : i + self.config.nv_ingest.files_per_batch]
+                for i in range(
+                    0, len(filepaths), self.config.nv_ingest.files_per_batch
+                ):
+                    sub_filepaths = filepaths[
+                        i : i + self.config.nv_ingest.files_per_batch
+                    ]
                     batch_num = i // self.config.nv_ingest.files_per_batch + 1
                     task = process_batch(sub_filepaths, batch_num)
                     tasks.append(task)
