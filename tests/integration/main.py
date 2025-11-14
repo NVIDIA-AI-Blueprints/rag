@@ -624,7 +624,7 @@ Examples:
     parser.add_argument(
         "--timeout",
         type=int,
-        default=300,
+        default=500,
         help="Timeout for task completion in seconds (default: 300)",
     )
 
