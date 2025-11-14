@@ -2,7 +2,14 @@ name: CI Pipeline
 
 # Workflow control - mirroring GitLab workflow rules
 on:
+  # Run on PRs (including forks) - safe jobs without secrets run for all, secret jobs only for same-repo PRs
   pull_request:
+    branches:
+      - develop
+  # Run full pipeline after merge to develop
+  push:
+    branches:
+      - develop
   workflow_dispatch:
   schedule:
     # Run nightly at 7.30 PM UTC or 1 AM IST
@@ -23,6 +30,8 @@ jobs:
   helm-blueprint-compliance:
     name: Helm Blueprint Compliance
     runs-on: ubuntu-latest
+    # Only run if push to develop OR PR from same repo (not fork) - needs secrets
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' || github.event.pull_request.head.repo.full_name == github.repository
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -157,6 +166,8 @@ jobs:
   integration-tests:
     name: Integration Tests
     runs-on: ubuntu-latest
+    # Only run if push to develop OR PR from same repo (not fork) - needs secrets
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' || github.event.pull_request.head.repo.full_name == github.repository
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
