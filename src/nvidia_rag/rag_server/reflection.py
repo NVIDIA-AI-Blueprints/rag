@@ -41,8 +41,8 @@ from langchain_core.prompts.chat import ChatPromptTemplate
 from langchain_core.runnables import RunnableAssign
 from opentelemetry import context as otel_context
 
-from nvidia_rag.utils.llm import get_llm, get_prompts
 from nvidia_rag.utils.configuration import NvidiaRAGConfig
+from nvidia_rag.utils.llm import get_llm, get_prompts
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
 
 logger = logging.getLogger(__name__)
@@ -141,7 +141,7 @@ def check_context_relevance(
     """
     if config is None:
         config = NvidiaRAGConfig()
-    
+
     # Use reflection config
     relevance_threshold = config.reflection.context_relevance_threshold
     reflection_llm_name = config.reflection.model_name
@@ -297,7 +297,7 @@ def check_response_groundedness(
     """
     if config is None:
         config = NvidiaRAGConfig()
-    
+
     # Use reflection config
     groundedness_threshold = config.reflection.response_groundedness_threshold
     reflection_llm_name = config.reflection.model_name

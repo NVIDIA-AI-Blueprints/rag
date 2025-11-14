@@ -621,7 +621,9 @@ class MilvusVDB(Milvus, VDBRag):
             )
         elif self.config.vector_store.search_type == "dense":
             search_params.update({"nprobe": self.config.vector_store.nprobe})
-            logger.debug("Index type for milvus: %s", self.config.vector_store.index_type)
+            logger.debug(
+                "Index type for milvus: %s", self.config.vector_store.index_type
+            )
             vectorstore = LangchainMilvus(
                 self.embedding_model,
                 connection_args={
@@ -661,7 +663,7 @@ class MilvusVDB(Milvus, VDBRag):
         """Retrieve documents from a collection using langchain for image query.
 
         Returns LangChain Document objects with metadata and collection name.
-        
+
         Note: Uses the embedding_model that was provided during initialization.
         """
         if vectorstore is None:

@@ -35,7 +35,7 @@ def _get_vdb_op(
 ):
     """
     Get VDBRag class object based on configuration.
-    
+
     Args:
         vdb_endpoint: Vector database endpoint URL
         collection_name: Name of the collection
@@ -47,7 +47,7 @@ def _get_vdb_op(
     """
     if config is None:
         config = NvidiaRAGConfig()
-        
+
     # Get metadata configuration
     csv_file_path, meta_source_field, meta_fields = get_metadata_configuration(
         collection_name=collection_name,

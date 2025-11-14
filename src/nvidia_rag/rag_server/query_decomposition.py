@@ -83,10 +83,10 @@ def normalize_relevance_scores(
     """
     if config is None:
         config = NvidiaRAGConfig()
-    
+
     if confidence_threshold is None:
         confidence_threshold = config.default_confidence_threshold
-    
+
     import math
 
     if not documents:
@@ -273,7 +273,7 @@ def retrieve_and_rank_documents(
     """
     if config is None:
         config = NvidiaRAGConfig()
-    
+
     # Apply defaults from config
     if collection_name is None:
         collection_name = config.vector_store.default_collection_name
@@ -281,7 +281,7 @@ def retrieve_and_rank_documents(
         top_k = config.retriever.top_k
     if ranker_top_k is None:
         ranker_top_k = config.retriever.top_k
-    
+
     otel_ctx = otel_context.get_current()
     retrieved_docs = vdb_op.retrieval_langchain(
         query=query,
@@ -428,7 +428,7 @@ def process_subqueries(
     """
     if config is None:
         config = NvidiaRAGConfig()
-    
+
     # Apply defaults from config
     if collection_name is None:
         collection_name = config.vector_store.default_collection_name
@@ -438,7 +438,7 @@ def process_subqueries(
         ranker_top_k = config.retriever.top_k
     if confidence_threshold is None:
         confidence_threshold = config.default_confidence_threshold
-    
+
     if history is None:
         history = []
 
@@ -559,7 +559,7 @@ def iterative_query_decomposition(
 ):
     """
     Decompose a complex query into simpler subqueries and generate a comprehensive answer.
-    
+
     Args:
         query: User's question
         history: Conversation history
@@ -594,7 +594,7 @@ def iterative_query_decomposition(
     """
     if config is None:
         config = NvidiaRAGConfig()
-    
+
     # Apply defaults from config
     if recursion_depth is None:
         recursion_depth = config.query_decomposition.recursion_depth
@@ -606,7 +606,7 @@ def iterative_query_decomposition(
         ranker_top_k = config.retriever.top_k
     if confidence_threshold is None:
         confidence_threshold = config.default_confidence_threshold
-    
+
     logger.info(f"Starting query decomposition for: '{query[:100]}...'")
 
     if not vdb_op:
@@ -629,7 +629,14 @@ def iterative_query_decomposition(
 
         # Retrieve and rank documents for the single query
         retrieved_docs = retrieve_and_rank_documents(
-            single_query, query, vdb_op, ranker, collection_name, top_k, ranker_top_k, config
+            single_query,
+            query,
+            vdb_op,
+            ranker,
+            collection_name,
+            top_k,
+            ranker_top_k,
+            config,
         )
 
         # Normalize relevance scores if reranker is used

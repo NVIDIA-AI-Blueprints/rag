@@ -70,7 +70,7 @@ default_max_tokens = model_params["max_tokens"]
 default_temperature = model_params["temperature"]
 default_top_p = model_params["top_p"]
 
-logger.debug(f"Default LLM parameters:")
+logger.debug("Default LLM parameters:")
 logger.debug(f"  min_tokens: {default_min_tokens}")
 logger.debug(f"  ignore_eos: {default_ignore_eos}")
 logger.debug(f"  max_tokens: {default_max_tokens}")

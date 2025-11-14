@@ -110,7 +110,7 @@ class NvidiaRAG:
         vdb_op: VDBRag = None,
     ):
         """Initialize NvidiaRAG with configuration.
-        
+
         Args:
             config: Configuration object. If None, loads from environment.
             vdb_op: Optional vector database operator. If None, will be created as needed.
@@ -125,17 +125,17 @@ class NvidiaRAG:
                     "vdb_op must be an instance of nvidia_rag.utils.vdb.vdb_base.VDBRag. "
                     "Please make sure all the required methods are implemented."
                 )
-        
+
         # Initialize models and utilities from config
         logger.info("Initializing NvidiaRAG models...")
-        
+
         # Default embedding model
         self.document_embedder = get_embedding_model(
             model=self.config.embeddings.model_name,
             url=self.config.embeddings.server_url,
             config=self.config,
         )
-        
+
         # Default ranker
         self.ranker = get_ranking_model(
             model=self.config.ranking.model_name,
@@ -143,7 +143,7 @@ class NvidiaRAG:
             top_n=self.config.retriever.top_k,
             config=self.config,
         )
-        
+
         # Query rewriter LLM
         query_rewriter_llm_config = {"temperature": 0, "top_p": 0.1}
         logger.info(
@@ -158,7 +158,7 @@ class NvidiaRAG:
             llm_endpoint=self.config.query_rewriter.server_url,
             **query_rewriter_llm_config,
         )
-        
+
         # Filter expression generator LLM
         filter_generator_llm_config = {
             "temperature": self.config.filter_expression_generator.temperature,
@@ -171,12 +171,12 @@ class NvidiaRAG:
             llm_endpoint=self.config.filter_expression_generator.server_url,
             **filter_generator_llm_config,
         )
-        
+
         # Load prompts and other utilities
         self.prompts = get_prompts()
         self.vdb_top_k = int(self.config.retriever.vdb_top_k)
         self.StreamingFilterThinkParser = get_streaming_filter_think_parser()
-        
+
         logger.info("NvidiaRAG initialization complete")
 
     @staticmethod
@@ -337,27 +337,85 @@ class NvidiaRAG:
         """
         # Apply defaults from config for None values
         model_params = self.config.llm.get_model_parameters()
-        temperature = temperature if temperature is not None else model_params["temperature"]
+        temperature = (
+            temperature if temperature is not None else model_params["temperature"]
+        )
         top_p = top_p if top_p is not None else model_params["top_p"]
-        min_tokens = min_tokens if min_tokens is not None else model_params["min_tokens"]
-        ignore_eos = ignore_eos if ignore_eos is not None else model_params["ignore_eos"]
-        max_tokens = max_tokens if max_tokens is not None else model_params["max_tokens"]
-        reranker_top_k = reranker_top_k if reranker_top_k is not None else self.config.retriever.top_k
-        vdb_top_k = vdb_top_k if vdb_top_k is not None else self.config.retriever.vdb_top_k
-        enable_query_rewriting = enable_query_rewriting if enable_query_rewriting is not None else self.config.query_rewriter.enable_query_rewriter
-        enable_reranker = enable_reranker if enable_reranker is not None else self.config.ranking.enable_reranker
-        enable_guardrails = enable_guardrails if enable_guardrails is not None else self.config.enable_guardrails
-        enable_citations = enable_citations if enable_citations is not None else self.config.enable_citations
-        enable_vlm_inference = enable_vlm_inference if enable_vlm_inference is not None else self.config.enable_vlm_inference
-        enable_filter_generator = enable_filter_generator if enable_filter_generator is not None else self.config.filter_expression_generator.enable_filter_generator
+        min_tokens = (
+            min_tokens if min_tokens is not None else model_params["min_tokens"]
+        )
+        ignore_eos = (
+            ignore_eos if ignore_eos is not None else model_params["ignore_eos"]
+        )
+        max_tokens = (
+            max_tokens if max_tokens is not None else model_params["max_tokens"]
+        )
+        reranker_top_k = (
+            reranker_top_k
+            if reranker_top_k is not None
+            else self.config.retriever.top_k
+        )
+        vdb_top_k = (
+            vdb_top_k if vdb_top_k is not None else self.config.retriever.vdb_top_k
+        )
+        enable_query_rewriting = (
+            enable_query_rewriting
+            if enable_query_rewriting is not None
+            else self.config.query_rewriter.enable_query_rewriter
+        )
+        enable_reranker = (
+            enable_reranker
+            if enable_reranker is not None
+            else self.config.ranking.enable_reranker
+        )
+        enable_guardrails = (
+            enable_guardrails
+            if enable_guardrails is not None
+            else self.config.enable_guardrails
+        )
+        enable_citations = (
+            enable_citations
+            if enable_citations is not None
+            else self.config.enable_citations
+        )
+        enable_vlm_inference = (
+            enable_vlm_inference
+            if enable_vlm_inference is not None
+            else self.config.enable_vlm_inference
+        )
+        enable_filter_generator = (
+            enable_filter_generator
+            if enable_filter_generator is not None
+            else self.config.filter_expression_generator.enable_filter_generator
+        )
         model = model if model is not None else self.config.llm.model_name
-        llm_endpoint = llm_endpoint if llm_endpoint is not None else self.config.llm.server_url
-        reranker_model = reranker_model if reranker_model is not None else self.config.ranking.model_name
-        reranker_endpoint = reranker_endpoint if reranker_endpoint is not None else self.config.ranking.server_url
+        llm_endpoint = (
+            llm_endpoint if llm_endpoint is not None else self.config.llm.server_url
+        )
+        reranker_model = (
+            reranker_model
+            if reranker_model is not None
+            else self.config.ranking.model_name
+        )
+        reranker_endpoint = (
+            reranker_endpoint
+            if reranker_endpoint is not None
+            else self.config.ranking.server_url
+        )
         vlm_model = vlm_model if vlm_model is not None else self.config.vlm.model_name
-        vlm_endpoint = vlm_endpoint if vlm_endpoint is not None else self.config.vlm.server_url
-        enable_query_decomposition = enable_query_decomposition if enable_query_decomposition is not None else self.config.query_decomposition.enable_query_decomposition
-        confidence_threshold = confidence_threshold if confidence_threshold is not None else self.config.default_confidence_threshold
+        vlm_endpoint = (
+            vlm_endpoint if vlm_endpoint is not None else self.config.vlm.server_url
+        )
+        enable_query_decomposition = (
+            enable_query_decomposition
+            if enable_query_decomposition is not None
+            else self.config.query_decomposition.enable_query_decomposition
+        )
+        confidence_threshold = (
+            confidence_threshold
+            if confidence_threshold is not None
+            else self.config.default_confidence_threshold
+        )
 
         vdb_op = self.__prepare_vdb_op(
             vdb_endpoint=vdb_endpoint,
@@ -497,14 +555,44 @@ class NvidiaRAG:
         )
 
         # Apply defaults from config for None values
-        reranker_top_k = reranker_top_k if reranker_top_k is not None else self.config.retriever.top_k
-        vdb_top_k = vdb_top_k if vdb_top_k is not None else self.config.retriever.vdb_top_k
-        enable_query_rewriting = enable_query_rewriting if enable_query_rewriting is not None else self.config.query_rewriter.enable_query_rewriter
-        enable_reranker = enable_reranker if enable_reranker is not None else self.config.ranking.enable_reranker
-        enable_filter_generator = enable_filter_generator if enable_filter_generator is not None else self.config.filter_expression_generator.enable_filter_generator
-        reranker_model = reranker_model if reranker_model is not None else self.config.ranking.model_name
-        reranker_endpoint = reranker_endpoint if reranker_endpoint is not None else self.config.ranking.server_url
-        confidence_threshold = confidence_threshold if confidence_threshold is not None else self.config.default_confidence_threshold
+        reranker_top_k = (
+            reranker_top_k
+            if reranker_top_k is not None
+            else self.config.retriever.top_k
+        )
+        vdb_top_k = (
+            vdb_top_k if vdb_top_k is not None else self.config.retriever.vdb_top_k
+        )
+        enable_query_rewriting = (
+            enable_query_rewriting
+            if enable_query_rewriting is not None
+            else self.config.query_rewriter.enable_query_rewriter
+        )
+        enable_reranker = (
+            enable_reranker
+            if enable_reranker is not None
+            else self.config.ranking.enable_reranker
+        )
+        enable_filter_generator = (
+            enable_filter_generator
+            if enable_filter_generator is not None
+            else self.config.filter_expression_generator.enable_filter_generator
+        )
+        reranker_model = (
+            reranker_model
+            if reranker_model is not None
+            else self.config.ranking.model_name
+        )
+        reranker_endpoint = (
+            reranker_endpoint
+            if reranker_endpoint is not None
+            else self.config.ranking.server_url
+        )
+        confidence_threshold = (
+            confidence_threshold
+            if confidence_threshold is not None
+            else self.config.default_confidence_threshold
+        )
 
         vdb_op = self.__prepare_vdb_op(
             vdb_endpoint=vdb_endpoint,
@@ -613,7 +701,10 @@ class NvidiaRAG:
                 def process_filter_for_collection(collection_name):
                     metadata_schema_data = metadata_schemas.get(collection_name)
                     processed_filter_expr = process_filter_expr(
-                        filter_expr, collection_name, metadata_schema_data, config=self.config
+                        filter_expr,
+                        collection_name,
+                        metadata_schema_data,
+                        config=self.config,
                     )
                     logger.debug(
                         f"Filter expression processed for collection '{collection_name}': '{filter_expr}' -> '{processed_filter_expr}'"
@@ -634,7 +725,10 @@ class NvidiaRAG:
 
             docs = []
             local_ranker = get_ranking_model(
-                model=reranker_model, url=reranker_endpoint, top_n=reranker_top_k, config=self.config
+                model=reranker_model,
+                url=reranker_endpoint,
+                top_n=reranker_top_k,
+                config=self.config,
             )
             top_k = vdb_top_k if local_ranker and enable_reranker else reranker_top_k
             logger.info("Setting top k as: %s.", top_k)
@@ -1112,7 +1206,10 @@ class NvidiaRAG:
             llm = get_llm(config=self.config, **llm_settings)
 
             chain = (
-                prompt_template | llm | self.StreamingFilterThinkParser | StrOutputParser()
+                prompt_template
+                | llm
+                | self.StreamingFilterThinkParser
+                | StrOutputParser()
             )
             # Create stream generator
             stream_gen = chain.stream(
@@ -1340,7 +1437,11 @@ class NvidiaRAG:
 
         try:
             # Apply default from config for None value
-            confidence_threshold = confidence_threshold if confidence_threshold is not None else self.config.default_confidence_threshold
+            confidence_threshold = (
+                confidence_threshold
+                if confidence_threshold is not None
+                else self.config.default_confidence_threshold
+            )
 
             # If collection_name is provided, use it as the collection name,
             # Otherwise, use the collection names from the kwargs
@@ -1427,7 +1528,10 @@ class NvidiaRAG:
                     # Use cached metadata schema to avoid duplicate API call
                     metadata_schema_data = metadata_schemas.get(collection_name)
                     processed_filter_expr = process_filter_expr(
-                        filter_expr, collection_name, metadata_schema_data, config=self.config
+                        filter_expr,
+                        collection_name,
+                        metadata_schema_data,
+                        config=self.config,
                     )
                     logger.debug(
                         f"Filter expression processed for collection '{collection_name}': '{filter_expr}' -> '{processed_filter_expr}'"
@@ -1449,7 +1553,10 @@ class NvidiaRAG:
             llm = get_llm(config=self.config, **llm_settings)
             logger.info("Ranker enabled: %s", enable_reranker)
             ranker = get_ranking_model(
-                model=reranker_model, url=reranker_endpoint, top_n=reranker_top_k, config=self.config
+                model=reranker_model,
+                url=reranker_endpoint,
+                top_n=reranker_top_k,
+                config=self.config,
             )
             top_k = vdb_top_k if ranker and enable_reranker else reranker_top_k
             logger.info("Setting retriever top k as: %s.", top_k)
@@ -1969,7 +2076,11 @@ class NvidiaRAG:
             ):
                 initial_response = chain.invoke({"question": query, "context": docs})
                 final_response, is_grounded = check_response_groundedness(
-                    query, initial_response, docs, reflection_counter, config=self.config
+                    query,
+                    initial_response,
+                    docs,
+                    reflection_counter,
+                    config=self.config,
                 )
                 if not is_grounded:
                     logger.warning(

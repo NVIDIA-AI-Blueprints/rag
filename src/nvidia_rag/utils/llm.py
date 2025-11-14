@@ -89,7 +89,7 @@ def get_prompts() -> dict:
 
 def get_llm(config: NvidiaRAGConfig | None = None, **kwargs) -> LLM | SimpleChatModel:
     """Create the LLM connection.
-    
+
     Args:
         config: NvidiaRAGConfig instance. If None, creates a new one.
         **kwargs: Additional LLM configuration parameters

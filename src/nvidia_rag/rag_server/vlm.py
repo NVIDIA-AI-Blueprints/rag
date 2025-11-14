@@ -43,8 +43,8 @@ from langchain_openai import ChatOpenAI
 from PIL import Image as PILImage
 from PIL import UnidentifiedImageError
 
-from nvidia_rag.utils.llm import get_llm, get_prompts
 from nvidia_rag.utils.configuration import NvidiaRAGConfig
+from nvidia_rag.utils.llm import get_llm, get_prompts
 from nvidia_rag.utils.minio_operator import (
     get_minio_operator,
     get_unique_thumbnail_id_from_result,
@@ -67,10 +67,12 @@ class VLM:
         Uses an LLM to reason about the VLM's response and decide if it should be used.
     """
 
-    def __init__(self, vlm_model: str, vlm_endpoint: str, config: NvidiaRAGConfig | None = None):
+    def __init__(
+        self, vlm_model: str, vlm_endpoint: str, config: NvidiaRAGConfig | None = None
+    ):
         """
         Initialize the VLM with configuration and prompt templates.
-        
+
         Args:
             vlm_model: VLM model name
             vlm_endpoint: VLM server endpoint URL
@@ -83,7 +85,7 @@ class VLM:
         """
         if config is None:
             config = NvidiaRAGConfig()
-        
+
         self.config = config
         self.invoke_url = vlm_endpoint
         self.model_name = vlm_model

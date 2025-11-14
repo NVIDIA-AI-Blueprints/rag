@@ -128,7 +128,7 @@ def get_minio_operator(
 ) -> MinioOperator:
     """
     Prepares and return MinioOperator object
-    
+
     Args:
         default_bucket_name: Default bucket name
         config: NvidiaRAGConfig instance. If None, creates a new one.
@@ -138,7 +138,7 @@ def get_minio_operator(
     """
     if config is None:
         config = NvidiaRAGConfig()
-        
+
     minio_operator = MinioOperator(
         endpoint=config.minio.endpoint,
         access_key=config.minio.access_key,

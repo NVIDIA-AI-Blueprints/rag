@@ -30,9 +30,14 @@ from nvidia_rag.utils.configuration import NvidiaRAGConfig
 logger = logging.getLogger(__name__)
 
 
-def get_embedding_model(model: str, url: str, config: NvidiaRAGConfig | None = None, truncate: str | None = "END") -> Embeddings:
+def get_embedding_model(
+    model: str,
+    url: str,
+    config: NvidiaRAGConfig | None = None,
+    truncate: str | None = "END",
+) -> Embeddings:
     """Create the embedding model.
-    
+
     Args:
         model: Model name
         url: URL endpoint
