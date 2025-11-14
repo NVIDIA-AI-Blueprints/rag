@@ -66,7 +66,15 @@ class _ConfigBase(BaseModel):
             if isinstance(field_info, FieldInfo) and field_info.json_schema_extra:
                 env_var_name = field_info.json_schema_extra.get("env")
                 if env_var_name and env_var_name in os.environ:
-                    env_values[field_name] = os.environ[env_var_name]
+                    raw_value = os.environ[env_var_name]
+                    # Strip surrounding quotes if present (handles Docker Compose quoted values)
+                    if isinstance(raw_value, str) and len(raw_value) >= 2:
+                        # More robust quote stripping: strip whitespace first, then quotes
+                        raw_value = raw_value.strip()
+                        if (raw_value.startswith('"') and raw_value.endswith('"')) or \
+                           (raw_value.startswith("'") and raw_value.endswith("'")):
+                            raw_value = raw_value[1:-1]
+                    env_values[field_name] = raw_value
 
         # Merge: data overrides env vars, env vars override defaults
         merged_data = {**env_values, **data}

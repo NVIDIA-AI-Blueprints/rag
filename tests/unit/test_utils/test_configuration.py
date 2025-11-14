@@ -388,3 +388,23 @@ class TestConfigurationIntegration:
             assert config.minio.secret_key == "test_secret"
             assert config.temp_dir == "/custom/temp"
             assert config.retriever.vdb_top_k == 50
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_quoted_boolean_environment_variables(self):
+        """Test that quoted boolean values from Docker Compose are handled correctly."""
+        # Simulate Docker Compose setting boolean values as quoted strings
+        env_vars = {
+            "APP_TRACING_ENABLED": '"False"',  # Docker Compose style: "False"
+            "ENABLE_GUARDRAILS": '"True"',     # Docker Compose style: "True"
+            "ENABLE_CITATIONS": '"false"',     # lowercase with quotes
+            "ENABLE_RERANKER": '"true"',       # lowercase with quotes
+        }
+
+        with patch.dict(os.environ, env_vars):
+            config = NvidiaRAGConfig()
+
+            # Verify that quoted boolean strings are correctly parsed as booleans
+            assert config.tracing.enabled is False
+            assert config.enable_guardrails is True
+            assert config.enable_citations is False
+            assert config.ranking.enable_reranker is True
