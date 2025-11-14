@@ -104,7 +104,12 @@ class TestNvidiaRAGIngestorHealth:
                 assert result["message"] == "Service is up."
                 assert result["vdb"] == "healthy"
                 assert result["llm"] == "healthy"
-                mock_check.assert_called_once_with(mock_vdb_op)
+                # Verify check_all_services_health was called with vdb_op and ANY config
+                mock_check.assert_called_once()
+                call_args = mock_check.call_args
+                assert call_args[0][0] == mock_vdb_op  # First argument should be mock_vdb_op
+                # Second argument should be a NvidiaRAGConfig instance (or None)
+                assert len(call_args[0]) == 2  # Should have 2 positional arguments
 
 
 class TestNvidiaRAGIngestorValidateDirectoryTraversal:
@@ -192,11 +197,8 @@ class TestNvidiaRAGIngestorPrepareVDBOp:
             ingestor._NvidiaRAGIngestor__prepare_vdb_op_and_collection_name()
 
     @patch('nvidia_rag.ingestor_server.main._get_vdb_op')
-    @patch('nvidia_rag.ingestor_server.main.CONFIG')
-    def test_prepare_vdb_op_without_vdb_op_with_collection_name(self, mock_config, mock_get_vdb):
+    def test_prepare_vdb_op_without_vdb_op_with_collection_name(self, mock_get_vdb):
         """Test __prepare_vdb_op without vdb_op but with collection_name."""
-        mock_config.vector_store.url = "http://default.com"
-
         mock_vdb_op = Mock(spec=VDBRag)
         mock_get_vdb.return_value = mock_vdb_op
 
@@ -210,11 +212,8 @@ class TestNvidiaRAGIngestorPrepareVDBOp:
         mock_get_vdb.assert_called_once()
 
     @patch('nvidia_rag.ingestor_server.main._get_vdb_op')
-    @patch('nvidia_rag.ingestor_server.main.CONFIG')
-    def test_prepare_vdb_op_bypass_validation(self, mock_config, mock_get_vdb):
+    def test_prepare_vdb_op_bypass_validation(self, mock_get_vdb):
         """Test __prepare_vdb_op with bypass_validation=True."""
-        mock_config.vector_store.url = "http://default.com"
-
         mock_vdb_op = Mock(spec=VDBRag)
         mock_get_vdb.return_value = mock_vdb_op
 
@@ -440,14 +439,15 @@ class TestNvidiaRAGIngestorPutContentToMinio:
             [{"content": "test content", "metadata": {"source": "file.pdf"}}]
         ]
         collection_name = "test_collection"
+        
+        # Set config and mock minio_operator on instance
+        ingestor.config.enable_citations = True
+        mock_minio = Mock()
+        mock_minio.put_content.return_value = "minio_url"
+        ingestor.minio_operator = mock_minio
 
-        with patch('nvidia_rag.ingestor_server.main.CONFIG') as mock_config:
-            mock_config.enable_citations = True
-            with patch('nvidia_rag.ingestor_server.main.MINIO_OPERATOR') as mock_minio:
-                mock_minio.put_content.return_value = "minio_url"
-
-                # Should not raise any exception
-                ingestor._NvidiaRAGIngestor__put_content_to_minio(results, collection_name)
+        # Should not raise any exception
+        ingestor._NvidiaRAGIngestor__put_content_to_minio(results, collection_name)
 
     def test_put_content_to_minio_citations_disabled(self):
         """Test putting content to MinIO when citations are disabled."""
@@ -457,13 +457,14 @@ class TestNvidiaRAGIngestorPutContentToMinio:
             [{"content": "test content", "metadata": {"source": "file.pdf"}}]
         ]
         collection_name = "test_collection"
+        
+        # Set config on instance
+        ingestor.config.enable_citations = False
 
-        with patch('nvidia_rag.ingestor_server.main.CONFIG') as mock_config:
-            mock_config.enable_citations = False
-            with patch('nvidia_rag.ingestor_server.main.logger') as mock_logger:
-                # Should not raise any exception and should log skip message
-                ingestor._NvidiaRAGIngestor__put_content_to_minio(results, collection_name)
-                mock_logger.info.assert_called()
+        with patch('nvidia_rag.ingestor_server.main.logger') as mock_logger:
+            # Should not raise any exception and should log skip message
+            ingestor._NvidiaRAGIngestor__put_content_to_minio(results, collection_name)
+            mock_logger.info.assert_called()
 
     def test_put_content_to_minio_empty_results(self):
         """Test putting content to MinIO with empty results."""
@@ -471,9 +472,11 @@ class TestNvidiaRAGIngestorPutContentToMinio:
 
         results = []
         collection_name = "test_collection"
-
-        with patch('nvidia_rag.ingestor_server.main.CONFIG') as mock_config:
-            mock_config.enable_citations = True
-            with patch('nvidia_rag.ingestor_server.main.MINIO_OPERATOR') as mock_minio:
-                # Should not raise any exception with empty results
-                ingestor._NvidiaRAGIngestor__put_content_to_minio(results, collection_name)
+        
+        # Set config on instance
+        ingestor.config.enable_citations = True
+        mock_minio = Mock()
+        ingestor.minio_operator = mock_minio
+        
+        # Should not raise any exception with empty results
+        ingestor._NvidiaRAGIngestor__put_content_to_minio(results, collection_name)

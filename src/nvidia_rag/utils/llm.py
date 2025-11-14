@@ -33,14 +33,13 @@ from langchain_core.language_models.chat_models import SimpleChatModel
 from langchain_nvidia_ai_endpoints import ChatNVIDIA
 
 from nvidia_rag.utils.common import (
-    ConfigProxy,
     combine_dicts,
     sanitize_nim_url,
     utils_cache,
 )
+from nvidia_rag.utils.configuration import NvidiaRAGConfig
 
 logger = logging.getLogger(__name__)
-CONFIG = ConfigProxy()
 
 try:
     from langchain_openai import ChatOpenAI
@@ -49,7 +48,6 @@ except ImportError:
     pass
 
 
-@lru_cache
 def get_prompts() -> dict:
     """Retrieves prompt configurations from YAML file and return a dict."""
 
@@ -89,25 +87,30 @@ def get_prompts() -> dict:
     return config
 
 
-@utils_cache
-@lru_cache
-def get_llm(**kwargs) -> LLM | SimpleChatModel:
-    """Create the LLM connection."""
+def get_llm(config: NvidiaRAGConfig | None = None, **kwargs) -> LLM | SimpleChatModel:
+    """Create the LLM connection.
+
+    Args:
+        config: NvidiaRAGConfig instance. If None, creates a new one.
+        **kwargs: Additional LLM configuration parameters
+    """
+    if config is None:
+        config = NvidiaRAGConfig()
 
     # Sanitize the URL
     url = sanitize_nim_url(kwargs.get("llm_endpoint", ""), kwargs.get("model"), "chat")
 
     # Check if guardrails are enabled
     enable_guardrails = (
-        CONFIG.enable_guardrails and kwargs.get("enable_guardrails", False) is True
+        config.enable_guardrails and kwargs.get("enable_guardrails", False) is True
     )
 
     logger.debug(
         "Using %s as model engine for llm. Model name: %s",
-        CONFIG.llm.model_engine,
+        config.llm.model_engine,
         kwargs.get("model"),
     )
-    if CONFIG.llm.model_engine == "nvidia-ai-endpoints":
+    if config.llm.model_engine == "nvidia-ai-endpoints":
         # Use ChatOpenAI with guardrails if enabled
         # TODO Add the ChatNVIDIA implementation when available
         if enable_guardrails:

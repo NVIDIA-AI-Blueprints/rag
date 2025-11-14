@@ -30,10 +30,9 @@ from io import BytesIO
 from minio import Minio
 from minio.commonconfig import SnowballObject
 
-from nvidia_rag.utils.common import ConfigProxy
+from nvidia_rag.utils.configuration import NvidiaRAGConfig
 
 logger = logging.getLogger(__name__)
-CONFIG = ConfigProxy()
 DEFAULT_BUCKET_NAME = "default-bucket"
 
 
@@ -125,17 +124,25 @@ class MinioOperator:
 
 def get_minio_operator(
     default_bucket_name: str = DEFAULT_BUCKET_NAME,
+    config: NvidiaRAGConfig | None = None,
 ) -> MinioOperator:
     """
     Prepares and return MinioOperator object
 
+    Args:
+        default_bucket_name: Default bucket name
+        config: NvidiaRAGConfig instance. If None, creates a new one.
+
     Returns:
         - minio_operator: MinioOperator
     """
+    if config is None:
+        config = NvidiaRAGConfig()
+
     minio_operator = MinioOperator(
-        endpoint=CONFIG.minio.endpoint,
-        access_key=CONFIG.minio.access_key,
-        secret_key=CONFIG.minio.secret_key,
+        endpoint=config.minio.endpoint,
+        access_key=config.minio.access_key,
+        secret_key=config.minio.secret_key,
         default_bucket_name=default_bucket_name,
     )
     return minio_operator

@@ -36,8 +36,7 @@ from nvidia_rag.utils.llm import (
 class TestGetPrompts:
     """Test cases for get_prompts function."""
 
-    @patch("nvidia_rag.utils.llm.get_prompts.cache_clear")
-    def test_get_prompts_from_default_path(self, mock_cache_clear):
+    def test_get_prompts_from_default_path(self):
         """Test loading prompts from default path."""
         test_prompts = {"test_prompt": "test content", "rag_template": "RAG template"}
 
@@ -52,7 +51,6 @@ class TestGetPrompts:
                     # First call (default path) returns True, second call (current dir) returns False, third call (config file) returns False
                     mock_is_file.side_effect = [True, False, False]
 
-                    mock_cache_clear()  # Clear cache before test
                     result = get_prompts()
 
                     # Since real prompt files exist and are loaded first, our mocked content gets combined
@@ -61,10 +59,9 @@ class TestGetPrompts:
                     assert isinstance(result, dict)
                     assert len(result) > 0
                     # The real content should be present
-                    assert "chat_template" in result
+                    assert "chat_template" in result or "test_prompt" in result
 
-    @patch("nvidia_rag.utils.llm.get_prompts.cache_clear")
-    def test_get_prompts_from_current_dir(self, mock_cache_clear):
+    def test_get_prompts_from_current_dir(self):
         """Test loading prompts from current directory when default path fails."""
         test_prompts = {"current_dir_prompt": "current content"}
 
@@ -76,7 +73,6 @@ class TestGetPrompts:
                     # First call (default path) returns False, second call (current dir) returns True, third call (config file) returns False
                     mock_is_file.side_effect = [False, True, False]
 
-                    mock_cache_clear()  # Clear cache before test
                     result = get_prompts()
 
                     # Since real prompt files exist and are loaded first, our mocked content gets combined
@@ -84,21 +80,18 @@ class TestGetPrompts:
                     assert isinstance(result, dict)
                     assert len(result) > 0
                     # The real content should be present
-                    assert "chat_template" in result
+                    assert "chat_template" in result or "current_dir_prompt" in result
 
-    @patch("nvidia_rag.utils.llm.get_prompts.cache_clear")
-    def test_get_prompts_no_file_found(self, mock_cache_clear):
+    def test_get_prompts_no_file_found(self):
         """Test when no prompt files are found."""
         with patch.dict(os.environ, {"PROMPT_CONFIG_FILE": "/nonexistent.yaml"}):
             with patch("pathlib.Path.is_file", return_value=False):
-                mock_cache_clear()  # Clear cache before test
                 result = get_prompts()
                 # Don't assert exact equality since real files might be loaded first
                 # Just verify the function doesn't crash
                 assert isinstance(result, dict)
 
-    @patch("nvidia_rag.utils.llm.get_prompts.cache_clear")
-    def test_get_prompts_with_env_config_override(self, mock_cache_clear):
+    def test_get_prompts_with_env_config_override(self):
         """Test loading prompts with environment config file override."""
         override_prompts = {"override_prompt": "override content"}
 
@@ -113,18 +106,16 @@ class TestGetPrompts:
                         read_data=yaml.dump(override_prompts)
                     ).return_value
 
-                    mock_cache_clear()  # Clear cache before test
                     result = get_prompts()
 
                     # Since only config file exists, result should contain our override prompts
                     # Just verify the function works and returns a dict with expected structure
                     assert isinstance(result, dict)
                     assert len(result) > 0
-                    # The real content should be present
-                    assert "chat_template" in result
+                    # The override content should be present
+                    assert "override_prompt" in result
 
-    @patch("nvidia_rag.utils.llm.get_prompts.cache_clear")
-    def test_get_prompts_yaml_parse_error(self, mock_cache_clear):
+    def test_get_prompts_yaml_parse_error(self):
         """Test handling of YAML parse errors."""
         with patch.dict(os.environ, {"PROMPT_CONFIG_FILE": "/nonexistent.yaml"}):
             with patch("pathlib.Path.is_file") as mock_is_file:
@@ -134,16 +125,13 @@ class TestGetPrompts:
                     # First call (default path) returns True, others False
                     mock_is_file.side_effect = [True, False, False]
 
-                    mock_cache_clear()  # Clear cache before test
-                    # Since we're mocking the file content, this won't raise YAMLError
-                    # Just verify the function doesn't crash
-                    result = get_prompts()
-                    assert isinstance(result, dict)
+                    # This should raise a YAML error when trying to parse invalid content
+                    with pytest.raises(yaml.scanner.ScannerError):
+                        get_prompts()
 
-    @patch("nvidia_rag.utils.llm.get_prompts.cache_clear")
-    def test_get_prompts_cache_behavior(self, mock_cache_clear):
-        """Test that get_prompts uses caching."""
-        test_prompts = {"cached_prompt": "cached content"}
+    def test_get_prompts_basic_functionality(self):
+        """Test basic functionality of get_prompts."""
+        test_prompts = {"prompt_one": "content one", "prompt_two": "content two"}
 
         with patch.dict(os.environ, {"PROMPT_CONFIG_FILE": "/nonexistent.yaml"}):
             with patch("pathlib.Path.is_file") as mock_is_file:
@@ -153,188 +141,71 @@ class TestGetPrompts:
                     # First call (default path) returns True, others False
                     mock_is_file.side_effect = [True, False, False]
 
-                    mock_cache_clear()  # Clear cache before test
-                    # First call
-                    result1 = get_prompts()
-                    # Second call should use cache
-                    result2 = get_prompts()
+                    result = get_prompts()
 
-                    assert result1 == result2
-                    # Don't assert exact equality since real files might be loaded first
-                    # Just verify caching is working
-                    assert isinstance(result1, dict)
+                    assert isinstance(result, dict)
+                    assert len(result) > 0
 
 
 class TestGetLLM:
     """Test cases for get_llm function."""
 
-    @patch("nvidia_rag.utils.common.get_config")
     @patch("nvidia_rag.utils.llm.sanitize_nim_url")
     @patch("nvidia_rag.utils.llm.ChatNVIDIA")
     def test_get_llm_nvidia_endpoints_with_url(
-        self, mock_chatnvidia, mock_sanitize, mock_config
+        self, mock_chatnvidia, mock_sanitize
     ):
         """Test getting LLM with NVIDIA endpoints and custom URL."""
-        mock_config.return_value.llm.model_engine = "nvidia-ai-endpoints"
-        mock_config.return_value.enable_guardrails = False
         mock_sanitize.return_value = "http://test-url:8000"
 
-        kwargs = {
-            "model": "test-model",
-            "llm_endpoint": "test-url:8000",
-            "temperature": 0.7,
-            "top_p": 0.9,
-            "max_tokens": 1024,
-            "min_tokens": 1024,
-            "ignore_eos": True,
-            "enable_guardrails": False,
-        }
+        # Create a mock config
+        with patch("nvidia_rag.utils.llm.NvidiaRAGConfig") as mock_config_class:
+            mock_config = Mock()
+            mock_config.llm.model_engine = "nvidia-ai-endpoints"
+            mock_config.enable_guardrails = False
+            mock_config_class.return_value = mock_config
 
-        get_llm(**kwargs)
-
-        mock_chatnvidia.assert_called_once_with(
-            base_url="http://test-url:8000",
-            model="test-model",
-            temperature=0.7,
-            top_p=0.9,
-            max_tokens=1024,
-            min_tokens=1024,
-            ignore_eos=True,
-            stop=[],
-        )
-
-    @patch("nvidia_rag.utils.common.get_config")
-    @patch("nvidia_rag.utils.llm.sanitize_nim_url")
-    @patch("nvidia_rag.utils.llm.ChatNVIDIA")
-    def test_get_llm_nvidia_endpoints_api_catalog(
-        self, mock_chatnvidia, mock_sanitize, mock_config
-    ):
-        """Test getting LLM from API catalog."""
-        mock_config.return_value.llm.model_engine = "nvidia-ai-endpoints"
-        mock_config.return_value.enable_guardrails = False
-        mock_sanitize.return_value = ""
-
-        kwargs = {"model": "test-model", "enable_guardrails": False}
-
-        get_llm(**kwargs)
-
-        mock_chatnvidia.assert_called_once_with(
-            model="test-model",
-            temperature=None,
-            top_p=None,
-            max_tokens=None,
-            min_tokens=None,
-            ignore_eos=False,
-            stop=[],
-        )
-
-    @patch("nvidia_rag.utils.common.get_config")
-    @patch("nvidia_rag.utils.llm.sanitize_nim_url")
-    @patch("langchain_openai.ChatOpenAI")
-    @patch("requests.get")
-    def test_get_llm_with_guardrails_success(
-        self, mock_requests_get, mock_chatopenai, mock_sanitize, mock_config
-    ):
-        """Test getting LLM with guardrails enabled and service available."""
-        mock_config.return_value.llm.model_engine = "nvidia-ai-endpoints"
-        mock_config.return_value.enable_guardrails = True
-        mock_sanitize.return_value = "http://test-url:8000"
-
-        # Mock successful guardrails service response
-        mock_response = Mock()
-        mock_response.raise_for_status.return_value = None
-        mock_requests_get.return_value = mock_response
-
-        with patch.dict(
-            os.environ,
-            {
-                "NEMO_GUARDRAILS_URL": "http://guardrails-service:8080",
-                "NGC_API_KEY": "test-api-key",
-            },
-        ):
             kwargs = {
                 "model": "test-model",
-                "enable_guardrails": True,
+                "llm_endpoint": "test-url:8000",
                 "temperature": 0.7,
+                "top_p": 0.9,
+                "max_tokens": 1024,
+                "min_tokens": 1024,
+                "ignore_eos": True,
+                "enable_guardrails": False,
             }
 
             get_llm(**kwargs)
 
-            mock_requests_get.assert_called_once_with(
-                "http://guardrails-service:8080/v1/health", timeout=5
+            mock_chatnvidia.assert_called_once_with(
+                base_url="http://test-url:8000",
+                model="test-model",
+                temperature=0.7,
+                top_p=0.9,
+                max_tokens=1024,
+                min_tokens=1024,
+                ignore_eos=True,
+                stop=[],
             )
-            # Since we're testing with guardrails enabled, it should use NVIDIA AI Endpoints
-            # Don't assert ChatOpenAI was called since it's not used in this path
 
-    @patch("nvidia_rag.utils.common.get_config")
-    @patch("requests.get")
-    def test_get_llm_with_guardrails_service_unavailable(
-        self, mock_requests_get, mock_config
-    ):
-        """Test getting LLM when guardrails service is unavailable."""
-        mock_config.return_value.llm.model_engine = "nvidia-ai-endpoints"
-        mock_config.return_value.enable_guardrails = True
-
-        # Mock failed guardrails service response
-        mock_requests_get.side_effect = requests.ConnectionError("Connection failed")
-
-        with patch.dict(
-            os.environ, {"NEMO_GUARDRAILS_URL": "http://guardrails-service:8080"}
-        ):
-            kwargs = {"model": "test-model", "enable_guardrails": True}
-
-            with pytest.raises(
-                RuntimeError, match="Failed to connect to guardrails service"
-            ):
-                get_llm(**kwargs)
-
-    @patch("nvidia_rag.utils.common.get_config")
-    def test_get_llm_with_guardrails_no_url(self, mock_config):
-        """Test getting LLM with guardrails enabled but no URL set."""
-        mock_config.return_value.llm.model_engine = "nvidia-ai-endpoints"
-        mock_config.return_value.enable_guardrails = True
-
-        with patch.dict(os.environ, {}, clear=True):
-            kwargs = {"model": "test-model", "enable_guardrails": True}
-
-            # Should fall back to regular implementation
-            with patch("nvidia_rag.utils.llm.ChatNVIDIA") as mock_chatnvidia:
-                mock_chatnvidia.return_value = Mock()
-                get_llm(**kwargs)
-                mock_chatnvidia.assert_called_once()
-
-    @patch("nvidia_rag.utils.common.get_config")
-    def test_get_llm_unsupported_engine(self, mock_config):
-        """Test getting LLM with unsupported model engine."""
-        mock_config.return_value.llm.model_engine = "unsupported-engine"
-
-        kwargs = {"model": "test-model"}
-
-        with pytest.raises(
-            RuntimeError,
-            match="Unable to find any supported Large Language Model server",
-        ):
-            get_llm(**kwargs)
-
-    @patch("nvidia_rag.utils.common.get_config")
     @patch("nvidia_rag.utils.llm.sanitize_nim_url")
-    def test_get_llm_none_parameters(self, mock_sanitize, mock_config):
-        """Test getting LLM with None parameters."""
-        mock_config.return_value.llm.model_engine = "nvidia-ai-endpoints"
-        mock_config.return_value.enable_guardrails = False
+    @patch("nvidia_rag.utils.llm.ChatNVIDIA")
+    def test_get_llm_nvidia_endpoints_api_catalog(
+        self, mock_chatnvidia, mock_sanitize
+    ):
+        """Test getting LLM from API catalog."""
         mock_sanitize.return_value = ""
 
-        kwargs = {
-            "model": "test-model",
-            "temperature": None,
-            "top_p": None,
-            "max_tokens": None,
-            "min_tokens": None,
-            "ignore_eos": False,
-            "enable_guardrails": False,
-        }
+        # Create a mock config
+        with patch("nvidia_rag.utils.llm.NvidiaRAGConfig") as mock_config_class:
+            mock_config = Mock()
+            mock_config.llm.model_engine = "nvidia-ai-endpoints"
+            mock_config.enable_guardrails = False
+            mock_config_class.return_value = mock_config
 
-        with patch("nvidia_rag.utils.llm.ChatNVIDIA") as mock_chatnvidia:
+            kwargs = {"model": "test-model", "enable_guardrails": False}
+
             get_llm(**kwargs)
 
             mock_chatnvidia.assert_called_once_with(
@@ -346,6 +217,151 @@ class TestGetLLM:
                 ignore_eos=False,
                 stop=[],
             )
+
+    @patch("nvidia_rag.utils.llm.sanitize_nim_url")
+    @patch("nvidia_rag.utils.llm.ChatOpenAI")
+    @patch("requests.get")
+    def test_get_llm_with_guardrails_success(
+        self, mock_requests_get, mock_chatopenai, mock_sanitize
+    ):
+        """Test getting LLM with guardrails enabled and service available."""
+        mock_sanitize.return_value = "http://test-url:8000"
+
+        # Mock successful guardrails service response
+        mock_response = Mock()
+        mock_response.raise_for_status.return_value = None
+        mock_requests_get.return_value = mock_response
+
+        # Create a mock config
+        with patch("nvidia_rag.utils.llm.NvidiaRAGConfig") as mock_config_class:
+            mock_config = Mock()
+            mock_config.llm.model_engine = "nvidia-ai-endpoints"
+            mock_config.enable_guardrails = True
+            mock_config_class.return_value = mock_config
+
+            with patch.dict(
+                os.environ,
+                {
+                    "NEMO_GUARDRAILS_URL": "http://guardrails-service:8080",
+                    "NGC_API_KEY": "test-api-key",
+                },
+            ):
+                kwargs = {
+                    "model": "test-model",
+                    "enable_guardrails": True,
+                    "temperature": 0.7,
+                }
+
+                get_llm(**kwargs)
+
+                mock_requests_get.assert_called_once_with(
+                    "http://guardrails-service:8080/v1/health", timeout=5
+                )
+                # Verify ChatOpenAI was called with the correct parameters
+                mock_chatopenai.assert_called_once_with(
+                    model_name="test-model",
+                    openai_api_base="http://guardrails-service:8080/v1/guardrail",
+                    openai_api_key="dummy-value",
+                    default_headers={"X-Model-Authorization": "test-api-key"},
+                    temperature=0.7,
+                    top_p=None,
+                    max_tokens=None,
+                    stop=[],
+                )
+
+    @patch("requests.get")
+    def test_get_llm_with_guardrails_service_unavailable(
+        self, mock_requests_get
+    ):
+        """Test getting LLM when guardrails service is unavailable."""
+        # Mock failed guardrails service response
+        mock_requests_get.side_effect = requests.ConnectionError("Connection failed")
+
+        # Create a mock config
+        with patch("nvidia_rag.utils.llm.NvidiaRAGConfig") as mock_config_class:
+            mock_config = Mock()
+            mock_config.llm.model_engine = "nvidia-ai-endpoints"
+            mock_config.enable_guardrails = True
+            mock_config_class.return_value = mock_config
+
+            with patch.dict(
+                os.environ, {"NEMO_GUARDRAILS_URL": "http://guardrails-service:8080"}
+            ):
+                kwargs = {"model": "test-model", "enable_guardrails": True}
+
+                with pytest.raises(
+                    RuntimeError, match="Failed to connect to guardrails service"
+                ):
+                    get_llm(**kwargs)
+
+    def test_get_llm_with_guardrails_no_url(self):
+        """Test getting LLM with guardrails enabled but no URL set."""
+        # Create a mock config
+        with patch("nvidia_rag.utils.llm.NvidiaRAGConfig") as mock_config_class:
+            mock_config = Mock()
+            mock_config.llm.model_engine = "nvidia-ai-endpoints"
+            mock_config.enable_guardrails = True
+            mock_config_class.return_value = mock_config
+
+            with patch.dict(os.environ, {}, clear=True):
+                kwargs = {"model": "test-model", "enable_guardrails": True}
+
+                # Should fall back to regular implementation
+                with patch("nvidia_rag.utils.llm.ChatNVIDIA") as mock_chatnvidia:
+                    mock_chatnvidia.return_value = Mock()
+                    get_llm(**kwargs)
+                    mock_chatnvidia.assert_called_once()
+
+    def test_get_llm_unsupported_engine(self):
+        """Test getting LLM with unsupported model engine."""
+        # Create a mock config
+        with patch("nvidia_rag.utils.llm.NvidiaRAGConfig") as mock_config_class:
+            mock_config = Mock()
+            mock_config.llm.model_engine = "unsupported-engine"
+            mock_config_class.return_value = mock_config
+
+            kwargs = {"model": "test-model"}
+
+            with pytest.raises(
+                RuntimeError,
+                match="Unable to find any supported Large Language Model server",
+            ):
+                get_llm(**kwargs)
+
+    @patch("nvidia_rag.utils.llm.sanitize_nim_url")
+    def test_get_llm_none_parameters(self, mock_sanitize):
+        """Test getting LLM with None parameters."""
+        mock_sanitize.return_value = ""
+
+        # Create a mock config
+        with patch("nvidia_rag.utils.llm.NvidiaRAGConfig") as mock_config_class:
+            mock_config = Mock()
+            mock_config.llm.model_engine = "nvidia-ai-endpoints"
+            mock_config.enable_guardrails = False
+            mock_config_class.return_value = mock_config
+
+            kwargs = {
+                "model": "test-model",
+                "temperature": None,
+                "top_p": None,
+                "max_tokens": None,
+                "min_tokens": None,
+                "ignore_eos": False,
+                "enable_guardrails": False,
+            }
+
+            with patch("nvidia_rag.utils.llm.ChatNVIDIA") as mock_chatnvidia:
+                get_llm(**kwargs)
+
+                mock_chatnvidia.assert_called_once_with(
+                    model="test-model",
+                    temperature=None,
+                    top_p=None,
+                    max_tokens=None,
+                    min_tokens=None,
+                    ignore_eos=False,
+                    stop=[],
+                )
 
 
 class TestStreamingFilterThink:
@@ -574,39 +590,42 @@ class TestGetStreamingFilterThinkParser:
 class TestLLMIntegration:
     """Integration tests for LLM utilities."""
 
-    @patch("nvidia_rag.utils.common.get_config")
     @patch("nvidia_rag.utils.llm.ChatNVIDIA")
-    def test_llm_creation_with_all_parameters(self, mock_chatnvidia, mock_config):
+    def test_llm_creation_with_all_parameters(self, mock_chatnvidia):
         """Test complete LLM creation flow with all parameters."""
-        mock_config.return_value.llm.model_engine = "nvidia-ai-endpoints"
-        mock_config.return_value.enable_guardrails = False
+        # Create a mock config
+        with patch("nvidia_rag.utils.llm.NvidiaRAGConfig") as mock_config_class:
+            mock_config = Mock()
+            mock_config.llm.model_engine = "nvidia-ai-endpoints"
+            mock_config.enable_guardrails = False
+            mock_config_class.return_value = mock_config
 
-        with patch(
-            "nvidia_rag.utils.llm.sanitize_nim_url", return_value="http://test:8000"
-        ):
-            kwargs = {
-                "model": "meta/llama-3.1-8b-instruct",
-                "llm_endpoint": "test:8000",
-                "temperature": 0.7,
-                "top_p": 0.9,
-                "max_tokens": 2048,
-                "min_tokens": 2048,
-                "ignore_eos": True,
-                "enable_guardrails": False,
-            }
+            with patch(
+                "nvidia_rag.utils.llm.sanitize_nim_url", return_value="http://test:8000"
+            ):
+                kwargs = {
+                    "model": "meta/llama-3.1-8b-instruct",
+                    "llm_endpoint": "test:8000",
+                    "temperature": 0.7,
+                    "top_p": 0.9,
+                    "max_tokens": 2048,
+                    "min_tokens": 2048,
+                    "ignore_eos": True,
+                    "enable_guardrails": False,
+                }
 
-            get_llm(**kwargs)
+                get_llm(**kwargs)
 
-            mock_chatnvidia.assert_called_once_with(
-                base_url="http://test:8000",
-                model="meta/llama-3.1-8b-instruct",
-                temperature=0.7,
-                top_p=0.9,
-                max_tokens=2048,
-                min_tokens=2048,
-                ignore_eos=True,
-                stop=[],
-            )
+                mock_chatnvidia.assert_called_once_with(
+                    base_url="http://test:8000",
+                    model="meta/llama-3.1-8b-instruct",
+                    temperature=0.7,
+                    top_p=0.9,
+                    max_tokens=2048,
+                    min_tokens=2048,
+                    ignore_eos=True,
+                    stop=[],
+                )
 
     def test_streaming_filter_complete_workflow(self):
         """Test complete streaming filter workflow."""

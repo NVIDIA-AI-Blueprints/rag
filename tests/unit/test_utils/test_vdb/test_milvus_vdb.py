@@ -30,14 +30,12 @@ class TestMilvusVDB:
     """Test the MilvusVDB class."""
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    @patch("nvidia_rag.utils.common.get_config")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse")
-    def test_init(self, mock_urlparse, mock_get_config, mock_connections):
+    def test_init(self, mock_urlparse, mock_connections):
         """Test MilvusVDB initialization."""
         mock_config = Mock()
         mock_config.vector_store.username = ""
         mock_config.vector_store.password = ""
-        mock_get_config.return_value = mock_config
 
         mock_url = Mock()
         mock_url.hostname = "localhost"
@@ -50,6 +48,7 @@ class TestMilvusVDB:
             "milvus_uri": "http://localhost:19530",
             "collection_name": "test_collection",
             "meta_dataframe": "/path/to/csv",
+            "config": mock_config,
         }
 
         with patch(
@@ -70,11 +69,11 @@ class TestMilvusVDB:
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.create_nvingest_collection")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.CONFIG")
     def test_create_collection(
-        self, mock_config, mock_connections, mock_create_nvingest
+        self, mock_connections, mock_create_nvingest
     ):
         """Test create_collection method."""
+        mock_config = Mock()
         mock_config.vector_store.search_type = "hybrid"
         mock_config.vector_store.enable_gpu_index = True
         mock_config.vector_store.enable_gpu_search = True
@@ -89,6 +88,7 @@ class TestMilvusVDB:
                 embedding_model=Mock(),
                 milvus_uri="http://localhost:19530",
                 collection_name="test_collection",
+                config=mock_config,
             )
 
             vdb.create_collection(
@@ -109,9 +109,8 @@ class TestMilvusVDB:
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.utility")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    @patch("nvidia_rag.utils.common.get_config")
     def test_check_collection_exists_true(
-        self, mock_get_config, mock_connections, mock_utility
+        self, mock_connections, mock_utility
     ):
         """Test check_collection_exists when collection exists."""
         mock_utility.has_collection.return_value = True
@@ -124,6 +123,7 @@ class TestMilvusVDB:
                 embedding_model=Mock(),
                 milvus_uri="http://localhost:19530",
                 collection_name="test_collection",
+                config=Mock(),
             )
 
             result = vdb.check_collection_exists("test_collection")
@@ -135,9 +135,8 @@ class TestMilvusVDB:
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.utility")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    @patch("nvidia_rag.utils.common.get_config")
     def test_check_collection_exists_false(
-        self, mock_get_config, mock_connections, mock_utility
+        self, mock_connections, mock_utility
     ):
         """Test check_collection_exists when collection doesn't exist."""
         mock_utility.has_collection.return_value = False
@@ -150,6 +149,7 @@ class TestMilvusVDB:
                 embedding_model=Mock(),
                 milvus_uri="http://localhost:19530",
                 collection_name="test_collection",
+                config=Mock(),
             )
 
             result = vdb.check_collection_exists("test_collection")
@@ -158,9 +158,8 @@ class TestMilvusVDB:
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.MilvusClient")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    @patch("nvidia_rag.utils.common.get_config")
     def test_get_milvus_entities(
-        self, mock_get_config, mock_connections, mock_milvus_client
+        self, mock_connections, mock_milvus_client
     ):
         """Test _get_milvus_entities method."""
         mock_client = Mock()
@@ -176,6 +175,7 @@ class TestMilvusVDB:
                 embedding_model=Mock(),
                 milvus_uri="http://localhost:19530",
                 collection_name="test_collection",
+                config=Mock(),
             )
 
             result = vdb._get_milvus_entities("test_collection", "filter_expr")
@@ -187,9 +187,8 @@ class TestMilvusVDB:
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.MilvusClient")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    @patch("nvidia_rag.utils.common.get_config")
     def test_get_milvus_entities_empty(
-        self, mock_get_config, mock_connections, mock_milvus_client
+        self, mock_connections, mock_milvus_client
     ):
         """Test _get_milvus_entities method with empty result."""
         mock_client = Mock()
@@ -204,6 +203,7 @@ class TestMilvusVDB:
                 embedding_model=Mock(),
                 milvus_uri="http://localhost:19530",
                 collection_name="test_collection",
+                config=Mock(),
             )
 
             result = vdb._get_milvus_entities("test_collection", "filter_expr")
@@ -213,9 +213,8 @@ class TestMilvusVDB:
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Collection")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.utility")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    @patch("nvidia_rag.utils.common.get_config")
     def test_get_collection_info(
-        self, mock_get_config, mock_connections, mock_utility, mock_collection
+        self, mock_connections, mock_utility, mock_collection
     ):
         """Test _get_collection_info method."""
         mock_utility.list_collections.return_value = ["collection1", "collection2"]
@@ -235,6 +234,7 @@ class TestMilvusVDB:
                 embedding_model=Mock(),
                 milvus_uri="http://localhost:19530",
                 collection_name="test_collection",
+                config=Mock(),
             )
 
             result = vdb._get_collection_info()
@@ -246,8 +246,7 @@ class TestMilvusVDB:
             assert result == expected
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    @patch("nvidia_rag.utils.common.get_config")
-    def test_get_collection(self, mock_get_config, mock_connections):
+    def test_get_collection(self, mock_connections):
         """Test get_collection method."""
         with (
             patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"),
@@ -257,6 +256,7 @@ class TestMilvusVDB:
                 embedding_model=Mock(),
                 milvus_uri="http://localhost:19530",
                 collection_name="test_collection",
+                config=Mock(),
             )
 
             mock_collection_info = [
@@ -306,9 +306,8 @@ class TestMilvusVDB:
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.utility")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    @patch("nvidia_rag.utils.common.get_config")
     def test_delete_collections_success(
-        self, mock_get_config, mock_connections, mock_utility
+        self, mock_connections, mock_utility
     ):
         """Test _delete_collections method with successful deletion."""
         mock_utility.has_collection.return_value = True
@@ -321,6 +320,7 @@ class TestMilvusVDB:
                 embedding_model=Mock(),
                 milvus_uri="http://localhost:19530",
                 collection_name="test_collection",
+                config=Mock(),
             )
 
             deleted, failed = vdb._delete_collections(["collection1", "collection2"])
@@ -331,9 +331,8 @@ class TestMilvusVDB:
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.utility")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    @patch("nvidia_rag.utils.common.get_config")
     def test_delete_collections_not_found(
-        self, mock_get_config, mock_connections, mock_utility
+        self, mock_connections, mock_utility
     ):
         """Test _delete_collections method with collection not found."""
         mock_utility.has_collection.return_value = False
@@ -346,6 +345,7 @@ class TestMilvusVDB:
                 embedding_model=Mock(),
                 milvus_uri="http://localhost:19530",
                 collection_name="test_collection",
+                config=Mock(),
             )
 
             deleted, failed = vdb._delete_collections(["collection1"])
@@ -357,9 +357,8 @@ class TestMilvusVDB:
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.utility")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    @patch("nvidia_rag.utils.common.get_config")
     def test_delete_collections_exception(
-        self, mock_get_config, mock_connections, mock_utility
+        self, mock_connections, mock_utility
     ):
         """Test _delete_collections method with exception."""
         mock_utility.has_collection.return_value = True
@@ -373,6 +372,7 @@ class TestMilvusVDB:
                 embedding_model=Mock(),
                 milvus_uri="http://localhost:19530",
                 collection_name="test_collection",
+                config=Mock(),
             )
 
             deleted, failed = vdb._delete_collections(["collection1"])
@@ -384,9 +384,8 @@ class TestMilvusVDB:
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.MilvusClient")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    @patch("nvidia_rag.utils.common.get_config")
     def test_delete_entities(
-        self, mock_get_config, mock_connections, mock_milvus_client
+        self, mock_connections, mock_milvus_client
     ):
         """Test _delete_entities method."""
         mock_client = Mock()
@@ -401,6 +400,7 @@ class TestMilvusVDB:
                 embedding_model=Mock(),
                 milvus_uri="http://localhost:19530",
                 collection_name="test_collection",
+                config=Mock(),
             )
 
             vdb._delete_entities("test_collection", "filter_expr")
@@ -411,9 +411,8 @@ class TestMilvusVDB:
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.MilvusClient")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    @patch("nvidia_rag.utils.common.get_config")
     def test_delete_entities_collection_not_exists(
-        self, mock_get_config, mock_connections, mock_milvus_client
+        self, mock_connections, mock_milvus_client
     ):
         """Test _delete_entities method when collection doesn't exist."""
         mock_client = Mock()
@@ -428,6 +427,7 @@ class TestMilvusVDB:
                 embedding_model=Mock(),
                 milvus_uri="http://localhost:19530",
                 collection_name="test_collection",
+                config=Mock(),
             )
 
             vdb._delete_entities("test_collection", "filter_expr")
@@ -435,8 +435,7 @@ class TestMilvusVDB:
             mock_client.delete.assert_not_called()
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    @patch("nvidia_rag.utils.common.get_config")
-    def test_delete_collections_complete(self, mock_get_config, mock_connections):
+    def test_delete_collections_complete(self, mock_connections):
         """Test delete_collections method (complete flow)."""
         with (
             patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"),
@@ -446,6 +445,7 @@ class TestMilvusVDB:
                 embedding_model=Mock(),
                 milvus_uri="http://localhost:19530",
                 collection_name="test_collection",
+                config=Mock(),
             )
 
             deleted_collections = ["collection1", "collection2"]
@@ -493,9 +493,8 @@ class TestMilvusVDB:
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Collection")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    @patch("nvidia_rag.utils.common.get_config")
     def test_get_documents_list(
-        self, mock_get_config, mock_connections, mock_collection
+        self, mock_connections, mock_collection
     ):
         """Test _get_documents_list method."""
         mock_collection_obj = Mock()
@@ -537,6 +536,7 @@ class TestMilvusVDB:
                 embedding_model=Mock(),
                 milvus_uri="http://localhost:19530",
                 collection_name="test_collection",
+                config=Mock(),
             )
 
             result = vdb._get_documents_list("test_collection", metadata_schema)
@@ -555,9 +555,8 @@ class TestMilvusVDB:
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Collection")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    @patch("nvidia_rag.utils.common.get_config")
     def test_get_documents_list_no_collection(
-        self, mock_get_config, mock_connections, mock_collection
+        self, mock_connections, mock_collection
     ):
         """Test _get_documents_list method when collection doesn't exist."""
         mock_collection.return_value = None
@@ -570,6 +569,7 @@ class TestMilvusVDB:
                 embedding_model=Mock(),
                 milvus_uri="http://localhost:19530",
                 collection_name="test_collection",
+                config=Mock(),
             )
 
             result = vdb._get_documents_list("test_collection", [])
@@ -578,9 +578,8 @@ class TestMilvusVDB:
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Collection")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    @patch("nvidia_rag.utils.common.get_config")
     def test_get_documents_list_exception(
-        self, mock_get_config, mock_connections, mock_collection
+        self, mock_connections, mock_collection
     ):
         """Test _get_documents_list method with exception."""
         mock_collection_obj = Mock()
@@ -597,6 +596,7 @@ class TestMilvusVDB:
                 embedding_model=Mock(),
                 milvus_uri="http://localhost:19530",
                 collection_name="test_collection",
+                config=Mock(),
             )
 
             result = vdb._get_documents_list("test_collection", [])
@@ -605,9 +605,8 @@ class TestMilvusVDB:
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Collection")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    @patch("nvidia_rag.utils.common.get_config")
     def test_get_documents_list_iterator_none(
-        self, mock_get_config, mock_connections, mock_collection
+        self, mock_connections, mock_collection
     ):
         """Test _get_documents_list method when iterator returns None."""
         mock_collection_obj = Mock()
@@ -632,6 +631,7 @@ class TestMilvusVDB:
                 embedding_model=Mock(),
                 milvus_uri="http://localhost:19530",
                 collection_name="test_collection",
+                config=Mock(),
             )
 
             result = vdb._get_documents_list("test_collection", metadata_schema)
@@ -643,9 +643,8 @@ class TestMilvusVDB:
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Collection")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    @patch("nvidia_rag.utils.common.get_config")
     def test_get_documents_list_iterator_attribute_error(
-        self, mock_get_config, mock_connections, mock_collection
+        self, mock_connections, mock_collection
     ):
         """Test _get_documents_list method when iterator raises AttributeError."""
         mock_collection_obj = Mock()
@@ -673,6 +672,7 @@ class TestMilvusVDB:
                 embedding_model=Mock(),
                 milvus_uri="http://localhost:19530",
                 collection_name="test_collection",
+                config=Mock(),
             )
 
             result = vdb._get_documents_list("test_collection", metadata_schema)
@@ -683,8 +683,7 @@ class TestMilvusVDB:
             assert result == expected
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    @patch("nvidia_rag.utils.common.get_config")
-    def test_get_documents(self, mock_get_config, mock_connections):
+    def test_get_documents(self, mock_connections):
         """Test get_documents method."""
         with (
             patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"),
@@ -694,6 +693,7 @@ class TestMilvusVDB:
                 embedding_model=Mock(),
                 milvus_uri="http://localhost:19530",
                 collection_name="test_collection",
+                config=Mock(),
             )
 
             mock_metadata_schema = [{"name": "field1"}]
@@ -718,9 +718,8 @@ class TestMilvusVDB:
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Collection")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    @patch("nvidia_rag.utils.common.get_config")
     def test_delete_documents_success(
-        self, mock_get_config, mock_connections, mock_collection
+        self, mock_connections, mock_collection
     ):
         """Test delete_documents method with successful deletion."""
         mock_collection_obj = Mock()
@@ -737,6 +736,7 @@ class TestMilvusVDB:
                 embedding_model=Mock(),
                 milvus_uri="http://localhost:19530",
                 collection_name="test_collection",
+                config=Mock(),
             )
 
             result = vdb.delete_documents("test_collection", ["file1.txt", "file2.txt"])
@@ -746,9 +746,8 @@ class TestMilvusVDB:
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Collection")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    @patch("nvidia_rag.utils.common.get_config")
     def test_delete_documents_not_found(
-        self, mock_get_config, mock_connections, mock_collection
+        self, mock_connections, mock_collection
     ):
         """Test delete_documents method when document not found."""
         mock_collection_obj = Mock()
@@ -765,6 +764,7 @@ class TestMilvusVDB:
                 embedding_model=Mock(),
                 milvus_uri="http://localhost:19530",
                 collection_name="test_collection",
+                config=Mock(),
             )
 
             result = vdb.delete_documents("test_collection", ["file1.txt"])
@@ -773,9 +773,8 @@ class TestMilvusVDB:
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Collection")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    @patch("nvidia_rag.utils.common.get_config")
     def test_delete_documents_milvus_exception(
-        self, mock_get_config, mock_connections, mock_collection
+        self, mock_connections, mock_collection
     ):
         """Test delete_documents method with MilvusException fallback."""
         from pymilvus import MilvusException
@@ -796,6 +795,7 @@ class TestMilvusVDB:
                 embedding_model=Mock(),
                 milvus_uri="http://localhost:19530",
                 collection_name="test_collection",
+                config=Mock(),
             )
 
             result = vdb.delete_documents("test_collection", ["file1.txt"])
@@ -805,9 +805,8 @@ class TestMilvusVDB:
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.MilvusClient")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    @patch("nvidia_rag.utils.common.get_config")
     def test_create_metadata_schema_collection_new(
-        self, mock_get_config, mock_connections, mock_milvus_client
+        self, mock_connections, mock_milvus_client
     ):
         """Test create_metadata_schema_collection when collection doesn't exist."""
         mock_client = Mock()
@@ -830,6 +829,7 @@ class TestMilvusVDB:
                 embedding_model=Mock(),
                 milvus_uri="http://localhost:19530",
                 collection_name="test_collection",
+                config=Mock(),
             )
 
             vdb.create_metadata_schema_collection()
@@ -839,9 +839,8 @@ class TestMilvusVDB:
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.MilvusClient")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    @patch("nvidia_rag.utils.common.get_config")
     def test_create_metadata_schema_collection_exists(
-        self, mock_get_config, mock_connections, mock_milvus_client
+        self, mock_connections, mock_milvus_client
     ):
         """Test create_metadata_schema_collection when collection already exists."""
         mock_client = Mock()
@@ -856,6 +855,7 @@ class TestMilvusVDB:
                 embedding_model=Mock(),
                 milvus_uri="http://localhost:19530",
                 collection_name="test_collection",
+                config=Mock(),
             )
 
             vdb.create_metadata_schema_collection()
@@ -864,9 +864,8 @@ class TestMilvusVDB:
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.MilvusClient")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    @patch("nvidia_rag.utils.common.get_config")
     def test_add_metadata_schema(
-        self, mock_get_config, mock_connections, mock_milvus_client
+        self, mock_connections, mock_milvus_client
     ):
         """Test add_metadata_schema method."""
         mock_client = Mock()
@@ -882,6 +881,7 @@ class TestMilvusVDB:
                 embedding_model=Mock(),
                 milvus_uri="http://localhost:19530",
                 collection_name="test_collection",
+                config=Mock(),
             )
 
             vdb.add_metadata_schema("test_collection", metadata_schema)
@@ -896,8 +896,7 @@ class TestMilvusVDB:
             mock_client.insert.assert_called_once()
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    @patch("nvidia_rag.utils.common.get_config")
-    def test_get_metadata_schema_found(self, mock_get_config, mock_connections):
+    def test_get_metadata_schema_found(self, mock_connections):
         """Test get_metadata_schema method when schema exists."""
         mock_entities = [{"metadata_schema": [{"name": "field1"}]}]
 
@@ -909,6 +908,7 @@ class TestMilvusVDB:
                 embedding_model=Mock(),
                 milvus_uri="http://localhost:19530",
                 collection_name="test_collection",
+                config=Mock(),
             )
 
             with patch.object(
@@ -923,8 +923,7 @@ class TestMilvusVDB:
                 )
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    @patch("nvidia_rag.utils.common.get_config")
-    def test_get_metadata_schema_not_found(self, mock_get_config, mock_connections):
+    def test_get_metadata_schema_not_found(self, mock_connections):
         """Test get_metadata_schema method when schema doesn't exist."""
         with (
             patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"),
@@ -934,6 +933,7 @@ class TestMilvusVDB:
                 embedding_model=Mock(),
                 milvus_uri="http://localhost:19530",
                 collection_name="test_collection",
+                config=Mock(),
             )
 
             with patch.object(vdb, "_get_milvus_entities", return_value=[]):
@@ -942,10 +942,10 @@ class TestMilvusVDB:
                 assert result == []
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.CONFIG")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.time")
-    def test_retrieval_langchain(self, mock_time, mock_config, mock_connections):
+    def test_retrieval_langchain(self, mock_time, mock_connections):
         """Test retrieval_langchain method."""
+        mock_config = Mock()
         mock_time.time.side_effect = [0.0, 1.5]  # start and end times
 
         mock_vectorstore = Mock()
@@ -968,6 +968,7 @@ class TestMilvusVDB:
                 embedding_model=Mock(),
                 milvus_uri="http://localhost:19530",
                 collection_name="test_collection",
+                config=mock_config,
             )
 
             with (
@@ -1020,9 +1021,9 @@ class TestMilvusVDB:
                 mock_otel.detach.assert_called_once_with(mock_token)
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.CONFIG")
-    def test_get_langchain_vectorstore_hybrid(self, mock_config, mock_connections):
+    def test_get_langchain_vectorstore_hybrid(self, mock_connections):
         """Test get_langchain_vectorstore method for hybrid search."""
+        mock_config = Mock()
         mock_config.vector_store.search_type = "hybrid"
 
         with (
@@ -1037,6 +1038,7 @@ class TestMilvusVDB:
                 embedding_model=Mock(),
                 milvus_uri="http://localhost:19530",
                 collection_name="test_collection",
+                config=mock_config,
             )
 
             vdb.get_langchain_vectorstore("test_collection")
@@ -1048,9 +1050,9 @@ class TestMilvusVDB:
             assert call_args[1]["vector_field"] == ["vector", "sparse"]
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.CONFIG")
-    def test_get_langchain_vectorstore_dense(self, mock_config, mock_connections):
+    def test_get_langchain_vectorstore_dense(self, mock_connections):
         """Test get_langchain_vectorstore method for dense search."""
+        mock_config = Mock()
         mock_config.vector_store.search_type = "dense"
         mock_config.vector_store.index_type = "IVF_FLAT"
         mock_config.vector_store.nlist = 1024
@@ -1067,6 +1069,7 @@ class TestMilvusVDB:
                 embedding_model=Mock(),
                 milvus_uri="http://localhost:19530",
                 collection_name="test_collection",
+                config=mock_config,
             )
 
             vdb.get_langchain_vectorstore("test_collection")
@@ -1078,11 +1081,11 @@ class TestMilvusVDB:
             assert call_args[1]["index_params"]["index_type"] == "IVF_FLAT"
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.CONFIG")
     def test_get_langchain_vectorstore_invalid_search_type(
-        self, mock_config, mock_connections
+        self, mock_connections
     ):
         """Test get_langchain_vectorstore method with invalid search type."""
+        mock_config = Mock()
         mock_config.vector_store.search_type = "invalid"
 
         with (
@@ -1093,6 +1096,7 @@ class TestMilvusVDB:
                 embedding_model=Mock(),
                 milvus_uri="http://localhost:19530",
                 collection_name="test_collection",
+                config=mock_config,
             )
 
             with pytest.raises(

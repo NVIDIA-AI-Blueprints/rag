@@ -51,12 +51,18 @@ from nvidia_rag.rag_server.response_generator import (
     TextContent,
     error_response_generator,
 )
-from nvidia_rag.utils.common import ConfigProxy
+from nvidia_rag.utils.configuration import NvidiaRAGConfig
 
 logging.basicConfig(level=os.environ.get("LOGLEVEL", "INFO").upper())
 logger = logging.getLogger(__name__)
 
-CONFIG = ConfigProxy()
+# Create config instance - loads from environment variables and defaults
+CONFIG = NvidiaRAGConfig()
+
+logger.info("Configuration loaded successfully")
+logger.debug(f"Configuration:\n{CONFIG}")
+
+# Extract model parameters for Field defaults
 model_params = CONFIG.llm.get_model_parameters()
 default_min_tokens = model_params["min_tokens"]
 default_ignore_eos = model_params["ignore_eos"]
@@ -64,11 +70,12 @@ default_max_tokens = model_params["max_tokens"]
 default_temperature = model_params["temperature"]
 default_top_p = model_params["top_p"]
 
-logger.debug(f"default_min_tokens: {default_min_tokens}")
-logger.debug(f"default_ignore_eos: {default_ignore_eos}")
-logger.debug(f"default_max_tokens: {default_max_tokens}")
-logger.debug(f"default_temperature: {default_temperature}")
-logger.debug(f"default_top_p: {default_top_p}")
+logger.debug("Default LLM parameters:")
+logger.debug(f"  min_tokens: {default_min_tokens}")
+logger.debug(f"  ignore_eos: {default_ignore_eos}")
+logger.debug(f"  max_tokens: {default_max_tokens}")
+logger.debug(f"  temperature: {default_temperature}")
+logger.debug(f"  top_p: {default_top_p}")
 
 tags_metadata = [
     {
@@ -103,7 +110,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-NVIDIA_RAG = NvidiaRAG()
+# Create NvidiaRAG instance with config
+NVIDIA_RAG = NvidiaRAG(config=CONFIG)
 
 metrics = None
 if CONFIG.tracing.enabled:
@@ -655,12 +663,20 @@ async def generate_answer(request: Request, prompt: Prompt) -> StreamingResponse
         elif isinstance(content, list):
             sanitized_content = []
             for item in content:
-                if hasattr(item, "type") and item.type == "image":
+                if hasattr(item, "type") and item.type == "image_url":
                     # Replace image data with placeholder for logging
                     sanitized_content.append(
                         {
+                            "type": "image_url",
+                            "image_url": "<base64 image data omitted>",
+                        }
+                    )
+                elif hasattr(item, "type") and item.type == "image":
+                    # Handle 'image' type as well
+                    sanitized_content.append(
+                        {
                             "type": "image",
-                            "image_url": "[IMAGE_DATA_REMOVED_FOR_LOGGING]",
+                            "image_url": "<base64 image data omitted>",
                         }
                     )
                 else:

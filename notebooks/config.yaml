@@ -1,0 +1,110 @@
+# NVIDIA RAG Configuration
+# This file contains configurable parameters with their values
+# You can override any of these values, and they take precedence over environment variables
+
+# Vector Store Configuration
+vector_store:
+  name: "milvus"  # Name of the vector store backend (e.g., milvus, elasticsearch)
+  url: "http://localhost:19530"  # URL endpoint for the vector store service
+  index_type: "GPU_CAGRA"  # Type of vector index (e.g., GPU_CAGRA, IVF_FLAT)
+  search_type: "dense"  # Type of search to perform (dense, hybrid)
+  enable_gpu_index: true  # Enable GPU acceleration for index building
+  enable_gpu_search: true  # Enable GPU acceleration for search operations
+  default_collection_name: "test_native"  # Default collection/index name for storing vectors
+
+# NV-Ingest Configuration
+nv_ingest:
+  message_client_hostname: "localhost"  # Hostname for NV-Ingest message client
+  message_client_port: 7670  # Port for NV-Ingest message client
+  extract_text: true  # Enable text extraction from documents
+  extract_infographics: false  # Enable infographic extraction from documents
+  extract_tables: true  # Enable table extraction from documents
+  extract_charts: true  # Enable chart extraction from documents
+  extract_images: false  # Enable image extraction from documents
+  pdf_extract_method: "None"  # Method to use for PDF extraction
+  text_depth: "page"  # Granularity level for text extraction (page, document)
+  chunk_size: 512  # Maximum size of text chunks in tokens
+  chunk_overlap: 150  # Number of overlapping tokens between chunks
+  caption_model_name: "nvidia/llama-3.1-nemotron-nano-vl-8b-v1"  # Model name for generating image captions
+  caption_endpoint_url: "http://localhost:1977/v1/chat/completions"  # API endpoint for caption generation service
+  enable_pdf_splitter: true  # Enable PDF page splitting during ingestion
+
+# LLM Configuration
+llm:
+  server_url: ""  # URL endpoint for the LLM inference service
+  model_name: "nvidia/llama-3.3-nemotron-super-49b-v1.5"  # Name of the language model to use for generation
+  parameters:
+    max_tokens: 32768  # Maximum number of tokens to generate in response
+    temperature: 0.0  # Sampling temperature for controlling randomness (0.0 = deterministic)
+    top_p: 1.0  # Nucleus sampling threshold for token selection
+
+# Query Rewriter Configuration
+query_rewriter:
+  model_name: "nvidia/llama-3.3-nemotron-super-49b-v1.5"  # Model for rewriting user queries to improve retrieval
+  server_url: "localhost:8999"  # URL endpoint for query rewriter service
+  enable_query_rewriter: false  # Enable automatic query rewriting before retrieval
+
+# Filter Expression Generator Configuration
+filter_expression_generator:
+  model_name: "nvidia/llama-3.3-nemotron-super-49b-v1.5"  # Model for generating metadata filter expressions from queries
+  server_url: "localhost:8999"  # URL endpoint for filter expression generator service
+  enable_filter_generator: false  # Enable automatic filter expression generation from natural language
+
+# Embedding Configuration
+embeddings:
+  model_name: "nvidia/llama-3.2-nv-embedqa-1b-v2"  # Model for generating text embeddings
+  dimensions: 2048  # Dimensionality of the embedding vectors
+  server_url: "https://integrate.api.nvidia.com/v1"  # URL endpoint for embedding service
+
+# Ranking Configuration
+ranking:
+  model_name: "nvidia/llama-3.2-nv-rerankqa-1b-v2"  # Model for reranking retrieved documents
+  server_url: "https://ai.api.nvidia.com/v1/retrieval/nvidia/llama-3_2-nv-rerankqa-1b-v2/reranking/v1"  # URL endpoint for reranking service
+  enable_reranker: true  # Enable reranking of retrieved documents before generation
+
+# Retriever Configuration
+retriever:
+  top_k: 10  # Number of top documents to return after retrieval and reranking
+  vdb_top_k: 100  # Number of documents to retrieve from vector database before reranking
+  score_threshold: 0.25  # Minimum similarity score threshold for retrieved documents
+
+# Tracing Configuration
+tracing:
+  enabled: false  # Enable distributed tracing and metrics collection
+  otlp_http_endpoint: "http://localhost:4318/v1/traces"  # OpenTelemetry HTTP endpoint for traces
+  otlp_grpc_endpoint: "grpc://localhost:4317"  # OpenTelemetry gRPC endpoint for traces
+
+# Vision-Language Model Configuration
+vlm:
+  server_url: "http://localhost:1977/v1"  # URL endpoint for Vision-Language Model service
+  model_name: "nvidia/llama-3.1-nemotron-nano-vl-8b-v1"  # Vision-Language Model for processing images and text
+
+# MinIO Configuration
+minio:
+  endpoint: "localhost:9010"  # MinIO object storage endpoint
+  access_key: "minioadmin"  # MinIO access key for authentication
+  secret_key: "minioadmin"  # MinIO secret key for authentication
+
+# Summarizer Configuration
+summarizer:
+  model_name: "nvidia/llama-3.3-nemotron-super-49b-v1.5"  # Model for generating document summaries
+  server_url: "localhost:8999"  # URL endpoint for summarization service
+  max_chunk_length: 50000  # Maximum character length for chunks to summarize
+  chunk_overlap: 200  # Character overlap between chunks during summarization
+  temperature: 0.0  # Sampling temperature for summary generation
+  top_p: 1.0  # Nucleus sampling threshold for summary generation
+
+# Reflection Configuration
+reflection:
+  enable_reflection: false  # Enable self-reflection to improve answer quality
+  max_loops: 3  # Maximum number of reflection iterations
+  model_name: "nvidia/llama-3.3-nemotron-super-49b-v1.5"  # Model for reflection and quality assessment
+  server_url: ""  # URL endpoint for reflection service
+  context_relevance_threshold: 1  # Minimum relevance score for context to be considered useful
+  response_groundedness_threshold: 1  # Minimum groundedness score for response to be considered factual
+
+# Top-level Configuration Flags
+enable_guardrails: false  # Enable safety guardrails for input/output filtering
+enable_citations: true  # Include source citations in generated responses
+enable_vlm_inference: false  # Enable Vision-Language Model for multimodal queries
+temp_dir: "./tmp-data/"  # Temporary directory for file processing and storage

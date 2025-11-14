@@ -12,835 +12,826 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""The definition of the application configuration."""
+"""Simple configuration for NVIDIA RAG."""
 
+import json
 import os
+from pathlib import Path
+from typing import Any
 
-from .configuration_wizard import ConfigWizard, configclass, configfield
+import yaml
+from pydantic import BaseModel, ConfigDict
+from pydantic import Field as PydanticField
+from pydantic.fields import FieldInfo
 
 
-@configclass
-class VectorStoreConfig(ConfigWizard):
-    """Configuration class for the Vector Store connection.
+def Field(default=None, *, env: str = None, description: str = None, **kwargs):
+    """Pydantic Field with optional environment variable support.
 
-    :cvar name: Name of vector store
-    :cvar url: URL of Vector Store
+    Args:
+        default: Default value
+        env: Environment variable name (optional)
+        description: Description of what the field is for (optional)
+        **kwargs: Other Pydantic Field parameters
+
+    Example:
+        name: str = Field(default="milvus", env="APP_VECTORSTORE_NAME", description="Vector store name")
+    """
+    if env:
+        if "json_schema_extra" not in kwargs:
+            kwargs["json_schema_extra"] = {}
+        kwargs["json_schema_extra"]["env"] = env
+
+    if description:
+        kwargs["description"] = description
+
+    return PydanticField(default=default, **kwargs)
+
+
+class _ConfigBase(BaseModel):
+    """Base configuration class with automatic environment variable loading.
+
+    Usage:
+        class MyConfig(_ConfigBase):
+            server_url: str = Field(default="", env="MY_SERVER_URL")
+
+    Priority: dict/yaml values > env vars > defaults
     """
 
-    name: str = configfield(
-        "name",
+    def __init__(self, **data):
+        # Load values from environment variables
+        env_values = {}
+        for field_name, field_info in self.model_fields.items():
+            # Check if Field has 'env' in json_schema_extra
+            if isinstance(field_info, FieldInfo) and field_info.json_schema_extra:
+                env_var_name = field_info.json_schema_extra.get("env")
+                if env_var_name and env_var_name in os.environ:
+                    raw_value = os.environ[env_var_name]
+                    # Strip surrounding quotes if present (handles Docker Compose quoted values)
+                    if isinstance(raw_value, str) and len(raw_value) >= 2:
+                        # More robust quote stripping: strip whitespace first, then quotes
+                        raw_value = raw_value.strip()
+                        if (raw_value.startswith('"') and raw_value.endswith('"')) or \
+                           (raw_value.startswith("'") and raw_value.endswith("'")):
+                            raw_value = raw_value[1:-1]
+                    env_values[field_name] = raw_value
+
+        # Merge: data overrides env vars, env vars override defaults
+        merged_data = {**env_values, **data}
+
+        super().__init__(**merged_data)
+
+
+class VectorStoreConfig(_ConfigBase):
+    """Vector Store configuration.
+
+    Environment variables:
+        APP_VECTORSTORE_NAME, APP_VECTORSTORE_URL, APP_VECTORSTORE_INDEXTYPE,
+        APP_VECTORSTORE_SEARCHTYPE, COLLECTION_NAME, etc.
+    """
+
+    name: str = Field(
         default="milvus",
-        help_txt="The name of vector store",  # supports "milvus", "elasticsearch"
+        env="APP_VECTORSTORE_NAME",
+        description="Name of the vector store backend (e.g., milvus, elasticsearch)",
     )
-    url: str = configfield(
-        "url",
+    url: str = Field(
         default="http://localhost:19530",
-        help_txt="The host of the machine running Vector Store DB",
+        env="APP_VECTORSTORE_URL",
+        description="URL endpoint for the vector store service",
     )
-    nlist: int = configfield(
-        "nlist",
+    nlist: int = Field(
         default=64,
-        help_txt="Number of cluster units",  # IVF Flat milvus
+        env="APP_VECTORSTORE_NLIST",
+        description="Number of clusters for IVF index",
     )
-    nprobe: int = configfield(
-        "nprobe",
+    nprobe: int = Field(
         default=16,
-        help_txt="Number of units to query",  # IVF Flat milvus
+        env="APP_VECTORSTORE_NPROBE",
+        description="Number of clusters to search during query",
     )
-    index_type: str = configfield(
-        "index_type",
+    index_type: str = Field(
         default="GPU_CAGRA",
-        help_txt="Index of the vector db",  # IVF Flat for milvus
+        env="APP_VECTORSTORE_INDEXTYPE",
+        description="Type of vector index (e.g., GPU_CAGRA, IVF_FLAT)",
     )
-
-    enable_gpu_index: bool = configfield(
-        "enable_gpu_index",
+    enable_gpu_index: bool = Field(
         default=True,
-        help_txt="Flag to control GPU indexing",
+        env="APP_VECTORSTORE_ENABLEGPUINDEX",
+        description="Enable GPU acceleration for index building",
     )
-
-    enable_gpu_search: bool = configfield(
-        "enable_gpu_search",
+    enable_gpu_search: bool = Field(
         default=True,
-        help_txt="Flag to control GPU search",
+        env="APP_VECTORSTORE_ENABLEGPUSEARCH",
+        description="Enable GPU acceleration for search operations",
     )
-
-    search_type: str = configfield(
-        "search_type",
-        default="dense",  # dense or hybrid
-        help_txt="Flag to control search type - 'dense' retrieval or 'hybrid' retrieval",
+    search_type: str = Field(
+        default="dense",
+        env="APP_VECTORSTORE_SEARCHTYPE",
+        description="Type of search to perform (dense, hybrid)",
     )
-
-    default_collection_name: str = configfield(
-        "default_collection_name",
+    default_collection_name: str = Field(
         default="multimodal_data",
-        env_name="COLLECTION_NAME",
-        help_txt="Default collection name for vector store",
+        env="COLLECTION_NAME",
+        description="Default collection/index name for storing vectors",
     )
-
-    ef: int = configfield(
-        "ef",
+    ef: int = Field(
         default=100,
-        help_txt="Parameter controlling query time/accuracy trade-off. Higher ef leads to more accurate but slower search.",
+        env="APP_VECTORSTORE_EF",
+        description="Size of the dynamic candidate list for HNSW search",
     )
-
-    # Authentication for vector store (Authentication is currently supported for Milvus only)
-    username: str = configfield(
-        "username",
-        env_name="APP_VECTORSTORE_USERNAME",
+    username: str = Field(
         default="",
-        help_txt="Username for vector store",
+        env="APP_VECTORSTORE_USERNAME",
+        description="Username for vector store authentication",
     )
-
-    password: str = configfield(
-        "password",
-        env_name="APP_VECTORSTORE_PASSWORD",
+    password: str = Field(
         default="",
-        help_txt="Password for vector store",
+        env="APP_VECTORSTORE_PASSWORD",
+        description="Password for vector store authentication",
     )
 
     # API key authentication for vector store (used by Elasticsearch)
-    api_key: str = configfield(
-        "api_key",
-        env_name="APP_VECTORSTORE_APIKEY",
+    api_key: str = Field(
         default="",
-        help_txt="API key for vector store authentication (base64 form 'id:secret')",
+        env="APP_VECTORSTORE_APIKEY",
+        description="API key for vector store authentication (base64 form 'id:secret')",
     )
-    api_key_id: str = configfield(
-        "api_key_id",
-        env_name="APP_VECTORSTORE_APIKEY_ID",
+    api_key_id: str = Field(
         default="",
-        help_txt="API key ID for vector store authentication",
+        env="APP_VECTORSTORE_APIKEY_ID",
+        description="API key ID for vector store authentication",
     )
-    api_key_secret: str = configfield(
-        "api_key_secret",
-        env_name="APP_VECTORSTORE_APIKEY_SECRET",
+    api_key_secret: str = Field(
         default="",
-        help_txt="API key secret for vector store authentication",
+        env="APP_VECTORSTORE_APIKEY_SECRET",
+        description="API key secret for vector store authentication",
     )
 
 
-@configclass
-class NvIngestConfig(ConfigWizard):
-    """
-    Configuration for NV-Ingest.
-    """
+class NvIngestConfig(_ConfigBase):
+    """NV-Ingest configuration."""
 
-    # NV-Ingest Runtime Connectivity Configuration parameters
-    message_client_hostname: str = configfield(
-        "message_client_hostname",
-        default="localhost",  # TODO
-        help_txt="NV Ingest Message Client Host Name",
+    message_client_hostname: str = Field(
+        default="localhost",
+        env="APP_NVINGEST_MESSAGECLIENTHOSTNAME",
+        description="Hostname for NV-Ingest message client",
     )
-
-    message_client_port: int = configfield(
-        "message_client_port",
+    message_client_port: int = Field(
         default=7670,
-        help_txt="NV Ingest Message Client Port",
+        env="APP_NVINGEST_MESSAGECLIENTPORT",
+        description="Port for NV-Ingest message client",
     )
-
-    # Extraction Configuration Parameters (Add additional parameters here)
-    extract_text: bool = configfield(
-        "extract_text",
+    extract_text: bool = Field(
         default=True,
-        help_txt="Enable extract text for nv-ingest extraction",
+        env="APP_NVINGEST_EXTRACTTEXT",
+        description="Enable text extraction from documents",
     )
-
-    extract_infographics: bool = configfield(
-        "extract_infographics",
+    extract_infographics: bool = Field(
         default=False,
-        help_txt="Enable extract infographics for nv-ingest extraction",
+        env="APP_NVINGEST_EXTRACTINFOGRAPHICS",
+        description="Enable infographic extraction from documents",
     )
-
-    extract_tables: bool = configfield(
-        "extract_tables",
+    extract_tables: bool = Field(
         default=True,
-        help_txt="Enable extract tables for nv-ingest extraction",
+        env="APP_NVINGEST_EXTRACTTABLES",
+        description="Enable table extraction from documents",
     )
-
-    extract_charts: bool = configfield(
-        "extract_charts",
+    extract_charts: bool = Field(
         default=True,
-        help_txt="Enable extract charts for nv-ingest extraction",
+        env="APP_NVINGEST_EXTRACTCHARTS",
+        description="Enable chart extraction from documents",
     )
-
-    extract_images: bool = configfield(
-        "extract_images",
+    extract_images: bool = Field(
         default=False,
-        help_txt="Enable extract images for nv-ingest extraction",
+        env="APP_NVINGEST_EXTRACTIMAGES",
+        description="Enable image extraction from documents",
     )
-
-    extract_page_as_image: bool = configfield(
-        "extract_page_as_image",
+    extract_page_as_image: bool = Field(
         default=False,
-        help_txt="Enable extract page as image for nv-ingest extraction",
+        env="APP_NVINGEST_EXTRACTPAGEASIMAGE",
+        description="Extract entire pages as images",
     )
-
-    structured_elements_modality: str = configfield(
-        "structured_elements_modality",
+    structured_elements_modality: str = Field(
         default="",
-        help_txt="Modality of structured elements",
-        env_name="STRUCTURED_ELEMENTS_MODALITY",
+        env="STRUCTURED_ELEMENTS_MODALITY",
+        description="Modality for processing structured elements (tables, charts)",
     )
-
-    image_elements_modality: str = configfield(
-        "image_elements_modality",
+    image_elements_modality: str = Field(
         default="",
-        help_txt="Modality of image elements",
-        env_name="IMAGE_ELEMENTS_MODALITY",
+        env="IMAGE_ELEMENTS_MODALITY",
+        description="Modality for processing image elements",
     )
-
-    pdf_extract_method: str = configfield(
-        "pdf_extract_method",
-        default="None",  # Literal['pdfium','nemoretriever_parse','None']
-        help_txt="Extract method 'pdfium', 'nemoretriever_parse', 'None'",
+    pdf_extract_method: str = Field(
+        default="None",
+        env="APP_NVINGEST_PDFEXTRACTMETHOD",
+        description="Method to use for PDF extraction",
     )
-
-    text_depth: str = configfield(
-        "text_depth",
-        default="page",  # Literal['page', 'document']
-        help_txt="Extract text by 'page' or 'document'",
+    text_depth: str = Field(
+        default="page",
+        env="APP_NVINGEST_TEXTDEPTH",
+        description="Granularity level for text extraction (page, document)",
     )
-
-    # Splitting Configuration Parameters (Add additional parameters here)
-    tokenizer: str = configfield(
-        "tokenizer",
+    tokenizer: str = Field(
         default="intfloat/e5-large-unsupervised",
-        # Literal["intfloat/e5-large-unsupervised" , "meta-llama/Llama-3.2-1B"]
-        help_txt="Tokenizer for text splitting.",
+        env="APP_NVINGEST_TOKENIZER",
+        description="Tokenizer model for text chunking",
     )
-
-    chunk_size: int = configfield(
-        "chunk_size",
+    chunk_size: int = Field(
         default=1024,
-        help_txt="Chunk size for text splitting.",
+        env="APP_NVINGEST_CHUNKSIZE",
+        description="Maximum size of text chunks in tokens",
     )
-
-    chunk_overlap: int = configfield(
-        "chunk_overlap",
+    chunk_overlap: int = Field(
         default=150,
-        help_txt="Chunk overlap for text splitting.",
+        env="APP_NVINGEST_CHUNKOVERLAP",
+        description="Number of overlapping tokens between chunks",
     )
-
-    # Captioning Configuration Parameters
-    caption_model_name: str = configfield(
-        "caption_model_name",
+    caption_model_name: str = Field(
         default="nvidia/llama-3.1-nemotron-nano-vl-8b-v1",
-        help_txt="NV Ingest Captioning model name",
+        env="APP_NVINGEST_CAPTIONMODELNAME",
+        description="Model name for generating image captions",
     )
-
-    caption_endpoint_url: str = configfield(
-        "caption_endpoint_url",
+    caption_endpoint_url: str = Field(
         default="https://integrate.api.nvidia.com/v1/chat/completions",
-        help_txt="NV Ingest Captioning model Endpoint URL",
+        env="APP_NVINGEST_CAPTIONENDPOINTURL",
+        description="API endpoint for caption generation service",
     )
-
-    enable_pdf_splitter: bool = configfield(
-        "enable_pdf_splitter",
+    enable_pdf_splitter: bool = Field(
         default=True,
-        help_txt="Enable post chunk split for NV Ingest",
+        env="APP_NVINGEST_ENABLEPDFSPLITTER",
+        description="Enable PDF page splitting during ingestion",
     )
-
-    segment_audio: bool = configfield(
-        "segment_audio",
+    segment_audio: bool = Field(
         default=False,
-        help_txt="Enable audio segmentation for NV Ingest",
+        env="APP_NVINGEST_SEGMENTAUDIO",
+        description="Enable audio segmentation during ingestion",
     )
-
-    save_to_disk: bool = configfield(
-        "save_to_disk",
+    save_to_disk: bool = Field(
         default=False,
-        help_txt="Enable saving results to disk for NV Ingest",
+        env="APP_NVINGEST_SAVETODISK",
+        description="Save extracted content to disk for debugging",
+    )
+    # Batch processing configuration
+    enable_batch_mode: bool = Field(
+        default=True,
+        env="ENABLE_NV_INGEST_BATCH_MODE",
+        description="Process files in batches for better throughput",
+    )
+    files_per_batch: int = Field(
+        default=16,
+        env="NV_INGEST_FILES_PER_BATCH",
+        description="Number of files to process in each batch",
+    )
+    enable_parallel_batch_mode: bool = Field(
+        default=True,
+        env="ENABLE_NV_INGEST_PARALLEL_BATCH_MODE",
+        description="Enable parallel processing of multiple batches",
+    )
+    concurrent_batches: int = Field(
+        default=4,
+        env="NV_INGEST_CONCURRENT_BATCHES",
+        description="Number of batches to process concurrently",
     )
 
 
-@configclass
-class ModelParametersConfig(ConfigWizard):
-    """Configuration class for model parameters based on model name.
+class ModelParametersConfig(_ConfigBase):
+    """Model parameters configuration."""
 
-    This defines default parameters for different LLM models.
-    """
-
-    max_tokens: int = configfield(
-        "max_tokens",
-        env_name="LLM_MAX_TOKENS",
+    max_tokens: int = Field(
         default=32768,
-        help_txt="The maximum number of tokens to generate in any given call.",
+        env="LLM_MAX_TOKENS",
+        description="Maximum number of tokens to generate in response",
     )
-
-    min_tokens: int = configfield(
-        "min_tokens",
-        env_name="LLM_MIN_TOKENS",
+    min_tokens: int = Field(
         default=0,
-        help_txt="The minimum number of tokens to generate in any given call.",
+        env="LLM_MIN_TOKENS",
+        description="Minimum number of tokens to generate in response",
     )
-
-    ignore_eos: bool = configfield(
-        "ignore_eos",
-        env_name="LLM_IGNORE_EOS",
+    ignore_eos: bool = Field(
         default=False,
-        help_txt="Whether to ignore the EOS token and continue generating tokens after the EOS token is generated",
+        env="LLM_IGNORE_EOS",
+        description="Ignore end-of-sequence token during generation",
     )
-
-    temperature: float = configfield(
-        "temperature",
-        env_name="LLM_TEMPERATURE",
-        default=0,
-        help_txt="The sampling temperature to use for text generation.",
+    temperature: float = Field(
+        default=0.0,
+        env="LLM_TEMPERATURE",
+        description="Sampling temperature for controlling randomness (0.0 = deterministic)",
     )
-
-    top_p: float = configfield(
-        "top_p",
-        env_name="LLM_TOP_P",
+    top_p: float = Field(
         default=1.0,
-        help_txt="The top-p sampling mass used for text generation.",
+        env="LLM_TOP_P",
+        description="Nucleus sampling threshold for token selection",
     )
 
 
-@configclass
-class LLMConfig(ConfigWizard):
-    """Configuration class for the llm connection.
+class LLMConfig(_ConfigBase):
+    """LLM configuration."""
 
-    :cvar server_url: The location of the llm server hosting the model.
-    :cvar model_name: The name of the hosted model.
-    """
-
-    server_url: str = configfield(
-        "server_url",
+    server_url: str = Field(
         default="",
-        help_txt="The location of the Triton server hosting the llm model.",
+        env="APP_LLM_SERVERURL",
+        description="URL endpoint for the LLM inference service",
     )
-    model_name: str = configfield(
-        "model_name",
+    model_name: str = Field(
         default="nvidia/llama-3.3-nemotron-super-49b-v1.5",
-        help_txt="The name of the hosted model.",
+        env="APP_LLM_MODELNAME",
+        description="Name of the language model to use for generation",
     )
-    model_engine: str = configfield(
-        "model_engine",
+    model_engine: str = Field(
         default="nvidia-ai-endpoints",
-        help_txt="The server type of the hosted model. Allowed values are nvidia-ai-endpoints",
+        env="APP_LLM_MODELENGINE",
+        description="Engine/provider for LLM inference (e.g., nvidia-ai-endpoints, openai)",
     )
-    # Add model parameters configuration
-    parameters: ModelParametersConfig = configfield(
-        "parameters",
-        help_txt="Model-specific parameters for generation.",
-        default_factory=ModelParametersConfig,
+    parameters: ModelParametersConfig = PydanticField(
+        default_factory=ModelParametersConfig, description="Model generation parameters"
     )
 
     def get_model_parameters(self) -> dict:
-        """Return appropriate parameters based on the model name.
-
-        Returns a dictionary with max_tokens, temperature, and top_p
-        adjusted according to the model name.
-        """
-        params = {
+        """Return model parameters as dict."""
+        return {
             "min_tokens": self.parameters.min_tokens,
             "ignore_eos": self.parameters.ignore_eos,
             "max_tokens": self.parameters.max_tokens,
             "temperature": self.parameters.temperature,
             "top_p": self.parameters.top_p,
         }
-        return params
 
 
-@configclass
-class QueryRewriterConfig(ConfigWizard):
-    """Configuration class for the Query Rewriter."""
+class QueryRewriterConfig(_ConfigBase):
+    """Query Rewriter configuration."""
 
-    model_name: str = configfield(
-        "model_name",
+    model_name: str = Field(
         default="nvidia/llama-3.3-nemotron-super-49b-v1.5",
-        help_txt="The llm name of the query rewriter model",
+        env="APP_QUERYREWRITER_MODELNAME",
+        description="Model for rewriting user queries to improve retrieval",
     )
-    server_url: str = configfield(
-        "server_url",
+    server_url: str = Field(
         default="",
-        help_txt="The location of the query rewriter model.",
+        env="APP_QUERYREWRITER_SERVERURL",
+        description="URL endpoint for query rewriter service",
     )
-    enable_query_rewriter: bool = configfield(
-        "enable_query_rewriter",
-        env_name="ENABLE_QUERYREWRITER",
+    enable_query_rewriter: bool = Field(
         default=False,
-        help_txt="Enable query rewriter",
+        env="ENABLE_QUERYREWRITER",
+        description="Enable automatic query rewriting before retrieval",
     )
-    # TODO: Add temperature, top_p, max_tokens
 
 
-@configclass
-class FilterExpressionGeneratorConfig(ConfigWizard):
-    """Configuration class for the Filter Expression Generator."""
+class FilterExpressionGeneratorConfig(_ConfigBase):
+    """Filter Expression Generator configuration."""
 
-    model_name: str = configfield(
-        "model_name",
-        env_name="APP_FILTEREXPRESSIONGENERATOR_MODELNAME",
+    model_name: str = Field(
         default="nvidia/llama-3.3-nemotron-super-49b-v1.5",
-        help_txt="The llm name of the filter expression generator model",
+        env="APP_FILTEREXPRESSIONGENERATOR_MODELNAME",
+        description="Model for generating metadata filter expressions from queries",
     )
-    server_url: str = configfield(
-        "server_url",
-        env_name="APP_FILTEREXPRESSIONGENERATOR_SERVERURL",
+    server_url: str = Field(
         default="",
-        help_txt="The location of the filter expression generator model.",
+        env="APP_FILTEREXPRESSIONGENERATOR_SERVERURL",
+        description="URL endpoint for filter expression generator service",
     )
-    enable_filter_generator: bool = configfield(
-        "enable_filter_generator",
-        env_name="ENABLE_FILTER_GENERATOR",
+    enable_filter_generator: bool = Field(
         default=False,
-        help_txt="Enable filter expression generator",
+        env="ENABLE_FILTER_GENERATOR",
+        description="Enable automatic filter expression generation from natural language",
     )
-    temperature: float = configfield(
-        "temperature",
-        default=0,
-        help_txt="The sampling temperature for filter expression generation.",
+    temperature: float = Field(
+        default=0.0,
+        env="APP_FILTEREXPRESSIONGENERATOR_TEMPERATURE",
+        description="Sampling temperature for filter generation",
     )
-    top_p: float = configfield(
-        "top_p",
+    top_p: float = Field(
         default=1.0,
-        help_txt="The top-p sampling mass for filter expression generation.",
+        env="APP_FILTEREXPRESSIONGENERATOR_TOPP",
+        description="Nucleus sampling threshold for filter generation",
     )
-    max_tokens: int = configfield(
-        "max_tokens",
+    max_tokens: int = Field(
         default=32768,
-        help_txt="The maximum number of tokens for filter expression generation.",
+        env="APP_FILTEREXPRESSIONGENERATOR_MAXTOKENS",
+        description="Maximum tokens for filter expression generation",
     )
 
 
-@configclass
-class TextSplitterConfig(ConfigWizard):
-    """Configuration class for the Text Splitter.
+class TextSplitterConfig(_ConfigBase):
+    """Text Splitter configuration."""
 
-    :cvar chunk_size: Chunk size for text splitter. Tokens per chunk in token-based splitters.
-    :cvar chunk_overlap: Text overlap in text splitter.
-    """
-
-    model_name: str = configfield(
-        "model_name",
+    model_name: str = Field(
         default="Snowflake/snowflake-arctic-embed-l",
-        help_txt="The name of Sentence Transformer model used for SentenceTransformer TextSplitter.",
+        env="APP_TEXTSPLITTER_MODELNAME",
+        description="Tokenizer model for text splitting",
     )
-    chunk_size: int = configfield(
-        "chunk_size",
+    chunk_size: int = Field(
         default=510,
-        help_txt="Chunk size for text splitting.",
+        env="APP_TEXTSPLITTER_CHUNKSIZE",
+        description="Target size for text chunks in tokens",
     )
-    chunk_overlap: int = configfield(
-        "chunk_overlap",
+    chunk_overlap: int = Field(
         default=200,
-        help_txt="Overlapping text length for splitting.",
+        env="APP_TEXTSPLITTER_CHUNKOVERLAP",
+        description="Number of overlapping tokens between consecutive chunks",
     )
 
 
-@configclass
-class EmbeddingConfig(ConfigWizard):
-    """Configuration class for the Embeddings.
+class EmbeddingConfig(_ConfigBase):
+    """Embedding configuration."""
 
-    :cvar model_name: The name of the huggingface embedding model.
-    """
-
-    model_name: str = configfield(
-        "model_name",
+    model_name: str = Field(
         default="nvidia/llama-3.2-nv-embedqa-1b-v2",
-        help_txt="The name of huggingface embedding model.",
+        env="APP_EMBEDDINGS_MODELNAME",
+        description="Model for generating text embeddings",
     )
-    model_engine: str = configfield(
-        "model_engine",
+    model_engine: str = Field(
         default="nvidia-ai-endpoints",
-        help_txt="The server type of the hosted model. Allowed values are hugginface",
+        env="APP_EMBEDDINGS_MODELENGINE",
+        description="Engine/provider for embedding generation",
     )
-    dimensions: int = configfield(
-        "dimensions",
+    dimensions: int = Field(
         default=2048,
-        help_txt="The required dimensions of the embedding model. Currently utilized for vector DB indexing.",
+        env="APP_EMBEDDINGS_DIMENSIONS",
+        description="Dimensionality of the embedding vectors",
     )
-    server_url: str = configfield(
-        "server_url",
+    server_url: str = Field(
         default="",
-        help_txt="The url of the server hosting nemo embedding model",
+        env="APP_EMBEDDINGS_SERVERURL",
+        description="URL endpoint for embedding service",
     )
 
 
-@configclass
-class RankingConfig(ConfigWizard):
-    """Configuration class for the Re-ranking.
+class RankingConfig(_ConfigBase):
+    """Ranking configuration."""
 
-    :cvar model_name: The name of the Ranking model.
-    """
-
-    model_name: str = configfield(
-        "model_name",
+    model_name: str = Field(
         default="nvidia/llama-3.2-nv-rerankqa-1b-v2",
-        help_txt="The name of Ranking model.",
+        env="APP_RANKING_MODELNAME",
+        description="Model for reranking retrieved documents",
     )
-    model_engine: str = configfield(
-        "model_engine",
+    model_engine: str = Field(
         default="nvidia-ai-endpoints",
-        help_txt="The server type of the hosted model. Allowed values are nvidia-ai-endpoints",
+        env="APP_RANKING_MODELENGINE",
+        description="Engine/provider for reranking service",
     )
-    server_url: str = configfield(
-        "server_url",
+    server_url: str = Field(
         default="",
-        help_txt="The url of the server hosting nemo Ranking model",
+        env="APP_RANKING_SERVERURL",
+        description="URL endpoint for reranking service",
     )
-    enable_reranker: bool = configfield(
-        "enable_reranker",
-        env_name="ENABLE_RERANKER",
+    enable_reranker: bool = Field(
         default=True,
-        help_txt="Enable reranking",
+        env="ENABLE_RERANKER",
+        description="Enable reranking of retrieved documents before generation",
     )
 
 
-@configclass
-class RetrieverConfig(ConfigWizard):
-    """Configuration class for the Retrieval pipeline.
+class RetrieverConfig(_ConfigBase):
+    """Retriever configuration."""
 
-    :cvar top_k: Number of relevant results to retrieve.
-    :cvar score_threshold: The minimum confidence score for the retrieved values to be considered.
-    """
-
-    top_k: int = configfield(
-        "top_k",
+    top_k: int = Field(
         default=10,
-        help_txt="Number of relevant results to retrieve",
+        env="APP_RETRIEVER_TOPK",
+        description="Number of top documents to return after retrieval and reranking",
     )
-    vdb_top_k: int = configfield(
-        "vdb_top_k",
-        env_name="VECTOR_DB_TOPK",
+    vdb_top_k: int = Field(
         default=100,
-        help_txt="Number of relevant results to retrieve from vector db",
+        env="VECTOR_DB_TOPK",
+        description="Number of documents to retrieve from vector database before reranking",
     )
-    score_threshold: float = configfield(
-        "score_threshold",
+    score_threshold: float = Field(
         default=0.25,
-        help_txt="The minimum confidence score for the retrieved values to be considered",
+        env="APP_RETRIEVER_SCORETHRESHOLD",
+        description="Minimum similarity score threshold for retrieved documents",
     )
-    nr_url: str = configfield(
-        "nr_url",
+    nr_url: str = Field(
         default="http://retrieval-ms:8000",
-        help_txt="The nemo retriever microservice url",
+        env="APP_RETRIEVER_NRURL",
+        description="URL for NVIDIA Retrieval microservice",
     )
-    nr_pipeline: str = configfield(
-        "nr_pipeline",
+    nr_pipeline: str = Field(
         default="ranked_hybrid",
-        help_txt="The name of the nemo retriever pipeline one of ranked_hybrid or hybrid",
+        env="APP_RETRIEVER_NRPIPELINE",
+        description="Retrieval pipeline to use (e.g., ranked_hybrid, dense, sparse)",
     )
 
 
-@configclass
-class TracingConfig(ConfigWizard):
-    """Configuration class for Open Telemetry Tracing."""
+class TracingConfig(_ConfigBase):
+    """Tracing configuration."""
 
-    enabled: bool = configfield(
-        "enabled",
+    enabled: bool = Field(
         default=False,
-        help_txt="Enable Open Telemetry Tracing",
+        env="APP_TRACING_ENABLED",
+        description="Enable distributed tracing and metrics collection",
     )
-    otlp_http_endpoint: str = configfield(
-        "otlp_http_endpoint",
-        env_name="APP_TRACING_OTLPHTTPENDPOINT",
+    otlp_http_endpoint: str = Field(
         default="",
-        help_txt="HTTP endpoint for OpenTelemetry trace export",
+        env="APP_TRACING_OTLPHTTPENDPOINT",
+        description="OpenTelemetry HTTP endpoint for traces",
     )
-    otlp_grpc_endpoint: str = configfield(
-        "otlp_grpc_endpoint",
-        env_name="APP_TRACING_OTLPGRPCENDPOINT",
+    otlp_grpc_endpoint: str = Field(
         default="",
-        help_txt="gRPC endpoint for OpenTelemetry trace export",
+        env="APP_TRACING_OTLPGRPCENDPOINT",
+        description="OpenTelemetry gRPC endpoint for traces",
     )
-    prometheus_multiproc_dir: str = configfield(
-        "prometheus_multiproc_dir",
-        env_name="PROMETHEUS_MULTIPROC_DIR",
+    prometheus_multiproc_dir: str = Field(
         default="/tmp/prom_data",
-        help_txt="Directory to store Prometheus multi-process metrics",
+        env="PROMETHEUS_MULTIPROC_DIR",
+        description="Directory for Prometheus multiprocess metrics",
     )
 
 
-@configclass
-class VLMConfig(ConfigWizard):
-    """Configuration class for the VLM."""
+class VLMConfig(_ConfigBase):
+    """VLM configuration."""
 
-    server_url: str = configfield(
-        "server_url",
+    server_url: str = Field(
         default="http://localhost:8000/v1",
-        help_txt="The url of the server hosting the VLM model",
+        env="APP_VLM_SERVERURL",
+        description="URL endpoint for Vision-Language Model service",
     )
-    model_name: str = configfield(
-        "model_name",
+    model_name: str = Field(
         default="nvidia/llama-3.1-nemotron-nano-vl-8b-v1",
-        help_txt="The name of the VLM model",
+        env="APP_VLM_MODELNAME",
+        description="Vision-Language Model for processing images and text",
     )
-    enable_vlm_response_reasoning: bool = configfield(
-        "enable_vlm_response_reasoning",
-        env_name="ENABLE_VLM_RESPONSE_REASONING",
+    enable_vlm_response_reasoning: bool = Field(
         default=False,
-        help_txt="Enable reasoning gate on VLM responses before adding them to the prompt",
+        env="ENABLE_VLM_RESPONSE_REASONING",
+        description="Enable reasoning mode in VLM responses",
     )
-    max_total_images: int = configfield(
-        "max_total_images",
-        env_name="APP_VLM_MAX_TOTAL_IMAGES",
+    max_total_images: int = Field(
         default=4,
-        help_txt="Maximum total images sent to VLM per request (query + context).",
+        env="APP_VLM_MAX_TOTAL_IMAGES",
+        description="Maximum total images to process in a single request",
     )
-    max_query_images: int = configfield(
-        "max_query_images",
-        env_name="APP_VLM_MAX_QUERY_IMAGES",
+    max_query_images: int = Field(
         default=1,
-        help_txt="Maximum number of query images included in the VLM request.",
+        env="APP_VLM_MAX_QUERY_IMAGES",
+        description="Maximum images from user query to process",
     )
-    max_context_images: int = configfield(
-        "max_context_images",
-        env_name="APP_VLM_MAX_CONTEXT_IMAGES",
+    max_context_images: int = Field(
         default=1,
-        help_txt="Maximum number of context images included in the VLM request.",
+        env="APP_VLM_MAX_CONTEXT_IMAGES",
+        description="Maximum images from retrieved context to process",
     )
-    vlm_response_as_final_answer: bool = configfield(
-        "vlm_response_as_final_answer",
-        env_name="APP_VLM_RESPONSE_AS_FINAL_ANSWER",
+    vlm_response_as_final_answer: bool = Field(
         default=False,
-        help_txt="If enabled, use the VLM's response as the final answer instead of further LLM reasoning.",
+        env="APP_VLM_RESPONSE_AS_FINAL_ANSWER",
+        description="Use VLM response directly as final answer without LLM refinement",
     )
 
 
-@configclass
-class MinioConfig(ConfigWizard):
-    """Configuration class for the Minio."""
+class MinioConfig(_ConfigBase):
+    """Minio configuration."""
 
-    endpoint: str = configfield(
-        "endpoint",
-        env_name="MINIO_ENDPOINT",
+    endpoint: str = Field(
         default="localhost:9010",
-        help_txt="The endpoint of the minio server",
+        env="MINIO_ENDPOINT",
+        description="MinIO object storage endpoint",
     )
-    # TODO: Hide secret keys so it's not visible when showing config
-    access_key: str = configfield(
-        "access_key",
-        env_name="MINIO_ACCESSKEY",
+    access_key: str = Field(
         default="minioadmin",
-        help_txt="The access key of the minio server",
+        env="MINIO_ACCESSKEY",
+        description="MinIO access key for authentication",
     )
-    secret_key: str = configfield(
-        "secret_key",
-        env_name="MINIO_SECRETKEY",
+    secret_key: str = Field(
         default="minioadmin",
-        help_txt="The secret key of the minio server",
+        env="MINIO_SECRETKEY",
+        description="MinIO secret key for authentication",
     )
 
 
-@configclass
-class SummarizerConfig(ConfigWizard):
-    """Configuration class for the Summarizer."""
+class SummarizerConfig(_ConfigBase):
+    """Summarizer configuration."""
 
-    model_name: str = configfield(
-        "model_name",
-        env_name="SUMMARY_LLM",
+    model_name: str = Field(
         default="nvidia/llama-3.3-nemotron-super-49b-v1.5",
-        help_txt="The name of the summarizer model",
+        env="SUMMARY_LLM",
+        description="Model for generating document summaries",
     )
-    server_url: str = configfield(
-        "server_url",
-        env_name="SUMMARY_LLM_SERVERURL",
+    server_url: str = Field(
         default="",
-        help_txt="The url of the server hosting the summarizer model",
+        env="SUMMARY_LLM_SERVERURL",
+        description="URL endpoint for summarization service",
     )
-    max_chunk_length: int = configfield(
-        "max_chunk_length",
-        env_name="SUMMARY_LLM_MAX_CHUNK_LENGTH",
+    max_chunk_length: int = Field(
         default=50000,
-        help_txt="Maximum chunk size in characters for the summarizer model",
+        env="SUMMARY_LLM_MAX_CHUNK_LENGTH",
+        description="Maximum character length for chunks to summarize",
     )
-    chunk_overlap: int = configfield(
-        "chunk_overlap",
-        env_name="SUMMARY_CHUNK_OVERLAP",
+    chunk_overlap: int = Field(
         default=200,
-        help_txt="Overlap between chunks for iterative summarization (in characters)",
+        env="SUMMARY_CHUNK_OVERLAP",
+        description="Character overlap between chunks during summarization",
     )
-    temperature: float = configfield(
-        "temperature",
-        env_name="SUMMARY_LLM_TEMPERATURE",
+    temperature: float = Field(
         default=0.0,
-        help_txt="Temperature for the summarizer model (controls randomness)",
+        env="SUMMARY_LLM_TEMPERATURE",
+        description="Sampling temperature for summary generation",
     )
-    top_p: float = configfield(
-        "top_p",
-        env_name="SUMMARY_LLM_TOP_P",
+    top_p: float = Field(
         default=1.0,
-        help_txt="Top-p sampling for the summarizer model (nucleus sampling)",
+        env="SUMMARY_LLM_TOP_P",
+        description="Nucleus sampling threshold for summary generation",
     )
 
 
-@configclass
-class MetadataConfig(ConfigWizard):
-    """Configuration for metadata handling and validation.
-    - All type/format constants are referenced from metadata_validation.py
-    """
+class MetadataConfig(_ConfigBase):
+    """Metadata configuration."""
 
-    max_array_length: int = configfield(
-        "max_array_length",
+    max_array_length: int = Field(
         default=1000,
-        help_txt="Maximum length for array metadata fields",
+        env="APP_METADATA_MAXARRAYLENGTH",
+        description="Maximum length for array-type metadata fields",
     )
-    max_string_length: int = configfield(
-        "max_string_length",
+    max_string_length: int = Field(
         default=65535,
-        help_txt="Maximum length for string metadata fields",
+        env="APP_METADATA_MAXSTRINGLENGTH",
+        description="Maximum length for string-type metadata fields",
     )
-    allow_partial_filtering: bool = configfield(
-        "allow_partial_filtering",
+    allow_partial_filtering: bool = Field(
         default=False,
-        help_txt="Allow partial filtering across collections. When True, only collections that fully support the filter are used. When False, all collections must support the filter or the request fails.",
+        env="APP_METADATA_ALLOWPARTIALFILTERING",
+        description="Allow partial matches in metadata filtering",
     )
 
 
-@configclass
-class QueryDecompositionConfig(ConfigWizard):
-    """Configuration class for the Query Decomposition."""
+class QueryDecompositionConfig(_ConfigBase):
+    """Query Decomposition configuration."""
 
-    enable_query_decomposition: bool = configfield(
-        "enable_query_decomposition",
-        env_name="ENABLE_QUERY_DECOMPOSITION",
+    enable_query_decomposition: bool = Field(
         default=False,
-        help_txt="Enable query decomposition",
+        env="ENABLE_QUERY_DECOMPOSITION",
+        description="Enable breaking down complex queries into sub-queries",
     )
-    recursion_depth: int = configfield(
-        "recursion_depth",
-        env_name="MAX_RECURSION_DEPTH",
+    recursion_depth: int = Field(
         default=3,
-        help_txt="Maximum recursion depth for query decomposition",
+        env="MAX_RECURSION_DEPTH",
+        description="Maximum depth for recursive query decomposition",
     )
 
 
-@configclass
-class AppConfig(ConfigWizard):
-    """Configuration class for the application.
+class ReflectionConfig(_ConfigBase):
+    """Reflection configuration for context relevance and response groundedness."""
 
-    :cvar vector_store: The configuration of the vector db connection.
-    :type vector_store: VectorStoreConfig
-    :cvar llm: The configuration of the backend llm server.
-    :type llm: LLMConfig
-    :cvar text_splitter: The configuration for text splitter
-    :type text_splitter: TextSplitterConfig
-    :cvar embeddings: The configuration for huggingface embeddings
-    :type embeddings: EmbeddingConfig
-    :cvar prompts: The Prompts template for RAG and Chat
-    :type prompts: PromptsConfig
-    :cvar metadata: The configuration for metadata handling.
-    :type metadata: MetadataConfig
+    enable_reflection: bool = Field(
+        default=False,
+        env="ENABLE_REFLECTION",
+        description="Enable self-reflection to improve answer quality",
+    )
+    max_loops: int = Field(
+        default=3,
+        env="MAX_REFLECTION_LOOP",
+        description="Maximum number of reflection iterations",
+    )
+    model_name: str = Field(
+        default="nvidia/llama-3.3-nemotron-super-49b-v1.5",
+        env="REFLECTION_LLM",
+        description="Model for reflection and quality assessment",
+    )
+    server_url: str = Field(
+        default="",
+        env="REFLECTION_LLM_SERVERURL",
+        description="URL endpoint for reflection service",
+    )
+    context_relevance_threshold: int = Field(
+        default=1,
+        env="CONTEXT_RELEVANCE_THRESHOLD",
+        description="Minimum relevance score for context to be considered useful",
+    )
+    response_groundedness_threshold: int = Field(
+        default=1,
+        env="RESPONSE_GROUNDEDNESS_THRESHOLD",
+        description="Minimum groundedness score for response to be considered factual",
+    )
+
+
+class NvidiaRAGConfig(_ConfigBase):
+    """Main NVIDIA RAG configuration.
+
+    Priority order (highest to lowest):
+    1. Config file values (YAML/JSON)
+    2. Environment variables
+    3. Default values
     """
 
-    vector_store: VectorStoreConfig = configfield(
-        "vector_store",
-        env=False,
-        help_txt="The configuration of the vector db connection.",
-        default_factory=VectorStoreConfig,
+    model_config = ConfigDict(extra="allow", protected_namespaces=())
+
+    vector_store: VectorStoreConfig = PydanticField(default_factory=VectorStoreConfig)
+    llm: LLMConfig = PydanticField(default_factory=LLMConfig)
+    query_rewriter: QueryRewriterConfig = PydanticField(
+        default_factory=QueryRewriterConfig
     )
-    llm: LLMConfig = configfield(
-        "llm",
-        env=False,
-        help_txt="The configuration for the server hosting the Large Language Models.",
-        default_factory=LLMConfig,
+    filter_expression_generator: FilterExpressionGeneratorConfig = PydanticField(
+        default_factory=FilterExpressionGeneratorConfig
     )
-    query_rewriter: QueryRewriterConfig = configfield(
-        "query_rewriter",
-        env=False,
-        help_txt="The configuration for the query rewriter.",
-        default_factory=QueryRewriterConfig,
+    text_splitter: TextSplitterConfig = PydanticField(
+        default_factory=TextSplitterConfig
     )
-    filter_expression_generator: FilterExpressionGeneratorConfig = configfield(
-        "filter_expression_generator",
-        env=False,
-        help_txt="The configuration for the filter expression generator.",
-        default_factory=FilterExpressionGeneratorConfig,
+    embeddings: EmbeddingConfig = PydanticField(default_factory=EmbeddingConfig)
+    ranking: RankingConfig = PydanticField(default_factory=RankingConfig)
+    retriever: RetrieverConfig = PydanticField(default_factory=RetrieverConfig)
+    nv_ingest: NvIngestConfig = PydanticField(default_factory=NvIngestConfig)
+    tracing: TracingConfig = PydanticField(default_factory=TracingConfig)
+    vlm: VLMConfig = PydanticField(default_factory=VLMConfig)
+    minio: MinioConfig = PydanticField(default_factory=MinioConfig)
+    summarizer: SummarizerConfig = PydanticField(default_factory=SummarizerConfig)
+    metadata: MetadataConfig = PydanticField(default_factory=MetadataConfig)
+    query_decomposition: QueryDecompositionConfig = PydanticField(
+        default_factory=QueryDecompositionConfig
     )
-    text_splitter: TextSplitterConfig = configfield(
-        "text_splitter",
-        env=False,
-        help_txt="The configuration for text splitter.",
-        default_factory=TextSplitterConfig,
-    )
-    embeddings: EmbeddingConfig = configfield(
-        "embeddings",
-        env=False,
-        help_txt="The configuration of embedding model.",
-        default_factory=EmbeddingConfig,
-    )
-    ranking: RankingConfig = configfield(
-        "ranking",
-        env=False,
-        help_txt="The configuration of ranking model.",
-        default_factory=RankingConfig,
-    )
-    retriever: RetrieverConfig = configfield(
-        "retriever",
-        env=False,
-        help_txt="The configuration of the retriever pipeline.",
-        default_factory=RetrieverConfig,
-    )
-    nv_ingest: NvIngestConfig = configfield(
-        "nv_ingest",
-        env=False,
-        help_txt="The configuration for nv-ingest.",
-        default_factory=NvIngestConfig,
-    )
-    tracing: TracingConfig = configfield(
-        "tracing", env=False, help_txt="", default_factory=TracingConfig
-    )
-    enable_guardrails: bool = configfield(
-        "enable_guardrails",
-        env_name="ENABLE_GUARDRAILS",
+    reflection: ReflectionConfig = PydanticField(default_factory=ReflectionConfig)
+
+    # Top-level flags
+    enable_guardrails: bool = Field(
         default=False,
-        help_txt="Enable guardrails",
+        env="ENABLE_GUARDRAILS",
+        description="Enable safety guardrails for input/output filtering",
     )
-    enable_citations: bool = configfield(
-        "enable_citations",
-        env_name="ENABLE_CITATIONS",
+    enable_citations: bool = Field(
         default=True,
-        help_txt="Enable citations",
+        env="ENABLE_CITATIONS",
+        description="Include source citations in generated responses",
     )
-    enable_vlm_inference: bool = configfield(
-        "enable_vlm_inference",
-        env_name="ENABLE_VLM_INFERENCE",
+    enable_vlm_inference: bool = Field(
         default=False,
-        help_txt="Enable VLM inference",
+        env="ENABLE_VLM_INFERENCE",
+        description="Enable Vision-Language Model for multimodal queries",
     )
-    default_confidence_threshold: float = configfield(
-        "default_confidence_threshold",
-        env_name="RERANKER_CONFIDENCE_THRESHOLD",
+    default_confidence_threshold: float = Field(
         default=0.0,
-        help_txt="Default confidence threshold for filtering documents by reranker relevance scores (0.0 to 1.0). Only documents with scores >= this threshold are included.",
+        env="RERANKER_CONFIDENCE_THRESHOLD",
+        description="Default confidence threshold for reranker scores",
     )
-    vlm: VLMConfig = configfield(
-        "vlm",
-        env=False,
-        help_txt="The configuration for the VLM.",
-        default_factory=VLMConfig,
-    )
-    minio: MinioConfig = configfield(
-        "minio",
-        env=False,
-        help_txt="The configuration of the minio server.",
-        default_factory=MinioConfig,
-    )
-    temp_dir: str = configfield(
-        "temp_dir",
-        env_name="TEMP_DIR",
+    temp_dir: str = Field(
         default="./tmp-data",
-        help_txt="The temporary directory for the application.",
-    )
-    summarizer: SummarizerConfig = configfield(
-        "summarizer",
-        env=False,
-        help_txt="The configuration for the summarizer.",
-        default_factory=SummarizerConfig,
+        env="TEMP_DIR",
+        description="Temporary directory for file processing and storage",
     )
 
-    metadata: MetadataConfig = configfield(
-        "metadata",
-        env=False,
-        help_txt="The configuration for metadata handling.",
-        default_factory=MetadataConfig,
-    )
-    query_decomposition: QueryDecompositionConfig = configfield(
-        "query_decomposition",
-        env=False,
-        help_txt="The configuration for query decomposition.",
-        default_factory=QueryDecompositionConfig,
-    )
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "NvidiaRAGConfig":
+        """Create config from dictionary.
+
+        Priority: dict values > env vars > defaults
+
+        Args:
+            data: Configuration dictionary
+
+        Returns:
+            NvidiaRAGConfig instance
+        """
+        # Direct instantiation - constructor args have priority over env vars in pydantic-settings
+        return cls(**data)
+
+    @classmethod
+    def from_yaml(cls, filepath: str) -> "NvidiaRAGConfig":
+        """Create config from YAML file.
+
+        Priority: YAML values > env vars > defaults
+
+        Args:
+            filepath: Path to YAML file
+
+        Returns:
+            NvidiaRAGConfig instance
+        """
+        path = Path(filepath)
+        if not path.exists():
+            return cls()
+
+        with open(path) as f:
+            data = yaml.safe_load(f) or {}
+
+        return cls.from_dict(data)
+
+    @classmethod
+    def from_json(cls, filepath: str) -> "NvidiaRAGConfig":
+        """Create config from JSON file.
+
+        Priority: JSON values > env vars > defaults
+
+        Args:
+            filepath: Path to JSON file
+
+        Returns:
+            NvidiaRAGConfig instance
+        """
+        path = Path(filepath)
+        if not path.exists():
+            return cls()
+
+        with open(path) as f:
+            data = json.load(f)
+
+        return cls.from_dict(data)
+
+    def __str__(self) -> str:
+        """Return formatted config as YAML-like string for easy reading."""
+        import yaml
+
+        return yaml.dump(
+            self.model_dump(),
+            default_flow_style=False,
+            sort_keys=False,
+            indent=2,
+            width=120,
+            allow_unicode=True,
+        )
