@@ -288,6 +288,10 @@ class NvidiaRAG:
         reranker_endpoint: str = CONFIG.ranking.server_url,
         vlm_model: str = CONFIG.vlm.model_name,
         vlm_endpoint: str = CONFIG.vlm.server_url,
+        vlm_temperature: float = CONFIG.vlm.temperature,
+        vlm_top_p: float = CONFIG.vlm.top_p,
+        vlm_max_tokens: int = CONFIG.vlm.max_tokens,
+        vlm_max_total_images: int = CONFIG.vlm.max_total_images,
         filter_expr: str | list[dict[str, Any]] = "",
         enable_query_decomposition: bool = CONFIG.query_decomposition.enable_query_decomposition,
         confidence_threshold: float = CONFIG.default_confidence_threshold,
@@ -387,6 +391,10 @@ class NvidiaRAG:
                 enable_vlm_inference=enable_vlm_inference,
                 vlm_model=vlm_model,
                 vlm_endpoint=vlm_endpoint,
+                vlm_temperature=vlm_temperature,
+                vlm_top_p=vlm_top_p,
+                vlm_max_tokens=vlm_max_tokens,
+                vlm_max_total_images=vlm_max_total_images,
                 model=model,
                 enable_query_rewriting=enable_query_rewriting,
                 enable_citations=enable_citations,
@@ -1248,6 +1256,10 @@ class NvidiaRAG:
         enable_vlm_inference: bool = False,
         vlm_model: str = "",
         vlm_endpoint: str = "",
+        vlm_temperature: float = CONFIG.vlm.temperature,
+        vlm_top_p: float = CONFIG.vlm.top_p,
+        vlm_max_tokens: int = CONFIG.vlm.max_tokens,
+        vlm_max_total_images: int = CONFIG.vlm.max_total_images,
         model: str = "",
         enable_query_rewriting: bool = False,
         enable_citations: bool = True,
@@ -1767,6 +1779,10 @@ class NvidiaRAG:
             if enable_vlm_inference or is_image_query:
                 # Fast pre-check: skip VLM entirely if no images in query or context
                 has_images_in_query = self._contains_images(query)
+                has_images_in_history = any(
+                    self._contains_images(m.get("content")) for m in chat_history or []
+                )
+                has_images_in_messages = has_images_in_query or has_images_in_history
                 has_images_in_context = False
                 try:
                     for d in context_to_show:
@@ -1779,18 +1795,50 @@ class NvidiaRAG:
                     # If metadata inspection fails, be conservative and proceed
                     has_images_in_context = False
 
-                if not (has_images_in_query or has_images_in_context):
-                    logger.warning(
-                        "Skipping VLM: no images found in query or retrieved context."
-                    )
-                    # fall through without VLM
-                else:
+                # If final answer mode is requested but there are no images in context/docs,
+                # fall back to LLM unless LLM appears unavailable, in which case proceed with VLM.
+                if CONFIG.vlm.vlm_response_as_final_answer and not has_images_in_context:
+                    llm_available = True
+                    try:
+                        llm_model_name = llm_settings.get("model", "") if isinstance(llm_settings, dict) else ""
+                        # If user explicitly clears model or disables via env, consider unavailable
+                        llm_available = bool(llm_model_name and llm_model_name.strip())
+                    except Exception:
+                        llm_available = True
+                    if not llm_available:
+                        logger.info(
+                            "VLM-only mode requested and LLM appears unavailable; proceeding with VLM even without context images."
+                        )
+                    else:
+                        logger.warning(
+                            "VLM final-answer mode requested but no images found in retrieved context; falling back to LLM."
+                        )
+                        # fall through without VLM
+                        has_images_in_messages = False  # ensure non-entry into VLM branch below
+                        has_images_in_context = False
+
+                if has_images_in_messages or has_images_in_context or (CONFIG.vlm.vlm_response_as_final_answer and not llm_available):
                     logger.info("Calling VLM to analyze images cited in the context")
                     vlm_response: str = ""
                     try:
                         vlm = VLM(vlm_model, vlm_endpoint)
-                        vlm_response = vlm.analyze_images_from_context(
-                            context_to_show, query
+                        # Build full messages: prior history + current query as a final user turn
+                        vlm_messages = list(chat_history or []) + [
+                            {"role": "user", "content": query}
+                        ]
+                        # Build textual context identical to LLM "context" (before mutation below)
+                        vlm_text_context = "\n\n".join(
+                            [self.__format_document_with_source(d) for d in context_to_show]
+                        )
+                        vlm_response = vlm.analyze_with_messages(
+                            context_to_show,
+                            vlm_messages,
+                            context_text=vlm_text_context,
+                            question_text=self._extract_text_from_content(query),
+                            temperature=vlm_temperature,
+                            top_p=vlm_top_p,
+                            max_tokens=vlm_max_tokens,
+                            max_total_images=vlm_max_total_images,
                         )
 
                         vlm_response_stripped = (
@@ -1819,9 +1867,19 @@ class NvidiaRAG:
                                     "VLM response as final answer: %s",
                                     vlm_response_stripped,
                                 )
+                                # Stream VLM output when used as final answer
                                 return RAGResponse(
                                     generate_answer(
-                                        iter([vlm_response_stripped]),
+                                        vlm.stream_with_messages(
+                                            docs=context_to_show,
+                                            messages=vlm_messages,
+                                            context_text=vlm_text_context,
+                                            question_text=self._extract_text_from_content(query),
+                                            temperature=vlm_temperature,
+                                            top_p=vlm_top_p,
+                                            max_tokens=vlm_max_tokens,
+                                            max_total_images=vlm_max_total_images,
+                                        ),
                                         context_to_show,
                                         model=model,
                                         collection_name=collection_name,

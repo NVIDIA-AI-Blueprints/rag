@@ -255,17 +255,24 @@ iterative_summary_prompt:
     Please create a new summary that incorporates information from both the previous summary and the new chunk.
 
 
-vlm_template: |
-  You are a multimodal AI assistant. Your task is to answer the user's question using only the provided base64-encoded images.
+vlm_template:
+  system: |
+    /no_think
 
-  **Instructions:**
-  1. Use only the visual content in the images to generate your answer.
-  2. Do not use external knowledge, prior context, or assumptions.
-  3. Do not describe the images—only answer the question.
-  4. Keep your response concise, neutral, and factual.
+  human: |
+    You are a multimodal AI assistant. Answer using only the provided context and images.
 
-  User Question:
-  {question}
+    **Instructions:**
+    1. Use ONLY the information in the textual context below and the attached images.
+    2. Do not use external knowledge or assumptions beyond the provided inputs.
+    3. Do not describe images unless needed to answer; focus on the answer.
+    4. Keep the response concise, neutral, and factual.
+
+    Context:
+    {context}
+
+    User Question:
+    {question}
 
 vlm_response_reasoning_template:
   system: |

@@ -560,13 +560,33 @@ class VLMConfig(ConfigWizard):
 
     server_url: str = configfield(
         "server_url",
+        env_name="APP_VLM_SERVERURL",
         default="http://localhost:8000/v1",
         help_txt="The url of the server hosting the VLM model",
     )
     model_name: str = configfield(
         "model_name",
+        env_name="APP_VLM_MODELNAME",
         default="nvidia/llama-3.1-nemotron-nano-vl-8b-v1",
         help_txt="The name of the VLM model",
+    )
+    temperature: float = configfield(
+        "temperature",
+        env_name="APP_VLM_TEMPERATURE",
+        default=0.7,
+        help_txt="The sampling temperature to use for VLM generation.",
+    )
+    top_p: float = configfield(
+        "top_p",
+        env_name="APP_VLM_TOP_P",
+        default=1.0,
+        help_txt="The top-p sampling mass used for VLM generation.",
+    )
+    max_tokens: int = configfield(
+        "max_tokens",
+        env_name="APP_VLM_MAX_TOKENS",
+        default=4096,
+        help_txt="The maximum number of tokens to generate in any given VLM call.",
     )
     enable_vlm_response_reasoning: bool = configfield(
         "enable_vlm_response_reasoning",
@@ -577,20 +597,8 @@ class VLMConfig(ConfigWizard):
     max_total_images: int = configfield(
         "max_total_images",
         env_name="APP_VLM_MAX_TOTAL_IMAGES",
-        default=4,
+        default=5,
         help_txt="Maximum total images sent to VLM per request (query + context).",
-    )
-    max_query_images: int = configfield(
-        "max_query_images",
-        env_name="APP_VLM_MAX_QUERY_IMAGES",
-        default=1,
-        help_txt="Maximum number of query images included in the VLM request.",
-    )
-    max_context_images: int = configfield(
-        "max_context_images",
-        env_name="APP_VLM_MAX_CONTEXT_IMAGES",
-        default=1,
-        help_txt="Maximum number of context images included in the VLM request.",
     )
     vlm_response_as_final_answer: bool = configfield(
         "vlm_response_as_final_answer",
