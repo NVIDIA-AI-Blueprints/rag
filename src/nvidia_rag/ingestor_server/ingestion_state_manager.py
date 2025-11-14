@@ -59,12 +59,14 @@ class IngestionStateManager:
     async def update_batch_progress(
         self,
         batch_progress_response: dict[str, Any],
+        is_batch_zero: bool = False,
     ):
         async with self.asyncio_lock:
             self.total_documents_completed += len(
                 batch_progress_response.get("documents", [])
             )
-            self.total_batches_completed += 1
+            if not is_batch_zero:
+                self.total_batches_completed += 1
             self.documents_completed_list.extend(
                 batch_progress_response.get("documents", [])
             )
