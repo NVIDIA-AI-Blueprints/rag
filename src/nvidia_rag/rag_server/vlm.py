@@ -17,15 +17,13 @@
 This module defines the VLM (Vision-Language Model) utilities for NVIDIA RAG pipelines.
 
 Main functionalities:
-- Analyze up to 4 images using a VLM given a user question.
-- Merge and resize images for VLM input.
-- Extract and process images from document context (e.g., MinIO storage).
+- Analyze images using a VLM given user messages and full chat/context.
 - Use an LLM to reason about the VLM's response and decide if it should be used.
 
 Intended for use in NVIDIA's Retrieval-Augmented Generation (RAG) systems, compatible with LangChain and OpenAI-compatible VLM APIs.
 
 Class:
-    VLM: Provides methods for image analysis, merging, and VLM/LLM reasoning.
+    VLM: Provides methods for image analysis via messages and VLM/LLM reasoning.
 """
 
 import base64
@@ -36,7 +34,7 @@ import re
 from logging import getLogger
 from typing import Any
 
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
@@ -60,10 +58,8 @@ class VLM:
 
     Methods
     -------
-    analyze_image(image_b64_list, question):
-        Analyze up to 4 images with a VLM given a question.
-    analyze_images_from_context(docs, question):
-        Extracts images from document context and analyzes them with the VLM.
+    analyze_with_messages(docs, messages, context_text, question_text):
+        Build a VLM prompt similar to RAG chain prompts and analyze images.
     reason_on_vlm_response(question, vlm_response, docs, llm_settings):
         Uses an LLM to reason about the VLM's response and decide if it should be used.
     """
@@ -92,85 +88,200 @@ class VLM:
         logger.info(f"VLM Model Name: {self.model_name}")
         logger.info(f"VLM Server URL: {self.invoke_url}")
 
-    def analyze_image(
+    @staticmethod
+    def init_model(model: str, endpoint: str, api_key: str | None = None, **kwargs) -> ChatOpenAI:
+        """Initialize and return the VLM ChatOpenAI model instance."""
+        return ChatOpenAI(
+            model=model,
+            openai_api_key=api_key or os.getenv("NVIDIA_API_KEY"),
+            openai_api_base=endpoint,
+            **kwargs,
+        )
+
+    @staticmethod
+    def _normalize_messages(raw_messages: list[dict[str, Any]]) -> tuple[list[HumanMessage | AIMessage | SystemMessage], int, str]:
+        """Normalize raw messages; return (messages_without_system, last_human_idx, incoming_system_text)."""
+        lc_messages: list[HumanMessage | AIMessage | SystemMessage] = []
+        last_human_idx: int | None = None
+        system_accum_text: str = ""
+
+        def ensure_list_content(raw_content: Any) -> list[dict[str, Any]]:
+            if isinstance(raw_content, str):
+                return [{"type": "text", "text": raw_content}]
+            if isinstance(raw_content, list):
+                normalized: list[dict[str, Any]] = []
+                for item in raw_content:
+                    if isinstance(item, dict) and item.get("type") == "text":
+                        normalized.append({"type": "text", "text": item.get("text", "")})
+                    elif isinstance(item, dict) and item.get("type") == "image_url":
+                        url = (item.get("image_url") or {}).get("url", "")
+                    if url:
+                            # ensure images are PNG base64 data URLs
+                            png_b64 = VLM._convert_image_url_to_png_b64(url)
+                            normalized.append({"type": "image_url", "image_url": {"url": f"data:image/png;base64,{png_b64}"}})
+                return normalized
+            return [{"type": "text", "text": str(raw_content) if raw_content is not None else ""}]
+
+        for m in raw_messages or []:
+            role = (m or {}).get("role", "").strip()
+            content = ensure_list_content((m or {}).get("content"))
+            if role == "system":
+                # Accumulate any incoming system text; do not add as a separate message
+                system_text = "".join([
+                    (part.get("text", "") if isinstance(part, dict) and part.get("type") == "text" else str(part))
+                    for part in content
+                ])
+                if system_text:
+                    system_accum_text = (system_accum_text + " " + system_text).strip()
+            elif role == "assistant":
+                # Assistant content should be a plain string
+                assistant_text = "".join([
+                    (part.get("text", "") if isinstance(part, dict) and part.get("type") == "text" else str(part))
+                    for part in content
+                ])
+                lc_messages.append(AIMessage(content=assistant_text))
+            else:
+                # User content can be multimodal list
+                lc_messages.append(HumanMessage(content=content))
+                last_human_idx = len(lc_messages) - 1
+
+        if last_human_idx is None:
+            lc_messages.append(HumanMessage(content=[{"type": "text", "text": ""}]))
+            last_human_idx = len(lc_messages) - 1
+
+        return lc_messages, last_human_idx, system_accum_text
+
+    def extract_and_process_messages(
         self,
-        image_b64_list: list[str],
-        question: str,
-        query_image_list: list[str] | None = None,
-    ) -> str:
+        vlm_template: dict[str, Any],
+        docs: list[Any],
+        incoming_messages: list[dict[str, Any]] | None,
+        context_text: str | None,
+        question_text: str | None,
+        max_total_images: int | None = None,
+    ) -> tuple[SystemMessage, HumanMessage, list[HumanMessage | AIMessage | SystemMessage]]:
         """
-        Analyze up to 4 images using the VLM for a given question.
-
-        Parameters
-        ----------
-        image_b64_list : List[str]
-            Base64 PNG images from context. Will be truncated to fit total limit.
-        question : str
-            The question to ask the VLM about the images.
-        query_image_list : Optional[List[str]]
-            Base64 PNG images directly associated with the user query (max 2).
-
-        Returns
-        -------
-        str
-            The VLM's response as a string, or an empty string on error.
+        Build system and user messages from template, normalize chat history, and
+        extract any query/context images to be attached to the last human message.
+        Returns: (system_message, chat_history_messages, user_message, last_human_idx, query_images, context_images)
         """
-        if not image_b64_list and not query_image_list:
-            logger.warning("No images provided for VLM analysis.")
-            return ""
+        textual_context = context_text if context_text is not None else self._format_docs_text(docs)
 
-        vlm = ChatOpenAI(
-            model=self.model_name,
-            openai_api_key=os.getenv("NVIDIA_API_KEY"),
-            openai_api_base=self.invoke_url,
+        # Normalize chat history; keep images inline as image_url parts and collect incoming system text
+        chat_history_messages, _, incoming_system_text = self._normalize_messages(incoming_messages or [])
+
+        # Build system + citations instruction/user prompt
+        system_text = (vlm_template.get("system") or "").strip()
+        if incoming_system_text:
+            system_text = (system_text + " " + incoming_system_text).strip()
+        human_template = vlm_template.get("human") or "{context}\n\n{question}"
+        formatted_human = human_template.format(
+            context=textual_context or "",
+            question=(question_text or "").strip(),
         )
+        # System must be plain string, not list content
+        system_message = SystemMessage(content=system_text)
 
-        formatted_prompt = self.vlm_template.format(question=question)
-        message = HumanMessage(content=[{"type": "text", "text": formatted_prompt}])
+        # Build citations_instruct_user_message as multimodal: text + citation images from MinIO (if any)
+        content_parts: list[dict[str, Any]] = [{"type": "text", "text": formatted_human}]
 
-        max_total_images = max(0, int(CONFIG.vlm.max_total_images))
-        max_query_images = max(0, int(CONFIG.vlm.max_query_images))
-        max_context_images = max(0, int(CONFIG.vlm.max_context_images))
+        # Count images already present in chat history to respect overall image budget
+        existing_image_count = 0
+        try:
+            for msg in chat_history_messages:
+                parts = msg.content if isinstance(msg.content, list) else []
+                for p in parts:
+                    if isinstance(p, dict) and p.get("type") == "image_url":
+                        existing_image_count += 1
+        except Exception:
+            existing_image_count = 0
 
-        logger.info(
-            "VLM image limits - max_total_images=%d, max_query_images=%d, max_context_images=%d",
-            max_total_images,
-            max_query_images,
-            max_context_images,
-        )
-
-        if max_query_images + max_context_images > max_total_images:
-            logger.error(
-                "Configured max_query_images (%d) + max_context_images (%d) exceed max_total_images (%d). Skipping VLM call.",
-                max_query_images,
-                max_context_images,
-                max_total_images,
-            )
-            return ""
-
-        # Determine query images to add (up to per-type cap)
-        query_imgs = (query_image_list or [])[:max_query_images]
-        if query_imgs:
-            self._add_image_urls(query_imgs, max_query_images, message)
-
-        # Add context images within remaining slots (up to per-type cap)
-        if image_b64_list:
-            remaining_slots = max(0, max_total_images - len(query_imgs))
-            context_limit = min(max_context_images, remaining_slots)
-            context_images = image_b64_list[:context_limit]
-            if context_images:
-                self._add_image_urls(context_images, max_context_images, message)
-
-        vlm_response = vlm.invoke([message]).content.strip()
-        logger.info(f"VLM Response: {vlm_response}")
+        remaining_image_budget = None
+        if isinstance(max_total_images, int) and max_total_images >= 0:
+            remaining_image_budget = max(0, max_total_images - existing_image_count)
 
         try:
-            return vlm_response
-        except Exception as e:
-            logger.warning(f"Exception during VLM call: {e}", exc_info=True)
-            return ""
+            for doc in docs or []:
+                metadata = getattr(doc, "metadata", {}) or {}
+                content_md = metadata.get("content_metadata", {}) or {}
+                doc_type = content_md.get("type")
+                if doc_type not in ["image", "structured"]:
+                    continue
 
-    def _convert_image_url_to_png_b64(self, image_url: str) -> str:
+                if remaining_image_budget is not None and remaining_image_budget <= 0:
+                    break
+
+                # Inputs for unique thumbnail id
+                collection_name = metadata.get("collection_name") or ""
+                source_meta = metadata.get("source", {}) or {}
+                source_id = source_meta.get("source_id", "") if isinstance(source_meta, dict) else ""
+                file_name = os.path.basename(source_id) if source_id else ""
+                page_number = content_md.get("page_number")
+                location = content_md.get("location")
+
+                if not (collection_name and file_name and page_number is not None and location is not None):
+                    continue
+
+                try:
+                    unique_thumbnail_id = get_unique_thumbnail_id(
+                        collection_name=collection_name,
+                        file_name=file_name,
+                        page_number=page_number,
+                        location=location,
+                    )
+                    payload = get_minio_operator().get_payload(object_name=unique_thumbnail_id)
+                    content_b64 = (payload or {}).get("content", "")
+                    if not content_b64:
+                        continue
+                    png_b64 = VLM._convert_image_url_to_png_b64(content_b64)
+                    content_parts.append(
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:image/png;base64,{png_b64}"},
+                        }
+                    )
+                    if remaining_image_budget is not None:
+                        remaining_image_budget -= 1
+                except Exception:
+                    # best-effort: skip if anything fails per document
+                    continue
+        except Exception:
+            # best-effort overall
+            pass
+
+        citations_instruct_user_message = HumanMessage(content=content_parts)
+
+        # Return citations_instruct_user_message as second element by contract
+        return (system_message, citations_instruct_user_message, chat_history_messages)
+
+    @staticmethod
+    def assemble_messages(
+        system_message: SystemMessage,
+        citations_instruct_user_message: HumanMessage,
+        chat_history_messages: list[HumanMessage | AIMessage | SystemMessage],
+    ) -> list[HumanMessage | AIMessage | SystemMessage]:
+        """Assemble final message list as [system] + [citations user] + chat history."""
+        return [system_message, citations_instruct_user_message, *chat_history_messages]
+
+    @staticmethod
+    def invoke_model(
+        model: ChatOpenAI,
+        messages: list[HumanMessage | AIMessage | SystemMessage],
+        *,
+        temperature: float,
+        top_p: float,
+        max_tokens: int,
+    ):
+        """Invoke the VLM model and return the complete response string."""
+        logger.info(
+            f"Invoking VLM with temperature={temperature}, top_p={top_p}, max_tokens={max_tokens}"
+        )
+        return model.invoke(
+            messages, temperature=temperature, top_p=top_p, max_tokens=max_tokens
+        ).content.strip()
+ 
+    @staticmethod
+    def _convert_image_url_to_png_b64(image_url: str) -> str:
         """
         Convert an image URL (data URL or base64 string) to PNG format base64.
 
@@ -217,28 +328,150 @@ class VLM:
             # Return original if conversion fails
             return image_url
 
-    def _add_image_urls(
-        self, image_list: list[str], max_images: int, message: HumanMessage
-    ):
+    
+
+    def _redact_messages_for_logging(
+        self, messages: list[HumanMessage | AIMessage | SystemMessage]
+    ) -> list[dict[str, Any]]:
         """
-        Add image URLs to message.content
+        Create a redacted, log-safe representation of the messages where any
+        Base64 image data in data URLs is removed.
+        """
+        safe: list[dict[str, Any]] = []
+        for m in messages:
+            if isinstance(m, SystemMessage):
+                role = "system"
+            elif isinstance(m, AIMessage):
+                role = "assistant"
+            else:
+                role = "user"
+
+            raw_content = m.content
+            parts = raw_content if isinstance(raw_content, list) else [
+                {"type": "text", "text": str(raw_content)}
+            ]
+
+            safe_parts: list[dict[str, Any]] = []
+            for p in parts:
+                if isinstance(p, dict) and p.get("type") == "image_url":
+                    url = (p.get("image_url") or {}).get("url", "")
+                    if isinstance(url, str) and url.startswith("data:image/") and ";base64," in url:
+                        redacted_url = re.sub(
+                            r"^data:image/[^;]+;base64,.*$",
+                            "data:image/png;base64,[REDACTED]",
+                            url,
+                        )
+                    else:
+                        redacted_url = url
+                    safe_parts.append({
+                        "type": "image_url",
+                        "image_url": {"url": redacted_url},
+                    })
+                elif isinstance(p, dict) and p.get("type") == "text":
+                    safe_parts.append({"type": "text", "text": p.get("text", "")})
+                else:
+                    safe_parts.append({"type": "text", "text": str(p)})
+
+            safe.append({"role": role, "content": safe_parts})
+        return safe
+
+    def _format_docs_text(self, docs: list[Any]) -> str:
+        """
+        Build a textual context string from retrieved docs, skipping image/structured types
+        because those are passed as images to the VLM.
+        """
+        parts: list[str] = []
+        for doc in docs or []:
+            try:
+                metadata = getattr(doc, "metadata", {}) or {}
+                content_md = metadata.get("content_metadata", {}) or {}
+                doc_type = content_md.get("type")
+                if doc_type in ["image", "structured"]:
+                    # will be sent as image
+                    continue
+                # filename from nested source
+                source = metadata.get("source", {})
+                source_path = source.get("source_name", "") if isinstance(source, dict) else source
+                filename = os.path.splitext(os.path.basename(source_path))[0] if source_path else ""
+                header = f"File: {filename}\n" if filename else ""
+                content = getattr(doc, "page_content", "")
+                if content:
+                    parts.append(f"{header}Content: {content}")
+            except Exception:
+                # best-effort
+                content = getattr(doc, "page_content", "")
+                if content:
+                    parts.append(content)
+        return "\n\n".join(parts)
+
+    def analyze_with_messages(
+        self,
+        docs: list[dict],
+        messages: list[dict[str, Any]],
+        context_text: str | None = None,
+        question_text: str | None = None,
+        *,
+        temperature: float = 0.7,
+        top_p: float = 1.0,
+        max_tokens: int = 4096,
+        max_total_images: int | None = None,
+    ) -> str:
+        """
+        Send the full conversation messages to the VLM, appending any relevant images
+        from user messages and retrieved context. Ensures images are provided as
+        base64 PNG data URLs.
 
         Parameters
         ----------
-        image_list : List[str]
-            List of base64-encoded PNG images.
-        max_images : int
-            Maximum number of images to add.
-        message : Message
-            The message to add the image URLs to.
+        docs : List[dict]
+            Retrieved documents that may contain image thumbnails in storage.
+        messages : List[dict]
+            Full conversation messages with roles and content. Content can be
+            a string or multimodal list with items of shape {type: text|image_url}.
+
+        Returns
+        -------
+        str
+            The VLM's response as a string, or an empty string on error.
         """
-        for b64 in image_list[:max_images]:
-            message.content.append(
-                {
-                    "type": "image_url",
-                    "image_url": {"url": f"data:image/png;base64,{b64}"},
-                }
+        if not isinstance(messages, list) or len(messages) == 0:
+            logger.warning("No messages provided for VLM analysis.")
+            return ""
+
+        vlm = self.init_model(self.model_name, self.invoke_url, api_key=os.getenv("NVIDIA_API_KEY"))
+
+        (
+            system_message,
+            citations_instruct_user_message,
+            chat_history_messages,
+        ) = self.extract_and_process_messages(
+            self.vlm_template,
+            docs,
+            messages,
+            context_text,
+            question_text,
+            max_total_images=max_total_images,
+        )
+
+        lc_messages = self.assemble_messages(system_message, citations_instruct_user_message, chat_history_messages)
+
+        # Log final prompt with images redacted
+        safe_prompt = self._redact_messages_for_logging(lc_messages)
+        logger.info("VLM final prompt (images redacted): %s", safe_prompt)
+
+        try:
+            vlm_response = self.invoke_model(
+                vlm,
+                lc_messages,
+                temperature=temperature,
+                top_p=top_p,
+                max_tokens=max_tokens,
             )
+            logger.info(f"VLM Response: {vlm_response}")
+            return str(vlm_response or "")
+        except Exception as e:
+            logger.warning(f"Exception during VLM call with messages: {e}", exc_info=True)
+            return ""
 
     def analyze_images_from_context(
         self, docs: list[dict], question: str | list[dict[str, Any]]
