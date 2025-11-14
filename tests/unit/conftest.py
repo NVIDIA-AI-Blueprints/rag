@@ -41,7 +41,7 @@ except ImportError:
 fake_minio_operator = types.ModuleType("minio_operator")
 
 
-def mock_minio_operator_methods():
+def mock_minio_operator_methods(*args, **kwargs):
     return MagicMock()
 
 

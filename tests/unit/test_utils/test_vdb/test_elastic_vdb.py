@@ -41,14 +41,12 @@ class TestElasticVDB(unittest.TestCase):
         self.embedding_model = "test_embedding_model"
         self.csv_file_path = "/path/to/test.csv"
 
-    @patch("nvidia_rag.utils.common.get_config")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.Elasticsearch")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.VectorStore")
     def test_init(
         self,
         mock_vector_store,
-        mock_elasticsearch,
-        mock_get_config,
+        mock_elasticsearch, 
     ):
         """Test ElasticVDB initialization."""
         # Mock config
@@ -61,7 +59,7 @@ class TestElasticVDB(unittest.TestCase):
         mock_config.vector_store.api_key_secret = ""
         mock_config.vector_store.username = ""
         mock_config.vector_store.password = ""
-        mock_get_config.return_value = mock_config
+        mock_config = mock_config
 
         # Mock Elasticsearch connection
         mock_es_connection = Mock()
@@ -81,6 +79,7 @@ class TestElasticVDB(unittest.TestCase):
             meta_fields=self.meta_fields,
             embedding_model=self.embedding_model,
             csv_file_path=self.csv_file_path,
+            config=mock_config
         )
 
         # Assertions
@@ -102,17 +101,15 @@ class TestElasticVDB(unittest.TestCase):
         self.assertIsNone(kwargs.get("basic_auth"))
         mock_vector_store.assert_called_once()
 
-    @patch("nvidia_rag.utils.common.get_config")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.Elasticsearch")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.VectorStore")
     def test_check_index_exists(
-        self, mock_vector_store, mock_elasticsearch, mock_get_config
-    ):
+        self, mock_vector_store, mock_elasticsearch):
         """Test _check_index_exists method."""
         # Setup mocks
         mock_config = Mock()
         mock_config.embeddings.dimensions = 768
-        mock_get_config.return_value = mock_config
+        mock_config = mock_config
 
         mock_es_connection = Mock()
         mock_elasticsearch.return_value = mock_es_connection
@@ -127,18 +124,16 @@ class TestElasticVDB(unittest.TestCase):
         self.assertTrue(result)
         mock_es_connection.indices.exists.assert_called_once_with(index="test_index")
 
-    @patch("nvidia_rag.utils.common.get_config")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.Elasticsearch")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.VectorStore")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.logger")
     def test_create_index(
-        self, mock_logger, mock_vector_store, mock_elasticsearch, mock_get_config
-    ):
+        self, mock_logger, mock_vector_store, mock_elasticsearch):
         """Test create_index method."""
         # Setup mocks
         mock_config = Mock()
         mock_config.embeddings.dimensions = 768
-        mock_get_config.return_value = mock_config
+        mock_config = mock_config
 
         mock_es_connection = Mock()
         mock_elasticsearch.return_value = mock_es_connection
@@ -155,7 +150,6 @@ class TestElasticVDB(unittest.TestCase):
         )
         mock_es_store._create_index_if_not_exists.assert_called_once()
 
-    @patch("nvidia_rag.utils.common.get_config")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.Elasticsearch")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.VectorStore")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.cleanup_records")
@@ -165,14 +159,13 @@ class TestElasticVDB(unittest.TestCase):
         mock_logger,
         mock_cleanup_records,
         mock_vector_store,
-        mock_elasticsearch,
-        mock_get_config,
+        mock_elasticsearch, 
     ):
         """Test write_to_index method."""
         # Setup mocks
         mock_config = Mock()
         mock_config.embeddings.dimensions = 768
-        mock_get_config.return_value = mock_config
+        mock_config = mock_config
 
         mock_es_connection = Mock()
         mock_elasticsearch.return_value = mock_es_connection
@@ -238,17 +231,15 @@ class TestElasticVDB(unittest.TestCase):
             index=self.index_name
         )
 
-    @patch("nvidia_rag.utils.common.get_config")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.Elasticsearch")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.VectorStore")
     def test_retrieval_not_implemented(
-        self, mock_vector_store, mock_elasticsearch, mock_get_config
-    ):
+        self, mock_vector_store, mock_elasticsearch):
         """Test retrieval method raises NotImplementedError."""
         # Setup mocks
         mock_config = Mock()
         mock_config.embeddings.dimensions = 768
-        mock_get_config.return_value = mock_config
+        mock_config = mock_config
 
         # Create instance and test
         elastic_vdb = ElasticVDB(self.index_name, self.es_url)
@@ -260,17 +251,15 @@ class TestElasticVDB(unittest.TestCase):
             str(context.exception), "retrieval must be implemented for ElasticVDB"
         )
 
-    @patch("nvidia_rag.utils.common.get_config")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.Elasticsearch")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.VectorStore")
     def test_reindex_not_implemented(
-        self, mock_vector_store, mock_elasticsearch, mock_get_config
-    ):
+        self, mock_vector_store, mock_elasticsearch):
         """Test reindex method raises NotImplementedError."""
         # Setup mocks
         mock_config = Mock()
         mock_config.embeddings.dimensions = 768
-        mock_get_config.return_value = mock_config
+        mock_config = mock_config
 
         # Create instance and test
         elastic_vdb = ElasticVDB(self.index_name, self.es_url)
@@ -282,15 +271,14 @@ class TestElasticVDB(unittest.TestCase):
             str(context.exception), "reindex must be implemented for ElasticVDB"
         )
 
-    @patch("nvidia_rag.utils.common.get_config")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.Elasticsearch")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.VectorStore")
-    def test_run(self, mock_vector_store, mock_elasticsearch, mock_get_config):
+    def test_run(self, mock_vector_store, mock_elasticsearch):
         """Test run method."""
         # Setup mocks
         mock_config = Mock()
         mock_config.embeddings.dimensions = 768
-        mock_get_config.return_value = mock_config
+        mock_config = mock_config
 
         mock_es_connection = Mock()
         mock_elasticsearch.return_value = mock_es_connection
@@ -311,17 +299,15 @@ class TestElasticVDB(unittest.TestCase):
         elastic_vdb.create_index.assert_called_once()
         elastic_vdb.write_to_index.assert_called_once_with(records)
 
-    @patch("nvidia_rag.utils.common.get_config")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.Elasticsearch")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.VectorStore")
     def test_create_collection(
-        self, mock_vector_store, mock_elasticsearch, mock_get_config
-    ):
+        self, mock_vector_store, mock_elasticsearch):
         """Test create_collection method."""
         # Setup mocks
         mock_config = Mock()
         mock_config.embeddings.dimensions = 768
-        mock_get_config.return_value = mock_config
+        mock_config = mock_config
 
         mock_es_connection = Mock()
         mock_elasticsearch.return_value = mock_es_connection
@@ -343,17 +329,15 @@ class TestElasticVDB(unittest.TestCase):
             index="test_collection", wait_for_status="yellow", timeout="5s"
         )
 
-    @patch("nvidia_rag.utils.common.get_config")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.Elasticsearch")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.VectorStore")
     def test_check_collection_exists(
-        self, mock_vector_store, mock_elasticsearch, mock_get_config
-    ):
+        self, mock_vector_store, mock_elasticsearch):
         """Test check_collection_exists method."""
         # Setup mocks
         mock_config = Mock()
         mock_config.embeddings.dimensions = 768
-        mock_get_config.return_value = mock_config
+        mock_config = mock_config
 
         mock_es_connection = Mock()
         mock_elasticsearch.return_value = mock_es_connection
@@ -370,17 +354,15 @@ class TestElasticVDB(unittest.TestCase):
             index="test_collection"
         )
 
-    @patch("nvidia_rag.utils.common.get_config")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.Elasticsearch")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.VectorStore")
     def test_get_collection(
-        self, mock_vector_store, mock_elasticsearch, mock_get_config
-    ):
+        self, mock_vector_store, mock_elasticsearch):
         """Test get_collection method."""
         # Setup mocks
         mock_config = Mock()
         mock_config.embeddings.dimensions = 768
-        mock_get_config.return_value = mock_config
+        mock_config = mock_config
 
         mock_es_connection = Mock()
         mock_elasticsearch.return_value = mock_es_connection
@@ -424,7 +406,6 @@ class TestElasticVDB(unittest.TestCase):
         elastic_vdb.create_metadata_schema_collection.assert_called_once()
         mock_es_connection.cat.indices.assert_called_once_with(format="json")
 
-    @patch("nvidia_rag.utils.common.get_config")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.Elasticsearch")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.VectorStore")
     @patch(
@@ -440,14 +421,13 @@ class TestElasticVDB(unittest.TestCase):
         mock_logger,
         mock_delete_query,
         mock_vector_store,
-        mock_elasticsearch,
-        mock_get_config,
+        mock_elasticsearch, 
     ):
         """Test delete_collections method."""
         # Setup mocks
         mock_config = Mock()
         mock_config.embeddings.dimensions = 768
-        mock_get_config.return_value = mock_config
+        mock_config = mock_config
 
         mock_es_connection = Mock()
         mock_elasticsearch.return_value = mock_es_connection
@@ -481,18 +461,16 @@ class TestElasticVDB(unittest.TestCase):
             f"Collections deleted: {collection_names}"
         )
 
-    @patch("nvidia_rag.utils.common.get_config")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.Elasticsearch")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.VectorStore")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.get_unique_sources_query")
     def test_get_documents(
-        self, mock_sources_query, mock_vector_store, mock_elasticsearch, mock_get_config
-    ):
+        self, mock_sources_query, mock_vector_store, mock_elasticsearch):
         """Test get_documents method."""
         # Setup mocks
         mock_config = Mock()
         mock_config.embeddings.dimensions = 768
-        mock_get_config.return_value = mock_config
+        mock_config = mock_config
 
         mock_es_connection = Mock()
         mock_elasticsearch.return_value = mock_es_connection
@@ -572,18 +550,16 @@ class TestElasticVDB(unittest.TestCase):
             index="test_collection", body={"query": "test_query"}
         )
 
-    @patch("nvidia_rag.utils.common.get_config")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.Elasticsearch")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.VectorStore")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.get_delete_docs_query")
     def test_delete_documents(
-        self, mock_delete_query, mock_vector_store, mock_elasticsearch, mock_get_config
-    ):
+        self, mock_delete_query, mock_vector_store, mock_elasticsearch):
         """Test delete_documents method."""
         # Setup mocks
         mock_config = Mock()
         mock_config.embeddings.dimensions = 768
-        mock_get_config.return_value = mock_config
+        mock_config = mock_config
 
         mock_es_connection = Mock()
         mock_elasticsearch.return_value = mock_es_connection
@@ -608,7 +584,6 @@ class TestElasticVDB(unittest.TestCase):
             index="test_collection"
         )
 
-    @patch("nvidia_rag.utils.common.get_config")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.Elasticsearch")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.VectorStore")
     @patch(
@@ -624,14 +599,13 @@ class TestElasticVDB(unittest.TestCase):
         mock_logger,
         mock_mapping,
         mock_vector_store,
-        mock_elasticsearch,
-        mock_get_config,
+        mock_elasticsearch, 
     ):
         """Test create_metadata_schema_collection method when collection doesn't exist."""
         # Setup mocks
         mock_config = Mock()
         mock_config.embeddings.dimensions = 768
-        mock_get_config.return_value = mock_config
+        mock_config = mock_config
 
         mock_es_connection = Mock()
         mock_elasticsearch.return_value = mock_es_connection
@@ -654,7 +628,6 @@ class TestElasticVDB(unittest.TestCase):
         )
         mock_logger.info.assert_called_once()
 
-    @patch("nvidia_rag.utils.common.get_config")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.Elasticsearch")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.VectorStore")
     @patch(
@@ -670,14 +643,13 @@ class TestElasticVDB(unittest.TestCase):
         mock_logger,
         mock_mapping,
         mock_vector_store,
-        mock_elasticsearch,
-        mock_get_config,
+        mock_elasticsearch, 
     ):
         """Test create_metadata_schema_collection method when collection exists."""
         # Setup mocks
         mock_config = Mock()
         mock_config.embeddings.dimensions = 768
-        mock_get_config.return_value = mock_config
+        mock_config = mock_config
 
         mock_es_connection = Mock()
         mock_elasticsearch.return_value = mock_es_connection
@@ -695,7 +667,6 @@ class TestElasticVDB(unittest.TestCase):
         mock_es_connection.indices.create.assert_not_called()
         mock_logger.info.assert_called_once()
 
-    @patch("nvidia_rag.utils.common.get_config")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.Elasticsearch")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.VectorStore")
     @patch(
@@ -711,14 +682,13 @@ class TestElasticVDB(unittest.TestCase):
         mock_logger,
         mock_delete_query,
         mock_vector_store,
-        mock_elasticsearch,
-        mock_get_config,
+        mock_elasticsearch, 
     ):
         """Test add_metadata_schema method."""
         # Setup mocks
         mock_config = Mock()
         mock_config.embeddings.dimensions = 768
-        mock_get_config.return_value = mock_config
+        mock_config = mock_config
 
         mock_es_connection = Mock()
         mock_elasticsearch.return_value = mock_es_connection
@@ -748,7 +718,6 @@ class TestElasticVDB(unittest.TestCase):
         )
         mock_logger.info.assert_called_once()
 
-    @patch("nvidia_rag.utils.common.get_config")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.Elasticsearch")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.VectorStore")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.get_metadata_schema_query")
@@ -757,13 +726,12 @@ class TestElasticVDB(unittest.TestCase):
         "metadata_schema",
     )
     def test_get_metadata_schema_found(
-        self, mock_schema_query, mock_vector_store, mock_elasticsearch, mock_get_config
-    ):
+        self, mock_schema_query, mock_vector_store, mock_elasticsearch):
         """Test get_metadata_schema method when schema is found."""
         # Setup mocks
         mock_config = Mock()
         mock_config.embeddings.dimensions = 768
-        mock_get_config.return_value = mock_config
+        mock_config = mock_config
 
         mock_es_connection = Mock()
         mock_elasticsearch.return_value = mock_es_connection
@@ -795,7 +763,6 @@ class TestElasticVDB(unittest.TestCase):
             index="metadata_schema", body={"query": "schema_query"}
         )
 
-    @patch("nvidia_rag.utils.common.get_config")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.Elasticsearch")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.VectorStore")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.get_metadata_schema_query")
@@ -809,14 +776,13 @@ class TestElasticVDB(unittest.TestCase):
         mock_logger,
         mock_schema_query,
         mock_vector_store,
-        mock_elasticsearch,
-        mock_get_config,
+        mock_elasticsearch, 
     ):
         """Test get_metadata_schema method when schema is not found."""
         # Setup mocks
         mock_config = Mock()
         mock_config.embeddings.dimensions = 768
-        mock_get_config.return_value = mock_config
+        mock_config = mock_config
 
         mock_es_connection = Mock()
         mock_elasticsearch.return_value = mock_es_connection
@@ -834,7 +800,6 @@ class TestElasticVDB(unittest.TestCase):
         self.assertEqual(result, [])
         mock_logger.info.assert_called_once()
 
-    @patch("nvidia_rag.utils.common.get_config")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.Elasticsearch")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.VectorStore")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.ElasticsearchStore")
@@ -848,15 +813,14 @@ class TestElasticVDB(unittest.TestCase):
         mock_time,
         mock_es_store_class,
         mock_vector_store,
-        mock_elasticsearch,
-        mock_get_config,
+        mock_elasticsearch, 
     ):
         """Test retrieval_langchain method."""
         # Setup mocks
         mock_config = Mock()
         mock_config.embeddings.dimensions = 768
         mock_config.vector_store.search_type = "hybrid"
-        mock_get_config.return_value = mock_config
+        mock_config = mock_config
 
         mock_es_connection = Mock()
         mock_elasticsearch.return_value = mock_es_connection
@@ -885,7 +849,7 @@ class TestElasticVDB(unittest.TestCase):
 
         # Create instance and test
         elastic_vdb = ElasticVDB(
-            self.index_name, self.es_url, embedding_model="test_model"
+            self.index_name, self.es_url, embedding_model="test_model", config=mock_config
         )
 
         result = elastic_vdb.retrieval_langchain(
@@ -906,8 +870,6 @@ class TestElasticVDB(unittest.TestCase):
         mock_otel_context.attach.assert_called_once()
         mock_otel_context.detach.assert_called_once_with(mock_token)
 
-    @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.CONFIG")
-    @patch("nvidia_rag.utils.common.get_config")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.Elasticsearch")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.VectorStore")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.ElasticsearchStore")
@@ -918,17 +880,11 @@ class TestElasticVDB(unittest.TestCase):
         mock_es_store_class,
         mock_vector_store,
         mock_elasticsearch,
-        mock_get_config,
-        mock_config,
     ):
         """Test get_langchain_vectorstore method."""
         # Setup mocks
-        mock_config_obj = Mock()
-        mock_config_obj.embeddings.dimensions = 768
-        mock_config_obj.vector_store.search_type = "hybrid"
-        mock_get_config.return_value = mock_config_obj
-
-        # Mock the global CONFIG object used in get_langchain_vectorstore
+        mock_config = Mock()
+        mock_config.embeddings.dimensions = 768
         mock_config.vector_store.search_type = "hybrid"
         # Ensure no auth present in CONFIG to reflect "no auth" scenario
         mock_config.vector_store.api_key = ""
@@ -948,7 +904,7 @@ class TestElasticVDB(unittest.TestCase):
 
         # Create instance and test
         elastic_vdb = ElasticVDB(
-            self.index_name, self.es_url, embedding_model="test_model"
+            self.index_name, self.es_url, embedding_model="test_model", config=mock_config
         )
 
         # Reset mock to only track calls from the method being tested
@@ -966,31 +922,29 @@ class TestElasticVDB(unittest.TestCase):
         self.assertNotIn("api_key", vs_kwargs)
         self.assertNotIn("es_user", vs_kwargs)
         self.assertNotIn("es_password", vs_kwargs)
-    @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.CONFIG")
-    @patch("nvidia_rag.utils.common.get_config")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.ElasticsearchStore")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.DenseVectorStrategy")
     def test_get_langchain_vectorstore_basic_auth(
         self,
         mock_dense_strategy,
         mock_es_store_class,
-        mock_get_config,
-        mock_config,
     ):
         """Vectorstore uses basic auth when username/password are set and no API key."""
-        mock_config_obj = Mock()
-        mock_config_obj.embeddings.dimensions = 768
-        mock_config_obj.vector_store.search_type = "hybrid"
-        mock_get_config.return_value = mock_config_obj
+        mock_config = Mock()
+        mock_config.embeddings.dimensions = 768
         mock_config.vector_store.search_type = "hybrid"
+        mock_config.vector_store.api_key = None
+        mock_config.vector_store.api_key_id = None
+        mock_config.vector_store.api_key_secret = None
+        mock_config.vector_store.username = "elastic"
+        mock_config.vector_store.password = "password"
         mock_es_store_class.return_value = Mock()
         mock_dense_strategy.return_value = Mock()
         elastic_vdb = ElasticVDB(
             self.index_name,
             self.es_url,
             embedding_model="test_model",
-            username="elastic",
-            password="password",
+            config=mock_config,
         )
         _ = elastic_vdb.get_langchain_vectorstore("test_collection")
         _, vs_kwargs = mock_es_store_class.call_args
@@ -998,32 +952,29 @@ class TestElasticVDB(unittest.TestCase):
         self.assertEqual(vs_kwargs.get("es_password"), "password")
         self.assertNotIn("api_key", vs_kwargs)
 
-    @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.CONFIG")
-    @patch("nvidia_rag.utils.common.get_config")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.ElasticsearchStore")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.DenseVectorStrategy")
     def test_get_langchain_vectorstore_api_key_precedence(
         self,
         mock_dense_strategy,
         mock_es_store_class,
-        mock_get_config,
-        mock_config,
     ):
         """API key should be preferred over basic auth when both are present."""
-        mock_config_obj = Mock()
-        mock_config_obj.embeddings.dimensions = 768
-        mock_config_obj.vector_store.search_type = "hybrid"
-        mock_get_config.return_value = mock_config_obj
+        mock_config = Mock()
+        mock_config.embeddings.dimensions = 768
         mock_config.vector_store.search_type = "hybrid"
+        mock_config.vector_store.api_key = "base64-id-secret"
+        mock_config.vector_store.api_key_id = None
+        mock_config.vector_store.api_key_secret = None
+        mock_config.vector_store.username = "elastic"
+        mock_config.vector_store.password = "password"
         mock_es_store_class.return_value = Mock()
         mock_dense_strategy.return_value = Mock()
         elastic_vdb = ElasticVDB(
             self.index_name,
             self.es_url,
             embedding_model="test_model",
-            api_key="base64-id-secret",
-            username="elastic",
-            password="password",
+            config=mock_config,
         )
         _ = elastic_vdb.get_langchain_vectorstore("test_collection")
         _, vs_kwargs = mock_es_store_class.call_args

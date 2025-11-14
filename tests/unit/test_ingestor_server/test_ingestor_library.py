@@ -94,12 +94,7 @@ class TestNvidiaRAGIngestor:
         mock_vdb_op,
     ):
         """Create NvidiaRAGIngestor instance with mocked dependencies."""
-        with (
-            patch(
-                "nvidia_rag.utils.common.get_config",
-                return_value=mock_config,
-            ),
-            patch(
+        with (            patch(
                 "nvidia_rag.ingestor_server.main.get_nv_ingest_client",
                 return_value=mock_nv_ingest_client,
             ),
@@ -146,9 +141,7 @@ class TestNvidiaRAGIngestor:
         mock_vdb.vdb_endpoint = "http://localhost:19530"
 
         # Test library mode
-        with (
-            patch("nvidia_rag.utils.common.get_config"),
-            patch("nvidia_rag.ingestor_server.main.get_nv_ingest_client"),
+        with (            patch("nvidia_rag.ingestor_server.main.get_nv_ingest_client"),
         ):
             ingestor_lib = NvidiaRAGIngestor(vdb_op=mock_vdb, mode="library")
             assert ingestor_lib.mode == "library"
