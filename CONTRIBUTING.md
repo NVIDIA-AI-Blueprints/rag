@@ -14,12 +14,12 @@ Developer workflow for code contributions is as follows:
 3. Once the code changes are staged on the fork and ready for review, a Pull Request (PR) can be requested to merge the changes from a branch of the fork into the `develop` branch of the upstream repository.
    - **Important**: All PRs must target the `develop` branch, not `main` or `master`.
    - The `develop` branch serves as the integration branch for ongoing development.
+   - All commits must be signed off. Guidelines [here.](#signing-your-work)
 4. The PR will be automatically validated by our CI/CD pipeline (see Continuous Integration section below).
 5. The PR will be accepted and the corresponding issue closed only after:
    - All CI checks pass successfully
    - Code review is completed and approved
    - Adequate testing has been verified
-
 
 ## Code Quality and Linting
 
@@ -93,7 +93,8 @@ Follow these best practices when contributing:
 - Use present tense ("Add feature" not "Added feature")
 - Reference issue numbers in commits when applicable (e.g., "Fix #123")
 - Keep commits focused on a single concern
-- Always sign-off your commits using `git commit -s`
+- **Always sign-off your commits using `git commit -s`** (required)
+- **Always GPG sign your commits using `git commit -S`** (required)
 
 ### Code Standards
 - Follow PEP 8 style guidelines for Python code
@@ -105,6 +106,7 @@ Follow these best practices when contributing:
 ### Pull Request Guidelines
 - Provide a clear description of the changes
 - Link to related issues using GitHub keywords (Fixes #123, Closes #456)
+- **Ensure all commits are signed-off (`-s`) and GPG signed (`-S`)**
 - Ensure all CI checks pass before requesting review
 - Respond to review comments promptly
 - Keep PRs focused and reasonably sized (avoid massive PRs)
@@ -163,6 +165,8 @@ python -m tests.integration.main --list-sequences
 
 
 ## Signing Your Work
+
+### Sign-Off Requirement (DCO)
 We require that all contributors "sign-off" on their commits. This certifies that the contribution is your original work, or you have rights to submit it under the same license, or a compatible license.
 
 Any contribution which contains commits that are not Signed-Off will not be accepted.
@@ -172,6 +176,112 @@ To sign off on a commit, use the `--signoff` (or `-s`) option when committing yo
 This will append the following to your commit message:
 
 Signed-off-by: Your Name <your@email.com>
+
+### GPG Commit Signing Requirement
+We require that all commits are GPG signed for enhanced security. This provides cryptographic verification that commits actually come from you.
+
+**⚠️ All PRs with unsigned commits will not be accepted.**
+
+To sign your commits with both sign-off and GPG signature, use:
+```bash
+git commit -S -s -m "Your commit message"
+```
+
+### Setting Up GPG Signing
+
+If you encounter an error like `gpg failed to sign the data` or want to set up GPG signing, follow these steps:
+
+#### 1. Check if you have GPG keys
+```bash
+gpg --list-secret-keys --keyid-format=long
+```
+
+#### 2. If you don't have a GPG key, generate one
+```bash
+gpg --full-generate-key
+```
+- Choose RSA and RSA (default)
+- Choose key size 4096 bits
+- Set expiration (recommend 1-2 years)
+- Enter your name and email (use the same email as your Git config)
+
+#### 3. List your GPG keys and get your key ID
+```bash
+gpg --list-secret-keys --keyid-format=long
+```
+
+You'll see output like:
+```
+sec   rsa3072/7D8E89F41A6449E0 2025-11-14 [SC]
+      10560B962D8073C78BDD39A37D8E89F41A6449E0
+uid                 [ultimate] Your Name <your@email.com>
+ssb   rsa3072/AEFFAD5D1811E36E 2025-11-14 [E]
+```
+
+The key ID is the part after `rsa3072/` on the `sec` line: **`7D8E89F41A6449E0`**
+
+#### 4. Configure Git to use your GPG key
+```bash
+# Set your GPG signing key
+git config --global user.signingkey YOUR_KEY_ID
+
+# (Optional) Auto-sign all commits
+git config --global commit.gpgsign true
+```
+
+#### 5. Configure GPG TTY (important for passphrase prompts)
+```bash
+export GPG_TTY=$(tty)
+
+# Make it permanent by adding to your shell config
+echo 'export GPG_TTY=$(tty)' >> ~/.bashrc  # For bash
+# OR
+echo 'export GPG_TTY=$(tty)' >> ~/.zshrc   # For zsh
+```
+
+#### 6. Add your GPG key to GitHub (required for verified badge)
+```bash
+# Export your public key
+gpg --armor --export YOUR_KEY_ID
+```
+
+Copy the output (including `-----BEGIN PGP PUBLIC KEY BLOCK-----` and `-----END PGP PUBLIC KEY BLOCK-----`) and add it to GitHub:
+1. Go to GitHub → Settings → SSH and GPG keys
+2. Click "New GPG key"
+3. Paste your public key
+4. Click "Add GPG key"
+
+#### 7. Sign your commits
+```bash
+# Sign a single commit
+git commit -S -s -m "Your commit message"
+
+# If auto-signing is enabled (step 4), just use -s
+git commit -s -m "Your commit message"
+```
+
+#### 8. Verify your commit is signed
+```bash
+git log --show-signature -1
+```
+
+You should see "Good signature" in the output.
+
+### Troubleshooting GPG Signing
+
+**Error: `gpg failed to sign the data`**
+- Make sure `GPG_TTY` is set: `export GPG_TTY=$(tty)`
+- Verify your key exists: `gpg --list-secret-keys`
+- Check Git config: `git config --get user.signingkey`
+- Test GPG signing: `echo "test" | gpg --clearsign`
+
+**Error: `secret key not available`**
+- Make sure you're using the correct key ID
+- Verify the key hasn't expired: `gpg --list-keys`
+
+**Passphrase prompt not showing**
+- Set `GPG_TTY`: `export GPG_TTY=$(tty)`
+- Configure pinentry for your environment (GUI vs terminal)
 
 
 ## Developer Certificate of Origin
