@@ -25,7 +25,7 @@ import pytest
 import yaml
 
 from nvidia_rag.utils.configuration import (
-    AppConfig,
+    NvidiaRAGConfig,
     EmbeddingConfig,
     LLMConfig,
     MinioConfig,
@@ -47,7 +47,7 @@ class TestVectorStoreConfig:
 
     def test_default_values(self):
         """Test default configuration values."""
-        config = VectorStoreConfig.from_dict({})
+        config = VectorStoreConfig()
 
         assert config.name == "milvus"
         assert config.url == "http://localhost:19530"
@@ -67,7 +67,7 @@ class TestVectorStoreConfig:
         }
 
         with patch.dict(os.environ, env_vars):
-            config = VectorStoreConfig.from_dict({})
+            config = VectorStoreConfig()
 
             assert config.default_collection_name == "test_collection"
 
@@ -77,7 +77,7 @@ class TestLLMConfig:
 
     def test_default_values(self):
         """Test default configuration values."""
-        config = LLMConfig.from_dict({})
+        config = LLMConfig()
 
         assert config.server_url == ""
         assert config.model_name == "nvidia/llama-3.3-nemotron-super-49b-v1.5"
@@ -89,7 +89,7 @@ class TestLLMConfig:
 
     def test_get_model_parameters_default(self):
         """Test get_model_parameters with default model (nemotron pattern)."""
-        config = LLMConfig.from_dict({})
+        config = LLMConfig()
         params = config.get_model_parameters()
 
         # Default model contains "llama-3.3-nemotron-super-49b" so it triggers nemotron logic
@@ -104,7 +104,7 @@ class TestLLMConfig:
 
     def test_get_model_parameters_generic(self):
         """Test get_model_parameters with a generic model (no special patterns)."""
-        config = LLMConfig.from_dict({"modelName": "meta/llama-3.1-8b-instruct"})
+        config = LLMConfig(model_name="meta/llama-3.1-8b-instruct")
         params = config.get_model_parameters()
 
         # Generic model should use the base parameter values
@@ -123,7 +123,7 @@ class TestQueryRewriterConfig:
 
     def test_default_values(self):
         """Test default configuration values."""
-        config = QueryRewriterConfig.from_dict({})
+        config = QueryRewriterConfig()
 
         assert config.model_name == "nvidia/llama-3.3-nemotron-super-49b-v1.5"
         assert config.server_url == ""
@@ -135,7 +135,7 @@ class TestTextSplitterConfig:
 
     def test_default_values(self):
         """Test default configuration values."""
-        config = TextSplitterConfig.from_dict({})
+        config = TextSplitterConfig()
 
         assert config.model_name == "Snowflake/snowflake-arctic-embed-l"
         assert config.chunk_size == 510
@@ -147,7 +147,7 @@ class TestEmbeddingConfig:
 
     def test_default_values(self):
         """Test default configuration values."""
-        config = EmbeddingConfig.from_dict({})
+        config = EmbeddingConfig()
 
         assert config.model_name == "nvidia/llama-3.2-nv-embedqa-1b-v2"
         assert config.model_engine == "nvidia-ai-endpoints"
@@ -160,7 +160,7 @@ class TestRankingConfig:
 
     def test_default_values(self):
         """Test default configuration values."""
-        config = RankingConfig.from_dict({})
+        config = RankingConfig()
 
         assert config.model_name == "nvidia/llama-3.2-nv-rerankqa-1b-v2"
         assert config.model_engine == "nvidia-ai-endpoints"
@@ -173,7 +173,7 @@ class TestRetrieverConfig:
 
     def test_default_values(self):
         """Test default configuration values."""
-        config = RetrieverConfig.from_dict({})
+        config = RetrieverConfig()
 
         assert config.top_k == 10
         assert config.vdb_top_k == 100
@@ -187,7 +187,7 @@ class TestMinioConfig:
 
     def test_default_values(self):
         """Test default configuration values."""
-        config = MinioConfig.from_dict({})
+        config = MinioConfig()
 
         assert config.endpoint == "localhost:9010"
         assert config.access_key == "minioadmin"
@@ -200,7 +200,7 @@ class TestSummarizerConfig:
     @patch.dict(os.environ, {}, clear=True)
     def test_default_values(self):
         """Test default configuration values."""
-        config = SummarizerConfig.from_dict({})
+        config = SummarizerConfig()
 
         assert config.model_name == "nvidia/llama-3.3-nemotron-super-49b-v1.5"
         assert config.server_url == ""
@@ -222,7 +222,7 @@ class TestSummarizerConfig:
         }
 
         with patch.dict(os.environ, env_vars):
-            config = SummarizerConfig.from_dict({})
+            config = SummarizerConfig()
 
             assert config.model_name == "custom/summarizer-model"
             assert config.server_url == "http://summarizer:8080"
@@ -237,7 +237,7 @@ class TestNvIngestConfig:
 
     def test_default_values(self):
         """Test default configuration values."""
-        config = NvIngestConfig.from_dict({})
+        config = NvIngestConfig()
 
         assert config.message_client_hostname == "localhost"
         assert config.message_client_port == 7670
@@ -259,12 +259,12 @@ class TestNvIngestConfig:
         assert config.enable_pdf_splitter is True
 
 
-class TestAppConfig:
-    """Test cases for the main AppConfig class."""
+class TestNvidiaRAGConfig:
+    """Test cases for the main NvidiaRAGConfig class."""
 
     def test_default_values(self):
         """Test default configuration values."""
-        config = AppConfig.from_dict({})
+        config = NvidiaRAGConfig.from_dict({})
 
         # Test that all nested configs are properly initialized
         assert isinstance(config.vector_store, VectorStoreConfig)
@@ -297,7 +297,7 @@ class TestAppConfig:
         }
 
         with patch.dict(os.environ, env_vars):
-            config = AppConfig.from_dict({})
+            config = NvidiaRAGConfig.from_dict({})
 
             assert config.enable_guardrails is True
             assert config.enable_citations is False
@@ -315,7 +315,7 @@ class TestAppConfig:
         }
 
         with patch.dict(os.environ, env_vars):
-            config = AppConfig.from_dict({})
+            config = NvidiaRAGConfig.from_dict({})
 
             assert config.vector_store.name == "custom_vectorstore"
             assert config.llm.model_name == "custom/llm-model"
@@ -332,7 +332,7 @@ class TestAppConfig:
             "tempDir": "/custom/temp",
         }
 
-        config = AppConfig.from_dict(data)
+        config = NvidiaRAGConfig.from_dict(data)
 
         assert config.vector_store.name == "elasticsearch"
         assert config.vector_store.url == "http://es:9200"
@@ -372,7 +372,7 @@ class TestConfigurationIntegration:
         }
 
         with patch.dict(os.environ, env_vars):
-            config = AppConfig.from_dict({})
+            config = NvidiaRAGConfig.from_dict({})
 
             # Verify all environment variables are applied correctly
             assert config.vector_store.name == "elasticsearch"

@@ -229,48 +229,47 @@ class TestCheckAllServicesHealth:
             return_value={"service": "Vector DB", "status": "healthy"}
         )
 
-        with patch("nvidia_rag.utils.common.get_config", return_value=mock_config):
-            with patch.dict(
-                os.environ,
-                {"REDIS_HOST": "localhost", "REDIS_PORT": "6379", "REDIS_DB": "0"},
-            ):
+        with patch.dict(
+            os.environ,
+            {"REDIS_HOST": "localhost", "REDIS_PORT": "6379", "REDIS_DB": "0"},
+        ):
+            with patch(
+                "nvidia_rag.ingestor_server.health.check_minio_health"
+            ) as mock_minio:
                 with patch(
-                    "nvidia_rag.ingestor_server.health.check_minio_health"
-                ) as mock_minio:
+                    "nvidia_rag.ingestor_server.health.check_nv_ingest_health"
+                ) as mock_nv_ingest:
                     with patch(
-                        "nvidia_rag.ingestor_server.health.check_nv_ingest_health"
-                    ) as mock_nv_ingest:
+                        "nvidia_rag.ingestor_server.health.check_service_health"
+                    ) as mock_service:
                         with patch(
-                            "nvidia_rag.ingestor_server.health.check_service_health"
-                        ) as mock_service:
-                            with patch(
-                                "nvidia_rag.ingestor_server.health.check_redis_health"
-                            ) as mock_redis:
-                                # Setup mock returns
-                                mock_minio.return_value = {
-                                    "service": "MinIO",
-                                    "status": "healthy",
-                                }
-                                mock_nv_ingest.return_value = {
-                                    "service": "NV-Ingest",
-                                    "status": "healthy",
-                                }
-                                mock_service.return_value = {
-                                    "service": "Test",
-                                    "status": "healthy",
-                                }
-                                mock_redis.return_value = {
-                                    "service": "Redis",
-                                    "status": "healthy",
-                                }
+                            "nvidia_rag.ingestor_server.health.check_redis_health"
+                        ) as mock_redis:
+                            # Setup mock returns
+                            mock_minio.return_value = {
+                                "service": "MinIO",
+                                "status": "healthy",
+                            }
+                            mock_nv_ingest.return_value = {
+                                "service": "NV-Ingest",
+                                "status": "healthy",
+                            }
+                            mock_service.return_value = {
+                                "service": "Test",
+                                "status": "healthy",
+                            }
+                            mock_redis.return_value = {
+                                "service": "Redis",
+                                "status": "healthy",
+                            }
 
-                                result = await check_all_services_health(mock_vdb_op)
+                            result = await check_all_services_health(mock_vdb_op, mock_config)
 
-                                assert "databases" in result
-                                assert "object_storage" in result
-                                assert "nim" in result
-                                assert "processing" in result
-                                assert "task_management" in result
+                            assert "databases" in result
+                            assert "object_storage" in result
+                            assert "nim" in result
+                            assert "processing" in result
+                            assert "task_management" in result
 
     @pytest.mark.asyncio
     async def test_check_all_services_health_nvidia_api_catalog(self, mock_config):
@@ -284,43 +283,42 @@ class TestCheckAllServicesHealth:
             return_value={"service": "Vector DB", "status": "healthy"}
         )
 
-        with patch("nvidia_rag.utils.common.get_config", return_value=mock_config):
-            with patch.dict(
-                os.environ,
-                {"REDIS_HOST": "localhost", "REDIS_PORT": "6379", "REDIS_DB": "0"},
-            ):
-                with patch("nvidia_rag.ingestor_server.health.check_minio_health"):
+        with patch.dict(
+            os.environ,
+            {"REDIS_HOST": "localhost", "REDIS_PORT": "6379", "REDIS_DB": "0"},
+        ):
+            with patch("nvidia_rag.ingestor_server.health.check_minio_health"):
+                with patch(
+                    "nvidia_rag.ingestor_server.health.check_nv_ingest_health"
+                ):
                     with patch(
-                        "nvidia_rag.ingestor_server.health.check_nv_ingest_health"
+                        "nvidia_rag.ingestor_server.health.check_redis_health"
                     ):
-                        with patch(
-                            "nvidia_rag.ingestor_server.health.check_redis_health"
-                        ):
-                            result = await check_all_services_health(mock_vdb_op)
+                        result = await check_all_services_health(mock_vdb_op, mock_config)
 
-                            nim_services = result["nim"]
-                            assert len(nim_services) == 3
+                        nim_services = result["nim"]
+                        assert len(nim_services) == 3
 
-                            # Check that each service has the expected URL and model from the mock config
-                            expected_services = [
-                                {
-                                    "url": "https://integrate.api.nvidia.com/v1",  # embeddings
-                                    "model": "test-embedding-model",
-                                },
-                                {
-                                    "url": "https://ai.api.nvidia.com/v1",  # summarizer
-                                    "model": "test-llm-model",
-                                },
-                                {
-                                    "url": "https://api.nvcf.nvidia.com/v2",  # caption endpoint
-                                    "model": "test-caption-model",
-                                },
-                            ]
+                        # Check that each service has the expected URL and model from the mock config
+                        expected_services = [
+                            {
+                                "url": "https://integrate.api.nvidia.com/v1",  # embeddings
+                                "model": "test-embedding-model",
+                            },
+                            {
+                                "url": "https://ai.api.nvidia.com/v1",  # summarizer
+                                "model": "test-llm-model",
+                            },
+                            {
+                                "url": "https://api.nvcf.nvidia.com/v2",  # caption endpoint
+                                "model": "test-caption-model",
+                            },
+                        ]
 
-                            for i, service in enumerate(nim_services):
-                                assert service["url"] == expected_services[i]["url"]
-                                assert service["status"] == "healthy"
-                                assert service["model"] == expected_services[i]["model"]
+                        for i, service in enumerate(nim_services):
+                            assert service["url"] == expected_services[i]["url"]
+                            assert service["status"] == "healthy"
+                            assert service["model"] == expected_services[i]["model"]
 
     @pytest.mark.asyncio
     async def test_check_all_services_health_unknown_vector_store(self, mock_config):
@@ -332,30 +330,29 @@ class TestCheckAllServicesHealth:
             "Unsupported vector store type"
         )
 
-        with patch("nvidia_rag.utils.common.get_config", return_value=mock_config):
-            with patch.dict(
-                os.environ,
-                {"REDIS_HOST": "localhost", "REDIS_PORT": "6379", "REDIS_DB": "0"},
-            ):
-                with patch("nvidia_rag.ingestor_server.health.check_minio_health"):
+        with patch.dict(
+            os.environ,
+            {"REDIS_HOST": "localhost", "REDIS_PORT": "6379", "REDIS_DB": "0"},
+        ):
+            with patch("nvidia_rag.ingestor_server.health.check_minio_health"):
+                with patch(
+                    "nvidia_rag.ingestor_server.health.check_nv_ingest_health"
+                ):
                     with patch(
-                        "nvidia_rag.ingestor_server.health.check_nv_ingest_health"
+                        "nvidia_rag.ingestor_server.health.check_service_health"
                     ):
                         with patch(
-                            "nvidia_rag.ingestor_server.health.check_service_health"
+                            "nvidia_rag.ingestor_server.health.check_redis_health"
                         ):
-                            with patch(
-                                "nvidia_rag.ingestor_server.health.check_redis_health"
-                            ):
-                                result = await check_all_services_health(mock_vdb_op)
+                            result = await check_all_services_health(mock_vdb_op, mock_config)
 
-                                db_services = result["databases"]
-                                assert len(db_services) == 1
-                                assert db_services[0]["status"] == "unknown"
-                                assert (
-                                    "Unsupported vector store type"
-                                    in db_services[0]["error"]
-                                )
+                            db_services = result["databases"]
+                            assert len(db_services) == 1
+                            assert db_services[0]["status"] == "unknown"
+                            assert (
+                                "Unsupported vector store type"
+                                in db_services[0]["error"]
+                            )
 
 
 class TestPrintHealthReport:
@@ -426,7 +423,7 @@ class TestCheckAndPrintServicesHealth:
                 result = await check_and_print_services_health(mock_vdb_op)
 
                 assert result == mock_results
-                mock_check.assert_called_once_with(mock_vdb_op)
+                mock_check.assert_called_once_with(mock_vdb_op, None)
                 mock_print.assert_called_once_with(mock_results)
 
 
