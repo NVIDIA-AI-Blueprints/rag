@@ -325,11 +325,11 @@ class TestNvidiaRAGConfig:
     def test_from_dict_nested_structure(self):
         """Test loading from dictionary with nested structure."""
         data = {
-            "vectorStore": {"name": "elasticsearch", "url": "http://es:9200"},
-            "llm": {"modelName": "custom/model", "serverUrl": "http://llm:8080"},
-            "enableGuardrails": True,
-            "enableCitations": False,
-            "tempDir": "/custom/temp",
+            "vector_store": {"name": "elasticsearch", "url": "http://es:9200"},
+            "llm": {"model_name": "custom/model", "server_url": "http://llm:8080"},
+            "enable_guardrails": True,
+            "enable_citations": False,
+            "temp_dir": "/custom/temp",
         }
 
         config = NvidiaRAGConfig.from_dict(data)
@@ -408,3 +408,40 @@ class TestConfigurationIntegration:
             assert config.enable_guardrails is True
             assert config.enable_citations is False
             assert config.ranking.enable_reranker is True
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_quoted_string_environment_variables(self):
+        """Test that quoted string values from Docker Compose are handled correctly."""
+        # Simulate Docker Compose setting string values as quoted strings
+        env_vars = {
+            "APP_VECTORSTORE_NAME": '"milvus"',  # Docker Compose style with quotes
+            "APP_VECTORSTORE_URL": '"http://milvus:19530"',
+            "APP_LLM_MODELNAME": '"nvidia/llama-3.3-nemotron-super-49b-v1.5"',
+            "COLLECTION_NAME": '"test_collection"',
+        }
+
+        with patch.dict(os.environ, env_vars):
+            config = NvidiaRAGConfig()
+
+            # Verify that quoted strings are correctly stripped
+            assert config.vector_store.name == "milvus"
+            assert config.vector_store.url == "http://milvus:19530"
+            assert config.llm.model_name == "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+            assert config.vector_store.default_collection_name == "test_collection"
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_mixed_quote_types_environment_variables(self):
+        """Test handling of both single and double quotes in environment variables."""
+        env_vars = {
+            "APP_VECTORSTORE_NAME": "'elasticsearch'",  # Single quotes
+            "APP_VECTORSTORE_URL": '"http://es:9200"',  # Double quotes
+            "COLLECTION_NAME": ' "test_collection" ',  # Quotes with whitespace
+        }
+
+        with patch.dict(os.environ, env_vars):
+            config = NvidiaRAGConfig()
+
+            # Verify both quote types and whitespace are handled
+            assert config.vector_store.name == "elasticsearch"
+            assert config.vector_store.url == "http://es:9200"
+            assert config.vector_store.default_collection_name == "test_collection"
