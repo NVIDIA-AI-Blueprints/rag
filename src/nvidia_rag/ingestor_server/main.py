@@ -281,6 +281,21 @@ class NvidiaRAGIngestor:
                 task_id = await INGESTION_TASK_HANDLER.submit_task(
                     _task, task_id=task_id
                 )
+                # Update initial batch progress response to indicate that the ingestion has started
+                batch_progress_response = await self.__build_ingestion_response(
+                    failures=[],
+                    filepaths=[],
+                    state_manager=state_manager,
+                    is_final_batch=False,
+                )
+                ingestion_state = await state_manager.update_batch_progress(
+                    batch_progress_response=batch_progress_response, is_batch_zero=True,
+                )
+                await INGESTION_TASK_HANDLER.set_task_status_and_result(
+                    task_id=state_manager.get_task_id(),
+                    status="PENDING",
+                    result=ingestion_state,
+                )
                 return {
                     "message": "Ingestion started in background",
                     "task_id": task_id,
