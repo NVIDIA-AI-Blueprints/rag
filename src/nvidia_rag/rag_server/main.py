@@ -220,9 +220,10 @@ class NvidiaRAG:
 
     def __prepare_vdb_op(
         self,
-        vdb_endpoint: str | None = None,
-        embedding_model: str | None = None,
-        embedding_endpoint: str | None = None,
+        vdb_endpoint: str = None,
+        embedding_model: str = None,
+        embedding_endpoint: str = None,
+        vdb_auth_token: str | None = None,
     ):
         """
         Prepare the VDBRag object for generation.
@@ -252,7 +253,7 @@ class NvidiaRAG:
         return _get_vdb_op(
             vdb_endpoint=vdb_endpoint or self.config.vector_store.url,
             embedding_model=document_embedder,
-            config=self.config,
+            vdb_auth_token=vdb_auth_token,
         )
 
     def _validate_collections_exist(
@@ -278,15 +279,16 @@ class NvidiaRAG:
         self,
         messages: list[dict[str, Any]],
         use_knowledge_base: bool = True,
-        temperature: float | None = None,
-        top_p: float | None = None,
-        min_tokens: int | None = None,
-        ignore_eos: bool | None = None,
-        max_tokens: int | None = None,
-        stop: list[str] | None = None,
-        reranker_top_k: int | None = None,
-        vdb_top_k: int | None = None,
-        vdb_endpoint: str | None = None,
+        temperature: float = default_temperature,
+        top_p: float = default_top_p,
+        min_tokens: int = default_min_tokens,
+        ignore_eos: bool = default_ignore_eos,
+        max_tokens: int = default_max_tokens,
+        stop: list[str] = None,
+        reranker_top_k: int = int(CONFIG.retriever.top_k),
+        vdb_top_k: int = int(CONFIG.retriever.vdb_top_k),
+        vdb_endpoint: str = None,
+        vdb_auth_token: str | None = None,
         collection_name: str = "",
         collection_names: list[str] | None = None,
         enable_query_rewriting: bool | None = None,
@@ -421,6 +423,7 @@ class NvidiaRAG:
             vdb_endpoint=vdb_endpoint,
             embedding_model=embedding_model,
             embedding_endpoint=embedding_endpoint,
+            vdb_auth_token=vdb_auth_token,
         )
 
         # Validate boolean and float parameters
@@ -515,15 +518,16 @@ class NvidiaRAG:
         reranker_top_k: int | None = None,
         vdb_top_k: int | None = None,
         collection_name: str = "",
-        collection_names: list[str] | None = None,
-        vdb_endpoint: str | None = None,
-        enable_query_rewriting: bool | None = None,
-        enable_reranker: bool | None = None,
-        enable_filter_generator: bool | None = None,
-        embedding_model: str | None = None,
-        embedding_endpoint: str | None = None,
-        reranker_model: str | None = None,
-        reranker_endpoint: str | None = None,
+        collection_names: list[str] = None,
+        vdb_endpoint: str = None,
+        vdb_auth_token: str | None = None,
+        enable_query_rewriting: bool = CONFIG.query_rewriter.enable_query_rewriter,
+        enable_reranker: bool = CONFIG.ranking.enable_reranker,
+        enable_filter_generator: bool = CONFIG.filter_expression_generator.enable_filter_generator,
+        embedding_model: str = None,
+        embedding_endpoint: str = None,
+        reranker_model: str = CONFIG.ranking.model_name,
+        reranker_endpoint: str | None = CONFIG.ranking.server_url,
         filter_expr: str | list[dict[str, Any]] = "",
         confidence_threshold: float | None = None,
     ) -> Citations:
@@ -598,6 +602,7 @@ class NvidiaRAG:
             vdb_endpoint=vdb_endpoint,
             embedding_model=embedding_model,
             embedding_endpoint=embedding_endpoint,
+            vdb_auth_token=vdb_auth_token,
         )
 
         if messages is None:

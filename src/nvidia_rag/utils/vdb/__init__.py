@@ -33,6 +33,7 @@ def _get_vdb_op(
     embedding_model: str | None = None,  # Needed in case of retrieval
     metadata_schema: list[dict[str, Any]] | None = None,
     config: NvidiaRAGConfig | None = None,
+    vdb_auth_token: str | None = None,
 ):
     """
     Get VDBRag class object based on configuration.
@@ -99,6 +100,8 @@ def _get_vdb_op(
                     "meta_fields": meta_fields,
                 }
             )
+        if vdb_auth_token:
+            vdb_upload_kwargs["auth_token"] = vdb_auth_token
         return MilvusVDB(**vdb_upload_kwargs)
 
     elif config.vector_store.name == "elasticsearch":
@@ -111,8 +114,9 @@ def _get_vdb_op(
 
         return ElasticVDB(
             index_name=collection_name,
-            es_url=vdb_endpoint or config.vector_store.url,
-            hybrid=config.vector_store.search_type == "hybrid",
+            es_url=vdb_endpoint or CONFIG.vector_store.url,
+            hybrid=CONFIG.vector_store.search_type == "hybrid",
+            auth_token=vdb_auth_token,
             meta_dataframe=meta_dataframe,
             meta_source_field=meta_source_field,
             meta_fields=meta_fields,

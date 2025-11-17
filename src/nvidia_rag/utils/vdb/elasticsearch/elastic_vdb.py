@@ -97,6 +97,7 @@ class ElasticVDB(VDBRag):
         index_name: str,
         es_url: str,
         hybrid: bool = False,
+        auth_token: Optional[str] = None,
         meta_dataframe: pd.DataFrame = None,
         meta_source_field: str = None,
         meta_fields: list[str] = None,
@@ -107,22 +108,35 @@ class ElasticVDB(VDBRag):
         self.config = config or NvidiaRAGConfig()
         self.index_name = index_name
         self.es_url = es_url
+        # Prefer Bearer token when provided; then API key; otherwise fall back to basic auth.
+        # Priority: explicitly passed args -> CONFIG/env vars.
+        resolved_api_key: Optional[Union[str, Tuple[str, str]]] = None
+        resolved_basic_auth: Optional[Tuple[str, str]] = None
+        resolved_bearer_auth: Optional[str] = None
 
-        # Resolve authentication from config
-        # Prefer API key auth when provided; otherwise fall back to basic auth.
-        resolved_api_key: str | tuple[str, str] | None = None
-        resolved_basic_auth: tuple[str, str] | None = None
+        # Prefer caller-provided bearer token over everything else
+        if auth_token:
+            resolved_bearer_auth = auth_token
+        # Resolve API key from explicit args
+        if api_key:
+            resolved_api_key = api_key
+        elif api_key_id and api_key_secret:
+            resolved_api_key = (api_key_id, api_key_secret)
+        # Resolve basic auth from explicit args
+        if not resolved_api_key and username and password:
+            resolved_basic_auth = (username, password)
 
-        # Resolve API key from config
-        if self.config.vector_store.api_key:
-            resolved_api_key = self.config.vector_store.api_key
-        elif self.config.vector_store.api_key_id and self.config.vector_store.api_key_secret:
-            resolved_api_key = (self.config.vector_store.api_key_id, self.config.vector_store.api_key_secret)
-        # Resolve basic auth from config
-        elif self.config.vector_store.username and self.config.vector_store.password:
-            resolved_basic_auth = (self.config.vector_store.username, self.config.vector_store.password)
+        # Fall back to CONFIG if still not set (prefer API key over basic)
+        if not resolved_bearer_auth and not resolved_api_key and not resolved_basic_auth:
+            if CONFIG.vector_store.api_key:
+                resolved_api_key = CONFIG.vector_store.api_key
+            elif CONFIG.vector_store.api_key_id and CONFIG.vector_store.api_key_secret:
+                resolved_api_key = (CONFIG.vector_store.api_key_id, CONFIG.vector_store.api_key_secret)
+            elif CONFIG.vector_store.username and CONFIG.vector_store.password:
+                resolved_basic_auth = (CONFIG.vector_store.username, CONFIG.vector_store.password)
 
         # Keep on instance for reuse (e.g., langchain vectorstore)
+        self._bearer_auth = resolved_bearer_auth
         self._api_key = resolved_api_key
         self._basic_auth = resolved_basic_auth
         self._username = self.config.vector_store.username
@@ -130,8 +144,9 @@ class ElasticVDB(VDBRag):
 
         self._es_connection = Elasticsearch(
             hosts=[self.es_url],
-            api_key=self._api_key,
-            basic_auth=self._basic_auth,
+            api_key=self._api_key if not self._bearer_auth else None,
+            basic_auth=self._basic_auth if not self._bearer_auth and not self._api_key else None,
+            bearer_auth=self._bearer_auth,
         ).options(
             request_timeout=int(os.environ.get("ES_REQUEST_TIMEOUT", 600))
         )
@@ -684,7 +699,11 @@ class ElasticVDB(VDBRag):
         }
 
         # Propagate auth to vectorstore if supported
-        if self._api_key:
+        if self._bearer_auth:
+            # ElasticsearchStore doesn't accept bearer directly; it uses the provided client
+            # which we already configured with bearer_auth above, so nothing to add here.
+            pass
+        elif self._api_key:
             vectorstore_params.update({
                 "api_key": self._api_key,
             })
