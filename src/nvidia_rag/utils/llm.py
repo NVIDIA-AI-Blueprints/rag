@@ -160,7 +160,7 @@ def get_llm(config: NvidiaRAGConfig | None = None, **kwargs) -> LLM | SimpleChat
             api_key = os.environ.get("LLM_API_KEY") or os.environ.get(
                 "NVIDIA_API_KEY", ""
             )
-            return ChatNVIDIA(
+            llm = ChatNVIDIA(
                 base_url=url,
                 model=kwargs.get("model"),
                 api_key=api_key if api_key else None,
@@ -169,19 +169,55 @@ def get_llm(config: NvidiaRAGConfig | None = None, **kwargs) -> LLM | SimpleChat
                 max_tokens=kwargs.get("max_tokens", None),
                 min_tokens=kwargs.get("min_tokens", None),
                 ignore_eos=kwargs.get("ignore_eos", False),
+                min_thinking_tokens=kwargs.get("min_thinking_tokens", None),
+                max_thinking_tokens=kwargs.get("max_thinking_tokens", None),
                 stop=kwargs.get("stop", []),
             )
+            # Enable and configure thinking mode if token limits provided or min > 0
+            min_think = kwargs.get("min_thinking_tokens", None)
+            max_think = kwargs.get("max_thinking_tokens", None)
+            enable_thinking = (max_think is not None and max_think > 0) or (
+                min_think is not None and min_think > 0
+            )
+            if enable_thinking:
+                llm = llm.with_thinking_mode(enabled=True)
+                bind_args = {}
+                if min_think is not None and min_think > 0:
+                    bind_args["min_thinking_tokens"] = min_think
+                if max_think is not None and max_think > 0:
+                    bind_args["max_thinking_tokens"] = max_think
+                if bind_args:
+                    llm = llm.bind(**bind_args)
+            return llm
 
         logger.info("Using llm model %s from api catalog", kwargs.get("model"))
-        return ChatNVIDIA(
+        llm = ChatNVIDIA(
             model=kwargs.get("model"),
             temperature=kwargs.get("temperature", None),
             top_p=kwargs.get("top_p", None),
             max_tokens=kwargs.get("max_tokens", None),
             min_tokens=kwargs.get("min_tokens", None),
             ignore_eos=kwargs.get("ignore_eos", False),
+            min_thinking_tokens=kwargs.get("min_thinking_tokens", None),
+            max_thinking_tokens=kwargs.get("max_thinking_tokens", None),
             stop=kwargs.get("stop", []),
         )
+        # Enable and configure thinking mode if token limits provided or min > 0
+        min_think = kwargs.get("min_thinking_tokens", None)
+        max_think = kwargs.get("max_thinking_tokens", None)
+        enable_thinking = (max_think is not None and max_think > 0) or (
+            min_think is not None and min_think > 0
+        )
+        if enable_thinking:
+            llm = llm.with_thinking_mode(enabled=True)
+            bind_args = {}
+            if min_think is not None and min_think > 0:
+                bind_args["min_thinking_tokens"] = min_think
+            if max_think is not None and max_think > 0:
+                bind_args["max_thinking_tokens"] = max_think
+            if bind_args:
+                llm = llm.bind(**bind_args)
+        return llm
 
     raise RuntimeError(
         "Unable to find any supported Large Language Model server. Supported engine name is nvidia-ai-endpoints."

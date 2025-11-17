@@ -187,6 +187,20 @@ class Prompt(BaseModel):
         le=128000,
         format="int64",
     )
+    min_thinking_tokens: int = Field(
+        default=1,
+        description="Minimum number of thinking tokens to allocate for reasoning models. "
+        "Enable thinking mode if either min_thinking_tokens or max_thinking_tokens is provided.",
+        ge=0,
+        format="int64",
+    )
+    max_thinking_tokens: int = Field(
+        default=32768,
+        description="Maximum number of thinking tokens to allocate for reasoning models. "
+        "Enable thinking mode if either min_thinking_tokens or max_thinking_tokens is provided.",
+        ge=0,
+        format="int64",
+    )
     reranker_top_k: int = Field(
         description="The maximum number of documents to return in the response.",
         default=CONFIG.retriever.top_k,
@@ -698,6 +712,8 @@ async def generate_answer(request: Request, prompt: Prompt) -> StreamingResponse
         "max_tokens": prompt.max_tokens,
         "min_tokens": prompt.min_tokens,
         "ignore_eos": prompt.ignore_eos,
+        "min_thinking_tokens": prompt.min_thinking_tokens,
+        "max_thinking_tokens": prompt.max_thinking_tokens,
         "stop": prompt.stop,
         "reranker_top_k": prompt.reranker_top_k,
         "vdb_top_k": prompt.vdb_top_k,
@@ -771,6 +787,8 @@ async def generate_answer(request: Request, prompt: Prompt) -> StreamingResponse
             min_tokens=prompt.min_tokens,
             ignore_eos=prompt.ignore_eos,
             max_tokens=prompt.max_tokens,
+            min_thinking_tokens=prompt.min_thinking_tokens,
+            max_thinking_tokens=prompt.max_thinking_tokens,
             stop=prompt.stop,
             reranker_top_k=prompt.reranker_top_k,
             vdb_top_k=prompt.vdb_top_k,
