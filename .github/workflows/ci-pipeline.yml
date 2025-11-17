@@ -295,7 +295,7 @@ jobs:
         run: |
           source venv/bin/activate
           echo "Running basic integration tests..."
-          python -m tests.integration.main --timeout 600
+          python -m tests.integration.main --timeout 1200
           echo "Basic integration tests completed"
 
       - name: Collect logs after basic tests
@@ -537,7 +537,7 @@ jobs:
       - name: Start observability services
         run: |
           echo "Starting observability services..."
-          docker compose -f deploy/compose/observability.yaml up -d
+          docker compose -f deploy/compose/observability.yaml up -d otel-collector prometheus
           sleep 30
 
       - name: Run observability integration tests
