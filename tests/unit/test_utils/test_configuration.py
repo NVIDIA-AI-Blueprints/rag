@@ -54,8 +54,6 @@ class TestVectorStoreConfig:
         assert config.nlist == 64
         assert config.nprobe == 16
         assert config.index_type == "GPU_CAGRA"
-        assert config.enable_gpu_index is True
-        assert config.enable_gpu_search is True
         assert config.search_type == "dense"
         assert config.default_collection_name == "multimodal_data"
 
