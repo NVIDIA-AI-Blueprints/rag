@@ -210,6 +210,14 @@ class Prompt(BaseModel):
         description="Endpoint url of the vector database server.",
         default=CONFIG.vector_store.url,
     )
+    vdb_auth_token: str | None = Field(
+        default=None,
+        description="Bearer auth token for the vector database (not logged).",
+    )
+    vdb_auth_token: str | None = Field(
+        default=None,
+        description="Bearer auth token for the vector database (not logged).",
+    )
     # TODO: Remove this field in the future
     collection_name: str = Field(
         description="Name of collection to be used for inference.",
@@ -768,6 +776,7 @@ async def generate_answer(request: Request, prompt: Prompt) -> StreamingResponse
             use_knowledge_base=prompt.use_knowledge_base,
             temperature=prompt.temperature,
             top_p=prompt.top_p,
+            vdb_auth_token=prompt.vdb_auth_token,
             min_tokens=prompt.min_tokens,
             ignore_eos=prompt.ignore_eos,
             max_tokens=prompt.max_tokens,
@@ -973,6 +982,7 @@ async def document_search(
         return NVIDIA_RAG.search(
             query=query_processed,
             messages=messages_dict,
+            vdb_auth_token=data.vdb_auth_token,
             reranker_top_k=data.reranker_top_k,
             vdb_top_k=data.vdb_top_k,
             collection_name=data.collection_name,
