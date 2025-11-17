@@ -55,7 +55,7 @@ Retrieval Operations:
 import logging
 import os
 import time
-from typing import Any
+from typing import Any, Optional, Union, Tuple
 
 import pandas as pd
 from elasticsearch import Elasticsearch
@@ -111,45 +111,52 @@ class ElasticVDB(VDBRag):
         embedding_model: str | None = None,
         csv_file_path: str | None = None,
         config: NvidiaRAGConfig | None = None,
+        auth_token: str | None = None,
     ):
         self.config = config or NvidiaRAGConfig()
         self.index_name = index_name
         self.es_url = es_url
+        # Prefer Bearer token when provided; then API key; otherwise fall back to basic auth.
+        resolved_api_key: Optional[Union[str, Tuple[str, str]]] = None
+        resolved_basic_auth: Optional[Tuple[str, str]] = None
+        resolved_bearer_auth: Optional[str] = None
 
         # Resolve authentication from config
         # Prefer API key auth when provided; otherwise fall back to basic auth.
         resolved_api_key: str | tuple[str, str] | None = None
         resolved_basic_auth: tuple[str, str] | None = None
-
-        # Resolve API key from config
-        if self.config.vector_store.api_key is not None:
+        
+        if auth_token:
+            resolved_bearer_auth = auth_token
+        elif self.config.vector_store.api_key:
             resolved_api_key = self.config.vector_store.api_key.get_secret_value()
-        elif (
-            self.config.vector_store.api_key_id
-            and self.config.vector_store.api_key_secret is not None
-        ):
-            resolved_api_key = (
-                self.config.vector_store.api_key_id,
-                self.config.vector_store.api_key_secret.get_secret_value(),
-            )
+        elif self.config.vector_store.api_key_id and self.config.vector_store.api_key_secret:
+            resolved_api_key = (self.config.vector_store.api_key_id, self.config.vector_store.api_key_secret.get_secret_value())
         # Resolve basic auth from config
-        elif self.config.vector_store.username and self.config.vector_store.password is not None:
-            resolved_basic_auth = (
-                self.config.vector_store.username,
-                self.config.vector_store.password.get_secret_value(),
-            )
+        elif self.config.vector_store.username and self.config.vector_store.password:
+            resolved_basic_auth = (self.config.vector_store.username, self.config.vector_store.password.get_secret_value())
 
         # Keep on instance for reuse (e.g., langchain vectorstore)
+        self._bearer_auth = resolved_bearer_auth
         self._api_key = resolved_api_key
         self._basic_auth = resolved_basic_auth
         self._username = self.config.vector_store.username
         self._password = self.config.vector_store.password.get_secret_value() if self.config.vector_store.password is not None else ""
 
-        self._es_connection = Elasticsearch(
-            hosts=[self.es_url],
-            api_key=self._api_key,
-            basic_auth=self._basic_auth,
-        ).options(request_timeout=int(os.environ.get("ES_REQUEST_TIMEOUT", 600)))
+        es_conn_params = {
+            "hosts": [self.es_url],
+        }
+        
+        if self._bearer_auth:
+            es_conn_params["bearer_auth"] = self._bearer_auth
+        elif self._api_key:
+            es_conn_params["api_key"] = self._api_key
+        elif self._basic_auth:
+            es_conn_params["basic_auth"] = self._basic_auth
+        
+        self._es_connection = Elasticsearch(**es_conn_params).options(
+            request_timeout=int(os.environ.get("ES_REQUEST_TIMEOUT", 600))
+        )
 
         # Track if system collections have been initialized
         self._metadata_schema_collection_initialized = False
@@ -782,6 +789,7 @@ class ElasticVDB(VDBRag):
     ) -> ElasticsearchStore:
         """
         Get the vectorstore for a collection.
+        Uses the same authentication priority: bearer token -> API key -> basic auth
         """
         vectorstore_params: dict[str, Any] = {
             "index_name": collection_name,
@@ -792,13 +800,10 @@ class ElasticVDB(VDBRag):
             ),
         }
 
-        # Propagate auth to vectorstore if supported
-        if self._api_key:
-            vectorstore_params.update(
-                {
-                    "api_key": self._api_key,
-                }
-            )
+        if self._bearer_auth:
+            vectorstore_params["es_params"] = {"bearer_auth": self._bearer_auth}
+        elif self._api_key:
+            vectorstore_params["es_api_key"] = self._api_key
         elif self._basic_auth:
             user, pwd = self._basic_auth
             vectorstore_params.update(

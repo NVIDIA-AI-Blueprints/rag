@@ -124,10 +124,10 @@ class MilvusVDB(Milvus, VDBRag):
         meta_dataframe: str | None = None,
         meta_source_field: str | None = None,
         meta_fields: list[str] | None = None,
+        auth_token: str | None = None,
     ):
         """
         Initialize MilvusVDB instance.
-
         Args:
             collection_name: Name of the Milvus collection
             milvus_uri: URI endpoint for Milvus server
@@ -151,7 +151,8 @@ class MilvusVDB(Milvus, VDBRag):
         """
         self.embedding_model = embedding_model
         self.config = config or NvidiaRAGConfig()
-        
+        self._auth_token = auth_token
+
         # Build kwargs for parent Milvus class
         parent_kwargs = {
             "collection_name": collection_name,
@@ -167,7 +168,7 @@ class MilvusVDB(Milvus, VDBRag):
             "gpu_index": gpu_index,
             "gpu_search": gpu_search,
         }
-        
+
         # Add optional metadata configurations if provided
         if meta_dataframe is not None:
             parent_kwargs["meta_dataframe"] = meta_dataframe
@@ -175,29 +176,43 @@ class MilvusVDB(Milvus, VDBRag):
             parent_kwargs["meta_source_field"] = meta_source_field
         if meta_fields is not None:
             parent_kwargs["meta_fields"] = meta_fields
-        
+
         super().__init__(**parent_kwargs)
-        
+
         self.vdb_endpoint = milvus_uri
         self._collection_name = collection_name
         self.csv_file_path = meta_dataframe
-
+    
         # Get the connection alias from the url
         self.url = urlparse(self.vdb_endpoint)
         self.connection_alias = (
             f"milvus_{self.url.hostname}_{self.url.port}_{str(uuid4())[:8]}"
         )
-
+        
         # Get credentials from parameters or fall back to environment variables
         username = username or os.environ.get("VECTOR_STORE_USERNAME", "")
         password = password or os.environ.get("VECTOR_STORE_PASSWORD", "")
 
         # Establish a single persistent connection for the lifetime of this instance
         try:
+            # Prefer explicit bearer token if provided; fall back to basic auth
+            if self._auth_token:
+                milvus_token = self._auth_token
+            else:
+                # Build basic auth token only if both username and password are available
+                cfg_user = getattr(self.config.vector_store, "username", "") or ""
+                cfg_pwd_val = getattr(self.config.vector_store, "password", None)
+                if hasattr(cfg_pwd_val, "get_secret_value"):
+                    cfg_pwd = cfg_pwd_val.get_secret_value()
+                elif cfg_pwd_val is None:
+                    cfg_pwd = ""
+                else:
+                    cfg_pwd = str(cfg_pwd_val)
+                milvus_token = f"{cfg_user}:{cfg_pwd}" if (cfg_user and cfg_pwd) else ""
             connections.connect(
                 self.connection_alias,
                 uri=self.vdb_endpoint,
-                token=f"{username}:{password}" if password else "",
+                token=milvus_token,
             )
             self._connected = True
             logger.debug(f"Connected to Milvus at {self.vdb_endpoint}")
@@ -300,7 +315,9 @@ class MilvusVDB(Milvus, VDBRag):
         password = self.config.vector_store.password.get_secret_value() if self.config.vector_store.password is not None else ""
         client = MilvusClient(
             self.vdb_endpoint,
-            token=f"{self.config.vector_store.username}:{password}",
+            token=self._auth_token
+            if self._auth_token
+            else f"{self.config.vector_store.username}:{self.config.vector_store.password}",
         )
         entities = client.query(
             collection_name=collection_name, filter=filter, limit=1000
@@ -416,7 +433,9 @@ class MilvusVDB(Milvus, VDBRag):
         password = self.config.vector_store.password.get_secret_value() if self.config.vector_store.password is not None else ""
         client = MilvusClient(
             self.vdb_endpoint,
-            token=f"{self.config.vector_store.username}:{password}",
+            token=self._auth_token
+            if self._auth_token
+            else f"{self.config.vector_store.username}:{self.config.vector_store.password}",
         )
         if client.has_collection(collection_name):
             client.delete(collection_name=collection_name, filter=filter)
@@ -609,7 +628,9 @@ class MilvusVDB(Milvus, VDBRag):
         password = self.config.vector_store.password.get_secret_value() if self.config.vector_store.password is not None else ""
         client = MilvusClient(
             self.vdb_endpoint,
-            token=f"{self.config.vector_store.username}:{password}",
+            token=self._auth_token
+            if self._auth_token
+            else f"{self.config.vector_store.username}:{self.config.vector_store.password}",
         )
         if not client.has_collection(DEFAULT_METADATA_SCHEMA_COLLECTION):
             # Create the metadata schema collection
@@ -639,7 +660,9 @@ class MilvusVDB(Milvus, VDBRag):
         password = self.config.vector_store.password.get_secret_value() if self.config.vector_store.password is not None else ""
         client = MilvusClient(
             self.vdb_endpoint,
-            token=f"{self.config.vector_store.username}:{password}",
+            token=self._auth_token
+            if self._auth_token
+            else f"{self.config.vector_store.username}:{self.config.vector_store.password}",
         )
 
         # Delete the metadata schema from the collection
@@ -705,7 +728,9 @@ class MilvusVDB(Milvus, VDBRag):
         password = self.config.vector_store.password.get_secret_value() if self.config.vector_store.password is not None else ""
         client = MilvusClient(
             self.vdb_endpoint,
-            token=f"{self.config.vector_store.username}:{password}",
+            token=self._auth_token
+            if self._auth_token
+            else f"{self.config.vector_store.username}:{self.config.vector_store.password}",
         )
         if not client.has_collection(DEFAULT_DOCUMENT_INFO_COLLECTION):
             # Create the document info collection
@@ -759,7 +784,9 @@ class MilvusVDB(Milvus, VDBRag):
         password = self.config.vector_store.password.get_secret_value() if self.config.vector_store.password is not None else ""
         client = MilvusClient(
             self.vdb_endpoint,
-            token=f"{self.config.vector_store.username}:{password}",
+            token=self._auth_token
+            if self._auth_token
+            else f"{self.config.vector_store.username}:{self.config.vector_store.password}",
         )
 
         # Since collection may have pre-ingested documents, we need to get the aggregated document info
@@ -941,7 +968,9 @@ class MilvusVDB(Milvus, VDBRag):
                 self.embedding_model,
                 connection_args={
                     "uri": self.vdb_endpoint,
-                    "token": f"{self.config.vector_store.username}:{password}",
+                    "token": self._auth_token
+                    if self._auth_token
+                    else f"{self.config.vector_store.username}:{self.config.vector_store.password}",
                 },
                 builtin_function=BM25BuiltInFunction(
                     output_field_names="sparse", enable_match=True
@@ -961,7 +990,9 @@ class MilvusVDB(Milvus, VDBRag):
                 self.embedding_model,
                 connection_args={
                     "uri": self.vdb_endpoint,
-                    "token": f"{self.config.vector_store.username}:{password}",
+                    "token": self._auth_token
+                    if self._auth_token
+                    else f"{self.config.vector_store.username}:{self.config.vector_store.password}",
                 },
                 collection_name=collection_name,
                 index_params={

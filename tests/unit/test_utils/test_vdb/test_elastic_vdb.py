@@ -92,14 +92,14 @@ class TestElasticVDB(unittest.TestCase):
         self.assertEqual(elastic_vdb.meta_fields, self.meta_fields)
         self.assertEqual(elastic_vdb.csv_file_path, self.csv_file_path)
 
-        # Expect client constructed with explicit api_key/basic_auth kwargs (both None in this test)
+        # Expect client constructed with only hosts (no auth in this test)
         self.assertTrue(mock_elasticsearch.called)
         _, kwargs = mock_elasticsearch.call_args
         self.assertEqual(kwargs.get("hosts"), [self.es_url])
-        self.assertIn("api_key", kwargs)
-        self.assertIn("basic_auth", kwargs)
-        self.assertIsNone(kwargs.get("api_key"))
-        self.assertIsNone(kwargs.get("basic_auth"))
+        # No auth params should be present when no auth is configured
+        self.assertNotIn("api_key", kwargs)
+        self.assertNotIn("basic_auth", kwargs)
+        self.assertNotIn("bearer_auth", kwargs)
         mock_vector_store.assert_called_once()
 
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.Elasticsearch")
@@ -964,9 +964,10 @@ class TestElasticVDB(unittest.TestCase):
         _, vs_kwargs = mock_es_store_class.call_args
         self.assertEqual(vs_kwargs.get("index_name"), "test_collection")
         self.assertEqual(vs_kwargs.get("es_url"), self.es_url)
-        self.assertNotIn("api_key", vs_kwargs)
+        self.assertNotIn("es_api_key", vs_kwargs)
         self.assertNotIn("es_user", vs_kwargs)
         self.assertNotIn("es_password", vs_kwargs)
+        self.assertNotIn("es_params", vs_kwargs)
 
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.ElasticsearchStore")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.DenseVectorStrategy")
@@ -996,7 +997,8 @@ class TestElasticVDB(unittest.TestCase):
         _, vs_kwargs = mock_es_store_class.call_args
         self.assertEqual(vs_kwargs.get("es_user"), "elastic")
         self.assertEqual(vs_kwargs.get("es_password"), "password")
-        self.assertNotIn("api_key", vs_kwargs)
+        self.assertNotIn("es_api_key", vs_kwargs)
+        self.assertNotIn("es_params", vs_kwargs)
 
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.ElasticsearchStore")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.DenseVectorStrategy")
@@ -1024,12 +1026,159 @@ class TestElasticVDB(unittest.TestCase):
         )
         _ = elastic_vdb.get_langchain_vectorstore("test_collection")
         _, vs_kwargs = mock_es_store_class.call_args
-        self.assertEqual(vs_kwargs.get("api_key"), "base64-id-secret")
+        self.assertEqual(vs_kwargs.get("es_api_key"), "base64-id-secret")
         self.assertNotIn("es_user", vs_kwargs)
         self.assertNotIn("es_password", vs_kwargs)
+        self.assertNotIn("es_params", vs_kwargs)
 
         # Ensure called with hybrid=True (may be invoked elsewhere too)
         mock_dense_strategy.assert_any_call(hybrid=True)
+
+    @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.Elasticsearch")
+    @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.VectorStore")
+    def test_init_with_bearer_auth(
+        self,
+        mock_vector_store,
+        mock_elasticsearch,
+    ):
+        """Test ElasticVDB initialization with bearer auth token."""
+        mock_config = Mock()
+        mock_config.embeddings.dimensions = 768
+        mock_config.vector_store.api_key = None
+        mock_config.vector_store.api_key_id = ""
+        mock_config.vector_store.api_key_secret = None
+        mock_config.vector_store.username = ""
+        mock_config.vector_store.password = None
+
+        mock_es_connection = Mock()
+        mock_elasticsearch.return_value = mock_es_connection
+        mock_vector_store.return_value = Mock()
+
+        # Create with auth_token
+        elastic_vdb = ElasticVDB(
+            index_name=self.index_name,
+            es_url=self.es_url,
+            config=mock_config,
+            auth_token="test_bearer_token",
+        )
+
+        # Verify bearer_auth was passed to Elasticsearch client
+        self.assertTrue(mock_elasticsearch.called)
+        _, kwargs = mock_elasticsearch.call_args
+        self.assertEqual(kwargs.get("bearer_auth"), "test_bearer_token")
+        self.assertNotIn("api_key", kwargs)
+        self.assertNotIn("basic_auth", kwargs)
+
+    @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.Elasticsearch")
+    @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.VectorStore")
+    def test_bearer_auth_priority_over_api_key(
+        self,
+        mock_vector_store,
+        mock_elasticsearch,
+    ):
+        """Bearer auth should have priority over API key and basic auth."""
+        mock_config = Mock()
+        mock_config.embeddings.dimensions = 768
+        mock_config.vector_store.api_key = SecretStr("some_api_key")
+        mock_config.vector_store.api_key_id = ""
+        mock_config.vector_store.api_key_secret = None
+        mock_config.vector_store.username = "elastic"
+        mock_config.vector_store.password = SecretStr("password")
+
+        mock_es_connection = Mock()
+        mock_elasticsearch.return_value = mock_es_connection
+        mock_vector_store.return_value = Mock()
+
+        # Create with auth_token (should override api_key and basic_auth)
+        elastic_vdb = ElasticVDB(
+            index_name=self.index_name,
+            es_url=self.es_url,
+            config=mock_config,
+            auth_token="test_bearer_token",
+        )
+
+        # Verify only bearer_auth was passed
+        self.assertTrue(mock_elasticsearch.called)
+        _, kwargs = mock_elasticsearch.call_args
+        self.assertEqual(kwargs.get("bearer_auth"), "test_bearer_token")
+        self.assertNotIn("api_key", kwargs)
+        self.assertNotIn("basic_auth", kwargs)
+
+    @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.ElasticsearchStore")
+    @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.DenseVectorStrategy")
+    def test_get_langchain_vectorstore_bearer_auth(
+        self,
+        mock_dense_strategy,
+        mock_es_store_class,
+    ):
+        """Test get_langchain_vectorstore uses bearer_auth via es_params."""
+        mock_config = Mock()
+        mock_config.embeddings.dimensions = 768
+        mock_config.vector_store.search_type = "hybrid"
+        mock_config.vector_store.api_key = None
+        mock_config.vector_store.api_key_id = ""
+        mock_config.vector_store.api_key_secret = None
+        mock_config.vector_store.username = ""
+        mock_config.vector_store.password = None
+
+        mock_es_store_class.return_value = Mock()
+        mock_dense_strategy.return_value = Mock()
+
+        elastic_vdb = ElasticVDB(
+            self.index_name,
+            self.es_url,
+            embedding_model="test_model",
+            config=mock_config,
+            auth_token="test_bearer_token",
+        )
+
+        _ = elastic_vdb.get_langchain_vectorstore("test_collection")
+        _, vs_kwargs = mock_es_store_class.call_args
+
+        # Bearer auth should be passed via es_params
+        self.assertIn("es_params", vs_kwargs)
+        self.assertEqual(vs_kwargs["es_params"], {"bearer_auth": "test_bearer_token"})
+        self.assertNotIn("es_api_key", vs_kwargs)
+        self.assertNotIn("es_user", vs_kwargs)
+        self.assertNotIn("es_password", vs_kwargs)
+
+    @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.ElasticsearchStore")
+    @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.DenseVectorStrategy")
+    def test_get_langchain_vectorstore_bearer_auth_priority(
+        self,
+        mock_dense_strategy,
+        mock_es_store_class,
+    ):
+        """Bearer auth should take precedence over API key and basic auth in vectorstore."""
+        mock_config = Mock()
+        mock_config.embeddings.dimensions = 768
+        mock_config.vector_store.search_type = "hybrid"
+        mock_config.vector_store.api_key = SecretStr("some_api_key")
+        mock_config.vector_store.api_key_id = ""
+        mock_config.vector_store.api_key_secret = None
+        mock_config.vector_store.username = "elastic"
+        mock_config.vector_store.password = SecretStr("password")
+
+        mock_es_store_class.return_value = Mock()
+        mock_dense_strategy.return_value = Mock()
+
+        elastic_vdb = ElasticVDB(
+            self.index_name,
+            self.es_url,
+            embedding_model="test_model",
+            config=mock_config,
+            auth_token="test_bearer_token",
+        )
+
+        _ = elastic_vdb.get_langchain_vectorstore("test_collection")
+        _, vs_kwargs = mock_es_store_class.call_args
+
+        # Only bearer auth via es_params should be present
+        self.assertIn("es_params", vs_kwargs)
+        self.assertEqual(vs_kwargs["es_params"], {"bearer_auth": "test_bearer_token"})
+        self.assertNotIn("es_api_key", vs_kwargs)
+        self.assertNotIn("es_user", vs_kwargs)
+        self.assertNotIn("es_password", vs_kwargs)
 
     def test_add_collection_name_to_retreived_docs(self):
         """Test _add_collection_name_to_retreived_docs static method."""

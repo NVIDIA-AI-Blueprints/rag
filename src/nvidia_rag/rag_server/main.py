@@ -219,6 +219,7 @@ class NvidiaRAG:
         vdb_endpoint: str | None = None,
         embedding_model: str | None = None,
         embedding_endpoint: str | None = None,
+        vdb_auth_token: str = "",
     ) -> VDBRag:
         """
         Prepare the VDBRag object for generation.
@@ -249,6 +250,7 @@ class NvidiaRAG:
             vdb_endpoint=vdb_endpoint or self.config.vector_store.url,
             embedding_model=document_embedder,
             config=self.config,
+            vdb_auth_token=vdb_auth_token,
         )
 
     def _validate_collections_exist(
@@ -274,6 +276,7 @@ class NvidiaRAG:
         self,
         messages: list[dict[str, Any]],
         use_knowledge_base: bool = True,
+        vdb_auth_token: str = "",
         temperature: float | None = None,
         top_p: float | None = None,
         min_tokens: int | None = None,
@@ -419,6 +422,7 @@ class NvidiaRAG:
             vdb_endpoint=vdb_endpoint,
             embedding_model=embedding_model,
             embedding_endpoint=embedding_endpoint,
+            vdb_auth_token=vdb_auth_token,
         )
 
         # Validate boolean and float parameters
@@ -517,6 +521,7 @@ class NvidiaRAG:
         collection_name: str = "",
         collection_names: list[str] | None = None,
         vdb_endpoint: str | None = None,
+        vdb_auth_token: str = "",
         enable_query_rewriting: bool | None = None,
         enable_reranker: bool | None = None,
         enable_filter_generator: bool | None = None,
@@ -598,6 +603,7 @@ class NvidiaRAG:
             vdb_endpoint=vdb_endpoint,
             embedding_model=embedding_model,
             embedding_endpoint=embedding_endpoint,
+            vdb_auth_token=vdb_auth_token,
         )
 
         if messages is None:

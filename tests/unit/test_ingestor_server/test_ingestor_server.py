@@ -154,10 +154,10 @@ class MockNvidiaRAGIngestor:
             },
         }
 
-    def get_documents(self, collection_name: str, vdb_endpoint: str):
+    def get_documents(self, collection_name: str, vdb_endpoint: str, vdb_auth_token: str = ""):
         """Mock get_documents method"""
         if self._get_documents_side_effect:
-            return self._get_documents_side_effect(collection_name, vdb_endpoint)
+            return self._get_documents_side_effect(collection_name, vdb_endpoint, vdb_auth_token)
         return {
             "documents": [
                 {
@@ -172,10 +172,10 @@ class MockNvidiaRAGIngestor:
             "message": "Document listing successfully completed.",
         }
 
-    def get_collections(self, vdb_endpoint: str):
+    def get_collections(self, vdb_endpoint: str, vdb_auth_token: str = ""):
         """Mock get_collections method"""
         if self._get_collections_side_effect:
-            return self._get_collections_side_effect(vdb_endpoint)
+            return self._get_collections_side_effect(vdb_endpoint, vdb_auth_token)
         return {
             "collections": [
                 {
@@ -200,6 +200,7 @@ class MockNvidiaRAGIngestor:
         created_by: str = "",
         business_domain: str = "",
         status: str = "Active",
+        vdb_auth_token: str = "",
     ):
         """Mock create_collection method"""
         if self._create_collection_side_effect:
@@ -214,16 +215,17 @@ class MockNvidiaRAGIngestor:
                 created_by,
                 business_domain,
                 status,
+                vdb_auth_token
             )
         return {
             "message": f"Collection {collection_name} created successfully.",
             "collection_name": collection_name,
         }
 
-    def delete_collections(self, vdb_endpoint: str, collection_names: list):
+    def delete_collections(self, vdb_endpoint: str, collection_names: list, vdb_auth_token: str = ""):
         """Mock delete_collections method"""
         if self._delete_collections_side_effect:
-            return self._delete_collections_side_effect(vdb_endpoint, collection_names)
+            return self._delete_collections_side_effect(vdb_endpoint, collection_names, vdb_auth_token)
         # Filter out None values and ensure all items are strings
         valid_collections = [str(name) for name in collection_names if name is not None]
         return {
@@ -240,11 +242,12 @@ class MockNvidiaRAGIngestor:
         collection_name: str,
         vdb_endpoint: str,
         include_upload_path: bool = False,
+        vdb_auth_token: str = "",
     ):
         """Mock delete_documents method"""
         if self._delete_documents_side_effect:
             return self._delete_documents_side_effect(
-                document_names, collection_name, vdb_endpoint, include_upload_path
+                document_names, collection_name, vdb_endpoint, include_upload_path, vdb_auth_token
             )
         return {
             "message": "Files deleted successfully",
@@ -281,7 +284,7 @@ class MockNvidiaRAGIngestor:
         self._status_side_effect = not_found
 
     def return_empty_documents(self):
-        def empty(collection_name, vdb_endpoint):
+        def empty(collection_name, vdb_endpoint, vdb_auth_token=""):
             return {
                 "documents": [],
                 "total_documents": 0,
@@ -291,13 +294,13 @@ class MockNvidiaRAGIngestor:
         self._get_documents_side_effect = empty
 
     def raise_get_documents_error(self):
-        def error(collection_name, vdb_endpoint):
+        def error(collection_name, vdb_endpoint, vdb_auth_token=""):
             raise Exception("Failed to get documents")
 
         self._get_documents_side_effect = error
 
     def return_empty_collections(self):
-        def empty(vdb_endpoint):
+        def empty(vdb_endpoint, vdb_auth_token=""):
             return {
                 "collections": [],
                 "total_collections": 0,
@@ -307,25 +310,25 @@ class MockNvidiaRAGIngestor:
         self._get_collections_side_effect = empty
 
     def raise_get_collections_error(self):
-        def error(vdb_endpoint):
+        def error(vdb_endpoint, vdb_auth_token=""):
             raise Exception("Failed to get collections")
 
         self._get_collections_side_effect = error
 
     def raise_create_collection_error(self):
-        def error(collection_name, vdb_endpoint, embedding_dimension, metadata_schema):
+        def error(collection_name, vdb_endpoint, embedding_dimension, metadata_schema, vdb_auth_token=""):
             raise Exception("Failed to create collection")
 
         self._create_collection_side_effect = error
 
     def raise_delete_collections_error(self):
-        def error(vdb_endpoint, collection_names):
+        def error(vdb_endpoint, collection_names, vdb_auth_token=""):
             raise Exception("Failed to delete collections")
 
         self._delete_collections_side_effect = error
 
     def raise_delete_documents_error(self):
-        def error(document_names, collection_name, vdb_endpoint, include_upload_path):
+        def error(document_names, collection_name, vdb_endpoint, include_upload_path, vdb_auth_token=""):
             raise Exception("Failed to delete documents")
 
         self._delete_documents_side_effect = error

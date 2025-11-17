@@ -33,6 +33,7 @@ def _get_vdb_op(
     embedding_model: str | None = None,  # Needed in case of retrieval
     metadata_schema: list[dict[str, Any]] | None = None,
     config: NvidiaRAGConfig | None = None,
+    vdb_auth_token: str | None = None,
 ):
     """
     Get VDBRag class object based on configuration.
@@ -87,11 +88,16 @@ def _get_vdb_op(
             gpu_search=config.vector_store.enable_gpu_search,
             # Authentication for Milvus
             username=config.vector_store.username,
-            password=config.vector_store.password.get_secret_value() if config.vector_store.password is not None else "",
+            password=(
+                config.vector_store.password.get_secret_value()
+                if config.vector_store.password is not None
+                else ""
+            ),
             # Custom metadata configurations (optional)
             meta_dataframe=csv_file_path,
             meta_source_field=meta_source_field,
             meta_fields=meta_fields,
+            auth_token=vdb_auth_token,
         )
 
     elif config.vector_store.name == "elasticsearch":
@@ -106,6 +112,7 @@ def _get_vdb_op(
             index_name=collection_name,
             es_url=vdb_endpoint or config.vector_store.url,
             hybrid=config.vector_store.search_type == SearchType.HYBRID,
+            auth_token=vdb_auth_token,
             meta_dataframe=meta_dataframe,
             meta_source_field=meta_source_field,
             meta_fields=meta_fields,
