@@ -117,7 +117,7 @@ class MilvusVDB(Milvus, VDBRag):
             connections.connect(
                 self.connection_alias,
                 uri=self.vdb_endpoint,
-                token=f"{username}:{password}",
+                token=f"{username}:{password}" if password else "",
             )
             self._connected = True
             logger.debug(f"Connected to Milvus at {self.vdb_endpoint}")
@@ -202,7 +202,7 @@ class MilvusVDB(Milvus, VDBRag):
             gpu_search=self.config.vector_store.enable_gpu_search,
             dense_dim=dimension,
             username=self.config.vector_store.username,
-            password=self.config.vector_store.password,
+            password=self.config.vector_store.password.get_secret_value() if self.config.vector_store.password is not None else "",
         )
 
     def check_collection_exists(self, collection_name: str) -> bool:
@@ -217,9 +217,10 @@ class MilvusVDB(Milvus, VDBRag):
         """
         Get the metadata schema for a collection in the Milvus index.
         """
+        password = self.config.vector_store.password.get_secret_value() if self.config.vector_store.password is not None else ""
         client = MilvusClient(
             self.vdb_endpoint,
-            token=f"{self.config.vector_store.username}:{self.config.vector_store.password}",
+            token=f"{self.config.vector_store.username}:{password}",
         )
         entities = client.query(
             collection_name=collection_name, filter=filter, limit=1000
@@ -324,9 +325,10 @@ class MilvusVDB(Milvus, VDBRag):
         """
         Delete the metadata schema from the collection.
         """
+        password = self.config.vector_store.password.get_secret_value() if self.config.vector_store.password is not None else ""
         client = MilvusClient(
             self.vdb_endpoint,
-            token=f"{self.config.vector_store.username}:{self.config.vector_store.password}",
+            token=f"{self.config.vector_store.username}:{password}",
         )
         if client.has_collection(collection_name):
             client.delete(collection_name=collection_name, filter=filter)
@@ -513,9 +515,10 @@ class MilvusVDB(Milvus, VDBRag):
         schema.add_field(field_name="metadata_schema", datatype=DataType.JSON)
 
         # Check if the metadata schema collection exists
+        password = self.config.vector_store.password.get_secret_value() if self.config.vector_store.password is not None else ""
         client = MilvusClient(
             self.vdb_endpoint,
-            token=f"{self.config.vector_store.username}:{self.config.vector_store.password}",
+            token=f"{self.config.vector_store.username}:{password}",
         )
         if not client.has_collection(DEFAULT_METADATA_SCHEMA_COLLECTION):
             # Create the metadata schema collection
@@ -542,9 +545,10 @@ class MilvusVDB(Milvus, VDBRag):
         """
         Add metadata schema to a collection.
         """
+        password = self.config.vector_store.password.get_secret_value() if self.config.vector_store.password is not None else ""
         client = MilvusClient(
             self.vdb_endpoint,
-            token=f"{self.config.vector_store.username}:{self.config.vector_store.password}",
+            token=f"{self.config.vector_store.username}:{password}",
         )
 
         # Delete the metadata schema from the collection
@@ -764,13 +768,14 @@ class MilvusVDB(Milvus, VDBRag):
             # ef is required for CPU search
             search_params.update({"ef": self.config.vector_store.ef})
 
+        password = self.config.vector_store.password.get_secret_value() if self.config.vector_store.password is not None else ""
         if self.config.vector_store.search_type == "hybrid":
             logger.info("Creating Langchain Milvus object for Hybrid search")
             vectorstore = LangchainMilvus(
                 self.embedding_model,
                 connection_args={
                     "uri": self.vdb_endpoint,
-                    "token": f"{self.config.vector_store.username}:{self.config.vector_store.password}",
+                    "token": f"{self.config.vector_store.username}:{password}",
                 },
                 builtin_function=BM25BuiltInFunction(
                     output_field_names="sparse", enable_match=True
@@ -790,7 +795,7 @@ class MilvusVDB(Milvus, VDBRag):
                 self.embedding_model,
                 connection_args={
                     "uri": self.vdb_endpoint,
-                    "token": f"{self.config.vector_store.username}:{self.config.vector_store.password}",
+                    "token": f"{self.config.vector_store.username}:{password}",
                 },
                 collection_name=collection_name,
                 index_params={
