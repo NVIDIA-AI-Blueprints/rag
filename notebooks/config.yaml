@@ -21,7 +21,7 @@ nv_ingest:
   extract_tables: true  # Enable table extraction from documents
   extract_charts: true  # Enable chart extraction from documents
   extract_images: false  # Enable image extraction from documents
-  pdf_extract_method: "None"  # Method to use for PDF extraction
+  pdf_extract_method: null  # Method to use for PDF extraction
   text_depth: "page"  # Granularity level for text extraction (page, document)
   chunk_size: 512  # Maximum size of text chunks in tokens
   chunk_overlap: 150  # Number of overlapping tokens between chunks

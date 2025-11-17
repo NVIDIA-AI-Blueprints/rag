@@ -223,8 +223,8 @@ class NvIngestConfig(_ConfigBase):
         env="IMAGE_ELEMENTS_MODALITY",
         description="Modality for processing image elements",
     )
-    pdf_extract_method: str = Field(
-        default="None",
+    pdf_extract_method: str | None = Field(
+        default=None,
         env="APP_NVINGEST_PDFEXTRACTMETHOD",
         description="Method to use for PDF extraction",
     )

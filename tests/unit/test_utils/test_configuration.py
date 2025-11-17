@@ -248,7 +248,7 @@ class TestNvIngestConfig:
         assert config.extract_tables is True
         assert config.extract_charts is True
         assert config.extract_images is False
-        assert config.pdf_extract_method == "None"
+        assert config.pdf_extract_method is None
         assert config.text_depth == "page"
         assert config.tokenizer == "intfloat/e5-large-unsupervised"
         assert config.chunk_size == 1024
