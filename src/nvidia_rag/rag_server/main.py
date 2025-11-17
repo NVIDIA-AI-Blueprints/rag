@@ -287,6 +287,8 @@ class NvidiaRAG:
         reranker_top_k: int | None = None,
         vdb_top_k: int | None = None,
         vdb_endpoint: str | None = None,
+        min_thinking_tokens: int | None = None,
+        max_thinking_tokens: int | None = None,
         collection_name: str = "",
         collection_names: list[str] | None = None,
         enable_query_rewriting: bool | None = None,
@@ -463,6 +465,8 @@ class NvidiaRAG:
             "min_tokens": min_tokens,
             "ignore_eos": ignore_eos,
             "max_tokens": max_tokens,
+            "min_thinking_tokens": min_thinking_tokens,
+            "max_thinking_tokens": max_thinking_tokens,
             "enable_guardrails": enable_guardrails,
             "stop": stop,
         }
