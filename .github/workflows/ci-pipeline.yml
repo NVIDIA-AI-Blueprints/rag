@@ -295,7 +295,7 @@ jobs:
         run: |
           source venv/bin/activate
           echo "Running basic integration tests..."
-          python -m tests.integration.main
+          python -m tests.integration.main --timeout 600
           echo "Basic integration tests completed"
 
       - name: Collect logs after basic tests
