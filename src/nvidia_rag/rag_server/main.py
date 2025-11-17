@@ -304,6 +304,10 @@ class NvidiaRAG:
         reranker_endpoint: str | None = None,
         vlm_model: str | None = None,
         vlm_endpoint: str | None = None,
+        vlm_temperature: float | None = None,
+        vlm_top_p: float | None = None,
+        vlm_max_tokens: int | None = None,
+        vlm_max_total_images: int | None = None,
         filter_expr: str | list[dict[str, Any]] = "",
         enable_query_decomposition: bool | None = None,
         confidence_threshold: float | None = None,
@@ -471,6 +475,15 @@ class NvidiaRAG:
             "stop": stop,
         }
 
+        vlm_settings = {
+            "vlm_model": vlm_model,
+            "vlm_endpoint": vlm_endpoint,
+            "vlm_temperature": vlm_temperature,
+            "vlm_top_p": vlm_top_p,
+            "vlm_max_tokens": vlm_max_tokens,
+            "vlm_max_total_images": vlm_max_total_images,
+        }
+
         if use_knowledge_base:
             logger.info("Using knowledge base to generate response.")
             return self._rag_chain(
@@ -485,8 +498,7 @@ class NvidiaRAG:
                 reranker_model=reranker_model,
                 reranker_endpoint=reranker_endpoint,
                 enable_vlm_inference=enable_vlm_inference,
-                vlm_model=vlm_model,
-                vlm_endpoint=vlm_endpoint,
+                vlm_settings=vlm_settings,
                 model=model,
                 enable_query_rewriting=enable_query_rewriting,
                 enable_citations=enable_citations,
@@ -1398,8 +1410,7 @@ class NvidiaRAG:
         reranker_model: str = "",
         reranker_endpoint: str | None = None,
         enable_vlm_inference: bool = False,
-        vlm_model: str = "",
-        vlm_endpoint: str = "",
+        vlm_settings: dict[str, Any] = {},
         model: str = "",
         enable_query_rewriting: bool = False,
         enable_citations: bool = True,
@@ -1580,7 +1591,6 @@ class NvidiaRAG:
                 conversation_history,
                 user_message,
             ) = self._handle_prompt_processing(chat_history, model, "rag_template")
-            vlm_message = []
             logger.debug("System message: %s", system_message)
             logger.debug("User message: %s", user_message)
             logger.debug("Conversation history: %s", conversation_history)
@@ -1933,6 +1943,10 @@ class NvidiaRAG:
             if enable_vlm_inference or is_image_query:
                 # Fast pre-check: skip VLM entirely if no images in query or context
                 has_images_in_query = self._contains_images(query)
+                has_images_in_history = any(
+                    self._contains_images(m.get("content")) for m in chat_history or []
+                )
+                has_images_in_messages = has_images_in_query or has_images_in_history
                 has_images_in_context = False
                 try:
                     for d in context_to_show:
@@ -1945,80 +1959,36 @@ class NvidiaRAG:
                     # If metadata inspection fails, be conservative and proceed
                     has_images_in_context = False
 
-                if not (has_images_in_query or has_images_in_context):
-                    logger.warning(
-                        "Skipping VLM: no images found in query or retrieved context."
-                    )
-                    # fall through without VLM
-                else:
+                if has_images_in_messages or has_images_in_context or is_image_query:
                     logger.info("Calling VLM to analyze images cited in the context")
-                    vlm_response: str = ""
                     try:
-                        vlm = VLM(vlm_model, vlm_endpoint, config=self.config)
-                        vlm_response = vlm.analyze_images_from_context(
-                            context_to_show, query
+                        vlm = VLM(**vlm_settings)
+                        # Build full messages: prior history + current query as a final user turn
+                        vlm_messages = list(chat_history or []) + [
+                            {"role": "user", "content": query}
+                        ]
+                        # Build textual context identical to LLM "context" (before mutation below)
+                        vlm_text_context = "\n\n".join(
+                            [self.__format_document_with_source(d) for d in context_to_show]
                         )
-
-                        vlm_response_stripped = (
-                            vlm_response.strip()
-                            if isinstance(vlm_response, str)
-                            else ""
+                        # Always stream VLM response directly (reasoning gate deprecated)
+                        logger.info("Streaming VLM response directly.")
+                        return RAGResponse(
+                            generate_answer(
+                                vlm.stream_with_messages(
+                                    docs=context_to_show,
+                                    messages=vlm_messages,
+                                    context_text=vlm_text_context,
+                                    question_text=self._extract_text_from_content(query),
+                                    **vlm_settings,
+                                ),
+                                context_to_show,
+                                model=model,
+                                collection_name=collection_name,
+                                enable_citations=enable_citations,
+                            ),
+                            status_code=ErrorCodeMapping.SUCCESS,
                         )
-                        if vlm_response_stripped:
-                            if self.config.vlm.enable_vlm_response_reasoning:
-                                should_use_vlm_response = vlm.reason_on_vlm_response(
-                                    query,
-                                    vlm_response_stripped,
-                                    context_to_show,
-                                    llm_settings,
-                                )
-                            else:
-                                # Reasoning gate disabled: always include VLM output
-                                should_use_vlm_response = True
-
-                            # If query contains images, or vlm_response_as_final_answer is enabled, return as final answer
-                            if should_use_vlm_response and (
-                                self.config.vlm.vlm_response_as_final_answer
-                                or self._contains_images(query)
-                            ):
-                                logger.info(
-                                    "VLM response as final answer: %s",
-                                    vlm_response_stripped,
-                                )
-                                return RAGResponse(
-                                    generate_answer(
-                                        iter([vlm_response_stripped]),
-                                        context_to_show,
-                                        model=model,
-                                        collection_name=collection_name,
-                                        enable_citations=enable_citations,
-                                    ),
-                                    status_code=ErrorCodeMapping.SUCCESS,
-                                )
-                            else:
-                                logger.info("Query type: %s", type(query))
-                                logger.info(
-                                    "VLM response not as final answer: %s",
-                                    vlm_response_stripped,
-                                )
-
-                            if should_use_vlm_response:
-                                logger.info(
-                                    "VLM response validated and added to prompt: %s",
-                                    vlm_response_stripped,
-                                )
-                                injection_tmpl = self.prompts.get(
-                                    "vlm_response_injection_template",
-                                    "The following is an answer generated by a Vision-Language Model (VLM) based solely on images cited in the context:\n---\n{vlm_response}\n---\nConsider this visual insight when answering the user's query, especially where the textual context is ambiguous or limited.",
-                                )
-                                vlm_response_prompt = injection_tmpl.format(
-                                    vlm_response=vlm_response_stripped
-                                )
-                                vlm_message += [("user", vlm_response_prompt)]
-                            else:
-                                logger.info("VLM response skipped by reasoning gate.")
-                        else:
-                            logger.info("VLM response is empty.")
                     except (OSError, ValueError) as e:
                         logger.warning(
                             "VLM processing failed for query='%s', collection='%s': %s",
@@ -2064,8 +2034,7 @@ class NvidiaRAG:
                 )
                 message += [("user", f"Conversation history:\n{formatted_history}")]
 
-            # Add vlm response and user query to prompt
-            message += vlm_message
+            # Add user query to prompt
             user_query = [("user", "Query: {question}\n\nAnswer: ")]
             message += user_query
 

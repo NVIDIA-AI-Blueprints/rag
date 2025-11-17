@@ -319,6 +319,32 @@ class Prompt(BaseModel):
         default=CONFIG.vlm.server_url.strip('"'),
         max_length=2048,
     )
+    vlm_temperature: float = Field(
+        default=CONFIG.vlm.temperature,
+        description="The sampling temperature to use for VLM text generation.",
+        ge=0.0,
+        le=1.0,
+    )
+    vlm_top_p: float = Field(
+        default=CONFIG.vlm.top_p,
+        description="The top-p sampling mass used for VLM text generation.",
+        ge=0.1,
+        le=1.0,
+    )
+    vlm_max_tokens: int = Field(
+        default=CONFIG.vlm.max_tokens,
+        description="The maximum number of tokens to generate by the VLM.",
+        ge=0,
+        le=128000,
+        format="int64",
+    )
+    vlm_max_total_images: int = Field(
+        default=CONFIG.vlm.max_total_images,
+        description="Maximum total images sent to VLM per request (query + context).",
+        ge=0,
+        le=64,
+        format="int64",
+    )
 
     # seed: int = Field(42, description="If specified, our system will make a best effort to sample deterministically,
     #       such that repeated requests with the same seed and parameters should return the same result.")
@@ -707,6 +733,10 @@ async def generate_answer(request: Request, prompt: Prompt) -> StreamingResponse
         "reranker_endpoint": prompt.reranker_endpoint,
         "vlm_model": prompt.vlm_model,
         "vlm_endpoint": prompt.vlm_endpoint,
+        "vlm_temperature": prompt.vlm_temperature,
+        "vlm_top_p": prompt.vlm_top_p,
+        "vlm_max_tokens": prompt.vlm_max_tokens,
+        "vlm_max_total_images": prompt.vlm_max_total_images,
         "filter_expr": prompt.filter_expr,
         "confidence_threshold": prompt.confidence_threshold,
     }
@@ -785,6 +815,10 @@ async def generate_answer(request: Request, prompt: Prompt) -> StreamingResponse
             reranker_endpoint=prompt.reranker_endpoint,
             vlm_model=prompt.vlm_model,
             vlm_endpoint=prompt.vlm_endpoint,
+            vlm_temperature=prompt.vlm_temperature,
+            vlm_top_p=prompt.vlm_top_p,
+            vlm_max_tokens=prompt.vlm_max_tokens,
+            vlm_max_total_images=prompt.vlm_max_total_images,
             filter_expr=prompt.filter_expr,
             confidence_threshold=prompt.confidence_threshold,
             rag_start_time_sec=generate_start_time,
