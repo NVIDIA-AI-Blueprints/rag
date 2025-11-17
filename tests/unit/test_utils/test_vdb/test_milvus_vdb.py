@@ -21,6 +21,7 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 from langchain_core.documents import Document
 from opentelemetry import context as otel_context
+from pydantic import SecretStr
 
 from nvidia_rag.utils.vdb import (
     DEFAULT_DOCUMENT_INFO_COLLECTION,
@@ -38,7 +39,7 @@ class TestMilvusVDB:
         """Test MilvusVDB initialization."""
         mock_config = Mock()
         mock_config.vector_store.username = ""
-        mock_config.vector_store.password = ""
+        mock_config.vector_store.password = None
 
         mock_url = Mock()
         mock_url.hostname = "localhost"
@@ -67,7 +68,7 @@ class TestMilvusVDB:
             assert vdb.csv_file_path == "/path/to/csv"
 
             mock_connections.connect.assert_called_once_with(
-                vdb.connection_alias, uri="http://localhost:19530", token=":"
+                vdb.connection_alias, uri="http://localhost:19530", token=""
             )
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.create_nvingest_collection")
@@ -79,7 +80,7 @@ class TestMilvusVDB:
         mock_config.vector_store.enable_gpu_index = True
         mock_config.vector_store.enable_gpu_search = True
         mock_config.vector_store.username = "test_username"
-        mock_config.vector_store.password = "test_password"
+        mock_config.vector_store.password = SecretStr("test_password")
 
         with (
             patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"),

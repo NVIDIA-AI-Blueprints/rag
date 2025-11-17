@@ -20,6 +20,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import aiohttp
 import pytest
+from pydantic import SecretStr
 
 from nvidia_rag.ingestor_server.health import (
     check_all_services_health,
@@ -204,8 +205,8 @@ class TestCheckAllServicesHealth:
         """Mock configuration"""
         config = MagicMock()
         config.minio.endpoint = "localhost:9000"
-        config.minio.access_key = "test_key"
-        config.minio.secret_key = "test_secret"
+        config.minio.access_key = SecretStr("test_key")
+        config.minio.secret_key = SecretStr("test_secret")
         config.vector_store.url = "http://localhost:19530"
         config.vector_store.name = "milvus"
         config.nv_ingest.message_client_hostname = "localhost"

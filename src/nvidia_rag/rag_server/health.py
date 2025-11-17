@@ -182,8 +182,8 @@ async def check_all_services_health(
 
     # MinIO health check
     minio_endpoint = config.minio.endpoint
-    minio_access_key = config.minio.access_key
-    minio_secret_key = config.minio.secret_key
+    minio_access_key = config.minio.access_key.get_secret_value()
+    minio_secret_key = config.minio.secret_key.get_secret_value()
     if minio_endpoint:
         tasks.append(
             (

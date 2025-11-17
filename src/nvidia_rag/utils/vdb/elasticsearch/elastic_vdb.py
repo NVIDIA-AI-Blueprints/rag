@@ -121,28 +121,28 @@ class ElasticVDB(VDBRag):
         resolved_basic_auth: tuple[str, str] | None = None
 
         # Resolve API key from config
-        if self.config.vector_store.api_key:
-            resolved_api_key = self.config.vector_store.api_key
+        if self.config.vector_store.api_key is not None:
+            resolved_api_key = self.config.vector_store.api_key.get_secret_value()
         elif (
             self.config.vector_store.api_key_id
-            and self.config.vector_store.api_key_secret
+            and self.config.vector_store.api_key_secret is not None
         ):
             resolved_api_key = (
                 self.config.vector_store.api_key_id,
-                self.config.vector_store.api_key_secret,
+                self.config.vector_store.api_key_secret.get_secret_value(),
             )
         # Resolve basic auth from config
-        elif self.config.vector_store.username and self.config.vector_store.password:
+        elif self.config.vector_store.username and self.config.vector_store.password is not None:
             resolved_basic_auth = (
                 self.config.vector_store.username,
-                self.config.vector_store.password,
+                self.config.vector_store.password.get_secret_value(),
             )
 
         # Keep on instance for reuse (e.g., langchain vectorstore)
         self._api_key = resolved_api_key
         self._basic_auth = resolved_basic_auth
         self._username = self.config.vector_store.username
-        self._password = self.config.vector_store.password
+        self._password = self.config.vector_store.password.get_secret_value() if self.config.vector_store.password is not None else ""
 
         self._es_connection = Elasticsearch(
             hosts=[self.es_url],

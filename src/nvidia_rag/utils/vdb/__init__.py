@@ -86,7 +86,7 @@ def _get_vdb_op(
             "embedding_model": embedding_model,
             # Authentication for Milvus
             "username": config.vector_store.username,
-            "password": config.vector_store.password,
+            "password": config.vector_store.password.get_secret_value() if config.vector_store.password is not None else "",
             # Pass config instance
             "config": config,
         }

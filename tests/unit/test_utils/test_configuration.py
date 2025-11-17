@@ -192,8 +192,8 @@ class TestMinioConfig:
         config = MinioConfig()
 
         assert config.endpoint == "localhost:9010"
-        assert config.access_key == "minioadmin"
-        assert config.secret_key == "minioadmin"
+        assert config.access_key.get_secret_value() == "minioadmin"
+        assert config.secret_key.get_secret_value() == "minioadmin"
 
 
 class TestSummarizerConfig:
@@ -386,8 +386,8 @@ class TestConfigurationIntegration:
             assert config.ranking.enable_reranker is False
             assert config.enable_vlm_inference is True
             assert config.minio.endpoint == "minio.example.com:9000"
-            assert config.minio.access_key == "test_key"
-            assert config.minio.secret_key == "test_secret"
+            assert config.minio.access_key.get_secret_value() == "test_key"
+            assert config.minio.secret_key.get_secret_value() == "test_secret"
             assert config.temp_dir == "/custom/temp"
             assert config.retriever.vdb_top_k == 50
 
@@ -447,3 +447,66 @@ class TestConfigurationIntegration:
             assert config.vector_store.name == "elasticsearch"
             assert config.vector_store.url == "http://es:9200"
             assert config.vector_store.default_collection_name == "test_collection"
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_secretstr_from_environment_variables(self):
+        """Test that environment variables are automatically converted to SecretStr."""
+        from pydantic import SecretStr
+        
+        env_vars = {
+            "APP_VECTORSTORE_PASSWORD": "my_secret_password",
+            "APP_VECTORSTORE_APIKEY": "my_api_key_123",
+            "MINIO_ACCESSKEY": "minio_user",
+            "MINIO_SECRETKEY": "minio_pass_456",
+        }
+
+        with patch.dict(os.environ, env_vars):
+            config = NvidiaRAGConfig()
+
+            # Verify automatic conversion to SecretStr
+            assert isinstance(config.vector_store.password, SecretStr)
+            assert config.vector_store.password.get_secret_value() == "my_secret_password"
+            
+            assert isinstance(config.vector_store.api_key, SecretStr)
+            assert config.vector_store.api_key.get_secret_value() == "my_api_key_123"
+            
+            assert isinstance(config.minio.access_key, SecretStr)
+            assert config.minio.access_key.get_secret_value() == "minio_user"
+            
+            assert isinstance(config.minio.secret_key, SecretStr)
+            assert config.minio.secret_key.get_secret_value() == "minio_pass_456"
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_secretstr_with_quoted_environment_variables(self):
+        """Test that SecretStr works with quoted environment variables (Docker Compose style)."""
+        env_vars = {
+            "APP_VECTORSTORE_PASSWORD": '"quoted_password"',  # Double quotes
+            "MINIO_SECRETKEY": "'single_quoted_secret'",  # Single quotes
+        }
+
+        with patch.dict(os.environ, env_vars):
+            config = NvidiaRAGConfig()
+
+            # Verify quotes are stripped and converted to SecretStr
+            assert config.vector_store.password.get_secret_value() == "quoted_password"
+            assert config.minio.secret_key.get_secret_value() == "single_quoted_secret"
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_secretstr_string_representation_masked(self):
+        """Test that SecretStr masks values in string representation."""
+        env_vars = {
+            "APP_VECTORSTORE_PASSWORD": "secret123",
+            "MINIO_ACCESSKEY": "access456",
+        }
+
+        with patch.dict(os.environ, env_vars):
+            config = NvidiaRAGConfig()
+
+            # Verify string representation is masked
+            password_str = str(config.vector_store.password)
+            access_key_str = str(config.minio.access_key)
+            
+            assert "secret123" not in password_str
+            assert "access456" not in access_key_str
+            assert "*" in password_str
+            assert "*" in access_key_str

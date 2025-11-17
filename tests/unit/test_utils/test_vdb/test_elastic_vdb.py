@@ -23,6 +23,7 @@ import pandas as pd
 import pytest
 from langchain_core.documents import Document
 from opentelemetry import context as otel_context
+from pydantic import SecretStr
 
 from nvidia_rag.utils.vdb.elasticsearch import es_queries
 from nvidia_rag.utils.vdb.elasticsearch.elastic_vdb import ElasticVDB
@@ -54,11 +55,11 @@ class TestElasticVDB(unittest.TestCase):
         # Ensure embeddings.dimensions is set
         mock_config.embeddings.dimensions = 768
         # Ensure vector_store auth fields are empty (no auth scenario)
-        mock_config.vector_store.api_key = ""
+        mock_config.vector_store.api_key = None
         mock_config.vector_store.api_key_id = ""
-        mock_config.vector_store.api_key_secret = ""
+        mock_config.vector_store.api_key_secret = None
         mock_config.vector_store.username = ""
-        mock_config.vector_store.password = ""
+        mock_config.vector_store.password = None
         mock_config = mock_config
 
         # Mock Elasticsearch connection
@@ -928,11 +929,11 @@ class TestElasticVDB(unittest.TestCase):
         mock_config.embeddings.dimensions = 768
         mock_config.vector_store.search_type = "hybrid"
         # Ensure no auth present in CONFIG to reflect "no auth" scenario
-        mock_config.vector_store.api_key = ""
+        mock_config.vector_store.api_key = None
         mock_config.vector_store.api_key_id = ""
-        mock_config.vector_store.api_key_secret = ""
+        mock_config.vector_store.api_key_secret = None
         mock_config.vector_store.username = ""
-        mock_config.vector_store.password = ""
+        mock_config.vector_store.password = None
 
         mock_es_connection = Mock()
         mock_elasticsearch.return_value = mock_es_connection
@@ -982,7 +983,7 @@ class TestElasticVDB(unittest.TestCase):
         mock_config.vector_store.api_key_id = None
         mock_config.vector_store.api_key_secret = None
         mock_config.vector_store.username = "elastic"
-        mock_config.vector_store.password = "password"
+        mock_config.vector_store.password = SecretStr("password")
         mock_es_store_class.return_value = Mock()
         mock_dense_strategy.return_value = Mock()
         elastic_vdb = ElasticVDB(
@@ -1008,11 +1009,11 @@ class TestElasticVDB(unittest.TestCase):
         mock_config = Mock()
         mock_config.embeddings.dimensions = 768
         mock_config.vector_store.search_type = "hybrid"
-        mock_config.vector_store.api_key = "base64-id-secret"
+        mock_config.vector_store.api_key = SecretStr("base64-id-secret")
         mock_config.vector_store.api_key_id = None
         mock_config.vector_store.api_key_secret = None
         mock_config.vector_store.username = "elastic"
-        mock_config.vector_store.password = "password"
+        mock_config.vector_store.password = SecretStr("password")
         mock_es_store_class.return_value = Mock()
         mock_dense_strategy.return_value = Mock()
         elastic_vdb = ElasticVDB(

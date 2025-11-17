@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, SecretStr
 from pydantic import Field as PydanticField
 from pydantic.fields import FieldInfo
 
@@ -146,15 +146,15 @@ class VectorStoreConfig(_ConfigBase):
         env="APP_VECTORSTORE_USERNAME",
         description="Username for vector store authentication",
     )
-    password: str = Field(
-        default="",
+    password: SecretStr | None = Field(
+        default=None,
         env="APP_VECTORSTORE_PASSWORD",
         description="Password for vector store authentication",
     )
 
     # API key authentication for vector store (used by Elasticsearch)
-    api_key: str = Field(
-        default="",
+    api_key: SecretStr | None = Field(
+        default=None,
         env="APP_VECTORSTORE_APIKEY",
         description="API key for vector store authentication (base64 form 'id:secret')",
     )
@@ -163,8 +163,8 @@ class VectorStoreConfig(_ConfigBase):
         env="APP_VECTORSTORE_APIKEY_ID",
         description="API key ID for vector store authentication",
     )
-    api_key_secret: str = Field(
-        default="",
+    api_key_secret: SecretStr | None = Field(
+        default=None,
         env="APP_VECTORSTORE_APIKEY_SECRET",
         description="API key secret for vector store authentication",
     )
@@ -609,13 +609,13 @@ class MinioConfig(_ConfigBase):
         env="MINIO_ENDPOINT",
         description="MinIO object storage endpoint",
     )
-    access_key: str = Field(
-        default="minioadmin",
+    access_key: SecretStr = Field(
+        default=SecretStr("minioadmin"),
         env="MINIO_ACCESSKEY",
         description="MinIO access key for authentication",
     )
-    secret_key: str = Field(
-        default="minioadmin",
+    secret_key: SecretStr = Field(
+        default=SecretStr("minioadmin"),
         env="MINIO_SECRETKEY",
         description="MinIO secret key for authentication",
     )
