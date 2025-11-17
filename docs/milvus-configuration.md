@@ -313,6 +313,89 @@ helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/0648981100760671/c
 For detailed HELM deployment instructions, see [Helm Deployment Guide](deploy-helm.md).
 
 
+## Using VDB Auth Token at Runtime via APIs (Milvus)
+
+NVIDIA RAG Blueprint servers accept a Vector DB (VDB) authentication token via the HTTP `Authorization` header at runtime. This header is forwarded to Milvus for auth-protected operations.
+
+Prerequisite:
+- Ensure Milvus authentication is enabled so auth is enforced. In Milvus config this is `security.authorizationEnabled: true`. See the "Milvus Authentication" section above for setup via Docker Compose or Helm.
+
+### Header format
+- Preferred: `Authorization: Bearer <token>`
+- Also accepted: `Authorization: <token>`
+
+For Milvus (with auth enabled), the token is typically the string `user:password`. For example:
+- Admin/root: `root:Milvus` (or your configured root password)
+- Reader user: `reader_user:reader_password`
+- Writer user: `writer_user:writer_password`
+
+
+### Ingestor Server examples
+
+- List documents in a collection (reader token):
+
+```bash
+curl -G "$INGESTOR_URL/v1/documents" \
+  -H "Authorization: Bearer reader_user:reader_password" \
+  --data-urlencode "collection_name=demo_collection"
+```
+
+- Delete a collection (writer token with DropCollection privilege):
+
+```bash
+curl -X DELETE "$INGESTOR_URL/v1/collections" \
+  -H "Authorization: Bearer writer_user:writer_password" \
+  --data-urlencode "collection_names=demo_collection"
+```
+
+### RAG Server examples
+
+- Search with reader token:
+
+```bash
+curl -X POST "$RAG_URL/v1/search" \
+  -H "Authorization: Bearer reader_user:reader_password" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "hello",
+    "use_knowledge_base": true,
+    "collection_names": ["demo_collection"],
+    "vdb_endpoint": "'"$APP_VECTORSTORE_URL"'",
+    "reranker_top_k": 0,
+    "vdb_top_k": 1
+  }'
+```
+
+ - Generate with streaming (reader token):
+
+```bash
+curl -N -X POST "$RAG_URL/v1/generate" \
+  -H "Authorization: Bearer reader_user:reader_password" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "messages": [{"role": "user", "content": "Say hello"}],
+    "use_knowledge_base": true,
+    "collection_names": ["demo_collection"],
+    "vdb_endpoint": "'"$APP_VECTORSTORE_URL"'",
+    "reranker_top_k": 0,
+    "vdb_top_k": 1
+  }'
+```
+
+### Notes and troubleshooting
+- If a user lacks privileges on the target collection, the API will return an authorization error (non-200 status). Grant the appropriate collection privileges to the user/role in Milvus (e.g., `Query`, `Search`, `DescribeCollection`, `Load`, `DropCollection`).
+- Header precedence: For Milvus, the VDB token provided at runtime via `Authorization` is used for the request. There is no need to configure `APP_VECTORSTORE_USERNAME`/`APP_VECTORSTORE_PASSWORD` for per-request auth when using headers.
+- Migration note: Request bodies and query parameters should not include `vdb_auth_token` anymore. Use the `Authorization` header.
+
+### End-to-end examples
+- See `tests/integration/test_cases/milvus_vdb_auth.py` for integration tests covering denied/allowed access patterns with Milvus auth.
+
+### Managing Milvus users and authentication
+
+For detailed guidance on enabling authentication, creating users, updating passwords, and related operations in Milvus, refer to the official Milvus documentation:
+
+- Authenticate User Access (Milvus): https://milvus.io/docs/authenticate.md?tab=docker
+
 ## Troubleshooting
 
 ### GPU_CAGRA Error
