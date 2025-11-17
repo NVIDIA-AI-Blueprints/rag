@@ -210,14 +210,6 @@ class Prompt(BaseModel):
         description="Endpoint url of the vector database server.",
         default=CONFIG.vector_store.url,
     )
-    vdb_auth_token: str | None = Field(
-        default=None,
-        description="Bearer auth token for the vector database (not logged).",
-    )
-    vdb_auth_token: str | None = Field(
-        default=None,
-        description="Bearer auth token for the vector database (not logged).",
-    )
     # TODO: Remove this field in the future
     collection_name: str = Field(
         description="Name of collection to be used for inference.",
@@ -771,12 +763,18 @@ async def generate_answer(request: Request, prompt: Prompt) -> StreamingResponse
                 messages_dict.append({"role": msg.role, "content": msg.content})
 
         # Get the streaming generator from NVIDIA_RAG.generate
+        # Extract bearer token from Authorization header (e.g., "Bearer <token>")
+        auth_header = request.headers.get("Authorization") or request.headers.get("authorization")
+        vdb_auth_token = None
+        if isinstance(auth_header, str) and auth_header.lower().startswith("bearer "):
+            vdb_auth_token = auth_header.split(" ", 1)[1].strip()
+
         rag_response = NVIDIA_RAG.generate(
             messages=messages_dict,
             use_knowledge_base=prompt.use_knowledge_base,
             temperature=prompt.temperature,
             top_p=prompt.top_p,
-            vdb_auth_token=prompt.vdb_auth_token,
+            vdb_auth_token=vdb_auth_token,
             min_tokens=prompt.min_tokens,
             ignore_eos=prompt.ignore_eos,
             max_tokens=prompt.max_tokens,
@@ -979,10 +977,16 @@ async def document_search(
                     content_list.append(content_item)
             query_processed = content_list
 
+        # Extract bearer token from Authorization header (e.g., "Bearer <token>")
+        auth_header = request.headers.get("Authorization") or request.headers.get("authorization")
+        vdb_auth_token = None
+        if isinstance(auth_header, str) and auth_header.lower().startswith("bearer "):
+            vdb_auth_token = auth_header.split(" ", 1)[1].strip()
+
         return NVIDIA_RAG.search(
             query=query_processed,
             messages=messages_dict,
-            vdb_auth_token=data.vdb_auth_token,
+            vdb_auth_token=vdb_auth_token,
             reranker_top_k=data.reranker_top_k,
             vdb_top_k=data.vdb_top_k,
             collection_name=data.collection_name,
