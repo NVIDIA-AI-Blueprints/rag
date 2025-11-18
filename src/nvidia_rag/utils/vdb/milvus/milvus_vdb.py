@@ -94,6 +94,8 @@ class MilvusVDB(Milvus, VDBRag):
         self.embedding_model = kwargs.pop(
             "embedding_model"
         )  # Needed in case of retrieval
+        # Extract config before super().__init__ which may need it
+        self.config = kwargs.pop("config", None) or NvidiaRAGConfig()
         # Accept per-request auth token (preferred over username/password)
         self._auth_token = kwargs.pop("auth_token", None)
         super().__init__(**kwargs)
@@ -118,7 +120,7 @@ class MilvusVDB(Milvus, VDBRag):
             if self._auth_token:
                 milvus_token = self._auth_token
             else:
-                milvus_token = f"{CONFIG.vector_store.username}:{CONFIG.vector_store.password}"
+                milvus_token = f"{self.config.vector_store.username}:{self.config.vector_store.password}"
             connections.connect(
                 self.connection_alias,
                 uri=self.vdb_endpoint,
@@ -226,7 +228,7 @@ class MilvusVDB(Milvus, VDBRag):
             self.vdb_endpoint,
             token=self._auth_token
             if self._auth_token
-            else f"{CONFIG.vector_store.username}:{CONFIG.vector_store.password}",
+            else f"{self.config.vector_store.username}:{self.config.vector_store.password}",
         )
         entities = client.query(
             collection_name=collection_name, filter=filter, limit=1000
@@ -524,7 +526,7 @@ class MilvusVDB(Milvus, VDBRag):
             self.vdb_endpoint,
             token=self._auth_token
             if self._auth_token
-            else f"{CONFIG.vector_store.username}:{CONFIG.vector_store.password}",
+            else f"{self.config.vector_store.username}:{self.config.vector_store.password}",
         )
         if not client.has_collection(DEFAULT_METADATA_SCHEMA_COLLECTION):
             # Create the metadata schema collection
@@ -555,7 +557,7 @@ class MilvusVDB(Milvus, VDBRag):
             self.vdb_endpoint,
             token=self._auth_token
             if self._auth_token
-            else f"{CONFIG.vector_store.username}:{CONFIG.vector_store.password}",
+            else f"{self.config.vector_store.username}:{self.config.vector_store.password}",
         )
 
         # Delete the metadata schema from the collection
@@ -783,7 +785,7 @@ class MilvusVDB(Milvus, VDBRag):
                     "uri": self.vdb_endpoint,
                     "token": self._auth_token
                     if self._auth_token
-                    else f"{CONFIG.vector_store.username}:{CONFIG.vector_store.password}",
+                    else f"{self.config.vector_store.username}:{self.config.vector_store.password}",
                 },
                 builtin_function=BM25BuiltInFunction(
                     output_field_names="sparse", enable_match=True
@@ -805,7 +807,7 @@ class MilvusVDB(Milvus, VDBRag):
                     "uri": self.vdb_endpoint,
                     "token": self._auth_token
                     if self._auth_token
-                    else f"{CONFIG.vector_store.username}:{CONFIG.vector_store.password}",
+                    else f"{self.config.vector_store.username}:{self.config.vector_store.password}",
                 },
                 collection_name=collection_name,
                 index_params={
