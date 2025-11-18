@@ -59,6 +59,10 @@ To deploy End-to-End RAG Server and Ingestor Server, use the following procedure
 
 2. Install the Helm chart by running the following command.
 
+    :::{IMPORTANT}
+    The Bitnami project has moved some Redis container artifacts, which can affect the availability of some image tags. To use a supported version of Redis, override the Redis image in your `helm upgrade` command as shown in the second code block following. This uses the Bitnami Legacy Redis 8.2.1-debian-12-r0 image. Adjust the tag as needed for your environment.
+    :::    
+
     ```sh
     helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.3.0.tgz \
     --username '$oauthtoken' \
@@ -67,20 +71,24 @@ To deploy End-to-End RAG Server and Ingestor Server, use the following procedure
     --set ngcApiSecret.password=$NGC_API_KEY
     ```
 
-    > [!NOTE]
-    > Refer to [NIM Model Profile Configuration](model-profiles.md) to set NIM LLM profile according to the GPU type and count.
-    > Set the profile explicitly to avoid any errors with NIM LLM pod deployment.
+   — OR —
+
+    ```sh
+    helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/0648981100760671/charts/nvidia-blueprint-rag-v2.4.0-dev.tgz \
+    --username '$oauthtoken' \
+    --password "${NGC_API_KEY}" \
+    --set imagePullSecret.password=$NGC_API_KEY \
+    --set ngcApiSecret.password=$NGC_API_KEY \ 
+    --set nv-ingest.redis.image.repository=bitnamilegacy/redis \
+    --set nv-ingest.redis.image.tag=8.2.1-debian-12-r0
+    ```
+
+   :::{note}
+   Refer to [NIM Model Profile Configuration](model-profiles.md) to set NIM LLM profile according to the GPU type and count.
+   Set the profile explicitly to avoid any errors with NIM LLM pod deployment.
+   :::
 
 
-
-    > [!NOTE]
-    > The Bitnami project has moved some Redis container artifacts, which can affect the availability of some image tags. To use a supported version of Redis, override the Redis image in your `helm upgrade` command as shown following. This uses the Bitnami Legacy Redis 8.2.1-debian-12-r0 image. Adjust the tag as needed for your environment.
-    >
-    > ```bash
-    > --set nv-ingest.redis.image.repository=bitnamilegacy/redis \
-    > --set nv-ingest.redis.image.tag=8.2.1-debian-12-r0 \
-    > ```
-    >
 
 ## Verify a Deployment
 
