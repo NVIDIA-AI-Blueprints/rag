@@ -1467,12 +1467,13 @@ class TestNvidiaRAGPrepareVdbOpCoverage:
                     call[1].get('model') == 'test_model' and call[1].get('url') == 'http://embedding.com'
                     for call in mock_get_embedding.call_args_list
                 )
-                # Check _get_vdb_op was called with expected parameters
-                assert mock_get_vdb_op.call_count >= 1
-                assert any(
-                    call[1].get('vdb_endpoint') == 'http://test.com' and call[1].get('embedding_model') == mock_embedding
-                    for call in mock_get_vdb_op.call_args_list
-                )
+                # Allow optional presence of vdb_auth_token in kwargs (default empty string)
+                assert mock_get_vdb_op.call_count == 1
+                _, kwargs = mock_get_vdb_op.call_args
+                assert kwargs["vdb_endpoint"] == "http://test.com"
+                assert kwargs["embedding_model"] == mock_embedding
+                if "vdb_auth_token" in kwargs:
+                    assert kwargs["vdb_auth_token"] in ("", None)
 
 
 class TestNvidiaRAGValidationCoverage:

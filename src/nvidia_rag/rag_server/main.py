@@ -223,7 +223,7 @@ class NvidiaRAG:
         vdb_endpoint: str = None,
         embedding_model: str = None,
         embedding_endpoint: str = None,
-        vdb_auth_token: str | None = None,
+        vdb_auth_token: str = "",
     ):
         """
         Prepare the VDBRag object for generation.
@@ -288,7 +288,7 @@ class NvidiaRAG:
         reranker_top_k: int = int(CONFIG.retriever.top_k),
         vdb_top_k: int = int(CONFIG.retriever.vdb_top_k),
         vdb_endpoint: str = None,
-        vdb_auth_token: str | None = None,
+        vdb_auth_token: str = "",
         collection_name: str = "",
         collection_names: list[str] | None = None,
         enable_query_rewriting: bool | None = None,
@@ -520,7 +520,7 @@ class NvidiaRAG:
         collection_name: str = "",
         collection_names: list[str] = None,
         vdb_endpoint: str = None,
-        vdb_auth_token: str | None = None,
+        vdb_auth_token: str = "",
         enable_query_rewriting: bool = CONFIG.query_rewriter.enable_query_rewriter,
         enable_reranker: bool = CONFIG.ranking.enable_reranker,
         enable_filter_generator: bool = CONFIG.filter_expression_generator.enable_filter_generator,
