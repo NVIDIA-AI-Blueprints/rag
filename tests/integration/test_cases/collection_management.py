@@ -614,8 +614,40 @@ class CollectionManagementModule(BaseTestModule):
                 )
                 return False
 
-            # Test 5: Update document catalog metadata
+            # Test 4.5: Verify catalog metadata was applied during upload
             test_document_name = "test_catalog_doc.txt"
+            doc_verify_upload_success = await self._verify_document_catalog_metadata(
+                self.CATALOG_COLLECTION,
+                test_document_name,
+                expected_description="Test document uploaded with catalog metadata",
+                expected_tags=["test", "upload", "catalog"],
+            )
+            if not doc_verify_upload_success:
+                test_time = time.time() - test_start
+                self.add_test_result(
+                    self._test_data_catalog_metadata.test_number,
+                    self._test_data_catalog_metadata.test_name,
+                    "Test data catalog metadata functionality including: 1) Verify initial catalog metadata from collection creation, 2) Update collection catalog metadata via PATCH, 3) Verify updates, 4) Upload test document WITH catalog metadata, 4.5) Verify upload catalog metadata, 5) Update document catalog metadata, 6) Verify document metadata.",
+                    [
+                        "GET /v1/collections",
+                        "PATCH /v1/collections/{collection_name}/metadata",
+                        "POST /v1/documents",
+                        "GET /v1/documents",
+                        "PATCH /v1/collections/{collection_name}/documents/{document_name}/metadata",
+                    ],
+                    [
+                        "collection_name",
+                        "description",
+                        "tags",
+                        "document_name",
+                    ],
+                    test_time,
+                    TestStatus.FAILURE,
+                    "Failed to verify catalog metadata set during document upload",
+                )
+                return False
+
+            # Test 5: Update document catalog metadata
             doc_update_success = await self._update_document_catalog_metadata(
                 self.CATALOG_COLLECTION,
                 test_document_name,
@@ -909,13 +941,20 @@ class CollectionManagementModule(BaseTestModule):
                         content_type="text/plain",
                     )
 
-                    # Add JSON data field
+                    # Add JSON data field WITH documents_catalog_metadata
                     upload_data = {
                         "collection_name": collection_name,
                         "blocking": True,
                         "split_options": {"chunk_size": 512, "chunk_overlap": 150},
                         "custom_metadata": [],
                         "generate_summary": False,
+                        "documents_catalog_metadata": [
+                            {
+                                "filename": "test_catalog_doc.txt",
+                                "description": "Test document uploaded with catalog metadata",
+                                "tags": ["test", "upload", "catalog"],
+                            }
+                        ],
                     }
                     form_data.add_field(
                         "data",
@@ -929,7 +968,7 @@ class CollectionManagementModule(BaseTestModule):
                         result = await response.json()
                         if response.status == 200:
                             logger.info(
-                                "✅ Test document uploaded successfully for catalog metadata testing"
+                                "✅ Test document uploaded successfully with catalog metadata"
                             )
                             return True
                         else:

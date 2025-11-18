@@ -221,6 +221,7 @@ class NvidiaRAGIngestor:
         custom_metadata: list[dict[str, Any]] | None = None,
         generate_summary: bool = False,
         additional_validation_errors: list[dict[str, Any]] | None = None,
+        documents_catalog_metadata: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         """Upload documents to the vector store.
 
@@ -231,6 +232,7 @@ class NvidiaRAGIngestor:
             split_options (Dict[str, Any], optional): Options for splitting documents. Defaults to chunk_size and chunk_overlap from self.config.
             custom_metadata (List[Dict[str, Any]], optional): Custom metadata to add to documents. Defaults to empty list.
             additional_validation_errors (List[Dict[str, Any]] | None, optional): Additional validation errors to include in response. Defaults to None.
+            documents_catalog_metadata (List[Dict[str, Any]] | None, optional): Per-document catalog metadata (description, tags) to add during upload. Defaults to None.
         """
         # Apply default from config if not provided
         if vdb_endpoint is None:
@@ -240,6 +242,7 @@ class NvidiaRAGIngestor:
             filepaths=filepaths,
             collection_name=collection_name,
             custom_metadata=custom_metadata,
+            documents_catalog_metadata=documents_catalog_metadata,
         )
         task_id = state_manager.get_task_id()
 
@@ -260,6 +263,8 @@ class NvidiaRAGIngestor:
             custom_metadata = []
         if additional_validation_errors is None:
             additional_validation_errors = []
+        if documents_catalog_metadata is None:
+            documents_catalog_metadata = []
 
         if not vdb_op.check_collection_exists(collection_name):
             raise ValueError(
@@ -281,6 +286,7 @@ class NvidiaRAGIngestor:
                         generate_summary=generate_summary,
                         additional_validation_errors=additional_validation_errors,
                         state_manager=state_manager,
+                        documents_catalog_metadata=documents_catalog_metadata,
                     )
 
                 task_id = await INGESTION_TASK_HANDLER.submit_task(
@@ -319,6 +325,7 @@ class NvidiaRAGIngestor:
                     generate_summary=generate_summary,
                     additional_validation_errors=additional_validation_errors,
                     state_manager=state_manager,
+                    documents_catalog_metadata=documents_catalog_metadata,
                 )
             return response_dict
 
@@ -342,6 +349,7 @@ class NvidiaRAGIngestor:
         generate_summary: bool = False,
         additional_validation_errors: list[dict[str, Any]] | None = None,
         state_manager: IngestionStateManager | None = None,
+        documents_catalog_metadata: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         """
         Main function called by ingestor server to ingest
@@ -353,6 +361,7 @@ class NvidiaRAGIngestor:
             - split_options: Dict[str, Any] - Options for splitting documents
             - custom_metadata: List[Dict[str, Any]] - Custom metadata to be added to documents
             - additional_validation_errors: List[Dict[str, Any]] | None - Additional validation errors to include in response (defaults to None)
+            - documents_catalog_metadata: List[Dict[str, Any]] | None - Per-document catalog metadata (description, tags) to add after upload (defaults to None)
         """
         logger.info("Performing ingestion in collection_name: %s", collection_name)
         logger.debug("Filepaths for ingestion: %s", filepaths)
@@ -367,6 +376,7 @@ class NvidiaRAGIngestor:
 
         state_manager.validation_errors = validation_errors
         state_manager.failed_validation_documents = failed_validation_documents
+        state_manager.documents_catalog_metadata = documents_catalog_metadata or []
 
         try:
             # Get metadata schema once for validation and CSV preparation
@@ -525,6 +535,16 @@ class NvidiaRAGIngestor:
                 generate_summary=generate_summary,
                 state_manager=state_manager,
             )
+
+            # Apply catalog metadata for successfully ingested documents
+            if state_manager.documents_catalog_metadata:
+                await self.__apply_documents_catalog_metadata(
+                    results=results,
+                    vdb_op=vdb_op,
+                    collection_name=collection_name,
+                    documents_catalog_metadata=state_manager.documents_catalog_metadata,
+                    filepaths=filepaths,
+                )
 
             logger.info(
                 "== Overall Ingestion completed successfully in %s seconds ==",
@@ -698,6 +718,7 @@ class NvidiaRAGIngestor:
         custom_metadata: list[dict[str, Any]] | None = None,
         generate_summary: bool = False,
         additional_validation_errors: list[dict[str, Any]] | None = None,
+        documents_catalog_metadata: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         """Upload a document to the vector store. If the document already exists, it will be replaced."""
 
@@ -751,6 +772,7 @@ class NvidiaRAGIngestor:
             custom_metadata=custom_metadata,
             generate_summary=generate_summary,
             additional_validation_errors=additional_validation_errors,
+            documents_catalog_metadata=documents_catalog_metadata,
         )
         return response
 
@@ -792,6 +814,60 @@ class NvidiaRAGIngestor:
         except KeyError as e:
             logger.error(f"Task {task_id} not found with error: {e}")
             return {"state": "UNKNOWN", "result": {"message": "Unknown task state"}}
+
+    async def __apply_documents_catalog_metadata(
+        self,
+        results: list[list[dict[str, Any]]],
+        vdb_op: VDBRag,
+        collection_name: str,
+        documents_catalog_metadata: list[dict[str, Any]],
+        filepaths: list[str],
+    ) -> None:
+        """Apply catalog metadata to successfully ingested documents.
+
+        Args:
+            results: List of ingestion results
+            vdb_op: Vector database operations instance
+            collection_name: Name of the collection
+            documents_catalog_metadata: List of dicts with 'filename', 'description', 'tags'
+            filepaths: List of file paths that were ingested
+        """
+        # Build a mapping from filename to catalog metadata
+        catalog_map = {
+            os.path.basename(meta["filename"]): meta
+            for meta in documents_catalog_metadata
+        }
+
+        # Extract document names from filepaths (these are the successfully ingested documents)
+        ingested_docs = set()
+        for filepath in filepaths:
+            doc_name = os.path.basename(filepath)
+            ingested_docs.add(doc_name)
+
+        # Apply catalog metadata to each successfully ingested document
+        for doc_name in ingested_docs:
+            if doc_name in catalog_map:
+                metadata = catalog_map[doc_name]
+                updates = {}
+                if metadata.get("description"):
+                    updates["description"] = metadata["description"]
+                if metadata.get("tags"):
+                    updates["tags"] = metadata["tags"]
+
+                if updates:
+                    try:
+                        vdb_op.update_document_catalog_metadata(
+                            collection_name,
+                            doc_name,
+                            updates,
+                        )
+                        logger.info(
+                            f"Applied catalog metadata to document '{doc_name}': {updates}"
+                        )
+                    except Exception as e:
+                        logger.warning(
+                            f"Failed to apply catalog metadata to document '{doc_name}': {e}"
+                        )
 
     def create_collection(
         self,
@@ -896,7 +972,6 @@ class NvidiaRAGIngestor:
     def update_collection_metadata(
         self,
         collection_name: str,
-        vdb_endpoint: str | None = None,
         description: str | None = None,
         tags: list[str] | None = None,
         owner: str | None = None,
@@ -907,7 +982,6 @@ class NvidiaRAGIngestor:
 
         Args:
             collection_name (str): Name of the collection
-            vdb_endpoint (str, optional): Vector database endpoint URL
             description (str, optional): Updated description
             tags (list[str], optional): Updated tags list
             owner (str, optional): Updated owner
@@ -915,7 +989,7 @@ class NvidiaRAGIngestor:
             status (str, optional): Updated status
         """
         vdb_op, collection_name = self.__prepare_vdb_op_and_collection_name(
-            vdb_endpoint=vdb_endpoint,
+            vdb_endpoint=None,
             collection_name=collection_name,
         )
 
@@ -957,7 +1031,6 @@ class NvidiaRAGIngestor:
         self,
         collection_name: str,
         document_name: str,
-        vdb_endpoint: str | None = None,
         description: str | None = None,
         tags: list[str] | None = None,
     ) -> dict:
@@ -966,12 +1039,11 @@ class NvidiaRAGIngestor:
         Args:
             collection_name (str): Name of the collection
             document_name (str): Name of the document
-            vdb_endpoint (str, optional): Vector database endpoint URL
             description (str, optional): Updated description
             tags (list[str], optional): Updated tags list
         """
         vdb_op, collection_name = self.__prepare_vdb_op_and_collection_name(
-            vdb_endpoint=vdb_endpoint,
+            vdb_endpoint=None,
             collection_name=collection_name,
         )
 

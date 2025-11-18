@@ -183,6 +183,18 @@ class CustomMetadata(BaseModel):
     )
 
 
+class DocumentCatalogMetadata(BaseModel):
+    """Catalog metadata for a specific document during upload."""
+
+    filename: str = Field(..., description="Name of the file to apply metadata to.")
+    description: str | None = Field(
+        None, description="Description of the document for catalog purposes."
+    )
+    tags: list[str] | None = Field(
+        None, description="Tags for categorizing and discovering the document."
+    )
+
+
 class DocumentUploadRequest(BaseModel):
     """Request model for uploading and processing documents."""
 
@@ -210,6 +222,11 @@ class DocumentUploadRequest(BaseModel):
     generate_summary: bool = Field(
         default=False,
         description="Enable/disable summary generation for each uploaded document.",
+    )
+
+    documents_catalog_metadata: list[DocumentCatalogMetadata] = Field(
+        default_factory=list,
+        description="Catalog metadata (description, tags) for specific documents. Optional per-document catalog information.",
     )
 
     # Reserved for future use
@@ -396,11 +413,6 @@ class CreateCollectionResponse(BaseModel):
 class UpdateCollectionMetadataRequest(BaseModel):
     """Request model for updating collection metadata."""
 
-    vdb_endpoint: str = Field(
-        os.getenv("APP_VECTORSTORE_URL", ""),
-        description="URL of the vector database endpoint.",
-        exclude=True,
-    )
     description: str | None = Field(None, description="Updated description")
     tags: list[str] | None = Field(None, description="Updated tags")
     owner: str | None = Field(None, description="Updated owner")
@@ -411,11 +423,6 @@ class UpdateCollectionMetadataRequest(BaseModel):
 class UpdateDocumentMetadataRequest(BaseModel):
     """Request model for updating document metadata."""
 
-    vdb_endpoint: str = Field(
-        os.getenv("APP_VECTORSTORE_URL", ""),
-        description="URL of the vector database endpoint.",
-        exclude=True,
-    )
     description: str | None = Field(None, description="Updated description")
     tags: list[str] | None = Field(None, description="Updated tags")
 
@@ -1000,7 +1007,6 @@ async def update_collection_metadata(
     try:
         response = NV_INGEST_INGESTOR.update_collection_metadata(
             collection_name=collection_name,
-            vdb_endpoint=data.vdb_endpoint,
             description=data.description,
             tags=data.tags,
             owner=data.owner,
@@ -1060,7 +1066,6 @@ async def update_document_metadata(
         response = NV_INGEST_INGESTOR.update_document_metadata(
             collection_name=collection_name,
             document_name=document_name,
-            vdb_endpoint=data.vdb_endpoint,
             description=data.description,
             tags=data.tags,
         )
