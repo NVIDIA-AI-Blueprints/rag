@@ -335,6 +335,10 @@ class CreateCollectionRequest(BaseModel):
         os.getenv("APP_VECTORSTORE_URL", ""),
         description="Endpoint of the vector database.",
     )
+    vdb_auth_token: str = Field(
+        default="",
+        description="Optional auth token to use for model calls during ingestion.",
+    )
     collection_name: str = Field(
         os.getenv("COLLECTION_NAME", ""), description="Name of the collection."
     )
@@ -540,7 +544,7 @@ async def upload_document(
 
         response_dict = await NV_INGEST_INGESTOR.upload_documents(
             filepaths=all_file_paths,
-            vdb_auth_token=request.vdb_auth_token or None,
+            vdb_auth_token=request.vdb_auth_token,
             **request.model_dump(exclude={"vdb_auth_token"}),
             additional_validation_errors=duplicate_validation_errors,
         )
@@ -624,7 +628,7 @@ async def update_documents(
 
         response_dict = await NV_INGEST_INGESTOR.update_documents(
             filepaths=all_file_paths,
-            vdb_auth_token=request.vdb_auth_token or None,
+            vdb_auth_token=request.vdb_auth_token,
             **request.model_dump(exclude={"vdb_auth_token"}),
             additional_validation_errors=duplicate_validation_errors,
         )
@@ -680,10 +684,14 @@ async def get_documents(
     vdb_endpoint: str = Query(
         default=os.getenv("APP_VECTORSTORE_URL"), include_in_schema=False
     ),
+    vdb_auth_token: str = Query(
+        default=os.getenv("VDB_AUTH_TOKEN", ""),
+        description="Optional auth token to use for model calls during ingestion.",
+    ),
 ) -> DocumentListResponse:
     """Get list of document ingested in vectorstore."""
     try:
-        documents = NV_INGEST_INGESTOR.get_documents(collection_name, vdb_endpoint)
+        documents = NV_INGEST_INGESTOR.get_documents(collection_name, vdb_endpoint, vdb_auth_token)
         return DocumentListResponse(**documents)
 
     except asyncio.CancelledError as e:
@@ -729,6 +737,10 @@ async def delete_documents(
     vdb_endpoint: str = Query(
         default=os.getenv("APP_VECTORSTORE_URL"), include_in_schema=False
     ),
+    vdb_auth_token: str = Query(
+        default=os.getenv("VDB_AUTH_TOKEN", ""),
+        description="Optional auth token to use for model calls during ingestion.",
+    ),
 ) -> DocumentListResponse:
     if document_names is None:
         document_names = []
@@ -739,6 +751,7 @@ async def delete_documents(
             collection_name=collection_name,
             vdb_endpoint=vdb_endpoint,
             include_upload_path=True,
+            vdb_auth_token=vdb_auth_token,
         )
         return DocumentListResponse(**response)
 
@@ -784,13 +797,17 @@ async def get_collections(
     vdb_endpoint: str = Query(
         default=os.getenv("APP_VECTORSTORE_URL"), include_in_schema=False
     ),
+    vdb_auth_token: str = Query(
+        default=os.getenv("VDB_AUTH_TOKEN", ""),
+        description="Optional auth token to use for model calls during ingestion.",
+    ),
 ) -> CollectionListResponse:
     """
     Endpoint to get a list of collection names from the Milvus server.
     Returns a list of collection names.
     """
     try:
-        response = NV_INGEST_INGESTOR.get_collections(vdb_endpoint)
+        response = NV_INGEST_INGESTOR.get_collections(vdb_endpoint, vdb_auth_token)
         return CollectionListResponse(**response)
 
     except asyncio.CancelledError as e:
@@ -840,6 +857,10 @@ async def create_collections(
     collection_names: list[str] = None,
     collection_type: str = "text",
     embedding_dimension: int = 2048,
+    vdb_auth_token: str = Query(
+        default=os.getenv("VDB_AUTH_TOKEN", ""),
+        description="Optional auth token to use for model calls during ingestion.",
+    ),
 ) -> CollectionsResponse:
     if collection_names is None:
         collection_names = [os.getenv("COLLECTION_NAME")]
@@ -853,7 +874,7 @@ async def create_collections(
     )
     try:
         response = NV_INGEST_INGESTOR.create_collections(
-            collection_names, vdb_endpoint, embedding_dimension
+            collection_names, vdb_endpoint, embedding_dimension, vdb_auth_token
         )
         return CollectionsResponse(**response)
 
@@ -906,6 +927,7 @@ async def create_collection(data: CreateCollectionRequest) -> CreateCollectionRe
             vdb_endpoint=data.vdb_endpoint,
             embedding_dimension=data.embedding_dimension,
             metadata_schema=[field.model_dump() for field in data.metadata_schema],
+            vdb_auth_token=data.vdb_auth_token,
         )
         return CreateCollectionResponse(**response)
 
@@ -952,6 +974,10 @@ async def delete_collections(
         default=os.getenv("APP_VECTORSTORE_URL"), include_in_schema=False
     ),
     collection_names: list[str] = None,
+    vdb_auth_token: str = Query(
+        default=os.getenv("VDB_AUTH_TOKEN", ""),
+        description="Optional auth token to use for model calls during ingestion.",
+    ),
 ) -> CollectionsResponse:
     if collection_names is None:
         collection_names = [os.getenv("COLLECTION_NAME")]
@@ -961,7 +987,7 @@ async def delete_collections(
     """
     try:
         response = NV_INGEST_INGESTOR.delete_collections(
-            collection_names=collection_names, vdb_endpoint=vdb_endpoint
+            collection_names=collection_names, vdb_endpoint=vdb_endpoint, vdb_auth_token=vdb_auth_token
         )
         return CollectionsResponse(**response)
 
