@@ -33,7 +33,7 @@ def _get_vdb_op(
     embedding_model: str | None = None,  # Needed in case of retrieval
     metadata_schema: list[dict[str, Any]] | None = None,
     config: NvidiaRAGConfig | None = None,
-    vdb_auth_token: str | None = None,
+    vdb_auth_token: str = "",
 ):
     """
     Get VDBRag class object based on configuration.

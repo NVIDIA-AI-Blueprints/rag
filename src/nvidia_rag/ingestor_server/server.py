@@ -200,7 +200,7 @@ class DocumentUploadRequest(BaseModel):
 
     vdb_auth_token: str = Field(
         default="",
-        description="Optional auth token to use for model calls during ingestion.",
+        description="Optional auth token to use for vdb authentication",
     )
 
     split_options: SplitOptions = Field(
@@ -337,7 +337,7 @@ class CreateCollectionRequest(BaseModel):
     )
     vdb_auth_token: str = Field(
         default="",
-        description="Optional auth token to use for model calls during ingestion.",
+        description="Optional auth token to use for vdb authentication",
     )
     collection_name: str = Field(
         os.getenv("COLLECTION_NAME", ""), description="Name of the collection."
@@ -686,7 +686,7 @@ async def get_documents(
     ),
     vdb_auth_token: str = Query(
         default=os.getenv("VDB_AUTH_TOKEN", ""),
-        description="Optional auth token to use for model calls during ingestion.",
+        description="Optional auth token to use for vdb authentication",
     ),
 ) -> DocumentListResponse:
     """Get list of document ingested in vectorstore."""
@@ -739,7 +739,7 @@ async def delete_documents(
     ),
     vdb_auth_token: str = Query(
         default=os.getenv("VDB_AUTH_TOKEN", ""),
-        description="Optional auth token to use for model calls during ingestion.",
+        description="Optional auth token to use for vdb authentication",
     ),
 ) -> DocumentListResponse:
     if document_names is None:
@@ -799,7 +799,7 @@ async def get_collections(
     ),
     vdb_auth_token: str = Query(
         default=os.getenv("VDB_AUTH_TOKEN", ""),
-        description="Optional auth token to use for model calls during ingestion.",
+        description="Optional auth token to use for vdb authentication",
     ),
 ) -> CollectionListResponse:
     """
@@ -859,7 +859,7 @@ async def create_collections(
     embedding_dimension: int = 2048,
     vdb_auth_token: str = Query(
         default=os.getenv("VDB_AUTH_TOKEN", ""),
-        description="Optional auth token to use for model calls during ingestion.",
+        description="Optional auth token to use for vdb authentication",
     ),
 ) -> CollectionsResponse:
     if collection_names is None:
@@ -976,7 +976,7 @@ async def delete_collections(
     collection_names: list[str] = None,
     vdb_auth_token: str = Query(
         default=os.getenv("VDB_AUTH_TOKEN", ""),
-        description="Optional auth token to use for model calls during ingestion.",
+        description="Optional auth token to use for vdb authentication",
     ),
 ) -> CollectionsResponse:
     if collection_names is None:

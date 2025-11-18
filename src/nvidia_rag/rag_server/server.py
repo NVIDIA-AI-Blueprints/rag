@@ -318,8 +318,7 @@ class Prompt(BaseModel):
 
     vdb_auth_token: str = Field(
         default="",
-        description="Optional bearer token for vector database auth. "
-        "If provided, this overrides the Authorization header.",
+        description="Optional bearer token for vector database auth. ",
     )
 
     @model_validator(mode="after")
@@ -355,8 +354,7 @@ class DocumentSearch(BaseModel):
     )
     vdb_auth_token: str = Field(
         default="",
-        description="Optional bearer token for vector database auth. "
-        "If provided, this overrides the Authorization header.",
+        description="Optional bearer token for vector database auth. ",
     )
     reranker_top_k: int = Field(
         description="Number of document chunks to retrieve.",
