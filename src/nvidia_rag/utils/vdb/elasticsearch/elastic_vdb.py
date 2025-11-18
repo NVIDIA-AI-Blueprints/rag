@@ -118,22 +118,22 @@ class ElasticVDB(VDBRag):
         if auth_token:
             resolved_bearer_auth = auth_token
         # Resolve API key from explicit args
-        if api_key:
-            resolved_api_key = api_key
-        elif api_key_id and api_key_secret:
-            resolved_api_key = (api_key_id, api_key_secret)
+        if self.config.vector_store.api_key:
+            resolved_api_key = self.config.vector_store.api_key
+        elif self.config.vector_store.api_key_id and self.config.vector_store.api_key_secret:
+            resolved_api_key = (self.config.vector_store.api_key_id, self.config.vector_store.api_key_secret)
         # Resolve basic auth from explicit args
-        if not resolved_api_key and username and password:
-            resolved_basic_auth = (username, password)
+        if not resolved_api_key and self.config.vector_store.username and self.config.vector_store.password:
+            resolved_basic_auth = (self.config.vector_store.username, self.config.vector_store.password)
 
         # Fall back to CONFIG if still not set (prefer API key over basic)
         if not resolved_bearer_auth and not resolved_api_key and not resolved_basic_auth:
-            if CONFIG.vector_store.api_key:
-                resolved_api_key = CONFIG.vector_store.api_key
-            elif CONFIG.vector_store.api_key_id and CONFIG.vector_store.api_key_secret:
-                resolved_api_key = (CONFIG.vector_store.api_key_id, CONFIG.vector_store.api_key_secret)
-            elif CONFIG.vector_store.username and CONFIG.vector_store.password:
-                resolved_basic_auth = (CONFIG.vector_store.username, CONFIG.vector_store.password)
+            if self.config.vector_store.api_key:
+                resolved_api_key = self.config.vector_store.api_key
+            elif self.config.vector_store.api_key_id and self.config.vector_store.api_key_secret:
+                resolved_api_key = (self.config.vector_store.api_key_id, self.config.vector_store.api_key_secret)
+            elif self.config.vector_store.username and self.config.vector_store.password:
+                resolved_basic_auth = (self.config.vector_store.username, self.config.vector_store.password)
 
         # Keep on instance for reuse (e.g., langchain vectorstore)
         self._bearer_auth = resolved_bearer_auth

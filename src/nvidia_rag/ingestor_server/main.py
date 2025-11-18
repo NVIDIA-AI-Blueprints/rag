@@ -176,6 +176,7 @@ class NvidiaRAGIngestor:
         filepaths: list[str] | None = None,
         bypass_validation: bool = False,
         metadata_schema: list[dict[str, Any]] | None = None,
+        vdb_auth_token: str | None = None,
     ) -> VDBRag:
         """
         Prepare the VDBRag object for ingestion.
@@ -194,6 +195,7 @@ class NvidiaRAGIngestor:
                 all_file_paths=filepaths,
                 metadata_schema=metadata_schema,
                 config=self.config,
+                vdb_auth_token=vdb_auth_token,
             )
             return vdb_op, collection_name
 
@@ -215,6 +217,7 @@ class NvidiaRAGIngestor:
         custom_metadata: list[dict[str, Any]] = None,
         generate_summary: bool = False,
         additional_validation_errors: list[dict[str, Any]] | None = None,
+        vdb_auth_token: str | None = None,
     ) -> dict[str, Any]:
         """Upload documents to the vector store.
 
@@ -241,6 +244,7 @@ class NvidiaRAGIngestor:
             vdb_endpoint=vdb_endpoint,
             collection_name=collection_name,
             filepaths=filepaths,
+            vdb_auth_token=vdb_auth_token,
         )
         vdb_op.create_document_info_collection()
 
@@ -275,6 +279,7 @@ class NvidiaRAGIngestor:
                         generate_summary=generate_summary,
                         additional_validation_errors=additional_validation_errors,
                         state_manager=state_manager,
+                        vdb_auth_token=vdb_auth_token,
                     )
 
                 task_id = await INGESTION_TASK_HANDLER.submit_task(
@@ -335,6 +340,7 @@ class NvidiaRAGIngestor:
         generate_summary: bool = False,
         additional_validation_errors: list[dict[str, Any]] | None = None,
         state_manager: IngestionStateManager = None,
+        vdb_auth_token: str | None = None,
     ) -> dict[str, Any]:
         """
         Main function called by ingestor server to ingest
@@ -384,7 +390,8 @@ class NvidiaRAGIngestor:
                     custom_metadata=custom_metadata,
                     filepaths=filepaths,
                     metadata_schema=metadata_schema,
-                )
+                    vdb_auth_token=vdb_auth_token,
+                )   
 
             if not validation_status:
                 failed_filenames = set()
@@ -517,6 +524,7 @@ class NvidiaRAGIngestor:
                 split_options=split_options,
                 generate_summary=generate_summary,
                 state_manager=state_manager,
+                api_key=api_key,
             )
 
             logger.info(
@@ -683,6 +691,7 @@ class NvidiaRAGIngestor:
         custom_metadata: list[dict[str, Any]] = None,
         generate_summary: bool = False,
         additional_validation_errors: list[dict[str, Any]] | None = None,
+        api_key: str | None = None,
     ) -> dict[str, Any]:
         """Upload a document to the vector store. If the document already exists, it will be replaced."""
 
@@ -736,6 +745,7 @@ class NvidiaRAGIngestor:
             custom_metadata=custom_metadata,
             generate_summary=generate_summary,
             additional_validation_errors=additional_validation_errors,
+            api_key=api_key,
         )
         return response
 
@@ -1284,6 +1294,7 @@ class NvidiaRAGIngestor:
         split_options: dict[str, Any] = None,
         generate_summary: bool = False,
         state_manager: IngestionStateManager = None,
+        api_key: str | None = None,
     ) -> tuple[list[list[dict[str, str | dict]]], list[dict[str, Any]]]:
         """
         Wrapper function to ingest documents in chunks using NV-ingest
@@ -1309,6 +1320,7 @@ class NvidiaRAGIngestor:
                 split_options=split_options,
                 generate_summary=generate_summary,
                 state_manager=state_manager,
+                api_key=api_key,
             )
             return results, failures
 
@@ -1344,6 +1356,7 @@ class NvidiaRAGIngestor:
                         split_options=split_options,
                         generate_summary=generate_summary,
                         state_manager=state_manager,
+                        api_key=api_key,
                     )
                     all_results.extend(results)
                     all_failures.extend(failures)
@@ -1387,6 +1400,7 @@ class NvidiaRAGIngestor:
                             split_options=split_options,
                             generate_summary=generate_summary,
                             state_manager=state_manager,
+                            api_key=api_key,
                         )
 
                 for i in range(
@@ -1428,6 +1442,7 @@ class NvidiaRAGIngestor:
         split_options: dict[str, Any] = None,
         generate_summary: bool = False,
         state_manager: IngestionStateManager = None,
+        api_key: str | None = None,
     ) -> tuple[list[list[dict[str, str | dict]]], list[dict[str, Any]]]:
         """
         This methods performs following steps:
@@ -1461,6 +1476,7 @@ class NvidiaRAGIngestor:
             filtered_filepaths=filtered_filepaths,
             split_options=split_options,
             vdb_op=vdb_op,
+            api_key=api_key,
         )
 
         if generate_summary:

@@ -114,8 +114,8 @@ def _get_vdb_op(
 
         return ElasticVDB(
             index_name=collection_name,
-            es_url=vdb_endpoint or CONFIG.vector_store.url,
-            hybrid=CONFIG.vector_store.search_type == "hybrid",
+            es_url=vdb_endpoint or config.vector_store.url,
+            hybrid=config.vector_store.search_type == "hybrid",
             auth_token=vdb_auth_token,
             meta_dataframe=meta_dataframe,
             meta_source_field=meta_source_field,

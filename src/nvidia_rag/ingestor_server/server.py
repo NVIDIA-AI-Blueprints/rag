@@ -198,6 +198,11 @@ class DocumentUploadRequest(BaseModel):
 
     blocking: bool = Field(False, description="Enable/disable blocking ingestion.")
 
+    auth_token: str = Field(
+        default="",
+        description="Optional auth token to use for model calls during ingestion.",
+    )
+
     split_options: SplitOptions = Field(
         default_factory=SplitOptions,
         description="Options for splitting documents into smaller parts before embedding.",
@@ -395,6 +400,9 @@ async def request_validation_exception_handler(
     )
 
 
+ 
+
+
 @app.get(
     "/health",
     response_model=HealthResponse,
@@ -535,7 +543,8 @@ async def upload_document(
 
         response_dict = await NV_INGEST_INGESTOR.upload_documents(
             filepaths=all_file_paths,
-            **request.model_dump(),
+            api_key=request.auth_token or None,
+            **request.model_dump(exclude={"auth_token"}),
             additional_validation_errors=duplicate_validation_errors,
         )
         if not request.blocking:
@@ -618,7 +627,8 @@ async def update_documents(
 
         response_dict = await NV_INGEST_INGESTOR.update_documents(
             filepaths=all_file_paths,
-            **request.model_dump(),
+            api_key=request.auth_token or None,
+            **request.model_dump(exclude={"auth_token"}),
             additional_validation_errors=duplicate_validation_errors,
         )
         if not request.blocking:
