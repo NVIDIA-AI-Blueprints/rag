@@ -79,6 +79,7 @@ Welcome to the [NVIDIA RAG Blueprint](https://github.com/NVIDIA-AI-Blueprints/ra
 
    Audio Ingestion Support <audio_ingestion.md>
    Custom metadata Support <custom-metadata.md>
+   Data Catalog for Collections and Documents <data-catalog.md>
    File System Access to Extraction Results <mount-ingestor-volume.md>
    Multimodal Embedding Support (Early Access) <vlm-embed.md>
    NeMo Retriever OCR for Enhanced Text Extraction (Early Access) <nemoretriever-ocr.md>

@@ -160,6 +160,38 @@ class VDBRag(VDB):
         """Get document info from a collection."""
         return {}
 
+    def get_catalog_metadata(
+        self,
+        collection_name: str,
+    ) -> dict[str, Any]:
+        """Get catalog metadata for a collection."""
+        return {}
+
+    def update_catalog_metadata(
+        self,
+        collection_name: str,
+        updates: dict[str, Any],
+    ) -> None:
+        """Update catalog metadata for a collection."""
+        pass
+
+    def get_document_catalog_metadata(
+        self,
+        collection_name: str,
+        document_name: str,
+    ) -> dict[str, Any]:
+        """Get catalog metadata for a document."""
+        return {}
+
+    def update_document_catalog_metadata(
+        self,
+        collection_name: str,
+        document_name: str,
+        updates: dict[str, Any],
+    ) -> None:
+        """Update catalog metadata for a document."""
+        pass
+
     # ----------------------------------------------------------------------------------------------
     # Abstract methods for the VDBRag class for retrieval
     @abstractmethod

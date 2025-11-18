@@ -66,25 +66,32 @@ from langchain_elasticsearch import ElasticsearchStore
 from nv_ingest_client.util.milvus import cleanup_records
 from opentelemetry import context as otel_context
 
+from nvidia_rag.utils.common import (
+    get_current_timestamp,
+    perform_document_info_aggregation,
+)
 from nvidia_rag.utils.configuration import NvidiaRAGConfig
-from nvidia_rag.utils.common import perform_document_info_aggregation
 from nvidia_rag.utils.embedding import get_embedding_model
-from nvidia_rag.utils.vdb import DEFAULT_METADATA_SCHEMA_COLLECTION, DEFAULT_DOCUMENT_INFO_COLLECTION
+from nvidia_rag.utils.vdb import (
+    DEFAULT_DOCUMENT_INFO_COLLECTION,
+    DEFAULT_METADATA_SCHEMA_COLLECTION,
+)
 from nvidia_rag.utils.vdb.elasticsearch.es_queries import (
+    create_document_info_collection_mapping,
     create_metadata_collection_mapping,
+    get_collection_document_info_query,
     get_delete_docs_query,
+    get_delete_document_info_query,
+    get_delete_document_info_query_by_collection_name,
     get_delete_metadata_schema_query,
+    get_document_info_query,
     get_metadata_schema_query,
     get_unique_sources_query,
-    create_document_info_collection_mapping,
-    get_delete_document_info_query,
-    get_collection_document_info_query,
-    get_document_info_query,
-    get_delete_document_info_query_by_collection_name,
 )
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
 
 logger = logging.getLogger(__name__)
+
 
 class ElasticVDB(VDBRag):
     """
@@ -97,11 +104,11 @@ class ElasticVDB(VDBRag):
         index_name: str,
         es_url: str,
         hybrid: bool = False,
-        meta_dataframe: pd.DataFrame = None,
-        meta_source_field: str = None,
-        meta_fields: list[str] = None,
-        embedding_model: str = None,
-        csv_file_path: str = None,
+        meta_dataframe: pd.DataFrame | None = None,
+        meta_source_field: str | None = None,
+        meta_fields: list[str] | None = None,
+        embedding_model: str | None = None,
+        csv_file_path: str | None = None,
         config: NvidiaRAGConfig | None = None,
     ):
         self.config = config or NvidiaRAGConfig()
@@ -116,11 +123,20 @@ class ElasticVDB(VDBRag):
         # Resolve API key from config
         if self.config.vector_store.api_key:
             resolved_api_key = self.config.vector_store.api_key
-        elif self.config.vector_store.api_key_id and self.config.vector_store.api_key_secret:
-            resolved_api_key = (self.config.vector_store.api_key_id, self.config.vector_store.api_key_secret)
+        elif (
+            self.config.vector_store.api_key_id
+            and self.config.vector_store.api_key_secret
+        ):
+            resolved_api_key = (
+                self.config.vector_store.api_key_id,
+                self.config.vector_store.api_key_secret,
+            )
         # Resolve basic auth from config
         elif self.config.vector_store.username and self.config.vector_store.password:
-            resolved_basic_auth = (self.config.vector_store.username, self.config.vector_store.password)
+            resolved_basic_auth = (
+                self.config.vector_store.username,
+                self.config.vector_store.password,
+            )
 
         # Keep on instance for reuse (e.g., langchain vectorstore)
         self._api_key = resolved_api_key
@@ -132,9 +148,7 @@ class ElasticVDB(VDBRag):
             hosts=[self.es_url],
             api_key=self._api_key,
             basic_auth=self._basic_auth,
-        ).options(
-            request_timeout=int(os.environ.get("ES_REQUEST_TIMEOUT", 600))
-        )
+        ).options(request_timeout=int(os.environ.get("ES_REQUEST_TIMEOUT", 600)))
         self._embedding_model = embedding_model
         self.hybrid = hybrid
 
@@ -348,28 +362,34 @@ class ElasticVDB(VDBRag):
         return self._check_index_exists(collection_name)
 
     def get_collection(self):
-        """
-        Get the list of collections in the Elasticsearch index.
-        """
+        """Get the list of collections in the Elasticsearch index."""
         self.create_metadata_schema_collection()
         self.create_document_info_collection()
         indices = self._es_connection.cat.indices(format="json")
         collection_info = []
         for index in indices:
             index_name = index["index"]
-            if not index_name.startswith("."):  # Ignore hidden indices
+            if not index_name.startswith("."):
                 metadata_schema = self.get_metadata_schema(index_name)
-                info_value = self.get_document_info(
+
+                catalog_data = self.get_document_info(
+                    info_type="catalog",
+                    collection_name=index_name,
+                    document_name="NA",
+                )
+
+                metrics_data = self.get_document_info(
                     info_type="collection",
                     collection_name=index_name,
                     document_name="NA",
                 )
+
                 collection_info.append(
                     {
                         "collection_name": index_name,
                         "num_entities": index["docs.count"],
                         "metadata_schema": metadata_schema,
-                        "collection_info": info_value,
+                        "collection_info": {**catalog_data, **metrics_data},
                     }
                 )
         return collection_info
@@ -395,14 +415,20 @@ class ElasticVDB(VDBRag):
                     body=get_delete_metadata_schema_query(collection_name),
                 )
             except Exception as e:
-                logger.error(f"Error deleting metadata schema for collection {collection_name}: {e}")
+                logger.error(
+                    f"Error deleting metadata schema for collection {collection_name}: {e}"
+                )
             try:
                 _ = self._es_connection.delete_by_query(
                     index=DEFAULT_DOCUMENT_INFO_COLLECTION,
-                    body=get_delete_document_info_query_by_collection_name(collection_name),
+                    body=get_delete_document_info_query_by_collection_name(
+                        collection_name
+                    ),
                 )
             except Exception as e:
-                logger.error(f"Error deleting document info for collection {collection_name}: {e}")
+                logger.error(
+                    f"Error deleting document info for collection {collection_name}: {e}"
+                )
         return {
             "message": "Collection deletion process completed.",
             "successful": deleted_collections,
@@ -523,7 +549,7 @@ class ElasticVDB(VDBRag):
             )
             logger.info(logging_message)
             return []
-    
+
     # ----------------------------------------------------------------------------------------------
     # Document Info Management
     def create_document_info_collection(self) -> None:
@@ -543,11 +569,10 @@ class ElasticVDB(VDBRag):
         else:
             logging_message = f"Collection {DEFAULT_DOCUMENT_INFO_COLLECTION} already exists at {self.es_url}"
             logger.info(logging_message)
-    
+
     def _get_aggregated_document_info(
-        self,
-        collection_name: str,
-        info_value: dict[str, Any]) -> dict[str, Any]:
+        self, collection_name: str, info_value: dict[str, Any]
+    ) -> dict[str, Any]:
         """
         Internal function to get the aggregated document info for a collection.
         """
@@ -564,7 +589,9 @@ class ElasticVDB(VDBRag):
         except IndexError:
             existing_info_value = {}
         except Exception as e:
-            logger.error(f"Error getting aggregated document info for collection {collection_name}: {e}")
+            logger.error(
+                f"Error getting aggregated document info for collection {collection_name}: {e}"
+            )
             return info_value
         return perform_document_info_aggregation(existing_info_value, info_value)
 
@@ -573,8 +600,8 @@ class ElasticVDB(VDBRag):
         info_type: str,
         collection_name: str,
         document_name: str,
-        info_value: dict[str, Any]
-        ) -> None:
+        info_value: dict[str, Any],
+    ) -> None:
         """
         Add document info to a collection.
         """
@@ -606,16 +633,14 @@ class ElasticVDB(VDBRag):
             f"Document info added to the ES index {DEFAULT_DOCUMENT_INFO_COLLECTION}. \
             Document info: {info_type}, {document_name}, {info_value}."
         )
-    
+
     def get_document_info(
         self,
         info_type: str,
         collection_name: str,
         document_name: str,
     ) -> dict[str, Any]:
-        """
-        Get document info from a Elasticsearch index.
-        """
+        """Get document info from a Elasticsearch index."""
         query = get_document_info_query(collection_name, document_name, info_type)
         response = self._es_connection.search(
             index=DEFAULT_DOCUMENT_INFO_COLLECTION, body=query
@@ -623,12 +648,73 @@ class ElasticVDB(VDBRag):
         if len(response["hits"]["hits"]) > 0:
             return response["hits"]["hits"][0]["_source"]["info_value"]
         else:
-            logging_message = (
-                f"No document info found for the collection: {collection_name}, \
-                document: {document_name}, info type: {info_type}."
+            logger.info(
+                f"No document info found for collection: {collection_name}, document: {document_name}, info type: {info_type}"
             )
-            logger.info(logging_message)
             return {}
+
+    def get_catalog_metadata(self, collection_name: str) -> dict[str, Any]:
+        """Get catalog metadata for a collection."""
+        return self.get_document_info(
+            info_type="catalog", collection_name=collection_name, document_name="NA"
+        )
+
+    def update_catalog_metadata(
+        self,
+        collection_name: str,
+        updates: dict[str, Any],
+    ) -> None:
+        """Update catalog metadata for a collection."""
+        existing = self.get_catalog_metadata(collection_name)
+        merged = {**existing, **updates}
+        merged["last_updated"] = get_current_timestamp()
+
+        self.add_document_info(
+            info_type="catalog",
+            collection_name=collection_name,
+            document_name="NA",
+            info_value=merged,
+        )
+
+    def get_document_catalog_metadata(
+        self,
+        collection_name: str,
+        document_name: str,
+    ) -> dict[str, Any]:
+        """Get catalog metadata for a document."""
+        doc_info = self.get_document_info(
+            info_type="document",
+            collection_name=collection_name,
+            document_name=document_name,
+        )
+        return {
+            "description": doc_info.get("description", ""),
+            "tags": doc_info.get("tags", []),
+        }
+
+    def update_document_catalog_metadata(
+        self,
+        collection_name: str,
+        document_name: str,
+        updates: dict[str, Any],
+    ) -> None:
+        """Update catalog metadata for a document."""
+        existing = self.get_document_info(
+            info_type="document",
+            collection_name=collection_name,
+            document_name=document_name,
+        )
+
+        for key in ["description", "tags"]:
+            if key in updates:
+                existing[key] = updates[key]
+
+        self.add_document_info(
+            info_type="document",
+            collection_name=collection_name,
+            document_name=document_name,
+            info_value=existing,
+        )
 
     # ----------------------------------------------------------------------------------------------
     # Implementations of the abstract methods specific to VDBRag class for retrieval
@@ -636,10 +722,10 @@ class ElasticVDB(VDBRag):
         self,
         query: str,
         collection_name: str,
-        vectorstore: ElasticsearchStore = None,
+        vectorstore: ElasticsearchStore | None = None,
         top_k: int = 10,
-        filter_expr: list[dict[str, Any]] = None,
-        otel_ctx: otel_context = None,
+        filter_expr: list[dict[str, Any]] | None = None,
+        otel_ctx: Any | None = None,
     ) -> list[dict[str, Any]]:
         """Retrieve documents from a collection using langchain."""
         if vectorstore is None:
@@ -685,9 +771,11 @@ class ElasticVDB(VDBRag):
 
         # Propagate auth to vectorstore if supported
         if self._api_key:
-            vectorstore_params.update({
-                "api_key": self._api_key,
-            })
+            vectorstore_params.update(
+                {
+                    "api_key": self._api_key,
+                }
+            )
         elif self._basic_auth:
             user, pwd = self._basic_auth
             vectorstore_params.update(

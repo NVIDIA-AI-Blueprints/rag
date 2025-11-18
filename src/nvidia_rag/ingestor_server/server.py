@@ -309,6 +309,7 @@ class UploadedCollection(BaseModel):
         {}, description="Collection info of the collection."
     )
 
+
 class CollectionListResponse(BaseModel):
     """Response model for uploading a document."""
 
@@ -339,6 +340,18 @@ class CreateCollectionRequest(BaseModel):
     )
     metadata_schema: list[MetadataField] = Field(
         [], description="Metadata schema of the collection."
+    )
+    description: str = Field(
+        "", description="Human-readable description of the collection"
+    )
+    tags: list[str] = Field([], description="Tags for categorization and search")
+    owner: str = Field("", description="Owner team or person")
+    created_by: str = Field("", description="Username/email of creator")
+    business_domain: str = Field(
+        "", description="Business domain (Finance, Engineering, HR, Legal, etc.)"
+    )
+    status: str = Field(
+        "Active", description="Collection status (Active, Archived, Stale, Pending)"
     )
 
 
@@ -378,6 +391,40 @@ class CreateCollectionResponse(BaseModel):
 
     message: str = Field(..., description="Status message of the process.")
     collection_name: str = Field(..., description="Name of the collection.")
+
+
+class UpdateCollectionMetadataRequest(BaseModel):
+    """Request model for updating collection metadata."""
+
+    vdb_endpoint: str = Field(
+        os.getenv("APP_VECTORSTORE_URL", ""),
+        description="URL of the vector database endpoint.",
+        exclude=True,
+    )
+    description: str | None = Field(None, description="Updated description")
+    tags: list[str] | None = Field(None, description="Updated tags")
+    owner: str | None = Field(None, description="Updated owner")
+    business_domain: str | None = Field(None, description="Updated business domain")
+    status: str | None = Field(None, description="Updated status")
+
+
+class UpdateDocumentMetadataRequest(BaseModel):
+    """Request model for updating document metadata."""
+
+    vdb_endpoint: str = Field(
+        os.getenv("APP_VECTORSTORE_URL", ""),
+        description="URL of the vector database endpoint.",
+        exclude=True,
+    )
+    description: str | None = Field(None, description="Updated description")
+    tags: list[str] | None = Field(None, description="Updated tags")
+
+
+class UpdateMetadataResponse(BaseModel):
+    """Response model for metadata update operations."""
+
+    message: str = Field(..., description="Status message")
+    collection_name: str = Field(..., description="Collection name")
 
 
 @app.exception_handler(RequestValidationError)
@@ -717,7 +764,7 @@ async def get_documents(
 )
 async def delete_documents(
     _: Request,
-    document_names: list[str] = None,
+    document_names: list[str] | None = None,
     collection_name: str = os.getenv("COLLECTION_NAME"),
     vdb_endpoint: str = Query(
         default=os.getenv("APP_VECTORSTORE_URL"), include_in_schema=False
@@ -830,7 +877,7 @@ async def create_collections(
     vdb_endpoint: str = Query(
         default=os.getenv("APP_VECTORSTORE_URL"), include_in_schema=False
     ),
-    collection_names: list[str] = None,
+    collection_names: list[str] | None = None,
     collection_type: str = "text",
     embedding_dimension: int = 2048,
 ) -> CollectionsResponse:
@@ -889,8 +936,7 @@ async def create_collections(
     },
 )
 async def create_collection(data: CreateCollectionRequest) -> CreateCollectionResponse:
-    """
-    Endpoint to create a collection from the Milvus server.
+    """Endpoint to create a collection with catalog metadata.
     Returns status message.
     """
     try:
@@ -899,6 +945,12 @@ async def create_collection(data: CreateCollectionRequest) -> CreateCollectionRe
             vdb_endpoint=data.vdb_endpoint,
             embedding_dimension=data.embedding_dimension,
             metadata_schema=[field.model_dump() for field in data.metadata_schema],
+            description=data.description,
+            tags=data.tags,
+            owner=data.owner,
+            created_by=data.created_by,
+            business_domain=data.business_domain,
+            status=data.status,
         )
         return CreateCollectionResponse(**response)
 
@@ -913,6 +965,119 @@ async def create_collection(data: CreateCollectionRequest) -> CreateCollectionRe
             content={
                 "message": f"Error occurred while creating collection. Error: {e}"
             },
+            status_code=500,
+        )
+
+
+@app.patch(
+    "/collections/{collection_name}/metadata",
+    tags=["Vector DB APIs"],
+    response_model=UpdateMetadataResponse,
+    responses={
+        499: {
+            "description": "Client Closed Request",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "The client cancelled the request"}
+                }
+            },
+        },
+        500: {
+            "description": "Internal Server Error",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Internal server error occurred"}
+                }
+            },
+        },
+    },
+)
+async def update_collection_metadata(
+    collection_name: str,
+    data: UpdateCollectionMetadataRequest,
+) -> UpdateMetadataResponse:
+    """Endpoint to update collection catalog metadata."""
+    try:
+        response = NV_INGEST_INGESTOR.update_collection_metadata(
+            collection_name=collection_name,
+            vdb_endpoint=data.vdb_endpoint,
+            description=data.description,
+            tags=data.tags,
+            owner=data.owner,
+            business_domain=data.business_domain,
+            status=data.status,
+        )
+        return UpdateMetadataResponse(**response)
+
+    except asyncio.CancelledError as e:
+        logger.warning(
+            f"Request cancelled while updating collection metadata. {str(e)}"
+        )
+        return JSONResponse(
+            content={"message": "Request was cancelled by the client."}, status_code=499
+        )
+    except Exception as e:
+        logger.error(
+            "Error from PATCH /collections/{collection_name}/metadata endpoint. Error: %s",
+            e,
+        )
+        return JSONResponse(
+            content={"message": f"Error updating collection metadata. Error: {e}"},
+            status_code=500,
+        )
+
+
+@app.patch(
+    "/collections/{collection_name}/documents/{document_name}/metadata",
+    tags=["Vector DB APIs"],
+    response_model=UpdateMetadataResponse,
+    responses={
+        499: {
+            "description": "Client Closed Request",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "The client cancelled the request"}
+                }
+            },
+        },
+        500: {
+            "description": "Internal Server Error",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Internal server error occurred"}
+                }
+            },
+        },
+    },
+)
+async def update_document_metadata(
+    collection_name: str,
+    document_name: str,
+    data: UpdateDocumentMetadataRequest,
+) -> UpdateMetadataResponse:
+    """Endpoint to update document catalog metadata."""
+    try:
+        response = NV_INGEST_INGESTOR.update_document_metadata(
+            collection_name=collection_name,
+            document_name=document_name,
+            vdb_endpoint=data.vdb_endpoint,
+            description=data.description,
+            tags=data.tags,
+        )
+        return UpdateMetadataResponse(**response)
+
+    except asyncio.CancelledError as e:
+        logger.warning(f"Request cancelled while updating document metadata. {str(e)}")
+        return JSONResponse(
+            content={"message": "Request was cancelled by the client."}, status_code=499
+        )
+    except Exception as e:
+        logger.error(
+            "Error from PATCH /collections/{collection_name}/documents/{document_name}/metadata endpoint. Error: %s",
+            e,
+        )
+        return JSONResponse(
+            content={"message": f"Error updating document metadata. Error: {e}"},
             status_code=500,
         )
 
@@ -944,7 +1109,7 @@ async def delete_collections(
     vdb_endpoint: str = Query(
         default=os.getenv("APP_VECTORSTORE_URL"), include_in_schema=False
     ),
-    collection_names: list[str] = None,
+    collection_names: list[str] | None = None,
 ) -> CollectionsResponse:
     if collection_names is None:
         collection_names = [os.getenv("COLLECTION_NAME")]

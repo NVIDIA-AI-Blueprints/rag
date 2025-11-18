@@ -22,7 +22,10 @@ import pytest
 from langchain_core.documents import Document
 from opentelemetry import context as otel_context
 
-from nvidia_rag.utils.vdb import DEFAULT_METADATA_SCHEMA_COLLECTION, DEFAULT_DOCUMENT_INFO_COLLECTION
+from nvidia_rag.utils.vdb import (
+    DEFAULT_DOCUMENT_INFO_COLLECTION,
+    DEFAULT_METADATA_SCHEMA_COLLECTION,
+)
 from nvidia_rag.utils.vdb.milvus.milvus_vdb import MilvusVDB
 
 
@@ -69,9 +72,7 @@ class TestMilvusVDB:
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.create_nvingest_collection")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    def test_create_collection(
-        self, mock_connections, mock_create_nvingest
-    ):
+    def test_create_collection(self, mock_connections, mock_create_nvingest):
         """Test create_collection method."""
         mock_config = Mock()
         mock_config.vector_store.search_type = "hybrid"
@@ -109,9 +110,7 @@ class TestMilvusVDB:
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.utility")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    def test_check_collection_exists_true(
-        self, mock_connections, mock_utility
-    ):
+    def test_check_collection_exists_true(self, mock_connections, mock_utility):
         """Test check_collection_exists when collection exists."""
         mock_utility.has_collection.return_value = True
 
@@ -135,9 +134,7 @@ class TestMilvusVDB:
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.utility")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    def test_check_collection_exists_false(
-        self, mock_connections, mock_utility
-    ):
+    def test_check_collection_exists_false(self, mock_connections, mock_utility):
         """Test check_collection_exists when collection doesn't exist."""
         mock_utility.has_collection.return_value = False
 
@@ -158,9 +155,7 @@ class TestMilvusVDB:
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.MilvusClient")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    def test_get_milvus_entities(
-        self, mock_connections, mock_milvus_client
-    ):
+    def test_get_milvus_entities(self, mock_connections, mock_milvus_client):
         """Test _get_milvus_entities method."""
         mock_client = Mock()
         mock_entities = [{"id": 1, "data": "test"}]
@@ -187,9 +182,7 @@ class TestMilvusVDB:
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.MilvusClient")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    def test_get_milvus_entities_empty(
-        self, mock_connections, mock_milvus_client
-    ):
+    def test_get_milvus_entities_empty(self, mock_connections, mock_milvus_client):
         """Test _get_milvus_entities method with empty result."""
         mock_client = Mock()
         mock_client.query.return_value = []
@@ -213,9 +206,7 @@ class TestMilvusVDB:
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Collection")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.utility")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    def test_get_collection_info(
-        self, mock_connections, mock_utility, mock_collection
-    ):
+    def test_get_collection_info(self, mock_connections, mock_utility, mock_collection):
         """Test _get_collection_info method."""
         mock_utility.list_collections.return_value = ["collection1", "collection2"]
 
@@ -273,25 +264,47 @@ class TestMilvusVDB:
                     "metadata_schema": [{"name": "field2"}],
                 },
             ]
-            mock_document_info_entities = [
+            # Mock combined catalog and metrics entities (ONE query with OR filter)
+            mock_info_entities = [
                 {
                     "collection_name": "collection1",
+                    "info_type": "catalog",
+                    "info_value": {"description": "Collection 1", "tags": ["test"]},
+                },
+                {
+                    "collection_name": "collection2",
+                    "info_type": "catalog",
+                    "info_value": {"description": "Collection 2", "tags": ["prod"]},
+                },
+                {
+                    "collection_name": "collection1",
+                    "info_type": "collection",
                     "info_value": {"total_pages": 10},
                 },
                 {
                     "collection_name": "collection2",
+                    "info_type": "collection",
                     "info_value": {"total_pages": 20},
                 },
             ]
 
             with (
-                patch.object(vdb, "create_metadata_schema_collection") as mock_create_metadata,
-                patch.object(vdb, "create_document_info_collection") as mock_create_doc_info,
+                patch.object(
+                    vdb, "create_metadata_schema_collection"
+                ) as mock_create_metadata,
+                patch.object(
+                    vdb, "create_document_info_collection"
+                ) as mock_create_doc_info,
                 patch.object(
                     vdb, "_get_collection_info", return_value=mock_collection_info
                 ) as mock_get_info,
                 patch.object(
-                    vdb, "_get_milvus_entities", side_effect=[mock_metadata_entities, mock_document_info_entities]
+                    vdb,
+                    "_get_milvus_entities",
+                    side_effect=[
+                        mock_metadata_entities,
+                        mock_info_entities,  # ONE query returns both catalog and metrics
+                    ],
                 ) as mock_get_entities,
             ):
                 result = vdb.get_collection()
@@ -301,26 +314,34 @@ class TestMilvusVDB:
                         "collection_name": "collection1",
                         "num_entities": 100,
                         "metadata_schema": [{"name": "field1"}],
-                        "collection_info": {"total_pages": 10},
+                        "collection_info": {
+                            "description": "Collection 1",
+                            "tags": ["test"],
+                            "total_pages": 10,
+                        },
                     },
                     {
                         "collection_name": "collection2",
                         "num_entities": 200,
                         "metadata_schema": [{"name": "field2"}],
-                        "collection_info": {"total_pages": 20},
+                        "collection_info": {
+                            "description": "Collection 2",
+                            "tags": ["prod"],
+                            "total_pages": 20,
+                        },
                     },
                 ]
                 assert result == expected
                 mock_create_metadata.assert_called_once()
                 mock_create_doc_info.assert_called_once()
                 mock_get_info.assert_called_once()
-                assert mock_get_entities.call_count == 2
+                assert (
+                    mock_get_entities.call_count == 2
+                )  # metadata + combined info query
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.utility")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    def test_delete_collections_success(
-        self, mock_connections, mock_utility
-    ):
+    def test_delete_collections_success(self, mock_connections, mock_utility):
         """Test _delete_collections method with successful deletion."""
         mock_utility.has_collection.return_value = True
 
@@ -343,9 +364,7 @@ class TestMilvusVDB:
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.utility")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    def test_delete_collections_not_found(
-        self, mock_connections, mock_utility
-    ):
+    def test_delete_collections_not_found(self, mock_connections, mock_utility):
         """Test _delete_collections method with collection not found."""
         mock_utility.has_collection.return_value = False
 
@@ -369,9 +388,7 @@ class TestMilvusVDB:
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.utility")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    def test_delete_collections_exception(
-        self, mock_connections, mock_utility
-    ):
+    def test_delete_collections_exception(self, mock_connections, mock_utility):
         """Test _delete_collections method with exception."""
         mock_utility.has_collection.return_value = True
         mock_utility.drop_collection.side_effect = Exception("Drop error")
@@ -396,9 +413,7 @@ class TestMilvusVDB:
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.MilvusClient")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    def test_delete_entities(
-        self, mock_connections, mock_milvus_client
-    ):
+    def test_delete_entities(self, mock_connections, mock_milvus_client):
         """Test _delete_entities method."""
         mock_client = Mock()
         mock_client.has_collection.return_value = True
@@ -506,9 +521,7 @@ class TestMilvusVDB:
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Collection")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    def test_get_documents_list(
-        self, mock_connections, mock_collection
-    ):
+    def test_get_documents_list(self, mock_connections, mock_collection):
         """Test _get_documents_list method."""
         mock_collection_obj = Mock()
         mock_query_iterator = Mock()
@@ -542,7 +555,7 @@ class TestMilvusVDB:
         metadata_schema = [{"name": "field1"}, {"name": "field2"}]
         document_name_to_document_info_map = {
             "file1.txt": {"pages": 5},
-            "file2.txt": {"pages": 10}
+            "file2.txt": {"pages": 10},
         }
 
         with (
@@ -557,9 +570,7 @@ class TestMilvusVDB:
             )
 
             result = vdb._get_documents_list(
-                "test_collection", 
-                metadata_schema,
-                document_name_to_document_info_map
+                "test_collection", metadata_schema, document_name_to_document_info_map
             )
 
             expected = [
@@ -578,9 +589,7 @@ class TestMilvusVDB:
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Collection")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    def test_get_documents_list_no_collection(
-        self, mock_connections, mock_collection
-    ):
+    def test_get_documents_list_no_collection(self, mock_connections, mock_collection):
         """Test _get_documents_list method when collection doesn't exist."""
         mock_collection.return_value = None
 
@@ -601,9 +610,7 @@ class TestMilvusVDB:
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Collection")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    def test_get_documents_list_exception(
-        self, mock_connections, mock_collection
-    ):
+    def test_get_documents_list_exception(self, mock_connections, mock_collection):
         """Test _get_documents_list method with exception."""
         mock_collection_obj = Mock()
         mock_query_iterator = Mock()
@@ -628,9 +635,7 @@ class TestMilvusVDB:
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Collection")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    def test_get_documents_list_iterator_none(
-        self, mock_connections, mock_collection
-    ):
+    def test_get_documents_list_iterator_none(self, mock_connections, mock_collection):
         """Test _get_documents_list method when iterator returns None."""
         mock_collection_obj = Mock()
         mock_query_iterator = Mock()
@@ -659,16 +664,14 @@ class TestMilvusVDB:
             )
 
             result = vdb._get_documents_list(
-                "test_collection",
-                metadata_schema,
-                document_name_to_document_info_map
+                "test_collection", metadata_schema, document_name_to_document_info_map
             )
 
             expected = [
                 {
                     "document_name": "file1.txt",
                     "metadata": {"field1": "value1"},
-                    "document_info": {"pages": 3}
+                    "document_info": {"pages": 3},
                 }
             ]
             assert result == expected
@@ -709,16 +712,14 @@ class TestMilvusVDB:
             )
 
             result = vdb._get_documents_list(
-                "test_collection",
-                metadata_schema,
-                document_name_to_document_info_map
+                "test_collection", metadata_schema, document_name_to_document_info_map
             )
 
             expected = [
                 {
                     "document_name": "file1.txt",
                     "metadata": {"field1": "value1"},
-                    "document_info": {"pages": 2}
+                    "document_info": {"pages": 2},
                 }
             ]
             assert result == expected
@@ -739,16 +740,13 @@ class TestMilvusVDB:
 
             mock_metadata_schema = [{"name": "field1"}]
             mock_document_info_entities = [
-                {
-                    "document_name": "file1.txt",
-                    "info_value": {"pages": 5}
-                }
+                {"document_name": "file1.txt", "info_value": {"pages": 5}}
             ]
             mock_documents_list = [
                 {
                     "document_name": "file1.txt",
                     "metadata": {"field1": "value1"},
-                    "document_info": {"pages": 5}
+                    "document_info": {"pages": 5},
                 }
             ]
 
@@ -757,7 +755,9 @@ class TestMilvusVDB:
                     vdb, "get_metadata_schema", return_value=mock_metadata_schema
                 ) as mock_get_metadata,
                 patch.object(
-                    vdb, "_get_milvus_entities", return_value=mock_document_info_entities
+                    vdb,
+                    "_get_milvus_entities",
+                    return_value=mock_document_info_entities,
                 ) as mock_get_entities,
                 patch.object(
                     vdb, "_get_documents_list", return_value=mock_documents_list
@@ -771,14 +771,12 @@ class TestMilvusVDB:
                 mock_get_docs.assert_called_once_with(
                     collection_name="test_collection",
                     metadata_schema=mock_metadata_schema,
-                    document_name_to_document_info_map={"file1.txt": {"pages": 5}}
+                    document_name_to_document_info_map={"file1.txt": {"pages": 5}},
                 )
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Collection")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    def test_delete_documents_success(
-        self, mock_connections, mock_collection
-    ):
+    def test_delete_documents_success(self, mock_connections, mock_collection):
         """Test delete_documents method with successful deletion."""
         mock_collection_obj = Mock()
         mock_resp = Mock()
@@ -804,9 +802,7 @@ class TestMilvusVDB:
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Collection")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    def test_delete_documents_not_found(
-        self, mock_connections, mock_collection
-    ):
+    def test_delete_documents_not_found(self, mock_connections, mock_collection):
         """Test delete_documents method when document not found."""
         mock_collection_obj = Mock()
         mock_resp = Mock()
@@ -831,9 +827,7 @@ class TestMilvusVDB:
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Collection")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    def test_delete_documents_milvus_exception(
-        self, mock_connections, mock_collection
-    ):
+    def test_delete_documents_milvus_exception(self, mock_connections, mock_collection):
         """Test delete_documents method with MilvusException fallback."""
         from pymilvus import MilvusException
 
@@ -922,9 +916,7 @@ class TestMilvusVDB:
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.MilvusClient")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    def test_add_metadata_schema(
-        self, mock_connections, mock_milvus_client
-    ):
+    def test_add_metadata_schema(self, mock_connections, mock_milvus_client):
         """Test add_metadata_schema method."""
         mock_client = Mock()
         mock_milvus_client.return_value = mock_client
@@ -1139,9 +1131,7 @@ class TestMilvusVDB:
             assert call_args[1]["index_params"]["index_type"] == "IVF_FLAT"
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    def test_get_langchain_vectorstore_invalid_search_type(
-        self, mock_connections
-    ):
+    def test_get_langchain_vectorstore_invalid_search_type(self, mock_connections):
         """Test get_langchain_vectorstore method with invalid search type."""
         mock_config = Mock()
         mock_config.vector_store.search_type = "invalid"
