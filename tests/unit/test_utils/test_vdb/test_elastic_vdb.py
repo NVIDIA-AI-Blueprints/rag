@@ -380,10 +380,17 @@ class TestElasticVDB(unittest.TestCase):
         # Replace the actual connection with our mock
         elastic_vdb._es_connection = mock_es_connection
         elastic_vdb.create_metadata_schema_collection = Mock()
+        elastic_vdb.create_document_info_collection = Mock()
         elastic_vdb.get_metadata_schema = Mock(
             side_effect=[
                 [{"name": "field1", "type": "string"}],
                 [{"name": "field2", "type": "integer"}],
+            ]
+        )
+        elastic_vdb.get_document_info = Mock(
+            side_effect=[
+                {"total_pages": 10, "total_chunks": 100},
+                {"total_pages": 20, "total_chunks": 200},
             ]
         )
 
@@ -394,16 +401,19 @@ class TestElasticVDB(unittest.TestCase):
                 "collection_name": "test_index_1",
                 "num_entities": "100",
                 "metadata_schema": [{"name": "field1", "type": "string"}],
+                "collection_info": {"total_pages": 10, "total_chunks": 100},
             },
             {
                 "collection_name": "test_index_2",
                 "num_entities": "200",
                 "metadata_schema": [{"name": "field2", "type": "integer"}],
+                "collection_info": {"total_pages": 20, "total_chunks": 200},
             },
         ]
 
         self.assertEqual(result, expected_result)
         elastic_vdb.create_metadata_schema_collection.assert_called_once()
+        elastic_vdb.create_document_info_collection.assert_called_once()
         mock_es_connection.cat.indices.assert_called_once_with(format="json")
 
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.Elasticsearch")
@@ -412,13 +422,21 @@ class TestElasticVDB(unittest.TestCase):
         "nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.get_delete_metadata_schema_query"
     )
     @patch(
+        "nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.get_delete_document_info_query_by_collection_name"
+    )
+    @patch(
         "nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.DEFAULT_METADATA_SCHEMA_COLLECTION",
         "metadata_schema",
+    )
+    @patch(
+        "nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.DEFAULT_DOCUMENT_INFO_COLLECTION",
+        "document_info",
     )
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.logger")
     def test_delete_collections(
         self,
         mock_logger,
+        mock_delete_doc_info_query,
         mock_delete_query,
         mock_vector_store,
         mock_elasticsearch, 
@@ -435,6 +453,7 @@ class TestElasticVDB(unittest.TestCase):
         mock_es_connection.delete_by_query.return_value = {"deleted": 1}
 
         mock_delete_query.return_value = {"query": "test_query"}
+        mock_delete_doc_info_query.return_value = {"query": "test_doc_info_query"}
 
         # Create instance and test
         elastic_vdb = ElasticVDB(self.index_name, self.es_url)
@@ -456,8 +475,9 @@ class TestElasticVDB(unittest.TestCase):
         mock_es_connection.indices.delete.assert_called_once_with(
             index="collection1,collection2", ignore_unavailable=True
         )
-        self.assertEqual(mock_es_connection.delete_by_query.call_count, 2)
-        mock_logger.info.assert_called_once_with(
+        # Now expects 4 calls: 2 for metadata schema and 2 for document info
+        self.assertEqual(mock_es_connection.delete_by_query.call_count, 4)
+        mock_logger.info.assert_called_with(
             f"Collections deleted: {collection_names}"
         )
 
@@ -531,6 +551,12 @@ class TestElasticVDB(unittest.TestCase):
         elastic_vdb.get_metadata_schema = Mock(
             return_value=[{"name": "title"}, {"name": "author"}]
         )
+        elastic_vdb.get_document_info = Mock(
+            side_effect=[
+                {"total_pages": 5, "total_chunks": 50},
+                {"total_pages": 10, "total_chunks": 100},
+            ]
+        )
 
         result = elastic_vdb.get_documents("test_collection")
 
@@ -538,10 +564,12 @@ class TestElasticVDB(unittest.TestCase):
             {
                 "document_name": "doc1.pdf",
                 "metadata": {"title": "Document 1", "author": "Author 1"},
+                "document_info": {"total_pages": 5, "total_chunks": 50},
             },
             {
                 "document_name": "doc2.pdf",
                 "metadata": {"title": "Document 2", "author": None},
+                "document_info": {"total_pages": 10, "total_chunks": 100},
             },
         ]
 

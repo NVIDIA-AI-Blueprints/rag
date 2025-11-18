@@ -233,6 +233,7 @@ class UploadedDocument(BaseModel):
     # Reserved for future use
     # size_bytes: int = Field(0, description="Size of the document in bytes.")
     metadata: dict[str, Any] = Field({}, description="Metadata of the document.")
+    document_info: dict[str, Any] = Field({}, description="Document information.")
 
 
 class FailedDocument(BaseModel):
@@ -304,7 +305,9 @@ class UploadedCollection(BaseModel):
     metadata_schema: list[dict[str, Any]] = Field(
         [], description="Metadata schema of the collection."
     )
-
+    collection_info: dict[str, Any] = Field(
+        {}, description="Collection info of the collection."
+    )
 
 class CollectionListResponse(BaseModel):
     """Response model for uploading a document."""

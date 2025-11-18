@@ -22,7 +22,7 @@ import pytest
 from langchain_core.documents import Document
 from opentelemetry import context as otel_context
 
-from nvidia_rag.utils.vdb import DEFAULT_METADATA_SCHEMA_COLLECTION
+from nvidia_rag.utils.vdb import DEFAULT_METADATA_SCHEMA_COLLECTION, DEFAULT_DOCUMENT_INFO_COLLECTION
 from nvidia_rag.utils.vdb.milvus.milvus_vdb import MilvusVDB
 
 
@@ -263,7 +263,7 @@ class TestMilvusVDB:
                 {"collection_name": "collection1", "num_entities": 100},
                 {"collection_name": "collection2", "num_entities": 200},
             ]
-            mock_entities = [
+            mock_metadata_entities = [
                 {
                     "collection_name": "collection1",
                     "metadata_schema": [{"name": "field1"}],
@@ -273,14 +273,25 @@ class TestMilvusVDB:
                     "metadata_schema": [{"name": "field2"}],
                 },
             ]
+            mock_document_info_entities = [
+                {
+                    "collection_name": "collection1",
+                    "info_value": {"total_pages": 10},
+                },
+                {
+                    "collection_name": "collection2",
+                    "info_value": {"total_pages": 20},
+                },
+            ]
 
             with (
-                patch.object(vdb, "create_metadata_schema_collection") as mock_create,
+                patch.object(vdb, "create_metadata_schema_collection") as mock_create_metadata,
+                patch.object(vdb, "create_document_info_collection") as mock_create_doc_info,
                 patch.object(
                     vdb, "_get_collection_info", return_value=mock_collection_info
                 ) as mock_get_info,
                 patch.object(
-                    vdb, "_get_milvus_entities", return_value=mock_entities
+                    vdb, "_get_milvus_entities", side_effect=[mock_metadata_entities, mock_document_info_entities]
                 ) as mock_get_entities,
             ):
                 result = vdb.get_collection()
@@ -290,19 +301,20 @@ class TestMilvusVDB:
                         "collection_name": "collection1",
                         "num_entities": 100,
                         "metadata_schema": [{"name": "field1"}],
+                        "collection_info": {"total_pages": 10},
                     },
                     {
                         "collection_name": "collection2",
                         "num_entities": 200,
                         "metadata_schema": [{"name": "field2"}],
+                        "collection_info": {"total_pages": 20},
                     },
                 ]
                 assert result == expected
-                mock_create.assert_called_once()
+                mock_create_metadata.assert_called_once()
+                mock_create_doc_info.assert_called_once()
                 mock_get_info.assert_called_once()
-                mock_get_entities.assert_called_once_with(
-                    DEFAULT_METADATA_SCHEMA_COLLECTION, filter=""
-                )
+                assert mock_get_entities.call_count == 2
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.utility")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
@@ -462,7 +474,8 @@ class TestMilvusVDB:
                 result = vdb.delete_collections(["collection1", "collection2"])
 
                 mock_delete.assert_called_once_with(["collection1", "collection2"])
-                assert mock_delete_entities.call_count == 2
+                # Should be called 4 times: 2 for metadata schema + 2 for document info
+                assert mock_delete_entities.call_count == 4
 
                 expected = {
                     "message": "Collection deletion process completed.",
@@ -527,6 +540,10 @@ class TestMilvusVDB:
         mock_collection.return_value = mock_collection_obj
 
         metadata_schema = [{"name": "field1"}, {"name": "field2"}]
+        document_name_to_document_info_map = {
+            "file1.txt": {"pages": 5},
+            "file2.txt": {"pages": 10}
+        }
 
         with (
             patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"),
@@ -539,16 +556,22 @@ class TestMilvusVDB:
                 config=Mock(),
             )
 
-            result = vdb._get_documents_list("test_collection", metadata_schema)
+            result = vdb._get_documents_list(
+                "test_collection", 
+                metadata_schema,
+                document_name_to_document_info_map
+            )
 
             expected = [
                 {
                     "document_name": "file1.txt",
                     "metadata": {"field1": "value1", "field2": "value2"},
+                    "document_info": {"pages": 5},
                 },
                 {
                     "document_name": "file2.txt",
                     "metadata": {"field1": "value3", "field2": "value4"},
+                    "document_info": {"pages": 10},
                 },
             ]
             assert result == expected
@@ -572,7 +595,7 @@ class TestMilvusVDB:
                 config=Mock(),
             )
 
-            result = vdb._get_documents_list("test_collection", [])
+            result = vdb._get_documents_list("test_collection", [], {})
 
             assert result == []
 
@@ -599,7 +622,7 @@ class TestMilvusVDB:
                 config=Mock(),
             )
 
-            result = vdb._get_documents_list("test_collection", [])
+            result = vdb._get_documents_list("test_collection", [], {})
 
             assert result == []
 
@@ -622,6 +645,7 @@ class TestMilvusVDB:
         mock_collection.return_value = mock_collection_obj
 
         metadata_schema = [{"name": "field1"}]
+        document_name_to_document_info_map = {"file1.txt": {"pages": 3}}
 
         with (
             patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"),
@@ -634,10 +658,18 @@ class TestMilvusVDB:
                 config=Mock(),
             )
 
-            result = vdb._get_documents_list("test_collection", metadata_schema)
+            result = vdb._get_documents_list(
+                "test_collection",
+                metadata_schema,
+                document_name_to_document_info_map
+            )
 
             expected = [
-                {"document_name": "file1.txt", "metadata": {"field1": "value1"}}
+                {
+                    "document_name": "file1.txt",
+                    "metadata": {"field1": "value1"},
+                    "document_info": {"pages": 3}
+                }
             ]
             assert result == expected
 
@@ -663,6 +695,7 @@ class TestMilvusVDB:
         mock_collection.return_value = mock_collection_obj
 
         metadata_schema = [{"name": "field1"}]
+        document_name_to_document_info_map = {"file1.txt": {"pages": 2}}
 
         with (
             patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"),
@@ -675,10 +708,18 @@ class TestMilvusVDB:
                 config=Mock(),
             )
 
-            result = vdb._get_documents_list("test_collection", metadata_schema)
+            result = vdb._get_documents_list(
+                "test_collection",
+                metadata_schema,
+                document_name_to_document_info_map
+            )
 
             expected = [
-                {"document_name": "file1.txt", "metadata": {"field1": "value1"}}
+                {
+                    "document_name": "file1.txt",
+                    "metadata": {"field1": "value1"},
+                    "document_info": {"pages": 2}
+                }
             ]
             assert result == expected
 
@@ -697,12 +738,27 @@ class TestMilvusVDB:
             )
 
             mock_metadata_schema = [{"name": "field1"}]
-            mock_documents_list = [{"document_name": "file1.txt"}]
+            mock_document_info_entities = [
+                {
+                    "document_name": "file1.txt",
+                    "info_value": {"pages": 5}
+                }
+            ]
+            mock_documents_list = [
+                {
+                    "document_name": "file1.txt",
+                    "metadata": {"field1": "value1"},
+                    "document_info": {"pages": 5}
+                }
+            ]
 
             with (
                 patch.object(
                     vdb, "get_metadata_schema", return_value=mock_metadata_schema
                 ) as mock_get_metadata,
+                patch.object(
+                    vdb, "_get_milvus_entities", return_value=mock_document_info_entities
+                ) as mock_get_entities,
                 patch.object(
                     vdb, "_get_documents_list", return_value=mock_documents_list
                 ) as mock_get_docs,
@@ -711,9 +767,11 @@ class TestMilvusVDB:
 
                 assert result == mock_documents_list
                 mock_get_metadata.assert_called_once_with("test_collection")
+                mock_get_entities.assert_called_once()
                 mock_get_docs.assert_called_once_with(
                     collection_name="test_collection",
                     metadata_schema=mock_metadata_schema,
+                    document_name_to_document_info_map={"file1.txt": {"pages": 5}}
                 )
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Collection")

@@ -610,3 +610,20 @@ def process_filter_expr(
     else:
         logger.error(f"Unsupported vector store: {config.vector_store.name}")
         return filter_expr if isinstance(filter_expr, str) else []
+
+def perform_document_info_aggregation(
+    existing_info_value: dict[str, Any],
+    new_info_value: dict[str, Any],
+) -> dict[str, Any]:
+    """
+    Perform document info aggregation.
+    If the value is a dictionary, perform aggregation recursively.
+    """
+    result = {}
+    all_keys = set(existing_info_value) | set(new_info_value)
+    for key in all_keys:
+        if isinstance(existing_info_value.get(key, 0), dict) or isinstance(new_info_value.get(key, 0), dict):
+            result[key] = perform_document_info_aggregation(existing_info_value.get(key, {}), new_info_value.get(key, {}))
+        else:
+            result[key] = existing_info_value.get(key, 0) + new_info_value.get(key, 0)
+    return result

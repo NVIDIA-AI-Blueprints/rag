@@ -41,10 +41,15 @@ Metadata Schema Management:
 14. add_metadata_schema: Store metadata schema configuration for the collection
 15. get_metadata_schema: Retrieve the metadata schema for the specified collection
 
+Document Info Management:
+16. create_document_info_collection: Initialize the document info storage collection
+17. add_document_info: Store document info for a collection or document
+18. get_document_info: Retrieve document info for a specified collection/document
+
 Retrieval Operations:
-16. retrieval_langchain: Perform semantic search and return top-k relevant documents
-17. _get_langchain_vectorstore: Get the vectorstore for a collection
-18. _add_collection_name_to_retreived_docs: Add the collection name to the retrieved documents
+19. retrieval_langchain: Perform semantic search and return top-k relevant documents
+20. _get_langchain_vectorstore: Get the vectorstore for a collection
+21. _add_collection_name_to_retreived_docs: Add the collection name to the retrieved documents
 """
 
 import logging
@@ -62,14 +67,20 @@ from nv_ingest_client.util.milvus import cleanup_records
 from opentelemetry import context as otel_context
 
 from nvidia_rag.utils.configuration import NvidiaRAGConfig
+from nvidia_rag.utils.common import perform_document_info_aggregation
 from nvidia_rag.utils.embedding import get_embedding_model
-from nvidia_rag.utils.vdb import DEFAULT_METADATA_SCHEMA_COLLECTION
+from nvidia_rag.utils.vdb import DEFAULT_METADATA_SCHEMA_COLLECTION, DEFAULT_DOCUMENT_INFO_COLLECTION
 from nvidia_rag.utils.vdb.elasticsearch.es_queries import (
     create_metadata_collection_mapping,
     get_delete_docs_query,
     get_delete_metadata_schema_query,
     get_metadata_schema_query,
     get_unique_sources_query,
+    create_document_info_collection_mapping,
+    get_delete_document_info_query,
+    get_collection_document_info_query,
+    get_document_info_query,
+    get_delete_document_info_query_by_collection_name,
 )
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
 
@@ -341,17 +352,24 @@ class ElasticVDB(VDBRag):
         Get the list of collections in the Elasticsearch index.
         """
         self.create_metadata_schema_collection()
+        self.create_document_info_collection()
         indices = self._es_connection.cat.indices(format="json")
         collection_info = []
         for index in indices:
             index_name = index["index"]
             if not index_name.startswith("."):  # Ignore hidden indices
                 metadata_schema = self.get_metadata_schema(index_name)
+                info_value = self.get_document_info(
+                    info_type="collection",
+                    collection_name=index_name,
+                    document_name="NA",
+                )
                 collection_info.append(
                     {
                         "collection_name": index_name,
                         "num_entities": index["docs.count"],
                         "metadata_schema": metadata_schema,
+                        "collection_info": info_value,
                     }
                 )
         return collection_info
@@ -369,12 +387,22 @@ class ElasticVDB(VDBRag):
         deleted_collections, failed_collections = collection_names, []
         logger.info(f"Collections deleted: {deleted_collections}")
 
-        # Delete the metadata schema from the collection
+        # Delete the metadata schema and document info from the collection
         for collection_name in deleted_collections:
-            _ = self._es_connection.delete_by_query(
-                index=DEFAULT_METADATA_SCHEMA_COLLECTION,
-                body=get_delete_metadata_schema_query(collection_name),
-            )
+            try:
+                _ = self._es_connection.delete_by_query(
+                    index=DEFAULT_METADATA_SCHEMA_COLLECTION,
+                    body=get_delete_metadata_schema_query(collection_name),
+                )
+            except Exception as e:
+                logger.error(f"Error deleting metadata schema for collection {collection_name}: {e}")
+            try:
+                _ = self._es_connection.delete_by_query(
+                    index=DEFAULT_DOCUMENT_INFO_COLLECTION,
+                    body=get_delete_document_info_query_by_collection_name(collection_name),
+                )
+            except Exception as e:
+                logger.error(f"Error deleting document info for collection {collection_name}: {e}")
         return {
             "message": "Collection deletion process completed.",
             "successful": deleted_collections,
@@ -408,6 +436,11 @@ class ElasticVDB(VDBRag):
                 {
                     "document_name": os.path.basename(source_name),
                     "metadata": metadata_dict,
+                    "document_info": self.get_document_info(
+                        info_type="document",
+                        collection_name=collection_name,
+                        document_name=os.path.basename(source_name),
+                    ),
                 }
             )
         return documents_list
@@ -490,6 +523,112 @@ class ElasticVDB(VDBRag):
             )
             logger.info(logging_message)
             return []
+    
+    # ----------------------------------------------------------------------------------------------
+    # Document Info Management
+    def create_document_info_collection(self) -> None:
+        """
+        Create a document info Index in Elasticsearch.
+        """
+        mapping = create_document_info_collection_mapping()
+        if not self._check_index_exists(index_name=DEFAULT_DOCUMENT_INFO_COLLECTION):
+            self._es_connection.indices.create(
+                index=DEFAULT_DOCUMENT_INFO_COLLECTION, body=mapping
+            )
+            logging_message = (
+                f"Collection {DEFAULT_DOCUMENT_INFO_COLLECTION} created "
+                + f"at {self.es_url} with mapping {mapping}"
+            )
+            logger.info(logging_message)
+        else:
+            logging_message = f"Collection {DEFAULT_DOCUMENT_INFO_COLLECTION} already exists at {self.es_url}"
+            logger.info(logging_message)
+    
+    def _get_aggregated_document_info(
+        self,
+        collection_name: str,
+        info_value: dict[str, Any]) -> dict[str, Any]:
+        """
+        Internal function to get the aggregated document info for a collection.
+        """
+        try:
+            # Get the aggregated document info for the collection
+            response = self._es_connection.search(
+                index=DEFAULT_DOCUMENT_INFO_COLLECTION,
+                body=get_collection_document_info_query(
+                    info_type="collection",
+                    collection_name=collection_name,
+                ),
+            )
+            existing_info_value = response["hits"]["hits"][0]["_source"]["info_value"]
+        except IndexError:
+            existing_info_value = {}
+        except Exception as e:
+            logger.error(f"Error getting aggregated document info for collection {collection_name}: {e}")
+            return info_value
+        return perform_document_info_aggregation(existing_info_value, info_value)
+
+    def add_document_info(
+        self,
+        info_type: str,
+        collection_name: str,
+        document_name: str,
+        info_value: dict[str, Any]
+        ) -> None:
+        """
+        Add document info to a collection.
+        """
+        # Since collection may have pre-ingested documents, we need to get the aggregated document info
+        if info_type == "collection":
+            info_value = self._get_aggregated_document_info(
+                collection_name=collection_name,
+                info_value=info_value,
+            )
+
+        # Delete the metadata schema from the index
+        _ = self._es_connection.delete_by_query(
+            index=DEFAULT_DOCUMENT_INFO_COLLECTION,
+            body=get_delete_document_info_query(
+                collection_name=collection_name,
+                document_name=document_name,
+                info_type=info_type,
+            ),
+        )
+        # Add the metadata schema to the index
+        data = {
+            "collection_name": collection_name,
+            "info_type": info_type,
+            "document_name": document_name,
+            "info_value": info_value,
+        }
+        self._es_connection.index(index=DEFAULT_DOCUMENT_INFO_COLLECTION, body=data)
+        logger.info(
+            f"Document info added to the ES index {DEFAULT_DOCUMENT_INFO_COLLECTION}. \
+            Document info: {info_type}, {document_name}, {info_value}."
+        )
+    
+    def get_document_info(
+        self,
+        info_type: str,
+        collection_name: str,
+        document_name: str,
+    ) -> dict[str, Any]:
+        """
+        Get document info from a Elasticsearch index.
+        """
+        query = get_document_info_query(collection_name, document_name, info_type)
+        response = self._es_connection.search(
+            index=DEFAULT_DOCUMENT_INFO_COLLECTION, body=query
+        )
+        if len(response["hits"]["hits"]) > 0:
+            return response["hits"]["hits"][0]["_source"]["info_value"]
+        else:
+            logging_message = (
+                f"No document info found for the collection: {collection_name}, \
+                document: {document_name}, info type: {info_type}."
+            )
+            logger.info(logging_message)
+            return {}
 
     # ----------------------------------------------------------------------------------------------
     # Implementations of the abstract methods specific to VDBRag class for retrieval

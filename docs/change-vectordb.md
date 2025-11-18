@@ -383,17 +383,22 @@ Use the following steps to create and use your own custom database operators.
     - Collection management
       - `create_collection(collection_name, dimension=2048, collection_type="text")`: Ensure a collection exists and is ready for inserts/queries.
       - `check_collection_exists(collection_name)`: Boolean existence check.
-      - `get_collection()`: Return a list of collections with document counts and any stored metadata schema.
-      - `delete_collections(collection_names)`: Delete specified collections and clean up stored schemas.
+      - `get_collection()`: Return a list of collections with document counts, stored metadata schema, and collection-level document info.
+      - `delete_collections(collection_names)`: Delete specified collections and clean up stored schemas and document info.
 
     - Document management
-      - `get_documents(collection_name)`: Return unique documents (commonly grouped by a `source` field) with schema-aligned metadata values.
-      - `delete_documents(collection_name, source_values)`: Bulk-delete documents matching provided sources; refresh visibility.
+      - `get_documents(collection_name)`: Return unique documents (commonly grouped by a `source` field) with schema-aligned metadata values and document info.
+      - `delete_documents(collection_name, source_values)`: Bulk-delete documents matching provided sources; refresh visibility and clean up associated document info.
 
     - Metadata schema management
       - `create_metadata_schema_collection()`: Initialize storage for metadata schemas if missing.
       - `add_metadata_schema(collection_name, metadata_schema)`: Replace the stored schema for a collection.
       - `get_metadata_schema(collection_name)`: Fetch the stored schema; return an empty list if none.
+
+    - Document info management (implementation of these methods is optional)
+      - `create_document_info_collection()`: Initialize storage for document-level and collection-level information.
+      - `add_document_info(info_type, collection_name, document_name, info_value)`: Store document or collection info (e.g., processing statistics, custom metadata).
+      - `get_document_info(info_type, collection_name, document_name)`: Retrieve stored document/collection info; return an empty dict if none.
 
     - Retrieval helpers
       - Retrieval helper (e.g., `retrieval_*`): Return top‑k relevant documents using your backend’s semantic search. Support optional filters and tracing where applicable.
@@ -725,7 +730,7 @@ Implement only the retrieval-focused methods from the `VDBRag` interface:
     - `collection_name`: To be added in each Document's metadata
 - `get_langchain_vectorstore(collection_name)`: Return vectorstore handle (can return `None`)
 
-**Optional Methods:** Raise `NotImplementedError` for all ingestion methods (`create_collection()`, `write_to_index()`, etc.)
+**Optional Methods:** Raise `NotImplementedError` for all ingestion methods (`create_collection()`, `write_to_index()`, etc.) and document info management methods (`create_document_info_collection()`, `add_document_info()`, `get_document_info()`)
 
 **Example Document Structure:**
 ```python

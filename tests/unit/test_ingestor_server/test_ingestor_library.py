@@ -108,10 +108,27 @@ class TestNvidiaRAGIngestor:
     @pytest.fixture
     def mock_nvingest_upload_doc(self, ingestor):
         """Mock the __nvingest_upload_doc method."""
+        async def mock_nvingest(*args, **kwargs):
+            # Get filepaths from kwargs
+            filepaths = kwargs.get('filepaths', [])
+            # Create proper result structure for each file
+            results = []
+            for filepath in filepaths:
+                results.append([{
+                    "document_type": "text",
+                    "metadata": {
+                        "content": "test content",
+                        "source_metadata": {
+                            "source_id": filepath
+                        },
+                        "content_metadata": {}
+                    }
+                }])
+            return results, []
+        
         with patch.object(
-            ingestor, "_NvidiaRAGIngestor__nvingest_upload_doc", new_callable=AsyncMock
-        ) as mock_upload_doc:
-            mock_upload_doc.return_value = ([], [])
+            ingestor, "_NvidiaRAGIngestor__nvingest_upload_doc", side_effect=mock_nvingest
+        ):
             yield
 
     @pytest.fixture
