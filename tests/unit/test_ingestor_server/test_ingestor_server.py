@@ -188,11 +188,12 @@ class MockNvidiaRAGIngestor:
         vdb_endpoint: str,
         embedding_dimension: int = 2048,
         metadata_schema: list = None,
+        vdb_auth_token: str = "",
     ):
         """Mock create_collection method"""
         if self._create_collection_side_effect:
             return self._create_collection_side_effect(
-                collection_name, vdb_endpoint, embedding_dimension, metadata_schema
+                collection_name, vdb_endpoint, embedding_dimension, metadata_schema, vdb_auth_token
             )
         return {
             "message": f"Collection {collection_name} created successfully.",
@@ -293,7 +294,7 @@ class MockNvidiaRAGIngestor:
         self._get_collections_side_effect = error
 
     def raise_create_collection_error(self):
-        def error(collection_name, vdb_endpoint, embedding_dimension, metadata_schema):
+        def error(collection_name, vdb_endpoint, embedding_dimension, metadata_schema, vdb_auth_token=""):
             raise Exception("Failed to create collection")
 
         self._create_collection_side_effect = error
