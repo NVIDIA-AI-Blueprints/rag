@@ -149,6 +149,10 @@ class ElasticVDB(VDBRag):
             api_key=self._api_key,
             basic_auth=self._basic_auth,
         ).options(request_timeout=int(os.environ.get("ES_REQUEST_TIMEOUT", 600)))
+
+        # Track if system collections have been initialized
+        self._metadata_schema_collection_initialized = False
+        self._document_info_collection_initialized = False
         self._embedding_model = embedding_model
         self.hybrid = hybrid
 
@@ -492,6 +496,9 @@ class ElasticVDB(VDBRag):
         """
         Create a metadata schema collection.
         """
+        if self._metadata_schema_collection_initialized:
+            return
+
         mapping = create_metadata_collection_mapping()
         if not self._check_index_exists(index_name=DEFAULT_METADATA_SCHEMA_COLLECTION):
             self._es_connection.indices.create(
@@ -505,6 +512,8 @@ class ElasticVDB(VDBRag):
         else:
             logging_message = f"Collection {DEFAULT_METADATA_SCHEMA_COLLECTION} already exists at {self.es_url}"
             logger.info(logging_message)
+
+        self._metadata_schema_collection_initialized = True
 
     def add_metadata_schema(
         self,
@@ -556,6 +565,9 @@ class ElasticVDB(VDBRag):
         """
         Create a document info Index in Elasticsearch.
         """
+        if self._document_info_collection_initialized:
+            return
+
         mapping = create_document_info_collection_mapping()
         if not self._check_index_exists(index_name=DEFAULT_DOCUMENT_INFO_COLLECTION):
             self._es_connection.indices.create(
@@ -569,6 +581,8 @@ class ElasticVDB(VDBRag):
         else:
             logging_message = f"Collection {DEFAULT_DOCUMENT_INFO_COLLECTION} already exists at {self.es_url}"
             logger.info(logging_message)
+
+        self._document_info_collection_initialized = True
 
     def _get_aggregated_document_info(
         self, collection_name: str, info_value: dict[str, Any]
@@ -731,27 +745,35 @@ class ElasticVDB(VDBRag):
         if vectorstore is None:
             vectorstore = self.get_langchain_vectorstore(collection_name)
 
-        token = otel_context.attach(otel_ctx)
-        start_time = time.time()
+        # Attach OTel context only if provided
+        token = otel_context.attach(otel_ctx) if otel_ctx is not None else None
 
-        retriever = vectorstore.as_retriever(
-            search_kwargs={"k": top_k, "fetch_k": top_k}
-        )
-        retriever_lambda = RunnableLambda(
-            lambda x: retriever.invoke(x, filter=filter_expr)
-        )
-        retriever_chain = {"context": retriever_lambda} | RunnableAssign(
-            {"context": lambda input: input["context"]}
-        )
-        retriever_docs = retriever_chain.invoke(query, config={"run_name": "retriever"})
-        docs = retriever_docs.get("context", [])
+        try:
+            start_time = time.time()
 
-        end_time = time.time()
-        latency = end_time - start_time
-        logger.info(f" Elasticsearch Retrieval latency: {latency:.4f} seconds")
+            retriever = vectorstore.as_retriever(
+                search_kwargs={"k": top_k, "fetch_k": top_k}
+            )
+            retriever_lambda = RunnableLambda(
+                lambda x: retriever.invoke(x, filter=filter_expr)
+            )
+            retriever_chain = {"context": retriever_lambda} | RunnableAssign(
+                {"context": lambda input: input["context"]}
+            )
+            retriever_docs = retriever_chain.invoke(
+                query, config={"run_name": "retriever"}
+            )
+            docs = retriever_docs.get("context", [])
 
-        otel_context.detach(token)
-        return self._add_collection_name_to_retreived_docs(docs, collection_name)
+            end_time = time.time()
+            latency = end_time - start_time
+            logger.info(f" Elasticsearch Retrieval latency: {latency:.4f} seconds")
+
+            return self._add_collection_name_to_retreived_docs(docs, collection_name)
+        finally:
+            # Detach OTel context only if it was attached
+            if token is not None:
+                otel_context.detach(token)
 
     def get_langchain_vectorstore(
         self,

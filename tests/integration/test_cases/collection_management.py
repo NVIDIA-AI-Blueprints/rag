@@ -17,9 +17,13 @@
 Collection management test module
 """
 
+import asyncio
 import json
 import logging
+import os
+import tempfile
 import time
+from pathlib import Path
 from typing import Any
 
 import aiohttp
@@ -486,116 +490,204 @@ class CollectionManagementModule(BaseTestModule):
         logger.info("\n=== Test 71: Data Catalog Metadata ===")
         test_start = time.time()
 
-        # Test 1: Verify initial catalog metadata (created in Test 2)
-        verify_initial_success = await self._verify_collection_catalog_metadata(
-            self.CATALOG_COLLECTION,
-            expected_description="Test catalog collection",
-            expected_tags=["test", "integration"],
-            expected_owner="Test Team",
-        )
-        if not verify_initial_success:
-            test_time = time.time() - test_start
-            self.add_test_result(
-                self._test_data_catalog_metadata.test_number,
-                self._test_data_catalog_metadata.test_name,
-                "Test data catalog metadata functionality including: 1) Verify initial catalog metadata from collection creation, 2) Update collection catalog metadata via PATCH, 3) Verify updates.",
-                [
-                    "GET /v1/collections",
-                    "PATCH /v1/collections/{collection_name}/metadata",
-                ],
-                [
-                    "collection_name",
-                    "description",
-                    "tags",
-                    "owner",
-                    "created_by",
-                    "business_domain",
-                    "status",
-                ],
-                test_time,
-                TestStatus.FAILURE,
-                "Failed to verify initial collection catalog metadata",
+        try:
+            # Test 1: Verify initial catalog metadata (created in Test 2)
+            verify_initial_success = await self._verify_collection_catalog_metadata(
+                self.CATALOG_COLLECTION,
+                expected_description="Test catalog collection",
+                expected_tags=["test", "integration"],
+                expected_owner="Test Team",
             )
-            return False
+            if not verify_initial_success:
+                test_time = time.time() - test_start
+                self.add_test_result(
+                    self._test_data_catalog_metadata.test_number,
+                    self._test_data_catalog_metadata.test_name,
+                    "Test data catalog metadata functionality including: 1) Verify initial catalog metadata from collection creation, 2) Update collection catalog metadata via PATCH, 3) Verify updates.",
+                    [
+                        "GET /v1/collections",
+                        "PATCH /v1/collections/{collection_name}/metadata",
+                    ],
+                    [
+                        "collection_name",
+                        "description",
+                        "tags",
+                        "owner",
+                        "created_by",
+                        "business_domain",
+                        "status",
+                    ],
+                    test_time,
+                    TestStatus.FAILURE,
+                    "Failed to verify initial collection catalog metadata",
+                )
+                return False
 
-        # Test 2: Update collection catalog metadata
-        update_success = await self._update_collection_catalog_metadata(
-            self.CATALOG_COLLECTION,
-            description="Updated description",
-            tags=["updated", "production"],
-            status="Archived",
-        )
-        if not update_success:
-            test_time = time.time() - test_start
-            self.add_test_result(
-                self._test_data_catalog_metadata.test_number,
-                self._test_data_catalog_metadata.test_name,
-                "Test data catalog metadata functionality including: 1) Verify initial catalog metadata from collection creation, 2) Update collection catalog metadata via PATCH, 3) Verify updates.",
-                [
-                    "GET /v1/collections",
-                    "PATCH /v1/collections/{collection_name}/metadata",
-                ],
-                [
-                    "collection_name",
-                    "description",
-                    "tags",
-                    "owner",
-                    "created_by",
-                    "business_domain",
-                    "status",
-                ],
-                test_time,
-                TestStatus.FAILURE,
-                "Failed to update collection catalog metadata",
+            # Test 2: Update collection catalog metadata
+            update_success = await self._update_collection_catalog_metadata(
+                self.CATALOG_COLLECTION,
+                description="Updated description",
+                tags=["updated", "production"],
+                status="Archived",
             )
-            return False
+            if not update_success:
+                test_time = time.time() - test_start
+                self.add_test_result(
+                    self._test_data_catalog_metadata.test_number,
+                    self._test_data_catalog_metadata.test_name,
+                    "Test data catalog metadata functionality including: 1) Verify initial catalog metadata from collection creation, 2) Update collection catalog metadata via PATCH, 3) Verify updates.",
+                    [
+                        "GET /v1/collections",
+                        "PATCH /v1/collections/{collection_name}/metadata",
+                    ],
+                    [
+                        "collection_name",
+                        "description",
+                        "tags",
+                        "owner",
+                        "created_by",
+                        "business_domain",
+                        "status",
+                    ],
+                    test_time,
+                    TestStatus.FAILURE,
+                    "Failed to update collection catalog metadata",
+                )
+                return False
 
-        # Test 3: Verify updated catalog metadata
-        verify_update_success = await self._verify_collection_catalog_metadata(
-            self.CATALOG_COLLECTION,
-            expected_description="Updated description",
-            expected_tags=["updated", "production"],
-            expected_status="Archived",
-        )
-        if not verify_update_success:
-            test_time = time.time() - test_start
-            self.add_test_result(
-                self._test_data_catalog_metadata.test_number,
-                self._test_data_catalog_metadata.test_name,
-                "Test data catalog metadata functionality including: 1) Verify initial catalog metadata from collection creation, 2) Update collection catalog metadata via PATCH, 3) Verify updates.",
-                [
-                    "GET /v1/collections",
-                    "PATCH /v1/collections/{collection_name}/metadata",
-                ],
-                [
-                    "collection_name",
-                    "description",
-                    "tags",
-                    "owner",
-                    "created_by",
-                    "business_domain",
-                    "status",
-                ],
-                test_time,
-                TestStatus.FAILURE,
-                "Failed to verify updated collection catalog metadata",
+            # Test 3: Verify updated catalog metadata
+            verify_update_success = await self._verify_collection_catalog_metadata(
+                self.CATALOG_COLLECTION,
+                expected_description="Updated description",
+                expected_tags=["updated", "production"],
+                expected_status="Archived",
             )
-            return False
+            if not verify_update_success:
+                test_time = time.time() - test_start
+                self.add_test_result(
+                    self._test_data_catalog_metadata.test_number,
+                    self._test_data_catalog_metadata.test_name,
+                    "Test data catalog metadata functionality including: 1) Verify initial catalog metadata from collection creation, 2) Update collection catalog metadata via PATCH, 3) Verify updates.",
+                    [
+                        "GET /v1/collections",
+                        "PATCH /v1/collections/{collection_name}/metadata",
+                    ],
+                    [
+                        "collection_name",
+                        "description",
+                        "tags",
+                        "owner",
+                        "created_by",
+                        "business_domain",
+                        "status",
+                    ],
+                    test_time,
+                    TestStatus.FAILURE,
+                    "Failed to verify updated collection catalog metadata",
+                )
+                return False
 
-        # Test 4: Upload a test document to the catalog collection
-        logger.info("Uploading test document for document metadata testing...")
-        upload_success = await self._upload_test_document(self.CATALOG_COLLECTION)
-        if not upload_success:
+            # Test 4: Upload a test document to the catalog collection
+            logger.info("Uploading test document for document metadata testing...")
+            upload_success = await self._upload_test_document(self.CATALOG_COLLECTION)
+            if not upload_success:
+                test_time = time.time() - test_start
+                self.add_test_result(
+                    self._test_data_catalog_metadata.test_number,
+                    self._test_data_catalog_metadata.test_name,
+                    "Test data catalog metadata functionality including: 1) Verify initial catalog metadata from collection creation, 2) Update collection catalog metadata via PATCH, 3) Verify updates, 4) Upload test document, 5) Update document catalog metadata, 6) Verify document metadata.",
+                    [
+                        "GET /v1/collections",
+                        "PATCH /v1/collections/{collection_name}/metadata",
+                        "POST /v1/documents",
+                        "PATCH /v1/collections/{collection_name}/documents/{document_name}/metadata",
+                    ],
+                    [
+                        "collection_name",
+                        "description",
+                        "tags",
+                        "document_name",
+                    ],
+                    test_time,
+                    TestStatus.FAILURE,
+                    "Failed to upload test document",
+                )
+                return False
+
+            # Test 5: Update document catalog metadata
+            test_document_name = "test_catalog_doc.txt"
+            doc_update_success = await self._update_document_catalog_metadata(
+                self.CATALOG_COLLECTION,
+                test_document_name,
+                description="Test document description",
+                tags=["doc-tag", "test"],
+            )
+            if not doc_update_success:
+                test_time = time.time() - test_start
+                self.add_test_result(
+                    self._test_data_catalog_metadata.test_number,
+                    self._test_data_catalog_metadata.test_name,
+                    "Test data catalog metadata functionality including: 1) Verify initial catalog metadata from collection creation, 2) Update collection catalog metadata via PATCH, 3) Verify updates, 4) Upload test document, 5) Update document catalog metadata, 6) Verify document metadata.",
+                    [
+                        "GET /v1/collections",
+                        "PATCH /v1/collections/{collection_name}/metadata",
+                        "POST /v1/documents",
+                        "PATCH /v1/collections/{collection_name}/documents/{document_name}/metadata",
+                    ],
+                    [
+                        "collection_name",
+                        "description",
+                        "tags",
+                        "document_name",
+                    ],
+                    test_time,
+                    TestStatus.FAILURE,
+                    "Failed to update document catalog metadata",
+                )
+                return False
+
+            # Test 6: Verify document catalog metadata
+            doc_verify_success = await self._verify_document_catalog_metadata(
+                self.CATALOG_COLLECTION,
+                test_document_name,
+                expected_description="Test document description",
+                expected_tags=["doc-tag", "test"],
+            )
+            if not doc_verify_success:
+                test_time = time.time() - test_start
+                self.add_test_result(
+                    self._test_data_catalog_metadata.test_number,
+                    self._test_data_catalog_metadata.test_name,
+                    "Test data catalog metadata functionality including: 1) Verify initial catalog metadata from collection creation, 2) Update collection catalog metadata via PATCH, 3) Verify updates, 4) Upload test document, 5) Update document catalog metadata, 6) Verify document metadata.",
+                    [
+                        "GET /v1/collections",
+                        "PATCH /v1/collections/{collection_name}/metadata",
+                        "POST /v1/documents",
+                        "PATCH /v1/collections/{collection_name}/documents/{document_name}/metadata",
+                    ],
+                    [
+                        "collection_name",
+                        "description",
+                        "tags",
+                        "document_name",
+                    ],
+                    test_time,
+                    TestStatus.FAILURE,
+                    "Failed to verify document catalog metadata",
+                )
+                return False
+
             test_time = time.time() - test_start
             self.add_test_result(
                 self._test_data_catalog_metadata.test_number,
                 self._test_data_catalog_metadata.test_name,
-                "Test data catalog metadata functionality including: 1) Verify initial catalog metadata from collection creation, 2) Update collection catalog metadata via PATCH, 3) Verify updates, 4) Upload test document, 5) Update document catalog metadata, 6) Verify document metadata.",
+                "Test data catalog metadata functionality including: 1) Verify initial catalog metadata from collection creation, 2) Update collection catalog metadata via PATCH, 3) Verify updates, 4) Upload test document, 5) Update document catalog metadata, 6) Verify document metadata. Tests both collection and document level catalog metadata endpoints.",
                 [
                     "GET /v1/collections",
                     "PATCH /v1/collections/{collection_name}/metadata",
                     "POST /v1/documents",
                     "PATCH /v1/collections/{collection_name}/documents/{document_name}/metadata",
+                    "GET /v1/documents",
                 ],
                 [
                     "collection_name",
@@ -604,96 +696,13 @@ class CollectionManagementModule(BaseTestModule):
                     "document_name",
                 ],
                 test_time,
-                TestStatus.FAILURE,
-                "Failed to upload test document",
+                TestStatus.SUCCESS,
             )
-            return False
-
-        # Test 5: Update document catalog metadata
-        test_document_name = "test_catalog_doc.txt"
-        doc_update_success = await self._update_document_catalog_metadata(
-            self.CATALOG_COLLECTION,
-            test_document_name,
-            description="Test document description",
-            tags=["doc-tag", "test"],
-        )
-        if not doc_update_success:
-            test_time = time.time() - test_start
-            self.add_test_result(
-                self._test_data_catalog_metadata.test_number,
-                self._test_data_catalog_metadata.test_name,
-                "Test data catalog metadata functionality including: 1) Verify initial catalog metadata from collection creation, 2) Update collection catalog metadata via PATCH, 3) Verify updates, 4) Upload test document, 5) Update document catalog metadata, 6) Verify document metadata.",
-                [
-                    "GET /v1/collections",
-                    "PATCH /v1/collections/{collection_name}/metadata",
-                    "POST /v1/documents",
-                    "PATCH /v1/collections/{collection_name}/documents/{document_name}/metadata",
-                ],
-                [
-                    "collection_name",
-                    "description",
-                    "tags",
-                    "document_name",
-                ],
-                test_time,
-                TestStatus.FAILURE,
-                "Failed to update document catalog metadata",
-            )
-            return False
-
-        # Test 6: Verify document catalog metadata
-        doc_verify_success = await self._verify_document_catalog_metadata(
-            self.CATALOG_COLLECTION,
-            test_document_name,
-            expected_description="Test document description",
-            expected_tags=["doc-tag", "test"],
-        )
-        if not doc_verify_success:
-            test_time = time.time() - test_start
-            self.add_test_result(
-                self._test_data_catalog_metadata.test_number,
-                self._test_data_catalog_metadata.test_name,
-                "Test data catalog metadata functionality including: 1) Verify initial catalog metadata from collection creation, 2) Update collection catalog metadata via PATCH, 3) Verify updates, 4) Upload test document, 5) Update document catalog metadata, 6) Verify document metadata.",
-                [
-                    "GET /v1/collections",
-                    "PATCH /v1/collections/{collection_name}/metadata",
-                    "POST /v1/documents",
-                    "PATCH /v1/collections/{collection_name}/documents/{document_name}/metadata",
-                ],
-                [
-                    "collection_name",
-                    "description",
-                    "tags",
-                    "document_name",
-                ],
-                test_time,
-                TestStatus.FAILURE,
-                "Failed to verify document catalog metadata",
-            )
-            return False
-
-        test_time = time.time() - test_start
-        self.add_test_result(
-            self._test_data_catalog_metadata.test_number,
-            self._test_data_catalog_metadata.test_name,
-            "Test data catalog metadata functionality including: 1) Verify initial catalog metadata from collection creation, 2) Update collection catalog metadata via PATCH, 3) Verify updates, 4) Upload test document, 5) Update document catalog metadata, 6) Verify document metadata. Tests both collection and document level catalog metadata endpoints.",
-            [
-                "GET /v1/collections",
-                "PATCH /v1/collections/{collection_name}/metadata",
-                "POST /v1/documents",
-                "PATCH /v1/collections/{collection_name}/documents/{document_name}/metadata",
-                "GET /v1/documents",
-            ],
-            [
-                "collection_name",
-                "description",
-                "tags",
-                "document_name",
-            ],
-            test_time,
-            TestStatus.SUCCESS,
-        )
-        return True
+            return True
+        finally:
+            # Clean up the catalog test collection
+            logger.info("Cleaning up catalog test collection...")
+            await self._cleanup_catalog_collection(self.CATALOG_COLLECTION)
 
     async def _create_collection_with_catalog(
         self,
@@ -735,9 +744,10 @@ class CollectionManagementModule(BaseTestModule):
                         )
                         logger.error(f"Response JSON:\n{json.dumps(result, indent=2)}")
                         return False
-        except Exception as e:
-            logger.error(
-                f"❌ Error creating collection '{collection_name}' with catalog metadata: {e}"
+        except Exception:
+            logger.exception(
+                "❌ Error creating collection '%s' with catalog metadata",
+                collection_name,
             )
             return False
 
@@ -820,8 +830,11 @@ class CollectionManagementModule(BaseTestModule):
                     else:
                         logger.error(f"❌ Failed to get collections: {response.status}")
                         return False
-        except Exception as e:
-            logger.error(f"❌ Error verifying catalog metadata: {e}")
+        except Exception:
+            logger.exception(
+                "❌ Error verifying catalog metadata for collection '%s'",
+                collection_name,
+            )
             return False
 
     async def _update_collection_catalog_metadata(
@@ -862,15 +875,16 @@ class CollectionManagementModule(BaseTestModule):
                         )
                         logger.error(f"Response JSON:\n{json.dumps(result, indent=2)}")
                         return False
-        except Exception as e:
-            logger.error(f"❌ Error updating catalog metadata: {e}")
+        except Exception:
+            logger.exception(
+                "❌ Error updating catalog metadata for collection '%s'",
+                collection_name,
+            )
             return False
 
     async def _upload_test_document(self, collection_name: str) -> bool:
         """Upload a simple test document to the collection"""
         try:
-            import tempfile
-
             # Create a simple text file
             with tempfile.NamedTemporaryFile(
                 mode="w", suffix=".txt", delete=False, prefix="test_catalog_doc_"
@@ -881,58 +895,60 @@ class CollectionManagementModule(BaseTestModule):
             try:
                 # Upload the document using correct multipart format
                 async with aiohttp.ClientSession() as session:
-                    with open(temp_file_path, "rb") as file:
-                        file_content = file.read()
+                    # Read file content asynchronously
+                    file_content = await asyncio.to_thread(
+                        Path(temp_file_path).read_bytes
+                    )
 
-                        # Prepare form data matching the API schema
-                        form_data = aiohttp.FormData()
-                        form_data.add_field(
-                            "documents",
-                            file_content,
-                            filename="test_catalog_doc.txt",
-                            content_type="text/plain",
-                        )
+                    # Prepare form data matching the API schema
+                    form_data = aiohttp.FormData()
+                    form_data.add_field(
+                        "documents",
+                        file_content,
+                        filename="test_catalog_doc.txt",
+                        content_type="text/plain",
+                    )
 
-                        # Add JSON data field
-                        upload_data = {
-                            "collection_name": collection_name,
-                            "blocking": True,
-                            "split_options": {"chunk_size": 512, "chunk_overlap": 150},
-                            "custom_metadata": [],
-                            "generate_summary": False,
-                        }
-                        form_data.add_field(
-                            "data",
-                            json.dumps(upload_data),
-                            content_type="application/json",
-                        )
+                    # Add JSON data field
+                    upload_data = {
+                        "collection_name": collection_name,
+                        "blocking": True,
+                        "split_options": {"chunk_size": 512, "chunk_overlap": 150},
+                        "custom_metadata": [],
+                        "generate_summary": False,
+                    }
+                    form_data.add_field(
+                        "data",
+                        json.dumps(upload_data),
+                        content_type="application/json",
+                    )
 
-                        async with session.post(
-                            f"{self.ingestor_server_url}/v1/documents", data=form_data
-                        ) as response:
-                            result = await response.json()
-                            if response.status == 200:
-                                logger.info(
-                                    "✅ Test document uploaded successfully for catalog metadata testing"
-                                )
-                                return True
-                            else:
-                                logger.error(
-                                    f"❌ Failed to upload test document: {response.status}"
-                                )
-                                logger.error(
-                                    f"Response JSON:\n{json.dumps(result, indent=2)}"
-                                )
-                                return False
+                    async with session.post(
+                        f"{self.ingestor_server_url}/v1/documents", data=form_data
+                    ) as response:
+                        result = await response.json()
+                        if response.status == 200:
+                            logger.info(
+                                "✅ Test document uploaded successfully for catalog metadata testing"
+                            )
+                            return True
+                        else:
+                            logger.error(
+                                f"❌ Failed to upload test document: {response.status}"
+                            )
+                            logger.error(
+                                f"Response JSON:\n{json.dumps(result, indent=2)}"
+                            )
+                            return False
             finally:
                 # Clean up temp file
-                import os
-
                 if os.path.exists(temp_file_path):
                     os.unlink(temp_file_path)
 
-        except Exception as e:
-            logger.error(f"❌ Error uploading test document: {e}")
+        except Exception:
+            logger.exception(
+                "❌ Error uploading test document to collection '%s'", collection_name
+            )
             return False
 
     async def _update_document_catalog_metadata(
@@ -968,8 +984,12 @@ class CollectionManagementModule(BaseTestModule):
                         )
                         logger.error(f"Response JSON:\n{json.dumps(result, indent=2)}")
                         return False
-        except Exception as e:
-            logger.error(f"❌ Error updating document catalog metadata: {e}")
+        except Exception:
+            logger.exception(
+                "❌ Error updating document catalog metadata for '%s' in collection '%s'",
+                document_name,
+                collection_name,
+            )
             return False
 
     async def _verify_document_catalog_metadata(
@@ -1028,8 +1048,12 @@ class CollectionManagementModule(BaseTestModule):
                     else:
                         logger.error(f"❌ Failed to get documents: {response.status}")
                         return False
-        except Exception as e:
-            logger.error(f"❌ Error verifying document catalog metadata: {e}")
+        except Exception:
+            logger.exception(
+                "❌ Error verifying document catalog metadata for '%s' in collection '%s'",
+                document_name,
+                collection_name,
+            )
             return False
 
     async def _cleanup_catalog_collection(self, collection_name: str) -> bool:

@@ -276,7 +276,7 @@ class MilvusVDB(Milvus, VDBRag):
         # Fetch both catalog and metrics data in ONE query to reduce Milvus load
         info_entities = self._get_milvus_entities(
             DEFAULT_DOCUMENT_INFO_COLLECTION,
-            filter="info_type == 'catalog' || info_type == 'collection'",
+            filter="info_type == 'catalog' or info_type == 'collection'",
         )
         collection_catalog_map = {}
         collection_metrics_map = {}
@@ -810,29 +810,36 @@ class MilvusVDB(Milvus, VDBRag):
 
         start_time = time.time()
 
-        token = otel_context.attach(otel_ctx)
+        # Attach OTel context only if provided
+        token = otel_context.attach(otel_ctx) if otel_ctx is not None else None
 
-        retriever = vectorstore.as_retriever(search_kwargs={"k": top_k})
+        try:
+            retriever = vectorstore.as_retriever(search_kwargs={"k": top_k})
 
-        retriever_lambda = RunnableLambda(
-            lambda x: retriever.invoke(
-                x,
-                expr=filter_expr,
+            retriever_lambda = RunnableLambda(
+                lambda x: retriever.invoke(
+                    x,
+                    expr=filter_expr,
+                )
             )
-        )
-        retriever_chain = {"context": retriever_lambda} | RunnableAssign(
-            {"context": lambda input: input["context"]}
-        )
-        retriever_docs = retriever_chain.invoke(query, config={"run_name": "retriever"})
-        docs = retriever_docs.get("context", [])
-        collection_name = retriever.vectorstore.collection_name
+            retriever_chain = {"context": retriever_lambda} | RunnableAssign(
+                {"context": lambda input: input["context"]}
+            )
+            retriever_docs = retriever_chain.invoke(
+                query, config={"run_name": "retriever"}
+            )
+            docs = retriever_docs.get("context", [])
+            collection_name = retriever.vectorstore.collection_name
 
-        end_time = time.time()
-        latency = end_time - start_time
-        logger.info(f" Milvus Retrieval latency: {latency:.4f} seconds")
+            end_time = time.time()
+            latency = end_time - start_time
+            logger.info(f" Milvus Retrieval latency: {latency:.4f} seconds")
 
-        otel_context.detach(token)
-        return self._add_collection_name_to_retreived_docs(docs, collection_name)
+            return self._add_collection_name_to_retreived_docs(docs, collection_name)
+        finally:
+            # Detach OTel context only if it was attached
+            if token is not None:
+                otel_context.detach(token)
 
     def get_langchain_vectorstore(
         self,

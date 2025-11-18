@@ -765,7 +765,7 @@ class TestDataCatalogUtilities:
         timestamp = get_current_timestamp()
         assert isinstance(timestamp, str)
         assert "T" in timestamp
-        assert timestamp.endswith("+00:00") or timestamp.endswith("Z")
+        assert timestamp.endswith(("+00:00", "Z"))
 
     def test_derive_boolean_flags_all_present(self):
         """Test deriving boolean flags when all document types are present"""

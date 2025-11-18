@@ -941,6 +941,8 @@ class NvidiaRAGIngestor:
             }
 
         try:
+            # Ensure document-info collection exists
+            vdb_op.create_document_info_collection()
             vdb_op.update_catalog_metadata(collection_name, updates)
 
             return {
@@ -976,6 +978,16 @@ class NvidiaRAGIngestor:
         if not vdb_op.check_collection_exists(collection_name):
             raise ValueError(f"Collection {collection_name} does not exist")
 
+        # Verify document exists in the collection
+        documents_list = vdb_op.get_documents(collection_name)
+        document_names = [
+            os.path.basename(doc.get("document_name", "")) for doc in documents_list
+        ]
+        if document_name not in document_names:
+            raise ValueError(
+                f"Document '{document_name}' does not exist in collection '{collection_name}'"
+            )
+
         updates = {}
         if description is not None:
             updates["description"] = description
@@ -989,6 +1001,8 @@ class NvidiaRAGIngestor:
             }
 
         try:
+            # Ensure document-info collection exists
+            vdb_op.create_document_info_collection()
             vdb_op.update_document_catalog_metadata(
                 collection_name, document_name, updates
             )
@@ -1844,7 +1858,9 @@ class NvidiaRAGIngestor:
             "ingestion_status": "Success"
             if not failures
             else ("Partial" if len(results) > 0 else "Failed"),
-            "last_ingestion_error": failures[0].get("error", "") if failures else "",
+            "last_ingestion_error": (
+                str(failures[0][1]) if failures and len(failures[0]) > 1 else ""
+            ),
         }
 
         summary_parts = []

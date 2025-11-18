@@ -29,7 +29,7 @@ Additionally, the system automatically populates content metrics such as `number
 | `created_by` | string | User who created the collection | "john.doe@company.com" |
 | `business_domain` | string | Business domain or department | "Finance", "Legal", "Engineering" |
 | `status` | string | Collection lifecycle status | "Active", "Archived", "Deprecated" |
-| `created_at` | timestamp | Automatically set on creation | "2024-11-18T10:30:00+00:00" |
+| `date_created` | timestamp | Automatically set on creation | "2024-11-18T10:30:00+00:00" |
 | `last_updated` | timestamp | Automatically updated on changes | "2024-11-18T15:45:00+00:00" |
 
 ### Auto-Populated Content Metrics
@@ -147,9 +147,9 @@ import requests
 
 url = "http://localhost:8081/v1/collections"
 response = requests.get(url)
-collections = response.json()
+result = response.json()
 
-for collection in collections:
+for collection in result.get("collections", []):
     info = collection.get('collection_info', {})
     print(f"Collection: {collection['collection_name']}")
     print(f"  Description: {info.get('description', 'N/A')}")
@@ -166,29 +166,33 @@ for collection in collections:
 ### Example Response
 
 ```json
-[
-  {
-    "collection_name": "financial_reports_2024",
-    "num_entities": 1250,
-    "metadata_schema": [...],
-    "collection_info": {
-      "description": "Q4 2024 Financial Reports - Final Version",
-      "tags": ["finance", "reports", "q4-2024", "final"],
-      "owner": "Finance Team",
-      "created_by": "john.doe@company.com",
-      "business_domain": "Finance",
-      "status": "Archived",
-      "created_at": "2024-11-18T10:30:00+00:00",
-      "last_updated": "2024-11-18T15:45:00+00:00",
-      "number_of_files": 15,
-      "last_indexed": "2024-11-18T14:20:00+00:00",
-      "ingestion_status": "completed",
-      "has_tables": true,
-      "has_charts": true,
-      "has_images": false
+{
+  "collections": [
+    {
+      "collection_name": "financial_reports_2024",
+      "num_entities": 1250,
+      "metadata_schema": [...],
+      "collection_info": {
+        "description": "Q4 2024 Financial Reports - Final Version",
+        "tags": ["finance", "reports", "q4-2024", "final"],
+        "owner": "Finance Team",
+        "created_by": "john.doe@company.com",
+        "business_domain": "Finance",
+        "status": "Archived",
+        "date_created": "2024-11-18T10:30:00+00:00",
+        "last_updated": "2024-11-18T15:45:00+00:00",
+        "number_of_files": 15,
+        "last_indexed": "2024-11-18T14:20:00+00:00",
+        "ingestion_status": "completed",
+        "has_tables": true,
+        "has_charts": true,
+        "has_images": false
+      }
     }
-  }
-]
+  ],
+  "total_collections": 1,
+  "message": "Collections listed successfully."
+}
 ```
 
 ## Use Cases
