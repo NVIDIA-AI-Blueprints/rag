@@ -573,7 +573,7 @@ class ElasticVDB(VDBRag):
         info_type: str,
         collection_name: str,
         document_name: str,
-        info_value: str
+        info_value: dict[str, Any]
         ) -> None:
         """
         Add document info to a collection.

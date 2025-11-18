@@ -226,7 +226,7 @@ class MilvusVDB(Milvus, VDBRag):
         )
 
         if len(entities) == 0:
-            logger.warning(f"No metadata schema found for filter {filter}")
+            logger.warning("No entities found in collection %s for filter %s", collection_name, filter)
 
         return entities
 
@@ -477,7 +477,7 @@ class MilvusVDB(Milvus, VDBRag):
                 resp = collection.delete(f"source['source_name'] == '{source_value}'")
                 self._delete_entities(
                     collection_name=DEFAULT_DOCUMENT_INFO_COLLECTION,
-                    filter=f"info_type == 'document' and collection_name == '{collection_name}' and document_name == '{source_value}'",
+                    filter=f"info_type == 'document' and collection_name == '{collection_name}' and document_name == '{os.path.basename(source_value)}'",
                 )
             except MilvusException:
                 logger.debug(
@@ -647,7 +647,7 @@ class MilvusVDB(Milvus, VDBRag):
         info_type: str,
         collection_name: str,
         document_name: str,
-        info_value: str
+        info_value: dict[str, Any]
         ) -> None:
         """
         Add document info to a collection.

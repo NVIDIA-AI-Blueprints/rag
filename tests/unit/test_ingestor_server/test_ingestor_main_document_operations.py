@@ -423,23 +423,22 @@ class TestNvidiaRAGIngestorCoverageImprovement:
             with patch.object(ingestor, '_NvidiaRAGIngestor__prepare_vdb_op_and_collection_name', return_value=(mock_vdb_op, "test_collection")):
                 with patch.object(ingestor, '_validate_custom_metadata', return_value=(True, [])):
                     with patch.object(ingestor, '_NvidiaRAGIngestor__nvingest_upload_doc', return_value=(mock_results, [])):
-                        with patch('nvidia_rag.ingestor_server.main.MINIO_OPERATOR', Mock()):
-                            # Mock get_documents to return empty list initially (no existing documents)
-                            # and then return the uploaded documents after ingestion
-                            with patch.object(ingestor, 'get_documents', side_effect=[
-                                {"documents": []},  # First call - no existing documents
-                                {"documents": [{"document_name": "test1.txt"}, {"document_name": "test2.txt"}]}  # Second call - after ingestion
-                            ]):
-                                result = await ingestor.upload_documents(
-                                    filepaths=[test_file1, test_file2],
-                                    collection_name="test_collection",
-                                    blocking=True
-                                )
+                        # Mock get_documents to return empty list initially (no existing documents)
+                        # and then return the uploaded documents after ingestion
+                        with patch.object(ingestor, 'get_documents', side_effect=[
+                            {"documents": []},  # First call - no existing documents
+                            {"documents": [{"document_name": "test1.txt"}, {"document_name": "test2.txt"}]}  # Second call - after ingestion
+                        ]):
+                            result = await ingestor.upload_documents(
+                                filepaths=[test_file1, test_file2],
+                                collection_name="test_collection",
+                                blocking=True
+                            )
 
-                            # Verify success response
-                            assert result["message"] == "Document upload job successfully completed."
-                            assert result["total_documents"] == 2
-                            assert len(result["documents"]) == 2
+                        # Verify success response
+                        assert result["message"] == "Document upload job successfully completed."
+                        assert result["total_documents"] == 2
+                        assert len(result["documents"]) == 2
 
     @pytest.mark.asyncio
     async def test_upload_documents_async_path(self):

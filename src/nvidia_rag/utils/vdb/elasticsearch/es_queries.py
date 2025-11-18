@@ -132,9 +132,9 @@ def get_delete_document_info_query(collection_name: str, document_name: str, inf
         "query": {
             "bool": {
                 "must": [
-                    {"term": {"collection_name.keyword": collection_name}},
-                    {"term": {"document_name.keyword": document_name}},
-                    {"term": {"info_type.keyword": info_type}}
+                    {"term": {"collection_name": collection_name}},
+                    {"term": {"document_name": document_name}},
+                    {"term": {"info_type": info_type}}
                 ]
             }
         }
@@ -149,8 +149,8 @@ def get_collection_document_info_query(info_type: str, collection_name: str):
         "query": {
             "bool": {
                 "must": [
-                    {"term": {"collection_name.keyword": collection_name}},
-                    {"term": {"info_type.keyword": info_type}}
+                    {"term": {"collection_name": collection_name}},
+                    {"term": {"info_type": info_type}}
                 ]
             }
         }
@@ -165,9 +165,9 @@ def get_document_info_query(collection_name: str, document_name: str, info_type:
         "query": {
             "bool": {
                 "must": [
-                    {"term": {"collection_name.keyword": collection_name}},
-                    {"term": {"document_name.keyword": document_name}},
-                    {"term": {"info_type.keyword": info_type}}
+                    {"term": {"collection_name": collection_name}},
+                    {"term": {"document_name": document_name}},
+                    {"term": {"info_type": info_type}}
                 ]
             }
         }
@@ -179,6 +179,6 @@ def get_delete_document_info_query_by_collection_name(collection_name: str):
     Create deletion query for removing document info by collection name.
     """
     query_delete_document_info = {
-        "query": {"term": {"collection_name.keyword": collection_name}}
+        "query": {"term": {"collection_name": collection_name}}
     }
     return query_delete_document_info

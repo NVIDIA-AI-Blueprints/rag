@@ -395,7 +395,7 @@ Use the following steps to create and use your own custom database operators.
       - `add_metadata_schema(collection_name, metadata_schema)`: Replace the stored schema for a collection.
       - `get_metadata_schema(collection_name)`: Fetch the stored schema; return an empty list if none.
 
-    - Document info management
+    - Document info management (implementation of these methods is optional)
       - `create_document_info_collection()`: Initialize storage for document-level and collection-level information.
       - `add_document_info(info_type, collection_name, document_name, info_value)`: Store document or collection info (e.g., processing statistics, custom metadata).
       - `get_document_info(info_type, collection_name, document_name)`: Retrieve stored document/collection info; return an empty dict if none.
