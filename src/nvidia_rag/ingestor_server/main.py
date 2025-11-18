@@ -59,7 +59,7 @@ from nvidia_rag.ingestor_server.nvingest import (
     get_nv_ingest_ingestor,
 )
 from nvidia_rag.ingestor_server.task_handler import INGESTION_TASK_HANDLER
-from nvidia_rag.utils.common import ConfigProxy
+from nvidia_rag.utils.configuration import NvidiaRAGConfig
 from nvidia_rag.utils.llm import get_llm, get_prompts
 from nvidia_rag.utils.metadata_validation import (
     SYSTEM_MANAGED_FIELDS,
@@ -77,37 +77,10 @@ from nvidia_rag.utils.minio_operator import (
 from nvidia_rag.utils.vdb import _get_vdb_op
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
 
-# Initialize global objects
+# Initialize logger
 logger = logging.getLogger(__name__)
 
-CONFIG = ConfigProxy()
-NV_INGEST_CLIENT_INSTANCE = get_nv_ingest_client()
-
-MINIO_OPERATOR = None
-
-
-def get_minio_operator_instance():
-    """Lazy initialize the MinioOperator instance"""
-    global MINIO_OPERATOR
-    if MINIO_OPERATOR is None:
-        MINIO_OPERATOR = get_minio_operator()
-    return MINIO_OPERATOR
-
-
-get_minio_operator_instance()._make_bucket(
-    bucket_name="a-bucket"
-)  # Create a-bucket if not exists
-
-# NV-Ingest Batch Mode Configuration
-ENABLE_NV_INGEST_BATCH_MODE = (
-    os.getenv("ENABLE_NV_INGEST_BATCH_MODE", "true").lower() == "true"
-)
-NV_INGEST_FILES_PER_BATCH = int(os.getenv("NV_INGEST_FILES_PER_BATCH", 16))
-ENABLE_NV_INGEST_PARALLEL_BATCH_MODE = (
-    os.getenv("ENABLE_NV_INGEST_PARALLEL_BATCH_MODE", "true").lower() == "true"
-)
-NV_INGEST_CONCURRENT_BATCHES = int(os.getenv("NV_INGEST_CONCURRENT_BATCHES", 4))
-
+# Constants
 LIBRARY_MODE = "library"
 SERVER_MODE = "server"
 SUPPORTED_MODES = [LIBRARY_MODE, SERVER_MODE]
@@ -128,13 +101,33 @@ class NvidiaRAGIngestor:
         self,
         vdb_op: VDBRag = None,
         mode: str = LIBRARY_MODE,
+        config: NvidiaRAGConfig | None = None,
     ):
+        """Initialize NvidiaRAGIngestor with configuration.
+
+        Args:
+            vdb_op: Optional vector database operator
+            mode: Operating mode (library or server)
+            config: Configuration object. If None, uses default config.
+        """
         if mode not in SUPPORTED_MODES:
             raise ValueError(
                 f"Invalid mode: {mode}. Supported modes are: {SUPPORTED_MODES}"
             )
         self.mode = mode
         self.vdb_op = vdb_op
+        self.config = config or NvidiaRAGConfig()
+
+        # Initialize instance-based clients
+        self.nv_ingest_client = get_nv_ingest_client(self.config)
+        self.minio_operator = get_minio_operator(config=self.config)
+
+        # Ensure default bucket exists (idempotent operation)
+        try:
+            self.minio_operator._make_bucket(bucket_name="a-bucket")
+            logger.debug("Ensured 'a-bucket' exists in MinIO")
+        except Exception as e:
+            logger.warning(f"Failed to create/verify bucket 'a-bucket': {e}")
 
         if self.vdb_op is not None:
             if not (isinstance(self.vdb_op, VDBRag) or isinstance(self.vdb_op, VDB)):
@@ -155,7 +148,7 @@ class NvidiaRAGIngestor:
         if check_dependencies:
             from nvidia_rag.ingestor_server.health import check_all_services_health
 
-            dependencies_results = await check_all_services_health(vdb_op)
+            dependencies_results = await check_all_services_health(vdb_op, self.config)
             health_results.update(dependencies_results)
         return health_results
 
@@ -194,11 +187,12 @@ class NvidiaRAGIngestor:
                     "provided during initialization."
                 )
             vdb_op = _get_vdb_op(
-                vdb_endpoint=vdb_endpoint or CONFIG.vector_store.url,
+                vdb_endpoint=vdb_endpoint or self.config.vector_store.url,
                 collection_name=collection_name,
                 custom_metadata=custom_metadata,
                 all_file_paths=filepaths,
                 metadata_schema=metadata_schema,
+                config=self.config,
             )
             return vdb_op, collection_name
 
@@ -215,7 +209,7 @@ class NvidiaRAGIngestor:
         filepaths: list[str],
         blocking: bool = False,
         collection_name: str = None,
-        vdb_endpoint: str = CONFIG.vector_store.url,
+        vdb_endpoint: str = None,
         split_options: dict[str, Any] = None,
         custom_metadata: list[dict[str, Any]] = None,
         generate_summary: bool = False,
@@ -227,10 +221,13 @@ class NvidiaRAGIngestor:
             filepaths (List[str]): List of absolute filepaths to upload
             blocking (bool, optional): Whether to block until ingestion completes. Defaults to False.
             collection_name (str, optional): Name of collection in vector database. Defaults to "multimodal_data".
-            split_options (Dict[str, Any], optional): Options for splitting documents. Defaults to chunk_size and chunk_overlap from CONFIG.
+            split_options (Dict[str, Any], optional): Options for splitting documents. Defaults to chunk_size and chunk_overlap from self.config.
             custom_metadata (List[Dict[str, Any]], optional): Custom metadata to add to documents. Defaults to empty list.
             additional_validation_errors (List[Dict[str, Any]] | None, optional): Additional validation errors to include in response. Defaults to None.
         """
+        # Apply default from config if not provided
+        if vdb_endpoint is None:
+            vdb_endpoint = self.config.vector_store.url
 
         state_manager = IngestionStateManager(
             filepaths=filepaths,
@@ -248,8 +245,8 @@ class NvidiaRAGIngestor:
         # Set default values for mutable arguments
         if split_options is None:
             split_options = {
-                "chunk_size": CONFIG.nv_ingest.chunk_size,
-                "chunk_overlap": CONFIG.nv_ingest.chunk_overlap,
+                "chunk_size": self.config.nv_ingest.chunk_size,
+                "chunk_overlap": self.config.nv_ingest.chunk_overlap,
             }
         if custom_metadata is None:
             custom_metadata = []
@@ -327,7 +324,7 @@ class NvidiaRAGIngestor:
         self,
         filepaths: list[str],
         collection_name: str = None,
-        vdb_endpoint: str = CONFIG.vector_store.url,
+        vdb_endpoint: str = None,
         vdb_op: VDBRag = None,
         split_options: dict[str, Any] = None,
         custom_metadata: list[dict[str, Any]] = None,
@@ -655,7 +652,7 @@ class NvidiaRAGIngestor:
         filepaths: list[str],
         blocking: bool = False,
         collection_name: str = None,
-        vdb_endpoint: str = CONFIG.vector_store.url,
+        vdb_endpoint: str = None,
         split_options: dict[str, Any] = None,
         custom_metadata: list[dict[str, Any]] = None,
         generate_summary: bool = False,
@@ -663,11 +660,15 @@ class NvidiaRAGIngestor:
     ) -> dict[str, Any]:
         """Upload a document to the vector store. If the document already exists, it will be replaced."""
 
+        # Apply default from config if not provided
+        if vdb_endpoint is None:
+            vdb_endpoint = self.config.vector_store.url
+
         # Set default values for mutable arguments
         if split_options is None:
             split_options = {
-                "chunk_size": CONFIG.nv_ingest.chunk_size,
-                "chunk_overlap": CONFIG.nv_ingest.chunk_overlap,
+                "chunk_size": self.config.nv_ingest.chunk_size,
+                "chunk_overlap": self.config.nv_ingest.chunk_overlap,
             }
         if custom_metadata is None:
             custom_metadata = []
@@ -744,11 +745,8 @@ class NvidiaRAGIngestor:
                 )
                 return {"state": "FAILED", "result": status_and_result.get("result")}
             else:
-                logger.error(
-                    f"Unknown task state: {
-                        INGESTION_TASK_HANDLER.get_task_state(task_id)
-                    }"
-                )
+                task_state = INGESTION_TASK_HANDLER.get_task_status(task_id)
+                logger.error(f"Unknown task state: {task_state}")
                 return {"state": "UNKNOWN", "result": {"message": "Unknown task state"}}
         except KeyError as e:
             logger.error(f"Task {task_id} not found with error: {e}")
@@ -757,13 +755,19 @@ class NvidiaRAGIngestor:
     def create_collection(
         self,
         collection_name: str = None,
-        vdb_endpoint: str = CONFIG.vector_store.url,
-        embedding_dimension: int = 2048,
+        vdb_endpoint: str = None,
+        embedding_dimension: int = None,
         metadata_schema: list[dict[str, str]] = None,
     ) -> str:
         """
         Main function called by ingestor server to create a new collection in vector-DB
         """
+        # Apply defaults from config if not provided
+        if vdb_endpoint is None:
+            vdb_endpoint = self.config.vector_store.url
+        if embedding_dimension is None:
+            embedding_dimension = self.config.embeddings.dimensions
+
         vdb_op, collection_name = self.__prepare_vdb_op_and_collection_name(
             vdb_endpoint=vdb_endpoint,
             collection_name=collection_name,
@@ -836,13 +840,19 @@ class NvidiaRAGIngestor:
     def create_collections(
         self,
         collection_names: list[str],
-        vdb_endpoint: str = CONFIG.vector_store.url,
-        embedding_dimension: int = 2048,
+        vdb_endpoint: str = None,
+        embedding_dimension: int = None,
         collection_type: str = "text",
     ) -> dict[str, Any]:
         """
         Main function called by ingestor server to create new collections in vector-DB
         """
+        # Apply defaults from config if not provided
+        if vdb_endpoint is None:
+            vdb_endpoint = self.config.vector_store.url
+        if embedding_dimension is None:
+            embedding_dimension = self.config.embeddings.dimensions
+
         vdb_op, _ = self.__prepare_vdb_op_and_collection_name(
             vdb_endpoint=vdb_endpoint,
             collection_name="",
@@ -903,11 +913,15 @@ class NvidiaRAGIngestor:
     def delete_collections(
         self,
         collection_names: list[str],
-        vdb_endpoint: str = CONFIG.vector_store.url,
+        vdb_endpoint: str = None,
     ) -> dict[str, Any]:
         """
         Main function called by ingestor server to delete collections in vector-DB
         """
+        # Apply default from config if not provided
+        if vdb_endpoint is None:
+            vdb_endpoint = self.config.vector_store.url
+
         logger.info(f"Deleting collections {collection_names}")
 
         try:
@@ -922,21 +936,21 @@ class NvidiaRAGIngestor:
                 collection_prefix = get_unique_thumbnail_id_collection_prefix(
                     collection
                 )
-                delete_object_names = get_minio_operator_instance().list_payloads(
+                delete_object_names = self.minio_operator.list_payloads(
                     collection_prefix
                 )
-                get_minio_operator_instance().delete_payloads(delete_object_names)
+                self.minio_operator.delete_payloads(delete_object_names)
 
             # Delete document summary from Minio
             for collection in collection_names:
                 collection_prefix = get_unique_thumbnail_id_collection_prefix(
                     f"summary_{collection}"
                 )
-                delete_object_names = get_minio_operator_instance().list_payloads(
+                delete_object_names = self.minio_operator.list_payloads(
                     collection_prefix
                 )
                 if len(delete_object_names):
-                    get_minio_operator_instance().delete_payloads(delete_object_names)
+                    self.minio_operator.delete_payloads(delete_object_names)
                     logger.info(
                         f"Deleted all document summaries from Minio for collection: {collection}"
                     )
@@ -955,7 +969,7 @@ class NvidiaRAGIngestor:
 
     def get_collections(
         self,
-        vdb_endpoint: str = CONFIG.vector_store.url,
+        vdb_endpoint: str = None,
     ) -> dict[str, Any]:
         """
         Main function called by ingestor server to get all collections in vector-DB.
@@ -966,6 +980,10 @@ class NvidiaRAGIngestor:
         Returns:
             Dict[str, Any]: A dictionary containing the collection list, message, and total count.
         """
+        # Apply default from config if not provided
+        if vdb_endpoint is None:
+            vdb_endpoint = self.config.vector_store.url
+
         try:
             vdb_op, _ = self.__prepare_vdb_op_and_collection_name(
                 vdb_endpoint=vdb_endpoint,
@@ -1005,7 +1023,7 @@ class NvidiaRAGIngestor:
     def get_documents(
         self,
         collection_name: str = None,
-        vdb_endpoint: str = CONFIG.vector_store.url,
+        vdb_endpoint: str = None,
         bypass_validation: bool = False,
     ) -> dict[str, Any]:
         """
@@ -1015,6 +1033,10 @@ class NvidiaRAGIngestor:
         Returns:
             Dict[str, Any]: Response containing a list of documents with metadata.
         """
+        # Apply default from config if not provided
+        if vdb_endpoint is None:
+            vdb_endpoint = self.config.vector_store.url
+
         try:
             vdb_op, collection_name = self.__prepare_vdb_op_and_collection_name(
                 vdb_endpoint=vdb_endpoint,
@@ -1067,7 +1089,7 @@ class NvidiaRAGIngestor:
         self,
         document_names: list[str],
         collection_name: str = None,
-        vdb_endpoint: str = CONFIG.vector_store.url,
+        vdb_endpoint: str = None,
         include_upload_path: bool = False,
     ) -> dict[str, Any]:
         """Delete documents from the vector index.
@@ -1081,6 +1103,9 @@ class NvidiaRAGIngestor:
         Returns:
             Dict[str, Any]: Response containing a list of deleted documents with metadata.
         """
+        # Apply default from config if not provided
+        if vdb_endpoint is None:
+            vdb_endpoint = self.config.vector_store.url
 
         try:
             vdb_op, collection_name = self.__prepare_vdb_op_and_collection_name(
@@ -1097,7 +1122,7 @@ class NvidiaRAGIngestor:
                 upload_folder = str(
                     Path(
                         os.path.join(
-                            CONFIG.temp_dir, f"uploaded_files/{collection_name}"
+                            self.config.temp_dir, f"uploaded_files/{collection_name}"
                         )
                     )
                 )
@@ -1122,23 +1147,21 @@ class NvidiaRAGIngestor:
                     filename_prefix = get_unique_thumbnail_id_file_name_prefix(
                         collection_name, doc
                     )
-                    delete_object_names = get_minio_operator_instance().list_payloads(
+                    delete_object_names = self.minio_operator.list_payloads(
                         filename_prefix
                     )
-                    get_minio_operator_instance().delete_payloads(delete_object_names)
+                    self.minio_operator.delete_payloads(delete_object_names)
 
                 # Delete document summary from Minio
                 for doc in document_names:
                     filename_prefix = get_unique_thumbnail_id_file_name_prefix(
                         f"summary_{collection_name}", doc
                     )
-                    delete_object_names = get_minio_operator_instance().list_payloads(
+                    delete_object_names = self.minio_operator.list_payloads(
                         filename_prefix
                     )
                     if len(delete_object_names):
-                        get_minio_operator_instance().delete_payloads(
-                            delete_object_names
-                        )
+                        self.minio_operator.delete_payloads(delete_object_names)
                         logger.info(f"Deleted summary for doc: {doc} from Minio")
                 return {
                     "message": "Files deleted successfully",
@@ -1167,7 +1190,7 @@ class NvidiaRAGIngestor:
         """
         Put nv-ingest image/table/chart content to minio
         """
-        if not CONFIG.enable_citations:
+        if not self.config.enable_citations:
             logger.info(f"Skipping minio insertion for collection: {collection_name}")
             return  # Don't perform minio insertion if captioning is disabled
 
@@ -1216,13 +1239,13 @@ class NvidiaRAGIngestor:
 
         if os.getenv("ENABLE_MINIO_BULK_UPLOAD", "True") in ["True", "true"]:
             logger.info(f"Bulk uploading {len(payloads)} payloads to MinIO")
-            get_minio_operator_instance().put_payloads_bulk(
+            self.minio_operator.put_payloads_bulk(
                 payloads=payloads, object_names=object_names
             )
         else:
             logger.info(f"Sequentially uploading {len(payloads)} payloads to MinIO")
             for payload, object_name in zip(payloads, object_names, strict=False):
-                get_minio_operator_instance().put_payload(
+                self.minio_operator.put_payload(
                     payload=payload, object_name=object_name
                 )
 
@@ -1245,7 +1268,7 @@ class NvidiaRAGIngestor:
             - split_options: SplitOptions - Options for splitting documents
             - custom_metadata: List[CustomMetadata] - Custom metadata to be added to documents
         """
-        if not ENABLE_NV_INGEST_BATCH_MODE:
+        if not self.config.nv_ingest.enable_batch_mode:
             # Single batch mode
             logger.info(
                 "== Performing ingestion in SINGLE batch for collection_name: %s with %d files ==",
@@ -1265,23 +1288,25 @@ class NvidiaRAGIngestor:
         else:
             # BATCH_MODE
             logger.info(
-                f"== Performing ingestion in BATCH_MODE for collection_name: {
-                    collection_name
-                } "
+                f"== Performing ingestion in BATCH_MODE for collection_name: {collection_name} "
                 f"with {len(filepaths)} files =="
             )
 
             # Process batches sequentially
-            if not ENABLE_NV_INGEST_PARALLEL_BATCH_MODE:
+            if not self.config.nv_ingest.enable_parallel_batch_mode:
                 logger.info("Processing batches sequentially")
                 all_results = []
                 all_failures = []
-                for i in range(0, len(filepaths), NV_INGEST_FILES_PER_BATCH):
-                    sub_filepaths = filepaths[i : i + NV_INGEST_FILES_PER_BATCH]
-                    batch_num = i // NV_INGEST_FILES_PER_BATCH + 1
+                for i in range(
+                    0, len(filepaths), self.config.nv_ingest.files_per_batch
+                ):
+                    sub_filepaths = filepaths[
+                        i : i + self.config.nv_ingest.files_per_batch
+                    ]
+                    batch_num = i // self.config.nv_ingest.files_per_batch + 1
                     logger.info(
                         f"=== Batch Processing Status - Collection: {collection_name} - "
-                        f"Processing batch {batch_num} of {len(filepaths) // NV_INGEST_FILES_PER_BATCH + 1} - "
+                        f"Processing batch {batch_num} of {len(filepaths) // self.config.nv_ingest.files_per_batch + 1} - "
                         f"Documents in current batch: {len(sub_filepaths)} ==="
                     )
                     results, failures = await self.__nv_ingest_ingestion(
@@ -1309,24 +1334,22 @@ class NvidiaRAGIngestor:
                 return all_results, all_failures
 
             else:
-                # Process batches in parallel with worker pool of 4
+                # Process batches in parallel with worker pool
                 logger.info(
-                    f"Processing batches in parallel with concurrency: {
-                        NV_INGEST_CONCURRENT_BATCHES
-                    }"
+                    f"Processing batches in parallel with concurrency: {self.config.nv_ingest.concurrent_batches}"
                 )
                 all_results = []
                 all_failures = []
                 tasks = []
                 semaphore = asyncio.Semaphore(
-                    NV_INGEST_CONCURRENT_BATCHES
+                    self.config.nv_ingest.concurrent_batches
                 )  # Limit concurrent tasks
 
                 async def process_batch(sub_filepaths, batch_num):
                     async with semaphore:
                         logger.info(
                             f"=== Processing Batch - Collection: {collection_name} - "
-                            f"Batch {batch_num} of {len(filepaths) // NV_INGEST_FILES_PER_BATCH + 1} - "
+                            f"Batch {batch_num} of {len(filepaths) // self.config.nv_ingest.files_per_batch + 1} - "
                             f"Documents in batch: {len(sub_filepaths)} ==="
                         )
                         return await self.__nv_ingest_ingestion(
@@ -1339,9 +1362,13 @@ class NvidiaRAGIngestor:
                             state_manager=state_manager,
                         )
 
-                for i in range(0, len(filepaths), NV_INGEST_FILES_PER_BATCH):
-                    sub_filepaths = filepaths[i : i + NV_INGEST_FILES_PER_BATCH]
-                    batch_num = i // NV_INGEST_FILES_PER_BATCH + 1
+                for i in range(
+                    0, len(filepaths), self.config.nv_ingest.files_per_batch
+                ):
+                    sub_filepaths = filepaths[
+                        i : i + self.config.nv_ingest.files_per_batch
+                    ]
+                    batch_num = i // self.config.nv_ingest.files_per_batch + 1
                     task = process_batch(sub_filepaths, batch_num)
                     tasks.append(task)
 
@@ -1391,8 +1418,8 @@ class NvidiaRAGIngestor:
         """
         if split_options is None:
             split_options = {
-                "chunk_size": CONFIG.nv_ingest.chunk_size,
-                "chunk_overlap": CONFIG.nv_ingest.chunk_overlap,
+                "chunk_size": self.config.nv_ingest.chunk_size,
+                "chunk_overlap": self.config.nv_ingest.chunk_overlap,
             }
 
         filtered_filepaths = await self.__remove_unsupported_files(filepaths)
@@ -1411,9 +1438,7 @@ class NvidiaRAGIngestor:
 
         if generate_summary:
             logger.info(
-                f"Document summary generation starting in background for batch {
-                    batch_number
-                }.."
+                f"Document summary generation starting in background for batch {batch_number}.."
             )
             asyncio.create_task(
                 self.__ingest_document_summary(results, collection_name=collection_name)
@@ -1434,9 +1459,7 @@ class NvidiaRAGIngestor:
             end_time = time.time()
             logger.info(
                 f"== MinIO upload for collection_name: {collection_name} "
-                f"for batch {batch_number} is complete! Time taken: {
-                    end_time - start_time
-                } seconds =="
+                f"for batch {batch_number} is complete! Time taken: {end_time - start_time} seconds =="
             )
             batch_progress_response = await self.__build_ingestion_response(
                 failures=failures,
@@ -1484,18 +1507,17 @@ class NvidiaRAGIngestor:
         Returns:
             - tuple[list[list[dict[str, str | dict]]], list[dict[str, Any]]] - Results and failures
         """
-        if CONFIG.nv_ingest.pdf_extract_method in ["None", "none"]:
+        if self.config.nv_ingest.pdf_extract_method in ["None", "none"]:
             nv_ingest_ingestor = get_nv_ingest_ingestor(
-                nv_ingest_client_instance=NV_INGEST_CLIENT_INSTANCE,
+                nv_ingest_client_instance=self.nv_ingest_client,
                 filepaths=filtered_filepaths,
                 split_options=split_options,
                 vdb_op=vdb_op,
+                config=self.config,
             )
             start_time = time.time()
             logger.info(
-                f"Performing ingestion for batch {batch_number} with parameters: {
-                    split_options
-                }"
+                f"Performing ingestion for batch {batch_number} with parameters: {split_options}"
             )
             results, failures = await asyncio.to_thread(
                 lambda: nv_ingest_ingestor.ingest(
@@ -1519,16 +1541,15 @@ class NvidiaRAGIngestor:
             # Perform ingestion for PDF files
             if len(pdf_filepaths) > 0:
                 nv_ingest_ingestor = get_nv_ingest_ingestor(
-                    nv_ingest_client_instance=NV_INGEST_CLIENT_INSTANCE,
+                    nv_ingest_client_instance=self.nv_ingest_client,
                     filepaths=pdf_filepaths,
                     split_options=split_options,
                     vdb_op=vdb_op,
+                    config=self.config,
                 )
                 start_time = time.time()
                 logger.info(
-                    f"Performing ingestion for PDF files for batch {
-                        batch_number
-                    } with parameters: {split_options}"
+                    f"Performing ingestion for PDF files for batch {batch_number} with parameters: {split_options}"
                 )
                 results_pdf, failures_pdf = await asyncio.to_thread(
                     lambda: nv_ingest_ingestor.ingest(
@@ -1550,17 +1571,16 @@ class NvidiaRAGIngestor:
             # Perform ingestion for non-PDF files
             if len(non_pdf_filepaths) > 0:
                 nv_ingest_ingestor = get_nv_ingest_ingestor(
-                    nv_ingest_client_instance=NV_INGEST_CLIENT_INSTANCE,
+                    nv_ingest_client_instance=self.nv_ingest_client,
                     filepaths=non_pdf_filepaths,
                     split_options=split_options,
                     vdb_op=vdb_op,
                     remove_extract_method=True,
+                    config=self.config,
                 )
                 start_time = time.time()
                 logger.info(
-                    f"Performing ingestion for non-PDF files for batch {
-                        batch_number
-                    } with parameters: {split_options}"
+                    f"Performing ingestion for non-PDF files for batch {batch_number} with parameters: {split_options}"
                 )
                 results_non_pdf, failures_non_pdf = await asyncio.to_thread(
                     lambda: nv_ingest_ingestor.ingest(
@@ -1786,7 +1806,7 @@ class NvidiaRAGIngestor:
             logger.debug(
                 f"Using metadata schema for collection '{collection_name}' with {len(metadata_schema_data)} fields"
             )
-            validator = MetadataValidator(CONFIG)
+            validator = MetadataValidator(self.config)
             metadata_schema = MetadataSchema(schema=metadata_schema_data)
         else:
             logger.info(
@@ -1947,16 +1967,16 @@ class NvidiaRAGIngestor:
                         .get("subtype")
                     )
                     # Check for tables
-                    if subtype == "table" and CONFIG.nv_ingest.extract_tables:
+                    if subtype == "table" and self.config.nv_ingest.extract_tables:
                         page_content = structured_page_content
                     # Check for charts
-                    elif subtype == "chart" and CONFIG.nv_ingest.extract_charts:
+                    elif subtype == "chart" and self.config.nv_ingest.extract_charts:
                         page_content = structured_page_content
 
                 # For image captions
                 elif (
                     result_element.get("document_type") == "image"
-                    and CONFIG.nv_ingest.extract_images
+                    and self.config.nv_ingest.extract_images
                 ):
                     page_content = (
                         result_element.get("metadata")
@@ -2032,20 +2052,20 @@ class NvidiaRAGIngestor:
         Generate summaries for documents using iterative chunk-wise approach
         """
         # Generate document summary
-        summary_llm_name = CONFIG.summarizer.model_name
-        summary_llm_endpoint = CONFIG.summarizer.server_url
+        summary_llm_name = self.config.summarizer.model_name
+        summary_llm_endpoint = self.config.summarizer.server_url
         prompts = get_prompts()
 
         llm_params = {
             "model": summary_llm_name,
-            "temperature": CONFIG.summarizer.temperature,
-            "top_p": CONFIG.summarizer.top_p,
+            "temperature": self.config.summarizer.temperature,
+            "top_p": self.config.summarizer.top_p,
         }
 
         if summary_llm_endpoint:
             llm_params["llm_endpoint"] = summary_llm_endpoint
 
-        summary_llm = get_llm(**llm_params)
+        summary_llm = get_llm(config=self.config, **llm_params)
 
         document_summary_prompt = prompts.get("document_summary_prompt")
         logger.debug(f"Document summary prompt: {document_summary_prompt}")
@@ -2071,8 +2091,8 @@ class NvidiaRAGIngestor:
         iterative_chain = iterative_summary_prompt | summary_llm | StrOutputParser()
 
         # Use configured chunk size
-        max_chunk_chars = CONFIG.summarizer.max_chunk_length
-        chunk_overlap = CONFIG.summarizer.chunk_overlap
+        max_chunk_chars = self.config.summarizer.max_chunk_length
+        chunk_overlap = self.config.summarizer.chunk_overlap
         logger.info(f"Using chunk size: {max_chunk_chars} characters")
 
         if not len(documents):
@@ -2088,9 +2108,7 @@ class NvidiaRAGIngestor:
             if len(document_text) <= max_chunk_chars:
                 # Process as single chunk
                 logger.info(
-                    f"Processing document {
-                        document.metadata['filename']
-                    } as single chunk"
+                    f"Processing document {document.metadata['filename']} as single chunk"
                 )
                 summary = await initial_chain.ainvoke(
                     {"document_text": document_text},
@@ -2106,9 +2124,7 @@ class NvidiaRAGIngestor:
                 )
                 text_chunks = text_splitter.split_text(document_text)
                 logger.info(
-                    f"Processing document {document.metadata['filename']} in {
-                        len(text_chunks)
-                    } chunks"
+                    f"Processing document {document.metadata['filename']} in {len(text_chunks)} chunks"
                 )
 
                 # Generate initial summary from first chunk
@@ -2120,18 +2136,14 @@ class NvidiaRAGIngestor:
                 # Iteratively update summary with remaining chunks
                 for i, chunk in enumerate(text_chunks[1:], 1):
                     logger.info(
-                        f"Processing chunk {i + 1}/{len(text_chunks)} for {
-                            document.metadata['filename']
-                        }"
+                        f"Processing chunk {i + 1}/{len(text_chunks)} for {document.metadata['filename']}"
                     )
                     summary = await iterative_chain.ainvoke(
                         {"previous_summary": summary, "new_chunk": chunk},
                         config={"run_name": f"document-summary-chunk-{i + 1}"},
                     )
                     logger.debug(
-                        f"Summary for chunk {i + 1}/{len(text_chunks)} for {
-                            document.metadata['filename']
-                        }: {summary}"
+                        f"Summary for chunk {i + 1}/{len(text_chunks)} for {document.metadata['filename']}: {summary}"
                     )
 
             document.metadata["summary"] = summary
@@ -2164,7 +2176,7 @@ class NvidiaRAGIngestor:
                 location=location,
             )
 
-            get_minio_operator_instance().put_payload(
+            self.minio_operator.put_payload(
                 payload={
                     "summary": summary,
                     "file_name": file_name,

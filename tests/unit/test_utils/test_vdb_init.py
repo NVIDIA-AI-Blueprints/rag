@@ -31,14 +31,15 @@ class TestVDBInit:
     def test_config_constant(self):
         """Test CONFIG constant is set from get_config"""
         # The CONFIG is set at module import time, so we just test it exists
-        from nvidia_rag.utils.vdb import CONFIG
-        assert CONFIG is not None
-
+    def test_config_constant(self):
+        """Test CONFIG constant - no longer exists as module constant"""
+        # CONFIG removed in refactoring - skip this test
+        pass
     @patch('nvidia_rag.utils.vdb.get_metadata_configuration')
-    @patch('nvidia_rag.utils.vdb.CONFIG')
-    def test_get_vdb_op_milvus_without_custom_metadata(self, mock_config, mock_get_metadata_config):
+    def test_get_vdb_op_milvus_without_custom_metadata(self, mock_get_metadata_config):
         """Test _get_vdb_op with Milvus without custom metadata"""
         # Setup mocks
+        mock_config = Mock()
         mock_config.vector_store.name = "milvus"
         mock_config.vector_store.url = "http://milvus:19530"
         mock_config.vector_store.search_type = "dense"
@@ -63,7 +64,8 @@ class TestVDBInit:
                 result = _get_vdb_op(
                     vdb_endpoint="http://test-milvus:19530",
                     collection_name="test_collection",
-                    embedding_model="test-embedding"
+                    embedding_model="test-embedding",
+                    config=mock_config
                 )
 
                 assert result == mock_vdb_instance
@@ -84,10 +86,10 @@ class TestVDBInit:
                 assert call_args["embedding_model"] == "test-embedding"
 
     @patch('nvidia_rag.utils.vdb.get_metadata_configuration')
-    @patch('nvidia_rag.utils.vdb.CONFIG')
-    def test_get_vdb_op_milvus_with_custom_metadata(self, mock_config, mock_get_metadata_config):
+    def test_get_vdb_op_milvus_with_custom_metadata(self, mock_get_metadata_config):
         """Test _get_vdb_op with Milvus with custom metadata"""
         # Setup mocks
+        mock_config = Mock()
         mock_config.vector_store.name = "milvus"
         mock_config.vector_store.url = "http://milvus:19530"
         mock_config.vector_store.search_type = "hybrid"
@@ -114,7 +116,8 @@ class TestVDBInit:
                     collection_name="test_collection",
                     custom_metadata=[{"field": "value"}],
                     all_file_paths=["/path/to/file1.pdf"],
-                    embedding_model="test-embedding"
+                    embedding_model="test-embedding",
+                    config=mock_config
                 )
 
                 assert result == mock_vdb_instance
@@ -128,10 +131,10 @@ class TestVDBInit:
                 assert call_args["meta_fields"] == ["field1", "field2"]
 
     @patch('nvidia_rag.utils.vdb.get_metadata_configuration')
-    @patch('nvidia_rag.utils.vdb.CONFIG')
-    def test_get_vdb_op_milvus_uses_config_url_when_endpoint_none(self, mock_config, mock_get_metadata_config):
+    def test_get_vdb_op_milvus_uses_config_url_when_endpoint_none(self, mock_get_metadata_config):
         """Test _get_vdb_op with Milvus uses config URL when endpoint is None"""
         # Setup mocks
+        mock_config = Mock()
         mock_config.vector_store.name = "milvus"
         mock_config.vector_store.url = "http://config-milvus:19530"
         mock_config.vector_store.search_type = "dense"
@@ -155,7 +158,8 @@ class TestVDBInit:
 
                 result = _get_vdb_op(
                     vdb_endpoint=None,
-                    collection_name="test_collection"
+                    collection_name="test_collection",
+                    config=mock_config
                 )
 
                 assert result == mock_vdb_instance
@@ -163,10 +167,10 @@ class TestVDBInit:
                 assert call_args["milvus_uri"] == "http://config-milvus:19530"
 
     @patch('nvidia_rag.utils.vdb.get_metadata_configuration')
-    @patch('nvidia_rag.utils.vdb.CONFIG')
-    def test_get_vdb_op_elasticsearch_without_custom_metadata(self, mock_config, mock_get_metadata_config):
+    def test_get_vdb_op_elasticsearch_without_custom_metadata(self, mock_get_metadata_config):
         """Test _get_vdb_op with Elasticsearch without custom metadata"""
         # Setup mocks
+        mock_config = Mock()
         mock_config.vector_store.name = "elasticsearch"
         mock_config.vector_store.url = "http://elasticsearch:9200"
         mock_config.vector_store.search_type = "dense"
@@ -180,7 +184,8 @@ class TestVDBInit:
             result = _get_vdb_op(
                 vdb_endpoint="http://test-elasticsearch:9200",
                 collection_name="test_index",
-                embedding_model="test-embedding"
+                embedding_model="test-embedding",
+                config=mock_config
             )
 
             assert result == mock_vdb_instance
@@ -196,10 +201,10 @@ class TestVDBInit:
             assert call_args["csv_file_path"] is None
 
     @patch('nvidia_rag.utils.vdb.get_metadata_configuration')
-    @patch('nvidia_rag.utils.vdb.CONFIG')
-    def test_get_vdb_op_elasticsearch_with_custom_metadata(self, mock_config, mock_get_metadata_config):
+    def test_get_vdb_op_elasticsearch_with_custom_metadata(self, mock_get_metadata_config):
         """Test _get_vdb_op with Elasticsearch with custom metadata"""
         # Setup mocks
+        mock_config = Mock()
         mock_config.vector_store.name = "elasticsearch"
         mock_config.vector_store.url = "http://elasticsearch:9200"
         mock_config.vector_store.search_type = "hybrid"
@@ -219,7 +224,8 @@ class TestVDBInit:
                 collection_name="test_index",
                 custom_metadata=[{"field": "value"}],
                 all_file_paths=["/path/to/file1.pdf"],
-                embedding_model="test-embedding"
+                embedding_model="test-embedding",
+                config=mock_config
             )
 
             assert result == mock_vdb_instance
@@ -236,10 +242,10 @@ class TestVDBInit:
             mock_pandas_reader.assert_called_once_with("/path/to/metadata.csv")
 
     @patch('nvidia_rag.utils.vdb.get_metadata_configuration')
-    @patch('nvidia_rag.utils.vdb.CONFIG')
-    def test_get_vdb_op_elasticsearch_uses_config_url_when_endpoint_none(self, mock_config, mock_get_metadata_config):
+    def test_get_vdb_op_elasticsearch_uses_config_url_when_endpoint_none(self, mock_get_metadata_config):
         """Test _get_vdb_op with Elasticsearch uses config URL when endpoint is None"""
         # Setup mocks
+        mock_config = Mock()
         mock_config.vector_store.name = "elasticsearch"
         mock_config.vector_store.url = "http://config-elasticsearch:9200"
         mock_config.vector_store.search_type = "dense"
@@ -252,29 +258,33 @@ class TestVDBInit:
 
             result = _get_vdb_op(
                 vdb_endpoint=None,
-                collection_name="test_index"
+                collection_name="test_index",
+                config=mock_config
             )
 
             assert result == mock_vdb_instance
             call_args = mock_elastic_vdb.call_args[1]
             assert call_args["es_url"] == "http://config-elasticsearch:9200"
 
-    @patch('nvidia_rag.utils.vdb.CONFIG')
-    def test_get_vdb_op_invalid_vector_store(self, mock_config):
+    @patch('nvidia_rag.utils.vdb.get_metadata_configuration')
+    def test_get_vdb_op_invalid_vector_store(self, mock_get_metadata_config):
         """Test _get_vdb_op with invalid vector store name raises ValueError"""
+        mock_config = Mock()
         mock_config.vector_store.name = "invalid_store"
+        mock_get_metadata_config.return_value = (None, None, None)
 
         with pytest.raises(ValueError, match="Invalid vector store name: invalid_store"):
             _get_vdb_op(
                 vdb_endpoint="http://test:1234",
-                collection_name="test_collection"
+                collection_name="test_collection",
+                config=mock_config
             )
 
     @patch('nvidia_rag.utils.vdb.get_metadata_configuration')
-    @patch('nvidia_rag.utils.vdb.CONFIG')
-    def test_get_vdb_op_default_parameters(self, mock_config, mock_get_metadata_config):
+    def test_get_vdb_op_default_parameters(self, mock_get_metadata_config):
         """Test _get_vdb_op with default parameters"""
         # Setup mocks
+        mock_config = Mock()
         mock_config.vector_store.name = "milvus"
         mock_config.vector_store.url = "http://milvus:19530"
         mock_config.vector_store.search_type = "dense"
@@ -296,7 +306,9 @@ class TestVDBInit:
                 mock_vdb_instance = Mock()
                 mock_milvus_vdb.return_value = mock_vdb_instance
 
-                result = _get_vdb_op(vdb_endpoint="http://test-milvus:19530")
+                result = _get_vdb_op(vdb_endpoint="http://test-milvus:19530",
+                    config=mock_config
+                )
 
                 assert result == mock_vdb_instance
                 call_args = mock_milvus_vdb.call_args[1]

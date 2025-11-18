@@ -328,19 +328,21 @@ class TestNvidiaRAGIngestorCoverageImprovement:
         mock_minio = Mock()
         mock_minio.list_payloads.return_value = []
         mock_minio.delete_payloads.return_value = None
+        
+        # Patch the instance's minio_operator directly
+        ingestor.minio_operator = mock_minio
 
         with patch.object(ingestor, '_NvidiaRAGIngestor__prepare_vdb_op_and_collection_name', return_value=(mock_vdb_op, "test_collection")):
-            with patch('nvidia_rag.ingestor_server.main.MINIO_OPERATOR', mock_minio):
-                with patch('nvidia_rag.ingestor_server.main.get_unique_thumbnail_id_file_name_prefix', return_value="test_prefix"):
-                    result = ingestor.delete_documents(
-                        collection_name="test_collection",
-                        document_names=["doc1", "doc2"],
-                        vdb_endpoint="http://test.com"
-                    )
+            with patch('nvidia_rag.ingestor_server.main.get_unique_thumbnail_id_file_name_prefix', return_value="test_prefix"):
+                result = ingestor.delete_documents(
+                    collection_name="test_collection",
+                    document_names=["doc1", "doc2"],
+                    vdb_endpoint="http://test.com"
+                )
 
-                    # Verify documents were deleted
-                    mock_vdb_op.delete_documents.assert_called_once()
-                    assert result["message"] == "Files deleted successfully"
+                # Verify documents were deleted
+                mock_vdb_op.delete_documents.assert_called_once()
+                assert result["message"] == "Files deleted successfully"
 
     def test_private_methods_coverage(self):
         """Test private methods to improve coverage."""
@@ -378,27 +380,29 @@ class TestNvidiaRAGIngestorCoverageImprovement:
                 f.write("Test content 1")
             with open(test_file2, "w") as f:
                 f.write("Test content 2")
+            
+            # Patch the instance's minio_operator directly
+            ingestor.minio_operator = Mock()
 
             with patch.object(ingestor, '_NvidiaRAGIngestor__prepare_vdb_op_and_collection_name', return_value=(mock_vdb_op, "test_collection")):
                 with patch.object(ingestor, '_validate_custom_metadata', return_value=(True, [])):
                     with patch.object(ingestor, '_NvidiaRAGIngestor__nvingest_upload_doc', return_value=([["doc1", "doc2"]], [])):
-                        with patch('nvidia_rag.ingestor_server.main.MINIO_OPERATOR', Mock()):
-                            # Mock get_documents to return empty list initially (no existing documents)
-                            # and then return the uploaded documents after ingestion
-                            with patch.object(ingestor, 'get_documents', side_effect=[
-                                {"documents": []},  # First call - no existing documents
-                                {"documents": [{"document_name": "test1.txt"}, {"document_name": "test2.txt"}]}  # Second call - after ingestion
-                            ]):
-                                result = await ingestor.upload_documents(
-                                    filepaths=[test_file1, test_file2],
-                                    collection_name="test_collection",
-                                    blocking=True
-                                )
+                        # Mock get_documents to return empty list initially (no existing documents)
+                        # and then return the uploaded documents after ingestion
+                        with patch.object(ingestor, 'get_documents', side_effect=[
+                            {"documents": []},  # First call - no existing documents
+                            {"documents": [{"document_name": "test1.txt"}, {"document_name": "test2.txt"}]}  # Second call - after ingestion
+                        ]):
+                            result = await ingestor.upload_documents(
+                                filepaths=[test_file1, test_file2],
+                                collection_name="test_collection",
+                                blocking=True
+                            )
 
-                                # Verify success response
-                                assert result["message"] == "Document upload job successfully completed."
-                                assert result["total_documents"] == 2
-                                assert len(result["documents"]) == 2
+                            # Verify success response
+                            assert result["message"] == "Document upload job successfully completed."
+                            assert result["total_documents"] == 2
+                            assert len(result["documents"]) == 2
 
     @pytest.mark.asyncio
     async def test_upload_documents_async_path(self):

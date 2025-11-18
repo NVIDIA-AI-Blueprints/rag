@@ -8,19 +8,10 @@ import pytest
 
 @pytest.fixture()
 def minio_module(monkeypatch):
-    """Import the module under test with a mocked get_config to avoid real config access."""
-    # Patch get_config before importing the module so CONFIG is created from our stub
-    import nvidia_rag.utils.common as common
-
-    dummy_config = SimpleNamespace(
-        minio=SimpleNamespace(
-            endpoint="dummy-endpoint:9000",
-            access_key="dummy-access",
-            secret_key="dummy-secret",
-        )
-    )
-    monkeypatch.setattr(common, "get_config", lambda: dummy_config, raising=True)
-
+    """Import the module under test with a mocked config."""
+    # get_config no longer exists - config is now passed as parameter to get_minio_operator
+    # We don't need to patch anything, just import the module
+    
     # Ensure any fake module injected by global test config is removed
     sys.modules.pop("nvidia_rag.utils.minio_operator", None)
 
@@ -227,7 +218,17 @@ def test_get_minio_operator_uses_config(monkeypatch, minio_module):
 
     monkeypatch.setattr(minio_module, "Minio", fake_minio_ctor, raising=True)
 
-    op = minio_module.get_minio_operator(default_bucket_name="bucket-x")
+    # Create a mock config with the expected minio settings
+    from types import SimpleNamespace
+    mock_config = SimpleNamespace(
+        minio=SimpleNamespace(
+            endpoint="dummy-endpoint:9000",
+            access_key="dummy-access",
+            secret_key="dummy-secret",
+        )
+    )
+
+    op = minio_module.get_minio_operator(default_bucket_name="bucket-x", config=mock_config)
     assert isinstance(op, minio_module.MinioOperator)
     assert len(created_clients) == 1
     c = created_clients[0]

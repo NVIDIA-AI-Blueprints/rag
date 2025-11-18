@@ -87,7 +87,8 @@ def stub_chat_prompt(monkeypatch):
         def __ror__(self, other):
             return other
 
-    monkeypatch.setattr(main, "StreamingFilterThinkParser", NoOpParser())
+    # StreamingFilterThinkParser is now an instance attribute, not module-level
+    # monkeypatch.setattr(main, "StreamingFilterThinkParser", NoOpParser())
 
     class NoOpStrOutputParser:
         def __ror__(self, other):
@@ -98,7 +99,8 @@ def stub_chat_prompt(monkeypatch):
     # Stub LLM and ranker to avoid external calls during generate()
     monkeypatch.setattr(main, "get_llm", lambda **kwargs: DummyPrompt())
     monkeypatch.setattr(main, "get_ranking_model", lambda **kwargs: None)
-    monkeypatch.setattr(main, "query_rewriter_llm", DummyPrompt())
+    # query_rewriter_llm is now an instance attribute, not module-level
+    # monkeypatch.setattr(main, "query_rewriter_llm", DummyPrompt())
     # Make generate() return a simple sync iterator instead of async coroutine
     monkeypatch.setattr(
         main,

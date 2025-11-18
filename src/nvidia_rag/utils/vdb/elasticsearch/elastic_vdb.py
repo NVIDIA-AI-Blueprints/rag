@@ -50,7 +50,7 @@ Retrieval Operations:
 import logging
 import os
 import time
-from typing import Any, Optional, Tuple, Union
+from typing import Any
 
 import pandas as pd
 from elasticsearch import Elasticsearch
@@ -61,7 +61,7 @@ from langchain_elasticsearch import ElasticsearchStore
 from nv_ingest_client.util.milvus import cleanup_records
 from opentelemetry import context as otel_context
 
-from nvidia_rag.utils.common import ConfigProxy
+from nvidia_rag.utils.configuration import NvidiaRAGConfig
 from nvidia_rag.utils.embedding import get_embedding_model
 from nvidia_rag.utils.vdb import DEFAULT_METADATA_SCHEMA_COLLECTION
 from nvidia_rag.utils.vdb.elasticsearch.es_queries import (
@@ -74,7 +74,6 @@ from nvidia_rag.utils.vdb.elasticsearch.es_queries import (
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
 
 logger = logging.getLogger(__name__)
-CONFIG = ConfigProxy()
 
 class ElasticVDB(VDBRag):
     """
@@ -92,43 +91,31 @@ class ElasticVDB(VDBRag):
         meta_fields: list[str] = None,
         embedding_model: str = None,
         csv_file_path: str = None,
-        # Authentication (either API key or username/password)
-        api_key: Optional[Union[str, Tuple[str, str]]] = None,
-        api_key_id: Optional[str] = None,
-        api_key_secret: Optional[str] = None,
-        username: Optional[str] = None,
-        password: Optional[str] = None,
+        config: NvidiaRAGConfig | None = None,
     ):
+        self.config = config or NvidiaRAGConfig()
         self.index_name = index_name
         self.es_url = es_url
+
+        # Resolve authentication from config
         # Prefer API key auth when provided; otherwise fall back to basic auth.
-        # Priority: explicitly passed args -> CONFIG -> env vars.
-        resolved_api_key: Optional[Union[str, Tuple[str, str]]] = None
-        resolved_basic_auth: Optional[Tuple[str, str]] = None
+        resolved_api_key: str | tuple[str, str] | None = None
+        resolved_basic_auth: tuple[str, str] | None = None
 
-        # Resolve API key from explicit args
-        if api_key:
-            resolved_api_key = api_key
-        elif api_key_id and api_key_secret:
-            resolved_api_key = (api_key_id, api_key_secret)
-        # Resolve basic auth from explicit args
-        if not resolved_api_key and username and password:
-            resolved_basic_auth = (username, password)
-
-        # Fall back to CONFIG if still not set (prefer API key over basic)
-        if not resolved_api_key and not resolved_basic_auth:
-            if CONFIG.vector_store.api_key:
-                resolved_api_key = CONFIG.vector_store.api_key
-            elif CONFIG.vector_store.api_key_id and CONFIG.vector_store.api_key_secret:
-                resolved_api_key = (CONFIG.vector_store.api_key_id, CONFIG.vector_store.api_key_secret)
-            elif CONFIG.vector_store.username and CONFIG.vector_store.password:
-                resolved_basic_auth = (CONFIG.vector_store.username, CONFIG.vector_store.password)
+        # Resolve API key from config
+        if self.config.vector_store.api_key:
+            resolved_api_key = self.config.vector_store.api_key
+        elif self.config.vector_store.api_key_id and self.config.vector_store.api_key_secret:
+            resolved_api_key = (self.config.vector_store.api_key_id, self.config.vector_store.api_key_secret)
+        # Resolve basic auth from config
+        elif self.config.vector_store.username and self.config.vector_store.password:
+            resolved_basic_auth = (self.config.vector_store.username, self.config.vector_store.password)
 
         # Keep on instance for reuse (e.g., langchain vectorstore)
         self._api_key = resolved_api_key
         self._basic_auth = resolved_basic_auth
-        self._username = username or CONFIG.vector_store.username
-        self._password = password or CONFIG.vector_store.password
+        self._username = self.config.vector_store.username
+        self._password = self.config.vector_store.password
 
         self._es_connection = Elasticsearch(
             hosts=[self.es_url],
@@ -149,7 +136,7 @@ class ElasticVDB(VDBRag):
         # Initialize the Elasticsearch vector store
         self.es_store = self._get_es_store(
             index_name=self.index_name,
-            dimensions=CONFIG.embeddings.dimensions,
+            dimensions=self.config.embeddings.dimensions,
             hybrid=self.hybrid,
         )
 
@@ -553,7 +540,7 @@ class ElasticVDB(VDBRag):
             "es_url": self.es_url,
             "embedding": self._embedding_model,
             "strategy": DenseVectorStrategy(
-                hybrid=CONFIG.vector_store.search_type == "hybrid"
+                hybrid=self.config.vector_store.search_type == "hybrid"
             ),
         }
 

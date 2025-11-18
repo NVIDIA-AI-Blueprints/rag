@@ -13,11 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Utility functions used across different modules of the RAG.
-1. get_env_variable: Get an environment variable with a fallback to a default value.
+1. filter_documents_by_confidence: Filter documents by confidence threshold.
 2. utils_cache: Use this to convert unhashable args to hashable ones.
-3. get_config: Parse the application configuration.
-4. combine_dicts: Combines two dictionaries recursively, prioritizing values from dict_b.
-5. sanitize_nim_url: Sanitize the NIM URL by adding http(s):// if missing and checking if the URL is hosted on NVIDIA's known endpoints.
+3. combine_dicts: Combines two dictionaries recursively, prioritizing values from dict_b.
+4. sanitize_nim_url: Sanitize the NIM URL by adding http(s):// if missing and checking if the URL is hosted on NVIDIA's known endpoints.
+5. get_metadata_configuration: Get the metadata configuration for a document.
+6. prepare_custom_metadata_dataframe: Prepare custom metadata for a document and write it to a dataframe in csv format.
+7. validate_filter_expr: Validate the filter expression for metadata filtering against multiple collections.
+8. process_filter_expr: Process the filter expression by transforming it to the appropriate syntax for the configured vector store.
 """
 
 import ast
@@ -26,7 +29,7 @@ import logging
 import os
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
-from functools import lru_cache, wraps
+from functools import wraps
 from typing import Any
 from uuid import uuid4
 
@@ -35,7 +38,6 @@ from langchain_core.documents import Document
 from langchain_nvidia_ai_endpoints import Model, register_model
 
 from nvidia_rag.utils import configuration
-from nvidia_rag.utils.configuration_wizard import ConfigWizard
 from nvidia_rag.utils.metadata_validation import (
     FilterExpressionParser,
     MetadataField,
@@ -91,36 +93,6 @@ def filter_documents_by_confidence(
     return filtered_documents
 
 
-def get_env_variable(variable_name: str, default_value: Any) -> Any:
-    """
-    Get an environment variable with a fallback to a default value.
-    Also checks if the variable is set, is not empty, and is not longer than 256 characters.
-
-    Args:
-        variable_name (str): The name of the environment variable to get
-
-    Returns:
-        Any: The value of the environment variable or the default value if the variable is not set
-    """
-    var = os.environ.get(variable_name)
-
-    # Check if variable is set
-    if var is None:
-        logger.warning(
-            f"Environment variable {variable_name} is not set. Using default value: {default_value}"
-        )
-        var = default_value
-
-    # Check min and max length of variable
-    if len(var) > 256 or len(var) == 0:
-        logger.warning(
-            f"Environment variable {variable_name} is longer than 256 characters or empty. Using default value: {default_value}"
-        )
-        var = default_value
-
-    return var
-
-
 def utils_cache(func: Callable) -> Callable:
     """Use this to convert unhashable args to hashable ones"""
 
@@ -137,69 +109,6 @@ def utils_cache(func: Callable) -> Callable:
         return func(*args_hashable, **kwargs_hashable)
 
     return wrapper
-
-
-@lru_cache
-def get_config() -> "ConfigWizard":
-    """Parse and return the application configuration.
-
-    Returns a cached singleton instance that can be modified at runtime.
-    Config objects are mutable, enabling dynamic configuration changes.
-    """
-    config_file = os.environ.get("APP_CONFIG_FILE", "/dev/null")
-    config = configuration.AppConfig.from_file(config_file)
-    if config:
-        return config
-    raise RuntimeError("Unable to find configuration.")
-
-
-def reload_config() -> "ConfigWizard":
-    """Clear the config cache and reload from environment variables.
-
-    Use this when you've changed environment variables after the initial
-    config load and want to pick up the new values.
-
-    Returns:
-        ConfigWizard: Freshly loaded configuration object
-
-    Example:
-        >>> import os
-        >>> from nvidia_rag.utils.common import get_config, reload_config
-        >>> config = get_config()
-        >>> os.environ["APP_LLM_MODELNAME"] = "new-model"
-        >>> config = reload_config()  # Picks up new env var
-    """
-    get_config.cache_clear()
-    return get_config()
-
-
-class ConfigProxy:
-    """Proxy that always returns the current configuration state.
-
-    Enables dynamic configuration changes to be reflected everywhere.
-    """
-
-    __slots__ = ()
-
-    def __getattr__(self, name: str) -> Any:
-        """Retrieve attribute from current config."""
-        return getattr(get_config(), name)
-
-    def __setattr__(self, name: str, value: Any) -> None:
-        """Set attribute on current config."""
-        setattr(get_config(), name, value)
-
-    def __repr__(self) -> str:
-        """Return string representation."""
-        return repr(get_config())
-
-    def __str__(self) -> str:
-        """Return string conversion."""
-        return str(get_config())
-
-    def __dir__(self) -> list[str]:
-        """Return available attributes."""
-        return dir(get_config())
 
 
 def combine_dicts(dict_a: dict[str, Any], dict_b: dict[str, Any]) -> dict[str, Any]:
@@ -278,6 +187,7 @@ def get_metadata_configuration(
     custom_metadata: list[dict[str, Any]] | None = None,
     all_file_paths: list[str] | None = None,
     metadata_schema: list[dict[str, Any]] | None = None,
+    config: "configuration.NvidiaRAGConfig | None" = None,
 ):
     """
     Get the metadata configuration for a document.
@@ -287,8 +197,10 @@ def get_metadata_configuration(
         custom_metadata: User-provided metadata
         all_file_paths: List of file paths
         metadata_schema: Optional metadata schema for checking user_defined flags
+        config: NvidiaRAGConfig instance. If None, creates a new one.
     """
-    config = get_config()
+    if config is None:
+        config = configuration.NvidiaRAGConfig()
 
     # Create a temporary directory for custom metadata csv file
     csv_file_path = os.path.join(
@@ -391,7 +303,10 @@ def prepare_custom_metadata_dataframe(
 
 
 def validate_filter_expr(
-    filter_expr: Any, collection_names: list[str], metadata_schemas: dict[str, Any]
+    filter_expr: Any,
+    collection_names: list[str],
+    metadata_schemas: dict[str, Any],
+    config: "configuration.NvidiaRAGConfig | None" = None,
 ) -> dict[str, Any]:
     """
     Validate the filter expression for metadata filtering against multiple collections.
@@ -403,6 +318,7 @@ def validate_filter_expr(
         filter_expr: Filter expression (string for Milvus, list of dicts for Elasticsearch)
         collection_names: List of collection names to validate against
         metadata_schemas: Dictionary mapping collection names to their metadata schemas
+        config: NvidiaRAGConfig instance. If None, creates a new one.
 
     Returns:
         dict with keys:
@@ -411,7 +327,8 @@ def validate_filter_expr(
         - error_message: Error message if validation fails
         - details: Additional details about validation failures
     """
-    config = get_config()
+    if config is None:
+        config = configuration.NvidiaRAGConfig()
 
     if config.vector_store.name == "elasticsearch":
         if isinstance(filter_expr, list):
@@ -594,6 +511,7 @@ def process_filter_expr(
     collection_name: str = "",
     metadata_schema_data: list[dict] = None,
     is_generated_filter: bool = False,
+    config: "configuration.NvidiaRAGConfig | None" = None,
 ) -> str | list[dict[str, Any]]:
     """
     Process the filter expression by transforming it to the appropriate syntax for the configured vector store.
@@ -606,8 +524,10 @@ def process_filter_expr(
         collection_name: The collection name (for logging purposes)
         metadata_schema_data: Pre-fetched metadata schema data (required for Milvus processing)
         is_generated_filter: Whether this filter was generated by LLM (affects error handling)
+        config: NvidiaRAGConfig instance. If None, creates a new one.
     """
-    config = get_config()
+    if config is None:
+        config = configuration.NvidiaRAGConfig()
 
     if not filter_expr or (isinstance(filter_expr, str) and filter_expr.strip() == ""):
         logger.debug("Filter expression is empty, returning empty string/list")

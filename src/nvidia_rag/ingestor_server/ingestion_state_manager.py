@@ -15,6 +15,7 @@
 """
 This module manages the state of the ingestion process.
 """
+
 import asyncio
 from typing import Any
 from uuid import uuid4
