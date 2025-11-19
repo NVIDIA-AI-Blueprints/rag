@@ -23,7 +23,7 @@ from typing import Any, Dict, List
 import pytest
 from fastapi.testclient import TestClient
 
-from nvidia_rag.ingestor_server.main import NvidiaRAGIngestor, LIBRARY_MODE, SERVER_MODE, SUPPORTED_MODES
+from nvidia_rag.ingestor_server.main import Mode, NvidiaRAGIngestor
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
 
 
@@ -32,14 +32,14 @@ class TestNvidiaRAGIngestorInit:
 
     def test_init_with_library_mode(self):
         """Test initialization with library mode."""
-        ingestor = NvidiaRAGIngestor(mode=LIBRARY_MODE)
-        assert ingestor.mode == LIBRARY_MODE
+        ingestor = NvidiaRAGIngestor(mode=Mode.LIBRARY)
+        assert ingestor.mode == Mode.LIBRARY
         assert ingestor.vdb_op is None
 
     def test_init_with_server_mode(self):
         """Test initialization with server mode."""
-        ingestor = NvidiaRAGIngestor(mode=SERVER_MODE)
-        assert ingestor.mode == SERVER_MODE
+        ingestor = NvidiaRAGIngestor(mode=Mode.SERVER)
+        assert ingestor.mode == Mode.SERVER
         assert ingestor.vdb_op is None
 
     def test_init_with_invalid_mode(self):
@@ -50,13 +50,13 @@ class TestNvidiaRAGIngestorInit:
     def test_init_with_valid_vdb_op(self):
         """Test initialization with valid VDBRag instance."""
         mock_vdb_op = Mock(spec=VDBRag)
-        ingestor = NvidiaRAGIngestor(vdb_op=mock_vdb_op, mode=LIBRARY_MODE)
+        ingestor = NvidiaRAGIngestor(vdb_op=mock_vdb_op, mode=Mode.LIBRARY)
         assert ingestor.vdb_op == mock_vdb_op
 
     def test_init_with_invalid_vdb_op(self):
         """Test initialization with invalid vdb_op type."""
         with pytest.raises(ValueError, match="vdb_op must be an instance of nvidia_rag.utils.vdb.vdb_base.VDBRag"):
-            NvidiaRAGIngestor(vdb_op="invalid_type", mode=LIBRARY_MODE)
+            NvidiaRAGIngestor(vdb_op="invalid_type", mode=Mode.LIBRARY)
 
     def test_init_with_vdb_class(self):
         """Test initialization with VDB class instance."""
@@ -66,7 +66,7 @@ class TestNvidiaRAGIngestorInit:
 
         with patch('nvidia_rag.ingestor_server.main.VDB', MockVDB):
             mock_vdb_op = MockVDB()
-            ingestor = NvidiaRAGIngestor(vdb_op=mock_vdb_op, mode=LIBRARY_MODE)
+            ingestor = NvidiaRAGIngestor(vdb_op=mock_vdb_op, mode=Mode.LIBRARY)
             assert ingestor.vdb_op == mock_vdb_op
 
 
