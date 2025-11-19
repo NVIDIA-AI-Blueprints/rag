@@ -67,10 +67,10 @@ class TestCheckServiceHealth:
                     "http://localhost:8080/health", "Test Service"
                 )
 
-            assert result["status"] == "healthy"
-            assert result["service"] == "Test Service"
-            assert result["http_status"] == 200
-            assert result["latency_ms"] == 100.0
+            assert result.status == "healthy"
+            assert result.service == "Test Service"
+            assert result.http_status == 200
+            assert result.latency_ms == 100.0
 
     @pytest.mark.asyncio
     async def test_check_service_health_unhealthy_status(self):
@@ -89,8 +89,8 @@ class TestCheckServiceHealth:
                     "http://localhost:8080/health", "Test Service"
                 )
 
-            assert result["status"] == "unhealthy"
-            assert result["http_status"] == 500
+            assert result.status == "unhealthy"
+            assert result.http_status == 500
 
     @pytest.mark.asyncio
     async def test_check_service_health_timeout(self):
@@ -104,8 +104,8 @@ class TestCheckServiceHealth:
                 "http://localhost:8080/health", "Test Service", timeout=1
             )
 
-            assert result["status"] == "timeout"
-            assert "timed out after 1s" in result["error"]
+            assert result.status == "timeout"
+            assert "timed out after 1s" in result.error
 
     @pytest.mark.asyncio
     async def test_check_service_health_client_error(self):
@@ -119,8 +119,8 @@ class TestCheckServiceHealth:
                 "http://localhost:8080/health", "Test Service"
             )
 
-            assert result["status"] == "error"
-            assert "Connection failed" in result["error"]
+            assert result.status == "error"
+            assert "Connection failed" in result.error
 
     @pytest.mark.asyncio
     async def test_check_service_health_post_with_json(self):
@@ -142,7 +142,7 @@ class TestCheckServiceHealth:
                 json_data=json_data,
             )
 
-            assert result["status"] == "healthy"
+            assert result.status == "healthy"
             mock_session.post.assert_called_once()
 
     @pytest.mark.asyncio
@@ -159,7 +159,7 @@ class TestCheckServiceHealth:
 
             result = await check_service_health("localhost:8080/health", "Test Service")
 
-            assert result["status"] == "healthy"
+            assert result.status == "healthy"
             # Verify the URL was called with http:// prefix
             mock_session.get.assert_called_once()
             call_args = mock_session.get.call_args
@@ -170,8 +170,8 @@ class TestCheckServiceHealth:
         """Test with empty URL"""
         result = await check_service_health("", "Test Service")
 
-        assert result["status"] == "skipped"
-        assert result["error"] == "No URL provided"
+        assert result.status == "skipped"
+        assert result.error == "No URL provided"
 
     @pytest.mark.asyncio
     async def test_check_service_health_with_headers(self):
@@ -190,7 +190,7 @@ class TestCheckServiceHealth:
                 "http://localhost:8080/health", "Test Service", headers=headers
             )
 
-            assert result["status"] == "healthy"
+            assert result.status == "healthy"
 
 
 class TestCheckMinioHealth:
@@ -211,11 +211,11 @@ class TestCheckMinioHealth:
                     "localhost:9000", "access_key", "secret_key"
                 )
 
-            assert result["status"] == "healthy"
-            assert result["service"] == "MinIO"
-            assert result["url"] == "localhost:9000"
-            assert result["buckets"] == 3
-            assert result["latency_ms"] == 150.0
+            assert result.status == "healthy"
+            assert result.service == "MinIO"
+            assert result.url == "localhost:9000"
+            assert result.buckets == 3
+            assert result.latency_ms == 150.0
 
     @pytest.mark.asyncio
     async def test_check_minio_health_connection_error(self):
@@ -227,8 +227,8 @@ class TestCheckMinioHealth:
                 "localhost:9000", "access_key", "secret_key"
             )
 
-            assert result["status"] == "error"
-            assert "Connection refused" in result["error"]
+            assert result.status == "error"
+            assert "Connection refused" in result.error
 
     @pytest.mark.asyncio
     async def test_check_minio_health_list_buckets_error(self):
@@ -242,16 +242,16 @@ class TestCheckMinioHealth:
                 "localhost:9000", "wrong_key", "wrong_secret"
             )
 
-            assert result["status"] == "error"
-            assert "Access denied" in result["error"]
+            assert result.status == "error"
+            assert "Access denied" in result.error
 
     @pytest.mark.asyncio
     async def test_check_minio_health_no_endpoint(self):
         """Test MinIO health check with no endpoint"""
         result = await check_minio_health("", "access_key", "secret_key")
 
-        assert result["status"] == "skipped"
-        assert result["error"] == "No endpoint provided"
+        assert result.status == "skipped"
+        assert result.error == "No endpoint provided"
 
 
 class TestIsNvidiaApiCatalogUrl:

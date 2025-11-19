@@ -56,7 +56,7 @@ async def check_service_health(
     timeout: int = 5,
     headers: dict[str, str] | None = None,
     json_data: dict[str, Any] | None = None,
-) -> dict[str, Any]:
+) -> NIMServiceHealthInfo:
     """
     Check health of a service endpoint asynchronously.
 
@@ -69,22 +69,23 @@ async def check_service_health(
         json_data: Optional JSON payload for POST requests
 
     Returns:
-        Dictionary with status information
+        NIMServiceHealthInfo with status information
     """
     start_time = time.time()
-    status = {
-        "service": service_name,
-        "url": url,
-        "status": "unknown",
-        "latency_ms": 0,
-        "error": None,
-    }
-
+    
     if not url:
-        status["status"] = "skipped"
-        status["error"] = "No URL provided"
-        return status
+        return NIMServiceHealthInfo(
+            service=service_name,
+            url=url,
+            status="skipped",
+            latency_ms=0,
+            error="No URL provided"
+        )
 
+    http_status = None
+    status = "unknown"
+    error = None
+    
     try:
         # Add scheme if missing
         if not url.startswith(("http://", "https://")):
@@ -108,33 +109,57 @@ async def check_service_health(
             async with getattr(session, method.lower())(
                 url, **request_kwargs
             ) as response:
-                status["status"] = "healthy" if response.status < 400 else "unhealthy"
-                status["http_status"] = response.status
-                status["latency_ms"] = round((time.time() - start_time) * 1000, 2)
+                status = "healthy" if response.status < 400 else "unhealthy"
+                http_status = response.status
+                latency_ms = round((time.time() - start_time) * 1000, 2)
+                
+                return NIMServiceHealthInfo(
+                    service=service_name,
+                    url=url,
+                    status=status,
+                    latency_ms=latency_ms,
+                    http_status=http_status
+                )
 
     except TimeoutError:
-        status["status"] = "timeout"
-        status["error"] = f"Request timed out after {timeout}s"
+        error = f"Request timed out after {timeout}s"
+        return NIMServiceHealthInfo(
+            service=service_name,
+            url=url,
+            status="timeout",
+            latency_ms=0,
+            error=error
+        )
     except aiohttp.ClientError as e:
-        status["status"] = "error"
-        status["error"] = str(e)
+        return NIMServiceHealthInfo(
+            service=service_name,
+            url=url,
+            status="error",
+            latency_ms=0,
+            error=str(e)
+        )
     except Exception as e:
-        status["status"] = "error"
-        status["error"] = str(e)
-
-    return status
+        return NIMServiceHealthInfo(
+            service=service_name,
+            url=url,
+            status="error",
+            latency_ms=0,
+            error=str(e)
+        )
 
 
 async def check_minio_health(
     endpoint: str, access_key: str, secret_key: str
-) -> dict[str, Any]:
+) -> StorageHealthInfo:
     """Check MinIO server health"""
-    status = {"service": "MinIO", "url": endpoint, "status": "unknown", "error": None}
-
     if not endpoint:
-        status["status"] = "skipped"
-        status["error"] = "No endpoint provided"
-        return status
+        return StorageHealthInfo(
+            service="MinIO",
+            url=endpoint,
+            status="skipped",
+            latency_ms=0,
+            error="No endpoint provided"
+        )
 
     try:
         start_time = time.time()
@@ -143,29 +168,37 @@ async def check_minio_health(
         )
         # Test basic operation - list buckets
         buckets = minio_operator.client.list_buckets()
-        status["status"] = "healthy"
-        status["latency_ms"] = round((time.time() - start_time) * 1000, 2)
-        status["buckets"] = len(buckets)
+        latency_ms = round((time.time() - start_time) * 1000, 2)
+        
+        return StorageHealthInfo(
+            service="MinIO",
+            url=endpoint,
+            status="healthy",
+            latency_ms=latency_ms,
+            buckets=len(buckets)
+        )
     except Exception as e:
-        status["status"] = "error"
-        status["error"] = str(e)
+        return StorageHealthInfo(
+            service="MinIO",
+            url=endpoint,
+            status="error",
+            latency_ms=0,
+            error=str(e)
+        )
 
-    return status
 
-
-async def check_nv_ingest_health(hostname: str, port: int) -> dict[str, Any]:
+async def check_nv_ingest_health(hostname: str, port: int) -> ProcessingHealthInfo:
     """Check NV-Ingest service health"""
-    status = {
-        "service": "NV-Ingest",
-        "url": f"{hostname}:{port}",
-        "status": "unknown",
-        "error": None,
-    }
-
+    url_base = f"{hostname}:{port}"
+    
     if not hostname or not port:
-        status["status"] = "skipped"
-        status["error"] = "No hostname or port provided"
-        return status
+        return ProcessingHealthInfo(
+            service="NV-Ingest",
+            url=url_base,
+            status="skipped",
+            latency_ms=0,
+            error="No hostname or port provided"
+        )
 
     try:
         start_time = time.time()
@@ -179,44 +212,61 @@ async def check_nv_ingest_health(hostname: str, port: int) -> dict[str, Any]:
                 async with session.get(
                     url, timeout=aiohttp.ClientTimeout(total=5)
                 ) as response:
+                    latency_ms = round((time.time() - start_time) * 1000, 2)
                     if response.status < 400:
-                        status["status"] = "healthy"
-                        status["http_status"] = response.status
+                        return ProcessingHealthInfo(
+                            service="NV-Ingest",
+                            url=url_base,
+                            status="healthy",
+                            latency_ms=latency_ms,
+                            http_status=response.status
+                        )
                     else:
-                        status["status"] = "unhealthy"
-                        status["http_status"] = response.status
+                        return ProcessingHealthInfo(
+                            service="NV-Ingest",
+                            url=url_base,
+                            status="unhealthy",
+                            latency_ms=latency_ms,
+                            http_status=response.status
+                        )
             except aiohttp.ClientError:
                 # If health endpoint doesn't exist, try basic connectivity check
                 url = f"http://{hostname}:{port}"
                 async with session.get(
                     url, timeout=aiohttp.ClientTimeout(total=5)
                 ) as response:
+                    latency_ms = round((time.time() - start_time) * 1000, 2)
                     # Any response indicates service is running
-                    status["status"] = "healthy"
-                    status["http_status"] = response.status
-
-        status["latency_ms"] = round((time.time() - start_time) * 1000, 2)
+                    return ProcessingHealthInfo(
+                        service="NV-Ingest",
+                        url=url_base,
+                        status="healthy",
+                        latency_ms=latency_ms,
+                        http_status=response.status
+                    )
 
     except Exception as e:
-        status["status"] = "error"
-        status["error"] = str(e)
+        return ProcessingHealthInfo(
+            service="NV-Ingest",
+            url=url_base,
+            status="error",
+            latency_ms=0,
+            error=str(e)
+        )
 
-    return status
 
-
-async def check_redis_health(host: str, port: int, db: int) -> dict[str, Any]:
+async def check_redis_health(host: str, port: int, db: int) -> TaskManagementHealthInfo:
     """Check Redis server health"""
-    status = {
-        "service": "Redis",
-        "url": f"{host}:{port}",
-        "status": "unknown",
-        "error": None,
-    }
-
+    url_base = f"{host}:{port}"
+    
     if not host or not port:
-        status["status"] = "skipped"
-        status["error"] = "No host or port provided"
-        return status
+        return TaskManagementHealthInfo(
+            service="Redis",
+            url=url_base,
+            status="skipped",
+            latency_ms=0,
+            error="No host or port provided"
+        )
 
     try:
         start_time = time.time()
@@ -230,21 +280,40 @@ async def check_redis_health(host: str, port: int, db: int) -> dict[str, Any]:
         # Test basic operation - ping
         result = redis_client.ping()
 
+        latency_ms = round((time.time() - start_time) * 1000, 2)
+        
         if result:
-            status["status"] = "healthy"
-            status["latency_ms"] = round((time.time() - start_time) * 1000, 2)
+            return TaskManagementHealthInfo(
+                service="Redis",
+                url=url_base,
+                status="healthy",
+                latency_ms=latency_ms
+            )
         else:
-            status["status"] = "unhealthy"
-            status["error"] = "Redis ping failed"
+            return TaskManagementHealthInfo(
+                service="Redis",
+                url=url_base,
+                status="unhealthy",
+                latency_ms=0,
+                error="Redis ping failed"
+            )
 
     except ImportError:
-        status["status"] = "skipped"
-        status["error"] = "Redis not available (library not installed)"
+        return TaskManagementHealthInfo(
+            service="Redis",
+            url=url_base,
+            status="skipped",
+            latency_ms=0,
+            error="Redis not available (library not installed)"
+        )
     except Exception as e:
-        status["status"] = "error"
-        status["error"] = str(e)
-
-    return status
+        return TaskManagementHealthInfo(
+            service="Redis",
+            url=url_base,
+            status="error",
+            latency_ms=0,
+            error=str(e)
+        )
 
 
 def is_nvidia_api_catalog_url(url: str) -> bool:
@@ -290,16 +359,12 @@ async def check_all_services_health(
     minio_access_key = config.minio.access_key.get_secret_value()
     minio_secret_key = config.minio.secret_key.get_secret_value()
     if minio_endpoint:
-        tasks.append(
-            (
-                "object_storage",
-                check_minio_health(
-                    endpoint=minio_endpoint,
-                    access_key=minio_access_key,
-                    secret_key=minio_secret_key,
-                ),
-            )
+        minio_result = await check_minio_health(
+            endpoint=minio_endpoint,
+            access_key=minio_access_key,
+            secret_key=minio_secret_key,
         )
+        object_storage.append(minio_result)
 
     # Vector DB health check
     try:
@@ -321,15 +386,11 @@ async def check_all_services_health(
         config.nv_ingest.message_client_hostname
         and config.nv_ingest.message_client_port
     ):
-        tasks.append(
-            (
-                "processing",
-                check_nv_ingest_health(
-                    hostname=config.nv_ingest.message_client_hostname,
-                    port=config.nv_ingest.message_client_port,
-                ),
-            )
+        nv_ingest_result = await check_nv_ingest_health(
+            hostname=config.nv_ingest.message_client_hostname,
+            port=config.nv_ingest.message_client_port,
         )
+        processing.append(nv_ingest_result)
 
     # Embedding service health check
     if config.embeddings.server_url and not is_nvidia_api_catalog_url(
@@ -341,15 +402,9 @@ async def check_all_services_health(
         else:
             embed_url = f"{embed_url}/v1/health/ready"
 
-        # For local services, we need to create a custom result with model info
-        async def check_embed_health():
-            result = await check_service_health(
-                url=embed_url, service_name="Embeddings"
-            )
-            result["model"] = config.embeddings.model_name
-            return result
-
-        tasks.append(("nim", check_embed_health()))
+        # For local services, check health and add model info
+        embed_result = await check_service_health(url=embed_url, service_name="Embeddings")
+        nim.append(embed_result.model_copy(update={"model": config.embeddings.model_name}))
     else:
         # When URL is empty or from API catalog, assume the service is running via API catalog
         nim.append(
@@ -373,13 +428,9 @@ async def check_all_services_health(
         else:
             llm_url = f"{llm_url}/v1/health/ready"
 
-        # For local services, we need to create a custom result with model info
-        async def check_summary_llm_health():
-            result = await check_service_health(url=llm_url, service_name="Summary LLM")
-            result["model"] = config.summarizer.model_name
-            return result
-
-        tasks.append(("nim", check_summary_llm_health()))
+        # For local services, check health and add model info
+        llm_result = await check_service_health(url=llm_url, service_name="Summary LLM")
+        nim.append(llm_result.model_copy(update={"model": config.summarizer.model_name}))
     else:
         # When URL is empty or from API catalog, assume the service is running via API catalog
         nim.append(
@@ -410,15 +461,9 @@ async def check_all_services_health(
                 elif not caption_url.endswith("/v1/health/ready"):
                     caption_url = f"{caption_url}/v1/health/ready"
 
-            # For local services, we need to create a custom result with model info
-            async def check_caption_health():
-                result = await check_service_health(
-                    url=caption_url, service_name="Caption Model"
-                )
-                result["model"] = config.nv_ingest.caption_model_name
-                return result
-
-            tasks.append(("nim", check_caption_health()))
+            # For local services, check health and add model info
+            caption_result = await check_service_health(url=caption_url, service_name="Caption Model")
+            nim.append(caption_result.model_copy(update={"model": config.nv_ingest.caption_model_name}))
         else:
             # When URL is empty or from API catalog, assume the service is running via API catalog
             nim.append(
@@ -438,26 +483,14 @@ async def check_all_services_health(
     redis_host = os.getenv("REDIS_HOST", "localhost")
     redis_port = int(os.getenv("REDIS_PORT", 6379))
     redis_db = int(os.getenv("REDIS_DB", 0))
-    tasks.append(
-        (
-            "task_management",
-            check_redis_health(host=redis_host, port=redis_port, db=redis_db),
-        )
-    )
+    redis_result = await check_redis_health(host=redis_host, port=redis_port, db=redis_db)
+    task_management.append(redis_result)
 
-    # Execute all health checks concurrently
+    # Execute all health checks concurrently for vector DB
     for category, task in tasks:
         result = await task
         if category == "databases":
             databases.append(DatabaseHealthInfo(**result))
-        elif category == "object_storage":
-            object_storage.append(StorageHealthInfo(**result))
-        elif category == "nim":
-            nim.append(NIMServiceHealthInfo(**result))
-        elif category == "processing":
-            processing.append(ProcessingHealthInfo(**result))
-        elif category == "task_management":
-            task_management.append(TaskManagementHealthInfo(**result))
 
     return IngestorHealthResponse(
         message="Service is up.",
