@@ -47,19 +47,18 @@ class TestMilvusVDB:
         mock_urlparse.return_value = mock_url
 
         embedding_model = Mock()
-        kwargs = {
-            "embedding_model": embedding_model,
-            "milvus_uri": "http://localhost:19530",
-            "collection_name": "test_collection",
-            "meta_dataframe": "/path/to/csv",
-            "config": mock_config,
-        }
 
         with patch(
             "nvidia_rag.utils.vdb.milvus.milvus_vdb.Milvus.__init__"
         ) as mock_super_init:
             mock_super_init.return_value = None
-            vdb = MilvusVDB(**kwargs)
+            vdb = MilvusVDB(
+                collection_name="test_collection",
+                milvus_uri="http://localhost:19530",
+                embedding_model=embedding_model,
+                config=mock_config,
+                meta_dataframe="/path/to/csv",
+            )
 
             assert vdb.embedding_model == embedding_model
             assert vdb.vdb_endpoint == "http://localhost:19530"

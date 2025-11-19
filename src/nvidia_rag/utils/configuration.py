@@ -581,6 +581,7 @@ class VLMConfig(_ConfigBase):
     )
     max_total_images: int = Field(
         default=4,
+        ge=0,
         env="APP_VLM_MAX_TOTAL_IMAGES",
         description="Maximum total images to process in a single request",
     )
