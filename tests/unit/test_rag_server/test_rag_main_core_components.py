@@ -95,6 +95,8 @@ class TestNvidiaRAGHealth:
     @pytest.mark.asyncio
     async def test_health_basic(self):
         """Test basic health check without dependencies."""
+        from nvidia_rag.utils.health_models import RAGHealthResponse
+
         rag = NvidiaRAG()
 
         with patch.object(rag, '_NvidiaRAG__prepare_vdb_op') as mock_prepare:
@@ -102,16 +104,18 @@ class TestNvidiaRAGHealth:
 
             result = await rag.health(check_dependencies=False)
 
-            assert result["message"] == "Service is up."
-            assert "dependencies" not in result
+            assert isinstance(result, RAGHealthResponse)
+            assert result.message == "Service is up."
 
     @pytest.mark.asyncio
     async def test_health_with_dependencies(self):
         """Test health check with dependencies."""
+        from nvidia_rag.utils.health_models import RAGHealthResponse
+
         rag = NvidiaRAG()
 
         mock_vdb_op = Mock()
-        mock_dependencies = {"vdb": "healthy", "llm": "healthy"}
+        mock_dependencies = RAGHealthResponse(message="Service is up.")
 
         with patch.object(rag, '_NvidiaRAG__prepare_vdb_op') as mock_prepare:
             with patch('nvidia_rag.rag_server.main.check_all_services_health') as mock_check:
@@ -120,9 +124,8 @@ class TestNvidiaRAGHealth:
 
                 result = await rag.health(check_dependencies=True)
 
-                assert result["message"] == "Service is up."
-                assert result["vdb"] == "healthy"
-                assert result["llm"] == "healthy"
+                assert isinstance(result, RAGHealthResponse)
+                assert result.message == "Service is up."
                 # Verify check_all_services_health was called with vdb_op and config
                 mock_check.assert_called_once()
                 call_args = mock_check.call_args
