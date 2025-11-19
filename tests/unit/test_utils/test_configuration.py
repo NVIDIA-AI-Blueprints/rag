@@ -25,11 +25,11 @@ import pytest
 import yaml
 
 from nvidia_rag.utils.configuration import (
-    NvidiaRAGConfig,
     EmbeddingConfig,
     LLMConfig,
     MinioConfig,
     ModelParametersConfig,
+    NvidiaRAGConfig,
     NvIngestConfig,
     QueryRewriterConfig,
     RankingConfig,
@@ -397,9 +397,9 @@ class TestConfigurationIntegration:
         # Simulate Docker Compose setting boolean values as quoted strings
         env_vars = {
             "APP_TRACING_ENABLED": '"False"',  # Docker Compose style: "False"
-            "ENABLE_GUARDRAILS": '"True"',     # Docker Compose style: "True"
-            "ENABLE_CITATIONS": '"false"',     # lowercase with quotes
-            "ENABLE_RERANKER": '"true"',       # lowercase with quotes
+            "ENABLE_GUARDRAILS": '"True"',  # Docker Compose style: "True"
+            "ENABLE_CITATIONS": '"false"',  # lowercase with quotes
+            "ENABLE_RERANKER": '"true"',  # lowercase with quotes
         }
 
         with patch.dict(os.environ, env_vars):

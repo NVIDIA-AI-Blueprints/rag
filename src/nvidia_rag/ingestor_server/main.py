@@ -726,6 +726,7 @@ class NvidiaRAGIngestor:
                 collection_name=collection_name,
                 page_filter=page_filter,
                 summarization_strategy=summarization_strategy,
+                config=self.config,
             )
 
             if stats["failed"] > 0:

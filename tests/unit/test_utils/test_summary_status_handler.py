@@ -34,7 +34,9 @@ from redis.exceptions import ConnectionError as RedisConnectionError
 from redis.exceptions import RedisError
 
 from nvidia_rag.utils.summarization import (
+    _get_tokenizer,
     _reset_global_summary_counter,
+    _token_length,
     acquire_global_summary_slot,
     get_summarization_semaphore,
     matches_page_filter,
@@ -724,20 +726,21 @@ class TestSummarizationGlobalRateLimiting:
     @pytest.mark.asyncio
     async def test_acquire_global_summary_slot_success(self):
         """Test successful acquisition of global slot"""
-        with (
-            patch(
-                "nvidia_rag.utils.summarization.SUMMARY_STATUS_HANDLER"
-            ) as mock_handler,
-            patch("nvidia_rag.utils.summarization.CONFIG") as mock_config,
-        ):
+        with patch(
+            "nvidia_rag.utils.summarization.SUMMARY_STATUS_HANDLER"
+        ) as mock_handler:
             mock_handler.is_available.return_value = True
+
+            # Create a mock config
+
+            mock_config = Mock()
             mock_config.summarizer.max_parallelization = 20
 
             mock_redis = MagicMock()
             mock_redis.incr.return_value = 5  # Within limit
             mock_handler._redis_client = mock_redis
 
-            result = await acquire_global_summary_slot()
+            result = await acquire_global_summary_slot(mock_config)
 
             assert result is True
             mock_redis.incr.assert_called_once()
@@ -745,20 +748,21 @@ class TestSummarizationGlobalRateLimiting:
     @pytest.mark.asyncio
     async def test_acquire_global_summary_slot_at_limit(self):
         """Test acquisition when at limit"""
-        with (
-            patch(
-                "nvidia_rag.utils.summarization.SUMMARY_STATUS_HANDLER"
-            ) as mock_handler,
-            patch("nvidia_rag.utils.summarization.CONFIG") as mock_config,
-        ):
+        with patch(
+            "nvidia_rag.utils.summarization.SUMMARY_STATUS_HANDLER"
+        ) as mock_handler:
             mock_handler.is_available.return_value = True
+
+            # Create a mock config
+
+            mock_config = Mock()
             mock_config.summarizer.max_parallelization = 20
 
             mock_redis = MagicMock()
             mock_redis.incr.return_value = 21  # Over limit
             mock_handler._redis_client = mock_redis
 
-            result = await acquire_global_summary_slot()
+            result = await acquire_global_summary_slot(mock_config)
 
             assert result is False
             mock_redis.decr.assert_called_once()  # Should decrement back
@@ -771,27 +775,32 @@ class TestSummarizationGlobalRateLimiting:
         ) as mock_handler:
             mock_handler.is_available.return_value = False
 
-            result = await acquire_global_summary_slot()
+            # Create a mock config
+
+            mock_config = Mock()
+
+            result = await acquire_global_summary_slot(mock_config)
 
             assert result is True  # Should proceed without Redis
 
     @pytest.mark.asyncio
     async def test_acquire_global_summary_slot_redis_error(self):
         """Test acquisition handles Redis errors gracefully"""
-        with (
-            patch(
-                "nvidia_rag.utils.summarization.SUMMARY_STATUS_HANDLER"
-            ) as mock_handler,
-            patch("nvidia_rag.utils.summarization.CONFIG") as mock_config,
-        ):
+        with patch(
+            "nvidia_rag.utils.summarization.SUMMARY_STATUS_HANDLER"
+        ) as mock_handler:
             mock_handler.is_available.return_value = True
+
+            # Create a mock config
+
+            mock_config = Mock()
             mock_config.summarizer.max_parallelization = 20
 
             mock_redis = MagicMock()
             mock_redis.incr.side_effect = RedisError("Connection lost")
             mock_handler._redis_client = mock_redis
 
-            result = await acquire_global_summary_slot()
+            result = await acquire_global_summary_slot(mock_config)
 
             assert result is True  # Should proceed despite error
 
@@ -886,82 +895,90 @@ class TestSummarizationTokenization:
 
     def test_get_tokenizer_loads_and_caches(self):
         """Test that tokenizer is loaded and cached properly"""
-        from nvidia_rag.utils.summarization import _get_tokenizer
+
+        # Create a mock config
+        mock_config = Mock()
+        mock_config.nv_ingest.tokenizer = "intfloat/e5-large-unsupervised"
 
         with patch("nvidia_rag.utils.summarization._tokenizer_cache", None):
-            with patch("nvidia_rag.utils.summarization.CONFIG") as mock_config:
-                mock_config.nv_ingest.tokenizer = "intfloat/e5-large-unsupervised"
+            with patch(
+                "nvidia_rag.utils.summarization.AutoTokenizer"
+            ) as mock_auto_tokenizer:
+                mock_tokenizer = Mock()
+                mock_auto_tokenizer.from_pretrained.return_value = mock_tokenizer
 
-                with patch(
-                    "nvidia_rag.utils.summarization.AutoTokenizer"
-                ) as mock_auto_tokenizer:
-                    mock_tokenizer = Mock()
-                    mock_auto_tokenizer.from_pretrained.return_value = mock_tokenizer
+                # First call should load tokenizer
+                result1 = _get_tokenizer(mock_config)
+                assert result1 == mock_tokenizer
+                mock_auto_tokenizer.from_pretrained.assert_called_once_with(
+                    "intfloat/e5-large-unsupervised"
+                )
 
-                    # First call should load tokenizer
-                    result1 = _get_tokenizer()
-                    assert result1 == mock_tokenizer
-                    mock_auto_tokenizer.from_pretrained.assert_called_once_with(
-                        "intfloat/e5-large-unsupervised"
-                    )
-
-                    # Second call should return cached tokenizer
-                    result2 = _get_tokenizer()
-                    assert result2 == mock_tokenizer
-                    # from_pretrained should still have been called only once
-                    assert mock_auto_tokenizer.from_pretrained.call_count == 1
+                # Second call should return cached tokenizer
+                result2 = _get_tokenizer(mock_config)
+                assert result2 == mock_tokenizer
+                # from_pretrained should still have been called only once
+                assert mock_auto_tokenizer.from_pretrained.call_count == 1
 
     def test_get_tokenizer_raises_on_failure(self):
         """Test that tokenizer load failure raises exception"""
-        from nvidia_rag.utils.summarization import _get_tokenizer
+
+        # Create a mock config
+        mock_config = Mock()
+        mock_config.nv_ingest.tokenizer = "invalid/model"
 
         with patch("nvidia_rag.utils.summarization._tokenizer_cache", None):
-            with patch("nvidia_rag.utils.summarization.CONFIG") as mock_config:
-                mock_config.nv_ingest.tokenizer = "invalid/model"
+            with patch(
+                "nvidia_rag.utils.summarization.AutoTokenizer"
+            ) as mock_auto_tokenizer:
+                mock_auto_tokenizer.from_pretrained.side_effect = Exception(
+                    "Model not found"
+                )
 
-                with patch(
-                    "nvidia_rag.utils.summarization.AutoTokenizer"
-                ) as mock_auto_tokenizer:
-                    mock_auto_tokenizer.from_pretrained.side_effect = Exception(
-                        "Model not found"
-                    )
-
-                    with pytest.raises(Exception, match="Model not found"):
-                        _get_tokenizer()
+                with pytest.raises(Exception, match="Model not found"):
+                    _get_tokenizer(mock_config)
 
     def test_token_length_returns_correct_count(self):
         """Test that _token_length returns the correct token count"""
-        from nvidia_rag.utils.summarization import _token_length
+
+        # Create a mock config
+        mock_config = Mock()
 
         with patch("nvidia_rag.utils.summarization._get_tokenizer") as mock_get_tok:
             mock_tokenizer = Mock()
             mock_tokenizer.encode.return_value = [1, 2, 3, 4, 5]  # 5 tokens
             mock_get_tok.return_value = mock_tokenizer
 
-            result = _token_length("test text")
+            result = _token_length("test text", mock_config)
 
             assert result == 5
+            mock_get_tok.assert_called_once_with(mock_config)
             mock_tokenizer.encode.assert_called_once_with(
                 "test text", add_special_tokens=False
             )
 
     def test_token_length_with_empty_text(self):
         """Test _token_length with empty text"""
-        from nvidia_rag.utils.summarization import _token_length
+
+        # Create a mock config
+        mock_config = Mock()
 
         with patch("nvidia_rag.utils.summarization._get_tokenizer") as mock_get_tok:
             mock_tokenizer = Mock()
             mock_tokenizer.encode.return_value = []  # 0 tokens
             mock_get_tok.return_value = mock_tokenizer
 
-            result = _token_length("")
+            result = _token_length("", mock_config)
 
             assert result == 0
+            mock_get_tok.assert_called_once_with(mock_config)
             mock_tokenizer.encode.assert_called_once_with("", add_special_tokens=False)
 
     def test_token_length_raises_on_encode_failure(self):
         """Test that encode failure raises exception"""
-        from nvidia_rag.utils.summarization import _token_length
+
+        # Create a mock config
+        mock_config = Mock()
 
         with patch("nvidia_rag.utils.summarization._get_tokenizer") as mock_get_tok:
             mock_tokenizer = Mock()
@@ -969,11 +986,13 @@ class TestSummarizationTokenization:
             mock_get_tok.return_value = mock_tokenizer
 
             with pytest.raises(Exception, match="Encoding error"):
-                _token_length("test text")
+                _token_length("test text", mock_config)
 
     def test_token_length_with_long_text(self):
         """Test _token_length with long text that exceeds model max length"""
-        from nvidia_rag.utils.summarization import _token_length
+
+        # Create a mock config
+        mock_config = Mock()
 
         with patch("nvidia_rag.utils.summarization._get_tokenizer") as mock_get_tok:
             mock_tokenizer = Mock()
@@ -982,10 +1001,11 @@ class TestSummarizationTokenization:
             mock_get_tok.return_value = mock_tokenizer
 
             long_text = "a" * 5000
-            result = _token_length(long_text)
+            result = _token_length(long_text, mock_config)
 
             # Should still return the count, even if it exceeds model max_length
             assert result == 1000
+            mock_get_tok.assert_called_once_with(mock_config)
             mock_tokenizer.encode.assert_called_once_with(
                 long_text, add_special_tokens=False
             )
