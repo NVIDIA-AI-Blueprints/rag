@@ -38,13 +38,13 @@ from langchain_core.prompts.chat import ChatPromptTemplate
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from transformers import AutoTokenizer
 
-from nvidia_rag.utils.common import ConfigProxy
+from nvidia_rag.rag_server.response_generator import get_minio_operator_instance
+from nvidia_rag.utils.configuration import NvidiaRAGConfig
 from nvidia_rag.utils.llm import get_llm, get_prompts
 from nvidia_rag.utils.minio_operator import get_unique_thumbnail_id
 from nvidia_rag.utils.summary_status_handler import SUMMARY_STATUS_HANDLER
 
 logger = logging.getLogger(__name__)
-CONFIG = ConfigProxy()
 
 # Module-level semaphore storage (per event loop)
 _event_loop_semaphores = {}
@@ -85,11 +85,14 @@ def _reset_global_summary_counter() -> None:
 _reset_global_summary_counter()
 
 
-def _get_tokenizer():
+def _get_tokenizer(config: NvidiaRAGConfig):
     """Get or create cached tokenizer instance.
 
     Uses the same tokenizer as configured in nv-ingest for consistency.
     The tokenizer is cached to avoid reloading on subsequent calls.
+
+    Args:
+        config: NvidiaRAGConfig instance
 
     Returns:
         AutoTokenizer: The cached tokenizer instance
@@ -99,19 +102,20 @@ def _get_tokenizer():
     """
     global _tokenizer_cache
     if _tokenizer_cache is None:
-        tokenizer_name = CONFIG.nv_ingest.tokenizer
+        tokenizer_name = config.nv_ingest.tokenizer
         _tokenizer_cache = AutoTokenizer.from_pretrained(tokenizer_name)
         logger.info(f"Loaded tokenizer for summarization: {tokenizer_name}")
     return _tokenizer_cache
 
 
-def _token_length(text: str) -> int:
+def _token_length(text: str, config: NvidiaRAGConfig) -> int:
     """Calculate text length in tokens.
 
     Uses the same tokenizer as nv-ingest for consistent token counting.
 
     Args:
         text: Input text to measure
+        config: NvidiaRAGConfig instance
 
     Returns:
         int: Number of tokens in the text
@@ -119,7 +123,7 @@ def _token_length(text: str) -> int:
     Raises:
         Exception: If tokenizer fails to load or encode
     """
-    tokenizer = _get_tokenizer()
+    tokenizer = _get_tokenizer(config)
     return len(tokenizer.encode(text, add_special_tokens=False))
 
 
@@ -210,9 +214,12 @@ def get_summarization_semaphore() -> asyncio.Semaphore:
     return _event_loop_semaphores[loop_id]
 
 
-async def acquire_global_summary_slot() -> bool:
+async def acquire_global_summary_slot(config: NvidiaRAGConfig) -> bool:
     """
     Acquire a slot in the global summary queue via Redis.
+
+    Args:
+        config: NvidiaRAGConfig instance
 
     Returns:
         bool: True if slot acquired, False if should retry
@@ -221,7 +228,7 @@ async def acquire_global_summary_slot() -> bool:
         return True
 
     try:
-        max_global = CONFIG.summarizer.max_parallelization
+        max_global = config.summarizer.max_parallelization
         redis_client = SUMMARY_STATUS_HANDLER._redis_client
 
         # Atomic increment
@@ -260,6 +267,7 @@ async def generate_document_summaries(
     collection_name: str,
     page_filter: list[list[int]] | str | None = None,
     summarization_strategy: str | None = None,
+    config: NvidiaRAGConfig | None = None,
 ) -> dict[str, Any]:
     """
     Generate summaries for multiple documents in parallel with global rate limiting.
@@ -269,10 +277,14 @@ async def generate_document_summaries(
         collection_name: Collection name for status tracking
         page_filter: Optional page filter - either list of ranges [[start,end],...] or string ('even'/'odd')
         summarization_strategy: Strategy for summarization ('single', 'hierarchical') or None for default iterative
+        config: NvidiaRAGConfig instance. If None, creates a new one from environment.
 
     Returns:
         dict: Statistics with total_files, successful, failed, duration_seconds, files
     """
+    if config is None:
+        config = NvidiaRAGConfig()
+
     start_time = time.time()
 
     logger.info(f"Starting summary generation for collection: {collection_name}")
@@ -325,6 +337,7 @@ async def generate_document_summaries(
             collection_name=collection_name,
             results=results,
             semaphore=semaphore,
+            config=config,
             page_filter=page_filter,
             summarization_strategy=summarization_strategy,
         )
@@ -367,6 +380,7 @@ async def _process_single_file_summary(
     collection_name: str,
     results: list[list[dict[str, str | dict]]],
     semaphore: asyncio.Semaphore,
+    config: NvidiaRAGConfig,
     page_filter: list[list[int]] | str | None = None,
     summarization_strategy: str | None = None,
 ) -> dict[str, Any]:
@@ -378,6 +392,7 @@ async def _process_single_file_summary(
         collection_name: Collection name for status tracking
         results: Full results list for document preparation
         semaphore: Semaphore for concurrency control
+        config: NvidiaRAGConfig instance
         page_filter: Global page filter for all files
         summarization_strategy: Strategy for summarization ('single', 'hierarchical') or None for default iterative
 
@@ -401,7 +416,7 @@ async def _process_single_file_summary(
     slot_acquired = False
     try:
         async with semaphore:
-            while not await acquire_global_summary_slot():
+            while not await acquire_global_summary_slot(config):
                 await asyncio.sleep(0.5)
 
             slot_acquired = True
@@ -411,6 +426,7 @@ async def _process_single_file_summary(
                 results=results,
                 collection_name=collection_name,
                 page_filter=effective_filter,
+                config=config,
             )
 
             progress_callback = partial(
@@ -423,6 +439,7 @@ async def _process_single_file_summary(
                 document=document,
                 progress_callback=progress_callback,
                 summarization_strategy=summarization_strategy,
+                config=config,
             )
 
             await _store_summary_in_minio(summary_doc)
@@ -469,6 +486,7 @@ async def _prepare_single_document(
     result_element: dict[str, str | dict],
     results: list[list[dict[str, str | dict]]],
     collection_name: str,
+    config: NvidiaRAGConfig,
     page_filter: list[list[int]] | str | None = None,
 ) -> Document:
     """Prepare document for summarization by loading content with optional page filtering.
@@ -477,6 +495,7 @@ async def _prepare_single_document(
         result_element: Single result element with file metadata
         results: Full results list to search for all chunks of this file
         collection_name: Collection name for metadata
+        config: NvidiaRAGConfig instance
         page_filter: Optional page filter - either list of ranges [[start,end],...] or string ('even'/'odd')
 
     Returns:
@@ -506,7 +525,7 @@ async def _prepare_single_document(
                     .get("page_number", 1)
                 )
 
-                content = _extract_content_from_element(elem)
+                content = _extract_content_from_element(elem, config)
                 if content:
                     pages_data.append((page_num, content))
                     seen_pages.add(page_num)
@@ -543,11 +562,14 @@ async def _prepare_single_document(
     )
 
 
-def _extract_content_from_element(elem: dict[str, Any]) -> str | None:
+def _extract_content_from_element(
+    elem: dict[str, Any], config: NvidiaRAGConfig
+) -> str | None:
     """Extract text content from element based on type and config settings.
 
     Args:
         elem: Result element with document_type and metadata
+        config: NvidiaRAGConfig instance
 
     Returns:
         Extracted text content or None
@@ -563,12 +585,12 @@ def _extract_content_from_element(elem: dict[str, Any]) -> str | None:
         structured_content = metadata.get("table_metadata", {}).get("table_content")
         subtype = metadata.get("content_metadata", {}).get("subtype")
 
-        if subtype == "table" and CONFIG.nv_ingest.extract_tables:
+        if subtype == "table" and config.nv_ingest.extract_tables:
             return structured_content
-        elif subtype == "chart" and CONFIG.nv_ingest.extract_charts:
+        elif subtype == "chart" and config.nv_ingest.extract_charts:
             return structured_content
 
-    elif doc_type == "image" and CONFIG.nv_ingest.extract_images:
+    elif doc_type == "image" and config.nv_ingest.extract_images:
         # Image captions - respect config flag
         return metadata.get("image_metadata", {}).get("caption")
 
@@ -581,6 +603,7 @@ def _extract_content_from_element(elem: dict[str, Any]) -> str | None:
 
 async def _generate_single_document_summary(
     document: Document,
+    config: NvidiaRAGConfig,
     progress_callback: Callable | None = None,
     summarization_strategy: str | None = None,
 ) -> Document:
@@ -593,11 +616,11 @@ async def _generate_single_document_summary(
     logger.info(f"Summarizing {file_name} using strategy: {summarization_strategy}")
 
     if summarization_strategy == "single":
-        return await _summarize_single_pass(document, progress_callback)
+        return await _summarize_single_pass(document, config, progress_callback)
     elif summarization_strategy == "iterative":
-        return await _summarize_iterative(document, progress_callback)
+        return await _summarize_iterative(document, config, progress_callback)
     elif summarization_strategy == "hierarchical":
-        return await _summarize_hierarchical(document, progress_callback)
+        return await _summarize_hierarchical(document, config, progress_callback)
     else:
         raise ValueError(
             f"Unknown summarization_strategy: {summarization_strategy}. "
@@ -607,13 +630,14 @@ async def _generate_single_document_summary(
 
 async def _summarize_single_pass(
     document: Document,
+    config: NvidiaRAGConfig,
     progress_callback: Callable | None = None,
 ) -> Document:
     """Summarize entire document in one pass, truncating if needed."""
     file_name = document.metadata.get("filename", "unknown")
     document_text = document.page_content
     total_chars = len(document_text)
-    max_chunk_chars = CONFIG.summarizer.max_chunk_length
+    max_chunk_chars = config.summarizer.max_chunk_length
 
     if total_chars > max_chunk_chars:
         logger.warning(
@@ -625,7 +649,7 @@ async def _summarize_single_pass(
         f"Single-pass summarization for {file_name}: {len(document_text)} chars"
     )
 
-    llm = _get_summary_llm()
+    llm = _get_summary_llm(config)
     prompts = get_prompts()
     initial_chain, _ = _create_llm_chains(llm, prompts)
 
@@ -648,21 +672,22 @@ async def _summarize_single_pass(
 
 async def _summarize_iterative(
     document: Document,
+    config: NvidiaRAGConfig,
     progress_callback: Callable | None = None,
 ) -> Document:
     """Iterative sequential summarization - processes chunks one by one."""
     file_name = document.metadata.get("filename", "unknown")
     document_text = document.page_content
-    total_tokens = _token_length(document_text)
+    total_tokens = _token_length(document_text, config)
 
-    max_chunk_tokens = CONFIG.summarizer.max_chunk_length
-    chunk_overlap = CONFIG.summarizer.chunk_overlap
+    max_chunk_tokens = config.summarizer.max_chunk_length
+    chunk_overlap = config.summarizer.chunk_overlap
 
     logger.info(
         f"Iterative summarization for {file_name}: {total_tokens} tokens (threshold: {max_chunk_tokens})"
     )
 
-    llm = _get_summary_llm()
+    llm = _get_summary_llm(config)
     prompts = get_prompts()
     initial_chain, iterative_chain = _create_llm_chains(llm, prompts)
 
@@ -685,7 +710,7 @@ async def _summarize_iterative(
         text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=max_chunk_tokens,
             chunk_overlap=chunk_overlap,
-            length_function=_token_length,
+            length_function=partial(_token_length, config=config),
             separators=["\n\n", "\n", ". ", "! ", "? ", " ", ""],
         )
         text_chunks = text_splitter.split_text(document_text)
@@ -725,13 +750,14 @@ async def _summarize_iterative(
 
 async def _summarize_hierarchical(
     document: Document,
+    config: NvidiaRAGConfig,
     progress_callback: Callable | None = None,
 ) -> Document:
     """Hierarchical parallel summarization with token-based chunking."""
     file_name = document.metadata.get("filename", "unknown")
     document_text = document.page_content
-    total_tokens = _token_length(document_text)
-    max_chunk_tokens = CONFIG.summarizer.max_chunk_length
+    total_tokens = _token_length(document_text, config)
+    max_chunk_tokens = config.summarizer.max_chunk_length
 
     logger.info(
         f"Hierarchical summarization for {file_name}: {total_tokens} tokens (threshold: {max_chunk_tokens})"
@@ -739,13 +765,13 @@ async def _summarize_hierarchical(
 
     if total_tokens <= max_chunk_tokens:
         logger.info(f"Document fits in one chunk, using single-pass for {file_name}")
-        return await _summarize_single_pass(document, progress_callback)
+        return await _summarize_single_pass(document, config, progress_callback)
 
     # Token-based splitting with recursive character splitting at semantic boundaries
     text_splitter = RecursiveCharacterTextSplitter(
         chunk_size=max_chunk_tokens,
-        chunk_overlap=CONFIG.summarizer.chunk_overlap,
-        length_function=_token_length,
+        chunk_overlap=config.summarizer.chunk_overlap,
+        length_function=partial(_token_length, config=config),
         separators=["\n\n", "\n", ". ", "! ", "? ", " ", ""],
     )
     text_chunks = text_splitter.split_text(document_text)
@@ -753,7 +779,7 @@ async def _summarize_hierarchical(
 
     logger.info(f"Split {file_name} into {total_chunks} chunks for parallel processing")
 
-    llm = _get_summary_llm()
+    llm = _get_summary_llm(config)
     prompts = get_prompts()
     initial_chain, iterative_chain = _create_llm_chains(llm, prompts)
 
@@ -775,7 +801,7 @@ async def _summarize_hierarchical(
 
     while len(current_summaries) > 1:
         batched_summaries = _batch_summaries_by_length(
-            current_summaries, max_chunk_tokens
+            current_summaries, max_chunk_tokens, config
         )
 
         next_level_summaries = await asyncio.gather(
@@ -798,6 +824,7 @@ async def _summarize_hierarchical(
 def _batch_summaries_by_length(
     summaries: list[str],
     max_chunk_chars: int,
+    config: NvidiaRAGConfig,
 ) -> list[list[str]]:
     """Group summaries into batches respecting max character length."""
     batches = []
@@ -842,16 +869,16 @@ async def _combine_summaries_batch(
     return combined
 
 
-def _get_summary_llm():
+def _get_summary_llm(config: NvidiaRAGConfig):
     """Get configured LLM for summarization."""
     llm_params = {
-        "model": CONFIG.summarizer.model_name,
-        "temperature": CONFIG.summarizer.temperature,
-        "top_p": CONFIG.summarizer.top_p,
+        "model": config.summarizer.model_name,
+        "temperature": config.summarizer.temperature,
+        "top_p": config.summarizer.top_p,
     }
 
-    if CONFIG.summarizer.server_url:
-        llm_params["llm_endpoint"] = CONFIG.summarizer.server_url
+    if config.summarizer.server_url:
+        llm_params["llm_endpoint"] = config.summarizer.server_url
 
     return get_llm(**llm_params)
 
@@ -902,9 +929,6 @@ async def _update_file_progress(
 
 async def _store_summary_in_minio(document: Document):
     """Store document summary in MinIO."""
-    # Import here to avoid circular dependency
-    from nvidia_rag.ingestor_server.main import get_minio_operator_instance
-
     summary = document.metadata["summary"]
     file_name = document.metadata["filename"]
     collection_name = document.metadata["collection_name"]

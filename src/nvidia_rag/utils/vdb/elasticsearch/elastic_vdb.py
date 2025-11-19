@@ -66,25 +66,29 @@ from langchain_elasticsearch import ElasticsearchStore
 from nv_ingest_client.util.milvus import cleanup_records
 from opentelemetry import context as otel_context
 
-from nvidia_rag.utils.configuration import NvidiaRAGConfig
 from nvidia_rag.utils.common import perform_document_info_aggregation
+from nvidia_rag.utils.configuration import NvidiaRAGConfig
 from nvidia_rag.utils.embedding import get_embedding_model
-from nvidia_rag.utils.vdb import DEFAULT_METADATA_SCHEMA_COLLECTION, DEFAULT_DOCUMENT_INFO_COLLECTION
+from nvidia_rag.utils.vdb import (
+    DEFAULT_DOCUMENT_INFO_COLLECTION,
+    DEFAULT_METADATA_SCHEMA_COLLECTION,
+)
 from nvidia_rag.utils.vdb.elasticsearch.es_queries import (
+    create_document_info_collection_mapping,
     create_metadata_collection_mapping,
+    get_collection_document_info_query,
     get_delete_docs_query,
+    get_delete_document_info_query,
+    get_delete_document_info_query_by_collection_name,
     get_delete_metadata_schema_query,
+    get_document_info_query,
     get_metadata_schema_query,
     get_unique_sources_query,
-    create_document_info_collection_mapping,
-    get_delete_document_info_query,
-    get_collection_document_info_query,
-    get_document_info_query,
-    get_delete_document_info_query_by_collection_name,
 )
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
 
 logger = logging.getLogger(__name__)
+
 
 class ElasticVDB(VDBRag):
     """
@@ -116,11 +120,20 @@ class ElasticVDB(VDBRag):
         # Resolve API key from config
         if self.config.vector_store.api_key:
             resolved_api_key = self.config.vector_store.api_key
-        elif self.config.vector_store.api_key_id and self.config.vector_store.api_key_secret:
-            resolved_api_key = (self.config.vector_store.api_key_id, self.config.vector_store.api_key_secret)
+        elif (
+            self.config.vector_store.api_key_id
+            and self.config.vector_store.api_key_secret
+        ):
+            resolved_api_key = (
+                self.config.vector_store.api_key_id,
+                self.config.vector_store.api_key_secret,
+            )
         # Resolve basic auth from config
         elif self.config.vector_store.username and self.config.vector_store.password:
-            resolved_basic_auth = (self.config.vector_store.username, self.config.vector_store.password)
+            resolved_basic_auth = (
+                self.config.vector_store.username,
+                self.config.vector_store.password,
+            )
 
         # Keep on instance for reuse (e.g., langchain vectorstore)
         self._api_key = resolved_api_key
@@ -132,9 +145,7 @@ class ElasticVDB(VDBRag):
             hosts=[self.es_url],
             api_key=self._api_key,
             basic_auth=self._basic_auth,
-        ).options(
-            request_timeout=int(os.environ.get("ES_REQUEST_TIMEOUT", 600))
-        )
+        ).options(request_timeout=int(os.environ.get("ES_REQUEST_TIMEOUT", 600)))
         self._embedding_model = embedding_model
         self.hybrid = hybrid
 
@@ -395,14 +406,20 @@ class ElasticVDB(VDBRag):
                     body=get_delete_metadata_schema_query(collection_name),
                 )
             except Exception as e:
-                logger.error(f"Error deleting metadata schema for collection {collection_name}: {e}")
+                logger.error(
+                    f"Error deleting metadata schema for collection {collection_name}: {e}"
+                )
             try:
                 _ = self._es_connection.delete_by_query(
                     index=DEFAULT_DOCUMENT_INFO_COLLECTION,
-                    body=get_delete_document_info_query_by_collection_name(collection_name),
+                    body=get_delete_document_info_query_by_collection_name(
+                        collection_name
+                    ),
                 )
             except Exception as e:
-                logger.error(f"Error deleting document info for collection {collection_name}: {e}")
+                logger.error(
+                    f"Error deleting document info for collection {collection_name}: {e}"
+                )
         return {
             "message": "Collection deletion process completed.",
             "successful": deleted_collections,
@@ -523,7 +540,7 @@ class ElasticVDB(VDBRag):
             )
             logger.info(logging_message)
             return []
-    
+
     # ----------------------------------------------------------------------------------------------
     # Document Info Management
     def create_document_info_collection(self) -> None:
@@ -543,11 +560,10 @@ class ElasticVDB(VDBRag):
         else:
             logging_message = f"Collection {DEFAULT_DOCUMENT_INFO_COLLECTION} already exists at {self.es_url}"
             logger.info(logging_message)
-    
+
     def _get_aggregated_document_info(
-        self,
-        collection_name: str,
-        info_value: dict[str, Any]) -> dict[str, Any]:
+        self, collection_name: str, info_value: dict[str, Any]
+    ) -> dict[str, Any]:
         """
         Internal function to get the aggregated document info for a collection.
         """
@@ -564,7 +580,9 @@ class ElasticVDB(VDBRag):
         except IndexError:
             existing_info_value = {}
         except Exception as e:
-            logger.error(f"Error getting aggregated document info for collection {collection_name}: {e}")
+            logger.error(
+                f"Error getting aggregated document info for collection {collection_name}: {e}"
+            )
             return info_value
         return perform_document_info_aggregation(existing_info_value, info_value)
 
@@ -573,8 +591,8 @@ class ElasticVDB(VDBRag):
         info_type: str,
         collection_name: str,
         document_name: str,
-        info_value: dict[str, Any]
-        ) -> None:
+        info_value: dict[str, Any],
+    ) -> None:
         """
         Add document info to a collection.
         """
@@ -606,7 +624,7 @@ class ElasticVDB(VDBRag):
             f"Document info added to the ES index {DEFAULT_DOCUMENT_INFO_COLLECTION}. \
             Document info: {info_type}, {document_name}, {info_value}."
         )
-    
+
     def get_document_info(
         self,
         info_type: str,
@@ -685,9 +703,11 @@ class ElasticVDB(VDBRag):
 
         # Propagate auth to vectorstore if supported
         if self._api_key:
-            vectorstore_params.update({
-                "api_key": self._api_key,
-            })
+            vectorstore_params.update(
+                {
+                    "api_key": self._api_key,
+                }
+            )
         elif self._basic_auth:
             user, pwd = self._basic_auth
             vectorstore_params.update(
