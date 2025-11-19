@@ -57,8 +57,8 @@ class TestCheckServiceHealth:
         """Test with empty URL"""
         result = await check_service_health("", "Test Service")
 
-        assert result["status"] == "skipped"
-        assert result["error"] == "No URL provided"
+        assert result.status == "skipped"
+        assert result.error == "No URL provided"
 
 
 class TestCheckMinioHealth:
@@ -79,8 +79,8 @@ class TestCheckMinioHealth:
             with patch("time.time", side_effect=[0.0, 0.2]):
                 result = await check_minio_health("localhost:9000", "key", "secret")
 
-            assert result["status"] == "healthy"
-            assert result["buckets"] == 2
+            assert result.status == "healthy"
+            assert result.buckets == 2
 
     @pytest.mark.asyncio
     async def test_check_minio_health_error(self):
@@ -92,16 +92,16 @@ class TestCheckMinioHealth:
 
             result = await check_minio_health("localhost:9000", "key", "secret")
 
-            assert result["status"] == "error"
-            assert "Connection failed" in result["error"]
+            assert result.status == "error"
+            assert "Connection failed" in result.error
 
     @pytest.mark.asyncio
     async def test_check_minio_health_no_endpoint(self):
         """Test MinIO health check with no endpoint"""
         result = await check_minio_health("", "key", "secret")
 
-        assert result["status"] == "skipped"
-        assert result["error"] == "No endpoint provided"
+        assert result.status == "skipped"
+        assert result.error == "No endpoint provided"
 
 
 class TestCheckNvIngestHealth:
@@ -111,7 +111,7 @@ class TestCheckNvIngestHealth:
     async def test_check_nv_ingest_health_no_hostname_or_port(self):
         """Test NV-Ingest health check with missing hostname or port"""
         result = await check_nv_ingest_health("", 8080)
-        assert result["status"] == "skipped"
+        assert result.status == "skipped"
 
 
 class TestCheckRedisHealth:
@@ -132,7 +132,7 @@ class TestCheckRedisHealth:
             with patch("time.time", side_effect=[0.0, 0.05]):
                 result = await check_redis_health("localhost", 6379, 0)
 
-            assert result["status"] == "healthy"
+            assert result.status == "healthy"
 
     @pytest.mark.asyncio
     async def test_check_redis_health_ping_failed(self):
@@ -148,8 +148,8 @@ class TestCheckRedisHealth:
 
             result = await check_redis_health("localhost", 6379, 0)
 
-            assert result["status"] == "unhealthy"
-            assert result["error"] == "Redis ping failed"
+            assert result.status == "unhealthy"
+            assert result.error == "Redis ping failed"
 
     @pytest.mark.asyncio
     async def test_check_redis_health_import_error(self):
@@ -159,14 +159,14 @@ class TestCheckRedisHealth:
 
             result = await check_redis_health("localhost", 6379, 0)
 
-            assert result["status"] == "skipped"
-            assert result["error"] == "Redis not available (library not installed)"
+            assert result.status == "skipped"
+            assert result.error == "Redis not available (library not installed)"
 
     @pytest.mark.asyncio
     async def test_check_redis_health_no_host_or_port(self):
         """Test Redis health check with missing host or port"""
         result = await check_redis_health("", 6379, 0)
-        assert result["status"] == "skipped"
+        assert result.status == "skipped"
 
 
 class TestIsNvidiaApiCatalogUrl:
