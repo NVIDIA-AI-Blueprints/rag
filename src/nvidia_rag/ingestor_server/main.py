@@ -1666,7 +1666,7 @@ class NvidiaRAGIngestor:
                     .get("subtype", "")
                 )
                 if document_subtype:
-                    document_type_subtype = f"{document_type}_{document_subtype}"
+                    document_type_subtype = document_subtype
                 else:
                     document_type_subtype = document_type
                 doc_type_counts[document_type_subtype] += 1
