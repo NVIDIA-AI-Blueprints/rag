@@ -33,6 +33,7 @@ from nvidia_rag.ingestor_server.health import (
     is_nvidia_api_catalog_url,
     print_health_report,
 )
+from nvidia_rag.utils.health_models import IngestorHealthResponse
 
 
 class MockAsyncContextManager:
@@ -266,11 +267,12 @@ class TestCheckAllServicesHealth:
 
                             result = await check_all_services_health(mock_vdb_op, mock_config)
 
-                            assert "databases" in result
-                            assert "object_storage" in result
-                            assert "nim" in result
-                            assert "processing" in result
-                            assert "task_management" in result
+                            assert isinstance(result, IngestorHealthResponse)
+                            assert hasattr(result, "databases")
+                            assert hasattr(result, "object_storage")
+                            assert hasattr(result, "nim")
+                            assert hasattr(result, "processing")
+                            assert hasattr(result, "task_management")
 
     @pytest.mark.asyncio
     async def test_check_all_services_health_nvidia_api_catalog(self, mock_config):
@@ -297,7 +299,7 @@ class TestCheckAllServicesHealth:
                     ):
                         result = await check_all_services_health(mock_vdb_op, mock_config)
 
-                        nim_services = result["nim"]
+                        nim_services = result.nim
                         assert len(nim_services) == 3
 
                         # Check that each service has the expected URL and model from the mock config
@@ -317,9 +319,9 @@ class TestCheckAllServicesHealth:
                         ]
 
                         for i, service in enumerate(nim_services):
-                            assert service["url"] == expected_services[i]["url"]
-                            assert service["status"] == "healthy"
-                            assert service["model"] == expected_services[i]["model"]
+                            assert service.url == expected_services[i]["url"]
+                            assert service.status == "healthy"
+                            assert service.model == expected_services[i]["model"]
 
     @pytest.mark.asyncio
     async def test_check_all_services_health_unknown_vector_store(self, mock_config):
@@ -347,12 +349,12 @@ class TestCheckAllServicesHealth:
                         ):
                             result = await check_all_services_health(mock_vdb_op, mock_config)
 
-                            db_services = result["databases"]
+                            db_services = result.databases
                             assert len(db_services) == 1
-                            assert db_services[0]["status"] == "unknown"
+                            assert db_services[0].status == "unknown"
                             assert (
                                 "Unsupported vector store type"
-                                in db_services[0]["error"]
+                                in db_services[0].error
                             )
 
 
@@ -361,19 +363,25 @@ class TestPrintHealthReport:
 
     def test_print_health_report_all_healthy(self, caplog):
         """Test printing report with all healthy services"""
-        health_results = {
-            "databases": [
-                {"service": "Milvus", "status": "healthy", "latency_ms": 100}
+        from nvidia_rag.utils.health_models import (
+            DatabaseHealthInfo,
+            NIMServiceHealthInfo,
+        )
+
+        health_results = IngestorHealthResponse(
+            databases=[
+                DatabaseHealthInfo(service="Milvus", url="", status="healthy", latency_ms=100)
             ],
-            "nim": [
-                {
-                    "service": "Embeddings",
-                    "status": "healthy",
-                    "latency_ms": 50,
-                    "model": "test-embedding-model",
-                }
+            nim=[
+                NIMServiceHealthInfo(
+                    service="Embeddings",
+                    url="",
+                    status="healthy",
+                    latency_ms=50,
+                    model="test-embedding-model",
+                )
             ],
-        }
+        )
 
         with caplog.at_level(logging.INFO):
             print_health_report(health_results)
@@ -383,19 +391,25 @@ class TestPrintHealthReport:
 
     def test_print_health_report_mixed_status(self, caplog):
         """Test printing report with mixed service status"""
-        health_results = {
-            "databases": [
-                {"service": "Redis", "status": "error", "error": "Connection failed"}
+        from nvidia_rag.utils.health_models import (
+            DatabaseHealthInfo,
+            NIMServiceHealthInfo,
+        )
+
+        health_results = IngestorHealthResponse(
+            databases=[
+                DatabaseHealthInfo(service="Redis", url="", status="error", error="Connection failed")
             ],
-            "nim": [
-                {
-                    "service": "Embeddings",
-                    "status": "skipped",
-                    "error": "No URL provided",
-                    "model": "test-embedding-model",
-                }
+            nim=[
+                NIMServiceHealthInfo(
+                    service="Embeddings",
+                    url="",
+                    status="skipped",
+                    error="No URL provided",
+                    model="test-embedding-model",
+                )
             ],
-        }
+        )
 
         with caplog.at_level(logging.INFO):
             print_health_report(health_results)
@@ -410,7 +424,7 @@ class TestCheckAndPrintServicesHealth:
     @pytest.mark.asyncio
     async def test_check_and_print_services_health(self):
         """Test check and print services health function"""
-        mock_results = {"databases": [], "nim": []}
+        mock_results = IngestorHealthResponse()
         mock_vdb_op = MagicMock()
 
         with patch(
@@ -433,7 +447,7 @@ class TestCheckServicesHealth:
 
     def test_check_services_health(self):
         """Test synchronous wrapper for checking service health"""
-        mock_results = {"databases": [], "nim": []}
+        mock_results = IngestorHealthResponse()
         mock_vdb_op = MagicMock()
 
         with patch("asyncio.run") as mock_run:

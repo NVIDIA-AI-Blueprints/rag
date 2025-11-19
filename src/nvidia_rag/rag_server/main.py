@@ -47,6 +47,7 @@ from opentelemetry import context as otel_context
 from requests import ConnectTimeout
 
 from nvidia_rag.rag_server.health import check_all_services_health
+from nvidia_rag.utils.health_models import RAGHealthResponse
 from nvidia_rag.rag_server.query_decomposition import iterative_query_decomposition
 from nvidia_rag.rag_server.reflection import (
     ReflectionCounter,
@@ -205,18 +206,14 @@ class NvidiaRAG:
             logger.warning("LLM produced no output.")
             return iter([])  # Return empty generator
 
-    async def health(self, check_dependencies: bool = False) -> dict[str, Any]:
+    async def health(self, check_dependencies: bool = False) -> RAGHealthResponse:
         """Check the health of the RAG server."""
-        response_message = "Service is up."
-        health_results = {}
-        health_results["message"] = response_message
-
         vdb_op = self.__prepare_vdb_op()
 
         if check_dependencies:
-            dependencies_results = await check_all_services_health(vdb_op, self.config)
-            health_results.update(dependencies_results)
-        return health_results
+            return await check_all_services_health(vdb_op, self.config)
+        
+        return RAGHealthResponse(message="Service is up.")
 
     def __prepare_vdb_op(
         self,

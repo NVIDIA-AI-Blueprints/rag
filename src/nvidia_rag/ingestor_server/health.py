@@ -34,6 +34,15 @@ from elasticsearch import Elasticsearch
 from pymilvus import connections, utility
 
 from nvidia_rag.utils.configuration import NvidiaRAGConfig
+from nvidia_rag.utils.health_models import (
+    DatabaseHealthInfo,
+    HealthResponseBase,
+    IngestorHealthResponse,
+    NIMServiceHealthInfo,
+    ProcessingHealthInfo,
+    StorageHealthInfo,
+    TaskManagementHealthInfo,
+)
 from nvidia_rag.utils.minio_operator import MinioOperator
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
 
@@ -254,7 +263,7 @@ def is_nvidia_api_catalog_url(url: str) -> bool:
 
 async def check_all_services_health(
     vdb_op: VDBRag, config: NvidiaRAGConfig | None = None
-) -> dict[str, list[dict[str, Any]]]:
+) -> IngestorHealthResponse:
     """
     Check health of all services used by the ingestor server
 
@@ -263,20 +272,18 @@ async def check_all_services_health(
         config: NvidiaRAGConfig instance. If None, creates a new one.
 
     Returns:
-        Dictionary with service categories and their health status
+        IngestorHealthResponse with service categories and their health status
     """
     if config is None:
         config = NvidiaRAGConfig()
 
     # Create tasks for different service types
     tasks = []
-    results = {
-        "databases": [],
-        "object_storage": [],
-        "nim": [],  # NIM services (embeddings, LLM)
-        "processing": [],  # Document processing services
-        "task_management": [],  # Task management services
-    }
+    databases: list[DatabaseHealthInfo] = []
+    object_storage: list[StorageHealthInfo] = []
+    nim: list[NIMServiceHealthInfo] = []
+    processing: list[ProcessingHealthInfo] = []
+    task_management: list[TaskManagementHealthInfo] = []
 
     # MinIO health check
     minio_endpoint = config.minio.endpoint
@@ -300,13 +307,13 @@ async def check_all_services_health(
     except Exception as e:
         logger.error(f"Error checking vector store health: {e}")
         # Unknown vector store type
-        results["databases"].append(
-            {
-                "service": "Vector Store",
-                "url": "Not configured",
-                "status": "unknown",
-                "error": f"Error checking vector store health: {e}",
-            }
+        databases.append(
+            DatabaseHealthInfo(
+                service="Vector Store",
+                url="Not configured",
+                status="unknown",
+                error=f"Error checking vector store health: {e}",
+            )
         )
 
     # NV-Ingest service health check
@@ -345,15 +352,15 @@ async def check_all_services_health(
         tasks.append(("nim", check_embed_health()))
     else:
         # When URL is empty or from API catalog, assume the service is running via API catalog
-        results["nim"].append(
-            {
-                "service": "Embeddings",
-                "model": config.embeddings.model_name,
-                "url": config.embeddings.server_url,
-                "status": "healthy",
-                "latency_ms": 0,
-                "message": "Using NVIDIA API Catalog",
-            }
+        nim.append(
+            NIMServiceHealthInfo(
+                service="Embeddings",
+                model=config.embeddings.model_name,
+                url=config.embeddings.server_url or "",
+                status="healthy",
+                latency_ms=0,
+                message="Using NVIDIA API Catalog",
+            )
         )
 
     # LLM service health check (for summary generation)
@@ -375,15 +382,15 @@ async def check_all_services_health(
         tasks.append(("nim", check_summary_llm_health()))
     else:
         # When URL is empty or from API catalog, assume the service is running via API catalog
-        results["nim"].append(
-            {
-                "service": "Summary LLM",
-                "model": config.summarizer.model_name,
-                "url": config.summarizer.server_url,
-                "status": "healthy",
-                "latency_ms": 0,
-                "message": "Using NVIDIA API Catalog",
-            }
+        nim.append(
+            NIMServiceHealthInfo(
+                service="Summary LLM",
+                model=config.summarizer.model_name,
+                url=config.summarizer.server_url or "",
+                status="healthy",
+                latency_ms=0,
+                message="Using NVIDIA API Catalog",
+            )
         )
 
     # Caption model health check (only when image extraction is enabled)
@@ -414,19 +421,17 @@ async def check_all_services_health(
             tasks.append(("nim", check_caption_health()))
         else:
             # When URL is empty or from API catalog, assume the service is running via API catalog
-            results["nim"].append(
-                {
-                    "service": "Caption Model",
-                    "model": config.nv_ingest.caption_model_name,
-                    "url": config.nv_ingest.caption_endpoint_url
-                    if config.nv_ingest.caption_endpoint_url
-                    else "Not configured",
-                    "status": "healthy",
-                    "latency_ms": 0,
-                    "message": "Using NVIDIA API Catalog"
+            nim.append(
+                NIMServiceHealthInfo(
+                    service="Caption Model",
+                    model=config.nv_ingest.caption_model_name,
+                    url=config.nv_ingest.caption_endpoint_url or "Not configured",
+                    status="healthy",
+                    latency_ms=0,
+                    message="Using NVIDIA API Catalog"
                     if config.nv_ingest.caption_endpoint_url
                     else "Using NVIDIA API Catalog (default)",
-                }
+                )
             )
 
     # Redis health check (for task management)
@@ -443,41 +448,60 @@ async def check_all_services_health(
     # Execute all health checks concurrently
     for category, task in tasks:
         result = await task
-        results[category].append(result)
+        if category == "databases":
+            databases.append(DatabaseHealthInfo(**result))
+        elif category == "object_storage":
+            object_storage.append(StorageHealthInfo(**result))
+        elif category == "nim":
+            nim.append(NIMServiceHealthInfo(**result))
+        elif category == "processing":
+            processing.append(ProcessingHealthInfo(**result))
+        elif category == "task_management":
+            task_management.append(TaskManagementHealthInfo(**result))
 
-    return results
+    return IngestorHealthResponse(
+        message="Service is up.",
+        databases=databases,
+        object_storage=object_storage,
+        nim=nim,
+        processing=processing,
+        task_management=task_management,
+    )
 
 
-def print_health_report(health_results: dict[str, list[dict[str, Any]]]) -> None:
+def print_health_report(health_results: HealthResponseBase) -> None:
     """
     Print health status for individual services
 
     Args:
-        health_results: Results from check_all_services_health
+        health_results: HealthResponseBase (RAGHealthResponse or IngestorHealthResponse) from check_all_services_health
     """
     logger.info("===== INGESTOR SERVICE HEALTH STATUS =====")
 
-    for category, services in health_results.items():
-        if not services or isinstance(services, str):
-            continue
+    # Combine all services into a single list for iteration
+    # Use getattr with default empty list for fields that may not exist in all response types
+    all_services = (
+        health_results.databases
+        + health_results.object_storage
+        + health_results.nim
+        + getattr(health_results, "processing", [])
+        + getattr(health_results, "task_management", [])
+    )
 
-        category_name = category.replace("_", " ").title()
-        logger.info(f"--- {category_name} ---")
-
-        for service in services:
-            if service["status"] == "healthy":
-                logger.info(
-                    f"✓ {service['service']} is healthy - Response time: {service.get('latency_ms', 'N/A')}ms"
-                )
-            elif service["status"] == "skipped":
-                logger.info(
-                    f"- {service['service']} check skipped - Reason: {service.get('error', 'No URL provided')}"
-                )
-            else:
-                error_msg = service.get("error", "Unknown error")
-                logger.info(
-                    f"✗ {service['service']} is not healthy - Issue: {error_msg}"
-                )
+    for service in all_services:
+        if service.status == "healthy":
+            logger.info(
+                f"✓ {service.service} is healthy - Response time: {service.latency_ms}ms"
+            )
+        elif service.status == "skipped":
+            logger.info(
+                f"- {service.service} check skipped - Reason: {service.error or 'No URL provided'}"
+            )
+        else:
+            error_msg = service.error or "Unknown error"
+            logger.info(
+                f"✗ {service.service} is not healthy - Issue: {error_msg}"
+            )
 
     logger.info("=============================================")
 

@@ -61,6 +61,7 @@ from nvidia_rag.utils.common import (
     get_current_timestamp,
 )
 from nvidia_rag.utils.configuration import NvidiaRAGConfig
+from nvidia_rag.utils.health_models import IngestorHealthResponse
 from nvidia_rag.utils.metadata_validation import (
     SYSTEM_MANAGED_FIELDS,
     MetadataField,
@@ -147,20 +148,16 @@ class NvidiaRAGIngestor:
                     "Please make sure all the required methods are implemented."
                 )
 
-    async def health(self, check_dependencies: bool = False) -> dict[str, Any]:
+    async def health(self, check_dependencies: bool = False) -> IngestorHealthResponse:
         """Check the health of the Ingestion server."""
-        response_message = "Service is up."
-        health_results = {}
-        health_results["message"] = response_message
-
         vdb_op, _ = self.__prepare_vdb_op_and_collection_name(bypass_validation=True)
 
         if check_dependencies:
             from nvidia_rag.ingestor_server.health import check_all_services_health
 
-            dependencies_results = await check_all_services_health(vdb_op, self.config)
-            health_results.update(dependencies_results)
-        return health_results
+            return await check_all_services_health(vdb_op, self.config)
+        
+        return IngestorHealthResponse(message="Service is up.")
 
     async def validate_directory_traversal_attack(self, file):
         try:

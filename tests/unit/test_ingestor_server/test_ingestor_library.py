@@ -248,8 +248,9 @@ class TestNvidiaRAGIngestor:
         """Test health check without dependency checks."""
         result = await ingestor.health(check_dependencies=False)
 
-        assert result["message"] == "Service is up."
-        assert "message" in result
+        from nvidia_rag.utils.health_models import IngestorHealthResponse
+        assert isinstance(result, IngestorHealthResponse)
+        assert result.message == "Service is up."
 
     def test_create_collection_success(self, ingestor):
         """Test successful collection creation."""
