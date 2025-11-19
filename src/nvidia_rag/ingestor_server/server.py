@@ -49,7 +49,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, model_validator
 from starlette.status import HTTP_422_UNPROCESSABLE_ENTITY
 
-from nvidia_rag.ingestor_server.main import SERVER_MODE, NvidiaRAGIngestor
+from nvidia_rag.ingestor_server.main import Mode, NvidiaRAGIngestor
 from nvidia_rag.utils.configuration import NvidiaRAGConfig
 from nvidia_rag.utils.metadata_validation import MetadataField
 
@@ -98,7 +98,7 @@ EXAMPLE_DIR = "./"
 
 # Initialize configuration and ingestor
 CONFIG = NvidiaRAGConfig()
-NV_INGEST_INGESTOR = NvidiaRAGIngestor(mode=SERVER_MODE, config=CONFIG)
+NV_INGEST_INGESTOR = NvidiaRAGIngestor(mode=Mode.SERVER, config=CONFIG)
 
 
 # Define the service health models in server.py

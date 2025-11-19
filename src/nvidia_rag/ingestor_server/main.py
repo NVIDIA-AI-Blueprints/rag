@@ -39,6 +39,7 @@ import os
 import time
 from collections import defaultdict
 from datetime import UTC, datetime
+from enum import Enum
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -80,10 +81,12 @@ from nvidia_rag.utils.vdb.vdb_base import VDBRag
 # Initialize logger
 logger = logging.getLogger(__name__)
 
-# Constants
-LIBRARY_MODE = "library"
-SERVER_MODE = "server"
-SUPPORTED_MODES = [LIBRARY_MODE, SERVER_MODE]
+
+class Mode(str, Enum):
+    """Supported application modes for NvidiaRAGIngestor"""
+
+    LIBRARY = "library"
+    SERVER = "server"
 
 SUPPORTED_FILE_TYPES = set(_DEFAULT_EXTRACTOR_MAP.keys()) & set(
     EXTENSION_TO_DOCUMENT_TYPE.keys()
@@ -100,7 +103,7 @@ class NvidiaRAGIngestor:
     def __init__(
         self,
         vdb_op: VDBRag = None,
-        mode: str = LIBRARY_MODE,
+        mode: Mode | str = Mode.LIBRARY,
         config: NvidiaRAGConfig | None = None,
     ):
         """Initialize NvidiaRAGIngestor with configuration.
@@ -110,10 +113,14 @@ class NvidiaRAGIngestor:
             mode: Operating mode (library or server)
             config: Configuration object. If None, uses default config.
         """
-        if mode not in SUPPORTED_MODES:
-            raise ValueError(
-                f"Invalid mode: {mode}. Supported modes are: {SUPPORTED_MODES}"
-            )
+        # Convert string to Mode enum if necessary
+        if isinstance(mode, str):
+            try:
+                mode = Mode(mode)
+            except ValueError:
+                raise ValueError(
+                    f"Invalid mode: {mode}. Supported modes are: {[m.value for m in Mode]}"
+                )
         self.mode = mode
         self.vdb_op = vdb_op
 
@@ -590,7 +597,7 @@ class NvidiaRAGIngestor:
 
             # Optional: Clean up provided files after ingestion, needed for
             # docker workflow
-            if self.mode == SERVER_MODE:
+            if self.mode == Mode.SERVER:
                 logger.info(f"Cleaning up files in {filepaths}")
                 for file in filepaths:
                     try:
@@ -791,7 +798,7 @@ class NvidiaRAGIngestor:
 
             # Delete the existing document
 
-            if self.mode == SERVER_MODE:
+            if self.mode == Mode.SERVER:
                 response = self.delete_documents(
                     [file_name],
                     collection_name=collection_name,
