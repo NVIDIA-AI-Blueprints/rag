@@ -335,7 +335,9 @@ class MilvusVDB(Milvus, VDBRag):
         """
         client = MilvusClient(
             self.vdb_endpoint,
-            token=f"{self.config.vector_store.username}:{self.config.vector_store.password}",
+            token=self._auth_token
+            if self._auth_token
+            else f"{self.config.vector_store.username}:{self.config.vector_store.password}",
         )
         if client.has_collection(collection_name):
             client.delete(collection_name=collection_name, filter=filter)
@@ -615,7 +617,9 @@ class MilvusVDB(Milvus, VDBRag):
         # Check if the document info collection exists
         client = MilvusClient(
             self.vdb_endpoint,
-            token=f"{self.config.vector_store.username}:{self.config.vector_store.password}",
+            token=self._auth_token
+            if self._auth_token
+            else f"{self.config.vector_store.username}:{self.config.vector_store.password}",
         )
         if not client.has_collection(DEFAULT_DOCUMENT_INFO_COLLECTION):
             # Create the document info collection
@@ -667,7 +671,9 @@ class MilvusVDB(Milvus, VDBRag):
         """
         client = MilvusClient(
             self.vdb_endpoint,
-            token=f"{self.config.vector_store.username}:{self.config.vector_store.password}",
+            token=self._auth_token
+            if self._auth_token
+            else f"{self.config.vector_store.username}:{self.config.vector_store.password}",
         )
 
         # Since collection may have pre-ingested documents, we need to get the aggregated document info

@@ -136,6 +136,14 @@ def validate_confidence_threshold_field(confidence_threshold: float) -> float:
     return confidence_threshold
 
 
+def _extract_vdb_auth_token(request: Request) -> str | None:
+    """Extract bearer token from Authorization header (e.g., 'Bearer <token>')."""
+    auth_header = request.headers.get("Authorization") or request.headers.get("authorization")
+    if isinstance(auth_header, str) and auth_header.lower().startswith("bearer "):
+        return auth_header.split(" ", 1)[1].strip()
+    return None
+
+
 class Prompt(BaseModel):
     """Definition of the Prompt API data type."""
 
@@ -316,11 +324,6 @@ class Prompt(BaseModel):
         le=1.0,
     )
 
-    vdb_auth_token: str = Field(
-        default="",
-        description="Optional bearer token for vector database auth. ",
-    )
-
     @model_validator(mode="after")
     def validate_confidence_threshold(cls, values):
         """Custom validator for confidence_threshold to provide better error messages."""
@@ -351,10 +354,6 @@ class DocumentSearch(BaseModel):
         description="The content or keywords to search for within documents. "
         "Can be a string for text-only queries, or an array of content objects for multimodal queries containing text and/or images.",
         default="Tell me something interesting",
-    )
-    vdb_auth_token: str = Field(
-        default="",
-        description="Optional bearer token for vector database auth. ",
     )
     reranker_top_k: int = Field(
         description="Number of document chunks to retrieve.",
@@ -711,7 +710,6 @@ async def generate_answer(request: Request, prompt: Prompt) -> StreamingResponse
         "reranker_top_k": prompt.reranker_top_k,
         "vdb_top_k": prompt.vdb_top_k,
         "vdb_endpoint": prompt.vdb_endpoint,
-        "vdb_auth_token": prompt.vdb_auth_token,
         "collection_name": prompt.collection_name,
         "collection_names": prompt.collection_names,
         "enable_query_rewriting": prompt.enable_query_rewriting,
@@ -773,12 +771,15 @@ async def generate_answer(request: Request, prompt: Prompt) -> StreamingResponse
                 messages_dict.append({"role": msg.role, "content": msg.content})
 
 
+        # Extract bearer token from Authorization header (e.g., "Bearer <token>")
+        vdb_auth_token = _extract_vdb_auth_token(request)
+
         rag_response = NVIDIA_RAG.generate(
             messages=messages_dict,
             use_knowledge_base=prompt.use_knowledge_base,
             temperature=prompt.temperature,
             top_p=prompt.top_p,
-            vdb_auth_token=prompt.vdb_auth_token,
+            vdb_auth_token=vdb_auth_token,
             min_tokens=prompt.min_tokens,
             ignore_eos=prompt.ignore_eos,
             max_tokens=prompt.max_tokens,
@@ -940,7 +941,6 @@ async def document_search(
         "query": sanitize_query_for_logging(data.query),
         "reranker_top_k": data.reranker_top_k,
         "vdb_top_k": data.vdb_top_k,
-        "vdb_auth_token": data.vdb_auth_token,
         "collection_names": data.collection_names,
         "enable_reranker": data.enable_reranker,
         "enable_query_rewriting": data.enable_query_rewriting,
@@ -982,10 +982,13 @@ async def document_search(
                     content_list.append(content_item)
             query_processed = content_list
 
+        # Extract bearer token from Authorization header (e.g., "Bearer <token>")
+        vdb_auth_token = _extract_vdb_auth_token(request)
+
         return NVIDIA_RAG.search(
             query=query_processed,
             messages=messages_dict,
-            vdb_auth_token=data.vdb_auth_token,
+            vdb_auth_token=vdb_auth_token,
             reranker_top_k=data.reranker_top_k,
             vdb_top_k=data.vdb_top_k,
             collection_name=data.collection_name,

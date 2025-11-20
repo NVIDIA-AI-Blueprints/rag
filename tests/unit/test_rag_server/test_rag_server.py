@@ -210,7 +210,6 @@ def valid_prompt_data():
     return {
         "messages": [{"role": "user", "content": "What is machine learning?"}],
         "use_knowledge_base": True,
-        "vdb_auth_token": "",
         "temperature": 0.7,
         "top_p": 0.9,
         "max_tokens": 1024,
@@ -357,7 +356,6 @@ class TestDocumentSearchEndpoint:
             "query": "What is machine learning?",
             "reranker_top_k": 4,
             "vdb_top_k": 10,
-            "vdb_auth_token": "",
             "collection_name": "test_collection",
             "messages": [{"role": "user", "content": "What is machine learning?"}],
             "enable_query_rewriting": True,

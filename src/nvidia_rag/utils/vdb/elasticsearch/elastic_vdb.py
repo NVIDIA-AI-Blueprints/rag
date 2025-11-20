@@ -55,7 +55,7 @@ Retrieval Operations:
 import logging
 import os
 import time
-from typing import Any
+from typing import Any, Optional, Union, Tuple
 
 import pandas as pd
 from elasticsearch import Elasticsearch
