@@ -225,6 +225,14 @@ document_summary_prompt:
     Please provide a concise summary for the following document:
     {document_text}
 
+shallow_summary_prompt:
+  system: |
+    /no_think
+
+  human: |
+    Please provide a concise summary for the following document:
+    {document_text}
+
 iterative_summary_prompt:
   system: |
     /no_think

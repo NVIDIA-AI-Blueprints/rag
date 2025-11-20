@@ -710,6 +710,7 @@ class NvidiaRAGIngestor:
         collection_name: str,
         page_filter: list[list[int]] | str | None = None,
         summarization_strategy: str | None = None,
+        is_shallow: bool = False,
     ) -> None:
         """
         Trigger parallel summary generation for documents with optional page filtering.
@@ -719,6 +720,7 @@ class NvidiaRAGIngestor:
             collection_name: Name of the collection
             page_filter: Optional page filter - either list of ranges [[start,end],...] or string ('even'/'odd')
             summarization_strategy: Strategy for summarization ('single', 'hierarchical') or None for default
+            is_shallow: Whether this is shallow extraction (text-only, uses simplified prompt)
         """
         try:
             stats = await generate_document_summaries(
@@ -727,6 +729,7 @@ class NvidiaRAGIngestor:
                 page_filter=page_filter,
                 summarization_strategy=summarization_strategy,
                 config=self.config,
+                is_shallow=is_shallow,
             )
 
             if stats["failed"] > 0:
@@ -1584,6 +1587,7 @@ class NvidiaRAGIngestor:
                     collection_name=collection_name,
                     page_filter=page_filter,
                     summarization_strategy=summarization_strategy,
+                    is_shallow=True,
                 )
             )
             self._background_tasks.add(task)
