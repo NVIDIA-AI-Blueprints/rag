@@ -841,9 +841,10 @@ async def _wait_for_summary_completion(
     """
     from nvidia_rag.utils.summary_status_handler import SUMMARY_STATUS_HANDLER
 
+    effective_timeout = min(3600, timeout)
     start_time = time.time()
 
-    while time.time() - start_time < min(3600, timeout):
+    while time.time() - start_time < effective_timeout:
         # Check if Redis is available
         if not SUMMARY_STATUS_HANDLER.is_available():
             logger.warning(
@@ -922,11 +923,15 @@ async def _wait_for_summary_completion(
         await asyncio.sleep(SUMMARY_POLL_INTERVAL_SECONDS)
 
     # Timeout reached
-    logger.warning(f"Timeout waiting for summary generation for {file_name}")
+    logger.warning(
+        "Timeout waiting for summary generation for %s after %s seconds",
+        file_name,
+        effective_timeout,
+    )
     return {
-        "message": f"Timeout waiting for summary generation for {file_name} after {timeout} seconds",
+        "message": f"Timeout waiting for summary generation for {file_name} after {effective_timeout} seconds",
         "status": "FAILED",
-        "error": f"Timeout after {timeout} seconds",
+        "error": f"Timeout after {effective_timeout} seconds",
         "file_name": file_name,
         "collection_name": collection_name,
     }

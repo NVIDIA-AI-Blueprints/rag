@@ -56,7 +56,8 @@ The document summarization feature has been significantly enhanced with new capa
 - **Summarization strategies**: Added `summarization_strategy` parameter with three options:
   - `"single"`: One-pass with truncation (fastest - one LLM call)
   - `"hierarchical"`: Parallel tree-based processing (balanced)
-  - `null`: Sequential refinement (best quality, default)
+  - `null` or omit the field: Sequential iterative refinement (best quality, default)
+    - Note: Pass JSON `null` or omit the parameter entirely; do not pass the string `"null"`
 - **Token-based chunking**: Aligned with nv-ingest using tokenizer `e5-large-unsupervised`
   - Defaults: `SUMMARY_LLM_MAX_CHUNK_LENGTH=9000` tokens, `SUMMARY_CHUNK_OVERLAP=400` tokens
   - More accurate chunking and better context preservation

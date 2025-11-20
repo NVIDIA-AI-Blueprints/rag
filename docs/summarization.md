@@ -217,13 +217,14 @@ When summary generation is in progress, you'll receive real-time progress inform
   "message": "Summary generation is pending. Set blocking=true to wait for completion.",
   "status": "PENDING",
   "file_name": "file1.pdf",
-  "collection_name": "my_collection"
+  "collection_name": "my_collection",
+  "queued_at": "2025-01-24T10:30:00.000Z"
 }
 ```
 
 **HTTP Status Code**: 202 (Accepted)
 
-**Note**: For PENDING status, timestamp fields (`started_at`, `updated_at`, `progress`) will be `null` since generation hasn't started yet.
+**Note**: For PENDING status, only `queued_at` is set. Fields like `started_at`, `updated_at`, and `progress` will be `null` since processing hasn't started yet.
 
 ### Example Response (Not Found)
 
