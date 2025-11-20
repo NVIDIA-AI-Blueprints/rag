@@ -263,6 +263,138 @@ helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprin
 For detailed HELM deployment instructions, see [Helm Deployment Guide](deploy-helm.md).
 
 
+## Using VDB Auth Token at Runtime (Elasticsearch)
+
+When using Elasticsearch as the vector database, you can pass a per-request VDB authentication token via the HTTP `Authorization` header. The servers forward this token to Elasticsearch for that request. This enables per-user RBAC or per-request scoping without changing server env configuration.
+
+Prerequisite:
+- Ensure Elasticsearch authentication is enabled so security is enforced. In Elasticsearch this typically requires `xpack.security.enabled=true`. See the "Elasticsearch Authentication" section above for enabling security via Docker Compose or Helm and for obtaining API keys or setting credentials.
+
+### Auth priority in Elasticsearch VDB
+The Elasticsearch VDB operator resolves auth in this order:
+- Bearer auth from the incoming request `Authorization` header (preferred)
+- API Key from config (`APP_VECTORSTORE_APIKEY` or `APP_VECTORSTORE_APIKEY_ID`/`APP_VECTORSTORE_APIKEY_SECRET`)
+- Basic auth username/password from config (`APP_VECTORSTORE_USERNAME`/`APP_VECTORSTORE_PASSWORD`)
+
+If a bearer token is present, it takes precedence over API key and basic auth for that request.
+
+### Header format
+- Preferred: `Authorization: Bearer <token>`
+- Also accepted: `Authorization: <token>`
+
+What the token represents depends on your Elasticsearch security setup:
+- If using Elasticsearch API keys, you can pass the base64-encoded `id:secret` string as the bearer value.
+- If using a proxy or custom gateway, the bearer value may be an access token minted by your gateway.
+- If using basic auth only, prefer configuring it via env variables; per-request basic via header is not supported by the server wrapper—use bearer or API key via header instead.
+
+### Ingestor Server examples (Elasticsearch)
+
+- Create a collection (bearer/API key as header):
+
+```bash
+curl -X POST "$INGESTOR_URL/v1/collection" \
+  -H "Authorization: Bearer ${ES_VDB_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "collection_name": "es_demo_collection",
+    "embedding_dimension": 1536
+  }'
+```
+
+- List documents:
+
+```bash
+curl -G "$INGESTOR_URL/v1/documents" \
+  -H "Authorization: Bearer ${ES_VDB_TOKEN}" \
+  --data-urlencode "collection_name=es_demo_collection"
+```
+
+- Delete a collection:
+
+```bash
+curl -X DELETE "$INGESTOR_URL/v1/collections" \
+  -H "Authorization: Bearer ${ES_VDB_TOKEN}" \
+  --data-urlencode "collection_names=es_demo_collection"
+```
+
+Notes:
+- Set `ES_VDB_TOKEN` to your runtime credential (e.g., base64 of `id:secret` for ES API keys).
+- You may also set `vdb_endpoint` on requests if you need to override the configured `APP_VECTORSTORE_URL`.
+
+### RAG Server examples (Elasticsearch)
+
+- Search:
+
+```bash
+curl -X POST "$RAG_URL/v1/search" \
+  -H "Authorization: Bearer ${ES_VDB_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "what is vector search?",
+    "use_knowledge_base": true,
+    "collection_names": ["es_demo_collection"],
+    "vdb_endpoint": "'"$APP_VECTORSTORE_URL"'",
+    "reranker_top_k": 0,
+    "vdb_top_k": 3
+  }'
+```
+
+- Generate (SSE):
+
+```bash
+curl -N -X POST "$RAG_URL/v1/generate" \
+  -H "Authorization: Bearer ${ES_VDB_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "messages": [{"role":"user","content":"Give a short summary of vector databases"}],
+    "use_knowledge_base": true,
+    "collection_names": ["es_demo_collection"],
+    "vdb_endpoint": "'"$APP_VECTORSTORE_URL"'",
+    "reranker_top_k": 0,
+    "vdb_top_k": 3
+  }'
+```
+
+### Python (requests) examples
+
+```python
+import requests
+
+headers = {"Authorization": f"Bearer {ES_VDB_TOKEN}"}  # ES_VDB_TOKEN can be base64(id:secret) for ES API key
+
+# Create collection
+resp = requests.post(
+    f"{INGESTOR_URL}/v1/collection",
+    json={"collection_name": "es_demo_collection", "embedding_dimension": 1536},
+    headers=headers,
+    timeout=60,
+)
+resp.raise_for_status()
+
+# Search
+resp = requests.post(
+    f"{RAG_URL}/v1/search",
+    json={
+        "query": "what is vector search?",
+        "use_knowledge_base": True,
+        "collection_names": ["es_demo_collection"],
+        "vdb_endpoint": APP_VECTORSTORE_URL,
+        "reranker_top_k": 0,
+        "vdb_top_k": 3,
+    },
+    headers=headers,
+    timeout=60,
+)
+resp.raise_for_status()
+print(resp.json())
+```
+
+### Troubleshooting
+- If you receive authentication/authorization errors from Elasticsearch, verify your token (API key validity, scopes, and expiration).
+- Ensure the server is not also configured with conflicting credentials for the same request; bearer token from the header takes precedence at runtime.
+- Confirm that `APP_VECTORSTORE_NAME=elasticsearch` and `APP_VECTORSTORE_URL` are set correctly.
+- If using Helm, see the [Elasticsearch Authentication](#elasticsearch-authentication) section above for configuring API key or basic auth as defaults when a runtime header is not supplied.
+
 # Define Your Own Vector Database
 
 You can create your own custom vector database operators by implementing the `VDBRag` base class.
