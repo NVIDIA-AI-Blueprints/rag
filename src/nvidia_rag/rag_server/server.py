@@ -770,7 +770,6 @@ async def generate_answer(request: Request, prompt: Prompt) -> StreamingResponse
                 # Fallback for other content types
                 messages_dict.append({"role": msg.role, "content": msg.content})
 
-
         # Extract bearer token from Authorization header (e.g., "Bearer <token>")
         vdb_auth_token = _extract_vdb_auth_token(request)
 

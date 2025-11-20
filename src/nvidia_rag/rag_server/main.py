@@ -252,8 +252,8 @@ class NvidiaRAG:
 
         return _get_vdb_op(
             vdb_endpoint=vdb_endpoint or self.config.vector_store.url,
-            config=self.config,
             embedding_model=document_embedder,
+            config=self.config,
             vdb_auth_token=vdb_auth_token,
         )
 
