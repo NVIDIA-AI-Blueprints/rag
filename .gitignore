@@ -6,6 +6,7 @@ dist/*
 
 # Helm Exclusions
 **/helm-charts/*.tgz
+**/helm/**/*.tgz
 
 # Docker Compose exclusions
 deploy/compose/volumes
