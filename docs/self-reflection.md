@@ -144,8 +144,9 @@ If you don't have sufficient GPU resources for on-premises deployment, you can u
 5. Open the [RAG UI](user-interface.md) and test the reflection capability.
 
 
-[!NOTE]
+:::{note}
 When using NVIDIA-hosted models, you must obtain an API key. See [Get an API Key](api-key.md) for instructions.
+:::
 
 ## Reflection Support via Helm Deployment
 

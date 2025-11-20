@@ -137,3 +137,14 @@ quote-style = "double"
 indent-style = "space"
 skip-magic-trailing-comma = false
 line-ending = "auto"
+
+[dependency-groups]
+docs = [
+    "myst-parser>=4.0.1",
+    "nvidia-sphinx-theme>=0.0.8",
+    "sphinx>=8.2.3",
+    "sphinx-autobuild>=2025.8.25",
+    "sphinx-autodoc2>=0.5.0",
+    "sphinx-copybutton>=0.5.2",
+    "swagger-plugin-for-sphinx>=5.2.0",
+]

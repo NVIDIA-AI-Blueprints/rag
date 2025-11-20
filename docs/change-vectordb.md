@@ -7,11 +7,11 @@
 The [NVIDIA RAG Blueprint](readme.md) supports multiple vector database backends including [Milvus](https://milvus.io/docs) and [Elasticsearch](https://www.elastic.co/elasticsearch/vector-database).
 Elasticsearch provides robust search capabilities and can be used as an alternative to Milvus for storing and retrieving document embeddings.
 
-After you have [deployed the blueprint](readme.md#Deployment-Options-for-RAG-Blueprint),
+After you have [deployed the blueprint](readme.md#deployment-options-for-rag-blueprint),
 use this documentation to configure Elasticsearch as your vector database.
 
-> [!TIP]
-> To navigate this page more easily, click the outline button at the top of the page. (<img src="assets/outline-button.png">)
+:::{tip}
+To navigate this page more easily, click the outline button at the top of the page. ![outline-button](assets/outline-button.png)
 
 
 ## Prerequisites and Important Considerations Before You Start
@@ -29,8 +29,9 @@ The following are some important notes to keep in mind before you switch from Mi
     sudo chown -R 1000:1000 deploy/compose/volumes/elasticsearch/
     ```
 
-    > [!NOTE]
-    > If the Elasticsearch container fails to start due to permission issues, you may optionally use `sudo chmod -R 777 deploy/compose/volumes/elasticsearch/` for broader access
+   :::{note}
+   If the Elasticsearch container fails to start due to permission issues, you may optionally use `sudo chmod -R 777 deploy/compose/volumes/elasticsearch/` for broader access
+   :::
 
 
 ## Docker Compose Configuration for Elasticsearch Vector Database
@@ -65,8 +66,9 @@ Use the following steps to configure Elasticsearch as your vector database in Do
 
 If you're using Helm for deployment, use the following steps to configure Elasticsearch as your vector database.
 
-> [!NOTE]
-> **Performance Consideration**: Slow VDB upload is observed in Helm deployments for Elasticsearch (ES). For more details, refer to the [troubleshooting documentation](./troubleshooting.md).
+:::{note}
+**Performance Consideration**: Slow VDB upload is observed in Helm deployments for Elasticsearch (ES). For more details, refer to the [troubleshooting documentation](./troubleshooting.md).
+:::
 
 1. Configure Elasticsearch as the vector database in [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml).
 
@@ -127,15 +129,17 @@ You should see a response that indicates the cluster status is green or yellow, 
 You can create your own custom vector database operators by implementing the `VDBRag` base class.
 This enables you to integrate with any vector database that isn't already supported.
 
-> [!CAUTION]
-> This section is for advanced developers who need to integrate custom vector databases beyond the supported database options.
+:::{caution}
+This section is for advanced developers who need to integrate custom vector databases beyond the supported database options.
+:::
 
 For a complete example, refer to [Custom VDB Operator Notebook](../notebooks/building_rag_vdb_operator.ipynb).
 
-> [!TIP]
-> Choose your integration path:
-> - Start with Library Mode for fastest iteration during development (recommended for most users).
-> - Advanced users who are comfortable with deployments can start directly with Server Mode. See: [Integrate Into NVIDIA RAG (Server Mode)](#integrate-custom-vector-database-into-nvidia-rag-servers-docker-mode).
+:::{tip}
+Choose your integration path:
+- Start with Library Mode for fastest iteration during development (recommended for most users).
+- Advanced users who are comfortable with deployments can start directly with Server Mode. See: [Integrate Into NVIDIA RAG (Server Mode)](#integrate-custom-vector-database-into-nvidia-rag-servers-docker-mode).
+:::
 
 
 ## Integrate Custom VDB in Library Mode (Developer-Friendly Approach)
@@ -341,10 +345,11 @@ That’s it—after these steps, both the RAG server and the Ingestor will use y
 
 ## Integrate Custom Vector Database Into NVIDIA RAG Servers (Helm/Kubernetes Mode)
 
-> [!WARNING]
-> **Advanced Developer Guide - Production Use Only**
->
-> This section is for **advanced developers** with Kubernetes and Helm experience. Recommended for production environments only. For development and testing, use the [Docker Compose approach](#integrate-custom-vector-database-into-nvidia-rag-servers-docker-mode) instead.
+:::{warning}
+**Advanced Developer Guide - Production Use Only**
+
+This section is for **advanced developers** with Kubernetes and Helm experience. Recommended for production environments only. For development and testing, use the [Docker Compose approach](#integrate-custom-vector-database-into-nvidia-rag-servers-docker-mode) instead.
+:::
 
 Before proceeding with Helm deployment, ensure you have completed the implementation steps mentioned above, including:
 
@@ -374,8 +379,9 @@ Once your custom vector database implementation is complete, you need to build c
        image: your-registry/your-ingestor-server:your-tag
    ```
 
-   > [!TIP]
-   > Use a public registry for easier deployment and accessibility.
+   :::{tip}
+   Use a public registry for easier deployment and accessibility.
+   :::
 
 2. **Build Ingestor server and RAG server image:**
    ```bash
@@ -449,8 +455,9 @@ Update your [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) fil
      version: 1.0.0
    ```
 
-   > [!NOTE]
-   > Replace `your-custom-vdb`, `https://your-helm-repo.com/charts`, and `1.0.0` with your actual chart name, repository URL, and version.
+   :::{note}
+   Replace `your-custom-vdb`, `https://your-helm-repo.com/charts`, and `1.0.0` with your actual chart name, repository URL, and version.
+   :::
 
 3. **Add Helm repository and update dependencies:**
    ```bash
@@ -545,8 +552,9 @@ If you encounter issues during deployment:
 
 You can integrate your own vector database with NVIDIA RAG by implementing only the retrieval functionality while managing ingestion separately. This approach allows you to use existing RAG server, [RAG UI](user-interface.md), and ingestor server components with your custom vector database backend.
 
-> [!NOTE]
-> This approach is ideal when you have an existing vector database with pre-indexed documents and want to leverage NVIDIA RAG's retrieval and generation capabilities without implementing full ingestion workflows into Nvidia RAG Blueprint.
+:::{note}
+This approach is ideal when you have an existing vector database with pre-indexed documents and want to leverage NVIDIA RAG's retrieval and generation capabilities without implementing full ingestion workflows into Nvidia RAG Blueprint.
+:::
 
 ## Implementation Requirements
 

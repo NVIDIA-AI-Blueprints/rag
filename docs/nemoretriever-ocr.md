@@ -8,8 +8,9 @@ You can enable NeMO Retriever OCR for your [NVIDIA RAG Blueprint](readme.md). Ne
 
 For more information about NeMo Retriever OCR, refer to [NeMo Retriever OCR v1 Container](https://build.nvidia.com/nvidia/nemoretriever-ocr-v1).
 
-> [!Note]
-> **Early Access**: Currently, the NeMo Retriever OCR v1 container is in early access preview.
+:::{note}
+**Early Access**: Currently, the NeMo Retriever OCR v1 container is in early access preview.
+:::
 
 
 ## Key Benefits of NeMo Retriever OCR
@@ -40,8 +41,9 @@ For more information about NeMo Retriever OCR, refer to [NeMo Retriever OCR v1 C
    export OCR_MODEL_NAME=scene_text_ensemble
    ```
 
-   > [!Warning]
-   > **Critical Health Check Requirement**: Even when using gRPC protocol (`OCR_INFER_PROTOCOL=grpc`), you must also export the `OCR_HTTP_ENDPOINT` because the health check from nv-ingest uses HTTP.
+   :::{warning}
+   **Critical Health Check Requirement**: Even when using gRPC protocol (`OCR_INFER_PROTOCOL=grpc`), you must also export the `OCR_HTTP_ENDPOINT` because the health check from nv-ingest uses HTTP.
+   :::
 
 3. **Stop Paddle OCR deployment if already running**:
    ```bash
@@ -80,8 +82,9 @@ For more information about NeMo Retriever OCR, refer to [NeMo Retriever OCR v1 C
 
 4. **Test Document Ingestion**: Use the [ingestion API usage notebook](../notebooks/ingestion_api_usage.ipynb) to verify functionality.
 
-> [!Note]
-> **Default Behavior**: Paddle OCR is the default OCR service and runs automatically when you start the NIMs. To use NeMo Retriever OCR instead, you must explicitly start it with the `--profile nemoretriever-ocr` flag.
+:::{note}
+**Default Behavior**: Paddle OCR is the default OCR service and runs automatically when you start the NIMs. To use NeMo Retriever OCR instead, you must explicitly start it with the `--profile nemoretriever-ocr` flag.
+:::
 
 ### Helm Deployment to Enable NeMo Retriever OCR
 
