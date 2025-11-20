@@ -220,9 +220,9 @@ class NvidiaRAG:
 
     def __prepare_vdb_op(
         self,
-        vdb_endpoint: str = None,
-        embedding_model: str = None,
-        embedding_endpoint: str = None,
+        vdb_endpoint: str | None = None,
+        embedding_model: str | None = None,
+        embedding_endpoint: str | None = None,
         vdb_auth_token: str = "",
     ):
         """
@@ -252,6 +252,7 @@ class NvidiaRAG:
 
         return _get_vdb_op(
             vdb_endpoint=vdb_endpoint or self.config.vector_store.url,
+            config=self.config,
             embedding_model=document_embedder,
             vdb_auth_token=vdb_auth_token,
         )
@@ -518,8 +519,8 @@ class NvidiaRAG:
         reranker_top_k: int | None = None,
         vdb_top_k: int | None = None,
         collection_name: str = "",
-        collection_names: list[str] = None,
-        vdb_endpoint: str = None,
+        collection_names: list[str] | None = None,
+        vdb_endpoint: str | None = None,
         vdb_auth_token: str = "",
         enable_query_rewriting: bool | None = None,
         enable_reranker: bool | None = None,
