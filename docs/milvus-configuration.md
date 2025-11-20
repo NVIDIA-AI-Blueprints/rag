@@ -329,7 +329,6 @@ For Milvus (with RBAC enabled), the token is typically the string `user:password
 - Reader user: `reader_user:reader_password`
 - Writer user: `writer_user:writer_password`
 
-The servers no longer accept `vdb_auth_token` as a body or query parameter. Always send it through the `Authorization` header.
 
 ### Ingestor Server examples
 
