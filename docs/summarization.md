@@ -12,18 +12,18 @@ When uploading documents to the vector store using the ingestion API (`POST /doc
 
 ### Example: Uploading Documents with Summarization
 
-```http
-POST /v1/documents
-Content-Type: multipart/form-data
-
-- documents: [file1.pdf, file2.docx, ...]
-- data: '{
-    "collection_name": "my_collection",
-    "blocking": false,
-    "split_options": {"chunk_size": 512, "chunk_overlap": 150},
-    "custom_metadata": [],
-    "generate_summary": true
-}'
+```bash
+curl -X "POST" "http://$${RAG_HOSTNAME}/v1/documents" \
+    -H 'accept: multipart/form-data' \
+    -H 'Content-Type: multipart/form-data' \
+    - documents: [file1.pdf, file2.docx, ...] \
+    - data: '{
+        "collection_name": "my_collection",
+        "blocking": false,
+        "split_options": {"chunk_size": 512, "chunk_overlap": 150},
+        "custom_metadata": [],
+        "generate_summary": true
+    }'
 ```
 
 - **generate_summary**: Set to `true` to enable summary generation for each uploaded document. The summary generation always happens asynchronously in the backend after the ingestion is complete. The ingestion status is reported to be completed irrespective of whether summarization has been successfully completed or not.
@@ -59,9 +59,18 @@ GET /v1/summary?collection_name=<collection>&file_name=<filename>&blocking=<bool
 
 ### Example Request
 
-```http
-GET /v1/summary?collection_name=my_collection&file_name=file1.pdf&blocking=true&timeout=60
+```bash
+curl -X "GET" --globoff \ 
+  "http://$${RAG_HOSTNAME}/v1/summary?collection_name=my_collection&file_name=file1.pdf&blocking=true&timeout=60" \
+  -H 'accept: application/json'
 ```
+
+```python
+endpoint = f"http://$${RAG_HOSTNAME}/v1/summary?collection_name=my_collection&file_name=file1.pdf&blocking=true&timeout=60"
+response = requests.get(endpoint).json()
+response
+```
+
 
 #### Python Example with library mode
 

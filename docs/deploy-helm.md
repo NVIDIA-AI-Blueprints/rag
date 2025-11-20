@@ -124,12 +124,13 @@ To verify a deployment, use the following procedure.
     rag-zipkin-5dc8d6d977-nqvvc                                 1/1     Running   0             23m
     ```
 
-    > [!Note]
-    > It takes approximately 5 minutes for all pods to come up. You can check Kuberenetes events by running the following code.
-    >
-    > ```sh
-    > kubectl get events -n rag
-    > ```
+   :::{note}
+   It takes approximately 5 minutes for all pods to come up. You can check Kubernetes events by running the following code. 
+   
+   ```sh
+   kubectl get events -n rag
+   ```
+   :::
 
 2.  List services by running the following code.
 
@@ -221,9 +222,10 @@ helm uninstall rag -n rag
 
 For troubleshooting issues with Helm deployment, refer to [Troubleshooting](troubleshooting.md).
 
-> [!NOTE]
-> If the `rag-nim-llm-0` is in a `CrashLoopBackOff` after deployment, then set the model profile explicitly to avoid any errors with NIM LLM pod deployment.
-> To set NIM LLM profile according to the GPU type and count, refer to [NIM Model Profile Configuration](model-profiles.md).
+:::{note}
+If the `rag-nim-llm-0` is in a `CrashLoopBackOff` after deployment, then set the model profile explicitly to avoid any errors with NIM LLM pod deployment. 
+To set NIM LLM profile according to the GPU type and count, refer to [NIM Model Profile Configuration](model-profiles.md).
+:::
 
 
 

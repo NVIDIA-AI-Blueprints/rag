@@ -38,16 +38,16 @@ Use the following procedure to enable observability with Docker.
         APP_TRACING_ENABLED: "True"
     ```
 
-4. Start the RAG Server by following the instructions in the appropriate [deployment guide](readme.md#deploy).
+4. Start the RAG Server by following the instructions in the appropriate [deployment guide](readme.md#deployment-options-for-rag-blueprint).
 
 
 ## View Traces in Zipkin
 
 After tracing is enabled and the system is running, you can **view the traces** in **Zipkin** by opening:
 
-  <p align="center">
-  <img src="./assets/zipkin_ui.png" width="750">
-  </p>
+```{image} assets/zipkin_ui.png
+:width: 750px
+```
 
 Open the Zipkin UI at: **http://localhost:9411**
 

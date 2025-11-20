@@ -4,6 +4,9 @@ All notable changes to the [NVIDIA RAG Blueprint](README.md) will be documented 
 
 To upgrade your version, see [Migration Guide](docs/migration_guide.md).
 
+> [!TIP]
+> To navigate this page more easily, click the outline button at the top of the page. (<img src="docs/assets/outline-button.png">)
+
 
 ## Version 2.3.0 (2025-10-14)
 
