@@ -290,7 +290,13 @@ Summary generation status is tracked using Redis to enable cross-service visibil
 
 ### Core Configuration
 
-The summarization feature uses specialized prompts defined in the [prompt.yaml](../src/nvidia_rag/rag_server/prompt.yaml) file. Two key prompts work together: `document_summary_prompt` for single-chunk processing and `iterative_summary_prompt` for multi-chunk documents.
+The summarization feature uses specialized prompts defined in the [prompt.yaml](../src/nvidia_rag/rag_server/prompt.yaml) file. The system automatically selects the appropriate prompts based on extraction mode and document size:
+
+- **`shallow_summary_prompt`**: Used for text-only (shallow) extraction workflows when `shallow_summary: true`
+- **`document_summary_prompt`**: Used for full multimodal extraction (default) for single-chunk processing
+- **`iterative_summary_prompt`**: Used for multi-chunk documents in iterative strategy
+
+For more details on customizing these prompts, see [Prompt Customization Guide](./prompt-customization.md).
 
 **Environment Variables:**
 
@@ -337,19 +343,25 @@ To prevent GPU/API overload, the system uses **Redis-based global rate limiting*
 
 The summarization system uses an intelligent chunking approach with different prompts for different scenarios:
 
+**Prompt Selection Based on Extraction Mode:**
+- **Shallow extraction** (`shallow_summary: true`): Uses `shallow_summary_prompt` - optimized for fast text-only processing
+- **Full extraction** (`shallow_summary: false`, default): Uses `document_summary_prompt` and `iterative_summary_prompt` - comprehensive multimodal processing
+
+**Processing by Document Size:**
+
 1. **Single Chunk Processing**: If a document fits within `SUMMARY_LLM_MAX_CHUNK_LENGTH` tokens, it's processed as a single chunk.
-   - **Prompt used**: `document_summary_prompt` - Takes the entire document content and generates a comprehensive summary in one pass
-   - **Strategy**: All strategies use this prompt for single-chunk documents
+   - **Prompt used**: `shallow_summary_prompt` (for shallow) or `document_summary_prompt` (for full extraction)
+   - **Strategy**: All strategies use the appropriate prompt for single-chunk documents
 
 2. **Multi-Chunk Processing**: For larger documents:
    - The document is split into chunks using `SUMMARY_LLM_MAX_CHUNK_LENGTH` as the maximum size (in tokens)
    - `SUMMARY_CHUNK_OVERLAP` tokens are preserved between chunks for context
    - **Strategy behavior**:
      - **`single`**: Concatenates all chunks into one, truncates if exceeds max length (fastest)
-     - **`hierarchical`**: Processes chunks in parallel using `document_summary_prompt`, then combines summaries (balanced)
-     - **`null/iterative`**: Initial chunk uses `document_summary_prompt`, subsequent chunks use `iterative_summary_prompt` to update existing summary (best quality)
+     - **`hierarchical`**: Processes chunks in parallel using extraction-appropriate prompt, then combines summaries (balanced)
+     - **`null/iterative`**: Initial chunk uses extraction-appropriate prompt, subsequent chunks use `iterative_summary_prompt` to update existing summary (best quality)
 
-This approach ensures that even very large documents can be summarized effectively while maintaining context across chunk boundaries. The prompt selection and processing approach automatically adapt based on document size, processing stage, and selected strategy.
+This approach ensures that even very large documents can be summarized effectively while maintaining context across chunk boundaries. The prompt selection automatically adapts based on extraction mode, document size, processing stage, and selected strategy.
 
 ## 4. Notes and Best Practices
 
