@@ -1574,11 +1574,23 @@ class NvidiaRAGIngestor:
         Returns:
             Set of filenames that failed during shallow extraction
         """
-        shallow_failed_files = set()
+        shallow_failed_files: set[str] = set()
 
-        shallow_results = await self._perform_shallow_extraction(
+        shallow_results, shallow_failures = await self._perform_shallow_extraction(
             filepaths, split_options, batch_num
         )
+
+        # Mark per-file shallow extraction failures immediately
+        if shallow_failures:
+            for failed_path, error in shallow_failures:
+                file_name = os.path.basename(str(failed_path))
+                shallow_failed_files.add(file_name)
+                SUMMARY_STATUS_HANDLER.update_progress(
+                    collection_name=collection_name,
+                    file_name=file_name,
+                    status="FAILED",
+                    error=str(error),
+                )
 
         if shallow_results:
             task = asyncio.create_task(
@@ -1593,9 +1605,11 @@ class NvidiaRAGIngestor:
             self._background_tasks.add(task)
             task.add_done_callback(self._background_tasks.discard)
         else:
-            # Mark files as FAILED
+            # No shallow results at all: mark every file in the batch as failed (if not already marked)
             for filepath in filepaths:
                 file_name = os.path.basename(filepath)
+                if file_name in shallow_failed_files:
+                    continue
                 shallow_failed_files.add(file_name)
                 SUMMARY_STATUS_HANDLER.update_progress(
                     collection_name=collection_name,
@@ -2042,7 +2056,7 @@ class NvidiaRAGIngestor:
         filepaths: list[str],
         split_options: dict[str, Any],
         batch_number: int,
-    ) -> list[list[dict[str, str | dict]]]:
+    ) -> tuple[list[list[dict[str, str | dict]]], list[tuple[str, Exception]]]:
         """
         Perform text-only extraction using NV-Ingest for fast summary generation.
 
@@ -2056,7 +2070,7 @@ class NvidiaRAGIngestor:
             batch_number: Batch number for logging
 
         Returns:
-            List of extraction results (same format as full ingestion)
+            Tuple of (results, failures) where failures is list of (filepath, exception) tuples
         """
         extract_override = {
             "extract_text": True,
@@ -2107,7 +2121,8 @@ class NvidiaRAGIngestor:
                     batch_number,
                 )
 
-            return results if results else []
+            # Normalize return values to empty lists instead of None
+            return results or [], failures or []
 
         except Exception as e:
             logger.error(
@@ -2116,7 +2131,9 @@ class NvidiaRAGIngestor:
                 str(e),
                 exc_info=logger.getEffectiveLevel() <= logging.DEBUG,
             )
-            return []
+            # Treat every file in this batch as a failure
+            failure_records = [(filepath, e) for filepath in filepaths]
+            return [], failure_records
 
     async def _perform_file_ext_based_ingestion(
         self,

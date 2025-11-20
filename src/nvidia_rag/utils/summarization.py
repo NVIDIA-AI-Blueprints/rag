@@ -819,7 +819,7 @@ async def _summarize_hierarchical(
 
     while len(current_summaries) > 1:
         batched_summaries = _batch_summaries_by_length(
-            current_summaries, max_chunk_tokens, config
+            current_summaries, max_chunk_tokens
         )
 
         next_level_summaries = await asyncio.gather(
@@ -842,7 +842,6 @@ async def _summarize_hierarchical(
 def _batch_summaries_by_length(
     summaries: list[str],
     max_chunk_chars: int,
-    config: NvidiaRAGConfig,
 ) -> list[list[str]]:
     """Group summaries into batches respecting max character length."""
     batches = []
