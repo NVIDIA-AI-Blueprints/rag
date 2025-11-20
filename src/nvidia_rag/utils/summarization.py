@@ -268,6 +268,7 @@ async def generate_document_summaries(
     page_filter: list[list[int]] | str | None = None,
     summarization_strategy: str | None = None,
     config: NvidiaRAGConfig | None = None,
+    is_shallow: bool = False,
 ) -> dict[str, Any]:
     """
     Generate summaries for multiple documents in parallel with global rate limiting.
@@ -278,6 +279,7 @@ async def generate_document_summaries(
         page_filter: Optional page filter - either list of ranges [[start,end],...] or string ('even'/'odd')
         summarization_strategy: Strategy for summarization ('single', 'hierarchical') or None for default iterative
         config: NvidiaRAGConfig instance. If None, creates a new one from environment.
+        is_shallow: Whether this is shallow extraction (text-only, uses simplified prompt)
 
     Returns:
         dict: Statistics with total_files, successful, failed, duration_seconds, files
@@ -340,6 +342,7 @@ async def generate_document_summaries(
             config=config,
             page_filter=page_filter,
             summarization_strategy=summarization_strategy,
+            is_shallow=is_shallow,
         )
         for file_data in file_results
     ]
@@ -383,6 +386,7 @@ async def _process_single_file_summary(
     config: NvidiaRAGConfig,
     page_filter: list[list[int]] | str | None = None,
     summarization_strategy: str | None = None,
+    is_shallow: bool = False,
 ) -> dict[str, Any]:
     """
     Process summary for a single file with global rate limiting.
@@ -395,6 +399,7 @@ async def _process_single_file_summary(
         config: NvidiaRAGConfig instance
         page_filter: Global page filter for all files
         summarization_strategy: Strategy for summarization ('single', 'hierarchical') or None for default iterative
+        is_shallow: Whether this is shallow extraction (text-only, uses simplified prompt)
 
     Returns:
         dict: Result with status, duration, and optional error
@@ -440,6 +445,7 @@ async def _process_single_file_summary(
                 progress_callback=progress_callback,
                 summarization_strategy=summarization_strategy,
                 config=config,
+                is_shallow=is_shallow,
             )
 
             await _store_summary_in_minio(summary_doc)
@@ -606,6 +612,7 @@ async def _generate_single_document_summary(
     config: NvidiaRAGConfig,
     progress_callback: Callable | None = None,
     summarization_strategy: str | None = None,
+    is_shallow: bool = False,
 ) -> Document:
     """Generate summary for a single document using configured strategy."""
     file_name = document.metadata.get("filename", "unknown")
@@ -616,11 +623,17 @@ async def _generate_single_document_summary(
     logger.info(f"Summarizing {file_name} using strategy: {summarization_strategy}")
 
     if summarization_strategy == "single":
-        return await _summarize_single_pass(document, config, progress_callback)
+        return await _summarize_single_pass(
+            document, config, progress_callback, is_shallow
+        )
     elif summarization_strategy == "iterative":
-        return await _summarize_iterative(document, config, progress_callback)
+        return await _summarize_iterative(
+            document, config, progress_callback, is_shallow
+        )
     elif summarization_strategy == "hierarchical":
-        return await _summarize_hierarchical(document, config, progress_callback)
+        return await _summarize_hierarchical(
+            document, config, progress_callback, is_shallow
+        )
     else:
         raise ValueError(
             f"Unknown summarization_strategy: {summarization_strategy}. "
@@ -632,26 +645,27 @@ async def _summarize_single_pass(
     document: Document,
     config: NvidiaRAGConfig,
     progress_callback: Callable | None = None,
+    is_shallow: bool = False,
 ) -> Document:
     """Summarize entire document in one pass, truncating if needed."""
     file_name = document.metadata.get("filename", "unknown")
     document_text = document.page_content
-    total_chars = len(document_text)
-    max_chunk_chars = config.summarizer.max_chunk_length
+    total_tokens = _token_length(document_text, config)
+    max_chunk_tokens = config.summarizer.max_chunk_length
 
-    if total_chars > max_chunk_chars:
+    if total_tokens > max_chunk_tokens:
         logger.warning(
-            f"Truncating {file_name} from {total_chars} to {max_chunk_chars} chars for single-pass"
+            f"Document {file_name} has {total_tokens} tokens (max: {max_chunk_tokens}) - truncating for single-pass"
         )
-        document_text = document_text[:max_chunk_chars]
+        # Rough character-based truncation (tokens are roughly 3-4 chars)
+        approx_chars = max_chunk_tokens * 4
+        document_text = document_text[:approx_chars]
 
-    logger.info(
-        f"Single-pass summarization for {file_name}: {len(document_text)} chars"
-    )
+    logger.info(f"Single-pass summarization for {file_name}: {total_tokens} tokens")
 
     llm = _get_summary_llm(config)
     prompts = get_prompts()
-    initial_chain, _ = _create_llm_chains(llm, prompts)
+    initial_chain, _ = _create_llm_chains(llm, prompts, is_shallow)
 
     if progress_callback:
         await progress_callback(current=0, total=1)
@@ -674,6 +688,7 @@ async def _summarize_iterative(
     document: Document,
     config: NvidiaRAGConfig,
     progress_callback: Callable | None = None,
+    is_shallow: bool = False,
 ) -> Document:
     """Iterative sequential summarization - processes chunks one by one."""
     file_name = document.metadata.get("filename", "unknown")
@@ -689,7 +704,7 @@ async def _summarize_iterative(
 
     llm = _get_summary_llm(config)
     prompts = get_prompts()
-    initial_chain, iterative_chain = _create_llm_chains(llm, prompts)
+    initial_chain, iterative_chain = _create_llm_chains(llm, prompts, is_shallow)
 
     if total_tokens <= max_chunk_tokens:
         logger.info(f"Using single-pass for {file_name} (fits in one chunk)")
@@ -752,6 +767,7 @@ async def _summarize_hierarchical(
     document: Document,
     config: NvidiaRAGConfig,
     progress_callback: Callable | None = None,
+    is_shallow: bool = False,
 ) -> Document:
     """Hierarchical parallel summarization with token-based chunking."""
     file_name = document.metadata.get("filename", "unknown")
@@ -765,7 +781,9 @@ async def _summarize_hierarchical(
 
     if total_tokens <= max_chunk_tokens:
         logger.info(f"Document fits in one chunk, using single-pass for {file_name}")
-        return await _summarize_single_pass(document, config, progress_callback)
+        return await _summarize_single_pass(
+            document, config, progress_callback, is_shallow
+        )
 
     # Token-based splitting with recursive character splitting at semantic boundaries
     text_splitter = RecursiveCharacterTextSplitter(
@@ -781,7 +799,7 @@ async def _summarize_hierarchical(
 
     llm = _get_summary_llm(config)
     prompts = get_prompts()
-    initial_chain, iterative_chain = _create_llm_chains(llm, prompts)
+    initial_chain, iterative_chain = _create_llm_chains(llm, prompts, is_shallow)
 
     chunk_summaries = await asyncio.gather(
         *[
@@ -883,15 +901,20 @@ def _get_summary_llm(config: NvidiaRAGConfig):
     return get_llm(**llm_params)
 
 
-def _create_llm_chains(llm, prompts):
+def _create_llm_chains(llm, prompts, is_shallow: bool = False):
     """Create LangChain chains for initial and iterative summarization."""
-    document_summary_prompt = prompts.get("document_summary_prompt")
+    # Use shallow prompt for text-only extraction, otherwise use full document summary prompt
+    if is_shallow:
+        initial_prompt_config = prompts.get("shallow_summary_prompt")
+    else:
+        initial_prompt_config = prompts.get("document_summary_prompt")
+
     iterative_summary_prompt_config = prompts.get("iterative_summary_prompt")
 
     initial_summary_prompt = ChatPromptTemplate.from_messages(
         [
-            ("system", document_summary_prompt["system"]),
-            ("human", document_summary_prompt["human"]),
+            ("system", initial_prompt_config["system"]),
+            ("human", initial_prompt_config["human"]),
         ]
     )
 
