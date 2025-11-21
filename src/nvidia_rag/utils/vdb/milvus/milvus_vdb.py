@@ -75,10 +75,13 @@ from pymilvus import (
 )
 from pymilvus.orm.types import CONSISTENCY_STRONG
 
-from nvidia_rag.utils.configuration import NvidiaRAGConfig
 from nvidia_rag.utils.common import perform_document_info_aggregation
+from nvidia_rag.utils.configuration import NvidiaRAGConfig
 from nvidia_rag.utils.embedding import get_embedding_model
-from nvidia_rag.utils.vdb import DEFAULT_METADATA_SCHEMA_COLLECTION, DEFAULT_DOCUMENT_INFO_COLLECTION
+from nvidia_rag.utils.vdb import (
+    DEFAULT_DOCUMENT_INFO_COLLECTION,
+    DEFAULT_METADATA_SCHEMA_COLLECTION,
+)
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
 
 logger = logging.getLogger(__name__)
@@ -226,7 +229,11 @@ class MilvusVDB(Milvus, VDBRag):
         )
 
         if len(entities) == 0:
-            logger.warning("No entities found in collection %s for filter %s", collection_name, filter)
+            logger.warning(
+                "No entities found in collection %s for filter %s",
+                collection_name,
+                filter,
+            )
 
         return entities
 
@@ -268,11 +275,13 @@ class MilvusVDB(Milvus, VDBRag):
 
         # Get document info for each collection
         entities = self._get_milvus_entities(
-            DEFAULT_DOCUMENT_INFO_COLLECTION, filter=f"info_type == 'collection'"
+            DEFAULT_DOCUMENT_INFO_COLLECTION, filter="info_type == 'collection'"
         )
         collection_document_info_map = {}
         for entity in entities:
-            collection_document_info_map[entity["collection_name"]] = entity["info_value"]
+            collection_document_info_map[entity["collection_name"]] = entity[
+                "info_value"
+            ]
 
         # Update collection info with metadata schema and document info
         for collection_info_item in collection_info:
@@ -284,7 +293,7 @@ class MilvusVDB(Milvus, VDBRag):
                     ),
                     "collection_info": collection_document_info_map.get(
                         collection_name, {}
-                    )
+                    ),
                 }
             )
 
@@ -382,7 +391,7 @@ class MilvusVDB(Milvus, VDBRag):
         self,
         collection_name: str,
         metadata_schema: list[dict[str, Any]],
-        document_name_to_document_info_map: dict[str, dict[str, Any]]
+        document_name_to_document_info_map: dict[str, dict[str, Any]],
     ) -> list[dict[str, Any]]:
         """
         Get the list of documents in a collection.
@@ -416,7 +425,9 @@ class MilvusVDB(Milvus, VDBRag):
                             {
                                 "document_name": filename,
                                 "metadata": metadata_dict,
-                                "document_info": document_name_to_document_info_map.get(filename, {}),
+                                "document_info": document_name_to_document_info_map.get(
+                                    filename, {}
+                                ),
                             }
                         )
                         filepaths_added.add(filename)
@@ -445,15 +456,18 @@ class MilvusVDB(Milvus, VDBRag):
         metadata_schema = self.get_metadata_schema(collection_name)
         # Get document info for each document in the collection
         entities = self._get_milvus_entities(
-            DEFAULT_DOCUMENT_INFO_COLLECTION, filter=f"info_type == 'document' and collection_name == '{collection_name}'"
+            DEFAULT_DOCUMENT_INFO_COLLECTION,
+            filter=f"info_type == 'document' and collection_name == '{collection_name}'",
         )
         document_name_to_document_info_map = {}
         for entity in entities:
-            document_name_to_document_info_map[entity["document_name"]] = entity["info_value"]
+            document_name_to_document_info_map[entity["document_name"]] = entity[
+                "info_value"
+            ]
         documents_list = self._get_documents_list(
             collection_name=collection_name,
             metadata_schema=metadata_schema,
-            document_name_to_document_info_map=document_name_to_document_info_map
+            document_name_to_document_info_map=document_name_to_document_info_map,
         )
         return documents_list
 
@@ -584,7 +598,7 @@ class MilvusVDB(Milvus, VDBRag):
             )
             logger.info(logging_message)
             return []
-    
+
     # ----------------------------------------------------------------------------------------------
     # Document Info Management
     def create_document_info_collection(self) -> None:
@@ -592,10 +606,18 @@ class MilvusVDB(Milvus, VDBRag):
         Create a document info collection.
         """
         schema = MilvusClient.create_schema(auto_id=True, enable_dynamic_field=True)
-        schema.add_field(field_name="pk", datatype=DataType.INT64, is_primary=True, auto_id=True)
-        schema.add_field(field_name="info_type", datatype=DataType.VARCHAR, max_length=65535)
-        schema.add_field(field_name="collection_name", datatype=DataType.VARCHAR, max_length=65535)
-        schema.add_field(field_name="document_name", datatype=DataType.VARCHAR, max_length=65535)
+        schema.add_field(
+            field_name="pk", datatype=DataType.INT64, is_primary=True, auto_id=True
+        )
+        schema.add_field(
+            field_name="info_type", datatype=DataType.VARCHAR, max_length=65535
+        )
+        schema.add_field(
+            field_name="collection_name", datatype=DataType.VARCHAR, max_length=65535
+        )
+        schema.add_field(
+            field_name="document_name", datatype=DataType.VARCHAR, max_length=65535
+        )
         schema.add_field(field_name="info_value", datatype=DataType.JSON)
         schema.add_field(field_name="vector", datatype=DataType.FLOAT_VECTOR, dim=2)
 
@@ -620,35 +642,36 @@ class MilvusVDB(Milvus, VDBRag):
                 consistency_level=CONSISTENCY_STRONG,
             )
             logger.info(f"Document info collection created at {self.vdb_endpoint}")
-    
+
     def _get_aggregated_document_info(
-        self,
-        collection_name: str,
-        info_value: dict[str, Any]) -> dict[str, Any]:
+        self, collection_name: str, info_value: dict[str, Any]
+    ) -> dict[str, Any]:
         """
         Internal function to get the aggregated document info for a collection.
         """
         # Get the aggregated document info for the collection
         entities = self._get_milvus_entities(
             DEFAULT_DOCUMENT_INFO_COLLECTION,
-            filter=f"info_type == 'collection' and collection_name == '{collection_name}'"
+            filter=f"info_type == 'collection' and collection_name == '{collection_name}'",
         )
         try:
             existing_info_value = entities[0]["info_value"]
         except IndexError:
             existing_info_value = {}
         except Exception as e:
-            logger.error(f"Error getting aggregated document info for collection {collection_name}: {e}")
+            logger.error(
+                f"Error getting aggregated document info for collection {collection_name}: {e}"
+            )
             return info_value
         return perform_document_info_aggregation(existing_info_value, info_value)
-    
+
     def add_document_info(
         self,
         info_type: str,
         collection_name: str,
         document_name: str,
-        info_value: dict[str, Any]
-        ) -> None:
+        info_value: dict[str, Any],
+    ) -> None:
         """
         Add document info to a collection.
         """
@@ -680,11 +703,11 @@ class MilvusVDB(Milvus, VDBRag):
         }
         client.insert(collection_name=DEFAULT_DOCUMENT_INFO_COLLECTION, data=data)
         logger.info(
-            f"Document info added to the collection {
-                collection_name
-            }. Document info: {info_type}, {document_name}, {info_value}"
+            f"Document info added to the collection {collection_name}. Document info: {
+                info_type
+            }, {document_name}, {info_value}"
         )
-    
+
     def get_document_info(
         self,
         info_type: str,

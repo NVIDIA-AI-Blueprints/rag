@@ -390,8 +390,14 @@ class TestPrepareCitations:
         }
         contexts = [mock_doc1, mock_doc2]
 
-        with patch('nvidia_rag.rag_server.response_generator.MINIO_OPERATOR') as mock_minio, \
-             patch('nvidia_rag.rag_server.response_generator.get_unique_thumbnail_id_from_result') as mock_get_thumbnail:
+        with (
+            patch(
+                "nvidia_rag.rag_server.response_generator.MINIO_OPERATOR"
+            ) as mock_minio,
+            patch(
+                "nvidia_rag.rag_server.response_generator.get_unique_thumbnail_id_from_result"
+            ) as mock_get_thumbnail,
+        ):
             # Mock the MinIO operator methods to handle collection_name parameter
             mock_minio.get_payload.return_value = {"content": "base64_thumbnail"}
             mock_get_thumbnail.return_value = "test_thumbnail_id"
@@ -418,8 +424,14 @@ class TestPrepareCitations:
         }
         contexts = [mock_doc]
 
-        with patch('nvidia_rag.rag_server.response_generator.MINIO_OPERATOR') as mock_minio, \
-             patch('nvidia_rag.rag_server.response_generator.get_unique_thumbnail_id_from_result') as mock_get_thumbnail:
+        with (
+            patch(
+                "nvidia_rag.rag_server.response_generator.MINIO_OPERATOR"
+            ) as mock_minio,
+            patch(
+                "nvidia_rag.rag_server.response_generator.get_unique_thumbnail_id_from_result"
+            ) as mock_get_thumbnail,
+        ):
             mock_minio.get_payload.return_value = {"content": "base64_thumbnail"}
             mock_get_thumbnail.return_value = "test_thumbnail_id"
 
@@ -719,5 +731,5 @@ class TestRetrieveSummary:
                 collection_name="test_collection", file_name="test.pdf"
             )
 
-            assert result["status"] == "ERROR"
+            assert result["status"] == "FAILED"
             assert "error" in result

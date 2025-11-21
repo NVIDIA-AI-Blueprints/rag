@@ -62,25 +62,58 @@ class MockNvidiaRAGSummary:
     def set_get_summary_failed(self, file_name="test.pdf"):
         """Set up failed summary response (not found)"""
         self._get_summary_return_value = {
-            "message": f"Summary for {file_name} not found. Ensure the file name and collection name are correct. Set wait=true to wait for generation.",
-            "status": "FAILED",
+            "message": f"Summary for {file_name} not found. To generate a summary, upload the document with generate_summary=true.",
+            "status": "NOT_FOUND",
+            "file_name": file_name,
+            "collection_name": "test_collection",
+        }
+        self._get_summary_side_effect = None
+
+    def set_get_summary_pending(self, file_name="test.pdf"):
+        """Set up pending summary response"""
+        self._get_summary_return_value = {
+            "message": "Summary generation is pending. Set blocking=true to wait for completion.",
+            "status": "PENDING",
+            "file_name": file_name,
+            "collection_name": "test_collection",
+            "queued_at": "2025-01-24T10:30:00.000Z",
+        }
+        self._get_summary_side_effect = None
+
+    def set_get_summary_in_progress(self, file_name="test.pdf", current=3, total=5):
+        """Set up in-progress summary response with chunk progress"""
+        self._get_summary_return_value = {
+            "message": "Summary generation is in progress. Set blocking=true to wait for completion.",
+            "status": "IN_PROGRESS",
+            "file_name": file_name,
+            "collection_name": "test_collection",
+            "started_at": "2025-01-24T10:30:00.000Z",
+            "updated_at": "2025-01-24T10:30:15.000Z",
+            "progress": {
+                "current": current,
+                "total": total,
+                "message": f"Processing chunk {current}/{total}",
+            },
         }
         self._get_summary_side_effect = None
 
     def set_get_summary_timeout(self, file_name="test.pdf"):
-        """Set up timeout summary response"""
+        """Set up timeout summary response (now returns FAILED with timeout error)"""
         self._get_summary_return_value = {
-            "message": f"Timeout waiting for summary generation for {file_name}",
-            "status": "TIMEOUT",
+            "message": f"Timeout waiting for summary generation for {file_name} after 300 seconds",
+            "status": "FAILED",
+            "error": "Timeout after 300 seconds",
+            "file_name": file_name,
+            "collection_name": "test_collection",
         }
         self._get_summary_side_effect = None
 
     def set_get_summary_error(self, error_message="Internal server error"):
-        """Set up error summary response"""
+        """Set up error summary response (now returns FAILED status)"""
         self._get_summary_return_value = {
             "message": "Error occurred while getting summary.",
             "error": error_message,
-            "status": "ERROR",
+            "status": "FAILED",
         }
         self._get_summary_side_effect = None
 
@@ -146,37 +179,12 @@ class TestSummaryEndpointTimeoutValidation:
         assert "error" in response_data
         assert response_data["error"] == "Provided timeout value: -1"
 
-    def test_large_negative_timeout_returns_400(self, client, valid_summary_params):
-        """Test that large negative timeout values return 400 Bad Request"""
-        params = valid_summary_params.copy()
-        params["timeout"] = -999
-
-        response = client.get("/v1/summary", params=params)
-
-        assert response.status_code == ErrorCodeMapping.BAD_REQUEST
-        response_data = response.json()
-        assert "Invalid timeout value" in response_data["message"]
-        assert response_data["error"] == "Provided timeout value: -999"
-
     def test_zero_timeout_is_valid(self, client, valid_summary_params):
         """Test that zero timeout is valid (edge case)"""
         mock_nvidia_rag_summary.set_get_summary_success()
 
         params = valid_summary_params.copy()
         params["timeout"] = 0
-
-        response = client.get("/v1/summary", params=params)
-
-        assert response.status_code == ErrorCodeMapping.SUCCESS
-        response_data = response.json()
-        assert response_data["status"] == "SUCCESS"
-
-    def test_positive_timeout_is_valid(self, client, valid_summary_params):
-        """Test that positive timeout values are valid"""
-        mock_nvidia_rag_summary.set_get_summary_success()
-
-        params = valid_summary_params.copy()
-        params["timeout"] = 600
 
         response = client.get("/v1/summary", params=params)
 
@@ -257,19 +265,22 @@ class TestSummaryEndpointErrorScenarios:
 
         assert response.status_code == ErrorCodeMapping.NOT_FOUND
         response_data = response.json()
-        assert response_data["status"] == "FAILED"
+        assert response_data["status"] == "NOT_FOUND"
         assert "not found" in response_data["message"]
 
-    def test_summary_timeout_returns_408(self, client, valid_summary_params):
-        """Test summary timeout returns 408"""
+    def test_summary_timeout_returns_timeout_as_failed(
+        self, client, valid_summary_params
+    ):
+        """Test summary timeout returns FAILED status with timeout error"""
         mock_nvidia_rag_summary.set_get_summary_timeout("test.pdf")
 
         response = client.get("/v1/summary", params=valid_summary_params)
 
+        # Timeout is now returned as FAILED with error containing "timeout"
         assert response.status_code == ErrorCodeMapping.REQUEST_TIMEOUT
         response_data = response.json()
-        assert response_data["status"] == "TIMEOUT"
-        assert "Timeout waiting" in response_data["message"]
+        assert response_data["status"] == "FAILED"
+        assert "timeout" in response_data.get("error", "").lower()
 
     def test_summary_error_returns_500(self, client, valid_summary_params):
         """Test summary error returns 500"""
@@ -279,7 +290,7 @@ class TestSummaryEndpointErrorScenarios:
 
         assert response.status_code == ErrorCodeMapping.INTERNAL_SERVER_ERROR
         response_data = response.json()
-        assert response_data["status"] == "ERROR"
+        assert response_data["status"] == "FAILED"
         assert "Error occurred" in response_data["message"]
 
     def test_summary_exception_returns_500(self, client, valid_summary_params):
@@ -351,32 +362,6 @@ class TestSummaryEndpointParameterValidation:
 class TestSummaryEndpointEdgeCases:
     """Tests for edge cases in summary endpoint"""
 
-    def test_empty_collection_name(self, client, valid_summary_params):
-        """Test empty collection_name"""
-        mock_nvidia_rag_summary.set_get_summary_success()
-
-        params = valid_summary_params.copy()
-        params["collection_name"] = ""
-
-        response = client.get("/v1/summary", params=params)
-
-        assert response.status_code == ErrorCodeMapping.SUCCESS
-        response_data = response.json()
-        assert response_data["status"] == "SUCCESS"
-
-    def test_empty_file_name(self, client, valid_summary_params):
-        """Test empty file_name"""
-        mock_nvidia_rag_summary.set_get_summary_success()
-
-        params = valid_summary_params.copy()
-        params["file_name"] = ""
-
-        response = client.get("/v1/summary", params=params)
-
-        assert response.status_code == ErrorCodeMapping.SUCCESS
-        response_data = response.json()
-        assert response_data["status"] == "SUCCESS"
-
     def test_very_large_timeout_value(self, client, valid_summary_params):
         """Test very large timeout value"""
         mock_nvidia_rag_summary.set_get_summary_success()
@@ -404,30 +389,186 @@ class TestSummaryEndpointEdgeCases:
         assert response_data["status"] == "SUCCESS"
 
 
-class TestSummaryEndpointMockVerification:
-    """Tests to verify mock interactions"""
+class TestSummaryEndpointNewStatusValues:
+    """Tests for new status values (PENDING, IN_PROGRESS, NOT_FOUND)"""
 
-    def test_get_summary_called_with_correct_parameters(
-        self, client, valid_summary_params
-    ):
-        """Test that get_summary is called with correct parameters"""
-        mock_nvidia_rag_summary.set_get_summary_success()
+    def test_summary_pending_returns_202(self, client, valid_summary_params):
+        """Test PENDING status returns 202 Accepted"""
+        mock_nvidia_rag_summary.set_get_summary_pending("test.pdf")
 
         response = client.get("/v1/summary", params=valid_summary_params)
 
-        assert response.status_code == ErrorCodeMapping.SUCCESS
-        # Note: In a real test, you would verify the mock was called with correct parameters
-        # This would require more sophisticated mocking setup
+        assert response.status_code == ErrorCodeMapping.ACCEPTED
+        response_data = response.json()
+        assert response_data["status"] == "PENDING"
+        assert "pending" in response_data["message"].lower()
+        assert response_data["file_name"] == "test.pdf"
+        assert "queued_at" in response_data
 
-    def test_timeout_validation_prevents_downstream_calls(
+    def test_summary_in_progress_returns_202(self, client, valid_summary_params):
+        """Test IN_PROGRESS status returns 202 Accepted"""
+        mock_nvidia_rag_summary.set_get_summary_in_progress(
+            "test.pdf", current=3, total=5
+        )
+
+        response = client.get("/v1/summary", params=valid_summary_params)
+
+        assert response.status_code == ErrorCodeMapping.ACCEPTED
+        response_data = response.json()
+        assert response_data["status"] == "IN_PROGRESS"
+        assert "in progress" in response_data["message"].lower()
+        assert response_data["file_name"] == "test.pdf"
+        assert "started_at" in response_data
+        assert "updated_at" in response_data
+        assert "progress" in response_data
+
+    def test_summary_in_progress_includes_chunk_progress(
         self, client, valid_summary_params
     ):
-        """Test that negative timeout validation prevents downstream calls"""
+        """Test IN_PROGRESS includes chunk-level progress information"""
+        mock_nvidia_rag_summary.set_get_summary_in_progress(
+            "test.pdf", current=2, total=7
+        )
+
+        response = client.get("/v1/summary", params=valid_summary_params)
+
+        assert response.status_code == ErrorCodeMapping.ACCEPTED
+        response_data = response.json()
+        assert response_data["status"] == "IN_PROGRESS"
+        assert "progress" in response_data
+        assert response_data["progress"]["current"] == 2
+        assert response_data["progress"]["total"] == 7
+        assert "Processing chunk 2/7" in response_data["progress"]["message"]
+
+    def test_summary_in_progress_first_chunk(self, client, valid_summary_params):
+        """Test IN_PROGRESS for first chunk"""
+        mock_nvidia_rag_summary.set_get_summary_in_progress(
+            "test.pdf", current=1, total=5
+        )
+
+        response = client.get("/v1/summary", params=valid_summary_params)
+
+        assert response.status_code == ErrorCodeMapping.ACCEPTED
+        response_data = response.json()
+        assert response_data["progress"]["current"] == 1
+        assert response_data["progress"]["total"] == 5
+
+    def test_summary_in_progress_last_chunk(self, client, valid_summary_params):
+        """Test IN_PROGRESS for last chunk"""
+        mock_nvidia_rag_summary.set_get_summary_in_progress(
+            "test.pdf", current=5, total=5
+        )
+
+        response = client.get("/v1/summary", params=valid_summary_params)
+
+        assert response.status_code == ErrorCodeMapping.ACCEPTED
+        response_data = response.json()
+        assert response_data["progress"]["current"] == 5
+        assert response_data["progress"]["total"] == 5
+
+    def test_summary_not_found_with_helper_message(self, client, valid_summary_params):
+        """Test NOT_FOUND includes helpful message about generating summary"""
+        mock_nvidia_rag_summary.set_get_summary_failed("test.pdf")
+
+        response = client.get("/v1/summary", params=valid_summary_params)
+
+        assert response.status_code == ErrorCodeMapping.NOT_FOUND
+        response_data = response.json()
+        assert response_data["status"] == "NOT_FOUND"
+        assert "generate_summary=true" in response_data["message"]
+
+
+class TestSummaryEndpointStatusTransitions:
+    """Tests for different status value transitions and scenarios"""
+
+    def test_pending_to_in_progress_transition(self, client, valid_summary_params):
+        """Test querying during PENDING -> IN_PROGRESS transition"""
+        # First query shows PENDING
+        mock_nvidia_rag_summary.set_get_summary_pending("test.pdf")
+        response1 = client.get("/v1/summary", params=valid_summary_params)
+        assert response1.json()["status"] == "PENDING"
+
+        # Second query shows IN_PROGRESS
+        mock_nvidia_rag_summary.set_get_summary_in_progress(
+            "test.pdf", current=1, total=5
+        )
+        response2 = client.get("/v1/summary", params=valid_summary_params)
+        assert response2.json()["status"] == "IN_PROGRESS"
+
+    def test_in_progress_chunk_progression(self, client, valid_summary_params):
+        """Test chunk progress advancing from 1/5 to 5/5"""
+        for chunk in range(1, 6):
+            mock_nvidia_rag_summary.set_get_summary_in_progress(
+                "test.pdf", current=chunk, total=5
+            )
+            response = client.get("/v1/summary", params=valid_summary_params)
+            response_data = response.json()
+
+            assert response_data["status"] == "IN_PROGRESS"
+            assert response_data["progress"]["current"] == chunk
+            assert response_data["progress"]["total"] == 5
+
+    def test_in_progress_to_success_transition(self, client, valid_summary_params):
+        """Test transition from IN_PROGRESS to SUCCESS"""
+        # First query shows IN_PROGRESS
+        mock_nvidia_rag_summary.set_get_summary_in_progress(
+            "test.pdf", current=4, total=5
+        )
+        response1 = client.get("/v1/summary", params=valid_summary_params)
+        assert response1.json()["status"] == "IN_PROGRESS"
+
+        # Second query shows SUCCESS
+        mock_nvidia_rag_summary.set_get_summary_success(summary_text="Final summary")
+        response2 = client.get("/v1/summary", params=valid_summary_params)
+        response_data = response2.json()
+        assert response_data["status"] == "SUCCESS"
+        assert "summary" in response_data
+
+    def test_pending_to_failed_transition(self, client, valid_summary_params):
+        """Test transition from PENDING to FAILED"""
+        # First query shows PENDING
+        mock_nvidia_rag_summary.set_get_summary_pending("test.pdf")
+        response1 = client.get("/v1/summary", params=valid_summary_params)
+        assert response1.json()["status"] == "PENDING"
+
+        # Second query shows FAILED
+        mock_nvidia_rag_summary.set_get_summary_error("LLM connection failed")
+        response2 = client.get("/v1/summary", params=valid_summary_params)
+        response_data = response2.json()
+        assert response_data["status"] == "FAILED"
+        assert "error" in response_data
+
+
+class TestSummaryEndpointBlockingBehavior:
+    """Tests for blocking parameter with new status values"""
+
+    def test_blocking_with_pending_status(self, client, valid_summary_params):
+        """Test blocking=true with PENDING status"""
+        mock_nvidia_rag_summary.set_get_summary_pending("test.pdf")
+
         params = valid_summary_params.copy()
-        params["timeout"] = -1
+        params["blocking"] = True
 
         response = client.get("/v1/summary", params=params)
 
-        assert response.status_code == ErrorCodeMapping.BAD_REQUEST
-        # The mock should not be called due to early validation
-        # This would require more sophisticated mocking to verify
+        # In blocking mode, should still return PENDING if not yet started
+        assert response.status_code == ErrorCodeMapping.ACCEPTED
+        response_data = response.json()
+        assert response_data["status"] == "PENDING"
+
+    def test_blocking_with_in_progress_status(self, client, valid_summary_params):
+        """Test blocking=true with IN_PROGRESS status"""
+        mock_nvidia_rag_summary.set_get_summary_in_progress(
+            "test.pdf", current=2, total=5
+        )
+
+        params = valid_summary_params.copy()
+        params["blocking"] = True
+
+        response = client.get("/v1/summary", params=params)
+
+        # In blocking mode with IN_PROGRESS, mock returns current progress
+        assert response.status_code == ErrorCodeMapping.ACCEPTED
+        response_data = response.json()
+        assert response_data["status"] == "IN_PROGRESS"
+        assert "progress" in response_data

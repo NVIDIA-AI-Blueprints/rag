@@ -102,6 +102,7 @@ def create_metadata_collection_mapping():
         }
     }
 
+
 def create_document_info_collection_mapping():
     """Generate Elasticsearch index mapping for document info collections."""
     return {
@@ -124,7 +125,10 @@ def create_document_info_collection_mapping():
         }
     }
 
-def get_delete_document_info_query(collection_name: str, document_name: str, info_type: str):
+
+def get_delete_document_info_query(
+    collection_name: str, document_name: str, info_type: str
+):
     """
     Create deletion query for removing document info by collection name, document name, and info type.
     """
@@ -134,12 +138,13 @@ def get_delete_document_info_query(collection_name: str, document_name: str, inf
                 "must": [
                     {"term": {"collection_name": collection_name}},
                     {"term": {"document_name": document_name}},
-                    {"term": {"info_type": info_type}}
+                    {"term": {"info_type": info_type}},
                 ]
             }
         }
     }
     return query_delete_document_info
+
 
 def get_collection_document_info_query(info_type: str, collection_name: str):
     """
@@ -150,12 +155,13 @@ def get_collection_document_info_query(info_type: str, collection_name: str):
             "bool": {
                 "must": [
                     {"term": {"collection_name": collection_name}},
-                    {"term": {"info_type": info_type}}
+                    {"term": {"info_type": info_type}},
                 ]
             }
         }
     }
     return query_collection_document_info
+
 
 def get_document_info_query(collection_name: str, document_name: str, info_type: str):
     """
@@ -167,12 +173,13 @@ def get_document_info_query(collection_name: str, document_name: str, info_type:
                 "must": [
                     {"term": {"collection_name": collection_name}},
                     {"term": {"document_name": document_name}},
-                    {"term": {"info_type": info_type}}
+                    {"term": {"info_type": info_type}},
                 ]
             }
         }
     }
     return query_document_info
+
 
 def get_delete_document_info_query_by_collection_name(collection_name: str):
     """
