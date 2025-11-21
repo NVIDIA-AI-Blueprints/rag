@@ -6,16 +6,16 @@
 
 You can enable image captioning support for [NVIDIA RAG Blueprint](readme.md). Enabling image captioning will yield higher accuracy for querstions relevant to images in the ingested documents at the cost of higher ingestion latency.
 
-After you have [deployed the blueprint](readme.md#deploy), to enable image captioning support, you have the following options:
-- [Enable image captioning support](#enable-image-captioning-support)
+After you have [deployed the blueprint](readme.md#deployment-options-for-rag-blueprint), to enable image captioning support, you have the following options:
+
   - [Using on-prem VLM model (Recommended)](#using-on-prem-vlm-model-recommended)
   - [Using cloud hosted VLM model](#using-cloud-hosted-vlm-model)
   - [Using Helm chart deployment (On-prem only)](#using-helm-chart-deployment-on-prem-only)
 
-> [!WARNING]
->
-> B200 GPUs are not supported for image captioning support for ingested documents.
-> For this feature, use H100 or A100 GPUs instead.
+:::{warning}
+B200 GPUs are not supported for image captioning support for ingested documents.
+For this feature, use H100 or A100 GPUs instead.
+:::
 
 
 ## Using on-prem VLM model (Recommended)
@@ -59,7 +59,10 @@ After you have [deployed the blueprint](readme.md#deploy), to enable image capti
    docker compose -f deploy/compose/docker-compose-ingestor-server.yaml up -d
    ```
 
-[!TIP]: You can change the model name and model endpoint in case of an externally hosted VLM model by setting these two environment variables and restarting the ingestion services
+:::{tip}
+You can change the model name and model endpoint in case of an externally hosted VLM model by setting these two environment variables and restarting the ingestion services
+:::
+
 ```bash
 export APP_NVINGEST_CAPTIONMODELNAME="<vlm_nim_http_endpoint_url>"
 export APP_NVINGEST_CAPTIONMODELNAME="<model_name>"
@@ -88,7 +91,7 @@ To enable image captioning in Helm-based deployments by using an on-prem VLM mod
 3. Apply the updated Helm chart by running the following code.
 
    ```bash
-   helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.3.0.tgz \
+   helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/0648981100760671/charts/nvidia-blueprint-rag-v2.4.0-dev.tgz \
    --username '$oauthtoken' \
    --password "${NGC_API_KEY}" \
    --set imagePullSecret.password=$NGC_API_KEY \
@@ -96,8 +99,10 @@ To enable image captioning in Helm-based deployments by using an on-prem VLM mod
    -f deploy/helm/nvidia-blueprint-rag/values.yaml
    ```
 
-> [!Note]
-> Enabling the on-prem VLM model increases the total GPU requirement to 9xH100 GPUs.
+:::{note}
+Enabling the on-prem VLM model increases the total GPU requirement to 9xH100 GPUs.
+:::
 
-> [!Warning]
-> With [image captioning enabled](image_captioning.md), uploaded files will fail to get ingested, if they do not contain any graphs, charts, tables or plots. This is currently a known limitation.
+:::{warning}
+With [image captioning enabled](image_captioning.md), uploaded files will fail to get ingested, if they do not contain any graphs, charts, tables or plots. This is currently a known limitation.
+:::

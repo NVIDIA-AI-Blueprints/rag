@@ -42,22 +42,22 @@
               }
             }
           },
-          "500": {
-            "description": "Internal Server Error",
-            "content": {
-              "application/json": {
-                "example": {
-                  "detail": "Internal server error occurred"
-                }
-              }
-            }
-          },
           "422": {
             "description": "Validation Error",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "Internal server error occurred"
                 }
               }
             }
@@ -94,6 +94,16 @@
               }
             }
           },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
           "499": {
             "description": "Client Closed Request",
             "content": {
@@ -110,16 +120,6 @@
               "application/json": {
                 "example": {
                   "detail": "Internal server error occurred"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -154,6 +154,16 @@
               }
             }
           },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
           "499": {
             "description": "Client Closed Request",
             "content": {
@@ -170,16 +180,6 @@
               "application/json": {
                 "example": {
                   "detail": "Internal server error occurred"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -216,6 +216,16 @@
               }
             }
           },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
           "499": {
             "description": "Client Closed Request",
             "content": {
@@ -232,16 +242,6 @@
               "application/json": {
                 "example": {
                   "detail": "Internal server error occurred"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -290,6 +290,16 @@
               }
             }
           },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
           "499": {
             "description": "Client Closed Request",
             "content": {
@@ -306,16 +316,6 @@
               "application/json": {
                 "example": {
                   "detail": "Internal server error occurred"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -385,6 +385,16 @@
               }
             }
           },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
           "499": {
             "description": "Client Closed Request",
             "content": {
@@ -401,16 +411,6 @@
               "application/json": {
                 "example": {
                   "detail": "Internal server error occurred"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -471,6 +471,16 @@
               }
             }
           },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
           "499": {
             "description": "Client Closed Request",
             "content": {
@@ -487,16 +497,6 @@
               "application/json": {
                 "example": {
                   "detail": "Internal server error occurred"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -533,6 +533,16 @@
               }
             }
           },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
           "499": {
             "description": "Client Closed Request",
             "content": {
@@ -549,16 +559,6 @@
               "application/json": {
                 "example": {
                   "detail": "Internal server error occurred"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -595,6 +595,16 @@
               }
             }
           },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
           "499": {
             "description": "Client Closed Request",
             "content": {
@@ -611,16 +621,6 @@
               "application/json": {
                 "example": {
                   "detail": "Internal server error occurred"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -1032,8 +1032,7 @@
           "name": {
             "type": "string",
             "title": "Name",
-            "description": "Name of the metadata field.",
-            "default": ""
+            "description": "Field name"
           },
           "type": {
             "type": "string",
@@ -1047,38 +1046,77 @@
               "array"
             ],
             "title": "Type",
-            "description": "Type of the metadata field from the following: 'string', 'datetime', 'number', 'integer', 'float', 'boolean', 'array'.",
-            "default": ""
-          },
-          "description": {
-            "type": "string",
-            "title": "Description",
-            "description": "Optional description of the metadata field.",
-            "default": ""
-          },
-          "array_type": {
-            "type": "string",
-            "enum": [
-              "string",
-              "number", 
-              "integer",
-              "float",
-              "boolean"
-            ],
-            "title": "Array Type",
-            "description": "Type of array elements (string, number, integer, float, boolean) - required when type is 'array'.",
-            "nullable": true
+            "description": "Field type"
           },
           "required": {
             "type": "boolean",
             "title": "Required",
-            "description": "Whether this field is required in metadata.",
+            "description": "Whether the field is required",
             "default": false
+          },
+          "user_defined": {
+            "type": "boolean",
+            "title": "User Defined",
+            "description": "Whether field is user-defined (True) or nv-ingest auto-extracted (False)",
+            "default": true
+          },
+          "support_dynamic_filtering": {
+            "type": "boolean",
+            "title": "Support Dynamic Filtering",
+            "description": "Whether field is included in LLM prompts for dynamic filter generation",
+            "default": true
+          },
+          "array_type": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "string",
+                  "number",
+                  "integer",
+                  "float",
+                  "boolean"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Array Type",
+            "description": "Type of array elements (required for array fields)"
+          },
+          "max_length": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Length",
+            "description": "Maximum length for string/array fields"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description",
+            "description": "Optional description of the field for documentation"
           }
         },
         "type": "object",
+        "required": [
+          "name",
+          "type"
+        ],
         "title": "MetadataField",
-        "description": "Model representing a metadata field."
+        "description": "Definition of a metadata field with comprehensive validation.\n\nThis class represents a single field in a metadata schema, defining its name,\ntype, requirements, and constraints. It provides validation for field names,\narray types, and length constraints to ensure data integrity.\n\nAttributes:\n    name: The field name (required, non-empty string)\n    type: The field data type (string, datetime, number, integer, float, boolean, array)\n    required: Whether the field is mandatory (default: False)\n    user_defined: Whether field is user-defined (True) or nv-ingest auto-extracted (False)\n    support_dynamic_filtering: Whether field is included in LLM prompts for dynamic filter generation (default: True)\n    array_type: Type of array elements (required only for array fields)\n    max_length: Maximum length constraint (for string/array fields only)\n    description: Optional description of the field for documentation"
       },
       "NIMServiceHealthInfo": {
         "properties": {
@@ -1109,6 +1147,17 @@
               }
             ],
             "title": "Error"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
           },
           "message": {
             "anyOf": [
@@ -1320,6 +1369,18 @@
             "description": "Total number of documents uploaded.",
             "default": 0
           },
+          "documents_completed": {
+            "type": "integer",
+            "title": "Documents Completed",
+            "description": "Number of documents completed.",
+            "default": 0
+          },
+          "batches_completed": {
+            "type": "integer",
+            "title": "Batches Completed",
+            "description": "Number of batches completed.",
+            "default": 0
+          },
           "documents": {
             "items": {
               "$ref": "#/components/schemas/UploadedDocument"
@@ -1340,6 +1401,7 @@
           },
           "validation_errors": {
             "items": {
+              "additionalProperties": true,
               "type": "object"
             },
             "type": "array",
@@ -1368,7 +1430,8 @@
           },
           "metadata_schema": {
             "items": {
-              "$ref": "#/components/schemas/MetadataField"
+              "additionalProperties": true,
+              "type": "object"
             },
             "type": "array",
             "title": "Metadata Schema",
@@ -1389,12 +1452,11 @@
             "default": ""
           },
           "metadata": {
+            "additionalProperties": true,
             "type": "object",
             "title": "Metadata",
             "description": "Metadata of the document.",
-            "default": {
-
-            }
+            "default": {}
           }
         },
         "type": "object",

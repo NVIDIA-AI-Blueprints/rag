@@ -6,9 +6,8 @@
 
 You can enable query rewriting for the [NVIDIA RAG Blueprint](readme.md). Query rewriting enables higher accuracy for multiturn queries by making an additional LLM call to decontextualize the incoming question, before sending it to the retrieval pipeline.
 
-After you have [deployed the blueprint](readme.md#deploy), to enable query rewriting support, developers have the following options:
+After you have [deployed the blueprint](readme.md#deployment-options-for-rag-blueprint), to enable query rewriting support, developers have the following options:
 
-- [Enable query rewriting support](#enable-query-rewriting-support)
   - [Using on-prem model (Recommended)](#using-on-prem-model-recommended)
   - [Using cloud hosted model](#using-cloud-hosted-model)
   - [Using Helm Chart (on-prem only)](#using-helm-chart-on-prem-only)
@@ -50,7 +49,10 @@ After you have [deployed the blueprint](readme.md#deploy), to enable query rewri
    docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d
    ```
 
-[!TIP]: You can change the model name and model endpoint in case of an externally hosted LLM model by setting these two environment variables and restarting the rag services
+:::{tip}
+You can change the model name and model endpoint in case of an externally hosted LLM model by setting these two environment variables and restarting the rag services
+:::
+
 ```bash
 export APP_QUERYREWRITER_SERVERURL="<llm_nim_http_endpoint_url>"
 export APP_QUERYREWRITER_MODELNAME="<model_name>"
@@ -61,8 +63,9 @@ export APP_QUERYREWRITER_MODELNAME="<model_name>"
 
 This section describes how to enable Query Rewriting when you deploy by using Helm, using an on-prem deployment of the LLM model.
 
-> [!NOTE]
-> Only on-prem deployment of the LLM is supported. The model must be deployed separately using the NIM LLM Helm chart.
+:::{note}
+Only on-prem deployment of the LLM is supported. The model must be deployed separately using the NIM LLM Helm chart.
+:::
 
 ### 1. Enable Query Rewriter in `rag-server` Helm deployment
 1. Modify the [values.yaml](../deploy/helm/nvidia-blueprint-rag/values.yaml) file, in the `envVars` section, and set the following values.
@@ -78,7 +81,7 @@ This section describes how to enable Query Rewriting when you deploy by using He
 Follow the steps from [Deploy with Helm](deploy-helm.md) and use the following command to deploy the chart.
 
 ```bash
-helm install rag -n rag https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.3.0.tgz \
+helm install rag -n rag https://helm.ngc.nvidia.com/0648981100760671/charts/nvidia-blueprint-rag-v2.4.0-dev.tgz \
 --username '$oauthtoken' \
 --password "${NGC_API_KEY}" \
 --set imagePullSecret.password=$NGC_API_KEY \

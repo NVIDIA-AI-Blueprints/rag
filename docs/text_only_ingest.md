@@ -59,7 +59,7 @@ You can enable text-only ingestion for the [NVIDIA RAG Blueprint](readme.md). Fo
 
 6. After ingestion completes, you can try out the queries relevant to the text in the documents using [retrieval notebook](../notebooks/retriever_api_usage.ipynb).
 
-**📝 Note:**
+:::{note}
 In case you are [interacting with cloud hosted models](deploy-docker-nvidia-hosted.md) and want to enable text only mode, then in step 2, just export these specific environment variables as shown below:
    ```bash
    export APP_EMBEDDINGS_SERVERURL=""
@@ -68,6 +68,7 @@ In case you are [interacting with cloud hosted models](deploy-docker-nvidia-host
    export YOLOX_HTTP_ENDPOINT="https://ai.api.nvidia.com/v1/cv/nvidia/nemoretriever-page-elements-v2"
    export YOLOX_INFER_PROTOCOL="http"
    ```
+:::
 
 # Enable text only ingestion support in Helm
 
@@ -101,7 +102,7 @@ Additionally, ensure that **table extraction**, **chart extraction**, and **imag
 2. Then use the modified `values.yaml` file in your Helm upgrade command:
 
 ```bash
-helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.3.0.tgz \
+helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/0648981100760671/charts/nvidia-blueprint-rag-v2.4.0-dev.tgz \
   --username '$oauthtoken' \
   --password "${NGC_API_KEY}" \
   --values deploy/helm/nvidia-blueprint-rag/values.yaml \

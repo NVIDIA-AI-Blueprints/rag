@@ -59,28 +59,35 @@ To deploy End-to-End RAG Server and Ingestor Server, use the following procedure
 
 2. Install the Helm chart by running the following command.
 
+    :::{IMPORTANT}
+    The Bitnami project has moved some Redis container artifacts, which can affect the availability of some image tags. To use a supported version of Redis, override the Redis image in your `helm upgrade` command as shown in the second code block following. This uses the Bitnami Legacy Redis 8.2.1-debian-12-r0 image. Adjust the tag as needed for your environment.
+    :::    
+
     ```sh
-    helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.3.0.tgz \
+    helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/0648981100760671/charts/nvidia-blueprint-rag-v2.4.0-dev.tgz \
     --username '$oauthtoken' \
     --password "${NGC_API_KEY}" \
     --set imagePullSecret.password=$NGC_API_KEY \
     --set ngcApiSecret.password=$NGC_API_KEY
     ```
 
-    > [!NOTE]
-    > Refer to [NIM Model Profile Configuration](model-profiles.md) to set NIM LLM profile according to the GPU type and count.
-    > Set the profile explicitly to avoid any errors with NIM LLM pod deployment.
+   — OR —
 
+    ```sh
+    helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/0648981100760671/charts/nvidia-blueprint-rag-v2.4.0-dev.tgz \
+    --username '$oauthtoken' \
+    --password "${NGC_API_KEY}" \
+    --set imagePullSecret.password=$NGC_API_KEY \
+    --set ngcApiSecret.password=$NGC_API_KEY \ 
+    --set nv-ingest.redis.image.repository=bitnamilegacy/redis \
+    --set nv-ingest.redis.image.tag=8.2.1-debian-12-r0
+    ```
 
+   :::{note}
+   Refer to [NIM Model Profile Configuration](model-profiles.md) to set NIM LLM profile according to the GPU type and count.
+   Set the profile explicitly to avoid any errors with NIM LLM pod deployment.
+   :::
 
-    > [!NOTE]
-    > The Bitnami project has moved some Redis container artifacts, which can affect the availability of some image tags. To use a supported version of Redis, override the Redis image in your `helm upgrade` command as shown following. This uses the Bitnami Legacy Redis 8.2.1-debian-12-r0 image. Adjust the tag as needed for your environment.
-    >
-    > ```bash
-    > --set nv-ingest.redis.image.repository=bitnamilegacy/redis \
-    > --set nv-ingest.redis.image.tag=8.2.1-debian-12-r0 \
-    > ```
-    >
 
 ## Verify a Deployment
 
@@ -116,12 +123,13 @@ To verify a deployment, use the following procedure.
     rag-zipkin-5dc8d6d977-nqvvc                                 1/1     Running   0             23m
     ```
 
-    > [!Note]
-    > It takes approximately 5 minutes for all pods to come up. You can check Kuberenetes events by running the following code.
-    >
-    > ```sh
-    > kubectl get events -n rag
-    > ```
+   :::{note}
+   It takes approximately 5 minutes for all pods to come up. You can check Kubernetes events by running the following code.
+
+   ```sh
+   kubectl get events -n rag
+   ```
+   :::
 
 2.  List services by running the following code.
 
@@ -177,7 +185,7 @@ To verify a deployment, use the following procedure.
 To Change an existing deployment, after you modify the `values.yaml` file, run the following code.
 
 ```sh
-helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.3.0.tgz \
+helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/0648981100760671/charts/nvidia-blueprint-rag-v2.4.0-dev.tgz \
 --username '$oauthtoken' \
 --password "${NGC_API_KEY}" \
 --set imagePullSecret.password=$NGC_API_KEY \
@@ -213,9 +221,10 @@ helm uninstall rag -n rag
 
 For troubleshooting issues with Helm deployment, refer to [Troubleshooting](troubleshooting.md).
 
-> [!NOTE]
-> If the `rag-nim-llm-0` is in a `CrashLoopBackOff` after deployment, then set the model profile explicitly to avoid any errors with NIM LLM pod deployment.
-> To set NIM LLM profile according to the GPU type and count, refer to [NIM Model Profile Configuration](model-profiles.md).
+:::{note}
+If the `rag-nim-llm-0` is in a `CrashLoopBackOff` after deployment, then set the model profile explicitly to avoid any errors with NIM LLM pod deployment.
+To set NIM LLM profile according to the GPU type and count, refer to [NIM Model Profile Configuration](model-profiles.md).
+:::
 
 
 

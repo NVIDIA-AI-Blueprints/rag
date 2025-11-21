@@ -54,7 +54,7 @@ Alternatively, you can deploy RAG with query decomposition using Helm for Kubern
 Use the Helm upgrade command below to enable query decomposition in RAG Blueprint by setting `ENABLE_QUERY_DECOMPOSITION` and `MAX_RECURSION_DEPTH`:
 
 ```bash
-helm upgrade rag -n rag https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.3.0.tgz \
+helm upgrade rag -n rag https://helm.ngc.nvidia.com/0648981100760671/charts/nvidia-blueprint-rag-v2.4.0-dev.tgz \
   --username '$oauthtoken' \
   --password "${NGC_API_KEY}" \
   --set imagePullSecret.password=${NGC_API_KEY} \
@@ -111,9 +111,10 @@ This query requires multiple interconnected steps:
 ## How Query Decomposition Works
 To visualize how query decomposition works, see the diagram below:
 
-![Query Decomposition Flow](assets/query_decomposition.jpeg)
+```{figure} assets/query_decomposition.jpeg
 
-**Figure:** *Query Decomposition Flow — The system breaks down a complex query into subqueries, processes each iteratively, and synthesizes a comprehensive answer.*
+Query Decomposition Flow — The system breaks down a complex query into subqueries, processes each iteratively, and synthesizes a comprehensive answer.
+```
 
 
 ### Core Algorithm
@@ -131,5 +132,6 @@ To visualize how query decomposition works, see the diagram below:
 
 
 
-> [!IMPORTANT]
-> Query decomposition is not available for direct LLM calls (when `use_kb=false`). This feature requires the knowledge base integration to process subqueries and retrieve relevant documents. For direct LLM interactions, queries are processed without decomposition.
+:::{important}
+Query decomposition is not available for direct LLM calls (when `use_kb=false`). This feature requires the knowledge base integration to process subqueries and retrieve relevant documents. For direct LLM interactions, queries are processed without decomposition.
+:::

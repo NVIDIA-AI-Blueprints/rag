@@ -144,8 +144,9 @@ If you don't have sufficient GPU resources for on-premises deployment, you can u
 5. Open the [RAG UI](user-interface.md) and test the reflection capability.
 
 
-[!NOTE]
+:::{note}
 When using NVIDIA-hosted models, you must obtain an API key. See [Get an API Key](api-key.md) for instructions.
+:::
 
 ## Reflection Support via Helm Deployment
 
@@ -175,7 +176,7 @@ You can enable self-reflection through Helm when you deploy the RAG Blueprint.
    Follow the steps from [Deploy with Helm](deploy-helm.md) and run:
 
    ```bash
-   helm install rag -n rag https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.3.0.tgz \
+   helm install rag -n rag https://helm.ngc.nvidia.com/0648981100760671/charts/nvidia-blueprint-rag-v2.4.0-dev.tgz \
      --username '$oauthtoken' \
      --password "${NGC_API_KEY}" \
      --set imagePullSecret.password=$NGC_API_KEY \

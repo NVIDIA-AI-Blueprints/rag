@@ -2,15 +2,19 @@
   SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
   SPDX-License-Identifier: Apache-2.0
 -->
+:orphan:
 # NVIDIA RAG Blueprint Documentation
 
 
 Welcome to the NVIDIA RAG Blueprint documentation. You can learn more here, including how to get started with the RAG Blueprint, how to customize the RAG Blueprint, and how to troubleshoot the RAG Blueprint.
 
+- To view this documentation on docs.nvidia.com, browse to [NVIDIA RAG Blueprint Documentation](https://docs.nvidia.com/rag/latest/).
+- To view this documentation on GitHub, browse to [NVIDIA RAG Blueprint Documentation](readme.md).
+
 
 ## Release Notes
 
-For the release notes, refer to the [Changelog](../CHANGELOG.md).
+For the release notes, refer to the [Changelog](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/CHANGELOG.md).
 
 
 ## Support Matrix

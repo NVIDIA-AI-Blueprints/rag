@@ -12,18 +12,18 @@ When uploading documents to the vector store using the ingestion API (`POST /doc
 
 ### Example: Uploading Documents with Summarization
 
-```http
-POST /v1/documents
-Content-Type: multipart/form-data
-
-- documents: [file1.pdf, file2.docx, ...]
-- data: '{
-    "collection_name": "my_collection",
-    "blocking": false,
-    "split_options": {"chunk_size": 512, "chunk_overlap": 150},
-    "custom_metadata": [],
-    "generate_summary": true
-}'
+```bash
+curl -X "POST" "http://$${RAG_HOSTNAME}/v1/documents" \
+    -H 'accept: multipart/form-data' \
+    -H 'Content-Type: multipart/form-data' \
+    - documents: [file1.pdf, file2.docx, ...] \
+    - data: '{
+        "collection_name": "my_collection",
+        "blocking": false,
+        "split_options": {"chunk_size": 512, "chunk_overlap": 150},
+        "custom_metadata": [],
+        "generate_summary": true
+    }'
 ```
 
 - **generate_summary**: Set to `true` to enable summary generation for each uploaded document. The summary generation always happens asynchronously in the backend after the ingestion is complete. The ingestion status is reported to be completed irrespective of whether summarization has been successfully completed or not.
@@ -59,9 +59,18 @@ GET /v1/summary?collection_name=<collection>&file_name=<filename>&blocking=<bool
 
 ### Example Request
 
-```http
-GET /v1/summary?collection_name=my_collection&file_name=file1.pdf&blocking=true&timeout=60
+```bash
+curl -X "GET" --globoff \ 
+  "http://$${RAG_HOSTNAME}/v1/summary?collection_name=my_collection&file_name=file1.pdf&blocking=true&timeout=60" \
+  -H 'accept: application/json'
 ```
+
+```python
+endpoint = f"http://$${RAG_HOSTNAME}/v1/summary?collection_name=my_collection&file_name=file1.pdf&blocking=true&timeout=60"
+response = requests.get(endpoint).json()
+response
+```
+
 
 #### Python Example with library mode
 
@@ -119,6 +128,8 @@ The summarization feature uses specialized prompts defined in the [prompt.yaml](
 - **SUMMARY_LLM_SERVERURL**: The server URL hosting the summarization model (default: empty, uses NVIDIA hosted API)
 - **SUMMARY_LLM_MAX_CHUNK_LENGTH**: Maximum chunk size in characters for document processing (default: `50000`)
 - **SUMMARY_CHUNK_OVERLAP**: Overlap between chunks for iterative summarization in characters (default: `200`)
+- **SUMMARY_LLM_TEMPERATURE**: Temperature parameter for the summarization model, controls randomness (default: `0.0`)
+- **SUMMARY_LLM_TOP_P**: Top-p (nucleus sampling) parameter for the summarization model (default: `1.0`)
 
 ### Example Configuration
 
@@ -127,6 +138,8 @@ export SUMMARY_LLM="nvidia/llama-3.3-nemotron-super-49b-v1.5"
 export SUMMARY_LLM_SERVERURL=""
 export SUMMARY_LLM_MAX_CHUNK_LENGTH=50000
 export SUMMARY_CHUNK_OVERLAP=200
+export SUMMARY_LLM_TEMPERATURE=0.0
+export SUMMARY_LLM_TOP_P=1.0
 ```
 
 ### Chunking Strategy

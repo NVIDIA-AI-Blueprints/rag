@@ -25,16 +25,21 @@ When using NV-Ingest in standalone mode, consider the following limitations:
 
 1. Ensure you have Docker and Docker Compose installed. For details, refer to [Get Started](deploy-docker-self-hosted.md).
 2. Have Python 3.12 or later installed
-   > ℹ️ If you're using **Python 3.13**, make sure you've `python3.13-dev` installed.
+
+   :::{tip}
+   If you're using **Python 3.13**, make sure you've `python3.13-dev` installed.
+   :::
+
 3. [Get an API Key](api-key.md).
 4. Install a package manager (either uv or pip):
-```bash
-# Option 1: Install uv (recommended for faster installation)
-pip install uv
 
-# Option 2: Use pip (comes with Python)
-# No additional installation needed
-```
+   ```bash
+   # Option 1: Install uv (recommended for faster installation)
+   pip install uv
+
+   # Option 2: Use pip (comes with Python)
+   # No additional installation needed
+   ```
 
 ## Deployment Steps using Docker
 

@@ -6,11 +6,13 @@
 
 This guide provides comprehensive debugging guidance for the [NVIDIA RAG Blueprint](readme.md), helping you verify that your deployment is working correctly and troubleshoot issues when they arise.
 
-[!NOTE]: This guide is mostly intended for developers who are working with docker setup.
+:::{note}
+This guide is mostly intended for developers who are working with docker setup.
+:::
 
 ## How to Verify Your RAG System is Running Correctly
 
-After you have [deployed the blueprint](readme.md#deploy), you need to verify that all components are healthy and functioning properly.
+After you have [deployed the blueprint](readme.md#deployment-options-for-rag-blueprint), you need to verify that all components are healthy and functioning properly.
 
 ### Get detailed health status of all dependencies
 
@@ -316,4 +318,4 @@ df -h
 
 - [Troubleshooting](troubleshooting.md)
 - [Best Practices for Common Settings](accuracy_perf.md).
-- [Changelog](../CHANGELOG.md)
+- [Changelog](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/CHANGELOG.md)
