@@ -26,7 +26,7 @@ For hardware requirements and other information, refer to the [Support Matrix](s
 
 - Use the procedures in [Get Started](deploy-docker-self-hosted.md) to get started quickly with the NVIDIA RAG Blueprint.
 - Experiment and test in the [Web User Interface](user-interface.md).
-- Explore the notebooks that demonstrate how to use the APIs. For details refer to [Notebooks](notebooks.md).
+- Explore the notebooks that demonstrate how to use the APIs. For details refer to [Notebooks](../notebooks/README.md).
 
 
 

@@ -254,7 +254,7 @@ GPU 3: NVIDIA H100 80GB HBM3 (UUID: ...)
 - [NVIDIA RAG Blueprint Documentation](readme.md)
 - [RAG Pipeline Debugging Guide](debugging.md)
 - [Troubleshoot](troubleshooting.md)
-- [Notebooks](notebooks.md)
+- [Notebooks](../notebooks/README.md)
 - [NVIDIA GPU Operator Docs](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/)
 - [MIG User Guide](https://docs.nvidia.com/datacenter/tesla/mig-user-guide/)
 - [Best Practices for Common Settings](accuracy_perf.md).

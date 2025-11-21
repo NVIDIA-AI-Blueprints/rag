@@ -234,4 +234,4 @@ To set NIM LLM profile according to the GPU type and count, refer to [NIM Model 
 - [Best Practices for Common Settings](accuracy_perf.md).
 - [RAG Pipeline Debugging Guide](debugging.md)
 - [Troubleshoot](troubleshooting.md)
-- [Notebooks](notebooks.md)
+- [Notebooks](../notebooks/README.md)

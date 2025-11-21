@@ -103,4 +103,4 @@ If you are working directly with the source Helm chart, and you want to customiz
 - [Best Practices for Common Settings](accuracy_perf.md).
 - [RAG Pipeline Debugging Guide](debugging.md)
 - [Troubleshoot](troubleshooting.md)
-- [Notebooks](notebooks.md)
+- [Notebooks](../notebooks/README.md)
