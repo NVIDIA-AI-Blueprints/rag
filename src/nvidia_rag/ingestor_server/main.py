@@ -150,11 +150,10 @@ class NvidiaRAGIngestor:
 
     async def health(self, check_dependencies: bool = False) -> IngestorHealthResponse:
         """Check the health of the Ingestion server."""
-        vdb_op, _ = self.__prepare_vdb_op_and_collection_name(bypass_validation=True)
-
         if check_dependencies:
             from nvidia_rag.ingestor_server.health import check_all_services_health
 
+            vdb_op, _ = self.__prepare_vdb_op_and_collection_name(bypass_validation=True)
             return await check_all_services_health(vdb_op, self.config)
         
         return IngestorHealthResponse(message="Service is up.")

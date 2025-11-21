@@ -33,7 +33,14 @@ from nvidia_rag.ingestor_server.health import (
     is_nvidia_api_catalog_url,
     print_health_report,
 )
-from nvidia_rag.utils.health_models import IngestorHealthResponse
+from nvidia_rag.utils.health_models import (
+    DatabaseHealthInfo,
+    IngestorHealthResponse,
+    NIMServiceHealthInfo,
+    ProcessingHealthInfo,
+    StorageHealthInfo,
+    TaskManagementHealthInfo,
+)
 
 
 class MockAsyncContextManager:
@@ -228,7 +235,11 @@ class TestCheckAllServicesHealth:
         """Test successful check of all services"""
         mock_vdb_op = MagicMock()
         mock_vdb_op.check_health = AsyncMock(
-            return_value={"service": "Vector DB", "status": "healthy"}
+            return_value={
+                "service": "Vector DB",
+                "url": "http://vectordb:19530",
+                "status": "healthy",
+            }
         )
 
         with patch.dict(
@@ -247,23 +258,27 @@ class TestCheckAllServicesHealth:
                         with patch(
                             "nvidia_rag.ingestor_server.health.check_redis_health"
                         ) as mock_redis:
-                            # Setup mock returns
-                            mock_minio.return_value = {
-                                "service": "MinIO",
-                                "status": "healthy",
-                            }
-                            mock_nv_ingest.return_value = {
-                                "service": "NV-Ingest",
-                                "status": "healthy",
-                            }
-                            mock_service.return_value = {
-                                "service": "Test",
-                                "status": "healthy",
-                            }
-                            mock_redis.return_value = {
-                                "service": "Redis",
-                                "status": "healthy",
-                            }
+                            # Setup mock returns - health check functions return Pydantic models
+                            mock_minio.return_value = StorageHealthInfo(
+                                service="MinIO",
+                                url="http://minio:9000",
+                                status="healthy",
+                            )
+                            mock_nv_ingest.return_value = ProcessingHealthInfo(
+                                service="NV-Ingest",
+                                url="http://nv-ingest:8000",
+                                status="healthy",
+                            )
+                            mock_service.return_value = NIMServiceHealthInfo(
+                                service="Test",
+                                url="http://test:8000",
+                                status="healthy",
+                            )
+                            mock_redis.return_value = TaskManagementHealthInfo(
+                                service="Redis",
+                                url="redis://redis:6379",
+                                status="healthy",
+                            )
 
                             result = await check_all_services_health(mock_vdb_op, mock_config)
 
@@ -283,19 +298,31 @@ class TestCheckAllServicesHealth:
 
         mock_vdb_op = MagicMock()
         mock_vdb_op.check_health = AsyncMock(
-            return_value={"service": "Vector DB", "status": "healthy"}
+            return_value={
+                "service": "Vector DB",
+                "url": "http://vectordb:19530",
+                "status": "healthy",
+            }
         )
 
         with patch.dict(
             os.environ,
             {"REDIS_HOST": "localhost", "REDIS_PORT": "6379", "REDIS_DB": "0"},
         ):
-            with patch("nvidia_rag.ingestor_server.health.check_minio_health"):
+            with patch("nvidia_rag.ingestor_server.health.check_minio_health", return_value=StorageHealthInfo(
+                service="MinIO", url="http://minio:9000", status="healthy"
+            )):
                 with patch(
-                    "nvidia_rag.ingestor_server.health.check_nv_ingest_health"
+                    "nvidia_rag.ingestor_server.health.check_nv_ingest_health",
+                    return_value=ProcessingHealthInfo(
+                        service="NV-Ingest", url="http://nv-ingest:8000", status="healthy"
+                    )
                 ):
                     with patch(
-                        "nvidia_rag.ingestor_server.health.check_redis_health"
+                        "nvidia_rag.ingestor_server.health.check_redis_health",
+                        return_value=TaskManagementHealthInfo(
+                            service="Redis", url="redis://redis:6379", status="healthy"
+                        )
                     ):
                         result = await check_all_services_health(mock_vdb_op, mock_config)
 
@@ -337,15 +364,26 @@ class TestCheckAllServicesHealth:
             os.environ,
             {"REDIS_HOST": "localhost", "REDIS_PORT": "6379", "REDIS_DB": "0"},
         ):
-            with patch("nvidia_rag.ingestor_server.health.check_minio_health"):
+            with patch("nvidia_rag.ingestor_server.health.check_minio_health", return_value=StorageHealthInfo(
+                service="MinIO", url="http://minio:9000", status="healthy"
+            )):
                 with patch(
-                    "nvidia_rag.ingestor_server.health.check_nv_ingest_health"
+                    "nvidia_rag.ingestor_server.health.check_nv_ingest_health",
+                    return_value=ProcessingHealthInfo(
+                        service="NV-Ingest", url="http://nv-ingest:8000", status="healthy"
+                    )
                 ):
                     with patch(
-                        "nvidia_rag.ingestor_server.health.check_service_health"
+                        "nvidia_rag.ingestor_server.health.check_service_health",
+                        return_value=NIMServiceHealthInfo(
+                            service="Test", url="http://test:8000", status="healthy"
+                        )
                     ):
                         with patch(
-                            "nvidia_rag.ingestor_server.health.check_redis_health"
+                            "nvidia_rag.ingestor_server.health.check_redis_health",
+                            return_value=TaskManagementHealthInfo(
+                                service="Redis", url="redis://redis:6379", status="healthy"
+                            )
                         ):
                             result = await check_all_services_health(mock_vdb_op, mock_config)
 

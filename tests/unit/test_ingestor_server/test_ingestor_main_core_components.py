@@ -94,6 +94,8 @@ class TestNvidiaRAGIngestorHealth:
             from nvidia_rag.utils.health_models import IngestorHealthResponse
             assert isinstance(result, IngestorHealthResponse)
             assert result.message == "Service is up."
+            # Verify VDB preparation is NOT called for simple health checks
+            mock_prepare.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_health_with_dependencies(self):
@@ -118,6 +120,8 @@ class TestNvidiaRAGIngestorHealth:
 
                 assert isinstance(result, IngestorHealthResponse)
                 assert result.message == "Service is up."
+                # Verify VDB preparation IS called when checking dependencies
+                mock_prepare.assert_called_once_with(bypass_validation=True)
                 # Verify check_all_services_health was called with vdb_op and ANY config
                 mock_check.assert_called_once()
                 call_args = mock_check.call_args
