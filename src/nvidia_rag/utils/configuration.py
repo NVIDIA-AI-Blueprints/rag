@@ -293,6 +293,16 @@ class NvIngestConfig(_ConfigBase):
         env="NV_INGEST_CONCURRENT_BATCHES",
         description="Number of batches to process concurrently",
     )
+    enable_pdf_split: bool = Field(
+        default=False,
+        env="APP_NVINGEST_ENABLEPDFSPLIT",
+        description="Enable PDF splitting during ingestion",
+    )
+    pages_per_chunk: int = Field(
+        default=16,
+        env="APP_NVINGEST_PAGESPERCHUNK",
+        description="Number of pages per chunk for PDF splitting",
+    )
 
 
 class ModelParametersConfig(_ConfigBase):
