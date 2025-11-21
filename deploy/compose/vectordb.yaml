@@ -4,7 +4,7 @@ services:
   milvus:
     container_name: milvus-standalone
     image: milvusdb/milvus:${MILVUS_VERSION:-v2.6.2-gpu} # milvusdb/milvus:v2.6.2 for CPU
-    command: ["milvus", "run", "standalone"]
+    command: ["bash", "-c", "sed -i 's/bucketName: a-bucket/bucketName: ${MINIO_BUCKET:-${NVINGEST_MINIO_BUCKET:-nv-ingest}}/' /milvus/configs/milvus.yaml && milvus run standalone" ]
     environment:
       ETCD_ENDPOINTS: etcd:2379
       MINIO_ADDRESS: minio:9010

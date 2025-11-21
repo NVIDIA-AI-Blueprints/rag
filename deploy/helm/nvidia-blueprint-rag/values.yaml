@@ -333,7 +333,7 @@ ingestor-server:
 
     # === NV-Ingest save to disk configurations ===
     APP_NVINGEST_SAVETODISK: "False"
-    NVINGEST_MINIO_BUCKET: "nv-ingest"
+    NVINGEST_MINIO_BUCKET: "nv-ingest" # If this value is modified, ensure the corresponding Milvus bucketName is also updated
 
     # === General ===
     # Summary Model Configurations
