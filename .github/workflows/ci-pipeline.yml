@@ -558,10 +558,10 @@ jobs:
           sleep 30
           docker ps
 
-      - name: Run Milvus VDB Auth Through REST API tests
+      - name: Run Milvus VDB Auth tests
         run: |
           source venv/bin/activate
-          echo "Running Milvus VDB Auth Through REST API tests..."
+          echo "Running Milvus VDB Auth tests..."
           python -m tests.integration.main --sequence milvus_vdb_auth_through_rest_api
           echo "Milvus VDB Auth tests completed"
 
