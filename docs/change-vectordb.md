@@ -263,6 +263,92 @@ helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprin
 For detailed HELM deployment instructions, see [Helm Deployment Guide](deploy-helm.md).
 
 
+## Using VDB Auth Token at Runtime via APIs (Elasticsearch)
+
+When using Elasticsearch as the vector database, you can pass a per-request VDB authentication token via the HTTP `Authorization` header. The servers forward this token to Elasticsearch for that request. This enables per-user RBAC or per-request scoping without changing server env configuration.
+
+Prerequisite:
+- Ensure Elasticsearch authentication is enabled so security is enforced. In Elasticsearch this typically requires `xpack.security.enabled=true`. See the "Elasticsearch Authentication" section above for enabling security via Docker Compose or Helm and for obtaining API keys or setting credentials.
+
+### Auth priority in Elasticsearch VDB
+The Elasticsearch VDB operator resolves auth in this order:
+- Bearer auth from the incoming request `Authorization` header (preferred)
+- API Key from config (`APP_VECTORSTORE_APIKEY` or `APP_VECTORSTORE_APIKEY_ID`/`APP_VECTORSTORE_APIKEY_SECRET`)
+- Basic auth username/password from config (`APP_VECTORSTORE_USERNAME`/`APP_VECTORSTORE_PASSWORD`)
+
+If a bearer token is present, it takes precedence over API key and basic auth for that request.
+
+### Header format
+- Preferred: `Authorization: Bearer <token>`
+- Also accepted: `Authorization: <token>`
+
+What the token represents depends on your Elasticsearch security setup:
+- If using Elasticsearch API keys, you can pass the base64-encoded `id:secret` string as the bearer value.
+- If using a proxy or custom gateway, the bearer value may be an access token minted by your gateway.
+- If using basic auth only, prefer configuring it via env variables; per-request basic via header is not supported by the server wrapper—use bearer or API key via header instead.
+
+### Ingestor Server examples (Elasticsearch)
+
+- List documents:
+
+```bash
+curl -G "$INGESTOR_URL/v1/documents" \
+  -H "Authorization: Bearer ${ES_VDB_TOKEN}" \
+  --data-urlencode "collection_name=es_demo_collection"
+```
+
+- Delete a collection:
+
+```bash
+curl -X DELETE "$INGESTOR_URL/v1/collections" \
+  -H "Authorization: Bearer ${ES_VDB_TOKEN}" \
+  --data-urlencode "collection_names=es_demo_collection"
+```
+
+Notes:
+- Set `ES_VDB_TOKEN` to your runtime credential (e.g., base64 of `id:secret` for ES API keys).
+- You may also set `vdb_endpoint` on requests if you need to override the configured `APP_VECTORSTORE_URL`.
+
+### RAG Server examples (Elasticsearch)
+
+- Search:
+
+```bash
+curl -X POST "$RAG_URL/v1/search" \
+  -H "Authorization: Bearer ${ES_VDB_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "what is vector search?",
+    "use_knowledge_base": true,
+    "collection_names": ["es_demo_collection"],
+    "vdb_endpoint": "'"$APP_VECTORSTORE_URL"'",
+    "reranker_top_k": 0,
+    "vdb_top_k": 3
+  }'
+```
+
+- Generate with streaming:
+
+```bash
+curl -N -X POST "$RAG_URL/v1/generate" \
+  -H "Authorization: Bearer ${ES_VDB_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "messages": [{"role":"user","content":"Give a short summary of vector databases"}],
+    "use_knowledge_base": true,
+    "collection_names": ["es_demo_collection"],
+    "vdb_endpoint": "'"$APP_VECTORSTORE_URL"'",
+    "reranker_top_k": 0,
+    "vdb_top_k": 3
+  }'
+```
+
+### Troubleshooting
+- If you receive authentication/authorization errors from Elasticsearch, verify your token (API key validity, scopes, and expiration).
+- Ensure the server is not also configured with conflicting credentials for the same request; bearer token from the header takes precedence at runtime.
+- Confirm that `APP_VECTORSTORE_NAME=elasticsearch` and `APP_VECTORSTORE_URL` are set correctly.
+- If using Helm, see the [Elasticsearch Authentication](#elasticsearch-authentication) section above for configuring API key or basic auth as defaults when a runtime header is not supplied.
+
 # Define Your Own Vector Database
 
 You can create your own custom vector database operators by implementing the `VDBRag` base class.
@@ -383,17 +469,22 @@ Use the following steps to create and use your own custom database operators.
     - Collection management
       - `create_collection(collection_name, dimension=2048, collection_type="text")`: Ensure a collection exists and is ready for inserts/queries.
       - `check_collection_exists(collection_name)`: Boolean existence check.
-      - `get_collection()`: Return a list of collections with document counts and any stored metadata schema.
-      - `delete_collections(collection_names)`: Delete specified collections and clean up stored schemas.
+      - `get_collection()`: Return a list of collections with document counts, stored metadata schema, and collection-level document info.
+      - `delete_collections(collection_names)`: Delete specified collections and clean up stored schemas and document info.
 
     - Document management
-      - `get_documents(collection_name)`: Return unique documents (commonly grouped by a `source` field) with schema-aligned metadata values.
-      - `delete_documents(collection_name, source_values)`: Bulk-delete documents matching provided sources; refresh visibility.
+      - `get_documents(collection_name)`: Return unique documents (commonly grouped by a `source` field) with schema-aligned metadata values and document info.
+      - `delete_documents(collection_name, source_values)`: Bulk-delete documents matching provided sources; refresh visibility and clean up associated document info.
 
     - Metadata schema management
       - `create_metadata_schema_collection()`: Initialize storage for metadata schemas if missing.
       - `add_metadata_schema(collection_name, metadata_schema)`: Replace the stored schema for a collection.
       - `get_metadata_schema(collection_name)`: Fetch the stored schema; return an empty list if none.
+
+    - Document info management (implementation of these methods is optional)
+      - `create_document_info_collection()`: Initialize storage for document-level and collection-level information.
+      - `add_document_info(info_type, collection_name, document_name, info_value)`: Store document or collection info (e.g., processing statistics, custom metadata).
+      - `get_document_info(info_type, collection_name, document_name)`: Retrieve stored document/collection info; return an empty dict if none.
 
     - Retrieval helpers
       - Retrieval helper (e.g., `retrieval_*`): Return top‑k relevant documents using your backend’s semantic search. Support optional filters and tracing where applicable.
@@ -725,7 +816,7 @@ Implement only the retrieval-focused methods from the `VDBRag` interface:
     - `collection_name`: To be added in each Document's metadata
 - `get_langchain_vectorstore(collection_name)`: Return vectorstore handle (can return `None`)
 
-**Optional Methods:** Raise `NotImplementedError` for all ingestion methods (`create_collection()`, `write_to_index()`, etc.)
+**Optional Methods:** Raise `NotImplementedError` for all ingestion methods (`create_collection()`, `write_to_index()`, etc.) and document info management methods (`create_document_info_collection()`, `add_document_info()`, `get_document_info()`)
 
 **Example Document Structure:**
 ```python
