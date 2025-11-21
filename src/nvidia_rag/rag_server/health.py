@@ -79,7 +79,13 @@ async def check_service_health(
         if not url.startswith(("http://", "https://")):
             url = "http://" + url
 
-        async with aiohttp.ClientSession() as session:
+        # SSL verification is ENABLED by default for security
+        # NOTE: Only disable SSL verification in development/testing environments with self-signed certificates
+        # To disable: Uncomment the line below and comment out the default connector
+        # connector = aiohttp.TCPConnector(ssl=False)  # WARNING: Not secure for production!
+        connector = aiohttp.TCPConnector(ssl=True)
+
+        async with aiohttp.ClientSession(connector=connector) as session:
             request_kwargs = {
                 "timeout": aiohttp.ClientTimeout(total=timeout),
                 "headers": headers or {},
