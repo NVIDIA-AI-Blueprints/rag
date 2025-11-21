@@ -57,7 +57,7 @@ class TestNvidiaRAGIngestorCoverageImprovement:
         ingestor = NvidiaRAGIngestor(mode=LIBRARY_MODE)
 
         with patch.object(ingestor, '_NvidiaRAGIngestor__prepare_vdb_op_and_collection_name', return_value=(mock_vdb_op, "test_collection")):
-            with patch.object(ingestor, '_NvidiaRAGIngestor__ingest_docs', side_effect=Exception("Test exception")):
+            with patch.object(ingestor, '_NvidiaRAGIngestor__run_background_ingest_task', side_effect=Exception("Test exception")):
                 result = await ingestor.upload_documents(
                     filepaths=["test.txt"],
                     collection_name="test_collection",
@@ -93,7 +93,7 @@ class TestNvidiaRAGIngestorCoverageImprovement:
         }]]
         
         with patch.object(ingestor, '_NvidiaRAGIngestor__prepare_vdb_op_and_collection_name') as mock_prepare:
-            with patch.object(ingestor, '_NvidiaRAGIngestor__nvingest_upload_doc', return_value=(mock_results, [])):
+            with patch.object(ingestor, '_NvidiaRAGIngestor__run_nvingest_batched_ingestion', return_value=(mock_results, [])):
                 with patch('os.path.exists', return_value=True):
                     with patch('os.path.isfile', return_value=True):
                         with patch.object(ingestor, 'validate_directory_traversal_attack'):
@@ -422,7 +422,7 @@ class TestNvidiaRAGIngestorCoverageImprovement:
             
             with patch.object(ingestor, '_NvidiaRAGIngestor__prepare_vdb_op_and_collection_name', return_value=(mock_vdb_op, "test_collection")):
                 with patch.object(ingestor, '_validate_custom_metadata', return_value=(True, [])):
-                    with patch.object(ingestor, '_NvidiaRAGIngestor__nvingest_upload_doc', return_value=(mock_results, [])):
+                    with patch.object(ingestor, '_NvidiaRAGIngestor__run_nvingest_batched_ingestion', return_value=(mock_results, [])):
                         # Mock get_documents to return empty list initially (no existing documents)
                         # and then return the uploaded documents after ingestion
                         with patch.object(ingestor, 'get_documents', side_effect=[
