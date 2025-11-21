@@ -135,7 +135,7 @@ query_rewriter_prompt:
     <custom prompt instructions>
 ```
 
-After the required changes have been made, you can deploy the Helm chart from source by following the steps [here](deploy-helm-from-repo.md).
+After the required changes have been made, you can deploy the Helm chart from source by following the steps [here](deploy-helm-from-repo.md#deploy-the-rag-helm-chart-from-the-repository).
 
 
 ## Example: Access a Prompt in code
@@ -177,6 +177,5 @@ prompts = get_prompts()
 chat_template = prompts.get("chat_template", {}).get("system", "")
 ```
 
-:::{tip}
+**Tip:**
 You will need to rebuild the containers for any changes in source code.
-:::

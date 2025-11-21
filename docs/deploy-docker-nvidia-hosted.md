@@ -7,13 +7,11 @@
 Use this documentation to deploy the [NVIDIA RAG Blueprint](readme.md) with Docker Compose for a single node deployment, and using NVIDIA-hosted models for testing and experimenting.
 For other deployment options, refer to [Deployment Options](readme.md#deployment-options-for-rag-blueprint).
 
-:::{tip}
-If you want to run the RAG Blueprint with [NVIDIA AI Workbench](https://docs.nvidia.com/ai-workbench/user-guide/latest/overview/introduction.html), use [Quickstart for NVIDIA AI Workbench](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/deploy/workbench/README.md).
-:::
+> [!TIP]
+> If you want to run the RAG Blueprint with [NVIDIA AI Workbench](https://docs.nvidia.com/ai-workbench/user-guide/latest/overview/introduction.html), use [Quickstart for NVIDIA AI Workbench](../deploy/workbench/README.md).
 
-:::{note}
-When using NVIDIA-hosted endpoints, you might encounter rate limiting with larger file ingestions (>10 files). For details, see [Troubleshoot](troubleshooting.md).
-:::
+> [!NOTE]
+> When using NVIDIA-hosted endpoints, you might encounter rate limiting with larger file ingestions (>10 files). For details, see [Troubleshoot](troubleshooting.md).
 
 
 
@@ -196,7 +194,7 @@ After the RAG Blueprint is deployed, you can use the RAG UI to start experimenti
 
 ## Experiment with the Ingestion API Usage Notebook
 
-After the RAG Blueprint is deployed, you can use the Ingestion API Usage notebook to start experimenting with it. For details, refer to [Ingestion API Usage Notebook](../notebooks/ingestion_api_usage.ipynb).
+After the RAG Blueprint is deployed, you can use the Ingestion API Usage notebook to start experimenting with it. For details, refer to [Experiment with the Ingestion API Usage Notebook](notebooks.md#experiment-with-the-ingestion-api-usage-notebook).
 
 
 
@@ -240,4 +238,4 @@ After the first time you deploy the RAG Blueprint successfully, you can consider
 - [Best Practices for Common Settings](accuracy_perf.md).
 - [RAG Pipeline Debugging Guide](debugging.md)
 - [Troubleshoot](troubleshooting.md)
-- [Notebooks](../notebooks/README.md)
+- [Notebooks](notebooks.md)

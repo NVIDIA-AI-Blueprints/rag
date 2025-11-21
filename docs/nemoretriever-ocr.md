@@ -8,9 +8,8 @@ You can enable NeMO Retriever OCR for your [NVIDIA RAG Blueprint](readme.md). Ne
 
 For more information about NeMo Retriever OCR, refer to [NeMo Retriever OCR v1 Container](https://build.nvidia.com/nvidia/nemoretriever-ocr-v1).
 
-:::{note}
-**Early Access**: Currently, the NeMo Retriever OCR v1 container is in early access preview.
-:::
+> [!Note]
+> **Early Access**: Currently, the NeMo Retriever OCR v1 container is in early access preview.
 
 
 ## Key Benefits of NeMo Retriever OCR
@@ -41,9 +40,8 @@ For more information about NeMo Retriever OCR, refer to [NeMo Retriever OCR v1 C
    export OCR_MODEL_NAME=scene_text_ensemble
    ```
 
-   :::{warning}
-   **Critical Health Check Requirement**: Even when using gRPC protocol (`OCR_INFER_PROTOCOL=grpc`), you must also export the `OCR_HTTP_ENDPOINT` because the health check from nv-ingest uses HTTP.
-   :::
+   > [!Warning]
+   > **Critical Health Check Requirement**: Even when using gRPC protocol (`OCR_INFER_PROTOCOL=grpc`), you must also export the `OCR_HTTP_ENDPOINT` because the health check from nv-ingest uses HTTP.
 
 3. **Stop Paddle OCR deployment if already running**:
    ```bash
@@ -82,18 +80,19 @@ For more information about NeMo Retriever OCR, refer to [NeMo Retriever OCR v1 C
 
 4. **Test Document Ingestion**: Use the [ingestion API usage notebook](../notebooks/ingestion_api_usage.ipynb) to verify functionality.
 
-:::{note}
-**Default Behavior**: Paddle OCR is the default OCR service and runs automatically when you start the NIMs. To use NeMo Retriever OCR instead, you must explicitly start it with the `--profile nemoretriever-ocr` flag.
-:::
+> [!Note]
+> **Default Behavior**: Paddle OCR is the default OCR service and runs automatically when you start the NIMs. To use NeMo Retriever OCR instead, you must explicitly start it with the `--profile nemoretriever-ocr` flag.
 
 ### Helm Deployment to Enable NeMo Retriever OCR
 
-To enable NeMo Retriever OCR using Helm, configure the deployment to enable NeMo Retriever OCR and disable Paddle OCR for resource optimization:
+To enable NeMo Retriever OCR using Helm, we need to set the `nv-ingest.nemoretriever-ocr.deployed=true` and `nv-ingest.envVars.OCR_MODEL_NAME="scene_text_ensemble"`.
+
+Update the deployment to enable NeMo Retriever OCR and disable Paddle OCR for resource optimization with the following command.
 
 ```bash
 # Apply to a fresh deployment (recommended to uninstall existing deployments first)
 # helm uninstall rag -n rag
-helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/0648981100760671/charts/nvidia-blueprint-rag-v2.4.0-dev.tgz \
+helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.3.0.tgz \
   --username '$oauthtoken' \
   --password "${NGC_API_KEY}" \
   --set nv-ingest.paddleocr-nim.deployed=false \

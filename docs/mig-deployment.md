@@ -17,10 +17,9 @@ Before you deploy, verify that you have the following:
 
 * A Kubernetes cluster with NVIDIA H100 GPUs
 
-   :::{note}
-   This section showcases MIG support for `NVIDIA H100 80GB HBM3` GPU. The MIG profiles used in the `mig-config.yaml` are specific to this GPU.
-   Refer to the [MIG User Guide](https://docs.nvidia.com/datacenter/tesla/mig-user-guide/) for MIG profiles of other GPU types.
-   :::
+    > [!NOTE]
+    > This section showcases MIG support for `NVIDIA H100 80GB HBM3` GPU. The MIG profiles used in the `mig-config.yaml` are specific to this GPU.
+    > Refer to the [MIG User Guide](https://docs.nvidia.com/datacenter/tesla/mig-user-guide/) for MIG profiles of other GPU types.
 
 1. [Get an API Key](api-key.md).
 
@@ -80,9 +79,8 @@ Edit the MIG configuration file [`mig-config.yaml`](../deploy/helm/mig-slicing/m
 The following example enables a balanced configuration.
 
 
-:::{note}
-This example uses a balanced slicing strategy:  3 slices of 2g.20gb on GPU 0, 3 slices of 2g.20gb on GPU 1, 3 slices of 2g.20gb on GPU 2 and 1 slice of 7g.80gb on GPU 3.
-:::
+> [!NOTE]
+> This example uses a balanced slicing strategy:  3 slices of 2g.20gb on GPU 0, 3 slices of 2g.20gb on GPU 1, 3 slices of 2g.20gb on GPU 2 and 1 slice of 7g.80gb on GPU 3.
 
 ```yaml
 apiVersion: v1
@@ -152,7 +150,7 @@ You should see output similar to the following.
 Run the following code to install the RAG Blueprint Helm Chart.
 
 ```bash
-helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/0648981100760671/charts/nvidia-blueprint-rag-v2.4.0-dev.tgz \
+helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.3.0.tgz \
   --username '$oauthtoken' \
   --password "${NGC_API_KEY}" \
   --set imagePullSecret.password=$NGC_API_KEY \
@@ -160,15 +158,13 @@ helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/0648981100760671/c
   -f mig-slicing/values-mig.yaml
 ```
 
-:::{note}
-If the `rag-nim-llm-0` is in a `CrashLoopBackOff` after deployment, then set the model profile explicitly to avoid any errors with NIM LLM pod deployment.
-Refer to [NIM Model Profile Configuration](model-profiles.md) to set NIM LLM profile according to the GPU type and count.
-:::
+> [!NOTE]
+> If the `rag-nim-llm-0` is in a `CrashLoopBackOff` after deployment, then set the model profile explicitly to avoid any errros with NIM LLM pod deployment.
+> Refer to [NIM Model Profile Configuration](model-profiles.md) to set NIM LLM profile according to the GPU type and count.
 
-:::{note}
-Due to a known issue with MIG support, currently the ingestion profile has been scaled down while deploying the chart with MIG slicing.
-This is expected to affect the ingestion performance during bulk ingestion, specifically large bulk ingestion jobs might fail.
-:::
+> [!NOTE]
+> Due to a known issue with MIG support, currently the ingestion profile has been scaled down while deploying the chart with MIG slicing.
+> This is expected to affect the ingestion performance during bulk ingestion, specifically large bulk ingestion jobs might fail.
 
 
 
@@ -254,7 +250,7 @@ GPU 3: NVIDIA H100 80GB HBM3 (UUID: ...)
 - [NVIDIA RAG Blueprint Documentation](readme.md)
 - [RAG Pipeline Debugging Guide](debugging.md)
 - [Troubleshoot](troubleshooting.md)
-- [Notebooks](../notebooks/README.md)
+- [Notebooks](notebooks.md)
 - [NVIDIA GPU Operator Docs](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/)
 - [MIG User Guide](https://docs.nvidia.com/datacenter/tesla/mig-user-guide/)
 - [Best Practices for Common Settings](accuracy_perf.md).

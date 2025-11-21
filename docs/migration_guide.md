@@ -6,8 +6,8 @@
 
 This documentation contains the information to upgrade [NVIDIA RAG Blueprint](readme.md) from previous versions.
 
-:::{tip}
-To navigate this page more easily, click the outline button at the top of the page. [outline-button](assets/outline-button.png)
+> [!TIP]
+> To navigate this page more easily, click the outline button at the top of the page. (<img src="assets/outline-button.png">)
 
 
 ## Migration Guide: v2.2.0 to v2.3.0
@@ -54,7 +54,7 @@ In RAG 2.1.0, the the behavior of POST /documents API which can be used to uploa
 
 ### API Changes
 
-Updated OpenAPI schemas are available [here](api-rag.md) and [here](api-ingestor.md).
+Updated openapi schemas are available [here](./api_reference/).
 
 ### 2.1 Changed Endpoints and Features
 
@@ -88,7 +88,7 @@ This guide outlines the key changes and steps required for migration.
 
 ### 2. API Changes
 
-Updated OpenAPI schemas are available [here](api-rag.md) and [here](api-ingestor.md).
+Updated openapi schemas are available [here](./api_reference/).
 
 
 #### 2.1 New Endpoints and Features
@@ -137,7 +137,7 @@ Updated OpenAPI schemas are available [here](api-rag.md) and [here](api-ingestor
 
 #### Step 1: Deploy Two Separate Containers
 
-Ensure that you run two separate containers for **RAG Server** and **Ingestion Server** by following the appropriate [deployment guide](readme.md#deployment-options-for-rag-blueprint).
+Ensure that you run two separate containers for **RAG Server** and **Ingestion Server** by following the appropriate [deployment guide](readme.md#deploy).
 
 #### Step 2: Update API Calls
 
