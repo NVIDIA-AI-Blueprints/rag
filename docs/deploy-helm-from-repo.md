@@ -59,26 +59,30 @@ If you are working directly with the source Helm chart, and you want to customiz
 
 5. Install the chart by running the following code.
 
+    :::{IMPORTANT}
+    The Bitnami project has moved some Redis container artifacts, which can affect the availability of some image tags. To use a supported version of Redis, override the Redis image in your `helm upgrade` command as shown in the second code block following. This uses the Bitnami Legacy Redis 8.2.1-debian-12-r0 image. Adjust the tag as needed for your environment.
+    :::    
+
     ```sh
     helm upgrade --install rag -n rag nvidia-blueprint-rag/ \
     --set imagePullSecret.password=$NGC_API_KEY \
     --set ngcApiSecret.password=$NGC_API_KEY
     ```
 
-    > [!NOTE]
-    > Refer to [NIM Model Profile Configuration](model-profiles.md) to set NIM LLM profile according to the GPU type and count.
-    > Set the profile explicitly to avoid any errors with NIM LLM pod deployment.
+   — OR —
 
+    ```sh
+    helm upgrade --install rag -n rag nvidia-blueprint-rag/ \
+    --set imagePullSecret.password=$NGC_API_KEY \
+    --set ngcApiSecret.password=$NGC_API_KEY
+    --set nv-ingest.redis.image.repository=bitnamilegacy/redis \
+    --set nv-ingest.redis.image.tag=8.2.1-debian-12-r0
+    ```
 
-
-    > [!NOTE]
-    > The Bitnami project has moved some Redis container artifacts, which can affect the availability of some image tags. To use a supported version of Redis, override the Redis image in your `helm upgrade` command as shown following. This uses the Bitnami Legacy Redis 8.2.1-debian-12-r0 image. Adjust the tag as needed for your environment.
-    >
-    > ```bash
-    > --set nv-ingest.redis.image.repository=bitnamilegacy/redis \
-    > --set nv-ingest.redis.image.tag=8.2.1-debian-12-r0 \
-    > ```
-    >
+   :::{note}
+   Refer to [NIM Model Profile Configuration](model-profiles.md) to set NIM LLM profile according to the GPU type and count.
+   Set the profile explicitly to avoid any errors with NIM LLM pod deployment.
+   :::
 
 
 6. Follow the remaining instructions in [Deploy on Kubernetes with Helm](./deploy-helm.md):

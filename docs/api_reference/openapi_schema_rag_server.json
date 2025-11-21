@@ -42,6 +42,16 @@
               }
             }
           },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Internal Server Error",
             "content": {
@@ -51,14 +61,21 @@
                 }
               }
             }
-          },
-          "422": {
-            "description": "Validation Error",
+          }
+        }
+      }
+    },
+    "/metrics": {
+      "get": {
+        "summary": "Metrics Endpoint",
+        "description": "Exposes aggregated metrics for Multi-worker setup across all workers.",
+        "operationId": "metrics_endpoint_metrics_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
+                "schema": {}
               }
             }
           }
@@ -94,6 +111,16 @@
               }
             }
           },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
           "499": {
             "description": "Client Closed Request",
             "content": {
@@ -110,16 +137,6 @@
               "application/json": {
                 "example": {
                   "detail": "Internal server error occurred"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -156,22 +173,22 @@
               }
             }
           },
-          "500": {
-            "description": "Internal Server Error",
-            "content": {
-              "application/json": {
-                "example": {
-                  "detail": "Internal server error occurred"
-                }
-              }
-            }
-          },
           "422": {
             "description": "Validation Error",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "Internal server error occurred"
                 }
               }
             }
@@ -208,6 +225,16 @@
               }
             }
           },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
           "499": {
             "description": "Client Closed Request",
             "content": {
@@ -227,16 +254,6 @@
                 }
               }
             }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
           }
         }
       }
@@ -247,7 +264,7 @@
           "Retrieval APIs"
         ],
         "summary": "Get Summary",
-        "description": "Retrieve document summary from the collection.\n\nThis endpoint fetches the pre-generated summary of a document. It supports both\nblocking and non-blocking behavior through the 'wait' parameter.\n\nArgs:\n    request (Request): FastAPI request object\n    collection_name (str): Name of the document collection\n    file_name (str): Name of the file to get summary for\n    blocking (bool, optional): If True, waits for summary generation. Defaults to False\n    timeout (int, optional): Maximum time to wait in seconds. Defaults to 300\n\nReturns:\n    JSONResponse: Contains either:\n        - Summary data: {\"summary\": str, \"file_name\": str, \"collection_name\": str}\n        - Error message: {\"message\": str, \"status\": str}\n\nStatus Codes:\n    404: Summary not found (non-blocking mode)\n    408: Timeout waiting for summary (blocking mode)\n    499: Client Closed Request\n    500: Internal server error",
+        "description": "Retrieve document summary from the collection.\n\nThis endpoint fetches the pre-generated summary of a document. It supports both\nblocking and non-blocking behavior through the 'wait' parameter.\n\nArgs:\n    request (Request): FastAPI request object\n    collection_name (str): Name of the document collection\n    file_name (str): Name of the file to get summary for\n    blocking (bool, optional): If True, waits for summary generation. Defaults to False\n    timeout (float, optional): Maximum time to wait in seconds. Will be converted to int. Defaults to 300\n\nReturns:\n    JSONResponse: Contains either:\n        - Summary data: {\"summary\": str, \"file_name\": str, \"collection_name\": str}\n        - Error message: {\"message\": str, \"status\": str}\n\nStatus Codes:\n    400: Bad request (invalid timeout value)\n    404: Summary not found (non-blocking mode)\n    408: Timeout waiting for summary (blocking mode)\n    499: Client Closed Request\n    500: Internal server error",
         "operationId": "get_summary_summary_get",
         "parameters": [
           {
@@ -283,7 +300,7 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "integer",
+              "type": "number",
               "default": 300,
               "title": "Timeout"
             }
@@ -296,6 +313,17 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SummaryResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request (invalid timeout value)",
+            "content": {
+              "application/json": {
+                "example": {
+                  "message": "Invalid timeout value. Timeout must be a non-negative integer.",
+                  "error": "Provided timeout value: -1"
                 }
               }
             }
@@ -322,6 +350,16 @@
               }
             }
           },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
           "499": {
             "description": "Client Closed Request",
             "content": {
@@ -339,16 +377,6 @@
                 "example": {
                   "message": "Error occurred while getting summary.",
                   "error": "Internal server error details"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -424,11 +452,23 @@
                 "type": "null"
               }
             ],
-            "description": "Source documents used for the response",
+            "description": "Sources or citations supporting the response",
             "default": {
               "total_results": 0,
               "results": []
             }
+          },
+          "metrics": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Metrics"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Latency metrics associated with the request",
+            "default": {}
           }
         },
         "type": "object",
@@ -555,11 +595,26 @@
       "DocumentSearch": {
         "properties": {
           "query": {
-            "type": "string",
-            "maxLength": 131072,
-            "pattern": "[\\s\\S]*",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "items": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/TextContent"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ImageContent"
+                    }
+                  ]
+                },
+                "type": "array"
+              }
+            ],
             "title": "Query",
-            "description": "The content or keywords to search for within documents.",
+            "description": "The content or keywords to search for within documents. Can be a string for text-only queries, or an array of content objects for multimodal queries containing text and/or images.",
             "default": "Tell me something interesting"
           },
           "reranker_top_k": {
@@ -639,21 +694,21 @@
             "maxLength": 256,
             "title": "Embedding Model",
             "description": "Name of the embedding model used for vectorization.",
-            "default": "nvidia/llama-3.2-nv-embedqa-1b-v2"
+            "default": "nvdev/nvidia/llama-3.2-nv-embedqa-1b-v2"
           },
           "embedding_endpoint": {
             "type": "string",
             "maxLength": 2048,
             "title": "Embedding Endpoint",
             "description": "Endpoint URL for the embedding model server.",
-            "default": "nemoretriever-embedding-ms:8000"
+            "default": "https://integrate.api.nvidia.com/v1"
           },
           "reranker_model": {
             "type": "string",
             "maxLength": 256,
             "title": "Reranker Model",
             "description": "Name of the reranker model used for ranking results.",
-            "default": "nvidia/llama-3.2-nv-rerankqa-1b-v2"
+            "default": "nvdev/nvidia/llama-3.2-nv-rerankqa-1b-v2"
           },
           "reranker_endpoint": {
             "anyOf": [
@@ -667,7 +722,7 @@
             ],
             "title": "Reranker Endpoint",
             "description": "Endpoint URL for the reranker model server.",
-            "default": "nemoretriever-ranking-ms:8000"
+            "default": "https://ai.api.nvidia.com/v1/nvdev/retrieval/nvidia/llama-3_2-nv-rerankqa-1b-v2/reranking/v1"
           },
           "filter_expr": {
             "anyOf": [
@@ -676,6 +731,7 @@
               },
               {
                 "items": {
+                  "additionalProperties": true,
                   "type": "object"
                 },
                 "type": "array"
@@ -690,7 +746,7 @@
             "maximum": 1,
             "minimum": 0,
             "title": "Confidence Threshold",
-            "description": "Minimum confidence score threshold for filtering chunks. Only chunks with relevance scores >= this threshold will be included. Range: 0.0 to 1.0. Default: 0.0 (no filtering). Note: Requires enable_reranker=True to generate relevance scores. Warning: Setting threshold too high may result in 0 documents being returned, causing the RAG server to be unable to provide answers due to lack of context. Recommended threshold range: 0.3-0.5 for optimal balance of quality and coverage. Consider setting a reasonable minimum threshold to ensure sufficient context is available.",
+            "description": "Minimum confidence score threshold for filtering chunks. Only chunks with relevance scores >= this threshold will be included. Range: 0.0 to 1.0. Default: 0.0 (no filtering). Note: Requires enable_reranker=True to generate relevance scores.",
             "default": 0
           }
         },
@@ -750,9 +806,6 @@
         "properties": {
           "type": {
             "type": "string",
-            "enum": [
-              "image_url"
-            ],
             "const": "image_url",
             "title": "Type",
             "description": "The type of content",
@@ -776,7 +829,7 @@
             "type": "string",
             "maxLength": 20971520,
             "title": "Url",
-            "description": "Either a URL of the image or the base64 encoded image data. Supports data URIs in the format data:image/jpeg;base64,\u003Cbase64-data\u003E"
+            "description": "Either a URL of the image or the base64 encoded image data. Supports data URIs in the format data:image/jpeg;base64,<base64-data>"
           },
           "detail": {
             "type": "string",
@@ -804,7 +857,8 @@
               "user",
               "assistant",
               "system",
-              null],
+              null
+            ],
             "title": "Role",
             "description": "Role for a message: either 'user' or 'assistant' or 'system",
             "default": "user"
@@ -844,7 +898,8 @@
               "user",
               "assistant",
               "system",
-              null],
+              null
+            ],
             "title": "Role",
             "description": "Role for a message: either 'user' or 'assistant' or 'system",
             "default": "user"
@@ -877,6 +932,78 @@
         "title": "Message",
         "description": "Definition of the Chat Message type."
       },
+      "Metrics": {
+        "properties": {
+          "rag_ttft_ms": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rag Ttft Ms",
+            "description": "RAG time-to-first-token in milliseconds (populated in server wrapper)"
+          },
+          "llm_ttft_ms": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Llm Ttft Ms",
+            "description": "LLM time-to-first-token in milliseconds"
+          },
+          "context_reranker_time_ms": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Context Reranker Time Ms",
+            "description": "Latency of the context reranker in milliseconds"
+          },
+          "retrieval_time_ms": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retrieval Time Ms",
+            "description": "Latency to retrieve documents from VDB in milliseconds"
+          },
+          "llm_generation_time_ms": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Llm Generation Time Ms",
+            "description": "Total time for LLM response generation in milliseconds"
+          }
+        },
+        "type": "object",
+        "title": "Metrics",
+        "description": "Latency metrics associated with a single request."
+      },
       "NIMServiceHealthInfo": {
         "properties": {
           "service": {
@@ -906,6 +1033,17 @@
               }
             ],
             "title": "Error"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
           },
           "message": {
             "anyOf": [
@@ -970,7 +1108,19 @@
             "minimum": 0.1,
             "title": "Top P",
             "description": "The top-p sampling mass used for text generation. The top-p value determines the probability mass that is sampled at sampling time. For example, if top_p = 0.2, only the most likely tokens (summing to 0.2 cumulative probability) will be sampled. It is not recommended to modify both temperature and top_p in the same call.",
-            "default": 0.1
+            "default": 1
+          },
+          "min_tokens": {
+            "type": "integer",
+            "title": "Min Tokens",
+            "description": "The minimum number of tokens to generate in any given call",
+            "default": 0
+          },
+          "ignore_eos": {
+            "type": "boolean",
+            "title": "Ignore Eos",
+            "description": "Whether to ignore the EOS token and continue generating tokens after the EOS token is generated",
+            "default": false
           },
           "max_tokens": {
             "type": "integer",
@@ -1067,21 +1217,21 @@
             "pattern": "[\\s\\S]*",
             "title": "Model",
             "description": "Name of NIM LLM model to be used for inference.",
-            "default": "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+            "default": "nvdev/nvidia/llama-3.3-nemotron-super-49b-v1.5"
           },
           "llm_endpoint": {
             "type": "string",
             "maxLength": 2048,
             "title": "Llm Endpoint",
             "description": "Endpoint URL for the llm model server.",
-            "default": "nim-llm:8000"
+            "default": ""
           },
           "embedding_model": {
             "type": "string",
             "maxLength": 256,
             "title": "Embedding Model",
             "description": "Name of the embedding model used for vectorization.",
-            "default": "nvidia/llama-3.2-nv-embedqa-1b-v2"
+            "default": "nvdev/nvidia/llama-3.2-nv-embedqa-1b-v2"
           },
           "embedding_endpoint": {
             "anyOf": [
@@ -1095,14 +1245,14 @@
             ],
             "title": "Embedding Endpoint",
             "description": "Endpoint URL for the embedding model server.",
-            "default": "nemoretriever-embedding-ms:8000"
+            "default": "https://integrate.api.nvidia.com/v1"
           },
           "reranker_model": {
             "type": "string",
             "maxLength": 256,
             "title": "Reranker Model",
             "description": "Name of the reranker model used for ranking results.",
-            "default": "nvidia/llama-3.2-nv-rerankqa-1b-v2"
+            "default": "nvdev/nvidia/llama-3.2-nv-rerankqa-1b-v2"
           },
           "reranker_endpoint": {
             "anyOf": [
@@ -1116,7 +1266,7 @@
             ],
             "title": "Reranker Endpoint",
             "description": "Endpoint URL for the reranker model server.",
-            "default": "nemoretriever-ranking-ms:8000"
+            "default": "https://ai.api.nvidia.com/v1/nvdev/retrieval/nvidia/llama-3_2-nv-rerankqa-1b-v2/reranking/v1"
           },
           "vlm_model": {
             "type": "string",
@@ -1137,7 +1287,7 @@
             ],
             "title": "Vlm Endpoint",
             "description": "Endpoint URL for the VLM model server.",
-            "default": "http://vlm-ms:8000/v1"
+            "default": "https://integrate.api.nvidia.com/v1"
           },
           "stop": {
             "items": {
@@ -1157,6 +1307,7 @@
               },
               {
                 "items": {
+                  "additionalProperties": true,
                   "type": "object"
                 },
                 "type": "array"
@@ -1171,7 +1322,7 @@
             "maximum": 1,
             "minimum": 0,
             "title": "Confidence Threshold",
-            "description": "Minimum confidence score threshold for filtering chunks. Only chunks with relevance scores \u003E= this threshold will be included. Range: 0.0 to 1.0. Default: 0.0 (no filtering). Note: Requires enable_reranker=True to generate relevance scores.",
+            "description": "Minimum confidence score threshold for filtering chunks. Only chunks with relevance scores >= this threshold will be included. Range: 0.0 to 1.0. Default: 0.0 (no filtering). Note: Requires enable_reranker=True to generate relevance scores.",
             "default": 0
           }
         },
@@ -1262,12 +1413,11 @@
             "default": []
           },
           "content_metadata": {
+            "additionalProperties": true,
             "type": "object",
             "title": "Content Metadata",
             "description": "Metadata about the content",
-            "default": {
-
-            }
+            "default": {}
           }
         },
         "type": "object",
@@ -1432,9 +1582,6 @@
         "properties": {
           "type": {
             "type": "string",
-            "enum": [
-              "text"
-            ],
             "const": "text",
             "title": "Type",
             "description": "The type of content",

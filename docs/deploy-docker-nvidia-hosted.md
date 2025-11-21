@@ -7,11 +7,13 @@
 Use this documentation to deploy the [NVIDIA RAG Blueprint](readme.md) with Docker Compose for a single node deployment, and using NVIDIA-hosted models for testing and experimenting.
 For other deployment options, refer to [Deployment Options](readme.md#deployment-options-for-rag-blueprint).
 
-> [!TIP]
-> If you want to run the RAG Blueprint with [NVIDIA AI Workbench](https://docs.nvidia.com/ai-workbench/user-guide/latest/overview/introduction.html), use [Quickstart for NVIDIA AI Workbench](../deploy/workbench/README.md).
+:::{tip}
+If you want to run the RAG Blueprint with [NVIDIA AI Workbench](https://docs.nvidia.com/ai-workbench/user-guide/latest/overview/introduction.html), use [Quickstart for NVIDIA AI Workbench](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/deploy/workbench/README.md).
+:::
 
-> [!NOTE]
-> When using NVIDIA-hosted endpoints, you might encounter rate limiting with larger file ingestions (>10 files). For details, see [Troubleshoot](troubleshooting.md).
+:::{note}
+When using NVIDIA-hosted endpoints, you might encounter rate limiting with larger file ingestions (>10 files). For details, see [Troubleshoot](troubleshooting.md).
+:::
 
 
 

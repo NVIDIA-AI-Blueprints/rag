@@ -7,18 +7,19 @@
 The following issues might arise when you work with the [NVIDIA RAG Blueprint](readme.md).
 
 
-> [!NOTE]
-> For the full list of known issues, see [Known Issues](../CHANGELOG.md#all-known-issues)
+:::{note}
+For the full list of known issues, see [Known Issues](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/CHANGELOG.md#all-known-issues)
+:::
 
-
-> [!TIP]
-> To navigate this page more easily, click the outline button at the top of the page. (<img src="assets/outline-button.png">)
+:::{tip}
+To navigate this page more easily, click the outline button at the top of the page. ![outline-button](assets/outline-button.png)
+:::
 
 
 
 ## 429 Rate Limit Issue for NVIDIA-Hosted Models
 
-You might see an error "429 Client Error: Too Many Requests for url" during ingestion while using NVIDIA-hosted models. 
+You might see an error "429 Client Error: Too Many Requests for url" during ingestion while using NVIDIA-hosted models.
 This can be mitigated by setting the following parameters before starting ingestor-server and nv-ingest-ms-runtime:
 
 ```bash
@@ -30,13 +31,12 @@ export NV_INGEST_MAX_UTIL=8
 
 ```bash
 # Start the ingestor-server and nv-ingest-ms-runtime containers
-docker compose -f deploy/compose/docker-compose-ingestor-server.yaml up -d 
+docker compose -f deploy/compose/docker-compose-ingestor-server.yaml up -d
 ```
 
-> [!NOTE]
-> This can reduce the page-per-second performance for the ingestion. For maximum performance, [on-prem deployment](deploy-docker-self-hosted.md) is recommended.
-
-
+:::{note}
+This can reduce the page-per-second performance for the ingestion. For maximum performance, [on-prem deployment](deploy-docker-self-hosted.md) is recommended.
+:::
 
 ## Confidence threshold filtering issues
 
@@ -123,11 +123,11 @@ source: hyper_util::client::legacy::Error(Connect, ConnectError("dns error", Os 
 This error happens because the default number of Open files allowed are 1024 for Containers. Follow the below steps to modify the container configuration to allow more number of open files.
 
 ```sh
-sudo mkdir -p /etc/systemd/system/containerd.service.d 
-echo "[Service]" | sudo tee /etc/systemd/system/containerd.service.d/override.conf 
-echo "LimitNOFILE=65536" | sudo tee -a /etc/systemd/system/containerd.service.d/override.conf 
-sudo systemctl daemon-reload 
-sudo systemctl restart containerd 
+sudo mkdir -p /etc/systemd/system/containerd.service.d
+echo "[Service]" | sudo tee /etc/systemd/system/containerd.service.d/override.conf
+echo "LimitNOFILE=65536" | sudo tee -a /etc/systemd/system/containerd.service.d/override.conf
+sudo systemctl daemon-reload
+sudo systemctl restart containerd
 sudo systemctl restart kubelet
 ```
 
@@ -166,8 +166,9 @@ These issues can be addressed by adding the following instruction to the `rag_ch
 Handling Missing Information: If the context does not contain the answer, you must state directly that you do not have information on the specific subject of the user's query. For example, if the query is about the "capital of France", your response should be "I did not find information about capital of France." Do not add any other words, apologies, or explanations.
 ```
 
-> [!IMPORTANT]
-> Adding this information may impact response accuracy, especially when partial information is available instead of complete information in the retrieved context. The system may become more conservative in providing answers, potentially refusing to respond even when some relevant information exists in the context.
+:::{important}
+Adding this information may impact response accuracy, especially when partial information is available instead of complete information in the retrieved context. The system may become more conservative in providing answers, potentially refusing to respond even when some relevant information exists in the context.
+:::
 
 
 
@@ -217,7 +218,7 @@ kube-prometheus-stack:
 
 ## Out of memory issues while deploying nim-llm service
 
-If you run into `torch.OutOfMemoryError: CUDA out of memory.` while deploying the model, this is most likely due to wrong model profile being auto selected during deployment. Refer to steps in the appropriate [deployment guide](readme.md#deploy) and set the correct profile using `NIM_MODEL_PROFILE` variable.
+If you run into `torch.OutOfMemoryError: CUDA out of memory.` while deploying the model, this is most likely due to wrong model profile being auto selected during deployment. Refer to steps in the appropriate [deployment guide](readme.md#deployment-options-for-rag-blueprint) and set the correct profile using `NIM_MODEL_PROFILE` variable.
 
 
 
@@ -262,4 +263,4 @@ Please contact your NVIDIA representative to get more credits.
 ## Related Topics
 
 - [Debugging](debugging.md)
-- [Changelog](../CHANGELOG.md)
+- [Changelog](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/CHANGELOG.md)

@@ -62,7 +62,9 @@ Each `.jsonl` file contains structured extraction metadata including text segmen
 
 ---
 
-**Note**: This is an advanced feature for custom processing workflows. Standard RAG functionality stores results directly in the vector database.
+:::{note}
+This is an advanced feature for custom processing workflows. Standard RAG functionality stores results directly in the vector database.
+:::
 
 ## Helm (Kubernetes)
 
@@ -113,7 +115,7 @@ Using a custom values file:
 
 ```bash
 helm upgrade --install rag -n rag \
-  https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.3.0.tgz \
+  https://helm.ngc.nvidia.com/0648981100760671/charts/nvidia-blueprint-rag-v2.4.0-dev-dev.tgz \
   --username '$oauthtoken' \
   --password "${NGC_API_KEY}" \
   --set imagePullSecret.password=$NGC_API_KEY \
@@ -125,7 +127,7 @@ Or with inline overrides:
 
 ```bash
 helm upgrade --install rag -n rag \
-  https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.3.0.tgz \
+  https://helm.ngc.nvidia.com/0648981100760671/charts/nvidia-blueprint-rag-v2.4.0-dev.tgz \
   --username '$oauthtoken' \
   --password "${NGC_API_KEY}" \
   --set imagePullSecret.password=$NGC_API_KEY \

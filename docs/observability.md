@@ -38,16 +38,16 @@ Use the following procedure to enable observability with Docker.
         APP_TRACING_ENABLED: "True"
     ```
 
-4. Start the RAG Server by following the instructions in the appropriate [deployment guide](readme.md#deploy).
+4. Start the RAG Server by following the instructions in the appropriate [deployment guide](readme.md#deployment-options-for-rag-blueprint).
 
 
 ## View Traces in Zipkin
 
 After tracing is enabled and the system is running, you can **view the traces** in **Zipkin** by opening:
 
-  <p align="center">
-  <img src="./assets/zipkin_ui.png" width="750">
-  </p>
+```{image} assets/zipkin_ui.png
+:width: 750px
+```
 
 Open the Zipkin UI at: **http://localhost:9411**
 
@@ -134,7 +134,7 @@ Redeploy the Helm chart to apply these changes:
 
 ```sh
 helm uninstall rag -n rag
-helm install rag -n rag https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.3.0.tgz \
+helm install rag -n rag https://helm.ngc.nvidia.com/0648981100760671/charts/nvidia-blueprint-rag-v2.4.0-dev.tgz \
 --username '$oauthtoken' \
 --password "${NGC_API_KEY}" \
 --set imagePullSecret.password=$NGC_API_KEY \

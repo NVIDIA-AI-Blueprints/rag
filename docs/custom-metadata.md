@@ -2,7 +2,6 @@
   SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
   SPDX-License-Identifier: Apache-2.0
 -->
-
 # Advanced Metadata Filtering with Natural Language Generation
 
 The [NVIDIA RAG Blueprint](readme.md) features **advanced metadata filtering with natural language generation**, enabling you to:
@@ -130,7 +129,9 @@ This notebook demonstrates:
 - **🎯 Milvus**: Designed for simplicity with automated natural language filter generation, perfect for users who want straightforward metadata filtering
 - **🚀 Elasticsearch**: Provides full access to enterprise-grade search capabilities, ideal for advanced users who need complex querying, analytics, and fine-grained control
 
-**📝 Note**: The UI supports basic arithmetic filter operators to showcase functionality, while the RAG-Server API provides full support for all mentioned operators and advanced features.
+:::{note}
+The UI supports basic arithmetic filter operators to showcase functionality, while the RAG-Server API provides full support for all mentioned operators and advanced features.
+:::
 
 ## Natural Language Filter Generation
 
@@ -224,7 +225,38 @@ The system gracefully handles filter generation failures:
 - **Unique**: Each field name must be unique within the schema
 - **Case-sensitive**: Field names are case-sensitive
 
-**Note**: The `filename` field is automatically added to all collections if you don't define it in your schema. You can also define your own `filename` field in your schema, and the system will use your definition instead of the automatic one.
+### System-Managed Metadata Fields
+
+The system automatically manages certain metadata fields that are added to all collections:
+
+| Field Name | Type | Description | Auto-Populated | User Override |
+|------------|------|-------------|----------------|---------------|
+| **`filename`** | `string` | Name of the uploaded file | ✅ RAG system | ✅ Yes - define in schema |
+| **`page_number`** | `integer` | Page number where content appears (1-indexed) | ✅ nv-ingest | ✅ Yes - define in schema |
+| **`start_time`** | `integer` | Start timestamp in milliseconds for audio/video segments | ✅ nv-ingest | ✅ Yes - define in schema |
+| **`end_time`** | `integer` | End timestamp in milliseconds for audio/video segments | ✅ nv-ingest | ✅ Yes - define in schema |
+
+#### System-Managed Field Behavior
+
+- **Auto-Addition**: These fields are automatically added to your collection schema if you don't define them
+- **Auto-Population**: 
+  - `filename` is populated by the RAG system during ingestion
+  - `page_number`, `start_time`, `end_time` are extracted and populated by nv-ingest during document processing
+- **User Override**: You can define any of these fields in your schema with custom properties (e.g., different description, constraints)
+  - If you provide a definition, your definition takes priority
+  - If you don't provide a definition, the system auto-adds them with default settings
+- **UI Visibility**: 
+  - `filename` is visible in the UI and API responses
+  - Auto-extracted fields (`page_number`, `start_time`, `end_time`) are hidden from UI listings but available for filtering and appear in citations
+- **Filtering**: All system-managed fields can be used in filter expressions for document retrieval
+
+:::{note}
+**Example**: If you upload a multi-page PDF without defining `page_number` in your schema, the system will:
+1. Automatically add the `page_number` field to your collection schema
+2. nv-ingest will extract the page number from each chunk during processing
+3. The page number will be available for filtering (e.g., `content_metadata["page_number"] == 5`)
+4. The page number will appear in citations when generating responses
+:::
 
 #### Field Properties
 - **`name`**: Field identifier (required)
@@ -318,7 +350,9 @@ The system validates metadata during ingestion:
 - **Unknown fields**: Files with metadata fields not defined in the schema will fail validation
 - **Error handling**: Invalid metadata causes document rejection with detailed errors
 
-**Note**: The system uses strict validation. Any metadata fields not defined in the schema will cause the entire file to fail ingestion.
+:::{note}
+The system uses strict validation. Any metadata fields not defined in the schema will cause the entire file to fail ingestion.
+:::
 
 ## Filter Expression Syntax
 
@@ -329,7 +363,9 @@ Filter expressions use the format: `content_metadata["field_name"] operator valu
 **Milvus Filter Syntax Documentation:**
 See the [Milvus Filtering Explained](https://milvus.io/docs/boolean.md#Filtering-Explained) guide for full details.
 
-**💡 Note:** This document contains extensive examples throughout - from quick start examples, natural language filter generation, to complex expressions and API usage examples.
+:::{note}
+This document contains extensive examples throughout - from quick start examples, natural language filter generation, to complex expressions and API usage examples.
+:::
 
 
 ### Supported Operators by Type
@@ -371,6 +407,11 @@ See the [Milvus Filtering Explained](https://milvus.io/docs/boolean.md#Filtering
 # Numeric filtering
 'content_metadata["priority"] > 5'
 'content_metadata["rating"] between 3.5 and 5.0'
+
+# System-managed field filtering
+'content_metadata["page_number"] == 5'  # Filter to specific page
+'content_metadata["page_number"] > 10'  # Pages after page 10
+'content_metadata["filename"] == "report.pdf"'  # Specific document
 
 # Array filtering
 'array_contains(content_metadata["tags"], "engineering")'
@@ -422,7 +463,9 @@ filter_expr = [
 ]
 ```
 
-**Note**: Elasticsearch filters use the `metadata.content_metadata.field_name` format and support standard Elasticsearch query types like `term`, `range`, `wildcard`, `terms`, etc.
+:::{note}
+Elasticsearch filters use the `metadata.content_metadata.field_name` format and support standard Elasticsearch query types like `term`, `range`, `wildcard`, `terms`, etc.
+:::
 
 **Advanced Elasticsearch Support**: All ES queries are supported. Advanced developers who are familiar with Elasticsearch can refer to the [official Elasticsearch query and filter documentation](https://www.elastic.co/docs/explore-analyze/query-filter) and write any query or filter anything they need. This advanced functionality is intended for experienced Elasticsearch users.
 
@@ -507,32 +550,36 @@ export APP_FILTEREXPRESSIONGENERATOR_SERVERURL=""
 
 #### Search with Filter Generation
 
-```http
-POST /v1/search
-Content-Type: application/json
-
-{
-    "query": "Show me AI documents with rating above 4.0",
-    "collection_names": ["research_papers"],
-    "enable_filter_generator": true,
-    "reranker_top_k": 10,
-    "vdb_top_k": 100
-}
+```bash
+curl -X "POST" "http://$${RAG_HOSTNAME}/v1/search" \
+    -H 'accept: application/json' \
+    -H 'Content-Type: application/json' \
+    -d '
+    {
+        "query": "Show me AI documents with rating above 4.0",
+        "collection_names": ["research_papers"],
+        "enable_filter_generator": true,
+        "reranker_top_k": 10,
+        "vdb_top_k": 100
+    }'
 ```
 
 #### Generate with Filter Generation
 
-```http
-POST /v1/generate
-Content-Type: application/json
-
-{
-    "messages": [{"role": "user", "content": "What are the latest engineering updates?"}],
-    "use_knowledge_base": true,
-    "collection_names": ["research_papers"],
-    "enable_filter_generator": true
-}
+```bash
+curl -X "POST" "http://$${RAG_HOSTNAME}/v1/generate" \
+    -H 'accept: application/json' \
+    -H 'Content-Type: application/json' \
+    -d '
+    {
+        "messages": [{"role": "user", "content": "What are the latest engineering updates?"}],
+        "use_knowledge_base": true,
+        "collection_names": ["research_papers"],
+        "enable_filter_generator": true
+    }'
 ```
+
+
 
 ## Summary
 

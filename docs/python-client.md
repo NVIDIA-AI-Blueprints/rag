@@ -5,7 +5,7 @@
 # Use the NVIDIA RAG Blueprint Python Package
 
 Use this documentation to learn about the [NVIDIA RAG Blueprint](readme.md) Python Package. 
-For a notebook that walks you through these code examples, see [NVIDIA RAG Python Package](/notebooks/rag_library_usage.ipynb).
+For a notebook that walks you through these code examples, see [NVIDIA RAG Python Package](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/rag_library_usage.ipynb).
 
 
 ## Set logging level
@@ -298,7 +298,7 @@ print(response)
 ## Customize prompts
 
 Import the prompt utility which allows us to access different preset prompts. 
-For information about the preset prompts, see [Default Prompts Overview](docs/prompt-customization.md#default-prompts-overview). 
+For information about the preset prompts, see [Default Prompts Overview](prompt-customization.md#default-prompts-overview). 
 
 ```python
 from nvidia_rag.utils.llm import get_prompts  

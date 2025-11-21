@@ -6,11 +6,9 @@
 
 You can change the LLM or embedding models for the [NVIDIA RAG Blueprint](readme.md) by using the following procedures.
 
-  - [Change the LLM Model](#change-the-llm-model)
-  - [Change the Embedding Model](#change-the-embedding-model)
-  - [On Premises Microservices](#on-premises-microservices)
-
-
+:::{tip}
+To navigate this page more easily, click the outline button at the top of the page. ![outline-button](assets/outline-button.png)
+:::
 
 ## For NVIDIA-Hosted Microservices
 
@@ -31,8 +29,9 @@ To get a list of valid model names, use one of the following methods:
   View the sample Python code and get the model name from the `model` argument to the `client.chat.completions.create` method.
 
 
-[!TIP]
+:::{tip}
 Follow steps in [For Helm Deployments](#for-helm-deployments) to change the inference model for Helm charts.
+:::
 
 
 ### Change the Embedding Model
@@ -45,7 +44,7 @@ The following example uses the `NVIDIA Embed QA 4` model.
 export APP_EMBEDDINGS_MODELNAME='NV-Embed-QA' 
 export APP_RANKING_MODELNAME='NV-Embed-QA' 
 docker compose -f deploy/compose/docker-compose-ingestor-server.yaml up -d
-docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d
+docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d --build
 ```
 
 As an alternative you can also specify the model names at runtime using `/generate` API call. Refer to the `Generate Answer Endpoint` and `Document Search Endpoint` payload schema in [this](../notebooks/retriever_api_usage.ipynb) notebook.
@@ -59,7 +58,9 @@ To get a list of valid model names, use one of the following methods:
   Use the `get_available_models()` method to on an instance of an `NVIDIAEmbeddings` object to list the models.
   Refer to the package web page for sample code to list the models.
 
-[!TIP] Always use same embedding model or model having same tokinizers for both ingestion and retrieval to yield good accuracy.
+:::{tip}
+Always use same embedding model or model having same tokinizers for both ingestion and retrieval to yield good accuracy.
+:::
 
 
 
@@ -99,7 +100,7 @@ You can specify the model for NVIDIA NIM containers to use in the [nims.yaml](..
    export APP_EMBEDDINGS_MODELNAME=<>
    ```
 
-3. Follow the steps specified [here](deploy-docker-self-hosted.md#start-services-using-on-prem-models) to relaunch the containers with the updated models. Make sure to specify the correct model names using appropriate environment variables as shown in the earlier step.
+3. Follow the steps specified [here](deploy-docker-self-hosted.md#start-services-using-self-hosted-on-premises-models) to relaunch the containers with the updated models. Make sure to specify the correct model names using appropriate environment variables as shown in the earlier step.
 
 
 
