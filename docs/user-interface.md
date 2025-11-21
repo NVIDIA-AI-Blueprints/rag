@@ -50,4 +50,4 @@ The RAG UI is provided as a sample and for experimentation only. It is not inten
 
 - [NVIDIA RAG Blueprint Documentation](readme.md)
 - [Get Started](deploy-docker-self-hosted.md)
-- [Notebooks](notebooks.md)
+- [Notebooks](../notebooks/README.md)
