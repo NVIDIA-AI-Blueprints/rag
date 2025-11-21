@@ -200,4 +200,4 @@ For Helm deployments, to port-forward the the [RAG UI](user-interface.md) servic
 - [RAG Pipeline Debugging Guide](debugging.md)
 - [Troubleshoot](troubleshooting.md)
 - [Best Practices for Common Settings](accuracy_perf.md).
-- [Notebooks](notebooks.md)
+- [Notebooks](../notebooks/README.md)

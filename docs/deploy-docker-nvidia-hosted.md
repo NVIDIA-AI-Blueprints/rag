@@ -196,7 +196,7 @@ After the RAG Blueprint is deployed, you can use the RAG UI to start experimenti
 
 ## Experiment with the Ingestion API Usage Notebook
 
-After the RAG Blueprint is deployed, you can use the Ingestion API Usage notebook to start experimenting with it. For details, refer to [Experiment with the Ingestion API Usage Notebook](notebooks.md#experiment-with-the-ingestion-api-usage-notebook).
+After the RAG Blueprint is deployed, you can use the Ingestion API Usage notebook to start experimenting with it. For details, refer to [Ingestion API Usage Notebook](../notebooks/ingestion_api_usage.ipynb).
 
 
 
@@ -240,4 +240,4 @@ After the first time you deploy the RAG Blueprint successfully, you can consider
 - [Best Practices for Common Settings](accuracy_perf.md).
 - [RAG Pipeline Debugging Guide](debugging.md)
 - [Troubleshoot](troubleshooting.md)
-- [Notebooks](notebooks.md)
+- [Notebooks](../notebooks/README.md)
