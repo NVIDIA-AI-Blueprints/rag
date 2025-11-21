@@ -227,4 +227,4 @@ nv-ingest:
 - [Best Practices for Common Settings](accuracy_perf.md).
 - [RAG Pipeline Debugging Guide](debugging.md)
 - [Troubleshoot](troubleshooting.md)
-- [Notebooks](notebooks.md)
+- [Notebooks](../notebooks/README.md)
