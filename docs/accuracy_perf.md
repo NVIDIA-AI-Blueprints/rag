@@ -60,6 +60,8 @@ These variables require trial and error tuning for optimal performance.
 |----------------------|------------|---------------------|----------------------|--------------------------|
 | `NV_INGEST_CONCURRENT_BATCHES` | 4 | Controls the number of parallel batch processing streams. | - You can increase this for systems with high memory capacity. <br/> | - Higher values require more system memory. <br/> - Requires careful tuning based on available system resources. <br/> |
 | `NV_INGEST_FILES_PER_BATCH` | 16 | Controls how many files are processed in a single batch during ingestion. | - Adjust this to helps optimize memory usage and processing efficiency. <br/> | - Setting this too high can cause memory pressure. <br/> - Setting this too low can reduce throughput. <br/> |
+| `APP_NVINGEST_ENABLEPDFSPLIT` | `false` | Set to `true` to enable parallel processing of PDF pages by splitting them into chunks. Most useful when ingesting a small number of large PDFs. | - Reduces ingestion time for multi-page PDFs. <br/> | - Requires tuning `APP_NVINGEST_PAGESPERCHUNK` for optimal performance. <br/> - May increase memory usage. <br/> |
+| `APP_NVINGEST_PAGESPERCHUNK` | 16 | Controls how many pages are grouped per chunk when `APP_NVINGEST_ENABLEPDFSPLIT` is enabled. Smaller chunks = more parallelism but more overhead. | - Smaller values increase parallelism. <br/> - Larger values reduce overhead. <br/> | - Requires tuning based on PDF sizes and available resources. <br/> |
 
 :::{tip}
 For optimal resource utilization, `NV_INGEST_CONCURRENT_BATCHES` times `NV_INGEST_FILES_PER_BATCH` should approximately equal `MAX_INGEST_PROCESS_WORKERS`.

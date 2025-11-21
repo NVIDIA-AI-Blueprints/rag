@@ -98,6 +98,11 @@ services:
       APP_NVINGEST_SAVETODISK: ${APP_NVINGEST_SAVETODISK:-False}
       NVINGEST_MINIO_BUCKET: ${NVINGEST_MINIO_BUCKET:-nv-ingest}
 
+      ##===NV-Ingest Performance Configurations========
+      # If enabled, splits a single PDF's pages into parallel chunks for processing (smaller chunks = more parallelism but more overhead)
+      APP_NVINGEST_ENABLEPDFSPLIT: ${APP_NVINGEST_ENABLEPDFSPLIT:-False}
+      APP_NVINGEST_PAGESPERCHUNK: ${APP_NVINGEST_PAGESPERCHUNK:-16}
+
       # Choose whether to store the extracted content in the vector store for citation support
       ENABLE_CITATIONS: ${ENABLE_CITATIONS:-True}
 

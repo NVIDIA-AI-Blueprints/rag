@@ -325,6 +325,10 @@ ingestor-server:
     APP_NVINGEST_SAVETODISK: "False"
     NVINGEST_MINIO_BUCKET: "nv-ingest"
 
+    # === NV-Ingest performance configurations ===
+    APP_NVINGEST_ENABLEPDFSPLIT: "False"
+    APP_NVINGEST_PAGESPERCHUNK: "16"
+
     # === General ===
     # Summary Model Configurations
     SUMMARY_LLM: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
