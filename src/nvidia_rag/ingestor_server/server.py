@@ -173,6 +173,13 @@ class SplitOptions(BaseModel):
         description="Number of overlapping units between consecutive splits.",
     )
 
+def _extract_vdb_auth_token(request: Request) -> str | None:
+    """Extract bearer token from Authorization header (e.g., 'Bearer <token>')."""
+    auth_header = request.headers.get("Authorization") or request.headers.get("authorization")
+    if isinstance(auth_header, str) and auth_header.lower().startswith("bearer "):
+        return auth_header.split(" ", 1)[1].strip()
+    return None
+
 
 class CustomMetadata(BaseModel):
     """Custom metadata to be added to the document."""
@@ -519,8 +526,9 @@ async def parse_json_data(
     },
 )
 async def upload_document(
+    request: Request,
     documents: list[UploadFile] = File(...),
-    request: DocumentUploadRequest = Depends(parse_json_data),
+    payload: DocumentUploadRequest = Depends(parse_json_data),
 ) -> UploadDocumentResponse | IngestionTaskResponse:
     """Upload a document to the vector store."""
 
@@ -528,17 +536,21 @@ async def upload_document(
         raise Exception("No files provided for uploading.")
 
     try:
+        # Extract bearer token from Authorization header (e.g., "Bearer <token>")
+        vdb_auth_token = _extract_vdb_auth_token(request)
+
         # Store all provided file paths in a temporary directory (only unique files)
         all_file_paths, duplicate_validation_errors = await process_file_paths(
-            documents, request.collection_name
+            documents, payload.collection_name
         )
 
         response_dict = await NV_INGEST_INGESTOR.upload_documents(
             filepaths=all_file_paths,
-            **request.model_dump(),
+            vdb_auth_token=vdb_auth_token,
+            **payload.model_dump(),
             additional_validation_errors=duplicate_validation_errors,
         )
-        if not request.blocking:
+        if not payload.blocking:
             return JSONResponse(
                 content=IngestionTaskResponse(**response_dict).model_dump(),
                 status_code=200,
@@ -605,23 +617,28 @@ async def get_task_status(task_id: str):
     },
 )
 async def update_documents(
+    request: Request,
     documents: list[UploadFile] = File(...),
-    request: DocumentUploadRequest = Depends(parse_json_data),
+    payload: DocumentUploadRequest = Depends(parse_json_data),
 ) -> DocumentListResponse:
     """Upload a document to the vector store. If the document already exists, it will be replaced."""
 
     try:
+        # Extract bearer token from Authorization header (e.g., "Bearer <token>")
+        vdb_auth_token = _extract_vdb_auth_token(request)
+
         # Store all provided file paths in a temporary directory (only unique files)
         all_file_paths, duplicate_validation_errors = await process_file_paths(
-            documents, request.collection_name
+            documents, payload.collection_name
         )
 
         response_dict = await NV_INGEST_INGESTOR.update_documents(
             filepaths=all_file_paths,
-            **request.model_dump(),
+            vdb_auth_token=vdb_auth_token,
+            **payload.model_dump(),
             additional_validation_errors=duplicate_validation_errors,
         )
-        if not request.blocking:
+        if not payload.blocking:
             return JSONResponse(
                 content=IngestionTaskResponse(**response_dict).model_dump(),
                 status_code=200,
@@ -668,7 +685,7 @@ async def update_documents(
     },
 )
 async def get_documents(
-    _: Request,
+    request: Request,
     collection_name: str = os.getenv("COLLECTION_NAME", ""),
     vdb_endpoint: str = Query(
         default=os.getenv("APP_VECTORSTORE_URL"), include_in_schema=False
@@ -676,7 +693,9 @@ async def get_documents(
 ) -> DocumentListResponse:
     """Get list of document ingested in vectorstore."""
     try:
-        documents = NV_INGEST_INGESTOR.get_documents(collection_name, vdb_endpoint)
+        # Extract vdb auth token and pass through to backend
+        vdb_auth_token = _extract_vdb_auth_token(request)
+        documents = NV_INGEST_INGESTOR.get_documents(collection_name, vdb_endpoint, vdb_auth_token)
         return DocumentListResponse(**documents)
 
     except asyncio.CancelledError as e:
@@ -716,7 +735,7 @@ async def get_documents(
     },
 )
 async def delete_documents(
-    _: Request,
+    request: Request,
     document_names: list[str] = None,
     collection_name: str = os.getenv("COLLECTION_NAME"),
     vdb_endpoint: str = Query(
@@ -727,11 +746,14 @@ async def delete_documents(
         document_names = []
     """Delete a document from vectorstore."""
     try:
+        # Extract vdb auth token and pass through to backend
+        vdb_auth_token = _extract_vdb_auth_token(request)
         response = NV_INGEST_INGESTOR.delete_documents(
             document_names=document_names,
             collection_name=collection_name,
             vdb_endpoint=vdb_endpoint,
             include_upload_path=True,
+            vdb_auth_token=vdb_auth_token,
         )
         return DocumentListResponse(**response)
 
@@ -774,6 +796,7 @@ async def delete_documents(
     },
 )
 async def get_collections(
+    request: Request,
     vdb_endpoint: str = Query(
         default=os.getenv("APP_VECTORSTORE_URL"), include_in_schema=False
     ),
@@ -783,7 +806,9 @@ async def get_collections(
     Returns a list of collection names.
     """
     try:
-        response = NV_INGEST_INGESTOR.get_collections(vdb_endpoint)
+        # Extract vdb auth token and pass through to backend
+        vdb_auth_token = _extract_vdb_auth_token(request)
+        response = NV_INGEST_INGESTOR.get_collections(vdb_endpoint, vdb_auth_token)
         return CollectionListResponse(**response)
 
     except asyncio.CancelledError as e:
@@ -827,6 +852,7 @@ async def get_collections(
     description="This endpoint is deprecated. Use POST /collection instead. Custom metadata is not supported in this endpoint.",
 )
 async def create_collections(
+    request: Request,
     vdb_endpoint: str = Query(
         default=os.getenv("APP_VECTORSTORE_URL"), include_in_schema=False
     ),
@@ -845,8 +871,10 @@ async def create_collections(
         "Please use POST /collection instead. Custom metadata is not supported in this endpoint."
     )
     try:
+        # Extract vdb auth token and pass through to backend
+        vdb_auth_token = _extract_vdb_auth_token(request)
         response = NV_INGEST_INGESTOR.create_collections(
-            collection_names, vdb_endpoint, embedding_dimension
+            collection_names, vdb_endpoint, embedding_dimension, vdb_auth_token
         )
         return CollectionsResponse(**response)
 
@@ -888,17 +916,20 @@ async def create_collections(
         },
     },
 )
-async def create_collection(data: CreateCollectionRequest) -> CreateCollectionResponse:
+async def create_collection(request: Request, data: CreateCollectionRequest) -> CreateCollectionResponse:
     """
     Endpoint to create a collection from the Milvus server.
     Returns status message.
     """
     try:
+        # Extract vdb auth token and pass through to backend
+        vdb_auth_token = _extract_vdb_auth_token(request)
         response = NV_INGEST_INGESTOR.create_collection(
             collection_name=data.collection_name,
             vdb_endpoint=data.vdb_endpoint,
             embedding_dimension=data.embedding_dimension,
             metadata_schema=[field.model_dump() for field in data.metadata_schema],
+            vdb_auth_token=vdb_auth_token,
         )
         return CreateCollectionResponse(**response)
 
@@ -941,10 +972,11 @@ async def create_collection(data: CreateCollectionRequest) -> CreateCollectionRe
     },
 )
 async def delete_collections(
+    request: Request,
     vdb_endpoint: str = Query(
         default=os.getenv("APP_VECTORSTORE_URL"), include_in_schema=False
     ),
-    collection_names: list[str] = None,
+    collection_names: list[str] = Query(default=None),
 ) -> CollectionsResponse:
     if collection_names is None:
         collection_names = [os.getenv("COLLECTION_NAME")]
@@ -953,8 +985,10 @@ async def delete_collections(
     Returns status message.
     """
     try:
+        # Extract vdb auth token and pass through to backend
+        vdb_auth_token = _extract_vdb_auth_token(request)
         response = NV_INGEST_INGESTOR.delete_collections(
-            collection_names=collection_names, vdb_endpoint=vdb_endpoint
+            collection_names=collection_names, vdb_endpoint=vdb_endpoint, vdb_auth_token=vdb_auth_token
         )
         return CollectionsResponse(**response)
 
