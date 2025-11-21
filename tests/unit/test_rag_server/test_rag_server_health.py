@@ -31,7 +31,12 @@ from nvidia_rag.rag_server.health import (
     is_nvidia_api_catalog_url,
     print_health_report,
 )
-from nvidia_rag.utils.health_models import RAGHealthResponse
+from nvidia_rag.utils.health_models import (
+    DatabaseHealthInfo,
+    NIMServiceHealthInfo,
+    RAGHealthResponse,
+    StorageHealthInfo,
+)
 
 
 class MockAsyncContextManager:
@@ -351,22 +356,23 @@ class TestCheckAllServicesHealth:
         mock_vdb_op.check_health = AsyncMock(
             return_value={
                 "service": "Vector Store (milvus)",
+                "url": "http://milvus:19530",
                 "status": "healthy",
                 "latency_ms": 50,
             }
         )
 
-        # Create side effect function to return proper service health results
+        # Create side effect function to return proper service health results as Pydantic models
         def mock_service_health_side_effect(*args, **kwargs):
             service_name = kwargs.get(
                 "service_name", args[1] if len(args) > 1 else "Unknown"
             )
-            return {
-                "service": service_name,
-                "status": "healthy",
-                "latency_ms": 100,
-                "url": args[0] if args else "http://localhost:8000",
-            }
+            return NIMServiceHealthInfo(
+                service=service_name,
+                status="healthy",
+                latency_ms=100,
+                url=args[0] if args else "http://localhost:8000",
+            )
 
         with patch.dict(
             os.environ,
@@ -384,11 +390,12 @@ class TestCheckAllServicesHealth:
                     "nvidia_rag.rag_server.health.check_service_health",
                     side_effect=mock_service_health_side_effect,
                 ):
-                    # Setup mock returns
-                    mock_minio.return_value = {
-                        "service": "MinIO",
-                        "status": "healthy",
-                    }
+                    # Setup mock returns as Pydantic model
+                    mock_minio.return_value = StorageHealthInfo(
+                        service="MinIO",
+                        url="http://minio:9000",
+                        status="healthy",
+                    )
 
                     result = await check_all_services_health(mock_vdb_op, mock_config)
 
@@ -412,10 +419,12 @@ class TestCheckAllServicesHealth:
 
         mock_vdb_op = MagicMock()
         mock_vdb_op.check_health = AsyncMock(
-            return_value={"service": "Vector Store", "status": "healthy"}
+            return_value={"service": "Vector Store", "url": "http://vectordb:19530", "status": "healthy"}
         )
 
-        with patch("nvidia_rag.rag_server.health.check_minio_health"):
+        with patch("nvidia_rag.rag_server.health.check_minio_health", return_value=StorageHealthInfo(
+            service="MinIO", url="http://minio:9000", status="healthy"
+        )):
             result = await check_all_services_health(mock_vdb_op, mock_config)
 
             nim_services = result.nim
@@ -445,20 +454,20 @@ class TestCheckAllServicesHealth:
 
         mock_vdb_op = MagicMock()
         mock_vdb_op.check_health = AsyncMock(
-            return_value={"service": "Vector Store", "status": "healthy"}
+            return_value={"service": "Vector Store", "url": "http://vectordb:19530", "status": "healthy"}
         )
 
-        # Create side effect function to return proper service health results
+        # Create side effect function to return proper service health results as Pydantic models
         def mock_service_health_side_effect(*args, **kwargs):
             service_name = kwargs.get(
                 "service_name", args[1] if len(args) > 1 else "Unknown"
             )
-            return {
-                "service": service_name,
-                "status": "healthy",
-                "latency_ms": 100,
-                "url": args[0] if args else "http://localhost:8000",
-            }
+            return NIMServiceHealthInfo(
+                service=service_name,
+                status="healthy",
+                latency_ms=100,
+                url=args[0] if args else "http://localhost:8000",
+            )
 
         with patch.dict(os.environ, {"ENABLE_REFLECTION": "false"}):
             with patch(
@@ -468,10 +477,11 @@ class TestCheckAllServicesHealth:
                     "nvidia_rag.rag_server.health.check_service_health",
                     side_effect=mock_service_health_side_effect,
                 ):
-                    mock_minio.return_value = {
-                        "service": "MinIO",
-                        "status": "healthy",
-                    }
+                    mock_minio.return_value = StorageHealthInfo(
+                        service="MinIO",
+                        url="http://minio:9000",
+                        status="healthy",
+                    )
 
                     result = await check_all_services_health(mock_vdb_op, mock_config)
 
@@ -494,19 +504,21 @@ class TestCheckAllServicesHealth:
             "Vector store connection failed"
         )
 
-        # Create side effect function to return proper service health results
+        # Create side effect function to return proper service health results as Pydantic models
         def mock_service_health_side_effect(*args, **kwargs):
             service_name = kwargs.get(
                 "service_name", args[1] if len(args) > 1 else "Unknown"
             )
-            return {
-                "service": service_name,
-                "status": "healthy",
-                "latency_ms": 100,
-                "url": args[0] if args else "http://localhost:8000",
-            }
+            return NIMServiceHealthInfo(
+                service=service_name,
+                status="healthy",
+                latency_ms=100,
+                url=args[0] if args else "http://localhost:8000",
+            )
 
-        with patch("nvidia_rag.rag_server.health.check_minio_health"):
+        with patch("nvidia_rag.rag_server.health.check_minio_health", return_value=StorageHealthInfo(
+            service="MinIO", url="http://minio:9000", status="healthy"
+        )):
             with patch(
                 "nvidia_rag.rag_server.health.check_service_health",
                 side_effect=mock_service_health_side_effect,
@@ -528,7 +540,7 @@ class TestCheckAllServicesHealth:
 
         mock_vdb_op = MagicMock()
         mock_vdb_op.check_health = AsyncMock(
-            return_value={"service": "Vector Store", "status": "healthy"}
+            return_value={"service": "Vector Store", "url": "http://vectordb:19530", "status": "healthy"}
         )
 
         result = await check_all_services_health(mock_vdb_op, mock_config)
@@ -543,23 +555,25 @@ class TestCheckAllServicesHealth:
 
         mock_vdb_op = MagicMock()
         mock_vdb_op.check_health = AsyncMock(
-            return_value={"service": "Vector Store", "status": "healthy"}
+            return_value={"service": "Vector Store", "url": "http://vectordb:19530", "status": "healthy"}
         )
 
-        # Create side effect function to return proper service health results
+        # Create side effect function to return proper service health results as Pydantic models
         def mock_service_health_side_effect(*args, **kwargs):
             service_name = kwargs.get(
                 "service_name", args[1] if len(args) > 1 else "Unknown"
             )
-            return {
-                "service": service_name,
-                "status": "healthy",
-                "latency_ms": 100,
-                "url": args[0] if args else "http://localhost:8000",
-            }
+            return NIMServiceHealthInfo(
+                service=service_name,
+                status="healthy",
+                latency_ms=100,
+                url=args[0] if args else "http://localhost:8000",
+            )
 
         with patch.dict(os.environ, {"NEMO_GUARDRAILS_URL": ""}):
-            with patch("nvidia_rag.rag_server.health.check_minio_health"):
+            with patch("nvidia_rag.rag_server.health.check_minio_health", return_value=StorageHealthInfo(
+                service="MinIO", url="http://minio:9000", status="healthy"
+            )):
                 with patch(
                     "nvidia_rag.rag_server.health.check_service_health",
                     side_effect=mock_service_health_side_effect,
@@ -620,9 +634,9 @@ class TestPrintHealthReport:
             print_health_report(health_results)
 
         assert "SERVICE HEALTH STATUS" in caplog.text
-        assert "Service 'Milvus' is healthy - Response time: 45ms" in caplog.text
-        assert "Service 'MinIO' is healthy - Response time: 120ms" in caplog.text
-        assert "Service 'LLM' is healthy - Response time: 250ms" in caplog.text
+        assert "Service 'Milvus' is healthy - Response time: 45.0ms" in caplog.text
+        assert "Service 'MinIO' is healthy - Response time: 120.0ms" in caplog.text
+        assert "Service 'LLM' is healthy - Response time: 250.0ms" in caplog.text
 
     def test_print_health_report_mixed_status(self, caplog):
         """Test printing report with mixed service status"""
@@ -695,7 +709,7 @@ class TestPrintHealthReport:
         with caplog.at_level(logging.INFO):
             print_health_report(health_results)
 
-        assert "Service 'LLM' is healthy - Response time: 0ms" in caplog.text
+        assert "Service 'LLM' is healthy - Response time: 0.0ms" in caplog.text
 
 
 class TestCheckAndPrintServicesHealth:

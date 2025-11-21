@@ -208,9 +208,8 @@ class NvidiaRAG:
 
     async def health(self, check_dependencies: bool = False) -> RAGHealthResponse:
         """Check the health of the RAG server."""
-        vdb_op = self.__prepare_vdb_op()
-
         if check_dependencies:
+            vdb_op = self.__prepare_vdb_op()
             return await check_all_services_health(vdb_op, self.config)
         
         return RAGHealthResponse(message="Service is up.")
