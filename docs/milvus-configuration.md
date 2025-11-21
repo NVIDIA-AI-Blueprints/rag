@@ -389,7 +389,6 @@ curl -N -X POST "$RAG_URL/v1/generate" \
 
 ### End-to-end examples
 - See `tests/integration/test_cases/milvus_vdb_auth.py` for integration tests covering denied/allowed access patterns with Milvus auth.
-- See `notebooks/milvus_vdb_auth.ipynb` for a runnable, step-by-step demo that creates users/roles, sets privileges, invokes Ingestor and RAG APIs with `Authorization` headers, and performs cleanup.
 
 ### Managing Milvus users and authentication
 
