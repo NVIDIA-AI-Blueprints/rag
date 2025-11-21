@@ -107,7 +107,7 @@ def get_nv_ingest_ingestor(
         "extract_audio_params": {"segment_audio": config.nv_ingest.segment_audio},
         "extract_page_as_image": config.nv_ingest.extract_page_as_image,
     }
-    if remove_extract_method or config.nv_ingest.pdf_extract_method in ["None", "none"]:
+    if remove_extract_method or config.nv_ingest.pdf_extract_method in [None, "None", "none"]:
         extract_kwargs.pop("extract_method")
     else:
         logger.info(

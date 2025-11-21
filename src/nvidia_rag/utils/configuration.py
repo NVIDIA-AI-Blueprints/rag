@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, SecretStr, field_validator, model_validator
 from pydantic import Field as PydanticField
 from pydantic.fields import FieldInfo
 
@@ -100,6 +100,15 @@ class VectorStoreConfig(_ConfigBase):
         env="APP_VECTORSTORE_URL",
         description="URL endpoint for the vector store service",
     )
+
+    @field_validator("name", "url", mode="before")
+    @classmethod
+    def normalize_string(cls, v: Any) -> Any:
+        """Normalize string fields by stripping whitespace and quotes."""
+        if isinstance(v, str):
+            return v.strip().strip('"').strip("'")
+        return v
+
     nlist: int = Field(
         default=64,
         env="APP_VECTORSTORE_NLIST",
@@ -145,15 +154,15 @@ class VectorStoreConfig(_ConfigBase):
         env="APP_VECTORSTORE_USERNAME",
         description="Username for vector store authentication",
     )
-    password: str = Field(
-        default="",
+    password: SecretStr | None = Field(
+        default=None,
         env="APP_VECTORSTORE_PASSWORD",
         description="Password for vector store authentication",
     )
 
     # API key authentication for vector store (used by Elasticsearch)
-    api_key: str = Field(
-        default="",
+    api_key: SecretStr | None = Field(
+        default=None,
         env="APP_VECTORSTORE_APIKEY",
         description="API key for vector store authentication (base64 form 'id:secret')",
     )
@@ -162,8 +171,8 @@ class VectorStoreConfig(_ConfigBase):
         env="APP_VECTORSTORE_APIKEY_ID",
         description="API key ID for vector store authentication",
     )
-    api_key_secret: str = Field(
-        default="",
+    api_key_secret: SecretStr | None = Field(
+        default=None,
         env="APP_VECTORSTORE_APIKEY_SECRET",
         description="API key secret for vector store authentication",
     )
@@ -182,6 +191,13 @@ class NvIngestConfig(_ConfigBase):
         env="APP_NVINGEST_MESSAGECLIENTPORT",
         description="Port for NV-Ingest message client",
     )
+
+    @field_validator("message_client_port")
+    @classmethod
+    def validate_port(cls, v: int) -> int:
+        if not (1 <= v <= 65535):
+            raise ValueError("Port must be between 1 and 65535")
+        return v
     extract_text: bool = Field(
         default=True,
         env="APP_NVINGEST_EXTRACTTEXT",
@@ -222,8 +238,8 @@ class NvIngestConfig(_ConfigBase):
         env="IMAGE_ELEMENTS_MODALITY",
         description="Modality for processing image elements",
     )
-    pdf_extract_method: str = Field(
-        default="None",
+    pdf_extract_method: str | None = Field(
+        default=None,
         env="APP_NVINGEST_PDFEXTRACTMETHOD",
         description="Method to use for PDF extraction",
     )
@@ -257,6 +273,24 @@ class NvIngestConfig(_ConfigBase):
         env="APP_NVINGEST_CAPTIONENDPOINTURL",
         description="API endpoint for caption generation service",
     )
+
+    @field_validator("caption_endpoint_url", mode="before")
+    @classmethod
+    def normalize_url(cls, v: Any) -> Any:
+        """Normalize URL fields by stripping whitespace/quotes and adding scheme."""
+        if isinstance(v, str):
+            v = v.strip().strip('"').strip("'")
+            if v and not v.startswith(("http://", "https://")):
+                return f"http://{v}"
+        return v
+
+    @model_validator(mode="after")
+    def validate_chunk_settings(self) -> "NvIngestConfig":
+        if self.chunk_overlap > self.chunk_size:
+            raise ValueError(
+                f"chunk_overlap ({self.chunk_overlap}) must be less than chunk_size ({self.chunk_size})"
+            )
+        return self
     enable_pdf_splitter: bool = Field(
         default=True,
         env="APP_NVINGEST_ENABLEPDFSPLITTER",
@@ -324,6 +358,20 @@ class ModelParametersConfig(_ConfigBase):
         description="Nucleus sampling threshold for token selection",
     )
 
+    @field_validator("temperature")
+    @classmethod
+    def validate_temperature(cls, v: float) -> float:
+        if v < 0.0:
+            raise ValueError("Temperature must be non-negative")
+        return v
+
+    @field_validator("top_p")
+    @classmethod
+    def validate_top_p(cls, v: float) -> float:
+        if not (0.0 <= v <= 1.0):
+            raise ValueError("top_p must be between 0.0 and 1.0")
+        return v
+
 
 class LLMConfig(_ConfigBase):
     """LLM configuration."""
@@ -346,6 +394,22 @@ class LLMConfig(_ConfigBase):
     parameters: ModelParametersConfig = PydanticField(
         default_factory=ModelParametersConfig, description="Model generation parameters"
     )
+
+    @field_validator("server_url", "model_name", "model_engine", mode="before")
+    @classmethod
+    def normalize_string(cls, v: Any) -> Any:
+        """Normalize string fields by stripping whitespace and quotes."""
+        if isinstance(v, str):
+            return v.strip().strip('"').strip("'")
+        return v
+
+    @field_validator("server_url")
+    @classmethod
+    def validate_url(cls, v: str) -> str:
+        """Ensure URL has a scheme."""
+        if v and not v.startswith(("http://", "https://")):
+            return f"http://{v}"
+        return v
 
     def get_model_parameters(self) -> dict:
         """Return model parameters as dict."""
@@ -376,6 +440,16 @@ class QueryRewriterConfig(_ConfigBase):
         env="ENABLE_QUERYREWRITER",
         description="Enable automatic query rewriting before retrieval",
     )
+
+    @field_validator("server_url", mode="before")
+    @classmethod
+    def normalize_url(cls, v: Any) -> Any:
+        """Normalize URL fields by stripping whitespace/quotes and adding scheme."""
+        if isinstance(v, str):
+            v = v.strip().strip('"').strip("'")
+            if v and not v.startswith(("http://", "https://")):
+                return f"http://{v}"
+        return v
 
 
 class FilterExpressionGeneratorConfig(_ConfigBase):
@@ -412,6 +486,16 @@ class FilterExpressionGeneratorConfig(_ConfigBase):
         description="Maximum tokens for filter expression generation",
     )
 
+    @field_validator("server_url", mode="before")
+    @classmethod
+    def normalize_url(cls, v: Any) -> Any:
+        """Normalize URL fields by stripping whitespace/quotes and adding scheme."""
+        if isinstance(v, str):
+            v = v.strip().strip('"').strip("'")
+            if v and not v.startswith(("http://", "https://")):
+                return f"http://{v}"
+        return v
+
 
 class TextSplitterConfig(_ConfigBase):
     """Text Splitter configuration."""
@@ -431,6 +515,14 @@ class TextSplitterConfig(_ConfigBase):
         env="APP_TEXTSPLITTER_CHUNKOVERLAP",
         description="Number of overlapping tokens between consecutive chunks",
     )
+
+    @model_validator(mode="after")
+    def validate_chunk_settings(self) -> "TextSplitterConfig":
+        if self.chunk_overlap > self.chunk_size:
+            raise ValueError(
+                f"chunk_overlap ({self.chunk_overlap}) must be less than chunk_size ({self.chunk_size})"
+            )
+        return self
 
 
 class EmbeddingConfig(_ConfigBase):
@@ -457,6 +549,16 @@ class EmbeddingConfig(_ConfigBase):
         description="URL endpoint for embedding service",
     )
 
+    @field_validator("server_url", mode="before")
+    @classmethod
+    def normalize_url(cls, v: Any) -> Any:
+        """Normalize URL fields by stripping whitespace/quotes and adding scheme."""
+        if isinstance(v, str):
+            v = v.strip().strip('"').strip("'")
+            if v and not v.startswith(("http://", "https://")):
+                return f"http://{v}"
+        return v
+
 
 class RankingConfig(_ConfigBase):
     """Ranking configuration."""
@@ -481,6 +583,16 @@ class RankingConfig(_ConfigBase):
         env="ENABLE_RERANKER",
         description="Enable reranking of retrieved documents before generation",
     )
+
+    @field_validator("server_url", mode="before")
+    @classmethod
+    def normalize_url(cls, v: Any) -> Any:
+        """Normalize URL fields by stripping whitespace/quotes and adding scheme."""
+        if isinstance(v, str):
+            v = v.strip().strip('"').strip("'")
+            if v and not v.startswith(("http://", "https://")):
+                return f"http://{v}"
+        return v
 
 
 class RetrieverConfig(_ConfigBase):
@@ -512,6 +624,35 @@ class RetrieverConfig(_ConfigBase):
         description="Retrieval pipeline to use (e.g., ranked_hybrid, dense, sparse)",
     )
 
+    @field_validator("nr_url", mode="before")
+    @classmethod
+    def normalize_url(cls, v: Any) -> Any:
+        """Normalize URL fields by stripping whitespace/quotes and adding scheme."""
+        if isinstance(v, str):
+            v = v.strip().strip('"').strip("'")
+            if v and not v.startswith(("http://", "https://")):
+                return f"http://{v}"
+        return v
+
+    @field_validator("vdb_top_k")
+    @classmethod
+    def validate_vdb_top_k(cls, v: int) -> int:
+        if v <= 0:
+            raise ValueError(
+                f"vdb_top_k must be greater than 0, got {v}. "
+                "Please provide a positive integer for the number of documents to retrieve from the vector database."
+            )
+        return v
+
+    @model_validator(mode="after")
+    def validate_reranker_top_k(self) -> "RetrieverConfig":
+        if self.vdb_top_k is not None and self.top_k > self.vdb_top_k:
+            raise ValueError(
+                f"reranker_top_k ({self.top_k}) must be less than or equal to vdb_top_k ({self.vdb_top_k}). "
+                "Please check your settings and try again."
+            )
+        return self
+
 
 class TracingConfig(_ConfigBase):
     """Tracing configuration."""
@@ -537,6 +678,16 @@ class TracingConfig(_ConfigBase):
         description="Directory for Prometheus multiprocess metrics",
     )
 
+    @field_validator("otlp_http_endpoint", mode="before")
+    @classmethod
+    def normalize_url(cls, v: Any) -> Any:
+        """Normalize URL fields by stripping whitespace/quotes and adding scheme."""
+        if isinstance(v, str):
+            v = v.strip().strip('"').strip("'")
+            if v and not v.startswith(("http://", "https://")):
+                return f"http://{v}"
+        return v
+
 
 class VLMConfig(_ConfigBase):
     """VLM configuration."""
@@ -558,6 +709,7 @@ class VLMConfig(_ConfigBase):
     )
     max_total_images: int = Field(
         default=4,
+        ge=0,
         env="APP_VLM_MAX_TOTAL_IMAGES",
         description="Maximum total images to process in a single request",
     )
@@ -577,6 +729,16 @@ class VLMConfig(_ConfigBase):
         description="Use VLM response directly as final answer without LLM refinement",
     )
 
+    @field_validator("server_url", mode="before")
+    @classmethod
+    def normalize_url(cls, v: Any) -> Any:
+        """Normalize URL fields by stripping whitespace/quotes and adding scheme."""
+        if isinstance(v, str):
+            v = v.strip().strip('"').strip("'")
+            if v and not v.startswith(("http://", "https://")):
+                return f"http://{v}"
+        return v
+
 
 class MinioConfig(_ConfigBase):
     """Minio configuration."""
@@ -586,13 +748,13 @@ class MinioConfig(_ConfigBase):
         env="MINIO_ENDPOINT",
         description="MinIO object storage endpoint",
     )
-    access_key: str = Field(
-        default="minioadmin",
+    access_key: SecretStr = Field(
+        default=SecretStr("minioadmin"),
         env="MINIO_ACCESSKEY",
         description="MinIO access key for authentication",
     )
-    secret_key: str = Field(
-        default="minioadmin",
+    secret_key: SecretStr = Field(
+        default=SecretStr("minioadmin"),
         env="MINIO_SECRETKEY",
         description="MinIO secret key for authentication",
     )
@@ -631,6 +793,16 @@ class SummarizerConfig(_ConfigBase):
         env="SUMMARY_LLM_TOP_P",
         description="Nucleus sampling threshold for summary generation",
     )
+
+    @field_validator("server_url", mode="before")
+    @classmethod
+    def normalize_url(cls, v: Any) -> Any:
+        """Normalize URL fields by stripping whitespace/quotes and adding scheme."""
+        if isinstance(v, str):
+            v = v.strip().strip('"').strip("'")
+            if v and not v.startswith(("http://", "https://")):
+                return f"http://{v}"
+        return v
 
 
 class MetadataConfig(_ConfigBase):
@@ -702,6 +874,16 @@ class ReflectionConfig(_ConfigBase):
         description="Minimum groundedness score for response to be considered factual",
     )
 
+    @field_validator("server_url", mode="before")
+    @classmethod
+    def normalize_url(cls, v: Any) -> Any:
+        """Normalize URL fields by stripping whitespace/quotes and adding scheme."""
+        if isinstance(v, str):
+            v = v.strip().strip('"').strip("'")
+            if v and not v.startswith(("http://", "https://")):
+                return f"http://{v}"
+        return v
+
 
 class NvidiaRAGConfig(_ConfigBase):
     """Main NVIDIA RAG configuration.
@@ -765,6 +947,16 @@ class NvidiaRAGConfig(_ConfigBase):
         env="TEMP_DIR",
         description="Temporary directory for file processing and storage",
     )
+
+    @field_validator("default_confidence_threshold")
+    @classmethod
+    def validate_confidence_threshold(cls, v: float) -> float:
+        if not (0.0 <= v <= 1.0):
+            raise ValueError(
+                f"confidence_threshold must be between 0.0 and 1.0, got {v}. "
+                "The confidence threshold represents the minimum relevance score required for documents to be included."
+            )
+        return v
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "NvidiaRAGConfig":
