@@ -4,9 +4,9 @@
 -->
 # Enable Audio Ingestion Support for NVIDIA RAG Blueprint
 
-Enabling audio ingestion support allows the [NVIDIA RAG Blueprint](./readme.md) system to process and transcribe audio files (.mp3 and .wav) during document ingestion. This enables better search and retrieval capabilities for audio content in your documents.
+Enabling audio ingestion support allows the [NVIDIA RAG Blueprint](readme.md) system to process and transcribe audio files (.mp3 and .wav) during document ingestion. This enables better search and retrieval capabilities for audio content in your documents.
 
-After you have [deployed the blueprint](readme.md#deployment-options-for-rag-blueprint), to enable audio ingestion support, follow these steps:
+After you have [deployed the blueprint](readme.md#deploy), to enable audio ingestion support, follow these steps:
 
 ## Using on-prem audio transcription model
 
@@ -40,9 +40,8 @@ After you have [deployed the blueprint](readme.md#deployment-options-for-rag-blu
    await upload_documents(collection_name="audio_data")
    ```
 
-:::{note}
-The audio transcription service requires GPU resources. Make sure you have sufficient GPU resources available before enabling this feature.
-:::
+> [!Note]
+> The audio transcription service requires GPU resources. Make sure you have sufficient GPU resources available before enabling this feature.
 
 ### Customizing GPU Usage for Audio Service (Optional)
 
@@ -66,9 +65,8 @@ deploy:
           capabilities: [gpu]
 ```
 
-:::{note}
-Ensure the specified GPU is available and has sufficient memory for the audio transcription model. The Riva ASR model typically requires at least 8GB of GPU memory.
-:::
+> [!Note]
+> Ensure the specified GPU is available and has sufficient memory for the audio transcription model. The Riva ASR model typically requires at least 8GB of GPU memory.
 
 ### Helm Flow
 
@@ -93,7 +91,7 @@ If you're using Helm for deployment, follow these steps to enable audio ingestio
 3. Apply the updated Helm chart by running the following code.
 
    ```bash
-   helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/0648981100760671/charts/nvidia-blueprint-rag-v2.4.0-dev.tgz \
+   helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.3.0.tgz \
     --username '$oauthtoken' \
     --password "${NGC_API_KEY}" \
     --set imagePullSecret.password=$NGC_API_KEY \
@@ -117,9 +115,8 @@ If you're using Helm for deployment, follow these steps to enable audio ingestio
       nv-ingest-riva-nim                  ClusterIP   10.103.184.78    <none>        9000/TCP,50051/TCP   4m27s
    ```
 
-:::{important}
-When using Helm deployment, the Riva NIM service requires an additional H100 or B200 GPU making the total GPU requirement to 9xH100 without MIG slicing.
-:::
+> [!Important]
+> When using Helm deployment, the Riva NIM service requires an additional H100 or B200 GPU making the total GPU requirement to 9xH100 without MIG slicing.
 
 ## Audio Segmentation:
 
@@ -141,4 +138,4 @@ export APP_NVINGEST_SEGMENTAUDIO=True
 - [Best Practices for Common Settings](accuracy_perf.md).
 - [RAG Pipeline Debugging Guide](debugging.md)
 - [Troubleshoot](troubleshooting.md)
-- [Notebooks](../notebooks/README.md)
+- [Notebooks](notebooks.md)

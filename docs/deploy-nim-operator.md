@@ -80,9 +80,7 @@ For other deployment options, refer to [Deployment Options](readme.md#deployment
 
    - **GPU Sharing with Dynamic Resource Allocation(DRA)**
 
-      :::{tip}
-      With DRA Setup, All NIM Service can run on 3 GPUs with atleast 80GB memory, it could be A100 or H100 or B200
-      :::
+      > [!TIP] With DRA Setup, All NIM Service can run on 3 GPUs with atleast 80GB memory, it could be A100 or H100 or B200
 
       - Prerequisite: [NVIDIA DRA Driver](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/25.3.4/dra-intro-install.html)
 
@@ -168,7 +166,7 @@ For other deployment options, refer to [Deployment Options](readme.md#deployment
 8. Use the following `values-nim-operator.yaml` to deploy the RAG with NIM Operator NIM Services
 
   ```sh
-  helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/0648981100760671/charts/nvidia-blueprint-rag-v2.4.0-dev.tgz \
+  helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.3.0.tgz \
   --username '$oauthtoken' \
   --password "${NGC_API_KEY}" \
   --set imagePullSecret.password=$NGC_API_KEY \
@@ -200,4 +198,4 @@ For Helm deployments, to port-forward the the [RAG UI](user-interface.md) servic
 - [RAG Pipeline Debugging Guide](debugging.md)
 - [Troubleshoot](troubleshooting.md)
 - [Best Practices for Common Settings](accuracy_perf.md).
-- [Notebooks](../notebooks/README.md)
+- [Notebooks](notebooks.md)

@@ -7,10 +7,10 @@
 The Vision-Language Model (VLM) inference feature in the [NVIDIA RAG Blueprint](readme.md) enhances the system's ability to understand and reason about visual content that is **automatically retrieved from the knowledge base**. Unlike traditional image upload systems, this feature operates on **image citations** that are internally discovered during the retrieval process.
 
 
-:::{warning}
-B200 GPUs are not supported for VLM based inferencing in RAG.
-For this feature, use H100 or A100 GPUs instead.
-:::
+> [!WARNING]
+>
+> B200 GPUs are not supported for VLM based inferencing in RAG.
+> For this feature, use H100 or A100 GPUs instead.
 
 
 
@@ -48,9 +48,8 @@ The VLM feature is particularly beneficial when your knowledge base contains:
 - **Mixed content documents**: PDFs containing both text and images
 - **Image-heavy content**: Catalogs, product documentation, visual guides
 
-:::{note}
-**Latency Impact**: Enabling VLM inference will increase response latency due to additional image processing and VLM model inference time. Consider this trade-off between accuracy and speed based on your use case requirements.
-:::
+> [!Note]
+> **Latency Impact**: Enabling VLM inference will increase response latency due to additional image processing and VLM model inference time. Consider this trade-off between accuracy and speed based on your use case requirements.
 
 ---
 
@@ -125,9 +124,8 @@ deploy:
           capabilities: [gpu]
 ```
 
-:::{note}
-Ensure the specified GPU is available and has sufficient memory for the VLM model.
-:::
+> [!Note]
+> Ensure the specified GPU is available and has sufficient memory for the VLM model.
 
 ---
 
@@ -172,10 +170,9 @@ Continue following the rest of the steps in [Deploy with Docker (NVIDIA-Hosted M
 
 ## Using Helm Chart Deployment
 
-:::{note}
-On prem deployment of the VLM model requires an additional 1xH100 or 1xB200 GPU in default deployment configuration.
-If MIG slicing is enabled on the cluster, ensure to assign a dedicated slice to the VLM. Check [mig-deployment.md](./mig-deployment.md) and  [values-mig.yaml](../deploy/helm/mig-slicing/values-mig.yaml) for more information.
-:::
+> [!Note]
+> On prem deployment of the VLM model requires an additional 1xH100 or 1xB200 GPU in default deployment configuration.
+> If MIG slicing is enabled on the cluster, ensure to assign a dedicated slice to the VLM. Check [mig-deployment.md](./mig-deployment.md) and  [values-mig.yaml](../deploy/helm/mig-slicing/values-mig.yaml) for more information.
 
 To enable VLM inference in Helm-based deployments, follow these steps:
 
@@ -189,7 +186,7 @@ To enable VLM inference in Helm-based deployments, follow these steps:
    APP_VLM_SERVERURL: "http://nim-vlm:8000/v1"  # Local VLM NIM endpoint
    ```
 
-  Also enable the `nim-vlm` helm chart
+  Also enable the `nim-vlm` service.
   ```yaml
   nim-vlm:
     enabled: true
@@ -200,7 +197,7 @@ To enable VLM inference in Helm-based deployments, follow these steps:
    Run the following command to upgrade or install your deployment:
 
    ```
-   helm upgrade --install rag -n <namespace> https://helm.ngc.nvidia.com/0648981100760671/charts/nvidia-blueprint-rag-v2.4.0-dev.tgz \
+   helm upgrade --install rag -n <namespace> https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.3.0.tgz \
      --username '$oauthtoken' \
      --password "${NGC_API_KEY}" \
      --set imagePullSecret.password=$NGC_API_KEY \
@@ -217,9 +214,9 @@ To enable VLM inference in Helm-based deployments, follow these steps:
     ```
 
 
-:::{note}
-For local VLM inference, ensure the VLM NIM service is running and accessible at the configured `APP_VLM_SERVERURL`. For remote endpoints, the `NGC_API_KEY` is required for authentication.
-:::
+> [!Note]
+> For local VLM inference, ensure the VLM NIM service is running and accessible at the configured `APP_VLM_SERVERURL`. For remote endpoints, the `NGC_API_KEY` is required for authentication.
+
 
 
 ### **When VLM Processing Occurs**
@@ -358,7 +355,7 @@ ENABLE_REFLECTION: "False"
 4) Apply or upgrade the release:
 
 ```bash
-helm upgrade --install rag -n <namespace> https://helm.ngc.nvidia.com/0648981100760671/charts/nvidia-blueprint-rag-v2.4.0-dev-rc1.tgz \
+helm upgrade --install rag -n <namespace> https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.3.0.tgz \
   --username '$oauthtoken' \
   --password "${NGC_API_KEY}" \
   --set imagePullSecret.password=$NGC_API_KEY \
@@ -366,15 +363,14 @@ helm upgrade --install rag -n <namespace> https://helm.ngc.nvidia.com/0648981100
   -f deploy/helm/nvidia-blueprint-rag/values.yaml
 ```
 
-:::{note}
-In this mode, the RAG server will use the VLM output as the final response. Keep the embedding and reranker services enabled as in the default chart configuration. If you use a local VLM, also set `APP_VLM_SERVERURL` (for example, `http://nim-vlm:8000/v1`) and enable the `nim-vlm` subchart as shown above.
-:::
+> [!Note]
+> In this mode, the RAG server will use the VLM output as the final response. Keep the embedding and reranker services enabled as in the default chart configuration. If you use a local VLM, also set `APP_VLM_SERVERURL` (for example, `http://nim-vlm:8000/v1`) and enable the `nim-vlm` subchart as shown above.
+
 
 ### Conversation history and context limitations
 
-:::{warning}
-Conversation history is not passed to the VLM. The VLM receives only the current prompt and the cited image(s), and its effective context window is limited. When `APP_VLM_RESPONSE_AS_FINAL_ANSWER` is set to `true` and the user query depends on prior turns or broader textual context, the VLM will not decontextualize the query and may produce incomplete or off-target answers.
-:::
+> [!Warning]
+> Conversation history is not passed to the VLM. The VLM receives only the current prompt and the cited image(s), and its effective context window is limited. When `APP_VLM_RESPONSE_AS_FINAL_ANSWER` is set to `true` and the user query depends on prior turns or broader textual context, the VLM will not decontextualize the query and may produce incomplete or off-target answers.
 
 Mitigations:
 - Rephrase or rewrite the user query to be self-contained before sending to the VLM (e.g., enable query rewriting upstream).

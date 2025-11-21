@@ -14,13 +14,11 @@ In this documentation you do the following:
 
 Requirements: An NVIDIA GPU and a valid `NGC_API_KEY`.
 
-:::{note}
-**Early Access**: Currently, `nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1` is in early access preview.
-:::
+> [!Note]
+> **Early Access**: Currently, `nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1` is in early access preview.
 
-:::{note}
+[!NOTE]
 **PDF Support Only**: The VLM embedding feature is currently only supported for PDF documents. Other document formats (Word, PowerPoint, etc.) are not supported with VLM embedding.
-:::
 
 ## Limitations
 
@@ -111,9 +109,8 @@ docker compose -f deploy/compose/docker-compose-ingestor-server.yaml up -d
 
 Extractor captures each page as a single image (`APP_NVINGEST_EXTRACTPAGEASIMAGE="True"`); embedder processes page images via `APP_NVINGEST_IMAGE_ELEMENTS_MODALITY="image"`. Other extraction types are disabled to avoid duplicating content.
 
-:::{note}
-Citations don't work in the `generate` and `search` APIs of the RAG server with this configuration.
-:::
+> [!NOTE]
+> Citations don't work in the `generate` and `search` APIs of the RAG server with this configuration.
 
 ```bash
 # Treat each page as a single image (turn off other extractors)
@@ -144,23 +141,20 @@ If you use a `.env` file, add the variables there instead of exporting them, the
 
 ## Using Helm chart deployment
 
-To deploy the VLM embedding service with Helm, update the image and model settings, set the corresponding environment variables, and then apply the chart with your updated `values.yaml`.
+To deploy the VLM embedding service with Helm, we need to enable the VLM embedding NIM service and update the corresponding environment variables to point to the VLM embeddding service.
 
-1. Update `deploy/helm/nvidia-blueprint-rag/values.yaml`:
+1. Update the following parameters in the [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml).:
 
 ```yaml
-# Enable VLM embedding NIM and set its image
+# Enable VLM embedding NIM
 nvidia-nim-llama-32-nemoretriever-1b-vlm-embed-v1:
   enabled: true
-  image:
-    repository: nvcr.io/nvidia/nemo-microservices/llama-3.2-nemoretriever-1b-vlm-embed-v1
-    tag: "1.7.0"
 
-# Optional: disable the default text embedding NIM
+# Optional: disable the default text embedding NIM to optimize GPU usage
 nvidia-nim-llama-32-nv-embedqa-1b-v2:
   enabled: false
 
-# Point services to the VLM embedding endpoint and model
+# Point services to the VLM embedding service and model name
 envVars:
   APP_EMBEDDINGS_SERVERURL: "nemoretriever-vlm-embedding-ms:8000"
   APP_EMBEDDINGS_MODELNAME: "nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1"
@@ -176,10 +170,10 @@ nv-ingest:
     EMBEDDING_NIM_MODEL_NAME: "nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1"
 ```
 
-2. Deploy the chart with the updated values:
+2. Update the deployment to reflect the changes with the following command.
 
 ```bash
-helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/0648981100760671/charts/nvidia-blueprint-rag-v2.4.0-dev.tgz \
+helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.3.0.tgz \
   --username '$oauthtoken' \
   --password "${NGC_API_KEY}" \
   --set imagePullSecret.password=$NGC_API_KEY \
@@ -227,4 +221,4 @@ nv-ingest:
 - [Best Practices for Common Settings](accuracy_perf.md).
 - [RAG Pipeline Debugging Guide](debugging.md)
 - [Troubleshoot](troubleshooting.md)
-- [Notebooks](../notebooks/README.md)
+- [Notebooks](notebooks.md)
