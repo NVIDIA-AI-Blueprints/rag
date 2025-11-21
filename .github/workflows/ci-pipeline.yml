@@ -512,6 +512,77 @@ jobs:
           cp tests/integration/integration_test.log logs/custom-prompt/ 2>/dev/null || true
 
       # ========================================================================
+      # MILVUS VDB AUTH VIA REST TESTS
+      # ========================================================================
+      - name: Configure Milvus VDB auth
+        run: |
+          echo "Configuring Milvus authentication and override compose..."
+          echo "APP_VECTORSTORE_USERNAME=root" >> $GITHUB_ENV
+          echo "APP_VECTORSTORE_PASSWORD=Milvus" >> $GITHUB_ENV
+          # Ensure milvus.yaml exists in tests/integration by copying from deploy/compose if missing
+          mkdir -p tests/integration
+          if [ ! -f tests/integration/milvus.yaml ]; then
+            docker cp milvus-standalone:/milvus/configs/milvus.yaml tests/integration/milvus.yaml
+          fi
+          echo "MILVUS_CONFIG_FILE=$(pwd)/tests/integration/milvus.yaml" >> $GITHUB_ENV
+          
+          cat > /tmp/vdb-auth-override.yaml << 'EOF'
+          services:
+            milvus:
+              volumes:
+                - ${MILVUS_CONFIG_FILE}:/milvus/configs/milvus.yaml
+          EOF
+      
+      - name: Restart vector database with auth
+        run: |
+          echo "Restarting vector database with authentication enabled..."
+          docker compose -f tests/integration/vectordb.yaml down || true
+          docker compose -f tests/integration/vectordb.yaml -f /tmp/vdb-auth-override.yaml up -d
+          echo "Waiting for Milvus services to be ready..."
+          sleep 30
+          docker ps
+          docker logs --tail 50 milvus-standalone || true
+          docker logs --tail 50 milvus-etcd || true
+          docker logs --tail 50 milvus-minio || true
+
+      - name: Restart services for Milvus VDB auth tests
+        env:
+          CI_NV_RAG_BLUEPRINT_KEY: ${{ secrets.CI_NV_RAG_BLUEPRINT_KEY }}
+        run: |
+          echo "Restarting rag/ingestor services to pick up Milvus auth configuration..."
+          docker compose -f deploy/compose/docker-compose-rag-server.yaml down || true
+          docker compose -f deploy/compose/docker-compose-ingestor-server.yaml down || true
+          sleep 5
+          docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d --build
+          docker compose -f deploy/compose/docker-compose-ingestor-server.yaml up -d --build
+          sleep 30
+          docker ps
+
+      - name: Run Milvus VDB Auth Through REST API tests
+        run: |
+          source venv/bin/activate
+          echo "Running Milvus VDB Auth Through REST API tests..."
+          python -m tests.integration.main --sequence milvus_vdb_auth_through_rest_api
+          echo "Milvus VDB Auth tests completed"
+
+      - name: Collect logs after Milvus VDB auth tests
+        if: always()
+        run: |
+          mkdir -p logs/milvus-vdb-auth
+          docker logs rag-server > logs/milvus-vdb-auth/rag-server.log 2>&1 || true
+          docker logs ingestor-server > logs/milvus-vdb-auth/ingestor-server.log 2>&1 || true
+          docker logs milvus-standalone > logs/milvus-vdb-auth/milvus.log 2>&1 || true
+          docker logs milvus-etcd > logs/milvus-vdb-auth/etcd.log 2>&1 || true
+          docker logs milvus-minio > logs/milvus-vdb-auth/minio.log 2>&1 || true
+          cp tests/integration/integration_test.log logs/milvus-vdb-auth/ 2>/dev/null || true
+      
+      - name: Delete Milvus VDB auth files
+        if: always()
+        run: |
+          rm -f /tmp/vdb-auth-override.yaml || true
+          rm -f tests/integration/milvus.yaml || true
+
+      # ========================================================================
       # OBSERVABILITY TESTS
       # ========================================================================
       
@@ -606,6 +677,7 @@ jobs:
           docker compose -f deploy/compose/docker-compose-ingestor-server.yaml down -v || true
           docker compose -f deploy/compose/docker-compose-rag-server.yaml down -v || true
           docker compose -f tests/integration/vectordb.yaml down -v || true
+          docker compose -f tests/integration/vectordb.yaml -f /tmp/vdb-auth-override.yaml down -v || true
           # Remove any remaining networks
           docker network prune -f || true
           # Clean up Docker system

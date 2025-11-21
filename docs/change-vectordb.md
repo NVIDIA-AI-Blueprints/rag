@@ -289,18 +289,6 @@ What the token represents depends on your Elasticsearch security setup:
 
 ### Ingestor Server examples (Elasticsearch)
 
-- Create a collection (bearer/API key as header):
-
-```bash
-curl -X POST "$INGESTOR_URL/v1/collection" \
-  -H "Authorization: Bearer ${ES_VDB_TOKEN}" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "collection_name": "es_demo_collection",
-    "embedding_dimension": 1536
-  }'
-```
-
 - List documents:
 
 ```bash
@@ -339,7 +327,7 @@ curl -X POST "$RAG_URL/v1/search" \
   }'
 ```
 
-- Generate (SSE):
+- Generate with streaming:
 
 ```bash
 curl -N -X POST "$RAG_URL/v1/generate" \
@@ -353,40 +341,6 @@ curl -N -X POST "$RAG_URL/v1/generate" \
     "reranker_top_k": 0,
     "vdb_top_k": 3
   }'
-```
-
-### Python (requests) examples
-
-```python
-import requests
-
-headers = {"Authorization": f"Bearer {ES_VDB_TOKEN}"}  # ES_VDB_TOKEN can be base64(id:secret) for ES API key
-
-# Create collection
-resp = requests.post(
-    f"{INGESTOR_URL}/v1/collection",
-    json={"collection_name": "es_demo_collection", "embedding_dimension": 1536},
-    headers=headers,
-    timeout=60,
-)
-resp.raise_for_status()
-
-# Search
-resp = requests.post(
-    f"{RAG_URL}/v1/search",
-    json={
-        "query": "what is vector search?",
-        "use_knowledge_base": True,
-        "collection_names": ["es_demo_collection"],
-        "vdb_endpoint": APP_VECTORSTORE_URL,
-        "reranker_top_k": 0,
-        "vdb_top_k": 3,
-    },
-    headers=headers,
-    timeout=60,
-)
-resp.raise_for_status()
-print(resp.json())
 ```
 
 ### Troubleshooting
