@@ -188,11 +188,26 @@ class MockNvidiaRAGIngestor:
         vdb_endpoint: str,
         embedding_dimension: int = 2048,
         metadata_schema: list = None,
+        description: str = "",
+        tags: list = None,
+        owner: str = "",
+        created_by: str = "",
+        business_domain: str = "",
+        status: str = "Active",
     ):
         """Mock create_collection method"""
         if self._create_collection_side_effect:
             return self._create_collection_side_effect(
-                collection_name, vdb_endpoint, embedding_dimension, metadata_schema
+                collection_name,
+                vdb_endpoint,
+                embedding_dimension,
+                metadata_schema,
+                description,
+                tags,
+                owner,
+                created_by,
+                business_domain,
+                status,
             )
         return {
             "message": f"Collection {collection_name} created successfully.",
@@ -667,7 +682,14 @@ class TestHealthEndpoint:
 
         # Validate NIM service health info structure
         for nim_health in response_data["nim"]:
-            required_nim_fields = ["service", "url", "status", "latency_ms", "error", "model"]
+            required_nim_fields = [
+                "service",
+                "url",
+                "status",
+                "latency_ms",
+                "error",
+                "model",
+            ]
             for field in required_nim_fields:
                 assert field in nim_health
 

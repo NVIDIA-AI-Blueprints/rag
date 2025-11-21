@@ -29,6 +29,7 @@ import logging
 import os
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
+from datetime import UTC, datetime
 from functools import wraps
 from typing import Any
 from uuid import uuid4
@@ -509,7 +510,7 @@ def validate_filter_expr(
 def process_filter_expr(
     filter_expr: str | list[dict[str, Any]],
     collection_name: str = "",
-    metadata_schema_data: list[dict] = None,
+    metadata_schema_data: list[dict] | None = None,
     is_generated_filter: bool = False,
     config: "configuration.NvidiaRAGConfig | None" = None,
 ) -> str | list[dict[str, Any]]:
@@ -611,6 +612,7 @@ def process_filter_expr(
         logger.error(f"Unsupported vector store: {config.vector_store.name}")
         return filter_expr if isinstance(filter_expr, str) else []
 
+
 def perform_document_info_aggregation(
     existing_info_value: dict[str, Any],
     new_info_value: dict[str, Any],
@@ -622,8 +624,100 @@ def perform_document_info_aggregation(
     result = {}
     all_keys = set(existing_info_value) | set(new_info_value)
     for key in all_keys:
-        if isinstance(existing_info_value.get(key, 0), dict) or isinstance(new_info_value.get(key, 0), dict):
-            result[key] = perform_document_info_aggregation(existing_info_value.get(key, {}), new_info_value.get(key, {}))
+        existing_val = existing_info_value.get(key)
+        new_val = new_info_value.get(key)
+
+        # Handle dictionaries recursively
+        if isinstance(existing_val, dict) or isinstance(new_val, dict):
+            result[key] = perform_document_info_aggregation(
+                existing_info_value.get(key, {}), new_info_value.get(key, {})
+            )
+        # Handle numeric values (aggregation)
+        elif isinstance(existing_val, int | float) and isinstance(new_val, int | float):
+            result[key] = existing_val + new_val
+        # Handle other types (prefer new value, fallback to existing)
         else:
-            result[key] = existing_info_value.get(key, 0) + new_info_value.get(key, 0)
+            result[key] = (
+                new_val
+                if new_val is not None
+                else (existing_val if existing_val is not None else 0)
+            )
     return result
+
+
+def get_current_timestamp() -> str:
+    """Get current timestamp in ISO 8601 format."""
+    return datetime.now(UTC).isoformat()
+
+
+def derive_boolean_flags(doc_type_counts: dict) -> dict:
+    """Derive boolean flags from document type counts."""
+    return {
+        "has_tables": doc_type_counts.get("table", 0) > 0,
+        "has_charts": doc_type_counts.get("chart", 0) > 0,
+        "has_images": doc_type_counts.get("image", 0) > 0,
+    }
+
+
+def create_catalog_metadata(
+    description: str = "",
+    tags: list[str] | None = None,
+    owner: str = "",
+    created_by: str = "",
+    business_domain: str = "",
+    status: str = "Active",
+) -> dict[str, Any]:
+    """Create catalog metadata dictionary for collection.
+
+    Args:
+        description: Human-readable description
+        tags: List of tags for categorization
+        owner: Owner team or person
+        created_by: Username/email of creator
+        business_domain: Business domain
+        status: Collection status
+
+    Returns:
+        Dictionary containing catalog metadata with timestamps
+    """
+    current_time = get_current_timestamp()
+    return {
+        "description": description,
+        "tags": tags or [],
+        "owner": owner,
+        "created_by": created_by,
+        "business_domain": business_domain,
+        "status": status,
+        "date_created": current_time,
+        "last_updated": current_time,
+    }
+
+
+def create_document_metadata(
+    filepath: str,
+    doc_type_counts: dict,
+    total_elements: int,
+    raw_text_elements_size: int,
+) -> dict[str, Any]:
+    """Create document metadata dictionary.
+
+    Args:
+        filepath: Full path to the document file
+        doc_type_counts: Dictionary of document type counts
+        total_elements: Total number of elements
+        raw_text_elements_size: Size of raw text elements
+
+    Returns:
+        Dictionary containing document metadata
+    """
+    file_extension = os.path.splitext(os.path.basename(filepath))[1][1:] or "unknown"
+    return {
+        "description": "",
+        "tags": [],
+        "document_type": file_extension,
+        "file_size": os.path.getsize(filepath),
+        "date_created": get_current_timestamp(),
+        "doc_type_counts": doc_type_counts,
+        "total_elements": total_elements,
+        "raw_text_elements_size": raw_text_elements_size,
+    }

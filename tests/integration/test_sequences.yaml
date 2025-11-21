@@ -2,7 +2,7 @@ sequences:
   basic:
     name: "Basic Integration Tests"
     description: "Core functionality tests excluding advanced features"
-    test_numbers: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 33, 34, 35, 36, 37, 38, 39, 40, 45, 46, 48, 49, 50, 51, 66, 67, 68, 69]
+    test_numbers: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 33, 34, 35, 36, 37, 38, 39, 40, 45, 46, 48, 49, 50, 51, 66, 67, 68, 69, 71]
     pre_sequence: [18]  # Cleanup collection before basic tests
     post_sequence: [16, 17, 18, 19, 47, 70]  # Cleanup tests after sequence
 
