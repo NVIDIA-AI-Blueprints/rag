@@ -2,7 +2,7 @@
   SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
   SPDX-License-Identifier: Apache-2.0
 -->
-# Get Started With NVIDIA RAG Blueprint
+# Get Started With the NVIDIA RAG Blueprint
 
 Use the following documentation to get started quickly with the [NVIDIA RAG Blueprint](readme.md).
 In this walkthrough you deploy the NVIDIA RAG Blueprint with Docker Compose for a single node deployment, and using self-hosted on-premises models.
