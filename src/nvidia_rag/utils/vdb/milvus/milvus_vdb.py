@@ -469,9 +469,7 @@ class MilvusVDB(Milvus, VDBRag):
         for source_value in source_values:
             # Delete Milvus Entities
             logger.info(
-                f"Deleting document {source_value} from collection {
-                    collection_name
-                } at {self.vdb_endpoint}"
+                f"Deleting document {source_value} from collection {collection_name} at {self.vdb_endpoint}"
             )
             try:
                 resp = collection.delete(f"source['source_name'] == '{source_value}'")
@@ -481,9 +479,7 @@ class MilvusVDB(Milvus, VDBRag):
                 )
             except MilvusException:
                 logger.debug(
-                    f"Failed to delete document {
-                        source_value
-                    }, source name might be available in the source field"
+                    f"Failed to delete document {source_value}, source name might be available in the source field"
                 )
                 resp = collection.delete(f"source == '{source_value}'")
             deleted = True
@@ -561,9 +557,7 @@ class MilvusVDB(Milvus, VDBRag):
         }
         client.insert(collection_name=DEFAULT_METADATA_SCHEMA_COLLECTION, data=data)
         logger.info(
-            f"Metadata schema added to the collection {
-                collection_name
-            }. Metadata schema: {metadata_schema}"
+            f"Metadata schema added to the collection {collection_name}. Metadata schema: {metadata_schema}"
         )
 
     def get_metadata_schema(
@@ -680,9 +674,7 @@ class MilvusVDB(Milvus, VDBRag):
         }
         client.insert(collection_name=DEFAULT_DOCUMENT_INFO_COLLECTION, data=data)
         logger.info(
-            f"Document info added to the collection {
-                collection_name
-            }. Document info: {info_type}, {document_name}, {info_value}"
+            f"Document info added to the collection {collection_name}. Document info: {info_type}, {document_name}, {info_value}"
         )
     
     def get_document_info(
