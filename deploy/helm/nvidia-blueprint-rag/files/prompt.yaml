@@ -265,7 +265,7 @@ iterative_summary_prompt:
 
 vlm_template:
   system: |
-    /think
+    /no_think
 
   human: |
     You are a multimodal AI assistant. Answer using only the provided context and images.
