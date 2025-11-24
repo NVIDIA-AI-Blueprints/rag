@@ -2146,25 +2146,25 @@ class NvidiaRAG:
             )
 
         except requests.exceptions.ConnectionError as e:
-            if "HTTPConnectionPool" in str(e):
-                logger.exception(
-                    "Connection pool error while connecting to service: %s", e
-                )
-                return RAGResponse(
-                    generate_answer(
-                        iter(
-                            [
-                                "Connection error: Failed to connect to service. Please verify if all required NIMs are running and accessible."
-                            ]
-                        ),
-                        [],
-                        model=model,
-                        collection_name=collection_name,
-                        enable_citations=enable_citations,
-                        otel_metrics_client=metrics,
+            #if "HTTPConnectionPool" in str(e):
+            logger.exception(
+                "Connection pool error while connecting to service: %s", e
+            )
+            return RAGResponse(
+                generate_answer(
+                    iter(
+                        [
+                            "Connection error: Failed to connect to service. Please verify if all required NIMs are running and accessible."
+                        ]
                     ),
-                    status_code=ErrorCodeMapping.SERVICE_UNAVAILABLE,
-                )
+                    [],
+                    model=model,
+                    collection_name=collection_name,
+                    enable_citations=enable_citations,
+                    otel_metrics_client=metrics,
+                ),
+                status_code=ErrorCodeMapping.SERVICE_UNAVAILABLE,
+            )
 
         except Exception as e:
             # Extract just the error type and message for cleaner logs
