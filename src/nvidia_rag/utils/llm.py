@@ -205,7 +205,9 @@ def get_llm(config: NvidiaRAGConfig | None = None, **kwargs) -> LLM | SimpleChat
         # Enable and configure thinking mode if token limits provided or min > 0
         min_think = kwargs.get("min_thinking_tokens", None)
         max_think = kwargs.get("max_thinking_tokens", None)
-        enable_thinking = (max_think is not None and max_think > 0) or (
+        enable_thinking = (
+            max_think is not None and max_think > 0
+        ) or (
             min_think is not None and min_think > 0
         )
         if enable_thinking:

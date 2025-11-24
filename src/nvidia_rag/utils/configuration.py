@@ -318,6 +318,16 @@ class ModelParametersConfig(_ConfigBase):
         env="LLM_MIN_TOKENS",
         description="Minimum number of tokens to generate in response",
     )
+    max_thinking_tokens: int = Field(
+        default=128000,
+        env="LLM_MAX_THINKING_TOKENS",
+        description="Maximum thinking tokens to allocate for reasoning models",
+    )
+    min_thinking_tokens: int = Field(
+        default=1,
+        env="LLM_MIN_THINKING_TOKENS",
+        description="Minimum thinking tokens to allocate for reasoning models",
+    )
     ignore_eos: bool = Field(
         default=False,
         env="LLM_IGNORE_EOS",
@@ -363,6 +373,8 @@ class LLMConfig(_ConfigBase):
             "min_tokens": self.parameters.min_tokens,
             "ignore_eos": self.parameters.ignore_eos,
             "max_tokens": self.parameters.max_tokens,
+            "min_thinking_tokens": self.parameters.min_thinking_tokens,
+            "max_thinking_tokens": self.parameters.max_thinking_tokens,
             "temperature": self.parameters.temperature,
             "top_p": self.parameters.top_p,
         }
