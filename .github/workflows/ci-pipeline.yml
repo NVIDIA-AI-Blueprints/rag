@@ -576,7 +576,7 @@ jobs:
           docker logs milvus-minio > logs/milvus-vdb-auth/minio.log 2>&1 || true
           cp tests/integration/integration_test.log logs/milvus-vdb-auth/ 2>/dev/null || true
       
-      - name: Revert Milvus VDB auth configuration
+      - name: Revert Milvus VDB auth configurations
         if: always()
         run: |
           rm -f tests/integration/milvus.yaml || true

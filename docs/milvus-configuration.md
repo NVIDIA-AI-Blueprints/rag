@@ -385,10 +385,6 @@ curl -N -X POST "$RAG_URL/v1/generate" \
 ### Notes and troubleshooting
 - If a user lacks privileges on the target collection, the API will return an authorization error (non-200 status). Grant the appropriate collection privileges to the user/role in Milvus (e.g., `Query`, `Search`, `DescribeCollection`, `Load`, `DropCollection`).
 - Header precedence: For Milvus, the VDB token provided at runtime via `Authorization` is used for the request. There is no need to configure `APP_VECTORSTORE_USERNAME`/`APP_VECTORSTORE_PASSWORD` for per-request auth when using headers.
-- Migration note: Request bodies and query parameters should not include `vdb_auth_token` anymore. Use the `Authorization` header.
-
-### End-to-end examples
-- See `tests/integration/test_cases/milvus_vdb_auth.py` for integration tests covering denied/allowed access patterns with Milvus auth.
 
 ### Managing Milvus users and authentication
 
