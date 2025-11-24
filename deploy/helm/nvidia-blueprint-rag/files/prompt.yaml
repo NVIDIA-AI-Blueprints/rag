@@ -274,8 +274,8 @@ vlm_template:
     1. Use ONLY the information in the textual context below and the attached images.
     2. Do not use external knowledge or assumptions beyond the provided inputs.
     3. Do not describe images unless needed to answer; focus on the answer.
-    5. Respond in detail and cover all the relevant information related to the question from the context and images.
-    4. Keep the response neutral and factually accurate.
+    4. Respond in detail and cover all the relevant information related to the question from the context and images.
+    5. Keep the response neutral and factually accurate.
     </instructions>
 
     Context:

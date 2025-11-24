@@ -168,21 +168,15 @@ envVars:
 
   ##===VLM Model specific configurations===
   ENABLE_VLM_INFERENCE: "false"
-  # Reasoning gate on VLM response
-  ENABLE_VLM_RESPONSE_REASONING: "false"
   # Max images sent to VLM per request (query + context)
-  APP_VLM_MAX_TOTAL_IMAGES: "4"
+  APP_VLM_MAX_TOTAL_IMAGES: "5"
   # VLM generation parameters
-  APP_VLM_MAX_TOKENS: "4096"
-  APP_VLM_TEMPERATURE: "0.7"
+  APP_VLM_MAX_TOKENS: "8192"
+  APP_VLM_TEMPERATURE: "0.1"
   APP_VLM_TOP_P: "1.0"
-  # Use VLM for final response generation
-  APP_VLM_RESPONSE_AS_FINAL_ANSWER: "false"
-  # Max number of query images to include in VLM input
-  APP_VLM_MAX_QUERY_IMAGES: "1"
-  # Max number of context images to include in VLM input
-  APP_VLM_MAX_CONTEXT_IMAGES: "1"
-  APP_VLM_SERVERURL: "http://nim-vlm:8000/v1"
+  # VLM server URL
+  APP_VLM_SERVERURL: "http://vlm-ms:8000/v1"
+  # VLM model name
   APP_VLM_MODELNAME: "nvidia/nemotron-nano-12b-v2-vl"
 
   # === Text Splitter ===

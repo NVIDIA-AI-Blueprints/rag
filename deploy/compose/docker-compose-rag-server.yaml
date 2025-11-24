@@ -96,16 +96,12 @@ services:
 
       ##===VLM Model specific configurations===
       ENABLE_VLM_INFERENCE: ${ENABLE_VLM_INFERENCE:-false}
-      # Reasoning gate on VLM response: off by default; enable to mitigate incorrect VLM outputs
-      ENABLE_VLM_RESPONSE_REASONING: ${ENABLE_VLM_RESPONSE_REASONING:-false}
       # Max images sent to VLM per request (query + context)
-      APP_VLM_MAX_TOTAL_IMAGES: ${APP_VLM_MAX_TOTAL_IMAGES:-4}
+      APP_VLM_MAX_TOTAL_IMAGES: ${APP_VLM_MAX_TOTAL_IMAGES:-5}
       # VLM generation parameters
-      APP_VLM_MAX_TOKENS: ${APP_VLM_MAX_TOKENS:-4096}
-      APP_VLM_TEMPERATURE: ${APP_VLM_TEMPERATURE:-0.7}
+      APP_VLM_MAX_TOKENS: ${APP_VLM_MAX_TOKENS:-8192}
+      APP_VLM_TEMPERATURE: ${APP_VLM_TEMPERATURE:-0.1}
       APP_VLM_TOP_P: ${APP_VLM_TOP_P:-1.0}
-      # Use VLM only for final response generation
-      APP_VLM_RESPONSE_AS_FINAL_ANSWER: ${APP_VLM_RESPONSE_AS_FINAL_ANSWER:-false}
       # VLM server URL
       APP_VLM_SERVERURL: ${APP_VLM_SERVERURL-"http://vlm-ms:8000/v1"}
       # VLM model name

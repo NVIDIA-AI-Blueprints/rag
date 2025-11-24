@@ -51,14 +51,14 @@ logger = getLogger(__name__)
 
 class VLM:
     """
-    Handles image analysis and response reasoning using a Visual Language Model (VLM).
+    Handles image analysis using a Vision-Language Model (VLM).
 
     Methods
     -------
     analyze_with_messages(docs, messages, context_text, question_text):
         Build a VLM prompt similar to RAG chain prompts and analyze images.
-    reason_on_vlm_response(question, vlm_response, docs, llm_settings):
-        Uses an LLM to reason about the VLM's response and decide if it should be used.
+    stream_with_messages(docs, messages, context_text, question_text):
+        Stream VLM tokens for a multimodal conversation plus context.
     """
 
     def __init__(
@@ -83,6 +83,11 @@ class VLM:
         self.config = config
         self.invoke_url = vlm_endpoint
         self.model_name = vlm_model
+        # Default VLM generation settings from configuration; can be overridden per call
+        self.temperature: float = self.config.vlm.temperature
+        self.top_p: float = self.config.vlm.top_p
+        self.max_tokens: int = self.config.vlm.max_tokens
+        self.max_total_images: int | None = self.config.vlm.max_total_images
         if not self.invoke_url or not self.model_name:
             raise OSError(
                 "VLM server URL and model name must be set in the environment."
@@ -431,10 +436,11 @@ class VLM:
         context_text: str | None = None,
         question_text: str | None = None,
         *,
-        temperature: float = 0.7,
-        top_p: float = 1.0,
-        max_tokens: int = 4096,
+        temperature: float | None = None,
+        top_p: float | None = None,
+        max_tokens: int | None = None,
         max_total_images: int | None = None,
+        **_: Any,
     ) -> str:
         """
         Send the full conversation messages to the VLM, appending any relevant images
@@ -458,6 +464,14 @@ class VLM:
             logger.warning("No messages provided for VLM analysis.")
             return ""
 
+        # Resolve effective settings (function overrides > instance defaults)
+        eff_temperature = temperature if temperature is not None else self.temperature
+        eff_top_p = top_p if top_p is not None else self.top_p
+        eff_max_tokens = max_tokens if max_tokens is not None else self.max_tokens
+        eff_max_total_images = (
+            max_total_images if max_total_images is not None else self.max_total_images
+        )
+
         vlm = self.init_model(self.model_name, self.invoke_url, api_key=os.getenv("NVIDIA_API_KEY"))
 
         (
@@ -470,7 +484,7 @@ class VLM:
             messages,
             context_text,
             question_text,
-            max_total_images=max_total_images,
+            max_total_images=eff_max_total_images,
         )
 
         lc_messages = self.assemble_messages(system_message, citations_instruct_user_message, chat_history_messages)
@@ -483,9 +497,9 @@ class VLM:
             vlm_response = self.invoke_model(
                 vlm,
                 lc_messages,
-                temperature=temperature,
-                top_p=top_p,
-                max_tokens=max_tokens,
+                temperature=eff_temperature,
+                top_p=eff_top_p,
+                max_tokens=eff_max_tokens,
             )
             logger.info(f"VLM Response: {vlm_response}")
             return str(vlm_response or "")
@@ -500,16 +514,25 @@ class VLM:
         context_text: str | None = None,
         question_text: str | None = None,
         *,
-        temperature: float = 0.7,
-        top_p: float = 1.0,
-        max_tokens: int = 4096,
+        temperature: float | None = None,
+        top_p: float | None = None,
+        max_tokens: int | None = None,
         max_total_images: int | None = None,
+        **_: Any,
     ):
         """
         Stream tokens from the VLM given full conversation and retrieved context.
         Yields incremental text chunks as they arrive.
         """
         try:
+            # Resolve effective settings (function overrides > instance defaults)
+            eff_temperature = temperature if temperature is not None else self.temperature
+            eff_top_p = top_p if top_p is not None else self.top_p
+            eff_max_tokens = max_tokens if max_tokens is not None else self.max_tokens
+            eff_max_total_images = (
+                max_total_images if max_total_images is not None else self.max_total_images
+            )
+
             vlm = self.init_model(self.model_name, self.invoke_url, api_key=os.getenv("NVIDIA_API_KEY"))
 
             (
@@ -522,7 +545,7 @@ class VLM:
                 messages,
                 context_text,
                 question_text,
-                max_total_images=max_total_images,
+                max_total_images=eff_max_total_images,
             )
 
             lc_messages = self.assemble_messages(system_message, citations_instruct_user_message, chat_history_messages)
@@ -534,9 +557,9 @@ class VLM:
             # Stream response chunks
             for chunk in vlm.stream(
                 lc_messages,
-                temperature=temperature,
-                top_p=top_p,
-                max_tokens=max_tokens,
+                temperature=eff_temperature,
+                top_p=eff_top_p,
+                max_tokens=eff_max_tokens,
             ):
                 try:
                     content = getattr(chunk, "content", None)

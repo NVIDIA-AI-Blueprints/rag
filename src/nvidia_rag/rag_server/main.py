@@ -1410,7 +1410,7 @@ class NvidiaRAG:
         reranker_model: str = "",
         reranker_endpoint: str | None = None,
         enable_vlm_inference: bool = False,
-        vlm_settings: dict[str, Any] = {},
+        vlm_settings: dict[str, Any] | None = None,
         model: str = "",
         enable_query_rewriting: bool = False,
         enable_citations: bool = True,
@@ -1941,6 +1941,8 @@ class NvidiaRAG:
                 )
 
             if enable_vlm_inference or is_image_query:
+                # Initialize vlm_settings if not provided
+                vlm_settings = vlm_settings or {}
                 # Fast pre-check: skip VLM entirely if no images in query or context
                 has_images_in_query = self._contains_images(query)
                 has_images_in_history = any(
@@ -1962,7 +1964,12 @@ class NvidiaRAG:
                 if has_images_in_messages or has_images_in_context or is_image_query:
                     logger.info("Calling VLM to analyze images cited in the context")
                     try:
-                        vlm = VLM(**vlm_settings)
+                        vlm_model_cfg = vlm_settings.get("vlm_model", self.config.vlm.model_name)
+                        vlm_endpoint_cfg = vlm_settings.get("vlm_endpoint", self.config.vlm.server_url)
+                        vlm = VLM(
+                            vlm_model=vlm_model_cfg,
+                            vlm_endpoint=vlm_endpoint_cfg,
+                        )
                         # Build full messages: prior history + current query as a final user turn
                         vlm_messages = list(chat_history or []) + [
                             {"role": "user", "content": query}
@@ -1980,7 +1987,12 @@ class NvidiaRAG:
                                     messages=vlm_messages,
                                     context_text=vlm_text_context,
                                     question_text=self._extract_text_from_content(query),
-                                    **vlm_settings,
+                                    temperature=vlm_settings.get("vlm_temperature", self.config.vlm.temperature),
+                                    top_p=vlm_settings.get("vlm_top_p", self.config.vlm.top_p),
+                                    max_tokens=vlm_settings.get("vlm_max_tokens", self.config.vlm.max_tokens),
+                                    max_total_images=vlm_settings.get(
+                                        "vlm_max_total_images", self.config.vlm.max_total_images
+                                    ),
                                 ),
                                 context_to_show,
                                 model=model,
@@ -2173,8 +2185,11 @@ class NvidiaRAG:
                 )
             elif "[404] Not Found" in str(e):
                 # Check if this is a VLM-related error
-                if enable_vlm_inference and vlm_model:
-                    error_msg = f"VLM model '{vlm_model}' not found. Please verify the VLM model name and ensure it's available in your NVIDIA API account."
+                if enable_vlm_inference and self.config.vlm.model_name:
+                    error_msg = (
+                        f"VLM model '{self.config.vlm.model_name}' not found. "
+                        "Please verify the VLM model name and ensure it's available in your NVIDIA API account."
+                    )
                     logger.warning(f"VLM model not found: {error_msg}")
                 else:
                     error_msg = "Model or endpoint not found. Please verify the API endpoint and your payload. Ensure that the model name is valid."
