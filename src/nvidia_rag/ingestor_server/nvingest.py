@@ -20,6 +20,7 @@ This is the module for NV-Ingest client wrapper.
 
 import logging
 import os
+import time
 
 from nv_ingest_client.client import Ingestor, NvIngestClient
 
@@ -28,6 +29,95 @@ from nvidia_rag.utils.configuration import NvidiaRAGConfig
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
 
 logger = logging.getLogger(__name__)
+
+
+def _patched_wait_for_index(collection_name: str, num_elements: int, client):
+    """
+    Patched version of wait_for_index that fixes the race condition bug.
+    
+    The original function fails because it captures already_indexed_rows AFTER flush,
+    by which time some/all new rows might already be indexed.
+    
+    This version:
+    1. Captures the indexed row count BEFORE flush (proper baseline)
+    2. Uses >= comparison to handle edge cases
+    """
+    from pymilvus import utility
+    
+    index_names = utility.list_indexes(collection_name)
+    
+    # FIXED: Capture the indexed row count BEFORE flush
+    # This gives us the correct baseline before indexing starts
+    pre_flush_counts = {}
+    for index_name in index_names:
+        pre_flush_counts[index_name] = client.describe_index(collection_name, index_name)["indexed_rows"]
+        logger.info(
+            f"Pre-flush indexed rows for {collection_name}, {index_name}: {pre_flush_counts[index_name]}"
+        )
+    
+    # Now flush to trigger indexing
+    client.flush(collection_name)
+    
+    indexed_rows = 0
+    for index_name in index_names:
+        indexed_rows = 0
+        already_indexed_rows = pre_flush_counts[index_name]  # Use pre-flush count as baseline
+        target_rows = already_indexed_rows + num_elements
+        
+        logger.info(
+            f"Waiting for index: {collection_name}, {index_name} - "
+            f"baseline: {already_indexed_rows}, inserting: {num_elements}, target: {target_rows}"
+        )
+        
+        while indexed_rows < target_rows:
+            pos_movement = 10  # number of iterations allowed without noticing an increase in indexed_rows
+            for i in range(20):
+                new_indexed_rows = client.describe_index(collection_name, index_name)["indexed_rows"]
+                time.sleep(1)
+                logger.info(
+                    f"polling for indexed rows, {collection_name}, {index_name} - {new_indexed_rows} / {target_rows}"
+                )
+                # FIXED: Use >= instead of == to handle edge cases
+                if new_indexed_rows >= target_rows:
+                    indexed_rows = new_indexed_rows
+                    logger.info(
+                        f"Indexing complete for {collection_name}, {index_name}: {new_indexed_rows} rows indexed"
+                    )
+                    break
+                # check if indexed_rows is staying the same, too many times means something is wrong
+                if new_indexed_rows == indexed_rows:
+                    pos_movement -= 1
+                else:
+                    pos_movement = 10
+                # if pos_movement is 0, raise an error, means the rows are not getting indexed as expected
+                if pos_movement == 0:
+                    raise ValueError(
+                        f"Rows are not getting indexed as expected. "
+                        f"Current: {new_indexed_rows}, Target: {target_rows}, "
+                        f"Pre-flush baseline: {already_indexed_rows}, "
+                        f"Elements to insert: {num_elements}"
+                    )
+                indexed_rows = new_indexed_rows
+    return indexed_rows
+
+
+def _apply_wait_for_index_patch():
+    """
+    Apply monkey-patch to fix the wait_for_index race condition in nv_ingest_client.
+    This should be called once before any ingestion operations.
+    """
+    try:
+        import nv_ingest_client.util.vdb.milvus as milvus_module
+        milvus_module.wait_for_index = _patched_wait_for_index
+        logger.info("Successfully applied wait_for_index patch to nv_ingest_client")
+    except ImportError:
+        logger.warning("Could not import nv_ingest_client.util.vdb.milvus for patching")
+    except Exception as e:
+        logger.warning(f"Failed to apply wait_for_index patch: {e}")
+
+
+# Apply the patch when this module is loaded
+_apply_wait_for_index_patch()
 
 
 def get_nv_ingest_client(config: NvidiaRAGConfig = None):
