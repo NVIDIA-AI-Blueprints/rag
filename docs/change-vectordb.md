@@ -124,7 +124,7 @@ You should see a response that indicates the cluster status is green or yellow, 
 
 
 
-# Define Your Own Vector Database
+## Define Your Own Vector Database
 
 You can create your own custom vector database operators by implementing the `VDBRag` base class.
 This enables you to integrate with any vector database that isn't already supported.
@@ -548,7 +548,7 @@ If you encounter issues during deployment:
    helm template rag nvidia-blueprint-rag/ -f nvidia-blueprint-rag/values.yaml
    ```
 
-# Implement Retrieval-Only Vector Database Integration
+## Implement Retrieval-Only Vector Database Integration
 
 You can integrate your own vector database with NVIDIA RAG by implementing only the retrieval functionality while managing ingestion separately. This approach allows you to use existing RAG server, [RAG UI](user-interface.md), and ingestor server components with your custom vector database backend.
 

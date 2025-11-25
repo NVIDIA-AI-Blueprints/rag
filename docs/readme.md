@@ -5,11 +5,11 @@
 :orphan:
 # NVIDIA RAG Blueprint Documentation
 
-Welcome to the [NVIDIA RAG Blueprint](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/README.md) documentation. 
+Welcome to the NVIDIA RAG Blueprint documentation. 
 You can learn more here, including how to get started with the RAG Blueprint, how to customize the RAG Blueprint, and how to troubleshoot the RAG Blueprint.
 
-- To view this documentation on docs.nvidia.com, browse to [NVIDIA RAG Blueprint Documentation](https://docs.nvidia.com/rag/latest/).
-- To view this documentation on GitHub, browse to [NVIDIA RAG Blueprint Documentation](readme.md).
+- To view this documentation on docs.nvidia.com, browse to [NVIDIA RAG Blueprint Documentation](https://docs.nvidia.com/rag/latest/index.html).
+- To view this documentation on GitHub, browse to [NVIDIA RAG Blueprint Documentation](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/docs/readme.md).
 
 
 ## Release Notes
