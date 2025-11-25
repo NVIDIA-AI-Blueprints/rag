@@ -88,6 +88,10 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
     - [VLM based inferencing in RAG](vlm.md)
 
 
+- Evaluation
+
+    - [Evaluate Your NVIDIA RAG Blueprint System](evaluate.md)
+
 - Governance
 
     - [NeMo Guardrails for input/output](nemo-guardrails.md)
@@ -220,6 +224,16 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
 
    Image Captioning <image_captioning.md>
    VLM-based Inferencing <vlm.md>
+```
+
+
+```{toctree}
+   :name: Evaluation
+   :caption: Evaluation
+   :maxdepth: 1
+   :hidden:
+
+   Evaluate Your RAG System <evaluate.md>
 ```
 
 
