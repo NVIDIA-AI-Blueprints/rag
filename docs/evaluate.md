@@ -4,7 +4,7 @@
 -->
 # Evaluate Your NVIDIA RAG Blueprint System
 
-After you set up your [NVIDIA RAG Blueprint](readme.md#deployment-options-for-rag-blueprint) system,
+After you [deploy your NVIDIA RAG Blueprint system](readme.md#deployment-options-for-rag-blueprint),
 you can evaluate it by using metrics specifically designed for Large Language Model (LLM) Applications.
 
 
