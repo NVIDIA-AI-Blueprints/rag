@@ -70,7 +70,7 @@ In case you are [interacting with cloud hosted models](deploy-docker-nvidia-host
    ```
 :::
 
-# Enable text only ingestion support in Helm
+## Enable text only ingestion support in Helm
 
 
 To ingest text-only files, you do not need to deploy the complete pipeline with all NIMs connected.
