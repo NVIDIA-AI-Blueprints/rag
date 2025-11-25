@@ -88,6 +88,11 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
     - [VLM based inferencing in RAG](vlm.md)
 
 
+- Evaluation
+
+    - [Evaluate Your NVIDIA RAG Blueprint System](evaluate.md)
+
+
 - Governance
 
     - [NeMo Guardrails for input/output](nemo-guardrails.md)
