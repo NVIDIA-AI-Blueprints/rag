@@ -5,11 +5,11 @@
 <!-- -->
 # NVIDIA RAG Blueprint Documentation
 
-Welcome to the [NVIDIA RAG Blueprint](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/README.md) documentation. 
+Welcome to the NVIDIA RAG Blueprint documentation. 
 You can learn more here, including how to get started with the RAG Blueprint, how to customize the RAG Blueprint, and how to troubleshoot the RAG Blueprint.
 
-- To view this documentation on docs.nvidia.com, browse to [NVIDIA RAG Blueprint Documentation](https://docs.nvidia.com/rag/latest/).
-- To view this documentation on GitHub, browse to [NVIDIA RAG Blueprint Documentation](readme.md).
+- To view this documentation on docs.nvidia.com, browse to [NVIDIA RAG Blueprint Documentation](https://docs.nvidia.com/rag/latest/index.html).
+- To view this documentation on GitHub, browse to [NVIDIA RAG Blueprint Documentation](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/docs/readme.md).
 
 
 ## Release Notes
@@ -141,7 +141,7 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
    :hidden:
 
    Get an API Key <api-key.md>
-   Deploy with Docker (Self-Hosted Models) <deploy-docker-self-hosted.md>
+   Get Started with the RAG Blueprint <deploy-docker-self-hosted.md>
    Web User Interface <user-interface.md>
    Notebooks <notebooks.md>
 ```
@@ -153,6 +153,7 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
    :maxdepth: 1
    :hidden:
 
+   Deploy with Docker (Self-Hosted Models) <deploy-docker-self-hosted.md>
    Deploy with Docker (NVIDIA-Hosted Models) <deploy-docker-nvidia-hosted.md>
    Deploy on Kubernetes with Helm <deploy-helm.md>
    Deploy on Kubernetes with Helm from the repository <deploy-helm-from-repo.md>
@@ -168,22 +169,22 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
    :hidden:
 
    Best Practices for Common Settings <accuracy_perf.md>
-   Change the LLM or Embedding Model <change-model.md>
-   Customize LLM Parameters at Runtime <llm-params.md>
+   Change the Model <change-model.md>
+   Customize Parameters <llm-params.md>
    Customize Prompts <prompt-customization.md>
-   Model Profiles for Hardware Configurations <model-profiles.md>
+   Model Profiles <model-profiles.md>
    Multi-Collection Retrieval <multi-collection-retrieval.md>
    Multi-Turn Conversation Support <multiturn.md>
    Query Rewriting<query_rewriter.md>
-   Reasoning in Nemotron LLM model <enable-nemotron-thinking.md>
+   Reasoning <enable-nemotron-thinking.md>
    Self-reflection <self-reflection.md>
    Summarization <summarization.md>
 ```
 
 
 ```{toctree}
-   :name: Data Ingestion & Processing
-   :caption: Data Ingestion & Processing
+   :name: Data Ingestion and Processing
+   :caption: Data Ingestion and Processing
    :maxdepth: 1
    :hidden:
 
@@ -192,9 +193,9 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
    Enhanced PDF Extraction <nemoretriever-parse-extraction.md>
    File System Access to Results <mount-ingestor-volume.md>
    Multimodal Embedding Support (Early Access) <vlm-embed.md>
-   NeMo Retriever OCR(Early Access) <nemoretriever-ocr.md>
+   NeMo Retriever OCR (Early Access) <nemoretriever-ocr.md>
+   Standalone NV-Ingest <nv-ingest-standalone.md>
    Text-Only Ingestion <text_only_ingest.md>
-   Deploy NV-Ingest Standalone <nv-ingest-standalone.md>
 ```
 
 
@@ -217,8 +218,8 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
    :maxdepth: 1
    :hidden:
 
-   Image Captioning<image_captioning.md>
-   VLM-based Inferencing<vlm.md>
+   Image Captioning <image_captioning.md>
+   VLM-based Inferencing <vlm.md>
 ```
 
 
@@ -228,7 +229,7 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
    :maxdepth: 1
    :hidden:
 
-   NeMo Guardrails<nemo-guardrails.md>
+   NeMo Guardrails <nemo-guardrails.md>
 ```
 
 
@@ -250,7 +251,7 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
 
    Troubleshoot <troubleshooting.md>
    RAG Pipeline Debugging Guide <debugging.md>
-   Migrate from a Previous Version <migration_guide.md>
+   Migration Guide <migration_guide.md>
 ```
 
 
@@ -261,7 +262,7 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
    :hidden:
 
    Use the Python Client <python-client.md>
-   Milvus Collection Schema<milvus-schema.md>
+   Milvus Collection Schema <milvus-schema.md>
    API - Ingestor Server Schema <api-ingestor.md>
    API - RAG Server Schema <api-rag.md>
 ```
