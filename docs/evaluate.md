@@ -5,12 +5,12 @@
 # Evaluate Your NVIDIA RAG Blueprint System
 
 After you set up your [NVIDIA RAG Blueprint](readme.md#deployment-options-for-rag-blueprint) system,
-you can evaluate it by using TODO
+you can evaluate it by using metrics specifically designed for Large Language Model (LLM) Applications.
 
 
 ## Ragas Metrics
 
-Ragas provides a set of metrics that you can use to evaluate the performance of your LLM application. 
+[Ragas](https://docs.ragas.io/en/stable/) provides a set of metrics that you can use to evaluate the performance of your LLM application. 
 These metrics are designed to help you objectively measure the performance of your application, and include the following:
 
 - **Answer Accuracy** – Measures the agreement between a model’s response and a reference ground truth for a given question.
