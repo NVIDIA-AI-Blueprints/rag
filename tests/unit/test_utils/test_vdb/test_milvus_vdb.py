@@ -21,6 +21,7 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 from langchain_core.documents import Document
 from opentelemetry import context as otel_context
+from pydantic import SecretStr
 
 from nvidia_rag.utils.vdb import DEFAULT_METADATA_SCHEMA_COLLECTION, DEFAULT_DOCUMENT_INFO_COLLECTION
 from nvidia_rag.utils.vdb.milvus.milvus_vdb import MilvusVDB
@@ -35,7 +36,7 @@ class TestMilvusVDB:
         """Test MilvusVDB initialization."""
         mock_config = Mock()
         mock_config.vector_store.username = ""
-        mock_config.vector_store.password = ""
+        mock_config.vector_store.password = None
 
         mock_url = Mock()
         mock_url.hostname = "localhost"
@@ -43,19 +44,18 @@ class TestMilvusVDB:
         mock_urlparse.return_value = mock_url
 
         embedding_model = Mock()
-        kwargs = {
-            "embedding_model": embedding_model,
-            "milvus_uri": "http://localhost:19530",
-            "collection_name": "test_collection",
-            "meta_dataframe": "/path/to/csv",
-            "config": mock_config,
-        }
 
         with patch(
             "nvidia_rag.utils.vdb.milvus.milvus_vdb.Milvus.__init__"
         ) as mock_super_init:
             mock_super_init.return_value = None
-            vdb = MilvusVDB(**kwargs)
+            vdb = MilvusVDB(
+                collection_name="test_collection",
+                milvus_uri="http://localhost:19530",
+                embedding_model=embedding_model,
+                config=mock_config,
+                meta_dataframe="/path/to/csv",
+            )
 
             assert vdb.embedding_model == embedding_model
             assert vdb.vdb_endpoint == "http://localhost:19530"
@@ -64,7 +64,7 @@ class TestMilvusVDB:
             assert vdb.csv_file_path == "/path/to/csv"
 
             mock_connections.connect.assert_called_once_with(
-                vdb.connection_alias, uri="http://localhost:19530", token=":"
+                vdb.connection_alias, uri="http://localhost:19530", token=""
             )
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.create_nvingest_collection")
@@ -78,7 +78,7 @@ class TestMilvusVDB:
         mock_config.vector_store.enable_gpu_index = True
         mock_config.vector_store.enable_gpu_search = True
         mock_config.vector_store.username = "test_username"
-        mock_config.vector_store.password = "test_password"
+        mock_config.vector_store.password = SecretStr("test_password")
 
         with (
             patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"),

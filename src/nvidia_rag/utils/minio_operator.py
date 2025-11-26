@@ -141,8 +141,8 @@ def get_minio_operator(
 
     minio_operator = MinioOperator(
         endpoint=config.minio.endpoint,
-        access_key=config.minio.access_key,
-        secret_key=config.minio.secret_key,
+        access_key=config.minio.access_key.get_secret_value(),
+        secret_key=config.minio.secret_key.get_secret_value(),
         default_bucket_name=default_bucket_name,
     )
     return minio_operator
