@@ -263,4 +263,4 @@ Please contact your NVIDIA representative to get more credits.
 ## Related Topics
 
 - [Debugging](debugging.md)
-- [Changelog](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/CHANGELOG.md)
+- [Release Notes](release-notes.md)

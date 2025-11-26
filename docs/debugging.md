@@ -318,4 +318,4 @@ df -h
 
 - [Troubleshooting](troubleshooting.md)
 - [Best Practices for Common Settings](accuracy_perf.md).
-- [Changelog](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/CHANGELOG.md)
+- [Release Notes](release-notes.md)

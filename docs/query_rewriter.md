@@ -2,7 +2,7 @@
   SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
   SPDX-License-Identifier: Apache-2.0
 -->
-# Enable query rewriting support for NVIDIA RAG Blueprint
+# Enable Query Rewriting Support for NVIDIA RAG Blueprint
 
 You can enable query rewriting for the [NVIDIA RAG Blueprint](readme.md). Query rewriting enables higher accuracy for multiturn queries by making an additional LLM call to decontextualize the incoming question, before sending it to the retrieval pipeline.
 

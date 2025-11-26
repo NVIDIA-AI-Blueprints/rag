@@ -8,7 +8,7 @@ You can enable hybrid search for [NVIDIA RAG Blueprint](readme.md). Hybrid searc
 
 After you have [deployed the blueprint](readme.md#deployment-options-for-rag-blueprint), to enable hybrid search support for Milvus Vector Database, developers can follow below steps:
 
-# Steps
+## Steps
 
 1. Set the search type to `hybrid`
    ```bash
