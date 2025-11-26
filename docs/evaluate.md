@@ -5,12 +5,13 @@
 # Evaluate Your NVIDIA RAG Blueprint System
 
 After you [deploy your NVIDIA RAG Blueprint system](readme.md#deployment-options-for-rag-blueprint),
-you can evaluate it by using metrics specifically designed for Large Language Model (LLM) Applications.
+you can evaluate it by using [Ragas](https://docs.ragas.io/en/stable/) metrics specifically designed for Large Language Model (LLM) Applications.
 
 
 ## Ragas Metrics
 
-[Ragas](https://docs.ragas.io/en/stable/) provides a set of metrics that you can use to evaluate the performance of your LLM application. 
+Ragas include a set of [NVIDIA-specific metrics](https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/nvidia_metrics/) 
+that you can use to evaluate the performance of your LLM application. 
 These metrics are designed to help you objectively measure the performance of your application, and include the following:
 
 - **Answer Accuracy** – Measures the agreement between a model’s response and a reference ground truth for a given question.
@@ -22,7 +23,7 @@ For more information, refer to the notebook [Evaluate Your RAG Pipeline with Rag
 
 ## Recall
 
-You can also evaluate how well the retrieval system performs by using the following metric:
+You can also evaluate how well the retrieval system performs by using the [Context Recall](https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/context_recall/) metric:
 
 - **Recall** – Measures the proportion of relevant documents that are successfully retrieved at different top-k cutoffs (1, 3, 5, 10).
 
