@@ -169,8 +169,6 @@ def get_llm(config: NvidiaRAGConfig | None = None, **kwargs) -> LLM | SimpleChat
                 max_tokens=kwargs.get("max_tokens", None),
                 min_tokens=kwargs.get("min_tokens", None),
                 ignore_eos=kwargs.get("ignore_eos", False),
-                min_thinking_tokens=kwargs.get("min_thinking_tokens", None),
-                max_thinking_tokens=kwargs.get("max_thinking_tokens", None),
                 stop=kwargs.get("stop", []),
             )
             # Enable and configure thinking mode if token limits provided or min > 0
@@ -180,7 +178,6 @@ def get_llm(config: NvidiaRAGConfig | None = None, **kwargs) -> LLM | SimpleChat
                 min_think is not None and min_think > 0
             )
             if enable_thinking:
-                llm = llm.with_thinking_mode(enabled=True)
                 bind_args = {}
                 if min_think is not None and min_think > 0:
                     bind_args["min_thinking_tokens"] = min_think
@@ -198,8 +195,6 @@ def get_llm(config: NvidiaRAGConfig | None = None, **kwargs) -> LLM | SimpleChat
             max_tokens=kwargs.get("max_tokens", None),
             min_tokens=kwargs.get("min_tokens", None),
             ignore_eos=kwargs.get("ignore_eos", False),
-            min_thinking_tokens=kwargs.get("min_thinking_tokens", None),
-            max_thinking_tokens=kwargs.get("max_thinking_tokens", None),
             stop=kwargs.get("stop", []),
         )
         # Enable and configure thinking mode if token limits provided or min > 0
@@ -211,7 +206,6 @@ def get_llm(config: NvidiaRAGConfig | None = None, **kwargs) -> LLM | SimpleChat
             min_think is not None and min_think > 0
         )
         if enable_thinking:
-            llm = llm.with_thinking_mode(enabled=True)
             bind_args = {}
             if min_think is not None and min_think > 0:
                 bind_args["min_thinking_tokens"] = min_think
