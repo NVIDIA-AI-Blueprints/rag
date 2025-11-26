@@ -135,6 +135,7 @@ def get_nv_ingest_client(config: NvidiaRAGConfig = None):
         message_client_hostname=config.nv_ingest.message_client_hostname,
         # REST port, defaults to 7670
         message_client_port=config.nv_ingest.message_client_port,
+        message_client_kwargs={"api_version": "v2"},
     )
     return client
 
@@ -178,6 +179,9 @@ def get_nv_ingest_ingestor(
 
     # Add files to ingestor
     ingestor = ingestor.files(filepaths)
+
+    if config.nv_ingest.enable_pdf_split:
+        ingestor = ingestor.pdf_split_config(pages_per_chunk=config.nv_ingest.pages_per_chunk)
 
     # Add extraction task
     # Determine table_output_format
