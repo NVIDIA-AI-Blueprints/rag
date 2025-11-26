@@ -42,7 +42,9 @@ class TestGetNvIngestClient:
 
         assert result == mock_client
         mock_nv_ingest_client.assert_called_once_with(
-            message_client_hostname="test-host", message_client_port=7670
+            message_client_hostname="test-host",
+            message_client_port=7670,
+            message_client_kwargs={"api_version": "v2"}
         )
 
     def test_get_nv_ingest_client_config_error(self):
@@ -180,6 +182,9 @@ class TestGetNvIngestIngestor:
         mock_ingestor_instance.embed.assert_called_once()
         call_args = mock_ingestor_instance.embed.call_args
         assert call_args[1]["structured_elements_modality"] == "test_modality"
+        assert call_args[1]["endpoint_url"] == "http://test-embedding-url"
+        assert call_args[1]["model_name"] == "test-embedding-model"
+        assert call_args[1]["dimensions"] == 768
 
     @patch("nvidia_rag.ingestor_server.nvingest.sanitize_nim_url")
     @patch("nvidia_rag.ingestor_server.nvingest.Ingestor")
@@ -208,6 +213,9 @@ class TestGetNvIngestIngestor:
         mock_ingestor_instance.embed.assert_called_once()
         call_args = mock_ingestor_instance.embed.call_args
         assert call_args[1]["image_elements_modality"] == "test_image_modality"
+        assert call_args[1]["endpoint_url"] == "http://test-embedding-url"
+        assert call_args[1]["model_name"] == "test-embedding-model"
+        assert call_args[1]["dimensions"] == 768
 
     @patch("nvidia_rag.ingestor_server.nvingest.sanitize_nim_url")
     @patch("nvidia_rag.ingestor_server.nvingest.Ingestor")
@@ -250,6 +258,12 @@ class TestGetNvIngestIngestor:
             mock_makedirs.assert_called_once_with(
                 "/test/data/nv-ingest-results/test_collection", exist_ok=True
             )
+            # Verify embed was called with correct parameters
+            mock_ingestor_instance.embed.assert_called_once()
+            embed_call_args = mock_ingestor_instance.embed.call_args
+            assert embed_call_args[1]["endpoint_url"] == "http://test-embedding-url"
+            assert embed_call_args[1]["model_name"] == "test-embedding-model"
+            assert embed_call_args[1]["dimensions"] == 768
 
     def test_get_nv_ingest_ingestor_config_error(self):
         """Test get_nv_ingest_ingestor handles config errors"""
@@ -265,6 +279,8 @@ class TestGetNvIngestIngestor:
         """Create a mock config object with default values"""
         mock_config = Mock()
         mock_config.nv_ingest = Mock()
+        mock_config.nv_ingest.enable_pdf_split = False
+        mock_config.nv_ingest.pages_per_chunk = 10
         mock_config.nv_ingest.extract_text = True
         mock_config.nv_ingest.extract_infographics = True
         mock_config.nv_ingest.extract_tables = True
@@ -287,5 +303,6 @@ class TestGetNvIngestIngestor:
         mock_config.embeddings = Mock()
         mock_config.embeddings.server_url = "http://test-embedding-server"
         mock_config.embeddings.model_name = "test-embedding-model"
+        mock_config.embeddings.dimensions = 768
 
         return mock_config
