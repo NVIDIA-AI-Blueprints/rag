@@ -229,7 +229,7 @@ The following are the known issues for the NVIDIA RAG Blueprint:
 <!-- ADD THIS SECTION Starting with version 2.4.0 -->
 <!-- ## Release Notes for Previous Versions -->
 <!--                                        -->
-<!-- | [2.3.0](hard link to the version on docs.nvidia.com) | -->
+<!-- | link | link | link | -->
 
 
 
