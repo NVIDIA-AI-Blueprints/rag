@@ -37,6 +37,7 @@ from nvidia_rag.utils.health_models import (
     HealthResponseBase,
     NIMServiceHealthInfo,
     RAGHealthResponse,
+    ServiceStatus,
     StorageHealthInfo,
 )
 from nvidia_rag.utils.minio_operator import MinioOperator
@@ -73,13 +74,13 @@ async def check_service_health(
         return NIMServiceHealthInfo(
             service=service_name,
             url=url,
-            status="skipped",
+            status=ServiceStatus.SKIPPED,
             latency_ms=0,
             error="No URL provided"
         )
 
     http_status = None
-    status = "unknown"
+    status = ServiceStatus.UNKNOWN
     error = None
     
     try:
@@ -99,7 +100,7 @@ async def check_service_health(
             async with getattr(session, method.lower())(
                 url, **request_kwargs
             ) as response:
-                status = "healthy" if response.status < 400 else "unhealthy"
+                status = ServiceStatus.HEALTHY if response.status < 400 else ServiceStatus.UNHEALTHY
                 http_status = response.status
                 latency_ms = round((time.time() - start_time) * 1000, 2)
                 
@@ -116,7 +117,7 @@ async def check_service_health(
         return NIMServiceHealthInfo(
             service=service_name,
             url=url,
-            status="timeout",
+            status=ServiceStatus.TIMEOUT,
             latency_ms=0,
             error=error
         )
@@ -124,7 +125,7 @@ async def check_service_health(
         return NIMServiceHealthInfo(
             service=service_name,
             url=url,
-            status="error",
+            status=ServiceStatus.ERROR,
             latency_ms=0,
             error=str(e)
         )
@@ -132,7 +133,7 @@ async def check_service_health(
         return NIMServiceHealthInfo(
             service=service_name,
             url=url,
-            status="error",
+            status=ServiceStatus.ERROR,
             latency_ms=0,
             error=str(e)
         )
@@ -146,7 +147,7 @@ async def check_minio_health(
         return StorageHealthInfo(
             service="MinIO",
             url=endpoint,
-            status="skipped",
+            status=ServiceStatus.SKIPPED,
             latency_ms=0,
             error="No endpoint provided"
         )
@@ -163,7 +164,7 @@ async def check_minio_health(
         return StorageHealthInfo(
             service="MinIO",
             url=endpoint,
-            status="healthy",
+            status=ServiceStatus.HEALTHY,
             latency_ms=latency_ms,
             buckets=len(buckets)
         )
@@ -171,7 +172,7 @@ async def check_minio_health(
         return StorageHealthInfo(
             service="MinIO",
             url=endpoint,
-            status="error",
+            status=ServiceStatus.ERROR,
             latency_ms=0,
             error=str(e)
         )
@@ -235,7 +236,7 @@ async def check_all_services_health(
             DatabaseHealthInfo(
                 service="Vector Store",
                 url="Not configured",
-                status="unknown",
+                status=ServiceStatus.UNKNOWN,
                 error=f"Error checking vector store health: {e}",
             )
         )
@@ -259,7 +260,7 @@ async def check_all_services_health(
                 service="LLM",
                 model=config.llm.model_name,
                 url=config.llm.server_url or "",
-                status="healthy",
+                status=ServiceStatus.HEALTHY,
                 latency_ms=0,
                 message="Using NVIDIA API Catalog",
             )
@@ -289,7 +290,7 @@ async def check_all_services_health(
                     service="Query Rewriter",
                     model=config.query_rewriter.model_name,
                     url=config.query_rewriter.server_url or "",
-                    status="healthy",
+                    status=ServiceStatus.HEALTHY,
                     latency_ms=0,
                     message="Using NVIDIA API Catalog",
                 )
@@ -316,7 +317,7 @@ async def check_all_services_health(
                 service="Embeddings",
                 model=config.embeddings.model_name,
                 url=config.embeddings.server_url or "",
-                status="healthy",
+                status=ServiceStatus.HEALTHY,
                 latency_ms=0,
                 message="Using NVIDIA API Catalog",
             )
@@ -345,7 +346,7 @@ async def check_all_services_health(
                     service="Ranking",
                     model=config.ranking.model_name,
                     url=config.ranking.server_url or "",
-                    status="healthy",
+                    status=ServiceStatus.HEALTHY,
                     latency_ms=0,
                     message="Using NVIDIA API Catalog",
                 )
@@ -369,7 +370,7 @@ async def check_all_services_health(
                 NIMServiceHealthInfo(
                     service="NemoGuardrails",
                     url="Not configured",
-                    status="skipped",
+                    status=ServiceStatus.SKIPPED,
                     message="URL not provided",
                 )
             )
@@ -400,7 +401,7 @@ async def check_all_services_health(
                     .strip('"')
                     .strip("'")
                     or "",
-                    status="healthy",
+                    status=ServiceStatus.HEALTHY,
                     latency_ms=0,
                     message="Using NVIDIA API Catalog",
                 )
@@ -440,11 +441,11 @@ def print_health_report(health_results: HealthResponseBase) -> None:
     )
 
     for service in all_services:
-        if service.status == "healthy":
+        if service.status == ServiceStatus.HEALTHY or service.status == ServiceStatus.HEALTHY.value:
             logger.info(
                 f"Service '{service.service}' is healthy - Response time: {service.latency_ms}ms"
             )
-        elif service.status == "skipped":
+        elif service.status == ServiceStatus.SKIPPED or service.status == ServiceStatus.SKIPPED.value:
             logger.info(
                 f"Service '{service.service}' check skipped - Reason: {service.error or 'No URL provided'}"
             )

@@ -38,6 +38,7 @@ from nvidia_rag.utils.health_models import (
     IngestorHealthResponse,
     NIMServiceHealthInfo,
     ProcessingHealthInfo,
+    ServiceStatus,
     StorageHealthInfo,
     TaskManagementHealthInfo,
 )
@@ -64,7 +65,7 @@ class TestCheckServiceHealth:
         """Test with empty URL"""
         result = await check_service_health("", "Test Service")
 
-        assert result.status == "skipped"
+        assert result.status == ServiceStatus.SKIPPED
         assert result.error == "No URL provided"
 
 
@@ -86,7 +87,7 @@ class TestCheckMinioHealth:
             with patch("time.time", side_effect=[0.0, 0.2]):
                 result = await check_minio_health("localhost:9000", "key", "secret")
 
-            assert result.status == "healthy"
+            assert result.status == ServiceStatus.HEALTHY
             assert result.buckets == 2
 
     @pytest.mark.asyncio
@@ -99,7 +100,7 @@ class TestCheckMinioHealth:
 
             result = await check_minio_health("localhost:9000", "key", "secret")
 
-            assert result.status == "error"
+            assert result.status == ServiceStatus.ERROR
             assert "Connection failed" in result.error
 
     @pytest.mark.asyncio
@@ -107,7 +108,7 @@ class TestCheckMinioHealth:
         """Test MinIO health check with no endpoint"""
         result = await check_minio_health("", "key", "secret")
 
-        assert result.status == "skipped"
+        assert result.status == ServiceStatus.SKIPPED
         assert result.error == "No endpoint provided"
 
 
@@ -118,7 +119,7 @@ class TestCheckNvIngestHealth:
     async def test_check_nv_ingest_health_no_hostname_or_port(self):
         """Test NV-Ingest health check with missing hostname or port"""
         result = await check_nv_ingest_health("", 8080)
-        assert result.status == "skipped"
+        assert result.status == ServiceStatus.SKIPPED
 
 
 class TestCheckRedisHealth:
@@ -139,7 +140,7 @@ class TestCheckRedisHealth:
             with patch("time.time", side_effect=[0.0, 0.05]):
                 result = await check_redis_health("localhost", 6379, 0)
 
-            assert result.status == "healthy"
+            assert result.status == ServiceStatus.HEALTHY
 
     @pytest.mark.asyncio
     async def test_check_redis_health_ping_failed(self):
@@ -155,7 +156,7 @@ class TestCheckRedisHealth:
 
             result = await check_redis_health("localhost", 6379, 0)
 
-            assert result.status == "unhealthy"
+            assert result.status == ServiceStatus.UNHEALTHY
             assert result.error == "Redis ping failed"
 
     @pytest.mark.asyncio
@@ -166,14 +167,14 @@ class TestCheckRedisHealth:
 
             result = await check_redis_health("localhost", 6379, 0)
 
-            assert result.status == "skipped"
+            assert result.status == ServiceStatus.SKIPPED
             assert result.error == "Redis not available (library not installed)"
 
     @pytest.mark.asyncio
     async def test_check_redis_health_no_host_or_port(self):
         """Test Redis health check with missing host or port"""
         result = await check_redis_health("", 6379, 0)
-        assert result.status == "skipped"
+        assert result.status == ServiceStatus.SKIPPED
 
 
 class TestIsNvidiaApiCatalogUrl:
@@ -262,22 +263,22 @@ class TestCheckAllServicesHealth:
                             mock_minio.return_value = StorageHealthInfo(
                                 service="MinIO",
                                 url="http://minio:9000",
-                                status="healthy",
+                                status=ServiceStatus.HEALTHY,
                             )
                             mock_nv_ingest.return_value = ProcessingHealthInfo(
                                 service="NV-Ingest",
                                 url="http://nv-ingest:8000",
-                                status="healthy",
+                                status=ServiceStatus.HEALTHY,
                             )
                             mock_service.return_value = NIMServiceHealthInfo(
                                 service="Test",
                                 url="http://test:8000",
-                                status="healthy",
+                                status=ServiceStatus.HEALTHY,
                             )
                             mock_redis.return_value = TaskManagementHealthInfo(
                                 service="Redis",
                                 url="redis://redis:6379",
-                                status="healthy",
+                                status=ServiceStatus.HEALTHY,
                             )
 
                             result = await check_all_services_health(mock_vdb_op, mock_config)
@@ -310,18 +311,18 @@ class TestCheckAllServicesHealth:
             {"REDIS_HOST": "localhost", "REDIS_PORT": "6379", "REDIS_DB": "0"},
         ):
             with patch("nvidia_rag.ingestor_server.health.check_minio_health", return_value=StorageHealthInfo(
-                service="MinIO", url="http://minio:9000", status="healthy"
+                service="MinIO", url="http://minio:9000", status=ServiceStatus.HEALTHY
             )):
                 with patch(
                     "nvidia_rag.ingestor_server.health.check_nv_ingest_health",
                     return_value=ProcessingHealthInfo(
-                        service="NV-Ingest", url="http://nv-ingest:8000", status="healthy"
+                        service="NV-Ingest", url="http://nv-ingest:8000", status=ServiceStatus.HEALTHY
                     )
                 ):
                     with patch(
                         "nvidia_rag.ingestor_server.health.check_redis_health",
                         return_value=TaskManagementHealthInfo(
-                            service="Redis", url="redis://redis:6379", status="healthy"
+                            service="Redis", url="redis://redis:6379", status=ServiceStatus.HEALTHY
                         )
                     ):
                         result = await check_all_services_health(mock_vdb_op, mock_config)
@@ -347,7 +348,7 @@ class TestCheckAllServicesHealth:
 
                         for i, service in enumerate(nim_services):
                             assert service.url == expected_services[i]["url"]
-                            assert service.status == "healthy"
+                            assert service.status == ServiceStatus.HEALTHY
                             assert service.model == expected_services[i]["model"]
 
     @pytest.mark.asyncio
@@ -365,31 +366,31 @@ class TestCheckAllServicesHealth:
             {"REDIS_HOST": "localhost", "REDIS_PORT": "6379", "REDIS_DB": "0"},
         ):
             with patch("nvidia_rag.ingestor_server.health.check_minio_health", return_value=StorageHealthInfo(
-                service="MinIO", url="http://minio:9000", status="healthy"
+                service="MinIO", url="http://minio:9000", status=ServiceStatus.HEALTHY
             )):
                 with patch(
                     "nvidia_rag.ingestor_server.health.check_nv_ingest_health",
                     return_value=ProcessingHealthInfo(
-                        service="NV-Ingest", url="http://nv-ingest:8000", status="healthy"
+                        service="NV-Ingest", url="http://nv-ingest:8000", status=ServiceStatus.HEALTHY
                     )
                 ):
                     with patch(
                         "nvidia_rag.ingestor_server.health.check_service_health",
                         return_value=NIMServiceHealthInfo(
-                            service="Test", url="http://test:8000", status="healthy"
+                            service="Test", url="http://test:8000", status=ServiceStatus.HEALTHY
                         )
                     ):
                         with patch(
                             "nvidia_rag.ingestor_server.health.check_redis_health",
                             return_value=TaskManagementHealthInfo(
-                                service="Redis", url="redis://redis:6379", status="healthy"
+                                service="Redis", url="redis://redis:6379", status=ServiceStatus.HEALTHY
                             )
                         ):
                             result = await check_all_services_health(mock_vdb_op, mock_config)
 
                             db_services = result.databases
                             assert len(db_services) == 1
-                            assert db_services[0].status == "unknown"
+                            assert db_services[0].status == ServiceStatus.UNKNOWN
                             assert (
                                 "Unsupported vector store type"
                                 in db_services[0].error
@@ -408,13 +409,13 @@ class TestPrintHealthReport:
 
         health_results = IngestorHealthResponse(
             databases=[
-                DatabaseHealthInfo(service="Milvus", url="", status="healthy", latency_ms=100)
+                DatabaseHealthInfo(service="Milvus", url="", status=ServiceStatus.HEALTHY, latency_ms=100)
             ],
             nim=[
                 NIMServiceHealthInfo(
                     service="Embeddings",
                     url="",
-                    status="healthy",
+                    status=ServiceStatus.HEALTHY,
                     latency_ms=50,
                     model="test-embedding-model",
                 )
@@ -436,13 +437,13 @@ class TestPrintHealthReport:
 
         health_results = IngestorHealthResponse(
             databases=[
-                DatabaseHealthInfo(service="Redis", url="", status="error", error="Connection failed")
+                DatabaseHealthInfo(service="Redis", url="", status=ServiceStatus.ERROR, error="Connection failed")
             ],
             nim=[
                 NIMServiceHealthInfo(
                     service="Embeddings",
                     url="",
-                    status="skipped",
+                    status=ServiceStatus.SKIPPED,
                     error="No URL provided",
                     model="test-embedding-model",
                 )

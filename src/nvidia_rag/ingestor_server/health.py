@@ -40,6 +40,7 @@ from nvidia_rag.utils.health_models import (
     IngestorHealthResponse,
     NIMServiceHealthInfo,
     ProcessingHealthInfo,
+    ServiceStatus,
     StorageHealthInfo,
     TaskManagementHealthInfo,
 )
@@ -77,13 +78,13 @@ async def check_service_health(
         return NIMServiceHealthInfo(
             service=service_name,
             url=url,
-            status="skipped",
+            status=ServiceStatus.SKIPPED,
             latency_ms=0,
             error="No URL provided"
         )
 
     http_status = None
-    status = "unknown"
+    status = ServiceStatus.UNKNOWN
     error = None
     
     try:
@@ -103,7 +104,7 @@ async def check_service_health(
             async with getattr(session, method.lower())(
                 url, **request_kwargs
             ) as response:
-                status = "healthy" if response.status < 400 else "unhealthy"
+                status = ServiceStatus.HEALTHY if response.status < 400 else ServiceStatus.UNHEALTHY
                 http_status = response.status
                 latency_ms = round((time.time() - start_time) * 1000, 2)
                 
@@ -120,7 +121,7 @@ async def check_service_health(
         return NIMServiceHealthInfo(
             service=service_name,
             url=url,
-            status="timeout",
+            status=ServiceStatus.TIMEOUT,
             latency_ms=0,
             error=error
         )
@@ -128,7 +129,7 @@ async def check_service_health(
         return NIMServiceHealthInfo(
             service=service_name,
             url=url,
-            status="error",
+            status=ServiceStatus.ERROR,
             latency_ms=0,
             error=str(e)
         )
@@ -136,7 +137,7 @@ async def check_service_health(
         return NIMServiceHealthInfo(
             service=service_name,
             url=url,
-            status="error",
+            status=ServiceStatus.ERROR,
             latency_ms=0,
             error=str(e)
         )
@@ -150,7 +151,7 @@ async def check_minio_health(
         return StorageHealthInfo(
             service="MinIO",
             url=endpoint,
-            status="skipped",
+            status=ServiceStatus.SKIPPED,
             latency_ms=0,
             error="No endpoint provided"
         )
@@ -167,7 +168,7 @@ async def check_minio_health(
         return StorageHealthInfo(
             service="MinIO",
             url=endpoint,
-            status="healthy",
+            status=ServiceStatus.HEALTHY,
             latency_ms=latency_ms,
             buckets=len(buckets)
         )
@@ -175,7 +176,7 @@ async def check_minio_health(
         return StorageHealthInfo(
             service="MinIO",
             url=endpoint,
-            status="error",
+            status=ServiceStatus.ERROR,
             latency_ms=0,
             error=str(e)
         )
@@ -189,7 +190,7 @@ async def check_nv_ingest_health(hostname: str, port: int) -> ProcessingHealthIn
         return ProcessingHealthInfo(
             service="NV-Ingest",
             url=url_base,
-            status="skipped",
+            status=ServiceStatus.SKIPPED,
             latency_ms=0,
             error="No hostname or port provided"
         )
@@ -211,7 +212,7 @@ async def check_nv_ingest_health(hostname: str, port: int) -> ProcessingHealthIn
                         return ProcessingHealthInfo(
                             service="NV-Ingest",
                             url=url_base,
-                            status="healthy",
+                            status=ServiceStatus.HEALTHY,
                             latency_ms=latency_ms,
                             http_status=response.status
                         )
@@ -219,7 +220,7 @@ async def check_nv_ingest_health(hostname: str, port: int) -> ProcessingHealthIn
                         return ProcessingHealthInfo(
                             service="NV-Ingest",
                             url=url_base,
-                            status="unhealthy",
+                            status=ServiceStatus.UNHEALTHY,
                             latency_ms=latency_ms,
                             http_status=response.status
                         )
@@ -234,7 +235,7 @@ async def check_nv_ingest_health(hostname: str, port: int) -> ProcessingHealthIn
                     return ProcessingHealthInfo(
                         service="NV-Ingest",
                         url=url_base,
-                        status="healthy",
+                        status=ServiceStatus.HEALTHY,
                         latency_ms=latency_ms,
                         http_status=response.status
                     )
@@ -243,7 +244,7 @@ async def check_nv_ingest_health(hostname: str, port: int) -> ProcessingHealthIn
         return ProcessingHealthInfo(
             service="NV-Ingest",
             url=url_base,
-            status="error",
+            status=ServiceStatus.ERROR,
             latency_ms=0,
             error=str(e)
         )
@@ -257,7 +258,7 @@ async def check_redis_health(host: str, port: int, db: int) -> TaskManagementHea
         return TaskManagementHealthInfo(
             service="Redis",
             url=url_base,
-            status="skipped",
+            status=ServiceStatus.SKIPPED,
             latency_ms=0,
             error="No host or port provided"
         )
@@ -280,14 +281,14 @@ async def check_redis_health(host: str, port: int, db: int) -> TaskManagementHea
             return TaskManagementHealthInfo(
                 service="Redis",
                 url=url_base,
-                status="healthy",
+                status=ServiceStatus.HEALTHY,
                 latency_ms=latency_ms
             )
         else:
             return TaskManagementHealthInfo(
                 service="Redis",
                 url=url_base,
-                status="unhealthy",
+                status=ServiceStatus.UNHEALTHY,
                 latency_ms=0,
                 error="Redis ping failed"
             )
@@ -296,7 +297,7 @@ async def check_redis_health(host: str, port: int, db: int) -> TaskManagementHea
         return TaskManagementHealthInfo(
             service="Redis",
             url=url_base,
-            status="skipped",
+            status=ServiceStatus.SKIPPED,
             latency_ms=0,
             error="Redis not available (library not installed)"
         )
@@ -304,7 +305,7 @@ async def check_redis_health(host: str, port: int, db: int) -> TaskManagementHea
         return TaskManagementHealthInfo(
             service="Redis",
             url=url_base,
-            status="error",
+            status=ServiceStatus.ERROR,
             latency_ms=0,
             error=str(e)
         )
@@ -370,7 +371,7 @@ async def check_all_services_health(
             DatabaseHealthInfo(
                 service="Vector Store",
                 url="Not configured",
-                status="unknown",
+                status=ServiceStatus.UNKNOWN,
                 error=f"Error checking vector store health: {e}",
             )
         )
@@ -406,7 +407,7 @@ async def check_all_services_health(
                 service="Embeddings",
                 model=config.embeddings.model_name,
                 url=config.embeddings.server_url or "",
-                status="healthy",
+                status=ServiceStatus.HEALTHY,
                 latency_ms=0,
                 message="Using NVIDIA API Catalog",
             )
@@ -432,7 +433,7 @@ async def check_all_services_health(
                 service="Summary LLM",
                 model=config.summarizer.model_name,
                 url=config.summarizer.server_url or "",
-                status="healthy",
+                status=ServiceStatus.HEALTHY,
                 latency_ms=0,
                 message="Using NVIDIA API Catalog",
             )
@@ -465,7 +466,7 @@ async def check_all_services_health(
                     service="Caption Model",
                     model=config.nv_ingest.caption_model_name,
                     url=config.nv_ingest.caption_endpoint_url or "Not configured",
-                    status="healthy",
+                    status=ServiceStatus.HEALTHY,
                     latency_ms=0,
                     message="Using NVIDIA API Catalog"
                     if config.nv_ingest.caption_endpoint_url
@@ -516,11 +517,11 @@ def print_health_report(health_results: HealthResponseBase) -> None:
     )
 
     for service in all_services:
-        if service.status == "healthy":
+        if service.status == ServiceStatus.HEALTHY or service.status == ServiceStatus.HEALTHY.value:
             logger.info(
                 f"✓ {service.service} is healthy - Response time: {service.latency_ms}ms"
             )
-        elif service.status == "skipped":
+        elif service.status == ServiceStatus.SKIPPED or service.status == ServiceStatus.SKIPPED.value:
             logger.info(
                 f"- {service.service} check skipped - Reason: {service.error or 'No URL provided'}"
             )
