@@ -526,9 +526,11 @@ jobs:
           CI_NV_RAG_BLUEPRINT_KEY: ${{ secrets.CI_NV_RAG_BLUEPRINT_KEY }}
         run: |
           echo "Restarting services with observability configuration..."
+          docker compose -f tests/integration/vectordb.yaml down -v || true
           docker compose -f deploy/compose/docker-compose-rag-server.yaml down || true
           docker compose -f deploy/compose/docker-compose-ingestor-server.yaml down || true
           sleep 5
+          docker compose -f tests/integration/vectordb.yaml up -d || true
           docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d --build
           docker compose -f deploy/compose/docker-compose-ingestor-server.yaml up -d --build
           sleep 30
