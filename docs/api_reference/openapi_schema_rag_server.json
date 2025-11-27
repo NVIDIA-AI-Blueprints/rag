@@ -1131,6 +1131,20 @@
             "description": "The maximum number of tokens to generate in any given call. Note that the model is not aware of this value,  and generation will simply stop at the number of tokens specified.",
             "default": 32768
           },
+          "min_thinking_tokens": {
+            "type": "integer",
+            "format": "int64",
+            "title": "Min Thinking Tokens",
+            "description": "Minimum number of thinking tokens to allocate for reasoning models. Enable thinking mode if either min_thinking_tokens or max_thinking_tokens is provided.",
+            "default": 1
+          },
+          "max_thinking_tokens": {
+            "type": "integer",
+            "format": "int64",
+            "title": "Max Thinking Tokens",
+            "description": "Maximum number of thinking tokens to allocate for reasoning models. Enable thinking mode if either min_thinking_tokens or max_thinking_tokens is provided.",
+            "default": 8192
+          },
           "reranker_top_k": {
             "type": "integer",
             "maximum": 25,
