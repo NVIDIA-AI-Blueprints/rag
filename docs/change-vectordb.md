@@ -400,10 +400,16 @@ Use the following steps to create and use your own custom database operators.
       - `add_document_info(info_type, collection_name, document_name, info_value)`: Store document or collection info (e.g., processing statistics, custom metadata).
       - `get_document_info(info_type, collection_name, document_name)`: Retrieve stored document/collection info; return an empty dict if none.
 
+    - Catalog metadata management (implementation of these methods is optional)
+      - `get_catalog_metadata(collection_name)`: Retrieve catalog metadata (description, tags, owner, etc.) for a collection.
+      - `update_catalog_metadata(collection_name, updates)`: Update catalog metadata for a collection with merge semantics.
+      - `get_document_catalog_metadata(collection_name, document_name)`: Retrieve catalog metadata (description, tags) for a specific document.
+      - `update_document_catalog_metadata(collection_name, document_name, updates)`: Update catalog metadata for a specific document.
+
     - Retrieval helpers
-      - Retrieval helper (e.g., `retrieval_*`): Return top‑k relevant documents using your backend’s semantic search. Support optional filters and tracing where applicable.
-      - Vector index handle (e.g., `get_*_vectorstore`): Return a handle to your backend’s vector index suitable for retrieval operations.
-      - Add collection tag (e.g., `_add_collection_name_to_*docs`): Add the originating collection name into each document’s metadata (useful for multi‑collection citations).
+      - Retrieval helper (e.g., `retrieval_*`): Return top‑k relevant documents using your backend's semantic search. Support optional filters and tracing where applicable.
+      - Vector index handle (e.g., `get_*_vectorstore`): Return a handle to your backend's vector index suitable for retrieval operations.
+      - Add collection tag (e.g., `_add_collection_name_to_*docs`): Add the originating collection name into each document's metadata (useful for multi‑collection citations).
 
     For a concrete, working example, see `src/nvidia_rag/utils/vdb/elasticsearch/elastic_vdb.py` and `notebooks/building_rag_vdb_operator.ipynb`.
 

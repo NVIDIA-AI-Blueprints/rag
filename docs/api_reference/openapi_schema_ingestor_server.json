@@ -42,22 +42,22 @@
               }
             }
           },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          },
           "500": {
             "description": "Internal Server Error",
             "content": {
               "application/json": {
                 "example": {
                   "detail": "Internal server error occurred"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -94,16 +94,6 @@
               }
             }
           },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          },
           "499": {
             "description": "Client Closed Request",
             "content": {
@@ -120,6 +110,16 @@
               "application/json": {
                 "example": {
                   "detail": "Internal server error occurred"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -154,16 +154,6 @@
               }
             }
           },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          },
           "499": {
             "description": "Client Closed Request",
             "content": {
@@ -180,6 +170,16 @@
               "application/json": {
                 "example": {
                   "detail": "Internal server error occurred"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -200,7 +200,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "default": "multimodal_data",
+              "default": "",
               "title": "Collection Name"
             }
           }
@@ -212,16 +212,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DocumentListResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -242,6 +232,16 @@
               "application/json": {
                 "example": {
                   "detail": "Internal server error occurred"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -261,7 +261,6 @@
             "required": false,
             "schema": {
               "type": "string",
-              "default": "multimodal_data",
               "title": "Collection Name"
             }
           }
@@ -270,10 +269,17 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                },
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
                 "title": "Document Names"
               }
             }
@@ -286,16 +292,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DocumentListResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -316,6 +312,16 @@
               "application/json": {
                 "example": {
                   "detail": "Internal server error occurred"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -385,16 +391,6 @@
               }
             }
           },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          },
           "499": {
             "description": "Client Closed Request",
             "content": {
@@ -411,6 +407,16 @@
               "application/json": {
                 "example": {
                   "detail": "Internal server error occurred"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -451,10 +457,17 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                },
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
                 "title": "Collection Names"
               }
             }
@@ -467,16 +480,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CollectionsResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -497,6 +500,16 @@
               "application/json": {
                 "example": {
                   "detail": "Internal server error occurred"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -513,10 +526,17 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                },
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
                 "title": "Collection Names"
               }
             }
@@ -529,16 +549,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CollectionsResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -562,6 +572,16 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
           }
         }
       }
@@ -572,7 +592,7 @@
           "Vector DB APIs"
         ],
         "summary": "Create Collection",
-        "description": "Endpoint to create a collection from the Milvus server.\nReturns status message.",
+        "description": "Endpoint to create a collection with catalog metadata.\nReturns status message.",
         "operationId": "create_collection_collection_post",
         "requestBody": {
           "content": {
@@ -595,12 +615,75 @@
               }
             }
           },
+          "499": {
+            "description": "Client Closed Request",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "The client cancelled the request"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "Internal server error occurred"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/collections/{collection_name}/metadata": {
+      "patch": {
+        "tags": [
+          "Vector DB APIs"
+        ],
+        "summary": "Update Collection Metadata",
+        "description": "Endpoint to update collection catalog metadata.",
+        "operationId": "update_collection_metadata_collections__collection_name__metadata_patch",
+        "parameters": [
+          {
+            "name": "collection_name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Collection Name"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCollectionMetadataRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateMetadataResponse"
                 }
               }
             }
@@ -621,6 +704,98 @@
               "application/json": {
                 "example": {
                   "detail": "Internal server error occurred"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/collections/{collection_name}/documents/{document_name}/metadata": {
+      "patch": {
+        "tags": [
+          "Vector DB APIs"
+        ],
+        "summary": "Update Document Metadata",
+        "description": "Endpoint to update document catalog metadata.",
+        "operationId": "update_document_metadata_collections__collection_name__documents__document_name__metadata_patch",
+        "parameters": [
+          {
+            "name": "collection_name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Collection Name"
+            }
+          },
+          {
+            "name": "document_name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Document Name"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDocumentMetadataRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateMetadataResponse"
+                }
+              }
+            }
+          },
+          "499": {
+            "description": "Client Closed Request",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "The client cancelled the request"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "Internal server error occurred"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -646,7 +821,7 @@
             "title": "Data",
             "description": "JSON data in string format containing metadata about the documents which needs to be uploaded.",
             "examples": [
-              "{\"collection_name\": \"multimodal_data\", \"blocking\": false, \"split_options\": {\"chunk_size\": 512, \"chunk_overlap\": 150}, \"custom_metadata\": [], \"generate_summary\": false}"
+              "{\"collection_name\": \"multimodal_data\", \"blocking\": false, \"split_options\": {\"chunk_size\": 1024, \"chunk_overlap\": 150}, \"custom_metadata\": [], \"generate_summary\": false}"
             ]
           }
         },
@@ -672,7 +847,7 @@
             "title": "Data",
             "description": "JSON data in string format containing metadata about the documents which needs to be uploaded.",
             "examples": [
-              "{\"collection_name\": \"multimodal_data\", \"blocking\": false, \"split_options\": {\"chunk_size\": 512, \"chunk_overlap\": 150}, \"custom_metadata\": [], \"generate_summary\": false}"
+              "{\"collection_name\": \"multimodal_data\", \"blocking\": false, \"split_options\": {\"chunk_size\": 1024, \"chunk_overlap\": 150}, \"custom_metadata\": [], \"generate_summary\": false}"
             ]
           }
         },
@@ -760,13 +935,13 @@
             "type": "string",
             "title": "Vdb Endpoint",
             "description": "Endpoint of the vector database.",
-            "default": "http://milvus:19530"
+            "default": ""
           },
           "collection_name": {
             "type": "string",
             "title": "Collection Name",
             "description": "Name of the collection.",
-            "default": "multimodal_data"
+            "default": ""
           },
           "embedding_dimension": {
             "type": "integer",
@@ -782,6 +957,45 @@
             "title": "Metadata Schema",
             "description": "Metadata schema of the collection.",
             "default": []
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "description": "Human-readable description of the collection",
+            "default": ""
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tags",
+            "description": "Tags for categorization and search",
+            "default": []
+          },
+          "owner": {
+            "type": "string",
+            "title": "Owner",
+            "description": "Owner team or person",
+            "default": ""
+          },
+          "created_by": {
+            "type": "string",
+            "title": "Created By",
+            "description": "Username/email of creator",
+            "default": ""
+          },
+          "business_domain": {
+            "type": "string",
+            "title": "Business Domain",
+            "description": "Business domain (Finance, Engineering, HR, Legal, etc.)",
+            "default": ""
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "description": "Collection status (Active, Archived, Stale, Pending)",
+            "default": "Active"
           }
         },
         "type": "object",
@@ -1355,6 +1569,143 @@
         "title": "TaskManagementHealthInfo",
         "description": "Health info specific to task management services"
       },
+      "UpdateCollectionMetadataRequest": {
+        "properties": {
+          "vdb_endpoint": {
+            "type": "string",
+            "title": "Vdb Endpoint",
+            "description": "URL of the vector database endpoint.",
+            "default": ""
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description",
+            "description": "Updated description"
+          },
+          "tags": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tags",
+            "description": "Updated tags"
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner",
+            "description": "Updated owner"
+          },
+          "business_domain": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Business Domain",
+            "description": "Updated business domain"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status",
+            "description": "Updated status"
+          }
+        },
+        "type": "object",
+        "title": "UpdateCollectionMetadataRequest",
+        "description": "Request model for updating collection metadata."
+      },
+      "UpdateDocumentMetadataRequest": {
+        "properties": {
+          "vdb_endpoint": {
+            "type": "string",
+            "title": "Vdb Endpoint",
+            "description": "URL of the vector database endpoint.",
+            "default": ""
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description",
+            "description": "Updated description"
+          },
+          "tags": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tags",
+            "description": "Updated tags"
+          }
+        },
+        "type": "object",
+        "title": "UpdateDocumentMetadataRequest",
+        "description": "Request model for updating document metadata."
+      },
+      "UpdateMetadataResponse": {
+        "properties": {
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "description": "Status message"
+          },
+          "collection_name": {
+            "type": "string",
+            "title": "Collection Name",
+            "description": "Collection name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "message",
+          "collection_name"
+        ],
+        "title": "UpdateMetadataResponse",
+        "description": "Response model for metadata update operations."
+      },
       "UploadDocumentResponse": {
         "properties": {
           "message": {
@@ -1437,6 +1788,13 @@
             "title": "Metadata Schema",
             "description": "Metadata schema of the collection.",
             "default": []
+          },
+          "collection_info": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Collection Info",
+            "description": "Collection info of the collection.",
+            "default": {}
           }
         },
         "type": "object",
@@ -1456,6 +1814,13 @@
             "type": "object",
             "title": "Metadata",
             "description": "Metadata of the document.",
+            "default": {}
+          },
+          "document_info": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Document Info",
+            "description": "Document information.",
             "default": {}
           }
         },

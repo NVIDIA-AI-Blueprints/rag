@@ -27,6 +27,7 @@ class IngestionStateManager:
         filepaths: list[str],
         collection_name: str,
         custom_metadata: list[dict[str, Any]],
+        documents_catalog_metadata: list[dict[str, Any]] | None = None,
     ):
         self.task_id = str(uuid4())
         self._is_background = False  # Whether the ingestion is running in background
@@ -35,6 +36,7 @@ class IngestionStateManager:
         self.filepaths = filepaths
         self.collection_name = collection_name
         self.custom_metadata = custom_metadata
+        self.documents_catalog_metadata = documents_catalog_metadata or []
 
         self.validation_errors = []
         self.failed_validation_documents = []

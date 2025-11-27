@@ -37,6 +37,7 @@ class CleanupModule(BaseTestModule):
     CUSTOM_METADATA_COLLECTION = "test_custom_metadata_collection"
     TEST_FILE_TYPES_COLLECTION = "test_file_types"
     CSV_DELETION_BATCH_COLLECTION = "test_csv_deletion_batch"
+    CATALOG_COLLECTION = "test_catalog_collection"
 
     @test_case(16, "Delete Documents")
     async def _test_delete_documents(self) -> bool:
@@ -135,6 +136,7 @@ class CleanupModule(BaseTestModule):
                     self.CUSTOM_METADATA_COLLECTION,
                     self.TEST_FILE_TYPES_COLLECTION,
                     self.CSV_DELETION_BATCH_COLLECTION,
+                    self.CATALOG_COLLECTION,
                 ]
             )
         )
@@ -183,6 +185,7 @@ class CleanupModule(BaseTestModule):
                     self.CUSTOM_METADATA_COLLECTION,
                     self.TEST_FILE_TYPES_COLLECTION,
                     self.CSV_DELETION_BATCH_COLLECTION,
+                    self.CATALOG_COLLECTION,
                 ]
             )
         )
@@ -311,6 +314,7 @@ class CleanupModule(BaseTestModule):
                                 + [
                                     self.CUSTOM_METADATA_COLLECTION,
                                     self.TEST_FILE_TYPES_COLLECTION,
+                                    self.CATALOG_COLLECTION,
                                 ]
                             )
                         )
