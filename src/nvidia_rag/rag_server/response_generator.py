@@ -735,9 +735,7 @@ async def retrieve_summary(
         # If summary not found and wait=False, return immediately
         if not wait:
             return {
-                "message": f"Summary for {
-                    file_name
-                } not found. Ensure the file name and collection name are correct. Set wait=true to wait for generation.",
+                "message": f"Summary for {file_name} not found. Ensure the file name and collection name are correct. Set wait=true to wait for generation.",
                 "status": "FAILED",
             }
 

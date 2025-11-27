@@ -144,11 +144,7 @@ def get_llm(config: NvidiaRAGConfig | None = None, **kwargs) -> LLM | SimpleChat
                         stop=kwargs.get("stop", []),
                     )
                 except (requests.RequestException, requests.ConnectionError) as e:
-                    error_msg = f"Failed to connect to guardrails service at {
-                        guardrails_url
-                    }: {
-                        str(e)
-                    } Make sure the guardrails service is running and accessible."
+                    error_msg = f"Failed to connect to guardrails service at {guardrails_url}: {str(e)} Make sure the guardrails service is running and accessible."
                     logger.error(error_msg)
                     raise RuntimeError(error_msg) from e
 
