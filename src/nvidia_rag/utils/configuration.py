@@ -319,7 +319,7 @@ class ModelParametersConfig(_ConfigBase):
         description="Minimum number of tokens to generate in response",
     )
     max_thinking_tokens: int = Field(
-        default=128000,
+        default=8192,
         env="LLM_MAX_THINKING_TOKENS",
         description="Maximum thinking tokens to allocate for reasoning models",
     )

@@ -95,6 +95,8 @@ class TestLLMConfig:
             "min_tokens": 0,
             "ignore_eos": False,
             "max_tokens": 32768,
+            "min_thinking_tokens": 1,
+            "max_thinking_tokens": 8192,
             "temperature": 0,
             "top_p": 1.0,
         }
@@ -110,6 +112,8 @@ class TestLLMConfig:
             "min_tokens": 0,
             "ignore_eos": False,
             "max_tokens": 32768,
+            "min_thinking_tokens": 1,
+            "max_thinking_tokens": 8192,
             "temperature": 0,
             "top_p": 1.0,
         }

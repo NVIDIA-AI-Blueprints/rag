@@ -70,7 +70,7 @@ default_max_tokens = model_params["max_tokens"]
 default_temperature = model_params["temperature"]
 default_top_p = model_params["top_p"]
 default_min_thinking_tokens = model_params.get("min_thinking_tokens", 1)
-default_max_thinking_tokens = model_params.get("max_thinking_tokens", 128000)
+default_max_thinking_tokens = model_params.get("max_thinking_tokens", 8192)
 
 logger.debug("Default LLM parameters:")
 logger.debug(f"  min_tokens: {default_min_tokens}")

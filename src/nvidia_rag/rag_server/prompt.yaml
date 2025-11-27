@@ -1,6 +1,6 @@
 chat_template:
   system: |
-    /think
+    /no_think
 
   human: |
     You are a helpful, respectful, and honest assistant.
@@ -21,7 +21,7 @@ chat_template:
 
 rag_template:
   system: |
-    /think
+    /no_think
 
   human: |
     You are a helpful AI assistant named Envie.

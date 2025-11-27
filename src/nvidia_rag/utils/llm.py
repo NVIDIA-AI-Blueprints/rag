@@ -87,6 +87,30 @@ def get_prompts() -> dict:
     return config
 
 
+def _bind_thinking_tokens_if_configured(
+    llm: LLM | SimpleChatModel, **kwargs
+) -> LLM | SimpleChatModel:
+    """
+    If min_thinking_tokens or max_thinking_tokens are > 0 in kwargs, bind them to the LLM.
+    """
+    min_think = kwargs.get("min_thinking_tokens", None)
+    max_think = kwargs.get("max_thinking_tokens", None)
+    enable_thinking = (max_think is not None and max_think > 0) or (
+        min_think is not None and min_think > 0
+    )
+    if not enable_thinking:
+        return llm
+
+    bind_args = {}
+    if min_think is not None and min_think > 0:
+        bind_args["min_thinking_tokens"] = min_think
+    if max_think is not None and max_think > 0:
+        bind_args["max_thinking_tokens"] = max_think
+    if bind_args:
+        return llm.bind(**bind_args)
+    return llm
+
+
 def get_llm(config: NvidiaRAGConfig | None = None, **kwargs) -> LLM | SimpleChatModel:
     """Create the LLM connection.
 
@@ -171,20 +195,7 @@ def get_llm(config: NvidiaRAGConfig | None = None, **kwargs) -> LLM | SimpleChat
                 ignore_eos=kwargs.get("ignore_eos", False),
                 stop=kwargs.get("stop", []),
             )
-            # Enable and configure thinking mode if token limits provided or min > 0
-            min_think = kwargs.get("min_thinking_tokens", None)
-            max_think = kwargs.get("max_thinking_tokens", None)
-            enable_thinking = (max_think is not None and max_think > 0) or (
-                min_think is not None and min_think > 0
-            )
-            if enable_thinking:
-                bind_args = {}
-                if min_think is not None and min_think > 0:
-                    bind_args["min_thinking_tokens"] = min_think
-                if max_think is not None and max_think > 0:
-                    bind_args["max_thinking_tokens"] = max_think
-                if bind_args:
-                    llm = llm.bind(**bind_args)
+            llm = _bind_thinking_tokens_if_configured(llm, **kwargs)
             return llm
 
         logger.info("Using llm model %s from api catalog", kwargs.get("model"))
@@ -197,22 +208,7 @@ def get_llm(config: NvidiaRAGConfig | None = None, **kwargs) -> LLM | SimpleChat
             ignore_eos=kwargs.get("ignore_eos", False),
             stop=kwargs.get("stop", []),
         )
-        # Enable and configure thinking mode if token limits provided or min > 0
-        min_think = kwargs.get("min_thinking_tokens", None)
-        max_think = kwargs.get("max_thinking_tokens", None)
-        enable_thinking = (
-            max_think is not None and max_think > 0
-        ) or (
-            min_think is not None and min_think > 0
-        )
-        if enable_thinking:
-            bind_args = {}
-            if min_think is not None and min_think > 0:
-                bind_args["min_thinking_tokens"] = min_think
-            if max_think is not None and max_think > 0:
-                bind_args["max_thinking_tokens"] = max_think
-            if bind_args:
-                llm = llm.bind(**bind_args)
+        llm = _bind_thinking_tokens_if_configured(llm, **kwargs)
         return llm
 
     raise RuntimeError(
