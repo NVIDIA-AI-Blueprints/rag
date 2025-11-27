@@ -81,6 +81,7 @@ from nvidia_rag.utils.common import (
 )
 from nvidia_rag.utils.configuration import NvidiaRAGConfig
 from nvidia_rag.utils.embedding import get_embedding_model
+from nvidia_rag.utils.health_models import ServiceStatus
 from nvidia_rag.utils.vdb import (
     DEFAULT_DOCUMENT_INFO_COLLECTION,
     DEFAULT_METADATA_SCHEMA_COLLECTION,
@@ -239,12 +240,12 @@ class MilvusVDB(Milvus, VDBRag):
         status = {
             "service": "Milvus",
             "url": self.vdb_endpoint,
-            "status": "unknown",
+            "status": ServiceStatus.UNKNOWN.value,
             "error": None,
         }
 
         if not self.vdb_endpoint:
-            status["status"] = "skipped"
+            status["status"] = ServiceStatus.SKIPPED.value
             status["error"] = "No URL provided"
             return status
 
@@ -254,11 +255,11 @@ class MilvusVDB(Milvus, VDBRag):
             # Test basic operation - list collections
             collections = utility.list_collections(using=self.connection_alias)
 
-            status["status"] = "healthy"
+            status["status"] = ServiceStatus.HEALTHY.value
             status["latency_ms"] = round((time.time() - start_time) * 1000, 2)
             status["collections"] = len(collections)
         except Exception as e:
-            status["status"] = "error"
+            status["status"] = ServiceStatus.ERROR.value
             status["error"] = str(e)
 
         return status

@@ -18,7 +18,20 @@ These models provide type safety and consistency for health check responses
 in both the RAG server and Ingestor server.
 """
 
+from enum import Enum
+
 from pydantic import BaseModel, Field
+
+
+class ServiceStatus(str, Enum):
+    """Enum for service health status values."""
+
+    HEALTHY = "healthy"
+    UNHEALTHY = "unhealthy"
+    SKIPPED = "skipped"
+    TIMEOUT = "timeout"
+    ERROR = "error"
+    UNKNOWN = "unknown"
 
 
 class BaseServiceHealthInfo(BaseModel):
@@ -26,7 +39,7 @@ class BaseServiceHealthInfo(BaseModel):
 
     service: str
     url: str
-    status: str
+    status: str | ServiceStatus
     latency_ms: float = 0
     error: str | None = None
 

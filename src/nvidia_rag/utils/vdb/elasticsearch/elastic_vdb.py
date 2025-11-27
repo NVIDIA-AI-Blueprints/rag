@@ -72,6 +72,7 @@ from nvidia_rag.utils.common import (
 )
 from nvidia_rag.utils.configuration import NvidiaRAGConfig
 from nvidia_rag.utils.embedding import get_embedding_model
+from nvidia_rag.utils.health_models import ServiceStatus
 from nvidia_rag.utils.vdb import (
     DEFAULT_DOCUMENT_INFO_COLLECTION,
     DEFAULT_METADATA_SCHEMA_COLLECTION,
@@ -307,12 +308,12 @@ class ElasticVDB(VDBRag):
         status = {
             "service": "Elasticsearch",
             "url": self.es_url,
-            "status": "unknown",
+            "status": ServiceStatus.UNKNOWN.value,
             "error": None,
         }
 
         if not self.es_url:
-            status["status"] = "skipped"
+            status["status"] = ServiceStatus.SKIPPED.value
             status["error"] = "No URL provided"
             return status
 
@@ -322,18 +323,18 @@ class ElasticVDB(VDBRag):
             cluster_health = self._es_connection.cluster.health()
             indices = self._es_connection.cat.indices(format="json")
 
-            status["status"] = "healthy"
+            status["status"] = ServiceStatus.HEALTHY.value
             status["latency_ms"] = round((time.time() - start_time) * 1000, 2)
             status["indices"] = len(indices)
-            status["cluster_status"] = cluster_health.get("status", "unknown")
+            status["cluster_status"] = cluster_health.get("status", ServiceStatus.UNKNOWN.value)
 
         except ImportError:
-            status["status"] = "error"
+            status["status"] = ServiceStatus.ERROR.value
             status["error"] = (
                 "Elasticsearch client not available (elasticsearch library not installed)"
             )
         except Exception as e:
-            status["status"] = "error"
+            status["status"] = ServiceStatus.ERROR.value
             status["error"] = str(e)
 
         return status
