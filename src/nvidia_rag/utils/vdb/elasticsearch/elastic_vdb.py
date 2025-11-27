@@ -120,11 +120,6 @@ class ElasticVDB(VDBRag):
         resolved_api_key: Optional[Union[str, Tuple[str, str]]] = None
         resolved_basic_auth: Optional[Tuple[str, str]] = None
         resolved_bearer_auth: Optional[str] = None
-
-        # Resolve authentication from config
-        # Prefer API key auth when provided; otherwise fall back to basic auth.
-        resolved_api_key: str | tuple[str, str] | None = None
-        resolved_basic_auth: tuple[str, str] | None = None
         
         if auth_token:
             resolved_bearer_auth = auth_token
