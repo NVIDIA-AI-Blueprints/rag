@@ -107,7 +107,7 @@ class TestNvidiaRAGIngestor:
 
     @pytest.fixture
     def mock_nvingest_upload_doc(self, ingestor):
-        """Mock the __nvingest_upload_doc method."""
+        """Mock the __run_nvingest_batched_ingestion method."""
         async def mock_nvingest(*args, **kwargs):
             # Get filepaths from kwargs
             filepaths = kwargs.get('filepaths', [])
@@ -127,7 +127,7 @@ class TestNvidiaRAGIngestor:
             return results, []
         
         with patch.object(
-            ingestor, "_NvidiaRAGIngestor__nvingest_upload_doc", side_effect=mock_nvingest
+            ingestor, "_NvidiaRAGIngestor__run_nvingest_batched_ingestion", side_effect=mock_nvingest
         ):
             yield
 
@@ -678,12 +678,12 @@ class TestNvidiaRAGIngestor:
             ):
                 with patch.object(
                     ingestor,
-                    "_NvidiaRAGIngestor__nv_ingest_ingestion",
+                    "_NvidiaRAGIngestor__nv_ingest_ingestion_pipeline",
                     new_callable=AsyncMock,
                 ) as mock_ingestion:
                     mock_ingestion.return_value = ([["result"]], [])
 
-                    await ingestor._NvidiaRAGIngestor__nvingest_upload_doc(
+                    await ingestor._NvidiaRAGIngestor__run_nvingest_batched_ingestion(
                         filepaths=filepaths,
                         collection_name="test_collection",
                         vdb_op=ingestor.vdb_op,
@@ -718,12 +718,12 @@ class TestNvidiaRAGIngestor:
             ):
                 with patch.object(
                     ingestor,
-                    "_NvidiaRAGIngestor__nv_ingest_ingestion",
+                    "_NvidiaRAGIngestor__nv_ingest_ingestion_pipeline",
                     new_callable=AsyncMock,
                 ) as mock_ingestion:
                     mock_ingestion.return_value = ([["result"]], [])
 
-                    await ingestor._NvidiaRAGIngestor__nvingest_upload_doc(
+                    await ingestor._NvidiaRAGIngestor__run_nvingest_batched_ingestion(
                         filepaths=filepaths,
                         collection_name="test_collection",
                         vdb_op=ingestor.vdb_op,
@@ -745,12 +745,12 @@ class TestNvidiaRAGIngestor:
             with patch.dict(os.environ, {"ENABLE_NV_INGEST_BATCH_MODE": "false"}):
                 with patch.object(
                     ingestor,
-                    "_NvidiaRAGIngestor__nv_ingest_ingestion",
+                    "_NvidiaRAGIngestor__nv_ingest_ingestion_pipeline",
                     new_callable=AsyncMock,
                 ) as mock_ingestion:
                     mock_ingestion.return_value = ([["result"]], [])
 
-                    await ingestor._NvidiaRAGIngestor__nvingest_upload_doc(
+                    await ingestor._NvidiaRAGIngestor__run_nvingest_batched_ingestion(
                         filepaths=filepaths,
                         collection_name="test_collection",
                         vdb_op=ingestor.vdb_op,
@@ -778,12 +778,12 @@ class TestNvidiaRAGIngestor:
             ):
                 with patch.object(
                     ingestor,
-                    "_NvidiaRAGIngestor__nv_ingest_ingestion",
+                    "_NvidiaRAGIngestor__nv_ingest_ingestion_pipeline",
                     new_callable=AsyncMock,
                 ) as mock_ingestion:
                     mock_ingestion.return_value = ([["result"]], [])
 
-                    await ingestor._NvidiaRAGIngestor__nvingest_upload_doc(
+                    await ingestor._NvidiaRAGIngestor__run_nvingest_batched_ingestion(
                         filepaths=filepaths,
                         collection_name="test_collection",
                         vdb_op=ingestor.vdb_op,
@@ -813,13 +813,13 @@ class TestNvidiaRAGIngestor:
             ):
                 with patch.object(
                     ingestor,
-                    "_NvidiaRAGIngestor__nv_ingest_ingestion",
+                    "_NvidiaRAGIngestor__nv_ingest_ingestion_pipeline",
                     new_callable=AsyncMock,
                 ) as mock_ingestion:
                     mock_ingestion.return_value = ([["result"]], [])
 
                     with pytest.raises(FileNotFoundError, match="File not found"):
-                        await ingestor._NvidiaRAGIngestor__nvingest_upload_doc(
+                        await ingestor._NvidiaRAGIngestor__run_nvingest_batched_ingestion(
                             filepaths=filepaths,
                             collection_name="test_collection",
                             vdb_op=ingestor.vdb_op,
