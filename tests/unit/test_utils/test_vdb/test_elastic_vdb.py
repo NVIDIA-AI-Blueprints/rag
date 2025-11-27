@@ -46,7 +46,7 @@ class TestElasticVDB(unittest.TestCase):
     def test_init(
         self,
         mock_vector_store,
-        mock_elasticsearch, 
+        mock_elasticsearch,
     ):
         """Test ElasticVDB initialization."""
         # Mock config
@@ -79,7 +79,7 @@ class TestElasticVDB(unittest.TestCase):
             meta_fields=self.meta_fields,
             embedding_model=self.embedding_model,
             csv_file_path=self.csv_file_path,
-            config=mock_config
+            config=mock_config,
         )
 
         # Assertions
@@ -103,8 +103,7 @@ class TestElasticVDB(unittest.TestCase):
 
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.Elasticsearch")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.VectorStore")
-    def test_check_index_exists(
-        self, mock_vector_store, mock_elasticsearch):
+    def test_check_index_exists(self, mock_vector_store, mock_elasticsearch):
         """Test _check_index_exists method."""
         # Setup mocks
         mock_config = Mock()
@@ -127,8 +126,7 @@ class TestElasticVDB(unittest.TestCase):
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.Elasticsearch")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.VectorStore")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.logger")
-    def test_create_index(
-        self, mock_logger, mock_vector_store, mock_elasticsearch):
+    def test_create_index(self, mock_logger, mock_vector_store, mock_elasticsearch):
         """Test create_index method."""
         # Setup mocks
         mock_config = Mock()
@@ -159,7 +157,7 @@ class TestElasticVDB(unittest.TestCase):
         mock_logger,
         mock_cleanup_records,
         mock_vector_store,
-        mock_elasticsearch, 
+        mock_elasticsearch,
     ):
         """Test write_to_index method."""
         # Setup mocks
@@ -233,8 +231,7 @@ class TestElasticVDB(unittest.TestCase):
 
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.Elasticsearch")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.VectorStore")
-    def test_retrieval_not_implemented(
-        self, mock_vector_store, mock_elasticsearch):
+    def test_retrieval_not_implemented(self, mock_vector_store, mock_elasticsearch):
         """Test retrieval method raises NotImplementedError."""
         # Setup mocks
         mock_config = Mock()
@@ -253,8 +250,7 @@ class TestElasticVDB(unittest.TestCase):
 
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.Elasticsearch")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.VectorStore")
-    def test_reindex_not_implemented(
-        self, mock_vector_store, mock_elasticsearch):
+    def test_reindex_not_implemented(self, mock_vector_store, mock_elasticsearch):
         """Test reindex method raises NotImplementedError."""
         # Setup mocks
         mock_config = Mock()
@@ -301,8 +297,7 @@ class TestElasticVDB(unittest.TestCase):
 
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.Elasticsearch")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.VectorStore")
-    def test_create_collection(
-        self, mock_vector_store, mock_elasticsearch):
+    def test_create_collection(self, mock_vector_store, mock_elasticsearch):
         """Test create_collection method."""
         # Setup mocks
         mock_config = Mock()
@@ -331,8 +326,7 @@ class TestElasticVDB(unittest.TestCase):
 
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.Elasticsearch")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.VectorStore")
-    def test_check_collection_exists(
-        self, mock_vector_store, mock_elasticsearch):
+    def test_check_collection_exists(self, mock_vector_store, mock_elasticsearch):
         """Test check_collection_exists method."""
         # Setup mocks
         mock_config = Mock()
@@ -356,8 +350,7 @@ class TestElasticVDB(unittest.TestCase):
 
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.Elasticsearch")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.VectorStore")
-    def test_get_collection(
-        self, mock_vector_store, mock_elasticsearch):
+    def test_get_collection(self, mock_vector_store, mock_elasticsearch):
         """Test get_collection method."""
         # Setup mocks
         mock_config = Mock()
@@ -389,7 +382,13 @@ class TestElasticVDB(unittest.TestCase):
         )
         elastic_vdb.get_document_info = Mock(
             side_effect=[
+                # First collection: catalog data (info_type='catalog')
+                {"description": "Test collection 1", "tags": ["test"]},
+                # First collection: metrics data (info_type='collection')
                 {"total_pages": 10, "total_chunks": 100},
+                # Second collection: catalog data (info_type='catalog')
+                {"description": "Test collection 2", "tags": ["prod"]},
+                # Second collection: metrics data (info_type='collection')
                 {"total_pages": 20, "total_chunks": 200},
             ]
         )
@@ -401,13 +400,23 @@ class TestElasticVDB(unittest.TestCase):
                 "collection_name": "test_index_1",
                 "num_entities": "100",
                 "metadata_schema": [{"name": "field1", "type": "string"}],
-                "collection_info": {"total_pages": 10, "total_chunks": 100},
+                "collection_info": {
+                    "description": "Test collection 1",
+                    "tags": ["test"],
+                    "total_pages": 10,
+                    "total_chunks": 100,
+                },
             },
             {
                 "collection_name": "test_index_2",
                 "num_entities": "200",
                 "metadata_schema": [{"name": "field2", "type": "integer"}],
-                "collection_info": {"total_pages": 20, "total_chunks": 200},
+                "collection_info": {
+                    "description": "Test collection 2",
+                    "tags": ["prod"],
+                    "total_pages": 20,
+                    "total_chunks": 200,
+                },
             },
         ]
 
@@ -439,7 +448,7 @@ class TestElasticVDB(unittest.TestCase):
         mock_delete_doc_info_query,
         mock_delete_query,
         mock_vector_store,
-        mock_elasticsearch, 
+        mock_elasticsearch,
     ):
         """Test delete_collections method."""
         # Setup mocks
@@ -477,15 +486,14 @@ class TestElasticVDB(unittest.TestCase):
         )
         # Now expects 4 calls: 2 for metadata schema and 2 for document info
         self.assertEqual(mock_es_connection.delete_by_query.call_count, 4)
-        mock_logger.info.assert_called_with(
-            f"Collections deleted: {collection_names}"
-        )
+        mock_logger.info.assert_called_with(f"Collections deleted: {collection_names}")
 
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.Elasticsearch")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.VectorStore")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.get_unique_sources_query")
     def test_get_documents(
-        self, mock_sources_query, mock_vector_store, mock_elasticsearch):
+        self, mock_sources_query, mock_vector_store, mock_elasticsearch
+    ):
         """Test get_documents method."""
         # Setup mocks
         mock_config = Mock()
@@ -582,7 +590,8 @@ class TestElasticVDB(unittest.TestCase):
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.VectorStore")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.get_delete_docs_query")
     def test_delete_documents(
-        self, mock_delete_query, mock_vector_store, mock_elasticsearch):
+        self, mock_delete_query, mock_vector_store, mock_elasticsearch
+    ):
         """Test delete_documents method."""
         # Setup mocks
         mock_config = Mock()
@@ -627,7 +636,7 @@ class TestElasticVDB(unittest.TestCase):
         mock_logger,
         mock_mapping,
         mock_vector_store,
-        mock_elasticsearch, 
+        mock_elasticsearch,
     ):
         """Test create_metadata_schema_collection method when collection doesn't exist."""
         # Setup mocks
@@ -671,7 +680,7 @@ class TestElasticVDB(unittest.TestCase):
         mock_logger,
         mock_mapping,
         mock_vector_store,
-        mock_elasticsearch, 
+        mock_elasticsearch,
     ):
         """Test create_metadata_schema_collection method when collection exists."""
         # Setup mocks
@@ -710,7 +719,7 @@ class TestElasticVDB(unittest.TestCase):
         mock_logger,
         mock_delete_query,
         mock_vector_store,
-        mock_elasticsearch, 
+        mock_elasticsearch,
     ):
         """Test add_metadata_schema method."""
         # Setup mocks
@@ -754,7 +763,8 @@ class TestElasticVDB(unittest.TestCase):
         "metadata_schema",
     )
     def test_get_metadata_schema_found(
-        self, mock_schema_query, mock_vector_store, mock_elasticsearch):
+        self, mock_schema_query, mock_vector_store, mock_elasticsearch
+    ):
         """Test get_metadata_schema method when schema is found."""
         # Setup mocks
         mock_config = Mock()
@@ -804,7 +814,7 @@ class TestElasticVDB(unittest.TestCase):
         mock_logger,
         mock_schema_query,
         mock_vector_store,
-        mock_elasticsearch, 
+        mock_elasticsearch,
     ):
         """Test get_metadata_schema method when schema is not found."""
         # Setup mocks
@@ -841,7 +851,7 @@ class TestElasticVDB(unittest.TestCase):
         mock_time,
         mock_es_store_class,
         mock_vector_store,
-        mock_elasticsearch, 
+        mock_elasticsearch,
     ):
         """Test retrieval_langchain method."""
         # Setup mocks
@@ -877,7 +887,10 @@ class TestElasticVDB(unittest.TestCase):
 
         # Create instance and test
         elastic_vdb = ElasticVDB(
-            self.index_name, self.es_url, embedding_model="test_model", config=mock_config
+            self.index_name,
+            self.es_url,
+            embedding_model="test_model",
+            config=mock_config,
         )
 
         result = elastic_vdb.retrieval_langchain(
@@ -932,7 +945,10 @@ class TestElasticVDB(unittest.TestCase):
 
         # Create instance and test
         elastic_vdb = ElasticVDB(
-            self.index_name, self.es_url, embedding_model="test_model", config=mock_config
+            self.index_name,
+            self.es_url,
+            embedding_model="test_model",
+            config=mock_config,
         )
 
         # Reset mock to only track calls from the method being tested
@@ -950,6 +966,7 @@ class TestElasticVDB(unittest.TestCase):
         self.assertNotIn("api_key", vs_kwargs)
         self.assertNotIn("es_user", vs_kwargs)
         self.assertNotIn("es_password", vs_kwargs)
+
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.ElasticsearchStore")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.DenseVectorStrategy")
     def test_get_langchain_vectorstore_basic_auth(
