@@ -57,6 +57,10 @@ services:
       NGC_API_KEY: ${NGC_API_KEY:?"NGC_API_KEY is required"}
       NVIDIA_API_KEY: ${NGC_API_KEY:?"NGC_API_KEY is required"}
 
+      # Set LLM_API_KEY if non-NVIDIA hosted LLM API endpoint is being used
+      # If not set, NVIDIA_API_KEY will be used as fallback
+      LLM_API_KEY: ${LLM_API_KEY:-""}
+
       ##===Embedding Model specific configurations===
       # url on which embedding model is hosted. If "", Nvidia hosted API is used
       APP_EMBEDDINGS_SERVERURL: ${APP_EMBEDDINGS_SERVERURL-"nemoretriever-embedding-ms:8000"}
@@ -97,6 +101,11 @@ services:
       ##===NV-Ingest Save to Disk Configurations====
       APP_NVINGEST_SAVETODISK: ${APP_NVINGEST_SAVETODISK:-False}
       NVINGEST_MINIO_BUCKET: ${NVINGEST_MINIO_BUCKET:-nv-ingest}
+
+      ##===NV-Ingest Performance Configurations========
+      # If enabled, splits a single PDF's pages into parallel chunks for processing (smaller chunks = more parallelism but more overhead)
+      APP_NVINGEST_ENABLEPDFSPLIT: ${APP_NVINGEST_ENABLEPDFSPLIT:-False}
+      APP_NVINGEST_PAGESPERCHUNK: ${APP_NVINGEST_PAGESPERCHUNK:-16}
 
       # Choose whether to store the extracted content in the vector store for citation support
       ENABLE_CITATIONS: ${ENABLE_CITATIONS:-True}
