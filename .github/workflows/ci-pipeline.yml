@@ -165,7 +165,7 @@ jobs:
 
   integration-tests:
     name: Integration Tests
-    runs-on: ubuntu-latest
+    runs-on: arc-runners-org-nvidia-ai-bp-2-gpu-rag
     # Only run if push to develop OR PR from same repo (not fork) - needs secrets
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' || github.event.pull_request.head.repo.full_name == github.repository
     steps:
@@ -284,6 +284,11 @@ jobs:
       
       - name: Setup Python environment for tests
         run: |
+          # Ensure required Python tooling is installed before use
+          if command -v apt-get >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y python3 python3-venv python3-pip
+          fi
           rm -rf venv || echo "No existing venv to clean up"
           python3 --version || echo "Python3 not found"
           pip3 --version || echo "pip3 not found"
@@ -607,20 +612,9 @@ jobs:
         if: always()
         run: |
           echo "Cleaning up integration test environment..."
-          # Stop and remove all containers first
-          docker stop $(docker ps -aq) || true
-          docker rm $(docker ps -aq) || true
-          # Now try to bring down the compose stacks
-          docker compose -f deploy/compose/docker-compose-ingestor-server.yaml down -v || true
-          docker compose -f deploy/compose/docker-compose-rag-server.yaml down -v || true
-          docker compose -f tests/integration/vectordb.yaml down -v || true
-          # Remove any remaining networks
-          docker network prune -f || true
-          # Clean up Docker system
-          docker system prune -f || true
-          # Delete specific images to free up space
-          echo "Deleting ingestor-server and rag-server images..."
-          docker images | grep "ingestor-server" | awk '{print $3}' | xargs -r docker rmi -f || echo "No ingestor-server images to delete"
-          docker images | grep "rag-server" | awk '{print $3}' | xargs -r docker rmi -f || echo "No rag-server images to delete"
-          docker images | grep "rag-frontend" | awk '{print $3}' | xargs -r docker rmi -f || echo "No rag-frontend images to delete"
-          echo "Cleanup completed"
+          # Bring down only the specific compose stacks used in this workflow,
+          # and clean up their containers, networks, and locally built images.
+          docker compose -f deploy/compose/docker-compose-ingestor-server.yaml down -v --remove-orphans --rmi local || true
+          docker compose -f deploy/compose/docker-compose-rag-server.yaml down -v --remove-orphans --rmi local || true
+          docker compose -f tests/integration/vectordb.yaml down -v --remove-orphans --rmi local || true
+          echo "Cleanup completed for integration test Docker resources"
