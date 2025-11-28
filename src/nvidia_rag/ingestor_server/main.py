@@ -182,6 +182,7 @@ class NvidiaRAGIngestor:
         filepaths: list[str] | None = None,
         bypass_validation: bool = False,
         metadata_schema: list[dict[str, Any]] | None = None,
+        vdb_auth_token: str = "",
     ) -> VDBRag:
         """
         Prepare the VDBRag object for ingestion.
@@ -200,6 +201,7 @@ class NvidiaRAGIngestor:
                 all_file_paths=filepaths,
                 metadata_schema=metadata_schema,
                 config=self.config,
+                vdb_auth_token=vdb_auth_token,
             )
             return vdb_op, collection_name
 
@@ -222,6 +224,7 @@ class NvidiaRAGIngestor:
         generate_summary: bool = False,
         additional_validation_errors: list[dict[str, Any]] | None = None,
         documents_catalog_metadata: list[dict[str, Any]] | None = None,
+        vdb_auth_token: str = "",
     ) -> dict[str, Any]:
         """Upload documents to the vector store.
 
@@ -250,6 +253,7 @@ class NvidiaRAGIngestor:
             vdb_endpoint=vdb_endpoint,
             collection_name=collection_name,
             filepaths=filepaths,
+            vdb_auth_token=vdb_auth_token,
         )
         vdb_op.create_document_info_collection()
 
@@ -287,6 +291,7 @@ class NvidiaRAGIngestor:
                         additional_validation_errors=additional_validation_errors,
                         state_manager=state_manager,
                         documents_catalog_metadata=documents_catalog_metadata,
+                        vdb_auth_token=vdb_auth_token,
                     )
 
                 task_id = await INGESTION_TASK_HANDLER.submit_task(
@@ -350,6 +355,7 @@ class NvidiaRAGIngestor:
         additional_validation_errors: list[dict[str, Any]] | None = None,
         state_manager: IngestionStateManager | None = None,
         documents_catalog_metadata: list[dict[str, Any]] | None = None,
+        vdb_auth_token: str = "",
     ) -> dict[str, Any]:
         """
         Main function called by ingestor server to ingest
@@ -401,7 +407,8 @@ class NvidiaRAGIngestor:
                     custom_metadata=custom_metadata,
                     filepaths=filepaths,
                     metadata_schema=metadata_schema,
-                )
+                    vdb_auth_token=vdb_auth_token,
+                )   
 
             if not validation_status:
                 failed_filenames = set()
@@ -719,6 +726,7 @@ class NvidiaRAGIngestor:
         generate_summary: bool = False,
         additional_validation_errors: list[dict[str, Any]] | None = None,
         documents_catalog_metadata: list[dict[str, Any]] | None = None,
+        vdb_auth_token: str = "",
     ) -> dict[str, Any]:
         """Upload a document to the vector store. If the document already exists, it will be replaced."""
 
@@ -745,10 +753,11 @@ class NvidiaRAGIngestor:
                     [file_name],
                     collection_name=collection_name,
                     include_upload_path=True,
+                    vdb_auth_token=vdb_auth_token,
                 )
             else:
                 response = self.delete_documents(
-                    [file], collection_name=collection_name
+                    [file], collection_name=collection_name, vdb_auth_token=vdb_auth_token,
                 )
 
             if response["total_documents"] == 0:
@@ -773,6 +782,7 @@ class NvidiaRAGIngestor:
             generate_summary=generate_summary,
             additional_validation_errors=additional_validation_errors,
             documents_catalog_metadata=documents_catalog_metadata,
+            vdb_auth_token=vdb_auth_token,
         )
         return response
 
@@ -881,6 +891,7 @@ class NvidiaRAGIngestor:
         created_by: str = "",
         business_domain: str = "",
         status: str = "Active",
+        vdb_auth_token: str = "",
     ) -> str:
         """
         Main function called by ingestor server to create a new collection in vector-DB
@@ -894,6 +905,7 @@ class NvidiaRAGIngestor:
         vdb_op, collection_name = self.__prepare_vdb_op_and_collection_name(
             vdb_endpoint=vdb_endpoint,
             collection_name=collection_name,
+            vdb_auth_token=vdb_auth_token,
         )
 
         if metadata_schema is None:
@@ -1093,6 +1105,7 @@ class NvidiaRAGIngestor:
         vdb_endpoint: str | None = None,
         embedding_dimension: int | None = None,
         collection_type: str = "text",
+        vdb_auth_token: str = "",
     ) -> dict[str, Any]:
         """
         Main function called by ingestor server to create new collections in vector-DB
@@ -1106,6 +1119,7 @@ class NvidiaRAGIngestor:
         vdb_op, _ = self.__prepare_vdb_op_and_collection_name(
             vdb_endpoint=vdb_endpoint,
             collection_name="",
+            vdb_auth_token=vdb_auth_token,
         )
         try:
             if not len(collection_names):
@@ -1164,6 +1178,7 @@ class NvidiaRAGIngestor:
         self,
         collection_names: list[str],
         vdb_endpoint: str | None = None,
+        vdb_auth_token: str = "",
     ) -> dict[str, Any]:
         """
         Main function called by ingestor server to delete collections in vector-DB
@@ -1178,6 +1193,7 @@ class NvidiaRAGIngestor:
             vdb_op, _ = self.__prepare_vdb_op_and_collection_name(
                 vdb_endpoint=vdb_endpoint,
                 collection_name="",
+                vdb_auth_token=vdb_auth_token,
             )
 
             response = vdb_op.delete_collections(collection_names)
@@ -1220,6 +1236,7 @@ class NvidiaRAGIngestor:
     def get_collections(
         self,
         vdb_endpoint: str | None = None,
+        vdb_auth_token: str = "",
     ) -> dict[str, Any]:
         """
         Main function called by ingestor server to get all collections in vector-DB.
@@ -1238,6 +1255,7 @@ class NvidiaRAGIngestor:
             vdb_op, _ = self.__prepare_vdb_op_and_collection_name(
                 vdb_endpoint=vdb_endpoint,
                 collection_name="",
+                vdb_auth_token=vdb_auth_token,
             )
             # Fetch collections from vector store
             collection_info = vdb_op.get_collection()
@@ -1275,6 +1293,7 @@ class NvidiaRAGIngestor:
         collection_name: str | None = None,
         vdb_endpoint: str | None = None,
         bypass_validation: bool = False,
+        vdb_auth_token: str = "",
     ) -> dict[str, Any]:
         """
         Retrieves filenames stored in the vector store.
@@ -1292,6 +1311,7 @@ class NvidiaRAGIngestor:
                 vdb_endpoint=vdb_endpoint,
                 collection_name=collection_name,
                 bypass_validation=bypass_validation,
+                vdb_auth_token=vdb_auth_token,
             )
             documents_list = vdb_op.get_documents(collection_name)
 
@@ -1342,6 +1362,7 @@ class NvidiaRAGIngestor:
         collection_name: str | None = None,
         vdb_endpoint: str | None = None,
         include_upload_path: bool = False,
+        vdb_auth_token: str = "",
     ) -> dict[str, Any]:
         """Delete documents from the vector index.
         It's called when the DELETE endpoint of `/documents` API is invoked.
@@ -1362,6 +1383,7 @@ class NvidiaRAGIngestor:
             vdb_op, collection_name = self.__prepare_vdb_op_and_collection_name(
                 vdb_endpoint=vdb_endpoint,
                 collection_name=collection_name,
+                vdb_auth_token=vdb_auth_token,
             )
 
             logger.info(
