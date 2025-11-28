@@ -13,7 +13,7 @@ services:
     environment:
       NGC_API_KEY: ${NGC_API_KEY}
       # Automatic profile detection
-      NIM_MODEL_PROFILE: ${NIM_MODEL_PROFILE-""}
+      NIM_MODEL_PROFILE: "tensorrt_llm-h100-fp8-tp1-pp1-throughput-2330:10de-a5381c1be0b8ee66ad41e7dc7b4e6d2cffaa7a4e37ca05f57898817560b0bd2b-1"
     ulimits:
       nofile:
         soft: 65536
@@ -317,7 +317,7 @@ services:
 
   vlm-ms:
     container_name: nemo-vlm-microservice
-    image: nvcr.io/nim/nvidia/llama-3.1-nemotron-nano-vl-8b-v1:1.3.1
+    image: nvcr.io/nim/nvidia/nemotron-nano-12b-v2-vl:1
     volumes:
     - ${MODEL_DIRECTORY:-./}:/opt/nim/.cache
     ports:
