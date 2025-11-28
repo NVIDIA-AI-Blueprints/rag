@@ -50,7 +50,7 @@ it serves as a flexible starting point that developers can adapt and extend to t
     <summary>Generation and Enrichment</summary>
     <ul>
         <li>Opt-in for Multimodal and Vision Language Model Support in the answer generation pipeline.</li>
-        <li>Document summarization</li>
+        <li>Document summarization with multiple strategies, flexible page filtering, and real-time progress tracking</li>
         <li>Improve accuracy with optional reflection</li>
         <li>Optional programmable guardrails for content safety</li>
     </ul>

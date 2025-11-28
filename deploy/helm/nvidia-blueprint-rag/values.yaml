@@ -95,6 +95,11 @@ envVars:
   MINIO_ACCESSKEY: "minioadmin"
   MINIO_SECRETKEY: "minioadmin"
 
+  ##===Redis configurations for summary status tracking===
+  REDIS_HOST: "rag-redis-master"
+  REDIS_PORT: "6379"
+  REDIS_DB: "0"
+
   ##===Vector DB specific configurations===
   # URL on which vectorstore is hosted
   APP_VECTORSTORE_URL: "http://milvus:19530" # Use "http://elasticsearch:9200" for elasticsearch
@@ -343,10 +348,11 @@ ingestor-server:
     # Summary Model Configurations
     SUMMARY_LLM: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
     SUMMARY_LLM_SERVERURL: "nim-llm:8000"
-    SUMMARY_LLM_MAX_CHUNK_LENGTH: "50000"
-    SUMMARY_CHUNK_OVERLAP: "200"
+    SUMMARY_LLM_MAX_CHUNK_LENGTH: "9000"
+    SUMMARY_CHUNK_OVERLAP: "400"
     SUMMARY_LLM_TEMPERATURE: "0.0"
     SUMMARY_LLM_TOP_P: "1.0"
+    SUMMARY_MAX_PARALLELIZATION: "20"
 
     # === General ===
     ENABLE_CITATIONS: "True"

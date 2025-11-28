@@ -171,6 +171,11 @@ services:
       # maximum recursion depth for iterative query decomposition
       MAX_RECURSION_DEPTH: ${MAX_RECURSION_DEPTH:-3}
 
+      # Redis configuration for summary status tracking
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_DB: ${REDIS_DB:-0}
+
     ports:
       - "8081:8081"
     expose:

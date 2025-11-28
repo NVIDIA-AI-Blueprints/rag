@@ -152,6 +152,7 @@ class TestGetLLM:
 
     @patch("nvidia_rag.utils.llm.sanitize_nim_url")
     @patch("nvidia_rag.utils.llm.ChatNVIDIA")
+    @patch.dict(os.environ, {}, clear=True)
     def test_get_llm_nvidia_endpoints_with_url(
         self, mock_chatnvidia, mock_sanitize
     ):
@@ -592,6 +593,7 @@ class TestLLMIntegration:
     """Integration tests for LLM utilities."""
 
     @patch("nvidia_rag.utils.llm.ChatNVIDIA")
+    @patch.dict(os.environ, {}, clear=True)
     def test_llm_creation_with_all_parameters(self, mock_chatnvidia):
         """Test complete LLM creation flow with all parameters."""
         # Create a mock config

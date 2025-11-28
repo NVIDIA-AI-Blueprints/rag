@@ -48,7 +48,7 @@ The `prompt.yaml` file contains a set of prompt templates used throughout the RA
 ### 9. `iterative_summary_prompt`
 - **Purpose:** Updates an existing summary with new information from additional document chunks.
 - **Usage:** Used for large documents that require chunked processing. Takes a previous summary and new chunk content to produce an updated comprehensive summary.
-- **Context:** Part of the iterative summarization strategy described in [document summarization](./summarization.md). This ensures that large documents are summarized while maintaining context across chunk boundaries.
+- **Context:** Part of the summarization strategies (single/hierarchical/iterative) described in [document summarization](./summarization.md). The iterative strategy (default, when `summarization_strategy` is `null` or omitted) uses this prompt for multi-chunk documents to maintain context across chunk boundaries.
 
 ### 10. `vlm_template`
 - **Purpose:** Guides the assistant in answering questions using only provided images.
@@ -73,6 +73,11 @@ The `prompt.yaml` file contains a set of prompt templates used throughout the RA
 ### 15. `query_decomposition_final_response_prompt`
 - **Purpose:** Generates the final response using conversation history and retrieved context.
 - **Usage:** Generates final answers as "Envie" using only provided context, with strict grounding rules and no external knowledge. Used in the [query decomposition pipeline](./query_decomposition.md).
+
+### 16. `shallow_summary_prompt`
+- **Purpose:** Generates concise summaries for text-only (shallow) extraction workflows.
+- **Usage:** Produces streamlined summaries when `shallow_summary: true` is set during document ingestion. Uses a simplified prompt optimized for fast text-only processing without multimodal elements (tables, images, charts).
+- **Context:** Automatically selected when shallow extraction is enabled. For full multimodal extraction, `document_summary_prompt` is used instead. See [document summarization](./summarization.md) for details on shallow vs. full extraction.
 
 ---
 

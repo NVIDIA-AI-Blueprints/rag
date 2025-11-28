@@ -46,7 +46,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from starlette.status import HTTP_422_UNPROCESSABLE_ENTITY
 
 from nvidia_rag.ingestor_server.main import SERVER_MODE, NvidiaRAGIngestor
@@ -195,6 +195,131 @@ class DocumentCatalogMetadata(BaseModel):
     )
 
 
+class SummaryOptions(BaseModel):
+    """Advanced options for summary generation (used with generate_summary=True).
+
+    Page Filter formats:
+    - Ranges: [[1, 10], [20, 30]] for pages 1-10 and 20-30
+    - Negative ranges: [[-10, -1]] for last 10 pages (Pythonic indexing where -1 is last page)
+    - Even/odd: "even" or "odd" for all even or odd pages
+
+    Examples:
+    - [[1, 10], [-5, -1]] selects first 10 pages and last 5 pages
+    - [[-1, -1]] selects only the last page
+    """
+
+    page_filter: list[list[int]] | str | None = Field(
+        None,
+        description=(
+            "Page selection specification for summarization. Supports: "
+            "list[list[int]] (ranges as [start,end] with negative indexing supported), "
+            "str ('even' or 'odd'). Only applicable when generate_summary is enabled."
+        ),
+        examples=[
+            [[1, 10]],
+            [[1, 10], [20, 30]],
+            [[-10, -1]],
+            [[1, 10], [-5, -1]],
+            "even",
+            "odd",
+        ],
+    )
+
+    shallow_summary: bool = Field(
+        default=False,
+        description=(
+            "Enable fast summary generation using text-only extraction. "
+            "When True, performs text-only NV-Ingest extraction first to generate summaries quickly, "
+            "then continues with full multimodal ingestion (tables, images, charts) for VDB. "
+            "Summary generation starts immediately with text-only results while full ingestion proceeds in parallel. "
+            "Default: False (summary generated after full multimodal ingestion)."
+        ),
+    )
+
+    summarization_strategy: str | None = Field(
+        default=None,
+        description=(
+            "Summarization strategy for combining document chunks. "
+            "'single': Summarize entire document in one pass (truncates if exceeds max_chunk_length). "
+            "'hierarchical': Parallel tree-based summarization (fastest for large documents). "
+            "If not specified, uses default sequential iterative processing."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def validate_page_filter_and_strategy(self) -> "SummaryOptions":
+        """Validate page_filter format and summarization_strategy."""
+        # Validate page_filter
+        if self.page_filter is not None:
+            page_filter = self.page_filter
+
+            if isinstance(page_filter, str):
+                if page_filter.lower() not in ["even", "odd"]:
+                    raise ValueError(
+                        f"Invalid page_filter string '{page_filter}'. Supported: 'even', 'odd'"
+                    )
+                self.page_filter = page_filter.lower()
+
+            elif isinstance(page_filter, list):
+                if not page_filter:
+                    raise ValueError("Page filter range list cannot be empty")
+
+                # Must be list of lists (ranges)
+                if not all(isinstance(item, list) for item in page_filter):
+                    raise ValueError(
+                        "Page filter must contain ranges as [start, end]. "
+                        "Got mixed types or non-list items."
+                    )
+
+                for i, range_item in enumerate(page_filter):
+                    if len(range_item) != 2:
+                        raise ValueError(
+                            f"Range {i} must have exactly 2 elements [start, end], got {len(range_item)}"
+                        )
+                    start, end = range_item
+                    if not isinstance(start, int) or not isinstance(end, int):
+                        raise ValueError(
+                            f"Range {i} must contain integers, got [{type(start).__name__}, {type(end).__name__}]"
+                        )
+                    # Validate page numbers
+                    if start == 0 or end == 0:
+                        raise ValueError(
+                            f"Range {i}: page numbers cannot be 0. Use 1-based indexing or negative for last pages."
+                        )
+                    # For negative ranges: start must be <= end (e.g., [-10, -1] is valid, [-1, -10] is not)
+                    if start < 0 and end < 0 and start > end:
+                        raise ValueError(
+                            f"Range {i}: invalid negative range [{start}, {end}]. "
+                            f"Use [-10, -1] for last 10 pages, not [-1, -10]."
+                        )
+                    # For positive ranges: start must be <= end
+                    if start > 0 and end > 0 and start > end:
+                        raise ValueError(
+                            f"Range {i}: start must be <= end, got [{start}, {end}]"
+                        )
+                    # Mixed positive/negative not allowed
+                    if (start < 0 and end > 0) or (start > 0 and end < 0):
+                        raise ValueError(
+                            f"Range {i}: cannot mix positive and negative indexing in same range. Got [{start}, {end}]"
+                        )
+            else:
+                raise ValueError(
+                    f"Invalid page_filter type: {type(page_filter).__name__}. "
+                    f"Expected: list[list[int]] (ranges) or str ('even'/'odd')"
+                )
+
+        # Validate summarization_strategy
+        if self.summarization_strategy is not None:
+            allowed_strategies = ["single", "hierarchical"]
+            if self.summarization_strategy not in allowed_strategies:
+                raise ValueError(
+                    f"Invalid summarization_strategy: '{self.summarization_strategy}'. "
+                    f"Allowed values: {allowed_strategies}"
+                )
+
+        return self
+
+
 class DocumentUploadRequest(BaseModel):
     """Request model for uploading and processing documents."""
 
@@ -203,6 +328,16 @@ class DocumentUploadRequest(BaseModel):
         description="URL of the vector database endpoint.",
         exclude=True,  # WAR to hide it from openapi schema
     )
+
+    @model_validator(mode="after")
+    def validate_summary_configuration(self) -> "DocumentUploadRequest":
+        """Validate that summary_options is only used when generate_summary is True."""
+        if self.summary_options and not self.generate_summary:
+            raise ValueError(
+                "summary_options can only be provided when generate_summary=True. "
+                "Either set generate_summary=True or remove summary_options."
+            )
+        return self
 
     collection_name: str = Field(
         "multimodal_data", description="Name of the collection in the vector database."
@@ -227,6 +362,11 @@ class DocumentUploadRequest(BaseModel):
     documents_catalog_metadata: list[DocumentCatalogMetadata] = Field(
         default_factory=list,
         description="Catalog metadata (description, tags) for specific documents. Optional per-document catalog information.",
+    )
+
+    summary_options: SummaryOptions | None = Field(
+        None,
+        description="Advanced options for summary generation (e.g., page filtering). Only used when generate_summary is True.",
     )
 
     # Reserved for future use

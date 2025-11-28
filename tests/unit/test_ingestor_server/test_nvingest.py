@@ -49,7 +49,9 @@ class TestGetNvIngestClient:
 
     def test_get_nv_ingest_client_config_error(self):
         """Test get_nv_ingest_client handles config errors"""
-        with patch("nvidia_rag.ingestor_server.nvingest.NvidiaRAGConfig") as mock_config_class:
+        with patch(
+            "nvidia_rag.ingestor_server.nvingest.NvidiaRAGConfig"
+        ) as mock_config_class:
             mock_config_class.side_effect = Exception("Config error")
 
             with pytest.raises(Exception, match="Config error"):
@@ -85,7 +87,10 @@ class TestGetNvIngestIngestor:
         mock_ingestor_instance.vdb_upload.return_value = mock_ingestor_instance
 
         result = get_nv_ingest_ingestor(
-            self.mock_client, self.filepaths, vdb_op=self.mock_vdb_op, config=mock_config
+            self.mock_client,
+            self.filepaths,
+            vdb_op=self.mock_vdb_op,
+            config=mock_config,
         )
 
         assert result == mock_ingestor_instance
@@ -148,7 +153,10 @@ class TestGetNvIngestIngestor:
         mock_ingestor_instance.vdb_upload.return_value = mock_ingestor_instance
 
         result = get_nv_ingest_ingestor(
-            self.mock_client, self.filepaths, vdb_op=self.mock_vdb_op, config=mock_config
+            self.mock_client,
+            self.filepaths,
+            vdb_op=self.mock_vdb_op,
+            config=mock_config,
         )
 
         assert result == mock_ingestor_instance
@@ -174,7 +182,10 @@ class TestGetNvIngestIngestor:
         mock_ingestor_instance.vdb_upload.return_value = mock_ingestor_instance
 
         result = get_nv_ingest_ingestor(
-            self.mock_client, self.filepaths, vdb_op=self.mock_vdb_op, config=mock_config
+            self.mock_client,
+            self.filepaths,
+            vdb_op=self.mock_vdb_op,
+            config=mock_config,
         )
 
         assert result == mock_ingestor_instance
@@ -205,7 +216,10 @@ class TestGetNvIngestIngestor:
         mock_ingestor_instance.vdb_upload.return_value = mock_ingestor_instance
 
         result = get_nv_ingest_ingestor(
-            self.mock_client, self.filepaths, vdb_op=self.mock_vdb_op, config=mock_config
+            self.mock_client,
+            self.filepaths,
+            vdb_op=self.mock_vdb_op,
+            config=mock_config,
         )
 
         assert result == mock_ingestor_instance
@@ -242,7 +256,10 @@ class TestGetNvIngestIngestor:
             mock_ingestor_instance.vdb_upload.return_value = mock_ingestor_instance
 
             result = get_nv_ingest_ingestor(
-                self.mock_client, self.filepaths, vdb_op=self.mock_vdb_op, config=mock_config
+                self.mock_client,
+                self.filepaths,
+                vdb_op=self.mock_vdb_op,
+                config=mock_config,
             )
 
             assert result == mock_ingestor_instance
@@ -267,13 +284,169 @@ class TestGetNvIngestIngestor:
 
     def test_get_nv_ingest_ingestor_config_error(self):
         """Test get_nv_ingest_ingestor handles config errors"""
-        with patch("nvidia_rag.ingestor_server.nvingest.NvidiaRAGConfig") as mock_config_class:
+        with patch(
+            "nvidia_rag.ingestor_server.nvingest.NvidiaRAGConfig"
+        ) as mock_config_class:
             mock_config_class.side_effect = Exception("Config error")
 
             with pytest.raises(Exception, match="Config error"):
                 get_nv_ingest_ingestor(
                     self.mock_client, self.filepaths, vdb_op=self.mock_vdb_op
                 )
+
+    @patch("nvidia_rag.ingestor_server.nvingest.sanitize_nim_url")
+    @patch("nvidia_rag.ingestor_server.nvingest.Ingestor")
+    def test_extract_override_and_vdb_op_none(
+        self, mock_ingestor_class, mock_sanitize_url
+    ):
+        """Test extract_override parameter and vdb_op=None behavior for shallow summaries"""
+        mock_sanitize_url.return_value = "http://test-embedding-url"
+
+        mock_ingestor_instance = Mock()
+        mock_ingestor_class.return_value = mock_ingestor_instance
+        mock_ingestor_instance.files.return_value = mock_ingestor_instance
+        mock_ingestor_instance.extract.return_value = mock_ingestor_instance
+        mock_ingestor_instance.split.return_value = mock_ingestor_instance
+        mock_ingestor_instance.embed.return_value = mock_ingestor_instance
+        mock_ingestor_instance.vdb_upload.return_value = mock_ingestor_instance
+
+        # Test 1: extract_override with text-only settings
+        extract_override = {
+            "extract_text": True,
+            "extract_infographics": False,
+            "extract_tables": False,
+            "extract_charts": False,
+            "extract_images": False,
+            "extract_method": "pdfium",
+            "text_depth": "document",
+            "table_output_format": "pseudo_markdown",
+            "extract_audio_params": {"segment_audio": False},
+            "extract_page_as_image": False,
+        }
+
+        # Create a mock config for this test
+        mock_config = self._create_mock_config()
+
+        result = get_nv_ingest_ingestor(
+            self.mock_client,
+            self.filepaths,
+            vdb_op=None,
+            extract_override=extract_override,
+            config=mock_config,
+        )
+
+        assert result == mock_ingestor_instance
+        # Verify extract was called with override parameters
+        mock_ingestor_instance.extract.assert_called_once()
+        call_kwargs = mock_ingestor_instance.extract.call_args[1]
+
+        assert call_kwargs["extract_text"] is True
+        assert call_kwargs["extract_infographics"] is False
+        assert call_kwargs["extract_tables"] is False
+        assert call_kwargs["extract_charts"] is False
+        assert call_kwargs["extract_images"] is False
+        assert call_kwargs["extract_page_as_image"] is False
+
+        # Test 2: Verify VDB-related methods were NOT called when vdb_op=None
+        mock_ingestor_instance.embed.assert_not_called()
+        mock_ingestor_instance.vdb_upload.assert_not_called()
+
+        # Test 3: extract_override with different custom parameters
+        mock_ingestor_instance.extract.reset_mock()
+        extract_override_custom = {
+            "extract_text": True,
+            "extract_infographics": False,
+            "extract_tables": False,
+            "extract_charts": False,
+            "extract_images": False,
+            "extract_method": "unstructured_python",
+            "text_depth": "block",
+            "table_output_format": "markdown",
+            "extract_audio_params": {"segment_audio": True},
+            "extract_page_as_image": True,
+        }
+
+        result = get_nv_ingest_ingestor(
+            self.mock_client,
+            self.filepaths,
+            vdb_op=None,
+            extract_override=extract_override_custom,
+            config=mock_config,
+        )
+
+        assert result == mock_ingestor_instance
+        call_kwargs = mock_ingestor_instance.extract.call_args[1]
+
+        assert call_kwargs["extract_method"] == "unstructured_python"
+        assert call_kwargs["text_depth"] == "block"
+        assert call_kwargs["table_output_format"] == "markdown"
+        assert call_kwargs["extract_audio_params"] == {"segment_audio": True}
+        assert call_kwargs["extract_page_as_image"] is True
+
+    @patch("nvidia_rag.ingestor_server.nvingest.sanitize_nim_url")
+    @patch("nvidia_rag.ingestor_server.nvingest.Ingestor")
+    def test_split_skipped_when_split_options_none(
+        self, mock_ingestor_class, mock_sanitize_url
+    ):
+        """Test that splitting is skipped when split_options is None (shallow extraction)"""
+        mock_sanitize_url.return_value = "http://test-embedding-url"
+
+        # Create a mock config for this test
+        mock_config = self._create_mock_config()
+
+        mock_ingestor_instance = Mock()
+        mock_ingestor_class.return_value = mock_ingestor_instance
+        mock_ingestor_instance.files.return_value = mock_ingestor_instance
+        mock_ingestor_instance.extract.return_value = mock_ingestor_instance
+        mock_ingestor_instance.split.return_value = mock_ingestor_instance
+
+        # Call with split_options=None (shallow extraction use case)
+        result = get_nv_ingest_ingestor(
+            self.mock_client,
+            self.filepaths,
+            split_options=None,
+            vdb_op=None,
+            config=mock_config,
+        )
+
+        assert result == mock_ingestor_instance
+        # Verify split was NOT called when split_options is None
+        mock_ingestor_instance.split.assert_not_called()
+        # Verify extract was still called
+        mock_ingestor_instance.extract.assert_called_once()
+
+    @patch("nvidia_rag.ingestor_server.nvingest.sanitize_nim_url")
+    @patch("nvidia_rag.ingestor_server.nvingest.Ingestor")
+    def test_split_called_with_default_options_when_dict_provided(
+        self, mock_ingestor_class, mock_sanitize_url
+    ):
+        """Test that splitting is called with default options when empty dict provided"""
+        mock_sanitize_url.return_value = "http://test-embedding-url"
+
+        # Create a mock config for this test
+        mock_config = self._create_mock_config()
+
+        mock_ingestor_instance = Mock()
+        mock_ingestor_class.return_value = mock_ingestor_instance
+        mock_ingestor_instance.files.return_value = mock_ingestor_instance
+        mock_ingestor_instance.extract.return_value = mock_ingestor_instance
+        mock_ingestor_instance.split.return_value = mock_ingestor_instance
+
+        # Call with empty dict (should use default values from config)
+        result = get_nv_ingest_ingestor(
+            self.mock_client,
+            self.filepaths,
+            split_options={},
+            vdb_op=None,
+            config=mock_config,
+        )
+
+        assert result == mock_ingestor_instance
+        # Verify split WAS called with default config values
+        mock_ingestor_instance.split.assert_called_once()
+        call_kwargs = mock_ingestor_instance.split.call_args[1]
+        assert call_kwargs["chunk_size"] == 1000  # from mock config
+        assert call_kwargs["chunk_overlap"] == 200  # from mock config
 
     def _create_mock_config(self):
         """Create a mock config object with default values"""

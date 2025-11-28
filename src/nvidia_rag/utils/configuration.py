@@ -71,8 +71,9 @@ class _ConfigBase(BaseModel):
                     if isinstance(raw_value, str) and len(raw_value) >= 2:
                         # More robust quote stripping: strip whitespace first, then quotes
                         raw_value = raw_value.strip()
-                        if (raw_value.startswith('"') and raw_value.endswith('"')) or \
-                           (raw_value.startswith("'") and raw_value.endswith("'")):
+                        if (raw_value.startswith('"') and raw_value.endswith('"')) or (
+                            raw_value.startswith("'") and raw_value.endswith("'")
+                        ):
                             raw_value = raw_value[1:-1]
                     env_values[field_name] = raw_value
 
@@ -634,14 +635,14 @@ class SummarizerConfig(_ConfigBase):
         description="URL endpoint for summarization service",
     )
     max_chunk_length: int = Field(
-        default=50000,
+        default=9000,
         env="SUMMARY_LLM_MAX_CHUNK_LENGTH",
-        description="Maximum character length for chunks to summarize",
+        description="Maximum chunk size in tokens for the summarizer model",
     )
     chunk_overlap: int = Field(
-        default=200,
+        default=400,
         env="SUMMARY_CHUNK_OVERLAP",
-        description="Character overlap between chunks during summarization",
+        description="Overlap between chunks for iterative summarization (in tokens)",
     )
     temperature: float = Field(
         default=0.0,
@@ -652,6 +653,11 @@ class SummarizerConfig(_ConfigBase):
         default=1.0,
         env="SUMMARY_LLM_TOP_P",
         description="Nucleus sampling threshold for summary generation",
+    )
+    max_parallelization: int = Field(
+        default=20,
+        env="SUMMARY_MAX_PARALLELIZATION",
+        description="Maximum concurrent summaries across entire system (coordinated via Redis)",
     )
 
 

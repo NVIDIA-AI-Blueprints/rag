@@ -25,11 +25,11 @@ import pytest
 import yaml
 
 from nvidia_rag.utils.configuration import (
-    NvidiaRAGConfig,
     EmbeddingConfig,
     LLMConfig,
     MinioConfig,
     ModelParametersConfig,
+    NvidiaRAGConfig,
     NvIngestConfig,
     QueryRewriterConfig,
     RankingConfig,
@@ -206,8 +206,8 @@ class TestSummarizerConfig:
 
         assert config.model_name == "nvidia/llama-3.3-nemotron-super-49b-v1.5"
         assert config.server_url == ""
-        assert config.max_chunk_length == 50000
-        assert config.chunk_overlap == 200
+        assert config.max_chunk_length == 9000
+        assert config.chunk_overlap == 400
         assert config.temperature == 0.0
         assert config.top_p == 1.0
 
@@ -397,9 +397,9 @@ class TestConfigurationIntegration:
         # Simulate Docker Compose setting boolean values as quoted strings
         env_vars = {
             "APP_TRACING_ENABLED": '"False"',  # Docker Compose style: "False"
-            "ENABLE_GUARDRAILS": '"True"',     # Docker Compose style: "True"
-            "ENABLE_CITATIONS": '"false"',     # lowercase with quotes
-            "ENABLE_RERANKER": '"true"',       # lowercase with quotes
+            "ENABLE_GUARDRAILS": '"True"',  # Docker Compose style: "True"
+            "ENABLE_CITATIONS": '"false"',  # lowercase with quotes
+            "ENABLE_RERANKER": '"true"',  # lowercase with quotes
         }
 
         with patch.dict(os.environ, env_vars):
