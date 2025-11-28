@@ -5,16 +5,16 @@
 :orphan:
 # NVIDIA RAG Blueprint Documentation
 
+Welcome to the NVIDIA RAG Blueprint documentation. 
+You can learn more here, including how to get started with the RAG Blueprint, how to customize the RAG Blueprint, and how to troubleshoot the RAG Blueprint.
 
-Welcome to the NVIDIA RAG Blueprint documentation. You can learn more here, including how to get started with the RAG Blueprint, how to customize the RAG Blueprint, and how to troubleshoot the RAG Blueprint.
-
-- To view this documentation on docs.nvidia.com, browse to [NVIDIA RAG Blueprint Documentation](https://docs.nvidia.com/rag/latest/).
-- To view this documentation on GitHub, browse to [NVIDIA RAG Blueprint Documentation](readme.md).
+- To view this documentation on docs.nvidia.com, browse to [NVIDIA RAG Blueprint Documentation](https://docs.nvidia.com/rag/latest/index.html).
+- To view this documentation on GitHub, browse to [NVIDIA RAG Blueprint Documentation](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/docs/readme.md).
 
 
 ## Release Notes
 
-For the release notes, refer to the [Changelog](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/CHANGELOG.md).
+For the release notes, refer to [Release Notes](release-notes.md).
 
 
 ## Support Matrix
@@ -66,7 +66,7 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
 - Data Ingestion & Processing
 
     - [Audio Ingestion Support](audio_ingestion.md)
-    - [Custom metadata Support](custom-metadata.md)
+    - [Custom Metadata Support](custom-metadata.md)
     - [File System Access to Extraction Results](mount-ingestor-volume.md)
     - [Multimodal Embedding Support (Early Access)](vlm-embed.md)
     - [NeMo Retriever OCR for Enhanced Text Extraction (Early Access)](nemoretriever-ocr.md)
@@ -86,6 +86,11 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
 
     - [Image captioning support for ingested documents](image_captioning.md)
     - [VLM based inferencing in RAG](vlm.md)
+
+
+- Evaluation
+
+    - [Evaluate Your NVIDIA RAG Blueprint System](evaluate.md)
 
 
 - Governance
