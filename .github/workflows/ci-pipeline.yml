@@ -553,9 +553,15 @@ jobs:
         if: always()
         run: |
           mkdir -p logs/observability
+          echo "=== Container Status (docker ps -a) ===" | tee logs/observability/container-status.log
+          docker ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | tee -a logs/observability/container-status.log
+          echo "" | tee -a logs/observability/container-status.log
+          echo "=== Milvus Container Stats ===" | tee -a logs/observability/container-status.log
+          docker stats --no-stream milvus-standalone 2>&1 | tee -a logs/observability/container-status.log || echo "Milvus container not running" | tee -a logs/observability/container-status.log
           docker logs rag-server > logs/observability/rag-server.log 2>&1 || true
           docker logs ingestor-server > logs/observability/ingestor-server.log 2>&1 || true
           docker logs compose-nv-ingest-ms-runtime-1 > logs/observability/nvingest.log 2>&1 || true
+          docker logs milvus-standalone > logs/observability/milvus.log 2>&1 || true
           docker logs otel-collector > logs/observability/otel-collector.log 2>&1 || true
           docker logs zipkin > logs/observability/zipkin.log 2>&1 || true
           docker logs prometheus > logs/observability/prometheus.log 2>&1 || true
