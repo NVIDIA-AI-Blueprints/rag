@@ -52,6 +52,11 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ''),
       },
+      '/api/configuration': {
+        target: CHAT_TARGET,
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, ''),
+      },
     },
   },
   preview: {
@@ -85,6 +90,11 @@ export default defineConfig({
       },
       '/api/health': {
         target: VDB_TARGET,
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, ''),
+      },
+      '/api/configuration': {
+        target: CHAT_TARGET,
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ''),
       },

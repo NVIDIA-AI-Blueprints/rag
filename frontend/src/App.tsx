@@ -19,7 +19,7 @@ import Chat from "./pages/Chat";
 import NewCollection from "./pages/NewCollection";
 import Layout from "./components/layout/Layout";
 import SettingsPage from "./pages/SettingsPage";
-import { useAppHealthStatus } from "./store/useSettingsStore";
+import { useAppHealthStatus, useServerDefaultsInitialization } from "./store/useSettingsStore";
 import { useHealthMonitoring } from "./hooks/useHealthMonitoring";
 
 /**
@@ -42,6 +42,9 @@ function AppContent() {
   
   // Initialize model settings from health endpoint data
   // useHealthInitialization(); // Disabled: Models should start empty like other settings
+  
+  // Fetch and store server configuration defaults
+  useServerDefaultsInitialization();
   
   // Monitor service health and create notifications for issues
   useHealthMonitoring();
