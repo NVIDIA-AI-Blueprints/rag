@@ -13,8 +13,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { Stack, FormField, TextInput, Flex, Spinner } from "@kui/react";
-import { useSettingsStore, useHealthDependentFeatures } from "../../store/useSettingsStore";
+import { Stack, FormField, TextInput } from "@kui/react";
+import { useSettingsStore, useServerDefaultsStore } from "../../store/useSettingsStore";
 
 /**
  * Endpoints section component for configuring API endpoint URLs.
@@ -34,50 +34,32 @@ export const EndpointsSection = () => {
     vdbEndpoint, 
     set: setSettings 
   } = useSettingsStore();
-  const { isHealthLoading, shouldDisableHealthFeatures } = useHealthDependentFeatures();
+
+  // Get server defaults for accurate display
+  const { config: serverDefaults } = useServerDefaultsStore();
+  const defaults = serverDefaults?.endpoints;
 
   const endpoints = [
-    { key: 'llmEndpoint', label: 'LLM Endpoint', value: llmEndpoint },
-    { key: 'embeddingEndpoint', label: 'Embedding Endpoint', value: embeddingEndpoint },
-    { key: 'rerankerEndpoint', label: 'Reranker Endpoint', value: rerankerEndpoint },
-    { key: 'vlmEndpoint', label: 'VLM Endpoint', value: vlmEndpoint },
-    { key: 'vdbEndpoint', label: 'Vector Database Endpoint', value: vdbEndpoint },
+    { key: 'llmEndpoint', label: 'LLM Endpoint', value: llmEndpoint, defaultValue: defaults?.llm_endpoint },
+    { key: 'embeddingEndpoint', label: 'Embedding Endpoint', value: embeddingEndpoint, defaultValue: defaults?.embedding_endpoint },
+    { key: 'rerankerEndpoint', label: 'Reranker Endpoint', value: rerankerEndpoint, defaultValue: defaults?.reranker_endpoint },
+    { key: 'vlmEndpoint', label: 'VLM Endpoint', value: vlmEndpoint, defaultValue: defaults?.vlm_endpoint },
+    { key: 'vdbEndpoint', label: 'Vector Database Endpoint', value: vdbEndpoint, defaultValue: defaults?.vdb_endpoint },
   ];
 
   return (
     <Stack gap="4" slotDivider={<hr />}>
-      {endpoints.map(({ key, label, value }) => (
+      {endpoints.map(({ key, label, value, defaultValue }) => (
         <FormField
           key={key}
-          slotLabel={
-            <Flex align="center" gap="density-sm">
-              {label}
-              {isHealthLoading && <Spinner size="small" aria-label="Loading endpoint configuration" />}
-            </Flex>
-          }
-          slotHelp={
-            isHealthLoading 
-              ? "Loading endpoint from system configuration..." 
-              : shouldDisableHealthFeatures
-                ? "System configuration unavailable"
-                : "Leave empty to use default endpoint"
-          }
+          slotLabel={label}
+          slotHelp={defaultValue ? `Default: ${defaultValue}` : undefined}
         >
           {(args) => (
             <TextInput
               {...args}
-              value={value ?? ""}
+              value={value ?? defaultValue ?? ""}
               onValueChange={(newValue) => setSettings({ [key]: newValue.trim() === "" ? undefined : newValue })}
-              placeholder={
-                isHealthLoading
-                  ? "Loading from system configuration..."
-                  : shouldDisableHealthFeatures
-                    ? "System configuration unavailable"
-                    : value 
-                      ? `Current: ${value}` 
-                      : "Leave empty for default"
-              }
-              disabled={shouldDisableHealthFeatures}
             />
           )}
         </FormField>

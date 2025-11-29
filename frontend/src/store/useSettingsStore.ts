@@ -17,6 +17,8 @@ import React from "react";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { useHealthStatus } from "../api/useHealthApi";
+import { useServerConfiguration } from "../api/useConfigurationApi";
+import type { ConfigurationResponse } from "../types/api";
 
 /**
  * Interface defining the shape of the settings state.
@@ -156,6 +158,109 @@ export function useAppHealthStatus() {
 
   // Returns health status data for application monitoring
   return { health, isLoading, error };
+}
+
+/**
+ * Interface for server defaults state.
+ * Contains the actual default values from the server configuration.
+ */
+interface ServerDefaultsState {
+  // The raw configuration from the server
+  config: ConfigurationResponse | null;
+  // Loading and error states
+  isLoading: boolean;
+  error: string | null;
+  // Setter
+  setConfig: (config: ConfigurationResponse | null) => void;
+  setLoading: (loading: boolean) => void;
+  setError: (error: string | null) => void;
+}
+
+/**
+ * Zustand store for server default configuration values.
+ * 
+ * This store holds the actual default values from the server,
+ * separate from user settings. It is NOT persisted to localStorage
+ * since it should be fetched fresh from the server on each app load.
+ * 
+ * @example
+ * ```tsx
+ * const { config } = useServerDefaultsStore();
+ * const defaultTemp = config?.rag_configuration.temperature ?? 0.7;
+ * ```
+ */
+export const useServerDefaultsStore = create<ServerDefaultsState>((set) => ({
+  config: null,
+  isLoading: false,
+  error: null,
+  setConfig: (config) => set({ config, error: null }),
+  setLoading: (isLoading) => set({ isLoading }),
+  setError: (error) => set({ error, isLoading: false }),
+}));
+
+/**
+ * Hook to fetch and store server configuration defaults.
+ * 
+ * Call this hook once at the app level to populate the server defaults store.
+ * The configuration is fetched from GET /v1/configuration and stored
+ * for use throughout the application.
+ * 
+ * @example
+ * ```tsx
+ * // In App.tsx or a top-level component
+ * useServerDefaultsInitialization();
+ * ```
+ */
+export function useServerDefaultsInitialization() {
+  const { data: config, isLoading, error } = useServerConfiguration();
+  const { setConfig, setLoading, setError } = useServerDefaultsStore();
+
+  React.useEffect(() => {
+    setLoading(isLoading);
+  }, [isLoading, setLoading]);
+
+  React.useEffect(() => {
+    if (error) {
+      console.warn('⚠️ Failed to fetch server configuration:', error);
+      setError(error instanceof Error ? error.message : 'Failed to fetch configuration');
+    }
+  }, [error, setError]);
+
+  React.useEffect(() => {
+    if (config) {
+      console.log('✅ Server configuration loaded:', config);
+      setConfig(config);
+    }
+  }, [config, setConfig]);
+}
+
+/**
+ * Hook to get a specific default value from server configuration.
+ * Falls back to a provided default if server config is not available.
+ * 
+ * @param getter - Function to extract the value from ConfigurationResponse
+ * @param fallback - Fallback value if config is not available
+ * @returns The server default value or the fallback
+ * 
+ * @example
+ * ```tsx
+ * const defaultTemperature = useServerDefault(
+ *   config => config.rag_configuration.temperature,
+ *   0.7
+ * );
+ * ```
+ */
+export function useServerDefault<T>(
+  getter: (config: ConfigurationResponse) => T,
+  fallback: T
+): T {
+  const { config } = useServerDefaultsStore();
+  if (!config) return fallback;
+  try {
+    return getter(config);
+  } catch {
+    return fallback;
+  }
 }
 
 /**

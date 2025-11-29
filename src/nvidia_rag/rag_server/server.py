@@ -16,9 +16,10 @@
 """The definition of the NVIDIA RAG server which exposes the endpoints for the RAG server.
 Endpoints:
 1. /health: Check the health of the RAG server and its dependencies.
-2. /generate: Generate a response using the RAG chain.
-3. /search: Search for the most relevant documents for the given search parameters.
-4. /chat/completions: Just an alias function to /generate endpoint which is openai compatible
+2. /configuration: Get the server's default configuration values.
+3. /generate: Generate a response using the RAG chain.
+4. /search: Search for the most relevant documents for the given search parameters.
+5. /chat/completions: Just an alias function to /generate endpoint which is openai compatible
 """
 
 import asyncio
@@ -572,6 +573,61 @@ class SummaryResponse(BaseModel):
     )
 
 
+# Configuration response models
+class RagConfigurationDefaults(BaseModel):
+    """Default values for RAG configuration parameters."""
+
+    temperature: float = Field(description="Default sampling temperature for generation")
+    top_p: float = Field(description="Default top-p sampling mass")
+    max_tokens: int = Field(description="Default maximum tokens to generate")
+    vdb_top_k: int = Field(description="Default number of documents to retrieve from vector DB")
+    reranker_top_k: int = Field(description="Default number of documents after reranking")
+    confidence_threshold: float = Field(description="Default confidence score threshold")
+
+
+class FeatureTogglesDefaults(BaseModel):
+    """Default values for feature toggles."""
+
+    enable_reranker: bool = Field(description="Whether reranker is enabled by default")
+    enable_citations: bool = Field(description="Whether citations are enabled by default")
+    enable_guardrails: bool = Field(description="Whether guardrails are enabled by default")
+    enable_query_rewriting: bool = Field(description="Whether query rewriting is enabled by default")
+    enable_vlm_inference: bool = Field(description="Whether VLM inference is enabled by default")
+    enable_filter_generator: bool = Field(description="Whether filter generator is enabled by default")
+
+
+class ModelsDefaults(BaseModel):
+    """Default model names."""
+
+    llm_model: str = Field(description="Default LLM model name")
+    embedding_model: str = Field(description="Default embedding model name")
+    reranker_model: str = Field(description="Default reranker model name")
+    vlm_model: str = Field(description="Default VLM model name")
+
+
+class EndpointsDefaults(BaseModel):
+    """Default endpoint URLs."""
+
+    llm_endpoint: str = Field(description="Default LLM endpoint URL")
+    embedding_endpoint: str = Field(description="Default embedding endpoint URL")
+    reranker_endpoint: str = Field(description="Default reranker endpoint URL")
+    vlm_endpoint: str = Field(description="Default VLM endpoint URL")
+    vdb_endpoint: str = Field(description="Default vector database endpoint URL")
+
+
+class ConfigurationResponse(BaseModel):
+    """Response containing all server default configuration values."""
+
+    rag_configuration: RagConfigurationDefaults = Field(
+        description="Default RAG configuration parameters"
+    )
+    feature_toggles: FeatureTogglesDefaults = Field(
+        description="Default feature toggle states"
+    )
+    models: ModelsDefaults = Field(description="Default model names")
+    endpoints: EndpointsDefaults = Field(description="Default endpoint URLs")
+
+
 @app.exception_handler(RequestValidationError)
 async def request_validation_exception_handler(
     _: Request, exc: RequestValidationError
@@ -638,6 +694,78 @@ def metrics_endpoint():
         logger.error(f"Error generating metrics: {e}")
         return Response(
             content=f"# Error generating metrics: {e}\n", media_type="text/plain"
+        )
+
+
+@app.get(
+    "/configuration",
+    response_model=ConfigurationResponse,
+    tags=["Health APIs"],
+    responses={
+        500: {
+            "description": "Internal Server Error",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Internal server error occurred"}
+                }
+            },
+        }
+    },
+)
+async def get_configuration():
+    """
+    Get Server Default Configuration
+
+    Returns the default configuration values used by the RAG server.
+    These values are derived from the server's environment variables and configuration.
+
+    Use this endpoint to:
+    - Display actual default values in the UI
+    - Understand what values will be used when parameters are not explicitly set
+    - Ensure frontend and backend defaults are synchronized
+    """
+    logger.info("Fetching server configuration defaults...")
+
+    try:
+        # Get model parameters from config
+        model_params = settings.llm.get_model_parameters()
+
+        return ConfigurationResponse(
+            rag_configuration=RagConfigurationDefaults(
+                temperature=model_params["temperature"],
+                top_p=model_params["top_p"],
+                max_tokens=model_params["max_tokens"],
+                vdb_top_k=settings.retriever.vdb_top_k,
+                reranker_top_k=settings.retriever.top_k,
+                confidence_threshold=settings.default_confidence_threshold,
+            ),
+            feature_toggles=FeatureTogglesDefaults(
+                enable_reranker=settings.ranking.enable_reranker,
+                enable_citations=settings.enable_citations,
+                enable_guardrails=settings.enable_guardrails,
+                enable_query_rewriting=settings.query_rewriter.enable_query_rewriter,
+                enable_vlm_inference=settings.enable_vlm_inference,
+                enable_filter_generator=settings.filter_expression_generator.enable_filter_generator,
+            ),
+            models=ModelsDefaults(
+                llm_model=settings.llm.model_name.strip('"'),
+                embedding_model=settings.embeddings.model_name.strip('"'),
+                reranker_model=settings.ranking.model_name.strip('"'),
+                vlm_model=settings.vlm.model_name.strip('"'),
+            ),
+            endpoints=EndpointsDefaults(
+                llm_endpoint=settings.llm.server_url.strip('"'),
+                embedding_endpoint=settings.embeddings.server_url.strip('"'),
+                reranker_endpoint=settings.ranking.server_url.strip('"'),
+                vlm_endpoint=settings.vlm.server_url.strip('"'),
+                vdb_endpoint=settings.vector_store.url,
+            ),
+        )
+    except Exception as e:
+        logger.error(f"Error fetching configuration: {str(e)}")
+        return JSONResponse(
+            content={"detail": f"Error fetching configuration: {str(e)}"},
+            status_code=500,
         )
 
 
