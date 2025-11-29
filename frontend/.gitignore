@@ -13,9 +13,7 @@ dist-ssr
 *.local
 coverage
 
-# Next.js / Build outputs
-.next/
-next-env.d.ts
+# Environment variables
 .env
 .env*.local
 
