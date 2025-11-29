@@ -728,37 +728,37 @@ async def get_configuration():
 
     try:
         # Get model parameters from config
-        model_params = settings.llm.get_model_parameters()
+        model_params = CONFIG.llm.get_model_parameters()
 
         return ConfigurationResponse(
             rag_configuration=RagConfigurationDefaults(
                 temperature=model_params["temperature"],
                 top_p=model_params["top_p"],
                 max_tokens=model_params["max_tokens"],
-                vdb_top_k=settings.retriever.vdb_top_k,
-                reranker_top_k=settings.retriever.top_k,
-                confidence_threshold=settings.default_confidence_threshold,
+                vdb_top_k=CONFIG.retriever.vdb_top_k,
+                reranker_top_k=CONFIG.retriever.top_k,
+                confidence_threshold=CONFIG.default_confidence_threshold,
             ),
             feature_toggles=FeatureTogglesDefaults(
-                enable_reranker=settings.ranking.enable_reranker,
-                enable_citations=settings.enable_citations,
-                enable_guardrails=settings.enable_guardrails,
-                enable_query_rewriting=settings.query_rewriter.enable_query_rewriter,
-                enable_vlm_inference=settings.enable_vlm_inference,
-                enable_filter_generator=settings.filter_expression_generator.enable_filter_generator,
+                enable_reranker=CONFIG.ranking.enable_reranker,
+                enable_citations=CONFIG.enable_citations,
+                enable_guardrails=CONFIG.enable_guardrails,
+                enable_query_rewriting=CONFIG.query_rewriter.enable_query_rewriter,
+                enable_vlm_inference=CONFIG.enable_vlm_inference,
+                enable_filter_generator=CONFIG.filter_expression_generator.enable_filter_generator,
             ),
             models=ModelsDefaults(
-                llm_model=settings.llm.model_name.strip('"'),
-                embedding_model=settings.embeddings.model_name.strip('"'),
-                reranker_model=settings.ranking.model_name.strip('"'),
-                vlm_model=settings.vlm.model_name.strip('"'),
+                llm_model=CONFIG.llm.model_name.strip('"'),
+                embedding_model=CONFIG.embeddings.model_name.strip('"'),
+                reranker_model=CONFIG.ranking.model_name.strip('"'),
+                vlm_model=CONFIG.vlm.model_name.strip('"'),
             ),
             endpoints=EndpointsDefaults(
-                llm_endpoint=settings.llm.server_url.strip('"'),
-                embedding_endpoint=settings.embeddings.server_url.strip('"'),
-                reranker_endpoint=settings.ranking.server_url.strip('"'),
-                vlm_endpoint=settings.vlm.server_url.strip('"'),
-                vdb_endpoint=settings.vector_store.url,
+                llm_endpoint=CONFIG.llm.server_url.strip('"'),
+                embedding_endpoint=CONFIG.embeddings.server_url.strip('"'),
+                reranker_endpoint=CONFIG.ranking.server_url.strip('"'),
+                vlm_endpoint=CONFIG.vlm.server_url.strip('"'),
+                vdb_endpoint=CONFIG.vector_store.url,
             ),
         )
     except Exception as e:
