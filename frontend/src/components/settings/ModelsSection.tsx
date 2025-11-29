@@ -13,8 +13,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { Stack, FormField, TextInput, Flex, Spinner } from "@kui/react";
-import { useSettingsStore, useHealthDependentFeatures } from "../../store/useSettingsStore";
+import { Stack, FormField, TextInput } from "@kui/react";
+import { useSettingsStore, useServerDefaultsStore } from "../../store/useSettingsStore";
 
 /**
  * Models section component for configuring AI model settings.
@@ -26,49 +26,31 @@ import { useSettingsStore, useHealthDependentFeatures } from "../../store/useSet
  */
 export const ModelsSection = () => {
   const { model, embeddingModel, rerankerModel, vlmModel, set: setSettings } = useSettingsStore();
-  const { isHealthLoading, shouldDisableHealthFeatures } = useHealthDependentFeatures();
+  
+  // Get server defaults for accurate display
+  const { config: serverDefaults } = useServerDefaultsStore();
+  const defaults = serverDefaults?.models;
 
   const models = [
-    { key: 'model', label: 'LLM Model', value: model },
-    { key: 'embeddingModel', label: 'Embedding Model', value: embeddingModel },
-    { key: 'rerankerModel', label: 'Reranker Model', value: rerankerModel },
-    { key: 'vlmModel', label: 'VLM Model', value: vlmModel },
+    { key: 'model', label: 'LLM Model', value: model, defaultValue: defaults?.llm_model },
+    { key: 'embeddingModel', label: 'Embedding Model', value: embeddingModel, defaultValue: defaults?.embedding_model },
+    { key: 'rerankerModel', label: 'Reranker Model', value: rerankerModel, defaultValue: defaults?.reranker_model },
+    { key: 'vlmModel', label: 'VLM Model', value: vlmModel, defaultValue: defaults?.vlm_model },
   ];
 
   return (
     <Stack gap="4" slotDivider={<hr />}>
-      {models.map(({ key, label, value }) => (
+      {models.map(({ key, label, value, defaultValue }) => (
         <FormField
           key={key}
-          slotLabel={
-            <Flex align="center" gap="density-sm">
-              {label}
-              {isHealthLoading && <Spinner size="small" aria-label="Loading model configuration" />}
-            </Flex>
-          }
-          slotHelp={
-            isHealthLoading 
-              ? "Loading model from system configuration..." 
-              : shouldDisableHealthFeatures
-                ? "System configuration unavailable"
-                : "Leave empty to use default model"
-          }
+          slotLabel={label}
+          slotHelp={defaultValue ? `Default: ${defaultValue}` : undefined}
         >
           {(args) => (
             <TextInput
               {...args}
-              value={value ?? ""}
+              value={value ?? defaultValue ?? ""}
               onValueChange={(newValue) => setSettings({ [key]: newValue.trim() === "" ? undefined : newValue })}
-              placeholder={
-                isHealthLoading 
-                  ? "Loading from system configuration..." 
-                  : shouldDisableHealthFeatures
-                    ? "System configuration unavailable"
-                    : value 
-                      ? `Current: ${value}` 
-                      : "Leave empty for default"
-              }
-              disabled={shouldDisableHealthFeatures}
             />
           )}
         </FormField>

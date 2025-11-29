@@ -14,7 +14,7 @@
 // limitations under the License.
 
 import { Stack, Switch, Text } from "@kui/react";
-import { useSettingsStore } from "../../store/useSettingsStore";
+import { useSettingsStore, useServerDefaultsStore } from "../../store/useSettingsStore";
 
 /**
  * Props for the FeatureToggle component.
@@ -66,13 +66,17 @@ export const FeatureTogglesSection = ({ onShowWarning }: FeatureTogglesSectionPr
     enableFilterGenerator,
   } = useSettingsStore();
 
+  // Get server defaults for accurate fallback values
+  const { config: serverDefaults } = useServerDefaultsStore();
+  const defaults = serverDefaults?.feature_toggles;
+
   const features = [
-    { key: 'enableReranker', label: 'Enable Reranker', desc: 'Use reranking to improve document relevance', value: enableReranker ?? true },
-    { key: 'includeCitations', label: 'Include Citations', desc: 'Add source citations to responses', value: includeCitations ?? true },
-    { key: 'useGuardrails', label: 'Use Guardrails', desc: 'Apply safety guardrails to responses', value: useGuardrails ?? false },
-    { key: 'enableQueryRewriting', label: 'Query Rewriting', desc: 'Rewrite user queries for better retrieval', value: enableQueryRewriting ?? false },
-    { key: 'enableVlmInference', label: 'VLM Inference', desc: 'Enable vision-language model inference', value: enableVlmInference ?? false },
-    { key: 'enableFilterGenerator', label: 'Filter Generator', desc: 'Auto-generate filters from queries', value: enableFilterGenerator ?? false },
+    { key: 'enableReranker', label: 'Enable Reranker', desc: 'Use reranking to improve document relevance', value: enableReranker ?? defaults?.enable_reranker ?? true },
+    { key: 'includeCitations', label: 'Include Citations', desc: 'Add source citations to responses', value: includeCitations ?? defaults?.enable_citations ?? true },
+    { key: 'useGuardrails', label: 'Use Guardrails', desc: 'Apply safety guardrails to responses', value: useGuardrails ?? defaults?.enable_guardrails ?? false },
+    { key: 'enableQueryRewriting', label: 'Query Rewriting', desc: 'Rewrite user queries for better retrieval', value: enableQueryRewriting ?? defaults?.enable_query_rewriting ?? false },
+    { key: 'enableVlmInference', label: 'VLM Inference', desc: 'Enable vision-language model inference', value: enableVlmInference ?? defaults?.enable_vlm_inference ?? false },
+    { key: 'enableFilterGenerator', label: 'Filter Generator', desc: 'Auto-generate filters from queries', value: enableFilterGenerator ?? defaults?.enable_filter_generator ?? false },
   ];
 
   return (
