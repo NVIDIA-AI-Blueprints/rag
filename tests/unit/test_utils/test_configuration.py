@@ -34,6 +34,7 @@ from nvidia_rag.utils.configuration import (
     QueryRewriterConfig,
     RankingConfig,
     RetrieverConfig,
+    SearchType,
     SummarizerConfig,
     TextSplitterConfig,
     TracingConfig,
@@ -54,8 +55,51 @@ class TestVectorStoreConfig:
         assert config.nlist == 64
         assert config.nprobe == 16
         assert config.index_type == "GPU_CAGRA"
-        assert config.search_type == "dense"
+        assert config.search_type == SearchType.DENSE
         assert config.default_collection_name == "multimodal_data"
+
+    def test_search_type_enum_default(self):
+        """Test that search_type default is SearchType.DENSE enum."""
+        config = VectorStoreConfig()
+
+        # Verify it's the correct enum type
+        assert isinstance(config.search_type, SearchType)
+        assert config.search_type == SearchType.DENSE
+        # StrEnum also supports string comparison
+        assert config.search_type == "dense"
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_search_type_enum_from_env_hybrid(self):
+        """Test that search_type can be set via environment variable to hybrid."""
+        with patch.dict(os.environ, {"APP_VECTORSTORE_SEARCHTYPE": "hybrid"}):
+            config = VectorStoreConfig()
+
+            assert isinstance(config.search_type, SearchType)
+            assert config.search_type == SearchType.HYBRID
+            assert config.search_type == "hybrid"
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_search_type_enum_from_env_dense(self):
+        """Test that search_type can be set via environment variable to dense."""
+        with patch.dict(os.environ, {"APP_VECTORSTORE_SEARCHTYPE": "dense"}):
+            config = VectorStoreConfig()
+
+            assert isinstance(config.search_type, SearchType)
+            assert config.search_type == SearchType.DENSE
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_search_type_enum_invalid_value_raises_error(self):
+        """Test that invalid search_type value raises validation error."""
+        from pydantic import ValidationError
+
+        with patch.dict(os.environ, {"APP_VECTORSTORE_SEARCHTYPE": "invalid_type"}):
+            with pytest.raises(ValidationError) as exc_info:
+                VectorStoreConfig()
+
+            # Verify the error message mentions the valid options
+            error_message = str(exc_info.value)
+            assert "search_type" in error_message
+            assert "dense" in error_message or "hybrid" in error_message
 
     @patch.dict(os.environ, {}, clear=True)
     def test_environment_variables_custom_names(self):

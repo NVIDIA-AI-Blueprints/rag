@@ -79,7 +79,7 @@ from nvidia_rag.utils.common import (
     get_current_timestamp,
     perform_document_info_aggregation,
 )
-from nvidia_rag.utils.configuration import NvidiaRAGConfig
+from nvidia_rag.utils.configuration import NvidiaRAGConfig, SearchType
 from nvidia_rag.utils.embedding import get_embedding_model
 from nvidia_rag.utils.health_models import ServiceStatus
 from nvidia_rag.utils.vdb import (
@@ -276,7 +276,7 @@ class MilvusVDB(Milvus, VDBRag):
         create_nvingest_collection(
             collection_name=collection_name,
             milvus_uri=self.vdb_endpoint,
-            sparse=(self.config.vector_store.search_type == "hybrid"),
+            sparse=(self.config.vector_store.search_type == SearchType.HYBRID),
             recreate=False,
             gpu_index=self.config.vector_store.enable_gpu_index,
             gpu_search=self.config.vector_store.enable_gpu_search,
@@ -935,7 +935,7 @@ class MilvusVDB(Milvus, VDBRag):
             search_params.update({"ef": self.config.vector_store.ef})
 
         password = self.config.vector_store.password.get_secret_value() if self.config.vector_store.password is not None else ""
-        if self.config.vector_store.search_type == "hybrid":
+        if self.config.vector_store.search_type == SearchType.HYBRID:
             logger.info("Creating Langchain Milvus object for Hybrid search")
             vectorstore = LangchainMilvus(
                 self.embedding_model,
@@ -952,7 +952,7 @@ class MilvusVDB(Milvus, VDBRag):
                     "sparse",
                 ],  # Dense and Sparse fields set by NV-Ingest
             )
-        elif self.config.vector_store.search_type == "dense":
+        elif self.config.vector_store.search_type == SearchType.DENSE:
             search_params.update({"nprobe": self.config.vector_store.nprobe})
             logger.debug(
                 "Index type for milvus: %s", self.config.vector_store.index_type

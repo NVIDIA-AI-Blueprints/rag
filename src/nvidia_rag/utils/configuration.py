@@ -16,6 +16,7 @@
 
 import json
 import os
+from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
@@ -83,6 +84,13 @@ class _ConfigBase(BaseModel):
         super().__init__(**merged_data)
 
 
+class SearchType(StrEnum):
+    """Allowed search types for vector store queries."""
+
+    DENSE = "dense"
+    HYBRID = "hybrid"
+
+
 class VectorStoreConfig(_ConfigBase):
     """Vector Store configuration.
 
@@ -135,8 +143,8 @@ class VectorStoreConfig(_ConfigBase):
         env="APP_VECTORSTORE_ENABLEGPUSEARCH",
         description="Enable GPU acceleration for search operations",
     )
-    search_type: str = Field(
-        default="dense",
+    search_type: SearchType = Field(
+        default=SearchType.DENSE,
         env="APP_VECTORSTORE_SEARCHTYPE",
         description="Type of search to perform (dense, hybrid)",
     )

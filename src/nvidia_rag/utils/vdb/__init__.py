@@ -19,7 +19,7 @@ from typing import Any
 from nv_ingest_client.util.milvus import pandas_file_reader
 
 from nvidia_rag.utils.common import get_metadata_configuration
-from nvidia_rag.utils.configuration import NvidiaRAGConfig
+from nvidia_rag.utils.configuration import NvidiaRAGConfig, SearchType
 
 DEFAULT_METADATA_SCHEMA_COLLECTION = "metadata_schema"
 DEFAULT_DOCUMENT_INFO_COLLECTION = "document_info"
@@ -74,7 +74,7 @@ def _get_vdb_op(
             secret_key=os.getenv("MINIO_SECRETKEY"),
             bucket_name=os.getenv("NVINGEST_MINIO_BUCKET", "nv-ingest"),
             # Hybrid search configurations
-            sparse=(config.vector_store.search_type == "hybrid"),
+            sparse=(config.vector_store.search_type == SearchType.HYBRID),
             # Additional configurations
             enable_images=(
                 config.nv_ingest.extract_images
@@ -105,7 +105,7 @@ def _get_vdb_op(
         return ElasticVDB(
             index_name=collection_name,
             es_url=vdb_endpoint or config.vector_store.url,
-            hybrid=config.vector_store.search_type == "hybrid",
+            hybrid=config.vector_store.search_type == SearchType.HYBRID,
             meta_dataframe=meta_dataframe,
             meta_source_field=meta_source_field,
             meta_fields=meta_fields,

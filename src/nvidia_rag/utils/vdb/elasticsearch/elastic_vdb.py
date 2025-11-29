@@ -70,7 +70,7 @@ from nvidia_rag.utils.common import (
     get_current_timestamp,
     perform_document_info_aggregation,
 )
-from nvidia_rag.utils.configuration import NvidiaRAGConfig
+from nvidia_rag.utils.configuration import NvidiaRAGConfig, SearchType
 from nvidia_rag.utils.embedding import get_embedding_model
 from nvidia_rag.utils.health_models import ServiceStatus
 from nvidia_rag.utils.vdb import (
@@ -788,7 +788,7 @@ class ElasticVDB(VDBRag):
             "es_url": self.es_url,
             "embedding": self._embedding_model,
             "strategy": DenseVectorStrategy(
-                hybrid=self.config.vector_store.search_type == "hybrid"
+                hybrid=self.config.vector_store.search_type == SearchType.HYBRID
             ),
         }
 
