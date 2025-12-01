@@ -57,6 +57,10 @@ services:
       NGC_API_KEY: ${NGC_API_KEY:?"NGC_API_KEY is required"}
       NVIDIA_API_KEY: ${NGC_API_KEY:?"NGC_API_KEY is required"}
 
+      # Set LLM_API_KEY if non-NVIDIA hosted LLM API endpoint is being used
+      # If not set, NVIDIA_API_KEY will be used as fallback
+      LLM_API_KEY: ${LLM_API_KEY:-""}
+
       ##===Embedding Model specific configurations===
       # url on which embedding model is hosted. If "", Nvidia hosted API is used
       APP_EMBEDDINGS_SERVERURL: ${APP_EMBEDDINGS_SERVERURL-"nemoretriever-embedding-ms:8000"}
@@ -98,16 +102,22 @@ services:
       APP_NVINGEST_SAVETODISK: ${APP_NVINGEST_SAVETODISK:-False}
       NVINGEST_MINIO_BUCKET: ${NVINGEST_MINIO_BUCKET:-nv-ingest}
 
+      ##===NV-Ingest Performance Configurations========
+      # If enabled, splits a single PDF's pages into parallel chunks for processing (smaller chunks = more parallelism but more overhead)
+      APP_NVINGEST_ENABLEPDFSPLIT: ${APP_NVINGEST_ENABLEPDFSPLIT:-False}
+      APP_NVINGEST_PAGESPERCHUNK: ${APP_NVINGEST_PAGESPERCHUNK:-16}
+
       # Choose whether to store the extracted content in the vector store for citation support
       ENABLE_CITATIONS: ${ENABLE_CITATIONS:-True}
 
       # Choose the summary model to use for document summary
       SUMMARY_LLM: ${SUMMARY_LLM:-nvidia/llama-3.3-nemotron-super-49b-v1.5}
       SUMMARY_LLM_SERVERURL: ${SUMMARY_LLM_SERVERURL-"nim-llm:8000"}
-      SUMMARY_LLM_MAX_CHUNK_LENGTH: ${SUMMARY_LLM_MAX_CHUNK_LENGTH:-50000}
-      SUMMARY_CHUNK_OVERLAP: ${SUMMARY_CHUNK_OVERLAP:-200}
+      SUMMARY_LLM_MAX_CHUNK_LENGTH: ${SUMMARY_LLM_MAX_CHUNK_LENGTH:-9000}
+      SUMMARY_CHUNK_OVERLAP: ${SUMMARY_CHUNK_OVERLAP:-400}
       SUMMARY_LLM_TEMPERATURE: ${SUMMARY_LLM_TEMPERATURE:-0.0}
       SUMMARY_LLM_TOP_P: ${SUMMARY_LLM_TOP_P:-1.0}
+      SUMMARY_MAX_PARALLELIZATION: ${SUMMARY_MAX_PARALLELIZATION:-20}
       # Log level for server, supported level NOTSET, DEBUG, INFO, WARN, ERROR, CRITICAL
       LOGLEVEL: ${LOGLEVEL:-INFO}
 
@@ -168,7 +178,7 @@ services:
       - MESSAGE_CLIENT_HOST=redis
       - MESSAGE_CLIENT_PORT=6379
       - MESSAGE_CLIENT_TYPE=redis
-      - MINIO_BUCKET=${MINIO_BUCKET:-nv-ingest}
+      - MINIO_BUCKET=${MINIO_BUCKET:-${NVINGEST_MINIO_BUCKET:-nv-ingest}}
       - MRC_IGNORE_NUMA_CHECK=1
       - NEMORETRIEVER_PARSE_HTTP_ENDPOINT=${NEMORETRIEVER_PARSE_HTTP_ENDPOINT:-http://nemoretriever-parse:8000/v1/chat/completions}
       - NEMORETRIEVER_PARSE_INFER_PROTOCOL=${NEMORETRIEVER_PARSE_INFER_PROTOCOL:-http}

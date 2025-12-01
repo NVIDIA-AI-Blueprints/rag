@@ -87,6 +87,30 @@ def get_prompts() -> dict:
     return config
 
 
+def _bind_thinking_tokens_if_configured(
+    llm: LLM | SimpleChatModel, **kwargs
+) -> LLM | SimpleChatModel:
+    """
+    If min_thinking_tokens or max_thinking_tokens are > 0 in kwargs, bind them to the LLM.
+    """
+    min_think = kwargs.get("min_thinking_tokens", None)
+    max_think = kwargs.get("max_thinking_tokens", None)
+    enable_thinking = (max_think is not None and max_think > 0) or (
+        min_think is not None and min_think > 0
+    )
+    if not enable_thinking:
+        return llm
+
+    bind_args = {}
+    if min_think is not None and min_think > 0:
+        bind_args["min_thinking_tokens"] = min_think
+    if max_think is not None and max_think > 0:
+        bind_args["max_thinking_tokens"] = max_think
+    if bind_args:
+        return llm.bind(**bind_args)
+    return llm
+
+
 def get_llm(config: NvidiaRAGConfig | None = None, **kwargs) -> LLM | SimpleChatModel:
     """Create the LLM connection.
 
@@ -155,9 +179,15 @@ def get_llm(config: NvidiaRAGConfig | None = None, **kwargs) -> LLM | SimpleChat
         if url:
             logger.debug(f"Length of llm endpoint url string {url}")
             logger.info("Using llm model %s hosted at %s", kwargs.get("model"), url)
-            return ChatNVIDIA(
+
+            # For External endpoints, use LLM_API_KEY if available, otherwise fall back to NVIDIA_API_KEY
+            api_key = os.environ.get("LLM_API_KEY") or os.environ.get(
+                "NVIDIA_API_KEY", ""
+            )
+            llm = ChatNVIDIA(
                 base_url=url,
                 model=kwargs.get("model"),
+                api_key=api_key if api_key else None,
                 temperature=kwargs.get("temperature", None),
                 top_p=kwargs.get("top_p", None),
                 max_tokens=kwargs.get("max_tokens", None),
@@ -165,9 +195,11 @@ def get_llm(config: NvidiaRAGConfig | None = None, **kwargs) -> LLM | SimpleChat
                 ignore_eos=kwargs.get("ignore_eos", False),
                 stop=kwargs.get("stop", []),
             )
+            llm = _bind_thinking_tokens_if_configured(llm, **kwargs)
+            return llm
 
         logger.info("Using llm model %s from api catalog", kwargs.get("model"))
-        return ChatNVIDIA(
+        llm = ChatNVIDIA(
             model=kwargs.get("model"),
             temperature=kwargs.get("temperature", None),
             top_p=kwargs.get("top_p", None),
@@ -176,6 +208,8 @@ def get_llm(config: NvidiaRAGConfig | None = None, **kwargs) -> LLM | SimpleChat
             ignore_eos=kwargs.get("ignore_eos", False),
             stop=kwargs.get("stop", []),
         )
+        llm = _bind_thinking_tokens_if_configured(llm, **kwargs)
+        return llm
 
     raise RuntimeError(
         "Unable to find any supported Large Language Model server. Supported engine name is nvidia-ai-endpoints."

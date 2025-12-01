@@ -69,6 +69,8 @@ default_ignore_eos = model_params["ignore_eos"]
 default_max_tokens = model_params["max_tokens"]
 default_temperature = model_params["temperature"]
 default_top_p = model_params["top_p"]
+default_min_thinking_tokens = model_params.get("min_thinking_tokens", 1)
+default_max_thinking_tokens = model_params.get("max_thinking_tokens", 8192)
 
 logger.debug("Default LLM parameters:")
 logger.debug(f"  min_tokens: {default_min_tokens}")
@@ -76,6 +78,8 @@ logger.debug(f"  ignore_eos: {default_ignore_eos}")
 logger.debug(f"  max_tokens: {default_max_tokens}")
 logger.debug(f"  temperature: {default_temperature}")
 logger.debug(f"  top_p: {default_top_p}")
+logger.debug(f"  min_thinking_tokens: {default_min_thinking_tokens}")
+logger.debug(f"  max_thinking_tokens: {default_max_thinking_tokens}")
 
 tags_metadata = [
     {
@@ -185,6 +189,20 @@ class Prompt(BaseModel):
         " and generation will simply stop at the number of tokens specified.",
         ge=0,
         le=128000,
+        format="int64",
+    )
+    min_thinking_tokens: int = Field(
+        default=default_min_thinking_tokens,
+        description="Minimum number of thinking tokens to allocate for reasoning models. "
+        "Enable thinking mode if either min_thinking_tokens or max_thinking_tokens is provided.",
+        ge=0,
+        format="int64",
+    )
+    max_thinking_tokens: int = Field(
+        default=default_max_thinking_tokens,
+        description="Maximum number of thinking tokens to allocate for reasoning models. "
+        "Enable thinking mode if either min_thinking_tokens or max_thinking_tokens is provided.",
+        ge=0,
         format="int64",
     )
     reranker_top_k: int = Field(
@@ -483,15 +501,35 @@ class DocumentSearch(BaseModel):
 
 # Define the summary response model
 class SummaryResponse(BaseModel):
-    """Represents a summary of a document."""
+    """Represents a summary of a document with status tracking."""
 
-    message: str = Field(default="", description="Message of the summary")
-
-    status: str = Field(default="", description="Status of the summary")
-
-    summary: str = Field(default="", description="Summary of the document")
+    message: str = Field(
+        default="", description="Message describing the summary status"
+    )
+    status: str = Field(
+        default="",
+        description="Status of the summary: SUCCESS (completed), PENDING (queued), IN_PROGRESS (generating), FAILED (error occurred), or NOT_FOUND (never requested)",
+    )
+    summary: str = Field(
+        default="", description="Summary content (only present if status is SUCCESS)"
+    )
     file_name: str = Field(default="", description="Name of the document")
     collection_name: str = Field(default="", description="Name of the collection")
+    error: str | None = Field(
+        default=None, description="Error details if status is FAILED"
+    )
+    started_at: str | None = Field(
+        default=None, description="ISO format timestamp when generation started"
+    )
+    completed_at: str | None = Field(
+        default=None, description="ISO format timestamp when generation completed"
+    )
+    updated_at: str | None = Field(
+        default=None, description="ISO format timestamp of last status update"
+    )
+    progress: dict[str, Any] | None = Field(
+        default=None, description="Progress information if status is IN_PROGRESS"
+    )
 
 
 # Define the service health models in server.py
@@ -698,6 +736,8 @@ async def generate_answer(request: Request, prompt: Prompt) -> StreamingResponse
         "max_tokens": prompt.max_tokens,
         "min_tokens": prompt.min_tokens,
         "ignore_eos": prompt.ignore_eos,
+        "min_thinking_tokens": prompt.min_thinking_tokens,
+        "max_thinking_tokens": prompt.max_thinking_tokens,
         "stop": prompt.stop,
         "reranker_top_k": prompt.reranker_top_k,
         "vdb_top_k": prompt.vdb_top_k,
@@ -771,6 +811,8 @@ async def generate_answer(request: Request, prompt: Prompt) -> StreamingResponse
             min_tokens=prompt.min_tokens,
             ignore_eos=prompt.ignore_eos,
             max_tokens=prompt.max_tokens,
+            min_thinking_tokens=prompt.min_thinking_tokens,
+            max_thinking_tokens=prompt.max_thinking_tokens,
             stop=prompt.stop,
             reranker_top_k=prompt.reranker_top_k,
             vdb_top_k=prompt.vdb_top_k,
@@ -1123,23 +1165,48 @@ async def get_summary(
             timeout=timeout,
         )
 
-        if response.get("status") == "FAILED":
+        status = response.get("status")
+
+        # Map status to appropriate HTTP status codes
+        if status == "SUCCESS":
+            return JSONResponse(content=response, status_code=ErrorCodeMapping.SUCCESS)
+        elif status == "NOT_FOUND":
             return JSONResponse(
                 content=response, status_code=ErrorCodeMapping.NOT_FOUND
             )
-        elif response.get("status") == "TIMEOUT":
-            return JSONResponse(
-                content=response, status_code=ErrorCodeMapping.REQUEST_TIMEOUT
-            )
-        elif response.get("status") == "SUCCESS":
-            return JSONResponse(content=response, status_code=ErrorCodeMapping.SUCCESS)
-        elif response.get("status") == "ERROR":
+        elif status in ["PENDING", "IN_PROGRESS"]:
+            # Return 202 Accepted for in-progress tasks
+            return JSONResponse(content=response, status_code=ErrorCodeMapping.ACCEPTED)
+        elif status == "FAILED":
+            # Check if it's a timeout vs other failure
+            error = response.get("error", "")
+            if "timeout" in error.lower():
+                return JSONResponse(
+                    content=response, status_code=ErrorCodeMapping.REQUEST_TIMEOUT
+                )
+            else:
+                return JSONResponse(
+                    content=response, status_code=ErrorCodeMapping.INTERNAL_SERVER_ERROR
+                )
+        else:
+            # Unknown status
+            logger.warning(f"Unknown summary status: {status}")
             return JSONResponse(
                 content=response, status_code=ErrorCodeMapping.INTERNAL_SERVER_ERROR
             )
 
+    except asyncio.CancelledError as e:
+        logger.warning(f"Request cancelled while getting summary: {e}")
+        return JSONResponse(
+            content={"message": "Request was cancelled by the client"},
+            status_code=ErrorCodeMapping.CLIENT_CLOSED_REQUEST,
+        )
     except Exception as e:
-        logger.error("Error from GET /summary endpoint. Error details: %s", e)
+        logger.error(
+            "Error from GET /summary endpoint. Error details: %s",
+            e,
+            exc_info=logger.getEffectiveLevel() <= logging.DEBUG,
+        )
         return JSONResponse(
             content={
                 "message": "Error occurred while getting summary.",

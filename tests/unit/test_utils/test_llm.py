@@ -152,6 +152,7 @@ class TestGetLLM:
 
     @patch("nvidia_rag.utils.llm.sanitize_nim_url")
     @patch("nvidia_rag.utils.llm.ChatNVIDIA")
+    @patch.dict(os.environ, {}, clear=True)
     def test_get_llm_nvidia_endpoints_with_url(
         self, mock_chatnvidia, mock_sanitize
     ):
@@ -181,6 +182,7 @@ class TestGetLLM:
             mock_chatnvidia.assert_called_once_with(
                 base_url="http://test-url:8000",
                 model="test-model",
+                api_key=None,
                 temperature=0.7,
                 top_p=0.9,
                 max_tokens=1024,
@@ -591,6 +593,7 @@ class TestLLMIntegration:
     """Integration tests for LLM utilities."""
 
     @patch("nvidia_rag.utils.llm.ChatNVIDIA")
+    @patch.dict(os.environ, {}, clear=True)
     def test_llm_creation_with_all_parameters(self, mock_chatnvidia):
         """Test complete LLM creation flow with all parameters."""
         # Create a mock config
@@ -619,6 +622,7 @@ class TestLLMIntegration:
                 mock_chatnvidia.assert_called_once_with(
                     base_url="http://test:8000",
                     model="meta/llama-3.1-8b-instruct",
+                    api_key=None,
                     temperature=0.7,
                     top_p=0.9,
                     max_tokens=2048,

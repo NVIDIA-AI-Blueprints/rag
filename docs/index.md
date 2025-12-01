@@ -193,6 +193,7 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
 
    Audio Ingestion Support <audio_ingestion.md>
    Custom metadata Support <custom-metadata.md>
+   Data Catalog for Collections and Documents <data-catalog.md>
    Enhanced PDF Extraction <nemoretriever-parse-extraction.md>
    File System Access to Results <mount-ingestor-volume.md>
    Multimodal Embedding Support (Early Access) <vlm-embed.md>

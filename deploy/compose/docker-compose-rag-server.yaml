@@ -113,6 +113,10 @@ services:
 
       NVIDIA_API_KEY: ${NGC_API_KEY:?"NGC_API_KEY is required"}
 
+      # Set LLM_API_KEY if non-NVIDIA hosted LLM API endpoint is being used
+      # If not set, NVIDIA_API_KEY will be used as fallback
+      LLM_API_KEY: ${LLM_API_KEY:-""}
+
       # Number of document chunks to insert in LLM prompt, used only when ENABLE_RERANKER is set to True
       APP_RETRIEVER_TOPK: ${APP_RETRIEVER_TOPK:-10}
 
@@ -166,6 +170,11 @@ services:
       ENABLE_QUERY_DECOMPOSITION: ${ENABLE_QUERY_DECOMPOSITION:-false}
       # maximum recursion depth for iterative query decomposition
       MAX_RECURSION_DEPTH: ${MAX_RECURSION_DEPTH:-3}
+
+      # Redis configuration for summary status tracking
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_DB: ${REDIS_DB:-0}
 
     ports:
       - "8081:8081"

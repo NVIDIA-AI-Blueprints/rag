@@ -85,10 +85,20 @@ envVars:
   PROMPT_CONFIG_FILE: "/prompt.yaml"
   PROMETHEUS_MULTIPROC_DIR: "/tmp-data/prom_data"
 
+  ##===Authentication===
+  # Set LLM_API_KEY if non-NVIDIA hosted LLM API endpoint is being used
+  # If not set, NVIDIA_API_KEY will be used as fallback
+  LLM_API_KEY: ""
+
   ##===MINIO specific configurations used to store multimodal base64 content===
   MINIO_ENDPOINT: "rag-minio:9000"
   MINIO_ACCESSKEY: "minioadmin"
   MINIO_SECRETKEY: "minioadmin"
+
+  ##===Redis configurations for summary status tracking===
+  REDIS_HOST: "rag-redis-master"
+  REDIS_PORT: "6379"
+  REDIS_DB: "0"
 
   ##===Vector DB specific configurations===
   # URL on which vectorstore is hosted
@@ -296,6 +306,11 @@ ingestor-server:
     MINIO_ACCESSKEY: "minioadmin"
     MINIO_SECRETKEY: "minioadmin"
 
+    # === Authentication ===
+    # Set LLM_API_KEY if non-NVIDIA hosted LLM API endpoint is being used
+    # If not set, NVIDIA_API_KEY will be used as fallback
+    LLM_API_KEY: ""
+
     # === Embeddings Configurations ===
     APP_EMBEDDINGS_SERVERURL: "nemoretriever-embedding-ms:8000"
     APP_EMBEDDINGS_MODELNAME: "nvidia/llama-3.2-nv-embedqa-1b-v2"
@@ -323,16 +338,21 @@ ingestor-server:
 
     # === NV-Ingest save to disk configurations ===
     APP_NVINGEST_SAVETODISK: "False"
-    NVINGEST_MINIO_BUCKET: "nv-ingest"
+    NVINGEST_MINIO_BUCKET: "nv-ingest" # If this value is modified, ensure the corresponding Milvus bucketName is also updated
+
+    # === NV-Ingest performance configurations ===
+    APP_NVINGEST_ENABLEPDFSPLIT: "False"
+    APP_NVINGEST_PAGESPERCHUNK: "16"
 
     # === General ===
     # Summary Model Configurations
     SUMMARY_LLM: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
     SUMMARY_LLM_SERVERURL: "nim-llm:8000"
-    SUMMARY_LLM_MAX_CHUNK_LENGTH: "50000"
-    SUMMARY_CHUNK_OVERLAP: "200"
+    SUMMARY_LLM_MAX_CHUNK_LENGTH: "9000"
+    SUMMARY_CHUNK_OVERLAP: "400"
     SUMMARY_LLM_TEMPERATURE: "0.0"
     SUMMARY_LLM_TOP_P: "1.0"
+    SUMMARY_MAX_PARALLELIZATION: "20"
 
     # === General ===
     ENABLE_CITATIONS: "True"

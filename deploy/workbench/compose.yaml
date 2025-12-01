@@ -286,14 +286,19 @@ services:
       APP_NVINGEST_SAVETODISK: ${APP_NVINGEST_SAVETODISK:-False}
       NVINGEST_MINIO_BUCKET: ${NVINGEST_MINIO_BUCKET:-nv-ingest}
 
+      ##===NV-Ingest Performance Configurations========
+      APP_NVINGEST_ENABLEPDFSPLIT: ${APP_NVINGEST_ENABLEPDFSPLIT:-False}
+      APP_NVINGEST_PAGESPERCHUNK: ${APP_NVINGEST_PAGESPERCHUNK:-16}
+
       # Choose whether to store the extracted content in the vector store for citation support
       ENABLE_CITATIONS: ${ENABLE_CITATIONS:-True}
 
       # Choose the summary model to use for document summary
       SUMMARY_LLM: ${SUMMARY_LLM:-nvidia/llama-3.3-nemotron-super-49b-v1.5}
       SUMMARY_LLM_SERVERURL: ${SUMMARY_LLM_SERVERURL-"nim-llm:8000"}
-      SUMMARY_LLM_MAX_CHUNK_LENGTH: ${SUMMARY_LLM_MAX_CHUNK_LENGTH:-50000}
-      SUMMARY_CHUNK_OVERLAP: ${SUMMARY_CHUNK_OVERLAP:-200}
+      SUMMARY_LLM_MAX_CHUNK_LENGTH: ${SUMMARY_LLM_MAX_CHUNK_LENGTH:-9000}
+      SUMMARY_CHUNK_OVERLAP: ${SUMMARY_CHUNK_OVERLAP:-400}
+      SUMMARY_MAX_PARALLELIZATION: ${SUMMARY_MAX_PARALLELIZATION:-20}
       # Log level for server, supported level NOTSET, DEBUG, INFO, WARN, ERROR, CRITICAL
       LOGLEVEL: ${LOGLEVEL:-INFO}
 

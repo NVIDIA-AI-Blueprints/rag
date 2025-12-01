@@ -58,6 +58,7 @@ class ErrorCodeMapping:
 
     # Success codes
     SUCCESS = 200
+    ACCEPTED = 202  # Request accepted, processing in progress
 
     # Client error codes (4xx)
     BAD_REQUEST = (
@@ -74,6 +75,10 @@ class ErrorCodeMapping:
     # Server error codes (5xx)
     INTERNAL_SERVER_ERROR = 500  # Unexpected server errors
     SERVICE_UNAVAILABLE = 503  # Connection pool errors, service unavailable
+
+
+# Summary polling configuration
+SUMMARY_POLL_INTERVAL_SECONDS = 2  # Interval for polling summary status
 
 
 logger = logging.getLogger(__name__)
@@ -708,9 +713,70 @@ def error_response_generator(exception_msg: str):
 async def retrieve_summary(
     collection_name: str, file_name: str, wait: bool = False, timeout: int = 300
 ) -> dict[str, Any]:
-    """Get the summary of a document."""
+    """
+    Get the summary of a document with Redis-based status tracking.
+
+    This function checks Redis for generation status before polling MinIO,
+    enabling efficient status queries and proper error reporting.
+
+    Args:
+        collection_name: Name of the document collection
+        file_name: Name of the file to get summary for
+        wait: If True, poll until completion or timeout
+        timeout: Maximum seconds to wait (if wait=True)
+
+    Returns:
+        dict: Response with status, message, and summary (if available)
+    """
+    from nvidia_rag.utils.summary_status_handler import SUMMARY_STATUS_HANDLER
 
     try:
+        # STEP 1: Check Redis for status first (if available)
+        redis_available = SUMMARY_STATUS_HANDLER.is_available()
+        status_data = None
+
+        if redis_available:
+            status_data = SUMMARY_STATUS_HANDLER.get_status(collection_name, file_name)
+        else:
+            logger.debug(
+                "Redis unavailable - skipping status check, will attempt direct MinIO retrieval"
+            )
+
+        # STEP 2: Handle status from Redis
+        if status_data:
+            status = status_data.get("status")
+
+            # Handle PENDING/IN_PROGRESS
+            if status in ["PENDING", "IN_PROGRESS"]:
+                if wait:
+                    # Poll for completion
+                    return await _wait_for_summary_completion(
+                        collection_name, file_name, timeout
+                    )
+                else:
+                    return {
+                        "message": f"Summary generation is {status.lower()}. Set blocking=true to wait for completion.",
+                        "status": status,
+                        "file_name": file_name,
+                        "collection_name": collection_name,
+                        "started_at": status_data.get("started_at"),
+                        "updated_at": status_data.get("updated_at"),
+                        "progress": status_data.get("progress"),
+                    }
+
+            # Handle FAILED
+            elif status == "FAILED":
+                return {
+                    "message": f"Summary generation failed for {file_name}",
+                    "status": "FAILED",
+                    "error": status_data.get("error", "Unknown error"),
+                    "file_name": file_name,
+                    "collection_name": collection_name,
+                    "started_at": status_data.get("started_at"),
+                    "completed_at": status_data.get("completed_at"),
+                }
+
+        # STEP 3: Check MinIO for summary content
         unique_thumbnail_id = get_unique_thumbnail_id(
             collection_name=f"summary_{collection_name}",
             file_name=file_name,
@@ -718,7 +784,6 @@ async def retrieve_summary(
             location=[],
         )
 
-        # First attempt to get existing summary
         payload = get_minio_operator_instance().get_payload(
             object_name=unique_thumbnail_id
         )
@@ -727,23 +792,71 @@ async def retrieve_summary(
             return {
                 "message": "Summary retrieved successfully.",
                 "summary": payload.get("summary", ""),
-                "file_name": payload.get("file_name", ""),
+                "file_name": file_name,
                 "collection_name": collection_name,
                 "status": "SUCCESS",
             }
 
-        # If summary not found and wait=False, return immediately
-        if not wait:
-            return {
-                "message": f"Summary for {
-                    file_name
-                } not found. Ensure the file name and collection name are correct. Set wait=true to wait for generation.",
-                "status": "FAILED",
-            }
+        # STEP 4: Not found anywhere
+        if wait:
+            # If blocking mode and not found, poll
+            return await _wait_for_summary_completion(
+                collection_name, file_name, timeout
+            )
 
-        # If wait=True, poll for summary with timeout
-        start_time = time.time()
-        while time.time() - start_time < min(3600, timeout):
+        # Non-blocking mode - return NOT_FOUND
+        return {
+            "message": f"Summary for {file_name} not found. To generate a summary, upload the document with generate_summary=true.",
+            "status": "NOT_FOUND",
+            "file_name": file_name,
+            "collection_name": collection_name,
+        }
+
+    except Exception as e:
+        logger.error(
+            "Error from GET /summary endpoint. Error details: %s",
+            e,
+            exc_info=logger.getEffectiveLevel() <= logging.DEBUG,
+        )
+        return {
+            "message": "Error occurred while getting summary.",
+            "error": str(e),
+            "status": "FAILED",
+        }
+
+
+async def _wait_for_summary_completion(
+    collection_name: str, file_name: str, timeout: int
+) -> dict[str, Any]:
+    """
+    Poll for summary completion in blocking mode.
+
+    Args:
+        collection_name: Name of the document collection
+        file_name: Name of the file
+        timeout: Maximum seconds to wait
+
+    Returns:
+        dict: Final status response
+    """
+    from nvidia_rag.utils.summary_status_handler import SUMMARY_STATUS_HANDLER
+
+    effective_timeout = min(3600, timeout)
+    start_time = time.time()
+
+    while time.time() - start_time < effective_timeout:
+        # Check if Redis is available
+        if not SUMMARY_STATUS_HANDLER.is_available():
+            logger.warning(
+                "Redis connection lost during polling - falling back to MinIO checks"
+            )
+            # Fall back to MinIO-only polling
+            unique_thumbnail_id = get_unique_thumbnail_id(
+                collection_name=f"summary_{collection_name}",
+                file_name=file_name,
+                page_number=0,
+                location=[],
+            )
             payload = get_minio_operator_instance().get_payload(
                 object_name=unique_thumbnail_id
             )
@@ -751,27 +864,77 @@ async def retrieve_summary(
                 return {
                     "message": "Summary retrieved successfully.",
                     "summary": payload.get("summary", ""),
-                    "file_name": payload.get("file_name", ""),
+                    "file_name": file_name,
                     "collection_name": collection_name,
                     "status": "SUCCESS",
                 }
+        else:
+            # Check Redis status
+            status_data = SUMMARY_STATUS_HANDLER.get_status(collection_name, file_name)
 
-            # Wait before next poll
-            await asyncio.sleep(2)
+            if status_data:
+                status = status_data.get("status")
 
-        # If timeout reached
-        return {
-            "message": f"Timeout waiting for summary generation for {file_name}",
-            "status": "TIMEOUT",
-        }
+                # Success - fetch from MinIO
+                if status == "SUCCESS":
+                    unique_thumbnail_id = get_unique_thumbnail_id(
+                        collection_name=f"summary_{collection_name}",
+                        file_name=file_name,
+                        page_number=0,
+                        location=[],
+                    )
+                    payload = get_minio_operator_instance().get_payload(
+                        object_name=unique_thumbnail_id
+                    )
+                    if payload:
+                        return {
+                            "message": "Summary retrieved successfully.",
+                            "summary": payload.get("summary", ""),
+                            "file_name": file_name,
+                            "collection_name": collection_name,
+                            "status": "SUCCESS",
+                        }
+                    else:
+                        # Status says SUCCESS but no content - this is an error
+                        logger.error(
+                            f"Summary status is SUCCESS but content not found in MinIO for {file_name}"
+                        )
+                        return {
+                            "message": f"Summary marked as complete but content not found in storage for {file_name}",
+                            "status": "FAILED",
+                            "error": "Content not found after successful generation",
+                            "file_name": file_name,
+                            "collection_name": collection_name,
+                        }
 
-    except Exception as e:
-        logger.error("Error from GET /summary endpoint. Error details: %s", e)
-        return {
-            "message": "Error occurred while getting summary.",
-            "error": str(e),
-            "status": "ERROR",
-        }
+                # Failed
+                elif status == "FAILED":
+                    return {
+                        "message": f"Summary generation failed for {file_name}",
+                        "status": "FAILED",
+                        "error": status_data.get("error", "Unknown error"),
+                        "file_name": file_name,
+                        "collection_name": collection_name,
+                        "started_at": status_data.get("started_at"),
+                        "completed_at": status_data.get("completed_at"),
+                    }
+
+        # Still in progress or not found, wait and retry
+        await asyncio.sleep(SUMMARY_POLL_INTERVAL_SECONDS)
+
+    # Timeout reached
+    logger.warning(
+        "Timeout waiting for summary generation for %s after %s seconds",
+        file_name,
+        effective_timeout,
+    )
+    return {
+        "message": f"Timeout waiting for summary generation for {file_name} after {effective_timeout} seconds",
+        "status": "FAILED",
+        "error": f"Timeout after {effective_timeout} seconds",
+        "file_name": file_name,
+        "collection_name": collection_name,
+    }
 
 
 # Helper functions for content processing

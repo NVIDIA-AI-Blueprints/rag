@@ -71,8 +71,9 @@ class _ConfigBase(BaseModel):
                     if isinstance(raw_value, str) and len(raw_value) >= 2:
                         # More robust quote stripping: strip whitespace first, then quotes
                         raw_value = raw_value.strip()
-                        if (raw_value.startswith('"') and raw_value.endswith('"')) or \
-                           (raw_value.startswith("'") and raw_value.endswith("'")):
+                        if (raw_value.startswith('"') and raw_value.endswith('"')) or (
+                            raw_value.startswith("'") and raw_value.endswith("'")
+                        ):
                             raw_value = raw_value[1:-1]
                     env_values[field_name] = raw_value
 
@@ -293,6 +294,16 @@ class NvIngestConfig(_ConfigBase):
         env="NV_INGEST_CONCURRENT_BATCHES",
         description="Number of batches to process concurrently",
     )
+    enable_pdf_split: bool = Field(
+        default=False,
+        env="APP_NVINGEST_ENABLEPDFSPLIT",
+        description="Enable PDF splitting during ingestion",
+    )
+    pages_per_chunk: int = Field(
+        default=16,
+        env="APP_NVINGEST_PAGESPERCHUNK",
+        description="Number of pages per chunk for PDF splitting",
+    )
 
 
 class ModelParametersConfig(_ConfigBase):
@@ -307,6 +318,16 @@ class ModelParametersConfig(_ConfigBase):
         default=0,
         env="LLM_MIN_TOKENS",
         description="Minimum number of tokens to generate in response",
+    )
+    max_thinking_tokens: int = Field(
+        default=8192,
+        env="LLM_MAX_THINKING_TOKENS",
+        description="Maximum thinking tokens to allocate for reasoning models",
+    )
+    min_thinking_tokens: int = Field(
+        default=1,
+        env="LLM_MIN_THINKING_TOKENS",
+        description="Minimum thinking tokens to allocate for reasoning models",
     )
     ignore_eos: bool = Field(
         default=False,
@@ -353,6 +374,8 @@ class LLMConfig(_ConfigBase):
             "min_tokens": self.parameters.min_tokens,
             "ignore_eos": self.parameters.ignore_eos,
             "max_tokens": self.parameters.max_tokens,
+            "min_thinking_tokens": self.parameters.min_thinking_tokens,
+            "max_thinking_tokens": self.parameters.max_thinking_tokens,
             "temperature": self.parameters.temperature,
             "top_p": self.parameters.top_p,
         }
@@ -612,14 +635,14 @@ class SummarizerConfig(_ConfigBase):
         description="URL endpoint for summarization service",
     )
     max_chunk_length: int = Field(
-        default=50000,
+        default=9000,
         env="SUMMARY_LLM_MAX_CHUNK_LENGTH",
-        description="Maximum character length for chunks to summarize",
+        description="Maximum chunk size in tokens for the summarizer model",
     )
     chunk_overlap: int = Field(
-        default=200,
+        default=400,
         env="SUMMARY_CHUNK_OVERLAP",
-        description="Character overlap between chunks during summarization",
+        description="Overlap between chunks for iterative summarization (in tokens)",
     )
     temperature: float = Field(
         default=0.0,
@@ -630,6 +653,11 @@ class SummarizerConfig(_ConfigBase):
         default=1.0,
         env="SUMMARY_LLM_TOP_P",
         description="Nucleus sampling threshold for summary generation",
+    )
+    max_parallelization: int = Field(
+        default=20,
+        env="SUMMARY_MAX_PARALLELIZATION",
+        description="Maximum concurrent summaries across entire system (coordinated via Redis)",
     )
 
 

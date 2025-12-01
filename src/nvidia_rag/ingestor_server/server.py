@@ -46,7 +46,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from starlette.status import HTTP_422_UNPROCESSABLE_ENTITY
 
 from nvidia_rag.ingestor_server.main import SERVER_MODE, NvidiaRAGIngestor
@@ -183,6 +183,143 @@ class CustomMetadata(BaseModel):
     )
 
 
+class DocumentCatalogMetadata(BaseModel):
+    """Catalog metadata for a specific document during upload."""
+
+    filename: str = Field(..., description="Name of the file to apply metadata to.")
+    description: str | None = Field(
+        None, description="Description of the document for catalog purposes."
+    )
+    tags: list[str] | None = Field(
+        None, description="Tags for categorizing and discovering the document."
+    )
+
+
+class SummaryOptions(BaseModel):
+    """Advanced options for summary generation (used with generate_summary=True).
+
+    Page Filter formats:
+    - Ranges: [[1, 10], [20, 30]] for pages 1-10 and 20-30
+    - Negative ranges: [[-10, -1]] for last 10 pages (Pythonic indexing where -1 is last page)
+    - Even/odd: "even" or "odd" for all even or odd pages
+
+    Examples:
+    - [[1, 10], [-5, -1]] selects first 10 pages and last 5 pages
+    - [[-1, -1]] selects only the last page
+    """
+
+    page_filter: list[list[int]] | str | None = Field(
+        None,
+        description=(
+            "Page selection specification for summarization. Supports: "
+            "list[list[int]] (ranges as [start,end] with negative indexing supported), "
+            "str ('even' or 'odd'). Only applicable when generate_summary is enabled."
+        ),
+        examples=[
+            [[1, 10]],
+            [[1, 10], [20, 30]],
+            [[-10, -1]],
+            [[1, 10], [-5, -1]],
+            "even",
+            "odd",
+        ],
+    )
+
+    shallow_summary: bool = Field(
+        default=False,
+        description=(
+            "Enable fast summary generation using text-only extraction. "
+            "When True, performs text-only NV-Ingest extraction first to generate summaries quickly, "
+            "then continues with full multimodal ingestion (tables, images, charts) for VDB. "
+            "Summary generation starts immediately with text-only results while full ingestion proceeds in parallel. "
+            "Default: False (summary generated after full multimodal ingestion)."
+        ),
+    )
+
+    summarization_strategy: str | None = Field(
+        default=None,
+        description=(
+            "Summarization strategy for combining document chunks. "
+            "'single': Summarize entire document in one pass (truncates if exceeds max_chunk_length). "
+            "'hierarchical': Parallel tree-based summarization (fastest for large documents). "
+            "If not specified, uses default sequential iterative processing."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def validate_page_filter_and_strategy(self) -> "SummaryOptions":
+        """Validate page_filter format and summarization_strategy."""
+        # Validate page_filter
+        if self.page_filter is not None:
+            page_filter = self.page_filter
+
+            if isinstance(page_filter, str):
+                if page_filter.lower() not in ["even", "odd"]:
+                    raise ValueError(
+                        f"Invalid page_filter string '{page_filter}'. Supported: 'even', 'odd'"
+                    )
+                self.page_filter = page_filter.lower()
+
+            elif isinstance(page_filter, list):
+                if not page_filter:
+                    raise ValueError("Page filter range list cannot be empty")
+
+                # Must be list of lists (ranges)
+                if not all(isinstance(item, list) for item in page_filter):
+                    raise ValueError(
+                        "Page filter must contain ranges as [start, end]. "
+                        "Got mixed types or non-list items."
+                    )
+
+                for i, range_item in enumerate(page_filter):
+                    if len(range_item) != 2:
+                        raise ValueError(
+                            f"Range {i} must have exactly 2 elements [start, end], got {len(range_item)}"
+                        )
+                    start, end = range_item
+                    if not isinstance(start, int) or not isinstance(end, int):
+                        raise ValueError(
+                            f"Range {i} must contain integers, got [{type(start).__name__}, {type(end).__name__}]"
+                        )
+                    # Validate page numbers
+                    if start == 0 or end == 0:
+                        raise ValueError(
+                            f"Range {i}: page numbers cannot be 0. Use 1-based indexing or negative for last pages."
+                        )
+                    # For negative ranges: start must be <= end (e.g., [-10, -1] is valid, [-1, -10] is not)
+                    if start < 0 and end < 0 and start > end:
+                        raise ValueError(
+                            f"Range {i}: invalid negative range [{start}, {end}]. "
+                            f"Use [-10, -1] for last 10 pages, not [-1, -10]."
+                        )
+                    # For positive ranges: start must be <= end
+                    if start > 0 and end > 0 and start > end:
+                        raise ValueError(
+                            f"Range {i}: start must be <= end, got [{start}, {end}]"
+                        )
+                    # Mixed positive/negative not allowed
+                    if (start < 0 and end > 0) or (start > 0 and end < 0):
+                        raise ValueError(
+                            f"Range {i}: cannot mix positive and negative indexing in same range. Got [{start}, {end}]"
+                        )
+            else:
+                raise ValueError(
+                    f"Invalid page_filter type: {type(page_filter).__name__}. "
+                    f"Expected: list[list[int]] (ranges) or str ('even'/'odd')"
+                )
+
+        # Validate summarization_strategy
+        if self.summarization_strategy is not None:
+            allowed_strategies = ["single", "hierarchical"]
+            if self.summarization_strategy not in allowed_strategies:
+                raise ValueError(
+                    f"Invalid summarization_strategy: '{self.summarization_strategy}'. "
+                    f"Allowed values: {allowed_strategies}"
+                )
+
+        return self
+
+
 class DocumentUploadRequest(BaseModel):
     """Request model for uploading and processing documents."""
 
@@ -191,6 +328,16 @@ class DocumentUploadRequest(BaseModel):
         description="URL of the vector database endpoint.",
         exclude=True,  # WAR to hide it from openapi schema
     )
+
+    @model_validator(mode="after")
+    def validate_summary_configuration(self) -> "DocumentUploadRequest":
+        """Validate that summary_options is only used when generate_summary is True."""
+        if self.summary_options and not self.generate_summary:
+            raise ValueError(
+                "summary_options can only be provided when generate_summary=True. "
+                "Either set generate_summary=True or remove summary_options."
+            )
+        return self
 
     collection_name: str = Field(
         "multimodal_data", description="Name of the collection in the vector database."
@@ -210,6 +357,16 @@ class DocumentUploadRequest(BaseModel):
     generate_summary: bool = Field(
         default=False,
         description="Enable/disable summary generation for each uploaded document.",
+    )
+
+    documents_catalog_metadata: list[DocumentCatalogMetadata] = Field(
+        default_factory=list,
+        description="Catalog metadata (description, tags) for specific documents. Optional per-document catalog information.",
+    )
+
+    summary_options: SummaryOptions | None = Field(
+        None,
+        description="Advanced options for summary generation (e.g., page filtering). Only used when generate_summary is True.",
     )
 
     # Reserved for future use
@@ -309,6 +466,7 @@ class UploadedCollection(BaseModel):
         {}, description="Collection info of the collection."
     )
 
+
 class CollectionListResponse(BaseModel):
     """Response model for uploading a document."""
 
@@ -339,6 +497,18 @@ class CreateCollectionRequest(BaseModel):
     )
     metadata_schema: list[MetadataField] = Field(
         [], description="Metadata schema of the collection."
+    )
+    description: str = Field(
+        "", description="Human-readable description of the collection"
+    )
+    tags: list[str] = Field([], description="Tags for categorization and search")
+    owner: str = Field("", description="Owner team or person")
+    created_by: str = Field("", description="Username/email of creator")
+    business_domain: str = Field(
+        "", description="Business domain (Finance, Engineering, HR, Legal, etc.)"
+    )
+    status: str = Field(
+        "Active", description="Collection status (Active, Archived, Stale, Pending)"
     )
 
 
@@ -378,6 +548,30 @@ class CreateCollectionResponse(BaseModel):
 
     message: str = Field(..., description="Status message of the process.")
     collection_name: str = Field(..., description="Name of the collection.")
+
+
+class UpdateCollectionMetadataRequest(BaseModel):
+    """Request model for updating collection metadata."""
+
+    description: str | None = Field(None, description="Updated description")
+    tags: list[str] | None = Field(None, description="Updated tags")
+    owner: str | None = Field(None, description="Updated owner")
+    business_domain: str | None = Field(None, description="Updated business domain")
+    status: str | None = Field(None, description="Updated status")
+
+
+class UpdateDocumentMetadataRequest(BaseModel):
+    """Request model for updating document metadata."""
+
+    description: str | None = Field(None, description="Updated description")
+    tags: list[str] | None = Field(None, description="Updated tags")
+
+
+class UpdateMetadataResponse(BaseModel):
+    """Response model for metadata update operations."""
+
+    message: str = Field(..., description="Status message")
+    collection_name: str = Field(..., description="Collection name")
 
 
 @app.exception_handler(RequestValidationError)
@@ -717,7 +911,7 @@ async def get_documents(
 )
 async def delete_documents(
     _: Request,
-    document_names: list[str] = None,
+    document_names: list[str] | None = None,
     collection_name: str = os.getenv("COLLECTION_NAME"),
     vdb_endpoint: str = Query(
         default=os.getenv("APP_VECTORSTORE_URL"), include_in_schema=False
@@ -830,7 +1024,7 @@ async def create_collections(
     vdb_endpoint: str = Query(
         default=os.getenv("APP_VECTORSTORE_URL"), include_in_schema=False
     ),
-    collection_names: list[str] = None,
+    collection_names: list[str] | None = None,
     collection_type: str = "text",
     embedding_dimension: int = 2048,
 ) -> CollectionsResponse:
@@ -889,8 +1083,7 @@ async def create_collections(
     },
 )
 async def create_collection(data: CreateCollectionRequest) -> CreateCollectionResponse:
-    """
-    Endpoint to create a collection from the Milvus server.
+    """Endpoint to create a collection with catalog metadata.
     Returns status message.
     """
     try:
@@ -899,6 +1092,12 @@ async def create_collection(data: CreateCollectionRequest) -> CreateCollectionRe
             vdb_endpoint=data.vdb_endpoint,
             embedding_dimension=data.embedding_dimension,
             metadata_schema=[field.model_dump() for field in data.metadata_schema],
+            description=data.description,
+            tags=data.tags,
+            owner=data.owner,
+            created_by=data.created_by,
+            business_domain=data.business_domain,
+            status=data.status,
         )
         return CreateCollectionResponse(**response)
 
@@ -913,6 +1112,117 @@ async def create_collection(data: CreateCollectionRequest) -> CreateCollectionRe
             content={
                 "message": f"Error occurred while creating collection. Error: {e}"
             },
+            status_code=500,
+        )
+
+
+@app.patch(
+    "/collections/{collection_name}/metadata",
+    tags=["Vector DB APIs"],
+    response_model=UpdateMetadataResponse,
+    responses={
+        499: {
+            "description": "Client Closed Request",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "The client cancelled the request"}
+                }
+            },
+        },
+        500: {
+            "description": "Internal Server Error",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Internal server error occurred"}
+                }
+            },
+        },
+    },
+)
+async def update_collection_metadata(
+    collection_name: str,
+    data: UpdateCollectionMetadataRequest,
+) -> UpdateMetadataResponse:
+    """Endpoint to update collection catalog metadata."""
+    try:
+        response = NV_INGEST_INGESTOR.update_collection_metadata(
+            collection_name=collection_name,
+            description=data.description,
+            tags=data.tags,
+            owner=data.owner,
+            business_domain=data.business_domain,
+            status=data.status,
+        )
+        return UpdateMetadataResponse(**response)
+
+    except asyncio.CancelledError as e:
+        logger.warning(
+            f"Request cancelled while updating collection metadata. {str(e)}"
+        )
+        return JSONResponse(
+            content={"message": "Request was cancelled by the client."}, status_code=499
+        )
+    except Exception as e:
+        logger.error(
+            "Error from PATCH /collections/{collection_name}/metadata endpoint. Error: %s",
+            e,
+        )
+        return JSONResponse(
+            content={"message": f"Error updating collection metadata. Error: {e}"},
+            status_code=500,
+        )
+
+
+@app.patch(
+    "/collections/{collection_name}/documents/{document_name}/metadata",
+    tags=["Vector DB APIs"],
+    response_model=UpdateMetadataResponse,
+    responses={
+        499: {
+            "description": "Client Closed Request",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "The client cancelled the request"}
+                }
+            },
+        },
+        500: {
+            "description": "Internal Server Error",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Internal server error occurred"}
+                }
+            },
+        },
+    },
+)
+async def update_document_metadata(
+    collection_name: str,
+    document_name: str,
+    data: UpdateDocumentMetadataRequest,
+) -> UpdateMetadataResponse:
+    """Endpoint to update document catalog metadata."""
+    try:
+        response = NV_INGEST_INGESTOR.update_document_metadata(
+            collection_name=collection_name,
+            document_name=document_name,
+            description=data.description,
+            tags=data.tags,
+        )
+        return UpdateMetadataResponse(**response)
+
+    except asyncio.CancelledError as e:
+        logger.warning(f"Request cancelled while updating document metadata. {str(e)}")
+        return JSONResponse(
+            content={"message": "Request was cancelled by the client."}, status_code=499
+        )
+    except Exception as e:
+        logger.error(
+            "Error from PATCH /collections/{collection_name}/documents/{document_name}/metadata endpoint. Error: %s",
+            e,
+        )
+        return JSONResponse(
+            content={"message": f"Error updating document metadata. Error: {e}"},
             status_code=500,
         )
 
@@ -944,7 +1254,7 @@ async def delete_collections(
     vdb_endpoint: str = Query(
         default=os.getenv("APP_VECTORSTORE_URL"), include_in_schema=False
     ),
-    collection_names: list[str] = None,
+    collection_names: list[str] | None = None,
 ) -> CollectionsResponse:
     if collection_names is None:
         collection_names = [os.getenv("COLLECTION_NAME")]

@@ -53,7 +53,9 @@ After the RAG Blueprint is [deployed](../docs/readme.md#deployment-options-for-r
 
 ## Intermediate Notebooks
 
-Use the following notebooks to learn comprehensive Python client usage, metadata, and other features.
+Use the following notebooks to learn comprehensive Python client usage, metadata, summarization, and other features.
+
+- [summarization.ipynb](../notebooks/summarization.ipynb) – Demonstrates document summarization customization including page filtering, fast shallow extraction, and multiple summarization strategies. Covers both Library Mode and Docker Mode API usage.
 
 - [evaluation_01_ragas.ipynb](https://github.com/NVIDIA-AI-Blueprints/rag/tree/main/notebooks/evaluation_01_ragas.ipynb) – Evaluate your RAG system using three key metrics with the [Ragas](https://docs.ragas.io/en/stable/) library. 
 
