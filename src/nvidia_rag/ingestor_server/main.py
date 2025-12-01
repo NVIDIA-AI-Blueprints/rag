@@ -2161,7 +2161,7 @@ class NvidiaRAGIngestor:
         Returns:
             - tuple[list[list[dict[str, str | dict]]], list[dict[str, Any]]] - Results and failures
         """
-        if self.config.nv_ingest.pdf_extract_method in [None, "None", "none"]:
+        if self.config.nv_ingest.pdf_extract_method is None:
             nv_ingest_ingestor = get_nv_ingest_ingestor(
                 nv_ingest_client_instance=self.nv_ingest_client,
                 filepaths=filtered_filepaths,

@@ -252,6 +252,15 @@ class NvIngestConfig(_ConfigBase):
         env="APP_NVINGEST_PDFEXTRACTMETHOD",
         description="Method to use for PDF extraction",
     )
+
+    @field_validator("pdf_extract_method", mode="before")
+    @classmethod
+    def normalize_pdf_extract_method(cls, v: Any) -> Any:
+        """Normalize string 'None'/'none' to Python None."""
+        if isinstance(v, str) and v.lower() in ("none", "null", ""):
+            return None
+        return v
+
     text_depth: str = Field(
         default="page",
         env="APP_NVINGEST_TEXTDEPTH",

@@ -304,6 +304,67 @@ class TestNvIngestConfig:
         )
         assert config.enable_pdf_splitter is True
 
+    @pytest.mark.parametrize(
+        "input_value",
+        [
+            "None",   # String "None"
+            "none",   # Lowercase
+            "NONE",   # Uppercase
+            "null",   # YAML null string
+            "NULL",   # Uppercase null
+            "",       # Empty string
+        ],
+    )
+    def test_pdf_extract_method_normalizes_none_strings_to_none(self, input_value):
+        """Test that string representations of None are normalized to Python None."""
+        config = NvIngestConfig(pdf_extract_method=input_value)
+        assert config.pdf_extract_method is None
+
+    def test_pdf_extract_method_preserves_valid_values(self):
+        """Test that valid extraction method strings are preserved."""
+        config = NvIngestConfig(pdf_extract_method="pdfium")
+        assert config.pdf_extract_method == "pdfium"
+
+        config = NvIngestConfig(pdf_extract_method="tesseract")
+        assert config.pdf_extract_method == "tesseract"
+
+    @patch.dict(os.environ, {}, clear=True)
+    @pytest.mark.parametrize(
+        "env_value",
+        ["None", "none", "null", ""],
+    )
+    def test_pdf_extract_method_normalizes_none_from_env_var(self, env_value):
+        """Test that string None values from environment variables are normalized."""
+        with patch.dict(os.environ, {"APP_NVINGEST_PDFEXTRACTMETHOD": env_value}):
+            config = NvIngestConfig()
+            assert config.pdf_extract_method is None
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_pdf_extract_method_preserves_valid_value_from_env_var(self):
+        """Test that valid extraction method from environment variable is preserved."""
+        with patch.dict(os.environ, {"APP_NVINGEST_PDFEXTRACTMETHOD": "pdfium"}):
+            config = NvIngestConfig()
+            assert config.pdf_extract_method == "pdfium"
+
+    def test_pdf_extract_method_none_in_full_config(self):
+        """Test pdf_extract_method normalization through NvidiaRAGConfig."""
+        # Test via dict (simulates YAML loading)
+        config = NvidiaRAGConfig.from_dict({
+            "nv_ingest": {"pdf_extract_method": "None"}
+        })
+        assert config.nv_ingest.pdf_extract_method is None
+
+        config = NvidiaRAGConfig.from_dict({
+            "nv_ingest": {"pdf_extract_method": "null"}
+        })
+        assert config.nv_ingest.pdf_extract_method is None
+
+        # Valid value should be preserved
+        config = NvidiaRAGConfig.from_dict({
+            "nv_ingest": {"pdf_extract_method": "pdfium"}
+        })
+        assert config.nv_ingest.pdf_extract_method == "pdfium"
+
 
 class TestNvidiaRAGConfig:
     """Test cases for the main NvidiaRAGConfig class."""
