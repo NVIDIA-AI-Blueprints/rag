@@ -158,7 +158,7 @@ class NvidiaRAGIngestor:
         
         return IngestorHealthResponse(message="Service is up.")
 
-    async def validate_directory_traversal_attack(self, file):
+    async def validate_directory_traversal_attack(self, file) -> None:
         try:
             # Path.resolve(strict=True) is a method used to
             # obtain the absolute and normalized path, with

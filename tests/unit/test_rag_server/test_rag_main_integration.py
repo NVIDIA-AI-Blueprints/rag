@@ -37,7 +37,7 @@ class TestNvidiaRAGGenerateWorking:
         messages = [{"role": "user", "content": "Test query"}]
 
         with patch('nvidia_rag.rag_server.main.prepare_llm_request') as mock_prepare_request:
-            with patch.object(rag, '_NvidiaRAG__rag_chain') as mock_rag_chain:
+            with patch.object(rag, '_rag_chain') as mock_rag_chain:
                 mock_prepare_request.return_value = ("test query", [])
                 mock_rag_chain.return_value = iter(["Test response"])
 
@@ -55,7 +55,7 @@ class TestNvidiaRAGGenerateWorking:
         messages = [{"role": "user", "content": "Test query"}]
 
         with patch('nvidia_rag.rag_server.main.prepare_llm_request') as mock_prepare_request:
-            with patch.object(rag, '_NvidiaRAG__llm_chain') as mock_llm_chain:
+            with patch.object(rag, '_llm_chain') as mock_llm_chain:
                 mock_prepare_request.return_value = ("test query", [])
                 mock_llm_chain.return_value = iter(["Test response"])
 
@@ -91,7 +91,7 @@ class TestNvidiaRAGSearchWorking:
         mock_vdb_op.retrieval_langchain.return_value = [Mock(page_content="test content", metadata={})]
         rag = NvidiaRAG(vdb_op=mock_vdb_op)
 
-        with patch.object(rag, '_NvidiaRAG__prepare_vdb_op') as mock_prepare:
+        with patch.object(rag, '_prepare_vdb_op') as mock_prepare:
             with patch('nvidia_rag.rag_server.main.prepare_llm_request') as mock_prepare_request:
                 with patch('nvidia_rag.rag_server.main.prepare_citations') as mock_prepare_citations:
                     with patch('nvidia_rag.rag_server.main.get_ranking_model') as mock_get_ranking:
@@ -139,7 +139,7 @@ class TestNvidiaRAGSearchWorking:
 
         messages = [{"role": "user", "content": "Test query"}]
 
-        with patch.object(rag, '_NvidiaRAG__prepare_vdb_op') as mock_prepare:
+        with patch.object(rag, '_prepare_vdb_op') as mock_prepare:
             with patch('nvidia_rag.rag_server.main.prepare_llm_request') as mock_prepare_request:
                 with patch('nvidia_rag.rag_server.main.prepare_citations') as mock_prepare_citations:
                     with patch('nvidia_rag.rag_server.main.get_ranking_model') as mock_get_ranking:
@@ -182,7 +182,7 @@ class TestNvidiaRAGSearchWorking:
         """Test search with empty collection_names raises APIError."""
         rag = NvidiaRAG()
 
-        with patch.object(rag, '_NvidiaRAG__prepare_vdb_op') as mock_prepare:
+        with patch.object(rag, '_prepare_vdb_op') as mock_prepare:
             mock_vdb_op = Mock(spec=VDBRag)
             mock_prepare.return_value = mock_vdb_op
 
@@ -193,7 +193,7 @@ class TestNvidiaRAGSearchWorking:
         """Test search with collection validation error."""
         rag = NvidiaRAG()
 
-        with patch.object(rag, '_NvidiaRAG__prepare_vdb_op') as mock_prepare:
+        with patch.object(rag, '_prepare_vdb_op') as mock_prepare:
             mock_vdb_op = Mock(spec=VDBRag)
             mock_vdb_op.check_collection_exists.return_value = False
             mock_prepare.return_value = mock_vdb_op
@@ -315,7 +315,7 @@ class TestNvidiaRAGPrivateMethodsWorking:
         ]
 
         with patch('nvidia_rag.rag_server.main.logger') as mock_logger:
-            rag._NvidiaRAG__print_conversation_history(conversation_history)
+            rag._print_conversation_history(conversation_history)
 
             # Verify debug log was called
             assert mock_logger.debug.call_count > 0
@@ -330,7 +330,7 @@ class TestNvidiaRAGPrivateMethodsWorking:
             Mock(metadata={"relevance_score": 0.4})
         ]
 
-        result = rag._NvidiaRAG__normalize_relevance_scores(documents)
+        result = rag._normalize_relevance_scores(documents)
 
         # Should return the same documents
         assert len(result) == 3
@@ -345,7 +345,7 @@ class TestNvidiaRAGPrivateMethodsWorking:
         doc.metadata = {"source": "test.pdf"}
 
         with patch.dict(os.environ, {"ENABLE_SOURCE_METADATA": "True"}):
-            result = rag._NvidiaRAG__format_document_with_source(doc)
+            result = rag._format_document_with_source(doc)
 
             assert "Test content" in result
             assert "File: test" in result
@@ -359,7 +359,7 @@ class TestNvidiaRAGPrivateMethodsWorking:
         doc.metadata = {}
 
         with patch.dict(os.environ, {"ENABLE_SOURCE_METADATA": "True"}):
-            result = rag._NvidiaRAG__format_document_with_source(doc)
+            result = rag._format_document_with_source(doc)
 
             assert result == "Test content"
 
@@ -372,7 +372,7 @@ class TestNvidiaRAGPrivateMethodsWorking:
         doc.metadata = {"source": "test.pdf"}
 
         with patch.dict(os.environ, {"ENABLE_SOURCE_METADATA": "False"}):
-            result = rag._NvidiaRAG__format_document_with_source(doc)
+            result = rag._format_document_with_source(doc)
 
             assert result == "Test content"
 
@@ -386,7 +386,7 @@ class TestNvidiaRAGEdgeCasesWorking:
         rag = NvidiaRAG(vdb_op=mock_vdb_op)
 
         with patch('nvidia_rag.rag_server.main.prepare_llm_request') as mock_prepare_request:
-            with patch.object(rag, '_NvidiaRAG__llm_chain') as mock_llm_chain:
+            with patch.object(rag, '_llm_chain') as mock_llm_chain:
                 mock_prepare_request.return_value = ("", [])
                 mock_llm_chain.return_value = iter(["Test response"])
 
@@ -424,7 +424,7 @@ class TestNvidiaRAGEdgeCasesWorking:
         # Test with None document - should raise AttributeError
         with patch.dict(os.environ, {"ENABLE_SOURCE_METADATA": "True"}):
             with pytest.raises(AttributeError):
-                rag._NvidiaRAG__format_document_with_source(None)
+                rag._format_document_with_source(None)
 
         # Test with document having None page_content
         doc = Mock()
@@ -432,7 +432,7 @@ class TestNvidiaRAGEdgeCasesWorking:
         doc.metadata = {"source": "test.pdf"}
 
         with patch.dict(os.environ, {"ENABLE_SOURCE_METADATA": "True"}):
-            result = rag._NvidiaRAG__format_document_with_source(doc)
+            result = rag._format_document_with_source(doc)
             assert result == "File: test\nContent: None"
 
     def test_normalize_relevance_scores_edge_cases(self):
@@ -440,9 +440,9 @@ class TestNvidiaRAGEdgeCasesWorking:
         rag = NvidiaRAG()
 
         # Test with None input
-        result = rag._NvidiaRAG__normalize_relevance_scores(None)
+        result = rag._normalize_relevance_scores(None)
         assert result is None
 
         # Test with empty list
-        result = rag._NvidiaRAG__normalize_relevance_scores([])
+        result = rag._normalize_relevance_scores([])
         assert result == []

@@ -115,7 +115,7 @@ def test_search_uses_query_rewriter_when_enabled(monkeypatch):
     fake_vdb = DummyVDB()
     rag = NvidiaRAG()
     # Force using our stubbed vdb_op inside generate/search path that may call __prepare_vdb_op
-    monkeypatch.setattr(NvidiaRAG, "_NvidiaRAG__prepare_vdb_op", lambda self, **kw: fake_vdb)
+    monkeypatch.setattr(NvidiaRAG, "_prepare_vdb_op", lambda self, **kw: fake_vdb)
 
     messages = [
         {"role": "system", "content": "You are helpful."},
@@ -142,7 +142,7 @@ def test_search_combines_history_when_rewriter_disabled(monkeypatch):
 
     fake_vdb = DummyVDB()
     rag = NvidiaRAG()
-    monkeypatch.setattr(NvidiaRAG, "_NvidiaRAG__prepare_vdb_op", lambda self, **kw: fake_vdb)
+    monkeypatch.setattr(NvidiaRAG, "_prepare_vdb_op", lambda self, **kw: fake_vdb)
 
     messages = [
         {"role": "user", "content": "What is RAG?"},
@@ -170,7 +170,7 @@ def test_generate_uses_query_rewriter_when_enabled(monkeypatch):
 
     fake_vdb = DummyVDB()
     rag = NvidiaRAG()
-    monkeypatch.setattr(NvidiaRAG, "_NvidiaRAG__prepare_vdb_op", lambda self, **kw: fake_vdb)
+    monkeypatch.setattr(NvidiaRAG, "_prepare_vdb_op", lambda self, **kw: fake_vdb)
 
     messages = [
         {"role": "system", "content": "You are helpful."},
@@ -200,7 +200,7 @@ def test_generate_combines_history_when_rewriter_disabled(monkeypatch):
 
     fake_vdb = DummyVDB()
     rag = NvidiaRAG()
-    monkeypatch.setattr(NvidiaRAG, "_NvidiaRAG__prepare_vdb_op", lambda self, **kw: fake_vdb)
+    monkeypatch.setattr(NvidiaRAG, "_prepare_vdb_op", lambda self, **kw: fake_vdb)
 
     messages = [
         {"role": "user", "content": "What is RAG?"},
