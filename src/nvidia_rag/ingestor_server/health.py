@@ -503,12 +503,12 @@ async def check_all_services_health(
     )
 
 
-def print_health_report(health_results: HealthResponseBase) -> None:
+def print_health_report(health_results: IngestorHealthResponse) -> None:
     """
     Print health status for individual services
 
     Args:
-        health_results: HealthResponseBase (RAGHealthResponse or IngestorHealthResponse) from check_all_services_health
+        health_results: IngestorHealthResponse from check_all_services_health
     """
     logger.info("===== INGESTOR SERVICE HEALTH STATUS =====")
 
