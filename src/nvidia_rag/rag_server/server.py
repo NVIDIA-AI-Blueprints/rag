@@ -146,6 +146,14 @@ def validate_confidence_threshold_field(confidence_threshold: float) -> float:
     return confidence_threshold
 
 
+def _extract_vdb_auth_token(request: Request) -> str | None:
+    """Extract bearer token from Authorization header (e.g., 'Bearer <token>')."""
+    auth_header = request.headers.get("Authorization") or request.headers.get("authorization")
+    if isinstance(auth_header, str) and auth_header.lower().startswith("bearer "):
+        return auth_header.split(" ", 1)[1].strip()
+    return None
+
+
 class Prompt(BaseModel):
     """Definition of the Prompt API data type."""
 
@@ -743,12 +751,15 @@ async def generate_answer(request: Request, prompt: Prompt) -> StreamingResponse
                 # Fallback for other content types
                 messages_dict.append({"role": msg.role, "content": msg.content})
 
-        # Get the streaming generator from NVIDIA_RAG.generate
+        # Extract bearer token from Authorization header (e.g., "Bearer <token>")
+        vdb_auth_token = _extract_vdb_auth_token(request)
+
         rag_response = NVIDIA_RAG.generate(
             messages=messages_dict,
             use_knowledge_base=prompt.use_knowledge_base,
             temperature=prompt.temperature,
             top_p=prompt.top_p,
+            vdb_auth_token=vdb_auth_token,
             min_tokens=prompt.min_tokens,
             ignore_eos=prompt.ignore_eos,
             max_tokens=prompt.max_tokens,
@@ -953,9 +964,13 @@ async def document_search(
                     content_list.append(content_item)
             query_processed = content_list
 
+        # Extract bearer token from Authorization header (e.g., "Bearer <token>")
+        vdb_auth_token = _extract_vdb_auth_token(request)
+
         return NVIDIA_RAG.search(
             query=query_processed,
             messages=messages_dict,
+            vdb_auth_token=vdb_auth_token,
             reranker_top_k=data.reranker_top_k,
             vdb_top_k=data.vdb_top_k,
             collection_name=data.collection_name,
