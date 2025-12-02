@@ -95,34 +95,41 @@ class TestNvidiaRAGHealth:
     @pytest.mark.asyncio
     async def test_health_basic(self):
         """Test basic health check without dependencies."""
+        from nvidia_rag.utils.health_models import RAGHealthResponse
+
         rag = NvidiaRAG()
 
-        with patch.object(rag, '_NvidiaRAG__prepare_vdb_op') as mock_prepare:
+        with patch.object(rag, '_prepare_vdb_op') as mock_prepare:
             mock_prepare.return_value = Mock()
 
             result = await rag.health(check_dependencies=False)
 
-            assert result["message"] == "Service is up."
-            assert "dependencies" not in result
+            assert isinstance(result, RAGHealthResponse)
+            assert result.message == "Service is up."
+            # Verify VDB preparation is NOT called for simple health checks
+            mock_prepare.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_health_with_dependencies(self):
         """Test health check with dependencies."""
+        from nvidia_rag.utils.health_models import RAGHealthResponse
+
         rag = NvidiaRAG()
 
         mock_vdb_op = Mock()
-        mock_dependencies = {"vdb": "healthy", "llm": "healthy"}
+        mock_dependencies = RAGHealthResponse(message="Service is up.")
 
-        with patch.object(rag, '_NvidiaRAG__prepare_vdb_op') as mock_prepare:
+        with patch.object(rag, '_prepare_vdb_op') as mock_prepare:
             with patch('nvidia_rag.rag_server.main.check_all_services_health') as mock_check:
                 mock_prepare.return_value = mock_vdb_op
                 mock_check.return_value = mock_dependencies
 
                 result = await rag.health(check_dependencies=True)
 
-                assert result["message"] == "Service is up."
-                assert result["vdb"] == "healthy"
-                assert result["llm"] == "healthy"
+                assert isinstance(result, RAGHealthResponse)
+                assert result.message == "Service is up."
+                # Verify VDB preparation IS called when checking dependencies
+                mock_prepare.assert_called_once()
                 # Verify check_all_services_health was called with vdb_op and config
                 mock_check.assert_called_once()
                 call_args = mock_check.call_args
@@ -139,7 +146,7 @@ class TestNvidiaRAGPrepareVDBOp:
         mock_vdb_op = Mock(spec=VDBRag)
         rag = NvidiaRAG(vdb_op=mock_vdb_op)
 
-        result = rag._NvidiaRAG__prepare_vdb_op()
+        result = rag._prepare_vdb_op()
         assert result == mock_vdb_op
 
     def test_prepare_vdb_op_with_vdb_endpoint_error(self):
@@ -148,7 +155,7 @@ class TestNvidiaRAGPrepareVDBOp:
         rag = NvidiaRAG(vdb_op=mock_vdb_op)
 
         with pytest.raises(ValueError, match="vdb_endpoint is not supported when vdb_op is provided during initialization"):
-            rag._NvidiaRAG__prepare_vdb_op(vdb_endpoint="http://test.com")
+            rag._prepare_vdb_op(vdb_endpoint="http://test.com")
 
     def test_prepare_vdb_op_with_embedding_model_error(self):
         """Test __prepare_vdb_op with embedding_model when vdb_op is set."""
@@ -156,7 +163,7 @@ class TestNvidiaRAGPrepareVDBOp:
         rag = NvidiaRAG(vdb_op=mock_vdb_op)
 
         with pytest.raises(ValueError, match="embedding_model is not supported when vdb_op is provided during initialization"):
-            rag._NvidiaRAG__prepare_vdb_op(embedding_model="test-model")
+            rag._prepare_vdb_op(embedding_model="test-model")
 
     def test_prepare_vdb_op_with_embedding_endpoint_error(self):
         """Test __prepare_vdb_op with embedding_endpoint when vdb_op is set."""
@@ -164,7 +171,7 @@ class TestNvidiaRAGPrepareVDBOp:
         rag = NvidiaRAG(vdb_op=mock_vdb_op)
 
         with pytest.raises(ValueError, match="embedding_endpoint is not supported when vdb_op is provided during initialization"):
-            rag._NvidiaRAG__prepare_vdb_op(embedding_endpoint="http://test.com")
+            rag._prepare_vdb_op(embedding_endpoint="http://test.com")
 
     @patch('nvidia_rag.rag_server.main.get_embedding_model')
     @patch('nvidia_rag.rag_server.main._get_vdb_op')
@@ -179,7 +186,7 @@ class TestNvidiaRAGPrepareVDBOp:
 
         rag = NvidiaRAG()
 
-        result = rag._NvidiaRAG__prepare_vdb_op()
+        result = rag._prepare_vdb_op()
 
         assert result == mock_vdb_op
         assert mock_get_embedding.call_count >= 1  # Called during init and __prepare_vdb_op
@@ -198,7 +205,7 @@ class TestNvidiaRAGPrepareVDBOp:
 
         rag = NvidiaRAG()
 
-        result = rag._NvidiaRAG__prepare_vdb_op(
+        result = rag._prepare_vdb_op(
             vdb_endpoint="http://custom-vdb.com",
             embedding_model="custom-model",
             embedding_endpoint="http://custom-embedding.com"
@@ -393,7 +400,7 @@ class TestNvidiaRAGPrintConversationHistory:
         ]
 
         with patch('nvidia_rag.rag_server.main.logger') as mock_logger:
-            rag._NvidiaRAG__print_conversation_history(conversation_history)
+            rag._print_conversation_history(conversation_history)
 
             # Verify debug log was called
             assert mock_logger.debug.call_count > 0
@@ -403,7 +410,7 @@ class TestNvidiaRAGPrintConversationHistory:
         rag = NvidiaRAG()
 
         with patch('nvidia_rag.rag_server.main.logger') as mock_logger:
-            rag._NvidiaRAG__print_conversation_history([])
+            rag._print_conversation_history([])
 
             # Should not call debug log with empty history
             assert mock_logger.debug.call_count == 0
@@ -422,7 +429,7 @@ class TestNvidiaRAGNormalizeRelevanceScores:
             Mock(metadata={"relevance_score": 0.4})
         ]
 
-        result = rag._NvidiaRAG__normalize_relevance_scores(documents)
+        result = rag._normalize_relevance_scores(documents)
 
         # Should return the same documents
         assert len(result) == 3
@@ -432,7 +439,7 @@ class TestNvidiaRAGNormalizeRelevanceScores:
         """Test normalizing relevance scores with empty list."""
         rag = NvidiaRAG()
 
-        result = rag._NvidiaRAG__normalize_relevance_scores([])
+        result = rag._normalize_relevance_scores([])
 
         assert result == []
 
@@ -449,7 +456,7 @@ class TestNvidiaRAGFormatDocumentWithSource:
         doc.metadata = {"source": "test.pdf"}
 
         with patch.dict(os.environ, {"ENABLE_SOURCE_METADATA": "True"}):
-            result = rag._NvidiaRAG__format_document_with_source(doc)
+            result = rag._format_document_with_source(doc)
 
             assert "Test content" in result
             assert "File: test" in result
@@ -463,7 +470,7 @@ class TestNvidiaRAGFormatDocumentWithSource:
         doc.metadata = {}
 
         with patch.dict(os.environ, {"ENABLE_SOURCE_METADATA": "True"}):
-            result = rag._NvidiaRAG__format_document_with_source(doc)
+            result = rag._format_document_with_source(doc)
 
             assert result == "Test content"
 
@@ -476,7 +483,7 @@ class TestNvidiaRAGFormatDocumentWithSource:
         doc.metadata = {"source": {"source_name": "test.pdf"}}
 
         with patch.dict(os.environ, {"ENABLE_SOURCE_METADATA": "True"}):
-            result = rag._NvidiaRAG__format_document_with_source(doc)
+            result = rag._format_document_with_source(doc)
 
             assert "Test content" in result
             assert "File: test" in result

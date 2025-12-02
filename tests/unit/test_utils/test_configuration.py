@@ -34,6 +34,7 @@ from nvidia_rag.utils.configuration import (
     QueryRewriterConfig,
     RankingConfig,
     RetrieverConfig,
+    SearchType,
     SummarizerConfig,
     TextSplitterConfig,
     TracingConfig,
@@ -54,8 +55,51 @@ class TestVectorStoreConfig:
         assert config.nlist == 64
         assert config.nprobe == 16
         assert config.index_type == "GPU_CAGRA"
-        assert config.search_type == "dense"
+        assert config.search_type == SearchType.DENSE
         assert config.default_collection_name == "multimodal_data"
+
+    def test_search_type_enum_default(self):
+        """Test that search_type default is SearchType.DENSE enum."""
+        config = VectorStoreConfig()
+
+        # Verify it's the correct enum type
+        assert isinstance(config.search_type, SearchType)
+        assert config.search_type == SearchType.DENSE
+        # StrEnum also supports string comparison
+        assert config.search_type == "dense"
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_search_type_enum_from_env_hybrid(self):
+        """Test that search_type can be set via environment variable to hybrid."""
+        with patch.dict(os.environ, {"APP_VECTORSTORE_SEARCHTYPE": "hybrid"}):
+            config = VectorStoreConfig()
+
+            assert isinstance(config.search_type, SearchType)
+            assert config.search_type == SearchType.HYBRID
+            assert config.search_type == "hybrid"
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_search_type_enum_from_env_dense(self):
+        """Test that search_type can be set via environment variable to dense."""
+        with patch.dict(os.environ, {"APP_VECTORSTORE_SEARCHTYPE": "dense"}):
+            config = VectorStoreConfig()
+
+            assert isinstance(config.search_type, SearchType)
+            assert config.search_type == SearchType.DENSE
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_search_type_enum_invalid_value_raises_error(self):
+        """Test that invalid search_type value raises validation error."""
+        from pydantic import ValidationError
+
+        with patch.dict(os.environ, {"APP_VECTORSTORE_SEARCHTYPE": "invalid_type"}):
+            with pytest.raises(ValidationError) as exc_info:
+                VectorStoreConfig()
+
+            # Verify the error message mentions the valid options
+            error_message = str(exc_info.value)
+            assert "search_type" in error_message
+            assert "dense" in error_message or "hybrid" in error_message
 
     @patch.dict(os.environ, {}, clear=True)
     def test_environment_variables_custom_names(self):
@@ -192,8 +236,8 @@ class TestMinioConfig:
         config = MinioConfig()
 
         assert config.endpoint == "localhost:9010"
-        assert config.access_key == "minioadmin"
-        assert config.secret_key == "minioadmin"
+        assert config.access_key.get_secret_value() == "minioadmin"
+        assert config.secret_key.get_secret_value() == "minioadmin"
 
 
 class TestSummarizerConfig:
@@ -248,7 +292,7 @@ class TestNvIngestConfig:
         assert config.extract_tables is True
         assert config.extract_charts is True
         assert config.extract_images is False
-        assert config.pdf_extract_method == "None"
+        assert config.pdf_extract_method is None
         assert config.text_depth == "page"
         assert config.tokenizer == "intfloat/e5-large-unsupervised"
         assert config.chunk_size == 1024
@@ -259,6 +303,67 @@ class TestNvIngestConfig:
             == "https://integrate.api.nvidia.com/v1/chat/completions"
         )
         assert config.enable_pdf_splitter is True
+
+    @pytest.mark.parametrize(
+        "input_value",
+        [
+            "None",   # String "None"
+            "none",   # Lowercase
+            "NONE",   # Uppercase
+            "null",   # YAML null string
+            "NULL",   # Uppercase null
+            "",       # Empty string
+        ],
+    )
+    def test_pdf_extract_method_normalizes_none_strings_to_none(self, input_value):
+        """Test that string representations of None are normalized to Python None."""
+        config = NvIngestConfig(pdf_extract_method=input_value)
+        assert config.pdf_extract_method is None
+
+    def test_pdf_extract_method_preserves_valid_values(self):
+        """Test that valid extraction method strings are preserved."""
+        config = NvIngestConfig(pdf_extract_method="pdfium")
+        assert config.pdf_extract_method == "pdfium"
+
+        config = NvIngestConfig(pdf_extract_method="tesseract")
+        assert config.pdf_extract_method == "tesseract"
+
+    @patch.dict(os.environ, {}, clear=True)
+    @pytest.mark.parametrize(
+        "env_value",
+        ["None", "none", "null", ""],
+    )
+    def test_pdf_extract_method_normalizes_none_from_env_var(self, env_value):
+        """Test that string None values from environment variables are normalized."""
+        with patch.dict(os.environ, {"APP_NVINGEST_PDFEXTRACTMETHOD": env_value}):
+            config = NvIngestConfig()
+            assert config.pdf_extract_method is None
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_pdf_extract_method_preserves_valid_value_from_env_var(self):
+        """Test that valid extraction method from environment variable is preserved."""
+        with patch.dict(os.environ, {"APP_NVINGEST_PDFEXTRACTMETHOD": "pdfium"}):
+            config = NvIngestConfig()
+            assert config.pdf_extract_method == "pdfium"
+
+    def test_pdf_extract_method_none_in_full_config(self):
+        """Test pdf_extract_method normalization through NvidiaRAGConfig."""
+        # Test via dict (simulates YAML loading)
+        config = NvidiaRAGConfig.from_dict({
+            "nv_ingest": {"pdf_extract_method": "None"}
+        })
+        assert config.nv_ingest.pdf_extract_method is None
+
+        config = NvidiaRAGConfig.from_dict({
+            "nv_ingest": {"pdf_extract_method": "null"}
+        })
+        assert config.nv_ingest.pdf_extract_method is None
+
+        # Valid value should be preserved
+        config = NvidiaRAGConfig.from_dict({
+            "nv_ingest": {"pdf_extract_method": "pdfium"}
+        })
+        assert config.nv_ingest.pdf_extract_method == "pdfium"
 
 
 class TestNvidiaRAGConfig:
@@ -386,8 +491,8 @@ class TestConfigurationIntegration:
             assert config.ranking.enable_reranker is False
             assert config.enable_vlm_inference is True
             assert config.minio.endpoint == "minio.example.com:9000"
-            assert config.minio.access_key == "test_key"
-            assert config.minio.secret_key == "test_secret"
+            assert config.minio.access_key.get_secret_value() == "test_key"
+            assert config.minio.secret_key.get_secret_value() == "test_secret"
             assert config.temp_dir == "/custom/temp"
             assert config.retriever.vdb_top_k == 50
 
@@ -447,3 +552,66 @@ class TestConfigurationIntegration:
             assert config.vector_store.name == "elasticsearch"
             assert config.vector_store.url == "http://es:9200"
             assert config.vector_store.default_collection_name == "test_collection"
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_secretstr_from_environment_variables(self):
+        """Test that environment variables are automatically converted to SecretStr."""
+        from pydantic import SecretStr
+        
+        env_vars = {
+            "APP_VECTORSTORE_PASSWORD": "my_secret_password",
+            "APP_VECTORSTORE_APIKEY": "my_api_key_123",
+            "MINIO_ACCESSKEY": "minio_user",
+            "MINIO_SECRETKEY": "minio_pass_456",
+        }
+
+        with patch.dict(os.environ, env_vars):
+            config = NvidiaRAGConfig()
+
+            # Verify automatic conversion to SecretStr
+            assert isinstance(config.vector_store.password, SecretStr)
+            assert config.vector_store.password.get_secret_value() == "my_secret_password"
+            
+            assert isinstance(config.vector_store.api_key, SecretStr)
+            assert config.vector_store.api_key.get_secret_value() == "my_api_key_123"
+            
+            assert isinstance(config.minio.access_key, SecretStr)
+            assert config.minio.access_key.get_secret_value() == "minio_user"
+            
+            assert isinstance(config.minio.secret_key, SecretStr)
+            assert config.minio.secret_key.get_secret_value() == "minio_pass_456"
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_secretstr_with_quoted_environment_variables(self):
+        """Test that SecretStr works with quoted environment variables (Docker Compose style)."""
+        env_vars = {
+            "APP_VECTORSTORE_PASSWORD": '"quoted_password"',  # Double quotes
+            "MINIO_SECRETKEY": "'single_quoted_secret'",  # Single quotes
+        }
+
+        with patch.dict(os.environ, env_vars):
+            config = NvidiaRAGConfig()
+
+            # Verify quotes are stripped and converted to SecretStr
+            assert config.vector_store.password.get_secret_value() == "quoted_password"
+            assert config.minio.secret_key.get_secret_value() == "single_quoted_secret"
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_secretstr_string_representation_masked(self):
+        """Test that SecretStr masks values in string representation."""
+        env_vars = {
+            "APP_VECTORSTORE_PASSWORD": "secret123",
+            "MINIO_ACCESSKEY": "access456",
+        }
+
+        with patch.dict(os.environ, env_vars):
+            config = NvidiaRAGConfig()
+
+            # Verify string representation is masked
+            password_str = str(config.vector_store.password)
+            access_key_str = str(config.minio.access_key)
+            
+            assert "secret123" not in password_str
+            assert "access456" not in access_key_str
+            assert "*" in password_str
+            assert "*" in access_key_str

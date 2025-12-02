@@ -36,7 +36,7 @@ class TestNvidiaRAGMinimalCoverage:
 
         rag = NvidiaRAG(vdb_op=mock_vdb_op)
 
-        with patch.object(rag, '_NvidiaRAG__prepare_vdb_op', return_value=mock_vdb_op):
+        with patch.object(rag, '_prepare_vdb_op', return_value=mock_vdb_op):
             with patch('nvidia_rag.rag_server.main.prepare_citations', return_value=Citations(documents=[], sources=[])):
                 with patch('nvidia_rag.rag_server.main.get_ranking_model') as mock_get_ranking:
                     with patch('nvidia_rag.rag_server.main.validate_filter_expr') as mock_validate_filter:
@@ -85,7 +85,7 @@ class TestNvidiaRAGMinimalCoverage:
 
         rag = NvidiaRAG(vdb_op=mock_vdb_op)
 
-        with patch.object(rag, '_NvidiaRAG__prepare_vdb_op', return_value=mock_vdb_op):
+        with patch.object(rag, '_prepare_vdb_op', return_value=mock_vdb_op):
             with patch('nvidia_rag.rag_server.main.prepare_citations', return_value=Citations(documents=[], sources=[])):
                 with patch('nvidia_rag.rag_server.main.get_ranking_model') as mock_get_ranking:
                     with patch('nvidia_rag.rag_server.main.validate_filter_expr') as mock_validate_filter:
@@ -134,7 +134,7 @@ class TestNvidiaRAGMinimalCoverage:
 
         rag = NvidiaRAG(vdb_op=mock_vdb_op)
 
-        with patch.object(rag, '_NvidiaRAG__prepare_vdb_op', return_value=mock_vdb_op):
+        with patch.object(rag, '_prepare_vdb_op', return_value=mock_vdb_op):
             with patch('nvidia_rag.rag_server.main.prepare_citations', return_value=Citations(documents=[], sources=[])):
                 with patch('nvidia_rag.rag_server.main.get_ranking_model') as mock_get_ranking:
                     with patch('nvidia_rag.rag_server.main.validate_filter_expr') as mock_validate_filter:

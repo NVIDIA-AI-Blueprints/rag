@@ -19,7 +19,7 @@ from typing import Any
 from nv_ingest_client.util.milvus import pandas_file_reader
 
 from nvidia_rag.utils.common import get_metadata_configuration
-from nvidia_rag.utils.configuration import NvidiaRAGConfig
+from nvidia_rag.utils.configuration import NvidiaRAGConfig, SearchType
 
 DEFAULT_METADATA_SCHEMA_COLLECTION = "metadata_schema"
 DEFAULT_DOCUMENT_INFO_COLLECTION = "document_info"
@@ -62,44 +62,37 @@ def _get_vdb_op(
     if config.vector_store.name == "milvus":
         from nvidia_rag.utils.vdb.milvus.milvus_vdb import MilvusVDB
 
-        vdb_upload_kwargs = {
+        return MilvusVDB(
             # Milvus configurations
-            "collection_name": collection_name,
-            "milvus_uri": vdb_endpoint or config.vector_store.url,
+            collection_name=collection_name,
+            milvus_uri=vdb_endpoint or config.vector_store.url,
+            embedding_model=embedding_model,
+            config=config,
             # Minio configurations
-            "minio_endpoint": os.getenv("MINIO_ENDPOINT"),
-            "access_key": os.getenv("MINIO_ACCESSKEY"),
-            "secret_key": os.getenv("MINIO_SECRETKEY"),
-            "bucket_name": os.getenv("NVINGEST_MINIO_BUCKET", "nv-ingest"),
+            minio_endpoint=os.getenv("MINIO_ENDPOINT"),
+            access_key=os.getenv("MINIO_ACCESSKEY"),
+            secret_key=os.getenv("MINIO_SECRETKEY"),
+            bucket_name=os.getenv("NVINGEST_MINIO_BUCKET", "nv-ingest"),
             # Hybrid search configurations
-            "sparse": (config.vector_store.search_type == "hybrid"),
+            sparse=(config.vector_store.search_type == SearchType.HYBRID),
             # Additional configurations
-            "enable_images": (
+            enable_images=(
                 config.nv_ingest.extract_images
                 or config.nv_ingest.extract_page_as_image
             ),
-            "recreate": False,  # Don't re-create milvus collection
-            "dense_dim": config.embeddings.dimensions,
+            recreate=False,  # Don't re-create milvus collection
+            dense_dim=config.embeddings.dimensions,
             # GPU configurations
-            "gpu_index": config.vector_store.enable_gpu_index,
-            "gpu_search": config.vector_store.enable_gpu_search,
-            "embedding_model": embedding_model,
+            gpu_index=config.vector_store.enable_gpu_index,
+            gpu_search=config.vector_store.enable_gpu_search,
             # Authentication for Milvus
-            "username": config.vector_store.username,
-            "password": config.vector_store.password,
-            # Pass config instance
-            "config": config,
-        }
-        if csv_file_path is not None:
-            # Add custom metadata configurations
-            vdb_upload_kwargs.update(
-                {
-                    "meta_dataframe": csv_file_path,
-                    "meta_source_field": meta_source_field,
-                    "meta_fields": meta_fields,
-                }
-            )
-        return MilvusVDB(**vdb_upload_kwargs)
+            username=config.vector_store.username,
+            password=config.vector_store.password.get_secret_value() if config.vector_store.password is not None else "",
+            # Custom metadata configurations (optional)
+            meta_dataframe=csv_file_path,
+            meta_source_field=meta_source_field,
+            meta_fields=meta_fields,
+        )
 
     elif config.vector_store.name == "elasticsearch":
         from nvidia_rag.utils.vdb.elasticsearch.elastic_vdb import ElasticVDB
@@ -112,7 +105,7 @@ def _get_vdb_op(
         return ElasticVDB(
             index_name=collection_name,
             es_url=vdb_endpoint or config.vector_store.url,
-            hybrid=config.vector_store.search_type == "hybrid",
+            hybrid=config.vector_store.search_type == SearchType.HYBRID,
             meta_dataframe=meta_dataframe,
             meta_source_field=meta_source_field,
             meta_fields=meta_fields,

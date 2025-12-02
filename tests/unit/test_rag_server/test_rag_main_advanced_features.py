@@ -40,7 +40,7 @@ class TestNvidiaRAGSearchCoverage:
         ]
         rag = NvidiaRAG(vdb_op=mock_vdb_op)
 
-        with patch.object(rag, "_NvidiaRAG__prepare_vdb_op") as mock_prepare:
+        with patch.object(rag, "_prepare_vdb_op") as mock_prepare:
             with patch(
                 "nvidia_rag.rag_server.main.prepare_citations"
             ) as mock_prepare_citations:
@@ -130,7 +130,7 @@ class TestNvidiaRAGSearchCoverage:
         """Test search with multiple collections but reranker disabled."""
         rag = NvidiaRAG()
 
-        with patch.object(rag, "_NvidiaRAG__prepare_vdb_op") as mock_prepare:
+        with patch.object(rag, "_prepare_vdb_op") as mock_prepare:
             mock_vdb_op = Mock(spec=VDBRag)
             mock_prepare.return_value = mock_vdb_op
 
@@ -148,7 +148,7 @@ class TestNvidiaRAGSearchCoverage:
         """Test search with more than MAX_COLLECTION_NAMES collections."""
         rag = NvidiaRAG()
 
-        with patch.object(rag, "_NvidiaRAG__prepare_vdb_op") as mock_prepare:
+        with patch.object(rag, "_prepare_vdb_op") as mock_prepare:
             mock_vdb_op = Mock(spec=VDBRag)
             mock_prepare.return_value = mock_vdb_op
 
@@ -167,7 +167,7 @@ class TestNvidiaRAGSearchCoverage:
         mock_vdb_op.get_metadata_schema.return_value = []
         rag = NvidiaRAG(vdb_op=mock_vdb_op)
 
-        with patch.object(rag, "_NvidiaRAG__prepare_vdb_op") as mock_prepare:
+        with patch.object(rag, "_prepare_vdb_op") as mock_prepare:
             with patch(
                 "nvidia_rag.rag_server.main.validate_filter_expr"
             ) as mock_validate_filter:
@@ -195,7 +195,7 @@ class TestNvidiaRAGSearchCoverage:
         mock_vdb_op.get_metadata_schema.return_value = []
         rag = NvidiaRAG(vdb_op=mock_vdb_op)
 
-        with patch.object(rag, "_NvidiaRAG__prepare_vdb_op") as mock_prepare:
+        with patch.object(rag, "_prepare_vdb_op") as mock_prepare:
             with patch(
                 "nvidia_rag.rag_server.main.validate_filter_expr"
             ) as mock_validate_filter:
@@ -298,7 +298,7 @@ class TestNvidiaRAGSearchCoverage:
 
         messages = [{"role": "user", "content": "Test query"}]
 
-        with patch.object(rag, "_NvidiaRAG__prepare_vdb_op") as mock_prepare:
+        with patch.object(rag, "_prepare_vdb_op") as mock_prepare:
             with patch(
                 "nvidia_rag.rag_server.main.prepare_citations"
             ) as mock_prepare_citations:
@@ -413,7 +413,7 @@ class TestNvidiaRAGSearchCoverage:
         ]
         rag = NvidiaRAG(vdb_op=mock_vdb_op)
 
-        with patch.object(rag, "_NvidiaRAG__prepare_vdb_op") as mock_prepare:
+        with patch.object(rag, "_prepare_vdb_op") as mock_prepare:
             with patch(
                 "nvidia_rag.rag_server.main.prepare_citations"
             ) as mock_prepare_citations:
@@ -519,7 +519,7 @@ class TestNvidiaRAGSearchCoverage:
         mock_vdb_op.get_metadata_schema.return_value = []
         rag = NvidiaRAG(vdb_op=mock_vdb_op)
 
-        with patch.object(rag, "_NvidiaRAG__prepare_vdb_op") as mock_prepare:
+        with patch.object(rag, "_prepare_vdb_op") as mock_prepare:
             with patch(
                 "nvidia_rag.rag_server.main.prepare_citations"
             ) as mock_prepare_citations:
@@ -643,7 +643,7 @@ class TestNvidiaRAGSearchCoverage:
         ]
         rag = NvidiaRAG(vdb_op=mock_vdb_op)
 
-        with patch.object(rag, "_NvidiaRAG__prepare_vdb_op") as mock_prepare:
+        with patch.object(rag, "_prepare_vdb_op") as mock_prepare:
             with patch(
                 "nvidia_rag.rag_server.main.prepare_citations"
             ) as mock_prepare_citations:
@@ -800,7 +800,7 @@ class TestNvidiaRAGLLMChainCoverage:
                                     ["test response"]
                                 )
 
-                                result = rag._NvidiaRAG__llm_chain(
+                                result = rag._llm_chain(
                                     llm_settings=llm_settings,
                                     query="test query",
                                     chat_history=[],
@@ -884,7 +884,7 @@ class TestNvidiaRAGLLMChainCoverage:
                                     ["test response"]
                                 )
 
-                                result = rag._NvidiaRAG__llm_chain(
+                                result = rag._llm_chain(
                                     llm_settings=llm_settings,
                                     query="test query",
                                     chat_history=chat_history,
@@ -964,7 +964,7 @@ class TestNvidiaRAGLLMChainCoverage:
                                     ["Connection timed out message"]
                                 )
 
-                                result = rag._NvidiaRAG__llm_chain(
+                                result = rag._llm_chain(
                                     llm_settings=llm_settings,
                                     query="test query",
                                     chat_history=[],
@@ -1042,7 +1042,7 @@ class TestNvidiaRAGLLMChainCoverage:
                                     ["Authentication error message"]
                                 )
 
-                                result = rag._NvidiaRAG__llm_chain(
+                                result = rag._llm_chain(
                                     llm_settings=llm_settings,
                                     query="test query",
                                     chat_history=[],
@@ -1120,7 +1120,7 @@ class TestNvidiaRAGLLMChainCoverage:
                                     ["404 error message"]
                                 )
 
-                                result = rag._NvidiaRAG__llm_chain(
+                                result = rag._llm_chain(
                                     llm_settings=llm_settings,
                                     query="test query",
                                     chat_history=[],
@@ -1201,7 +1201,7 @@ class TestNvidiaRAGLLMChainCoverage:
                                     ["General error message"]
                                 )
 
-                                result = rag._NvidiaRAG__llm_chain(
+                                result = rag._llm_chain(
                                     llm_settings=llm_settings,
                                     query="test query",
                                     chat_history=[],
@@ -1360,34 +1360,42 @@ class TestNvidiaRAGHealthCoverage:
     @pytest.mark.asyncio
     async def test_health_basic(self):
         """Test basic health check."""
+        from nvidia_rag.utils.health_models import RAGHealthResponse
+
         rag = NvidiaRAG()
 
-        with patch.object(rag, "_NvidiaRAG__prepare_vdb_op") as mock_prepare:
+        with patch.object(rag, "_prepare_vdb_op") as mock_prepare:
             mock_vdb_op = Mock(spec=VDBRag)
             mock_prepare.return_value = mock_vdb_op
 
             result = await rag.health()
 
-            assert result["message"] == "Service is up."
-            mock_prepare.assert_called_once()
+            assert isinstance(result, RAGHealthResponse)
+            assert result.message == "Service is up."
+            # Verify VDB preparation is NOT called for simple health checks
+            mock_prepare.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_health_with_dependencies(self):
         """Test health check with dependencies."""
+        from nvidia_rag.utils.health_models import RAGHealthResponse
+
         rag = NvidiaRAG()
 
-        with patch.object(rag, "_NvidiaRAG__prepare_vdb_op") as mock_prepare:
+        with patch.object(rag, "_prepare_vdb_op") as mock_prepare:
             with patch(
                 "nvidia_rag.rag_server.main.check_all_services_health"
             ) as mock_check_health:
                 mock_vdb_op = Mock(spec=VDBRag)
                 mock_prepare.return_value = mock_vdb_op
-                mock_check_health.return_value = {"vdb": "healthy"}
+                mock_check_health.return_value = RAGHealthResponse(message="Service is up.")
 
                 result = await rag.health(check_dependencies=True)
 
-                assert result["message"] == "Service is up."
-                assert result["vdb"] == "healthy"
+                assert isinstance(result, RAGHealthResponse)
+                assert result.message == "Service is up."
+                # Verify VDB preparation IS called when checking dependencies
+                mock_prepare.assert_called_once()
                 # Verify check_all_services_health was called with vdb_op and config
                 mock_check_health.assert_called_once()
                 call_args = mock_check_health.call_args
@@ -1404,7 +1412,7 @@ class TestNvidiaRAGPrepareVdbOpCoverage:
         mock_vdb_op = Mock(spec=VDBRag)
         rag = NvidiaRAG(vdb_op=mock_vdb_op)
 
-        result = rag._NvidiaRAG__prepare_vdb_op()
+        result = rag._prepare_vdb_op()
 
         assert result == mock_vdb_op
 
@@ -1416,7 +1424,7 @@ class TestNvidiaRAGPrepareVdbOpCoverage:
         with pytest.raises(
             ValueError, match="vdb_endpoint is not supported when vdb_op is provided"
         ):
-            rag._NvidiaRAG__prepare_vdb_op(vdb_endpoint="http://test.com")
+            rag._prepare_vdb_op(vdb_endpoint="http://test.com")
 
     def test_prepare_vdb_op_with_embedding_model_error(self):
         """Test __prepare_vdb_op with embedding_model when vdb_op exists."""
@@ -1426,7 +1434,7 @@ class TestNvidiaRAGPrepareVdbOpCoverage:
         with pytest.raises(
             ValueError, match="embedding_model is not supported when vdb_op is provided"
         ):
-            rag._NvidiaRAG__prepare_vdb_op(embedding_model="test_model")
+            rag._prepare_vdb_op(embedding_model="test_model")
 
     def test_prepare_vdb_op_with_embedding_endpoint_error(self):
         """Test __prepare_vdb_op with embedding_endpoint when vdb_op exists."""
@@ -1437,7 +1445,7 @@ class TestNvidiaRAGPrepareVdbOpCoverage:
             ValueError,
             match="embedding_endpoint is not supported when vdb_op is provided",
         ):
-            rag._NvidiaRAG__prepare_vdb_op(embedding_endpoint="http://test.com")
+            rag._prepare_vdb_op(embedding_endpoint="http://test.com")
 
     def test_prepare_vdb_op_without_vdb_op(self):
         """Test __prepare_vdb_op without existing vdb_op."""
@@ -1452,7 +1460,7 @@ class TestNvidiaRAGPrepareVdbOpCoverage:
                 mock_vdb_op = Mock(spec=VDBRag)
                 mock_get_vdb_op.return_value = mock_vdb_op
 
-                result = rag._NvidiaRAG__prepare_vdb_op(
+                result = rag._prepare_vdb_op(
                     vdb_endpoint="http://test.com",
                     embedding_model="test_model",
                     embedding_endpoint="http://embedding.com",

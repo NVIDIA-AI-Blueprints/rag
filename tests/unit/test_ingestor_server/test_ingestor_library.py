@@ -23,7 +23,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from nvidia_rag.ingestor_server.main import NvidiaRAGIngestor
+from nvidia_rag.ingestor_server.main import Mode, NvidiaRAGIngestor
 
 
 class TestNvidiaRAGIngestor:
@@ -104,7 +104,7 @@ class TestNvidiaRAGIngestor:
                 mock_task_handler,
             ),
         ):
-            return NvidiaRAGIngestor(vdb_op=mock_vdb_op, mode="library")
+            return NvidiaRAGIngestor(vdb_op=mock_vdb_op, mode=Mode.LIBRARY)
 
     @pytest.fixture
     def mock_nvingest_upload_doc(self, ingestor):
@@ -167,11 +167,11 @@ class TestNvidiaRAGIngestor:
         with (
             patch("nvidia_rag.ingestor_server.main.get_nv_ingest_client"),
         ):
-            ingestor_lib = NvidiaRAGIngestor(vdb_op=mock_vdb, mode="library")
-            assert ingestor_lib.mode == "library"
+            ingestor_lib = NvidiaRAGIngestor(vdb_op=mock_vdb, mode=Mode.LIBRARY)
+            assert ingestor_lib.mode == Mode.LIBRARY
 
-            ingestor_server = NvidiaRAGIngestor(vdb_op=mock_vdb, mode="server")
-            assert ingestor_server.mode == "server"
+            ingestor_server = NvidiaRAGIngestor(vdb_op=mock_vdb, mode=Mode.SERVER)
+            assert ingestor_server.mode == Mode.SERVER
 
             # Test invalid mode
             with pytest.raises(ValueError, match="Invalid mode"):
@@ -248,8 +248,9 @@ class TestNvidiaRAGIngestor:
         """Test health check without dependency checks."""
         result = await ingestor.health(check_dependencies=False)
 
-        assert result["message"] == "Service is up."
-        assert "message" in result
+        from nvidia_rag.utils.health_models import IngestorHealthResponse
+        assert isinstance(result, IngestorHealthResponse)
+        assert result.message == "Service is up."
 
     def test_create_collection_success(self, ingestor):
         """Test successful collection creation."""

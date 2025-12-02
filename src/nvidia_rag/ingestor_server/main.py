@@ -39,6 +39,7 @@ import os
 import time
 from collections import defaultdict
 from datetime import UTC, datetime
+from enum import Enum
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -60,6 +61,7 @@ from nvidia_rag.utils.common import (
     get_current_timestamp,
 )
 from nvidia_rag.utils.configuration import NvidiaRAGConfig
+from nvidia_rag.utils.health_models import IngestorHealthResponse
 from nvidia_rag.utils.metadata_validation import (
     SYSTEM_MANAGED_FIELDS,
     MetadataField,
@@ -80,10 +82,12 @@ from nvidia_rag.utils.vdb.vdb_base import VDBRag
 # Initialize logger
 logger = logging.getLogger(__name__)
 
-# Constants
-LIBRARY_MODE = "library"
-SERVER_MODE = "server"
-SUPPORTED_MODES = [LIBRARY_MODE, SERVER_MODE]
+
+class Mode(str, Enum):
+    """Supported application modes for NvidiaRAGIngestor"""
+
+    LIBRARY = "library"
+    SERVER = "server"
 
 SUPPORTED_FILE_TYPES = set(_DEFAULT_EXTRACTOR_MAP.keys()) & set(
     EXTENSION_TO_DOCUMENT_TYPE.keys()
@@ -100,7 +104,7 @@ class NvidiaRAGIngestor:
     def __init__(
         self,
         vdb_op: VDBRag = None,
-        mode: str = LIBRARY_MODE,
+        mode: Mode | str = Mode.LIBRARY,
         config: NvidiaRAGConfig | None = None,
     ):
         """Initialize NvidiaRAGIngestor with configuration.
@@ -110,10 +114,14 @@ class NvidiaRAGIngestor:
             mode: Operating mode (library or server)
             config: Configuration object. If None, uses default config.
         """
-        if mode not in SUPPORTED_MODES:
-            raise ValueError(
-                f"Invalid mode: {mode}. Supported modes are: {SUPPORTED_MODES}"
-            )
+        # Convert string to Mode enum if necessary
+        if isinstance(mode, str):
+            try:
+                mode = Mode(mode)
+            except ValueError:
+                raise ValueError(
+                    f"Invalid mode: {mode}. Supported modes are: {[m.value for m in Mode]}"
+                )
         self.mode = mode
         self.vdb_op = vdb_op
 
@@ -140,22 +148,17 @@ class NvidiaRAGIngestor:
                     "Please make sure all the required methods are implemented."
                 )
 
-    async def health(self, check_dependencies: bool = False) -> dict[str, Any]:
+    async def health(self, check_dependencies: bool = False) -> IngestorHealthResponse:
         """Check the health of the Ingestion server."""
-        response_message = "Service is up."
-        health_results = {}
-        health_results["message"] = response_message
-
-        vdb_op, _ = self.__prepare_vdb_op_and_collection_name(bypass_validation=True)
-
         if check_dependencies:
             from nvidia_rag.ingestor_server.health import check_all_services_health
 
-            dependencies_results = await check_all_services_health(vdb_op, self.config)
-            health_results.update(dependencies_results)
-        return health_results
+            vdb_op, _ = self.__prepare_vdb_op_and_collection_name(bypass_validation=True)
+            return await check_all_services_health(vdb_op, self.config)
+        
+        return IngestorHealthResponse(message="Service is up.")
 
-    async def validate_directory_traversal_attack(self, file):
+    async def validate_directory_traversal_attack(self, file) -> None:
         try:
             # Path.resolve(strict=True) is a method used to
             # obtain the absolute and normalized path, with
@@ -590,7 +593,7 @@ class NvidiaRAGIngestor:
 
             # Optional: Clean up provided files after ingestion, needed for
             # docker workflow
-            if self.mode == SERVER_MODE:
+            if self.mode == Mode.SERVER:
                 logger.info(f"Cleaning up files in {filepaths}")
                 for file in filepaths:
                     try:
@@ -791,7 +794,7 @@ class NvidiaRAGIngestor:
 
             # Delete the existing document
 
-            if self.mode == SERVER_MODE:
+            if self.mode == Mode.SERVER:
                 response = self.delete_documents(
                     [file_name],
                     collection_name=collection_name,
@@ -2158,7 +2161,7 @@ class NvidiaRAGIngestor:
         Returns:
             - tuple[list[list[dict[str, str | dict]]], list[dict[str, Any]]] - Results and failures
         """
-        if self.config.nv_ingest.pdf_extract_method in ["None", "none"]:
+        if self.config.nv_ingest.pdf_extract_method is None:
             nv_ingest_ingestor = get_nv_ingest_ingestor(
                 nv_ingest_client_instance=self.nv_ingest_client,
                 filepaths=filtered_filepaths,

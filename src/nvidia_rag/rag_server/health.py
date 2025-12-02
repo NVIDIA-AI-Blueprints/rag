@@ -32,6 +32,14 @@ from elasticsearch import Elasticsearch
 from pymilvus import connections, utility
 
 from nvidia_rag.utils.configuration import NvidiaRAGConfig
+from nvidia_rag.utils.health_models import (
+    DatabaseHealthInfo,
+    HealthResponseBase,
+    NIMServiceHealthInfo,
+    RAGHealthResponse,
+    ServiceStatus,
+    StorageHealthInfo,
+)
 from nvidia_rag.utils.minio_operator import MinioOperator
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
 
@@ -45,7 +53,7 @@ async def check_service_health(
     timeout: int = 5,
     headers: dict[str, str] | None = None,
     json_data: dict[str, Any] | None = None,
-) -> dict[str, Any]:
+) -> NIMServiceHealthInfo:
     """
     Check health of a service endpoint asynchronously.
 
@@ -58,22 +66,23 @@ async def check_service_health(
         json_data: Optional JSON payload for POST requests
 
     Returns:
-        Dictionary with status information
+        NIMServiceHealthInfo with status information
     """
     start_time = time.time()
-    status = {
-        "service": service_name,
-        "url": url,
-        "status": "unknown",
-        "latency_ms": 0,
-        "error": None,
-    }
-
+    
     if not url:
-        status["status"] = "skipped"
-        status["error"] = "No URL provided"
-        return status
+        return NIMServiceHealthInfo(
+            service=service_name,
+            url=url,
+            status=ServiceStatus.SKIPPED,
+            latency_ms=0,
+            error="No URL provided"
+        )
 
+    http_status = None
+    status = ServiceStatus.UNKNOWN
+    error = None
+    
     try:
         # Add scheme if missing
         if not url.startswith(("http://", "https://")):
@@ -97,33 +106,57 @@ async def check_service_health(
             async with getattr(session, method.lower())(
                 url, **request_kwargs
             ) as response:
-                status["status"] = "healthy" if response.status < 400 else "unhealthy"
-                status["http_status"] = response.status
-                status["latency_ms"] = round((time.time() - start_time) * 1000, 2)
+                status = ServiceStatus.HEALTHY if response.status < 400 else ServiceStatus.UNHEALTHY
+                http_status = response.status
+                latency_ms = round((time.time() - start_time) * 1000, 2)
+                
+                return NIMServiceHealthInfo(
+                    service=service_name,
+                    url=url,
+                    status=status,
+                    latency_ms=latency_ms,
+                    http_status=http_status
+                )
 
     except TimeoutError:
-        status["status"] = "timeout"
-        status["error"] = f"Request timed out after {timeout}s"
+        error = f"Request timed out after {timeout}s"
+        return NIMServiceHealthInfo(
+            service=service_name,
+            url=url,
+            status=ServiceStatus.TIMEOUT,
+            latency_ms=0,
+            error=error
+        )
     except aiohttp.ClientError as e:
-        status["status"] = "error"
-        status["error"] = str(e)
+        return NIMServiceHealthInfo(
+            service=service_name,
+            url=url,
+            status=ServiceStatus.ERROR,
+            latency_ms=0,
+            error=str(e)
+        )
     except Exception as e:
-        status["status"] = "error"
-        status["error"] = str(e)
-
-    return status
+        return NIMServiceHealthInfo(
+            service=service_name,
+            url=url,
+            status=ServiceStatus.ERROR,
+            latency_ms=0,
+            error=str(e)
+        )
 
 
 async def check_minio_health(
     endpoint: str, access_key: str, secret_key: str
-) -> dict[str, Any]:
+) -> StorageHealthInfo:
     """Check MinIO server health"""
-    status = {"service": "MinIO", "url": endpoint, "status": "unknown", "error": None}
-
     if not endpoint:
-        status["status"] = "skipped"
-        status["error"] = "No endpoint provided"
-        return status
+        return StorageHealthInfo(
+            service="MinIO",
+            url=endpoint,
+            status=ServiceStatus.SKIPPED,
+            latency_ms=0,
+            error="No endpoint provided"
+        )
 
     try:
         start_time = time.time()
@@ -132,14 +165,23 @@ async def check_minio_health(
         )
         # Test basic operation - list buckets
         buckets = minio_operator.client.list_buckets()
-        status["status"] = "healthy"
-        status["latency_ms"] = round((time.time() - start_time) * 1000, 2)
-        status["buckets"] = len(buckets)
+        latency_ms = round((time.time() - start_time) * 1000, 2)
+        
+        return StorageHealthInfo(
+            service="MinIO",
+            url=endpoint,
+            status=ServiceStatus.HEALTHY,
+            latency_ms=latency_ms,
+            buckets=len(buckets)
+        )
     except Exception as e:
-        status["status"] = "error"
-        status["error"] = str(e)
-
-    return status
+        return StorageHealthInfo(
+            service="MinIO",
+            url=endpoint,
+            status=ServiceStatus.ERROR,
+            latency_ms=0,
+            error=str(e)
+        )
 
 
 def is_nvidia_api_catalog_url(url: str) -> bool:
@@ -158,43 +200,37 @@ def is_nvidia_api_catalog_url(url: str) -> bool:
 
 async def check_all_services_health(
     vdb_op: VDBRag, config: NvidiaRAGConfig | None = None
-) -> dict[str, list[dict[str, Any]]]:
+) -> RAGHealthResponse:
     """
-    Check health of all services used by the application
+    Check health of all services used by the RAG application
 
     Args:
         vdb_op: Vector database operation instance
         config: NvidiaRAGConfig instance. If None, creates a new one.
 
     Returns:
-        Dictionary with service categories and their health status
+        RAGHealthResponse with service categories and their health status
     """
     if config is None:
         config = NvidiaRAGConfig()
 
     # Create tasks for different service types
     tasks = []
-    results = {
-        "databases": [],
-        "object_storage": [],
-        "nim": [],  # New unified category for NIM services
-    }
+    databases: list[DatabaseHealthInfo] = []
+    object_storage: list[StorageHealthInfo] = []
+    nim: list[NIMServiceHealthInfo] = []
 
     # MinIO health check
     minio_endpoint = config.minio.endpoint
-    minio_access_key = config.minio.access_key
-    minio_secret_key = config.minio.secret_key
+    minio_access_key = config.minio.access_key.get_secret_value()
+    minio_secret_key = config.minio.secret_key.get_secret_value()
     if minio_endpoint:
-        tasks.append(
-            (
-                "object_storage",
-                check_minio_health(
-                    endpoint=minio_endpoint,
-                    access_key=minio_access_key,
-                    secret_key=minio_secret_key,
-                ),
-            )
+        minio_result = await check_minio_health(
+            endpoint=minio_endpoint,
+            access_key=minio_access_key,
+            secret_key=minio_secret_key,
         )
+        object_storage.append(minio_result)
 
     # Vector DB health check
     try:
@@ -202,13 +238,13 @@ async def check_all_services_health(
     except Exception as e:
         logger.error(f"Error checking vector store health: {e}")
         # Unknown vector store type
-        results["databases"].append(
-            {
-                "service": "Vector Store",
-                "url": "Not configured",
-                "status": "unknown",
-                "error": f"Error checking vector store health: {e}",
-            }
+        databases.append(
+            DatabaseHealthInfo(
+                service="Vector Store",
+                url="Not configured",
+                status=ServiceStatus.UNKNOWN,
+                error=f"Error checking vector store health: {e}",
+            )
         )
 
     # LLM service health check
@@ -219,25 +255,21 @@ async def check_all_services_health(
         else:
             llm_url = f"{llm_url}/v1/health/ready"
 
-        # For local services, we need to create a custom result with model info
-        async def check_llm_health():
-            result = await check_service_health(url=llm_url, service_name="LLM")
-            result["model"] = config.llm.model_name
-            return result
-
-        tasks.append(("nim", check_llm_health()))
+        # For local services, check health and add model info
+        llm_result = await check_service_health(url=llm_url, service_name="LLM")
+        nim.append(llm_result.model_copy(update={"model": config.llm.model_name}))
     else:
         # When URL is empty or from API catalog, assume the service is running
         # via API catalog
-        results["nim"].append(
-            {
-                "service": "LLM",
-                "model": config.llm.model_name,
-                "url": config.llm.server_url,
-                "status": "healthy",
-                "latency_ms": 0,
-                "message": "Using NVIDIA API Catalog",
-            }
+        nim.append(
+            NIMServiceHealthInfo(
+                service="LLM",
+                model=config.llm.model_name,
+                url=config.llm.server_url or "",
+                status=ServiceStatus.HEALTHY,
+                latency_ms=0,
+                message="Using NVIDIA API Catalog",
+            )
         )
 
     query_rewriter_enabled = config.query_rewriter.enable_query_rewriter
@@ -253,27 +285,21 @@ async def check_all_services_health(
             else:
                 qr_url = f"{qr_url}/v1/health/ready"
 
-            # For local services, we need to create a custom result with model info
-            async def check_qr_health():
-                result = await check_service_health(
-                    url=qr_url, service_name="Query Rewriter"
-                )
-                result["model"] = config.query_rewriter.model_name
-                return result
-
-            tasks.append(("nim", check_qr_health()))
+            # For local services, check health and add model info
+            qr_result = await check_service_health(url=qr_url, service_name="Query Rewriter")
+            nim.append(qr_result.model_copy(update={"model": config.query_rewriter.model_name}))
         else:
             # When URL is empty or from API catalog, assume the service is
             # running via API catalog
-            results["nim"].append(
-                {
-                    "service": "Query Rewriter",
-                    "model": config.query_rewriter.model_name,
-                    "url": config.query_rewriter.server_url,
-                    "status": "healthy",
-                    "latency_ms": 0,
-                    "message": "Using NVIDIA API Catalog",
-                }
+            nim.append(
+                NIMServiceHealthInfo(
+                    service="Query Rewriter",
+                    model=config.query_rewriter.model_name,
+                    url=config.query_rewriter.server_url or "",
+                    status=ServiceStatus.HEALTHY,
+                    latency_ms=0,
+                    message="Using NVIDIA API Catalog",
+                )
             )
 
     # Embedding service health check
@@ -286,27 +312,21 @@ async def check_all_services_health(
         else:
             embed_url = f"{embed_url}/v1/health/ready"
 
-        # For local services, we need to create a custom result with model info
-        async def check_embed_health():
-            result = await check_service_health(
-                url=embed_url, service_name="Embeddings"
-            )
-            result["model"] = config.embeddings.model_name
-            return result
-
-        tasks.append(("nim", check_embed_health()))
+        # For local services, check health and add model info
+        embed_result = await check_service_health(url=embed_url, service_name="Embeddings")
+        nim.append(embed_result.model_copy(update={"model": config.embeddings.model_name}))
     else:
         # When URL is empty or from API catalog, assume the service is running
         # via API catalog
-        results["nim"].append(
-            {
-                "service": "Embeddings",
-                "model": config.embeddings.model_name,
-                "url": config.embeddings.server_url,
-                "status": "healthy",
-                "latency_ms": 0,
-                "message": "Using NVIDIA API Catalog",
-            }
+        nim.append(
+            NIMServiceHealthInfo(
+                service="Embeddings",
+                model=config.embeddings.model_name,
+                url=config.embeddings.server_url or "",
+                status=ServiceStatus.HEALTHY,
+                latency_ms=0,
+                message="Using NVIDIA API Catalog",
+            )
         )
 
     enable_reranker = config.ranking.enable_reranker
@@ -321,27 +341,21 @@ async def check_all_services_health(
             else:
                 ranking_url = f"{ranking_url}/v1/health/ready"
 
-            # For local services, we need to create a custom result with model info
-            async def check_ranking_health():
-                result = await check_service_health(
-                    url=ranking_url, service_name="Ranking"
-                )
-                result["model"] = config.ranking.model_name
-                return result
-
-            tasks.append(("nim", check_ranking_health()))
+            # For local services, check health and add model info
+            ranking_result = await check_service_health(url=ranking_url, service_name="Ranking")
+            nim.append(ranking_result.model_copy(update={"model": config.ranking.model_name}))
         else:
             # When URL is empty or from API catalog, assume the service is
             # running via API catalog
-            results["nim"].append(
-                {
-                    "service": "Ranking",
-                    "model": config.ranking.model_name,
-                    "url": config.ranking.server_url,
-                    "status": "healthy",
-                    "latency_ms": 0,
-                    "message": "Using NVIDIA API Catalog",
-                }
+            nim.append(
+                NIMServiceHealthInfo(
+                    service="Ranking",
+                    model=config.ranking.model_name,
+                    url=config.ranking.server_url or "",
+                    status=ServiceStatus.HEALTHY,
+                    latency_ms=0,
+                    message="Using NVIDIA API Catalog",
+                )
             )
 
     # NemoGuardrails health check
@@ -353,22 +367,18 @@ async def check_all_services_health(
                 guardrails_url = f"http://{guardrails_url}/v1/health"
             else:
                 guardrails_url = f"{guardrails_url}/v1/health"
-            tasks.append(
-                (
-                    "nim",
-                    check_service_health(
-                        url=guardrails_url, service_name="NemoGuardrails"
-                    ),
-                )
+            guardrails_result = await check_service_health(
+                url=guardrails_url, service_name="NemoGuardrails"
             )
+            nim.append(guardrails_result)
         else:
-            results["nim"].append(
-                {
-                    "service": "NemoGuardrails",
-                    "url": "Not configured",
-                    "status": "skipped",
-                    "message": "URL not provided",
-                }
+            nim.append(
+                NIMServiceHealthInfo(
+                    service="NemoGuardrails",
+                    url="Not configured",
+                    status=ServiceStatus.SKIPPED,
+                    message="URL not provided",
+                )
             )
 
     # Reflection LLM health check
@@ -382,65 +392,74 @@ async def check_all_services_health(
             else:
                 reflection_url = f"{reflection_url}/v1/health/ready"
 
-            # For local services, we need to create a custom result with model info
-            async def check_reflection_health():
-                result = await check_service_health(
-                    url=reflection_url, service_name="Reflection LLM"
-                )
-                result["model"] = reflection_llm
-                return result
-
-            tasks.append(("nim", check_reflection_health()))
+            # For local services, check health and add model info
+            reflection_result = await check_service_health(
+                url=reflection_url, service_name="Reflection LLM"
+            )
+            nim.append(reflection_result.model_copy(update={"model": reflection_llm}))
         else:
             # When URL is empty, assume the service is running via API catalog
-            results["nim"].append(
-                {
-                    "service": "Reflection LLM",
-                    "model": reflection_llm,
-                    "url": os.getenv("REFLECTION_LLM_SERVERURL", "")
+            nim.append(
+                NIMServiceHealthInfo(
+                    service="Reflection LLM",
+                    model=reflection_llm,
+                    url=os.getenv("REFLECTION_LLM_SERVERURL", "")
                     .strip('"')
-                    .strip("'"),
-                    "status": "healthy",
-                    "latency_ms": 0,
-                    "message": "Using NVIDIA API Catalog",
-                }
+                    .strip("'")
+                    or "",
+                    status=ServiceStatus.HEALTHY,
+                    latency_ms=0,
+                    message="Using NVIDIA API Catalog",
+                )
             )
 
-    # Execute all health checks concurrently
+    # Execute all health checks concurrently for vector DB
     for category, task in tasks:
         result = await task
-        results[category].append(result)
+        if category == "databases":
+            databases.append(DatabaseHealthInfo(**result))
 
-    return results
+    return RAGHealthResponse(
+        message="Service is up.",
+        databases=databases,
+        object_storage=object_storage,
+        nim=nim,
+    )
 
 
-def print_health_report(health_results: dict[str, list[dict[str, Any]]]) -> None:
+def print_health_report(health_results: HealthResponseBase) -> None:
     """
     Print health status for individual services
 
     Args:
-        health_results: Results from check_all_services_health
+        health_results: HealthResponseBase (RAGHealthResponse or IngestorHealthResponse) from check_all_services_health
     """
     logger.info("===== SERVICE HEALTH STATUS =====")
 
-    for category, services in health_results.items():
-        if not services or not isinstance(services, list):
-            continue
+    # Combine all services into a single list for iteration
+    # Use getattr with default empty list for fields that may not exist in all response types
+    all_services = (
+        health_results.databases
+        + health_results.object_storage
+        + health_results.nim
+        + getattr(health_results, "processing", [])
+        + getattr(health_results, "task_management", [])
+    )
 
-        for service in services:
-            if service["status"] == "healthy":
-                logger.info(
-                    f"Service '{service['service']}' is healthy - Response time: {service.get('latency_ms', 'N/A')}ms"
-                )
-            elif service["status"] == "skipped":
-                logger.info(
-                    f"Service '{service['service']}' check skipped - Reason: {service.get('error', 'No URL provided')}"
-                )
-            else:
-                error_msg = service.get("error", "Unknown error")
-                logger.info(
-                    f"Service '{service['service']}' is not healthy - Issue: {error_msg}"
-                )
+    for service in all_services:
+        if service.status == ServiceStatus.HEALTHY or service.status == ServiceStatus.HEALTHY.value:
+            logger.info(
+                f"Service '{service.service}' is healthy - Response time: {service.latency_ms}ms"
+            )
+        elif service.status == ServiceStatus.SKIPPED or service.status == ServiceStatus.SKIPPED.value:
+            logger.info(
+                f"Service '{service.service}' check skipped - Reason: {service.error or 'No URL provided'}"
+            )
+        else:
+            error_msg = service.error or "Unknown error"
+            logger.info(
+                f"Service '{service.service}' is not healthy - Issue: {error_msg}"
+            )
 
     logger.info("================================")
 

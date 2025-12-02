@@ -11,12 +11,12 @@ license-files = [
 authors = [
     { name = "NVIDIA RAG", email = "foundational-rag-dev@exchange.nvidia.com" }
 ]
-requires-python = ">=3.12"
+requires-python = ">=3.11"
 
 dependencies = [
     "bleach==6.2.0",
     "dataclass-wizard==0.27.0",
-    "fastapi==0.115.5",
+    "fastapi~=0.115.5",
     "langchain>=0.3.27",
     "langchain-community>=0.3.27",
     "langchain-milvus>=0.2.1",
@@ -24,13 +24,13 @@ dependencies = [
     "minio==7.2.15",
     "pdfplumber>=0.6",
     "pydantic>=2.11.7,<=2.11.10",
-    "pymilvus==2.5.8",
+    "pymilvus>=2.4,<3.0",
     "pymilvus-model==0.3.2",
     "python-multipart==0.0.18",
-    "pyyaml==6.0.2",
-    "uvicorn[standard]==0.32.0",
+    "pyyaml~=6.0",
+    "uvicorn[standard]<0.36",
     "langchain-core>=0.3.72",
-    "redis==5.2.1",
+    "redis>=4.3.4",
     "protobuf>=5.29.5",
     "langchain-elasticsearch==0.3.2",
     "lark>=1.2.2",
@@ -111,7 +111,7 @@ Documentation = "https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/README.md
 
 # Linting and formatting configuration
 [tool.ruff]
-target-version = "py312"
+target-version = "py311"
 line-length = 88
 
 [tool.ruff.lint]

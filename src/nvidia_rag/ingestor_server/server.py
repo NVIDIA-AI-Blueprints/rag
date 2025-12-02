@@ -49,8 +49,16 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, model_validator
 from starlette.status import HTTP_422_UNPROCESSABLE_ENTITY
 
-from nvidia_rag.ingestor_server.main import SERVER_MODE, NvidiaRAGIngestor
+from nvidia_rag.ingestor_server.main import Mode, NvidiaRAGIngestor
 from nvidia_rag.utils.configuration import NvidiaRAGConfig
+from nvidia_rag.utils.health_models import (
+    DatabaseHealthInfo,
+    IngestorHealthResponse,
+    NIMServiceHealthInfo,
+    ProcessingHealthInfo,
+    StorageHealthInfo,
+    TaskManagementHealthInfo,
+)
 from nvidia_rag.utils.metadata_validation import MetadataField
 
 logging.basicConfig(level=os.environ.get("LOGLEVEL", "INFO").upper())
@@ -98,68 +106,7 @@ EXAMPLE_DIR = "./"
 
 # Initialize configuration and ingestor
 CONFIG = NvidiaRAGConfig()
-NV_INGEST_INGESTOR = NvidiaRAGIngestor(mode=SERVER_MODE, config=CONFIG)
-
-
-# Define the service health models in server.py
-class BaseServiceHealthInfo(BaseModel):
-    """Base health info model with common fields for all services"""
-
-    service: str
-    url: str
-    status: str
-    latency_ms: float = 0
-    error: str | None = None
-
-
-class DatabaseHealthInfo(BaseServiceHealthInfo):
-    """Health info specific to database services"""
-
-    collections: int | None = None
-
-
-class StorageHealthInfo(BaseServiceHealthInfo):
-    """Health info specific to object storage services"""
-
-    buckets: int | None = None
-    message: str | None = None
-
-
-class NIMServiceHealthInfo(BaseServiceHealthInfo):
-    """Health info specific to NIM services (LLM, embeddings, etc.)"""
-
-    model: str | None = None
-    message: str | None = None
-    http_status: int | None = None
-
-
-class ProcessingHealthInfo(BaseServiceHealthInfo):
-    """Health info specific to document processing services"""
-
-    http_status: int | None = None
-
-
-class TaskManagementHealthInfo(BaseServiceHealthInfo):
-    """Health info specific to task management services"""
-
-    message: str | None = None
-
-
-class HealthResponse(BaseModel):
-    """Overall health response with specialized fields for each service type"""
-
-    message: str = Field(max_length=4096, pattern=r"[\s\S]*", default="Service is up.")
-    databases: list[DatabaseHealthInfo] = Field(default_factory=list)
-    object_storage: list[StorageHealthInfo] = Field(default_factory=list)
-    nim: list[NIMServiceHealthInfo] = Field(
-        default_factory=list
-    )  # NIM services (embeddings, LLM)
-    processing: list[ProcessingHealthInfo] = Field(
-        default_factory=list
-    )  # Document processing services
-    task_management: list[TaskManagementHealthInfo] = Field(
-        default_factory=list
-    )  # Task management services
+NV_INGEST_INGESTOR = NvidiaRAGIngestor(mode=Mode.SERVER, config=CONFIG)
 
 
 class SplitOptions(BaseModel):
@@ -591,7 +538,7 @@ async def request_validation_exception_handler(
 
 @app.get(
     "/health",
-    response_model=HealthResponse,
+    response_model=IngestorHealthResponse,
     tags=["Health APIs"],
     responses={
         500: {
@@ -616,50 +563,14 @@ async def health_check(check_dependencies: bool = False):
     """
 
     logger.info("Checking service health...")
-    health_results = await NV_INGEST_INGESTOR.health(check_dependencies)
-    response = HealthResponse(**health_results)
+    response = await NV_INGEST_INGESTOR.health(check_dependencies)
 
     # Only perform detailed service checks if requested
     if check_dependencies:
         try:
             from nvidia_rag.ingestor_server.health import print_health_report
 
-            print_health_report(health_results)
-
-            # Process databases
-            if "databases" in health_results:
-                response.databases = [
-                    DatabaseHealthInfo(**service)
-                    for service in health_results["databases"]
-                ]
-
-            # Process object_storage
-            if "object_storage" in health_results:
-                response.object_storage = [
-                    StorageHealthInfo(**service)
-                    for service in health_results["object_storage"]
-                ]
-
-            # Process nim services
-            if "nim" in health_results:
-                response.nim = [
-                    NIMServiceHealthInfo(**service) for service in health_results["nim"]
-                ]
-
-            # Process processing services
-            if "processing" in health_results:
-                response.processing = [
-                    ProcessingHealthInfo(**service)
-                    for service in health_results["processing"]
-                ]
-
-            # Process task_management services
-            if "task_management" in health_results:
-                response.task_management = [
-                    TaskManagementHealthInfo(**service)
-                    for service in health_results["task_management"]
-                ]
-
+            print_health_report(response)
         except Exception as e:
             logger.error(f"Error during dependency health checks: {str(e)}")
     else:

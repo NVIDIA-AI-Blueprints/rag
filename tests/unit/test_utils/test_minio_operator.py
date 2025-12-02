@@ -220,11 +220,13 @@ def test_get_minio_operator_uses_config(monkeypatch, minio_module):
 
     # Create a mock config with the expected minio settings
     from types import SimpleNamespace
+    from pydantic import SecretStr
+    
     mock_config = SimpleNamespace(
         minio=SimpleNamespace(
             endpoint="dummy-endpoint:9000",
-            access_key="dummy-access",
-            secret_key="dummy-secret",
+            access_key=SecretStr("dummy-access"),
+            secret_key=SecretStr("dummy-secret"),
         )
     )
 

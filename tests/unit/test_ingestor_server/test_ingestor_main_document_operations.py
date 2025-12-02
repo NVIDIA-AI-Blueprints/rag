@@ -25,7 +25,7 @@ from typing import Any, Dict, List
 
 import pytest
 
-from nvidia_rag.ingestor_server.main import NvidiaRAGIngestor, LIBRARY_MODE, SERVER_MODE
+from nvidia_rag.ingestor_server.main import Mode, NvidiaRAGIngestor
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
 
 
@@ -38,7 +38,7 @@ class TestNvidiaRAGIngestorCoverageImprovement:
         mock_vdb_op = Mock(spec=VDBRag)
         mock_vdb_op.check_collection_exists.return_value = False
 
-        ingestor = NvidiaRAGIngestor(mode=LIBRARY_MODE)
+        ingestor = NvidiaRAGIngestor(mode=Mode.LIBRARY)
 
         with patch.object(ingestor, '_NvidiaRAGIngestor__prepare_vdb_op_and_collection_name', return_value=(mock_vdb_op, "test_collection")):
             with pytest.raises(ValueError, match="Collection test_collection does not exist"):
@@ -54,7 +54,7 @@ class TestNvidiaRAGIngestorCoverageImprovement:
         mock_vdb_op.check_collection_exists.return_value = True
         mock_vdb_op.get_metadata_schema.return_value = []
 
-        ingestor = NvidiaRAGIngestor(mode=LIBRARY_MODE)
+        ingestor = NvidiaRAGIngestor(mode=Mode.LIBRARY)
 
         with patch.object(ingestor, '_NvidiaRAGIngestor__prepare_vdb_op_and_collection_name', return_value=(mock_vdb_op, "test_collection")):
             with patch.object(ingestor, '_NvidiaRAGIngestor__ingest_docs', side_effect=Exception("Test exception")):
@@ -78,7 +78,7 @@ class TestNvidiaRAGIngestorCoverageImprovement:
         mock_vdb_op.get_metadata_schema.return_value = []
         mock_vdb_op.get_documents.return_value = []
 
-        ingestor = NvidiaRAGIngestor(mode=LIBRARY_MODE)
+        ingestor = NvidiaRAGIngestor(mode=Mode.LIBRARY)
 
         # Create proper mock result structure
         mock_results = [[{
@@ -124,7 +124,7 @@ class TestNvidiaRAGIngestorCoverageImprovement:
         mock_vdb_op.get_metadata_schema.return_value = []
         mock_vdb_op.get_documents.return_value = []
 
-        ingestor = NvidiaRAGIngestor(mode=LIBRARY_MODE)
+        ingestor = NvidiaRAGIngestor(mode=Mode.LIBRARY)
 
         with patch.object(ingestor, '_NvidiaRAGIngestor__prepare_vdb_op_and_collection_name', return_value=(mock_vdb_op, "test_collection")):
             with patch.object(ingestor, '_validate_custom_metadata', return_value=(False, [{"error": "test error"}])):
@@ -150,7 +150,7 @@ class TestNvidiaRAGIngestorCoverageImprovement:
         mock_vdb_op.get_metadata_schema.return_value = []
         mock_vdb_op.get_documents.return_value = []
 
-        ingestor = NvidiaRAGIngestor(mode=LIBRARY_MODE)
+        ingestor = NvidiaRAGIngestor(mode=Mode.LIBRARY)
 
         with patch.object(ingestor, '_NvidiaRAGIngestor__prepare_vdb_op_and_collection_name', return_value=(mock_vdb_op, "test_collection")):
             with patch.object(ingestor, '_validate_custom_metadata', return_value=(True, [])):
@@ -173,7 +173,7 @@ class TestNvidiaRAGIngestorCoverageImprovement:
         mock_vdb_op.get_metadata_schema.return_value = []
         mock_vdb_op.get_documents.return_value = []
 
-        ingestor = NvidiaRAGIngestor(mode=LIBRARY_MODE)
+        ingestor = NvidiaRAGIngestor(mode=Mode.LIBRARY)
 
         with patch.object(ingestor, '_NvidiaRAGIngestor__prepare_vdb_op_and_collection_name', return_value=(mock_vdb_op, "test_collection")):
             with patch.object(ingestor, '_validate_custom_metadata', return_value=(True, [])):
@@ -196,7 +196,7 @@ class TestNvidiaRAGIngestorCoverageImprovement:
         mock_vdb_op.get_metadata_schema.return_value = []
         mock_vdb_op.get_documents.return_value = []
 
-        ingestor = NvidiaRAGIngestor(mode=LIBRARY_MODE)
+        ingestor = NvidiaRAGIngestor(mode=Mode.LIBRARY)
 
         with patch.object(ingestor, '_NvidiaRAGIngestor__prepare_vdb_op_and_collection_name', return_value=(mock_vdb_op, "test_collection")):
             with patch.object(ingestor, '_validate_custom_metadata', return_value=(True, [])):
@@ -220,7 +220,7 @@ class TestNvidiaRAGIngestorCoverageImprovement:
         mock_vdb_op.get_collection.return_value = []
         mock_vdb_op.add_metadata_schema.return_value = None
 
-        ingestor = NvidiaRAGIngestor(mode=LIBRARY_MODE)
+        ingestor = NvidiaRAGIngestor(mode=Mode.LIBRARY)
 
         with patch.object(ingestor, '_NvidiaRAGIngestor__prepare_vdb_op_and_collection_name', return_value=(mock_vdb_op, "test_collection")):
             result = ingestor.create_collection(
@@ -240,7 +240,7 @@ class TestNvidiaRAGIngestorCoverageImprovement:
         mock_vdb_op.create_metadata_schema_collection.return_value = None
         mock_vdb_op.get_collection.return_value = []
 
-        ingestor = NvidiaRAGIngestor(mode=LIBRARY_MODE)
+        ingestor = NvidiaRAGIngestor(mode=Mode.LIBRARY)
 
         with patch.object(ingestor, '_NvidiaRAGIngestor__prepare_vdb_op_and_collection_name', return_value=(mock_vdb_op, "test_collection")):
             with patch('nvidia_rag.ingestor_server.main.logger') as mock_logger:
@@ -263,7 +263,7 @@ class TestNvidiaRAGIngestorCoverageImprovement:
         mock_vdb_op.get_collection.return_value = []
         mock_vdb_op.add_metadata_schema.return_value = None
 
-        ingestor = NvidiaRAGIngestor(mode=LIBRARY_MODE)
+        ingestor = NvidiaRAGIngestor(mode=Mode.LIBRARY)
 
         with patch.object(ingestor, '_NvidiaRAGIngestor__prepare_vdb_op_and_collection_name', return_value=(mock_vdb_op, "test_collection")):
             result = ingestor.create_collections(
@@ -282,7 +282,7 @@ class TestNvidiaRAGIngestorCoverageImprovement:
         mock_vdb_op.delete_collections.return_value = {"status": "success"}
         mock_vdb_op.get_metadata_schema.return_value = []
 
-        ingestor = NvidiaRAGIngestor(mode=LIBRARY_MODE)
+        ingestor = NvidiaRAGIngestor(mode=Mode.LIBRARY)
 
         with patch.object(ingestor, '_NvidiaRAGIngestor__prepare_vdb_op_and_collection_name', return_value=(mock_vdb_op, "test_collection")):
             with patch('nvidia_rag.ingestor_server.main.get_unique_thumbnail_id_collection_prefix', return_value="test_prefix"):
@@ -302,7 +302,7 @@ class TestNvidiaRAGIngestorCoverageImprovement:
         mock_vdb_op.get_collection.return_value = [{"collection_name": "col1"}, {"collection_name": "col2"}]
         mock_vdb_op.get_metadata_schema.return_value = []
 
-        ingestor = NvidiaRAGIngestor(mode=LIBRARY_MODE)
+        ingestor = NvidiaRAGIngestor(mode=Mode.LIBRARY)
 
         with patch.object(ingestor, '_NvidiaRAGIngestor__prepare_vdb_op_and_collection_name', return_value=(mock_vdb_op, "test_collection")):
             result = ingestor.get_collections(vdb_endpoint="http://test.com")
@@ -317,7 +317,7 @@ class TestNvidiaRAGIngestorCoverageImprovement:
         mock_vdb_op.get_documents.return_value = [{"id": "doc1", "content": "test", "document_name": "test.txt"}]
         mock_vdb_op.get_metadata_schema.return_value = []
 
-        ingestor = NvidiaRAGIngestor(mode=LIBRARY_MODE)
+        ingestor = NvidiaRAGIngestor(mode=Mode.LIBRARY)
 
         with patch.object(ingestor, '_NvidiaRAGIngestor__prepare_vdb_op_and_collection_name', return_value=(mock_vdb_op, "test_collection")):
             result = ingestor.get_documents(
@@ -335,7 +335,7 @@ class TestNvidiaRAGIngestorCoverageImprovement:
         mock_vdb_op.delete_documents.return_value = {"status": "success"}
         mock_vdb_op.get_metadata_schema.return_value = []
 
-        ingestor = NvidiaRAGIngestor(mode=LIBRARY_MODE)
+        ingestor = NvidiaRAGIngestor(mode=Mode.LIBRARY)
 
         mock_minio = Mock()
         mock_minio.list_payloads.return_value = []
@@ -358,7 +358,7 @@ class TestNvidiaRAGIngestorCoverageImprovement:
 
     def test_private_methods_coverage(self):
         """Test private methods to improve coverage."""
-        ingestor = NvidiaRAGIngestor(mode=LIBRARY_MODE)
+        ingestor = NvidiaRAGIngestor(mode=Mode.LIBRARY)
 
         # Test __prepare_vdb_op_and_collection_name
         with patch('nvidia_rag.ingestor_server.main._get_vdb_op') as mock_get_vdb:
@@ -381,7 +381,7 @@ class TestNvidiaRAGIngestorCoverageImprovement:
         mock_vdb_op.get_metadata_schema.return_value = []
         mock_vdb_op.get_documents.return_value = [{"id": "doc1", "content": "test", "document_name": "test1.txt"}, {"id": "doc2", "content": "test", "document_name": "test2.txt"}]
 
-        ingestor = NvidiaRAGIngestor(mode=LIBRARY_MODE)
+        ingestor = NvidiaRAGIngestor(mode=Mode.LIBRARY)
 
         # Create temporary files
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -447,7 +447,7 @@ class TestNvidiaRAGIngestorCoverageImprovement:
         mock_vdb_op.check_collection_exists.return_value = True
         mock_vdb_op.get_metadata_schema.return_value = []
 
-        ingestor = NvidiaRAGIngestor(mode=LIBRARY_MODE)
+        ingestor = NvidiaRAGIngestor(mode=Mode.LIBRARY)
 
         with patch.object(ingestor, '_NvidiaRAGIngestor__prepare_vdb_op_and_collection_name', return_value=(mock_vdb_op, "test_collection")):
             with patch.object(ingestor, '_validate_custom_metadata', return_value=(True, [])):
@@ -477,7 +477,7 @@ class TestNvidiaRAGIngestorCoverageImprovement:
         mock_vdb_op.create_metadata_schema_collection.return_value = None
         mock_vdb_op.get_collection.return_value = []
 
-        ingestor = NvidiaRAGIngestor(mode=LIBRARY_MODE)
+        ingestor = NvidiaRAGIngestor(mode=Mode.LIBRARY)
 
         with patch.object(ingestor, '_NvidiaRAGIngestor__prepare_vdb_op_and_collection_name', return_value=(mock_vdb_op, "test_collection")):
             with patch('nvidia_rag.ingestor_server.main.logger') as mock_logger:
@@ -499,7 +499,7 @@ class TestNvidiaRAGIngestorCoverageImprovement:
         mock_vdb_op.get_metadata_schema.return_value = []
         mock_vdb_op.get_documents.return_value = []
 
-        ingestor = NvidiaRAGIngestor(mode=LIBRARY_MODE)
+        ingestor = NvidiaRAGIngestor(mode=Mode.LIBRARY)
 
         with patch.object(ingestor, '_NvidiaRAGIngestor__prepare_vdb_op_and_collection_name', return_value=(mock_vdb_op, "test_collection")):
             with patch.object(ingestor, '_validate_custom_metadata', return_value=(False, [{"error": "validation failed"}])):

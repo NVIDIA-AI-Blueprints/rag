@@ -52,6 +52,12 @@ from nvidia_rag.rag_server.response_generator import (
     error_response_generator,
 )
 from nvidia_rag.utils.configuration import NvidiaRAGConfig
+from nvidia_rag.utils.health_models import (
+    DatabaseHealthInfo,
+    NIMServiceHealthInfo,
+    RAGHealthResponse,
+    StorageHealthInfo,
+)
 
 logging.basicConfig(level=os.environ.get("LOGLEVEL", "INFO").upper())
 logger = logging.getLogger(__name__)
@@ -532,49 +538,6 @@ class SummaryResponse(BaseModel):
     )
 
 
-# Define the service health models in server.py
-class BaseServiceHealthInfo(BaseModel):
-    """Base health info model with common fields for all services"""
-
-    service: str
-    url: str
-    status: str
-    latency_ms: float = 0
-    error: str | None = None
-
-
-class DatabaseHealthInfo(BaseServiceHealthInfo):
-    """Health info specific to database services"""
-
-    collections: int | None = None
-
-
-class StorageHealthInfo(BaseServiceHealthInfo):
-    """Health info specific to object storage services"""
-
-    buckets: int | None = None
-    message: str | None = None
-
-
-class NIMServiceHealthInfo(BaseServiceHealthInfo):
-    """Health info specific to NIM services (LLM, embeddings, etc.)"""
-
-    model: str | None = None
-    message: str | None = None
-    http_status: int | None = None
-
-
-class HealthResponse(BaseModel):
-    """Overall health response with specialized fields for each service type"""
-
-    message: str = Field(max_length=4096, pattern=r"[\s\S]*", default="Service is up.")
-    databases: list[DatabaseHealthInfo] = Field(default_factory=list)
-    object_storage: list[StorageHealthInfo] = Field(default_factory=list)
-    nim: list[NIMServiceHealthInfo] = Field(
-        default_factory=list
-    )  # Unified category for NIM services
-
-
 @app.exception_handler(RequestValidationError)
 async def request_validation_exception_handler(
     _: Request, exc: RequestValidationError
@@ -587,7 +550,7 @@ async def request_validation_exception_handler(
 
 @app.get(
     "/health",
-    response_model=HealthResponse,
+    response_model=RAGHealthResponse,
     tags=["Health APIs"],
     responses={
         500: {
@@ -612,34 +575,12 @@ async def health_check(check_dependencies: bool = False):
     """
 
     logger.info("Checking service health...")
-    health_results = await NVIDIA_RAG.health(check_dependencies)
-    response = HealthResponse(**health_results)
+    response = await NVIDIA_RAG.health(check_dependencies)
 
     # Only perform detailed service checks if requested
     if check_dependencies:
         try:
-            print_health_report(health_results)
-
-            # Process databases
-            if "databases" in health_results:
-                response.databases = [
-                    DatabaseHealthInfo(**service)
-                    for service in health_results["databases"]
-                ]
-
-            # Process object_storage
-            if "object_storage" in health_results:
-                response.object_storage = [
-                    StorageHealthInfo(**service)
-                    for service in health_results["object_storage"]
-                ]
-
-            # Process nim services
-            if "nim" in health_results:
-                response.nim = [
-                    NIMServiceHealthInfo(**service) for service in health_results["nim"]
-                ]
-
+            print_health_report(response)
         except Exception as e:
             logger.error(f"Error during dependency health checks: {str(e)}")
     else:

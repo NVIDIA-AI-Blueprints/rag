@@ -19,11 +19,11 @@
 3. get_summary(): Get the summary of a document.
 
 Private methods:
-1. __llm_chain: Execute a simple LLM chain using the components defined above.
-2. __rag_chain: Execute a RAG chain using the components defined above.
-3. __print_conversation_history: Print the conversation history.
-4. __normalize_relevance_scores: Normalize the relevance scores of the documents.
-5. __format_document_with_source: Format the document with the source.
+1. _llm_chain: Execute a simple LLM chain using the components defined above.
+2. _rag_chain: Execute a RAG chain using the components defined above.
+3. _print_conversation_history: Print the conversation history.
+4. _normalize_relevance_scores: Normalize the relevance scores of the documents.
+5. _format_document_with_source: Format the document with the source.
 
 """
 
@@ -47,6 +47,7 @@ from opentelemetry import context as otel_context
 from requests import ConnectTimeout
 
 from nvidia_rag.rag_server.health import check_all_services_health
+from nvidia_rag.utils.health_models import RAGHealthResponse
 from nvidia_rag.rag_server.query_decomposition import iterative_query_decomposition
 from nvidia_rag.rag_server.reflection import (
     ReflectionCounter,
@@ -205,25 +206,20 @@ class NvidiaRAG:
             logger.warning("LLM produced no output.")
             return iter([])  # Return empty generator
 
-    async def health(self, check_dependencies: bool = False) -> dict[str, Any]:
+    async def health(self, check_dependencies: bool = False) -> RAGHealthResponse:
         """Check the health of the RAG server."""
-        response_message = "Service is up."
-        health_results = {}
-        health_results["message"] = response_message
-
-        vdb_op = self.__prepare_vdb_op()
-
         if check_dependencies:
-            dependencies_results = await check_all_services_health(vdb_op, self.config)
-            health_results.update(dependencies_results)
-        return health_results
+            vdb_op = self._prepare_vdb_op()
+            return await check_all_services_health(vdb_op, self.config)
+        
+        return RAGHealthResponse(message="Service is up.")
 
-    def __prepare_vdb_op(
+    def _prepare_vdb_op(
         self,
         vdb_endpoint: str | None = None,
         embedding_model: str | None = None,
         embedding_endpoint: str | None = None,
-    ):
+    ) -> VDBRag:
         """
         Prepare the VDBRag object for generation.
         """
@@ -419,7 +415,7 @@ class NvidiaRAG:
             else self.config.default_confidence_threshold
         )
 
-        vdb_op = self.__prepare_vdb_op(
+        vdb_op = self._prepare_vdb_op(
             vdb_endpoint=vdb_endpoint,
             embedding_model=embedding_model,
             embedding_endpoint=embedding_endpoint,
@@ -473,7 +469,7 @@ class NvidiaRAG:
 
         if use_knowledge_base:
             logger.info("Using knowledge base to generate response.")
-            return self.__rag_chain(
+            return self._rag_chain(
                 llm_settings=llm_settings,
                 query=query,
                 chat_history=chat_history,
@@ -502,7 +498,7 @@ class NvidiaRAG:
             logger.info(
                 "Using LLM to generate response directly without knowledge base."
             )
-            return self.__llm_chain(
+            return self._llm_chain(
                 llm_settings=llm_settings,
                 query=query,
                 chat_history=chat_history,
@@ -598,7 +594,7 @@ class NvidiaRAG:
             else self.config.default_confidence_threshold
         )
 
-        vdb_op = self.__prepare_vdb_op(
+        vdb_op = self._prepare_vdb_op(
             vdb_endpoint=vdb_endpoint,
             embedding_model=embedding_model,
             embedding_endpoint=embedding_endpoint,
@@ -946,7 +942,7 @@ class NvidiaRAG:
                     config=self.config,
                 )
                 if local_ranker and enable_reranker:
-                    docs = self.__normalize_relevance_scores(docs)
+                    docs = self._normalize_relevance_scores(docs)
                     if confidence_threshold > 0.0:
                         docs = filter_documents_by_confidence(
                             documents=docs,
@@ -1015,7 +1011,7 @@ class NvidiaRAG:
                     )
 
                     # Normalize scores to 0-1 range"
-                    docs = self.__normalize_relevance_scores(docs.get("context", []))
+                    docs = self._normalize_relevance_scores(docs.get("context", []))
                     if confidence_threshold > 0.0:
                         docs = filter_documents_by_confidence(
                             documents=docs,
@@ -1141,7 +1137,7 @@ class NvidiaRAG:
             user_message,
         )
 
-    def __llm_chain(
+    def _llm_chain(
         self,
         llm_settings: dict[str, Any],
         query: str | list[dict[str, Any]],
@@ -1204,7 +1200,7 @@ class NvidiaRAG:
             # Add user query
             message += user_query
 
-            self.__print_conversation_history(message, query_text)
+            self._print_conversation_history(message, query_text)
 
             prompt_template = ChatPromptTemplate.from_messages(message)
             llm = get_llm(config=self.config, **llm_settings)
@@ -1383,7 +1379,7 @@ class NvidiaRAG:
             # Fallback for any other content type
             return (str(content) if content is not None else ""), False
 
-    def __rag_chain(
+    def _rag_chain(
         self,
         llm_settings: dict[str, Any],
         query: str | list[dict[str, Any]],
@@ -1808,7 +1804,7 @@ class NvidiaRAG:
 
                 # Normalize scores to 0-1 range
                 if ranker and enable_reranker:
-                    context_to_show = self.__normalize_relevance_scores(context_to_show)
+                    context_to_show = self._normalize_relevance_scores(context_to_show)
 
                 if not is_relevant:
                     logger.warning(
@@ -1888,7 +1884,7 @@ class NvidiaRAG:
                     )
                     context_to_show = docs.get("context", [])
                     # Normalize scores to 0-1 range
-                    context_to_show = self.__normalize_relevance_scores(context_to_show)
+                    context_to_show = self._normalize_relevance_scores(context_to_show)
                 else:
                     # Multiple retrievers are not supported when reranking is disabled
                     retrieval_start_time = time.time()
@@ -2047,7 +2043,7 @@ class NvidiaRAG:
                             vlm_error_msg, ErrorCodeMapping.BAD_REQUEST
                         ) from e
 
-            docs = [self.__format_document_with_source(d) for d in context_to_show]
+            docs = [self._format_document_with_source(d) for d in context_to_show]
 
             # Prompt for response generation based on context
             message = system_message + user_message
@@ -2067,7 +2063,7 @@ class NvidiaRAG:
             user_query = [("user", "Query: {question}\n\nAnswer: ")]
             message += user_query
 
-            self.__print_conversation_history(message)
+            self._print_conversation_history(message)
             prompt = ChatPromptTemplate.from_messages(message)
 
             chain = prompt | llm | self.StreamingFilterThinkParser | StrOutputParser()
@@ -2233,15 +2229,15 @@ class NvidiaRAG:
                     status_code=ErrorCodeMapping.BAD_REQUEST,
                 )
 
-    def __print_conversation_history(
+    def _print_conversation_history(
         self, conversation_history: list[str] = None, query: str | None = None
-    ):
+    ) -> None:
         if conversation_history is not None:
             for role, content in conversation_history:
                 logger.debug("Role: %s", role)
                 logger.debug("Content: %s\n", content)
 
-    def __normalize_relevance_scores(
+    def _normalize_relevance_scores(
         self, documents: list["Document"]
     ) -> list["Document"]:
         """
@@ -2266,7 +2262,7 @@ class NvidiaRAG:
 
         return documents
 
-    def __format_document_with_source(self, doc) -> str:
+    def _format_document_with_source(self, doc: "Document") -> str:
         """Format document content with its source filename.
 
         Args:
