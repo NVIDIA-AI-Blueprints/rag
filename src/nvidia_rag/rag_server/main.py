@@ -475,6 +475,24 @@ class NvidiaRAG:
             "stop": stop,
         }
 
+        # Resolve VLM overrides to concrete values (fall back to config when None)
+        vlm_temperature = (
+            vlm_temperature
+            if vlm_temperature is not None
+            else self.config.vlm.temperature
+        )
+        vlm_top_p = vlm_top_p if vlm_top_p is not None else self.config.vlm.top_p
+        vlm_max_tokens = (
+            vlm_max_tokens
+            if vlm_max_tokens is not None
+            else self.config.vlm.max_tokens
+        )
+        vlm_max_total_images = (
+            vlm_max_total_images
+            if vlm_max_total_images is not None
+            else self.config.vlm.max_total_images
+        )
+
         vlm_settings = {
             "vlm_model": vlm_model,
             "vlm_endpoint": vlm_endpoint,
@@ -1964,15 +1982,39 @@ class NvidiaRAG:
                 if has_images_in_messages or has_images_in_context or is_image_query:
                     logger.info("Calling VLM to analyze images cited in the context")
                     try:
-                        vlm_model_cfg = vlm_settings.get("vlm_model", self.config.vlm.model_name)
-                        vlm_endpoint_cfg = vlm_settings.get("vlm_endpoint", self.config.vlm.server_url)
+                        vlm_settings = vlm_settings or {}
+                        # Resolve all VLM settings to concrete values (no None)
+                        vlm_model_cfg = (
+                            vlm_settings.get("vlm_model") or self.config.vlm.model_name
+                        )
+                        vlm_endpoint_cfg = (
+                            vlm_settings.get("vlm_endpoint")
+                            or self.config.vlm.server_url
+                        )
+                        vlm_temperature_cfg = (
+                            vlm_settings.get("vlm_temperature")
+                            or self.config.vlm.temperature
+                        )
+                        vlm_top_p_cfg = (
+                            vlm_settings.get("vlm_top_p") or self.config.vlm.top_p
+                        )
+                        vlm_max_tokens_cfg = (
+                            vlm_settings.get("vlm_max_tokens")
+                            or self.config.vlm.max_tokens
+                        )
+                        vlm_max_total_images_cfg = (
+                            vlm_settings.get("vlm_max_total_images")
+                            or self.config.vlm.max_total_images
+                        )
+
                         vlm = VLM(
                             vlm_model=vlm_model_cfg,
                             vlm_endpoint=vlm_endpoint_cfg,
                         )
                         # Build full messages: prior history + current query as a final user turn
-                        vlm_messages = list(chat_history or []) + [
-                            {"role": "user", "content": query}
+                        vlm_messages = [
+                            *(chat_history or []),
+                            {"role": "user", "content": query},
                         ]
                         # Build textual context identical to LLM "context" (before mutation below)
                         vlm_text_context = "\n\n".join(
@@ -1987,12 +2029,10 @@ class NvidiaRAG:
                                     messages=vlm_messages,
                                     context_text=vlm_text_context,
                                     question_text=self._extract_text_from_content(query),
-                                    temperature=vlm_settings.get("vlm_temperature", self.config.vlm.temperature),
-                                    top_p=vlm_settings.get("vlm_top_p", self.config.vlm.top_p),
-                                    max_tokens=vlm_settings.get("vlm_max_tokens", self.config.vlm.max_tokens),
-                                    max_total_images=vlm_settings.get(
-                                        "vlm_max_total_images", self.config.vlm.max_total_images
-                                    ),
+                                    temperature=vlm_temperature_cfg,
+                                    top_p=vlm_top_p_cfg,
+                                    max_tokens=vlm_max_tokens_cfg,
+                                    max_total_images=vlm_max_total_images_cfg,
                                 ),
                                 context_to_show,
                                 model=model,
@@ -2185,9 +2225,14 @@ class NvidiaRAG:
                 )
             elif "[404] Not Found" in str(e):
                 # Check if this is a VLM-related error
-                if enable_vlm_inference and self.config.vlm.model_name:
+                requested_vlm_model = None
+                if isinstance(vlm_settings, dict):
+                    requested_vlm_model = vlm_settings.get("vlm_model")
+                effective_vlm_model = requested_vlm_model or self.config.vlm.model_name
+
+                if enable_vlm_inference and effective_vlm_model:
                     error_msg = (
-                        f"VLM model '{self.config.vlm.model_name}' not found. "
+                        f"VLM model '{effective_vlm_model}' not found. "
                         "Please verify the VLM model name and ensure it's available in your NVIDIA API account."
                     )
                     logger.warning(f"VLM model not found: {error_msg}")

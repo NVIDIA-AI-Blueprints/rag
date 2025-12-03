@@ -13,7 +13,7 @@ services:
     environment:
       NGC_API_KEY: ${NGC_API_KEY}
       # Automatic profile detection
-      NIM_MODEL_PROFILE: "tensorrt_llm-h100-fp8-tp1-pp1-throughput-2330:10de-a5381c1be0b8ee66ad41e7dc7b4e6d2cffaa7a4e37ca05f57898817560b0bd2b-1"
+      NIM_MODEL_PROFILE: ${NIM_MODEL_PROFILE:-""}
     ulimits:
       nofile:
         soft: 65536

@@ -175,7 +175,7 @@ envVars:
   APP_VLM_TEMPERATURE: "0.1"
   APP_VLM_TOP_P: "1.0"
   # VLM server URL
-  APP_VLM_SERVERURL: "http://vlm-ms:8000/v1"
+  APP_VLM_SERVERURL: "http://nim-vlm:8000/v1"
   # VLM model name
   APP_VLM_MODELNAME: "nvidia/nemotron-nano-12b-v2-vl"
 

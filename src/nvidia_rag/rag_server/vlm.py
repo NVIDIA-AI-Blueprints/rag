@@ -53,6 +53,24 @@ class VLM:
     """
     Handles image analysis using a Vision-Language Model (VLM).
 
+    Image handling and limits
+    -------------------------
+    Images can come from:
+    - User messages (multimodal ``content`` items with ``type == "image_url"``)
+    - Retrieved context documents (thumbnails loaded from object storage)
+
+    The effective image budget is controlled by ``max_total_images``:
+
+    - ``None``: no explicit upper bound is enforced by this helper.
+    - Integer ``N > 0``: hard cap on the **total** images (user + context)
+      that will be included in the final VLM prompt.
+    - ``0``: prevents **additional** images from being added from retrieved
+      documents; user-supplied images already present in the messages are
+      passed through unchanged.
+
+    The limit is applied when assembling the LangChain messages, after
+    normalizing incoming messages and skipping non-image document types.
+
     Methods
     -------
     analyze_with_messages(docs, messages, context_text, question_text):
@@ -68,9 +86,26 @@ class VLM:
         Initialize the VLM with configuration and prompt templates.
 
         Args:
-            vlm_model: VLM model name
-            vlm_endpoint: VLM server endpoint URL
-            config: NvidiaRAGConfig instance. If None, creates a new one.
+            vlm_model:
+                VLM model name.
+            vlm_endpoint:
+                VLM server endpoint URL.
+            config:
+                NvidiaRAGConfig instance. If None, creates a new one.
+
+        Image budget semantics
+        ----------------------
+        The image budget is read from ``config.vlm.max_total_images`` and
+        interpreted as:
+
+        - ``None``: no explicit limit applied by this helper.
+        - Integer ``N > 0``: at most ``N`` images (combined from user messages
+          and retrieved context) are included in the VLM prompt.
+        - ``0``: no **additional** images are taken from retrieved documents;
+          any images already present in user/chat messages are left intact.
+
+        This limit is enforced while building the prompt messages, after
+        normalizing message content and skipping non-image document types.
 
         Raises
         ------
@@ -99,7 +134,15 @@ class VLM:
 
     @staticmethod
     def init_model(model: str, endpoint: str, api_key: str | None = None, **kwargs) -> ChatOpenAI:
-        """Initialize and return the VLM ChatOpenAI model instance."""
+        """
+        Initialize and return the VLM ChatOpenAI model instance.
+
+        Note
+        ----
+        This helper does **not** apply any image-count limits itself; those
+        limits are enforced earlier when assembling the messages that will be
+        sent to the model.
+        """
         return ChatOpenAI(
             model=model,
             openai_api_key=api_key or os.getenv("NVIDIA_API_KEY"),
@@ -152,10 +195,15 @@ class VLM:
             content = ensure_list_content((m or {}).get("content"))
             if role == "system":
                 # Accumulate any incoming system text; do not add as a separate message
-                system_text = "".join([
-                    (part.get("text", "") if isinstance(part, dict) and part.get("type") == "text" else str(part))
-                    for part in content
-                ])
+                system_text = "".join(
+                    [
+                        part.get("text", "")
+                        for part in content
+                        if isinstance(part, dict)
+                        and part.get("type") == "text"
+                        and part.get("text")
+                    ]
+                )
                 if system_text:
                     system_accum_text = (system_accum_text + " " + system_text).strip()
             elif role == "assistant":
@@ -431,7 +479,7 @@ class VLM:
 
     def analyze_with_messages(
         self,
-        docs: list[dict],
+        docs: list[Any],
         messages: list[dict[str, Any]],
         context_text: str | None = None,
         question_text: str | None = None,
@@ -449,8 +497,10 @@ class VLM:
 
         Parameters
         ----------
-        docs : List[dict]
+        docs : List[Any]
             Retrieved documents that may contain image thumbnails in storage.
+            Each item is expected to behave like a LangChain ``Document``
+            (i.e., exposing ``page_content`` and ``metadata`` attributes).
         messages : List[dict]
             Full conversation messages with roles and content. Content can be
             a string or multimodal list with items of shape {type: text|image_url}.
@@ -509,7 +559,7 @@ class VLM:
 
     def stream_with_messages(
         self,
-        docs: list[dict],
+        docs: list[Any],
         messages: list[dict[str, Any]],
         context_text: str | None = None,
         question_text: str | None = None,
@@ -524,6 +574,10 @@ class VLM:
         Stream tokens from the VLM given full conversation and retrieved context.
         Yields incremental text chunks as they arrive.
         """
+        if not isinstance(messages, list) or len(messages) == 0:
+            logger.warning("No messages provided for VLM streaming.")
+            return
+
         try:
             # Resolve effective settings (function overrides > instance defaults)
             eff_temperature = temperature if temperature is not None else self.temperature
@@ -555,18 +609,25 @@ class VLM:
             logger.info("VLM final streaming prompt (images redacted): %s", safe_prompt)
 
             # Stream response chunks
-            for chunk in vlm.stream(
+            for idx, chunk in enumerate(vlm.stream(
                 lc_messages,
                 temperature=eff_temperature,
                 top_p=eff_top_p,
                 max_tokens=eff_max_tokens,
-            ):
+            )):
                 try:
                     content = getattr(chunk, "content", None)
                     if isinstance(content, str) and content:
                         yield content
-                except Exception:
-                    # Best-effort streaming; skip malformed chunks
+                except Exception as e:
+                    # Best-effort streaming; log and skip malformed chunks
+                    logger.debug(
+                        "Skipping malformed VLM stream chunk at index %s: %r; error: %s",
+                        idx,
+                        chunk,
+                        e,
+                        exc_info=True,
+                    )
                     continue
         except Exception as e:
             logger.warning(f"Exception during VLM streaming call with messages: {e}", exc_info=True)
