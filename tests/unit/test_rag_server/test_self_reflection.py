@@ -200,7 +200,7 @@ async def test_check_context_relevance(mocker):
         async def mock_retry_score(*args, **kwargs):
             return 0
         mocker.patch(
-            "nvidia_rag.rag_server.reflection._retry_score_generation",
+            "nvidia_rag.rag_server.reflection._retry_score_generation_async",
             side_effect=mock_retry_score,
         )
 
