@@ -33,7 +33,6 @@ Private helper methods:
 
 """
 
-import asyncio
 import json
 import logging
 import math
@@ -41,7 +40,6 @@ import os
 import time
 from collections.abc import AsyncGenerator, Generator
 from concurrent.futures import ThreadPoolExecutor
-from functools import partial
 from traceback import print_exc
 from typing import Any
 
@@ -73,7 +71,7 @@ from nvidia_rag.rag_server.response_generator import (
 )
 
 
-async def _async_iter(items):
+async def _async_iter(items) -> AsyncGenerator[Any, None]:
     """Helper to convert a list to an async generator."""
     for item in items:
         yield item

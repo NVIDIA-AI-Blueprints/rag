@@ -81,7 +81,7 @@ def _retry_score_generation(
 
 
 async def _retry_score_generation_async(
-    chain, inputs: dict[str, Any], max_retries: int = 3, config: dict[str, Any] = None
+    chain, inputs: dict[str, Any], max_retries: int = 3, config: dict[str, Any] | None = None
 ) -> int:
     """Async helper method to retry score generation with error handling.
 
