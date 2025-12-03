@@ -282,7 +282,7 @@ class NvIngestConfig(_ConfigBase):
         description="Number of overlapping tokens between chunks",
     )
     caption_model_name: str = Field(
-        default="nvidia/llama-3.1-nemotron-nano-vl-8b-v1",
+        default="nvidia/nemotron-nano-12b-v2-vl",
         env="APP_NVINGEST_CAPTIONMODELNAME",
         description="Model name for generating image captions",
     )

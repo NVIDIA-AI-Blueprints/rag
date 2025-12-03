@@ -49,7 +49,7 @@ For this feature, use H100 or A100 GPUs instead.
 1. Set caption endpoint and model to API catalog
    ```bash
    export APP_NVINGEST_CAPTIONENDPOINTURL="https://integrate.api.nvidia.com/v1/chat/completions"
-   export APP_NVINGEST_CAPTIONMODELNAME="nvidia/llama-3.1-nemotron-nano-vl-8b-v1"
+   export APP_NVINGEST_CAPTIONMODELNAME="nvidia/nemotron-nano-12b-v2-vl"
    ```
 
 2. Enable image captioning
@@ -78,7 +78,7 @@ To enable image captioning in Helm-based deployments by using an on-prem VLM mod
    ```yaml
    APP_NVINGEST_EXTRACTIMAGES: "True"
    APP_NVINGEST_CAPTIONENDPOINTURL: "http://nim-vlm:8000/v1/chat/completions"
-   APP_NVINGEST_CAPTIONMODELNAME: "nvidia/llama-3.1-nemotron-nano-vl-8b-v1"
+   APP_NVINGEST_CAPTIONMODELNAME: "nvidia/nemotron-nano-12b-v2-vl"
    ```
 
 2. Enable the VLM image captioning model in your `values.yaml` file.

@@ -1976,7 +1976,7 @@ class NvidiaRAG:
                         ]
                         # Build textual context identical to LLM "context" (before mutation below)
                         vlm_text_context = "\n\n".join(
-                            [self.__format_document_with_source(d) for d in context_to_show]
+                            [self._format_document_with_source(d) for d in context_to_show]
                         )
                         # Always stream VLM response directly (reasoning gate deprecated)
                         logger.info("Streaming VLM response directly.")

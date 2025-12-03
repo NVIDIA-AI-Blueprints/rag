@@ -297,7 +297,7 @@ class TestNvIngestConfig:
         assert config.tokenizer == "intfloat/e5-large-unsupervised"
         assert config.chunk_size == 1024
         assert config.chunk_overlap == 150
-        assert config.caption_model_name == "nvidia/llama-3.1-nemotron-nano-vl-8b-v1"
+        assert config.caption_model_name == "nvidia/nemotron-nano-12b-v2-vl"
         assert (
             config.caption_endpoint_url
             == "https://integrate.api.nvidia.com/v1/chat/completions"

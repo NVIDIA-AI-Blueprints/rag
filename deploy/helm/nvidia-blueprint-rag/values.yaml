@@ -331,7 +331,7 @@ ingestor-server:
     APP_NVINGEST_TEXTDEPTH: "page"  # Extract text by "page" or "document"
 
     # === NV-Ingest caption configurations ===
-    APP_NVINGEST_CAPTIONMODELNAME: "nvidia/llama-3.1-nemotron-nano-vl-8b-v1"  # Model name for captioning
+    APP_NVINGEST_CAPTIONMODELNAME: "nvidia/nemotron-nano-12b-v2-vl"  # Model name for captioning
     APP_NVINGEST_CAPTIONENDPOINTURL: ""  # Endpoint URL for captioning model
 
     # === NV-Ingest save to disk configurations ===
@@ -755,7 +755,7 @@ nv-ingest:
     YOLOX_TABLE_STRUCTURE_INFER_PROTOCOL: grpc
 
     # Captioning
-    VLM_CAPTION_MODEL_NAME: nvidia/llama-3.1-nemotron-nano-vl-8b-v1
+    VLM_CAPTION_MODEL_NAME: nvidia/nemotron-nano-12b-v2-vl
     VLM_CAPTION_ENDPOINT: http://nim-vlm:8000/v1/chat/completions
 
     # Audio service
