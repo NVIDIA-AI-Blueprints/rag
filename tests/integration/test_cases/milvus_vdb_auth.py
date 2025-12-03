@@ -72,16 +72,19 @@ def _grant_reader_privileges(client: MilvusClient, role: str, collection_name: s
     In Milvus 2.5+, GetLoadState is an internal privilege that cannot be granted individually.
     It's included in the ClusterReadOnly privilege group. We use grant_privilege_v2() API
     which supports privilege groups.
+    
+    IMPORTANT: ClusterReadOnly is a CLUSTER-level privilege and must use "*" as collection_name.
     """
-    # Try to grant ClusterReadOnly (includes GetLoadState, GetLoadingProgress, ShowCollections)
-    # This is required because langchain-milvus calls utility.load_state() during vectorstore init
+    # Grant ClusterReadOnly at CLUSTER level (collection_name must be "*")
+    # This includes GetLoadState, GetLoadingProgress, ShowCollections, etc.
+    # Required because langchain-milvus calls utility.load_state() during vectorstore init
     try:
-        client.grant_privilege_v2(role_name=role, privilege="ClusterReadOnly", collection_name=collection_name)
-        logger.info(f"Granted ClusterReadOnly to {role} on {collection_name}")
+        client.grant_privilege_v2(role_name=role, privilege="ClusterReadOnly", collection_name="*", db_name="*")
+        logger.info(f"Granted ClusterReadOnly (cluster-level) to {role}")
     except Exception as e:
         logger.warning(f"Failed to grant ClusterReadOnly: {e}")
     
-    # Grant individual collection privileges using v2 API
+    # Grant collection-specific privileges using v2 API
     for priv in ("Query", "Search", "Load"):
         try:
             client.grant_privilege_v2(role_name=role, privilege=priv, collection_name=collection_name)
