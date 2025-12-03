@@ -282,7 +282,7 @@ class NvIngestConfig(_ConfigBase):
         description="Number of overlapping tokens between chunks",
     )
     caption_model_name: str = Field(
-        default="nvidia/llama-3.1-nemotron-nano-vl-8b-v1",
+        default="nvidia/nemotron-nano-12b-v2-vl",
         env="APP_NVINGEST_CAPTIONMODELNAME",
         description="Model name for generating image captions",
     )
@@ -738,35 +738,29 @@ class VLMConfig(_ConfigBase):
         description="URL endpoint for Vision-Language Model service",
     )
     model_name: str = Field(
-        default="nvidia/llama-3.1-nemotron-nano-vl-8b-v1",
+        default="nvidia/nemotron-nano-12b-v2-vl",
         env="APP_VLM_MODELNAME",
         description="Vision-Language Model for processing images and text",
     )
-    enable_vlm_response_reasoning: bool = Field(
-        default=False,
-        env="ENABLE_VLM_RESPONSE_REASONING",
-        description="Enable reasoning mode in VLM responses",
+    temperature: float = Field(
+        default=0.7,
+        env="APP_VLM_TEMPERATURE",
+        description="Sampling temperature for VLM generation",
+    )
+    top_p: float = Field(
+        default=1.0,
+        env="APP_VLM_TOP_P",
+        description="Top-p sampling mass for VLM generation",
+    )
+    max_tokens: int = Field(
+        default=4096,
+        env="APP_VLM_MAX_TOKENS",
+        description="Maximum number of tokens to generate in any given VLM call",
     )
     max_total_images: int = Field(
-        default=4,
-        ge=0,
+        default=5,
         env="APP_VLM_MAX_TOTAL_IMAGES",
-        description="Maximum total images to process in a single request",
-    )
-    max_query_images: int = Field(
-        default=1,
-        env="APP_VLM_MAX_QUERY_IMAGES",
-        description="Maximum images from user query to process",
-    )
-    max_context_images: int = Field(
-        default=1,
-        env="APP_VLM_MAX_CONTEXT_IMAGES",
-        description="Maximum images from retrieved context to process",
-    )
-    vlm_response_as_final_answer: bool = Field(
-        default=False,
-        env="APP_VLM_RESPONSE_AS_FINAL_ANSWER",
-        description="Use VLM response directly as final answer without LLM refinement",
+        description="Maximum total images sent to VLM per request (query + context)",
     )
 
     @field_validator("server_url", mode="before")
@@ -981,6 +975,15 @@ class NvidiaRAGConfig(_ConfigBase):
         default=False,
         env="ENABLE_VLM_INFERENCE",
         description="Enable Vision-Language Model for multimodal queries",
+    )
+    vlm_to_llm_fallback: bool = Field(
+        default=True,
+        env="VLM_TO_LLM_FALLBACK",
+        description=(
+            "When true, if ENABLE_VLM_INFERENCE is on but no images are present in query, "
+            "messages, or context, the pipeline will fall back to the standard LLM RAG flow. "
+            "When false, VLM will be invoked even for text-only queries."
+        ),
     )
     default_confidence_threshold: float = Field(
         default=0.0,

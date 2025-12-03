@@ -278,7 +278,7 @@ services:
       APP_NVINGEST_SEGMENTAUDIO: ${APP_NVINGEST_SEGMENTAUDIO:-False} # Enable audio segmentation for NV Ingest
 
       ##===NV-Ingest Caption Model configurations====
-      APP_NVINGEST_CAPTIONMODELNAME: ${APP_NVINGEST_CAPTIONMODELNAME:-"nvidia/llama-3.1-nemotron-nano-vl-8b-v1"}
+      APP_NVINGEST_CAPTIONMODELNAME: ${APP_NVINGEST_CAPTIONMODELNAME:-"nvidia/nemotron-nano-12b-v2-vl"}
       # Incase of nvidia-hosted caption model, use the endpoint url as - https://integrate.api.nvidia.com/v1
       APP_NVINGEST_CAPTIONENDPOINTURL: ${APP_NVINGEST_CAPTIONENDPOINTURL:-"http://vlm-ms:8000/v1/chat/completions"}
 
@@ -402,7 +402,7 @@ services:
       - YOLOX_TABLE_STRUCTURE_INFER_PROTOCOL=${YOLOX_TABLE_STRUCTURE_INFER_PROTOCOL:-grpc}
       # Incase of nvidia-hosted caption model, use the endpoint url as - https://integrate.api.nvidia.com/v1/chat/completions
       - VLM_CAPTION_ENDPOINT=${VLM_CAPTION_ENDPOINT:-http://vlm-ms:8000/v1/chat/completions}
-      - VLM_CAPTION_MODEL_NAME=${VLM_CAPTION_MODEL_NAME:-nvidia/llama-3.1-nemotron-nano-vl-8b-v1}
+      - VLM_CAPTION_MODEL_NAME=${VLM_CAPTION_MODEL_NAME:-nvidia/nemotron-nano-12b-v2-vl}
       - MODEL_PREDOWNLOAD_PATH=${MODEL_PREDOWNLOAD_PATH:-/workspace/models/}
     healthcheck:
       test: curl --fail http://nv-ingest-ms-runtime:7670/v1/health/ready || exit 1
@@ -481,7 +481,7 @@ services:
       ##===VLM Model specific configurations===
       ENABLE_VLM_INFERENCE: ${ENABLE_VLM_INFERENCE:-false}
       APP_VLM_SERVERURL: ${APP_VLM_SERVERURL-"http://vlm-ms:8000/v1"}
-      APP_VLM_MODELNAME: ${APP_VLM_MODELNAME:-"nvidia/llama-3.1-nemotron-nano-vl-8b-v1"}
+      APP_VLM_MODELNAME: ${APP_VLM_MODELNAME:-"nvidia/nemotron-nano-12b-v2-vl"}
 
       NVIDIA_API_KEY: ${NGC_API_KEY:?"NGC_API_KEY is required"}
 

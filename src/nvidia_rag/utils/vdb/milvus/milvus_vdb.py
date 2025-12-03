@@ -580,6 +580,11 @@ class MilvusVDB(Milvus, VDBRag):
         Delete documents from a collection by source values.
         """
         collection = Collection(collection_name, using=self.connection_alias)
+
+        # Track whether we actually attempted (and succeeded in) any deletion.
+        # This avoids referencing an uninitialized variable when source_values is empty.
+        deleted = False
+
         for source_value in source_values:
             # Delete Milvus Entities
             logger.info(
@@ -606,6 +611,8 @@ class MilvusVDB(Milvus, VDBRag):
             # Force flush the vectorstore after deleting documents to ensure
             # that the changes are reflected in the vectorstore
             collection.flush()
+        # If source_values was empty, this is effectively a no-op and we treat it as
+        # a successful (idempotent) delete operation.
         return True
 
     def create_metadata_schema_collection(

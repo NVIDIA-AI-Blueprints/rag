@@ -25,7 +25,7 @@ nv_ingest:
   text_depth: "page"  # Granularity level for text extraction (page, document)
   chunk_size: 512  # Maximum size of text chunks in tokens
   chunk_overlap: 150  # Number of overlapping tokens between chunks
-  caption_model_name: "nvidia/llama-3.1-nemotron-nano-vl-8b-v1"  # Model name for generating image captions
+  caption_model_name: "nvidia/nemotron-nano-12b-v2-vl"  # Model name for generating image captions
   caption_endpoint_url: "http://localhost:1977/v1/chat/completions"  # API endpoint for caption generation service
   enable_pdf_splitter: true  # Enable PDF page splitting during ingestion
 
@@ -77,7 +77,7 @@ tracing:
 # Vision-Language Model Configuration
 vlm:
   server_url: "http://localhost:1977/v1"  # URL endpoint for Vision-Language Model service
-  model_name: "nvidia/llama-3.1-nemotron-nano-vl-8b-v1"  # Vision-Language Model for processing images and text
+  model_name: "nvidia/nemotron-nano-12b-v2-vl"  # Vision-Language Model for processing images and text
 
 # MinIO Configuration
 minio:

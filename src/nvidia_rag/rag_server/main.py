@@ -304,6 +304,10 @@ class NvidiaRAG:
         reranker_endpoint: str | None = None,
         vlm_model: str | None = None,
         vlm_endpoint: str | None = None,
+        vlm_temperature: float | None = None,
+        vlm_top_p: float | None = None,
+        vlm_max_tokens: int | None = None,
+        vlm_max_total_images: int | None = None,
         filter_expr: str | list[dict[str, Any]] = "",
         enable_query_decomposition: bool | None = None,
         confidence_threshold: float | None = None,
@@ -471,6 +475,33 @@ class NvidiaRAG:
             "stop": stop,
         }
 
+        # Resolve VLM overrides to concrete values (fall back to config when None)
+        vlm_temperature = (
+            vlm_temperature
+            if vlm_temperature is not None
+            else self.config.vlm.temperature
+        )
+        vlm_top_p = vlm_top_p if vlm_top_p is not None else self.config.vlm.top_p
+        vlm_max_tokens = (
+            vlm_max_tokens
+            if vlm_max_tokens is not None
+            else self.config.vlm.max_tokens
+        )
+        vlm_max_total_images = (
+            vlm_max_total_images
+            if vlm_max_total_images is not None
+            else self.config.vlm.max_total_images
+        )
+
+        vlm_settings = {
+            "vlm_model": vlm_model,
+            "vlm_endpoint": vlm_endpoint,
+            "vlm_temperature": vlm_temperature,
+            "vlm_top_p": vlm_top_p,
+            "vlm_max_tokens": vlm_max_tokens,
+            "vlm_max_total_images": vlm_max_total_images,
+        }
+
         if use_knowledge_base:
             logger.info("Using knowledge base to generate response.")
             return self._rag_chain(
@@ -485,8 +516,7 @@ class NvidiaRAG:
                 reranker_model=reranker_model,
                 reranker_endpoint=reranker_endpoint,
                 enable_vlm_inference=enable_vlm_inference,
-                vlm_model=vlm_model,
-                vlm_endpoint=vlm_endpoint,
+                vlm_settings=vlm_settings,
                 model=model,
                 enable_query_rewriting=enable_query_rewriting,
                 enable_citations=enable_citations,
@@ -1398,8 +1428,7 @@ class NvidiaRAG:
         reranker_model: str = "",
         reranker_endpoint: str | None = None,
         enable_vlm_inference: bool = False,
-        vlm_model: str = "",
-        vlm_endpoint: str = "",
+        vlm_settings: dict[str, Any] | None = None,
         model: str = "",
         enable_query_rewriting: bool = False,
         enable_citations: bool = True,
@@ -1580,7 +1609,6 @@ class NvidiaRAG:
                 conversation_history,
                 user_message,
             ) = self._handle_prompt_processing(chat_history, model, "rag_template")
-            vlm_message = []
             logger.debug("System message: %s", system_message)
             logger.debug("User message: %s", user_message)
             logger.debug("Conversation history: %s", conversation_history)
@@ -1931,8 +1959,14 @@ class NvidiaRAG:
                 )
 
             if enable_vlm_inference or is_image_query:
-                # Fast pre-check: skip VLM entirely if no images in query or context
+                # Initialize vlm_settings if not provided
+                vlm_settings = vlm_settings or {}
+                # Fast pre-check: determine where images are present
                 has_images_in_query = self._contains_images(query)
+                has_images_in_history = any(
+                    self._contains_images(m.get("content")) for m in chat_history or []
+                )
+                has_images_in_messages = has_images_in_query or has_images_in_history
                 has_images_in_context = False
                 try:
                     for d in context_to_show:
@@ -1945,80 +1979,90 @@ class NvidiaRAG:
                     # If metadata inspection fails, be conservative and proceed
                     has_images_in_context = False
 
-                if not (has_images_in_query or has_images_in_context):
-                    logger.warning(
-                        "Skipping VLM: no images found in query or retrieved context."
+                # Control whether we are allowed to silently fall back to LLM when no images are present
+                vlm_to_llm_fallback = getattr(self.config, "vlm_to_llm_fallback", True)
+
+                # Decide if we should call VLM:
+                # - Always when any images are present (messages, context, or explicit image query)
+                # - Additionally, when VLM_TO_LLM_FALLBACK is disabled, even if no images are present
+                should_call_vlm = (
+                    has_images_in_messages
+                    or has_images_in_context
+                    or is_image_query
+                    or not vlm_to_llm_fallback
+                )
+
+                if should_call_vlm:
+                    logger.info(
+                        "Calling VLM (has_images_in_messages=%s, has_images_in_context=%s, "
+                        "is_image_query=%s, vlm_to_llm_fallback=%s)",
+                        has_images_in_messages,
+                        has_images_in_context,
+                        is_image_query,
+                        vlm_to_llm_fallback,
                     )
-                    # fall through without VLM
-                else:
-                    logger.info("Calling VLM to analyze images cited in the context")
-                    vlm_response: str = ""
                     try:
-                        vlm = VLM(vlm_model, vlm_endpoint, config=self.config)
-                        vlm_response = vlm.analyze_images_from_context(
-                            context_to_show, query
+                        # Resolve all VLM settings to concrete values (no None)
+                        vlm_model_cfg = (
+                            vlm_settings.get("vlm_model") or self.config.vlm.model_name
+                        )
+                        vlm_endpoint_cfg = (
+                            vlm_settings.get("vlm_endpoint")
+                            or self.config.vlm.server_url
+                        )
+                        vlm_temperature_cfg = (
+                            vlm_settings.get("vlm_temperature")
+                            or self.config.vlm.temperature
+                        )
+                        vlm_top_p_cfg = (
+                            vlm_settings.get("vlm_top_p") or self.config.vlm.top_p
+                        )
+                        vlm_max_tokens_cfg = (
+                            vlm_settings.get("vlm_max_tokens")
+                            or self.config.vlm.max_tokens
+                        )
+                        vlm_max_total_images_cfg = (
+                            vlm_settings.get("vlm_max_total_images")
+                            or self.config.vlm.max_total_images
                         )
 
-                        vlm_response_stripped = (
-                            vlm_response.strip()
-                            if isinstance(vlm_response, str)
-                            else ""
+                        vlm = VLM(
+                            vlm_model=vlm_model_cfg,
+                            vlm_endpoint=vlm_endpoint_cfg,
                         )
-                        if vlm_response_stripped:
-                            if self.config.vlm.enable_vlm_response_reasoning:
-                                should_use_vlm_response = vlm.reason_on_vlm_response(
-                                    query,
-                                    vlm_response_stripped,
-                                    context_to_show,
-                                    llm_settings,
-                                )
-                            else:
-                                # Reasoning gate disabled: always include VLM output
-                                should_use_vlm_response = True
-
-                            # If query contains images, or vlm_response_as_final_answer is enabled, return as final answer
-                            if should_use_vlm_response and (
-                                self.config.vlm.vlm_response_as_final_answer
-                                or self._contains_images(query)
-                            ):
-                                logger.info(
-                                    "VLM response as final answer: %s",
-                                    vlm_response_stripped,
-                                )
-                                return RAGResponse(
-                                    generate_answer(
-                                        iter([vlm_response_stripped]),
-                                        context_to_show,
-                                        model=model,
-                                        collection_name=collection_name,
-                                        enable_citations=enable_citations,
-                                    ),
-                                    status_code=ErrorCodeMapping.SUCCESS,
-                                )
-                            else:
-                                logger.info("Query type: %s", type(query))
-                                logger.info(
-                                    "VLM response not as final answer: %s",
-                                    vlm_response_stripped,
-                                )
-
-                            if should_use_vlm_response:
-                                logger.info(
-                                    "VLM response validated and added to prompt: %s",
-                                    vlm_response_stripped,
-                                )
-                                injection_tmpl = self.prompts.get(
-                                    "vlm_response_injection_template",
-                                    "The following is an answer generated by a Vision-Language Model (VLM) based solely on images cited in the context:\n---\n{vlm_response}\n---\nConsider this visual insight when answering the user's query, especially where the textual context is ambiguous or limited.",
-                                )
-                                vlm_response_prompt = injection_tmpl.format(
-                                    vlm_response=vlm_response_stripped
-                                )
-                                vlm_message += [("user", vlm_response_prompt)]
-                            else:
-                                logger.info("VLM response skipped by reasoning gate.")
-                        else:
-                            logger.info("VLM response is empty.")
+                        # Build full messages: prior history + current query as a final user turn
+                        vlm_messages = [
+                            *(chat_history or []),
+                            {"role": "user", "content": query},
+                        ]
+                        # Build textual context identical to LLM "context" (before mutation below)
+                        vlm_text_context = "\n\n".join(
+                            [
+                                self._format_document_with_source(d)
+                                for d in context_to_show
+                            ]
+                        )
+                        # Always stream VLM response directly (reasoning gate deprecated)
+                        logger.info("Streaming VLM response directly.")
+                        return RAGResponse(
+                            generate_answer(
+                                vlm.stream_with_messages(
+                                    docs=context_to_show,
+                                    messages=vlm_messages,
+                                    context_text=vlm_text_context,
+                                    question_text=self._extract_text_from_content(query),
+                                    temperature=vlm_temperature_cfg,
+                                    top_p=vlm_top_p_cfg,
+                                    max_tokens=vlm_max_tokens_cfg,
+                                    max_total_images=vlm_max_total_images_cfg,
+                                ),
+                                context_to_show,
+                                model=model,
+                                collection_name=collection_name,
+                                enable_citations=enable_citations,
+                            ),
+                            status_code=ErrorCodeMapping.SUCCESS,
+                        )
                     except (OSError, ValueError) as e:
                         logger.warning(
                             "VLM processing failed for query='%s', collection='%s': %s",
@@ -2048,6 +2092,12 @@ class NvidiaRAG:
                         raise APIError(
                             vlm_error_msg, ErrorCodeMapping.BAD_REQUEST
                         ) from e
+                else:
+                    # No images found and VLM_TO_LLM_FALLBACK is enabled: skip VLM and continue with standard LLM RAG flow.
+                    logger.info(
+                        "Skipping VLM because no images are present and VLM_TO_LLM_FALLBACK is enabled; "
+                        "falling back to regular LLM flow."
+                    )
 
             docs = [self._format_document_with_source(d) for d in context_to_show]
 
@@ -2064,8 +2114,7 @@ class NvidiaRAG:
                 )
                 message += [("user", f"Conversation history:\n{formatted_history}")]
 
-            # Add vlm response and user query to prompt
-            message += vlm_message
+            # Add user query to prompt
             user_query = [("user", "Query: {question}\n\nAnswer: ")]
             message += user_query
 
@@ -2204,8 +2253,16 @@ class NvidiaRAG:
                 )
             elif "[404] Not Found" in str(e):
                 # Check if this is a VLM-related error
-                if enable_vlm_inference and vlm_model:
-                    error_msg = f"VLM model '{vlm_model}' not found. Please verify the VLM model name and ensure it's available in your NVIDIA API account."
+                requested_vlm_model = None
+                if isinstance(vlm_settings, dict):
+                    requested_vlm_model = vlm_settings.get("vlm_model")
+                effective_vlm_model = requested_vlm_model or self.config.vlm.model_name
+
+                if enable_vlm_inference and effective_vlm_model:
+                    error_msg = (
+                        f"VLM model '{effective_vlm_model}' not found. "
+                        "Please verify the VLM model name and ensure it's available in your NVIDIA API account."
+                    )
                     logger.warning(f"VLM model not found: {error_msg}")
                 else:
                     error_msg = "Model or endpoint not found. Please verify the API endpoint and your payload. Ensure that the model name is valid."

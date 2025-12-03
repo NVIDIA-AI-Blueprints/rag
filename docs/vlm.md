@@ -16,25 +16,20 @@ For this feature, use H100 or A100 GPUs instead.
 
 ## **How VLM Works in the RAG Pipeline**
 
-The VLM feature follows this sophisticated flow:
+The VLM feature follows this flow:
 
 1. **Automatic Image Discovery**: When a user query is processed, the RAG system retrieves relevant documents from the vector database. If any of these documents contain images (charts, diagrams, photos, etc.), they are automatically identified.
+2. **Image Captioning at Ingestion**: During ingestion, images are extracted and captioned so they can be indexed and later cited for question answering.
+3. **VLM Answer Generation**: At query time, the RAG server sends the user question, conversation history, and cited images to a Vision-Language Model. The **VLM directly generates the final answer** for the user.
 
-2. **VLM Analysis**: Up to 4 relevant images are sent to a Vision-Language Model for analysis, along with the user's question.
-
-3. **Intelligent Reasoning**: The VLM's response is **not directly returned to the user**. Instead, it undergoes an internal reasoning process where another LLM evaluates whether the visual insights should be incorporated into the final response.
-
-4. **Conditional Integration**: Only if the reasoning determines the VLM response is relevant and valuable, it gets augmented into the LLM's final prompt as additional context.
-
-5. **Unified Response**: The user receives a single, coherent response that seamlessly incorporates both textual and visual understanding.
+There is no separate LLM reasoning step that post-processes the VLM output—once VLM inference is enabled, the VLM is responsible for generating the response (with optional fallback behavior described below).
 
 ## **Key Benefits**
 
 - **Seamless Multimodal Experience**: Users don't need to manually upload images; visual content is automatically discovered and analyzed from images embedded in documents
 - **Improved Accuracy**: Enhanced response quality for documents containing images, charts, diagrams, and visual data
-- **Quality Assurance**: Internal reasoning ensures only relevant visual insights are used
-- **Contextual Understanding**: Visual analysis is performed in the context of the user's specific question
-- **Fallback Handling**: System gracefully handles cases where images are insufficient or irrelevant
+- **Contextual Understanding**: Visual analysis is performed in the context of the user's specific question and retrieved document snippets
+- **Configurable Fallback**: When no images are present, you can choose whether to keep using the VLM or fall back to the standard text-only LLM RAG flow
 
 ---
 
@@ -58,26 +53,28 @@ The VLM feature is particularly beneficial when your knowledge base contains:
 
 The VLM feature uses predefined prompts that can be customized to suit your specific needs:
 
-- **VLM Analysis Prompt**: Located in [`src/nvidia_rag/rag_server/prompt.yaml`](../src/nvidia_rag/rag_server/prompt.yaml) under the `vlm_template` section
-- **Response Reasoning Prompt**: Located in the same file under the `vlm_response_reasoning_template` section
+- **VLM Analysis Prompt**: Located in [`src/nvidia_rag/rag_server/prompt.yaml`](../src/nvidia_rag/rag_server/prompt.yaml) under the `vlm_template` section.
 
-To customize these prompts, follow the steps outlined in the [prompt.yaml file](../src/nvidia_rag/rag_server/prompt.yaml) for modifying prompt templates. The significance of these two prompts are explained below.
+To customize this prompt, follow the steps outlined in the [prompt.yaml file](../src/nvidia_rag/rag_server/prompt.yaml) for modifying prompt templates. The `vlm_template` controls how the question, textual context, and cited images are presented to the VLM.
 
-The VLM feature employs a sophisticated two-step process where these prompts are utilized:
+### **VLM reasoning vs. non-reasoning mode**
 
-1. **VLM Analysis Step**:
-   - Images are sent to the Vision-Language Model using the `vlm_template` prompt
-   - The VLM analyzes the visual content and generates a response based solely on the images
-   - If images lack sufficient information, the VLM returns: *"The provided images do not contain enough information to answer this question."*
+The VLM model supports two modes that are controlled entirely via the `vlm_template`:
 
-2. **Response Verification Step**:
-   - The VLM's response is then sent to an LLM using the `vlm_response_reasoning_template` prompt
-   - This LLM evaluates whether the VLM response should be incorporated into the final response
-   - The reasoning LLM considers relevance, consistency with textual context, and whether the response adds valuable information
-   - Only if the reasoning returns "USE" does the VLM response get integrated into the final prompt
+- **Non-reasoning mode (default)**:
+  - Template path ends with `/no_think`.
+  - Default generation parameters:
+    - `APP_VLM_TEMPERATURE=0.1`
+    - `APP_VLM_TOP_P=1.0`
+    - `APP_VLM_MAX_TOKENS=8192`
+- **Reasoning mode (chain-of-thought style)**:
+  - Change the route in `vlm_template` from `/no_think` to `/think`.
+  - Recommended generation parameters:
+    - `APP_VLM_TEMPERATURE=0.3`
+    - `APP_VLM_TOP_P=0.91`
+    - `APP_VLM_MAX_TOKENS=8192`
 
-This two-step process ensures that visual insights are only used when they genuinely enhance the response quality and relevance.
-
+You can set these parameters via environment variables (for example in `docker-compose-rag-server.yaml`) or directly through your deployment configuration.
 
 ### **What Users Experience**
 
@@ -85,23 +82,22 @@ Users interact with the system normally - they ask questions and receive respons
 
 1. **User asks a question** about content that may have visual elements
 2. **System retrieves relevant documents** including any images
-3. **VLM analyzes images** if present and relevant
-4. **System generates unified response** that incorporates visual insights when beneficial
-5. **User receives a single, coherent answer** that seamlessly blends textual and visual understanding
+3. **VLM analyzes images and text context** if present and relevant
+4. **User receives a single, coherent answer** generated directly by the VLM
 
 ---
 
 ## Start the VLM NIM Service (Local)
 
-NVIDIA RAG uses the [**llama-3.1-nemotron-nano-vl-8b-v1**](https://build.nvidia.com/nvidia/llama-3.1-nemotron-nano-vl-8b-v1) VLM model by default, provided as the `vlm-ms` service in `nims.yaml`.
+NVIDIA RAG uses the [**nemotron-nano-12b-v2-vl**](https://build.nvidia.com/nvidia/nemotron-nano-12b-v2-vl) Vision-Language Model by default, provided as the `vlm-ms` service in `deploy/compose/nims.yaml`.
 
-To start the local VLM NIM service, run:
+To start the local VLM NIM service and the other NIMs required for VLM-based generation, run:
 
 ```bash
-USERID=$(id -u) docker compose -f deploy/compose/nims.yaml --profile vlm up -d
+USERID=$(id -u) docker compose -f deploy/compose/nims.yaml --profile vlm-generation up -d
 ```
 
-This will launch the `vlm-ms` container, which serves the model on port 1977 (internal port 8000).
+This will launch the `vlm-ms` container (serving the model on port 1977, internal port 8000) together with the embedding and reranker microservices used by the RAG server.
 
 ### Customizing GPU Usage for VLM Service (Optional)
 
@@ -109,7 +105,7 @@ By default, the `vlm-ms` service uses GPU ID 5. You can customize which GPU to u
 
 ```bash
 export VLM_MS_GPU_ID=2  # Use GPU 2 instead of GPU 5
-USERID=$(id -u) docker compose -f deploy/compose/nims.yaml --profile vlm up -d
+USERID=$(id -u) docker compose -f deploy/compose/nims.yaml --profile vlm-generation up -d
 ```
 
 Alternatively, you can modify the `nims.yaml` file directly to change the GPU assignment:
@@ -131,22 +127,56 @@ Ensure the specified GPU is available and has sufficient memory for the VLM mode
 
 ---
 
+## Enable image extraction and captioning for VLM
+
+For VLM-based generation to work correctly, images must be extracted and captioned during ingestion:
+
+- In `deploy/compose/docker-compose-ingestor-server.yaml`, under the `ingestor-server` service, ensure:
+  - `APP_NVINGEST_EXTRACTIMAGES` is set to `True` so images are extracted and stored.
+  - Image captioning is enabled (by default, `APP_NVINGEST_CAPTIONMODELNAME` is set to `nvidia/nemotron-nano-12b-v2-vl` and `APP_NVINGEST_CAPTIONENDPOINTURL` points to the `vlm-ms` service).
+
+When running with Docker Compose you can override these via environment variables, for example:
+
+```bash
+export APP_NVINGEST_EXTRACTIMAGES=True
+
+docker compose -f deploy/compose/docker-compose-ingestor-server.yaml up -d
+```
+
+This ensures that images are available as citations and can be sent to the VLM at query time.
+
+---
+
 ### Enable VLM Inference in RAG Server
 
-Set the following environment variables to enable VLM inference:
+Start only the required NIM services (VLM, Embedding, Reranker) using the `vlm-generation` profile defined in `deploy/compose/nims.yaml`:
+
+```bash
+USERID=$(id -u) docker compose -f deploy/compose/nims.yaml --profile vlm-generation up -d
+```
+
+This profile starts the following services and skips `nim-llm`:
+
+- nemoretriever-embedding-ms
+- nemoretriever-ranking-ms
+- vlm-ms
+
+Set the following environment variables in [docker-compose-rag-server.yaml](../deploy/compose/docker-compose-rag-server.yaml) to enable VLM inference in RAG server:
 
 ```bash
 export ENABLE_VLM_INFERENCE="true"
-export APP_VLM_MODELNAME="nvidia/llama-3.1-nemotron-nano-vl-8b-v1"
+export APP_VLM_MODELNAME="nvidia/nemotron-nano-12b-v2-vl"
 export APP_VLM_SERVERURL="http://vlm-ms:8000/v1"
 
 # Apply by restarting rag-server
 docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d
 ```
 
-- `ENABLE_VLM_INFERENCE`: Enables VLM inference in the RAG server
-- `APP_VLM_MODELNAME`: The name of the VLM model to use (default: Llama Cosmos Nemotron 8b)
-- `APP_VLM_SERVERURL`: The URL of the VLM NIM server (local or remote)
+- `ENABLE_VLM_INFERENCE`: Enables VLM inference in the RAG server.
+- `APP_VLM_MODELNAME`: The name of the VLM model to use (default: `nvidia/nemotron-nano-12b-v2-vl`).
+- `APP_VLM_SERVERURL`: The URL of the VLM NIM server (local or remote).
+
+Once `ENABLE_VLM_INFERENCE` is set, the RAG server uses the VLM to generate the final answer. The `VLM_TO_LLM_FALLBACK` flag controls what happens when no images are available, as described later.
 
 ---
 
@@ -160,7 +190,7 @@ To use a remote NVIDIA-hosted NIM for VLM inference:
 
 ```bash
 export ENABLE_VLM_INFERENCE="true"
-export APP_VLM_MODELNAME="nvidia/llama-3.1-nemotron-nano-vl-8b-v1"
+export APP_VLM_MODELNAME="nvidia/nemotron-nano-12b-v2-vl"
 export APP_VLM_SERVERURL="https://integrate.api.nvidia.com/v1/"
 
 # Apply by restarting rag-server
@@ -168,6 +198,7 @@ docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d
 ```
 
 Continue following the rest of the steps in [Deploy with Docker (NVIDIA-Hosted Models)](deploy-docker-nvidia-hosted.md) to deploy the ingestion-server and rag-server containers.
+
 
 
 ## Using Helm Chart Deployment
@@ -185,7 +216,7 @@ To enable VLM inference in Helm-based deployments, follow these steps:
 
    ```yaml
    ENABLE_VLM_INFERENCE: "true"
-   APP_VLM_MODELNAME: "nvidia/llama-3.1-nemotron-nano-vl-8b-v1"
+   APP_VLM_MODELNAME: "nvidia/nemotron-nano-12b-v2-vl"
    APP_VLM_SERVERURL: "http://nim-vlm:8000/v1"  # Local VLM NIM endpoint
    ```
 
@@ -226,10 +257,12 @@ For local VLM inference, ensure the VLM NIM service is running and accessible at
 
 VLM processing is triggered when:
 - `ENABLE_VLM_INFERENCE` is set to `true`
-- Retrieved documents contain images (identified by `content_metadata.type`)
-- Images are successfully extracted from MinIO storage
 - The VLM service is accessible and responding
 
+Once VLM inference is enabled, the RAG server uses the VLM to generate the final answer. The `VLM_TO_LLM_FALLBACK` flag controls behavior **only when no images are present** in the query, messages, or retrieved context:
+
+- If `VLM_TO_LLM_FALLBACK="false"` (default): the pipeline **still routes generation through the VLM**, even for text-only queries with no images.
+- If `VLM_TO_LLM_FALLBACK="true"`: text-only queries (with no images in the query, messages, or context) **fall back to the regular LLM-based RAG flow** instead of calling the VLM.
 
 
 ## Troubleshooting
@@ -237,90 +270,24 @@ VLM processing is triggered when:
 - Ensure the VLM NIM is running and accessible at the configured `APP_VLM_SERVERURL`.
 - For remote endpoints, ensure your `NGC_API_KEY` is valid and has access to the requested model.
 - Check rag-server logs for errors related to VLM inference or API authentication.
-- Verify that images are properly ingested and indexed in your knowledge base.
-- Monitor VLM response reasoning logs to understand when visual insights are being used or skipped.
+- Verify that images are properly ingested, captioned, and indexed in your knowledge base.
 
-### VLM response reasoning (optional)
-
-By default, VLM response reasoning is disabled. If you observe incorrect or low-quality VLM outputs being incorporated, you can enable a reasoning gate so an LLM verifies whether to include the VLM response.
-
-- Enable at runtime (docker compose):
-
-  ```bash
-  export ENABLE_VLM_INFERENCE="true"
-  export ENABLE_VLM_RESPONSE_REASONING="true"
-
-  # Apply by restarting rag-server
-  docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d
-  ```
-
-- Programmatic/config toggle:
-  - Set `vlm.enable_vlm_response_reasoning` to `true` (maps to `ENABLE_VLM_RESPONSE_REASONING`).
-
-When enabled, the LLM checks the VLM output and includes it only when deemed relevant and helpful. Disable it by setting `ENABLE_VLM_RESPONSE_REASONING="false"` if it filters out too aggressively during experimentation.
 
 ### Configure VLM image limits
 
 Control how many images are sent to the VLM per request:
-
-- `APP_VLM_MAX_TOTAL_IMAGES` (default: 4): Maximum total images included (query + context). The pipeline will never exceed this.
-- `APP_VLM_MAX_QUERY_IMAGES` (default: 1): Maximum number of query images (e.g., screenshots supplied alongside the question).
-- `APP_VLM_MAX_CONTEXT_IMAGES` (default: 1): Maximum number of context images (extracted from citations).
-
-Notes:
-- If `APP_VLM_MAX_QUERY_IMAGES + APP_VLM_MAX_CONTEXT_IMAGES > APP_VLM_MAX_TOTAL_IMAGES`, the server logs a warning and truncates to the total limit.
-- Query images are added first (up to `APP_VLM_MAX_QUERY_IMAGES`), then remaining slots are filled with context images up to `APP_VLM_MAX_CONTEXT_IMAGES` while respecting the total cap.
+- `APP_VLM_MAX_TOTAL_IMAGES` (default: 5): Maximum total images (from the query, conversation history, and retrieved context) that are included in the VLM prompt. The pipeline will never exceed this.
 
 Example (docker compose):
 
 ```bash
 export ENABLE_VLM_INFERENCE="true"
-export APP_VLM_MAX_TOTAL_IMAGES="4"
-export APP_VLM_MAX_QUERY_IMAGES="1"
-export APP_VLM_MAX_CONTEXT_IMAGES="3"
+export APP_VLM_MAX_TOTAL_IMAGES="5"
 
 # Apply by restarting rag-server
 docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d
 ```
 
-### VLM response as final answer
-
-By default, the VLM's response is added to the LLM as additional context, and the LLM generates the final response incorporating both textual and visual insights. You can configure the system to use the VLM's response directly as the final answer, bypassing the LLM reasoning step entirely.
-
-#### Use VLM response as the final answer with a dedicated profile
-
-If you want the VLM output to be returned as the final answer and avoid starting the `nim-llm` service, use the dedicated compose profile that runs only the VLM, embedding, and reranker microservices.
-
-1) Set the environment variables for the RAG server:
-
-```bash
-export ENABLE_VLM_INFERENCE="true"
-export APP_VLM_RESPONSE_AS_FINAL_ANSWER="true"
-```
-
-2) Start only the required NIM services (VLM, Embedding, Reranker) using the `vlm-final-answer` profile defined in `deploy/compose/nims.yaml`:
-
-```bash
-USERID=$(id -u) docker compose -f deploy/compose/nims.yaml --profile vlm-final-answer up -d
-```
-
-This profile starts the following services and skips `nim-llm`:
-
-- nemoretriever-embedding-ms
-- nemoretriever-ranking-ms
-- vlm-ms
-
-- `APP_VLM_RESPONSE_AS_FINAL_ANSWER` (default: false): When enabled, the VLM's response becomes the final answer without additional LLM processing.
-
-Enable at runtime (docker compose):
-
-```bash
-export ENABLE_VLM_INFERENCE="true"
-export APP_VLM_RESPONSE_AS_FINAL_ANSWER="true"
-
-# Apply by restarting rag-server
-docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d
-```
 
 **Important Notes:**
 - When this flag is enabled and images are provided as input (either from context or query), the VLM response will always be used as the final answer
@@ -335,7 +302,6 @@ To enable final-answer mode with Helm (skip `nim-llm` and return the VLM output 
 
 ```yaml
 ENABLE_VLM_INFERENCE: "true"
-APP_VLM_RESPONSE_AS_FINAL_ANSWER: "true"
 ```
 
 2) Enable the VLM NIM and disable the LLM NIM:
@@ -373,9 +339,9 @@ In this mode, the RAG server will use the VLM output as the final response. Keep
 ### Conversation history and context limitations
 
 :::{warning}
-Conversation history is not passed to the VLM. The VLM receives only the current prompt and the cited image(s), and its effective context window is limited. When `APP_VLM_RESPONSE_AS_FINAL_ANSWER` is set to `true` and the user query depends on prior turns or broader textual context, the VLM will not decontextualize the query and may produce incomplete or off-target answers.
+The VLM receives the **current user query**, a truncated **conversation history**, and a textual summary of retrieved documents, together with any cited images. The effective context window of the VLM is limited, so very long conversations or large document contexts may be truncated.
 :::
 
 Mitigations:
-- Rephrase or rewrite the user query to be self-contained before sending to the VLM (e.g., enable query rewriting upstream).
-- Keep `APP_VLM_RESPONSE_AS_FINAL_ANSWER` set to `false` so the LLM composes the final answer, optionally incorporating the VLM output as additional context.
+- Keep user questions as self-contained as possible, especially in long-running conversations.
+- Use retrieval and prompt tuning to focus the most relevant context for the VLM.

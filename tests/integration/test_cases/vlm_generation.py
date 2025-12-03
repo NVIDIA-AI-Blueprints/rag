@@ -265,6 +265,7 @@ class VLMGenerationModule(BaseTestModule):
             "enable_query_rewriting": False,
             "enable_reranker": True,
             "enable_citations": True,
+            "enable_vlm_inference": True,
             "stop": [],
         }
         try:

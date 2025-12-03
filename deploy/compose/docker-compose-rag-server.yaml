@@ -96,20 +96,19 @@ services:
 
       ##===VLM Model specific configurations===
       ENABLE_VLM_INFERENCE: ${ENABLE_VLM_INFERENCE:-false}
-      # Reasoning gate on VLM response: off by default; enable to mitigate incorrect VLM outputs
-      ENABLE_VLM_RESPONSE_REASONING: ${ENABLE_VLM_RESPONSE_REASONING:-false}
+      # When true, allow falling back to LLM flow if no images are present in query/messages/context
+      # When false, always route generation through VLM when ENABLE_VLM_INFERENCE is true
+      VLM_TO_LLM_FALLBACK: ${VLM_TO_LLM_FALLBACK:-true}
       # Max images sent to VLM per request (query + context)
-      APP_VLM_MAX_TOTAL_IMAGES: ${APP_VLM_MAX_TOTAL_IMAGES:-4}
-      # Max number of query images to include in VLM input
-      APP_VLM_MAX_QUERY_IMAGES: ${APP_VLM_MAX_QUERY_IMAGES:-1}
-      # Max number of context images to include in VLM input
-      APP_VLM_MAX_CONTEXT_IMAGES: ${APP_VLM_MAX_CONTEXT_IMAGES:-1}
-      # Use VLM only for final response generation
-      APP_VLM_RESPONSE_AS_FINAL_ANSWER: ${APP_VLM_RESPONSE_AS_FINAL_ANSWER:-false}
+      APP_VLM_MAX_TOTAL_IMAGES: ${APP_VLM_MAX_TOTAL_IMAGES:-5}
+      # VLM generation parameters
+      APP_VLM_MAX_TOKENS: ${APP_VLM_MAX_TOKENS:-8192}
+      APP_VLM_TEMPERATURE: ${APP_VLM_TEMPERATURE:-0.1}
+      APP_VLM_TOP_P: ${APP_VLM_TOP_P:-1.0}
       # VLM server URL
       APP_VLM_SERVERURL: ${APP_VLM_SERVERURL-"http://vlm-ms:8000/v1"}
       # VLM model name
-      APP_VLM_MODELNAME: ${APP_VLM_MODELNAME:-"nvidia/llama-3.1-nemotron-nano-vl-8b-v1"}
+      APP_VLM_MODELNAME: ${APP_VLM_MODELNAME:-"nvidia/nemotron-nano-12b-v2-vl"}
 
       NVIDIA_API_KEY: ${NGC_API_KEY:?"NGC_API_KEY is required"}
 
