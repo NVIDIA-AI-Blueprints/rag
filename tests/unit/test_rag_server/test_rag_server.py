@@ -54,7 +54,7 @@ class MockNvidiaRAG:
     async def _async_error_gen(self, message):
         yield f"data: {json.dumps({'choices': [{'message': {'content': message}}]})}\n"
 
-    def generate(self, *args, **kwargs):
+    async def generate(self, *args, **kwargs):
         if self._generate_side_effect:
             return self._generate_side_effect(*args, **kwargs)
         return RAGResponse(
@@ -62,9 +62,9 @@ class MockNvidiaRAG:
             status_code=ErrorCodeMapping.SUCCESS,
         )
 
-    def search(self, *args, **kwargs):
+    async def search(self, *args, **kwargs):
         if self._search_side_effect:
-            return self._search_side_effect(*args, **kwargs)
+            return await self._search_side_effect(*args, **kwargs)
         return {
             "total_results": 1,
             "results": [
@@ -160,25 +160,25 @@ class MockNvidiaRAG:
 
     # Search error methods
     def raise_search_milvus_error(self):
-        def error(*args, **kwargs):
+        async def error(*args, **kwargs):
             raise MilvusException("Milvus error")
 
         self._search_side_effect = error
 
     def raise_search_general_error(self):
-        def error(*args, **kwargs):
+        async def error(*args, **kwargs):
             raise Exception("Document search error")
 
         self._search_side_effect = error
 
     def raise_search_cancelled_error(self):
-        def error(*args, **kwargs):
+        async def error(*args, **kwargs):
             raise asyncio.CancelledError()
 
         self._search_side_effect = error
 
     def return_empty_search(self):
-        def empty(*args, **kwargs):
+        async def empty(*args, **kwargs):
             return {"total_results": 0, "results": []}
 
         self._search_side_effect = empty

@@ -17,7 +17,7 @@
 
 import os
 from collections.abc import Generator as GeneratorType
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 
@@ -26,10 +26,17 @@ from nvidia_rag.rag_server.response_generator import Citations
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
 
 
+# Helper to create async generators for tests
+async def async_gen_from_list(items):
+    for item in items:
+        yield item
+
+
 class TestNvidiaRAGSearchCoverage:
     """Test cases to improve search method coverage."""
 
-    def test_search_with_collection_name_deprecation_warning(self):
+    @pytest.mark.asyncio
+    async def test_search_with_collection_name_deprecation_warning(self):
         """Test search with collection_name parameter (deprecated)."""
         mock_vdb_op = Mock(spec=VDBRag)
         mock_vdb_op.check_collection_exists.return_value = True
@@ -93,14 +100,14 @@ class TestNvidiaRAGSearchCoverage:
                                         mock_executor.return_value.__enter__.return_value.submit.return_value = mock_future
 
                                         # Mock RunnableAssign
-                                        mock_runnable_assign.return_value.invoke.return_value = {
+                                        mock_runnable_assign.return_value.ainvoke = AsyncMock(return_value={
                                             "context": [
                                                 Mock(
                                                     page_content="test content",
                                                     metadata={},
                                                 )
                                             ]
-                                        }
+                                        })
 
                                         # Mock filter documents
                                         mock_filter_docs.return_value = [
@@ -117,7 +124,7 @@ class TestNvidiaRAGSearchCoverage:
                                         with patch(
                                             "nvidia_rag.rag_server.main.logger"
                                         ) as mock_logger:
-                                            result = rag.search(
+                                            result = await rag.search(
                                                 "test query",
                                                 collection_name="test_collection",
                                             )
@@ -126,7 +133,8 @@ class TestNvidiaRAGSearchCoverage:
                                             # Verify deprecation warning was logged
                                             mock_logger.warning.assert_called()
 
-    def test_search_with_multiple_collections_without_reranker_error(self):
+    @pytest.mark.asyncio
+    async def test_search_with_multiple_collections_without_reranker_error(self):
         """Test search with multiple collections but reranker disabled."""
         rag = NvidiaRAG()
 
@@ -138,13 +146,14 @@ class TestNvidiaRAGSearchCoverage:
                 APIError,
                 match="Reranking is not enabled but multiple collection names are provided",
             ):
-                rag.search(
+                await rag.search(
                     "test query",
                     collection_names=["col1", "col2"],
                     enable_reranker=False,
                 )
 
-    def test_search_with_too_many_collections_error(self):
+    @pytest.mark.asyncio
+    async def test_search_with_too_many_collections_error(self):
         """Test search with more than MAX_COLLECTION_NAMES collections."""
         rag = NvidiaRAG()
 
@@ -155,12 +164,13 @@ class TestNvidiaRAGSearchCoverage:
             with pytest.raises(
                 APIError, match="Only 5 collections are supported at a time"
             ):
-                rag.search(
+                await rag.search(
                     "test query",
                     collection_names=["col1", "col2", "col3", "col4", "col5", "col6"],
                 )
 
-    def test_search_with_filter_expression_validation_error(self):
+    @pytest.mark.asyncio
+    async def test_search_with_filter_expression_validation_error(self):
         """Test search with invalid filter expression."""
         mock_vdb_op = Mock(spec=VDBRag)
         mock_vdb_op.check_collection_exists.return_value = True
@@ -182,13 +192,14 @@ class TestNvidiaRAGSearchCoverage:
                     APIError,
                     match="Invalid filter expression: Invalid filter\n Details: Some details",
                 ):
-                    rag.search(
+                    await rag.search(
                         "test query",
                         collection_names=["test_collection"],
                         filter_expr="invalid_filter",
                     )
 
-    def test_search_with_skipped_collections_logging(self):
+    @pytest.mark.asyncio
+    async def test_search_with_skipped_collections_logging(self):
         """Test search with some collections skipped due to filter validation."""
         mock_vdb_op = Mock(spec=VDBRag)
         mock_vdb_op.check_collection_exists.return_value = True
@@ -252,14 +263,14 @@ class TestNvidiaRAGSearchCoverage:
                                         mock_executor.return_value.__enter__.return_value.submit.return_value = mock_future
 
                                         # Mock RunnableAssign
-                                        mock_runnable_assign.return_value.invoke.return_value = {
+                                        mock_runnable_assign.return_value.ainvoke = AsyncMock(return_value={
                                             "context": [
                                                 Mock(
                                                     page_content="test content",
                                                     metadata={},
                                                 )
                                             ]
-                                        }
+                                        })
 
                                         # Mock filter documents
                                         mock_filter_docs.return_value = [
@@ -271,7 +282,7 @@ class TestNvidiaRAGSearchCoverage:
                                         with patch(
                                             "nvidia_rag.rag_server.main.logger"
                                         ) as mock_logger:
-                                            result = rag.search(
+                                            result = await rag.search(
                                                 "test query",
                                                 collection_names=["col1", "col2"],
                                                 filter_expr="some_filter",
@@ -281,7 +292,8 @@ class TestNvidiaRAGSearchCoverage:
                                             # Verify skipped collections warning was logged
                                             mock_logger.info.assert_called()
 
-    def test_search_with_query_rewriting_enabled(self):
+    @pytest.mark.asyncio
+    async def test_search_with_query_rewriting_enabled(self):
         """Test search with query rewriting enabled."""
         mock_vdb_op = Mock(spec=VDBRag)
         mock_vdb_op.check_collection_exists.return_value = True
@@ -292,9 +304,14 @@ class TestNvidiaRAGSearchCoverage:
         ]
         rag = NvidiaRAG(vdb_op=mock_vdb_op)
 
-        # Mock instance attributes
-        rag.query_rewriter_llm = Mock()
-        rag.StreamingFilterThinkParser = Mock()
+        # Mock instance attributes with proper async chain support
+        # Create a mock chain that supports pipe operator and ainvoke
+        mock_chain = Mock()
+        mock_chain.ainvoke = AsyncMock(return_value="rewritten query")
+        mock_chain.__or__ = Mock(return_value=mock_chain)
+        
+        rag.query_rewriter_llm = mock_chain
+        rag.StreamingFilterThinkParser = mock_chain
 
         messages = [{"role": "user", "content": "Test query"}]
 
@@ -358,14 +375,14 @@ class TestNvidiaRAGSearchCoverage:
                                                 mock_executor.return_value.__enter__.return_value.submit.return_value = mock_future
 
                                                 # Mock RunnableAssign
-                                                mock_runnable_assign.return_value.invoke.return_value = {
+                                                mock_runnable_assign.return_value.ainvoke = AsyncMock(return_value={
                                                     "context": [
                                                         Mock(
                                                             page_content="test content",
                                                             metadata={},
                                                         )
                                                     ]
-                                                }
+                                                })
 
                                                 # Mock filter documents
                                                 mock_filter_docs.return_value = [
@@ -375,13 +392,14 @@ class TestNvidiaRAGSearchCoverage:
                                                             )
                                                         ]
 
-                                                # Mock query rewriter chain
+                                                # Mock query rewriter chain with async support
                                                 mock_chain = Mock()
-                                                mock_chain.invoke.return_value = "rewritten query"
+                                                mock_chain.ainvoke = AsyncMock(return_value="rewritten query")
                                                 
                                                 # Support pipe operator chaining for LCEL
                                                 mock_chain.__or__ = Mock(return_value=mock_chain)
                                                 rag.query_rewriter_llm.__or__ = Mock(return_value=mock_chain)
+                                                rag.StreamingFilterThinkParser.__or__ = Mock(return_value=mock_chain)
                                                 
                                                 mock_prompt_template.from_messages.return_value = mock_chain
 
@@ -392,7 +410,7 @@ class TestNvidiaRAGSearchCoverage:
                                                     documents=[], sources=[]
                                                 )
 
-                                                result = rag.search(
+                                                result = await rag.search(
                                                     "test query",
                                                     messages=messages,
                                                     enable_query_rewriting=True,
@@ -402,7 +420,8 @@ class TestNvidiaRAGSearchCoverage:
                                                     result, Citations
                                                 )
 
-    def test_search_with_filter_generator_enabled(self):
+    @pytest.mark.asyncio
+    async def test_search_with_filter_generator_enabled(self):
         """Test search with filter generator enabled."""
         mock_vdb_op = Mock(spec=VDBRag)
         mock_vdb_op.check_collection_exists.return_value = True
@@ -472,14 +491,14 @@ class TestNvidiaRAGSearchCoverage:
                                             mock_executor.return_value.__enter__.return_value.submit.return_value = mock_future
 
                                             # Mock RunnableAssign
-                                            mock_runnable_assign.return_value.invoke.return_value = {
+                                            mock_runnable_assign.return_value.ainvoke = AsyncMock(return_value={
                                                 "context": [
                                                     Mock(
                                                         page_content="test content",
                                                         metadata={},
                                                     )
                                                 ]
-                                            }
+                                            })
 
                                             # Mock filter documents
                                             mock_filter_docs.return_value = [
@@ -502,7 +521,7 @@ class TestNvidiaRAGSearchCoverage:
                                                 Citations(documents=[], sources=[])
                                             )
 
-                                            result = rag.search(
+                                            result = await rag.search(
                                                 "test query",
                                                 collection_names=[
                                                     "test_collection"
@@ -512,7 +531,8 @@ class TestNvidiaRAGSearchCoverage:
 
                                             assert isinstance(result, Citations)
 
-    def test_search_with_reflection_enabled(self):
+    @pytest.mark.asyncio
+    async def test_search_with_reflection_enabled(self):
         """Test search with reflection enabled."""
         mock_vdb_op = Mock(spec=VDBRag)
         mock_vdb_op.check_collection_exists.return_value = True
@@ -587,14 +607,14 @@ class TestNvidiaRAGSearchCoverage:
                                                     mock_executor.return_value.__enter__.return_value.submit.return_value = mock_future
 
                                                     # Mock RunnableAssign
-                                                    mock_runnable_assign.return_value.invoke.return_value = {
+                                                    mock_runnable_assign.return_value.ainvoke = AsyncMock(return_value={
                                                         "context": [
                                                             Mock(
                                                                 page_content="test content",
                                                                 metadata={},
                                                             )
                                                         ]
-                                                    }
+                                                    })
 
                                                     # Mock filter documents
                                                     mock_filter_docs.return_value = [
@@ -623,7 +643,7 @@ class TestNvidiaRAGSearchCoverage:
                                                         documents=[], sources=[]
                                                     )
 
-                                                    result = rag.search(
+                                                    result = await rag.search(
                                                         "test query",
                                                         collection_names=[
                                                             "test_collection"
@@ -632,7 +652,8 @@ class TestNvidiaRAGSearchCoverage:
 
                                                     assert isinstance(result, Citations)
 
-    def test_search_with_confidence_threshold_warning(self):
+    @pytest.mark.asyncio
+    async def test_search_with_confidence_threshold_warning(self):
         """Test search with confidence threshold but reranker disabled."""
         mock_vdb_op = Mock(spec=VDBRag)
         mock_vdb_op.check_collection_exists.return_value = True
@@ -696,14 +717,14 @@ class TestNvidiaRAGSearchCoverage:
                                         mock_executor.return_value.__enter__.return_value.submit.return_value = mock_future
 
                                         # Mock RunnableAssign
-                                        mock_runnable_assign.return_value.invoke.return_value = {
+                                        mock_runnable_assign.return_value.ainvoke = AsyncMock(return_value={
                                             "context": [
                                                 Mock(
                                                     page_content="test content",
                                                     metadata={},
                                                 )
                                             ]
-                                        }
+                                        })
 
                                         # Mock filter documents
                                         mock_filter_docs.return_value = [
@@ -720,7 +741,7 @@ class TestNvidiaRAGSearchCoverage:
                                         with patch(
                                             "nvidia_rag.rag_server.main.logger"
                                         ) as mock_logger:
-                                            result = rag.search(
+                                            result = await rag.search(
                                                 "test query",
                                                 collection_names=["test_collection"],
                                                 confidence_threshold=0.5,
@@ -735,7 +756,8 @@ class TestNvidiaRAGSearchCoverage:
 class TestNvidiaRAGLLMChainCoverage:
     """Test cases to improve __llm_chain method coverage."""
 
-    def test_llm_chain_basic(self):
+    @pytest.mark.asyncio
+    async def test_llm_chain_basic(self):
         """Test basic LLM chain functionality."""
         mock_vdb_op = Mock(spec=VDBRag)
         rag = NvidiaRAG(vdb_op=mock_vdb_op)
@@ -760,7 +782,7 @@ class TestNvidiaRAGLLMChainCoverage:
                 ) as mock_prompt_template:
                     with patch("nvidia_rag.rag_server.main.StrOutputParser"):
                         with patch(
-                            "nvidia_rag.rag_server.main.generate_answer"
+                            "nvidia_rag.rag_server.main.generate_answer_async"
                         ) as mock_generate_answer:
                             with patch.dict(
                                 os.environ, {"CONVERSATION_HISTORY": "15"}
@@ -796,11 +818,11 @@ class TestNvidiaRAGLLMChainCoverage:
                                     return_value=mock_chain
                                 )
 
-                                mock_generate_answer.return_value = iter(
+                                mock_generate_answer.return_value = async_gen_from_list(
                                     ["test response"]
                                 )
 
-                                result = rag._llm_chain(
+                                result = await rag._llm_chain(
                                     llm_settings=llm_settings,
                                     query="test query",
                                     chat_history=[],
@@ -811,10 +833,11 @@ class TestNvidiaRAGLLMChainCoverage:
 
                                 assert hasattr(result, "generator")
                                 assert hasattr(result, "status_code")
-                                response = list(result.generator)
+                                response = [item async for item in result.generator]
                                 assert response == ["test response"]
 
-    def test_llm_chain_with_conversation_history(self):
+    @pytest.mark.asyncio
+    async def test_llm_chain_with_conversation_history(self):
         """Test LLM chain with conversation history."""
         mock_vdb_op = Mock(spec=VDBRag)
         rag = NvidiaRAG(vdb_op=mock_vdb_op)
@@ -844,7 +867,7 @@ class TestNvidiaRAGLLMChainCoverage:
                 ) as mock_prompt_template:
                     with patch("nvidia_rag.rag_server.main.StrOutputParser"):
                         with patch(
-                            "nvidia_rag.rag_server.main.generate_answer"
+                            "nvidia_rag.rag_server.main.generate_answer_async"
                         ) as mock_generate_answer:
                             with patch.dict(
                                 os.environ, {"CONVERSATION_HISTORY": "15"}
@@ -880,11 +903,11 @@ class TestNvidiaRAGLLMChainCoverage:
                                     return_value=mock_chain
                                 )
 
-                                mock_generate_answer.return_value = iter(
+                                mock_generate_answer.return_value = async_gen_from_list(
                                     ["test response"]
                                 )
 
-                                result = rag._llm_chain(
+                                result = await rag._llm_chain(
                                     llm_settings=llm_settings,
                                     query="test query",
                                     chat_history=chat_history,
@@ -895,10 +918,11 @@ class TestNvidiaRAGLLMChainCoverage:
 
                                 assert hasattr(result, "generator")
                                 assert hasattr(result, "status_code")
-                                response = list(result.generator)
+                                response = [item async for item in result.generator]
                                 assert response == ["test response"]
 
-    def test_llm_chain_with_connect_timeout(self):
+    @pytest.mark.asyncio
+    async def test_llm_chain_with_connect_timeout(self):
         """Test LLM chain with ConnectTimeout exception."""
         mock_vdb_op = Mock(spec=VDBRag)
         rag = NvidiaRAG(vdb_op=mock_vdb_op)
@@ -923,7 +947,7 @@ class TestNvidiaRAGLLMChainCoverage:
                 ) as mock_prompt_template:
                     with patch("nvidia_rag.rag_server.main.StrOutputParser"):
                         with patch(
-                            "nvidia_rag.rag_server.main.generate_answer"
+                            "nvidia_rag.rag_server.main.generate_answer_async"
                         ) as mock_generate_answer:
                             with patch.dict(
                                 os.environ, {"CONVERSATION_HISTORY": "15"}
@@ -960,11 +984,11 @@ class TestNvidiaRAGLLMChainCoverage:
                                     return_value=mock_chain
                                 )
 
-                                mock_generate_answer.return_value = iter(
+                                mock_generate_answer.return_value = async_gen_from_list(
                                     ["Connection timed out message"]
                                 )
 
-                                result = rag._llm_chain(
+                                result = await rag._llm_chain(
                                     llm_settings=llm_settings,
                                     query="test query",
                                     chat_history=[],
@@ -975,10 +999,11 @@ class TestNvidiaRAGLLMChainCoverage:
 
                                 assert hasattr(result, "generator")
                                 assert hasattr(result, "status_code")
-                                response = list(result.generator)
+                                response = [item async for item in result.generator]
                                 assert "Connection timed out" in response[0]
 
-    def test_llm_chain_with_403_error(self):
+    @pytest.mark.asyncio
+    async def test_llm_chain_with_403_error(self):
         """Test LLM chain with 403 Forbidden error."""
         mock_vdb_op = Mock(spec=VDBRag)
         rag = NvidiaRAG(vdb_op=mock_vdb_op)
@@ -1003,7 +1028,7 @@ class TestNvidiaRAGLLMChainCoverage:
                 ) as mock_prompt_template:
                     with patch("nvidia_rag.rag_server.main.StrOutputParser"):
                         with patch(
-                            "nvidia_rag.rag_server.main.generate_answer"
+                            "nvidia_rag.rag_server.main.generate_answer_async"
                         ) as mock_generate_answer:
                             with patch.dict(
                                 os.environ, {"CONVERSATION_HISTORY": "15"}
@@ -1038,11 +1063,11 @@ class TestNvidiaRAGLLMChainCoverage:
                                     return_value=mock_chain
                                 )
 
-                                mock_generate_answer.return_value = iter(
+                                mock_generate_answer.return_value = async_gen_from_list(
                                     ["Authentication error message"]
                                 )
 
-                                result = rag._llm_chain(
+                                result = await rag._llm_chain(
                                     llm_settings=llm_settings,
                                     query="test query",
                                     chat_history=[],
@@ -1053,10 +1078,11 @@ class TestNvidiaRAGLLMChainCoverage:
 
                                 assert hasattr(result, "generator")
                                 assert hasattr(result, "status_code")
-                                response = list(result.generator)
+                                response = [item async for item in result.generator]
                                 assert "Authentication" in response[0]
 
-    def test_llm_chain_with_404_error(self):
+    @pytest.mark.asyncio
+    async def test_llm_chain_with_404_error(self):
         """Test LLM chain with 404 Not Found error."""
         mock_vdb_op = Mock(spec=VDBRag)
         rag = NvidiaRAG(vdb_op=mock_vdb_op)
@@ -1081,7 +1107,7 @@ class TestNvidiaRAGLLMChainCoverage:
                 ) as mock_prompt_template:
                     with patch("nvidia_rag.rag_server.main.StrOutputParser"):
                         with patch(
-                            "nvidia_rag.rag_server.main.generate_answer"
+                            "nvidia_rag.rag_server.main.generate_answer_async"
                         ) as mock_generate_answer:
                             with patch.dict(
                                 os.environ, {"CONVERSATION_HISTORY": "15"}
@@ -1116,11 +1142,11 @@ class TestNvidiaRAGLLMChainCoverage:
                                     return_value=mock_chain
                                 )
 
-                                mock_generate_answer.return_value = iter(
+                                mock_generate_answer.return_value = async_gen_from_list(
                                     ["404 error message"]
                                 )
 
-                                result = rag._llm_chain(
+                                result = await rag._llm_chain(
                                     llm_settings=llm_settings,
                                     query="test query",
                                     chat_history=[],
@@ -1131,13 +1157,14 @@ class TestNvidiaRAGLLMChainCoverage:
 
                                 assert hasattr(result, "generator")
                                 assert hasattr(result, "status_code")
-                                response = list(result.generator)
+                                response = [item async for item in result.generator]
                                 assert (
                                     "404" in response[0]
                                     or "Not Found" in response[0]
                                 )
 
-    def test_llm_chain_with_general_exception(self):
+    @pytest.mark.asyncio
+    async def test_llm_chain_with_general_exception(self):
         """Test LLM chain with general exception."""
         mock_vdb_op = Mock(spec=VDBRag)
         rag = NvidiaRAG(vdb_op=mock_vdb_op)
@@ -1162,7 +1189,7 @@ class TestNvidiaRAGLLMChainCoverage:
                 ) as mock_prompt_template:
                     with patch("nvidia_rag.rag_server.main.StrOutputParser"):
                         with patch(
-                            "nvidia_rag.rag_server.main.generate_answer"
+                            "nvidia_rag.rag_server.main.generate_answer_async"
                         ) as mock_generate_answer:
                             with patch.dict(
                                 os.environ, {"CONVERSATION_HISTORY": "15"}
@@ -1197,11 +1224,11 @@ class TestNvidiaRAGLLMChainCoverage:
                                     return_value=mock_chain
                                 )
 
-                                mock_generate_answer.return_value = iter(
+                                mock_generate_answer.return_value = async_gen_from_list(
                                     ["General error message"]
                                 )
 
-                                result = rag._llm_chain(
+                                result = await rag._llm_chain(
                                     llm_settings=llm_settings,
                                     query="test query",
                                     chat_history=[],
@@ -1212,7 +1239,7 @@ class TestNvidiaRAGLLMChainCoverage:
 
                                 assert hasattr(result, "generator")
                                 assert hasattr(result, "status_code")
-                                response = list(result.generator)
+                                response = [item async for item in result.generator]
                                 assert "General error" in response[0]
 
 

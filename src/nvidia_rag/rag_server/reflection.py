@@ -80,6 +80,37 @@ def _retry_score_generation(
     return 0
 
 
+async def _retry_score_generation_async(
+    chain, inputs: dict[str, Any], max_retries: int = 3, config: dict[str, Any] = None
+) -> int:
+    """Async helper method to retry score generation with error handling.
+
+    Args:
+        chain: The chain to execute
+        inputs: Input dictionary for the chain
+        max_retries: Maximum number of retry attempts
+
+    Returns:
+        int: Generated score (0, 1, or 2), or 0 if all retries fail
+    """
+    if config is None:
+        config = {}
+    for retry in range(max_retries):
+        try:
+            response = await chain.ainvoke(inputs, config=config)
+            # Extract numeric score from response
+            for score in [2, 1, 0]:
+                if str(score) in response:
+                    return score
+        except Exception as e:
+            logger.warning(f"Retry {retry + 1}/{max_retries} failed: {str(e)}")
+            if retry == max_retries - 1:
+                logger.error("All retries failed for score generation")
+                return 0
+            continue
+    return 0
+
+
 class ReflectionCounter:
     """Tracks the number of reflection iterations across query rewrites and response regeneration."""
 
@@ -99,7 +130,7 @@ class ReflectionCounter:
         return max(0, self.max_loops - self.current_count)
 
 
-def check_context_relevance(
+async def check_context_relevance(
     vdb_op: VDBRag,
     retriever_query: str,
     collection_names: list[str],
@@ -215,7 +246,7 @@ def check_context_relevance(
                 for future in futures:
                     docs.extend(future.result())
 
-            docs = context_reranker.invoke(
+            docs = await context_reranker.ainvoke(
                 {"context": docs, "question": current_query},
                 config={"run_name": "context_reranker"},
             )
@@ -235,7 +266,7 @@ def check_context_relevance(
 
         context_text = "\n".join(docs)
         relevance_chain = relevance_template | reflection_llm | StrOutputParser()
-        relevance_score = _retry_score_generation(
+        relevance_score = await _retry_score_generation_async(
             relevance_chain,
             {"query": current_query, "context": context_text},
             config={"run_name": "relevance-checker"},
@@ -251,7 +282,7 @@ def check_context_relevance(
 
         if reflection_counter.remaining > 0:
             rewrite_chain = query_rewrite_template | reflection_llm | StrOutputParser()
-            current_query = rewrite_chain.invoke(
+            current_query = await rewrite_chain.ainvoke(
                 {"query": current_query}, config={"run_name": "query-rewriter"}
             )
             logger.info(
@@ -261,7 +292,7 @@ def check_context_relevance(
     return original_docs, False
 
 
-def check_response_groundedness(
+async def check_response_groundedness(
     query: str,
     response: str,
     context: list[str],
@@ -333,7 +364,7 @@ def check_response_groundedness(
     while reflection_counter.remaining > 0:
         # Evaluate how well the current response is grounded in the provided context
         groundedness_chain = groundedness_template | reflection_llm | StrOutputParser()
-        groundedness_score = _retry_score_generation(
+        groundedness_score = await _retry_score_generation_async(
             groundedness_chain, {"context": context_text, "response": current_response}
         )
 
@@ -365,7 +396,7 @@ def check_response_groundedness(
 
             # Generate a new response using the deterministic reflection LLM
             regen_chain = regen_prompt | reflection_llm | StrOutputParser()
-            current_response = regen_chain.invoke(
+            current_response = await regen_chain.ainvoke(
                 {"query": query, "context": context_text},
                 config={"run_name": "response-regenerator"},
             )

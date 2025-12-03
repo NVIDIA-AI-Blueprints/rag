@@ -35,7 +35,7 @@ from langchain_core.output_parsers.string import StrOutputParser
 from langchain_core.prompts.chat import ChatPromptTemplate
 from nvidia_rag.rag_server.reflection import (
     ReflectionCounter,
-    _retry_score_generation,
+    _retry_score_generation_async,
     check_context_relevance,
     check_response_groundedness,
 )
@@ -107,15 +107,15 @@ async def test_retry_score_generation(mocker):
     # Run each test case
     for tc_name, tc_data in testcases.items():
         print("Running testcase ", tc_name)
-        # Mock the chain invoke method for non-error cases
+        # Mock the chain ainvoke method for non-error cases (async version)
         if "Error" not in tc_name:
             mocker.patch(
-                "langchain_core.runnables.base.RunnableSequence.invoke",
+                "langchain_core.runnables.base.RunnableSequence.ainvoke",
                 return_value=tc_data["response"],
             )
 
-        # Call the function under test
-        score = _retry_score_generation(tc_data["chain"], tc_data["inputs"])
+        # Call the function under test (async version)
+        score = await _retry_score_generation_async(tc_data["chain"], tc_data["inputs"])
 
         # Verify the score matches expected result
         assert score == tc_data["expected_score"]
@@ -183,31 +183,35 @@ async def test_check_context_relevance(mocker):
             return_value=None,
         )
 
-        # Mock ranker behavior if ranker is provided
+        # Mock ranker behavior if ranker is provided (async version)
         if tc_data["ranker"]:
             mocker.patch(
-                "langchain_core.runnables.RunnableAssign.invoke",
+                "langchain_core.runnables.RunnableAssign.ainvoke",
                 return_value={"context": [tc_data["docs"]]},
             )
 
-        # Mock document retrieval from VDBRag
-        tc_data["vdb_op"].retrieval_langchain.return_value = [tc_data["docs"]]
+        # Mock document retrieval from VDBRag (sync - used by ThreadPoolExecutor)
+        def mock_retrieval(*args, **kwargs):
+            return [tc_data["docs"]]
+        tc_data["vdb_op"].retrieval_langchain = mock_retrieval
 
         # Mock the deterministic scoring mechanism (return low score to trigger reflection)
-        # This simulates the deterministic reflection scoring behavior
+        # This simulates the deterministic reflection scoring behavior (now async)
+        async def mock_retry_score(*args, **kwargs):
+            return 0
         mocker.patch(
             "nvidia_rag.rag_server.reflection._retry_score_generation",
-            return_value=0,
+            side_effect=mock_retry_score,
         )
 
-        # Mock structured query rewriting chain (system + human prompt components)
+        # Mock structured query rewriting chain (system + human prompt components) (now async)
         mocker.patch(
-            "langchain_core.runnables.base.RunnableSequence.invoke",
+            "langchain_core.runnables.base.RunnableSequence.ainvoke",
             return_value=tc_data["rewritten_query"],
         )
 
-        # Call the function under test
-        docs, _ = check_context_relevance(
+        # Call the function under test (now async)
+        docs, _ = await check_context_relevance(
             tc_data["vdb_op"],
             tc_data["retriever_query"],
             tc_data["collection_names"],
@@ -264,20 +268,22 @@ async def test_check_response_groundedness(mocker):
         print("Running testcase ", tc_name)
 
         # Mock the deterministic scoring mechanism (return low score to trigger response refinement)
-        # This simulates deterministic groundedness evaluation
+        # This simulates deterministic groundedness evaluation (now async)
+        async def mock_retry_score(*args, **kwargs):
+            return 0
         mocker.patch(
             "nvidia_rag.rag_server.reflection._retry_score_generation",
-            return_value=0,
+            side_effect=mock_retry_score,
         )
 
-        # Mock the structured response generation chain (system + human prompt components)
+        # Mock the structured response generation chain (system + human prompt components) (now async)
         mocker.patch(
-            "langchain_core.runnables.base.RunnableSequence.invoke",
+            "langchain_core.runnables.base.RunnableSequence.ainvoke",
             return_value=tc_data["new_response"],
         )
 
-        # Call the function under test
-        response, _ = check_response_groundedness(
+        # Call the function under test (now async)
+        response, _ = await check_response_groundedness(
             tc_data["query"],
             tc_data["response"],
             tc_data["context"],

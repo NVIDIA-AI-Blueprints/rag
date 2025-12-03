@@ -784,7 +784,8 @@ async def generate_answer(request: Request, prompt: Prompt) -> StreamingResponse
         # Extract bearer token from Authorization header (e.g., "Bearer <token>")
         vdb_auth_token = _extract_vdb_auth_token(request)
 
-        rag_response = NVIDIA_RAG.generate(
+        # Get the streaming generator from NVIDIA_RAG.generate
+        rag_response = await NVIDIA_RAG.generate(
             messages=messages_dict,
             use_knowledge_base=prompt.use_knowledge_base,
             temperature=prompt.temperature,
@@ -1001,7 +1002,7 @@ async def document_search(
         # Extract bearer token from Authorization header (e.g., "Bearer <token>")
         vdb_auth_token = _extract_vdb_auth_token(request)
 
-        return NVIDIA_RAG.search(
+        return await NVIDIA_RAG.search(
             query=query_processed,
             messages=messages_dict,
             vdb_auth_token=vdb_auth_token,

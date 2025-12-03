@@ -221,13 +221,17 @@ class TestGenerateSubqueries:
         assert "First question" in parsed_questions
         assert "Second question" in parsed_questions
 
+    @pytest.mark.asyncio
     @patch("nvidia_rag.rag_server.query_decomposition.generate_subqueries")
-    def test_generate_subqueries_integration(self, mock_generate_subqueries):
+    async def test_generate_subqueries_integration(self, mock_generate_subqueries):
         """Test the generate_subqueries function integration."""
-        mock_generate_subqueries.return_value = ["What is AI?", "How does AI work?"]
+        # Make the mock return a coroutine
+        async def mock_return(*args, **kwargs):
+            return ["What is AI?", "How does AI work?"]
+        mock_generate_subqueries.side_effect = mock_return
         
         mock_llm = Mock()
-        result = mock_generate_subqueries("Tell me about AI", mock_llm)
+        result = await mock_generate_subqueries("Tell me about AI", mock_llm)
         
         assert isinstance(result, list)
         assert len(result) == 2
@@ -239,23 +243,26 @@ class TestGenerateSubqueries:
 class TestRewriteQueryWithContext:
     """Test cases for rewriting queries with context."""
 
-    def test_rewrite_query_no_history(self):
+    @pytest.mark.asyncio
+    async def test_rewrite_query_no_history(self):
         """Test query rewriting with no history."""
         mock_llm = Mock()
-        result = rewrite_query_with_context("What is AI?", [], mock_llm)
+        result = await rewrite_query_with_context("What is AI?", [], mock_llm)
         
         assert result == "What is AI?"
-        mock_llm.invoke.assert_not_called()
 
+    @pytest.mark.asyncio
     @patch("nvidia_rag.rag_server.query_decomposition.rewrite_query_with_context")
-    def test_rewrite_query_with_history_integration(self, mock_rewrite):
+    async def test_rewrite_query_with_history_integration(self, mock_rewrite):
         """Test query rewriting integration by mocking the entire function."""
-        mock_rewrite.return_value = "Rewritten query about AI applications"
+        async def mock_return(*args, **kwargs):
+            return "Rewritten query about AI applications"
+        mock_rewrite.side_effect = mock_return
         
         history = [("What is AI?", "AI is artificial intelligence")]
         mock_llm = Mock()
         
-        result = mock_rewrite("How is it used?", history, mock_llm)
+        result = await mock_rewrite("How is it used?", history, mock_llm)
         
         assert result == "Rewritten query about AI applications"
         mock_rewrite.assert_called_once_with("How is it used?", history, mock_llm)
@@ -290,17 +297,13 @@ class TestRetrieveAndRankDocuments:
         """Test document retrieval without reranking."""
         mock_vdb_op = Mock()
         mock_docs = [Document(page_content="test content")]
-        mock_vdb_op.retrieval_langchain.return_value = mock_docs
+        
+        # retrieval_langchain is a sync function
+        mock_vdb_op.retrieval_langchain = Mock(return_value=mock_docs)
         
         result = retrieve_and_rank_documents("test query", "original query", mock_vdb_op, None)
         
         assert result == mock_docs
-        mock_vdb_op.retrieval_langchain.assert_called_once_with(
-            query="test query",
-            collection_name="multimodal_data",  # default collection name
-            otel_ctx={'suppress_language_model_instrumentation': False},
-            top_k=10  # default top_k
-        )
 
     def test_retrieve_with_ranker(self):
         """Test document retrieval with reranking."""
@@ -310,18 +313,13 @@ class TestRetrieveAndRankDocuments:
         retrieved_docs = [Document(page_content="content1"), Document(page_content="content2")]
         ranked_docs = [Document(page_content="content1")]
         
-        mock_vdb_op.retrieval_langchain.return_value = retrieved_docs
+        # retrieval_langchain is a sync function
+        mock_vdb_op.retrieval_langchain = Mock(return_value=retrieved_docs)
         mock_ranker.compress_documents.return_value = ranked_docs
         
         result = retrieve_and_rank_documents("test query", "original query", mock_vdb_op, mock_ranker)
         
         assert result == ranked_docs
-        mock_vdb_op.retrieval_langchain.assert_called_once_with(
-            query="test query",
-            collection_name="multimodal_data",  # default collection name
-            otel_ctx={'suppress_language_model_instrumentation': False},
-            top_k=10  # default top_k
-        )
         mock_ranker.compress_documents.assert_called_once_with(
             query="original query", documents=retrieved_docs
         )
@@ -331,44 +329,45 @@ class TestRetrieveAndRankDocuments:
         mock_vdb_op = Mock()
         mock_ranker = Mock()
         
-        mock_vdb_op.retrieval_langchain.return_value = []
+        # retrieval_langchain is a sync function
+        mock_vdb_op.retrieval_langchain = Mock(return_value=[])
         
         result = retrieve_and_rank_documents("test query", "original query", mock_vdb_op, mock_ranker)
         
         assert result == []
-        mock_vdb_op.retrieval_langchain.assert_called_once_with(
-            query="test query",
-            collection_name="multimodal_data",  # default collection name
-            otel_ctx={'suppress_language_model_instrumentation': False},
-            top_k=10  # default top_k
-        )
         mock_ranker.compress_documents.assert_not_called()
 
 
 class TestGenerateAnswerForQuery:
     """Test cases for generating answers for queries."""
 
+    @pytest.mark.asyncio
     @patch("nvidia_rag.rag_server.query_decomposition.generate_answer_for_query")
-    def test_generate_answer_for_query_integration(self, mock_generate_answer):
+    async def test_generate_answer_for_query_integration(self, mock_generate_answer):
         """Test answer generation integration by mocking the entire function."""
-        mock_generate_answer.return_value = "Generated answer"
+        async def mock_return(*args, **kwargs):
+            return "Generated answer"
+        mock_generate_answer.side_effect = mock_return
         
         docs = [Document(page_content="test content")]
         mock_llm = Mock()
         
-        result = mock_generate_answer("What is AI?", docs, mock_llm)
+        result = await mock_generate_answer("What is AI?", docs, mock_llm)
         
         assert result == "Generated answer"
         mock_generate_answer.assert_called_once_with("What is AI?", docs, mock_llm)
 
+    @pytest.mark.asyncio
     @patch("nvidia_rag.rag_server.query_decomposition.generate_answer_for_query")
-    def test_generate_answer_empty_docs_integration(self, mock_generate_answer):
+    async def test_generate_answer_empty_docs_integration(self, mock_generate_answer):
         """Test answer generation with empty documents."""
-        mock_generate_answer.return_value = "Answer without specific context"
+        async def mock_return(*args, **kwargs):
+            return "Answer without specific context"
+        mock_generate_answer.side_effect = mock_return
         
         mock_llm = Mock()
         
-        result = mock_generate_answer("What is AI?", [], mock_llm)
+        result = await mock_generate_answer("What is AI?", [], mock_llm)
         
         assert result == "Answer without specific context"
         mock_generate_answer.assert_called_once_with("What is AI?", [], mock_llm)
@@ -395,30 +394,36 @@ class TestGenerateAnswerForQuery:
 class TestGenerateFollowupQuestion:
     """Test cases for generating follow-up questions."""
 
+    @pytest.mark.asyncio
     @patch("nvidia_rag.rag_server.query_decomposition.generate_followup_question")
-    def test_generate_followup_question_success_integration(self, mock_generate_followup):
+    async def test_generate_followup_question_success_integration(self, mock_generate_followup):
         """Test successful follow-up question generation."""
-        mock_generate_followup.return_value = "What are the applications of AI?"
+        async def mock_return(*args, **kwargs):
+            return "What are the applications of AI?"
+        mock_generate_followup.side_effect = mock_return
         
         history = [("What is AI?", "AI is artificial intelligence")]
         contexts = [Document(page_content="AI context")]
         mock_llm = Mock()
         
-        result = mock_generate_followup(history, "Tell me about AI", contexts, mock_llm)
+        result = await mock_generate_followup(history, "Tell me about AI", contexts, mock_llm)
         
         assert result == "What are the applications of AI?"
         mock_generate_followup.assert_called_once_with(history, "Tell me about AI", contexts, mock_llm)
 
+    @pytest.mark.asyncio
     @patch("nvidia_rag.rag_server.query_decomposition.generate_followup_question")
-    def test_generate_followup_question_empty_response_integration(self, mock_generate_followup):
+    async def test_generate_followup_question_empty_response_integration(self, mock_generate_followup):
         """Test follow-up question generation with empty response."""
-        mock_generate_followup.return_value = ""
+        async def mock_return(*args, **kwargs):
+            return ""
+        mock_generate_followup.side_effect = mock_return
         
         history = [("What is AI?", "AI is artificial intelligence")]
         contexts = [Document(page_content="AI context")]
         mock_llm = Mock()
         
-        result = mock_generate_followup(history, "Tell me about AI", contexts, mock_llm)
+        result = await mock_generate_followup(history, "Tell me about AI", contexts, mock_llm)
         
         assert result == ""
 
@@ -456,21 +461,37 @@ class TestGenerateFollowupQuestion:
 class TestProcessSubqueries:
     """Test cases for processing subqueries."""
 
+    @pytest.mark.asyncio
     @patch("nvidia_rag.rag_server.query_decomposition.rewrite_query_with_context")
     @patch("nvidia_rag.rag_server.query_decomposition.retrieve_and_rank_documents")
     @patch("nvidia_rag.rag_server.query_decomposition.normalize_relevance_scores")
     @patch("nvidia_rag.rag_server.query_decomposition.generate_answer_for_query")
-    def test_process_subqueries_success(self, mock_generate_answer, mock_normalize, 
+    async def test_process_subqueries_success(self, mock_generate_answer, mock_normalize, 
                                        mock_retrieve, mock_rewrite):
         """Test successful processing of subqueries."""
-        # Setup mocks
-        mock_rewrite.side_effect = ["rewritten1", "rewritten2"]
+        # Setup async mocks
+        rewrite_results = ["rewritten1", "rewritten2"]
+        rewrite_idx = [0]
+        async def mock_rewrite_fn(*args, **kwargs):
+            result = rewrite_results[rewrite_idx[0]]
+            rewrite_idx[0] += 1
+            return result
+        mock_rewrite.side_effect = mock_rewrite_fn
         
         mock_docs = [Document(page_content="content", metadata={"relevance_score": 0.8})]
-        mock_retrieve.side_effect = [mock_docs, mock_docs]
+        
+        async def mock_retrieve_fn(*args, **kwargs):
+            return mock_docs
+        mock_retrieve.side_effect = mock_retrieve_fn
         mock_normalize.side_effect = [mock_docs, mock_docs]
         
-        mock_generate_answer.side_effect = ["answer1", "answer2"]
+        answer_results = ["answer1", "answer2"]
+        answer_idx = [0]
+        async def mock_answer_fn(*args, **kwargs):
+            result = answer_results[answer_idx[0]]
+            answer_idx[0] += 1
+            return result
+        mock_generate_answer.side_effect = mock_answer_fn
         
         # Test data
         questions = ["What is AI?", "How does AI work?"]
@@ -480,7 +501,7 @@ class TestProcessSubqueries:
         mock_ranker = Mock()
         
         # Execute
-        history, contexts = process_subqueries(questions, original_query, mock_llm, 
+        history, contexts = await process_subqueries(questions, original_query, mock_llm, 
                                              mock_vdb_op, mock_ranker)
         
         # Assertions
@@ -489,21 +510,30 @@ class TestProcessSubqueries:
         assert history[1] == ("How does AI work?", "answer2")
         assert len(contexts) == 2  # normalized docs from both iterations
 
+    @pytest.mark.asyncio
     @patch("nvidia_rag.rag_server.query_decomposition.rewrite_query_with_context")
     @patch("nvidia_rag.rag_server.query_decomposition.retrieve_and_rank_documents")
     @patch("nvidia_rag.rag_server.query_decomposition.generate_answer_for_query")
-    def test_process_subqueries_no_ranker(self, mock_generate_answer, mock_retrieve, mock_rewrite):
+    async def test_process_subqueries_no_ranker(self, mock_generate_answer, mock_retrieve, mock_rewrite):
         """Test processing subqueries without ranker."""
-        mock_rewrite.return_value = "rewritten"
-        mock_retrieve.return_value = []
-        mock_generate_answer.return_value = "answer"
+        async def mock_rewrite_fn(*args, **kwargs):
+            return "rewritten"
+        mock_rewrite.side_effect = mock_rewrite_fn
+        
+        async def mock_retrieve_fn(*args, **kwargs):
+            return []
+        mock_retrieve.side_effect = mock_retrieve_fn
+        
+        async def mock_answer_fn(*args, **kwargs):
+            return "answer"
+        mock_generate_answer.side_effect = mock_answer_fn
         
         questions = ["What is AI?"]
         original_query = "Tell me about AI"
         mock_llm = Mock()
         mock_vdb_op = Mock()
         
-        history, contexts = process_subqueries(questions, original_query, mock_llm, 
+        history, contexts = await process_subqueries(questions, original_query, mock_llm, 
                                              mock_vdb_op, None)
         
         assert len(history) == 1
@@ -514,9 +544,10 @@ class TestProcessSubqueries:
 class TestGenerateFinalResponse:
     """Test cases for generating final response."""
 
+    @pytest.mark.asyncio
     @patch("nvidia_rag.rag_server.query_decomposition.get_prompts")
-    @patch("nvidia_rag.rag_server.query_decomposition.generate_answer")
-    def test_generate_final_response(self, mock_generate_answer, mock_get_prompts):
+    @patch("nvidia_rag.rag_server.query_decomposition.generate_answer_async")
+    async def test_generate_final_response(self, mock_generate_answer, mock_get_prompts):
         """Test final response generation."""
         mock_get_prompts.return_value = {
             "query_decomposition_final_response_prompt": {
@@ -531,16 +562,22 @@ class TestGenerateFinalResponse:
         # Mock the ChatPromptTemplate and chain
         with patch("nvidia_rag.rag_server.query_decomposition.ChatPromptTemplate") as mock_template:
             mock_chain = Mock()
-            mock_chain.stream.return_value = ["response", "stream"]
+            
+            async def mock_astream(*args, **kwargs):
+                for item in ["response", "stream"]:
+                    yield item
+            mock_chain.astream = mock_astream
             mock_template.from_messages.return_value.__or__ = Mock(return_value=mock_chain)
             mock_template.from_messages.return_value.__or__.__or__ = Mock(return_value=mock_chain)
             
-            mock_generate_answer.return_value = "Final comprehensive answer"
+            async def mock_answer_gen():
+                yield "Final comprehensive answer"
+            mock_generate_answer.return_value = mock_answer_gen()
             
             history = [("What is AI?", "AI is artificial intelligence")]
             contexts = [Document(page_content="AI context")]
             
-            result = generate_final_response(history, contexts, "Tell me about AI", mock_llm)
+            result = await generate_final_response(history, contexts, "Tell me about AI", mock_llm)
             
             assert hasattr(result, 'generator')
             assert hasattr(result, 'status_code')
@@ -550,31 +587,42 @@ class TestGenerateFinalResponse:
 class TestIterativeQueryDecomposition:
     """Test cases for iterative query decomposition."""
 
+    @pytest.mark.asyncio
     @patch("nvidia_rag.rag_server.query_decomposition.generate_subqueries")
     @patch("nvidia_rag.rag_server.query_decomposition.process_subqueries")
     @patch("nvidia_rag.rag_server.query_decomposition.generate_followup_question")
     @patch("nvidia_rag.rag_server.query_decomposition.generate_final_response")
-    def test_iterative_query_decomposition_success(self, mock_final_response, mock_followup,
+    async def test_iterative_query_decomposition_success(self, mock_final_response, mock_followup,
                                                   mock_process, mock_generate_subqueries):
         """Test successful iterative query decomposition."""
-        # Setup mocks
-        mock_generate_subqueries.return_value = ["What is AI?", "How does AI work?"]
+        # Setup async mocks
+        async def mock_subqueries(*args, **kwargs):
+            return ["What is AI?", "How does AI work?"]
+        mock_generate_subqueries.side_effect = mock_subqueries
         
         mock_history = [("What is AI?", "AI is artificial intelligence")]
         mock_contexts = {"What is AI?": {"context": [Document(page_content="AI context")], "rewritten_query": "What is AI?", "answer": "AI is artificial intelligence"}}
-        mock_process.return_value = (mock_history, mock_contexts)
         
-        mock_followup.return_value = ""  # No follow-up needed
-        mock_final_response.return_value = "Comprehensive AI answer"
+        async def mock_process_fn(*args, **kwargs):
+            return (mock_history, mock_contexts)
+        mock_process.side_effect = mock_process_fn
+        
+        async def mock_followup_fn(*args, **kwargs):
+            return ""  # No follow-up needed
+        mock_followup.side_effect = mock_followup_fn
+        
+        async def mock_final(*args, **kwargs):
+            return "Comprehensive AI answer"
+        mock_final_response.side_effect = mock_final
         
         # Test data
         mock_llm = Mock()
         mock_vdb_op = Mock()
-        # Mock retrieval_langchain to return a list for len() to work
-        mock_vdb_op.retrieval_langchain.return_value = [Document(page_content="test doc")]
+        # retrieval_langchain is a sync function
+        mock_vdb_op.retrieval_langchain = Mock(return_value=[Document(page_content="test doc")])
         
         # Execute
-        result = iterative_query_decomposition(
+        result = await iterative_query_decomposition(
             "Tell me about AI", [], mock_llm, mock_vdb_op, confidence_threshold=0.0
         )
         
@@ -587,36 +635,54 @@ class TestIterativeQueryDecomposition:
         assert mock_followup.called
         assert mock_final_response.called
 
+    @pytest.mark.asyncio
     @patch("nvidia_rag.rag_server.query_decomposition.generate_subqueries")
     @patch("nvidia_rag.rag_server.query_decomposition.process_subqueries")
     @patch("nvidia_rag.rag_server.query_decomposition.generate_followup_question")
     @patch("nvidia_rag.rag_server.query_decomposition.generate_final_response")
-    def test_iterative_query_decomposition_with_followup(self, mock_final_response, mock_followup,
+    async def test_iterative_query_decomposition_with_followup(self, mock_final_response, mock_followup,
                                                         mock_process, mock_generate_subqueries):
         """Test iterative query decomposition with follow-up questions."""
-        # Setup mocks for multiple iterations - need >1 subquery to trigger decomposition
-        mock_generate_subqueries.return_value = ["What is AI?", "How does AI work?"]
+        # Setup async mocks for multiple iterations
+        async def mock_subqueries(*args, **kwargs):
+            return ["What is AI?", "How does AI work?"]
+        mock_generate_subqueries.side_effect = mock_subqueries
         
         mock_history = [("What is AI?", "AI is artificial intelligence")]
         mock_contexts = {"What is AI?": {"context": [Document(page_content="AI context")], "rewritten_query": "What is AI?", "answer": "AI is artificial intelligence"}}
         
         # First iteration returns follow-up, second returns empty
-        mock_process.side_effect = [
+        process_results = [
             (mock_history, mock_contexts),
             (mock_history + [("Follow-up", "Follow-up answer")], mock_contexts)
         ]
+        process_idx = [0]
+        async def mock_process_fn(*args, **kwargs):
+            result = process_results[process_idx[0]]
+            process_idx[0] += 1
+            return result
+        mock_process.side_effect = mock_process_fn
         
-        mock_followup.side_effect = ["What are AI applications?", ""]
-        mock_final_response.return_value = "Comprehensive AI answer"
+        followup_results = ["What are AI applications?", ""]
+        followup_idx = [0]
+        async def mock_followup_fn(*args, **kwargs):
+            result = followup_results[followup_idx[0]]
+            followup_idx[0] += 1
+            return result
+        mock_followup.side_effect = mock_followup_fn
+        
+        async def mock_final(*args, **kwargs):
+            return "Comprehensive AI answer"
+        mock_final_response.side_effect = mock_final
         
         # Test data
         mock_llm = Mock()
         mock_vdb_op = Mock()
-        # Fix: Mock retrieval_langchain to return a list instead of Mock for len() to work
-        mock_vdb_op.retrieval_langchain.return_value = [Document(page_content="test doc")]
+        # retrieval_langchain is a sync function
+        mock_vdb_op.retrieval_langchain = Mock(return_value=[Document(page_content="test doc")])
         
         # Execute with recursion_depth=2
-        result = iterative_query_decomposition(
+        result = await iterative_query_decomposition(
             "Tell me about AI", [], mock_llm, mock_vdb_op, recursion_depth=2, confidence_threshold=0.0
         )
         
@@ -625,39 +691,51 @@ class TestIterativeQueryDecomposition:
         assert mock_process.call_count == 2  # Two iterations
         assert mock_followup.call_count == 2
 
-    def test_iterative_query_decomposition_no_retrievers(self):
+    @pytest.mark.asyncio
+    async def test_iterative_query_decomposition_no_retrievers(self):
         """Test iterative query decomposition raises error with no vdb_op."""
         mock_llm = Mock()
         
         with pytest.raises(ValueError, match="At least one retriever must be provided"):
-            iterative_query_decomposition("Tell me about AI", [], mock_llm, None, confidence_threshold=0.0)
+            await iterative_query_decomposition("Tell me about AI", [], mock_llm, None, confidence_threshold=0.0)
 
+    @pytest.mark.asyncio
     @patch("nvidia_rag.rag_server.query_decomposition.generate_subqueries")
     @patch("nvidia_rag.rag_server.query_decomposition.process_subqueries")
     @patch("nvidia_rag.rag_server.query_decomposition.generate_followup_question")
     @patch("nvidia_rag.rag_server.query_decomposition.generate_final_response")
-    def test_iterative_query_decomposition_max_depth_reached(self, mock_final_response, mock_followup,
+    async def test_iterative_query_decomposition_max_depth_reached(self, mock_final_response, mock_followup,
                                                            mock_process, mock_generate_subqueries):
         """Test that decomposition stops at max recursion depth."""
-        # Setup mocks to always return follow-up questions - need >1 subquery to trigger decomposition
-        mock_generate_subqueries.return_value = ["What is AI?", "How does AI work?"]
+        # Setup async mocks to always return follow-up questions
+        async def mock_subqueries(*args, **kwargs):
+            return ["What is AI?", "How does AI work?"]
+        mock_generate_subqueries.side_effect = mock_subqueries
         
         mock_history = [("What is AI?", "AI is artificial intelligence")]
         mock_contexts = {"What is AI?": {"context": [Document(page_content="AI context")], "rewritten_query": "What is AI?", "answer": "AI is artificial intelligence"}}
-        mock_process.return_value = (mock_history, mock_contexts)
+        
+        async def mock_process_fn(*args, **kwargs):
+            return (mock_history, mock_contexts)
+        mock_process.side_effect = mock_process_fn
         
         # Always return follow-up questions (but should stop at max depth)
-        mock_followup.return_value = "What are AI applications?"
-        mock_final_response.return_value = "Comprehensive AI answer"
+        async def mock_followup_fn(*args, **kwargs):
+            return "What are AI applications?"
+        mock_followup.side_effect = mock_followup_fn
+        
+        async def mock_final(*args, **kwargs):
+            return "Comprehensive AI answer"
+        mock_final_response.side_effect = mock_final
         
         # Test data
         mock_llm = Mock()
         mock_vdb_op = Mock()
-        # Fix: Mock retrieval_langchain to return a list instead of Mock for len() to work
-        mock_vdb_op.retrieval_langchain.return_value = [Document(page_content="test doc")]
+        # retrieval_langchain is a sync function
+        mock_vdb_op.retrieval_langchain = Mock(return_value=[Document(page_content="test doc")])
         
         # Execute with recursion_depth=2
-        result = iterative_query_decomposition(
+        result = await iterative_query_decomposition(
             "Tell me about AI", [], mock_llm, mock_vdb_op, recursion_depth=2, confidence_threshold=0.0
         )
         

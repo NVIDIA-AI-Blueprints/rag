@@ -14,26 +14,34 @@
 # limitations under the License.
 
 """This defines the main modules for RAG server which manages the core functionality.
-1. generate(): Generate a response using the RAG chain.
-2. search(): Search for the most relevant documents for the given search parameters.
-3. get_summary(): Get the summary of a document.
 
-Private methods:
-1. _llm_chain: Execute a simple LLM chain using the components defined above.
-2. _rag_chain: Execute a RAG chain using the components defined above.
-3. _print_conversation_history: Print the conversation history.
-4. _normalize_relevance_scores: Normalize the relevance scores of the documents.
-5. _format_document_with_source: Format the document with the source.
+Public async methods:
+1. generate(): Generate a response using the RAG chain (async).
+2. search(): Search for the most relevant documents for the given search parameters (async).
+3. get_summary(): Get the summary of a document (async).
+4. health(): Check the health of dependent services (async).
+
+Private async methods:
+1. _llm_chain(): Execute a simple LLM chain using the components defined above (async).
+2. _rag_chain(): Execute a RAG chain using the components defined above (async).
+
+Private helper methods:
+1. _eager_prefetch_astream(): Eagerly prefetch the first chunk from an async stream.
+2. _print_conversation_history(): Print the conversation history.
+3. _normalize_relevance_scores(): Normalize the relevance scores of the documents.
+4. _format_document_with_source(): Format the document with the source.
 
 """
 
+import asyncio
 import json
 import logging
 import math
 import os
 import time
-from collections.abc import Generator
+from collections.abc import AsyncGenerator, Generator
 from concurrent.futures import ThreadPoolExecutor
+from functools import partial
 from traceback import print_exc
 from typing import Any
 
@@ -58,11 +66,17 @@ from nvidia_rag.rag_server.response_generator import (
     Citations,
     ErrorCodeMapping,
     RAGResponse,
-    generate_answer,
+    generate_answer_async,
     prepare_citations,
     prepare_llm_request,
     retrieve_summary,
 )
+
+
+async def _async_iter(items):
+    """Helper to convert a list to an async generator."""
+    for item in items:
+        yield item
 from nvidia_rag.rag_server.validation import (
     validate_model_info,
     validate_reranker_k,
@@ -82,7 +96,7 @@ from nvidia_rag.utils.embedding import get_embedding_model
 from nvidia_rag.utils.filter_expression_generator import (
     generate_filter_from_natural_language,
 )
-from nvidia_rag.utils.llm import get_llm, get_prompts, get_streaming_filter_think_parser
+from nvidia_rag.utils.llm import get_llm, get_prompts, get_streaming_filter_think_parser_async
 from nvidia_rag.utils.reranker import get_ranking_model
 from nvidia_rag.utils.vdb import _get_vdb_op
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
@@ -176,35 +190,41 @@ class NvidiaRAG:
         # Load prompts and other utilities
         self.prompts = get_prompts()
         self.vdb_top_k = int(self.config.retriever.vdb_top_k)
-        self.StreamingFilterThinkParser = get_streaming_filter_think_parser()
+        self.StreamingFilterThinkParser = get_streaming_filter_think_parser_async()
 
         logger.info("NvidiaRAG initialization complete")
 
     @staticmethod
-    def _eager_prefetch_stream(stream_gen):
+    async def _eager_prefetch_astream(stream_gen):
         """
-        Eagerly fetch the first chunk from a stream to trigger any errors early.
+        Eagerly fetch the first chunk from an async stream to trigger any errors early.
 
         Args:
-            stream_gen: Generator to prefetch from
+            stream_gen: Async generator to prefetch from
 
         Returns:
-            Generator that yields the prefetched chunk followed by the rest
+            Async generator that yields the prefetched chunk followed by the rest
 
         Raises:
-            StopIteration: If the stream is empty (converted to empty generator)
+            StopAsyncIteration: If the stream is empty (converted to empty generator)
         """
         try:
-            first_chunk = next(stream_gen)
+            first_chunk = await stream_gen.__anext__()
 
-            def complete_stream():
+            async def complete_stream():
                 yield first_chunk
-                yield from stream_gen
+                async for chunk in stream_gen:
+                    yield chunk
 
             return complete_stream()
-        except StopIteration:
+        except StopAsyncIteration:
             logger.warning("LLM produced no output.")
-            return iter([])  # Return empty generator
+
+            async def empty_gen():
+                return
+                yield  # Make it an async generator
+
+            return empty_gen()
 
     async def health(self, check_dependencies: bool = False) -> RAGHealthResponse:
         """Check the health of the RAG server."""
@@ -272,7 +292,7 @@ class NvidiaRAG:
                     ErrorCodeMapping.BAD_REQUEST,
                 )
 
-    def generate(
+    async def generate(
         self,
         messages: list[dict[str, Any]],
         use_knowledge_base: bool = True,
@@ -313,7 +333,7 @@ class NvidiaRAG:
         confidence_threshold: float | None = None,
         rag_start_time_sec: float | None = None,
         metrics: OtelMetrics | None = None,
-    ) -> Generator[str, None, None]:
+    ) -> AsyncGenerator[str, None]:
         """Execute a Retrieval Augmented Generation chain using the components defined above.
         It's called when the `/generate` API is invoked with `use_knowledge_base` set to `True` or `False`.
 
@@ -504,7 +524,7 @@ class NvidiaRAG:
 
         if use_knowledge_base:
             logger.info("Using knowledge base to generate response.")
-            return self._rag_chain(
+            return await self._rag_chain(
                 llm_settings=llm_settings,
                 query=query,
                 chat_history=chat_history,
@@ -532,7 +552,7 @@ class NvidiaRAG:
             logger.info(
                 "Using LLM to generate response directly without knowledge base."
             )
-            return self._llm_chain(
+            return await self._llm_chain(
                 llm_settings=llm_settings,
                 query=query,
                 chat_history=chat_history,
@@ -542,7 +562,7 @@ class NvidiaRAG:
                 metrics=metrics,
             )
 
-    def search(
+    async def search(
         self,
         query: str | list[dict[str, Any]],
         messages: list[dict[str, str]] | None = None,
@@ -851,7 +871,7 @@ class NvidiaRAG:
                     except Exception as e:
                         logger.warning("Could not format prompt for logging: %s", e)
 
-                    retriever_query = q_prompt.invoke(
+                    retriever_query = await q_prompt.ainvoke(
                         {"input": query, "chat_history": formatted_history}
                     )
                     logger.info("Rewritten Query: %s", retriever_query)
@@ -1037,7 +1057,7 @@ class NvidiaRAG:
                             docs.extend(future.result())
 
                     context_reranker_start_time = time.time()
-                    docs = context_reranker.invoke(
+                    docs = await context_reranker.ainvoke(
                         {"context": docs, "question": processed_query},
                         config={"run_name": "context_reranker"},
                     )
@@ -1173,7 +1193,7 @@ class NvidiaRAG:
             user_message,
         )
 
-    def _llm_chain(
+    async def _llm_chain(
         self,
         llm_settings: dict[str, Any],
         query: str | list[dict[str, Any]],
@@ -1182,7 +1202,7 @@ class NvidiaRAG:
         collection_name: str = "",
         enable_citations: bool = True,
         metrics: OtelMetrics | None = None,
-    ) -> Generator[str, None, None]:
+    ) -> AsyncGenerator[str, None]:
         """Execute a simple LLM chain using the components defined above.
         It's called when the `/generate` API is invoked with `use_knowledge_base` set to `False`.
 
@@ -1247,15 +1267,15 @@ class NvidiaRAG:
                 | self.StreamingFilterThinkParser
                 | StrOutputParser()
             )
-            # Create stream generator
-            stream_gen = chain.stream(
+            # Create async stream generator
+            stream_gen = chain.astream(
                 {"question": query_text}, config={"run_name": "llm-stream"}
             )
             # Eagerly fetch first chunk to trigger any errors before returning response
-            prefetched_stream = self._eager_prefetch_stream(stream_gen)
+            prefetched_stream = await self._eager_prefetch_astream(stream_gen)
 
             return RAGResponse(
-                generate_answer(
+                generate_answer_async(
                     prefetched_stream,
                     [],
                     model=model,
@@ -1270,8 +1290,8 @@ class NvidiaRAG:
                 "Connection timed out while making a request to the LLM endpoint: %s", e
             )
             return RAGResponse(
-                generate_answer(
-                    iter(
+                generate_answer_async(
+                    _async_iter(
                         [
                             "Connection timed out while making a request to the NIM endpoint. Verify if the NIM server is available."
                         ]
@@ -1301,8 +1321,8 @@ class NvidiaRAG:
                     "Authentication or permission error: Verify the validity and permissions of your NVIDIA API key."
                 )
                 return RAGResponse(
-                    generate_answer(
-                        iter(
+                    generate_answer_async(
+                        _async_iter(
                             [
                                 "Authentication or permission error: Verify the validity and permissions of your NVIDIA API key."
                             ]
@@ -1321,8 +1341,8 @@ class NvidiaRAG:
                 logger.warning(f"Model not found: {error_msg}")
 
                 return RAGResponse(
-                    generate_answer(
-                        iter([error_msg]),
+                    generate_answer_async(
+                        _async_iter([error_msg]),
                         [],
                         model=model,
                         collection_name=collection_name,
@@ -1333,8 +1353,8 @@ class NvidiaRAG:
                 )
             else:
                 return RAGResponse(
-                    generate_answer(
-                        iter([str(e)]),
+                    generate_answer_async(
+                        _async_iter([str(e)]),
                         [],
                         model=model,
                         collection_name=collection_name,
@@ -1415,7 +1435,7 @@ class NvidiaRAG:
             # Fallback for any other content type
             return (str(content) if content is not None else ""), False
 
-    def _rag_chain(
+    async def _rag_chain(
         self,
         llm_settings: dict[str, Any],
         query: str | list[dict[str, Any]],
@@ -1439,7 +1459,7 @@ class NvidiaRAG:
         confidence_threshold: float | None = None,
         rag_start_time_sec: float | None = None,
         metrics: OtelMetrics | None = None,
-    ) -> tuple[Generator[str, None, None], list[dict[str, Any]]]:
+    ) -> tuple[AsyncGenerator[str, None], list[dict[str, Any]]]:
         """Execute a RAG chain using the components defined above.
         It's called when the `/generate` API is invoked with `use_knowledge_base` set to `True`.
 
@@ -1682,7 +1702,7 @@ class NvidiaRAG:
                     except Exception as e:
                         logger.warning("Could not format prompt for logging: %s", e)
 
-                    retriever_query = q_prompt.invoke(
+                    retriever_query = await q_prompt.ainvoke(
                         {
                             "input": retriever_query,
                             "chat_history": formatted_history,
@@ -1796,7 +1816,7 @@ class NvidiaRAG:
             if enable_query_decomposition and not is_image_query:
                 logger.info("Using query decomposition for complex query processing")
                 # TODO: Pass processed_query instead of query and check accuracy
-                return iterative_query_decomposition(
+                return await iterative_query_decomposition(
                     query=query,
                     history=conversation_history,
                     llm=llm,
@@ -1824,7 +1844,7 @@ class NvidiaRAG:
             if self.config.reflection.enable_reflection:
                 reflection_counter = ReflectionCounter(self.config.reflection.max_loops)
 
-                context_to_show, is_relevant = check_context_relevance(
+                context_to_show, is_relevant = await check_context_relevance(
                     vdb_op=vdb_op,
                     retriever_query=processed_query,
                     collection_names=validated_collections,
@@ -1905,7 +1925,7 @@ class NvidiaRAG:
                     logger.debug(
                         "Using processed query for reranker %s", processed_query
                     )
-                    docs = context_reranker.invoke(
+                    docs = await context_reranker.ainvoke(
                         {"context": docs, "question": processed_query},
                         config={"run_name": "context_reranker"},
                     )
@@ -2042,10 +2062,10 @@ class NvidiaRAG:
                                 for d in context_to_show
                             ]
                         )
-                        # Always stream VLM response directly (reasoning gate deprecated)
-                        logger.info("Streaming VLM response directly.")
+                        # Always stream VLM response directly using async streaming (reasoning gate deprecated)
+                        logger.info("Streaming VLM response directly (async).")
                         return RAGResponse(
-                            generate_answer(
+                            generate_answer_async(
                                 vlm.stream_with_messages(
                                     docs=context_to_show,
                                     messages=vlm_messages,
@@ -2129,8 +2149,8 @@ class NvidiaRAG:
                 self.config.reflection.enable_reflection
                 and reflection_counter.remaining > 0
             ):
-                initial_response = chain.invoke({"question": query, "context": docs})
-                final_response, is_grounded = check_response_groundedness(
+                initial_response = await chain.ainvoke({"question": query, "context": docs})
+                final_response, is_grounded = await check_response_groundedness(
                     query,
                     initial_response,
                     docs,
@@ -2143,8 +2163,8 @@ class NvidiaRAG:
                         reflection_counter.current_count,
                     )
                 return RAGResponse(
-                    generate_answer(
-                        iter([final_response]),
+                    generate_answer_async(
+                        _async_iter([final_response]),
                         context_to_show,
                         model=model,
                         collection_name=collection_name,
@@ -2157,16 +2177,16 @@ class NvidiaRAG:
                     status_code=ErrorCodeMapping.SUCCESS,
                 )
             else:
-                # Create stream generator
-                stream_gen = chain.stream(
+                # Create async stream generator
+                stream_gen = chain.astream(
                     {"question": query, "context": docs},
                     config={"run_name": "llm-stream"},
                 )
                 # Eagerly fetch first chunk to trigger any errors before returning response
-                prefetched_stream = self._eager_prefetch_stream(stream_gen)
+                prefetched_stream = await self._eager_prefetch_astream(stream_gen)
 
                 return RAGResponse(
-                    generate_answer(
+                    generate_answer_async(
                         prefetched_stream,
                         context_to_show,
                         model=model,
@@ -2185,8 +2205,8 @@ class NvidiaRAG:
                 "Connection timed out while making a request to the LLM endpoint: %s", e
             )
             return RAGResponse(
-                generate_answer(
-                    iter(
+                generate_answer_async(
+                    _async_iter(
                         [
                             "Connection timed out while making a request to the NIM endpoint. Verify if the NIM server is available."
                         ]
@@ -2206,8 +2226,8 @@ class NvidiaRAG:
                     "Connection pool error while connecting to service: %s", e
                 )
                 return RAGResponse(
-                    generate_answer(
-                        iter(
+                    generate_answer_async(
+                        _async_iter(
                             [
                                 "Connection error: Failed to connect to service. Please verify if all required NIMs are running and accessible."
                             ]
@@ -2237,8 +2257,8 @@ class NvidiaRAG:
                     "Authentication or permission error: Verify the validity and permissions of your NVIDIA API key."
                 )
                 return RAGResponse(
-                    generate_answer(
-                        iter(
+                    generate_answer_async(
+                        _async_iter(
                             [
                                 "Authentication or permission error: Verify the validity and permissions of your NVIDIA API key."
                             ]
@@ -2269,8 +2289,8 @@ class NvidiaRAG:
                     logger.warning(f"Model not found: {error_msg}")
 
                 return RAGResponse(
-                    generate_answer(
-                        iter([error_msg]),
+                    generate_answer_async(
+                        _async_iter([error_msg]),
                         [],
                         model=model,
                         collection_name=collection_name,
@@ -2281,8 +2301,8 @@ class NvidiaRAG:
                 )
             else:
                 return RAGResponse(
-                    generate_answer(
-                        iter([str(e)]),
+                    generate_answer_async(
+                        _async_iter([str(e)]),
                         [],
                         model=model,
                         collection_name=collection_name,

@@ -16,7 +16,7 @@
 import base64
 import io
 from types import SimpleNamespace
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
@@ -153,7 +153,8 @@ class TestVLM:
         assert isinstance(system_msg, SystemMessage)
         assert len(user_msg.content) == 1  # only text; no room for doc images
 
-    def test_analyze_with_messages_invokes_model(self):
+    @pytest.mark.asyncio
+    async def test_analyze_with_messages_invokes_model(self):
         system_message = SystemMessage(content="sys")
         user_message = HumanMessage(content=[{"type": "text", "text": "ctx"}])
         history = [HumanMessage(content=[{"type": "text", "text": "prev"}])]
@@ -169,9 +170,9 @@ class TestVLM:
                 VLM, "assemble_messages", return_value=[system_message, user_message]
             ) as mock_assemble,
             patch.object(VLM, "_redact_messages_for_logging"),
-            patch.object(VLM, "invoke_model", return_value="final-response") as mock_invoke,
+            patch.object(VLM, "invoke_model_async", new_callable=AsyncMock, return_value="final-response") as mock_invoke,
         ):
-            response = self.vlm.analyze_with_messages(
+            response = await self.vlm.analyze_with_messages(
                 docs=[],
                 messages=[{"role": "user", "content": "question"}],
                 temperature=0.2,
@@ -190,14 +191,16 @@ class TestVLM:
             max_tokens=128,
         )
 
-    def test_analyze_with_messages_returns_empty_without_messages(self):
+    @pytest.mark.asyncio
+    async def test_analyze_with_messages_returns_empty_without_messages(self):
         with patch.object(VLM, "init_model") as mock_init_model:
-            response = self.vlm.analyze_with_messages(docs=[], messages=[])
+            response = await self.vlm.analyze_with_messages(docs=[], messages=[])
 
         assert response == ""
         mock_init_model.assert_not_called()
 
-    def test_analyze_with_messages_logs_exception_and_returns_empty(self):
+    @pytest.mark.asyncio
+    async def test_analyze_with_messages_logs_exception_and_returns_empty(self):
         system_message = SystemMessage(content="sys")
         user_message = HumanMessage(content=[{"type": "text", "text": "ctx"}])
 
@@ -210,23 +213,26 @@ class TestVLM:
             ),
             patch.object(VLM, "assemble_messages", return_value=[system_message, user_message]),
             patch.object(VLM, "_redact_messages_for_logging"),
-            patch.object(VLM, "invoke_model", side_effect=RuntimeError("boom")),
+            patch.object(VLM, "invoke_model_async", new_callable=AsyncMock, side_effect=RuntimeError("boom")),
         ):
-            response = self.vlm.analyze_with_messages(
+            response = await self.vlm.analyze_with_messages(
                 docs=[], messages=[{"role": "user", "content": "hi"}]
             )
 
         assert response == ""
 
-    def test_stream_with_messages_yields_chunks(self):
+    @pytest.mark.asyncio
+    async def test_stream_with_messages_yields_chunks(self):
         system_message = SystemMessage(content="sys")
         user_message = HumanMessage(content=[{"type": "text", "text": "ctx"}])
         mock_model = Mock()
-        mock_model.stream.return_value = [
-            SimpleNamespace(content="Hello"),
-            SimpleNamespace(content=""),
-            SimpleNamespace(content="World"),
-        ]
+
+        async def mock_astream(*args, **kwargs):
+            yield SimpleNamespace(content="Hello")
+            yield SimpleNamespace(content="")
+            yield SimpleNamespace(content="World")
+
+        mock_model.astream = mock_astream
 
         with (
             patch.object(VLM, "init_model", return_value=mock_model),
@@ -238,13 +244,23 @@ class TestVLM:
             patch.object(VLM, "assemble_messages", return_value=[system_message, user_message]),
             patch.object(VLM, "_redact_messages_for_logging"),
         ):
-            chunks = list(
-                self.vlm.stream_with_messages(
-                    docs=[], messages=[{"role": "user", "content": "hi"}], temperature=0.1
-                )
-            )
+            chunks = []
+            async for chunk in self.vlm.stream_with_messages(
+                docs=[], messages=[{"role": "user", "content": "hi"}], temperature=0.1
+            ):
+                chunks.append(chunk)
 
         assert chunks == ["Hello", "World"]
+
+    @pytest.mark.asyncio
+    async def test_stream_with_messages_returns_early_without_messages(self):
+        with patch.object(VLM, "init_model") as mock_init_model:
+            chunks = []
+            async for chunk in self.vlm.stream_with_messages(docs=[], messages=[]):
+                chunks.append(chunk)
+
+        assert chunks == []
+        mock_init_model.assert_not_called()
 
     def test_convert_image_url_to_png_b64_data_url(self):
         test_image = self.create_test_image_b64()

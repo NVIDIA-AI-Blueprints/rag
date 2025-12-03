@@ -16,8 +16,10 @@
 """The wrapper for interacting with llm models and pre or postprocessing LLM response.
 1. get_prompts: Get the prompts from the YAML file.
 2. get_llm: Get the LLM model. Uses the NVIDIA AI Endpoints or OpenAI.
-3. streaming_filter_think: Filter the think tokens from the LLM response.
-4. get_streaming_filter_think_parser: Get the parser for filtering the think tokens from the LLM response.
+3. streaming_filter_think: Filter the think tokens from the LLM response (sync).
+4. get_streaming_filter_think_parser: Get the parser for filtering the think tokens (sync).
+5. streaming_filter_think_async: Filter the think tokens from the LLM response (async).
+6. get_streaming_filter_think_parser_async: Get the parser for filtering the think tokens (async).
 """
 
 import logging
@@ -377,5 +379,172 @@ def get_streaming_filter_think_parser():
         return RunnableGenerator(streaming_filter_think)
     else:
         logger.info("Think token filtering is disabled")
+        # If filtering is disabled, use a passthrough that passes content as-is
+        return RunnablePassthrough()
+
+
+async def streaming_filter_think_async(chunks):
+    """
+    Async version of streaming_filter_think.
+    This async generator filters content between think tags in streaming LLM responses.
+    It handles both complete tags in a single chunk and tags split across multiple tokens.
+
+    Args:
+        chunks: Async iterable of chunks from a streaming LLM response
+
+    Yields:
+        str: Filtered content with think blocks removed
+    """
+    # Complete tags
+    FULL_START_TAG = "<think>"
+    FULL_END_TAG = "</think>"
+
+    # Multi-token tags - core parts without newlines for more robust matching
+    START_TAG_PARTS = ["<th", "ink", ">"]
+    END_TAG_PARTS = ["</", "think", ">"]
+
+    # States
+    NORMAL = 0
+    IN_THINK = 1
+    MATCHING_START = 2
+    MATCHING_END = 3
+
+    state = NORMAL
+    match_position = 0
+    buffer = ""
+    output_buffer = ""
+    chunk_count = 0
+
+    async for chunk in chunks:
+        content = chunk.content
+        chunk_count += 1
+
+        # Let's first check for full tags - this is the most reliable approach
+        buffer += content
+
+        # Check for complete tags first - most efficient case
+        while state == NORMAL and FULL_START_TAG in buffer:
+            start_idx = buffer.find(FULL_START_TAG)
+            # Extract content before tag
+            before_tag = buffer[:start_idx]
+            output_buffer += before_tag
+
+            # Skip over the tag
+            buffer = buffer[start_idx + len(FULL_START_TAG) :]
+            state = IN_THINK
+
+        while state == IN_THINK and FULL_END_TAG in buffer:
+            end_idx = buffer.find(FULL_END_TAG)
+            # Discard everything up to and including end tag
+            buffer = buffer[end_idx + len(FULL_END_TAG) :]
+            content = buffer
+            state = NORMAL
+
+        # For token-by-token matching, use the core content without worrying about exact whitespace
+        # Strip whitespace for comparison to make matching more robust
+        content_stripped = content.strip()
+
+        if state == NORMAL:
+            if content_stripped == START_TAG_PARTS[0].strip():
+                # Save everything except this start token
+                to_output = buffer[: -len(content)]
+                output_buffer += to_output
+
+                buffer = content  # Keep only the start token in buffer
+                state = MATCHING_START
+                match_position = 1
+            else:
+                output_buffer += content  # Regular content, save it
+                buffer = ""  # Clear buffer, we've processed this chunk
+
+        elif state == MATCHING_START:
+            expected_part = START_TAG_PARTS[match_position].strip()
+            if content_stripped == expected_part:
+                match_position += 1
+                if match_position >= len(START_TAG_PARTS):
+                    # Complete start tag matched
+                    state = IN_THINK
+                    match_position = 0
+                    buffer = ""  # Clear the buffer
+            else:
+                # False match, revert to normal and recover the partial match
+                state = NORMAL
+                output_buffer += buffer  # Recover saved tokens
+                buffer = ""
+
+                # Check if this content is a new start tag
+                if content_stripped == START_TAG_PARTS[0].strip():
+                    state = MATCHING_START
+                    match_position = 1
+                    buffer = content  # Keep this token in buffer
+                else:
+                    output_buffer += content  # Regular content
+
+        elif state == IN_THINK:
+            if content_stripped == END_TAG_PARTS[0].strip():
+                state = MATCHING_END
+                match_position = 1
+                buffer = content  # Keep this token in buffer
+            else:
+                buffer = ""  # Discard content inside think block
+
+        elif state == MATCHING_END:
+            expected_part = END_TAG_PARTS[match_position].strip()
+            if content_stripped == expected_part:
+                match_position += 1
+                if match_position >= len(END_TAG_PARTS):
+                    # Complete end tag matched
+                    state = NORMAL
+                    match_position = 0
+                    buffer = ""  # Clear buffer
+            else:
+                # False match, revert to IN_THINK
+                state = IN_THINK
+                buffer = ""  # Discard content
+
+                # Check if this is a new end tag start
+                if content_stripped == END_TAG_PARTS[0].strip():
+                    state = MATCHING_END
+                    match_position = 1
+                    buffer = content  # Keep this token in buffer
+
+        # Yield accumulated output before processing next chunk
+        if output_buffer:
+            yield output_buffer
+            output_buffer = ""
+
+    # Yield any remaining content if not in a think block
+    if state == NORMAL:
+        if buffer:
+            yield buffer
+        if output_buffer:
+            yield output_buffer
+
+    logger.info(
+        "Finished streaming_filter_think_async processing after %d chunks", chunk_count
+    )
+
+
+def get_streaming_filter_think_parser_async():
+    """
+    Creates and returns an async RunnableGenerator for filtering think tokens.
+
+    If FILTER_THINK_TOKENS environment variable is set to "true" (case-insensitive),
+    returns a parser that filters out content between <think> and </think> tags.
+    Otherwise, returns a pass-through parser that doesn't modify the content.
+
+    Returns:
+        RunnableGenerator: An async parser for filtering (or not filtering) think tokens
+    """
+    from langchain_core.runnables import RunnableGenerator, RunnablePassthrough
+
+    # Check environment variable
+    filter_enabled = os.getenv("FILTER_THINK_TOKENS", "true").lower() == "true"
+
+    if filter_enabled:
+        logger.info("Think token filtering is enabled (async)")
+        return RunnableGenerator(streaming_filter_think_async)
+    else:
+        logger.info("Think token filtering is disabled (async)")
         # If filtering is disabled, use a passthrough that passes content as-is
         return RunnablePassthrough()
