@@ -56,7 +56,7 @@ ENV DEBIAN_FRONTEND noninteractive
 
 # Install ONLY the essential runtime libraries (no build tools, no Python installation process)
 RUN apt update && \
-    apt install -y libexpat1 && \
+    apt install -y libexpat1 ca-certificates && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
