@@ -13,7 +13,7 @@ services:
     environment:
       NGC_API_KEY: ${NGC_API_KEY}
       # Automatic profile detection
-      NIM_MODEL_PROFILE: ${NIM_MODEL_PROFILE:-""}
+      NIM_MODEL_PROFILE: ${NIM_MODEL_PROFILE-""}
     ulimits:
       nofile:
         soft: 65536
