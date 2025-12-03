@@ -202,14 +202,15 @@ class MilvusVdbAuthModule(BaseTestModule):
         start = time.time()
         try:
             client = MilvusClient(uri=_milvus_uri(), token=_milvus_root_token())
-            for priv in ("Query", "Search", "DescribeCollection", "Load"):
+            for priv in ("Query", "Search", "DescribeCollection", "Load", "GetLoadState", "GetLoadingProgress"):
                 try:
-                    if priv == "DescribeCollection":
+                    # DescribeCollection, GetLoadState, and GetLoadingProgress are Global privileges
+                    if priv in ("DescribeCollection", "GetLoadState", "GetLoadingProgress"):
                         _grant_collection_privilege(client, self.reader_role, "Global", self.collection_name, privilege=priv)
                     else:
                         _grant_collection_privilege(client, self.reader_role, "Collection", self.collection_name, privilege=priv)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f"Failed to grant privilege {priv}: {e}")
 
             headers = {"Authorization": f"Bearer {self.reader_user}:{self.reader_pwd}"}
             async with aiohttp.ClientSession() as session:
@@ -469,14 +470,15 @@ class MilvusVdbAuthModule(BaseTestModule):
 
             # Grant reader privileges to this temp collection
             client = MilvusClient(uri=_milvus_uri(), token=_milvus_root_token())
-            for priv in ("Query", "Search", "DescribeCollection", "Load", "GetLoadState"):
+            for priv in ("Query", "Search", "DescribeCollection", "Load", "GetLoadState", "GetLoadingProgress"):
                 try:
-                    if priv == "DescribeCollection":
+                    # DescribeCollection, GetLoadState, and GetLoadingProgress are Global privileges
+                    if priv in ("DescribeCollection", "GetLoadState", "GetLoadingProgress"):
                         _grant_collection_privilege(client, self.reader_role, "Global", temp_collection, privilege=priv)
                     else:
                         _grant_collection_privilege(client, self.reader_role, "Collection", temp_collection, privilege=priv)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f"Failed to grant privilege {priv}: {e}")
 
             # Call RAG /search as reader (should succeed)
             headers_reader = {"Authorization": f"Bearer {self.reader_user}:{self.reader_pwd}"}
