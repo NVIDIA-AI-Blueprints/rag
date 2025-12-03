@@ -441,7 +441,7 @@ class VLM:
                         "image_url": {"url": redacted_url},
                     })
                 elif isinstance(p, dict) and p.get("type") == "text":
-                    safe_parts.append({"type": "text", "text": p.get("text", "")})
+                    safe_parts.append({"type": "text", "text": "[TEXT REDACTED]"})
                 else:
                     safe_parts.append({"type": "text", "text": str(p)})
 
