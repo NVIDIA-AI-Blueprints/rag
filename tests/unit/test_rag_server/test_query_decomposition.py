@@ -480,7 +480,7 @@ class TestProcessSubqueries:
         
         mock_docs = [Document(page_content="content", metadata={"relevance_score": 0.8})]
         
-        async def mock_retrieve_fn(*args, **kwargs):
+        def mock_retrieve_fn(*args, **kwargs):
             return mock_docs
         mock_retrieve.side_effect = mock_retrieve_fn
         mock_normalize.side_effect = [mock_docs, mock_docs]

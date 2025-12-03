@@ -191,8 +191,8 @@ async def test_check_context_relevance(mocker):
             )
 
         # Mock document retrieval from VDBRag (sync - used by ThreadPoolExecutor)
-        def mock_retrieval(*args, **kwargs):
-            return [tc_data["docs"]]
+        def mock_retrieval(*args, docs=tc_data["docs"], **kwargs):
+            return [docs]
         tc_data["vdb_op"].retrieval_langchain = mock_retrieval
 
         # Mock the deterministic scoring mechanism (return low score to trigger reflection)
@@ -272,7 +272,7 @@ async def test_check_response_groundedness(mocker):
         async def mock_retry_score(*args, **kwargs):
             return 0
         mocker.patch(
-            "nvidia_rag.rag_server.reflection._retry_score_generation",
+            "nvidia_rag.rag_server.reflection._retry_score_generation_async",
             side_effect=mock_retry_score,
         )
 
