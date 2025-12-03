@@ -976,6 +976,15 @@ class NvidiaRAGConfig(_ConfigBase):
         env="ENABLE_VLM_INFERENCE",
         description="Enable Vision-Language Model for multimodal queries",
     )
+    vlm_to_llm_fallback: bool = Field(
+        default=True,
+        env="VLM_TO_LLM_FALLBACK",
+        description=(
+            "When true, if ENABLE_VLM_INFERENCE is on but no images are present in query, "
+            "messages, or context, the pipeline will fall back to the standard LLM RAG flow. "
+            "When false, VLM will be invoked even for text-only queries."
+        ),
+    )
     default_confidence_threshold: float = Field(
         default=0.0,
         env="RERANKER_CONFIDENCE_THRESHOLD",

@@ -1961,7 +1961,7 @@ class NvidiaRAG:
             if enable_vlm_inference or is_image_query:
                 # Initialize vlm_settings if not provided
                 vlm_settings = vlm_settings or {}
-                # Fast pre-check: skip VLM entirely if no images in query or context
+                # Fast pre-check: determine where images are present
                 has_images_in_query = self._contains_images(query)
                 has_images_in_history = any(
                     self._contains_images(m.get("content")) for m in chat_history or []
@@ -1979,10 +1979,29 @@ class NvidiaRAG:
                     # If metadata inspection fails, be conservative and proceed
                     has_images_in_context = False
 
-                if has_images_in_messages or has_images_in_context or is_image_query:
-                    logger.info("Calling VLM to analyze images cited in the context")
+                # Control whether we are allowed to silently fall back to LLM when no images are present
+                vlm_to_llm_fallback = getattr(self.config, "vlm_to_llm_fallback", True)
+
+                # Decide if we should call VLM:
+                # - Always when any images are present (messages, context, or explicit image query)
+                # - Additionally, when VLM_TO_LLM_FALLBACK is disabled, even if no images are present
+                should_call_vlm = (
+                    has_images_in_messages
+                    or has_images_in_context
+                    or is_image_query
+                    or not vlm_to_llm_fallback
+                )
+
+                if should_call_vlm:
+                    logger.info(
+                        "Calling VLM (has_images_in_messages=%s, has_images_in_context=%s, "
+                        "is_image_query=%s, vlm_to_llm_fallback=%s)",
+                        has_images_in_messages,
+                        has_images_in_context,
+                        is_image_query,
+                        vlm_to_llm_fallback,
+                    )
                     try:
-                        vlm_settings = vlm_settings or {}
                         # Resolve all VLM settings to concrete values (no None)
                         vlm_model_cfg = (
                             vlm_settings.get("vlm_model") or self.config.vlm.model_name
@@ -2018,7 +2037,10 @@ class NvidiaRAG:
                         ]
                         # Build textual context identical to LLM "context" (before mutation below)
                         vlm_text_context = "\n\n".join(
-                            [self._format_document_with_source(d) for d in context_to_show]
+                            [
+                                self._format_document_with_source(d)
+                                for d in context_to_show
+                            ]
                         )
                         # Always stream VLM response directly (reasoning gate deprecated)
                         logger.info("Streaming VLM response directly.")
@@ -2070,6 +2092,12 @@ class NvidiaRAG:
                         raise APIError(
                             vlm_error_msg, ErrorCodeMapping.BAD_REQUEST
                         ) from e
+                else:
+                    # No images found and VLM_TO_LLM_FALLBACK is enabled: skip VLM and continue with standard LLM RAG flow.
+                    logger.info(
+                        "Skipping VLM because no images are present and VLM_TO_LLM_FALLBACK is enabled; "
+                        "falling back to regular LLM flow."
+                    )
 
             docs = [self._format_document_with_source(d) for d in context_to_show]
 

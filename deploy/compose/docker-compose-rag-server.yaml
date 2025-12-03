@@ -96,6 +96,9 @@ services:
 
       ##===VLM Model specific configurations===
       ENABLE_VLM_INFERENCE: ${ENABLE_VLM_INFERENCE:-false}
+      # When true, allow falling back to LLM flow if no images are present in query/messages/context
+      # When false, always route generation through VLM when ENABLE_VLM_INFERENCE is true
+      VLM_TO_LLM_FALLBACK: ${VLM_TO_LLM_FALLBACK:-true}
       # Max images sent to VLM per request (query + context)
       APP_VLM_MAX_TOTAL_IMAGES: ${APP_VLM_MAX_TOTAL_IMAGES:-5}
       # VLM generation parameters
