@@ -4,7 +4,7 @@
 -->
 # Enable Reasoning for NVIDIA RAG Blueprint
 
-By default, reasoning is disabled in the [NVIDIA RAG Blueprint](readme.md) flow. 
+By default, reasoning is disabled in the [NVIDIA RAG Blueprint](readme.md). 
 If your application can accept increased latency, enabling reasoning is an easy change to get an accuracy boost. 
 
 Reasoning in Nemotron 1.5 is controlled by the system prompt. To enable reasoning for your use case, 
@@ -57,12 +57,14 @@ with several cases demonstrating dramatic corrections.
 For example, in FinanceBench, the baseline model incorrectly computed Adobe's FY2017 operating cash flow ratio as 2.91. 
 After enabling reasoning, the model produced the correct answer (0.83), demonstrating precise contextual understanding. 
 
-| Dataset       | Type       | Accuracy with Reasoning On  | Accuracy with Reasoning Off |
-|---------------|------------|-----------------------------|-----------------------------|
-| rag battle    | Multimodal | 0.850                       | 0.809                       |
-| kg rag        | Multimodal | 0.580                       | 0.565                       |
-| finance bench | Multimodal | 0.690                       | 0.633                       |
-| bo767         | Multimodal | 0.880                       | 0.910                       |
+The following table shows some approximate accuracy improvements from enabling reasoning across datasets.
+
+| Dataset       | Type       | Accuracy with Reasoning  | Accuracy without Reasoning |
+|---------------|------------|--------------------------|----------------------------|
+| rag battle    | Multimodal | 0.850                    | 0.809                      |
+| kg rag        | Multimodal | 0.580                    | 0.565                      |
+| finance bench | Multimodal | 0.690                    | 0.633                      |
+| bo767         | Multimodal | 0.880                    | 0.910                      |
 
 
 
