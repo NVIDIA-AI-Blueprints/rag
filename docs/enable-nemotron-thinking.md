@@ -4,9 +4,14 @@
 -->
 # Enable Reasoning for NVIDIA RAG Blueprint
 
-By default, reasoning is disabled in the [NVIDIA RAG Blueprint](readme.md) flow. Reasoning in Nemotron 1.5 is controlled by the system prompt. To enable reasoning for your use case, you can update the system prompt in [prompt.yaml](../src/nvidia_rag/rag_server/prompt.yaml) from `/no_think` to `/think`.
+By default, reasoning is disabled in the [NVIDIA RAG Blueprint](readme.md) flow. 
+If your application can accept increased latency, enabling reasoning is an easy change to get an accuracy boost. 
 
-For example, to enable reasoning in RAG, update the system prompt from `/no_think` to `/think`. This can be done for other prompts as well.
+Reasoning in Nemotron 1.5 is controlled by the system prompt. To enable reasoning for your use case, 
+you can update the system prompt in [prompt.yaml](../src/nvidia_rag/rag_server/prompt.yaml) from `/no_think` to `/think`. 
+For example, to enable reasoning in RAG, update the system prompt from `/no_think` to `/think` as shown in the following code. 
+You can update other prompts as well.
+
 ```
 rag_template:
   system: |
@@ -41,6 +46,23 @@ After you update the prompt, update the temperature and top_p to the recommended
 export LLM_TEMPERATURE=0.6
 export LLM_TOP_P=0.95
 ```
+
+
+
+## Accuracy Improvement Example
+
+Accuracy improvements from enabling reasoning across datasets average approximately 5%, 
+with several cases demonstrating dramatic corrections.
+
+For example, in FinanceBench, the baseline model incorrectly computed Adobe's FY2017 operating cash flow ratio as 2.91. 
+After enabling reasoning, the model produced the correct answer (0.83), demonstrating precise contextual understanding. 
+
+| Dataset       | Type       | Accuracy with Reasoning On  | Accuracy with Reasoning Off |
+|---------------|------------|-----------------------------|-----------------------------|
+| rag battle    | Multimodal | 0.850                       | 0.809                       |
+| kg rag        | Multimodal | 0.580                       | 0.565                       |
+| finance bench | Multimodal | 0.690                       | 0.633                       |
+| bo767         | Multimodal | 0.880                       | 0.910                       |
 
 
 
