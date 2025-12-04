@@ -4,17 +4,37 @@
 -->
 # Vision-Language Model (VLM) for Generation for NVIDIA RAG Blueprint
 
-The Vision-Language Model (VLM) inference feature in the [NVIDIA RAG Blueprint](readme.md) enhances the system's ability to understand and reason about visual content that is **automatically retrieved from the knowledge base**. Unlike traditional image upload systems, this feature operates on **image citations** that are internally discovered during the retrieval process.
-
+The Vision-Language Model (VLM) inference feature in the [NVIDIA RAG Blueprint](readme.md) enhances the system's ability to understand and reason about visual content. 
+Unlike traditional image upload systems, this feature operates on image citations that are internally discovered during the retrieval process. 
 
 :::{warning}
 B200 GPUs are not supported for VLM based inferencing in RAG.
 For this feature, use H100 or A100 GPUs instead.
 :::
 
+- Key Use Cases for VLM
+
+  - **Documents with charts and graphs**: Financial reports, scientific papers, business analytics.
+  - **Technical diagrams**: Engineering schematics, architectural plans, flowcharts
+  - **Visual data representations**: Infographics, tables with visual elements, dashboards
+  - **Mixed content documents**: PDFs containing both text and images
+  - **Image-heavy content**: Catalogs, product documentation, visual guides
+
+- Key Benefits of VLM
+
+  - **Seamless Multimodal Experience** – Users don't need to manually upload images; visual content is automatically discovered and analyzed from images embedded in documents.
+  - **Improved Accuracy** – Enhanced response quality for documents containing images, charts, diagrams, and visual data.
+  - **Quality Assurance** – Internal reasoning ensures only relevant visual insights are used.
+  - **Contextual Understanding** – Visual analysis is performed in the context of the user's specific question.
+  - **Fallback Handling** – System gracefully handles cases where images are insufficient or irrelevant.
+
+:::{warning}
+Enabling VLM inference increases response latency from additional image processing and VLM model inference time. Consider this trade-off between accuracy and speed based on your requirements.
+:::
 
 
-## **How VLM Works in the RAG Pipeline**
+
+## How VLM Works in the RAG Pipeline
 
 The VLM feature follows this flow:
 
@@ -24,32 +44,9 @@ The VLM feature follows this flow:
 
 There is no separate LLM reasoning step that post-processes the VLM output—once VLM inference is enabled, the VLM is responsible for generating the response (with optional fallback behavior described below).
 
-## **Key Benefits**
 
-- **Seamless Multimodal Experience**: Users don't need to manually upload images; visual content is automatically discovered and analyzed from images embedded in documents
-- **Improved Accuracy**: Enhanced response quality for documents containing images, charts, diagrams, and visual data
-- **Contextual Understanding**: Visual analysis is performed in the context of the user's specific question and retrieved document snippets
-- **Configurable Fallback**: When no images are present, you can choose whether to keep using the VLM or fall back to the standard text-only LLM RAG flow
 
----
-
-## When to Use VLM
-
-The VLM feature is particularly beneficial when your knowledge base contains:
-
-- **Documents with charts and graphs**: Financial reports, scientific papers, business analytics
-- **Technical diagrams**: Engineering schematics, architectural plans, flowcharts
-- **Visual data representations**: Infographics, tables with visual elements, dashboards
-- **Mixed content documents**: PDFs containing both text and images
-- **Image-heavy content**: Catalogs, product documentation, visual guides
-
-:::{note}
-**Latency Impact**: Enabling VLM inference will increase response latency due to additional image processing and VLM model inference time. Consider this trade-off between accuracy and speed based on your use case requirements.
-:::
-
----
-
-## **Prompt customization**
+## Prompt customization
 
 The VLM feature uses predefined prompts that can be customized to suit your specific needs:
 
@@ -76,7 +73,7 @@ The VLM model supports two modes that are controlled entirely via the `vlm_templ
 
 You can set these parameters via environment variables (for example in `docker-compose-rag-server.yaml`) or directly through your deployment configuration.
 
-### **What Users Experience**
+### What Users Experience
 
 Users interact with the system normally - they ask questions and receive responses. The VLM processing happens transparently in the background:
 
@@ -85,7 +82,19 @@ Users interact with the system normally - they ask questions and receive respons
 3. **VLM analyzes images and text context** if present and relevant
 4. **User receives a single, coherent answer** generated directly by the VLM
 
----
+
+
+## Accuracy Improvement Example
+
+The following example that uses the Ragbattle dataset demonstrates the accuracy improvement from enabling VLM.
+
+| Query                                                                                    | Correct Answer      | Answer Without VLM (Score) | Answer With VLM (Score)   | Reason for Improvement |
+|------------------------------------------------------------------------------------------|---------------------|----------------------------|---------------------------|------------------------|
+| Percentage for "…NextGen ERP system/Advanced" on "Effectiveness of the tax team…" graph. | "64%"               | "38%" (0.0)                | "64%" (1.0)               | Precise reading of a charted percentage. |
+| Are Business development companies more or less flexible than Mezzanine funds?           | "less flexible"     | "more flexible" (0.0)      | "less flexible" (1.0)     | Correct comparative interpretation from a structured source. |
+| Estimated cost of capital range for business development companies.                      | "SOFR+600 to 1,000" | "12-16%" (0.25)            | "SOFR+600 to 1,000" (1.0) | Extracted the correct range from a structured chart. |
+
+
 
 ## Start the VLM NIM Service (Local)
 
@@ -125,7 +134,7 @@ deploy:
 Ensure the specified GPU is available and has sufficient memory for the VLM model.
 :::
 
----
+
 
 ## Enable image extraction and captioning for VLM
 
@@ -178,9 +187,10 @@ docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d
 
 Once `ENABLE_VLM_INFERENCE` is set, the RAG server uses the VLM to generate the final answer. The `VLM_TO_LLM_FALLBACK` flag controls what happens when no images are available, as described later.
 
----
 
 Continue following the rest of the steps in [Deploy with Docker (Self-Hosted Models)](deploy-docker-self-hosted.md) to deploy the ingestion-server and rag-server containers.
+
+
 
 ## Using a Remote NVIDIA-Hosted NIM Endpoint (Optional)
 
@@ -210,7 +220,7 @@ If MIG slicing is enabled on the cluster, ensure to assign a dedicated slice to 
 
 To enable VLM inference in Helm-based deployments, follow these steps:
 
-1. **Set VLM environment variables in `values.yaml`**
+1. Set VLM environment variables in `values.yaml`
 
    In your [values.yaml](../deploy/helm/nvidia-blueprint-rag/values.yaml) file, under the `envVars` section, set the following environment variables:
 
@@ -226,7 +236,7 @@ To enable VLM inference in Helm-based deployments, follow these steps:
     enabled: true
   ```
 
-2. **Apply the updated Helm chart**
+2. Apply the updated Helm chart
 
    Run the following command to upgrade or install your deployment:
 
@@ -239,7 +249,7 @@ To enable VLM inference in Helm-based deployments, follow these steps:
      -f deploy/helm/nvidia-blueprint-rag/values.yaml
    ```
 
-3. **Check if the VLM pod has come up**
+3. Check if the VLM pod has come up
 
   A pod with the name `rag-0` will start, this pod corresponds to the VLM model deployment.
 
@@ -253,7 +263,7 @@ For local VLM inference, ensure the VLM NIM service is running and accessible at
 :::
 
 
-### **When VLM Processing Occurs**
+### When VLM Processing Occurs
 
 VLM processing is triggered when:
 - `ENABLE_VLM_INFERENCE` is set to `true`
@@ -345,3 +355,11 @@ The VLM receives the **current user query**, a truncated **conversation history*
 Mitigations:
 - Keep user questions as self-contained as possible, especially in long-running conversations.
 - Use retrieval and prompt tuning to focus the most relevant context for the VLM.
+
+
+
+## Related Topics
+
+- [Release Notes](release-notes.md)
+- [Debugging](debugging.md)
+- [Troubleshoot NVIDIA RAG Blueprint](troubleshooting.md)
