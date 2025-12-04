@@ -3,11 +3,11 @@ import { render, screen, fireEvent } from '../../../test/utils';
 import { EndpointsSection } from '../EndpointsSection';
 
 const mockUseSettingsStore = vi.fn();
-const mockUseHealthDependentFeatures = vi.fn();
+const mockUseServerDefaultsStore = vi.fn();
 
 vi.mock('../../../store/useSettingsStore', () => ({
   useSettingsStore: () => mockUseSettingsStore(),
-  useHealthDependentFeatures: () => mockUseHealthDependentFeatures()
+  useServerDefaultsStore: () => mockUseServerDefaultsStore()
 }));
 
 describe('EndpointsSection', () => {
@@ -23,9 +23,10 @@ describe('EndpointsSection', () => {
       vdbEndpoint: '',
       set: mockSetSettings
     });
-    mockUseHealthDependentFeatures.mockReturnValue({
-      isHealthLoading: false,
-      shouldDisableHealthFeatures: false
+    mockUseServerDefaultsStore.mockReturnValue({
+      config: null,
+      isLoading: false,
+      error: null
     });
   });
 
@@ -43,7 +44,7 @@ describe('EndpointsSection', () => {
     it('renders all endpoint inputs', () => {
       render(<EndpointsSection />);
       
-      const inputs = screen.getAllByPlaceholderText('Leave empty for default');
+      const inputs = screen.getAllByRole('textbox');
       expect(inputs).toHaveLength(5);
     });
 
@@ -132,15 +133,8 @@ describe('EndpointsSection', () => {
     });
   });
 
-  describe('Placeholder Behavior', () => {
-    it('shows placeholder when endpoint is empty', () => {
-      render(<EndpointsSection />);
-      
-      const inputs = screen.getAllByPlaceholderText('Leave empty for default');
-      expect(inputs).toHaveLength(5);
-    });
-
-    it('shows current value in placeholder when endpoint has value', () => {
+  describe('Value Display', () => {
+    it('displays endpoint values when set', () => {
       mockUseSettingsStore.mockReturnValue({
         llmEndpoint: 'http://llm-endpoint',
         embeddingEndpoint: '',
@@ -153,10 +147,7 @@ describe('EndpointsSection', () => {
       render(<EndpointsSection />);
       
       const llmInput = screen.getByDisplayValue('http://llm-endpoint');
-      expect(llmInput).toHaveAttribute('placeholder', 'Current: http://llm-endpoint');
-      
-      const inputs = screen.getAllByRole('textbox');
-      expect(inputs[1]).toHaveAttribute('placeholder', 'Leave empty for default');
+      expect(llmInput).toBeInTheDocument();
     });
   });
 

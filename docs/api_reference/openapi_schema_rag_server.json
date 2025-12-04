@@ -5,11 +5,11 @@
         "description": "This API schema describes all the retriever endpoints exposed for NVIDIA RAG server Blueprint",
         "version": "1.0.0"
     },
-  "servers": [
-    {
-      "url": "/v1"
-    }
-  ],
+    "servers": [
+        {
+            "url": "/v1"
+        }
+    ],
     "paths": {
         "/health": {
             "get": {
@@ -868,7 +868,14 @@
                     }
                 },
                 "type": "object",
-                "required": ["temperature", "top_p", "max_tokens", "vdb_top_k", "reranker_top_k", "confidence_threshold"],
+                "required": [
+                    "temperature",
+                    "top_p",
+                    "max_tokens",
+                    "vdb_top_k",
+                    "reranker_top_k",
+                    "confidence_threshold"
+                ],
                 "title": "RagConfigurationDefaults",
                 "description": "Default values for RAG configuration parameters"
             },
@@ -906,7 +913,14 @@
                     }
                 },
                 "type": "object",
-                "required": ["enable_reranker", "enable_citations", "enable_guardrails", "enable_query_rewriting", "enable_vlm_inference", "enable_filter_generator"],
+                "required": [
+                    "enable_reranker",
+                    "enable_citations",
+                    "enable_guardrails",
+                    "enable_query_rewriting",
+                    "enable_vlm_inference",
+                    "enable_filter_generator"
+                ],
                 "title": "FeatureTogglesDefaults",
                 "description": "Default values for feature toggles"
             },
@@ -934,7 +948,12 @@
                     }
                 },
                 "type": "object",
-                "required": ["llm_model", "embedding_model", "reranker_model", "vlm_model"],
+                "required": [
+                    "llm_model",
+                    "embedding_model",
+                    "reranker_model",
+                    "vlm_model"
+                ],
                 "title": "ModelsDefaults",
                 "description": "Default model names"
             },
@@ -967,7 +986,13 @@
                     }
                 },
                 "type": "object",
-                "required": ["llm_endpoint", "embedding_endpoint", "reranker_endpoint", "vlm_endpoint", "vdb_endpoint"],
+                "required": [
+                    "llm_endpoint",
+                    "embedding_endpoint",
+                    "reranker_endpoint",
+                    "vlm_endpoint",
+                    "vdb_endpoint"
+                ],
                 "title": "EndpointsDefaults",
                 "description": "Default endpoint URLs"
             },
@@ -991,7 +1016,12 @@
                     }
                 },
                 "type": "object",
-                "required": ["rag_configuration", "feature_toggles", "models", "endpoints"],
+                "required": [
+                    "rag_configuration",
+                    "feature_toggles",
+                    "models",
+                    "endpoints"
+                ],
                 "title": "ConfigurationResponse",
                 "description": "Response containing all server default configuration values"
             },
