@@ -9,6 +9,7 @@ This module tests:
 """
 
 import asyncio
+import codecs
 import json
 import logging
 import os
@@ -721,9 +722,10 @@ class CustomMetadataModule(BaseTestModule):
                 buffer = ""
                 first_chunk_with_citations = None
                 response_text = ""
+                decoder = codecs.getincrementaldecoder("utf-8")(errors="strict")
 
                 async for chunk in response.content.iter_chunked(1024):
-                    buffer += chunk.decode()
+                    buffer += decoder.decode(chunk, final=False)
                     while "\n" in buffer:
                         line, buffer = buffer.split("\n", 1)
                         line = line.strip()
