@@ -841,7 +841,7 @@ async def get_documents(
 )
 async def delete_documents(
     request: Request,
-    document_names: list[str] | None = None,
+    document_names: list[str] = Query(default=None),
     collection_name: str = os.getenv("COLLECTION_NAME"),
     vdb_endpoint: str = Query(
         default=os.getenv("APP_VECTORSTORE_URL"), include_in_schema=False

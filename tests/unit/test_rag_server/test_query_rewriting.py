@@ -21,7 +21,7 @@ import pytest
 
 
 class DummyPrompt:
-    """A minimal LCEL-like object that supports piping and invoke/format_messages."""
+    """A minimal LCEL-like object that supports piping and invoke/ainvoke/format_messages."""
 
     def __init__(self, rewritten_prefix: str = "REWRITTEN"):
         self.rewritten_prefix = rewritten_prefix
@@ -34,8 +34,17 @@ class DummyPrompt:
         value = inputs.get("input") or inputs.get("question") or ""
         return f"{self.rewritten_prefix}({value})"
 
+    async def ainvoke(self, inputs, config=None):
+        # Async version of invoke
+        value = inputs.get("input") or inputs.get("question") or ""
+        return f"{self.rewritten_prefix}({value})"
+
     def stream(self, inputs, config=None):
         # Minimal streaming generator to satisfy generate() call path
+        yield "ok"
+
+    async def astream(self, inputs, config=None):
+        # Minimal async streaming generator
         yield "ok"
 
     def format_messages(self, **kwargs):
@@ -66,7 +75,8 @@ class DummyVDB:
         return []
 
     def retrieval_langchain(self, query, collection_name, vectorstore=None, top_k=None, filter_expr="", otel_ctx=None):
-        self.last_query = query
+        """Sync method - called in ThreadPoolExecutor or directly."""
+        DummyVDB.last_query = query
         return []
 
 
@@ -99,17 +109,16 @@ def stub_chat_prompt(monkeypatch):
     # Stub LLM and ranker to avoid external calls during generate()
     monkeypatch.setattr(main, "get_llm", lambda **kwargs: DummyPrompt())
     monkeypatch.setattr(main, "get_ranking_model", lambda **kwargs: None)
-    # query_rewriter_llm is now an instance attribute, not module-level
-    # monkeypatch.setattr(main, "query_rewriter_llm", DummyPrompt())
-    # Make generate() return a simple sync iterator instead of async coroutine
-    monkeypatch.setattr(
-        main,
-        "generate_answer",
-        lambda generator, contexts, **kw: iter(["ok"])  # return sync iterator
-    )
+
+    # Mock generate_answer_async to return a simple async generator
+    async def mock_generate_answer_async(generator, contexts, **kw):
+        yield "ok"
+
+    monkeypatch.setattr(main, "generate_answer_async", mock_generate_answer_async)
 
 
-def test_search_uses_query_rewriter_when_enabled(monkeypatch):
+@pytest.mark.asyncio
+async def test_search_uses_query_rewriter_when_enabled(monkeypatch):
     from nvidia_rag.rag_server.main import NvidiaRAG
 
     fake_vdb = DummyVDB()
@@ -124,7 +133,7 @@ def test_search_uses_query_rewriter_when_enabled(monkeypatch):
     ]
 
     # Act
-    rag.search(
+    await rag.search(
         query="How does it work?",
         messages=messages,
         collection_name="test",
@@ -137,7 +146,8 @@ def test_search_uses_query_rewriter_when_enabled(monkeypatch):
     assert fake_vdb.last_query == "REWRITTEN(How does it work?)"
 
 
-def test_search_combines_history_when_rewriter_disabled(monkeypatch):
+@pytest.mark.asyncio
+async def test_search_combines_history_when_rewriter_disabled(monkeypatch):
     from nvidia_rag.rag_server.main import NvidiaRAG
 
     fake_vdb = DummyVDB()
@@ -150,7 +160,7 @@ def test_search_combines_history_when_rewriter_disabled(monkeypatch):
     ]
 
     # Act
-    rag.search(
+    await rag.search(
         query="How does it work?",
         messages=messages,
         collection_name="test",
@@ -163,7 +173,8 @@ def test_search_combines_history_when_rewriter_disabled(monkeypatch):
     assert fake_vdb.last_query == "What is RAG?. How does it work?"
 
 
-def test_generate_uses_query_rewriter_when_enabled(monkeypatch):
+@pytest.mark.asyncio
+async def test_generate_uses_query_rewriter_when_enabled(monkeypatch):
     # We validate that when use_knowledge_base=True, generate() calls the RAG chain
     # and passes the rewritten query into retrieval via FakeVDB
     from nvidia_rag.rag_server.main import NvidiaRAG
@@ -180,7 +191,7 @@ def test_generate_uses_query_rewriter_when_enabled(monkeypatch):
     ]
 
     # Act: Calling generate() triggers retrieval before returning the stream
-    stream = rag.generate(
+    stream = await rag.generate(
         messages=messages,
         use_knowledge_base=True,
         collection_name="test",
@@ -194,7 +205,8 @@ def test_generate_uses_query_rewriter_when_enabled(monkeypatch):
     assert fake_vdb.last_query == "REWRITTEN(How does it work?)"
 
 
-def test_generate_combines_history_when_rewriter_disabled(monkeypatch):
+@pytest.mark.asyncio
+async def test_generate_combines_history_when_rewriter_disabled(monkeypatch):
     # When query rewriting is disabled, generate() should concatenate prior user query
     from nvidia_rag.rag_server.main import NvidiaRAG
 
@@ -208,7 +220,7 @@ def test_generate_combines_history_when_rewriter_disabled(monkeypatch):
         {"role": "user", "content": "How does it work?"},
     ]
 
-    stream = rag.generate(
+    stream = await rag.generate(
         messages=messages,
         use_knowledge_base=True,
         collection_name="test",

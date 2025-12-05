@@ -29,7 +29,7 @@ from opentelemetry import context as otel_context
 from nvidia_rag.rag_server.response_generator import (
     ErrorCodeMapping,
     RAGResponse,
-    generate_answer,
+    generate_answer_async,
 )
 from nvidia_rag.utils.common import (
     filter_documents_by_confidence,
@@ -156,7 +156,7 @@ def merge_contexts(
     return all_contexts
 
 
-def generate_subqueries(query: str, llm: ChatNVIDIA) -> list[str]:
+async def generate_subqueries(query: str, llm: ChatNVIDIA) -> list[str]:
     """
     Generate multiple perspectives/subqueries from the original query.
 
@@ -189,7 +189,7 @@ def generate_subqueries(query: str, llm: ChatNVIDIA) -> list[str]:
         )
     )
 
-    questions = generate_queries.invoke(
+    questions = await generate_queries.ainvoke(
         {"question": query}, config={"run_name": "sub-queries-generation"}
     )
     logger.info(f"Generated {len(questions)} subqueries from original query")
@@ -198,7 +198,7 @@ def generate_subqueries(query: str, llm: ChatNVIDIA) -> list[str]:
     return questions
 
 
-def rewrite_query_with_context(
+async def rewrite_query_with_context(
     question: str, history: list[tuple[str, str]], llm: ChatNVIDIA
 ) -> str:
     """
@@ -237,7 +237,7 @@ def rewrite_query_with_context(
         "question": question,
     }
 
-    rewritten_query = query_rewriter_chain.invoke(
+    rewritten_query = await query_rewriter_chain.ainvoke(
         chain_input, config={"run_name": "contextual-query-rewriting"}
     )
 
@@ -301,7 +301,7 @@ def retrieve_and_rank_documents(
     return retrieved_docs
 
 
-def generate_answer_for_query(
+async def generate_answer_for_query(
     question: str, documents: list[Document], llm: ChatNVIDIA
 ) -> str:
     """
@@ -327,7 +327,7 @@ def generate_answer_for_query(
     )
     rag_chain = prompt | llm | StrOutputParser()
 
-    answer = rag_chain.invoke(
+    answer = await rag_chain.ainvoke(
         {"question": question, "context": documents},
         config={"run_name": "sub-query-answer-generation"},
     )
@@ -336,7 +336,7 @@ def generate_answer_for_query(
     return answer
 
 
-def generate_followup_question(
+async def generate_followup_question(
     history: list[tuple[str, str]],
     original_query: str,
     contexts: list[Document],
@@ -374,7 +374,7 @@ def generate_followup_question(
     )
 
     followup_question_chain = followup_question_prompt | llm | StrOutputParser()
-    followup_question = followup_question_chain.invoke(
+    followup_question = await followup_question_chain.ainvoke(
         {
             "conversation_history": format_conversation_history(history),
             "question": original_query,
@@ -394,7 +394,7 @@ def generate_followup_question(
     return cleaned_followup if cleaned_followup else ""
 
 
-def process_subqueries(
+async def process_subqueries(
     questions: list[str],
     original_query: str,
     llm: ChatNVIDIA,
@@ -448,7 +448,7 @@ def process_subqueries(
         logger.info(f"Processing question {i + 1}/{len(questions)}: {question}")
 
         # Rewrite query with context from previous answers
-        rewritten_query = rewrite_query_with_context(question, history, llm)
+        rewritten_query = await rewrite_query_with_context(question, history, llm)
         logger.info(f"Rewritten query: {rewritten_query}")
 
         # Retrieve and rank documents
@@ -477,7 +477,7 @@ def process_subqueries(
         #     )
 
         # Generate answer
-        answer = generate_answer_for_query(rewritten_query, retrieved_docs, llm)
+        answer = await generate_answer_for_query(rewritten_query, retrieved_docs, llm)
         logger.info(f"Generated answer: {answer}")
         final_contexts[question]["answer"] = answer
 
@@ -489,7 +489,7 @@ def process_subqueries(
     return history, final_contexts
 
 
-def generate_final_response(
+async def generate_final_response(
     history: list[tuple[str, str]],
     contexts: list[Document],
     original_query: str,
@@ -524,8 +524,8 @@ def generate_final_response(
     logger.info("Generating final comprehensive response")
 
     return RAGResponse(
-        generate_answer(
-            final_response_chain.stream(
+        generate_answer_async(
+            final_response_chain.astream(
                 {
                     "conversation_history": format_conversation_history(history),
                     "context": f"{contexts}",
@@ -542,7 +542,7 @@ def generate_final_response(
     )
 
 
-def iterative_query_decomposition(
+async def iterative_query_decomposition(
     query: str,
     history: list[tuple[str, str]],
     llm: ChatNVIDIA,
@@ -620,7 +620,7 @@ def iterative_query_decomposition(
 
     llm = get_llm(**llm_settings)
     # Generate initial subqueries
-    questions = generate_subqueries(query, llm)
+    questions = await generate_subqueries(query, llm)
 
     # If there's only one subquery, use basic RAG instead of query decomposition
     if len(questions) == 1:
@@ -650,7 +650,7 @@ def iterative_query_decomposition(
             )
 
         # Generate final response directly
-        return generate_final_response(
+        return await generate_final_response(
             history=[],  # Empty answer since we're generating the final response directly
             contexts=retrieved_docs,
             original_query=query,
@@ -669,7 +669,7 @@ def iterative_query_decomposition(
         logger.info(f"Recursion depth: {depth + 1}/{recursion_depth}")
 
         # Process current set of questions
-        _, iteration_contexts = process_subqueries(
+        _, iteration_contexts = await process_subqueries(
             questions,
             query,
             llm,
@@ -686,7 +686,7 @@ def iterative_query_decomposition(
         # conversation_history.extend(iteration_history)
 
         # Generate follow-up question for next iteration
-        followup_question = generate_followup_question(
+        followup_question = await generate_followup_question(
             conversation_history, query, final_contexts, llm
         )
 
@@ -712,7 +712,7 @@ def iterative_query_decomposition(
     )
     # Generate final comprehensive response
     logger.info("Generating final response with all collected contexts")
-    return generate_final_response(
+    return await generate_final_response(
         conversation_history,
         contexts,
         query,

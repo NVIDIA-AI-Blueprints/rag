@@ -27,20 +27,19 @@ Class:
 """
 
 import base64
-import binascii
 import io
 import os
 import re
+from collections.abc import AsyncGenerator
 from logging import getLogger
 from typing import Any
 
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 from PIL import Image as PILImage
-from PIL import UnidentifiedImageError
 
 from nvidia_rag.utils.configuration import NvidiaRAGConfig
-from nvidia_rag.utils.llm import get_llm, get_prompts
+from nvidia_rag.utils.llm import get_prompts
 from nvidia_rag.utils.minio_operator import (
     get_minio_operator,
     get_unique_thumbnail_id,
@@ -74,9 +73,9 @@ class VLM:
     Methods
     -------
     analyze_with_messages(docs, messages, context_text, question_text):
-        Build a VLM prompt similar to RAG chain prompts and analyze images.
+        Build a VLM prompt similar to RAG chain prompts and analyze images (async).
     stream_with_messages(docs, messages, context_text, question_text):
-        Stream VLM tokens for a multimodal conversation plus context.
+        Stream VLM tokens for a multimodal conversation plus context (async generator).
     """
 
     def __init__(
@@ -337,6 +336,24 @@ class VLM:
         return [system_message, citations_instruct_user_message, *chat_history_messages]
 
     @staticmethod
+    async def invoke_model_async(
+        model: ChatOpenAI,
+        messages: list[HumanMessage | AIMessage | SystemMessage],
+        *,
+        temperature: float,
+        top_p: float,
+        max_tokens: int,
+    ) -> str:
+        """Invoke the VLM model asynchronously and return the complete response string."""
+        logger.info(
+            f"Invoking VLM async with temperature={temperature}, top_p={top_p}, max_tokens={max_tokens}"
+        )
+        result = await model.ainvoke(
+            messages, temperature=temperature, top_p=top_p, max_tokens=max_tokens
+        )
+        return result.content.strip()
+
+    @staticmethod
     def invoke_model(
         model: ChatOpenAI,
         messages: list[HumanMessage | AIMessage | SystemMessage],
@@ -352,7 +369,7 @@ class VLM:
         return model.invoke(
             messages, temperature=temperature, top_p=top_p, max_tokens=max_tokens
         ).content.strip()
- 
+
     @staticmethod
     def _convert_image_url_to_png_b64(image_url: str) -> str:
         """
@@ -401,7 +418,7 @@ class VLM:
             # Return original if conversion fails
             return image_url
 
-    
+
 
     def _redact_messages_for_logging(
         self, messages: list[HumanMessage | AIMessage | SystemMessage]
@@ -477,7 +494,7 @@ class VLM:
                     parts.append(content)
         return "\n\n".join(parts)
 
-    def analyze_with_messages(
+    async def analyze_with_messages(
         self,
         docs: list[Any],
         messages: list[dict[str, Any]],
@@ -491,7 +508,7 @@ class VLM:
         **_: Any,
     ) -> str:
         """
-        Send the full conversation messages to the VLM, appending any relevant images
+        Send the full conversation messages to the VLM asynchronously, appending any relevant images
         from user messages and retrieved context. Ensures images are provided as
         base64 PNG data URLs.
 
@@ -544,7 +561,7 @@ class VLM:
         logger.info("VLM final prompt (images redacted): %s", safe_prompt)
 
         try:
-            vlm_response = self.invoke_model(
+            vlm_response = await self.invoke_model_async(
                 vlm,
                 lc_messages,
                 temperature=eff_temperature,
@@ -557,7 +574,7 @@ class VLM:
             logger.warning(f"Exception during VLM call with messages: {e}", exc_info=True)
             return ""
 
-    def stream_with_messages(
+    async def stream_with_messages(
         self,
         docs: list[Any],
         messages: list[dict[str, Any]],
@@ -569,9 +586,9 @@ class VLM:
         max_tokens: int | None = None,
         max_total_images: int | None = None,
         **_: Any,
-    ):
+    ) -> AsyncGenerator[str, None]:
         """
-        Stream tokens from the VLM given full conversation and retrieved context.
+        Stream tokens from the VLM asynchronously given full conversation and retrieved context.
         Yields incremental text chunks as they arrive.
         """
         if not isinstance(messages, list) or len(messages) == 0:
@@ -608,13 +625,14 @@ class VLM:
             safe_prompt = self._redact_messages_for_logging(lc_messages)
             logger.info("VLM final streaming prompt (images redacted): %s", safe_prompt)
 
-            # Stream response chunks
-            for idx, chunk in enumerate(vlm.stream(
+            # Stream response chunks asynchronously
+            idx = 0
+            async for chunk in vlm.astream(
                 lc_messages,
                 temperature=eff_temperature,
                 top_p=eff_top_p,
                 max_tokens=eff_max_tokens,
-            )):
+            ):
                 try:
                     content = getattr(chunk, "content", None)
                     if isinstance(content, str) and content:
@@ -628,7 +646,7 @@ class VLM:
                         e,
                         exc_info=True,
                     )
-                    continue
+                idx += 1
         except Exception as e:
             logger.warning(f"Exception during VLM streaming call with messages: {e}", exc_info=True)
             return

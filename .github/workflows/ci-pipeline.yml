@@ -22,6 +22,10 @@ env:
   APP_VECTORSTORE_ENABLEGPUSEARCH: False
   APP_VECTORSTORE_ENABLEGPUINDEX: False
 
+concurrency:
+  group: pr-global-sequential
+  cancel-in-progress: false
+
 jobs:
   # ============================================================================
   # TEST STAGE JOBS
@@ -165,7 +169,7 @@ jobs:
 
   integration-tests:
     name: Integration Tests
-    runs-on: arc-runners-org-nvidia-ai-bp-2-gpu-rag
+    runs-on: arc-runners-org-nvidia-ai-bp-2-gpu
     # Only run if push to develop OR PR from same repo (not fork) - needs secrets
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' || github.event.pull_request.head.repo.full_name == github.repository
     steps:

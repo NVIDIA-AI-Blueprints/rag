@@ -16,7 +16,7 @@
 """Minimal unit tests for rag_server/main.py to improve coverage for specific lines."""
 
 import pytest
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 from nvidia_rag.rag_server.main import APIError, NvidiaRAG
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
@@ -26,7 +26,8 @@ from nvidia_rag.rag_server.response_generator import Citations
 class TestNvidiaRAGMinimalCoverage:
     """Minimal test cases to improve coverage for specific lines."""
 
-    def test_search_with_empty_filter_expression(self):
+    @pytest.mark.asyncio
+    async def test_search_with_empty_filter_expression(self):
         """Test search with empty filter expression to cover lines 511-517."""
         mock_vdb_op = Mock(spec=VDBRag)
         mock_vdb_op.check_collection_exists.return_value = True
@@ -60,11 +61,13 @@ class TestNvidiaRAGMinimalCoverage:
                                         mock_future.result.return_value = [Mock(page_content="test content", metadata={})]
                                         mock_executor.return_value.__enter__.return_value.submit.return_value = mock_future
 
-                                        # Mock RunnableAssign
-                                        mock_runnable_assign.return_value.invoke.return_value = {"context": [Mock(page_content="test content", metadata={})]}
+                                        # Mock RunnableAssign for async
+                                        mock_runnable_instance = Mock()
+                                        mock_runnable_instance.ainvoke = AsyncMock(return_value={"context": [Mock(page_content="test content", metadata={})]})
+                                        mock_runnable_assign.return_value = mock_runnable_instance
 
                                         # Call search with empty filter expression
-                                        result = rag.search(
+                                        result = await rag.search(
                                             "test query",
                                             collection_names=["test_collection"],
                                             filter_expr=""  # Empty filter expression
@@ -75,7 +78,8 @@ class TestNvidiaRAGMinimalCoverage:
                                         # Verify debug logging was called for empty filter
                                         mock_logger.debug.assert_called()
 
-    def test_search_with_whitespace_filter_expression(self):
+    @pytest.mark.asyncio
+    async def test_search_with_whitespace_filter_expression(self):
         """Test search with whitespace-only filter expression to cover lines 511-517."""
         mock_vdb_op = Mock(spec=VDBRag)
         mock_vdb_op.check_collection_exists.return_value = True
@@ -109,11 +113,13 @@ class TestNvidiaRAGMinimalCoverage:
                                         mock_future.result.return_value = [Mock(page_content="test content", metadata={})]
                                         mock_executor.return_value.__enter__.return_value.submit.return_value = mock_future
 
-                                        # Mock RunnableAssign
-                                        mock_runnable_assign.return_value.invoke.return_value = {"context": [Mock(page_content="test content", metadata={})]}
+                                        # Mock RunnableAssign for async
+                                        mock_runnable_instance = Mock()
+                                        mock_runnable_instance.ainvoke = AsyncMock(return_value={"context": [Mock(page_content="test content", metadata={})]})
+                                        mock_runnable_assign.return_value = mock_runnable_instance
 
                                         # Call search with whitespace-only filter expression
-                                        result = rag.search(
+                                        result = await rag.search(
                                             "test query",
                                             collection_names=["test_collection"],
                                             filter_expr="   "  # Whitespace-only filter expression
@@ -124,7 +130,8 @@ class TestNvidiaRAGMinimalCoverage:
                                         # Verify debug logging was called for empty filter
                                         mock_logger.debug.assert_called()
 
-    def test_search_with_none_filter_expression(self):
+    @pytest.mark.asyncio
+    async def test_search_with_none_filter_expression(self):
         """Test search with None filter expression to cover lines 511-517."""
         mock_vdb_op = Mock(spec=VDBRag)
         mock_vdb_op.check_collection_exists.return_value = True
@@ -158,11 +165,13 @@ class TestNvidiaRAGMinimalCoverage:
                                         mock_future.result.return_value = [Mock(page_content="test content", metadata={})]
                                         mock_executor.return_value.__enter__.return_value.submit.return_value = mock_future
 
-                                        # Mock RunnableAssign
-                                        mock_runnable_assign.return_value.invoke.return_value = {"context": [Mock(page_content="test content", metadata={})]}
+                                        # Mock RunnableAssign for async
+                                        mock_runnable_instance = Mock()
+                                        mock_runnable_instance.ainvoke = AsyncMock(return_value={"context": [Mock(page_content="test content", metadata={})]})
+                                        mock_runnable_assign.return_value = mock_runnable_instance
 
                                         # Call search with None filter expression
-                                        result = rag.search(
+                                        result = await rag.search(
                                             "test query",
                                             collection_names=["test_collection"],
                                             filter_expr=None  # None filter expression

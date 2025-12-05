@@ -16,10 +16,12 @@
 """This module contains the response generator for the RAG server which generates the response to the user query and retrieves the summary of a document.
 1. response_generator(): Generate a response using the RAG chain.
 2. prepare_llm_request(): Prepare the request for the LLM response generation.
-3. generate_answer(): Generate and stream the response to the provided prompt.
-4. prepare_citations(): Prepare citations for the response.
-5. error_response_generator(): Generate a stream of data for the error response.
-6. retrieve_summary(): Retrieve the summary of a document.
+3. generate_answer(): Generate and stream the response to the provided prompt (sync).
+4. generate_answer_async(): Generate and stream the response to the provided prompt (async).
+5. prepare_citations(): Prepare citations for the response.
+6. error_response_generator(): Generate a stream of data for the error response (sync).
+7. error_response_generator_async(): Generate a stream of data for the error response (async).
+8. retrieve_summary(): Retrieve the summary of a document.
 """
 
 import asyncio
@@ -553,6 +555,156 @@ def generate_answer(
         yield from error_response_generator(FALLBACK_EXCEPTION_MSG)
 
 
+async def generate_answer_async(
+    generator,
+    contexts: list[Any],
+    model: str = "",
+    collection_name: str = "",
+    enable_citations: bool = True,
+    context_reranker_time_ms: float | None = None,
+    retrieval_time_ms: float | None = None,
+    rag_start_time_sec: float | None = None,
+    otel_metrics_client: OtelMetrics | None = None,
+):
+    """Generate and stream the response to the provided prompt asynchronously.
+
+    Args:
+        generator: Async generator that yields response chunks
+        contexts: List of context documents used for generation
+        model: Name of the model used for generation
+        collection_name: Name of the collection used for retrieval
+        enable_citations: Whether to enable citations in the response
+        otel_metrics_client: Optional OpenTelemetry metrics client for updating latency histograms
+    """
+
+    try:
+        # unique response id for every query
+        resp_id = str(uuid4())
+        if generator:
+            logger.debug("Generated response chunks\n")
+            # Create ChainResponse object for every token generated
+            first_chunk = True
+            request_start_time = time.time()
+            start_time = request_start_time  # For LLM TTFT calculation
+            llm_ttft_ms: float | None = None
+            rag_ttft_ms: float | None = None
+            llm_generation_time_ms: float | None = None
+            async for chunk in generator:
+                # TODO: This is a hack to clear contexts if we get an error
+                # response from nemoguardrails
+                if chunk == "I'm sorry, I can't respond to that.":
+                    # Clear contexts if we get an error response
+                    contexts = []
+                chain_response = ChainResponse()
+                response_choice = ChainResponseChoices(
+                    index=0,
+                    message=Message(role="assistant", content=chunk),
+                    delta=Message(role=None, content=chunk),
+                    finish_reason=None,
+                )
+                chain_response.id = resp_id
+                chain_response.choices.append(response_choice)  # pylint: disable=E1101
+                chain_response.model = model
+                chain_response.object = "chat.completion.chunk"
+                chain_response.created = int(time.time())
+                if first_chunk:
+                    llm_ttft_ms = (time.time() - start_time) * 1000
+                    logger.info(
+                        "    == LLM Time to First Token (TTFT): %.2f ms ==",
+                        llm_ttft_ms,
+                    )
+                    # RAG TTFT from server request start (if provided)
+                    if rag_start_time_sec is not None:
+                        rag_ttft_ms = (time.time() - rag_start_time_sec) * 1000
+                        logger.info(
+                            "    == RAG Time to First Token (TTFT): %.2f ms ==",
+                            rag_ttft_ms,
+                        )
+                    chain_response.citations = prepare_citations(
+                        retrieved_documents=contexts,
+                        enable_citations=enable_citations,
+                    )
+                    first_chunk = False
+                logger.debug(response_choice)
+                # Send generator with tokens in ChainResponse format
+                yield "data: " + str(chain_response.json()) + "\n\n"
+
+            # Prepare metrics for final chunk
+            llm_generation_time_ms = (time.time() - request_start_time) * 1000
+
+            final_metrics = Metrics(
+                rag_ttft_ms=rag_ttft_ms,
+                llm_ttft_ms=llm_ttft_ms if llm_ttft_ms else None,
+                context_reranker_time_ms=context_reranker_time_ms
+                if context_reranker_time_ms
+                else None,
+                retrieval_time_ms=retrieval_time_ms if retrieval_time_ms else None,
+                llm_generation_time_ms=llm_generation_time_ms
+                if llm_generation_time_ms
+                else None,
+            )
+
+            # Update OpenTelemetry latency histograms
+            try:
+                if otel_metrics_client is not None:
+                    latency_payload = {
+                        "rag_ttft_ms": rag_ttft_ms,
+                        "llm_ttft_ms": llm_ttft_ms,
+                        "context_reranker_time_ms": context_reranker_time_ms,
+                        "retrieval_time_ms": retrieval_time_ms,
+                        "llm_generation_time_ms": llm_generation_time_ms,
+                    }
+                    latency_payload = {
+                        k: v for k, v in latency_payload.items() if v is not None
+                    }
+                    if latency_payload:
+                        otel_metrics_client.update_latency_metrics(latency_payload)
+            except Exception as e:
+                logger.debug("Failed to update OpenTelemetry latency metrics: %s", e)
+
+            # Create response first, then attach metrics for clarity
+            chain_response = ChainResponse()
+            chain_response.metrics = final_metrics
+
+            # [DONE] indicate end of response from server
+            response_choice = ChainResponseChoices(
+                finish_reason="stop",
+            )
+            chain_response.id = resp_id
+            chain_response.choices.append(response_choice)  # pylint: disable=E1101
+            chain_response.model = model
+            chain_response.object = "chat.completion.chunk"
+            chain_response.created = int(time.time())
+            logger.debug(response_choice)
+            yield "data: " + str(chain_response.model_dump_json()) + "\n\n"
+        else:
+            chain_response = ChainResponse()
+            yield "data: " + str(chain_response.model_dump_json()) + "\n\n"
+
+    except (MilvusException, MilvusUnavailableException) as e:
+        exception_msg = (
+            "Error from milvus server. Please ensure you have ingested some documents. "
+            "Please check rag-server logs for more details."
+        )
+        logger.error(
+            "Error from Milvus database endpoint. Please ensure you have ingested some documents. "
+            + "Error details: %s",
+            e,
+            exc_info=logger.getEffectiveLevel() <= logging.DEBUG,
+        )
+        async for msg in error_response_generator_async(exception_msg):
+            yield msg
+
+    except Exception as e:
+        logger.error(
+            "Error from generate endpoint. Error details: %s",
+            e,
+            exc_info=logger.getEffectiveLevel() <= logging.DEBUG,
+        )
+        async for msg in error_response_generator_async(FALLBACK_EXCEPTION_MSG):
+            yield msg
+
+
 def prepare_citations(
     retrieved_documents: list[Document],
     force_citations: bool = False,  # True in-case of doc search api
@@ -677,6 +829,42 @@ def prepare_citations(
 def error_response_generator(exception_msg: str):
     """
     Generate a stream of data for the error response
+    """
+
+    def get_chain_response(
+        content: str = "", finish_reason: str | None = None
+    ) -> ChainResponse:
+        """
+        Get a chain response for an exception
+        Args:
+            exception_msg: str - Exception message
+        Returns:
+            chain_response: ChainResponse - Chain response for an exception
+        """
+        chain_response = ChainResponse()
+        chain_response.id = str(uuid4())
+        response_choice = ChainResponseChoices(
+            index=0,
+            message=Message(role="assistant", content=content),
+            delta=Message(role=None, content=content),
+            finish_reason=finish_reason,
+        )
+        chain_response.choices.append(response_choice)  # pylint: disable=E1101
+        chain_response.object = "chat.completion.chunk"
+        chain_response.created = int(time.time())
+        return chain_response
+
+    for i in range(0, len(exception_msg), 5):
+        exception_msg_content = exception_msg[i : i + 5]
+        chain_response = get_chain_response(content=exception_msg_content)
+        yield "data: " + str(chain_response.model_dump_json()) + "\n\n"
+    chain_response = get_chain_response(finish_reason="stop")
+    yield "data: " + str(chain_response.model_dump_json()) + "\n\n"
+
+
+async def error_response_generator_async(exception_msg: str):
+    """
+    Generate an async stream of data for the error response
     """
 
     def get_chain_response(
