@@ -91,6 +91,19 @@ Users interact with the system normally - they ask questions and receive respons
 
 The following example that uses the Ragbattle dataset demonstrates the accuracy improvement from enabling VLM.
 
+Using the [Deloitte's Tax transformation trends survey from May 2021](https://www.deloitte.com/content/dam/assets-shared/en_gb/legacy/docs/research/2022/Deloitte-tax-operations-transformation-trends-survey-2021.pdf) 
+and the following question:
+
+```text
+What is the percentage of companies with NextGen ERP systems/Advanced that said the tax team was highly effective in advising the business on emerging compliance issues?
+```
+
+Before enabling VLM, the system answers 38% with an accuracy score of 0.0. 
+After enabling VLM, the system answers 64% with an accuracy score of 1.0. 
+The answer is found on page 21 of the PDF (page 20 of the document).
+
+The following table shows some approximate accuracy improvements from enabling VLM.
+
 | Query                                                                                    | Correct Answer      | Answer Without VLM (Score) | Answer With VLM (Score)   | Reason for Improvement |
 |------------------------------------------------------------------------------------------|---------------------|----------------------------|---------------------------|------------------------|
 | Percentage for "…NextGen ERP system/Advanced" on "Effectiveness of the tax team…" graph. | "64%"               | "38%" (0.0)                | "64%" (1.0)               | Precise reading of a charted percentage. |

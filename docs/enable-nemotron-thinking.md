@@ -54,8 +54,16 @@ export LLM_TOP_P=0.95
 Accuracy improvements from enabling reasoning across datasets average approximately 5%, 
 with several cases demonstrating dramatic corrections.
 
-For example, in FinanceBench, the baseline model incorrectly computed Adobe's FY2017 operating cash flow ratio as 2.91. 
+For example, using the [ADOBE_2017_10Kpdf](https://github.com/patronus-ai/financebench/blob/main/pdfs/ADOBE_2017_10K.pdf) from [FinanceBench](https://github.com/patronus-ai/financebench/), 
+and the following question: 
+
+```text
+What is the FY2017 operating cash flow ratio for Adobe? Operating cash flow ratio is defined as: cash from operations / total current liabilities. Round your answer to two decimal places. Please utilize information provided primarily within the balance sheet and the cash flow statement. 
+```
+
+Before enabling reasoning, the baseline model incorrectly computed Adobe's FY2017 operating cash flow ratio as 2.91. 
 After enabling reasoning, the model produced the correct answer (0.83), demonstrating precise contextual understanding. 
+The answer is found on 2 separate pages of the PDF; page 57 and page 61.
 
 The following table shows some approximate accuracy improvements from enabling reasoning across datasets.
 
