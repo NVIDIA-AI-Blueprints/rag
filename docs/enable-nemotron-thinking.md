@@ -4,9 +4,14 @@
 -->
 # Enable Reasoning for NVIDIA RAG Blueprint
 
-By default, reasoning is disabled in the [NVIDIA RAG Blueprint](readme.md) flow. Reasoning in Nemotron 1.5 is controlled by the system prompt. To enable reasoning for your use case, you can update the system prompt in [prompt.yaml](../src/nvidia_rag/rag_server/prompt.yaml) from `/no_think` to `/think`.
+By default, reasoning is disabled in the [NVIDIA RAG Blueprint](readme.md). 
+If your application can accept increased latency, enabling reasoning is an easy change to get an accuracy boost. 
 
-For example, to enable reasoning in RAG, update the system prompt from `/no_think` to `/think`. This can be done for other prompts as well.
+Reasoning in Nemotron 1.5 is controlled by the system prompt. To enable reasoning for your use case, 
+you can update the system prompt in [prompt.yaml](../src/nvidia_rag/rag_server/prompt.yaml) from `/no_think` to `/think`. 
+For example, to enable reasoning in RAG, update the system prompt from `/no_think` to `/think` as shown in the following code. 
+You can update other prompts as well.
+
 ```
 rag_template:
   system: |
@@ -41,6 +46,33 @@ After you update the prompt, update the temperature and top_p to the recommended
 export LLM_TEMPERATURE=0.6
 export LLM_TOP_P=0.95
 ```
+
+
+
+## Accuracy Improvement Example
+
+Accuracy improvements from enabling reasoning across datasets average approximately 5%, 
+with several cases demonstrating dramatic corrections.
+
+For example, using the [ADOBE_2017_10Kpdf](https://github.com/patronus-ai/financebench/blob/main/pdfs/ADOBE_2017_10K.pdf) from [FinanceBench](https://github.com/patronus-ai/financebench/), 
+and the following question: 
+
+```text
+What is the FY2017 operating cash flow ratio for Adobe? Operating cash flow ratio is defined as: cash from operations / total current liabilities. Round your answer to two decimal places. Please utilize information provided primarily within the balance sheet and the cash flow statement. 
+```
+
+Before enabling reasoning, the baseline model incorrectly computed Adobe's FY2017 operating cash flow ratio as 2.91. 
+After enabling reasoning, the model produced the correct answer (0.83), demonstrating precise contextual understanding. 
+The answer is found on 2 separate pages of the PDF; page 57 and page 61.
+
+The following table shows some approximate accuracy improvements from enabling reasoning across datasets.
+
+| Dataset       | Type       | Accuracy with Reasoning  | Accuracy without Reasoning |
+|---------------|------------|--------------------------|----------------------------|
+| rag battle    | Multimodal | 0.850                    | 0.809                      |
+| kg rag        | Multimodal | 0.580                    | 0.565                      |
+| finance bench | Multimodal | 0.690                    | 0.633                      |
+| bo767         | Multimodal | 0.880                    | 0.910                      |
 
 
 
