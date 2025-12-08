@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 2
 requires-python = ">=3.11"
 resolution-markers = [
     "python_full_version >= '3.14'",
@@ -636,6 +636,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/49/85/12f0a49a7c4ffb70572b6c2ef13c90c88fd190debda93b23f026b25f9634/deprecated-1.3.1.tar.gz", hash = "sha256:b1b50e0ff0c1fddaa5708a2c6b0a6588bb09b892825ab2b214ac9ea9d92a5223", size = 2932523, upload-time = "2025-10-30T08:19:02.757Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/84/d0/205d54408c08b13550c733c4b85429e7ead111c7f0014309637425520a9a/deprecated-1.3.1-py2.py3-none-any.whl", hash = "sha256:597bfef186b6f60181535a29fbe44865ce137a5079f295b479886c82729d5f3f", size = 11298, upload-time = "2025-10-30T08:19:00.758Z" },
+]
+
+[[package]]
+name = "deprecation"
+version = "2.1.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "packaging" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/5a/d3/8ae2869247df154b64c1884d7346d412fed0c49df84db635aab2d1c40e62/deprecation-2.1.0.tar.gz", hash = "sha256:72b3bde64e5d778694b0cf68178aed03d15e15477116add3fb773e581f9518ff", size = 173788, upload-time = "2020-04-20T14:23:38.738Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/02/c3/253a89ee03fc9b9682f1541728eb66db7db22148cd94f89ab22528cd1e1b/deprecation-2.1.0-py2.py3-none-any.whl", hash = "sha256:a10811591210e1fb0e768a8c25517cabeabcba6f0bf96564f8ff45189f90b14a", size = 11178, upload-time = "2020-04-20T14:23:36.581Z" },
 ]
 
 [[package]]
@@ -1331,6 +1343,57 @@ wheels = [
 ]
 
 [[package]]
+name = "lance-namespace"
+version = "0.2.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "lance-namespace-urllib3-client" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ae/a0/54aae8694869594b65bb6733811e43307bf5485cf9574bf28e50673ae5cf/lance_namespace-0.2.1.tar.gz", hash = "sha256:b4f18c5bb86486937a79ed89f0eb5b30aba907bb8a854824b450f2a30f4f38d9", size = 6082, upload-time = "2025-11-28T07:20:32.703Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/87/de/16ea77c472c0f9d2d9ecabf5746a90d9ed9c1b1504ca659b1ce0c4833613/lance_namespace-0.2.1-py3-none-any.whl", hash = "sha256:12809ceaf13616b8e6e0caf3f84a2d921deb5436b0d3769ef021e335022f2d80", size = 7566, upload-time = "2025-11-28T07:20:31.689Z" },
+]
+
+[[package]]
+name = "lance-namespace-urllib3-client"
+version = "0.2.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pydantic" },
+    { name = "python-dateutil" },
+    { name = "typing-extensions" },
+    { name = "urllib3" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/1e/1d/b2037e7bfa1802d1e5a8e59b26081043f0352eec55ab58a5002ab6b4a2a3/lance_namespace_urllib3_client-0.2.1.tar.gz", hash = "sha256:68640e279d1d52fe2a65f82b832ec5f63bd1304271014c9dffe074da564bde1b", size = 134044, upload-time = "2025-11-28T07:20:28.953Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/59/b4/40b75958172ce8211258c50e086adfb95f3211f7dc2fe9271a924d9ef2e1/lance_namespace_urllib3_client-0.2.1-py3-none-any.whl", hash = "sha256:3b3efbdab3783fd04f3c8d7b186dbf6244507485fac374bd2dd49ea61cb84cc7", size = 228490, upload-time = "2025-11-28T07:20:30.349Z" },
+]
+
+[[package]]
+name = "lancedb"
+version = "0.25.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "deprecation" },
+    { name = "lance-namespace" },
+    { name = "numpy" },
+    { name = "overrides", marker = "python_full_version < '3.12'" },
+    { name = "packaging" },
+    { name = "pyarrow" },
+    { name = "pydantic" },
+    { name = "tqdm" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d7/62/a149b47dc4ccf3c569eba722b805cbba1b90566976ff1d459f20f7f00ebc/lancedb-0.25.3-cp39-abi3-macosx_10_15_x86_64.whl", hash = "sha256:1cfa4dd97b33ca8f73288aa4b1baaddc9545ce0d3c8e5d06fba8feb77f42363f", size = 38425074, upload-time = "2025-11-07T05:58:15.763Z" },
+    { url = "https://files.pythonhosted.org/packages/b2/94/ae3e74bb27dcca321ccf1e7a32ccab09b1062ddf54f96376221ca8610e7c/lancedb-0.25.3-cp39-abi3-macosx_11_0_arm64.whl", hash = "sha256:8a7bfe0cb2146f6e78e9f376673ed2f906b93dab84df97dad2ba9fa52f97e152", size = 34506539, upload-time = "2025-11-07T05:14:04.901Z" },
+    { url = "https://files.pythonhosted.org/packages/6a/07/b580d0e002eaaa3d5216699fb9f19186c37861c3fa11ac3be991fa7d6d03/lancedb-0.25.3-cp39-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:25a395d07d31da1e13e2631fd9911b15e6d4fb903d34358cea0bd450006364e3", size = 36149261, upload-time = "2025-11-07T05:23:13.002Z" },
+    { url = "https://files.pythonhosted.org/packages/c1/95/32ddb779a01cd0d349f391e7d5f4218d045f9848c1d757f5a8ace4c63b09/lancedb-0.25.3-cp39-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:500beac161f73e3e6826a711efb1d24397d892d07dfdce2c9fb1da73f8de506c", size = 39145675, upload-time = "2025-11-07T05:24:40.813Z" },
+    { url = "https://files.pythonhosted.org/packages/f4/33/fdaff64a111f86dbb99f3ff09136df93b441e350f4953884a9fc21c49283/lancedb-0.25.3-cp39-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:2d0fce4187582e48b69430d204665e164002f1b49b03e67747ca8ec2c3083481", size = 36165492, upload-time = "2025-11-07T05:27:13.394Z" },
+    { url = "https://files.pythonhosted.org/packages/ab/15/f0d69acc5e06892d19e09c127cd928cf20f5d2966a069e93693fc389b132/lancedb-0.25.3-cp39-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:3035665fb8e4aaff8dff2602747cc77aeba6bc39f1a95345abc3275c97a044cb", size = 39191458, upload-time = "2025-11-07T05:24:38.047Z" },
+    { url = "https://files.pythonhosted.org/packages/bc/dc/3c5785cee0f0abaa5046ff817f3d64275909067500d6a317da0aeb9141b8/lancedb-0.25.3-cp39-abi3-win_amd64.whl", hash = "sha256:8c153d976bec79358d328e4c8a287a7b9c918b35b3912fff6864ced6b2a15943", size = 42080029, upload-time = "2025-11-07T05:46:32.639Z" },
+]
+
+[[package]]
 name = "langchain"
 version = "0.3.27"
 source = { registry = "https://pypi.org/simple" }
@@ -1870,7 +1933,7 @@ wheels = [
 
 [[package]]
 name = "nv-ingest-api"
-version = "2025.11.11.dev20251111"
+version = "26.1.0rc1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "backoff" },
@@ -1884,14 +1947,14 @@ dependencies = [
     { name = "tritonclient" },
     { name = "universal-pathlib" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/2d/f8/05e4cd63c06011b15ed0c364a46bbc780bd2cf84b832f83b42b8925c6c70/nv_ingest_api-2025.11.11.dev20251111.tar.gz", hash = "sha256:f7e5761e9fe6f3e2760061a6380bbf22fc49fea46978fb6e8c4120f1defc6ca9", size = 248245, upload-time = "2025-11-11T23:34:08.488Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e4/70/04ee115f7431d2a619d2bfe58f7624bfd51a9e19564fd7115f23e98744bb/nv_ingest_api-26.1.0rc1.tar.gz", hash = "sha256:5a0d3c81a6fb3a34eedd241b82827e7d727a94a68ee7262cf4def66327b501d3", size = 258397, upload-time = "2025-12-07T15:10:27.023Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/fe/37/7f4d7634da50d83659038aba4a9efcdd58f66fd2dc38da0b23b8706b8ce3/nv_ingest_api-2025.11.11.dev20251111-py3-none-any.whl", hash = "sha256:f7427d006c13a28f822b035b652d82887bec58e3eff94622da69ea0fd969fba4", size = 341730, upload-time = "2025-11-11T23:34:06.955Z" },
+    { url = "https://files.pythonhosted.org/packages/81/0b/1f28aefc8df763e41e10b0a8a3c61f424d39d0cf4ab0805678fdd9612945/nv_ingest_api-26.1.0rc1-py3-none-any.whl", hash = "sha256:9b216ddcf4bb13012708d53bbe48e65eee637a91846b0ec8d7f93eb43329e915", size = 356228, upload-time = "2025-12-07T15:10:24.166Z" },
 ]
 
 [[package]]
 name = "nv-ingest-client"
-version = "2025.11.11.dev20251111"
+version = "26.1.0rc1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "build" },
@@ -1899,15 +1962,16 @@ dependencies = [
     { name = "click" },
     { name = "fsspec" },
     { name = "httpx" },
+    { name = "lancedb" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "requests" },
     { name = "setuptools" },
     { name = "tqdm" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/42/2c/e9b3957e77156c9c411d8c08d58918ad410afdfab859062faaaab63799a2/nv_ingest_client-2025.11.11.dev20251111.tar.gz", hash = "sha256:a1ca58af41f0a2daeee998a42ef51ae116302e302dd76b9d5b47522df302ad1e", size = 116711, upload-time = "2025-11-11T23:34:11.694Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/a6/7a/b4d3189e596c8f833255c29f58f9650a7844c0ea68c1122fa7e3f789f86d/nv_ingest_client-26.1.0rc1.tar.gz", hash = "sha256:744e0419a4924b0e7b517c73481f22079d2cfce0bca1d11711ed537cb21b2b3f", size = 125572, upload-time = "2025-12-07T15:10:30.748Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/96/fd/7ef703ccc79a1a0302a8dedd872c1df230c8187a854d3f70b619bf64cb45/nv_ingest_client-2025.11.11.dev20251111-py3-none-any.whl", hash = "sha256:920e4b80b02afb890a40b602db63daadc64e172693ccfeb48acc30c54a0bb6bc", size = 135474, upload-time = "2025-11-11T23:34:09.951Z" },
+    { url = "https://files.pythonhosted.org/packages/e0/71/38b0f7c5ab2ab81ed01c25947467e8d39e4a483521a871356bf77364ecb4/nv_ingest_client-26.1.0rc1-py3-none-any.whl", hash = "sha256:3da9cd1467c207147063e65b2dc59bf2853c22b4875dd282ef2f63ce5d38440d", size = 145903, upload-time = "2025-12-07T15:10:28.149Z" },
 ]
 
 [[package]]
@@ -2022,8 +2086,8 @@ requires-dist = [
     { name = "langchain-openai", marker = "extra == 'rag'", specifier = "==0.2.8" },
     { name = "lark", specifier = ">=1.2.2" },
     { name = "minio", specifier = "==7.2.15" },
-    { name = "nv-ingest-api", specifier = "==2025.11.11.dev20251111" },
-    { name = "nv-ingest-client", specifier = "==2025.11.11.dev20251111" },
+    { name = "nv-ingest-api", specifier = "==26.1.0rc1" },
+    { name = "nv-ingest-client", specifier = "==26.1.0rc1" },
     { name = "opentelemetry-api", marker = "extra == 'all'", specifier = "==1.29.0" },
     { name = "opentelemetry-api", marker = "extra == 'ingest'", specifier = "==1.29.0" },
     { name = "opentelemetry-api", marker = "extra == 'rag'", specifier = "==1.29.0" },

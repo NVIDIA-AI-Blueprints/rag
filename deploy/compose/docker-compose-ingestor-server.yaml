@@ -147,7 +147,7 @@ services:
       - "6379:6379"
 
   nv-ingest-ms-runtime:
-    image:  nvcr.io/0648981100760671/nv-ingest:2025.11.11
+    image:  nvcr.io/0648981100760671/nv-ingest:26.1.0-RC1
     # cpuset: "0-15" # Uncomment to restrict this container to CPU cores 0–15
     volumes:
       - ${DATASET_ROOT:-./data}:/workspace/data
