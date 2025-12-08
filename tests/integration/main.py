@@ -40,7 +40,6 @@ from .base import TestResult, TestStatus
 from .utils.discovery import discover_test_modules, discover_test_cases
 from .utils.sequence_executor import TestSequenceExecutor
 from .utils.response_handlers import print_response
-from nvidia_rag.utils.observability.tracing import get_tracer, trace_function
 
 # Configure logging
 logging.basicConfig(
@@ -52,8 +51,6 @@ logging.basicConfig(
     ],
 )
 logger = logging.getLogger(__name__)
-TRACER = get_tracer("nvidia_rag.tests.integration")
-
 
 class IntegrationTestRunner:
     """Integration test runner for RAG and Ingestion APIs"""
@@ -138,7 +135,6 @@ class IntegrationTestRunner:
 
 
 
-    @trace_function("tests.integration.add_test_result", tracer=TRACER)
     def add_test_result(
         self,
         test_number: int,
@@ -169,12 +165,10 @@ class IntegrationTestRunner:
         )
         self.test_results.append(result)
 
-    @trace_function("tests.integration.print_response", tracer=TRACER)
     async def print_response(self, response: aiohttp.ClientResponse) -> dict[str, Any]:
         """Helper to print API response and return JSON"""
         return await print_response(response)
 
-    @trace_function("tests.integration.run_integration_tests", tracer=TRACER)
     async def run_integration_tests(self, sequence_name=None, test_numbers=None, test_names=None, test_range=None, exclude_tests=None) -> bool:
         """Run integration tests with optional test selection or sequence execution"""
         logger.info("🚀 Starting RAG and Ingestion API Integration Tests")
@@ -300,7 +294,6 @@ class IntegrationTestRunner:
                         logger.warning("⚠️ Some post-sequence tests failed after error, but continuing...")
             return False
 
-    @trace_function("tests.integration.execute_specific_tests", tracer=TRACER)
     async def _execute_specific_tests(self, test_numbers: list[int], exclude_tests: set[int], test_phase: str = "main") -> bool:
         """Execute specific tests based on test numbers"""
         # Set current test phase for result tracking
@@ -362,7 +355,6 @@ class IntegrationTestRunner:
 
 
 
-    @trace_function("tests.integration.print_test_results_table", tracer=TRACER)
     def print_test_results_table(self):
         """Print a comprehensive test results table"""
         logger.info("\n" + "=" * 120)
@@ -486,7 +478,6 @@ class IntegrationTestRunner:
                 logger.info(f"🧹 Post-sequence Tests: {post_sequence_tests}")
         logger.info("=" * 120)
 
-    @trace_function("tests.integration.list_available_tests", tracer=TRACER)
     def list_available_tests(self):
         """List all available tests with numbers and names"""
         logger.info("Available Tests:")
@@ -506,7 +497,6 @@ class IntegrationTestRunner:
         logger.info("  --test-range 1-5")
         logger.info("  --exclude-tests 16")
 
-    @trace_function("tests.integration.parse_test_identifiers", tracer=TRACER)
     def _parse_test_identifiers(self, test_identifiers):
         """Parse test identifiers (numbers or names) into test numbers"""
         test_numbers = set()
@@ -529,7 +519,6 @@ class IntegrationTestRunner:
 
         return test_numbers
 
-    @trace_function("tests.integration.find_tests_by_name", tracer=TRACER)
     def _find_tests_by_name(self, name_pattern):
         """Find test numbers by name pattern (supports partial matching)"""
         matched_tests = set()
@@ -541,7 +530,6 @@ class IntegrationTestRunner:
 
         return matched_tests
 
-    @trace_function("tests.integration.should_run_test", tracer=TRACER)
     def _should_run_test(self, test_number, include_tests=None, exclude_tests=None):
         """Determine if a test should run based on filters"""
         if exclude_tests and test_number in exclude_tests:
@@ -553,7 +541,6 @@ class IntegrationTestRunner:
         return test_number in include_tests
 
 
-@trace_function("tests.integration.main", tracer=TRACER)
 def main():
     """Main function to run integration tests"""
     parser = argparse.ArgumentParser(
