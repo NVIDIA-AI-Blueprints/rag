@@ -174,6 +174,49 @@ class TestNvidiaRAGIngestor:
             with pytest.raises(ValueError, match="Invalid mode"):
                 NvidiaRAGIngestor(vdb_op=mock_vdb, mode="invalid")
 
+    def test_ingestor_initialization_with_prompts_dict(self):
+        """Test NvidiaRAGIngestor initialization with custom prompts dictionary."""
+        from nvidia_rag.utils.vdb.vdb_base import VDBRag
+
+        mock_vdb = MagicMock(spec=VDBRag)
+        mock_vdb.vdb_endpoint = "http://localhost:19530"
+
+        custom_prompts = {
+            "document_summary_prompt": {
+                "system": "Custom system",
+                "human": "Custom human"
+            }
+        }
+
+        with patch("nvidia_rag.ingestor_server.main.get_nv_ingest_client"):
+            ingestor = NvidiaRAGIngestor(
+                vdb_op=mock_vdb,
+                mode=Mode.LIBRARY,
+                prompts=custom_prompts
+            )
+            # Verify custom prompts are merged with defaults
+            assert ingestor.prompts["document_summary_prompt"]["system"] == "Custom system"
+            assert ingestor.prompts["document_summary_prompt"]["human"] == "Custom human"
+            # Verify other prompts are still available (from defaults)
+            assert "iterative_summary_prompt" in ingestor.prompts
+
+    def test_ingestor_initialization_with_prompts_none(self):
+        """Test NvidiaRAGIngestor initialization with prompts=None uses defaults."""
+        from nvidia_rag.utils.vdb.vdb_base import VDBRag
+
+        mock_vdb = MagicMock(spec=VDBRag)
+        mock_vdb.vdb_endpoint = "http://localhost:19530"
+
+        with patch("nvidia_rag.ingestor_server.main.get_nv_ingest_client"):
+            ingestor = NvidiaRAGIngestor(
+                vdb_op=mock_vdb,
+                mode=Mode.LIBRARY,
+                prompts=None
+            )
+            # Verify default prompts are loaded
+            assert "document_summary_prompt" in ingestor.prompts
+            assert "iterative_summary_prompt" in ingestor.prompts
+
     @pytest.mark.asyncio
     async def test_upload_documents_non_blocking(
         self,

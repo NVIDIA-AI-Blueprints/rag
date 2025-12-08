@@ -106,7 +106,12 @@ EXAMPLE_DIR = "./"
 
 # Initialize configuration and ingestor
 CONFIG = NvidiaRAGConfig()
-NV_INGEST_INGESTOR = NvidiaRAGIngestor(mode=Mode.SERVER, config=CONFIG)
+PROMPT_CONFIG_FILE = os.environ.get("PROMPT_CONFIG_FILE", "/prompt.yaml")
+NV_INGEST_INGESTOR = NvidiaRAGIngestor(
+    mode=Mode.SERVER,
+    config=CONFIG,
+    prompts=PROMPT_CONFIG_FILE if Path(PROMPT_CONFIG_FILE).is_file() else None,
+)
 
 
 class SplitOptions(BaseModel):
