@@ -50,7 +50,7 @@ class MetricsMock:
 
 @pytest.fixture()
 def handler():
-    from observability.langchain_callback_handler import LangchainCallbackHandler
+    from nvidia_rag.utils.observability.langchain_callback_handler import LangchainCallbackHandler
 
     tracer = TracerMock()
     metrics = MetricsMock()
@@ -58,7 +58,7 @@ def handler():
 
 
 def test_on_chat_model_start_sets_input_words_and_prompts(handler):
-    from observability.langchain_callback_handler import SpanAttributes
+    from nvidia_rag.utils.observability.langchain_callback_handler import SpanAttributes
 
     run_id = uuid4()
     messages = [

@@ -44,7 +44,7 @@ from nvidia_rag.utils.minio_operator import (
     get_unique_thumbnail_id,
     get_unique_thumbnail_id_from_result,
 )
-from observability.otel_metrics import OtelMetrics
+from nvidia_rag.utils.observability.otel_metrics import OtelMetrics
 
 
 class RAGResponse:

@@ -27,11 +27,14 @@ from nv_ingest_client.client import Ingestor, NvIngestClient
 
 from nvidia_rag.utils.common import sanitize_nim_url
 from nvidia_rag.utils.configuration import NvidiaRAGConfig
+from nvidia_rag.utils.observability.tracing import get_tracer, trace_function
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
 
 logger = logging.getLogger(__name__)
+TRACER = get_tracer("nvidia_rag.ingestor.nvingest")
 
 
+@trace_function("ingestor.nvingest.get_nv_ingest_client", tracer=TRACER)
 def get_nv_ingest_client(config: NvidiaRAGConfig = None):
     """
     Creates and returns NV-Ingest client
@@ -52,6 +55,7 @@ def get_nv_ingest_client(config: NvidiaRAGConfig = None):
     return client
 
 
+@trace_function("ingestor.nvingest.get_nv_ingest_ingestor", tracer=TRACER)
 def get_nv_ingest_ingestor(
     nv_ingest_client_instance,
     filepaths: list[str],

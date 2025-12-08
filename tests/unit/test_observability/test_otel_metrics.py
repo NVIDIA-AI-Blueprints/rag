@@ -66,7 +66,7 @@ def fake_meter(monkeypatch):
     meter = FakeMeter()
 
     # Monkeypatch opentelemetry.metrics in the imported module to use our fake meter
-    import observability.otel_metrics as om
+    import nvidia_rag.utils.observability.otel_metrics as om
 
     fake_metrics_module = types.SimpleNamespace(get_meter=lambda service_name: meter)
     monkeypatch.setattr(om, "metrics", fake_metrics_module, raising=True)
@@ -74,7 +74,7 @@ def fake_meter(monkeypatch):
 
 
 def test_otel_metrics_setup_and_updates(fake_meter):
-    from observability.otel_metrics import OtelMetrics
+    from nvidia_rag.utils.observability.otel_metrics import OtelMetrics
 
     m = OtelMetrics(service_name="rag")
 
@@ -112,7 +112,7 @@ def test_otel_metrics_setup_and_updates(fake_meter):
 
 
 def test_otel_metrics_reinit_guard(fake_meter):
-    from observability.otel_metrics import OtelMetrics
+    from nvidia_rag.utils.observability.otel_metrics import OtelMetrics
 
     m1 = OtelMetrics(service_name="rag")
 

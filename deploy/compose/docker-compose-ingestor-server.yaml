@@ -137,6 +137,13 @@ services:
       NV_INGEST_FILES_PER_BATCH: ${NV_INGEST_FILES_PER_BATCH:-16}
       NV_INGEST_CONCURRENT_BATCHES: ${NV_INGEST_CONCURRENT_BATCHES:-4}
 
+      # Tracing
+      APP_TRACING_ENABLED: ${APP_TRACING_ENABLED:-"True"}
+      # HTTP endpoint
+      APP_TRACING_OTLPHTTPENDPOINT: http://otel-collector:4318/v1/traces
+      # GRPC endpoint
+      APP_TRACING_OTLPGRPCENDPOINT: grpc://otel-collector:4317
+
     ports:
       - "8082:8082"
     expose:

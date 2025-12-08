@@ -46,10 +46,14 @@ from nvidia_rag.utils.health_models import (
 )
 from nvidia_rag.utils.minio_operator import MinioOperator
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
+from nvidia_rag.utils.observability.tracing import get_tracer, trace_function
 
 logger = logging.getLogger(__name__)
 
+TRACER = get_tracer("nvidia_rag.ingestor.health")
 
+
+@trace_function("ingestor.health.check_service_health", tracer=TRACER)
 async def check_service_health(
     url: str,
     service_name: str,
@@ -149,6 +153,7 @@ async def check_service_health(
         )
 
 
+@trace_function("ingestor.health.check_minio_health", tracer=TRACER)
 async def check_minio_health(
     endpoint: str, access_key: str, secret_key: str
 ) -> StorageHealthInfo:
@@ -188,6 +193,7 @@ async def check_minio_health(
         )
 
 
+@trace_function("ingestor.health.check_nv_ingest_health", tracer=TRACER)
 async def check_nv_ingest_health(hostname: str, port: int) -> ProcessingHealthInfo:
     """Check NV-Ingest service health"""
     url_base = f"{hostname}:{port}"
@@ -256,6 +262,7 @@ async def check_nv_ingest_health(hostname: str, port: int) -> ProcessingHealthIn
         )
 
 
+@trace_function("ingestor.health.check_redis_health", tracer=TRACER)
 async def check_redis_health(host: str, port: int, db: int) -> TaskManagementHealthInfo:
     """Check Redis server health"""
     url_base = f"{host}:{port}"
@@ -331,6 +338,7 @@ def is_nvidia_api_catalog_url(url: str) -> bool:
     )
 
 
+@trace_function("ingestor.health.check_all_services_health", tracer=TRACER)
 async def check_all_services_health(
     vdb_op: VDBRag, config: NvidiaRAGConfig | None = None
 ) -> IngestorHealthResponse:
@@ -503,6 +511,7 @@ async def check_all_services_health(
     )
 
 
+@trace_function("ingestor.health.print_health_report", tracer=TRACER)
 def print_health_report(health_results: IngestorHealthResponse) -> None:
     """
     Print health status for individual services
@@ -540,6 +549,7 @@ def print_health_report(health_results: IngestorHealthResponse) -> None:
     logger.info("=============================================")
 
 
+@trace_function("ingestor.health.check_and_print_services_health", tracer=TRACER)
 async def check_and_print_services_health(
     vdb_op: VDBRag, config: NvidiaRAGConfig | None = None
 ):
@@ -555,6 +565,7 @@ async def check_and_print_services_health(
     return health_results
 
 
+@trace_function("ingestor.health.check_services_health", tracer=TRACER)
 def check_services_health(vdb_op: VDBRag):
     """
     Synchronous wrapper for checking service health
