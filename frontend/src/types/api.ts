@@ -116,3 +116,58 @@ export interface HealthResponse {
     message: string | null;
   }>;
 }
+
+/**
+ * RAG configuration default values from the server.
+ */
+export interface RagConfigurationDefaults {
+  temperature: number;
+  top_p: number;
+  max_tokens: number;
+  vdb_top_k: number;
+  reranker_top_k: number;
+  confidence_threshold: number;
+}
+
+/**
+ * Feature toggle default values from the server.
+ */
+export interface FeatureTogglesDefaults {
+  enable_reranker: boolean;
+  enable_citations: boolean;
+  enable_guardrails: boolean;
+  enable_query_rewriting: boolean;
+  enable_vlm_inference: boolean;
+  enable_filter_generator: boolean;
+}
+
+/**
+ * Model name defaults from the server.
+ */
+export interface ModelsDefaults {
+  llm_model: string;
+  embedding_model: string;
+  reranker_model: string;
+  vlm_model: string;
+}
+
+/**
+ * Endpoint URL defaults from the server.
+ */
+export interface EndpointsDefaults {
+  llm_endpoint: string;
+  embedding_endpoint: string;
+  reranker_endpoint: string;
+  vlm_endpoint: string;
+  vdb_endpoint: string;
+}
+
+/**
+ * Server configuration response containing all default values.
+ */
+export interface ConfigurationResponse {
+  rag_configuration: RagConfigurationDefaults;
+  feature_toggles: FeatureTogglesDefaults;
+  models: ModelsDefaults;
+  endpoints: EndpointsDefaults;
+}

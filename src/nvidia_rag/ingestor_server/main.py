@@ -25,11 +25,16 @@ This is the Main module for RAG ingestion pipeline.
 9. Delete documents: Delete documents in the vector store. Method name: delete_documents
 
 Private methods:
-1. __ingest_docs: Ingest documents to the vector store.
-2. __nvingest_upload_doc: Upload documents to the vector store using nvingest.
-3. __get_failed_documents: Get failed documents from the vector store.
-4. __get_non_supported_files: Get non-supported files from the vector store.
-5. __ingest_document_summary: Trigger parallel summary generation and ingestion if enabled.
+1. __prepare_vdb_op_and_collection_name: Prepare vector database operation and collection name.
+2. __run_background_ingest_task: Ingest documents to the vector store.
+3. __build_ingestion_response: Build the ingestion response from results and failures.
+4. __ingest_document_summary: Drives summary generation and ingestion if enabled.
+5. __put_content_to_minio: Put NV-Ingest image/table/chart content to MinIO.
+6. __perform_shallow_extraction_workflow: Perform shallow extraction workflow for fast summary generation.
+7. __run_nvingest_batched_ingestion: Upload documents to the vector store using NV-Ingest.
+8. __nv_ingest_ingestion_pipeline: Run the NV-Ingest ingestion pipeline.
+9. __get_failed_documents: Get failed documents from the vector store.
+10. __get_non_supported_files: Get non-supported files from the vector store.
 """
 
 import asyncio
@@ -294,7 +299,7 @@ class NvidiaRAGIngestor:
                 state_manager.is_background = True
 
                 def _task():
-                    return self.__ingest_docs(
+                    return self.__run_background_ingest_task(
                         filepaths=filepaths,
                         collection_name=collection_name,
                         vdb_endpoint=vdb_endpoint,
@@ -335,7 +340,7 @@ class NvidiaRAGIngestor:
                     "task_id": task_id,
                 }
             else:
-                response_dict = await self.__ingest_docs(
+                response_dict = await self.__run_background_ingest_task(
                     filepaths=filepaths,
                     collection_name=collection_name,
                     vdb_endpoint=vdb_endpoint,
@@ -359,7 +364,7 @@ class NvidiaRAGIngestor:
                 "failed_documents": [],
             }
 
-    async def __ingest_docs(
+    async def __run_background_ingest_task(
         self,
         filepaths: list[str],
         collection_name: str | None = None,
@@ -556,7 +561,7 @@ class NvidiaRAGIngestor:
             # Check if the provided collection_name exists in vector-DB
 
             start_time = time.time()
-            results, failures = await self.__nvingest_upload_doc(
+            results, failures = await self.__run_nvingest_batched_ingestion(
                 filepaths=filepaths,
                 collection_name=collection_name,
                 vdb_op=vdb_op,
@@ -1765,7 +1770,8 @@ class NvidiaRAGIngestor:
 
             logger.info("Shallow extraction complete, starting deep ingestion")
 
-    async def __nvingest_upload_doc(
+
+    async def __run_nvingest_batched_ingestion(
         self,
         filepaths: list[str],
         collection_name: str,
@@ -1824,7 +1830,7 @@ class NvidiaRAGIngestor:
                 collection_name,
                 len(filepaths),
             )
-            results, failures = await self.__nv_ingest_ingestion(
+            results, failures = await self.__nv_ingest_ingestion_pipeline(
                 filepaths=filepaths,
                 collection_name=collection_name,
                 vdb_op=vdb_op,
@@ -1859,7 +1865,7 @@ class NvidiaRAGIngestor:
                         f"Processing batch {batch_num} of {len(filepaths) // self.config.nv_ingest.files_per_batch + 1} - "
                         f"Documents in current batch: {len(sub_filepaths)} ==="
                     )
-                    results, failures = await self.__nv_ingest_ingestion(
+                    results, failures = await self.__nv_ingest_ingestion_pipeline(
                         filepaths=sub_filepaths,
                         collection_name=collection_name,
                         vdb_op=vdb_op,
@@ -1903,7 +1909,7 @@ class NvidiaRAGIngestor:
                             f"Batch {batch_num} of {len(filepaths) // self.config.nv_ingest.files_per_batch + 1} - "
                             f"Documents in batch: {len(sub_filepaths)} ==="
                         )
-                        return await self.__nv_ingest_ingestion(
+                        return await self.__nv_ingest_ingestion_pipeline(
                             filepaths=sub_filepaths,
                             collection_name=collection_name,
                             vdb_op=vdb_op,
@@ -1944,7 +1950,7 @@ class NvidiaRAGIngestor:
 
                 return all_results, all_failures
 
-    async def __nv_ingest_ingestion(
+    async def __nv_ingest_ingestion_pipeline(
         self,
         filepaths: list[str],
         collection_name: str,
@@ -1957,9 +1963,10 @@ class NvidiaRAGIngestor:
     ) -> tuple[list[list[dict[str, str | dict]]], list[dict[str, Any]]]:
         """
         This methods performs following steps:
-        - Perform extraction and splitting using NV-ingest ingestor
-        - Prepare langchain documents from the nv-ingest results
-        - Embeds and add documents to Vectorstore collection
+        - Perform extraction and splitting using NV-ingest ingestor (NV-Ingest)
+        - Embeds and add documents to Vectorstore collection (NV-Ingest)
+        - Put content to MinIO (Ingestor Server)
+        - Update batch progress with the ingestion response (Ingestor Server)
 
         Arguments:
             - filepaths: List[str] - List of absolute filepaths
@@ -1993,7 +2000,7 @@ class NvidiaRAGIngestor:
             results, failures = [], []
             return results, failures
 
-        results, failures = await self._perform_file_ext_based_ingestion(
+        results, failures = await self._perform_file_ext_based_nv_ingest_ingestion(
             batch_number=batch_number,
             filtered_filepaths=filtered_filepaths,
             split_options=split_options,
@@ -2161,7 +2168,7 @@ class NvidiaRAGIngestor:
             failure_records = [(filepath, e) for filepath in filepaths]
             return [], failure_records
 
-    async def _perform_file_ext_based_ingestion(
+    async def _perform_file_ext_based_nv_ingest_ingestion(
         self,
         batch_number: int,
         filtered_filepaths: list[str],

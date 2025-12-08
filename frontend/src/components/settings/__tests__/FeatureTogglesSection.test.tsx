@@ -3,9 +3,11 @@ import { render, screen, fireEvent } from '../../../test/utils';
 import { FeatureTogglesSection } from '../FeatureTogglesSection';
 
 const mockUseSettingsStore = vi.fn();
+const mockUseServerDefaultsStore = vi.fn();
 
 vi.mock('../../../store/useSettingsStore', () => ({
-  useSettingsStore: () => mockUseSettingsStore()
+  useSettingsStore: () => mockUseSettingsStore(),
+  useServerDefaultsStore: () => mockUseServerDefaultsStore()
 }));
 
 describe('FeatureTogglesSection', () => {
@@ -20,6 +22,11 @@ describe('FeatureTogglesSection', () => {
       enableQueryRewriting: false,
       enableVlmInference: false,
       enableFilterGenerator: false
+    });
+    mockUseServerDefaultsStore.mockReturnValue({
+      config: null,
+      isLoading: false,
+      error: null
     });
   });
 
