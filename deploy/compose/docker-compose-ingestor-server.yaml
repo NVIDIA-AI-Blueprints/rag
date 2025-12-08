@@ -138,7 +138,7 @@ services:
       NV_INGEST_CONCURRENT_BATCHES: ${NV_INGEST_CONCURRENT_BATCHES:-4}
 
       # Tracing
-      APP_TRACING_ENABLED: ${APP_TRACING_ENABLED:-"True"}
+      APP_TRACING_ENABLED: ${APP_TRACING_ENABLED:-"False"}
       # HTTP endpoint
       APP_TRACING_OTLPHTTPENDPOINT: http://otel-collector:4318/v1/traces
       # GRPC endpoint

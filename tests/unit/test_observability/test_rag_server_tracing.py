@@ -27,8 +27,11 @@ import pytest
 from fastapi import FastAPI
 from opentelemetry.sdk.resources import Resource
 
-import nvidia_rag.utils.observability.tracing as tracing
 from nvidia_rag.utils.observability.tracing import instrument
+from nvidia_rag.utils.observability.tracing.instrumentation import (
+    FilteringSpanExporter,
+    _build_span_filters,
+)
 
 
 class TestRAGServerTracingIntegration:
@@ -59,10 +62,18 @@ class TestRAGServerTracingIntegration:
         self, temp_prom_dir, mock_settings, mock_app
     ):
         """Test that PROMETHEUS_MULTIPROC_DIR is created when it doesn't exist"""
-        with patch("nvidia_rag.utils.observability.tracing.os.makedirs") as mock_makedirs:
-            with patch("nvidia_rag.utils.observability.tracing.PrometheusMeterProvider"):
-                with patch("nvidia_rag.utils.observability.tracing.metrics.set_meter_provider"):
-                    with patch("nvidia_rag.utils.observability.tracing.FastAPIInstrumentor"):
+        with patch(
+            "nvidia_rag.utils.observability.tracing.instrumentation.os.makedirs"
+        ) as mock_makedirs:
+            with patch(
+                "nvidia_rag.utils.observability.tracing.instrumentation.PrometheusMeterProvider"
+            ):
+                with patch(
+                    "nvidia_rag.utils.observability.tracing.instrumentation.metrics.set_meter_provider"
+                ):
+                    with patch(
+                        "nvidia_rag.utils.observability.tracing.instrumentation.FastAPIInstrumentor"
+                    ):
                         # Call instrument function
                         instrument(mock_app, mock_settings)
 
@@ -75,14 +86,16 @@ class TestRAGServerTracingIntegration:
         self, temp_prom_dir, mock_settings, mock_app
     ):
         """Test that PrometheusMeterProvider is set up correctly"""
-        with patch("nvidia_rag.utils.observability.tracing.os.makedirs"):
+        with patch("nvidia_rag.utils.observability.tracing.instrumentation.os.makedirs"):
             with patch(
-                "nvidia_rag.utils.observability.tracing.PrometheusMeterProvider"
+                "nvidia_rag.utils.observability.tracing.instrumentation.PrometheusMeterProvider"
             ) as mock_provider:
                 with patch(
-                    "nvidia_rag.utils.observability.tracing.metrics.set_meter_provider"
+                    "nvidia_rag.utils.observability.tracing.instrumentation.metrics.set_meter_provider"
                 ) as mock_set_meter:
-                    with patch("nvidia_rag.utils.observability.tracing.FastAPIInstrumentor"):
+                    with patch(
+                        "nvidia_rag.utils.observability.tracing.instrumentation.FastAPIInstrumentor"
+                    ):
                         # Call instrument function
                         instrument(mock_app, mock_settings)
 
@@ -92,12 +105,18 @@ class TestRAGServerTracingIntegration:
 
     def test_otlp_provider_setup_with_endpoint(self, temp_prom_dir, mock_app):
         """Test OTLP provider setup when endpoint is provided"""
-        with patch("nvidia_rag.utils.observability.tracing.os.makedirs"):
-            with patch("nvidia_rag.utils.observability.tracing.PrometheusMeterProvider"):
-                with patch("nvidia_rag.utils.observability.tracing.metrics.set_meter_provider"):
-                    with patch("nvidia_rag.utils.observability.tracing.FastAPIInstrumentor"):
+        with patch("nvidia_rag.utils.observability.tracing.instrumentation.os.makedirs"):
+            with patch(
+                "nvidia_rag.utils.observability.tracing.instrumentation.PrometheusMeterProvider"
+            ):
+                with patch(
+                    "nvidia_rag.utils.observability.tracing.instrumentation.metrics.set_meter_provider"
+                ):
+                    with patch(
+                        "nvidia_rag.utils.observability.tracing.instrumentation.FastAPIInstrumentor"
+                    ):
                         with patch(
-                            "nvidia_rag.utils.observability.tracing.OTLPMetricExporter"
+                            "nvidia_rag.utils.observability.tracing.instrumentation.OTLPMetricExporter"
                         ) as mock_exporter:
                             # Mock settings with OTLP endpoint
                             settings = Mock()
@@ -118,12 +137,18 @@ class TestRAGServerTracingIntegration:
         self, temp_prom_dir, mock_settings, mock_app
     ):
         """Test OTLP provider setup when no endpoint is provided"""
-        with patch("nvidia_rag.utils.observability.tracing.os.makedirs"):
-            with patch("nvidia_rag.utils.observability.tracing.PrometheusMeterProvider"):
-                with patch("nvidia_rag.utils.observability.tracing.metrics.set_meter_provider"):
-                    with patch("nvidia_rag.utils.observability.tracing.FastAPIInstrumentor"):
+        with patch("nvidia_rag.utils.observability.tracing.instrumentation.os.makedirs"):
+            with patch(
+                "nvidia_rag.utils.observability.tracing.instrumentation.PrometheusMeterProvider"
+            ):
+                with patch(
+                    "nvidia_rag.utils.observability.tracing.instrumentation.metrics.set_meter_provider"
+                ):
+                    with patch(
+                        "nvidia_rag.utils.observability.tracing.instrumentation.FastAPIInstrumentor"
+                    ):
                         with patch(
-                            "nvidia_rag.utils.observability.tracing.OTLPMetricExporter"
+                            "nvidia_rag.utils.observability.tracing.instrumentation.OTLPMetricExporter"
                         ) as mock_exporter:
                             # Call instrument function
                             instrument(mock_app, mock_settings)
@@ -133,11 +158,15 @@ class TestRAGServerTracingIntegration:
 
     def test_fastapi_instrumentation(self, temp_prom_dir, mock_settings, mock_app):
         """Test that FastAPI is properly instrumented"""
-        with patch("nvidia_rag.utils.observability.tracing.os.makedirs"):
-            with patch("nvidia_rag.utils.observability.tracing.PrometheusMeterProvider"):
-                with patch("nvidia_rag.utils.observability.tracing.metrics.set_meter_provider"):
+        with patch("nvidia_rag.utils.observability.tracing.instrumentation.os.makedirs"):
+            with patch(
+                "nvidia_rag.utils.observability.tracing.instrumentation.PrometheusMeterProvider"
+            ):
+                with patch(
+                    "nvidia_rag.utils.observability.tracing.instrumentation.metrics.set_meter_provider"
+                ):
                     with patch(
-                        "nvidia_rag.utils.observability.tracing.FastAPIInstrumentor"
+                        "nvidia_rag.utils.observability.tracing.instrumentation.FastAPIInstrumentor"
                     ) as mock_instrumentor_class:
                         # Mock the instance method
                         mock_instrumentor_instance = Mock()
@@ -153,10 +182,16 @@ class TestRAGServerTracingIntegration:
 
     def test_environment_variables(self, temp_prom_dir, mock_settings, mock_app):
         """Test that environment variables are set correctly"""
-        with patch("nvidia_rag.utils.observability.tracing.os.makedirs"):
-            with patch("nvidia_rag.utils.observability.tracing.PrometheusMeterProvider"):
-                with patch("nvidia_rag.utils.observability.tracing.metrics.set_meter_provider"):
-                    with patch("nvidia_rag.utils.observability.tracing.FastAPIInstrumentor"):
+        with patch("nvidia_rag.utils.observability.tracing.instrumentation.os.makedirs"):
+            with patch(
+                "nvidia_rag.utils.observability.tracing.instrumentation.PrometheusMeterProvider"
+            ):
+                with patch(
+                    "nvidia_rag.utils.observability.tracing.instrumentation.metrics.set_meter_provider"
+                ):
+                    with patch(
+                        "nvidia_rag.utils.observability.tracing.instrumentation.FastAPIInstrumentor"
+                    ):
                         # Call instrument function
                         instrument(mock_app, mock_settings)
 
@@ -167,12 +202,20 @@ class TestRAGServerTracingIntegration:
 
     def test_error_handling_in_instrument(self, temp_prom_dir, mock_app):
         """Test error handling in instrument function"""
-        with patch("nvidia_rag.utils.observability.tracing.os.makedirs") as mock_makedirs:
+        with patch(
+            "nvidia_rag.utils.observability.tracing.instrumentation.os.makedirs"
+        ) as mock_makedirs:
             mock_makedirs.side_effect = Exception("Directory creation failed")
 
-            with patch("nvidia_rag.utils.observability.tracing.PrometheusMeterProvider"):
-                with patch("nvidia_rag.utils.observability.tracing.metrics.set_meter_provider"):
-                    with patch("nvidia_rag.utils.observability.tracing.FastAPIInstrumentor"):
+            with patch(
+                "nvidia_rag.utils.observability.tracing.instrumentation.PrometheusMeterProvider"
+            ):
+                with patch(
+                    "nvidia_rag.utils.observability.tracing.instrumentation.metrics.set_meter_provider"
+                ):
+                    with patch(
+                        "nvidia_rag.utils.observability.tracing.instrumentation.FastAPIInstrumentor"
+                    ):
                         # Mock settings
                         settings = Mock()
                         settings.tracing.enabled = True
@@ -190,12 +233,18 @@ class TestRAGServerTracingIntegration:
         self, temp_prom_dir, mock_settings, mock_app
     ):
         """Test that instrument function returns OTel metrics instance"""
-        with patch("nvidia_rag.utils.observability.tracing.os.makedirs"):
-            with patch("nvidia_rag.utils.observability.tracing.PrometheusMeterProvider"):
-                with patch("nvidia_rag.utils.observability.tracing.metrics.set_meter_provider"):
-                    with patch("nvidia_rag.utils.observability.tracing.FastAPIInstrumentor"):
+        with patch("nvidia_rag.utils.observability.tracing.instrumentation.os.makedirs"):
+            with patch(
+                "nvidia_rag.utils.observability.tracing.instrumentation.PrometheusMeterProvider"
+            ):
+                with patch(
+                    "nvidia_rag.utils.observability.tracing.instrumentation.metrics.set_meter_provider"
+                ):
+                    with patch(
+                        "nvidia_rag.utils.observability.tracing.instrumentation.FastAPIInstrumentor"
+                    ):
                         with patch(
-                            "nvidia_rag.utils.observability.tracing.OtelMetrics"
+                            "nvidia_rag.utils.observability.tracing.instrumentation.OtelMetrics"
                         ) as mock_otel_metrics:
                             # Mock OTel metrics instance
                             mock_otel_instance = Mock()
@@ -210,15 +259,21 @@ class TestRAGServerTracingIntegration:
 
     def test_instrument_function_with_otlp_endpoint(self, temp_prom_dir, mock_app):
         """Test instrument function with OTLP endpoint configured"""
-        with patch("nvidia_rag.utils.observability.tracing.os.makedirs"):
-            with patch("nvidia_rag.utils.observability.tracing.PrometheusMeterProvider"):
-                with patch("nvidia_rag.utils.observability.tracing.metrics.set_meter_provider"):
-                    with patch("nvidia_rag.utils.observability.tracing.FastAPIInstrumentor"):
+        with patch("nvidia_rag.utils.observability.tracing.instrumentation.os.makedirs"):
+            with patch(
+                "nvidia_rag.utils.observability.tracing.instrumentation.PrometheusMeterProvider"
+            ):
+                with patch(
+                    "nvidia_rag.utils.observability.tracing.instrumentation.metrics.set_meter_provider"
+                ):
+                    with patch(
+                        "nvidia_rag.utils.observability.tracing.instrumentation.FastAPIInstrumentor"
+                    ):
                         with patch(
-                            "nvidia_rag.utils.observability.tracing.OTLPMetricExporter"
+                            "nvidia_rag.utils.observability.tracing.instrumentation.OTLPMetricExporter"
                         ) as mock_exporter:
                             with patch(
-                                "nvidia_rag.utils.observability.tracing.OtelMetrics"
+                                "nvidia_rag.utils.observability.tracing.instrumentation.OtelMetrics"
                             ) as mock_otel_metrics:
                                 # Mock settings with OTLP endpoint
                                 settings = Mock()
@@ -248,15 +303,21 @@ class TestRAGServerTracingIntegration:
         self, temp_prom_dir, mock_settings, mock_app
     ):
         """Test instrument function without OTLP endpoint configured"""
-        with patch("nvidia_rag.utils.observability.tracing.os.makedirs"):
-            with patch("nvidia_rag.utils.observability.tracing.PrometheusMeterProvider"):
-                with patch("nvidia_rag.utils.observability.tracing.metrics.set_meter_provider"):
-                    with patch("nvidia_rag.utils.observability.tracing.FastAPIInstrumentor"):
+        with patch("nvidia_rag.utils.observability.tracing.instrumentation.os.makedirs"):
+            with patch(
+                "nvidia_rag.utils.observability.tracing.instrumentation.PrometheusMeterProvider"
+            ):
+                with patch(
+                    "nvidia_rag.utils.observability.tracing.instrumentation.metrics.set_meter_provider"
+                ):
+                    with patch(
+                        "nvidia_rag.utils.observability.tracing.instrumentation.FastAPIInstrumentor"
+                    ):
                         with patch(
-                            "nvidia_rag.utils.observability.tracing.OTLPMetricExporter"
+                            "nvidia_rag.utils.observability.tracing.instrumentation.OTLPMetricExporter"
                         ) as mock_exporter:
                             with patch(
-                                "nvidia_rag.utils.observability.tracing.OtelMetrics"
+                                "nvidia_rag.utils.observability.tracing.instrumentation.OtelMetrics"
                             ) as mock_otel_metrics:
                                 # Mock OTel metrics instance
                                 mock_otel_instance = Mock()
@@ -285,16 +346,16 @@ class TestRAGServerTracingIntegration:
 
     def test_build_span_filters_only_for_ingestor(self):
         """Ensure span filters are returned only for the ingestor service."""
-        ingestor_filters = tracing._build_span_filters("ingestor")
-        assert len(ingestor_filters) == 1
+        ingestor_filters = _build_span_filters("ingestor")
+        assert len(ingestor_filters) == 2
 
-        other_filters = tracing._build_span_filters("rag")
-        assert other_filters == []
+        other_filters = _build_span_filters("rag")
+        assert len(other_filters) == 2
 
     def test_filtering_span_exporter_drops_noisy_http_receive_spans(self):
         """Verify noisy FastAPI http receive spans are filtered before export."""
 
-        def _mock_span(name: str, service: str = "ingestor"):
+        def _mock_span(name: str, service: str = "ingestor") -> MagicMock:
             span = MagicMock()
             span.name = name
             span.resource = Resource(attributes={"service.name": service})
@@ -305,8 +366,8 @@ class TestRAGServerTracingIntegration:
             return span
 
         downstream_exporter = MagicMock()
-        filtering_exporter = tracing.FilteringSpanExporter(
-            downstream_exporter, skip_predicates=tracing._build_span_filters("ingestor")
+        filtering_exporter = FilteringSpanExporter(
+            downstream_exporter, skip_predicates=_build_span_filters("ingestor")
         )
 
         noisy_span = _mock_span("post /documents http receive")

@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Module to enable Observervability and Tracing instrumentation
+"""Module to enable Observability and Tracing instrumentation
 1. instrument(): Instrument the FastAPI app with OpenTelemetry.
 """
 
@@ -44,6 +44,13 @@ from nvidia_rag.utils.observability.langchain_instrumentor import LangchainInstr
 from nvidia_rag.utils.observability.otel_metrics import OtelMetrics
 
 logger = logging.getLogger(__name__)
+
+
+class InvalidKindError(ValueError):
+    """Exception raised when an invalid span kind is provided."""
+
+    def __init__(self, kind: str) -> None:
+        super().__init__(f"Invalid kind: {kind}")
 
 try:
     from opentelemetry.sdk.extension.prometheus_multiprocess import (
@@ -111,7 +118,7 @@ def _is_fastapi_http_noise(span: ReadableSpan, kind: str = "receive") -> bool:
         if _NOISY_HTTP_SEND_SUBSTRING not in normalized_span_name:
             return False
     else:
-        raise ValueError(f"Invalid kind: {kind}")
+        raise InvalidKindError(kind)
 
     # Only skip for FastAPI spans to avoid suppressing similar spans elsewhere.
     instrumentation_scope = getattr(span, "instrumentation_scope", None) or getattr(
@@ -207,7 +214,9 @@ def instrument(app: FastAPI, settings, service_name: str = "rag"):
 
             # Check if PrometheusMeterProvider is already set in the global metrics registry
             current_provider = metrics.get_meter_provider()
-            if isinstance(current_provider, PrometheusMeterProvider):
+            if isinstance(PrometheusMeterProvider, type) and isinstance(
+                current_provider, PrometheusMeterProvider
+            ):
                 meter_provider = current_provider
                 logger.debug("Reusing existing PrometheusMeterProvider")
             else:
@@ -242,8 +251,9 @@ def instrument(app: FastAPI, settings, service_name: str = "rag"):
                 resource=resource, metric_readers=[otlp_reader]
             )
             # Store OTLP provider for later use
-            logging.info(
-                f"OTLP metrics export configured for: {settings.tracing.otlp_grpc_endpoint}"
+            logger.info(
+                "OTLP metrics export configured for: %s",
+                settings.tracing.otlp_grpc_endpoint,
             )
         else:
             otlp_provider = None
@@ -253,7 +263,7 @@ def instrument(app: FastAPI, settings, service_name: str = "rag"):
         if otlp_provider:
             otel_metrics.setup_otlp_meter(otlp_provider)
 
-        # Oberservability Tracing
+        # Observability Tracing
         tracer_provider = TracerProvider(resource=resource)
         trace.set_tracer_provider(tracer_provider)
         exporter_http = None

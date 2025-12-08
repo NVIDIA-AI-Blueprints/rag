@@ -25,9 +25,10 @@ This module provides:
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Awaitable, Callable, Iterable, Mapping
 from contextlib import contextmanager
 from functools import wraps
-from typing import Any, Awaitable, Callable, Iterable, Mapping, TypeVar, Union
+from typing import Any, TypeVar, Union
 
 from opentelemetry import trace
 from opentelemetry.trace import Span, Status, StatusCode, Tracer
@@ -82,7 +83,7 @@ def trace_function(name: str | None = None, tracer: Tracer | None = None):
 
             @wraps(func)
             async def async_wrapper(*args, **kwargs):
-                with traced_span(span_name, tracer) as span:
+                with traced_span(span_name, tracer) as _:
                     return await func(*args, **kwargs)
 
             return async_wrapper  # type: ignore[return-value]

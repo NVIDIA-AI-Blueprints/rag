@@ -4,7 +4,12 @@
 Tracing helpers public API.
 """
 
-from .helpers import get_tracer, trace_function, process_nv_ingest_traces
+from .helpers import get_tracer, process_nv_ingest_traces, trace_function
 from .instrumentation import instrument
 
-__all__ = ["get_tracer", "trace_function", "instrument", "process_nv_ingest_traces"]
+__all__ = [
+    "get_tracer",
+    "instrument",
+    "process_nv_ingest_traces",
+    "trace_function",
+]
