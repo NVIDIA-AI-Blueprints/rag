@@ -5,11 +5,11 @@
         "description": "This API schema describes all the retriever endpoints exposed for NVIDIA RAG server Blueprint",
         "version": "1.0.0"
     },
-  "servers": [
-    {
-      "url": "/v1"
-    }
-  ],
+    "servers": [
+        {
+            "url": "/v1"
+        }
+    ],
     "paths": {
         "/health": {
             "get": {
@@ -76,6 +76,38 @@
                         "content": {
                             "application/json": {
                                 "schema": {}
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/configuration": {
+            "get": {
+                "tags": [
+                    "Health APIs"
+                ],
+                "summary": "Get Server Default Configuration",
+                "description": "Returns the default configuration values used by the RAG server.\n\nThese values are derived from the server's environment variables and configuration.\n\nUse this endpoint to:\n- Display actual default values in the UI\n- Understand what values will be used when parameters are not explicitly set\n- Ensure frontend and backend defaults are synchronized",
+                "operationId": "get_configuration_configuration_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ConfigurationResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "detail": "Internal server error occurred"
+                                }
                             }
                         }
                     }
@@ -801,6 +833,197 @@
                 "type": "object",
                 "title": "HealthResponse",
                 "description": "Overall health response with specialized fields for each service type"
+            },
+            "RagConfigurationDefaults": {
+                "properties": {
+                    "temperature": {
+                        "type": "number",
+                        "title": "Temperature",
+                        "description": "Default sampling temperature for generation"
+                    },
+                    "top_p": {
+                        "type": "number",
+                        "title": "Top P",
+                        "description": "Default top-p sampling mass"
+                    },
+                    "max_tokens": {
+                        "type": "integer",
+                        "title": "Max Tokens",
+                        "description": "Default maximum tokens to generate"
+                    },
+                    "vdb_top_k": {
+                        "type": "integer",
+                        "title": "Vdb Top K",
+                        "description": "Default number of documents to retrieve from vector DB"
+                    },
+                    "reranker_top_k": {
+                        "type": "integer",
+                        "title": "Reranker Top K",
+                        "description": "Default number of documents after reranking"
+                    },
+                    "confidence_threshold": {
+                        "type": "number",
+                        "title": "Confidence Threshold",
+                        "description": "Default confidence score threshold"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "temperature",
+                    "top_p",
+                    "max_tokens",
+                    "vdb_top_k",
+                    "reranker_top_k",
+                    "confidence_threshold"
+                ],
+                "title": "RagConfigurationDefaults",
+                "description": "Default values for RAG configuration parameters"
+            },
+            "FeatureTogglesDefaults": {
+                "properties": {
+                    "enable_reranker": {
+                        "type": "boolean",
+                        "title": "Enable Reranker",
+                        "description": "Whether reranker is enabled by default"
+                    },
+                    "enable_citations": {
+                        "type": "boolean",
+                        "title": "Enable Citations",
+                        "description": "Whether citations are enabled by default"
+                    },
+                    "enable_guardrails": {
+                        "type": "boolean",
+                        "title": "Enable Guardrails",
+                        "description": "Whether guardrails are enabled by default"
+                    },
+                    "enable_query_rewriting": {
+                        "type": "boolean",
+                        "title": "Enable Query Rewriting",
+                        "description": "Whether query rewriting is enabled by default"
+                    },
+                    "enable_vlm_inference": {
+                        "type": "boolean",
+                        "title": "Enable VLM Inference",
+                        "description": "Whether VLM inference is enabled by default"
+                    },
+                    "enable_filter_generator": {
+                        "type": "boolean",
+                        "title": "Enable Filter Generator",
+                        "description": "Whether filter generator is enabled by default"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "enable_reranker",
+                    "enable_citations",
+                    "enable_guardrails",
+                    "enable_query_rewriting",
+                    "enable_vlm_inference",
+                    "enable_filter_generator"
+                ],
+                "title": "FeatureTogglesDefaults",
+                "description": "Default values for feature toggles"
+            },
+            "ModelsDefaults": {
+                "properties": {
+                    "llm_model": {
+                        "type": "string",
+                        "title": "LLM Model",
+                        "description": "Default LLM model name"
+                    },
+                    "embedding_model": {
+                        "type": "string",
+                        "title": "Embedding Model",
+                        "description": "Default embedding model name"
+                    },
+                    "reranker_model": {
+                        "type": "string",
+                        "title": "Reranker Model",
+                        "description": "Default reranker model name"
+                    },
+                    "vlm_model": {
+                        "type": "string",
+                        "title": "VLM Model",
+                        "description": "Default VLM model name"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "llm_model",
+                    "embedding_model",
+                    "reranker_model",
+                    "vlm_model"
+                ],
+                "title": "ModelsDefaults",
+                "description": "Default model names"
+            },
+            "EndpointsDefaults": {
+                "properties": {
+                    "llm_endpoint": {
+                        "type": "string",
+                        "title": "LLM Endpoint",
+                        "description": "Default LLM endpoint URL"
+                    },
+                    "embedding_endpoint": {
+                        "type": "string",
+                        "title": "Embedding Endpoint",
+                        "description": "Default embedding endpoint URL"
+                    },
+                    "reranker_endpoint": {
+                        "type": "string",
+                        "title": "Reranker Endpoint",
+                        "description": "Default reranker endpoint URL"
+                    },
+                    "vlm_endpoint": {
+                        "type": "string",
+                        "title": "VLM Endpoint",
+                        "description": "Default VLM endpoint URL"
+                    },
+                    "vdb_endpoint": {
+                        "type": "string",
+                        "title": "VDB Endpoint",
+                        "description": "Default vector database endpoint URL"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "llm_endpoint",
+                    "embedding_endpoint",
+                    "reranker_endpoint",
+                    "vlm_endpoint",
+                    "vdb_endpoint"
+                ],
+                "title": "EndpointsDefaults",
+                "description": "Default endpoint URLs"
+            },
+            "ConfigurationResponse": {
+                "properties": {
+                    "rag_configuration": {
+                        "$ref": "#/components/schemas/RagConfigurationDefaults",
+                        "description": "Default RAG configuration parameters"
+                    },
+                    "feature_toggles": {
+                        "$ref": "#/components/schemas/FeatureTogglesDefaults",
+                        "description": "Default feature toggle states"
+                    },
+                    "models": {
+                        "$ref": "#/components/schemas/ModelsDefaults",
+                        "description": "Default model names"
+                    },
+                    "endpoints": {
+                        "$ref": "#/components/schemas/EndpointsDefaults",
+                        "description": "Default endpoint URLs"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "rag_configuration",
+                    "feature_toggles",
+                    "models",
+                    "endpoints"
+                ],
+                "title": "ConfigurationResponse",
+                "description": "Response containing all server default configuration values"
             },
             "ImageContent": {
                 "properties": {

@@ -51,9 +51,11 @@ const findSliderByLabel = (labelText: string) => {
 };
 
 const mockUseSettingsStore = vi.fn();
+const mockUseServerDefaultsStore = vi.fn();
 
 vi.mock('../../../store/useSettingsStore', () => ({
-  useSettingsStore: () => mockUseSettingsStore()
+  useSettingsStore: () => mockUseSettingsStore(),
+  useServerDefaultsStore: () => mockUseServerDefaultsStore()
 }));
 
 describe('RagConfigSection', () => {
@@ -69,6 +71,11 @@ describe('RagConfigSection', () => {
       rerankerTopK: 5,
       maxTokens: 1000,
       set: mockSetSettings
+    });
+    mockUseServerDefaultsStore.mockReturnValue({
+      config: null,
+      isLoading: false,
+      error: null
     });
   });
 

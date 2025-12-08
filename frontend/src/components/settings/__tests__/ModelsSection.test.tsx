@@ -3,11 +3,11 @@ import { render, screen, fireEvent } from '../../../test/utils';
 import { ModelsSection } from '../ModelsSection';
 
 const mockUseSettingsStore = vi.fn();
-const mockUseHealthDependentFeatures = vi.fn();
+const mockUseServerDefaultsStore = vi.fn();
 
 vi.mock('../../../store/useSettingsStore', () => ({
   useSettingsStore: () => mockUseSettingsStore(),
-  useHealthDependentFeatures: () => mockUseHealthDependentFeatures()
+  useServerDefaultsStore: () => mockUseServerDefaultsStore()
 }));
 
 describe('ModelsSection', () => {
@@ -22,9 +22,10 @@ describe('ModelsSection', () => {
       vlmModel: '',
       set: mockSetSettings
     });
-    mockUseHealthDependentFeatures.mockReturnValue({
-      isHealthLoading: false,
-      shouldDisableHealthFeatures: false
+    mockUseServerDefaultsStore.mockReturnValue({
+      config: null,
+      isLoading: false,
+      error: null
     });
   });
 
