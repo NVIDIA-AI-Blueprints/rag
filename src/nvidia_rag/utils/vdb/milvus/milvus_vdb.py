@@ -85,6 +85,7 @@ from nvidia_rag.utils.health_models import ServiceStatus
 from nvidia_rag.utils.vdb import (
     DEFAULT_DOCUMENT_INFO_COLLECTION,
     DEFAULT_METADATA_SCHEMA_COLLECTION,
+    SYSTEM_COLLECTIONS,
 )
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
 
@@ -342,11 +343,12 @@ class MilvusVDB(Milvus, VDBRag):
         # Get document count for each collection
         collection_info = []
         for collection in collections:
-            collection_obj = Collection(collection, using=self.connection_alias)
-            num_entities = collection_obj.num_entities
-            collection_info.append(
-                {"collection_name": collection, "num_entities": num_entities}
-            )
+            if collection not in SYSTEM_COLLECTIONS:
+                collection_obj = Collection(collection, using=self.connection_alias)
+                num_entities = collection_obj.num_entities
+                collection_info.append(
+                    {"collection_name": collection, "num_entities": num_entities}
+                )
 
         return collection_info
 

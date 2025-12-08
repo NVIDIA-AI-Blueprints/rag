@@ -19,10 +19,13 @@ This module is responsible for handling ingestion tasks.
 It is used to submit tasks to the task handler and get the status and result of tasks.
 1. IngestionTaskHandler: A class that handles ingestion tasks.
 2. IngestionTaskStateSchema: A class that defines the schema of the Redis database.
-3. submit_task: A method that submits a task to the task handler.
-4. get_task_status: A method that gets the status of a task.
-5. update_task_status: A method that updates the status of a task.
-6. get_task_result: A method that gets the result of a task.
+3. TaskStateDictSchema: A class that defines the schema for task state dictionary operations.
+4. submit_task: A method that submits a task to the task handler.
+5. get_task_status: A method that gets the status of a task.
+6. update_task_status: A method that updates the status of a task.
+7. get_task_result: A method that gets the result of a task.
+8. set_task_state_dict: A method that sets a custom state dictionary for a task.
+9. get_task_state_dict: A method that gets the custom state dictionary for a task.
 """
 
 import asyncio
@@ -46,6 +49,16 @@ class IngestionTaskStateSchema(BaseModel):
     task_id: str
     state: str
     result: dict[str, Any] = {}
+
+
+class TaskStateDictSchema(BaseModel):
+    """
+    A class that defines the schema for task state dictionary operations.
+    Used for setting and getting custom task state data as a dictionary.
+    """
+
+    task_id: str
+    state_dict: dict[str, Any] = {}
 
 
 class IngestionTaskHandler:
@@ -79,6 +92,7 @@ class IngestionTaskHandler:
         # Local task map to store tasks
         self.task_map = {}  # {task_id: asyncio_task}
         self.task_status_result_map = {}  # {task_id: (status, result)}
+        self.task_state_map = {}  # {task_id: state}
 
     async def _execute_ingestion_task(self, task_id: str, function: Callable):
         """
@@ -200,6 +214,49 @@ class IngestionTaskHandler:
             f"Task result: {self.task_status_result_map[task_id].get('result')}"
         )
         return self.task_status_result_map[task_id].get("result")
+
+    async def set_task_state_dict(self, task_id: str, state_dict: dict[str, Any]) -> None:
+        """
+        Set custom state dictionary for a task in Redis or the local task state map.
+        This allows storing arbitrary state information as a dictionary.
+        Args:
+            task_id: The id of the task.
+            state_dict: A dictionary containing custom state information for the task.
+        """
+        if self._enable_redis_backend:
+            # Store the state_dict in Redis with a specific key pattern
+            state_key = f"{task_id}:state_dict"
+            self._redis_client.json().set(
+                state_key,
+                "$",
+                TaskStateDictSchema(task_id=task_id, state_dict=state_dict).model_dump(),
+            )
+        else:
+            async with self._asyncio_lock:
+                # Update task_state_map for custom state tracking
+                self.task_state_map[task_id] = state_dict
+                logger.debug(f"Task state map: {self.task_state_map}")
+        logger.info(f"Task {task_id} state_dict set to {state_dict}")
+
+    def get_task_state_dict(self, task_id: str) -> dict[str, Any]:
+        """
+        Get custom state dictionary for a task from Redis or the local task state map.
+        Args:
+            task_id: The id of the task.
+        Returns:
+            state_dict: A dictionary containing custom state information for the task.
+        """
+        logger.info(
+            f"Getting state_dict of task {task_id}, enable_redis_backend: {self._enable_redis_backend}"
+        )
+        if self._enable_redis_backend:
+            state_key = f"{task_id}:state_dict"
+            result = self._redis_client.json().get(state_key)
+            if result:
+                return result.get("state_dict", {})
+            return {}
+        return self.task_state_map.get(task_id, {})
+    
 
 
 # Create a singleton instance of the IngestionTaskHandler

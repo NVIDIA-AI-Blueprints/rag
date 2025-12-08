@@ -397,6 +397,9 @@ class IngestionTaskStatusResponse(BaseModel):
     result: UploadDocumentResponse = Field(
         ..., description="Result of the ingestion task."
     )
+    document_wise_status: dict[str, Any] = Field(
+        {}, description="NV-Ingest document-wise status."
+    )
 
 
 class DocumentListResponse(BaseModel):
@@ -694,12 +697,14 @@ async def get_task_status(task_id: str):
     try:
         result = await NV_INGEST_INGESTOR.status(task_id)
         return IngestionTaskStatusResponse(
-            state=result.get("state", "UNKNOWN"), result=result.get("result", {})
+            state=result.get("state", "UNKNOWN"),
+            result=result.get("result", {}),
+            document_wise_status=result.get("document_wise_status", {}),
         )
     except KeyError as e:
         logger.error(f"Task {task_id} not found with error: {e}")
         return IngestionTaskStatusResponse(
-            state="UNKNOWN", result={"message": "Task not found"}
+            state="UNKNOWN", result={"message": "Task not found"}, document_wise_status={}
         )
 
 

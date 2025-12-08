@@ -201,6 +201,7 @@ class MCPIntegrationModule(BaseTestModule):
 
     @test_case(86, "Create MCP Collection")
     async def create_mcp_collection(self) -> bool:
+        logger.info("\n=== Test 86: Create MCP Collection ===")
         start = time.time()
         try:
             async with aiohttp.ClientSession() as session:
@@ -226,6 +227,7 @@ class MCPIntegrationModule(BaseTestModule):
     @test_case(87, "Upload Test Files for MCP")
     async def upload_test_files_for_mcp(self) -> bool:
         """Upload a sample PDF to enable search and summary calls."""
+        logger.info("\n=== Test 87: Upload Test Files for MCP ===")
         start = time.time()
         # Reuse a small default file from data dir if available
         default_file = os.path.join(
@@ -252,6 +254,7 @@ class MCPIntegrationModule(BaseTestModule):
     @test_case(88, "Start MCP Server (SSE)")
     async def start_mcp_server_sse(self) -> bool:
         """Start the SSE MCP server and wait until the readiness probe succeeds."""
+        logger.info("\n=== Test 88: Start MCP Server (SSE) ===")
         start = time.time()
         try:
             self._start_sse_server()
@@ -275,6 +278,7 @@ class MCPIntegrationModule(BaseTestModule):
     @test_case(89, "SSE: List Tools")
     async def sse_list_tools(self) -> bool:
         """List MCP tools over SSE and require generate/search/get_summary to be present."""
+        logger.info("\n=== Test 89: SSE: List Tools ===")
         start = time.time()
         try:
             args = ["list", "--transport", "sse", "--url", self.sse_url]
@@ -301,6 +305,7 @@ class MCPIntegrationModule(BaseTestModule):
     @test_case(90, "SSE: Call Generate")
     async def sse_call_generate(self) -> bool:
         """Call 'generate' over SSE and require the output to contain 'ok'."""
+        logger.info("\n=== Test 90: SSE: Call Generate ===")
         start = time.time()
         try:
             payload = {
@@ -340,6 +345,7 @@ class MCPIntegrationModule(BaseTestModule):
     @test_case(91, "SSE: Call Search")
     async def sse_call_search(self) -> bool:
         """Call 'search' over SSE and require the output to mention 'frost' or 'woods'."""
+        logger.info("\n=== Test 91: SSE: Call Search ===")
         start = time.time()
         try:
             payload = {
@@ -380,6 +386,7 @@ class MCPIntegrationModule(BaseTestModule):
     @test_case(92, "SSE: Call Get Summary")
     async def sse_call_get_summary(self) -> bool:
         """Call 'get_summary' over SSE and require the output to mention 'frost' or 'woods'."""
+        logger.info("\n=== Test 92: SSE: Call Get Summary ===")
         start = time.time()
         try:
             payload = {
@@ -421,6 +428,7 @@ class MCPIntegrationModule(BaseTestModule):
     @test_case(93, "Start MCP Server (streamable_http)")
     async def start_mcp_server_streamable_http(self) -> bool:
         """Start the streamable_http MCP server and wait until the readiness probe succeeds."""
+        logger.info("\n=== Test 93: Start MCP Server (streamable_http) ===")
         start = time.time()
         try:
             self._start_streamable_http_server()
@@ -444,6 +452,7 @@ class MCPIntegrationModule(BaseTestModule):
     @test_case(94, "streamable_http: List Tools")
     async def streamable_http_list_tools(self) -> bool:
         """List MCP tools over streamable_http and require generate/search/get_summary to be present."""
+        logger.info("\n=== Test 94: streamable_http: List Tools ===")
         start = time.time()
         try:
             args = [
@@ -476,6 +485,7 @@ class MCPIntegrationModule(BaseTestModule):
     @test_case(95, "streamable_http: Call Generate")
     async def streamable_http_call_generate(self) -> bool:
         """Call 'generate' over streamable_http and require the output to contain 'ok'."""
+        logger.info("\n=== Test 95: streamable_http: Call Generate ===")
         start = time.time()
         try:
             payload = {
@@ -514,6 +524,7 @@ class MCPIntegrationModule(BaseTestModule):
     @test_case(96, "streamable_http: Call Search")
     async def streamable_http_call_search(self) -> bool:
         """Call 'search' over streamable_http and require the output to mention 'frost' or 'woods'."""
+        logger.info("\n=== Test 96: streamable_http: Call Search ===")
         start = time.time()
         try:
             payload = {
@@ -553,6 +564,7 @@ class MCPIntegrationModule(BaseTestModule):
     @test_case(97, "streamable_http: Call Get Summary")
     async def streamable_http_call_get_summary(self) -> bool:
         """Call 'get_summary' over streamable_http and require the output to mention 'frost' or 'woods'."""
+        logger.info("\n=== Test 97: streamable_http: Call Get Summary ===")
         start = time.time()
         try:
             payload = {
@@ -594,6 +606,7 @@ class MCPIntegrationModule(BaseTestModule):
     @test_case(98, "MCP: Delete Test Collection")
     async def mcp_delete_test_collection(self) -> bool:
         """Delete the MCP test collection and stop SSE/streamable_http servers."""
+        logger.info("\n=== Test 98: MCP: Delete Test Collection ===")
         start = time.time()
         try:
             async with aiohttp.ClientSession() as session:
