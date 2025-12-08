@@ -82,7 +82,11 @@ from nvidia_rag.utils.minio_operator import (
 from nvidia_rag.utils.llm import get_prompts
 from nvidia_rag.utils.summarization import generate_document_summaries
 from nvidia_rag.utils.summary_status_handler import SUMMARY_STATUS_HANDLER
-from nvidia_rag.utils.observability.tracing import get_tracer, trace_function
+from nvidia_rag.utils.observability.tracing import (
+    get_tracer,
+    process_nv_ingest_traces,
+    trace_function,
+)
 from nvidia_rag.utils.vdb import _get_vdb_op
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
 
@@ -382,6 +386,7 @@ class NvidiaRAGIngestor:
                 "documents": [],
                 "failed_documents": [],
             }
+
     @trace_function("ingestor.main.run_background_ingest_task", tracer=TRACER)
     async def __run_background_ingest_task(
         self,
@@ -1812,6 +1817,7 @@ class NvidiaRAGIngestor:
 
             logger.info("Shallow extraction complete, starting deep ingestion")
 
+
     @trace_function("ingestor.main.run_nvingest_batched_ingestion", tracer=TRACER)
     async def __run_nvingest_batched_ingestion(
         self,
@@ -2299,8 +2305,9 @@ class NvidiaRAGIngestor:
                 return_traces=True
             )
             total_ingestion_time = time.time() - start_time
-            self._process_nv_ingest_traces(
+            process_nv_ingest_traces(
                 traces,
+                tracer=TRACER,
                 span_namespace=f"nv_ingest.batch_{batch_number}",
                 collection_name=vdb_op.collection_name,
                 batch_number=batch_number,
@@ -2346,8 +2353,9 @@ class NvidiaRAGIngestor:
                     return_traces=True
                 )
                 total_ingestion_time = time.time() - start_time
-                self._process_nv_ingest_traces(
+                process_nv_ingest_traces(
                     traces_pdf,
+                    tracer=TRACER,
                     span_namespace=f"nv_ingest.batch_{batch_number}.pdf",
                     collection_name=vdb_op.collection_name,
                     batch_number=batch_number,
@@ -2384,8 +2392,9 @@ class NvidiaRAGIngestor:
                     return_traces=True
                 )
                 total_ingestion_time = time.time() - start_time
-                self._process_nv_ingest_traces(
+                process_nv_ingest_traces(
                     traces_non_pdf,
+                    tracer=TRACER,
                     span_namespace=f"nv_ingest.batch_{batch_number}.non_pdf",
                     collection_name=vdb_op.collection_name,
                     batch_number=batch_number,
@@ -2503,167 +2512,6 @@ class NvidiaRAGIngestor:
         )
         return document_info
 
-
-    def _process_nv_ingest_traces(
-        self,
-        traces: list[dict[str, Any]] | None,
-        *,
-        span_namespace: str = "nv_ingest",
-        collection_name: str | None = None,
-        batch_number: int | None = None,
-        reference_time_ns: int | None = None,
-    ) -> None:
-        """
-        Convert NV-Ingest timing traces into OpenTelemetry sub-spans.
-
-        Args:
-            traces: Raw trace dictionaries returned by nv_ingest_client.
-            span_namespace: Prefix for generated span names.
-            collection_name: Optional collection identifier for span attributes.
-            batch_number: Optional batch identifier for span attributes.
-            reference_time_ns: Absolute timestamp captured right before
-                nv_ingest_ingestor.ingest() starts. Relative trace offsets (which
-                are typically reported in nanoseconds since ingest start) are
-                anchored to this value so the derived spans appear before
-                downstream waits such as ingestor.nvingest.patched_wait_for_index.
-        """
-
-        if not traces:
-            return
-
-        RELATIVE_TS_THRESHOLD_NS = 1_000_000_000_000_000  # ~16 minutes in ns
-
-        def _normalize_timestamp(raw_value: int | float) -> int:
-            """
-            NV-Ingest reports per-stage timings either as absolute nanoseconds
-            or as relative offsets since ingestion start. When the sampled value
-            looks like a small relative offset, anchor it to the provided
-            reference_time_ns (captured right before nv_ingest_ingestor.ingest()).
-            """
-
-            timestamp = int(raw_value)
-            if (
-                reference_time_ns is not None
-                and timestamp < RELATIVE_TS_THRESHOLD_NS
-            ):
-                return reference_time_ns + timestamp
-            return timestamp
-
-        SKIPPED_TRACE_STAGE_NAMES = {
-            "ingestor: post /documents http receive",
-            "ingestor.post /documents http receive",
-            "ingestor::post /documents http receive",
-        }
-        SKIPPED_TRACE_SUBSTRINGS = {"post /documents http receive"}
-
-        def _compute_trace_duration(trace_record: dict[str, Any]) -> int:
-            entry_times = [
-                _normalize_timestamp(value)
-                for key, value in trace_record.items()
-                if key.startswith("trace::entry::") and isinstance(value, (int, float))
-            ]
-            exit_times = [
-                _normalize_timestamp(value)
-                for key, value in trace_record.items()
-                if key.startswith("trace::exit::") and isinstance(value, (int, float))
-            ]
-            if not entry_times or not exit_times:
-                return 0
-            return max(exit_times) - min(entry_times)
-
-        try:
-            largest_trace = max(traces, key=_compute_trace_duration)
-            largest_trace_duration = _compute_trace_duration(largest_trace)
-            if largest_trace_duration <= 0:
-                return
-
-            entry_events = {
-                key.removeprefix("trace::entry::"): _normalize_timestamp(value)
-                for key, value in largest_trace.items()
-                if key.startswith("trace::entry::") and isinstance(value, (int, float))
-            }
-            exit_events = {
-                key.removeprefix("trace::exit::"): _normalize_timestamp(value)
-                for key, value in largest_trace.items()
-                if key.startswith("trace::exit::") and isinstance(value, (int, float))
-            }
-
-            if not entry_events or not exit_events:
-                return
-
-            parent_start = min(entry_events.values())
-            parent_end = max(exit_events.values())
-            if parent_end <= parent_start:
-                return
-
-            namespace = span_namespace.strip().replace(" ", "_") or "nv_ingest"
-            parent_span_name = f"{namespace}.largest_trace"
-            parent_attributes: dict[str, Any] = {
-                "nv_ingest.stage_count": len(entry_events),
-                "nv_ingest.duration_ns": largest_trace_duration,
-            }
-            if collection_name:
-                parent_attributes["collection_name"] = collection_name
-            if batch_number is not None:
-                parent_attributes["batch_number"] = batch_number
-
-            with TRACER.start_as_current_span(
-                parent_span_name,
-                attributes=parent_attributes,
-                start_time=parent_start,
-                end_on_exit=False,
-            ) as parent_span:
-                try:
-                    for stage, start_time in sorted(
-                        entry_events.items(), key=lambda item: item[1]
-                    ):
-                        end_time = exit_events.get(stage)
-                        if end_time is None or end_time <= start_time:
-                            continue
-                        stage_name = stage.replace("::", ".")
-                        normalized_stage_name = " ".join(stage_name.lower().split())
-                        normalized_raw_stage = " ".join(stage.lower().split())
-                        if (
-                            normalized_stage_name in SKIPPED_TRACE_STAGE_NAMES
-                            or normalized_raw_stage in SKIPPED_TRACE_STAGE_NAMES
-                            or any(
-                                substring in normalized_stage_name
-                                for substring in SKIPPED_TRACE_SUBSTRINGS
-                            )
-                            or any(
-                                substring in normalized_raw_stage
-                                for substring in SKIPPED_TRACE_SUBSTRINGS
-                            )
-                        ):
-                            logger.debug(
-                                "Skipping NV-Ingest trace stage '%s' due to known noise",
-                                stage_name,
-                            )
-                            continue
-                        child_attributes = {
-                            "nv_ingest.stage": stage,
-                            "nv_ingest.duration_ns": end_time - start_time,
-                        }
-                        if collection_name:
-                            child_attributes["collection_name"] = collection_name
-                        if batch_number is not None:
-                            child_attributes["batch_number"] = batch_number
-
-                        with TRACER.start_as_current_span(
-                            f"{namespace}.{stage_name}",
-                            attributes=child_attributes,
-                            start_time=start_time,
-                            end_on_exit=False,
-                        ) as child_span:
-                            child_span.end(end_time=end_time)
-                finally:
-                    parent_span.end(end_time=parent_end)
-        except Exception as exc:  # pragma: no cover - tracing failure tolerated
-            logger.debug(
-                "Failed to process NV-Ingest traces: %s",
-                exc,
-                exc_info=logger.getEffectiveLevel() <= logging.DEBUG,
-            )
 
 
     @trace_function("ingestor.main.get_failed_documents", tracer=TRACER)
