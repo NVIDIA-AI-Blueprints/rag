@@ -84,8 +84,7 @@ To deploy End-to-End RAG Server and Ingestor Server, use the following procedure
     ```
 
    :::{note}
-   Refer to [NIM Model Profile Configuration](model-profiles.md) to set NIM LLM profile according to the GPU type and count.
-   Set the profile explicitly to avoid any errors with NIM LLM pod deployment.
+   Refer to [NIM Model Profile Configuration](model-profiles.md) for using non-default NIM LLM profile.
    :::
 
 
@@ -222,8 +221,7 @@ helm uninstall rag -n rag
 For troubleshooting issues with Helm deployment, refer to [Troubleshooting](troubleshooting.md).
 
 :::{note}
-If the `rag-nim-llm-0` is in a `CrashLoopBackOff` after deployment, then set the model profile explicitly to avoid any errors with NIM LLM pod deployment.
-To set NIM LLM profile according to the GPU type and count, refer to [NIM Model Profile Configuration](model-profiles.md).
+Refer to [NIM Model Profile Configuration](model-profiles.md) for using non-default NIM LLM profile.
 :::
 
 

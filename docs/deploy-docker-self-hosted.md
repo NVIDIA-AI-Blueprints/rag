@@ -63,33 +63,7 @@ Use the following procedure to start all containers needed for this blueprint.
    ```
 
 
-4. List the available [model profiles](model-profiles.md) for your hardware by running the following code.
-
-   ```bash
-   USERID=$(id -u) docker compose -f deploy/compose/nims.yaml run nim-llm list-model-profiles
-   ```
-
-   The output depends on your hardware. The following example output is for an H100-NVL with 1 GPU allocated.
-
-   ```output
-   MODEL PROFILES
-   - Compatible with system and runnable:
-   - d4910... (vllm-bf16-tp1-pp1-32c3...)
-   - e2f00... (vllm)
-   - e759b... (tensorrt_llm-h100_nvl-fp8-tp1-pp1-throughput-2321:10de-6343e...)
-   - 668b5... (tensorrt_llm)
-   - 50e13... (sglang)
-   ```
-
-
-5. Using the list of [model profile](model-profiles.md) from the previous step, set the `NIM_MODEL_PROFILE`. It is ideal to select one of the `tensorrt_llm` profiles for best performance. Because of a known issue, vllm-based profiles are selected, so we recommend that you manually select a `tensorrt_llm` profile before you start the `nim-llm` service.
-
-   ```bash
-   export NIM_MODEL_PROFILE="......" # Populate your profile name as per hardware
-   ```
-
-
-6. Start all required NIMs by running the following code.
+4. Start all required NIMs by running the following code.
 
    :::{warning}
    Do not attempt this step unless you have completed the previous steps.
@@ -106,7 +80,7 @@ Use the following procedure to start all containers needed for this blueprint.
    :::
 
 
-7. Check the status of the deployment by running the following code. Wait until all services are up and the `nemoretriever-ranking-ms`, `nemoretriever-embedding-ms` and `nim-llm-ms`  NIMs are in healthy state before proceeding further.
+5. Check the status of the deployment by running the following code. Wait until all services are up and the `nemoretriever-ranking-ms`, `nemoretriever-embedding-ms` and `nim-llm-ms`  NIMs are in healthy state before proceeding further.
 
      ```bash
      watch -n 2 'docker ps --format "table {{.Names}}\t{{.Status}}"'
@@ -126,14 +100,14 @@ Use the following procedure to start all containers needed for this blueprint.
      ```
 
 
-8. Start the vector db containers from the repo root.
+6. Start the vector db containers from the repo root.
 
    ```bash
    docker compose -f deploy/compose/vectordb.yaml up -d
    ```
 
 
-9. Start the ingestion containers from the repo root. This pulls the prebuilt containers from NGC and deploys them on your system.
+7. Start the ingestion containers from the repo root. This pulls the prebuilt containers from NGC and deploys them on your system.
 
    ```bash
    docker compose -f deploy/compose/docker-compose-ingestor-server.yaml up -d
@@ -186,7 +160,7 @@ Use the following procedure to start all containers needed for this blueprint.
     ```
 
 
-10. Start the RAG containers from the repo root. This pulls the prebuilt containers from NGC and deploys them on your system.
+8. Start the RAG containers from the repo root. This pulls the prebuilt containers from NGC and deploys them on your system.
 
     ```bash
     docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d
@@ -230,7 +204,7 @@ Use the following procedure to start all containers needed for this blueprint.
     ```
 
 
-11. Check the status of the deployment by running the following code.
+9. Check the status of the deployment by running the following code.
 
     ```bash
     docker ps --format "table {{.ID}}\t{{.Names}}\t{{.Status}}"
