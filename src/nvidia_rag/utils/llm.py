@@ -50,8 +50,13 @@ except ImportError:
     pass
 
 
-def get_prompts() -> dict:
-    """Retrieves prompt configurations from YAML file and return a dict."""
+def get_prompts(source: str | dict | None = None) -> dict:
+    """Retrieves prompt configurations from source or YAML file and return a dict.
+
+    Args:
+        source: Optional path to a YAML/JSON file or a dictionary of prompts.
+               If None, attempts to load from default locations or PROMPT_CONFIG_FILE env var.
+    """
 
     # default config taking from prompt.yaml
     default_config_path = os.path.join(
@@ -77,13 +82,25 @@ def get_prompts() -> dict:
     else:
         logger.info("No prompts config file found")
 
-    config_file = os.environ.get("PROMPT_CONFIG_FILE", "/prompt.yaml")
-
+    # If source is provided, it takes precedence over environment variable
     config = {}
-    if Path(config_file).is_file():
-        with open(config_file, encoding="utf-8") as file:
-            logger.info("Using prompts config file from: %s", config_file)
-            config = yaml.safe_load(file)
+    
+    if source is not None:
+        if isinstance(source, dict):
+            config = source
+        elif isinstance(source, str) and Path(source).is_file():
+            with open(source, encoding="utf-8") as file:
+                logger.info("Using prompts config file from: %s", source)
+                config = yaml.safe_load(file)
+        else:
+            logger.warning(f"Invalid source for prompts: {source}. Using defaults.")
+    else:
+        # Fallback to environment variable if no source provided
+        config_file = os.environ.get("PROMPT_CONFIG_FILE", "/prompt.yaml")
+        if Path(config_file).is_file():
+            with open(config_file, encoding="utf-8") as file:
+                logger.info("Using prompts config file from: %s", config_file)
+                config = yaml.safe_load(file)
 
     config = combine_dicts(default_config, config)
     return config

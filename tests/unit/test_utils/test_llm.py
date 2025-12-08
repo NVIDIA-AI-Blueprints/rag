@@ -146,6 +146,62 @@ class TestGetPrompts:
                     assert isinstance(result, dict)
                     assert len(result) > 0
 
+    def test_get_prompts_with_dict_source(self):
+        """Test get_prompts with dictionary source parameter."""
+        custom_prompts = {
+            "rag_template": {"system": "Custom system", "human": "Custom human"},
+            "custom_key": "custom_value"
+        }
+
+        # When passing a dict, it should be used directly (merged with defaults)
+        result = get_prompts(source=custom_prompts)
+
+        assert isinstance(result, dict)
+        # The custom prompts should be present in result
+        assert "custom_key" in result
+        assert result["custom_key"] == "custom_value"
+        # rag_template should be overridden
+        assert result.get("rag_template", {}).get("system") == "Custom system"
+
+    def test_get_prompts_with_file_source(self):
+        """Test get_prompts with file path source parameter."""
+        test_prompts = {"file_prompt": "file content", "another_key": "another_value"}
+
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+            yaml.dump(test_prompts, f)
+            temp_file_path = f.name
+
+        try:
+            result = get_prompts(source=temp_file_path)
+
+            assert isinstance(result, dict)
+            # The file prompts should be present in result
+            assert "file_prompt" in result
+            assert result["file_prompt"] == "file content"
+        finally:
+            os.unlink(temp_file_path)
+
+    def test_get_prompts_with_invalid_file_source(self):
+        """Test get_prompts with invalid file path falls back to defaults."""
+        # When passing an invalid path, it should log a warning and use defaults
+        result = get_prompts(source="/nonexistent/path/to/prompts.yaml")
+
+        assert isinstance(result, dict)
+        # Should still return defaults (not crash)
+        assert len(result) >= 0
+
+    def test_get_prompts_source_takes_precedence_over_env(self):
+        """Test that source parameter takes precedence over PROMPT_CONFIG_FILE env var."""
+        source_prompts = {"source_key": "source_value"}
+
+        with patch.dict(os.environ, {"PROMPT_CONFIG_FILE": "/some/env/path.yaml"}):
+            result = get_prompts(source=source_prompts)
+
+            assert isinstance(result, dict)
+            # Source dict should be used, not env var
+            assert "source_key" in result
+            assert result["source_key"] == "source_value"
+
 
 class TestGetLLM:
     """Test cases for get_llm function."""

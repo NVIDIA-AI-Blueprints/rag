@@ -46,7 +46,6 @@ from nvidia_rag.utils.llm import get_llm, get_prompts
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
 
 logger = logging.getLogger(__name__)
-prompts = get_prompts()
 
 
 def _retry_score_generation(
@@ -140,6 +139,7 @@ async def check_context_relevance(
     enable_reranker: bool = True,
     collection_filter_mapping: str | list[dict[str, Any]] = "",
     config: NvidiaRAGConfig | None = None,
+    prompts: dict | None = None,
 ) -> tuple[list[str], bool]:
     """Check relevance of retrieved context and optionally rewrite query for better results.
 
@@ -158,6 +158,7 @@ async def check_context_relevance(
         enable_reranker (bool): Whether to use the reranker if available (default: True)
         collection_filter_mapping: Filter expressions for filtering documents from collections
         config (NvidiaRAGConfig | None): Config instance. If None, creates a new one.
+        prompts (dict | None): Optional prompts dictionary.
 
     Returns:
         Tuple[List[str], bool]: A tuple containing:
@@ -172,6 +173,8 @@ async def check_context_relevance(
     """
     if config is None:
         config = NvidiaRAGConfig()
+
+    prompts = prompts or get_prompts()
 
     # Use reflection config
     relevance_threshold = config.reflection.context_relevance_threshold
@@ -298,6 +301,7 @@ async def check_response_groundedness(
     context: list[str],
     reflection_counter: ReflectionCounter,
     config: NvidiaRAGConfig | None = None,
+    prompts: dict | None = None,
 ) -> tuple[str, bool]:
     """Check groundedness of generated response against retrieved context.
 
@@ -315,6 +319,7 @@ async def check_response_groundedness(
         context (List[str]): List of context documents used for grounding evaluation
         reflection_counter (ReflectionCounter): Instance to track reflection iteration count
         config (NvidiaRAGConfig | None): Config instance. If None, creates a new one.
+        prompts (dict | None): Optional prompts dictionary.
 
     Returns:
         Tuple[str, bool]: A tuple containing:
@@ -328,6 +333,8 @@ async def check_response_groundedness(
     """
     if config is None:
         config = NvidiaRAGConfig()
+
+    prompts = prompts or get_prompts()
 
     # Use reflection config
     groundedness_threshold = config.reflection.response_groundedness_threshold

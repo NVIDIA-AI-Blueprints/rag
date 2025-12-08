@@ -79,7 +79,11 @@ class VLM:
     """
 
     def __init__(
-        self, vlm_model: str, vlm_endpoint: str, config: NvidiaRAGConfig | None = None
+        self,
+        vlm_model: str,
+        vlm_endpoint: str,
+        config: NvidiaRAGConfig | None = None,
+        prompts: dict | None = None,
     ):
         """
         Initialize the VLM with configuration and prompt templates.
@@ -91,6 +95,8 @@ class VLM:
                 VLM server endpoint URL.
             config:
                 NvidiaRAGConfig instance. If None, creates a new one.
+            prompts:
+                Optional prompts dictionary.
 
         Image budget semantics
         ----------------------
@@ -126,7 +132,7 @@ class VLM:
             raise OSError(
                 "VLM server URL and model name must be set in the environment."
             )
-        prompts = get_prompts()
+        prompts = prompts or get_prompts()
         self.vlm_template = prompts["vlm_template"]
         logger.info(f"VLM Model Name: {self.model_name}")
         logger.info(f"VLM Server URL: {self.invoke_url}")

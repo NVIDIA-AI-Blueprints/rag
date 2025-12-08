@@ -88,6 +88,36 @@ class TestNvidiaRAGInit:
         with pytest.raises(ValueError, match="vdb_op must be an instance of nvidia_rag.utils.vdb.vdb_base.VDBRag"):
             NvidiaRAG(vdb_op=InvalidVDB())
 
+    def test_init_with_prompts_dict(self):
+        """Test initialization with prompts as a dictionary."""
+        custom_prompts = {
+            "rag_template": {"system": "Custom system", "human": "Custom human {context}"},
+            "custom_key": "custom_value"
+        }
+        rag = NvidiaRAG(prompts=custom_prompts)
+
+        assert isinstance(rag.prompts, dict)
+        # Custom prompts should be merged with defaults
+        assert "custom_key" in rag.prompts
+        assert rag.prompts["custom_key"] == "custom_value"
+
+    def test_init_with_prompts_none(self):
+        """Test initialization with prompts=None (default behavior)."""
+        rag = NvidiaRAG(prompts=None)
+
+        assert isinstance(rag.prompts, dict)
+        # Should have default prompts loaded
+        assert len(rag.prompts) > 0
+
+    def test_init_with_invalid_prompts_file(self):
+        """Test initialization with invalid prompts file path falls back to defaults."""
+        # Invalid file path should not crash, just use defaults
+        rag = NvidiaRAG(prompts="/nonexistent/path/to/prompts.yaml")
+
+        assert isinstance(rag.prompts, dict)
+        # Should still have prompts (defaults)
+        assert len(rag.prompts) > 0
+
 
 class TestNvidiaRAGHealth:
     """Test cases for NvidiaRAG health method."""
