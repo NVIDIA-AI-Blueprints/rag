@@ -18,7 +18,19 @@ from typing import Any
 
 import pytest
 
-import nvidia_rag_mcp.mcp_server as mcp_server
+# Try to import mcp_server, skip tests if not available (optional dependency)
+try:
+    import nvidia_rag_mcp.mcp_server as mcp_server
+    MCP_AVAILABLE = True
+except ImportError:
+    MCP_AVAILABLE = False
+    mcp_server = None
+
+# Skip all tests in this module if MCP is not available
+pytestmark = pytest.mark.skipif(
+    not MCP_AVAILABLE,
+    reason="MCP dependencies not installed (optional dependency)"
+)
 
 
 @pytest.mark.anyio
