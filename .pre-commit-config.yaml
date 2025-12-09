@@ -4,21 +4,21 @@ repos:
     hooks:
       - id: frontend-lint
         name: Frontend ESLint
-        entry: bash -c 'export PATH="$HOME/.nvm/versions/node/v22.16.0/bin:$PATH" && command -v pnpm >/dev/null 2>&1 && cd frontend && pnpm run lint || echo "Skipping lint - pnpm not available"'
+        entry: bash -c 'export PATH="$HOME/.nvm/versions/node/v22.16.0/bin:$PATH" && if command -v pnpm >/dev/null 2>&1; then cd frontend && pnpm run lint; else echo "Skipping lint - pnpm not available"; fi'
         language: system
         files: ^frontend/
         types_or: [javascript, jsx, ts, tsx]
         pass_filenames: false
       - id: frontend-typecheck
         name: Frontend TypeScript Check
-        entry: bash -c 'export PATH="$HOME/.nvm/versions/node/v22.16.0/bin:$PATH" && command -v pnpm >/dev/null 2>&1 && cd frontend && pnpm exec tsc --noEmit || echo "Skipping typecheck - pnpm not available"'
+        entry: bash -c 'export PATH="$HOME/.nvm/versions/node/v22.16.0/bin:$PATH" && if command -v pnpm >/dev/null 2>&1; then cd frontend && pnpm exec tsc --noEmit; else echo "Skipping typecheck - pnpm not available"; fi'
         language: system
         files: ^frontend/
         types_or: [ts, tsx]
         pass_filenames: false
       - id: frontend-test
         name: Frontend Tests
-        entry: bash -c 'export PATH="$HOME/.nvm/versions/node/v22.16.0/bin:$PATH" && command -v pnpm >/dev/null 2>&1 && cd frontend && pnpm run test:run || echo "Skipping tests - pnpm not available"'
+        entry: bash -c 'export PATH="$HOME/.nvm/versions/node/v22.16.0/bin:$PATH" && if command -v pnpm >/dev/null 2>&1; then cd frontend && pnpm run test:run; else echo "Skipping tests - pnpm not available"; fi'
         language: system
         files: ^frontend/
         types_or: [javascript, jsx, ts, tsx]
