@@ -13,9 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
+import logging
 import os
 import time
 
+import aiohttp
 from pymilvus import MilvusClient
 
 # Try to import NvidiaRAGConfig from the codebase used by the servers.
@@ -32,9 +35,6 @@ except Exception:
         return _DummyCfg()
 
 from ..base import BaseTestModule, TestStatus, test_case
-import aiohttp
-import json
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -83,11 +83,11 @@ def _grant_collection_privilege(client: MilvusClient, role: str, object_type: st
 def _grant_reader_privileges(client: MilvusClient, role: str, collection_name: str):
     """
     Grant read privileges to a role for a collection.
-    
+
     In Milvus 2.5+, GetLoadState is an internal privilege that cannot be granted individually.
     It's included in the ClusterReadOnly privilege group. We use grant_privilege_v2() API
     which supports privilege groups.
-    
+
     IMPORTANT: ClusterReadOnly is a CLUSTER-level privilege and must use "*" as collection_name.
     """
     # Grant ClusterReadOnly at CLUSTER level (collection_name must be "*")
@@ -98,7 +98,7 @@ def _grant_reader_privileges(client: MilvusClient, role: str, collection_name: s
         logger.info(f"Granted ClusterReadOnly (cluster-level) to {role}")
     except Exception as e:
         logger.warning(f"Failed to grant ClusterReadOnly: {e}")
-    
+
     # Grant collection-specific privileges using v2 API
     for priv in ("Query", "Search", "Load"):
         try:
@@ -112,14 +112,14 @@ def _grant_reader_privileges(client: MilvusClient, role: str, collection_name: s
                 logger.info(f"Granted {priv} to {role} on {collection_name} via v1 API")
             except Exception as e2:
                 logger.warning(f"Failed to grant {priv} via v1 API: {e2}")
-    
+
     # Grant global privileges needed for collection operations
     try:
         _grant_collection_privilege(client, role, "Global", "*", "DescribeCollection")
         logger.info(f"Granted DescribeCollection to {role}")
     except Exception as e:
         logger.warning(f"Failed to grant DescribeCollection: {e}")
-    
+
     try:
         _grant_collection_privilege(client, role, "Global", "*", "ShowCollections")
         logger.info(f"Granted ShowCollections to {role}")
@@ -527,7 +527,7 @@ class MilvusVdbAuthModule(BaseTestModule):
             # Use the helper that handles Milvus 2.5+ privilege groups (ClusterReadOnly includes GetLoadState)
             client = MilvusClient(uri=_milvus_uri(), token=_milvus_root_token())
             _grant_reader_privileges(client, self.reader_role, temp_collection)
-
+            time.sleep(6)
             # Call RAG /search as reader (should succeed)
             headers_reader = {"Authorization": f"Bearer {self.reader_user}:{self.reader_pwd}"}
             search_payload = {
@@ -582,8 +582,6 @@ class MilvusVdbAuthModule(BaseTestModule):
                     await session.delete(f"{self.ingestor_server_url}/v1/collections", params=params, headers=headers_admin)
             except Exception:
                 pass
-
-
 
     @test_case(85, "Cleanup auth resources (collections, users, roles)")
     async def test_cleanup_auth_resources(self) -> bool:
