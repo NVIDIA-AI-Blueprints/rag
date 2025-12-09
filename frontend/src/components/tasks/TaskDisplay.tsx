@@ -76,8 +76,12 @@ const TaskHeader = ({ task }: TaskHeaderProps) => {
 
 const TaskProgress = ({ task }: { task: TaskDisplayProps['task'] }) => {
   const { formatTimestamp } = useTaskUtils();
-  const { documents = [], total_documents = 0 } = task.result || {};
-  const progress = total_documents > 0 ? (documents.length / total_documents) * 100 : 0;
+  const { documents = [], total_documents = 0, documents_completed } = task.result || {};
+  // Use explicit documents_completed if available, otherwise fall back to documents.length
+  const completedCount = documents_completed ?? documents.length;
+  const progress = total_documents > 0 ? (completedCount / total_documents) * 100 : 0;
+  const isPending = task.state === "PENDING";
+  const progressLabel = isPending ? "Processing" : "Uploaded";
 
   return (
     <Stack gap="2" data-testid="task-progress">
@@ -87,7 +91,7 @@ const TaskProgress = ({ task }: { task: TaskDisplayProps['task'] }) => {
             className={task.read ? 'text-neutral-400' : 'text-white'}
             data-testid="progress-text"
           >
-          Uploaded: {documents.length} / {total_documents}
+          {progressLabel}: {completedCount} / {total_documents}
         </Text>
         {task.completedAt && (
           <Text 
@@ -113,6 +117,7 @@ const TaskErrors = ({ task }: { task: TaskDisplayProps['task'] }) => {
   const { shouldHideTaskMessage } = useTaskUtils();
   const { message = "", failed_documents = [], validation_errors = [] } = task.result || {};
   const shouldHideMessage = shouldHideTaskMessage(task);
+  const messageColor = task.state === "FAILED" ? "text-red-100" : "text-neutral-300";
 
   return (
     <Stack gap="2">
@@ -120,7 +125,7 @@ const TaskErrors = ({ task }: { task: TaskDisplayProps['task'] }) => {
         <StatusMessage
           slotHeading=""
           slotSubheading={
-            <Text kind="mono/sm" className="text-red-100 whitespace-pre-wrap break-words">
+            <Text kind="mono/sm" className={`${messageColor} whitespace-pre-wrap break-words`}>
               {message}
             </Text>
           }
