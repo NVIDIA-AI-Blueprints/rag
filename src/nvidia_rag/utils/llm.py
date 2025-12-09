@@ -22,6 +22,7 @@
 6. get_streaming_filter_think_parser_async: Get the parser for filtering the think tokens (async).
 """
 
+import json
 import logging
 import os
 from collections.abc import Iterable
@@ -32,6 +33,7 @@ import requests
 import yaml
 from langchain.llms.base import LLM
 from langchain_core.language_models.chat_models import SimpleChatModel
+from langchain_core.messages import AIMessageChunk
 from langchain_nvidia_ai_endpoints import ChatNVIDIA
 
 from nvidia_rag.rag_server.response_generator import APIError, ErrorCodeMapping
@@ -603,3 +605,26 @@ def get_streaming_filter_think_parser_async():
         logger.info("Think token filtering is disabled (async)")
         # If filtering is disabled, use a passthrough that passes content as-is
         return RunnablePassthrough()
+
+
+USAGE_SENTINEL_PREFIX = "__RAG_USAGE_SENTINEL__:"
+
+
+async def stream_with_usage_sentinel(chunks):
+    """
+    Pass through model chunks and, at the end, emit a synthetic chunk whose
+    content encodes token-usage metadata.
+    """
+    last_usage = None
+
+    async for chunk in chunks:
+        if hasattr(chunk, "usage_metadata") and getattr(chunk, "usage_metadata", None):
+            last_usage = getattr(chunk, "usage_metadata", None)
+        yield chunk
+
+    if last_usage is not None:
+        try:
+            payload = json.dumps(last_usage)
+            yield AIMessageChunk(content=f"{USAGE_SENTINEL_PREFIX}{payload}")
+        except Exception as e:
+            logger.debug("Failed to emit usage sentinel chunk: %s", e)
