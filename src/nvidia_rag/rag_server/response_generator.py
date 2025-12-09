@@ -463,6 +463,14 @@ def generate_answer(
                             prompt_tokens=prompt_tokens,
                             completion_tokens=completion_tokens,
                         )
+                        logger.info(
+                            "LLM usage for model %s (sync): prompt_tokens=%d, completion_tokens=%d, total_tokens=%d, raw=%s",
+                            model,
+                            prompt_tokens,
+                            completion_tokens,
+                            total_tokens,
+                            usage_dict,
+                        )
                     except Exception as e:
                         logger.debug("Failed to parse usage sentinel: %s", e)
                     continue
@@ -632,6 +640,14 @@ async def generate_answer_async(
                             total_tokens=total_tokens,
                             prompt_tokens=prompt_tokens,
                             completion_tokens=completion_tokens,
+                        )
+                        logger.info(
+                            "LLM usage for model %s (async): prompt_tokens=%d, completion_tokens=%d, total_tokens=%d, raw=%s",
+                            model,
+                            prompt_tokens,
+                            completion_tokens,
+                            total_tokens,
+                            usage_dict,
                         )
                     except Exception as e:
                         logger.debug("Failed to parse usage sentinel: %s", e)

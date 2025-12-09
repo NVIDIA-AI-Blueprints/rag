@@ -618,13 +618,16 @@ async def stream_with_usage_sentinel(chunks):
     last_usage = None
 
     async for chunk in chunks:
+        logger.info("Chunk: %s", chunk.usage_metadata)
         if hasattr(chunk, "usage_metadata") and getattr(chunk, "usage_metadata", None):
             last_usage = getattr(chunk, "usage_metadata", None)
+            logger.info("Usage metadata: %s", last_usage)
         yield chunk
 
     if last_usage is not None:
         try:
             payload = json.dumps(last_usage)
+            logger.info("Usage sentinel chunk: %s", payload)
             yield AIMessageChunk(content=f"{USAGE_SENTINEL_PREFIX}{payload}")
         except Exception as e:
             logger.debug("Failed to emit usage sentinel chunk: %s", e)
