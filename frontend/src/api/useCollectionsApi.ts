@@ -89,12 +89,14 @@ export function useDeleteCollection() {
 
   return useMutation({
     mutationFn: async (collectionName: string) => {
+      // Backend expects collection_names as query parameter
+      const params = new URLSearchParams();
+      params.append("collection_names", collectionName);
+      
       const res = await fetch(
-        `/api/collections`,
+        `/api/collections?${params.toString()}`,
         {
           method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify([collectionName]),
         }
       );
       if (!res.ok) {
