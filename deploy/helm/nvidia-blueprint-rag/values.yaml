@@ -44,6 +44,7 @@ apiKeysSecret:
   # -- Reference to existing secret (if set, chart won't create secret, will reference this instead)
   existingSecret: ""
   # -- Service-specific API keys (optional, empty means use NVIDIA_API_KEY fallback)
+  # Note: Non-empty values act as enable flags - only non-empty keys are injected as env vars
   llmApiKey: ""
   embeddingsApiKey: ""
   rankingApiKey: ""

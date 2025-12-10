@@ -59,58 +59,58 @@ spec:
           {{- $apiKeysSecretName := include "apiKeysSecretName" . }}
           {{- $hasAnyKey := or .Values.apiKeysSecret.llmApiKey .Values.apiKeysSecret.embeddingsApiKey .Values.apiKeysSecret.rankingApiKey .Values.apiKeysSecret.queryRewriterApiKey .Values.apiKeysSecret.filterExpressionGeneratorApiKey .Values.apiKeysSecret.vlmApiKey .Values.apiKeysSecret.summaryLlmApiKey .Values.apiKeysSecret.reflectionLlmApiKey }}
           {{- $shouldCreateSecret := and .Values.apiKeysSecret.create (not .Values.apiKeysSecret.existingSecret) $hasAnyKey }}
-          {{- $useExistingSecret := and .Values.apiKeysSecret.existingSecret $hasAnyKey }}
+          {{- $useExistingSecret := .Values.apiKeysSecret.existingSecret }}
           {{- if or $shouldCreateSecret $useExistingSecret }}
-          {{- if .Values.apiKeysSecret.llmApiKey }}
+          {{- if or $useExistingSecret .Values.apiKeysSecret.llmApiKey }}
             - name: APP_LLM_APIKEY
               valueFrom:
                 secretKeyRef:
                   name: {{ $apiKeysSecretName }}
                   key: APP_LLM_APIKEY
           {{- end }}
-          {{- if .Values.apiKeysSecret.embeddingsApiKey }}
+          {{- if or $useExistingSecret .Values.apiKeysSecret.embeddingsApiKey }}
             - name: APP_EMBEDDINGS_APIKEY
               valueFrom:
                 secretKeyRef:
                   name: {{ $apiKeysSecretName }}
                   key: APP_EMBEDDINGS_APIKEY
           {{- end }}
-          {{- if .Values.apiKeysSecret.rankingApiKey }}
+          {{- if or $useExistingSecret .Values.apiKeysSecret.rankingApiKey }}
             - name: APP_RANKING_APIKEY
               valueFrom:
                 secretKeyRef:
                   name: {{ $apiKeysSecretName }}
                   key: APP_RANKING_APIKEY
           {{- end }}
-          {{- if .Values.apiKeysSecret.queryRewriterApiKey }}
+          {{- if or $useExistingSecret .Values.apiKeysSecret.queryRewriterApiKey }}
             - name: APP_QUERYREWRITER_APIKEY
               valueFrom:
                 secretKeyRef:
                   name: {{ $apiKeysSecretName }}
                   key: APP_QUERYREWRITER_APIKEY
           {{- end }}
-          {{- if .Values.apiKeysSecret.filterExpressionGeneratorApiKey }}
+          {{- if or $useExistingSecret .Values.apiKeysSecret.filterExpressionGeneratorApiKey }}
             - name: APP_FILTEREXPRESSIONGENERATOR_APIKEY
               valueFrom:
                 secretKeyRef:
                   name: {{ $apiKeysSecretName }}
                   key: APP_FILTEREXPRESSIONGENERATOR_APIKEY
           {{- end }}
-          {{- if .Values.apiKeysSecret.vlmApiKey }}
+          {{- if or $useExistingSecret .Values.apiKeysSecret.vlmApiKey }}
             - name: APP_VLM_APIKEY
               valueFrom:
                 secretKeyRef:
                   name: {{ $apiKeysSecretName }}
                   key: APP_VLM_APIKEY
           {{- end }}
-          {{- if .Values.apiKeysSecret.summaryLlmApiKey }}
+          {{- if or $useExistingSecret .Values.apiKeysSecret.summaryLlmApiKey }}
             - name: SUMMARY_LLM_APIKEY
               valueFrom:
                 secretKeyRef:
                   name: {{ $apiKeysSecretName }}
                   key: SUMMARY_LLM_APIKEY
           {{- end }}
-          {{- if .Values.apiKeysSecret.reflectionLlmApiKey }}
+          {{- if or $useExistingSecret .Values.apiKeysSecret.reflectionLlmApiKey }}
             - name: REFLECTION_LLM_APIKEY
               valueFrom:
                 secretKeyRef:

@@ -139,7 +139,7 @@ class VLM:
 
     @staticmethod
     def init_model(
-        model: str, endpoint: str, api_key: str | None = None, **kwargs
+        model: str, endpoint: str, api_key: str | None = None, **kwargs: Any
     ) -> ChatOpenAI:
         """
         Initialize and return the VLM ChatOpenAI model instance.

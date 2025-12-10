@@ -58,6 +58,7 @@ embeddings:
 ```bash
 export APP_LLM_APIKEY="your-llm-api-key"
 export APP_EMBEDDINGS_APIKEY="your-embeddings-api-key"
+# Additional service-specific keys can be set as needed
 ```
 
 ### Helm
@@ -67,6 +68,7 @@ apiKeysSecret:
   create: true
   llmApiKey: "your-llm-api-key"
   embeddingsApiKey: "your-embeddings-api-key"
+  # Additional service-specific keys can be configured as needed
   # Or: existingSecret: "my-secret"
 ```
 

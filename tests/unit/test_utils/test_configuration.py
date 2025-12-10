@@ -558,8 +558,6 @@ class TestConfigurationIntegration:
     @patch.dict(os.environ, {}, clear=True)
     def test_secretstr_from_environment_variables(self):
         """Test that environment variables are automatically converted to SecretStr."""
-        from pydantic import SecretStr
-
         env_vars = {
             "APP_VECTORSTORE_PASSWORD": "my_secret_password",
             "APP_VECTORSTORE_APIKEY": "my_api_key_123",

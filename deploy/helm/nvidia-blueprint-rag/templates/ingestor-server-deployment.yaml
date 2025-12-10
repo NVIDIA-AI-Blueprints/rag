@@ -50,7 +50,7 @@ spec:
           {{- $apiKeysSecretName := include "apiKeysSecretName" . }}
           {{- $hasAnyKey := or .Values.apiKeysSecret.embeddingsApiKey .Values.apiKeysSecret.summaryLlmApiKey }}
           {{- $shouldCreateSecret := and .Values.apiKeysSecret.create (not .Values.apiKeysSecret.existingSecret) $hasAnyKey }}
-          {{- $useExistingSecret := and .Values.apiKeysSecret.existingSecret $hasAnyKey }}
+          {{- $useExistingSecret := .Values.apiKeysSecret.existingSecret }}
           {{- $hasApiKeys := or $shouldCreateSecret $useExistingSecret }}
           {{- if or $cfg.envVars $hasApiKeys }}
           env:
@@ -61,14 +61,14 @@ spec:
           {{- end }}
           {{- end }}
           {{- if $hasApiKeys }}
-          {{- if .Values.apiKeysSecret.embeddingsApiKey }}
+          {{- if or $useExistingSecret .Values.apiKeysSecret.embeddingsApiKey }}
             - name: APP_EMBEDDINGS_APIKEY
               valueFrom:
                 secretKeyRef:
                   name: {{ $apiKeysSecretName }}
                   key: APP_EMBEDDINGS_APIKEY
           {{- end }}
-          {{- if .Values.apiKeysSecret.summaryLlmApiKey }}
+          {{- if or $useExistingSecret .Values.apiKeysSecret.summaryLlmApiKey }}
             - name: SUMMARY_LLM_APIKEY
               valueFrom:
                 secretKeyRef:

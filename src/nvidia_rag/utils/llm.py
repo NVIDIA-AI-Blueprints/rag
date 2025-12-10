@@ -193,12 +193,14 @@ def get_llm(config: NvidiaRAGConfig | None = None, **kwargs) -> LLM | SimpleChat
                     response.raise_for_status()
 
                     api_key = kwargs.get("api_key") or config.llm.get_api_key()
-                    x_model_authorization = {"X-Model-Authorization": api_key}
+                    default_headers = {}
+                    if api_key:
+                        default_headers["X-Model-Authorization"] = api_key
                     return ChatOpenAI(
                         model_name=kwargs.get("model"),
                         openai_api_base=f"{guardrails_url}/v1/guardrail",
                         openai_api_key="dummy-value",
-                        default_headers=x_model_authorization,
+                        default_headers=default_headers,
                         temperature=kwargs.get("temperature", None),
                         top_p=kwargs.get("top_p", None),
                         max_tokens=kwargs.get("max_tokens", None),
