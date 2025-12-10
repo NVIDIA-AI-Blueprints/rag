@@ -121,12 +121,14 @@ class NvidiaRAG:
         self,
         config: NvidiaRAGConfig = None,
         vdb_op: VDBRag = None,
+        prompts: str | dict | None = None,
     ):
         """Initialize NvidiaRAG with configuration.
 
         Args:
             config: Configuration object. If None, loads from environment.
             vdb_op: Optional vector database operator. If None, will be created as needed.
+            prompts: Optional path to a YAML/JSON file or a dictionary of prompts.
         """
         # Store config
         self.config = config or NvidiaRAGConfig()
@@ -186,7 +188,7 @@ class NvidiaRAG:
         )
 
         # Load prompts and other utilities
-        self.prompts = get_prompts()
+        self.prompts = get_prompts(prompts)
         self.vdb_top_k = int(self.config.retriever.vdb_top_k)
         self.StreamingFilterThinkParser = get_streaming_filter_think_parser_async()
 
@@ -1829,6 +1831,7 @@ class NvidiaRAG:
                     ranker_top_k=reranker_top_k,
                     confidence_threshold=confidence_threshold,
                     llm_settings=llm_settings,
+                    prompts=self.prompts,
                 )
 
             if confidence_threshold > 0.0 and not enable_reranker:
@@ -1852,6 +1855,7 @@ class NvidiaRAG:
                     enable_reranker=enable_reranker,
                     collection_filter_mapping=collection_filter_mapping,
                     config=self.config,
+                    prompts=self.prompts,
                 )
 
                 # Normalize scores to 0-1 range
@@ -2047,6 +2051,8 @@ class NvidiaRAG:
                         vlm = VLM(
                             vlm_model=vlm_model_cfg,
                             vlm_endpoint=vlm_endpoint_cfg,
+                            config=self.config,
+                            prompts=self.prompts,
                         )
                         # Build full messages: prior history + current query as a final user turn
                         vlm_messages = [
@@ -2154,6 +2160,7 @@ class NvidiaRAG:
                     docs,
                     reflection_counter,
                     config=self.config,
+                    prompts=self.prompts,
                 )
                 if not is_grounded:
                     logger.warning(

@@ -269,6 +269,7 @@ async def generate_document_summaries(
     summarization_strategy: str | None = None,
     config: NvidiaRAGConfig | None = None,
     is_shallow: bool = False,
+    prompts: dict | None = None,
 ) -> dict[str, Any]:
     """
     Generate summaries for multiple documents in parallel with global rate limiting.
@@ -280,6 +281,7 @@ async def generate_document_summaries(
         summarization_strategy: Strategy for summarization ('single', 'hierarchical') or None for default iterative
         config: NvidiaRAGConfig instance. If None, creates a new one from environment.
         is_shallow: Whether this is shallow extraction (text-only, uses simplified prompt)
+        prompts: Optional prompts dictionary.
 
     Returns:
         dict: Statistics with total_files, successful, failed, duration_seconds, files
@@ -343,6 +345,7 @@ async def generate_document_summaries(
             page_filter=page_filter,
             summarization_strategy=summarization_strategy,
             is_shallow=is_shallow,
+            prompts=prompts,
         )
         for file_data in file_results
     ]
@@ -387,6 +390,7 @@ async def _process_single_file_summary(
     page_filter: list[list[int]] | str | None = None,
     summarization_strategy: str | None = None,
     is_shallow: bool = False,
+    prompts: dict | None = None,
 ) -> dict[str, Any]:
     """
     Process summary for a single file with global rate limiting.
@@ -400,6 +404,7 @@ async def _process_single_file_summary(
         page_filter: Global page filter for all files
         summarization_strategy: Strategy for summarization ('single', 'hierarchical') or None for default iterative
         is_shallow: Whether this is shallow extraction (text-only, uses simplified prompt)
+        prompts: Optional prompts dictionary.
 
     Returns:
         dict: Result with status, duration, and optional error
@@ -446,6 +451,7 @@ async def _process_single_file_summary(
                 summarization_strategy=summarization_strategy,
                 config=config,
                 is_shallow=is_shallow,
+                prompts=prompts,
             )
 
             await _store_summary_in_minio(summary_doc)
@@ -613,6 +619,7 @@ async def _generate_single_document_summary(
     progress_callback: Callable | None = None,
     summarization_strategy: str | None = None,
     is_shallow: bool = False,
+    prompts: dict | None = None,
 ) -> Document:
     """Generate summary for a single document using configured strategy."""
     file_name = document.metadata.get("filename", "unknown")
@@ -624,15 +631,15 @@ async def _generate_single_document_summary(
 
     if summarization_strategy == "single":
         return await _summarize_single_pass(
-            document, config, progress_callback, is_shallow
+            document, config, progress_callback, is_shallow, prompts=prompts
         )
     elif summarization_strategy == "iterative":
         return await _summarize_iterative(
-            document, config, progress_callback, is_shallow
+            document, config, progress_callback, is_shallow, prompts=prompts
         )
     elif summarization_strategy == "hierarchical":
         return await _summarize_hierarchical(
-            document, config, progress_callback, is_shallow
+            document, config, progress_callback, is_shallow, prompts=prompts
         )
     else:
         raise ValueError(
@@ -646,6 +653,7 @@ async def _summarize_single_pass(
     config: NvidiaRAGConfig,
     progress_callback: Callable | None = None,
     is_shallow: bool = False,
+    prompts: dict | None = None,
 ) -> Document:
     """Summarize entire document in one pass, truncating if needed."""
     file_name = document.metadata.get("filename", "unknown")
@@ -664,7 +672,7 @@ async def _summarize_single_pass(
     logger.info(f"Single-pass summarization for {file_name}: {total_tokens} tokens")
 
     llm = _get_summary_llm(config)
-    prompts = get_prompts()
+    prompts = prompts or get_prompts()
     initial_chain, _ = _create_llm_chains(llm, prompts, is_shallow)
 
     if progress_callback:
@@ -689,6 +697,7 @@ async def _summarize_iterative(
     config: NvidiaRAGConfig,
     progress_callback: Callable | None = None,
     is_shallow: bool = False,
+    prompts: dict | None = None,
 ) -> Document:
     """Iterative sequential summarization - processes chunks one by one."""
     file_name = document.metadata.get("filename", "unknown")
@@ -703,7 +712,7 @@ async def _summarize_iterative(
     )
 
     llm = _get_summary_llm(config)
-    prompts = get_prompts()
+    prompts = prompts or get_prompts()
     initial_chain, iterative_chain = _create_llm_chains(llm, prompts, is_shallow)
 
     if total_tokens <= max_chunk_tokens:
@@ -768,6 +777,7 @@ async def _summarize_hierarchical(
     config: NvidiaRAGConfig,
     progress_callback: Callable | None = None,
     is_shallow: bool = False,
+    prompts: dict | None = None,
 ) -> Document:
     """Hierarchical parallel summarization with token-based chunking."""
     file_name = document.metadata.get("filename", "unknown")
@@ -782,7 +792,7 @@ async def _summarize_hierarchical(
     if total_tokens <= max_chunk_tokens:
         logger.info(f"Document fits in one chunk, using single-pass for {file_name}")
         return await _summarize_single_pass(
-            document, config, progress_callback, is_shallow
+            document, config, progress_callback, is_shallow, prompts=prompts
         )
 
     # Token-based splitting with recursive character splitting at semantic boundaries
@@ -798,7 +808,7 @@ async def _summarize_hierarchical(
     logger.info(f"Split {file_name} into {total_chunks} chunks for parallel processing")
 
     llm = _get_summary_llm(config)
-    prompts = get_prompts()
+    prompts = prompts or get_prompts()
     initial_chain, iterative_chain = _create_llm_chains(llm, prompts, is_shallow)
 
     chunk_summaries = await asyncio.gather(

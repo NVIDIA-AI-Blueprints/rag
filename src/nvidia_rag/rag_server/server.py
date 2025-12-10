@@ -28,6 +28,7 @@ import logging
 import os
 import time
 from collections.abc import Generator
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, Request
@@ -122,7 +123,14 @@ app.add_middleware(
 )
 
 # Create NvidiaRAG instance with config
-NVIDIA_RAG = NvidiaRAG(config=CONFIG)
+# Explicitly pass the prompts configuration file to maintain consistency
+# between server mode and library mode. Only pass if file exists to avoid
+# unnecessary warnings.
+PROMPT_CONFIG_FILE = os.environ.get("PROMPT_CONFIG_FILE", "/prompt.yaml")
+NVIDIA_RAG = NvidiaRAG(
+    config=CONFIG,
+    prompts=PROMPT_CONFIG_FILE if Path(PROMPT_CONFIG_FILE).is_file() else None
+)
 
 metrics = None
 if CONFIG.tracing.enabled:

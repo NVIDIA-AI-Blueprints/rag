@@ -156,18 +156,21 @@ def merge_contexts(
     return all_contexts
 
 
-async def generate_subqueries(query: str, llm: ChatNVIDIA) -> list[str]:
+async def generate_subqueries(
+    query: str, llm: ChatNVIDIA, prompts: dict | None = None
+) -> list[str]:
     """
     Generate multiple perspectives/subqueries from the original query.
 
     Args:
         query: Original query string
         llm: Language model instance
+        prompts: Optional prompts dictionary
 
     Returns:
         List of generated subqueries
     """
-    prompts = get_prompts()
+    prompts = prompts or get_prompts()
     template = prompts.get("query_decomposition_multiquery_prompt")
     prompt_perspectives = ChatPromptTemplate.from_messages(
         [
@@ -199,7 +202,10 @@ async def generate_subqueries(query: str, llm: ChatNVIDIA) -> list[str]:
 
 
 async def rewrite_query_with_context(
-    question: str, history: list[tuple[str, str]], llm: ChatNVIDIA
+    question: str,
+    history: list[tuple[str, str]],
+    llm: ChatNVIDIA,
+    prompts: dict | None = None,
 ) -> str:
     """
     Rewrite a query based on conversation history.
@@ -208,6 +214,7 @@ async def rewrite_query_with_context(
         question: Original question
         history: Conversation history
         llm: Language model instance
+        prompts: Optional prompts dictionary
 
     Returns:
         Rewritten query string
@@ -216,7 +223,7 @@ async def rewrite_query_with_context(
         logger.debug("No history available, returning original question")
         return question
 
-    prompts = get_prompts()
+    prompts = prompts or get_prompts()
 
     query_rewriter_prompt = prompts.get("query_decompositions_query_rewriter_prompt")
     query_rewriter = ChatPromptTemplate.from_messages(
@@ -302,7 +309,10 @@ def retrieve_and_rank_documents(
 
 
 async def generate_answer_for_query(
-    question: str, documents: list[Document], llm: ChatNVIDIA
+    question: str,
+    documents: list[Document],
+    llm: ChatNVIDIA,
+    prompts: dict | None = None,
 ) -> str:
     """
     Generate an answer for a specific question using retrieved documents.
@@ -311,11 +321,12 @@ async def generate_answer_for_query(
         question: Question to answer
         documents: Retrieved documents as context
         llm: Language model instance
+        prompts: Optional prompts dictionary
 
     Returns:
         Generated answer string
     """
-    prompts = get_prompts()
+    prompts = prompts or get_prompts()
 
     rag_template = prompts.get("query_decomposition_rag_template")
 
@@ -341,6 +352,7 @@ async def generate_followup_question(
     original_query: str,
     contexts: list[Document],
     llm: ChatNVIDIA,
+    prompts: dict | None = None,
 ) -> str:
     """
     Generate a follow-up question based on conversation history and context.
@@ -350,11 +362,12 @@ async def generate_followup_question(
         original_query: Original user query
         contexts: Retrieved contexts
         llm: Language model instance
+        prompts: Optional prompts dictionary
 
     Returns:
         Follow-up question string (empty if no follow-up needed)
     """
-    prompts = get_prompts()
+    prompts = prompts or get_prompts()
 
     followup_question_prompt = ChatPromptTemplate.from_messages(
         [
@@ -406,6 +419,7 @@ async def process_subqueries(
     confidence_threshold: float | None = None,
     history: list[tuple[str, str]] | None = None,
     config: NvidiaRAGConfig | None = None,
+    prompts: dict | None = None,
 ) -> tuple[list[tuple[str, str]], list[Document]]:
     """
     Process a list of subqueries and return conversation history and contexts.
@@ -422,6 +436,7 @@ async def process_subqueries(
         history: Conversation history
         config: NvidiaRAGConfig instance. If None, creates a new one.
         ranker: Optional document ranker
+        prompts: Optional prompts dictionary
 
     Returns:
         Tuple of (conversation_history, final_contexts)
@@ -448,7 +463,9 @@ async def process_subqueries(
         logger.info(f"Processing question {i + 1}/{len(questions)}: {question}")
 
         # Rewrite query with context from previous answers
-        rewritten_query = await rewrite_query_with_context(question, history, llm)
+        rewritten_query = await rewrite_query_with_context(
+            question, history, llm, prompts=prompts
+        )
         logger.info(f"Rewritten query: {rewritten_query}")
 
         # Retrieve and rank documents
@@ -477,7 +494,9 @@ async def process_subqueries(
         #     )
 
         # Generate answer
-        answer = await generate_answer_for_query(rewritten_query, retrieved_docs, llm)
+        answer = await generate_answer_for_query(
+            rewritten_query, retrieved_docs, llm, prompts=prompts
+        )
         logger.info(f"Generated answer: {answer}")
         final_contexts[question]["answer"] = answer
 
@@ -496,6 +515,7 @@ async def generate_final_response(
     llm: ChatNVIDIA,
     enable_citations: bool = True,
     collection_name: str = "",
+    prompts: dict | None = None,
 ):
     """
     Generate the final comprehensive response.
@@ -505,11 +525,12 @@ async def generate_final_response(
         contexts: Final contexts
         original_query: Original user query
         llm: Language model instance
+        prompts: Optional prompts dictionary
 
     Returns:
         Generated response stream
     """
-    prompts = get_prompts()
+    prompts = prompts or get_prompts()
 
     final_response_prompt = prompts.get("query_decomposition_final_response_prompt")
     final_response_generator = ChatPromptTemplate.from_messages(
@@ -556,6 +577,7 @@ async def iterative_query_decomposition(
     confidence_threshold: float | None = None,
     llm_settings: dict[str, Any] | None = None,
     config: NvidiaRAGConfig | None = None,
+    prompts: dict | None = None,
 ):
     """
     Decompose a complex query into simpler subqueries and generate a comprehensive answer.
@@ -574,17 +596,10 @@ async def iterative_query_decomposition(
         confidence_threshold: Confidence threshold for filtering
         llm_settings: LLM settings
         config: NvidiaRAGConfig instance. If None, creates a new one.
+        prompts: Optional prompts dictionary
 
     This function breaks down complex queries into manageable subqueries, processes them
     iteratively with context awareness, and generates a final comprehensive response.
-
-    Args:
-        query: Original complex query
-        history: Previous conversation history (currently unused in recursion)
-        llm: Language model instance
-        vdb_op: vectorstore object
-        ranker: Optional document ranker for improving relevance
-        recursion_depth: Maximum number of recursion levels for query refinement
 
     Returns:
         Generated comprehensive answer stream
@@ -620,7 +635,7 @@ async def iterative_query_decomposition(
 
     llm = get_llm(**llm_settings)
     # Generate initial subqueries
-    questions = await generate_subqueries(query, llm)
+    questions = await generate_subqueries(query, llm, prompts=prompts)
 
     # If there's only one subquery, use basic RAG instead of query decomposition
     if len(questions) == 1:
@@ -657,6 +672,7 @@ async def iterative_query_decomposition(
             llm=llm,
             enable_citations=enable_citations,
             collection_name=collection_name,
+            prompts=prompts,
         )
 
     # query: context pair, this will contain all the subqueries and their contexts
@@ -681,13 +697,14 @@ async def iterative_query_decomposition(
             confidence_threshold,
             conversation_history,
             config,
+            prompts=prompts,
         )
         final_contexts.update(iteration_contexts)
         # conversation_history.extend(iteration_history)
 
         # Generate follow-up question for next iteration
         followup_question = await generate_followup_question(
-            conversation_history, query, final_contexts, llm
+            conversation_history, query, final_contexts, llm, prompts=prompts
         )
 
         if followup_question.strip().strip("'").strip('"'):
@@ -719,4 +736,5 @@ async def iterative_query_decomposition(
         llm,
         enable_citations,
         collection_name,
+        prompts=prompts,
     )

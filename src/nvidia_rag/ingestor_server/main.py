@@ -79,6 +79,7 @@ from nvidia_rag.utils.minio_operator import (
     get_unique_thumbnail_id_file_name_prefix,
     get_unique_thumbnail_id_from_result,
 )
+from nvidia_rag.utils.llm import get_prompts
 from nvidia_rag.utils.summarization import generate_document_summaries
 from nvidia_rag.utils.summary_status_handler import SUMMARY_STATUS_HANDLER
 from nvidia_rag.utils.vdb import _get_vdb_op
@@ -111,6 +112,7 @@ class NvidiaRAGIngestor:
         vdb_op: VDBRag = None,
         mode: Mode | str = Mode.LIBRARY,
         config: NvidiaRAGConfig | None = None,
+        prompts: str | dict | None = None,
     ):
         """Initialize NvidiaRAGIngestor with configuration.
 
@@ -118,6 +120,10 @@ class NvidiaRAGIngestor:
             vdb_op: Optional vector database operator
             mode: Operating mode (library or server)
             config: Configuration object. If None, uses default config.
+            prompts: Optional prompt configuration. Can be:
+                - A path to a YAML/JSON file containing prompts
+                - A dictionary with prompt configurations
+                - None to use defaults (or PROMPT_CONFIG_FILE env var)
         """
         # Convert string to Mode enum if necessary
         if isinstance(mode, str):
@@ -133,6 +139,7 @@ class NvidiaRAGIngestor:
         # Track background summary tasks to prevent garbage collection
         self._background_tasks = set()
         self.config = config or NvidiaRAGConfig()
+        self.prompts = get_prompts(prompts)
 
         # Initialize instance-based clients
         self.nv_ingest_client = get_nv_ingest_client(self.config)
@@ -746,6 +753,7 @@ class NvidiaRAGIngestor:
                 summarization_strategy=summarization_strategy,
                 config=self.config,
                 is_shallow=is_shallow,
+                prompts=self.prompts,
             )
 
             if stats["failed"] > 0:
