@@ -72,17 +72,32 @@ const formatMetadataValue = (value: unknown): string => {
   return String(value);
 };
 
-/**
- * Truncate text to a max length with ellipsis.
- */
-const truncate = (text: string, maxLength: number) =>
-  text.length > maxLength ? text.slice(0, maxLength).trim() + "..." : text;
+const ChevronIcon = ({ expanded }: { expanded: boolean }) => (
+  <svg 
+    style={{ 
+      width: '16px', 
+      height: '16px', 
+      flexShrink: 0,
+      transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
+      transition: 'transform 0.2s ease',
+      color: 'var(--text-color-inverse)',
+      opacity: 0.8,
+    }}
+    fill="none" 
+    stroke="currentColor" 
+    strokeWidth="2" 
+    viewBox="0 0 24 24"
+  >
+    <path strokeLinecap="round" strokeLinejoin="round" d="m19 9-7 7-7-7" />
+  </svg>
+);
 
 /**
  * Display document summary with loading/error states.
  */
 const DocumentSummary = ({ collectionName, fileName }: { collectionName: string; fileName: string }) => {
   const { data, isLoading } = useDocumentSummary(collectionName, fileName);
+  const [expanded, setExpanded] = useState(false);
 
   // Don't show anything if no summary or not found
   if (!data || data.status === "NOT_FOUND" || data.status === "FAILED") {
@@ -92,7 +107,7 @@ const DocumentSummary = ({ collectionName, fileName }: { collectionName: string;
   // Show loading state for pending/in-progress
   if (isLoading || data.status === "PENDING" || data.status === "IN_PROGRESS") {
     return (
-      <Text kind="body/regular/xs" style={{ color: "var(--text-color-subtle)", fontStyle: "italic" }}>
+      <Text kind="body/regular/sm" style={{ color: 'var(--text-color-inverse)', opacity: 0.8 }}>
         Generating summary...
       </Text>
     );
@@ -101,9 +116,27 @@ const DocumentSummary = ({ collectionName, fileName }: { collectionName: string;
   // Show summary if available
   if (data.status === "SUCCESS" && data.summary) {
     return (
-      <Text kind="body/regular/xs" style={{ color: "var(--text-color-subtle)" }}>
-        {truncate(data.summary, 120)}
-      </Text>
+      <div 
+        onClick={() => setExpanded(!expanded)} 
+        style={{ cursor: 'pointer' }}
+      >
+        <Flex gap="density-sm" align="center">
+          <div
+            style={expanded ? { flex: 1 } : {
+              flex: 1,
+              display: '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+            }}
+          >
+            <Text kind="body/regular/sm" style={{ color: 'var(--text-color-inverse)', opacity: 0.8 }}>
+              {data.summary}
+            </Text>
+          </div>
+          <ChevronIcon expanded={expanded} />
+        </Flex>
+      </div>
     );
   }
 
@@ -138,40 +171,17 @@ export const DocumentItem = ({ name, metadata, collectionName }: DocumentItemPro
   };
   
   return (
-    <Stack data-testid="document-item">
-      <Flex justify="between" align="start">
-        <Stack gap="density-md">
-          {/* Document name and icon */}
-          <Flex align="center" gap="density-md">
-            <div data-testid="document-icon">
-              {getFileIconByExtension(name, { size: 'sm' })}
-            </div>
-            <Text  kind="body/bold/md" style={{ color: 'var(--text-color-inverse)' }} data-testid="document-name">
-              {name}
-            </Text>
-          </Flex>
-          
-          {/* Metadata */}
-          {Object.keys(metadata).filter(key => key !== 'filename').length > 0 && (
-            <Stack gap="1" data-testid="document-metadata">
-              {Object.entries(metadata)
-                .filter(([key]) => key !== 'filename')
-                .map(([key, val]) => (
-                  <Flex key={key} gap="2" wrap="wrap">
-                    <Text kind="body/bold/sm" style={{ color: 'var(--text-color-inverse)' }}>
-                      {key}:
-                    </Text>
-                    <Text kind="body/regular/sm" style={{ color: 'var(--text-color-inverse)' }}>
-                      {formatMetadataValue(val)}
-                    </Text>
-                  </Flex>
-                ))}
-            </Stack>
-          )}
-          
-          {/* Summary */}
-          <DocumentSummary collectionName={collectionName} fileName={name} />
-        </Stack>
+    <Stack data-testid="document-item" gap="density-md">
+      {/* Header row: icon, name, delete button */}
+      <Flex justify="between" align="center">
+        <Flex align="center" gap="density-md">
+          <div data-testid="document-icon">
+            {getFileIconByExtension(name, { size: 'sm' })}
+          </div>
+          <Text kind="body/bold/md" style={{ color: 'var(--text-color-inverse)' }} data-testid="document-name">
+            {name}
+          </Text>
+        </Flex>
         
         {/* Delete button */}
         <Button
@@ -190,6 +200,27 @@ export const DocumentItem = ({ name, metadata, collectionName }: DocumentItemPro
           )}
         </Button>
       </Flex>
+      
+      {/* Metadata */}
+      {Object.keys(metadata).filter(key => key !== 'filename').length > 0 && (
+        <Stack gap="1" data-testid="document-metadata">
+          {Object.entries(metadata)
+            .filter(([key]) => key !== 'filename')
+            .map(([key, val]) => (
+              <Flex key={key} gap="2" wrap="wrap">
+                <Text kind="body/bold/sm" style={{ color: 'var(--text-color-inverse)' }}>
+                  {key}:
+                </Text>
+                <Text kind="body/regular/sm" style={{ color: 'var(--text-color-inverse)' }}>
+                  {formatMetadataValue(val)}
+                </Text>
+              </Flex>
+            ))}
+        </Stack>
+      )}
+      
+      {/* Summary */}
+      <DocumentSummary collectionName={collectionName} fileName={name} />
 
       <ConfirmationModal
         isOpen={showDeleteModal}
