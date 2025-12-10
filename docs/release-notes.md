@@ -221,7 +221,6 @@ The following are the known issues for the NVIDIA RAG Blueprint:
 - For MIG support, currently the ingestion profile has been scaled down while deploying the chart with MIG slicing This affects the ingestion performance during bulk ingestion, specifically large bulk ingestion jobs might fail.
 - Individual file uploads are limited to a maximum size of 400 MB during ingestion. Files exceeding this limit are rejected and must be split into smaller segments before ingesting.
 - `llama-3.3-nemotron-super-49b-v1.5` model provides more verbose responses in non-reasoning mode compared to v1.0. For some queries the LLM model may respond with information not available in given context. Also for out of domain queries the model may provide responses based on it's own knowledge. Developers are strongly advised to [tune the prompt](prompt-customization.md) for their use cases to avoid these scenarios.
-- The auto selected NIM-LLM profile for llama-3.3-nemotron-super-49b-v1.5 may not work for some GPUs. Follow steps outlined in the appropriate [deployment guide](model-profiles.md) to select an optimized profile using `NIM_MODEL_PROFILE` before deploying.
 - Slow VDB upload is observed in Helm deployments for Elasticsearch.
 
 

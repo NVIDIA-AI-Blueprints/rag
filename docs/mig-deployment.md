@@ -161,8 +161,7 @@ helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/0648981100760671/c
 ```
 
 :::{note}
-If the `rag-nim-llm-0` is in a `CrashLoopBackOff` after deployment, then set the model profile explicitly to avoid any errors with NIM LLM pod deployment.
-Refer to [NIM Model Profile Configuration](model-profiles.md) to set NIM LLM profile according to the GPU type and count.
+Refer to [NIM Model Profile Configuration](model-profiles.md) for using non-default NIM LLM profile.
 :::
 
 :::{note}

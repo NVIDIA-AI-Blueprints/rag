@@ -120,32 +120,6 @@ For other deployment options, refer to [Deployment Options](readme.md#deployment
       kubectl apply -f deploy/helm/nim-operator/rag-nimservice-dra.yaml -n rag
       ```
 
-   - **List available profiles for your system for NIM LLM container**
-
-      More details about profiles can be found [here](https://docs.nvidia.com/nim/large-language-models/latest/profiles.html).
-
-   - **Configure NIM Model Profile**
-
-      For optimal performance, configure the NIM model profile. See the [NIM Model Profile Configuration](model-profiles.md) section for detailed instructions and hardware-specific examples.
-
-      Configure the `NIM_MODEL_PROFILE` in `deploy/helm/nim-operator/rag-nimservice.yaml`:
-
-      ```yaml
-      storage:
-        nimCache:
-          name: nemotron-llama3-49b-super
-           profile: ''
-        sharedMemorySizeLimit: 16Gi
-      env:
-      - name: NIM_MODEL_PROFILE
-        value: "tensorrt_llm-h100_nvl-fp8-tp1-pp1-throughput-2321:10de-6343e21ba5cccf783d18951c6627c207b81803c3c45f1e8b59eee062ed350143-1"  # Example for H100 NVL
-      ```
-
-      After modifying the profile, reapply the NIM service:
-
-      ```sh
-      kubectl apply -f deploy/helm/nim-operator/rag-nimservice.yaml -n rag
-      ```
 
 6. Wait a few minutes and ensure that the NIMService status is `Ready` before proceeding to the next steps.
 
