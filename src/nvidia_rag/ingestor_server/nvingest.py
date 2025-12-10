@@ -20,6 +20,7 @@ This is the module for NV-Ingest client wrapper.
 
 import logging
 import os
+from tarfile import tar_filter
 import time
 
 from nv_ingest_client.client import Ingestor, NvIngestClient

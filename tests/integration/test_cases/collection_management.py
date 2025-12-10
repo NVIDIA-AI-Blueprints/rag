@@ -484,10 +484,10 @@ class CollectionManagementModule(BaseTestModule):
         )
         return True
 
-    @test_case(71, "Data Catalog Metadata")
+    @test_case(99, "Data Catalog Metadata")
     async def _test_data_catalog_metadata(self) -> bool:
         """Test data catalog metadata for collections and documents"""
-        logger.info("\n=== Test 71: Data Catalog Metadata ===")
+        logger.info("\n=== Test 86: Data Catalog Metadata ===")
         test_start = time.time()
 
         try:

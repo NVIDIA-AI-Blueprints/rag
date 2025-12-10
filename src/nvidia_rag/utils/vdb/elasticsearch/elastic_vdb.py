@@ -76,6 +76,7 @@ from nvidia_rag.utils.health_models import ServiceStatus
 from nvidia_rag.utils.vdb import (
     DEFAULT_DOCUMENT_INFO_COLLECTION,
     DEFAULT_METADATA_SCHEMA_COLLECTION,
+    SYSTEM_COLLECTIONS,
 )
 from nvidia_rag.utils.vdb.elasticsearch.es_queries import (
     create_document_info_collection_mapping,
@@ -376,29 +377,30 @@ class ElasticVDB(VDBRag):
         collection_info = []
         for index in indices:
             index_name = index["index"]
-            if not index_name.startswith("."):
-                metadata_schema = self.get_metadata_schema(index_name)
+            if index_name not in SYSTEM_COLLECTIONS:
+                if not index_name.startswith("."):
+                    metadata_schema = self.get_metadata_schema(index_name)
 
-                catalog_data = self.get_document_info(
-                    info_type="catalog",
-                    collection_name=index_name,
-                    document_name="NA",
-                )
+                    catalog_data = self.get_document_info(
+                        info_type="catalog",
+                        collection_name=index_name,
+                        document_name="NA",
+                    )
 
-                metrics_data = self.get_document_info(
-                    info_type="collection",
-                    collection_name=index_name,
-                    document_name="NA",
-                )
+                    metrics_data = self.get_document_info(
+                        info_type="collection",
+                        collection_name=index_name,
+                        document_name="NA",
+                    )
 
-                collection_info.append(
-                    {
-                        "collection_name": index_name,
-                        "num_entities": index["docs.count"],
-                        "metadata_schema": metadata_schema,
-                        "collection_info": {**catalog_data, **metrics_data},
-                    }
-                )
+                    collection_info.append(
+                        {
+                            "collection_name": index_name,
+                            "num_entities": index["docs.count"],
+                            "metadata_schema": metadata_schema,
+                            "collection_info": {**catalog_data, **metrics_data},
+                        }
+                    )
         return collection_info
 
     def delete_collections(

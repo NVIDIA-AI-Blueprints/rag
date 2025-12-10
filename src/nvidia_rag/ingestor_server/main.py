@@ -300,6 +300,9 @@ class NvidiaRAGIngestor:
             raise ValueError(
                 f"Collection {collection_name} does not exist. Ensure a collection is created using POST /collection endpoint first."
             )
+        
+        # Initialize document-wise status
+        document_wise_status = await state_manager.initialize_nv_ingest_document_wise_status(filepaths)
 
         try:
             if not blocking:
@@ -324,6 +327,10 @@ class NvidiaRAGIngestor:
                 task_id = await INGESTION_TASK_HANDLER.submit_task(
                     _task, task_id=task_id
                 )
+
+                # Set initial document-wise status in IngestionTaskHandler
+                await INGESTION_TASK_HANDLER.set_task_state_dict(state_manager.get_task_id(), {"document_wise_status": document_wise_status})
+
                 # Update initial batch progress response to indicate that the ingestion has started
                 batch_progress_response = await self.__build_ingestion_response(
                     results=[],
@@ -863,9 +870,10 @@ class NvidiaRAGIngestor:
             status_and_result = INGESTION_TASK_HANDLER.get_task_status_and_result(
                 task_id
             )
+            document_wise_status = INGESTION_TASK_HANDLER.get_task_state_dict(task_id).get("document_wise_status")
             if status_and_result.get("state") == "PENDING":
                 logger.info(f"Task {task_id} is pending")
-                return {"state": "PENDING", "result": status_and_result.get("result")}
+                return {"state": "PENDING", "result": status_and_result.get("result"), "document_wise_status": document_wise_status}
             elif status_and_result.get("state") == "FINISHED":
                 try:
                     result = status_and_result.get("result")
@@ -874,24 +882,24 @@ class NvidiaRAGIngestor:
                             f"Task {task_id} failed with error: {result.get('message')}"
                         )
                         result.pop("state")
-                        return {"state": "FAILED", "result": result}
+                        return {"state": "FAILED", "result": result, "document_wise_status": document_wise_status}
                     logger.info(f"Task {task_id} is finished")
-                    return {"state": "FINISHED", "result": result}
+                    return {"state": "FINISHED", "result": result, "document_wise_status": document_wise_status}
                 except Exception as e:
                     logger.error(f"Task {task_id} failed with error: {e}")
-                    return {"state": "FAILED", "result": {"message": str(e)}}
+                    return {"state": "FAILED", "result": {"message": str(e)}, "document_wise_status": document_wise_status}
             elif status_and_result.get("state") == "FAILED":
                 logger.error(
                     f"Task {task_id} failed with error: {status_and_result.get('result').get('message')}"
                 )
-                return {"state": "FAILED", "result": status_and_result.get("result")}
+                return {"state": "FAILED", "result": status_and_result.get("result"), "document_wise_status": document_wise_status}
             else:
                 task_state = INGESTION_TASK_HANDLER.get_task_status(task_id)
                 logger.error(f"Unknown task state: {task_state}")
-                return {"state": "UNKNOWN", "result": {"message": "Unknown task state"}}
+                return {"state": "UNKNOWN", "result": {"message": "Unknown task state"}, "document_wise_status": document_wise_status}
         except KeyError as e:
             logger.error(f"Task {task_id} not found with error: {e}")
-            return {"state": "UNKNOWN", "result": {"message": "Unknown task state"}}
+            return {"state": "UNKNOWN", "result": {"message": "Unknown task state"}, "document_wise_status": document_wise_status}
 
     async def __apply_documents_catalog_metadata(
         self,
@@ -1598,6 +1606,7 @@ class NvidiaRAGIngestor:
         page_filter: list[list[int]] | str | None,
         summarization_strategy: str | None,
         batch_num: int,
+        state_manager: IngestionStateManager,
     ) -> set[str]:
         """
         Process shallow extraction for a batch of files and start summary task.
@@ -1616,7 +1625,7 @@ class NvidiaRAGIngestor:
         shallow_failed_files: set[str] = set()
 
         shallow_results, shallow_failures = await self._perform_shallow_extraction(
-            filepaths, split_options, batch_num
+            filepaths, split_options, batch_num, state_manager=state_manager,
         )
 
         # Mark per-file shallow extraction failures immediately
@@ -1665,6 +1674,7 @@ class NvidiaRAGIngestor:
         collection_name: str,
         split_options: dict[str, Any],
         summary_options: dict[str, Any] | None,
+        state_manager: IngestionStateManager,
     ) -> None:
         """
         Perform shallow extraction workflow for fast summary generation.
@@ -1695,6 +1705,7 @@ class NvidiaRAGIngestor:
                 page_filter=page_filter,
                 summarization_strategy=summarization_strategy,
                 batch_num=0,
+                state_manager=state_manager,
             )
             if failed_files:
                 logger.warning(
@@ -1731,6 +1742,7 @@ class NvidiaRAGIngestor:
                         page_filter=page_filter,
                         summarization_strategy=summarization_strategy,
                         batch_num=batch_num,
+                        state_manager=state_manager,
                     )
                     total_failed += len(failed_files)
 
@@ -1753,6 +1765,7 @@ class NvidiaRAGIngestor:
                             page_filter=page_filter,
                             summarization_strategy=summarization_strategy,
                             batch_num=batch_num,
+                            state_manager=state_manager,
                         )
 
                 for i in range(
@@ -1829,6 +1842,7 @@ class NvidiaRAGIngestor:
                     collection_name=collection_name,
                     split_options=split_options,
                     summary_options=summary_options,
+                    state_manager=state_manager,
                 )
 
         if not self.config.nv_ingest.enable_batch_mode:
@@ -2013,6 +2027,7 @@ class NvidiaRAGIngestor:
             filtered_filepaths=filtered_filepaths,
             split_options=split_options,
             vdb_op=vdb_op,
+            state_manager=state_manager,
         )
 
         # Start summary task only if not shallow_summary (already started in batch wrapper)
@@ -2092,11 +2107,52 @@ class NvidiaRAGIngestor:
 
         return results, failures
 
+    @staticmethod
+    async def __perform_async_nv_ingest_ingestion(
+        nv_ingest_ingestor,
+        state_manager,
+    ):
+        """
+        Perform NV-Ingest ingestion asynchronously using .ingest_async() method
+        Also, poll the ingestion status until it is complete and update the ingestion status using state_manager
+
+        Arguments:
+            - nv_ingest_ingestor: Ingestor - NV-Ingest ingestor instance
+
+        Returns:
+            - tuple[list[list[dict[str, str | dict]]], list[dict[str, Any]]] - Results and failures
+        """
+        future = nv_ingest_ingestor.ingest_async(
+            return_failures=True,
+            show_progress=logger.getEffectiveLevel() <= logging.DEBUG,
+        )
+        # Convert concurrent.futures.Future to asyncio.Future
+        async_future = asyncio.wrap_future(future)
+
+        while True:
+            status = await asyncio.to_thread(nv_ingest_ingestor.get_status)
+            filename_status_map = dict()
+            # Normalize the status to a dictionary of filename to status
+            for filepath, status in status.items():
+                filename = os.path.basename(filepath)
+                filename_status_map[filename] = status
+            document_wise_status = await state_manager.update_nv_ingest_document_wise_status(filename_status_map)
+            await INGESTION_TASK_HANDLER.set_task_state_dict(state_manager.get_task_id(), {"document_wise_status": document_wise_status})
+
+            await asyncio.sleep(1)
+            
+            if future.done():
+                break
+        
+        results, failures = await async_future
+        return results, failures
+
     async def _perform_shallow_extraction(
         self,
         filepaths: list[str],
         split_options: dict[str, Any],
         batch_number: int,
+        state_manager: IngestionStateManager,
     ) -> tuple[list[list[dict[str, str | dict]]], list[tuple[str, Exception]]]:
         """
         Perform text-only extraction using NV-Ingest for fast summary generation.
@@ -2139,11 +2195,9 @@ class NvidiaRAGIngestor:
             )
 
             start_time = time.time()
-            results, failures = await asyncio.to_thread(
-                lambda: nv_ingest_ingestor.ingest(
-                    return_failures=True,
-                    show_progress=logger.getEffectiveLevel() <= logging.DEBUG,
-                )
+            results, failures = await self.__perform_async_nv_ingest_ingestion(
+                nv_ingest_ingestor=nv_ingest_ingestor,
+                state_manager=state_manager,
             )
             total_time = time.time() - start_time
 
@@ -2182,6 +2236,7 @@ class NvidiaRAGIngestor:
         filtered_filepaths: list[str],
         split_options: dict[str, Any],
         vdb_op: VDBRag,
+        state_manager: IngestionStateManager,
     ):
         """
         Perform ingestion using NV-Ingest ingestor based on file extension
@@ -2210,11 +2265,9 @@ class NvidiaRAGIngestor:
             logger.info(
                 f"Performing ingestion for batch {batch_number} with parameters: {split_options}"
             )
-            results, failures = await asyncio.to_thread(
-                lambda: nv_ingest_ingestor.ingest(
-                    return_failures=True,
-                    show_progress=logger.getEffectiveLevel() <= logging.DEBUG,
-                )
+            results, failures = await self.__perform_async_nv_ingest_ingestion(
+                nv_ingest_ingestor=nv_ingest_ingestor,
+                state_manager=state_manager,
             )
             total_ingestion_time = time.time() - start_time
             document_info = self._log_result_info(
@@ -2250,11 +2303,9 @@ class NvidiaRAGIngestor:
                 logger.info(
                     f"Performing ingestion for PDF files for batch {batch_number} with parameters: {split_options}"
                 )
-                results_pdf, failures_pdf = await asyncio.to_thread(
-                    lambda: nv_ingest_ingestor.ingest(
-                        return_failures=True,
-                        show_progress=logger.getEffectiveLevel() <= logging.DEBUG,
-                    )
+                results_pdf, failures_pdf = self.__perform_async_nv_ingest_ingestion(
+                    nv_ingest_ingestor=nv_ingest_ingestor,
+                    state_manager=state_manager,
                 )
                 total_ingestion_time = time.time() - start_time
                 document_info = self._log_result_info(
@@ -2281,11 +2332,9 @@ class NvidiaRAGIngestor:
                 logger.info(
                     f"Performing ingestion for non-PDF files for batch {batch_number} with parameters: {split_options}"
                 )
-                results_non_pdf, failures_non_pdf = await asyncio.to_thread(
-                    lambda: nv_ingest_ingestor.ingest(
-                        return_failures=True,
-                        show_progress=logger.getEffectiveLevel() <= logging.DEBUG,
-                    )
+                results_non_pdf, failures_non_pdf = self.__perform_async_nv_ingest_ingestion(
+                    nv_ingest_ingestor=nv_ingest_ingestor,
+                    state_manager=state_manager,
                 )
                 total_ingestion_time = time.time() - start_time
                 document_info = self._log_result_info(

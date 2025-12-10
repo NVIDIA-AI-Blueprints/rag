@@ -23,6 +23,11 @@ from nvidia_rag.utils.configuration import NvidiaRAGConfig, SearchType
 
 DEFAULT_METADATA_SCHEMA_COLLECTION = "metadata_schema"
 DEFAULT_DOCUMENT_INFO_COLLECTION = "document_info"
+SYSTEM_COLLECTIONS = [
+    DEFAULT_METADATA_SCHEMA_COLLECTION,
+    DEFAULT_DOCUMENT_INFO_COLLECTION,
+    "meta"
+]
 
 
 def _get_vdb_op(
