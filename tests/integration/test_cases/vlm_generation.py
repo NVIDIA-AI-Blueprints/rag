@@ -325,7 +325,7 @@ class VLMGenerationModule(BaseTestModule):
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.delete(
-                    f"{self.ingestor_server_url}/v1/collections", json=[self._collection_name]
+                    f"{self.ingestor_server_url}/v1/collections", params=[("collection_names", self._collection_name)]
                 ) as response:
                     result = await response.json()
                     ok = response.status == 200
