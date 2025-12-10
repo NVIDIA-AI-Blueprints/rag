@@ -15,6 +15,28 @@ vi.mock('../ChatActionsMenu', () => ({
   ChatActionsMenu: () => <div data-testid="chat-actions-menu">Chat Actions</div>
 }));
 
+vi.mock('../ImagePreview', () => ({
+  ImagePreview: () => null
+}));
+
+// Mock image attachment store
+vi.mock('../../../store/useImageAttachmentStore', () => ({
+  useImageAttachmentStore: () => ({
+    attachedImages: [],
+    addImage: vi.fn(),
+  }),
+  fileToBase64: vi.fn(),
+  isValidImageFile: vi.fn(),
+  MAX_IMAGE_SIZE: 10 * 1024 * 1024,
+}));
+
+// Mock toast store
+vi.mock('../../../store/useToastStore', () => ({
+  useToastStore: () => ({
+    showToast: vi.fn(),
+  }),
+}));
+
 describe('MessageInputContainer', () => {
   describe('Child Component Rendering', () => {
     it('renders MessageTextarea component', () => {
@@ -45,11 +67,16 @@ describe('MessageInputContainer', () => {
   });
 
   describe('Component Structure', () => {
-    it('wraps components in relative positioned container', () => {
+    it('wraps components in flex container with nested relative positioned block', () => {
       const { container } = render(<MessageInputContainer />);
       
-      const firstChild = container.firstChild as HTMLElement;
-      expect(firstChild).toHaveStyle({ position: 'relative' });
+      // First child is now a Flex column wrapper
+      const flexWrapper = container.firstChild as HTMLElement;
+      expect(flexWrapper).toBeInTheDocument();
+      
+      // The input container with relative positioning is nested inside
+      const relativeBlock = flexWrapper.querySelector('[style*="position: relative"]');
+      expect(relativeBlock).toBeInTheDocument();
     });
   });
 
@@ -62,11 +89,11 @@ describe('MessageInputContainer', () => {
       expect(screen.getByTestId('chat-actions-menu')).toBeInTheDocument();
     });
 
-    it('uses relative positioning for action overlay', () => {
+    it('uses relative positioning for action overlay within flex wrapper', () => {
       const { container } = render(<MessageInputContainer />);
       
-      const firstChild = container.firstElementChild as HTMLElement;
-      expect(firstChild).toHaveStyle({ position: 'relative' });
+      const relativeBlock = container.querySelector('[style*="position: relative"]');
+      expect(relativeBlock).toBeInTheDocument();
     });
   });
 }); 

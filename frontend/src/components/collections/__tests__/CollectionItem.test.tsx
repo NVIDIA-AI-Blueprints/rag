@@ -29,11 +29,6 @@ vi.mock('../../../store/useNotificationStore', () => ({
   useNotificationStore: () => mockNotificationStore
 }));
 
-// Mock the notification panel toggle
-const mockOpenNotificationPanel = vi.fn();
-vi.mock('../../notifications/NotificationBell', () => ({
-  openNotificationPanel: () => mockOpenNotificationPanel()
-}));
 
 describe('CollectionItem', () => {
   const mockCollection = {
@@ -46,7 +41,6 @@ describe('CollectionItem', () => {
     vi.clearAllMocks();
     mockCollectionsStore.selectedCollections = [];
     mockNotificationStore.getPendingTasks.mockReturnValue([]);
-    mockOpenNotificationPanel.mockClear();
   });
 
   describe('Basic Rendering', () => {
@@ -126,19 +120,15 @@ describe('CollectionItem', () => {
       expect(screen.getByRole('button')).toBeInTheDocument();
     });
 
-    it('shows progress button instead of more button when collection has pending tasks', () => {
+    it('hides more button when collection has pending tasks', () => {
       mockNotificationStore.getPendingTasks.mockReturnValue([{
         collection_name: 'test-collection',
-        state: 'PENDING',
-        result: { total_documents: 4, documents_completed: 2, documents: [] }
+        state: 'PENDING'
       }]);
       
       render(<CollectionItem collection={mockCollection} />);
       
-      // Should have a progress button, not the more button
-      const progressButton = screen.getByTitle('View upload progress');
-      expect(progressButton).toBeInTheDocument();
-      expect(screen.getByText('2/4')).toBeInTheDocument();
+      expect(screen.queryByRole('button')).not.toBeInTheDocument();
     });
 
     it('shows spinner when collection has pending tasks', () => {
@@ -151,21 +141,6 @@ describe('CollectionItem', () => {
       
       const spinner = container.querySelector('.animate-spin');
       expect(spinner).toBeInTheDocument();
-    });
-
-    it('toggles notification panel when progress button is clicked', () => {
-      mockNotificationStore.getPendingTasks.mockReturnValue([{
-        collection_name: 'test-collection',
-        state: 'PENDING',
-        result: { total_documents: 4, documents_completed: 1, documents: [] }
-      }]);
-      
-      render(<CollectionItem collection={mockCollection} />);
-      
-      const progressButton = screen.getByTitle('View upload progress');
-      fireEvent.click(progressButton);
-      
-      expect(mockOpenNotificationPanel).toHaveBeenCalled();
     });
 
     it('shows more button for collection without pending tasks while other has pending', () => {

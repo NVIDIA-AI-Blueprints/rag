@@ -24,12 +24,36 @@ export interface Citation {
 }
 
 /**
+ * Text content for multimodal messages.
+ */
+export interface TextContent {
+  type: "text";
+  text: string;
+}
+
+/**
+ * Image URL content for multimodal messages.
+ */
+export interface ImageContent {
+  type: "image_url";
+  image_url: {
+    url: string;
+    detail?: "auto" | "low" | "high";
+  };
+}
+
+/**
+ * Multimodal content can be text, image, or a combination.
+ */
+export type MessageContent = string | (TextContent | ImageContent)[];
+
+/**
  * Represents a message in the chat conversation.
  */
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
-  content: string;
+  content: MessageContent;
   timestamp: string;
   citations?: Citation[];
   is_error?: boolean;

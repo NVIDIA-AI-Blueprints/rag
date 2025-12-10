@@ -19,6 +19,7 @@ import Chat from "./pages/Chat";
 import NewCollection from "./pages/NewCollection";
 import Layout from "./components/layout/Layout";
 import SettingsPage from "./pages/SettingsPage";
+import { ToastContainer } from "./components/ui/ToastContainer";
 import { useAppHealthStatus, useServerDefaultsInitialization } from "./store/useSettingsStore";
 import { useHealthMonitoring } from "./hooks/useHealthMonitoring";
 
@@ -71,6 +72,7 @@ export default function App() {
       <BrowserRouter>
         <AppContent />
       </BrowserRouter>
+      <ToastContainer />
     </QueryClientProvider>
   );
 }

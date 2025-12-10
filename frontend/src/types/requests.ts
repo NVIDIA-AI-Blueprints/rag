@@ -13,6 +13,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import type { MessageContent } from "./chat";
+
 /**
  * Request payload for the generate chat API endpoint.
  * Most fields are optional to avoid sending unnecessary defaults.
@@ -20,7 +22,7 @@
  */
 export interface GenerateRequest {
   // Required fields
-  messages: { role: "user" | "assistant"; content: string }[];
+  messages: { role: "user" | "assistant"; content: MessageContent }[];
   use_knowledge_base: boolean;
   
   // Optional RAG configuration
