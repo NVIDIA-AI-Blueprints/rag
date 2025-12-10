@@ -154,7 +154,7 @@ envVars:
 
   ##===Embedding Model specific configurations===
   # URL on which embedding model is hosted. If "", Nvidia hosted API is used
-  APP_EMBEDDINGS_SERVERURL: "nemoretriever-embedding-ms:8000"
+  APP_EMBEDDINGS_SERVERURL: "nemoretriever-embedding-ms:8000/v1"
   APP_EMBEDDINGS_MODELNAME: "nvidia/llama-3.2-nv-embedqa-1b-v2"
   APP_EMBEDDINGS_DIMENSIONS: "2048"
 
@@ -313,7 +313,7 @@ ingestor-server:
     LLM_API_KEY: ""
 
     # === Embeddings Configurations ===
-    APP_EMBEDDINGS_SERVERURL: "nemoretriever-embedding-ms:8000"
+    APP_EMBEDDINGS_SERVERURL: "nemoretriever-embedding-ms:8000/v1"
     APP_EMBEDDINGS_MODELNAME: "nvidia/llama-3.2-nv-embedqa-1b-v2"
     APP_EMBEDDINGS_DIMENSIONS: "2048"
 
@@ -698,18 +698,19 @@ nv-ingest:
     create: false
   image:
     repository: "nvcr.io/0648981100760671/nv-ingest"
-    tag: "2025.11.11"
+    tag: "26.1.0-RC1"
   resources:
     limits:
       nvidia.com/gpu: 0
   envVars:
     ARROW_DEFAULT_MEMORY_POOL: "system"
+    OMP_NUM_THREADS: "1"
     INGEST_LOG_LEVEL: WARNING
     INGEST_RAY_LOG_LEVEL: "PRODUCTION"
+    INGEST_DYNAMIC_MEMORY_THRESHOLD: "0.80"
+    INGEST_DISABLE_DYNAMIC_SCALING: "True"
     NV_INGEST_MAX_UTIL: 48
     INGEST_EDGE_BUFFER_SIZE: 64
-    INGEST_DYNAMIC_MEMORY_THRESHOLD: "0.8"
-    INGEST_DISABLE_DYNAMIC_SCALING: "false"
     MRC_IGNORE_NUMA_CHECK: 1
     READY_CHECK_ALL_COMPONENTS: "False"
     COMPONENTS_TO_READY_CHECK: "ALL"
@@ -717,6 +718,12 @@ nv-ingest:
     REDIS_INGEST_TASK_QUEUE: "ingest_task_queue"
     NV_INGEST_DEFAULT_TIMEOUT_MS: "1234"
     MAX_INGEST_PROCESS_WORKERS: 16
+    
+    # Ray internals configuration
+    RAY_num_grpc_threads: "1"
+    RAY_num_server_call_thread: "1"
+    RAY_worker_num_grpc_internal_threads: "1"
+    
     EMBEDDING_NIM_ENDPOINT: "http://nemoretriever-embedding-ms:8000/v1"
     EMBEDDING_NIM_MODEL_NAME: "nvidia/llama-3.2-nv-embedqa-1b-v2"
     MESSAGE_CLIENT_HOST: "rag-redis-master"
@@ -725,28 +732,29 @@ nv-ingest:
     MINIO_INTERNAL_ADDRESS: "rag-minio:9000"
     MINIO_PUBLIC_ADDRESS: "http://localhost:9000"
     MINIO_BUCKET: "nv-ingest"
+    MINIO_ACCESS_KEY: "minioadmin"
+    MINIO_SECRET_KEY: "minioadmin"
     MILVUS_ENDPOINT: "http://milvus:19530"
     OTEL_EXPORTER_OTLP_ENDPOINT: "otel-collector:4317"
     MODEL_PREDOWNLOAD_PATH: "/workspace/models/"
     INSTALL_AUDIO_EXTRACTION_DEPS: "true"
 
-    # Paddle OCR endpoints
-    PADDLE_GRPC_ENDPOINT: nv-ingest-ocr:8001
-    PADDLE_HTTP_ENDPOINT: http://nv-ingest-ocr:8000/v1/infer
-    PADDLE_INFER_PROTOCOL: grpc
-
     # OCR routing (defaults to Paddle OCR service)
     OCR_GRPC_ENDPOINT: nv-ingest-ocr:8001
     OCR_HTTP_ENDPOINT: http://nv-ingest-ocr:8000/v1/infer
     OCR_INFER_PROTOCOL: grpc
-    OCR_MODEL_NAME: paddle
+    OCR_MODEL_NAME: scene_text_ensemble
 
     # NeMo Retriever Parse (VLM text extraction)
     NEMORETRIEVER_PARSE_HTTP_ENDPOINT: http://nim-vlm-text-extraction-nemoretriever-parse:8000/v1/chat/completions
     NEMORETRIEVER_PARSE_INFER_PROTOCOL: http
     NEMORETRIEVER_PARSE_MODEL_NAME: nvidia/nemoretriever-parse
 
+    # PDF splitting configuration
+    PDF_SPLIT_PAGE_COUNT: "32"
+
     # YOLOX endpoints
+    YOLOX_PAGE_IMAGE_FORMAT: "JPEG"
     YOLOX_GRPC_ENDPOINT: nemoretriever-page-elements-v2:8001
     YOLOX_HTTP_ENDPOINT: http://nemoretriever-page-elements-v2:8000/v1/infer
     YOLOX_INFER_PROTOCOL: grpc
@@ -816,7 +824,7 @@ nv-ingest:
   # Sub-NIMs deployed by NV-Ingest
   # NIM OCR (PaddleOCR)
   paddleocr-nim:
-    deployed: true
+    deployed: false
     replicaCount: 1
     image:
       repository: nvcr.io/nim/baidu/paddleocr
@@ -844,31 +852,27 @@ nv-ingest:
 
   # Nemo Retriever OCR
   nemoretriever-ocr:
-    deployed: false
+    deployed: true
     replicaCount: 1
     image:
-      repository: nvcr.io/nvidia/nemo-microservices/nemoretriever-ocr-v1
-      tag: "1.1.0"
+      repository: nvcr.io/nim/nvidia/nemoretriever-ocr-v1
+      tag: "1.2.0"
     imagePullSecrets:
       - name: ngc-secret
     env:
+      - name: OMP_NUM_THREADS
+        value: "8"
       - name: NIM_HTTP_API_PORT
         value: "8000"
       - name: NIM_TRITON_LOG_VERBOSE
         value: "1"
-      - name: NIM_TRITON_RATE_LIMIT
-        value: "1"
       - name: CUDA_VISIBLE_DEVICES
         value: "0"
+      - name: NIM_TRITON_CUDA_MEMORY_POOL_MB
+        value: "8192"
       - name: NIM_TRITON_MAX_BATCH_SIZE
         value: "32"
-      - name: NIM_TRITON_CUDA_MEMORY_POOL_MB
-        value: "2048"
-      - name: NIM_TRITON_CPU_THREADS_PRE_PROCESSOR
-        value: "2"
-      - name: NIM_TRITON_CPU_THREADS_POST_PROCESSOR
-        value: "1"
-      - name: OMP_NUM_THREADS
+      - name: NIM_TRITON_ENABLE_MODEL_CONTROL
         value: "1"
     resources:
       limits:

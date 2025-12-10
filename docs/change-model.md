@@ -126,7 +126,7 @@ Use this procedure to change models when you are running self-hosted NVIDIA NIM 
 
       # === Embeddings ===
       APP_EMBEDDINGS_MODELNAME: "<embedding-model-name>"
-      APP_EMBEDDINGS_SERVERURL: "nemoretriever-embedding-ms:8000"
+      APP_EMBEDDINGS_SERVERURL: "nemoretriever-embedding-ms:8000/v1"
 
       # === Reranker ===
       APP_RANKING_MODELNAME: "<reranker-model-name>"
