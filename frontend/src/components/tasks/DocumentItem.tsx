@@ -16,6 +16,7 @@
 import { useState } from "react";
 import { useFileIcons } from "../../hooks/useFileIcons";
 import { useDeleteDocument } from "../../api/useCollectionDocuments";
+import { useDocumentSummary } from "../../api/useDocumentSummary";
 import { useCollectionDrawerStore } from "../../store/useCollectionDrawerStore";
 import { useQueryClient } from "@tanstack/react-query";
 import { ConfirmationModal } from "../modals/ConfirmationModal";
@@ -69,6 +70,44 @@ const formatMetadataValue = (value: unknown): string => {
   }
   
   return String(value);
+};
+
+/**
+ * Truncate text to a max length with ellipsis.
+ */
+const truncate = (text: string, maxLength: number) =>
+  text.length > maxLength ? text.slice(0, maxLength).trim() + "..." : text;
+
+/**
+ * Display document summary with loading/error states.
+ */
+const DocumentSummary = ({ collectionName, fileName }: { collectionName: string; fileName: string }) => {
+  const { data, isLoading } = useDocumentSummary(collectionName, fileName);
+
+  // Don't show anything if no summary or not found
+  if (!data || data.status === "NOT_FOUND" || data.status === "FAILED") {
+    return null;
+  }
+
+  // Show loading state for pending/in-progress
+  if (isLoading || data.status === "PENDING" || data.status === "IN_PROGRESS") {
+    return (
+      <Text kind="body/regular/xs" style={{ color: "var(--text-color-subtle)", fontStyle: "italic" }}>
+        Generating summary...
+      </Text>
+    );
+  }
+
+  // Show summary if available
+  if (data.status === "SUCCESS" && data.summary) {
+    return (
+      <Text kind="body/regular/xs" style={{ color: "var(--text-color-subtle)" }}>
+        {truncate(data.summary, 120)}
+      </Text>
+    );
+  }
+
+  return null;
 };
 
 export const DocumentItem = ({ name, metadata, collectionName }: DocumentItemProps) => {
@@ -129,6 +168,9 @@ export const DocumentItem = ({ name, metadata, collectionName }: DocumentItemPro
                 ))}
             </Stack>
           )}
+          
+          {/* Summary */}
+          <DocumentSummary collectionName={collectionName} fileName={name} />
         </Stack>
         
         {/* Delete button */}
