@@ -62,6 +62,10 @@ To get a list of valid model names, use one of the following methods:
 Always use same embedding model or model having same tokinizers for both ingestion and retrieval to yield good accuracy.
 :::
 
+:::{note}
+When using models from different providers (e.g., NVIDIA for LLM, Azure OpenAI for embeddings), you can configure service-specific API keys. See [Service-Specific API Keys](api-key.md#service-specific-api-keys) for details.
+:::
+
 
 
 ## For Self-Hosted On Premises Microservices
@@ -198,3 +202,4 @@ Use this procedure to change models when you are running self-hosted NVIDIA NIM 
 - [Deploy with Docker (Self-Hosted Models)](deploy-docker-self-hosted.md)
 - [Deploy with Docker (NVIDIA-Hosted Models)](deploy-docker-nvidia-hosted.md)
 - [Deploy with Helm](deploy-helm.md)
+- [Service-Specific API Keys](api-key.md#service-specific-api-keys)

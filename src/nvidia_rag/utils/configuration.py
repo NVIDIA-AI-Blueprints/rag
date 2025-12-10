@@ -83,6 +83,19 @@ class _ConfigBase(BaseModel):
 
         super().__init__(**merged_data)
 
+    def get_api_key(self) -> str | None:
+        """Get API key with fallback to global NVIDIA_API_KEY or NGC_API_KEY.
+
+        Returns:
+            API key string if found, None otherwise.
+        """
+        if hasattr(self, "api_key") and self.api_key:
+            api_key_value = self.api_key.get_secret_value()
+            if api_key_value:
+                return api_key_value
+
+        return os.environ.get("NVIDIA_API_KEY") or os.environ.get("NGC_API_KEY")
+
 
 class SearchType(StrEnum):
     """Allowed search types for vector store queries."""
@@ -207,6 +220,7 @@ class NvIngestConfig(_ConfigBase):
         if not (1 <= v <= 65535):
             raise ValueError("Port must be between 1 and 65535")
         return v
+
     extract_text: bool = Field(
         default=True,
         env="APP_NVINGEST_EXTRACTTEXT",
@@ -309,6 +323,7 @@ class NvIngestConfig(_ConfigBase):
                 f"chunk_overlap ({self.chunk_overlap}) must be less than chunk_size ({self.chunk_size})"
             )
         return self
+
     enable_pdf_splitter: bool = Field(
         default=True,
         env="APP_NVINGEST_ENABLEPDFSPLITTER",
@@ -429,6 +444,11 @@ class LLMConfig(_ConfigBase):
         env="APP_LLM_MODELENGINE",
         description="Engine/provider for LLM inference (e.g., nvidia-ai-endpoints, openai)",
     )
+    api_key: SecretStr | None = Field(
+        default=None,
+        env="APP_LLM_APIKEY",
+        description="API key for LLM service (overrides global NVIDIA_API_KEY)",
+    )
     parameters: ModelParametersConfig = PydanticField(
         default_factory=ModelParametersConfig, description="Model generation parameters"
     )
@@ -480,6 +500,11 @@ class QueryRewriterConfig(_ConfigBase):
         env="ENABLE_QUERYREWRITER",
         description="Enable automatic query rewriting before retrieval",
     )
+    api_key: SecretStr | None = Field(
+        default=None,
+        env="APP_QUERYREWRITER_APIKEY",
+        description="API key for query rewriter (overrides global NVIDIA_API_KEY)",
+    )
 
     @field_validator("server_url", mode="before")
     @classmethod
@@ -524,6 +549,11 @@ class FilterExpressionGeneratorConfig(_ConfigBase):
         default=32768,
         env="APP_FILTEREXPRESSIONGENERATOR_MAXTOKENS",
         description="Maximum tokens for filter expression generation",
+    )
+    api_key: SecretStr | None = Field(
+        default=None,
+        env="APP_FILTEREXPRESSIONGENERATOR_APIKEY",
+        description="API key for filter generator (overrides global NVIDIA_API_KEY)",
     )
 
     @field_validator("server_url", mode="before")
@@ -588,6 +618,11 @@ class EmbeddingConfig(_ConfigBase):
         env="APP_EMBEDDINGS_SERVERURL",
         description="URL endpoint for embedding service",
     )
+    api_key: SecretStr | None = Field(
+        default=None,
+        env="APP_EMBEDDINGS_APIKEY",
+        description="API key for embedding service (overrides global NVIDIA_API_KEY)",
+    )
 
     @field_validator("server_url", mode="before")
     @classmethod
@@ -622,6 +657,11 @@ class RankingConfig(_ConfigBase):
         default=True,
         env="ENABLE_RERANKER",
         description="Enable reranking of retrieved documents before generation",
+    )
+    api_key: SecretStr | None = Field(
+        default=None,
+        env="APP_RANKING_APIKEY",
+        description="API key for ranking service (overrides global NVIDIA_API_KEY)",
     )
 
     @field_validator("server_url", mode="before")
@@ -762,6 +802,11 @@ class VLMConfig(_ConfigBase):
         env="APP_VLM_MAX_TOTAL_IMAGES",
         description="Maximum total images sent to VLM per request (query + context)",
     )
+    api_key: SecretStr | None = Field(
+        default=None,
+        env="APP_VLM_APIKEY",
+        description="API key for VLM service (overrides global NVIDIA_API_KEY)",
+    )
 
     @field_validator("server_url", mode="before")
     @classmethod
@@ -831,6 +876,11 @@ class SummarizerConfig(_ConfigBase):
         default=20,
         env="SUMMARY_MAX_PARALLELIZATION",
         description="Maximum concurrent summaries across entire system (coordinated via Redis)",
+    )
+    api_key: SecretStr | None = Field(
+        default=None,
+        env="SUMMARY_LLM_APIKEY",
+        description="API key for summarization service (overrides global NVIDIA_API_KEY)",
     )
 
     @field_validator("server_url", mode="before")
@@ -911,6 +961,11 @@ class ReflectionConfig(_ConfigBase):
         default=1,
         env="RESPONSE_GROUNDEDNESS_THRESHOLD",
         description="Minimum groundedness score for response to be considered factual",
+    )
+    api_key: SecretStr | None = Field(
+        default=None,
+        env="REFLECTION_LLM_APIKEY",
+        description="API key for reflection service (overrides global NVIDIA_API_KEY)",
     )
 
     @field_validator("server_url", mode="before")

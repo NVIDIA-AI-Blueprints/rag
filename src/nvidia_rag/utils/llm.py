@@ -84,7 +84,7 @@ def get_prompts(source: str | dict | None = None) -> dict:
 
     # If source is provided, it takes precedence over environment variable
     config = {}
-    
+
     if source is not None:
         if isinstance(source, dict):
             config = source
@@ -104,6 +104,25 @@ def get_prompts(source: str | dict | None = None) -> dict:
 
     config = combine_dicts(default_config, config)
     return config
+
+
+def _is_nvidia_endpoint(url: str | None) -> bool:
+    """Detect if endpoint is NVIDIA-based using URL patterns."""
+    if not url:
+        return True  # Empty URL = API catalog or local NIM (default to NVIDIA)
+
+    url_lower = url.lower()
+    # Non-NVIDIA endpoints
+    if any(
+        provider in url_lower
+        for provider in ["azure", "openai.com", "anthropic", "claude"]
+    ):
+        return False
+    # NVIDIA URLs
+    if "nvidia" in url_lower or "api.nvidia.com" in url_lower:
+        return True
+    # Unknown URL pattern - default to NVIDIA (likely local NIM)
+    return True
 
 
 def _bind_thinking_tokens_if_configured(
@@ -173,9 +192,8 @@ def get_llm(config: NvidiaRAGConfig | None = None, **kwargs) -> LLM | SimpleChat
                     response = requests.get(guardrails_url + "/v1/health", timeout=5)
                     response.raise_for_status()
 
-                    x_model_authorization = {
-                        "X-Model-Authorization": os.environ.get("NGC_API_KEY", "")
-                    }
+                    api_key = kwargs.get("api_key") or config.llm.get_api_key()
+                    x_model_authorization = {"X-Model-Authorization": api_key}
                     return ChatOpenAI(
                         model_name=kwargs.get("model"),
                         openai_api_base=f"{guardrails_url}/v1/guardrail",
@@ -198,27 +216,43 @@ def get_llm(config: NvidiaRAGConfig | None = None, **kwargs) -> LLM | SimpleChat
             logger.debug(f"Length of llm endpoint url string {url}")
             logger.info("Using llm model %s hosted at %s", kwargs.get("model"), url)
 
-            # For External endpoints, use LLM_API_KEY if available, otherwise fall back to NVIDIA_API_KEY
-            api_key = os.environ.get("LLM_API_KEY") or os.environ.get(
-                "NVIDIA_API_KEY", ""
-            )
-            llm = ChatNVIDIA(
-                base_url=url,
-                model=kwargs.get("model"),
-                api_key=api_key if api_key else None,
-                temperature=kwargs.get("temperature", None),
-                top_p=kwargs.get("top_p", None),
-                max_tokens=kwargs.get("max_tokens", None),
-                min_tokens=kwargs.get("min_tokens", None),
-                ignore_eos=kwargs.get("ignore_eos", False),
-                stop=kwargs.get("stop", []),
-            )
-            llm = _bind_thinking_tokens_if_configured(llm, **kwargs)
+            api_key = kwargs.get("api_key") or config.llm.get_api_key()
+            # Detect endpoint type using URL patterns only
+            is_nvidia = _is_nvidia_endpoint(url)
+
+            # Build kwargs dict, only including parameters that are set
+            # For non-NVIDIA endpoints, exclude NVIDIA-specific parameters
+            chat_nvidia_kwargs = {
+                "base_url": url,
+                "model": kwargs.get("model"),
+                "api_key": api_key,
+                "stop": kwargs.get("stop", []),
+            }
+            if kwargs.get("temperature") is not None:
+                chat_nvidia_kwargs["temperature"] = kwargs["temperature"]
+            if kwargs.get("top_p") is not None:
+                chat_nvidia_kwargs["top_p"] = kwargs["top_p"]
+            if kwargs.get("max_tokens") is not None:
+                chat_nvidia_kwargs["max_tokens"] = kwargs["max_tokens"]
+            # Only include NVIDIA-specific parameters for NVIDIA endpoints
+            if is_nvidia:
+                if kwargs.get("min_tokens") is not None:
+                    chat_nvidia_kwargs["min_tokens"] = kwargs["min_tokens"]
+                if kwargs.get("ignore_eos") is not None:
+                    chat_nvidia_kwargs["ignore_eos"] = kwargs["ignore_eos"]
+
+            llm = ChatNVIDIA(**chat_nvidia_kwargs)
+            # Only bind thinking tokens for NVIDIA endpoints
+            if is_nvidia:
+                llm = _bind_thinking_tokens_if_configured(llm, **kwargs)
             return llm
 
         logger.info("Using llm model %s from api catalog", kwargs.get("model"))
+
+        api_key = kwargs.get("api_key") or config.llm.get_api_key()
         llm = ChatNVIDIA(
             model=kwargs.get("model"),
+            api_key=api_key,
             temperature=kwargs.get("temperature", None),
             top_p=kwargs.get("top_p", None),
             max_tokens=kwargs.get("max_tokens", None),

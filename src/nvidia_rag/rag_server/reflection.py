@@ -80,7 +80,10 @@ def _retry_score_generation(
 
 
 async def _retry_score_generation_async(
-    chain, inputs: dict[str, Any], max_retries: int = 3, config: dict[str, Any] | None = None
+    chain,
+    inputs: dict[str, Any],
+    max_retries: int = 3,
+    config: dict[str, Any] | None = None,
 ) -> int:
     """Async helper method to retry score generation with error handling.
 
@@ -186,6 +189,7 @@ async def check_context_relevance(
         "temperature": 0,
         "top_p": 0.1,
         "max_tokens": 32768,
+        "api_key": config.reflection.get_api_key(),
     }
 
     if reflection_llm_endpoint:
@@ -347,6 +351,7 @@ async def check_response_groundedness(
         "temperature": 0,  # Deterministic sampling for reproducible results
         "top_p": 0.1,  # Very low top_p for focused, deterministic responses
         "max_tokens": 32768,  # Large token limit for comprehensive analysis and long responses
+        "api_key": config.reflection.get_api_key(),
     }
 
     if reflection_llm_endpoint:

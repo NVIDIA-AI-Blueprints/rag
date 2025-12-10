@@ -26,6 +26,7 @@ import requests
 import yaml
 
 from nvidia_rag.utils.llm import (
+    _is_nvidia_endpoint,
     get_llm,
     get_prompts,
     get_streaming_filter_think_parser,
@@ -150,7 +151,7 @@ class TestGetPrompts:
         """Test get_prompts with dictionary source parameter."""
         custom_prompts = {
             "rag_template": {"system": "Custom system", "human": "Custom human"},
-            "custom_key": "custom_value"
+            "custom_key": "custom_value",
         }
 
         # When passing a dict, it should be used directly (merged with defaults)
@@ -167,7 +168,7 @@ class TestGetPrompts:
         """Test get_prompts with file path source parameter."""
         test_prompts = {"file_prompt": "file content", "another_key": "another_value"}
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             yaml.dump(test_prompts, f)
             temp_file_path = f.name
 
@@ -209,9 +210,7 @@ class TestGetLLM:
     @patch("nvidia_rag.utils.llm.sanitize_nim_url")
     @patch("nvidia_rag.utils.llm.ChatNVIDIA")
     @patch.dict(os.environ, {}, clear=True)
-    def test_get_llm_nvidia_endpoints_with_url(
-        self, mock_chatnvidia, mock_sanitize
-    ):
+    def test_get_llm_nvidia_endpoints_with_url(self, mock_chatnvidia, mock_sanitize):
         """Test getting LLM with NVIDIA endpoints and custom URL."""
         mock_sanitize.return_value = "http://test-url:8000"
 
@@ -219,6 +218,7 @@ class TestGetLLM:
         with patch("nvidia_rag.utils.llm.NvidiaRAGConfig") as mock_config_class:
             mock_config = Mock()
             mock_config.llm.model_engine = "nvidia-ai-endpoints"
+            mock_config.llm.get_api_key.return_value = "test-api-key"
             mock_config.enable_guardrails = False
             mock_config_class.return_value = mock_config
 
@@ -238,7 +238,7 @@ class TestGetLLM:
             mock_chatnvidia.assert_called_once_with(
                 base_url="http://test-url:8000",
                 model="test-model",
-                api_key=None,
+                api_key="test-api-key",
                 temperature=0.7,
                 top_p=0.9,
                 max_tokens=1024,
@@ -249,9 +249,7 @@ class TestGetLLM:
 
     @patch("nvidia_rag.utils.llm.sanitize_nim_url")
     @patch("nvidia_rag.utils.llm.ChatNVIDIA")
-    def test_get_llm_nvidia_endpoints_api_catalog(
-        self, mock_chatnvidia, mock_sanitize
-    ):
+    def test_get_llm_nvidia_endpoints_api_catalog(self, mock_chatnvidia, mock_sanitize):
         """Test getting LLM from API catalog."""
         mock_sanitize.return_value = ""
 
@@ -259,6 +257,7 @@ class TestGetLLM:
         with patch("nvidia_rag.utils.llm.NvidiaRAGConfig") as mock_config_class:
             mock_config = Mock()
             mock_config.llm.model_engine = "nvidia-ai-endpoints"
+            mock_config.llm.get_api_key.return_value = "test-api-key"
             mock_config.enable_guardrails = False
             mock_config_class.return_value = mock_config
 
@@ -268,6 +267,7 @@ class TestGetLLM:
 
             mock_chatnvidia.assert_called_once_with(
                 model="test-model",
+                api_key="test-api-key",
                 temperature=None,
                 top_p=None,
                 max_tokens=None,
@@ -294,6 +294,7 @@ class TestGetLLM:
         with patch("nvidia_rag.utils.llm.NvidiaRAGConfig") as mock_config_class:
             mock_config = Mock()
             mock_config.llm.model_engine = "nvidia-ai-endpoints"
+            mock_config.llm.get_api_key.return_value = "test-api-key"
             mock_config.enable_guardrails = True
             mock_config_class.return_value = mock_config
 
@@ -328,9 +329,7 @@ class TestGetLLM:
                 )
 
     @patch("requests.get")
-    def test_get_llm_with_guardrails_service_unavailable(
-        self, mock_requests_get
-    ):
+    def test_get_llm_with_guardrails_service_unavailable(self, mock_requests_get):
         """Test getting LLM when guardrails service is unavailable."""
         # Mock failed guardrails service response
         mock_requests_get.side_effect = requests.ConnectionError("Connection failed")
@@ -339,6 +338,7 @@ class TestGetLLM:
         with patch("nvidia_rag.utils.llm.NvidiaRAGConfig") as mock_config_class:
             mock_config = Mock()
             mock_config.llm.model_engine = "nvidia-ai-endpoints"
+            mock_config.llm.get_api_key.return_value = "test-api-key"
             mock_config.enable_guardrails = True
             mock_config_class.return_value = mock_config
 
@@ -358,6 +358,7 @@ class TestGetLLM:
         with patch("nvidia_rag.utils.llm.NvidiaRAGConfig") as mock_config_class:
             mock_config = Mock()
             mock_config.llm.model_engine = "nvidia-ai-endpoints"
+            mock_config.llm.get_api_key.return_value = "test-api-key"
             mock_config.enable_guardrails = True
             mock_config_class.return_value = mock_config
 
@@ -376,6 +377,7 @@ class TestGetLLM:
         with patch("nvidia_rag.utils.llm.NvidiaRAGConfig") as mock_config_class:
             mock_config = Mock()
             mock_config.llm.model_engine = "unsupported-engine"
+            mock_config.llm.get_api_key.return_value = "test-api-key"
             mock_config_class.return_value = mock_config
 
             kwargs = {"model": "test-model"}
@@ -395,6 +397,7 @@ class TestGetLLM:
         with patch("nvidia_rag.utils.llm.NvidiaRAGConfig") as mock_config_class:
             mock_config = Mock()
             mock_config.llm.model_engine = "nvidia-ai-endpoints"
+            mock_config.llm.get_api_key.return_value = "test-api-key"
             mock_config.enable_guardrails = False
             mock_config_class.return_value = mock_config
 
@@ -413,6 +416,7 @@ class TestGetLLM:
 
                 mock_chatnvidia.assert_called_once_with(
                     model="test-model",
+                    api_key="test-api-key",
                     temperature=None,
                     top_p=None,
                     max_tokens=None,
@@ -656,6 +660,7 @@ class TestLLMIntegration:
         with patch("nvidia_rag.utils.llm.NvidiaRAGConfig") as mock_config_class:
             mock_config = Mock()
             mock_config.llm.model_engine = "nvidia-ai-endpoints"
+            mock_config.llm.get_api_key.return_value = "test-api-key"
             mock_config.enable_guardrails = False
             mock_config_class.return_value = mock_config
 
@@ -678,7 +683,7 @@ class TestLLMIntegration:
                 mock_chatnvidia.assert_called_once_with(
                     base_url="http://test:8000",
                     model="meta/llama-3.1-8b-instruct",
-                    api_key=None,
+                    api_key="test-api-key",
                     temperature=0.7,
                     top_p=0.9,
                     max_tokens=2048,
@@ -686,6 +691,122 @@ class TestLLMIntegration:
                     ignore_eos=True,
                     stop=[],
                 )
+
+    @patch("nvidia_rag.utils.llm.sanitize_nim_url")
+    @patch("nvidia_rag.utils.llm.ChatNVIDIA")
+    @patch.dict(os.environ, {}, clear=True)
+    def test_get_llm_non_nvidia_endpoint_excludes_nvidia_params(
+        self, mock_chatnvidia, mock_sanitize
+    ):
+        """Test that non-NVIDIA endpoints exclude NVIDIA-specific parameters."""
+        mock_sanitize.return_value = "https://api.openai.com/v1"
+
+        with patch("nvidia_rag.utils.llm.NvidiaRAGConfig") as mock_config_class:
+            mock_config = Mock()
+            mock_config.llm.model_engine = "nvidia-ai-endpoints"
+            mock_config.llm.get_api_key.return_value = "test-api-key"
+            mock_config.enable_guardrails = False
+            mock_config_class.return_value = mock_config
+
+            kwargs = {
+                "model": "gpt-4o",
+                "llm_endpoint": "https://api.openai.com/v1",
+                "temperature": 0.7,
+                "top_p": 0.9,
+                "max_tokens": 1024,
+                "min_tokens": 1024,  # NVIDIA-specific
+                "ignore_eos": True,  # NVIDIA-specific
+                "min_thinking_tokens": 1,  # NVIDIA-specific
+                "max_thinking_tokens": 100,  # NVIDIA-specific
+            }
+
+            get_llm(**kwargs)
+
+            # Verify NVIDIA-specific parameters are NOT included
+            call_kwargs = mock_chatnvidia.call_args[1]
+            assert call_kwargs["temperature"] == 0.7
+            assert call_kwargs["top_p"] == 0.9
+            assert call_kwargs["max_tokens"] == 1024
+            assert "min_tokens" not in call_kwargs
+            assert "ignore_eos" not in call_kwargs
+            # Thinking tokens are bound separately, so they won't be in ChatNVIDIA kwargs
+            # but they should not cause errors
+
+    @patch("nvidia_rag.utils.llm.sanitize_nim_url")
+    @patch("nvidia_rag.utils.llm.ChatNVIDIA")
+    @patch.dict(os.environ, {}, clear=True)
+    def test_get_llm_nvidia_endpoint_includes_nvidia_params(
+        self, mock_chatnvidia, mock_sanitize
+    ):
+        """Test that NVIDIA endpoints include NVIDIA-specific parameters."""
+        mock_sanitize.return_value = "http://localhost:8000"
+
+        with patch("nvidia_rag.utils.llm.NvidiaRAGConfig") as mock_config_class:
+            mock_config = Mock()
+            mock_config.llm.model_engine = "nvidia-ai-endpoints"
+            mock_config.llm.get_api_key.return_value = "test-api-key"
+            mock_config.enable_guardrails = False
+            mock_config_class.return_value = mock_config
+
+            kwargs = {
+                "model": "nvidia/llama-3.3-nemotron-super-49b-v1.5",
+                "llm_endpoint": "http://localhost:8000",
+                "temperature": 0.7,
+                "min_tokens": 100,
+                "ignore_eos": True,
+            }
+
+            get_llm(**kwargs)
+
+            call_kwargs = mock_chatnvidia.call_args[1]
+            assert call_kwargs["temperature"] == 0.7
+            assert call_kwargs["min_tokens"] == 100
+            assert call_kwargs["ignore_eos"] is True
+
+    @patch("nvidia_rag.utils.llm.sanitize_nim_url")
+    @patch("nvidia_rag.utils.llm.ChatNVIDIA")
+    @patch.dict(os.environ, {}, clear=True)
+    def test_get_llm_empty_url_defaults_to_nvidia(self, mock_chatnvidia, mock_sanitize):
+        """Test that empty URL defaults to NVIDIA endpoint."""
+        mock_sanitize.return_value = ""
+
+        with patch("nvidia_rag.utils.llm.NvidiaRAGConfig") as mock_config_class:
+            mock_config = Mock()
+            mock_config.llm.model_engine = "nvidia-ai-endpoints"
+            mock_config.llm.get_api_key.return_value = "test-api-key"
+            mock_config.enable_guardrails = False
+            mock_config_class.return_value = mock_config
+
+            kwargs = {
+                "model": "nvidia/llama-3.3-nemotron-super-49b-v1.5",
+                "llm_endpoint": "",
+                "min_tokens": 100,
+            }
+
+            get_llm(**kwargs)
+
+            # Empty URL should default to NVIDIA, so min_tokens should be included
+            call_kwargs = mock_chatnvidia.call_args[1]
+            assert call_kwargs["min_tokens"] == 100
+
+    def test_is_nvidia_endpoint(self):
+        """Test _is_nvidia_endpoint function for various URL patterns."""
+        # NVIDIA endpoints
+        assert _is_nvidia_endpoint("http://localhost:8000") is True
+        assert _is_nvidia_endpoint("https://api.nvidia.com/v1") is True
+        assert _is_nvidia_endpoint("http://nvidia-nim:8000") is True
+        assert _is_nvidia_endpoint("") is True  # Empty defaults to NVIDIA
+        assert _is_nvidia_endpoint(None) is True  # None defaults to NVIDIA
+
+        # Non-NVIDIA endpoints
+        assert _is_nvidia_endpoint("https://api.openai.com/v1") is False
+        assert _is_nvidia_endpoint("https://my-resource.openai.azure.com") is False
+        assert _is_nvidia_endpoint("https://api.anthropic.com/v1") is False
+        assert _is_nvidia_endpoint("https://claude.ai/api") is False
+
+        # Case insensitive
+        assert _is_nvidia_endpoint("https://API.OPENAI.COM/V1") is False
+        assert _is_nvidia_endpoint("https://AZURE.OPENAI.COM") is False
 
     def test_streaming_filter_complete_workflow(self):
         """Test complete streaming filter workflow."""

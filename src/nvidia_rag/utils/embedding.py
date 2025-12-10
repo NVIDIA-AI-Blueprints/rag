@@ -57,12 +57,15 @@ def get_embedding_model(
     )
 
     if config.embeddings.model_engine == "nvidia-ai-endpoints":
+        api_key = config.embeddings.get_api_key()
+
         if url:
             logger.info("Using embedding model %s hosted at %s", model, url)
             if truncate is not None:
                 return NVIDIAEmbeddings(
                     base_url=url,
                     model=model,
+                    api_key=api_key,
                     truncate=truncate,
                     dimensions=config.embeddings.dimensions,
                 )
@@ -70,6 +73,7 @@ def get_embedding_model(
                 return NVIDIAEmbeddings(
                     base_url=url,
                     model=model,
+                    api_key=api_key,
                     dimensions=config.embeddings.dimensions,
                 )
 
@@ -77,12 +81,14 @@ def get_embedding_model(
         if truncate is not None:
             return NVIDIAEmbeddings(
                 model=model,
+                api_key=api_key,
                 truncate=truncate,
                 dimensions=config.embeddings.dimensions,
             )
         else:
             return NVIDIAEmbeddings(
                 model=model,
+                api_key=api_key,
                 dimensions=config.embeddings.dimensions,
             )
 

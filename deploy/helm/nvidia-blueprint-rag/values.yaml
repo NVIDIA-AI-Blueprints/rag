@@ -35,6 +35,24 @@ ngcApiSecret:
   password: ""
   create: true
 
+# -- Secret containing service-specific API keys for RAG services
+apiKeysSecret:
+  # -- Enable automatic secret creation from values below
+  create: true
+  # -- Name of the secret to create or reference
+  name: "rag-api-keys"
+  # -- Reference to existing secret (if set, chart won't create secret, will reference this instead)
+  existingSecret: ""
+  # -- Service-specific API keys (optional, empty means use NVIDIA_API_KEY fallback)
+  llmApiKey: ""
+  embeddingsApiKey: ""
+  rankingApiKey: ""
+  queryRewriterApiKey: ""
+  filterExpressionGeneratorApiKey: ""
+  vlmApiKey: ""
+  summaryLlmApiKey: ""
+  reflectionLlmApiKey: ""
+
 # -- RAG server container image
 image:
   repository: nvcr.io/0648981100760671/rag-server
@@ -86,9 +104,8 @@ envVars:
   PROMETHEUS_MULTIPROC_DIR: "/tmp-data/prom_data"
 
   ##===Authentication===
-  # Set LLM_API_KEY if non-NVIDIA hosted LLM API endpoint is being used
-  # If not set, NVIDIA_API_KEY will be used as fallback
-  LLM_API_KEY: ""
+  ## Service-specific API keys are now managed via apiKeysSecret section above.
+  ## See apiKeysSecret configuration for details on setting service-specific keys.
 
   ##===MINIO specific configurations used to store multimodal base64 content===
   MINIO_ENDPOINT: "rag-minio:9000"
@@ -308,9 +325,8 @@ ingestor-server:
     MINIO_SECRETKEY: "minioadmin"
 
     # === Authentication ===
-    # Set LLM_API_KEY if non-NVIDIA hosted LLM API endpoint is being used
-    # If not set, NVIDIA_API_KEY will be used as fallback
-    LLM_API_KEY: ""
+    ## Service-specific API keys are managed via apiKeysSecret section (see top-level config).
+    ## APP_EMBEDDINGS_APIKEY and SUMMARY_LLM_APIKEY are loaded from secrets automatically.
 
     # === Embeddings Configurations ===
     APP_EMBEDDINGS_SERVERURL: "nemoretriever-embedding-ms:8000/v1"

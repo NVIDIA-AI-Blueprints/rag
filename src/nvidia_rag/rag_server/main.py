@@ -53,7 +53,6 @@ from opentelemetry import context as otel_context
 from requests import ConnectTimeout
 
 from nvidia_rag.rag_server.health import check_all_services_health
-from nvidia_rag.utils.health_models import RAGHealthResponse
 from nvidia_rag.rag_server.query_decomposition import iterative_query_decomposition
 from nvidia_rag.rag_server.reflection import (
     ReflectionCounter,
@@ -69,12 +68,6 @@ from nvidia_rag.rag_server.response_generator import (
     prepare_llm_request,
     retrieve_summary,
 )
-
-
-async def _async_iter(items) -> AsyncGenerator[Any, None]:
-    """Helper to convert a list to an async generator."""
-    for item in items:
-        yield item
 from nvidia_rag.rag_server.validation import (
     validate_model_info,
     validate_reranker_k,
@@ -94,11 +87,23 @@ from nvidia_rag.utils.embedding import get_embedding_model
 from nvidia_rag.utils.filter_expression_generator import (
     generate_filter_from_natural_language,
 )
-from nvidia_rag.utils.llm import get_llm, get_prompts, get_streaming_filter_think_parser_async
+from nvidia_rag.utils.health_models import RAGHealthResponse
+from nvidia_rag.utils.llm import (
+    get_llm,
+    get_prompts,
+    get_streaming_filter_think_parser_async,
+)
 from nvidia_rag.utils.reranker import get_ranking_model
 from nvidia_rag.utils.vdb import _get_vdb_op
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
 from observability.otel_metrics import OtelMetrics
+
+
+async def _async_iter(items) -> AsyncGenerator[Any, None]:
+    """Helper to convert a list to an async generator."""
+    for item in items:
+        yield item
+
 
 logger = logging.getLogger(__name__)
 
@@ -160,7 +165,11 @@ class NvidiaRAG:
         )
 
         # Query rewriter LLM
-        query_rewriter_llm_config = {"temperature": 0, "top_p": 0.1}
+        query_rewriter_llm_config = {
+            "temperature": 0,
+            "top_p": 0.1,
+            "api_key": self.config.query_rewriter.get_api_key(),
+        }
         logger.info(
             "Query rewriter llm config: model name %s, url %s, config %s",
             self.config.query_rewriter.model_name,
@@ -179,6 +188,7 @@ class NvidiaRAG:
             "temperature": self.config.filter_expression_generator.temperature,
             "top_p": self.config.filter_expression_generator.top_p,
             "max_tokens": self.config.filter_expression_generator.max_tokens,
+            "api_key": self.config.filter_expression_generator.get_api_key(),
         }
         self.filter_generator_llm = get_llm(
             config=self.config,
@@ -231,7 +241,7 @@ class NvidiaRAG:
         if check_dependencies:
             vdb_op = self._prepare_vdb_op()
             return await check_all_services_health(vdb_op, self.config)
-        
+
         return RAGHealthResponse(message="Service is up.")
 
     def _prepare_vdb_op(
@@ -503,9 +513,7 @@ class NvidiaRAG:
         )
         vlm_top_p = vlm_top_p if vlm_top_p is not None else self.config.vlm.top_p
         vlm_max_tokens = (
-            vlm_max_tokens
-            if vlm_max_tokens is not None
-            else self.config.vlm.max_tokens
+            vlm_max_tokens if vlm_max_tokens is not None else self.config.vlm.max_tokens
         )
         vlm_max_total_images = (
             vlm_max_total_images
@@ -2074,7 +2082,9 @@ class NvidiaRAG:
                                     docs=context_to_show,
                                     messages=vlm_messages,
                                     context_text=vlm_text_context,
-                                    question_text=self._extract_text_from_content(query),
+                                    question_text=self._extract_text_from_content(
+                                        query
+                                    ),
                                     temperature=vlm_temperature_cfg,
                                     top_p=vlm_top_p_cfg,
                                     max_tokens=vlm_max_tokens_cfg,
@@ -2153,7 +2163,9 @@ class NvidiaRAG:
                 self.config.reflection.enable_reflection
                 and reflection_counter.remaining > 0
             ):
-                initial_response = await chain.ainvoke({"question": query, "context": docs})
+                initial_response = await chain.ainvoke(
+                    {"question": query, "context": docs}
+                )
                 final_response, is_grounded = await check_response_groundedness(
                     query,
                     initial_response,

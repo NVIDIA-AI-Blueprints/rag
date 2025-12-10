@@ -1,5 +1,5 @@
-import re
 import fnmatch
+import re
 from pathlib import Path
 
 import yaml
@@ -132,7 +132,7 @@ def parse_env_default(value: str) -> tuple[bool, str | None]:
     if not m:
         return False, None
     varname = m.group(1)
-    rest = inner[len(varname):]
+    rest = inner[len(varname) :]
     if rest == "":
         # ${VAR}
         return True, None
@@ -155,7 +155,8 @@ def parse_env_default(value: str) -> tuple[bool, str | None]:
 
     # Strip surrounding quotes if present
     if len(default_expr) >= 2 and (
-        (default_expr[0] == default_expr[-1] == '"') or (default_expr[0] == default_expr[-1] == "'")
+        (default_expr[0] == default_expr[-1] == '"')
+        or (default_expr[0] == default_expr[-1] == "'")
     ):
         default_expr = default_expr[1:-1]
 
@@ -197,11 +198,15 @@ def test_compose_helm_image_and_env_parity():
     # Paths
     values_path = repo_root / "deploy/helm/nvidia-blueprint-rag/values.yaml"
     compose_rag_path = repo_root / "deploy/compose/docker-compose-rag-server.yaml"
-    compose_ingestor_path = repo_root / "deploy/compose/docker-compose-ingestor-server.yaml"
+    compose_ingestor_path = (
+        repo_root / "deploy/compose/docker-compose-ingestor-server.yaml"
+    )
     compose_nims_path = repo_root / "deploy/compose/nims.yaml"
     compose_vectordb_path = repo_root / "deploy/compose/vectordb.yaml"
     # Config with exemptions for env parity checks, kept alongside this test
-    env_exemptions_path = repo_root / "tests/unit/test_compose_helm_parity/env_parity_exemptions.yaml"
+    env_exemptions_path = (
+        repo_root / "tests/unit/test_compose_helm_parity/env_parity_exemptions.yaml"
+    )
 
     # Load YAMLs
     values = load_yaml(values_path)
@@ -209,7 +214,9 @@ def test_compose_helm_image_and_env_parity():
     compose_ingestor = load_yaml(compose_ingestor_path)
     compose_nims = load_yaml(compose_nims_path)
     compose_vectordb = load_yaml(compose_vectordb_path)
-    env_exemptions = load_yaml(env_exemptions_path) if env_exemptions_path.exists() else {}
+    env_exemptions = (
+        load_yaml(env_exemptions_path) if env_exemptions_path.exists() else {}
+    )
 
     # Mapping between docker-compose services and Helm values.yaml
     mapping = {
@@ -222,7 +229,18 @@ def test_compose_helm_image_and_env_parity():
                 "require_all_env_from_compose": True,
                 "require_values_match": True,
                 # API keys are represented via Helm secrets, not envVars
-                "ignore_env_keys": {"NGC_API_KEY", "NVIDIA_API_KEY"},
+                "ignore_env_keys": {
+                    "NGC_API_KEY",
+                    "NVIDIA_API_KEY",
+                    "APP_LLM_APIKEY",
+                    "APP_EMBEDDINGS_APIKEY",
+                    "APP_RANKING_APIKEY",
+                    "APP_QUERYREWRITER_APIKEY",
+                    "APP_FILTEREXPRESSIONGENERATOR_APIKEY",
+                    "APP_VLM_APIKEY",
+                    "SUMMARY_LLM_APIKEY",
+                    "REFLECTION_LLM_APIKEY",
+                },
             },
             "rag-frontend": {
                 "values_image_repo_path": ["frontend", "image", "repository"],
@@ -243,7 +261,12 @@ def test_compose_helm_image_and_env_parity():
                 # dynamic env parity from compose, with known exceptions
                 "require_all_env_from_compose": True,
                 "require_values_match": True,
-                "ignore_env_keys": {"NGC_API_KEY", "NVIDIA_API_KEY"},
+                "ignore_env_keys": {
+                    "NGC_API_KEY",
+                    "NVIDIA_API_KEY",
+                    "APP_EMBEDDINGS_APIKEY",
+                    "SUMMARY_LLM_APIKEY",
+                },
             },
             # nv-ingest runtime parity against Helm nv-ingest.envVars
             "nv-ingest-ms-runtime": {
@@ -263,14 +286,38 @@ def test_compose_helm_image_and_env_parity():
                 "requires_ngc_api_key_path": ["nim-llm", "model", "ngcAPIKey"],
             },
             "nemoretriever-embedding-ms": {
-                "values_image_repo_path": ["nvidia-nim-llama-32-nv-embedqa-1b-v2", "image", "repository"],
-                "values_image_tag_path": ["nvidia-nim-llama-32-nv-embedqa-1b-v2", "image", "tag"],
-                "requires_ngc_api_key_path": ["nvidia-nim-llama-32-nv-embedqa-1b-v2", "nim", "ngcAPIKey"],
+                "values_image_repo_path": [
+                    "nvidia-nim-llama-32-nv-embedqa-1b-v2",
+                    "image",
+                    "repository",
+                ],
+                "values_image_tag_path": [
+                    "nvidia-nim-llama-32-nv-embedqa-1b-v2",
+                    "image",
+                    "tag",
+                ],
+                "requires_ngc_api_key_path": [
+                    "nvidia-nim-llama-32-nv-embedqa-1b-v2",
+                    "nim",
+                    "ngcAPIKey",
+                ],
             },
             "nemoretriever-ranking-ms": {
-                "values_image_repo_path": ["nvidia-nim-llama-32-nv-rerankqa-1b-v2", "image", "repository"],
-                "values_image_tag_path": ["nvidia-nim-llama-32-nv-rerankqa-1b-v2", "image", "tag"],
-                "requires_ngc_api_key_path": ["nvidia-nim-llama-32-nv-rerankqa-1b-v2", "nim", "ngcAPIKey"],
+                "values_image_repo_path": [
+                    "nvidia-nim-llama-32-nv-rerankqa-1b-v2",
+                    "image",
+                    "repository",
+                ],
+                "values_image_tag_path": [
+                    "nvidia-nim-llama-32-nv-rerankqa-1b-v2",
+                    "image",
+                    "tag",
+                ],
+                "requires_ngc_api_key_path": [
+                    "nvidia-nim-llama-32-nv-rerankqa-1b-v2",
+                    "nim",
+                    "ngcAPIKey",
+                ],
             },
             "vlm-ms": {
                 "values_image_repo_path": ["nim-vlm", "image", "repository"],
@@ -281,31 +328,69 @@ def test_compose_helm_image_and_env_parity():
         str(compose_vectordb_path): {
             # Third-party dependency: Milvus image parity (managed by nv-ingest subchart)
             "milvus": {
-                "values_image_repo_path": ["nv-ingest", "milvus", "image", "all", "repository"],
+                "values_image_repo_path": [
+                    "nv-ingest",
+                    "milvus",
+                    "image",
+                    "all",
+                    "repository",
+                ],
                 "values_image_tag_path": ["nv-ingest", "milvus", "image", "all", "tag"],
             },
             # Etcd image parity (managed by nv-ingest.milvus.etcd)
             "etcd": {
-                "values_image_repo_path": ["nv-ingest", "milvus", "etcd", "image", "repository"],
-                "values_image_tag_path": ["nv-ingest", "milvus", "etcd", "image", "tag"],
+                "values_image_repo_path": [
+                    "nv-ingest",
+                    "milvus",
+                    "etcd",
+                    "image",
+                    "repository",
+                ],
+                "values_image_tag_path": [
+                    "nv-ingest",
+                    "milvus",
+                    "etcd",
+                    "image",
+                    "tag",
+                ],
             },
             # MinIO image parity (managed by nv-ingest.milvus.minio)
             "minio": {
-                "values_image_repo_path": ["nv-ingest", "milvus", "minio", "image", "repository"],
-                "values_image_tag_path": ["nv-ingest", "milvus", "minio", "image", "tag"],
+                "values_image_repo_path": [
+                    "nv-ingest",
+                    "milvus",
+                    "minio",
+                    "image",
+                    "repository",
+                ],
+                "values_image_tag_path": [
+                    "nv-ingest",
+                    "milvus",
+                    "minio",
+                    "image",
+                    "tag",
+                ],
             },
         },
     }
 
-    def assert_image_parity(compose_service: dict[str, object], values_repo_path: list[str], values_tag_path: list[str]):
+    def assert_image_parity(
+        compose_service: dict[str, object],
+        values_repo_path: list[str],
+        values_tag_path: list[str],
+    ):
         compose_image = compose_service.get("image")
         assert compose_image, "compose image must be set"
         repo, tag = parse_image(str(compose_image))
         values_repo = get_dict_path(values, values_repo_path)
         values_tag = get_dict_path(values, values_tag_path)
-        assert values_repo == repo, f"Repository mismatch: {values_repo_path}='{values_repo}' != '{repo}'"
+        assert values_repo == repo, (
+            f"Repository mismatch: {values_repo_path}='{values_repo}' != '{repo}'"
+        )
         if tag is not None:
-            assert values_tag == tag, f"Tag mismatch: {values_tag_path}='{values_tag}' != '{tag}'"
+            assert values_tag == tag, (
+                f"Tag mismatch: {values_tag_path}='{values_tag}' != '{tag}'"
+            )
 
     def get_value_exemptions(compose_file: str, service_name: str) -> list[str]:
         """Return glob patterns for env value mismatch exemptions for a given service.
@@ -318,15 +403,35 @@ def test_compose_helm_image_and_env_parity():
               nv-ingest-ms-runtime:
                 - "MESSAGE_CLIENT_HOST"
         """
-        cfg = env_exemptions.get("envValueExemptions", {}) if isinstance(env_exemptions, dict) else {}
+        cfg = (
+            env_exemptions.get("envValueExemptions", {})
+            if isinstance(env_exemptions, dict)
+            else {}
+        )
         patterns: list[str] = []
-        global_list = cfg.get("global", []) if isinstance(cfg.get("global"), list) else []
-        patterns.extend([str(p) for p in global_list if isinstance(p, (str, int, float))])
-        per_service = cfg.get("perService", {}) if isinstance(cfg.get("perService"), dict) else {}
+        global_list = (
+            cfg.get("global", []) if isinstance(cfg.get("global"), list) else []
+        )
+        patterns.extend(
+            [str(p) for p in global_list if isinstance(p, str | int | float)]
+        )
+        per_service = (
+            cfg.get("perService", {}) if isinstance(cfg.get("perService"), dict) else {}
+        )
         compose_basename = Path(compose_file).name
-        file_map = per_service.get(compose_basename, {}) if isinstance(per_service.get(compose_basename), dict) else {}
-        service_list = file_map.get(service_name, []) if isinstance(file_map.get(service_name), list) else []
-        patterns.extend([str(p) for p in service_list if isinstance(p, (str, int, float))])
+        file_map = (
+            per_service.get(compose_basename, {})
+            if isinstance(per_service.get(compose_basename), dict)
+            else {}
+        )
+        service_list = (
+            file_map.get(service_name, [])
+            if isinstance(file_map.get(service_name), list)
+            else []
+        )
+        patterns.extend(
+            [str(p) for p in service_list if isinstance(p, str | int | float)]
+        )
         return patterns
 
     def get_missing_key_exemptions(compose_file: str, service_name: str) -> set[str]:
@@ -338,12 +443,26 @@ def test_compose_helm_image_and_env_parity():
               nv-ingest-ms-runtime:
                 - NGC_API_KEY
         """
-        cfg = env_exemptions.get("envMissingKeyExemptions", {}) if isinstance(env_exemptions, dict) else {}
-        per_service = cfg.get("perService", {}) if isinstance(cfg.get("perService"), dict) else {}
+        cfg = (
+            env_exemptions.get("envMissingKeyExemptions", {})
+            if isinstance(env_exemptions, dict)
+            else {}
+        )
+        per_service = (
+            cfg.get("perService", {}) if isinstance(cfg.get("perService"), dict) else {}
+        )
         compose_basename = Path(compose_file).name
-        file_map = per_service.get(compose_basename, {}) if isinstance(per_service.get(compose_basename), dict) else {}
-        service_list = file_map.get(service_name, []) if isinstance(file_map.get(service_name), list) else []
-        return {str(k) for k in service_list if isinstance(k, (str, int, float))}
+        file_map = (
+            per_service.get(compose_basename, {})
+            if isinstance(per_service.get(compose_basename), dict)
+            else {}
+        )
+        service_list = (
+            file_map.get(service_name, [])
+            if isinstance(file_map.get(service_name), list)
+            else []
+        )
+        return {str(k) for k in service_list if isinstance(k, str | int | float)}
 
     def is_image_parity_exempt(compose_file: str, service_name: str) -> bool:
         """Return True if image parity should be skipped for this service based on optional config.
@@ -376,7 +495,9 @@ def test_compose_helm_image_and_env_parity():
             return False
         return bool(file_map.get(service_name))
 
-    def is_value_exempt(env_key: str, exempt_exact: set[str] | None, exempt_globs: list[str] | None) -> bool:
+    def is_value_exempt(
+        env_key: str, exempt_exact: set[str] | None, exempt_globs: list[str] | None
+    ) -> bool:
         if exempt_exact and env_key in exempt_exact:
             return True
         if exempt_globs:
@@ -402,13 +523,19 @@ def test_compose_helm_image_and_env_parity():
         values_env = get_dict_path(values, values_env_path)
         # values env for rag-server/ingestor-server is a dict; for frontend it is a list of {name,value}
         if required_keys:
-            assert isinstance(values_env, dict), f"Expected dict at values path {values_env_path}"
+            assert isinstance(values_env, dict), (
+                f"Expected dict at values path {values_env_path}"
+            )
             for key in required_keys:
-                assert key in values_env, f"Missing env key '{key}' in values at {values_env_path}"
+                assert key in values_env, (
+                    f"Missing env key '{key}' in values at {values_env_path}"
+                )
         if required_names:
             names = ensure_frontend_env_names(values_env)
             for name in required_names:
-                assert name in names, f"Missing env name '{name}' in values at {values_env_path}"
+                assert name in names, (
+                    f"Missing env name '{name}' in values at {values_env_path}"
+                )
         if require_all_from_compose:
             compose_env = compose_service.get("environment", {})
             compose_names = extract_compose_env_names(compose_env)
@@ -424,29 +551,38 @@ def test_compose_helm_image_and_env_parity():
                 values_kv = extract_values_env_kv(values_env)
                 diffs: list[str] = []
                 for k in sorted(compose_names):
-                    if is_value_exempt(k, value_mismatch_exempt_keys, value_mismatch_exempt_globs):
+                    if is_value_exempt(
+                        k, value_mismatch_exempt_keys, value_mismatch_exempt_globs
+                    ):
                         continue
                     raw_left = compose_kv.get(k)
                     raw_right = values_kv.get(k)
                     left = normalize_env_value(raw_left)
                     right = normalize_env_value(raw_right)
                     if left != right:
-                        is_ph_l, def_l = parse_env_default(raw_left) if isinstance(raw_left, str) else (False, None)
-                        is_ph_r, def_r = parse_env_default(raw_right) if isinstance(raw_right, str) else (False, None)
+                        is_ph_l, def_l = (
+                            parse_env_default(raw_left)
+                            if isinstance(raw_left, str)
+                            else (False, None)
+                        )
+                        is_ph_r, def_r = (
+                            parse_env_default(raw_right)
+                            if isinstance(raw_right, str)
+                            else (False, None)
+                        )
                         diffs.append(
-                            (
-                                f"{k}:\n"
-                                f"  compose.raw={raw_left!r}\n"
-                                f"  compose.normalized={left!r}\n"
-                                f"  compose.placeholder={{is_placeholder={is_ph_l}, default={def_l!r}}}\n"
-                                f"  helm.raw={raw_right!r}\n"
-                                f"  helm.normalized={right!r}\n"
-                                f"  helm.placeholder={{is_placeholder={is_ph_r}, default={def_r!r}}}"
-                            )
+                            f"{k}:\n"
+                            f"  compose.raw={raw_left!r}\n"
+                            f"  compose.normalized={left!r}\n"
+                            f"  compose.placeholder={{is_placeholder={is_ph_l}, default={def_l!r}}}\n"
+                            f"  helm.raw={raw_right!r}\n"
+                            f"  helm.normalized={right!r}\n"
+                            f"  helm.placeholder={{is_placeholder={is_ph_r}, default={def_r!r}}}"
                         )
                 assert not diffs, (
                     "Env value mismatches (compose vs Helm) at "
-                    f"{values_env_path} (service keys compared: {sorted(compose_names)}):\n- " + "\n- ".join(diffs)
+                    f"{values_env_path} (service keys compared: {sorted(compose_names)}):\n- "
+                    + "\n- ".join(diffs)
                 )
 
     # Execute checks
@@ -459,7 +595,9 @@ def test_compose_helm_image_and_env_parity():
         }[compose_file]
         services = compose_data.get("services", {})
         for svc_name, rules in services_spec.items():
-            assert svc_name in services, f"Service '{svc_name}' not found in {compose_file}"
+            assert svc_name in services, (
+                f"Service '{svc_name}' not found in {compose_file}"
+            )
             svc = services[svc_name]
             if "values_image_repo_path" in rules and "values_image_tag_path" in rules:
                 if not is_image_parity_exempt(compose_file, svc_name):
@@ -471,7 +609,10 @@ def test_compose_helm_image_and_env_parity():
             if "values_env_path" in rules:
                 exempt_globs = get_value_exemptions(compose_file, svc_name)
                 missing_key_exempt = get_missing_key_exemptions(compose_file, svc_name)
-                ignore_keys_combined = set(rules.get("ignore_env_keys", set()) or set()) | missing_key_exempt
+                ignore_keys_combined = (
+                    set(rules.get("ignore_env_keys", set()) or set())
+                    | missing_key_exempt
+                )
                 assert_env_presence(
                     svc,
                     rules["values_env_path"],

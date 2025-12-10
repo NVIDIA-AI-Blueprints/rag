@@ -47,11 +47,34 @@ spec:
           - "{{ $cfg.server.workers }}"
           ports:
             - containerPort: 8082
-          {{- if $cfg.envVars }}
+          {{- $apiKeysSecretName := include "apiKeysSecretName" . }}
+          {{- $hasAnyKey := or .Values.apiKeysSecret.embeddingsApiKey .Values.apiKeysSecret.summaryLlmApiKey }}
+          {{- $shouldCreateSecret := and .Values.apiKeysSecret.create (not .Values.apiKeysSecret.existingSecret) $hasAnyKey }}
+          {{- $useExistingSecret := and .Values.apiKeysSecret.existingSecret $hasAnyKey }}
+          {{- $hasApiKeys := or $shouldCreateSecret $useExistingSecret }}
+          {{- if or $cfg.envVars $hasApiKeys }}
           env:
+          {{- if $cfg.envVars }}
           {{- range $k, $v := $cfg.envVars }}
             - name: "{{ $k }}"
               value: "{{ $v }}"
+          {{- end }}
+          {{- end }}
+          {{- if $hasApiKeys }}
+          {{- if .Values.apiKeysSecret.embeddingsApiKey }}
+            - name: APP_EMBEDDINGS_APIKEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $apiKeysSecretName }}
+                  key: APP_EMBEDDINGS_APIKEY
+          {{- end }}
+          {{- if .Values.apiKeysSecret.summaryLlmApiKey }}
+            - name: SUMMARY_LLM_APIKEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $apiKeysSecretName }}
+                  key: SUMMARY_LLM_APIKEY
+          {{- end }}
           {{- end }}
           {{- end }}
           {{- if $cfg.livenessProbe }}
