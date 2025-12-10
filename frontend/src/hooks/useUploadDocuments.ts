@@ -26,7 +26,7 @@ export function useUploadDocuments() {
     data.files.forEach((file) => {
       formData.append("documents", file);
     });
-    formData.append("data", JSON.stringify(data.metadata));
+    formData.append("data", JSON.stringify({ ...data.metadata, generate_summary: true }));
 
     fetch(`/api/documents?blocking=false`, {
       method: "POST",
