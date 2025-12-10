@@ -26,11 +26,30 @@ export interface CreateCollectionPayload {
 }
 
 /**
+ * Document info containing file metadata and content statistics.
+ */
+export interface DocumentInfo {
+  description?: string;
+  tags?: string[];
+  document_type?: string;
+  file_size?: number;
+  date_created?: string;
+  doc_type_counts?: {
+    text?: number;
+    table?: number;
+    chart?: number;
+  };
+  total_elements?: number;
+  raw_text_elements_size?: number;
+}
+
+/**
  * Represents a document item within a collection.
  */
 export interface DocumentItem {
   document_name: string;
   metadata: Record<string, string>;
+  document_info?: DocumentInfo;
 }
 
 /**

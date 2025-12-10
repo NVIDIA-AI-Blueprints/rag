@@ -105,6 +105,7 @@ export const DocumentsList = () => {
             name={doc.document_name}
             metadata={doc.metadata}
             collectionName={activeCollection?.collection_name || ""}
+            documentInfo={doc.document_info}
           />
           {index < data.documents.length - 1 && <Divider style={{ borderColor: 'var(--border-color-interaction-inverse)' }} />}
         </Block>
