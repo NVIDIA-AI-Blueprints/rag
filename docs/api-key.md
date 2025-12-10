@@ -63,14 +63,17 @@ export APP_EMBEDDINGS_APIKEY="your-embeddings-api-key"
 
 ### Helm
 
-```yaml
-apiKeysSecret:
-  create: true
-  llmApiKey: "your-llm-api-key"
-  embeddingsApiKey: "your-embeddings-api-key"
-  # Additional service-specific keys can be configured as needed
-  # Or: existingSecret: "my-secret"
+Use `--set` flags to pass API keys securely via command line:
+
+```bash
+helm upgrade --install rag -n rag <chart-path-or-url> \
+  --set imagePullSecret.password=$NGC_API_KEY \
+  --set ngcApiSecret.password=$NGC_API_KEY \
+  --set apiKeysSecret.llmApiKey=$APP_LLM_APIKEY \
+  --set apiKeysSecret.embeddingsApiKey=$APP_EMBEDDINGS_APIKEY
 ```
+
+Additional service-specific keys can be configured as needed (e.g., `rankingApiKey`, `vlmApiKey`, `summaryLlmApiKey`).
 
 ## Related Topics
 
