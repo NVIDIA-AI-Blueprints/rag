@@ -18,13 +18,22 @@ from __future__ import annotations
 MCP Client for NVIDIA RAG
 -------------------------
 
-This CLI connects to an MCP server (SSE or streamable_http) to:
-- list tools exposed by the server
+This CLI connects to an MCP server over one of three transports:
+- sse                → HTTP SSE endpoint (e.g., http://127.0.0.1:8000/sse)
+- streamable_http    → FastMCP streamable-http endpoint (e.g., http://127.0.0.1:8000/mcp)
+- stdio              → Spawns/attaches to a server over stdio (requires --command/--args)
+
+Capabilities:
+- list tools exposed by the MCP server
 - call a specific tool with JSON arguments
 
-It aims to be resilient across `mcp` SDK versions by:
-- adapting to different ClientSession constructor signatures
-- converting results to stable JSON structures for display
+Compatibility:
+- Adapts to multiple `mcp` SDK versions by introspecting ClientSession signatures
+- Converts results to JSON via _to_jsonable for stable CLI output
+
+StdIO notes:
+- Use --command (e.g., python) and --args to point to the MCP server startup, such as:
+  --command=python --args="-m nvidia_rag_mcp.mcp_server --transport stdio"
 """
 
 import argparse
@@ -33,6 +42,14 @@ import sys
 from contextlib import asynccontextmanager
 from typing import Any, Dict
 import inspect
+import shlex
+
+
+def _unpack_streams(streams):
+    """Extract read/write streams from transport context."""
+    if isinstance(streams, (tuple, list)) and len(streams) >= 2:
+        return streams[0], streams[1]
+    return streams
 
 
 def _to_jsonable(value: Any) -> Any:
@@ -68,7 +85,7 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     sub = p.add_subparsers(dest="cmd", required=True)
 
     common = argparse.ArgumentParser(add_help=False)
-    common.add_argument("--transport", choices=["sse", "streamable_http"])
+    common.add_argument("--transport", choices=["sse", "streamable_http", "stdio"])
     common.add_argument("--command", help="Command to run for transport (e.g., python)")
     common.add_argument(
         "--args",
@@ -105,6 +122,50 @@ async def _open_connection(ns: argparse.Namespace):
     For SSE: Connects to remote/local HTTP server with automatic endpoint probing.
     For streamable_http: Connects to FastMCP streamable-http endpoint.
     """
+
+    if ns.transport == "stdio":
+        try:
+            from mcp.client.stdio import stdio_client
+            try:
+                from mcp.client.stdio import StdioServerParameters  # type: ignore
+            except Exception:
+                StdioServerParameters = None  # type: ignore
+        except Exception as e:
+            print(f"Error: stdio transport requires mcp package with stdio support: {e}", file=sys.stderr)
+            return
+
+        if not ns.command:
+            print("Error: --command is required for transport stdio", file=sys.stderr)
+            sys.exit(2)
+        args = shlex.split(ns.args_list or "")
+        try:
+            if StdioServerParameters is not None:
+                params = StdioServerParameters(command=ns.command, args=args)  # type: ignore
+                async with stdio_client(params) as streams:
+                    read, write = _unpack_streams(streams)
+                    yield (read, write)
+                    return
+            else:
+                async with stdio_client(command=ns.command, args=args) as streams:
+                    read, write = _unpack_streams(streams)
+                    yield (read, write)
+                    return
+        except TypeError:
+            try:
+                async with stdio_client(ns.command, args) as streams:
+                    read, write = _unpack_streams(streams)
+                    yield (read, write)
+                    return
+            except Exception as e:
+                print(f"Error starting stdio client: {e}", file=sys.stderr)
+                return
+        except (ImportError, TypeError, AttributeError) as e:
+            print(f"Error: stdio transport failed: {type(e).__name__}: {e}", file=sys.stderr)
+            return
+        except Exception as e:
+            print(f"Error: unexpected stdio transport failure: {type(e).__name__}: {e}", file=sys.stderr)
+            return
+
     if not ns.url:
         print("Error: --url is required for transports sse, streamable_http", file=sys.stderr)
         sys.exit(2)
@@ -114,10 +175,7 @@ async def _open_connection(ns: argparse.Namespace):
 
         try:
             async with sse_client(url=ns.url) as streams:
-                if isinstance(streams, (tuple, list)) and len(streams) >= 2:
-                    read, write = streams[0], streams[1]
-                else:
-                    read, write = streams
+                read, write = _unpack_streams(streams)
                 yield (read, write)
                 return
         except Exception as e:
@@ -128,11 +186,8 @@ async def _open_connection(ns: argparse.Namespace):
         from mcp.client.streamable_http import streamablehttp_client
 
         try:
-           async with streamablehttp_client(url=ns.url) as streams:
-                if isinstance(streams, (tuple, list)) and len(streams) >= 2:
-                    read, write = streams[0], streams[1]
-                else:
-                    read, write = streams
+            async with streamablehttp_client(url=ns.url) as streams:
+                read, write = _unpack_streams(streams)
                 yield (read, write)
                 return
         except Exception as e:
@@ -235,7 +290,7 @@ async def _call_tool_async(ns: argparse.Namespace) -> int:
                 result = await session.call_tool(ns.tool, arguments=arguments)
                 print(json.dumps(_to_jsonable(result), indent=2))
     except Exception as e:
-        print(f"Error connecting via sse: {e}", file=sys.stderr)
+        print(f"Error calling tool: {e}", file=sys.stderr)
         return 1
 
     return 0
@@ -247,9 +302,17 @@ def main() -> None:
     Examples:
       List tools (SSE):
         python nvidia_rag_mcp/mcp_client.py list --transport=sse --url=http://127.0.0.1:8000/sse
+      List tools (stdio):
+        python nvidia_rag_mcp/mcp_client.py list --transport=stdio --command=python \
+          --args="-m nvidia_rag_mcp.mcp_server --transport stdio"
       Call generate (streamable_http):
         python nvidia_rag_mcp/mcp_client.py call --transport=streamable_http --url=http://127.0.0.1:8000/mcp \
           --tool=generate --json-args='{"messages":[{"role":"user","content":"Hi"}]}'
+      Call upload_documents (stdio):
+        python nvidia_rag_mcp/mcp_client.py call --transport=stdio --command=python \
+          --args="-m nvidia_rag_mcp.mcp_server --transport stdio" \
+          --tool=upload_documents \
+          --json-args='{"collection_name":"my_collection","file_paths":["/abs/path/file.pdf"]}'
     """
     parser = _build_arg_parser()
     ns = parser.parse_args()

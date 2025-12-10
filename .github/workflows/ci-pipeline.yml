@@ -584,124 +584,125 @@ jobs:
           docker compose -f deploy/compose/observability.yaml down || true
 
       # ========================================================================
-      # MILVUS VDB AUTH VIA REST TESTS (temporarily disabled)
+      # MILVUS VDB AUTH VIA REST TESTS
       # ========================================================================
-      # - name: Configure Milvus VDB auth
-      #   run: |
-      #     echo "Configuring Milvus authentication and override compose..."
-      #     # Set auth credentials for the servers (running in Docker)
-      #     echo "APP_VECTORSTORE_USERNAME=root" >> $GITHUB_ENV
-      #     echo "APP_VECTORSTORE_PASSWORD=Milvus" >> $GITHUB_ENV
-      #     # Set auth token for the integration tests (running on host)
-      #     echo "VDB_AUTH_TOKEN=root:Milvus" >> $GITHUB_ENV
-      #     echo "MILVUS_ROOT_TOKEN=root:Milvus" >> $GITHUB_ENV
-      #     
-      #     # Stop and clean up existing Milvus containers and volumes
-      #     echo "Stopping and cleaning up existing Milvus containers..."
-      #     docker compose -f tests/integration/vectordb.yaml down -v || true
-      #     
-      #     # Remove the old data directories to ensure clean start with auth
-      #     echo "Cleaning up old Milvus data directories..."
-      #     sudo rm -rf /tmp/milvus-${MILVUS_VERSION}/volumes/milvus || true
-      #     sudo rm -rf /tmp/milvus-${MILVUS_VERSION}/volumes/etcd || true
-      #     
-      #     # Ensure milvus.yaml exists in tests/integration by copying from running container
-      #     # Since we stopped the container, we need to start a temporary one to extract config
-      #     mkdir -p tests/integration
-      #     if [ ! -f tests/integration/milvus.yaml ]; then
-      #       echo "Creating temporary Milvus container to extract config..."
-      #       docker run --rm -d --name milvus-temp milvusdb/milvus:${MILVUS_VERSION:-v2.6.2-gpu} sleep 60
-      #       docker cp milvus-temp:/milvus/configs/milvus.yaml tests/integration/milvus.yaml
-      #       docker stop milvus-temp || true
-      #     fi
-      #     
-      #     # Update authentication settings in milvus.yaml
-      #     sed -i 's/authorizationEnabled:.*/authorizationEnabled: true/' tests/integration/milvus.yaml
-      #     sed -i 's/defaultRootPassword:.*/defaultRootPassword: Milvus/' tests/integration/milvus.yaml
-      #     echo "MILVUS_CONFIG_FILE=$(pwd)/tests/integration/milvus.yaml" >> $GITHUB_ENV
-      #     
-      #     # Verify the changes
-      #     echo "Verifying milvus.yaml authentication settings:"
-      #     grep -A2 "security:" tests/integration/milvus.yaml | head -5
-      #     
-      #     # Update vectordb.yaml to comment out data volume and enable config volume
-      #     sed -i 's|- \${DOCKER_VOLUME_DIRECTORY:-.}/volumes/milvus:/var/lib/milvus|# - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/milvus:/var/lib/milvus|' tests/integration/vectordb.yaml
-      #     sed -i 's|# - \${MILVUS_CONFIG_FILE:-./milvus.yaml}:/milvus/configs/milvus.yaml|- ${MILVUS_CONFIG_FILE:-./milvus.yaml}:/milvus/configs/milvus.yaml|' tests/integration/vectordb.yaml
-      #
-      # - name: Restart vector database with auth
-      #   run: |
-      #     echo "Starting vector database with authentication enabled..."
-      #     docker compose -f tests/integration/vectordb.yaml up -d
-      #     echo "Waiting for Milvus services to be ready..."
-      #     sleep 60
-      #     docker ps
-      #     echo "Checking Milvus logs..."
-      #     docker logs --tail 100 milvus-standalone || true
-      #     docker logs --tail 50 milvus-etcd || true
-      #     docker logs --tail 50 milvus-minio || true
-      #
-      # - name: Restart services for Milvus VDB auth tests
-      #   env:
-      #     CI_NV_RAG_BLUEPRINT_KEY: ${{ secrets.CI_NV_RAG_BLUEPRINT_KEY }}
-      #   run: |
-      #     echo "Restarting rag/ingestor services to pick up Milvus auth configuration..."
-      #     docker compose -f deploy/compose/docker-compose-rag-server.yaml down || true
-      #     docker compose -f deploy/compose/docker-compose-ingestor-server.yaml down || true
-      #     sleep 5
-      #     docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d --build
-      #     docker compose -f deploy/compose/docker-compose-ingestor-server.yaml up -d --build
-      #     sleep 30
-      #     docker ps
-      #
-      # - name: Run Milvus VDB Auth tests
-      #   env:
-      #     APP_VECTORSTORE_URL: http://localhost:19530
-      #   run: |
-      #     source venv/bin/activate
-      #     echo "Running Milvus VDB Auth tests..."
-      #     echo "APP_VECTORSTORE_URL set to: $APP_VECTORSTORE_URL"
-      #     python -m tests.integration.main --sequence milvus_vdb_auth_through_rest_api
-      #     echo "Milvus VDB Auth tests completed"
-      #
-      # - name: Collect logs after Milvus VDB auth tests
-      #   if: always()
-      #   run: |
-      #     mkdir -p logs/milvus-vdb-auth
-      #     docker logs rag-server > logs/milvus-vdb-auth/rag-server.log 2>&1 || true
-      #     docker logs ingestor-server > logs/milvus-vdb-auth/ingestor-server.log 2>&1 || true
-      #     docker logs milvus-standalone > logs/milvus-vdb-auth/milvus.log 2>&1 || true
-      #     docker logs milvus-etcd > logs/milvus-vdb-auth/etcd.log 2>&1 || true
-      #     docker logs milvus-minio > logs/milvus-vdb-auth/minio.log 2>&1 || true
-      #     cp tests/integration/integration_test.log logs/milvus-vdb-auth/ 2>/dev/null || true
-      #
-      # - name: Revert Milvus VDB auth configurations
-      #   if: always()
-      #   run: |
-      #     echo "Reverting Milvus VDB auth configurations..."
-      #     # Stop Milvus with auth enabled
-      #     docker compose -f tests/integration/vectordb.yaml down -v || true
-      #     
-      #     # Clean up auth-specific data to ensure fresh start
-      #     sudo rm -rf /tmp/milvus-${MILVUS_VERSION}/volumes/milvus || true
-      #     sudo rm -rf /tmp/milvus-${MILVUS_VERSION}/volumes/etcd || true
-      #     
-      #     # Remove the auth config file
-      #     rm -f tests/integration/milvus.yaml || true
-      #     
-      #     # Revert vectordb.yaml to original state
-      #     sed -i 's|- \${MILVUS_CONFIG_FILE:-./milvus.yaml}:/milvus/configs/milvus.yaml|# - ${MILVUS_CONFIG_FILE:-./milvus.yaml}:/milvus/configs/milvus.yaml|' tests/integration/vectordb.yaml
-      #     sed -i 's|# - \${DOCKER_VOLUME_DIRECTORY:-.}/volumes/milvus:/var/lib/milvus|- \${DOCKER_VOLUME_DIRECTORY:-.}/volumes/milvus:/var/lib/milvus|' tests/integration/vectordb.yaml
-      #     
-      #     # Restart Milvus without auth for subsequent tests
-      #     echo "Restarting Milvus without authentication for subsequent tests..."
-      #     docker compose -f tests/integration/vectordb.yaml up -d
-      #     sleep 30
-      #     
-      #     # Unset auth environment variables
-      #     echo "APP_VECTORSTORE_USERNAME=" >> $GITHUB_ENV
-      #     echo "APP_VECTORSTORE_PASSWORD=" >> $GITHUB_ENV
-      #     echo "VDB_AUTH_TOKEN=" >> $GITHUB_ENV
-      #     echo "MILVUS_ROOT_TOKEN=" >> $GITHUB_ENV
+      
+      - name: Configure Milvus VDB auth
+        run: |
+          echo "Configuring Milvus authentication and override compose..."
+          # Set auth credentials for the servers (running in Docker)
+          echo "APP_VECTORSTORE_USERNAME=root" >> $GITHUB_ENV
+          echo "APP_VECTORSTORE_PASSWORD=Milvus" >> $GITHUB_ENV
+          # Set auth token for the integration tests (running on host)
+          echo "VDB_AUTH_TOKEN=root:Milvus" >> $GITHUB_ENV
+          echo "MILVUS_ROOT_TOKEN=root:Milvus" >> $GITHUB_ENV
+          
+          # Stop and clean up existing Milvus containers and volumes
+          echo "Stopping and cleaning up existing Milvus containers..."
+          docker compose -f tests/integration/vectordb.yaml down -v || true
+          
+          # Remove the old data directories to ensure clean start with auth
+          echo "Cleaning up old Milvus data directories..."
+          sudo rm -rf /tmp/milvus-${MILVUS_VERSION}/volumes/milvus || true
+          sudo rm -rf /tmp/milvus-${MILVUS_VERSION}/volumes/etcd || true
+          
+          # Ensure milvus.yaml exists in tests/integration by copying from running container
+          # Since we stopped the container, we need to start a temporary one to extract config
+          mkdir -p tests/integration
+          if [ ! -f tests/integration/milvus.yaml ]; then
+            echo "Creating temporary Milvus container to extract config..."
+            docker run --rm -d --name milvus-temp milvusdb/milvus:${MILVUS_VERSION:-v2.6.2-gpu} sleep 60
+            docker cp milvus-temp:/milvus/configs/milvus.yaml tests/integration/milvus.yaml
+            docker stop milvus-temp || true
+          fi
+          
+          # Update authentication settings in milvus.yaml
+          sed -i 's/authorizationEnabled:.*/authorizationEnabled: true/' tests/integration/milvus.yaml
+          sed -i 's/defaultRootPassword:.*/defaultRootPassword: Milvus/' tests/integration/milvus.yaml
+          echo "MILVUS_CONFIG_FILE=$(pwd)/tests/integration/milvus.yaml" >> $GITHUB_ENV
+          
+          # Verify the changes
+          echo "Verifying milvus.yaml authentication settings:"
+          grep -A2 "security:" tests/integration/milvus.yaml | head -5
+          
+          # Update vectordb.yaml to comment out data volume and enable config volume
+          sed -i 's|- \${DOCKER_VOLUME_DIRECTORY:-.}/volumes/milvus:/var/lib/milvus|# - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/milvus:/var/lib/milvus|' tests/integration/vectordb.yaml
+          sed -i 's|# - \${MILVUS_CONFIG_FILE:-./milvus.yaml}:/milvus/configs/milvus.yaml|- ${MILVUS_CONFIG_FILE:-./milvus.yaml}:/milvus/configs/milvus.yaml|' tests/integration/vectordb.yaml
+      
+      - name: Restart vector database with auth
+        run: |
+          echo "Starting vector database with authentication enabled..."
+          docker compose -f tests/integration/vectordb.yaml up -d
+          echo "Waiting for Milvus services to be ready..."
+          sleep 60
+          docker ps
+          echo "Checking Milvus logs..."
+          docker logs --tail 100 milvus-standalone || true
+          docker logs --tail 50 milvus-etcd || true
+          docker logs --tail 50 milvus-minio || true
+      
+      - name: Restart services for Milvus VDB auth tests
+        env:
+          CI_NV_RAG_BLUEPRINT_KEY: ${{ secrets.CI_NV_RAG_BLUEPRINT_KEY }}
+        run: |
+          echo "Restarting rag/ingestor services to pick up Milvus auth configuration..."
+          docker compose -f deploy/compose/docker-compose-rag-server.yaml down || true
+          docker compose -f deploy/compose/docker-compose-ingestor-server.yaml down || true
+          sleep 5
+          docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d --build
+          docker compose -f deploy/compose/docker-compose-ingestor-server.yaml up -d --build
+          sleep 30
+          docker ps
+      
+      - name: Run Milvus VDB Auth tests
+        env:
+          APP_VECTORSTORE_URL: http://localhost:19530
+        run: |
+          source venv/bin/activate
+          echo "Running Milvus VDB Auth tests..."
+          echo "APP_VECTORSTORE_URL set to: $APP_VECTORSTORE_URL"
+          python -m tests.integration.main --sequence milvus_vdb_auth_through_rest_api
+          echo "Milvus VDB Auth tests completed"
+      
+      - name: Collect logs after Milvus VDB auth tests
+        if: always()
+        run: |
+          mkdir -p logs/milvus-vdb-auth
+          docker logs rag-server > logs/milvus-vdb-auth/rag-server.log 2>&1 || true
+          docker logs ingestor-server > logs/milvus-vdb-auth/ingestor-server.log 2>&1 || true
+          docker logs milvus-standalone > logs/milvus-vdb-auth/milvus.log 2>&1 || true
+          docker logs milvus-etcd > logs/milvus-vdb-auth/etcd.log 2>&1 || true
+          docker logs milvus-minio > logs/milvus-vdb-auth/minio.log 2>&1 || true
+          cp tests/integration/integration_test.log logs/milvus-vdb-auth/ 2>/dev/null || true
+      
+      - name: Revert Milvus VDB auth configurations
+        if: always()
+        run: |
+          echo "Reverting Milvus VDB auth configurations..."
+          # Stop Milvus with auth enabled
+          docker compose -f tests/integration/vectordb.yaml down -v || true
+          
+          # Clean up auth-specific data to ensure fresh start
+          sudo rm -rf /tmp/milvus-${MILVUS_VERSION}/volumes/milvus || true
+          sudo rm -rf /tmp/milvus-${MILVUS_VERSION}/volumes/etcd || true
+          
+          # Remove the auth config file
+          rm -f tests/integration/milvus.yaml || true
+          
+          # Revert vectordb.yaml to original state
+          sed -i 's|- \${MILVUS_CONFIG_FILE:-./milvus.yaml}:/milvus/configs/milvus.yaml|# - ${MILVUS_CONFIG_FILE:-./milvus.yaml}:/milvus/configs/milvus.yaml|' tests/integration/vectordb.yaml
+          sed -i 's|# - \${DOCKER_VOLUME_DIRECTORY:-.}/volumes/milvus:/var/lib/milvus|- \${DOCKER_VOLUME_DIRECTORY:-.}/volumes/milvus:/var/lib/milvus|' tests/integration/vectordb.yaml
+          
+          # Restart Milvus without auth for subsequent tests
+          echo "Restarting Milvus without authentication for subsequent tests..."
+          docker compose -f tests/integration/vectordb.yaml up -d
+          sleep 30
+          
+          # Unset auth environment variables
+          echo "APP_VECTORSTORE_USERNAME=" >> $GITHUB_ENV
+          echo "APP_VECTORSTORE_PASSWORD=" >> $GITHUB_ENV
+          echo "VDB_AUTH_TOKEN=" >> $GITHUB_ENV
+          echo "MILVUS_ROOT_TOKEN=" >> $GITHUB_ENV
       
       # ========================================================================
       # UPLOAD ALL LOGS

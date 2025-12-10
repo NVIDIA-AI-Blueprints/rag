@@ -18,15 +18,21 @@ from __future__ import annotations
 NVIDIA RAG MCP Server
 ---------------------
 
-This server exposes NVIDIA RAG capabilities as MCP tools using FastMCP.
+This server exposes NVIDIA RAG and Ingestor capabilities as MCP tools using FastMCP.
 Transports:
-  - sse: Server-Sent Events endpoint
+  - sse: Server-Sent Events endpoint (HTTP)
   - streamable_http: FastMCP streamable-http (recommended for HTTP)
+  - stdio: Standard IO transport (good for local processes)
 
 Implementation notes:
-  - The server forwards requests to the RAG HTTP API discovered via _rag_base_url.
+  - The server forwards requests to the RAG HTTP API discovered via _rag_base_url
+    and to the Ingestor HTTP API discovered via _ingestor_base_url.
   - Tool implementations are thin adapters around REST endpoints to keep the
     surface predictable for MCP clients.
+
+Environment variables:
+  - VITE_API_CHAT_URL: Base URL for RAG HTTP API (default http://localhost:8081)
+  - INGESTOR_URL: Base URL for Ingestor API (default http://127.0.0.1:8082)
 """
 
 import argparse
@@ -39,6 +45,16 @@ from mcp.server.fastmcp import FastMCP
 
 
 server = FastMCP("nvidia-rag-mcp-server")
+
+def _ingestor_base_url() -> str:
+    """
+    Resolve the base URL for the Ingestor HTTP API.
+    Priority:
+      - INGESTOR_URL env var (e.g., http://127.0.0.1:8082)
+    Fallback:
+      - http://127.0.0.1:8082
+    """
+    return os.environ.get("INGESTOR_URL", "http://127.0.0.1:8082").rstrip("/")
 
 def _rag_base_url() -> str:
     """
@@ -53,8 +69,40 @@ def _rag_base_url() -> str:
 
 @server.tool(
     "generate",
-    description="Generate an answer using NVIDIA RAG (optionally with knowledge base). "
-    "Provide chat messages and optional generation parameters.",
+    description="""Generate an answer using NVIDIA RAG (optionally with knowledge base).
+Args JSON:
+{
+  "messages": [{"role": "user", "content": "..."}],
+  "use_knowledge_base": true,
+  "collection_name": "test",
+  "collection_names": ["c1", "c2"],
+  "temperature": 0.2,
+  "top_p": 0.9,
+  "min_tokens": 0,
+  "ignore_eos": false,
+  "max_tokens": 256,
+  "stop": ["\\n"],
+  "reranker_top_k": 2,
+  "vdb_top_k": 5,
+  "vdb_endpoint": "",
+  "enable_query_rewriting": false,
+  "enable_reranker": true,
+  "enable_guardrails": false,
+  "enable_citations": false,
+  "enable_vlm_inference": false,
+  "enable_filter_generator": false,
+  "model": "",
+  "llm_endpoint": "",
+  "embedding_model": "",
+  "embedding_endpoint": "",
+  "reranker_model": "",
+  "reranker_endpoint": "",
+  "vlm_model": "",
+  "vlm_endpoint": "",
+  "filter_expr": "",
+  "confidence_threshold": 0.5
+}
+""",
 )
 async def tool_generate(
     messages: list[dict[str, Any]],
@@ -211,7 +259,27 @@ async def tool_generate(
 
 @server.tool(
     "search",
-    description="Search the vector database and return citations for a given query.",
+    description="""Search the vector database and return citations for a given query.
+Args JSON:
+{
+  "query": "text or structured query",
+  "messages": [{"role": "user", "content": "..."}],
+  "collection_name": "test",
+  "collection_names": ["c1", "c2"],
+  "vdb_endpoint": "",
+  "reranker_top_k": 2,
+  "vdb_top_k": 5,
+  "enable_query_rewriting": false,
+  "enable_reranker": true,
+  "enable_filter_generator": false,
+  "embedding_model": "",
+  "embedding_endpoint": "",
+  "reranker_model": "",
+  "reranker_endpoint": "",
+  "filter_expr": "",
+  "confidence_threshold": 0.5
+}
+""",
 )
 async def tool_search(
     query: str | list[dict[str, Any]],
@@ -287,8 +355,16 @@ async def tool_search(
 
 @server.tool(
     "get_summary",
-    description="Retrieve the pre-generated summary for a document from a collection. "
-    "Set blocking=true to wait up to timeout seconds for summary generation.",
+    description="""Retrieve the pre-generated summary for a document from a collection.
+Set blocking=true to wait up to timeout seconds for summary generation.
+Args JSON:
+{
+  "collection_name": "test",
+  "file_name": "woods_frost.pdf",
+  "blocking": false,
+  "timeout": 60
+}
+""",
 )
 async def tool_get_summary(
     collection_name: str,
@@ -320,17 +396,152 @@ async def tool_get_summary(
                 return {"error": "Non-JSON response", "status": resp.status, "body": text}
 
 
+@server.tool(
+    "create_collections",
+    description="""Create one or more collections in the Ingestor service.
+Args JSON:
+{
+  "collection_names": ["c1", "c2"]
+}
+""",
+)
+async def tool_create_collections(
+    collection_names: list[str],
+) -> dict[str, Any]:
+    """
+    Create one or more collections.
+    Returns:
+        dict[str, Any]: Response JSON from the Ingestor service or error info.
+    """
+    base_url = _ingestor_base_url()
+    url = f"{base_url}/v1/collections"
+    timeout_cfg = aiohttp.ClientTimeout(total=60)
+    async with aiohttp.ClientSession(timeout=timeout_cfg) as session:
+        async with session.post(url, json=collection_names) as resp:
+            try:
+                return await resp.json()
+            except aiohttp.ContentTypeError:
+                text = await resp.text()
+                return {"error": "Non-JSON response", "status": resp.status, "body": text}
+
+
+@server.tool(
+    "delete_collections",
+    description="""Delete one or more collections in the Ingestor service.
+Args JSON:
+{
+  "collection_names": ["c1", "c2"]
+}
+""",
+)
+async def tool_delete_collections(
+    collection_names: list[str],
+) -> dict[str, Any]:
+    """
+    Delete one or more collections.
+    Returns:
+        dict[str, Any]: Response JSON from the Ingestor service or error info.
+    """
+    base_url = _ingestor_base_url()
+    url = f"{base_url}/v1/collections"
+    timeout_cfg = aiohttp.ClientTimeout(total=60)
+    async with aiohttp.ClientSession(timeout=timeout_cfg) as session:
+        async with session.delete(url, json=collection_names) as resp:
+            try:
+                return await resp.json()
+            except aiohttp.ContentTypeError:
+                text = await resp.text()
+                return {"error": "Non-JSON response", "status": resp.status, "body": text}
+
+
+@server.tool(
+    "upload_documents",
+    description="""Upload one or more local files to a collection (Ingestor).
+Supports generate_summary and basic split options.
+Args JSON:
+{
+  "collection_name": "test",
+  "file_paths": ["/abs/path/a.pdf"],
+  "blocking": true,
+  "generate_summary": true,
+  "custom_metadata": [{}],
+  "split_options": {
+    "chunk_size": 512,
+    "chunk_overlap": 150
+  }
+}
+""",
+)
+async def tool_upload_documents(
+    collection_name: str,
+    file_paths: list[str],
+    blocking: bool = True,
+    generate_summary: bool = True,
+    custom_metadata: list[dict[str, Any]] | None = None,
+    split_options: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """
+    Upload local files to the Ingestor for a given collection.
+    Args:
+        collection_name: Target collection.
+        file_paths: Absolute/relative paths on the MCP server host.
+        blocking: If true, wait for ingestion to complete.
+        generate_summary: If true, request summary generation.
+        custom_metadata: Optional per-document metadata.
+        split_options: Optional chunking config, e.g., {'chunk_size':512,'chunk_overlap':150}
+    Returns:
+        dict[str, Any]: Server response JSON or error info.
+    """
+    base_url = _ingestor_base_url()
+    url = f"{base_url}/v1/documents"
+    form_data = aiohttp.FormData()
+    # Add files
+    for path in file_paths or []:
+        try:
+            if os.path.exists(path):
+                with open(path, "rb") as f:
+                    form_data.add_field(
+                        "documents",
+                        f.read(),
+                        filename=os.path.basename(path),
+                        content_type="application/octet-stream",
+                    )
+            else:
+                print(f"File not found, skipping: {path}")
+        except OSError as e:
+            print(f"Failed to read file {path}: {e}")
+            continue
+    data = {
+        "collection_name": collection_name,
+        "blocking": bool(blocking),
+        "custom_metadata": custom_metadata or [],
+        "generate_summary": bool(generate_summary),
+    }
+    if split_options:
+        data["split_options"] = split_options
+    form_data.add_field("data", json.dumps(data), content_type="application/json")
+
+    timeout_cfg = aiohttp.ClientTimeout(total=300)
+    async with aiohttp.ClientSession(timeout=timeout_cfg) as session:
+        async with session.post(url, data=form_data) as resp:
+            try:
+                return await resp.json()
+            except aiohttp.ContentTypeError:
+                text = await resp.text()
+                return {"error": "Non-JSON response", "status": resp.status, "body": text}
+
+
 def main() -> None:
     """
     Main entry point for the MCP server.
     Examples:
       SSE:
-        python nvidia_rag_mcp/mcp_server.py --transport sse --host 127.0.0.1 --port 8000
+        python nvidia_rag_mcp/mcp_server.py --transport sse
       streamable_http:
         python nvidia_rag_mcp/mcp_server.py --transport streamable_http
     """
     parser = argparse.ArgumentParser(description="NVIDIA RAG MCP server")
-    parser.add_argument("--transport", choices=["sse", "streamable_http"], help="Transport mode")
+    parser.add_argument("--transport", choices=["sse", "streamable_http", "stdio"], help="Transport mode")
     parser.add_argument("--host", default="0.0.0.0", help="Host for HTTP transports")
     parser.add_argument("--port", type=int, default=8000, help="Port for HTTP transports")
     ns = parser.parse_args()
@@ -353,6 +564,8 @@ def main() -> None:
             )
         except TypeError:
             server.run(transport="sse")
+    elif ns.transport == "stdio":
+        server.run(transport="stdio")
 
 
 if __name__ == "__main__":

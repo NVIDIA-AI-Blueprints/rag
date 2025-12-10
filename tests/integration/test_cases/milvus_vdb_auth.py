@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 import os
 import time
 
@@ -203,9 +204,9 @@ class MilvusVdbAuthModule(BaseTestModule):
             )
             return False
 
-    @test_case(79, "Access denied without privileges (reader)")
-    async def _test_reader_denied_without_privileges(self) -> bool:
-        """Reader should not be able to list documents without grants."""
+    @test_case(79, "GET /v1/collections denied without privileges")
+    async def _test_get_collections_denied_without_privileges(self) -> bool:
+        """GET /v1/collections should be denied without grants."""
         logger.info("\n=== Test 72: Access denied without privileges (reader) ===")
         start = time.time()
         try:
@@ -223,8 +224,8 @@ class MilvusVdbAuthModule(BaseTestModule):
                     has_denial = any(substr in message for substr in ("denied", "not authorized", "permission", "privilege"))
                     if has_denial:
                         self.add_test_result(
-                            self._test_reader_denied_without_privileges.test_number,
-                            self._test_reader_denied_without_privileges.test_name,
+                            self._test_get_collections_denied_without_privileges.test_number,
+                            self._test_get_collections_denied_without_privileges.test_name,
                             "GET /v1/collections should be denied for reader without privileges.",
                             ["GET /v1/collections"],
                             [],
@@ -234,8 +235,8 @@ class MilvusVdbAuthModule(BaseTestModule):
                         return True
                     else:
                         self.add_test_result(
-                            self._test_reader_denied_without_privileges.test_number,
-                            self._test_reader_denied_without_privileges.test_name,
+                            self._test_get_collections_denied_without_privileges.test_number,
+                            self._test_get_collections_denied_without_privileges.test_name,
                             "GET /v1/collections should be denied for reader without privileges.",
                             ["GET /v1/collections"],
                             [],
@@ -247,8 +248,8 @@ class MilvusVdbAuthModule(BaseTestModule):
         except Exception as e:
             # If server maps auth error to exception => success expected
             self.add_test_result(
-                self._test_reader_denied_without_privileges.test_number,
-                self._test_reader_denied_without_privileges.test_name,
+                self._test_get_collections_denied_without_privileges.test_number,
+                self._test_get_collections_denied_without_privileges.test_name,
                 "GET /v1/collections should be denied for reader without privileges.",
                 ["GET /v1/collections"],
                 [],
@@ -257,9 +258,9 @@ class MilvusVdbAuthModule(BaseTestModule):
             )
             return True
 
-    @test_case(80, "Grant read privileges and verify access")
-    async def _test_grant_read_and_verify(self) -> bool:
-        """Grant reader access and verify documents listing succeeds."""
+    @test_case(80, "GET /v1/collections allowed after granting privileges")
+    async def _test_get_collections_allowed_after_privileges(self) -> bool:
+        """GET /v1/collections should succeed after granting read privileges."""
         logger.info("\n=== Test 73: Grant read privileges and verify access ===")
         start = time.time()
         try:
@@ -273,8 +274,8 @@ class MilvusVdbAuthModule(BaseTestModule):
                     result = await resp.json()
                     if resp.status == 200:
                         self.add_test_result(
-                            self._test_grant_read_and_verify.test_number,
-                            self._test_grant_read_and_verify.test_name,
+                            self._test_get_collections_allowed_after_privileges.test_number,
+                            self._test_get_collections_allowed_after_privileges.test_name,
                             "GET /v1/collections should succeed after granting read privileges.",
                             ["GET /v1/collections"],
                             [],
@@ -284,8 +285,8 @@ class MilvusVdbAuthModule(BaseTestModule):
                         return True
                     else:
                         self.add_test_result(
-                            self._test_grant_read_and_verify.test_number,
-                            self._test_grant_read_and_verify.test_name,
+                            self._test_get_collections_allowed_after_privileges.test_number,
+                            self._test_get_collections_allowed_after_privileges.test_name,
                             "GET /v1/collections should succeed after granting read privileges.",
                             ["GET /v1/collections"],
                             [],
@@ -296,8 +297,8 @@ class MilvusVdbAuthModule(BaseTestModule):
                         return False
         except Exception as e:
             self.add_test_result(
-                self._test_grant_read_and_verify.test_number,
-                self._test_grant_read_and_verify.test_name,
+                self._test_get_collections_allowed_after_privileges.test_number,
+                self._test_get_collections_allowed_after_privileges.test_name,
                 "GET /v1/collections should succeed after granting read privileges.",
                 ["GET /v1/collections"],
                 [],
@@ -307,9 +308,9 @@ class MilvusVdbAuthModule(BaseTestModule):
             )
             return False
 
-    @test_case(81, "Writer cannot drop collection without privilege (API)")
-    async def _test_writer_cannot_drop_via_api(self) -> bool:
-        """Writer without drop privilege should get non-200 on DELETE /v1/collections."""
+    @test_case(81, "DELETE /v1/collections denied without privilege")
+    async def _test_delete_collections_denied_without_privilege(self) -> bool:
+        """DELETE /v1/collections should be denied without drop privilege."""
         logger.info("\n=== Test 74: Writer cannot drop collection without privilege (API) ===")
         start = time.time()
         try:
@@ -327,8 +328,8 @@ class MilvusVdbAuthModule(BaseTestModule):
                     has_denial = any(substr in message for substr in ("denied", "not authorized", "permission", "privilege"))
                     if has_denial:
                         self.add_test_result(
-                            self._test_writer_cannot_drop_via_api.test_number,
-                            self._test_writer_cannot_drop_via_api.test_name,
+                            self._test_delete_collections_denied_without_privilege.test_number,
+                            self._test_delete_collections_denied_without_privilege.test_name,
                             "DELETE /v1/collections should be denied for writer without drop privilege.",
                             ["DELETE /v1/collections"],
                             ["collection_names"],
@@ -338,8 +339,8 @@ class MilvusVdbAuthModule(BaseTestModule):
                         return True
                     else:
                         self.add_test_result(
-                            self._test_writer_cannot_drop_via_api.test_number,
-                            self._test_writer_cannot_drop_via_api.test_name,
+                            self._test_delete_collections_denied_without_privilege.test_number,
+                            self._test_delete_collections_denied_without_privilege.test_name,
                             "DELETE /v1/collections should be denied for writer without drop privilege.",
                             ["DELETE /v1/collections"],
                             ["collection_names"],
@@ -351,8 +352,8 @@ class MilvusVdbAuthModule(BaseTestModule):
         except Exception:
             # If server maps auth to exception => success expected
             self.add_test_result(
-                self._test_writer_cannot_drop_via_api.test_number,
-                self._test_writer_cannot_drop_via_api.test_name,
+                self._test_delete_collections_denied_without_privilege.test_number,
+                self._test_delete_collections_denied_without_privilege.test_name,
                 "DELETE /v1/collections should be denied for writer without drop privilege.",
                 ["DELETE /v1/collections"],
                 ["collection_names"],
@@ -361,9 +362,9 @@ class MilvusVdbAuthModule(BaseTestModule):
             )
             return True
 
-    @test_case(82, "Writer can drop collection with privilege (API)")
-    async def _test_writer_can_drop_via_api(self) -> bool:
-        """Writer with DropCollection privilege should be able to delete the collection via API."""
+    @test_case(82, "DELETE /v1/collections allowed after granting privilege")
+    async def _test_delete_collections_allowed_after_privilege(self) -> bool:
+        """DELETE /v1/collections should succeed after granting DropCollection privilege."""
         logger.info("\n=== Test 75: Writer can drop collection with privilege (API) ===")
         start = time.time()
         try:
@@ -381,8 +382,8 @@ class MilvusVdbAuthModule(BaseTestModule):
                     result = await resp.json()
                     if resp.status == 200:
                         self.add_test_result(
-                            self._test_writer_can_drop_via_api.test_number,
-                            self._test_writer_can_drop_via_api.test_name,
+                            self._test_delete_collections_allowed_after_privilege.test_number,
+                            self._test_delete_collections_allowed_after_privilege.test_name,
                             "DELETE /v1/collections should succeed for writer with DropCollection privilege.",
                             ["DELETE /v1/collections"],
                             ["collection_names"],
@@ -392,8 +393,8 @@ class MilvusVdbAuthModule(BaseTestModule):
                         return True
                     else:
                         self.add_test_result(
-                            self._test_writer_can_drop_via_api.test_number,
-                            self._test_writer_can_drop_via_api.test_name,
+                            self._test_delete_collections_allowed_after_privilege.test_number,
+                            self._test_delete_collections_allowed_after_privilege.test_name,
                             "DELETE /v1/collections should succeed for writer with DropCollection privilege.",
                             ["DELETE /v1/collections"],
                             ["collection_names"],
@@ -404,8 +405,8 @@ class MilvusVdbAuthModule(BaseTestModule):
                         return False
         except Exception as e:
             self.add_test_result(
-                self._test_writer_can_drop_via_api.test_number,
-                self._test_writer_can_drop_via_api.test_name,
+                self._test_delete_collections_allowed_after_privilege.test_number,
+                self._test_delete_collections_allowed_after_privilege.test_name,
                 "DELETE /v1/collections should succeed for writer with DropCollection privilege.",
                 ["DELETE /v1/collections"],
                 ["collection_names"],
@@ -512,7 +513,7 @@ class MilvusVdbAuthModule(BaseTestModule):
         logger.info("\n=== Test 77: RAG search allowed after privileges (reader) ===")
         start = time.time()
         cfg = NvidiaRAGConfig()
-        temp_collection = "auth_rag"
+        temp_collection = "auth_rag_2"
         try:
             # Create temp collection via ingestor API as admin
             headers_admin = {"Authorization": f"Bearer {_milvus_root_token()}"}
@@ -527,6 +528,7 @@ class MilvusVdbAuthModule(BaseTestModule):
             # Use the helper that handles Milvus 2.5+ privilege groups (ClusterReadOnly includes GetLoadState)
             client = MilvusClient(uri=_milvus_uri(), token=_milvus_root_token())
             _grant_reader_privileges(client, self.reader_role, temp_collection)
+            await asyncio.sleep(6)
 
             # Call RAG /search as reader (should succeed)
             headers_reader = {"Authorization": f"Bearer {self.reader_user}:{self.reader_pwd}"}
@@ -586,7 +588,7 @@ class MilvusVdbAuthModule(BaseTestModule):
 
 
     @test_case(85, "Cleanup auth resources (collections, users, roles)")
-    async def test_cleanup_auth_resources(self) -> bool:
+    async def _test_cleanup_auth_resources(self) -> bool:
         """Cleanup resources created by this module: collections, users, roles."""
         logger.info("\n=== Test 78: Cleanup auth resources (collections, users, roles) ===")
         start = time.time()
@@ -667,8 +669,8 @@ class MilvusVdbAuthModule(BaseTestModule):
                     pass
 
             self.add_test_result(
-                self.test_cleanup_auth_resources.test_number,
-                self.test_cleanup_auth_resources.test_name,
+                self._test_cleanup_auth_resources.test_number,
+                self._test_cleanup_auth_resources.test_name,
                 "Cleanup collections, users, and roles created during auth tests.",
                 ["GET /v1/collections", "DELETE /v1/collections"],
                 [],
@@ -678,8 +680,8 @@ class MilvusVdbAuthModule(BaseTestModule):
             return True
         except Exception as e:
             self.add_test_result(
-                self.test_cleanup_auth_resources.test_number,
-                self.test_cleanup_auth_resources.test_name,
+                self._test_cleanup_auth_resources.test_number,
+                self._test_cleanup_auth_resources.test_name,
                 "Cleanup collections, users, and roles created during auth tests.",
                 ["GET /v1/collections", "DELETE /v1/collections"],
                 [],

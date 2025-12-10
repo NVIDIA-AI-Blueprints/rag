@@ -145,6 +145,66 @@ async def test_tool_get_summary_returns_json(monkeypatch):
     assert out == {"summary": "done"}
 
 
+@pytest.mark.anyio
+async def test_tool_upload_documents(monkeypatch, tmp_path):
+    # Prepare a fake file to upload
+    p = tmp_path / "doc.pdf"
+    p.write_bytes(b"%PDF-1.4...")  # minimal bytes
+
+    class FakeResp:
+        def __init__(self):
+            self.status = 200
+
+        async def json(self):
+            return {"ok": True, "uploaded": ["doc.pdf"]}
+
+        async def text(self):
+            return "ok"
+
+    class FakeFormData:
+        def __init__(self):
+            self.fields = []
+
+        def add_field(self, name, value, filename=None, content_type=None):
+            self.fields.append((name, filename or name))
+
+    class FakeSession:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        def post(self, url, data=None):
+            class Ctx:
+                async def __aenter__(self_inner):
+                    return FakeResp()
+
+                async def __aexit__(self_inner, exc_type, exc, tb):
+                    return False
+
+            return Ctx()
+
+    FakeClientTimeout = type("ClientTimeout", (), {"__init__": lambda self, total=None: None})
+    fake_aiohttp = SimpleNamespace(
+        ClientSession=lambda timeout=None: FakeSession(),
+        ClientTimeout=FakeClientTimeout,
+        ContentTypeError=Exception,
+        FormData=FakeFormData,
+    )
+    monkeypatch.setattr(mcp_server, "aiohttp", fake_aiohttp, raising=True)
+
+    out = await mcp_server.tool_upload_documents(
+        collection_name="c",
+        file_paths=[str(p)],
+        blocking=True,
+        generate_summary=True,
+        custom_metadata=None,
+        split_options={"chunk_size": 512, "chunk_overlap": 150},
+    )
+    assert out.get("ok") is True
+
+
 def test_main_streamable_http_uses_server_run(monkeypatch):
     ns = SimpleNamespace(transport="streamable_http", host="0.0.0.0", port=9901)
 
@@ -195,3 +255,141 @@ def test_main_sse_uses_server_run(monkeypatch):
     monkeypatch.setattr(mcp_server.server, "run", fake_server_run, raising=True)
     mcp_server.main()
     assert called["server_run"] is True
+
+
+def test_main_stdio_uses_server_run(monkeypatch):
+    ns = SimpleNamespace(transport="stdio", host="127.0.0.1", port=8000)
+
+    class DummyParser:
+        def __init__(self, *a, **k):
+            pass
+
+        def add_argument(self, *a, **k):
+            return None
+
+        def parse_args(self):
+            return ns
+
+    monkeypatch.setattr(mcp_server.argparse, "ArgumentParser", lambda *a, **k: DummyParser(), raising=True)
+
+    called = {"server_run": False}
+
+    def fake_server_run(*args, **kwargs):
+        called["server_run"] = True
+        assert kwargs.get("transport") == "stdio"
+
+    monkeypatch.setattr(mcp_server.server, "run", fake_server_run, raising=True)
+    mcp_server.main()
+    assert called["server_run"] is True
+
+
+@pytest.mark.anyio
+async def test_tool_create_and_delete_collections(monkeypatch):
+    # Mock aiohttp for POST and DELETE flows
+    class FakeResp:
+        def __init__(self, data):
+            self._data = data
+            self.status = 200
+
+        async def json(self):
+            return self._data
+
+    class FakeSession:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        def post(self, url, json=None):
+            class Ctx:
+                async def __aenter__(self_inner):
+                    return FakeResp({"ok": True, "collections": json})
+
+                async def __aexit__(self_inner, exc_type, exc, tb):
+                    return False
+
+            return Ctx()
+
+        def delete(self, url, json=None, params=None):
+            class Ctx:
+                async def __aenter__(self_inner):
+                    # Accept either json list or params for flexibility
+                    payload = json if json is not None else params
+                    return FakeResp({"ok": True, "deleted": payload})
+
+                async def __aexit__(self_inner, exc_type, exc, tb):
+                    return False
+
+            return Ctx()
+
+    FakeClientTimeout = type("ClientTimeout", (), {"__init__": lambda self, total=None: None})
+    fake_aiohttp = SimpleNamespace(
+        ClientSession=lambda timeout=None: FakeSession(),
+        ClientTimeout=FakeClientTimeout,
+        ContentTypeError=Exception,
+    )
+    monkeypatch.setattr(mcp_server, "aiohttp", fake_aiohttp, raising=True)
+
+    out_create = await mcp_server.tool_create_collections(["c1", "c2"])
+    assert out_create.get("ok") is True
+    assert out_create.get("collections") == ["c1", "c2"]
+
+    out_delete = await mcp_server.tool_delete_collections(["c1", "c2"])
+    assert out_delete.get("ok") is True
+    assert out_delete.get("deleted") == ["c1", "c2"]
+
+@pytest.mark.anyio
+async def test_tool_create_and_delete_collections(monkeypatch):
+    # Mock aiohttp for POST and DELETE flows
+    class FakeResp:
+        def __init__(self, data):
+            self._data = data
+            self.status = 200
+
+        async def json(self):
+            return self._data
+
+    class FakeSession:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        def post(self, url, json=None):
+            class Ctx:
+                async def __aenter__(self_inner):
+                    return FakeResp({"ok": True, "collections": json})
+
+                async def __aexit__(self_inner, exc_type, exc, tb):
+                    return False
+
+            return Ctx()
+
+        def delete(self, url, json=None, params=None):
+            class Ctx:
+                async def __aenter__(self_inner):
+                    # Accept either json list or params for flexibility
+                    payload = json if json is not None else params
+                    return FakeResp({"ok": True, "deleted": payload})
+
+                async def __aexit__(self_inner, exc_type, exc, tb):
+                    return False
+
+            return Ctx()
+
+    FakeClientTimeout = type("ClientTimeout", (), {"__init__": lambda self, total=None: None})
+    fake_aiohttp = SimpleNamespace(
+        ClientSession=lambda timeout=None: FakeSession(),
+        ClientTimeout=FakeClientTimeout,
+        ContentTypeError=Exception,
+    )
+    monkeypatch.setattr(mcp_server, "aiohttp", fake_aiohttp, raising=True)
+
+    out_create = await mcp_server.tool_create_collections(["c1", "c2"])
+    assert out_create.get("ok") is True
+    assert out_create.get("collections") == ["c1", "c2"]
+
+    out_delete = await mcp_server.tool_delete_collections(["c1", "c2"])
+    assert out_delete.get("ok") is True
