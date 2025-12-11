@@ -45,13 +45,13 @@ function cleanRequestObject(obj: Partial<GenerateRequest>): GenerateRequest {
     if (typeof value === "boolean") {
       const alwaysInclude = ['use_knowledge_base'];
       if (value === true || alwaysInclude.includes(key)) {
-        (cleaned as any)[key] = value;
+        (cleaned as Record<string, unknown>)[key] = value;
       }
       // Skip false values for other boolean fields to avoid sending defaults
       continue;
     }
     
-    (cleaned as any)[key] = value;
+    (cleaned as Record<string, unknown>)[key] = value;
   }
   
   return cleaned as GenerateRequest;

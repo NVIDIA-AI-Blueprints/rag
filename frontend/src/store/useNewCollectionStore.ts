@@ -50,6 +50,14 @@ interface CatalogMetadata {
 }
 
 /**
+ * Collection configuration settings for ingestion behavior.
+ */
+interface CollectionConfiguration {
+  /** Whether to generate summaries when uploading documents */
+  generateSummary: boolean;
+}
+
+/**
  * State interface for the new collection creation flow.
  */
 interface NewCollectionState {
@@ -64,6 +72,8 @@ interface NewCollectionState {
   hasInvalidFiles: boolean;
   // Catalog metadata
   catalogMetadata: CatalogMetadata;
+  // Collection configuration
+  collectionConfig: CollectionConfiguration;
   setCollectionName: (name: string) => void;
   setCollectionNameTouched: (touched: boolean) => void;
   setMetadataSchema: (schema: UIMetadataField[]) => void;
@@ -73,6 +83,8 @@ interface NewCollectionState {
   setHasInvalidFiles: (hasInvalidFiles: boolean) => void;
   // Catalog metadata setters
   setCatalogMetadata: (updates: Partial<CatalogMetadata>) => void;
+  // Collection configuration setters
+  setCollectionConfig: (updates: Partial<CollectionConfiguration>) => void;
   addFiles: (files: File[]) => void;
   setFiles: (files: File[]) => void;
   removeFile: (index: number) => void;
@@ -104,6 +116,10 @@ const defaultCatalogMetadata: CatalogMetadata = {
   status: 'Active',
 };
 
+const defaultCollectionConfig: CollectionConfiguration = {
+  generateSummary: true,
+};
+
 export const useNewCollectionStore = create<NewCollectionState>((set, get) => ({
   collectionName: "",
   collectionNameTouched: false,
@@ -115,6 +131,7 @@ export const useNewCollectionStore = create<NewCollectionState>((set, get) => ({
   error: null,
   hasInvalidFiles: false,
   catalogMetadata: { ...defaultCatalogMetadata },
+  collectionConfig: { ...defaultCollectionConfig },
 
   setCollectionName: (name) => set({ collectionName: name }),
   setCollectionNameTouched: (touched) => set({ collectionNameTouched: touched }),
@@ -124,6 +141,9 @@ export const useNewCollectionStore = create<NewCollectionState>((set, get) => ({
   setHasInvalidFiles: (hasInvalidFiles) => set({ hasInvalidFiles }),
   setCatalogMetadata: (updates) => set((state) => ({
     catalogMetadata: { ...state.catalogMetadata, ...updates }
+  })),
+  setCollectionConfig: (updates) => set((state) => ({
+    collectionConfig: { ...state.collectionConfig, ...updates }
   })),
 
   setMetadataSchema: (schema) => {
@@ -266,5 +286,6 @@ export const useNewCollectionStore = create<NewCollectionState>((set, get) => ({
       error: null,
       hasInvalidFiles: false,
       catalogMetadata: { ...defaultCatalogMetadata },
+      collectionConfig: { ...defaultCollectionConfig },
     }),
 }));

@@ -101,7 +101,17 @@ describe('AdvancedSettingsSection', () => {
     const onStopTokensChange = vi.fn();
     render(<AdvancedSettingsSection stopTokensInput="" onStopTokensChange={onStopTokensChange} />);
     
-    fireEvent.change(screen.getByTestId('stop-tokens-input'), { target: { value: 'new tokens' } });
-    expect(onStopTokensChange).toHaveBeenCalledWith('new tokens');
+    // KUI TextInput wraps the actual input, find the actual input element
+    const inputWrapper = screen.getByTestId('stop-tokens-input');
+    const actualInput = inputWrapper.querySelector('input');
+    
+    if (actualInput) {
+      fireEvent.change(actualInput, { target: { value: 'new tokens' } });
+      expect(onStopTokensChange).toHaveBeenCalledWith('new tokens');
+    } else {
+      // If it's already the input element directly
+      fireEvent.change(inputWrapper, { target: { value: 'new tokens' } });
+      expect(onStopTokensChange).toHaveBeenCalledWith('new tokens');
+    }
   });
-}); 
+});

@@ -20,9 +20,9 @@ vi.mock('../../notifications/NotificationBell', () => ({
   default: () => <div data-testid="notification-bell">Bell</div>
 }));
 
-// Mock logo import
-vi.mock('../../../assets/logo.svg', () => ({
-  default: 'mock-logo.svg'
+// Mock NvidiaLogo component
+vi.mock('../../icons/NvidiaLogo', () => ({
+  default: () => <svg data-testid="nv-logo-element">Logo</svg>
 }));
 
 describe('Header', () => {
@@ -35,9 +35,7 @@ describe('Header', () => {
     it('renders logo and title', () => {
       render(<Header />);
       
-      // KUI Logo renders multiple logo elements, check they exist
-      const logoElements = screen.getAllByTestId('nv-logo-root');
-      expect(logoElements).toHaveLength(2); // KUI renders two logo sizes
+      expect(screen.getByTestId('nv-logo-element')).toBeInTheDocument();
       expect(screen.getByText('RAG Blueprint')).toBeInTheDocument();
     });
 
@@ -53,15 +51,11 @@ describe('Header', () => {
   });
 
   describe('Navigation Behavior', () => {
-    it('renders KUI AppBar with logo area', () => {
+    it('renders KUI AppBar with logo', () => {
       render(<Header />);
       
-      // KUI Logo renders multiple logo elements 
-      const logoElements = screen.getAllByTestId('nv-logo-root');
-      expect(logoElements).toHaveLength(2);
-      
-      // KUI AppBar handles the overall header structure
-      expect(screen.getByTestId('nv-app-bar-root')).toBeInTheDocument();
+      expect(screen.getByTestId('nv-logo-element')).toBeInTheDocument();
+      expect(screen.getByText('RAG Blueprint')).toBeInTheDocument();
     });
 
     it('navigates to settings when on home page', () => {
@@ -96,12 +90,10 @@ describe('Header', () => {
   });
 
   describe('Button Interactions', () => {
-    it('renders KUI logo structure', () => {
+    it('renders logo element', () => {
       render(<Header />);
       
-      // KUI Logo renders multiple logo elements 
-      const logoElements = screen.getAllByTestId('nv-logo-root');
-      expect(logoElements).toHaveLength(2);
+      expect(screen.getByTestId('nv-logo-element')).toBeInTheDocument();
     });
 
     it('has clickable settings button', () => {
@@ -110,4 +102,4 @@ describe('Header', () => {
       expect(settingsButton).toBeInTheDocument();
     });
   });
-}); 
+});

@@ -3,6 +3,8 @@ import { render, screen } from '../../../test/utils';
 import { DocumentsList } from '../DocumentsList';
 import * as useCollectionDocumentsModule from '../../../api/useCollectionDocuments';
 import * as useCollectionDrawerStoreModule from '../../../store/useCollectionDrawerStore';
+import type { UseQueryResult } from '@tanstack/react-query';
+import type { CollectionDocumentsResponse } from '../../../types/api';
 
 describe('DocumentsList', () => {
   beforeEach(() => {
@@ -20,7 +22,7 @@ describe('DocumentsList', () => {
       isPending: false,
       isLoadingError: false,
       isRefetchError: false
-    } as any);
+    } as UseQueryResult<CollectionDocumentsResponse, Error>);
 
     render(<DocumentsList />);
     expect(screen.getByText('Loading documents...')).toBeInTheDocument();
@@ -35,7 +37,7 @@ describe('DocumentsList', () => {
       isPending: false,
       isLoadingError: false,
       isRefetchError: false
-    } as any);
+    } as UseQueryResult<CollectionDocumentsResponse, Error>);
 
     render(<DocumentsList />);
     expect(screen.getByText('Failed to load documents')).toBeInTheDocument();
@@ -50,7 +52,7 @@ describe('DocumentsList', () => {
       },
       isLoading: false,
       error: null
-    } as any);
+    } as UseQueryResult<CollectionDocumentsResponse, Error>);
 
     render(<DocumentsList />);
     expect(screen.getByText('No documents yet')).toBeInTheDocument();
@@ -68,10 +70,10 @@ describe('DocumentsList', () => {
       },
       isLoading: false,
       error: null
-    } as any);
+    } as UseQueryResult<CollectionDocumentsResponse, Error>);
 
     render(<DocumentsList />);
     expect(screen.getByText('doc1.pdf')).toBeInTheDocument();
     expect(screen.getByText('doc2.txt')).toBeInTheDocument();
   });
-}); 
+});

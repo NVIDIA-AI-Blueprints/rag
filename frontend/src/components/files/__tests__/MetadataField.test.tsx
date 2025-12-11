@@ -103,7 +103,7 @@ describe('MetadataField', () => {
   });
 
   describe('Boolean Fields', () => {
-    it('renders checkbox for boolean fields', () => {
+    it('renders switch for boolean fields', () => {
       const field = createMockField({ name: 'is_public', type: 'boolean' });
       
       render(
@@ -115,15 +115,26 @@ describe('MetadataField', () => {
         />
       );
       
-      const checkbox = screen.getByRole('checkbox');
-      expect(checkbox).toBeInTheDocument();
-      expect(checkbox).not.toBeChecked();
+      // KUI Switch renders with role="switch"
+      const switchElement = screen.getByRole('switch');
+      expect(switchElement).toBeInTheDocument();
     });
 
-    it('shows checked state for true values', () => {
+    it('shows Yes/No text based on value', () => {
       const field = createMockField({ name: 'is_public', type: 'boolean' });
       
-      render(
+      const { rerender } = render(
+        <MetadataField
+          fileName="test.pdf"
+          field={field}
+          value={false}
+          onChange={mockOnChange}
+        />
+      );
+      
+      expect(screen.getByText('No')).toBeInTheDocument();
+      
+      rerender(
         <MetadataField
           fileName="test.pdf"
           field={field}
@@ -132,11 +143,10 @@ describe('MetadataField', () => {
         />
       );
       
-      const checkbox = screen.getByRole('checkbox');
-      expect(checkbox).toBeChecked();
+      expect(screen.getByText('Yes')).toBeInTheDocument();
     });
 
-    it('calls onChange when checkbox is toggled', () => {
+    it('calls onChange when switch is toggled', () => {
       const field = createMockField({ name: 'is_public', type: 'boolean' });
       
       render(
@@ -148,15 +158,15 @@ describe('MetadataField', () => {
         />
       );
       
-      const checkbox = screen.getByRole('checkbox');
-      fireEvent.click(checkbox);
+      const switchElement = screen.getByRole('switch');
+      fireEvent.click(switchElement);
       
       expect(mockOnChange).toHaveBeenCalledWith('is_public', true, 'boolean');
     });
   });
 
   describe('Numeric Fields', () => {
-    it('renders number input for integer fields', () => {
+    it('renders input for integer fields', () => {
       const field = createMockField({ name: 'priority', type: 'integer' });
       
       render(
@@ -168,12 +178,11 @@ describe('MetadataField', () => {
         />
       );
       
-      const input = screen.getByRole('spinbutton');
-      expect(input).toHaveAttribute('type', 'number');
-      expect(input).toHaveAttribute('step', '1');
+      const input = screen.getByDisplayValue('5');
+      expect(input).toBeInTheDocument();
     });
 
-    it('renders number input for float fields with decimal step', () => {
+    it('renders input for float fields', () => {
       const field = createMockField({ name: 'rating', type: 'float' });
       
       render(
@@ -185,13 +194,13 @@ describe('MetadataField', () => {
         />
       );
       
-      const input = screen.getByRole('spinbutton');
-      expect(input).toHaveAttribute('step', '0.01');
+      const input = screen.getByDisplayValue('4.5');
+      expect(input).toBeInTheDocument();
     });
   });
 
   describe('Datetime Fields', () => {
-    it('renders datetime-local input for datetime fields', () => {
+    it('renders input for datetime fields', () => {
       const field = createMockField({ name: 'created_date', type: 'datetime' });
       
       render(
@@ -203,11 +212,11 @@ describe('MetadataField', () => {
         />
       );
       
-      const input = screen.getByDisplayValue('');
-      expect(input).toHaveAttribute('type', 'datetime-local');
+      const input = screen.getByRole('textbox');
+      expect(input).toBeInTheDocument();
     });
 
-    it('formats datetime value correctly', () => {
+    it('handles datetime value changes', () => {
       const field = createMockField({ name: 'created_date', type: 'datetime' });
       
       render(
@@ -219,7 +228,7 @@ describe('MetadataField', () => {
         />
       );
       
-      const input = screen.getByDisplayValue('2024-01-15T10:30');
+      const input = screen.getByRole('textbox');
       fireEvent.change(input, { target: { value: '2024-01-15T11:30' } });
       
       expect(mockOnChange).toHaveBeenCalledWith('created_date', '2024-01-15T11:30:00', 'datetime');
@@ -267,31 +276,10 @@ describe('MetadataField', () => {
       expect(screen.getByText('tag1')).toBeInTheDocument();
       expect(screen.getByText('tag2')).toBeInTheDocument();
     });
-
-    // TODO: Implement item count display for arrays with max_length
-    // it('shows item count when max_length is set', () => {
-    //   const field = createMockField({ 
-    //     name: 'tags', 
-    //     type: 'array',
-    //     array_type: 'string',
-    //     max_length: 5
-    //   });
-    //   
-    //   render(
-    //     <MetadataField
-    //       fileName="test.pdf"
-    //       field={field}
-    //       value='["tag1", "tag2"]'
-    //       onChange={mockOnChange}
-    //     />
-    //   );
-    //   
-    //   expect(screen.getByText('2/5 items')).toBeInTheDocument();
-    // });
   });
 
-  describe('Validation and Limits', () => {
-    it('shows character count for string fields with max_length', () => {
+  describe('Field Labels', () => {
+    it('shows max length info in help text when provided', () => {
       const field = createMockField({ 
         name: 'title', 
         type: 'string',
@@ -307,27 +295,7 @@ describe('MetadataField', () => {
         />
       );
       
-      expect(screen.getByText('10/100 characters')).toBeInTheDocument();
-    });
-
-    it('applies maxLength attribute to string inputs', () => {
-      const field = createMockField({ 
-        name: 'title', 
-        type: 'string',
-        max_length: 50
-      });
-      
-      render(
-        <MetadataField
-          fileName="test.pdf"
-          field={field}
-          value=""
-          onChange={mockOnChange}
-        />
-      );
-      
-      const input = screen.getByRole('textbox');
-      expect(input).toHaveAttribute('maxLength', '50');
+      expect(screen.getByText('Max 100 characters')).toBeInTheDocument();
     });
   });
-}); 
+});

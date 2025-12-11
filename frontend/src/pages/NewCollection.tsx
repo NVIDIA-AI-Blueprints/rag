@@ -17,6 +17,7 @@ import { useEffect, useCallback, useState } from "react";
 import NvidiaUpload from "../components/files/NvidiaUpload";
 import MetadataSchemaEditor from "../components/schema/MetadataSchemaEditor";
 import NewCollectionButtons from "../components/collections/NewCollectionButtons";
+import { CollectionConfigurationPanel } from "../components/collections/CollectionConfigurationPanel";
 import { useNewCollectionStore } from "../store/useNewCollectionStore";
 import { Block, FormField, Grid, GridItem, PageHeader, Panel, Stack, TextInput, Select, Text, Tag, Flex } from "@kui/react";
 import { X, ChevronDown, BookOpen } from "lucide-react";
@@ -190,6 +191,8 @@ export default function NewCollection() {
     setCollectionNameTouched, 
     catalogMetadata,
     setCatalogMetadata,
+    collectionConfig,
+    setCollectionConfig,
     reset 
   } = useNewCollectionStore();
 
@@ -253,6 +256,12 @@ export default function NewCollection() {
               setCatalogMetadata={setCatalogMetadata}
               onAddTag={handleAddTag}
               onRemoveTag={handleRemoveTag}
+            />
+
+            {/* Collection Configuration Section */}
+            <CollectionConfigurationPanel
+              generateSummary={collectionConfig.generateSummary}
+              onGenerateSummaryChange={(value) => setCollectionConfig({ generateSummary: value })}
             />
 
             <MetadataSchemaEditor />

@@ -10,6 +10,14 @@ vi.mock('../../../store/useSettingsStore', () => ({
   useSettingsStore: () => mockUseSettingsStore()
 }));
 
+// Mock useTheme hook
+vi.mock('../../../hooks/useTheme', () => ({
+  useTheme: () => ({
+    isDark: true,
+    toggleTheme: vi.fn()
+  })
+}));
+
 describe('AdvancedSection', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -141,12 +149,15 @@ describe('AdvancedSection', () => {
 
       render(<AdvancedSection />);
       
-      const toggle = screen.getByRole('switch');
-      await user.click(toggle);
+      // There are multiple switches (Theme and Local Storage), get the second one
+      const toggles = screen.getAllByRole('switch');
+      // Local Storage toggle is the second one
+      const localStorageToggle = toggles[1];
+      await user.click(localStorageToggle);
       
       expect(mockSet).toHaveBeenCalledWith({ useLocalStorage: true });
     });
   });
 
 
-}); 
+});

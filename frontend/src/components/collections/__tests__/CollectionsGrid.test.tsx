@@ -2,11 +2,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '../../../test/utils';
 import { CollectionsGrid } from '../CollectionsGrid';
 
+import type { Collection } from '../../../types/collections';
+
 // Mock API hook
 const mockUseCollections = {
-  data: null as any,
+  data: null as Collection[] | null,
   isLoading: false,
-  error: null as any
+  error: null as Error | null
 };
 
 vi.mock('../../../api/useCollectionsApi', () => ({

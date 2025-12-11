@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { Text, Flex, Stack, Badge, Tag, Divider } from "@kui/react";
+import { Text, Flex, Stack, Badge, Tag, Divider, Panel } from "@kui/react";
 import { User, Building2, Calendar, FileText, Table, BarChart3, Image } from "lucide-react";
 import type { Collection } from "../../types/collections";
 
@@ -49,113 +49,115 @@ export function CollectionCatalogInfo({ collection }: CollectionCatalogInfoProps
   };
 
   return (
-    <Stack gap="density-md" style={{ padding: 'var(--spacing-density-md)' }}>
-      {/* Description */}
-      {info.description && (
-        <div>
-          <Text kind="body/regular/sm" style={{ color: 'var(--text-color-subtle)' }}>
-            {info.description}
-          </Text>
-        </div>
-      )}
-
-      {/* Tags */}
-      {info.tags && info.tags.length > 0 && (
-        <Flex gap="density-xs" style={{ flexWrap: 'wrap' }}>
-          {info.tags.map((tag) => (
-            <Tag key={tag} color="gray" kind="outline" density="compact">
-              {tag}
-            </Tag>
-          ))}
-        </Flex>
-      )}
-
-      <Divider />
-
-      {/* Metadata Grid */}
-      <Flex gap="density-lg" style={{ flexWrap: 'wrap' }}>
-        {/* Owner */}
-        {info.owner && (
-          <Flex align="center" gap="density-xs">
-            <User size={14} style={{ color: 'var(--text-color-subtle)' }} />
-            <Text kind="body/regular/xs" style={{ color: 'var(--text-color-subtle)' }}>
-              {info.owner}
+    <Panel elevation="high" density="compact">
+      <Stack gap="density-md" style={{ padding: 'var(--spacing-density-md)' }}>
+        {/* Description */}
+        {info.description && (
+          <div>
+            <Text kind="body/regular/sm">
+              {info.description}
             </Text>
+          </div>
+        )}
+
+        {/* Tags */}
+        {info.tags && info.tags.length > 0 && (
+          <Flex gap="density-xs" style={{ flexWrap: 'wrap' }}>
+            {info.tags.map((tag) => (
+              <Tag key={tag} color="gray" kind="outline" density="compact" readOnly>
+                {tag}
+              </Tag>
+            ))}
           </Flex>
         )}
 
-        {/* Business Domain */}
-        {info.business_domain && (
-          <Flex align="center" gap="density-xs">
-            <Building2 size={14} style={{ color: 'var(--text-color-subtle)' }} />
-            <Text kind="body/regular/xs" style={{ color: 'var(--text-color-subtle)' }}>
-              {info.business_domain}
-            </Text>
-          </Flex>
-        )}
+        <Divider />
 
-        {/* Status */}
-        {info.status && (
-          <Badge color={getStatusColor(info.status)} kind="solid">
-            {info.status}
-          </Badge>
-        )}
-      </Flex>
-
-      {/* Content Metrics */}
-      <Flex gap="density-md" style={{ flexWrap: 'wrap' }}>
-        {/* File Count */}
-        {info.number_of_files !== undefined && (
-          <Flex align="center" gap="density-xs">
-            <FileText size={14} style={{ color: 'var(--text-color-subtle)' }} />
-            <Text kind="body/regular/xs">
-              {info.number_of_files} files
-            </Text>
-          </Flex>
-        )}
-
-        {/* Content Type Indicators */}
-        {info.has_tables && (
-          <Flex align="center" gap="density-xs">
-            <Table size={14} style={{ color: 'var(--color-brand)' }} />
-            <Text kind="body/regular/xs">Tables</Text>
-          </Flex>
-        )}
-
-        {info.has_charts && (
-          <Flex align="center" gap="density-xs">
-            <BarChart3 size={14} style={{ color: 'var(--color-brand)' }} />
-            <Text kind="body/regular/xs">Charts</Text>
-          </Flex>
-        )}
-
-        {info.has_images && (
-          <Flex align="center" gap="density-xs">
-            <Image size={14} style={{ color: 'var(--color-brand)' }} />
-            <Text kind="body/regular/xs">Images</Text>
-          </Flex>
-        )}
-      </Flex>
-
-      {/* Dates */}
-      {(info.date_created || info.last_updated) && (
+        {/* Metadata Grid */}
         <Flex gap="density-lg" style={{ flexWrap: 'wrap' }}>
-          {info.date_created && (
+          {/* Owner */}
+          {info.owner && (
             <Flex align="center" gap="density-xs">
-              <Calendar size={14} style={{ color: 'var(--text-color-subtle)' }} />
-              <Text kind="body/regular/xs" style={{ color: 'var(--text-color-subtle)' }}>
-                Created: {formatDate(info.date_created)}
+              <User size={14} style={{ color: 'var(--text-color-subtle)' }} />
+              <Text kind="body/regular/sm" style={{ color: 'var(--text-color-subtle)' }}>
+                {info.owner}
               </Text>
             </Flex>
           )}
-          {info.last_updated && (
-            <Text kind="body/regular/xs" style={{ color: 'var(--text-color-subtle)' }}>
-              Updated: {formatDate(info.last_updated)}
-            </Text>
+
+          {/* Business Domain */}
+          {info.business_domain && (
+            <Flex align="center" gap="density-xs">
+              <Building2 size={14} style={{ color: 'var(--text-color-subtle)' }} />
+              <Text kind="body/regular/sm" style={{ color: 'var(--text-color-subtle)' }}>
+                {info.business_domain}
+              </Text>
+            </Flex>
+          )}
+
+          {/* Status */}
+          {info.status && (
+            <Badge color={getStatusColor(info.status)} kind="solid">
+              {info.status}
+            </Badge>
           )}
         </Flex>
-      )}
-    </Stack>
+
+        {/* Dates */}
+        {(info.date_created || info.last_updated) && (
+          <Flex gap="density-lg" style={{ flexWrap: 'wrap' }}>
+            {info.date_created && (
+              <Flex align="center" gap="density-xs">
+                <Calendar size={14} style={{ color: 'var(--text-color-subtle)' }} />
+                <Text kind="body/regular/sm" style={{ color: 'var(--text-color-subtle)' }}>
+                  Created: {formatDate(info.date_created)}
+                </Text>
+              </Flex>
+            )}
+            {info.last_updated && (
+              <Text kind="body/regular/sm" style={{ color: 'var(--text-color-subtle)' }}>
+                Updated: {formatDate(info.last_updated)}
+              </Text>
+            )}
+          </Flex>
+        )}
+
+        {/* Content Metrics */}
+        <Flex gap="density-md" style={{ flexWrap: 'wrap' }}>
+          {/* File Count */}
+          {info.number_of_files !== undefined && (
+            <Flex align="center" gap="density-xs">
+              <FileText size={14} style={{ color: 'var(--text-color-subtle)' }} />
+              <Text kind="body/regular/sm">
+                {info.number_of_files} files
+              </Text>
+            </Flex>
+          )}
+
+          {/* Content Type Indicators */}
+          {info.has_tables && (
+            <Flex align="center" gap="density-xs">
+              <Table size={14} style={{ color: 'var(--color-brand)' }} />
+              <Text kind="body/regular/sm">Tables</Text>
+            </Flex>
+          )}
+
+          {info.has_charts && (
+            <Flex align="center" gap="density-xs">
+              <BarChart3 size={14} style={{ color: 'var(--color-brand)' }} />
+              <Text kind="body/regular/sm">Charts</Text>
+            </Flex>
+          )}
+
+          {info.has_images && (
+            <Flex align="center" gap="density-xs">
+              <Image size={14} style={{ color: 'var(--color-brand)' }} />
+              <Text kind="body/regular/sm">Images</Text>
+            </Flex>
+          )}
+        </Flex>
+      </Stack>
+    </Panel>
   );
 }
 

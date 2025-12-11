@@ -33,6 +33,7 @@ export function useSubmitNewCollection() {
     fileMetadata,
     selectedFiles,
     catalogMetadata,
+    collectionConfig,
     setIsLoading,
     setUploadComplete,
     setError,
@@ -181,7 +182,7 @@ export function useSubmitNewCollection() {
         const metadata = {
           collection_name: collectionName,
           blocking: false,
-          generate_summary: true,
+          generate_summary: collectionConfig.generateSummary,
           custom_metadata: selectedFiles.map((file) => {
             const rawFileMetadata = fileMetadata[file.name] || {};
             // Process metadata values to convert array JSON strings back to arrays and handle types
