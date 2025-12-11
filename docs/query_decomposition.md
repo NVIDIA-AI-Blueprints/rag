@@ -42,16 +42,6 @@ The response with query decomposition is:
     "Naples"
 ```
 
-The following table shows some approximate accuracy improvements from enabling query decomposition across datasets.
-
-| Dataset       | Type        | Accuracy with Query Decomposition | Accuracy without Query Decomposition |
-|---------------|-------------|-----------------------------------|--------------------------------------|
-| rag battle    | Multimodal  | 0.854                             | 0.809                                |
-| finance bench | Multimodal  | 0.631                             | 0.633                                |
-| bo767         | Multimodal  | 0.885                             | 0.910                                |
-| HotpotQA      | Text only   | 0.725                             | 0.671                                |
-| Google Frames | Multimodal  | 0.600                             | 0.509                                |
-
 
 
 ## Docker Deployment

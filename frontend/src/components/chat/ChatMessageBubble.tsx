@@ -13,8 +13,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { useMemo } from "react";
-import type { ChatMessage } from "../../types/chat";
+import { useMemo, useState } from "react";
+import type { ChatMessage, MessageContent as MessageContentType } from "../../types/chat";
 import { useStreamingStore } from "../../store/useStreamingStore";
 import { MessageContent } from "./MessageContent";
 import { StreamingIndicator } from "./StreamingIndicator";
@@ -23,8 +23,40 @@ import {
   Block, 
   Flex, 
   Stack, 
-  Panel
+  Panel,
+  Modal
 } from "@kui/react";
+
+/**
+ * Extracts text content from multimodal content.
+ */
+const extractTextFromContent = (content: MessageContentType): string => {
+  if (typeof content === "string") {
+    return content;
+  }
+  if (Array.isArray(content)) {
+    return content
+      .filter((item) => item.type === "text")
+      .map((item) => (item as { type: "text"; text: string }).text)
+      .join("\n");
+  }
+  return "";
+};
+
+/**
+ * Extracts image URLs from multimodal content.
+ */
+const extractImagesFromContent = (content: MessageContentType): string[] => {
+  if (typeof content === "string") {
+    return [];
+  }
+  if (Array.isArray(content)) {
+    return content
+      .filter((item) => item.type === "image_url")
+      .map((item) => (item as { type: "image_url"; image_url: { url: string } }).image_url.url);
+  }
+  return [];
+};
 
 interface ChatMessageBubbleProps {
   msg: ChatMessage;
@@ -61,25 +93,109 @@ const MessageContainer = ({
   </Flex>
 );
 
-const StreamingMessage = ({ content, isError = false }: { content: string; isError?: boolean }) => (
-  <MessageContainer role="assistant" isError={isError}>
-    <Flex align="center" gap="2">
-      <MessageContent content={content} />
-      {!content && <StreamingIndicator />}
-    </Flex>
-  </MessageContainer>
+const StreamingMessage = ({ content, isError = false }: { content: MessageContentType; isError?: boolean }) => {
+  const textContent = extractTextFromContent(content);
+  return (
+    <MessageContainer role="assistant" isError={isError}>
+      <Flex align="center" gap="2">
+        <MessageContent content={textContent} />
+        {!textContent && <StreamingIndicator />}
+      </Flex>
+    </MessageContainer>
+  );
+};
+
+/**
+ * Renders an image thumbnail in a message (clickable to open full size).
+ */
+const MessageImage = ({ src, onClick }: { src: string; onClick: () => void }) => (
+  <button
+    onClick={onClick}
+    style={{
+      borderRadius: "8px",
+      overflow: "hidden",
+      maxWidth: "200px",
+      maxHeight: "200px",
+      border: "none",
+      padding: 0,
+      cursor: "pointer",
+      background: "transparent",
+    }}
+    title="Click to view full size"
+  >
+    <img
+      src={src}
+      alt="Attached image"
+      style={{
+        width: "100%",
+        height: "100%",
+        objectFit: "contain",
+        display: "block",
+      }}
+    />
+  </button>
 );
 
-const RegularMessage = ({ msg }: { msg: ChatMessage }) => (
-  <MessageContainer role={msg.role} isError={msg.is_error}>
-    <Stack gap="2">
-      <Block>
-        <MessageContent content={msg.content ?? ""} />
-      </Block>
-      {msg.citations?.length && <CitationButton citations={msg.citations} />}
-    </Stack>
-  </MessageContainer>
+/**
+ * Modal to display full-size image.
+ */
+const ImageModal = ({ src, open, onClose }: { src: string | null; open: boolean; onClose: () => void }) => (
+  <Modal
+    open={open}
+    onOpenChange={(isOpen) => !isOpen && onClose()}
+    slotHeading=""
+  >
+    {src && (
+      <img
+        src={src}
+        alt="Full size image"
+        style={{
+          maxWidth: "80vw",
+          maxHeight: "80vh",
+          objectFit: "contain",
+        }}
+      />
+    )}
+  </Modal>
 );
+
+const RegularMessage = ({ msg }: { msg: ChatMessage }) => {
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const textContent = extractTextFromContent(msg.content ?? "");
+  const images = extractImagesFromContent(msg.content ?? "");
+  
+  return (
+    <>
+      <MessageContainer role={msg.role} isError={msg.is_error}>
+        <Stack gap="2">
+          {/* Render images first for user messages */}
+          {images.length > 0 && (
+            <Flex gap="2" wrap="wrap">
+              {images.map((imgUrl, idx) => (
+                <MessageImage 
+                  key={idx} 
+                  src={imgUrl} 
+                  onClick={() => setSelectedImage(imgUrl)}
+                />
+              ))}
+            </Flex>
+          )}
+          {/* Always render text content block to maintain structure */}
+          <Block>
+            <MessageContent content={textContent} />
+          </Block>
+          {msg.citations?.length && <CitationButton citations={msg.citations} />}
+        </Stack>
+      </MessageContainer>
+      
+      <ImageModal 
+        src={selectedImage} 
+        open={!!selectedImage} 
+        onClose={() => setSelectedImage(null)} 
+      />
+    </>
+  );
+};
 
 export default function ChatMessageBubble({ msg }: ChatMessageBubbleProps) {
   const { isStreaming, streamingMessageId } = useStreamingStore();
@@ -92,7 +208,7 @@ export default function ChatMessageBubble({ msg }: ChatMessageBubbleProps) {
   );
 
   if (isThisMessageStreaming) {
-    return <StreamingMessage content={msg.content ?? ""} isError={msg.is_error} />;
+    return <StreamingMessage content={msg.content} isError={msg.is_error} />;
   }
 
   return <RegularMessage msg={msg} />;

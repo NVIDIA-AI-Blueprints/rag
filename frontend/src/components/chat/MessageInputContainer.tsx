@@ -13,17 +13,99 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { useState, useCallback } from "react";
 import { MessageTextarea } from "./MessageTextarea";
 import { MessageActions } from "./MessageActions";
 import { ChatActionsMenu } from "./ChatActionsMenu";
-import { Block } from "@kui/react";
+import { ImagePreview } from "./ImagePreview";
+import { Block, Flex } from "@kui/react";
+import {
+  useImageAttachmentStore,
+  fileToBase64,
+  isValidImageFile,
+  MAX_IMAGE_SIZE,
+} from "../../store/useImageAttachmentStore";
+import { useToastStore } from "../../store/useToastStore";
 
-export const MessageInputContainer = () => (
-  <Block style={{ position: 'relative' }}>
-    <MessageTextarea />
-    <Block style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }}>
-      <ChatActionsMenu />
-    </Block>
-    <MessageActions />
-  </Block>
-); 
+export const MessageInputContainer = () => {
+  const { attachedImages, addImage } = useImageAttachmentStore();
+  const { showToast } = useToastStore();
+  const [isDragOver, setIsDragOver] = useState(false);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+  }, []);
+
+  const handleDrop = useCallback(
+    async (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDragOver(false);
+
+      const files = e.dataTransfer.files;
+      if (!files || files.length === 0) return;
+
+      for (const file of Array.from(files)) {
+        if (!isValidImageFile(file)) {
+          showToast(`"${file.name}" is not a valid image file`, "warning");
+          continue;
+        }
+
+        if (file.size > MAX_IMAGE_SIZE) {
+          showToast(`"${file.name}" is too large (max 10MB)`, "warning");
+          continue;
+        }
+
+        try {
+          const base64 = await fileToBase64(file);
+          addImage(base64, file.name);
+        } catch (error) {
+          console.error("Failed to read dropped image:", error);
+          showToast(`Failed to read "${file.name}"`, "error");
+        }
+      }
+    },
+    [addImage, showToast]
+  );
+
+  return (
+    <Flex direction="col" gap="2">
+      {/* Image previews above input */}
+      {attachedImages.length > 0 && <ImagePreview />}
+
+      {/* Input container with drag & drop */}
+      <Block
+        style={{
+          position: "relative",
+          border: isDragOver ? "2px dashed var(--nv-green)" : "2px solid transparent",
+          borderRadius: "8px",
+          transition: "border-color 0.2s ease",
+        }}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
+        <MessageTextarea />
+        <Block
+          style={{
+            position: "absolute",
+            left: "12px",
+            top: "50%",
+            transform: "translateY(-50%)",
+          }}
+        >
+          <ChatActionsMenu />
+        </Block>
+        <MessageActions />
+      </Block>
+    </Flex>
+  );
+}; 

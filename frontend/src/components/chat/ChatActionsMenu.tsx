@@ -13,8 +13,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useChatStore } from "../../store/useChatStore";
+import { useImageAttachmentStore, fileToBase64, isValidImageFile, MAX_IMAGE_SIZE } from "../../store/useImageAttachmentStore";
+import { useToastStore } from "../../store/useToastStore";
 import { Dropdown, Modal, Button, Flex, Text } from "@kui/react";
 
 interface ChatActionItem {
@@ -42,9 +44,18 @@ const TrashIcon = () => (
   </svg>
 );
 
+const ImageIcon = () => (
+  <svg style={{ width: '16px', height: '16px' }} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
+  </svg>
+);
+
 export const ChatActionsMenu = () => {
   const { messages, clearMessages } = useChatStore();
+  const { addImage } = useImageAttachmentStore();
+  const { showToast } = useToastStore();
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleClearChatRequest = () => {
     if (messages.length > 0) {
@@ -61,9 +72,48 @@ export const ChatActionsMenu = () => {
     setShowConfirmModal(false);
   };
 
+  const handleUploadImage = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    for (const file of Array.from(files)) {
+      if (!isValidImageFile(file)) {
+        showToast(`"${file.name}" is not a valid file`, "warning");
+        continue;
+      }
+
+      if (file.size > MAX_IMAGE_SIZE) {
+        showToast(`"${file.name}" is too large (max 10MB)`, "warning");
+        continue;
+      }
+
+      try {
+        const base64 = await fileToBase64(file);
+        addImage(base64, file.name);
+      } catch (error) {
+        console.error("Failed to read image file:", error);
+        showToast(`Failed to read "${file.name}"`, "error");
+      }
+    }
+
+    // Reset input so the same file can be selected again
+    e.target.value = "";
+  };
+
   const hasMessages = messages.length > 0;
 
   const dropdownItems: ChatActionItem[] = [
+    {
+      children: "Add image",
+      slotLeft: <ImageIcon />,
+      disabled: false,
+      danger: false,
+      onSelect: handleUploadImage
+    },
     {
       children: "Clear chat",
       slotLeft: <TrashIcon />,
@@ -75,6 +125,17 @@ export const ChatActionsMenu = () => {
 
   return (
     <>
+      {/* Hidden file input for image upload */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+        multiple
+        onChange={handleFileChange}
+        style={{ display: "none" }}
+        aria-label="Upload image"
+      />
+
       <Dropdown
         items={dropdownItems}
         size="small"
