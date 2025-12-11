@@ -913,8 +913,8 @@ nv-ingest:
     deployed: true
     replicaCount: 1
     image:
-      repository: nvcr.io/nim/nvidia/nemoretriever-page-elements-v2
-      tag: "1.5.0"
+      repository: nvcr.io/nim/nvidia/nemoretriever-page-elements-v3
+      tag: "1.7.0"
     env:
       - name: NIM_HTTP_API_PORT
         value: "8000"
