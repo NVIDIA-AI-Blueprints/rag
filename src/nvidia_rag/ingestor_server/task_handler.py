@@ -179,7 +179,7 @@ class IngestionTaskHandler:
                     task_id=task_id, state=status, result=result
                 ).model_dump()
                 logger.debug(f"Task status result map: {self.task_status_result_map}")
-        logger.info(f"Task {task_id} status set to {status} and result: {result}")
+        logger.debug(f"Task {task_id} status set to {status} and result: {result}")
 
     def get_task_status_and_result(self, task_id: str):
         """
@@ -190,7 +190,7 @@ class IngestionTaskHandler:
             status: The status of the task.
             result: The result of the task.
         """
-        logger.info(
+        logger.debug(
             f"Getting result of task {task_id}, enable_redis_backend: {self._enable_redis_backend}"
         )
         if self._enable_redis_backend:
@@ -205,12 +205,12 @@ class IngestionTaskHandler:
         Returns:
             result: The result of the task.
         """
-        logger.info(
+        logger.debug(
             f"Getting result of task {task_id}, enable_redis_backend: {self._enable_redis_backend}"
         )
         if self._enable_redis_backend:
             return self._redis_client.json().get(task_id).get("result")
-        logger.info(
+        logger.debug(
             f"Task result: {self.task_status_result_map[task_id].get('result')}"
         )
         return self.task_status_result_map[task_id].get("result")
@@ -236,7 +236,7 @@ class IngestionTaskHandler:
                 # Update task_state_map for custom state tracking
                 self.task_state_map[task_id] = state_dict
                 logger.debug(f"Task state map: {self.task_state_map}")
-        logger.info(f"Task {task_id} state_dict set to {state_dict}")
+        logger.debug(f"Task {task_id} state_dict set to {state_dict}")
 
     def get_task_state_dict(self, task_id: str) -> dict[str, Any]:
         """
@@ -246,7 +246,7 @@ class IngestionTaskHandler:
         Returns:
             state_dict: A dictionary containing custom state information for the task.
         """
-        logger.info(
+        logger.debug(
             f"Getting state_dict of task {task_id}, enable_redis_backend: {self._enable_redis_backend}"
         )
         if self._enable_redis_backend:
