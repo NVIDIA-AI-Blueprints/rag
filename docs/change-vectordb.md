@@ -263,31 +263,22 @@ helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprin
 For detailed HELM deployment instructions, see [Helm Deployment Guide](deploy-helm.md).
 
 
-## Using VDB Auth Token at Runtime via APIs (Elasticsearch)
+## Using VDB Auth Token at Runtime via APIs
 
-When using Elasticsearch as the vector database, you can pass a per-request VDB authentication token via the HTTP `Authorization` header. The servers forward this token to Elasticsearch for that request. This enables per-user RBAC or per-request scoping without changing server env configuration.
+When using Elasticsearch as the vector database, you can pass a per-request VDB authentication token via the HTTP `Authorization` header. The servers forward this token to Elasticsearch for that request. This enables per-user authentication or per-request scoping without changing server env configuration.
 
 Prerequisite:
 - Ensure Elasticsearch authentication is enabled so security is enforced. In Elasticsearch this typically requires `xpack.security.enabled=true`. See the "Elasticsearch Authentication" section above for enabling security via Docker Compose or Helm and for obtaining API keys or setting credentials.
 
-### Auth priority in Elasticsearch VDB
-The Elasticsearch VDB operator resolves auth in this order:
-- Bearer auth from the incoming request `Authorization` header (preferred)
-- API Key from config (`APP_VECTORSTORE_APIKEY` or `APP_VECTORSTORE_APIKEY_ID`/`APP_VECTORSTORE_APIKEY_SECRET`)
-- Basic auth username/password from config (`APP_VECTORSTORE_USERNAME`/`APP_VECTORSTORE_PASSWORD`)
-
-If a bearer token is present, it takes precedence over API key and basic auth for that request.
-
 ### Header format
-- Preferred: `Authorization: Bearer <token>`
-- Also accepted: `Authorization: <token>`
 
-What the token represents depends on your Elasticsearch security setup:
-- If using Elasticsearch API keys, you can pass the base64-encoded `id:secret` string as the bearer value.
-- If using a proxy or custom gateway, the bearer value may be an access token minted by your gateway.
-- If using basic auth only, prefer configuring it via env variables; per-request basic via header is not supported by the server wrapper—use bearer or API key via header instead.
+Use bearer authentication in your API requests:
 
-### Ingestor Server examples (Elasticsearch)
+```
+Authorization: Bearer <token>
+```
+
+### Ingestor Server examples
 
 - List documents:
 
@@ -309,7 +300,7 @@ Notes:
 - Set `ES_VDB_TOKEN` to your runtime credential (e.g., base64 of `id:secret` for ES API keys).
 - You may also set `vdb_endpoint` on requests if you need to override the configured `APP_VECTORSTORE_URL`.
 
-### RAG Server examples (Elasticsearch)
+### RAG Server examples
 
 - Search:
 
@@ -345,7 +336,7 @@ curl -N -X POST "$RAG_URL/v1/generate" \
 
 ### Troubleshooting
 - If you receive authentication/authorization errors from Elasticsearch, verify your token (API key validity, scopes, and expiration).
-- Ensure the server is not also configured with conflicting credentials for the same request; bearer token from the header takes precedence at runtime.
+- Ensure the server is not also configured with conflicting credentials for the same request.
 - Confirm that `APP_VECTORSTORE_NAME=elasticsearch` and `APP_VECTORSTORE_URL` are set correctly.
 - If using Helm, see the [Elasticsearch Authentication](#elasticsearch-authentication) section above for configuring API key or basic auth as defaults when a runtime header is not supplied.
 

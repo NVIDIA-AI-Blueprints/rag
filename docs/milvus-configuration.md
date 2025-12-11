@@ -313,7 +313,7 @@ helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/0648981100760671/c
 For detailed HELM deployment instructions, see [Helm Deployment Guide](deploy-helm.md).
 
 
-## Using VDB Auth Token at Runtime via APIs (Milvus)
+## Using VDB Auth Token at Runtime via APIs
 
 NVIDIA RAG Blueprint servers accept a Vector DB (VDB) authentication token via the HTTP `Authorization` header at runtime. This header is forwarded to Milvus for auth-protected operations.
 
@@ -385,16 +385,12 @@ curl -N -X POST "$RAG_URL/v1/generate" \
 ### Notes and troubleshooting
 - If a user lacks privileges on the target collection, the API will return an authorization error (non-200 status). Grant the appropriate collection privileges to the user/role in Milvus (e.g., `Query`, `Search`, `DescribeCollection`, `Load`, `DropCollection`).
 - Header precedence: For Milvus, the VDB token provided at runtime via `Authorization` is used for the request. There is no need to configure `APP_VECTORSTORE_USERNAME`/`APP_VECTORSTORE_PASSWORD` for per-request auth when using headers.
-- Migration note: Request bodies and query parameters should not include `vdb_auth_token` anymore. Use the `Authorization` header.
-
-### End-to-end examples
-- See `tests/integration/test_cases/milvus_vdb_auth.py` for integration tests covering denied/allowed access patterns with Milvus auth.
 
 ### Managing Milvus users and authentication
 
 For detailed guidance on enabling authentication, creating users, updating passwords, and related operations in Milvus, refer to the official Milvus documentation:
 
-- Authenticate User Access (Milvus): https://milvus.io/docs/authenticate.md?tab=docker
+- Authenticate User Access: https://milvus.io/docs/authenticate.md?tab=docker
 
 ## Troubleshooting
 

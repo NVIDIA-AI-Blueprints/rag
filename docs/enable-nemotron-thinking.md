@@ -100,6 +100,48 @@ services:
 ```
 
 
+## LLM Thinking Budget
+
+The **Thinking Budget** feature allows you to control the number of tokens a model generates during its reasoning phase before producing a final answer. This is useful for managing latency and computational costs while still benefiting from the model's reasoning capabilities.
+
+### Overview
+
+When the thinking budget is enabled, the model monitors the token count within the thinking region. Once the specified token limit is reached, the model concludes the reasoning phase and proceeds to generate the final answer. This provides a balance between reasoning depth and response time.
+
+### Supported Models
+
+As of NIM version 1.12, the Thinking Budget feature is supported on the following model:
+
+- **nvidia/nvidia-nemotron-nano-9b-v2**
+
+For the latest supported models, refer to the [NIM Thinking Budget Control documentation](https://docs.nvidia.com/nim/large-language-models/latest/thinking-budget-control.html).
+
+### Enabling Thinking Budget on RAG
+
+To use the thinking budget feature in RAG, include the following parameters in your API request:
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `min_thinking_tokens` | 1 | Minimum number of thinking tokens to allocate for reasoning models. |
+| `max_thinking_tokens` | 8192 | Maximum number of thinking tokens to allocate for reasoning models. |
+
+**Example API request:**
+
+```json
+{
+  "messages": [
+    {
+      "role": "user",
+      "content": "What is the FY2017 operating cash flow ratio for Adobe?"
+    }
+  ],
+  "min_thinking_tokens": 1,
+  "max_thinking_tokens": 8192
+}
+```
+
+**Recommendation:** A `max_thinking_tokens` value of **8192 tokens** is recommended to provide sufficient capacity for comprehensive reasoning while maintaining reasonable response times.
+
 
 ## Related Topics
 
