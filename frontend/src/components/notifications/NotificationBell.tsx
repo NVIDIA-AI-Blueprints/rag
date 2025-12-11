@@ -77,9 +77,9 @@ export default function NotificationBell() {
     }
   }, [hydrate, cleanupDuplicates]);
 
-  // Set global reference for external access
+  // Set global reference for external access (toggle open/close)
   useEffect(() => {
-    globalNotificationToggle = () => setIsOpen(true);
+    globalNotificationToggle = () => setIsOpen(prev => !prev);
     return () => {
       globalNotificationToggle = null;
     };

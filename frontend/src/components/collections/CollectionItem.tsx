@@ -16,6 +16,7 @@
 import { useCallback } from "react";
 import { useCollectionDrawerStore } from "../../store/useCollectionDrawerStore";
 import { useNotificationStore } from "../../store/useNotificationStore";
+import { openNotificationPanel } from "../notifications/NotificationBell";
 import { Button, Flex, Stack, Text } from "@kui/react";
 import type { Collection } from "../../types/collections";
 
@@ -43,9 +44,14 @@ export const CollectionItem = ({ collection }: CollectionItemProps) => {
   const { getPendingTasks } = useNotificationStore();
 
   const pendingTasks = getPendingTasks();
-  const hasPendingTasks = pendingTasks.some(
+  const pendingTask = pendingTasks.find(
     (t) => t.collection_name === collection.collection_name && t.state === "PENDING"
   );
+  const hasPendingTasks = !!pendingTask;
+  
+  // Get progress for display: "3/10"
+  const completedCount = pendingTask?.result?.documents_completed ?? pendingTask?.result?.documents?.length ?? 0;
+  const totalCount = pendingTask?.result?.total_documents ?? 0;
 
   const handleOpenDrawer = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -60,7 +66,18 @@ export const CollectionItem = ({ collection }: CollectionItemProps) => {
           {collection.num_entities.toLocaleString()} entities
         </Text>
       </Stack>
-      {hasPendingTasks ? <SpinnerIcon /> : (
+      {hasPendingTasks ? (
+        <button
+          onClick={openNotificationPanel}
+          className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity bg-transparent border-none p-0"
+          title="View upload progress"
+        >
+          <Text kind="body/regular/sm" className="text-neutral-400">
+            {completedCount}/{totalCount}
+          </Text>
+          <SpinnerIcon />
+        </button>
+      ) : (
         <Button
           onClick={handleOpenDrawer}
           kind="tertiary"

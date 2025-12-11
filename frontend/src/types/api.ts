@@ -63,7 +63,11 @@ export interface IngestionTask {
       document_name: string;
       error_message?: string;
     }[];
-    validation_errors?: unknown[]; // Fill in if needed
+    validation_errors?: unknown[];
+    /** Number of documents completed (for granular progress during PENDING state) */
+    documents_completed?: number;
+    /** Number of batches completed (for granular progress during PENDING state) */
+    batches_completed?: number;
   };
 }
 
