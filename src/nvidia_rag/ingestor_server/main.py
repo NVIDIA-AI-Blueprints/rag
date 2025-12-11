@@ -1882,9 +1882,10 @@ class NvidiaRAGIngestor:
                         i : i + self.config.nv_ingest.files_per_batch
                     ]
                     batch_num = i // self.config.nv_ingest.files_per_batch + 1
+                    total_batches = (len(filepaths) + self.config.nv_ingest.files_per_batch - 1) // self.config.nv_ingest.files_per_batch
                     logger.info(
                         f"=== Batch Processing Status - Collection: {collection_name} - "
-                        f"Processing batch {batch_num} of {len(filepaths) // self.config.nv_ingest.files_per_batch + 1} - "
+                        f"Processing batch {batch_num} of {total_batches} - "
                         f"Documents in current batch: {len(sub_filepaths)} ==="
                     )
                     results, failures = await self.__nv_ingest_ingestion_pipeline(
