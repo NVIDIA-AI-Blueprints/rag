@@ -139,10 +139,10 @@ class IngestionClient:
             raise RuntimeError(f"Failed to create collection: {e}") from e
 
     def delete_collections(self, collection_names: list[str]) -> dict:
-        """Delete collections using DELETE /v1/collections with JSON body [names]."""
+        """Delete collections using DELETE /v1/collections with query params."""
         url = f"{self.base_url}/v1/collections"
         try:
-            resp = requests.delete(url, json=collection_names, timeout=60)
+            resp = requests.delete(url, params={"collection_names": collection_names}, timeout=60)
             if resp.status_code >= 400:
                 try:
                     self.logger.error(

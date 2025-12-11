@@ -501,7 +501,8 @@ class NeMoGuardrailsModule(BaseTestModule):
                 logger.info(f"🗑️ Deleting collection '{collection_name}'")
 
                 async with session.delete(
-                    f"{self.ingestor_server_url}/v1/collections", json=[collection_name]
+                    f"{self.ingestor_server_url}/v1/collections",
+                    params={"collection_names": [collection_name]},
                 ) as response:
                     result = await response.json()
                     if response.status == 200:

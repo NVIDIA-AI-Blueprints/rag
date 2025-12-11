@@ -446,7 +446,7 @@ async def tool_delete_collections(
     url = f"{base_url}/v1/collections"
     timeout_cfg = aiohttp.ClientTimeout(total=60)
     async with aiohttp.ClientSession(timeout=timeout_cfg) as session:
-        async with session.delete(url, json=collection_names) as resp:
+        async with session.delete(url, params={"collection_names": collection_names}) as resp:
             try:
                 return await resp.json()
             except aiohttp.ContentTypeError:

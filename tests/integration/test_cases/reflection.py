@@ -67,7 +67,7 @@ class ReflectionModule(BaseTestModule):
 
                 async with session.delete(
                     f"{self.ingestor_server_url}/v1/collections",
-                    json=[self.COLLECTION_NAME],
+                    params={"collection_names": [self.COLLECTION_NAME]},
                 ) as response:
                     result = await response.json()
                     if response.status == 200:

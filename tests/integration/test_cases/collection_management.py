@@ -1101,7 +1101,7 @@ class CollectionManagementModule(BaseTestModule):
             async with aiohttp.ClientSession() as session:
                 async with session.delete(
                     f"{self.ingestor_server_url}/v1/collections",
-                    json=[collection_name],
+                    params={"collection_names": [collection_name]},
                 ) as response:
                     result = await response.json()
                     if response.status == 200:

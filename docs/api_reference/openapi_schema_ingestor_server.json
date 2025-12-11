@@ -508,19 +508,21 @@
                 ],
                 "summary": "Delete Collections",
                 "operationId": "delete_collections_collections_delete",
-                "requestBody": {
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "type": "array",
-                                "items": {
-                                    "type": "string"
-                                },
-                                "title": "Collection Names"
-                            }
-                        }
+                "parameters": [
+                    {
+                        "name": "collection_names",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            },
+                            "title": "Collection Names"
+                        },
+                        "description": "List of collection names to delete"
                     }
-                },
+                ],
                 "responses": {
                     "200": {
                         "description": "Successful Response",
