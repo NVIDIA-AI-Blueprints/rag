@@ -65,15 +65,6 @@ Before enabling reasoning, the baseline model incorrectly computed Adobe's FY201
 After enabling reasoning, the model produced the correct answer (0.83), demonstrating precise contextual understanding. 
 The answer is found on 2 separate pages of the PDF; page 57 and page 61.
 
-The following table shows some approximate accuracy improvements from enabling reasoning across datasets.
-
-| Dataset       | Type       | Accuracy with Reasoning  | Accuracy without Reasoning |
-|---------------|------------|--------------------------|----------------------------|
-| rag battle    | Multimodal | 0.850                    | 0.809                      |
-| kg rag        | Multimodal | 0.580                    | 0.565                      |
-| finance bench | Multimodal | 0.690                    | 0.633                      |
-| bo767         | Multimodal | 0.880                    | 0.910                      |
-
 
 
 ## Docker and Helm Deployment
