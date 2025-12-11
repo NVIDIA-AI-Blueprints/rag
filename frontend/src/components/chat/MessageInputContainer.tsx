@@ -18,7 +18,8 @@ import { MessageTextarea } from "./MessageTextarea";
 import { MessageActions } from "./MessageActions";
 import { ChatActionsMenu } from "./ChatActionsMenu";
 import { ImagePreview } from "./ImagePreview";
-import { Block, Flex } from "@kui/react";
+import { Block, Flex, Text } from "@kui/react";
+import { ImagePlus } from "lucide-react";
 import {
   useImageAttachmentStore,
   fileToBase64,
@@ -41,7 +42,14 @@ export const MessageInputContainer = () => {
   const handleDragLeave = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setIsDragOver(false);
+    // Only set to false if we're actually leaving the container
+    // (not just moving between child elements)
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX;
+    const y = e.clientY;
+    if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
+      setIsDragOver(false);
+    }
   }, []);
 
   const handleDrop = useCallback(
@@ -85,14 +93,53 @@ export const MessageInputContainer = () => {
       <Block
         style={{
           position: "relative",
-          border: isDragOver ? "2px dashed var(--nv-green)" : "2px solid transparent",
           borderRadius: "8px",
-          transition: "border-color 0.2s ease",
         }}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
+        {/* Drop zone overlay */}
+        {isDragOver && (
+          <Block
+            style={{
+              position: "absolute",
+              inset: 0,
+              zIndex: 10,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: "rgba(118, 185, 0, 0.1)",
+              border: "2px dashed var(--nv-green)",
+              borderRadius: "8px",
+              pointerEvents: "none",
+            }}
+          >
+            <Flex 
+              direction="col" 
+              align="center" 
+              gap="density-sm"
+              style={{ 
+                padding: "16px",
+                backgroundColor: "var(--background-color-surface-raised)",
+                borderRadius: "8px",
+                boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
+              }}
+            >
+              <ImagePlus 
+                size={32} 
+                style={{ color: "var(--nv-green)" }} 
+              />
+              <Text kind="body/bold/md" style={{ color: "var(--nv-green)" }}>
+                Drop images here
+              </Text>
+              <Text kind="body/regular/xs" style={{ color: "var(--text-color-subtle)" }}>
+                JPEG, PNG, GIF, WebP up to 10MB
+              </Text>
+            </Flex>
+          </Block>
+        )}
+
         <MessageTextarea />
         <Block
           style={{

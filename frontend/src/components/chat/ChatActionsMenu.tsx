@@ -19,19 +19,6 @@ import { useImageAttachmentStore, fileToBase64, isValidImageFile, MAX_IMAGE_SIZE
 import { useToastStore } from "../../store/useToastStore";
 import { Dropdown, Modal, Button, Flex, Text } from "@kui/react";
 
-interface ChatActionItem {
-  children: string;
-  slotLeft?: React.ReactNode;
-  disabled?: boolean;
-  danger?: boolean;
-  onSelect: (event: Event) => void;
-}
-
-// Type guard to check if an item has our onSelect method
-const hasOnSelectMethod = (item: unknown): item is ChatActionItem => {
-  return typeof item === 'object' && item !== null && typeof (item as ChatActionItem).onSelect === 'function';
-};
-
 const PlusIcon = () => (
   <svg style={{ width: '14px', height: '14px' }} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
     <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14m7-7H5" />
@@ -56,6 +43,7 @@ export const ChatActionsMenu = () => {
   const { showToast } = useToastStore();
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const fileInputId = "chat-image-upload-input";
 
   const handleClearChatRequest = () => {
     if (messages.length > 0) {
@@ -70,10 +58,6 @@ export const ChatActionsMenu = () => {
 
   const handleCancelClear = () => {
     setShowConfirmModal(false);
-  };
-
-  const handleUploadImage = () => {
-    fileInputRef.current?.click();
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -106,13 +90,29 @@ export const ChatActionsMenu = () => {
 
   const hasMessages = messages.length > 0;
 
-  const dropdownItems: ChatActionItem[] = [
+  // Using a label as the dropdown item content for "Add image" - this is a native
+  // browser pattern that reliably triggers file inputs without timing issues
+  const dropdownItems = [
     {
-      children: "Add image",
-      slotLeft: <ImageIcon />,
-      disabled: false,
-      danger: false,
-      onSelect: handleUploadImage
+      // Wrap in label to make the entire item clickable for file selection
+      children: (
+        <label 
+          htmlFor={fileInputId} 
+          style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: '8px',
+            cursor: 'pointer',
+            width: '100%',
+            margin: '-8px -12px',
+            padding: '8px 12px',
+          }}
+        >
+          <ImageIcon />
+          Add image
+        </label>
+      ),
+      // No onSelect needed - the label handles the file input trigger
     },
     {
       children: "Clear chat",
@@ -128,6 +128,7 @@ export const ChatActionsMenu = () => {
       {/* Hidden file input for image upload */}
       <input
         ref={fileInputRef}
+        id={fileInputId}
         type="file"
         accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
         multiple
@@ -142,11 +143,6 @@ export const ChatActionsMenu = () => {
         side="top"
         align="start"
         aria-label="Chat options"
-        onItemSelect={(event, item) => {
-          if (hasOnSelectMethod(item)) {
-            item.onSelect(event);
-          }
-        }}
         style={{
           color: 'var(--text-color-subtle)'
         }}
