@@ -13,12 +13,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useState } from "react";
 import NvidiaUpload from "../components/files/NvidiaUpload";
 import MetadataSchemaEditor from "../components/schema/MetadataSchemaEditor";
 import NewCollectionButtons from "../components/collections/NewCollectionButtons";
 import { useNewCollectionStore } from "../store/useNewCollectionStore";
-import { Block, FormField, Grid, GridItem, PageHeader, Panel, Stack, TextInput } from "@kui/react";
+import { Block, FormField, Grid, GridItem, PageHeader, Panel, Stack, TextInput, Select, Text, Tag, Flex } from "@kui/react";
+import { X, ChevronDown, BookOpen } from "lucide-react";
 
 /**
  * New Collection page component for creating collections.
@@ -28,8 +29,169 @@ import { Block, FormField, Grid, GridItem, PageHeader, Panel, Stack, TextInput }
  * 
  * @returns The new collection page component
  */
+// Business domain options
+const BUSINESS_DOMAINS = [
+  'Engineering',
+  'Finance', 
+  'Legal',
+  'Marketing',
+  'Operations',
+  'Product',
+  'Sales',
+  'Support',
+  'Other'
+];
+
+// Status options
+const STATUS_OPTIONS = ['Active', 'Archived', 'Deprecated'];
+
+// Catalog Metadata Section Component
+interface CatalogMetadataSectionProps {
+  catalogMetadata: {
+    description: string;
+    tags: string[];
+    owner: string;
+    business_domain: string;
+    status: 'Active' | 'Archived' | 'Deprecated';
+  };
+  setCatalogMetadata: (updates: Partial<CatalogMetadataSectionProps['catalogMetadata']>) => void;
+  onAddTag: (tag: string) => void;
+  onRemoveTag: (tag: string) => void;
+}
+
+function CatalogMetadataSection({ 
+  catalogMetadata, 
+  setCatalogMetadata, 
+  onAddTag, 
+  onRemoveTag 
+}: CatalogMetadataSectionProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [tagInput, setTagInput] = useState('');
+
+  return (
+    <Panel
+      slotHeading={
+        <Flex 
+          align="center" 
+          justify="between" 
+          style={{ width: '100%', cursor: 'pointer' }}
+          onClick={() => setIsExpanded(!isExpanded)}
+        >
+          <span>Data Catalog</span>
+          <ChevronDown 
+            size={16} 
+            style={{ 
+              transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+              transition: 'transform 0.2s ease'
+            }} 
+          />
+        </Flex>
+      }
+      slotIcon={<BookOpen size={20} />}
+    >
+      <Text kind="body/bold/md">
+        Optional metadata for organizing, categorizing, and governing your collections.
+      </Text>
+
+      {isExpanded && (
+        <Stack gap="density-md" style={{ marginTop: 'var(--spacing-density-lg)' }}>
+          <FormField
+            slotLabel="Description"
+            slotHelp="Human-readable description of the collection."
+          >
+            <TextInput
+              value={catalogMetadata.description}
+              onValueChange={(value) => setCatalogMetadata({ description: value })}
+              placeholder="e.g., Q4 2024 Financial Reports"
+            />
+          </FormField>
+
+          <FormField
+            slotLabel="Tags"
+            slotHelp="Tags for categorization and discovery. Press Enter to add."
+          >
+            <Stack gap="density-sm">
+              <TextInput
+                placeholder="Add a tag and press Enter"
+                value={tagInput}
+                onValueChange={setTagInput}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (tagInput.trim()) {
+                      onAddTag(tagInput.trim());
+                      setTagInput('');
+                    }
+                  }
+                }}
+              />
+              {catalogMetadata.tags.length > 0 && (
+                <Flex gap="density-xs" style={{ flexWrap: 'wrap' }}>
+                  {catalogMetadata.tags.map((tag) => (
+                    <Tag
+                      key={tag}
+                      color="gray"
+                      kind="outline"
+                      density="compact"
+                      onClick={() => onRemoveTag(tag)}
+                      style={{ cursor: 'pointer' }}
+                    >
+                      {tag} <X size={12} />
+                    </Tag>
+                  ))}
+                </Flex>
+              )}
+            </Stack>
+          </FormField>
+
+          <FormField
+            slotLabel="Owner"
+            slotHelp="Team or person responsible for this collection."
+          >
+            <TextInput
+              value={catalogMetadata.owner}
+              onValueChange={(value) => setCatalogMetadata({ owner: value })}
+              placeholder="e.g., Finance Team"
+            />
+          </FormField>
+
+          <FormField
+            slotLabel="Business Domain"
+            slotHelp="Business domain or department."
+          >
+            <Select
+              items={BUSINESS_DOMAINS}
+              value={catalogMetadata.business_domain}
+              onValueChange={(value) => setCatalogMetadata({ business_domain: value })}
+              placeholder="Select a domain"
+            />
+          </FormField>
+
+          <FormField
+            slotLabel="Status"
+            slotHelp="Collection lifecycle status."
+          >
+            <Select
+              items={STATUS_OPTIONS}
+              value={catalogMetadata.status}
+              onValueChange={(value) => setCatalogMetadata({ status: value as 'Active' | 'Archived' | 'Deprecated' })}
+            />
+          </FormField>
+        </Stack>
+      )}
+    </Panel>
+  );
+}
+
 export default function NewCollection() {
-  const { collectionName, setCollectionName, setCollectionNameTouched, reset } = useNewCollectionStore();
+  const { 
+    collectionName, 
+    setCollectionName, 
+    setCollectionNameTouched, 
+    catalogMetadata,
+    setCatalogMetadata,
+    reset 
+  } = useNewCollectionStore();
 
   useEffect(() => {
     // cleanup when leaving the page
@@ -47,6 +209,18 @@ export default function NewCollection() {
     const { setFiles } = useNewCollectionStore.getState();
     setFiles(files);
   }, []);
+
+  const handleAddTag = useCallback((tag: string) => {
+    if (tag.trim() && !catalogMetadata.tags.includes(tag.trim())) {
+      setCatalogMetadata({ tags: [...catalogMetadata.tags, tag.trim()] });
+    }
+  }, [catalogMetadata.tags, setCatalogMetadata]);
+
+  const handleRemoveTag = useCallback((tagToRemove: string) => {
+    setCatalogMetadata({ 
+      tags: catalogMetadata.tags.filter(t => t !== tagToRemove) 
+    });
+  }, [catalogMetadata.tags, setCatalogMetadata]);
 
   return (
     <Grid cols={12} gap="density-lg" padding="density-lg">
@@ -72,6 +246,15 @@ export default function NewCollection() {
                 onBlur={() => setCollectionNameTouched(true)}
               />
             </FormField>
+
+            {/* Catalog Metadata Section */}
+            <CatalogMetadataSection 
+              catalogMetadata={catalogMetadata}
+              setCatalogMetadata={setCatalogMetadata}
+              onAddTag={handleAddTag}
+              onRemoveTag={handleRemoveTag}
+            />
+
             <MetadataSchemaEditor />
           </Stack>
         </Panel>

@@ -16,6 +16,38 @@
 import type { APIMetadataField } from "./collections";
 
 /**
+ * Collection catalog metadata for organization and governance.
+ */
+export interface CollectionCatalogMetadata {
+  description?: string;
+  tags?: string[];
+  owner?: string;
+  created_by?: string;
+  business_domain?: string;
+  status?: 'Active' | 'Archived' | 'Deprecated';
+}
+
+/**
+ * Auto-populated collection metrics from content analysis.
+ */
+export interface CollectionMetrics {
+  number_of_files?: number;
+  last_indexed?: string;
+  ingestion_status?: string;
+  has_tables?: boolean;
+  has_charts?: boolean;
+  has_images?: boolean;
+}
+
+/**
+ * Full collection info combining catalog metadata and metrics.
+ */
+export interface CollectionInfo extends CollectionCatalogMetadata, CollectionMetrics {
+  date_created?: string;
+  last_updated?: string;
+}
+
+/**
  * Payload structure for creating a new collection.
  */
 export interface CreateCollectionPayload {
@@ -23,6 +55,13 @@ export interface CreateCollectionPayload {
   embedding_dimension: number;
   metadata_schema: APIMetadataField[];
   vdb_endpoint?: string;
+  // Catalog metadata fields
+  description?: string;
+  tags?: string[];
+  owner?: string;
+  created_by?: string;
+  business_domain?: string;
+  status?: string;
 }
 
 /**

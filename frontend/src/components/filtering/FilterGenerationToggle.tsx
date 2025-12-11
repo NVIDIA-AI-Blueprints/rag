@@ -156,8 +156,8 @@ export const FilterGenerationToggle: React.FC<FilterGenerationToggleProps> = ({
                 min={0}
                 max={1}
                 step={0.1}
-                value={[tempConfig.temperature || 0.1]}
-                onValueChange={([value]) => handleConfigChange("temperature", value)}
+                value={tempConfig.temperature || 0.1}
+                onValueChange={(value) => handleConfigChange("temperature", value)}
               />
             </FormField>
 

@@ -3,12 +3,12 @@ services:
   # Milvus can be made GPU accelerated by uncommenting the lines as specified below
   milvus:
     container_name: milvus-standalone
-    image: milvusdb/milvus:${MILVUS_VERSION:-v2.6.2-gpu} # milvusdb/milvus:v2.6.2 for CPU
+    image: milvusdb/milvus:${MILVUS_VERSION:-v2.6.2} # milvusdb/milvus:v2.6.2 for CPU
     command: ["bash", "-c", "sed -i 's/bucketName: a-bucket/bucketName: ${MINIO_BUCKET:-${NVINGEST_MINIO_BUCKET:-nv-ingest}}/' /milvus/configs/milvus.yaml && milvus run standalone" ]
     environment:
       ETCD_ENDPOINTS: etcd:2379
       MINIO_ADDRESS: minio:9010
-      KNOWHERE_GPU_MEM_POOL_SIZE: 2048;4096
+      # KNOWHERE_GPU_MEM_POOL_SIZE: 2048;4096
     volumes:
       - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/milvus:/var/lib/milvus
       # - ${MILVUS_CONFIG_FILE:-./milvus.yaml}:/milvus/configs/milvus.yaml
@@ -27,14 +27,14 @@ services:
     # Comment out this section if CPU based image is used and set below env variables to False
     # export APP_VECTORSTORE_ENABLEGPUSEARCH=False
     # export APP_VECTORSTORE_ENABLEGPUINDEX=False
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              capabilities: ["gpu"]
-              # count: ${INFERENCE_GPU_COUNT:-all}
-              device_ids: ['${VECTORSTORE_GPU_DEVICE_ID:-0}']
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           capabilities: ["gpu"]
+    #           # count: ${INFERENCE_GPU_COUNT:-all}
+    #           device_ids: ['${VECTORSTORE_GPU_DEVICE_ID:-0}']
     profiles: ["", "milvus"]
 
   etcd:

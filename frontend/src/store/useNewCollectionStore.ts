@@ -38,6 +38,18 @@ const getDefaultValueForField = (field: UIMetadataField): unknown => {
 };
 
 /**
+ * Catalog metadata for collection organization and governance.
+ */
+interface CatalogMetadata {
+  description: string;
+  tags: string[];
+  owner: string;
+  created_by: string;
+  business_domain: string;
+  status: 'Active' | 'Archived' | 'Deprecated';
+}
+
+/**
  * State interface for the new collection creation flow.
  */
 interface NewCollectionState {
@@ -49,16 +61,20 @@ interface NewCollectionState {
   isLoading: boolean;
   uploadComplete: boolean;
   error: string | null;
-  hasInvalidFiles: boolean; // New state to track file validation
+  hasInvalidFiles: boolean;
+  // Catalog metadata
+  catalogMetadata: CatalogMetadata;
   setCollectionName: (name: string) => void;
   setCollectionNameTouched: (touched: boolean) => void;
   setMetadataSchema: (schema: UIMetadataField[]) => void;
   setIsLoading: (v: boolean) => void;
   setUploadComplete: (v: boolean) => void;
   setError: (msg: string | null) => void;
-  setHasInvalidFiles: (hasInvalidFiles: boolean) => void; // New setter
+  setHasInvalidFiles: (hasInvalidFiles: boolean) => void;
+  // Catalog metadata setters
+  setCatalogMetadata: (updates: Partial<CatalogMetadata>) => void;
   addFiles: (files: File[]) => void;
-  setFiles: (files: File[]) => void; // Replace files instead of appending
+  setFiles: (files: File[]) => void;
   removeFile: (index: number) => void;
   updateMetadataField: (filename: string, field: string, value: unknown) => void;
   reset: () => void;
@@ -79,6 +95,15 @@ interface NewCollectionState {
  * addFiles([file1, file2]);
  * ```
  */
+const defaultCatalogMetadata: CatalogMetadata = {
+  description: '',
+  tags: [],
+  owner: '',
+  created_by: 'current_user', // Auto-filled
+  business_domain: '',
+  status: 'Active',
+};
+
 export const useNewCollectionStore = create<NewCollectionState>((set, get) => ({
   collectionName: "",
   collectionNameTouched: false,
@@ -89,6 +114,7 @@ export const useNewCollectionStore = create<NewCollectionState>((set, get) => ({
   uploadComplete: false,
   error: null,
   hasInvalidFiles: false,
+  catalogMetadata: { ...defaultCatalogMetadata },
 
   setCollectionName: (name) => set({ collectionName: name }),
   setCollectionNameTouched: (touched) => set({ collectionNameTouched: touched }),
@@ -96,6 +122,9 @@ export const useNewCollectionStore = create<NewCollectionState>((set, get) => ({
   setUploadComplete: (v) => set({ uploadComplete: v }),
   setError: (msg) => set({ error: msg }),
   setHasInvalidFiles: (hasInvalidFiles) => set({ hasInvalidFiles }),
+  setCatalogMetadata: (updates) => set((state) => ({
+    catalogMetadata: { ...state.catalogMetadata, ...updates }
+  })),
 
   setMetadataSchema: (schema) => {
     const { selectedFiles, fileMetadata } = get();
@@ -236,5 +265,6 @@ export const useNewCollectionStore = create<NewCollectionState>((set, get) => ({
       uploadComplete: false,
       error: null,
       hasInvalidFiles: false,
+      catalogMetadata: { ...defaultCatalogMetadata },
     }),
 }));

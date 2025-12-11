@@ -34,8 +34,8 @@ export const ModalContainer = ({
 
   return (
     <Modal 
-      isOpen={isOpen} 
-      onClose={onClose}
+      open={isOpen} 
+      onOpenChange={(open) => !open && onClose()}
       slotHeading={title}
     >
       <Flex direction="col" gap="density-lg">

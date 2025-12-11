@@ -19,9 +19,10 @@ import { useCollectionDrawerStore } from "../../store/useCollectionDrawerStore";
 import { useCollectionActions } from "../../hooks/useCollectionActions";
 import { DrawerActions } from "../drawer/DrawerActions";
 import { ConfirmationModal } from "../modals/ConfirmationModal";
-import { Notification, SidePanel } from "@kui/react";
+import { Notification, SidePanel, Stack } from "@kui/react";
 import { DocumentsList } from "../tasks/DocumentsList";
 import { UploaderSection } from "../drawer/UploaderSection";
+import { CollectionCatalogInfo } from "./CollectionCatalogInfo";
 
 // Export all drawer components for external use
 export { LoadingState } from "../ui/LoadingState";
@@ -93,7 +94,10 @@ export default function CollectionDrawer() {
       }
       closeOnClickOutside
     >
-      <DocumentsList />
+      <Stack gap="density-md">
+        {activeCollection && <CollectionCatalogInfo collection={activeCollection} />}
+        <DocumentsList />
+      </Stack>
       
       {deleteError && (
         <Notification

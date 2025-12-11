@@ -32,6 +32,7 @@ export function useSubmitNewCollection() {
     metadataSchema,
     fileMetadata,
     selectedFiles,
+    catalogMetadata,
     setIsLoading,
     setUploadComplete,
     setError,
@@ -73,6 +74,13 @@ export function useSubmitNewCollection() {
       collection_name: collectionName,
       metadata_schema: filteredSchema,
       embedding_dimension: 2048,
+      // Catalog metadata
+      description: catalogMetadata.description || undefined,
+      tags: catalogMetadata.tags.length > 0 ? catalogMetadata.tags : undefined,
+      owner: catalogMetadata.owner || undefined,
+      created_by: catalogMetadata.created_by || undefined,
+      business_domain: catalogMetadata.business_domain || undefined,
+      status: catalogMetadata.status || undefined,
     };
 
     // Only include vdb_endpoint if explicitly set by user

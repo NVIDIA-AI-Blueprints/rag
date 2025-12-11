@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo } from "react";
-import { Button, FormField, TextInput, Switch, Flex, Text, Tag, Card } from "@kui/react";
+import { Button, FormField, TextInput, Switch, Flex, Text, Tag } from "@kui/react";
 import { X, Plus } from "lucide-react";
 import type { UIMetadataField } from "../../types/collections";
 
@@ -58,16 +58,14 @@ export const MetadataField = ({
     onChange(field.name, newArray, field.type);
   }, [arrayValue, field, onChange]);
 
-  const getInputType = () => {
+  const getInputType = (): "number" | "text" | "search" | "tel" | "url" | "email" | "password" | undefined => {
     switch (field.type) {
       case "integer":
       case "number":
       case "float":
         return "number";
       case "datetime":
-        return "datetime-local";
-      case "boolean":
-        return "checkbox";
+        return "text"; // datetime fields handled separately
       default:
         return "text";
     }
