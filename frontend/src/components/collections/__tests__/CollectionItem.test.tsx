@@ -29,6 +29,7 @@ vi.mock('../../../store/useNotificationStore', () => ({
   useNotificationStore: () => mockNotificationStore
 }));
 
+
 describe('CollectionItem', () => {
   const mockCollection = {
     collection_name: 'test-collection',

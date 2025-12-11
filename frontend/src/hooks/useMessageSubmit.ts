@@ -19,10 +19,11 @@ import { useSendMessage } from "../api/useSendMessage";
 import { useSettingsStore, useHealthDependentFeatures } from "../store/useSettingsStore";
 import { useCollectionsStore } from "../store/useCollectionsStore";
 import { useStreamingStore } from "../store/useStreamingStore";
+import { useImageAttachmentStore } from "../store/useImageAttachmentStore";
 import { useCollections } from "../api/useCollectionsApi";
 import { useUUID } from "./useUUID";
 import type { GenerateRequest } from "../types/requests";
-import type { ChatMessage, Filter } from "../types/chat";
+import type { ChatMessage, Filter, MessageContent } from "../types/chat";
 import type { Collection } from "../types/collections";
 
 /**
@@ -76,6 +77,7 @@ export const useMessageSubmit = () => {
   const { mutateAsync: sendMessage, resetStream } = useSendMessage();
   const { isStreaming } = useStreamingStore(); // Use centralized streaming state
   const { selectedCollections } = useCollectionsStore();
+  const { attachedImages, clearAllImages } = useImageAttachmentStore();
   const { data: allCollections = [] } = useCollections();
   const settings = useSettingsStore();
   const { generateUUID } = useUUID();
@@ -83,7 +85,10 @@ export const useMessageSubmit = () => {
 
   const createRequest = useCallback((currentMessages: ChatMessage[]) => {
     const rawRequest = {
-      messages: currentMessages.map(({ role, content }) => ({ role, content })),
+      messages: currentMessages.map(({ role, content }) => ({ 
+        role, 
+        content: content as MessageContent 
+      })),
       use_knowledge_base: selectedCollections.length > 0,
       temperature: settings.temperature,
       top_p: settings.topP,
@@ -184,16 +189,43 @@ export const useMessageSubmit = () => {
   }, [selectedCollections, allCollections, settings, filters]);
 
   const handleSubmit = useCallback(async () => {
-    if (!input.trim() || shouldDisableHealthFeatures || isStreaming) return;
+    // Allow submit if there's text OR attached images
+    const hasText = input.trim().length > 0;
+    const hasImages = attachedImages.length > 0;
+    
+    if ((!hasText && !hasImages) || shouldDisableHealthFeatures || isStreaming) return;
 
-    const userMessage = {
+    // Build multimodal content if images are attached
+    let content: MessageContent;
+    if (hasImages) {
+      const contentParts: (typeof content extends string ? never : (typeof content)[number])[] = [];
+      
+      // Add text part if there's text
+      if (hasText) {
+        contentParts.push({ type: "text" as const, text: input });
+      }
+      
+      // Add all image parts
+      for (const image of attachedImages) {
+        contentParts.push({
+          type: "image_url" as const,
+          image_url: { url: image.dataUri, detail: "auto" as const },
+        });
+      }
+      
+      content = contentParts;
+    } else {
+      content = input;
+    }
+
+    const userMessage: ChatMessage = {
       id: generateUUID(),
       role: "user" as const,
-      content: input,
+      content,
       timestamp: new Date().toISOString(),
     };
 
-    const assistantMessage = {
+    const assistantMessage: ChatMessage = {
       id: generateUUID(),
       role: "assistant" as const,
       content: "",
@@ -204,15 +236,16 @@ export const useMessageSubmit = () => {
     addMessage(userMessage);
     addMessage(assistantMessage);
     setInput("");
+    clearAllImages(); // Clear all attached images after sending
     resetStream();
 
     const request = createRequest(currentMessages);
     await sendMessage({ request, assistantId: assistantMessage.id });
-  }, [input, messages, addMessage, setInput, resetStream, createRequest, sendMessage, generateUUID, shouldDisableHealthFeatures, isStreaming]);
+  }, [input, attachedImages, messages, addMessage, setInput, clearAllImages, resetStream, createRequest, sendMessage, generateUUID, shouldDisableHealthFeatures, isStreaming]);
 
   return {
     handleSubmit,
-    canSubmit: input.trim().length > 0 && !shouldDisableHealthFeatures && !isStreaming,
+    canSubmit: (input.trim().length > 0 || attachedImages.length > 0) && !shouldDisableHealthFeatures && !isStreaming,
     isHealthLoading,
     shouldDisableHealthFeatures,
   };
