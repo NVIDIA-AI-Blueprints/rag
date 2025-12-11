@@ -225,9 +225,6 @@ services:
       - VLM_CAPTION_MODEL_NAME=${VLM_CAPTION_MODEL_NAME:-nvidia/nemotron-nano-12b-v2-vl}
       - MODEL_PREDOWNLOAD_PATH=${MODEL_PREDOWNLOAD_PATH:-/workspace/models/}
       - COMPONENTS_TO_READY_CHECK=ALL
-      # Embedding configuration for cloud deployment
-      - EMBEDDING_NIM_ENDPOINT=${EMBEDDING_NIM_ENDPOINT:-https://integrate.api.nvidia.com/v1}
-      - EMBEDDING_NIM_MODEL_NAME=${EMBEDDING_NIM_MODEL_NAME:-nvidia/llama-3.2-nv-embedqa-1b-v2}
     healthcheck:
       test: curl --fail http://nv-ingest-ms-runtime:7670/v1/health/ready || exit 1
       interval: 10s
