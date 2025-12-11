@@ -1,65 +1,70 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '../../../test/utils';
 import { DocumentsList } from '../DocumentsList';
-import * as useCollectionDocumentsModule from '../../../api/useCollectionDocuments';
-import * as useCollectionDrawerStoreModule from '../../../store/useCollectionDrawerStore';
-import type { UseQueryResult } from '@tanstack/react-query';
-import type { CollectionDocumentsResponse } from '../../../types/api';
+
+// Mock the hooks at module level
+const mockRefetch = vi.fn();
+const mockUseCollectionDocuments = vi.fn();
+
+vi.mock('../../../api/useCollectionDocuments', () => ({
+  useCollectionDocuments: () => mockUseCollectionDocuments(),
+  useDeleteDocument: () => ({ mutate: vi.fn(), isPending: false })
+}));
+
+vi.mock('../../../store/useCollectionDrawerStore', () => ({
+  useCollectionDrawerStore: () => ({
+    activeCollection: { collection_name: 'test-collection' }
+  })
+}));
 
 describe('DocumentsList', () => {
   beforeEach(() => {
-    vi.spyOn(useCollectionDrawerStoreModule, 'useCollectionDrawerStore').mockReturnValue({
-      activeCollection: 'test-collection'
-    });
+    vi.clearAllMocks();
+    mockRefetch.mockClear();
   });
 
   it('shows loading state when loading', () => {
-    vi.spyOn(useCollectionDocumentsModule, 'useCollectionDocuments').mockReturnValue({
+    mockUseCollectionDocuments.mockReturnValue({
       data: undefined,
       isLoading: true,
       error: null,
-      isError: false,
-      isPending: false,
-      isLoadingError: false,
-      isRefetchError: false
-    } as UseQueryResult<CollectionDocumentsResponse, Error>);
+      refetch: mockRefetch
+    });
 
     render(<DocumentsList />);
     expect(screen.getByText('Loading documents...')).toBeInTheDocument();
   });
 
   it('shows error state when error occurs', () => {
-    vi.spyOn(useCollectionDocumentsModule, 'useCollectionDocuments').mockReturnValue({
+    mockUseCollectionDocuments.mockReturnValue({
       data: undefined,
       isLoading: false,
       error: new Error('Failed to fetch'),
-      isError: true,
-      isPending: false,
-      isLoadingError: false,
-      isRefetchError: false
-    } as UseQueryResult<CollectionDocumentsResponse, Error>);
+      refetch: mockRefetch
+    });
 
     render(<DocumentsList />);
     expect(screen.getByText('Failed to load documents')).toBeInTheDocument();
   });
 
   it('shows empty state when no documents', () => {
-    vi.spyOn(useCollectionDocumentsModule, 'useCollectionDocuments').mockReturnValue({
+    mockUseCollectionDocuments.mockReturnValue({
       data: {
         message: 'Success',
         total_documents: 0,
         documents: []
       },
       isLoading: false,
-      error: null
-    } as UseQueryResult<CollectionDocumentsResponse, Error>);
+      error: null,
+      refetch: mockRefetch
+    });
 
     render(<DocumentsList />);
     expect(screen.getByText('No documents yet')).toBeInTheDocument();
   });
 
   it('renders documents when data available', () => {
-    vi.spyOn(useCollectionDocumentsModule, 'useCollectionDocuments').mockReturnValue({
+    mockUseCollectionDocuments.mockReturnValue({
       data: {
         message: 'Success',
         total_documents: 2,
@@ -69,8 +74,9 @@ describe('DocumentsList', () => {
         ]
       },
       isLoading: false,
-      error: null
-    } as UseQueryResult<CollectionDocumentsResponse, Error>);
+      error: null,
+      refetch: mockRefetch
+    });
 
     render(<DocumentsList />);
     expect(screen.getByText('doc1.pdf')).toBeInTheDocument();
