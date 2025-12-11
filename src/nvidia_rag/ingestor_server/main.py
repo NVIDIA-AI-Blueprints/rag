@@ -83,6 +83,7 @@ from nvidia_rag.utils.llm import get_prompts
 from nvidia_rag.utils.summarization import generate_document_summaries
 from nvidia_rag.utils.summary_status_handler import SUMMARY_STATUS_HANDLER
 from nvidia_rag.utils.observability.tracing import (
+    create_nv_ingest_trace_context,
     get_tracer,
     process_nv_ingest_traces,
     trace_function,
@@ -2136,11 +2137,13 @@ class NvidiaRAGIngestor:
 
         return results, failures
 
-    @trace_function("ingestor.main.perform_async_nv_ingest_ingestion", tracer=TRACER)
     @staticmethod
+    @trace_function("ingestor.main.perform_async_nv_ingest_ingestion", tracer=TRACER)
     async def __perform_async_nv_ingest_ingestion(
         nv_ingest_ingestor,
         state_manager,
+        nv_ingest_traces: bool = False,
+        trace_context: dict[str, Any] | None = None,
     ):
         """
         Perform NV-Ingest ingestion asynchronously using .ingest_async() method
@@ -2152,9 +2155,11 @@ class NvidiaRAGIngestor:
         Returns:
             - tuple[list[list[dict[str, str | dict]]], list[dict[str, Any]]] - Results and failures
         """
+        ingest_start_ns = time.time_ns()
         future = nv_ingest_ingestor.ingest_async(
             return_failures=True,
             show_progress=logger.getEffectiveLevel() <= logging.DEBUG,
+            return_traces=nv_ingest_traces,
         )
         # Convert concurrent.futures.Future to asyncio.Future
         async_future = asyncio.wrap_future(future)
@@ -2174,6 +2179,21 @@ class NvidiaRAGIngestor:
             if future.done():
                 break
         
+        if nv_ingest_traces:
+            results, failures, traces = await async_future
+
+            if trace_context is not None:
+                process_nv_ingest_traces(
+                    traces,
+                    tracer=TRACER,
+                    span_namespace=trace_context.get("span_namespace", "nv_ingest"),
+                    collection_name=trace_context.get("collection_name"),
+                    batch_number=trace_context.get("batch_number"),
+                    reference_time_ns=trace_context.get("reference_time_ns", ingest_start_ns),
+                )
+
+            return results, failures
+
         results, failures = await async_future
         return results, failures
 
@@ -2226,20 +2246,16 @@ class NvidiaRAGIngestor:
             )
 
             start_time = time.time()
-            results, failures, traces = await self.__perform_async_nv_ingest_ingestion(
+            results, failures = await self.__perform_async_nv_ingest_ingestion(
                 nv_ingest_ingestor=nv_ingest_ingestor,
                 state_manager=state_manager,
-                return_traces=True
+                nv_ingest_traces=True,
+                trace_context=create_nv_ingest_trace_context(
+                    span_namespace=f"nv_ingest.shallow_batch_{batch_number}",
+                    batch_number=batch_number,
+                ),
             )
             total_time = time.time() - start_time
-
-            process_nv_ingest_traces(
-                traces,
-                tracer=TRACER,
-                span_namespace=f"nv_ingest.shallow_batch_{batch_number}",
-                batch_number=batch_number,
-                reference_time_ns=ingest_start_ns,
-            )
 
             logger.debug(
                 "Shallow extraction batch %d: %.2fs, %d results, %d failures",
@@ -2303,24 +2319,20 @@ class NvidiaRAGIngestor:
                 config=self.config,
             )
             start_time = time.time()
-            ingest_start_ns = time.time_ns()
             logger.info(
                 f"Performing ingestion for batch {batch_number} with parameters: {split_options}"
             )
-            results, failures, traces = await self.__perform_async_nv_ingest_ingestion(
+            results, failures = await self.__perform_async_nv_ingest_ingestion(
                 nv_ingest_ingestor=nv_ingest_ingestor,
                 state_manager=state_manager,
-                return_traces=True
+                nv_ingest_traces=True,
+                trace_context=create_nv_ingest_trace_context(
+                    span_namespace=f"nv_ingest.batch_{batch_number}",
+                    collection_name=vdb_op.collection_name,
+                    batch_number=batch_number,
+                ),
             )
             total_ingestion_time = time.time() - start_time
-            process_nv_ingest_traces(
-                traces,
-                tracer=TRACER,
-                span_namespace=f"nv_ingest.batch_{batch_number}",
-                collection_name=vdb_op.collection_name,
-                batch_number=batch_number,
-                reference_time_ns=ingest_start_ns,
-            )
             document_info = self._log_result_info(
                 batch_number, results, failures, total_ingestion_time
             )
@@ -2351,24 +2363,20 @@ class NvidiaRAGIngestor:
                     config=self.config,
                 )
                 start_time = time.time()
-                ingest_start_ns = time.time_ns()
                 logger.info(
                     f"Performing ingestion for PDF files for batch {batch_number} with parameters: {split_options}"
                 )
-                results_pdf, failures_pdf, traces_pdf = await self.__perform_async_nv_ingest_ingestion(
+                results_pdf, failures_pdf = await self.__perform_async_nv_ingest_ingestion(
                     nv_ingest_ingestor=nv_ingest_ingestor,
                     state_manager=state_manager,
-                    return_traces=True
+                    nv_ingest_traces=True,
+                    trace_context=create_nv_ingest_trace_context(
+                        span_namespace=f"nv_ingest.batch_{batch_number}.pdf",
+                        collection_name=vdb_op.collection_name,
+                        batch_number=batch_number,
+                    ),
                 )
                 total_ingestion_time = time.time() - start_time
-                process_nv_ingest_traces(
-                    traces_pdf,
-                    tracer=TRACER,
-                    span_namespace=f"nv_ingest.batch_{batch_number}.pdf",
-                    collection_name=vdb_op.collection_name,
-                    batch_number=batch_number,
-                    reference_time_ns=ingest_start_ns,
-                )
                 document_info = self._log_result_info(
                     batch_number,
                     results,
@@ -2390,24 +2398,20 @@ class NvidiaRAGIngestor:
                     config=self.config,
                 )
                 start_time = time.time()
-                ingest_start_ns = time.time_ns()
                 logger.info(
                     f"Performing ingestion for non-PDF files for batch {batch_number} with parameters: {split_options}"
                 )
-                results_non_pdf, failures_non_pdf, traces_non_pdf = await self.__perform_async_nv_ingest_ingestion(
+                results_non_pdf, failures_non_pdf = await self.__perform_async_nv_ingest_ingestion(
                     nv_ingest_ingestor=nv_ingest_ingestor,
                     state_manager=state_manager,
-                    return_traces=True
+                    nv_ingest_traces=True,
+                    trace_context=create_nv_ingest_trace_context(
+                        span_namespace=f"nv_ingest.batch_{batch_number}.non_pdf",
+                        collection_name=vdb_op.collection_name,
+                        batch_number=batch_number,
+                    ),
                 )
                 total_ingestion_time = time.time() - start_time
-                process_nv_ingest_traces(
-                    traces_non_pdf,
-                    tracer=TRACER,
-                    span_namespace=f"nv_ingest.batch_{batch_number}.non_pdf",
-                    collection_name=vdb_op.collection_name,
-                    batch_number=batch_number,
-                    reference_time_ns=ingest_start_ns,
-                )
                 document_info = self._log_result_info(
                     batch_number,
                     results_non_pdf,

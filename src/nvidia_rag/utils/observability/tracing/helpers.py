@@ -256,3 +256,23 @@ def process_nv_ingest_traces(
         # We intentionally swallow errors here.
         return
 
+
+def create_nv_ingest_trace_context(
+    *,
+    span_namespace: str,
+    collection_name: str | None = None,
+    batch_number: int | None = None,
+) -> dict[str, Any]:
+    """Convenience helper to build a standard NV-Ingest trace_context dict.
+
+    This keeps call sites consistent and centralizes any future changes to the
+    trace context schema in a single place.
+    """
+
+    context: dict[str, Any] = {"span_namespace": span_namespace}
+    if collection_name is not None:
+        context["collection_name"] = collection_name
+    if batch_number is not None:
+        context["batch_number"] = batch_number
+    return context
+
