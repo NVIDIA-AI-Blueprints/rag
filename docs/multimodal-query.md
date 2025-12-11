@@ -74,6 +74,7 @@ Set the model names and service URLs for the RAG pipeline:
 # VLM (Vision-Language Model) configuration
 export APP_VLM_MODELNAME="nvidia/nemotron-nano-12b-v2-vl"
 export APP_VLM_SERVERURL="http://vlm-ms:8000/v1"
+export APP_LLM_SERVERURL=""
 
 # Multimodal embedding model configuration
 export APP_EMBEDDINGS_MODELNAME="nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1"
@@ -153,6 +154,7 @@ export NGC_API_KEY="nvapi-..."
 # VLM (Vision-Language Model) configuration - cloud hosted
 export APP_VLM_MODELNAME="nvidia/nemotron-nano-12b-v2-vl"
 export APP_VLM_SERVERURL="https://integrate.api.nvidia.com"
+export APP_LLM_SERVERURL=""
 
 # Multimodal embedding model configuration - cloud hosted
 export APP_EMBEDDINGS_MODELNAME="nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1"
