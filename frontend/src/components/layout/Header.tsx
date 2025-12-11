@@ -13,8 +13,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { AppBar, AppBarLogo, Button, Text, Flex } from "@kui/react";
+import { AppBar, Button, Text, Flex } from "@kui/react";
 import NotificationBell from "../notifications/NotificationBell";
+import NvidiaLogo from "../icons/NvidiaLogo";
 import { useNavigate, useLocation } from "react-router-dom";
 
 // Using placeholder icon as suggested
@@ -60,8 +61,10 @@ export default function Header() {
     <AppBar
       slotLeft={
         <Flex align="center" gap="density-md">
-          <AppBarLogo onClick={handleLogoClick} />
-          <Text kind="title/sm" onClick={handleLogoClick}>
+          <div onClick={handleLogoClick} style={{ cursor: 'pointer' }}>
+            <NvidiaLogo height="20px" />
+          </div>
+          <Text kind="title/xs" onClick={handleLogoClick} style={{ cursor: 'pointer' }}>
             RAG Blueprint
           </Text>
         </Flex>

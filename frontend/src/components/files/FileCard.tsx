@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import { useNewCollectionStore } from "../../store/useNewCollectionStore";
 import { MetadataField } from "./MetadataField";
-import { Button } from "@kui/react";
+import { Button, Card, Flex, Text, Stack } from "@kui/react";
 import { ConfirmationModal } from "../modals/ConfirmationModal";
 import type { UIMetadataField } from "../../types/collections";
 
@@ -9,8 +9,6 @@ interface FileCardProps {
   file: File;
   index: number;
 }
-
-// No icon needed, using text instead
 
 export const FileCard = ({ file, index }: FileCardProps) => {
   const { metadataSchema, fileMetadata, removeFile, updateMetadataField } = useNewCollectionStore();
@@ -30,9 +28,11 @@ export const FileCard = ({ file, index }: FileCardProps) => {
   }, [file.name, updateMetadataField]);
 
   return (
-    <div className="p-3 bg-neutral-800 rounded-md">
-      <div className="flex justify-between items-center">
-        <span className="text-sm text-white truncate flex-1 mr-2">{file.name}</span>
+    <Card>
+      <Flex justify="between" align="center">
+        <Text kind="body/regular/sm" style={{ flex: 1, marginRight: 'var(--spacing-density-sm)' }}>
+          {file.name}
+        </Text>
         <Button
           onClick={handleRemoveClick}
           kind="tertiary"
@@ -42,12 +42,12 @@ export const FileCard = ({ file, index }: FileCardProps) => {
         >
           REMOVE
         </Button>
-      </div>
+      </Flex>
       
       {metadataSchema.length > 0 && (
-        <div className="mt-2 space-y-4">
+        <Stack gap="density-md" style={{ marginTop: 'var(--spacing-density-sm)' }}>
           {metadataSchema
-            .filter((field: UIMetadataField) => field.name !== 'filename') // Filter out filename field
+            .filter((field: UIMetadataField) => field.name !== 'filename')
             .map((field: UIMetadataField) => (
             <MetadataField
               key={field.name}
@@ -68,7 +68,7 @@ export const FileCard = ({ file, index }: FileCardProps) => {
               onChange={handleMetadataChange}
             />
           ))}
-        </div>
+        </Stack>
       )}
       
       <ConfirmationModal
@@ -80,6 +80,6 @@ export const FileCard = ({ file, index }: FileCardProps) => {
         confirmText="Remove"
         confirmColor="danger"
       />
-    </div>
+    </Card>
   );
-}; 
+};

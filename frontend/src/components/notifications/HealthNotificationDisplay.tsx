@@ -15,6 +15,7 @@
 
 import { useCallback } from "react";
 import { Card, Button, Text, Stack, Flex } from "@kui/react";
+import { X, AlertCircle, AlertTriangle, Info, CheckCircle } from "lucide-react";
 import type { HealthNotification, NotificationSeverity } from "../../types/notifications";
 
 interface HealthNotificationDisplayProps {
@@ -24,34 +25,18 @@ interface HealthNotificationDisplayProps {
 }
 
 /**
- * Get severity icon and styling for health notifications.
+ * Get severity icon for health notifications.
  */
-const getSeverityDisplay = (severity: NotificationSeverity) => {
+const getSeverityIcon = (severity: NotificationSeverity) => {
   switch (severity) {
     case "error":
-      return {
-        icon: "🔴",
-        color: "text-red-400",
-        bgColor: "bg-red-900/20",
-      };
+      return <AlertCircle size={16} />;
     case "warning":
-      return {
-        icon: "🟡",
-        color: "text-yellow-400",
-        bgColor: "bg-yellow-900/20",
-      };
+      return <AlertTriangle size={16} />;
     case "info":
-      return {
-        icon: "ℹ️",
-        color: "text-blue-400",
-        bgColor: "bg-blue-900/20",
-      };
+      return <Info size={16} />;
     case "success":
-      return {
-        icon: "✅",
-        color: "text-green-400",
-        bgColor: "bg-green-900/20",
-      };
+      return <CheckCircle size={16} />;
   }
 };
 
@@ -72,22 +57,6 @@ const formatRelativeTime = (timestamp: number): string => {
 };
 
 /**
- * Remove icon component.
- */
-const RemoveIcon = () => (
-  <svg 
-    className="w-4 h-4" 
-    fill="none" 
-    stroke="currentColor" 
-    strokeWidth="2" 
-    viewBox="0 0 24 24"
-    data-testid="remove-icon"
-  >
-    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-  </svg>
-);
-
-/**
  * Health notification display component that shows health service issues.
  * 
  * Displays health notification with severity indicator, service information,
@@ -102,8 +71,6 @@ export function HealthNotificationDisplay({
   onMarkRead, 
   onRemove 
 }: HealthNotificationDisplayProps) {
-  const { icon, color } = getSeverityDisplay(notification.severity);
-  
   const handleMarkAsRead = useCallback(() => {
     if (!notification.read && onMarkRead) {
       onMarkRead();
@@ -128,58 +95,49 @@ export function HealthNotificationDisplay({
     <div data-testid="health-notification-display" {...clickableProps}>
       <Card
         interactive={onMarkRead && !notification.read}
-        kind={notification.read ? "solid" : "float"}
+        kind="solid"
         selected={!notification.read}
-        style={{ background: 'var(--border-color-interaction-inverse-pressed)' }}
-        className={`group relative transition-all duration-200 ${
-          notification.read 
-            ? 'opacity-75' 
-            : 'shadow-lg shadow-[var(--nv-green)]/20'
-        } ${onMarkRead && !notification.read ? 'cursor-pointer' : ''}`}
+        className={onMarkRead && !notification.read ? 'cursor-pointer' : ''}
       >
-        {/* Remove button */}
-        {onRemove && (
-          <Button
-            kind="tertiary"
-            size="small"
-            color="danger"
-            onClick={(e) => {
-              e.stopPropagation();
-              onRemove();
-            }}
-            title="Remove notification"
-            className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10"
-            data-testid="remove-button"
-          >
-            <RemoveIcon />
-          </Button>
-        )}
-
         <Stack gap="3">
           {/* Header */}
-          <Flex gap="3" align="start" data-testid="health-notification-header">
-            <div className="flex items-center mt-0.5">
-              <Text style={{ fontSize: '16px' }} data-testid="severity-icon">
-                {icon}
-              </Text>
-            </div>
-            
-            <Stack gap="1" style={{ flex: 1 }}>
-              <Text 
-                kind="body/semibold/md"
-                className={notification.read ? 'text-neutral-400' : 'text-white'}
-                data-testid="notification-title"
+          <Flex gap="density-md" align="start" justify="between" data-testid="health-notification-header">
+            <Flex gap="density-md" align="start">
+              <div style={{ marginTop: '2px' }} data-testid="severity-icon">
+                {getSeverityIcon(notification.severity)}
+              </div>
+              
+              <Stack gap="1">
+                <Text 
+                  kind="body/semibold/md"
+                  data-testid="notification-title"
+                >
+                  {notification.title}
+                </Text>
+                <Text 
+                  kind="body/regular/xs"
+                  data-testid="service-info"
+                >
+                  {notification.serviceName} • {formatRelativeTime(notification.createdAt)}
+                </Text>
+              </Stack>
+            </Flex>
+
+            {/* Remove button */}
+            {onRemove && (
+              <Button
+                kind="tertiary"
+                size="tiny"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRemove();
+                }}
+                title="Remove notification"
+                data-testid="remove-button"
               >
-                {notification.title}
-              </Text>
-              <Text 
-                kind="body/regular/xs"
-                className={color}
-                data-testid="service-info"
-              >
-                {notification.serviceName} • {formatRelativeTime(notification.createdAt)}
-              </Text>
-            </Stack>
+                <X size={16} />
+              </Button>
+            )}
           </Flex>
 
           {/* Message */}
@@ -187,8 +145,6 @@ export function HealthNotificationDisplay({
             <Stack gap="2" data-testid="notification-content">
               <Text 
                 kind="body/regular/sm"
-                className={notification.read ? 'text-neutral-500' : 'text-gray-300'}
-                style={{ lineHeight: '1.4' }}
                 data-testid="notification-message"
               >
                 {notification.message}
@@ -198,7 +154,6 @@ export function HealthNotificationDisplay({
               {notification.url && (
                 <Text 
                   kind="body/regular/xs"
-                  className="text-neutral-500"
                   data-testid="service-url"
                 >
                   Service URL: {notification.url}
@@ -208,7 +163,6 @@ export function HealthNotificationDisplay({
               {notification.latency && (
                 <Text 
                   kind="body/regular/xs"
-                  className="text-neutral-500"
                   data-testid="service-latency"
                 >
                   Response time: {notification.latency}ms
@@ -218,7 +172,6 @@ export function HealthNotificationDisplay({
               {/* Category context */}
               <Text 
                 kind="body/regular/xs"
-                className="text-neutral-600"
                 data-testid="service-category"
               >
                 Category: {notification.serviceCategory}

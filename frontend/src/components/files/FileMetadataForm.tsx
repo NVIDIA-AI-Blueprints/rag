@@ -16,6 +16,7 @@
 import { useCallback } from "react";
 import { useNewCollectionStore } from "../../store/useNewCollectionStore";
 import { MetadataField } from "./MetadataField";
+import { Divider, Stack } from "@kui/react";
 import type { UIMetadataField } from "../../types/collections";
 
 interface FileMetadataFormProps {
@@ -34,10 +35,11 @@ export const FileMetadataForm = ({ fileName }: FileMetadataFormProps) => {
   }
 
   return (
-    <div className="mt-4 pt-4 border-t border-neutral-700">
-      <div className="space-y-4">
+    <div style={{ marginTop: 'var(--spacing-density-md)' }}>
+      <Divider />
+      <Stack gap="density-md" style={{ paddingTop: 'var(--spacing-density-md)' }}>
         {metadataSchema
-          .filter((field: UIMetadataField) => field.name !== 'filename') // Filter out filename field
+          .filter((field: UIMetadataField) => field.name !== 'filename')
           .map((field: UIMetadataField) => (
           <MetadataField
             key={field.name}
@@ -58,7 +60,7 @@ export const FileMetadataForm = ({ fileName }: FileMetadataFormProps) => {
             onChange={handleFieldChange}
           />
         ))}
-      </div>
+      </Stack>
     </div>
   );
-}; 
+};

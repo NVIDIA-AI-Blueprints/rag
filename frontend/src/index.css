@@ -3,10 +3,10 @@
 @import "tailwindcss/utilities.css";
 @import "@kui/react/base.css";
 
-@plugin "@kui/foundations" {
-  disable-component-utilities: true;
-  themes: "nv-dark --prefersdark";
-  default-themes: "nv-dark --default, nv-light, nv-density-standard --default";
+/* Apply theme background to html and body */
+html, body {
+  background-color: var(--background-color-surface-base);
+  color: var(--text-color-default);
 }
 
 /* Bounce animation for StreamingIndicator dots */

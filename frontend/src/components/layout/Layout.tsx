@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import type { JSX } from "react";
+import { useEffect, type JSX } from "react";
 import Header from "./Header";
 import { ThemeProvider } from "@kui/react";
 import { useTheme } from "../../hooks/useTheme";
@@ -30,8 +30,15 @@ import { useTheme } from "../../hooks/useTheme";
 const Layout = ({ children }: { children: JSX.Element | JSX.Element[] }) => {
   const { theme } = useTheme();
   
+  // Sync theme class to <html> element when theme changes
+  useEffect(() => {
+    const html = document.documentElement;
+    html.classList.remove('nv-light', 'nv-dark');
+    html.classList.add(`nv-${theme}`);
+  }, [theme]);
+  
   return (
-    <ThemeProvider theme={theme}>
+    <ThemeProvider theme={theme} global>
       <Header/>
       <div style={{ 
         background: "var(--background-color-surface-base)",

@@ -14,6 +14,8 @@
 // limitations under the License.
 
 import React, { useState, useCallback } from "react";
+import { Switch, Text, Flex, Stack, Card, Button, FormField, TextInput, Slider, Tooltip } from "@kui/react";
+import { Info, Settings, X } from "lucide-react";
 import type { FilterGenerationConfig } from "../../types/collections";
 
 interface FilterGenerationToggleProps {
@@ -23,19 +25,6 @@ interface FilterGenerationToggleProps {
   onConfigChange?: (config: FilterGenerationConfig) => void;
   className?: string;
 }
-
-const InfoIcon = () => (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-  </svg>
-);
-
-const SettingsIcon = () => (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-  </svg>
-);
 
 export const FilterGenerationToggle: React.FC<FilterGenerationToggleProps> = ({
   enabled,
@@ -85,147 +74,121 @@ export const FilterGenerationToggle: React.FC<FilterGenerationToggleProps> = ({
   }, []);
 
   return (
-    <div className={`space-y-3 ${className}`}>
+    <Stack gap="density-md" className={className}>
       {/* Toggle Switch */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
+      <Flex justify="between" align="center">
+        <Flex align="center" gap="density-md">
+          <Flex align="center" gap="density-sm">
+            <Switch
               checked={enabled}
-              onChange={handleToggle}
-              className="rounded border-neutral-600 bg-neutral-700 text-[var(--nv-green)] focus:ring-1 focus:ring-[var(--nv-green)]"
+              onCheckedChange={handleToggle}
             />
-            <span className="text-sm font-medium text-gray-300">
+            <Text kind="label/bold/sm">
               Natural Language Filter Generation
-            </span>
-          </label>
+            </Text>
+          </Flex>
           
-          <div className="group relative">
-            <InfoIcon />
-            <div className="invisible group-hover:visible absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-80 p-3 bg-neutral-800 border border-neutral-600 rounded-lg text-xs text-gray-300 z-10">
-              <div className="font-medium mb-1">AI-Powered Filtering</div>
-              <p>Automatically converts your natural language queries into precise metadata filters using LLMs. 
-                 For example: &quot;Show me AI documents with high ratings&quot; becomes &quot;category == &apos;AI&apos; AND rating &gt; 4.0&quot;</p>
-              <div className="mt-2 text-neutral-400">
-                <strong>Requirements:</strong> Milvus vector database, compatible LLM endpoint
-              </div>
-            </div>
-          </div>
-        </div>
+          <Tooltip content="Automatically converts your natural language queries into precise metadata filters using LLMs.">
+            <Info size={16} style={{ color: 'var(--text-color-subtle)' }} />
+          </Tooltip>
+        </Flex>
 
         {/* Configuration Button */}
         {onConfigChange && (
-          <button
-            type="button"
+          <Button
             onClick={() => setShowConfig(!showConfig)}
+            kind="tertiary"
+            size="small"
             disabled={!enabled}
-            className="p-1.5 text-neutral-400 hover:text-[var(--nv-green)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             title="Configure filter generation settings"
           >
-            <SettingsIcon />
-          </button>
+            <Settings size={16} />
+          </Button>
         )}
-      </div>
+      </Flex>
 
       {/* Status Indicator */}
-      <div className="flex items-center gap-2 text-xs">
-        <div className={`w-2 h-2 rounded-full ${enabled ? 'bg-green-400' : 'bg-neutral-500'}`} />
-        <span className="text-neutral-400">
+      <Flex align="center" gap="density-sm">
+        <div style={{ 
+          width: '8px', 
+          height: '8px', 
+          borderRadius: '50%',
+          backgroundColor: enabled ? 'var(--feedback-color-success)' : 'var(--text-color-subtle)'
+        }} />
+        <Text kind="body/regular/xs" style={{ color: 'var(--text-color-subtle)' }}>
           {enabled ? "AI filter generation enabled" : "Using manual filters only"}
-        </span>
-      </div>
+        </Text>
+      </Flex>
 
       {/* Configuration Panel */}
       {showConfig && onConfigChange && (
-        <div className="p-4 bg-neutral-800/50 rounded-lg border border-neutral-600 space-y-4">
-          <div className="flex items-center justify-between">
-            <h4 className="text-sm font-medium text-white">Filter Generation Configuration</h4>
-            <button
+        <Card>
+          <Flex justify="between" align="center" style={{ marginBottom: 'var(--spacing-density-md)' }}>
+            <Text kind="label/bold/sm">Filter Generation Configuration</Text>
+            <Button
               onClick={() => setShowConfig(false)}
-              className="text-neutral-400 hover:text-white"
+              kind="tertiary"
+              size="small"
             >
-              &times;
-            </button>
-          </div>
+              <X size={16} />
+            </Button>
+          </Flex>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Model Name */}
-            <div>
-              <label className="block text-xs font-medium text-gray-300 mb-1">
-                Model Name
-              </label>
-              <input
-                type="text"
+          <Stack gap="density-md">
+            <FormField slotLabel="Model Name">
+              <TextInput
                 value={tempConfig.model_name || ""}
-                onChange={(e) => handleConfigChange("model_name", e.target.value)}
+                onValueChange={(value) => handleConfigChange("model_name", value)}
                 placeholder="nvidia/llama-3.3-nemotron-super-49b-v1"
-                className="w-full px-2 py-1 rounded bg-neutral-700 border border-neutral-600 text-white text-xs focus:outline-none focus:ring-1 focus:ring-[var(--nv-green)]"
               />
-            </div>
+            </FormField>
 
-            {/* Server URL */}
-            <div>
-              <label className="block text-xs font-medium text-gray-300 mb-1">
-                Server URL (optional)
-              </label>
-              <input
-                type="text"
+            <FormField slotLabel="Server URL (optional)">
+              <TextInput
                 value={tempConfig.server_url || ""}
-                onChange={(e) => handleConfigChange("server_url", e.target.value)}
+                onValueChange={(value) => handleConfigChange("server_url", value)}
                 placeholder="Leave empty for default endpoint"
-                className="w-full px-2 py-1 rounded bg-neutral-700 border border-neutral-600 text-white text-xs focus:outline-none focus:ring-1 focus:ring-[var(--nv-green)]"
               />
-            </div>
+            </FormField>
 
-            {/* Temperature */}
-            <div>
-              <label className="block text-xs font-medium text-gray-300 mb-1">
-                Temperature ({tempConfig.temperature})
-              </label>
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.1"
-                value={tempConfig.temperature || 0.1}
-                onChange={(e) => handleConfigChange("temperature", parseFloat(e.target.value))}
-                className="w-full"
+            <FormField slotLabel={`Temperature (${tempConfig.temperature})`}>
+              <Slider
+                min={0}
+                max={1}
+                step={0.1}
+                value={[tempConfig.temperature || 0.1]}
+                onValueChange={([value]) => handleConfigChange("temperature", value)}
               />
-            </div>
+            </FormField>
 
-            {/* Max Tokens */}
-            <div>
-              <label className="block text-xs font-medium text-gray-300 mb-1">
-                Max Tokens
-              </label>
-              <input
+            <FormField slotLabel="Max Tokens">
+              <TextInput
                 type="number"
-                min="100"
-                max="2000"
-                value={tempConfig.max_tokens || 500}
-                onChange={(e) => handleConfigChange("max_tokens", parseInt(e.target.value))}
-                className="w-full px-2 py-1 rounded bg-neutral-700 border border-neutral-600 text-white text-xs focus:outline-none focus:ring-1 focus:ring-[var(--nv-green)]"
+                value={String(tempConfig.max_tokens || 500)}
+                onValueChange={(value) => handleConfigChange("max_tokens", parseInt(value))}
               />
-            </div>
-          </div>
+            </FormField>
 
-          <div className="flex justify-end gap-2">
-            <button
-              onClick={() => setShowConfig(false)}
-              className="px-3 py-1 text-xs text-neutral-400 hover:text-white"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleConfigSave}
-              className="px-3 py-1 text-xs bg-[var(--nv-green)] text-black font-medium rounded hover:bg-[var(--nv-green)]/80"
-            >
-              Save
-            </button>
-          </div>
-        </div>
+            <Flex justify="end" gap="density-sm">
+              <Button
+                onClick={() => setShowConfig(false)}
+                kind="tertiary"
+                size="small"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleConfigSave}
+                kind="primary"
+                color="brand"
+                size="small"
+              >
+                Save
+              </Button>
+            </Flex>
+          </Stack>
+        </Card>
       )}
-    </div>
+    </Stack>
   );
-}; 
+};

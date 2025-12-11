@@ -14,7 +14,8 @@
 // limitations under the License.
 
 import { useCallback } from "react";
-import { Card, Button, Text, Stack, ProgressBar, StatusMessage, Notification } from "@kui/react";
+import { Card, Button, Text, Stack, ProgressBar, StatusMessage, Notification, Flex } from "@kui/react";
+import { X } from "lucide-react";
 import type { IngestionTask } from "../../types/api";
 import { TaskStatusIcon } from "./TaskStatusIcons";
 import { useTaskUtils } from "../../hooks/useTaskUtils";
@@ -25,84 +26,60 @@ interface TaskDisplayProps {
   onRemove?: () => void;
 }
 
-const RemoveIcon = () => (
-  <svg 
-    className="w-4 h-4" 
-    fill="none" 
-    stroke="currentColor" 
-    strokeWidth="2" 
-    viewBox="0 0 24 24"
-    data-testid="remove-icon"
-  >
-    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-  </svg>
-);
-
 interface TaskHeaderProps {
   task: IngestionTask & { completedAt?: number; read?: boolean };
 }
 
 const TaskHeader = ({ task }: TaskHeaderProps) => {
   const { getTaskStatus } = useTaskUtils();
-
   const status = getTaskStatus(task);
 
   return (
     <Stack gap="2" data-testid="task-header">
-      <div className="flex items-start gap-3">
-        <div className="flex items-center mt-0.5">
+      <Flex gap="density-md" align="start">
+        <div style={{ marginTop: '2px' }}>
           <TaskStatusIcon state={task.state} task={task} />
         </div>
         <Stack gap="1">
           <Text 
             kind="body/semibold/md"
-            className={task.read ? 'text-neutral-400' : 'text-white'}
             data-testid="task-collection-name"
           >
             {task.collection_name}
           </Text>
           <Text 
             kind="body/regular/xs"
-            className={status.color}
             data-testid="task-status-text"
           >
             {status.text}
           </Text>
         </Stack>
-      </div>
+      </Flex>
     </Stack>
   );
 };
 
 const TaskProgress = ({ task }: { task: TaskDisplayProps['task'] }) => {
   const { formatTimestamp } = useTaskUtils();
-  const { documents = [], total_documents = 0, documents_completed } = task.result || {};
-  // Use explicit documents_completed if available, otherwise fall back to documents.length
-  const completedCount = documents_completed ?? documents.length;
-  const progress = total_documents > 0 ? (completedCount / total_documents) * 100 : 0;
-  const isPending = task.state === "PENDING";
-  const progressLabel = isPending ? "Processing" : "Uploaded";
+  const { documents = [], total_documents = 0 } = task.result || {};
+  const progress = total_documents > 0 ? (documents.length / total_documents) * 100 : 0;
 
   return (
     <Stack gap="2" data-testid="task-progress">
-      <>
-          <Text 
-            kind="body/regular/sm"
-            className={task.read ? 'text-neutral-400' : 'text-white'}
-            data-testid="progress-text"
-          >
-          {progressLabel}: {completedCount} / {total_documents}
+      <Text 
+        kind="body/regular/sm"
+        data-testid="progress-text"
+      >
+        Uploaded: {documents.length} / {total_documents}
+      </Text>
+      {task.completedAt && (
+        <Text 
+          kind="body/regular/xs"
+          data-testid="completion-time"
+        >
+          {formatTimestamp(task.completedAt)}
         </Text>
-        {task.completedAt && (
-          <Text 
-            kind="body/regular/xs"
-            className="text-neutral-300"
-            data-testid="completion-time"
-          >
-            {formatTimestamp(task.completedAt)}
-          </Text>
-        )}
-      </>
+      )}
 
       <ProgressBar
         value={progress}
@@ -117,7 +94,6 @@ const TaskErrors = ({ task }: { task: TaskDisplayProps['task'] }) => {
   const { shouldHideTaskMessage } = useTaskUtils();
   const { message = "", failed_documents = [], validation_errors = [] } = task.result || {};
   const shouldHideMessage = shouldHideTaskMessage(task);
-  const messageColor = task.state === "FAILED" ? "text-red-100" : "text-neutral-300";
 
   return (
     <Stack gap="2">
@@ -125,7 +101,7 @@ const TaskErrors = ({ task }: { task: TaskDisplayProps['task'] }) => {
         <StatusMessage
           slotHeading=""
           slotSubheading={
-            <Text kind="mono/sm" className={`${messageColor} whitespace-pre-wrap break-words`}>
+            <Text kind="mono/sm">
               {message}
             </Text>
           }
@@ -138,13 +114,13 @@ const TaskErrors = ({ task }: { task: TaskDisplayProps['task'] }) => {
           slotHeading="Failed Documents"
           slotSubheading={`${failed_documents.length} document${failed_documents.length > 1 ? 's' : ''} failed to process`}
           slotFooter={
-            <Stack gap="2" className="max-h-32 overflow-y-auto">
+            <Stack gap="2" style={{ maxHeight: '128px', overflowY: 'auto' }}>
               {failed_documents.map((doc, i) => (
                 <div key={i}>
-                  <Text kind="body/semibold/sm" className="text-red-200 mb-2">
+                  <Text kind="body/semibold/sm">
                     {doc.document_name}
                   </Text>
-                  <Text kind="mono/sm" className="text-red-100 whitespace-pre-wrap break-words">
+                  <Text kind="mono/sm">
                     {doc.error_message}
                   </Text>
                 </div>
@@ -187,37 +163,34 @@ export const TaskDisplay = ({ task, onMarkRead, onRemove }: TaskDisplayProps) =>
       }
     : {};
 
-      return (
-      <div data-testid="task-display" {...clickableProps}>
+  return (
+    <div data-testid="task-display" {...clickableProps}>
       <Card
         interactive={onMarkRead && !task.read}
         kind="solid"
-        style={{ 
-          background: 'var(--border-color-interaction-inverse-pressed)',
-          border: !task.read ? '1px solid var(--nv-green)' : undefined
-        }}
-        className={`group relative transition-all duration-200 ${onMarkRead && !task.read ? 'cursor-pointer' : ''}`}
+        selected={!task.read}
+        className={onMarkRead && !task.read ? 'cursor-pointer' : ''}
       >
-        {/* Remove button - only shows if onRemove is provided */}
-        {onRemove && (
-          <Button
-            kind="tertiary"
-            size="small"
-            color="danger"
-            onClick={(e) => {
-              e.stopPropagation();
-              onRemove();
-            }}
-            title="Remove notification"
-            className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10"
-            data-testid="remove-button"
-          >
-            <RemoveIcon />
-          </Button>
-        )}
-
         <Stack gap="3">
-          <TaskHeader task={task} />
+          <Flex justify="between" align="start">
+            <TaskHeader task={task} />
+            
+            {/* Remove button */}
+            {onRemove && (
+              <Button
+                kind="tertiary"
+                size="tiny"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRemove();
+                }}
+                title="Remove notification"
+                data-testid="remove-button"
+              >
+                <X size={16} />
+              </Button>
+            )}
+          </Flex>
           
           <Stack gap="2" data-testid="task-content">
             <TaskProgress task={task} />
@@ -227,4 +200,4 @@ export const TaskDisplay = ({ task, onMarkRead, onRemove }: TaskDisplayProps) =>
       </Card>
     </div>
   );
-}; 
+};

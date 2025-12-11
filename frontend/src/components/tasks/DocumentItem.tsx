@@ -28,7 +28,7 @@ import {
   Spinner,
   Badge
 } from "@kui/react";
-import { Trash2 } from "lucide-react";
+import { Trash2, ChevronDown } from "lucide-react";
 import type { DocumentInfo } from "../../types/api";
 
 interface DocumentItemProps {
@@ -74,26 +74,6 @@ const formatMetadataValue = (value: unknown): string => {
   return String(value);
 };
 
-const ChevronIcon = ({ expanded }: { expanded: boolean }) => (
-  <svg 
-    style={{ 
-      width: '16px', 
-      height: '16px', 
-      flexShrink: 0,
-      transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
-      transition: 'transform 0.2s ease',
-      color: 'var(--text-color-inverse)',
-      opacity: 0.8,
-    }}
-    fill="none" 
-    stroke="currentColor" 
-    strokeWidth="2" 
-    viewBox="0 0 24 24"
-  >
-    <path strokeLinecap="round" strokeLinejoin="round" d="m19 9-7 7-7-7" />
-  </svg>
-);
-
 /**
  * Display document summary with loading/error states.
  */
@@ -109,7 +89,7 @@ const DocumentSummary = ({ collectionName, fileName }: { collectionName: string;
   // Show loading state for pending/in-progress
   if (isLoading || data.status === "PENDING" || data.status === "IN_PROGRESS") {
     return (
-      <Text kind="body/regular/sm" style={{ color: 'var(--text-color-inverse)', opacity: 0.8 }}>
+      <Text kind="body/regular/sm">
         Generating summary...
       </Text>
     );
@@ -122,7 +102,7 @@ const DocumentSummary = ({ collectionName, fileName }: { collectionName: string;
         onClick={() => setExpanded(!expanded)} 
         style={{ cursor: 'pointer' }}
       >
-        <Flex gap="density-sm" align="center">
+        <Flex gap="density-sm" align="start">
           <div
             style={expanded ? { flex: 1 } : {
               flex: 1,
@@ -132,11 +112,19 @@ const DocumentSummary = ({ collectionName, fileName }: { collectionName: string;
               overflow: 'hidden',
             }}
           >
-            <Text kind="body/regular/sm" style={{ color: 'var(--text-color-inverse)', opacity: 0.8 }}>
+            <Text kind="body/regular/sm">
               {data.summary}
             </Text>
           </div>
-          <ChevronIcon expanded={expanded} />
+          <ChevronDown 
+            size={16} 
+            style={{ 
+              flexShrink: 0,
+              marginTop: '12px',
+              transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
+              transition: 'transform 0.2s ease',
+            }} 
+          />
         </Flex>
       </div>
     );
@@ -180,7 +168,7 @@ export const DocumentItem = ({ name, metadata, collectionName, documentInfo }: D
           <div data-testid="document-icon">
             {getFileIconByExtension(name, { size: 'sm' })}
           </div>
-          <Text kind="body/bold/md" style={{ color: 'var(--text-color-inverse)' }} data-testid="document-name">
+          <Text kind="body/bold/md" data-testid="document-name">
             {name}
           </Text>
         </Flex>
@@ -227,10 +215,10 @@ export const DocumentItem = ({ name, metadata, collectionName, documentInfo }: D
             .filter(([key]) => key !== 'filename')
             .map(([key, val]) => (
               <Flex key={key} gap="2" wrap="wrap">
-                <Text kind="body/bold/sm" style={{ color: 'var(--text-color-inverse)' }}>
+                <Text kind="body/bold/sm">
                   {key}:
                 </Text>
-                <Text kind="body/regular/sm" style={{ color: 'var(--text-color-inverse)' }}>
+                <Text kind="body/regular/sm">
                   {formatMetadataValue(val)}
                 </Text>
               </Flex>
@@ -252,4 +240,4 @@ export const DocumentItem = ({ name, metadata, collectionName, documentInfo }: D
       />
     </Stack>
   );
-}; 
+};

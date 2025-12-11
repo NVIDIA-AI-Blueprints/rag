@@ -15,6 +15,7 @@
 
 import { useMarkdownRenderer } from "../../hooks/useMarkdownRenderer";
 import { useCitationText } from "../../hooks/useCitationText";
+import { Text } from "@kui/react";
 
 interface CitationTextContentProps {
   text: string;
@@ -25,13 +26,14 @@ export const CitationTextContent = ({ text }: CitationTextContentProps) => {
   const { toMarkdown } = useCitationText();
 
   return (
-    <div className="prose prose-invert max-w-none">
-      <div
-        className="text-gray-300 leading-relaxed text-xs"
+    <div style={{ maxWidth: '100%' }}>
+      <Text 
+        kind="body/regular/xs"
+        style={{ lineHeight: '1.6' }}
         dangerouslySetInnerHTML={{
           __html: renderMarkdown(toMarkdown(text)),
         }}
       />
     </div>
   );
-}; 
+};

@@ -19,11 +19,11 @@ import { useCollectionDrawerStore } from "../../store/useCollectionDrawerStore";
 import { useCollectionActions } from "../../hooks/useCollectionActions";
 import { DrawerActions } from "../drawer/DrawerActions";
 import { ConfirmationModal } from "../modals/ConfirmationModal";
-import { Block, Button, Flex, Notification, SidePanel, Text } from "@kui/react";
+import { Notification, SidePanel } from "@kui/react";
 import { DocumentsList } from "../tasks/DocumentsList";
 import { UploaderSection } from "../drawer/UploaderSection";
 
-// Export all drawer components for external uYou arese
+// Export all drawer components for external use
 export { LoadingState } from "../ui/LoadingState";
 export { ErrorState } from "../ui/ErrorState";
 export { EmptyState } from "../ui/EmptyState";
@@ -31,18 +31,6 @@ export { DocumentItem } from "../tasks/DocumentItem";
 export { DocumentsList } from "../tasks/DocumentsList";
 export { UploaderSection } from "../drawer/UploaderSection";
 export { DrawerActions } from "../drawer/DrawerActions";
-
-const CloseIcon = () => (
-  <svg 
-    style={{ width: '20px', height: '20px', color: 'var(--text-color-inverse)' }} 
-    fill="none" 
-    stroke="currentColor" 
-    strokeWidth="2" 
-    viewBox="0 0 24 24"
-  >
-    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-  </svg>
-);
 
 export default function CollectionDrawer() {
   const { activeCollection, closeDrawer, toggleUploader, deleteError, showUploader } = useCollectionDrawerStore();
@@ -84,11 +72,6 @@ export default function CollectionDrawer() {
 
   return (
     <SidePanel
-      style={{
-        "--side-panel-width": "50vw",
-        background: 'var(--background-color-interaction-inverse)',
-        color: 'var(--text-color-inverse)'
-      }}
       modal
       open={!!activeCollection}
       onOpenChange={(open) => {
@@ -97,14 +80,8 @@ export default function CollectionDrawer() {
         }
       }}
       side="right"
-      slotHeading={
-        <Flex align="center" justify="between" gap="3" style={{ width: '100%' }}>
-          <Text kind="body/bold/lg" style={{ color: 'var(--text-color-inverse)' }}>{title}</Text>
-          <Button kind="tertiary" size="tiny" onClick={handleClose}>
-            <CloseIcon />
-          </Button>
-        </Flex>
-      }
+      style={{ "--side-panel-width": "50vw" }}
+      slotHeading={title}
       slotFooter={
         <DrawerActions 
           onDelete={handleDeleteClick}
@@ -115,41 +92,28 @@ export default function CollectionDrawer() {
         />
       }
       closeOnClickOutside
-      hideCloseButton
     >
-      <Block 
-          style={{ 
-            overflowY: 'auto',
-            flex: 1,
-            height: '100%',
-          }}
-        >
-          <>
-            <DocumentsList />
-            
-            {deleteError && (
-              <div style={{ color: 'var(--text-color-inverse)' }}>
-                <Notification
-                  status="error"
-                  slotHeading="Delete Error"
-                  slotSubheading={deleteError}
-                />
-              </div>
-            )}
-            
-            {showUploader && <UploaderSection />}
-          </>
-        </Block>
-        
-        <ConfirmationModal
-          isOpen={showDeleteModal}
-          onClose={() => setShowDeleteModal(false)}
-          onConfirm={handleConfirmDelete}
-          title="Delete Collection"
-          message={`Are you sure you want to delete the collection "${activeCollection?.collection_name}"? This action will permanently delete all documents and metadata. This cannot be undone.`}
-          confirmText="Delete Collection"
-          confirmColor="danger"
+      <DocumentsList />
+      
+      {deleteError && (
+        <Notification
+          status="error"
+          slotHeading="Delete Error"
+          slotSubheading={deleteError}
         />
+      )}
+      
+      {showUploader && <UploaderSection />}
+        
+      <ConfirmationModal
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={handleConfirmDelete}
+        title="Delete Collection"
+        message={`Are you sure you want to delete the collection "${activeCollection?.collection_name}"? This action will permanently delete all documents and metadata. This cannot be undone.`}
+        confirmText="Delete Collection"
+        confirmColor="danger"
+      />
     </SidePanel>
   );
 }

@@ -18,7 +18,7 @@ import NvidiaUpload from "../components/files/NvidiaUpload";
 import MetadataSchemaEditor from "../components/schema/MetadataSchemaEditor";
 import NewCollectionButtons from "../components/collections/NewCollectionButtons";
 import { useNewCollectionStore } from "../store/useNewCollectionStore";
-import { FormField, Grid, GridItem, PageHeader, Panel, Stack, TextInput } from "@kui/react";
+import { Block, FormField, Grid, GridItem, PageHeader, Panel, Stack, TextInput } from "@kui/react";
 
 /**
  * New Collection page component for creating collections.
@@ -51,10 +51,12 @@ export default function NewCollection() {
   return (
     <Grid cols={12} gap="density-lg" padding="density-lg">
       <GridItem cols={12}>
-        <PageHeader
-          slotHeading="Create New Collection"
-          slotSubheading="Upload source files and define metadata schema for this collection."
-        />
+        <Block padding="density-lg">
+          <PageHeader
+            slotHeading="Create New Collection"
+            slotSubheading="Upload source files and define metadata schema for this collection."
+          />
+        </Block>
       </GridItem>
       <GridItem cols={6}>
         <Panel>
