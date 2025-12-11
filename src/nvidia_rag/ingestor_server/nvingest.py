@@ -152,7 +152,7 @@ def get_nv_ingest_ingestor(
             f"Enabling captioning task. Captioning Endpoint URL: {config.nv_ingest.caption_endpoint_url}, Captioning Model Name: {config.nv_ingest.caption_model_name}"
         )
         ingestor = ingestor.caption(
-            api_key=config.llm.get_api_key(),
+            api_key=config.vlm.get_api_key(),
             endpoint_url=config.nv_ingest.caption_endpoint_url,
             model_name=config.nv_ingest.caption_model_name,
         )
