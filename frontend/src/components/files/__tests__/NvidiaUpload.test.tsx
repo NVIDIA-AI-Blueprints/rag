@@ -124,7 +124,7 @@ describe('NvidiaUpload', () => {
     });
 
     it('passes uploadFiles from hook to FileList', () => {
-      const mockFiles = [
+      const mockFiles: UploadFile[] = [
         { id: '1', file: new File([''], 'test1.pdf'), status: 'uploaded', progress: 100 },
         { id: '2', file: new File([''], 'test2.doc'), status: 'uploaded', progress: 100 }
       ];

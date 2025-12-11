@@ -22,7 +22,7 @@ vi.mock('../../components/chat/MessageInput', () => ({
 vi.mock('../../components/chat/ChatMessageBubble', () => ({
   default: ({ msg }: { msg: ChatMessage }) => (
     <div data-testid="chat-message-bubble">
-      {msg.role}: {msg.content}
+      {msg.role}: {typeof msg.content === 'string' ? msg.content : '[multimodal content]'}
     </div>
   )
 }));

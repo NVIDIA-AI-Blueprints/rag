@@ -23,7 +23,7 @@ import { useImageAttachmentStore } from "../store/useImageAttachmentStore";
 import { useCollections } from "../api/useCollectionsApi";
 import { useUUID } from "./useUUID";
 import type { GenerateRequest } from "../types/requests";
-import type { ChatMessage, Filter, MessageContent } from "../types/chat";
+import type { ChatMessage, Filter, MessageContent, TextContent, ImageContent } from "../types/chat";
 import type { Collection } from "../types/collections";
 
 /**
@@ -198,7 +198,7 @@ export const useMessageSubmit = () => {
     // Build multimodal content if images are attached
     let content: MessageContent;
     if (hasImages) {
-      const contentParts: (typeof content extends string ? never : (typeof content)[number])[] = [];
+      const contentParts: (TextContent | ImageContent)[] = [];
       
       // Add text part if there's text
       if (hasText) {

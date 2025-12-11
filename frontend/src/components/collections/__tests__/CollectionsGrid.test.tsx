@@ -113,7 +113,7 @@ describe('CollectionsGrid', () => {
     });
 
     it('shows search empty state when no search results', () => {
-      mockUseCollections.data = [{ collection_name: 'test-collection' }];
+      mockUseCollections.data = [{ collection_name: 'test-collection', num_entities: 0, metadata_schema: [] }];
       
       render(<CollectionsGrid searchQuery="nonexistent" />);
       
@@ -124,7 +124,7 @@ describe('CollectionsGrid', () => {
     });
 
     it('shows collections when search matches', () => {
-      mockUseCollections.data = [{ collection_name: 'test-collection' }];
+      mockUseCollections.data = [{ collection_name: 'test-collection', num_entities: 0, metadata_schema: [] }];
       
       render(<CollectionsGrid searchQuery="test" />);
       
@@ -137,9 +137,9 @@ describe('CollectionsGrid', () => {
   describe('Search Filtering', () => {
     it('filters collections by search query (case insensitive)', () => {
       mockUseCollections.data = [
-        { collection_name: 'first-collection' },
-        { collection_name: 'second-collection' },
-        { collection_name: 'third-set' }
+        { collection_name: 'first-collection', num_entities: 0, metadata_schema: [] },
+        { collection_name: 'second-collection', num_entities: 0, metadata_schema: [] },
+        { collection_name: 'third-set', num_entities: 0, metadata_schema: [] }
       ];
       
       render(<CollectionsGrid searchQuery="COLLECTION" />);
@@ -151,8 +151,8 @@ describe('CollectionsGrid', () => {
 
     it('shows all collections when search query is empty', () => {
       mockUseCollections.data = [
-        { collection_name: 'collection1' },
-        { collection_name: 'collection2' }
+        { collection_name: 'collection1', num_entities: 0, metadata_schema: [] },
+        { collection_name: 'collection2', num_entities: 0, metadata_schema: [] }
       ];
       
       render(<CollectionsGrid searchQuery="" />);
@@ -163,9 +163,9 @@ describe('CollectionsGrid', () => {
 
     it('handles partial matches', () => {
       mockUseCollections.data = [
-        { collection_name: 'user-data' },
-        { collection_name: 'user-profiles' },
-        { collection_name: 'system-logs' }
+        { collection_name: 'user-data', num_entities: 0, metadata_schema: [] },
+        { collection_name: 'user-profiles', num_entities: 0, metadata_schema: [] },
+        { collection_name: 'system-logs', num_entities: 0, metadata_schema: [] }
       ];
       
       render(<CollectionsGrid searchQuery="user" />);
@@ -177,8 +177,8 @@ describe('CollectionsGrid', () => {
 
     it('returns no results for non-matching search', () => {
       mockUseCollections.data = [
-        { collection_name: 'collection1' },
-        { collection_name: 'collection2' }
+        { collection_name: 'collection1', num_entities: 0, metadata_schema: [] },
+        { collection_name: 'collection2', num_entities: 0, metadata_schema: [] }
       ];
       
       render(<CollectionsGrid searchQuery="xyz" />);
@@ -192,8 +192,8 @@ describe('CollectionsGrid', () => {
   describe('Collections Rendering', () => {
     it('renders collection items when data is available', () => {
       mockUseCollections.data = [
-        { collection_name: 'test1' },
-        { collection_name: 'test2' }
+        { collection_name: 'test1', num_entities: 0, metadata_schema: [] },
+        { collection_name: 'test2', num_entities: 0, metadata_schema: [] }
       ];
       
       render(<CollectionsGrid searchQuery="" />);
