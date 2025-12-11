@@ -14,6 +14,7 @@
 // limitations under the License.
 
 import { useCitationUtils } from "../../hooks/useCitationUtils";
+import { Text, Stack } from "@kui/react";
 
 interface CitationScoreProps {
   score: number | string | undefined;
@@ -26,11 +27,9 @@ export const CitationScore = ({ score, precision = 2 }: CitationScoreProps) => {
   if (score === undefined) return null;
 
   return (
-    <div className="text-right">
-      <div className="text-xs text-gray-400 mb-0.5">Score</div>
-      <div className="text-sm font-bold text-gray-300">
-        {formatScore(score, precision)}
-      </div>
-    </div>
+    <Stack gap="density-xs" style={{ textAlign: 'right' }}>
+      <Text kind="body/regular/xs" style={{ color: 'var(--text-color-subtle)' }}>Score</Text>
+      <Text kind="label/bold/sm">{formatScore(score, precision)}</Text>
+    </Stack>
   );
-}; 
+};

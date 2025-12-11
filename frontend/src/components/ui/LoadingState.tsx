@@ -13,6 +13,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { Spinner, Flex } from "@kui/react";
+
 /**
  * Props for the LoadingState component.
  */
@@ -22,19 +24,15 @@ interface LoadingStateProps {
 
 /**
  * Loading state component that displays a spinner with optional message.
- * 
- * Shows a centered spinning indicator with NVIDIA green accent color
- * and an optional loading message. Used throughout the application
- * to indicate loading states.
- * 
- * @param props - Component props with optional message
- * @returns Loading state component with spinner and message
  */
 export const LoadingState = ({ message = "Loading..." }: LoadingStateProps) => (
-  <div className="flex h-[300px] items-center justify-center">
-    <div className="flex flex-col items-center gap-4">
-      <div className="h-8 w-8 animate-spin rounded-full border-3 border-[var(--nv-green)] border-t-transparent" />
-      <p className="text-base text-gray-300">{message}</p>
-    </div>
-  </div>
-); 
+  <Flex 
+    direction="col" 
+    align="center" 
+    justify="center" 
+    gap="density-md"
+    style={{ height: '300px' }}
+  >
+    <Spinner description={message} />
+  </Flex>
+);

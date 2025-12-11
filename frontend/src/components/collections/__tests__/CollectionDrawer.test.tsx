@@ -8,10 +8,10 @@ const mockReset = vi.fn();
 vi.mock('../../../store/useNewCollectionStore', () => {
   const mockStore = vi.fn(() => ({
     setMetadataSchema: vi.fn()
-  }));
+  })) as ReturnType<typeof vi.fn> & { getState: ReturnType<typeof vi.fn> };
   
-  // Add the getState method to the store function with proper typing
-  (mockStore as any).getState = vi.fn(() => ({
+  // Add the getState method to the store function
+  mockStore.getState = vi.fn(() => ({
     reset: mockReset
   }));
   

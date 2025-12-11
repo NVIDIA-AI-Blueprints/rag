@@ -13,22 +13,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { ChevronRight } from "lucide-react";
+
 interface ExpandChevronProps {
   isExpanded: boolean;
 }
 
 export const ExpandChevron = ({ isExpanded }: ExpandChevronProps) => (
-  <div className="p-1 rounded-md hover:bg-neutral-800 transition-colors">
-    <svg 
-      className={`w-4 h-4 text-gray-400 group-hover:text-[var(--nv-green)] transition-all duration-200 ${
-        isExpanded ? 'rotate-90' : ''
-      }`} 
-      fill="none" 
-      stroke="currentColor" 
-      strokeWidth="2" 
-      viewBox="0 0 24 24"
-    >
-      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-    </svg>
+  <div style={{ 
+    padding: 'var(--spacing-density-xs)', 
+    borderRadius: 'var(--border-radius-md)',
+    transition: 'background-color 0.2s'
+  }}>
+    <ChevronRight 
+      size={16}
+      style={{ 
+        color: 'var(--text-color-subtle)',
+        transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
+        transition: 'transform 0.2s'
+      }}
+    />
   </div>
-); 
+);

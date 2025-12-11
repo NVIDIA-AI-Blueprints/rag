@@ -102,7 +102,7 @@ export default function SettingsPage() {
     },
     {
       id: 'advanced',
-      slotLabel: 'Advanced Settings',
+      slotLabel: 'Other Settings',
       slotIcon: <ICON_advanced />,
       active: activeSection === 'advanced',
       href: '#advanced',
@@ -119,10 +119,12 @@ export default function SettingsPage() {
 
   return (
     <Block style={{ backgroundColor: 'var(--background-color-surface-base)' }}>
-      <PageHeader
-        slotHeading="Settings"
-        slotDescription="Configure your RAG application settings and preferences"
-      />
+      <Block padding="density-lg">
+        <PageHeader
+          slotHeading="Settings"
+          slotDescription="Configure your RAG application settings and preferences"
+        />
+      </Block>
       <Divider />
       <Flex className="h-screen">
         <VerticalNav items={navigationItems} />

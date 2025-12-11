@@ -14,6 +14,7 @@
 // limitations under the License.
 
 import { useCallback } from "react";
+import { Stack, Text, Divider } from "@kui/react";
 import { ModalContainer } from "./ModalContainer";
 import { FeatureWarningModal } from "./FeatureWarningModal";
 import { RagConfigSection } from "../settings/RagConfigSection";
@@ -38,7 +39,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
   return (
     <>
       <ModalContainer isOpen={true} onClose={onClose} title="Settings">
-        <div className="space-y-6">
+        <Stack gap="density-lg">
           {/* RAG Configuration */}
           <RagConfigSection />
 
@@ -53,20 +54,19 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
           {/* Endpoints Configuration */}
           <EndpointsSection />
 
-          {/* Advanced Settings */}
+          {/* Other Settings */}
           <AdvancedSection />
 
           {/* Metadata Schema Editor */}
-          <div className="border-t border-neutral-700 pt-6">
-            <div className="mb-4">
-              <h3 className="text-lg font-semibold text-white">Metadata Schema</h3>
-              <p className="text-sm text-gray-400 mt-1">
-                Configure metadata fields for new collections
-              </p>
-            </div>
+          <Divider />
+          <div>
+            <Text kind="title/sm" style={{ marginBottom: 'var(--spacing-density-sm)' }}>Metadata Schema</Text>
+            <Text kind="body/regular/sm" style={{ color: 'var(--text-color-subtle)', marginBottom: 'var(--spacing-density-md)' }}>
+              Configure metadata fields for new collections
+            </Text>
             <MetadataSchemaEditor />
           </div>
-        </div>
+        </Stack>
       </ModalContainer>
 
       {/* Feature Warning Modal */}
@@ -79,4 +79,4 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
       )}
     </>
   );
-} 
+}

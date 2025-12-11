@@ -75,8 +75,8 @@ describe('CitationTextContent', () => {
       
       const { container } = render(<CitationTextContent text="test" />);
       
-      const contentDiv = container.querySelector('div[class*="text-gray-300"]');
-      expect(contentDiv).toBeInTheDocument();
+      // Check that the rendered HTML is in the container
+      expect(container.innerHTML).toContain('<div>content</div>');
     });
   });
 
@@ -101,4 +101,4 @@ describe('CitationTextContent', () => {
       expect(mockToMarkdown).toHaveBeenCalledBefore(mockRenderMarkdown);
     });
   });
-}); 
+});

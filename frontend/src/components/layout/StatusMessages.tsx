@@ -14,6 +14,7 @@
 // limitations under the License.
 
 import { useNewCollectionStore } from "../../store/useNewCollectionStore";
+import { Notification } from "@kui/react";
 
 export default function StatusMessages() {
   const { collectionName, error, uploadComplete } = useNewCollectionStore();
@@ -21,13 +22,21 @@ export default function StatusMessages() {
   return (
     <>
       {error && (
-        <div className="mt-4 text-sm text-red-400 bg-red-900/30 p-3 rounded">{error}</div>
+        <Notification 
+          color="danger" 
+          style={{ marginTop: 'var(--spacing-density-md)' }}
+        >
+          {error}
+        </Notification>
       )}
 
       {uploadComplete && (
-        <div className="mt-4 p-3 bg-green-900/20 rounded text-sm text-green-300">
+        <Notification 
+          color="success" 
+          style={{ marginTop: 'var(--spacing-density-md)' }}
+        >
           Collection "{collectionName}" created successfully.
-        </div>
+        </Notification>
       )}
     </>
   );

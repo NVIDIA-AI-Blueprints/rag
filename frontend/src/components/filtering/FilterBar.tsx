@@ -177,6 +177,7 @@ const formatFilterValue = (value: unknown): string => {
 };
 
 // Custom hooks for state management
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const useFilterState = (_initialFilters: Filter[]) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const [filterState, setFilterState] = React.useState<FilterState>({
@@ -746,7 +747,7 @@ interface FilterInputProps {
   stage: FilterState['stage'];
   fieldMeta: FieldMeta;
   isLoadingCollections: boolean;
-  collectionsError: any;
+  collectionsError: Error | null;
   valuesLoading: boolean;
   valueOptions: string[];
   selectedCollections: string[];

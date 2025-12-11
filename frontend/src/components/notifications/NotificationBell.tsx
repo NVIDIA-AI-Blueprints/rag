@@ -14,7 +14,7 @@
 // limitations under the License.
 
 import { useEffect, useState, useRef } from "react";
-import { Popover, Button, ThemeProvider } from "@kui/react";
+import { Popover, Button } from "@kui/react";
 import { useNotificationStore } from "../../store/useNotificationStore";
 import { NotificationDropdown } from "./NotificationDropdown";
 import { NotificationBadge } from "./NotificationBadge";
@@ -94,21 +94,17 @@ export default function NotificationBell() {
     .map(n => n.task);
 
   return (
-    <ThemeProvider theme="dark">
+    <>
       <Popover
         open={isOpen}
         onOpenChange={setIsOpen}
         side="bottom"
         align="end"
-        slotContent={
-          <NotificationDropdown />
-        }
-        style={{ background: 'var(--background-color-interaction-inverse)' }}
+        slotContent={<NotificationDropdown />}
       >
         <Button 
           kind="tertiary" 
           size="small"
-          className="relative"
         >
           <NotificationBadge count={unreadCount} />
         </Button>
@@ -117,6 +113,6 @@ export default function NotificationBell() {
       {pendingTasks.map((task) => (
         <TaskPoller key={task.id} taskId={task.id} />
       ))}
-    </ThemeProvider>
+    </>
   );
 }

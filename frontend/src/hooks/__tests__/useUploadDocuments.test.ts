@@ -186,7 +186,7 @@ describe('useUploadDocuments', () => {
     const formData = callArgs[1].body as FormData;
     
     expect(formData.get('documents')).toBe(testFile);
-    expect(formData.get('data')).toBe(JSON.stringify(metadata));
+    expect(formData.get('data')).toBe(JSON.stringify({ ...metadata, generate_summary: true }));
   });
 
   it('should add task notification on successful upload', async () => {

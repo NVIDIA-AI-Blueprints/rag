@@ -13,6 +13,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { Flex } from "@kui/react";
+
 interface CitationVisualContentProps {
   imageData: string;
   documentType: string;
@@ -22,11 +24,17 @@ export const CitationVisualContent = ({
   imageData, 
   documentType 
 }: CitationVisualContentProps) => (
-  <div className="flex justify-center">
+  <Flex justify="center">
     <img
       src={`data:image/png;base64,${imageData}`}
       alt={`Citation ${documentType}`}
-      className="max-w-full h-auto rounded-lg border border-neutral-700 shadow-lg"
+      style={{
+        maxWidth: '100%',
+        height: 'auto',
+        borderRadius: 'var(--border-radius-lg)',
+        border: '1px solid var(--border-color-base)',
+        boxShadow: 'var(--shadow-lg)'
+      }}
     />
-  </div>
-); 
+  </Flex>
+);

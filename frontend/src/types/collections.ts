@@ -63,6 +63,22 @@ export interface Collection {
   collection_name: string;
   num_entities: number;
   metadata_schema: APIMetadataField[];
+  collection_info?: {
+    description?: string;
+    tags?: string[];
+    owner?: string;
+    created_by?: string;
+    business_domain?: string;
+    status?: string;
+    date_created?: string;
+    last_updated?: string;
+    number_of_files?: number;
+    last_indexed?: string;
+    ingestion_status?: string;
+    has_tables?: boolean;
+    has_charts?: boolean;
+    has_images?: boolean;
+  };
 }
 
 /**

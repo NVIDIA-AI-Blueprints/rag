@@ -110,7 +110,7 @@ export const SettingsContent: React.FC<SettingsContentProps> = ({
       case 'advanced':
         return (
           <Panel
-            slotHeading="Advanced Settings"
+            slotHeading="Other Settings"
             slotIcon={<AdvancedIcon className="w-6 h-6" />}
             elevation="mid"
             density="standard"

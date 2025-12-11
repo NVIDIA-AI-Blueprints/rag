@@ -5,7 +5,7 @@ import { TaskDisplay } from '../TaskDisplay';
 // Mock dependencies
 vi.mock('../../../hooks/useTaskUtils', () => ({
   useTaskUtils: () => ({
-    getTaskStatus: vi.fn().mockReturnValue({ status: 'Completed', showProgress: false }),
+    getTaskStatus: vi.fn().mockReturnValue({ status: 'Completed', showProgress: false, text: 'Completed' }),
     formatTimestamp: vi.fn().mockReturnValue('Jan 1, 2023'),
     shouldHideTaskMessage: vi.fn().mockReturnValue(false)
   })
@@ -30,12 +30,10 @@ describe('TaskDisplay', () => {
       const taskDisplay = screen.getByTestId('task-display');
       expect(taskDisplay).toBeInTheDocument();
       
-      // Check that the task display element renders correctly
-      expect(taskDisplay).not.toHaveClass('opacity-75'); // Should not have read opacity
-      
-      // Check that task name is styled for unread (white text)
+      // Check that task name renders correctly
       const taskName = screen.getByTestId('task-collection-name');
-      expect(taskName).toHaveClass('text-white');
+      expect(taskName).toBeInTheDocument();
+      expect(taskName).toHaveTextContent('test-collection');
     });
 
     it('shows read styling when task is read', () => {
@@ -43,9 +41,10 @@ describe('TaskDisplay', () => {
       const taskDisplay = screen.getByTestId('task-display');
       expect(taskDisplay).toBeInTheDocument();
       
-      // Check that task name is styled for read (neutral text)
+      // Check that task name renders correctly
       const taskName = screen.getByTestId('task-collection-name');
-      expect(taskName).toHaveClass('text-neutral-400');
+      expect(taskName).toBeInTheDocument();
+      expect(taskName).toHaveTextContent('test-collection');
     });
 
     it('calls onMarkRead when clicked and handler provided', () => {
@@ -93,4 +92,4 @@ describe('TaskDisplay', () => {
       expect(screen.getByText('test-collection')).toBeInTheDocument();
     });
   });
-}); 
+});

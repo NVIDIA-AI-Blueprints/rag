@@ -16,6 +16,7 @@
 import { useState } from "react";
 import { useFileIcons } from "../../hooks/useFileIcons";
 import { useDeleteDocument } from "../../api/useCollectionDocuments";
+import { useDocumentSummary } from "../../api/useDocumentSummary";
 import { useCollectionDrawerStore } from "../../store/useCollectionDrawerStore";
 import { useQueryClient } from "@tanstack/react-query";
 import { ConfirmationModal } from "../modals/ConfirmationModal";
@@ -24,26 +25,28 @@ import {
   Stack, 
   Text, 
   Button,
-  Spinner 
+  Spinner,
+  Badge
 } from "@kui/react";
-
-const DeleteIcon = () => (
-  <svg 
-    style={{ width: '16px', height: '16px' }}
-    fill="none" 
-    stroke="currentColor" 
-    strokeWidth="2" 
-    viewBox="0 0 24 24"
-  >
-    <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
-  </svg>
-);
+import { Trash2, ChevronDown } from "lucide-react";
+import type { DocumentInfo } from "../../types/api";
 
 interface DocumentItemProps {
   name: string;
   metadata: Record<string, unknown>;
   collectionName: string;
+  documentInfo?: DocumentInfo;
 }
+
+/**
+ * Format file size in bytes to human readable string.
+ */
+const formatFileSize = (bytes: number): string => {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+};
 
 // Helper function to format metadata values for display
 const formatMetadataValue = (value: unknown): string => {
@@ -71,7 +74,66 @@ const formatMetadataValue = (value: unknown): string => {
   return String(value);
 };
 
-export const DocumentItem = ({ name, metadata, collectionName }: DocumentItemProps) => {
+/**
+ * Display document summary with loading/error states.
+ */
+const DocumentSummary = ({ collectionName, fileName }: { collectionName: string; fileName: string }) => {
+  const { data, isLoading } = useDocumentSummary(collectionName, fileName);
+  const [expanded, setExpanded] = useState(false);
+
+  // Don't show anything if no summary or not found
+  if (!data || data.status === "NOT_FOUND" || data.status === "FAILED") {
+    return null;
+  }
+
+  // Show loading state for pending/in-progress
+  if (isLoading || data.status === "PENDING" || data.status === "IN_PROGRESS") {
+    return (
+      <Text kind="body/regular/sm">
+        Generating summary...
+      </Text>
+    );
+  }
+
+  // Show summary if available
+  if (data.status === "SUCCESS" && data.summary) {
+    return (
+      <div 
+        onClick={() => setExpanded(!expanded)} 
+        style={{ cursor: 'pointer' }}
+      >
+        <Flex gap="density-sm" align="start">
+          <div
+            style={expanded ? { flex: 1 } : {
+              flex: 1,
+              display: '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+            }}
+          >
+            <Text kind="body/regular/sm">
+              {data.summary}
+            </Text>
+          </div>
+          <ChevronDown 
+            size={16} 
+            style={{ 
+              flexShrink: 0,
+              marginTop: '12px',
+              transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
+              transition: 'transform 0.2s ease',
+            }} 
+          />
+        </Flex>
+      </div>
+    );
+  }
+
+  return null;
+};
+
+export const DocumentItem = ({ name, metadata, collectionName, documentInfo }: DocumentItemProps) => {
   const { getFileIconByExtension } = useFileIcons();
   const queryClient = useQueryClient();
   const { setDeleteError } = useCollectionDrawerStore();
@@ -99,43 +161,22 @@ export const DocumentItem = ({ name, metadata, collectionName }: DocumentItemPro
   };
   
   return (
-    <Stack data-testid="document-item">
-      <Flex justify="between" align="start">
-        <Stack gap="density-md">
-          {/* Document name and icon */}
-          <Flex align="center" gap="density-md">
-            <div data-testid="document-icon">
-              {getFileIconByExtension(name, { size: 'sm' })}
-            </div>
-            <Text  kind="body/bold/md" style={{ color: 'var(--text-color-inverse)' }} data-testid="document-name">
-              {name}
-            </Text>
-          </Flex>
-          
-          {/* Metadata */}
-          {Object.keys(metadata).filter(key => key !== 'filename').length > 0 && (
-            <Stack gap="1" data-testid="document-metadata">
-              {Object.entries(metadata)
-                .filter(([key]) => key !== 'filename')
-                .map(([key, val]) => (
-                  <Flex key={key} gap="2" wrap="wrap">
-                    <Text kind="body/bold/sm" style={{ color: 'var(--text-color-inverse)' }}>
-                      {key}:
-                    </Text>
-                    <Text kind="body/regular/sm" style={{ color: 'var(--text-color-inverse)' }}>
-                      {formatMetadataValue(val)}
-                    </Text>
-                  </Flex>
-                ))}
-            </Stack>
-          )}
-        </Stack>
+    <Stack data-testid="document-item" gap="density-md">
+      {/* Header row: icon, name, delete button */}
+      <Flex justify="between" align="center">
+        <Flex align="center" gap="density-md">
+          <div data-testid="document-icon">
+            {getFileIconByExtension(name, { size: 'sm' })}
+          </div>
+          <Text kind="body/bold/md" data-testid="document-name">
+            {name}
+          </Text>
+        </Flex>
         
         {/* Delete button */}
         <Button
           kind="tertiary"
           size="tiny"
-          color="danger"
           onClick={handleDeleteClick}
           disabled={deleteDoc.isPending}
           aria-label={`Delete ${name}`}
@@ -144,10 +185,49 @@ export const DocumentItem = ({ name, metadata, collectionName }: DocumentItemPro
           {deleteDoc.isPending ? (
             <Spinner size="small" description="" />
           ) : (
-            <DeleteIcon />
+            <Trash2 size={16} />
           )}
         </Button>
       </Flex>
+      
+      {/* Document Info Badges */}
+      {documentInfo && (
+        <Flex gap="density-sm" wrap="wrap">
+          {documentInfo.file_size && (
+            <Badge kind="outline" color="gray">{formatFileSize(documentInfo.file_size)}</Badge>
+          )}
+          {documentInfo.doc_type_counts?.text && documentInfo.doc_type_counts.text > 0 && (
+            <Badge kind="outline" color="gray">{documentInfo.doc_type_counts.text} text</Badge>
+          )}
+          {documentInfo.doc_type_counts?.table && documentInfo.doc_type_counts.table > 0 && (
+            <Badge kind="outline" color="gray">{documentInfo.doc_type_counts.table} tables</Badge>
+          )}
+          {documentInfo.doc_type_counts?.chart && documentInfo.doc_type_counts.chart > 0 && (
+            <Badge kind="outline" color="gray">{documentInfo.doc_type_counts.chart} charts</Badge>
+          )}
+        </Flex>
+      )}
+      
+      {/* Metadata */}
+      {Object.keys(metadata).filter(key => key !== 'filename').length > 0 && (
+        <Stack gap="1" data-testid="document-metadata">
+          {Object.entries(metadata)
+            .filter(([key]) => key !== 'filename')
+            .map(([key, val]) => (
+              <Flex key={key} gap="2" wrap="wrap">
+                <Text kind="body/bold/sm">
+                  {key}:
+                </Text>
+                <Text kind="body/regular/sm">
+                  {formatMetadataValue(val)}
+                </Text>
+              </Flex>
+            ))}
+        </Stack>
+      )}
+      
+      {/* Summary */}
+      <DocumentSummary collectionName={collectionName} fileName={name} />
 
       <ConfirmationModal
         isOpen={showDeleteModal}
@@ -160,4 +240,4 @@ export const DocumentItem = ({ name, metadata, collectionName }: DocumentItemPro
       />
     </Stack>
   );
-}; 
+};

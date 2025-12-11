@@ -51,7 +51,7 @@ export const NotificationDropdown = () => {
   if (totalNotifications === 0) {
     return (
       <div style={{ width: '600px', maxHeight: '384px', padding: '16px' }}>
-        <Text kind="body/regular/sm" className="text-subtle">
+        <Text kind="body/regular/sm">
           No notifications
         </Text>
       </div>
@@ -65,14 +65,13 @@ export const NotificationDropdown = () => {
         width: '50vw', 
         maxHeight: '484px', 
         overflowY: 'auto', 
-        background: 'var(--background-color-interaction-inverse)',
         padding: '8px'
       }}
     >
       {/* Health Notifications Section */}
       {groupedNotifications.health.length > 0 && (
         <>
-          <Text kind="body/semibold/sm" className="text-white px-2">
+          <Text kind="body/semibold/sm">
             Service Health Issues ({groupedNotifications.health.length})
           </Text>
           <Stack gap="2">
@@ -96,7 +95,7 @@ export const NotificationDropdown = () => {
       {/* Task Notifications Section */}
       {groupedNotifications.tasks.length > 0 && (
         <>
-          <Text kind="body/semibold/sm" className="text-white px-2">
+          <Text kind="body/semibold/sm">
             Ingestion Tasks ({groupedNotifications.tasks.length})
           </Text>
           <Stack gap="2">
@@ -116,4 +115,4 @@ export const NotificationDropdown = () => {
       )}
     </Stack>
   );
-}; 
+};

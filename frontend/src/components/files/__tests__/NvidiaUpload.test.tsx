@@ -2,9 +2,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '../../../test/utils';
 import NvidiaUpload from '../NvidiaUpload';
 
+import type { UploadFile } from '../../../hooks/useUploadFileState';
+
 // Mock the upload file state hook
 const mockHook = {
-  uploadFiles: [] as any,
+  uploadFiles: [] as UploadFile[],
   addFiles: vi.fn(),
   removeFile: vi.fn()
 };

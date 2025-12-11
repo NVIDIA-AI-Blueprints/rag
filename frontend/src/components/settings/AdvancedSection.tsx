@@ -15,10 +15,12 @@
 
 import { FormField, TextInput, Switch, Stack, Flex, Text, Button, Tag } from "@kui/react";
 import { useSettingsStore } from "../../store/useSettingsStore";
+import { useTheme } from "../../hooks/useTheme";
 import { useState } from "react";
 
 export const AdvancedSection = () => {
   const { useLocalStorage, stopTokens, set: setSettings } = useSettingsStore();
+  const { isDark, toggleTheme } = useTheme();
   const [newTokenInput, setNewTokenInput] = useState("");
 
   const handleAddToken = () => {
@@ -48,7 +50,7 @@ export const AdvancedSection = () => {
   return (
     <Stack gap="density-lg">
       {/* Theme Toggle */}
-      {/* <FormField
+      <FormField
         slotLabel="Theme"
         slotHelp="Choose between light and dark theme for the application interface."
       >
@@ -64,7 +66,7 @@ export const AdvancedSection = () => {
             </Text>
           </Flex>
         )}
-      </FormField> */}
+      </FormField>
 
       {/* Local Storage Toggle */}
       <FormField

@@ -13,6 +13,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { Flex, Text } from "@kui/react";
+import { ChevronDown, ChevronRight } from "lucide-react";
+
 interface CollapsibleSectionProps {
   title: string;
   isExpanded: boolean;
@@ -20,21 +23,28 @@ interface CollapsibleSectionProps {
   children: React.ReactNode;
 }
 
-const ExpandIcon = ({ isExpanded }: { isExpanded: boolean }) => (
-  <span className="text-sm" data-testid="expand-icon">
-    {isExpanded ? "▼" : "▶"}
-  </span>
-);
-
 const SectionHeader = ({ title, isExpanded, onToggle }: Pick<CollapsibleSectionProps, 'title' | 'isExpanded' | 'onToggle'>) => (
   <button
     onClick={onToggle}
-    className="mb-4 flex w-full items-center justify-between text-sm font-medium hover:text-gray-300 transition-colors"
+    style={{ 
+      width: '100%', 
+      marginBottom: 'var(--spacing-density-md)',
+      background: 'none',
+      border: 'none',
+      cursor: 'pointer',
+      padding: 0
+    }}
     data-testid="section-header"
     aria-expanded={isExpanded}
   >
-    <span>{title}</span>
-    <ExpandIcon isExpanded={isExpanded} />
+    <Flex justify="between" align="center">
+      <Text kind="label/bold/sm">{title}</Text>
+      {isExpanded ? (
+        <ChevronDown size={16} style={{ color: 'var(--text-color-subtle)' }} data-testid="expand-icon" />
+      ) : (
+        <ChevronRight size={16} style={{ color: 'var(--text-color-subtle)' }} data-testid="expand-icon" />
+      )}
+    </Flex>
   </button>
 );
 
@@ -49,10 +59,10 @@ const SectionContent = ({ isExpanded, children }: { isExpanded: boolean; childre
 );
 
 export const CollapsibleSection = ({ title, isExpanded, onToggle, children }: CollapsibleSectionProps) => (
-  <div className="mb-6" data-testid="collapsible-section">
+  <div style={{ marginBottom: 'var(--spacing-density-lg)' }} data-testid="collapsible-section">
     <SectionHeader title={title} isExpanded={isExpanded} onToggle={onToggle} />
     <SectionContent isExpanded={isExpanded}>
       {children}
     </SectionContent>
   </div>
-); 
+);

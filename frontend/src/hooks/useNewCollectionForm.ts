@@ -125,6 +125,7 @@ export function useNewCollectionForm() {
           JSON.stringify({
             collection_name: collectionName,
             blocking: false,
+            generate_summary: true,
             custom_metadata: selectedFiles.map((file) => ({
               filename: file.name,
               metadata: fileMetadata[file.name] || {},

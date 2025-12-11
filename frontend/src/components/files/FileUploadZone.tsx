@@ -15,6 +15,8 @@
 
 import { useRef, useCallback } from "react";
 import { useDragAndDrop } from "../../hooks/useDragAndDrop";
+import { Text, Flex, Stack } from "@kui/react";
+import { Upload } from "lucide-react";
 
 interface FileUploadZoneProps {
   acceptedTypes: string[];
@@ -22,12 +24,6 @@ interface FileUploadZoneProps {
   audioFileMaxSize?: number;
   onFilesSelected: (files: FileList) => void;
 }
-
-const UploadIcon = () => (
-  <svg className="w-12 h-12 text-neutral-500 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-  </svg>
-);
 
 export const FileUploadZone = ({ 
   acceptedTypes, 
@@ -56,35 +52,46 @@ export const FileUploadZone = ({
 
   return (
     <div
-      className={`relative border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer ${
-        isDragOver
-          ? 'border-[var(--nv-green)] bg-[var(--nv-green)]/5'
-          : 'border-neutral-600 hover:border-neutral-500'
-      }`}
+      style={{
+        border: `2px dashed ${isDragOver ? 'var(--color-brand)' : 'var(--border-color-base)'}`,
+        borderRadius: 'var(--border-radius-lg)',
+        padding: 'var(--spacing-density-xl)',
+        textAlign: 'center',
+        cursor: 'pointer',
+        backgroundColor: isDragOver ? 'var(--color-brand-alpha-5)' : 'transparent',
+        transition: 'all 0.2s'
+      }}
       {...dragHandlers}
       onClick={handleChooseFiles}
     >
-      <div className="space-y-2">
-        <UploadIcon />
-        <p className="text-white">
+      <Stack gap="density-sm" align="center">
+        <Upload size={48} style={{ color: 'var(--text-color-subtle)', marginBottom: 'var(--spacing-density-sm)' }} />
+        <Flex gap="density-xs" align="center">
           <button
             onClick={(e) => {
-              e.stopPropagation(); // Prevent double trigger
+              e.stopPropagation();
               handleChooseFiles();
             }}
-            className="text-white underline hover:text-[var(--nv-green)] transition-colors font-medium"
+            style={{
+              background: 'none',
+              border: 'none',
+              textDecoration: 'underline',
+              cursor: 'pointer',
+              color: 'var(--text-color-default)',
+              fontWeight: 500
+            }}
           >
             Choose files
           </button>
-          {' '}or drag and drop them here.
-        </p>
-        <p className="text-sm text-gray-400">
+          <Text kind="body/regular/md">or drag and drop them here.</Text>
+        </Flex>
+        <Text kind="body/regular/sm" style={{ color: 'var(--text-color-subtle)' }}>
           Accepted: {acceptedTypes.join(', ')} • Up to {maxFileSize} MB • Max 100 files per batch
           {audioFileMaxSize && audioFileMaxSize !== maxFileSize && (
             <span> • Audio files (.mp3, .wav): up to {audioFileMaxSize} MB</span>
           )}
-        </p>
-      </div>
+        </Text>
+      </Stack>
 
       <input
         ref={fileInputRef}
@@ -96,4 +103,4 @@ export const FileUploadZone = ({
       />
     </div>
   );
-}; 
+};

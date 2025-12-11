@@ -12,6 +12,11 @@ vi.mock('../../../hooks/useFileIcons', () => ({
   })
 }));
 
+// Mock the document summary hook to prevent API calls
+vi.mock('../../../api/useDocumentSummary', () => ({
+  useDocumentSummary: () => ({ data: null, isLoading: false })
+}));
+
 const mockSetDeleteError = vi.fn();
 
 vi.mock('../../../store/useCollectionDrawerStore', () => ({
