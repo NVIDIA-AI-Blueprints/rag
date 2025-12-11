@@ -68,7 +68,7 @@ Notes:
 
 ### 3) Use the MCP Client (List tools, Generate, Search, Get Summary)
 
-The CLI lives at `nvidia_rag_mcp/mcp_client.py`. The examples below show both transports.
+The CLI lives at `nvidia_rag_mcp/mcp_client.py`. The examples below show all transports (SSE, streamable_http, stdio).
 
 #### List Tools
 
@@ -88,6 +88,14 @@ python nvidia_rag_mcp/mcp_client.py list \
 
 Expected tools: `generate`, `search`, `get_summary`.
 
+stdio:
+```bash
+python nvidia_rag_mcp/mcp_client.py list \
+  --transport=stdio \
+  --command=python \
+  --args="nvidia_rag_mcp/mcp_server.py --transport stdio"
+```
+
 #### Generate
 
 SSE:
@@ -104,6 +112,16 @@ streamable_http:
 python nvidia_rag_mcp/mcp_client.py call \
   --transport=streamable_http \
   --url=http://127.0.0.1:8000/mcp \
+  --tool=generate \
+  --json-args='{"messages":[{"role":"user","content":"Say \"ok\""}],"collection_name":"my_collection"}'
+```
+
+stdio:
+```bash
+python nvidia_rag_mcp/mcp_client.py call \
+  --transport=stdio \
+  --command=python \
+  --args="nvidia_rag_mcp/mcp_server.py --transport stdio" \
   --tool=generate \
   --json-args='{"messages":[{"role":"user","content":"Say \"ok\""}],"collection_name":"my_collection"}'
 ```
@@ -128,6 +146,16 @@ python nvidia_rag_mcp/mcp_client.py call \
   --json-args='{"query":"Tell me about Robert Frost''s poems","collection_name":"my_collection","reranker_top_k":2,"vdb_top_k":5,"enable_query_rewriting":false,"enable_reranker":true}'
 ```
 
+stdio:
+```bash
+python nvidia_rag_mcp/mcp_client.py call \
+  --transport=stdio \
+  --command=python \
+  --args="nvidia_rag_mcp/mcp_server.py --transport stdio" \
+  --tool=search \
+  --json-args='{"query":"Tell me about Robert Frost''s poems","collection_name":"my_collection","reranker_top_k":2,"vdb_top_k":5,"enable_query_rewriting":false,"enable_reranker":true}'
+```
+
 #### Get Summary
 
 SSE:
@@ -146,6 +174,86 @@ python nvidia_rag_mcp/mcp_client.py call \
   --url=http://127.0.0.1:8000/mcp \
   --tool=get_summary \
   --json-args='{"collection_name":"my_collection","file_name":"woods_frost.pdf","blocking":false,"timeout":60}'
+```
+
+stdio:
+```bash
+python nvidia_rag_mcp/mcp_client.py call \
+  --transport=stdio \
+  --command=python \
+  --args="nvidia_rag_mcp/mcp_server.py --transport stdio" \
+  --tool=get_summary \
+  --json-args='{"collection_name":"my_collection","file_name":"woods_frost.pdf","blocking":false,"timeout":60}'
+```
+
+### 4) Ingestor Tools (Create, Upload, Delete)
+
+Use these before/after the RAG tools to manage collections and documents.
+
+SSE:
+```bash
+# Create collection(s)
+python nvidia_rag_mcp/mcp_client.py call \
+  --transport=sse --url=http://127.0.0.1:8000/sse \
+  --tool=create_collections \
+  --json-args='{"collection_names":["my_collection"]}'
+
+# Upload document(s)
+python nvidia_rag_mcp/mcp_client.py call \
+  --transport=sse --url=http://127.0.0.1:8000/sse \
+  --tool=upload_documents \
+  --json-args='{"collection_name":"my_collection","file_paths":["data/multimodal/woods_frost.pdf"],"blocking":true,"generate_summary":true,"split_options":{"chunk_size":512,"chunk_overlap":150}}'
+
+# Delete collection(s)
+python nvidia_rag_mcp/mcp_client.py call \
+  --transport=sse --url=http://127.0.0.1:8000/sse \
+  --tool=delete_collections \
+  --json-args='{"collection_names":["my_collection"]}'
+```
+
+streamable_http:
+```bash
+# Create collection(s)
+python nvidia_rag_mcp/mcp_client.py call \
+  --transport=streamable_http --url=http://127.0.0.1:8000/mcp \
+  --tool=create_collections \
+  --json-args='{"collection_names":["my_collection"]}'
+
+# Upload document(s)
+python nvidia_rag_mcp/mcp_client.py call \
+  --transport=streamable_http --url=http://127.0.0.1:8000/mcp \
+  --tool=upload_documents \
+  --json-args='{"collection_name":"my_collection","file_paths":["data/multimodal/woods_frost.pdf"],"blocking":true,"generate_summary":true,"split_options":{"chunk_size":512,"chunk_overlap":150}}'
+
+# Delete collection(s)
+python nvidia_rag_mcp/mcp_client.py call \
+  --transport=streamable_http --url=http://127.0.0.1:8000/mcp \
+  --tool=delete_collections \
+  --json-args='{"collection_names":["my_collection"]}'
+```
+
+stdio:
+```bash
+# Create collection(s)
+python nvidia_rag_mcp/mcp_client.py call \
+  --transport=stdio --command=python \
+  --args="nvidia_rag_mcp/mcp_server.py --transport stdio" \
+  --tool=create_collections \
+  --json-args='{"collection_names":["my_collection"]}'
+
+# Upload document(s)
+python nvidia_rag_mcp/mcp_client.py call \
+  --transport=stdio --command=python \
+  --args="nvidia_rag_mcp/mcp_server.py --transport stdio" \
+  --tool=upload_documents \
+  --json-args='{"collection_name":"my_collection","file_paths":["data/multimodal/woods_frost.pdf"],"blocking":true,"generate_summary":true,"split_options":{"chunk_size":512,"chunk_overlap":150}}'
+
+# Delete collection(s)
+python nvidia_rag_mcp/mcp_client.py call \
+  --transport=stdio --command=python \
+  --args="nvidia_rag_mcp/mcp_server.py --transport stdio" \
+  --tool=delete_collections \
+  --json-args='{"collection_names":["my_collection"]}'
 ```
 
 ### Troubleshooting

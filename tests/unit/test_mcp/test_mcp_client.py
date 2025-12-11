@@ -36,12 +36,12 @@ def test_build_arg_parser_has_commands_and_options():
     assert "list" in subcommands
     assert "call" in subcommands
 
-    # Ensure transport option includes supported modes (sse, streamable_http)
+    # Ensure transport option includes supported modes (sse, streamable_http, stdio)
     list_parser = subparsers.choices["list"]
     transport_actions = [a for a in list_parser._actions if getattr(a, "dest", "") == "transport"]
     assert transport_actions, "No --transport option found on list subcommand"
     transport_action = transport_actions[0]
-    assert set(transport_action.choices) >= {"sse", "streamable_http"}
+    assert set(transport_action.choices) >= {"sse", "streamable_http", "stdio"}
 
 
 def test_to_jsonable_handles_common_types_and_objects():

@@ -73,6 +73,8 @@ Use the following notebooks to learn how to how to extend the system with custom
 
 - [building_rag_vdb_operator.ipynb](https://github.com/NVIDIA-AI-Blueprints/rag/tree/main/notebooks/building_rag_vdb_operator.ipynb) – Demonstrates how to create and integrate custom vector database (VDB) operators with the NVIDIA RAG blueprint. This notebook builds a complete OpenSearch VDB operator from scratch by using the VDBRag base class architecture. This notebook is for developers who want to extend NVIDIA RAG with their own vector database implementations.
 
+- [mcp_server_usage.ipynb](https://github.com/NVIDIA-AI-Blueprints/rag/tree/main/notebooks/mcp_server_usage.ipynb) – Demonstrates how to use the NVIDIA RAG MCP server via MCP transports (SSE, streamable-http, and stdio) instead of REST APIs. Covers launching the server, connecting with the MCP Python client, listing tools, and calling Ingestor tools (`create_collections`, `upload_documents`, `delete_collections`) and RAG tools (`generate`, `search`, `get_summary`).
+
 
 
 ## Deployment Notebooks
