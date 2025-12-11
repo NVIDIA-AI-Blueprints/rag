@@ -130,15 +130,19 @@ describe('CollectionItem', () => {
       expect(spinner).toBeInTheDocument();
     });
 
-    it('hides more button when collection has pending tasks', () => {
+    it('shows progress button when collection has pending tasks', () => {
       mockNotificationStore.getPendingTasks.mockReturnValue([{
         collection_name: 'test-collection',
-        state: 'PENDING'
+        state: 'PENDING',
+        result: { total_documents: 4, documents_completed: 2, documents: [] }
       }]);
       
       render(<CollectionItem collection={mockCollection} />);
       
-      expect(screen.queryByRole('button')).not.toBeInTheDocument();
+      // Should show progress button instead of more button
+      const progressButton = screen.getByTitle('View upload progress');
+      expect(progressButton).toBeInTheDocument();
+      expect(screen.getByText('2/4')).toBeInTheDocument();
     });
 
     it('shows more button for collection without pending tasks while other has pending', () => {
