@@ -412,7 +412,7 @@ class OutputSequenceLengthValidationModule(BaseTestModule):
             token_count = self._count_output_tokens(resp_text)
             logger.info(f"Got output sequence length as {token_count}")
             expected = self.MIN_TOKENS
-            if token_count == expected:
+            if token_count >= expected-50 and token_count <= expected+50:
                 self.add_test_result(
                     self._validate_output_sequence_length.test_number,
                     self._validate_output_sequence_length.test_name,

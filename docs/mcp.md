@@ -4,11 +4,43 @@
 -->
 ## MCP Server and Client Usage
 
-This guide shows how to run the NVIDIA RAG MCP server and use the included Python MCP client to:
-- List available tools
-- Generate answers
-- Search the vector database
-- Retrieve document summaries
+This guide shows how to run the NVIDIA RAG MCP server and use the included Python MCP client to interact with the RAG system.
+
+### Available Tools
+
+The MCP server exposes two categories of tools:
+
+#### Retrieval Tools
+
+These tools interact with the RAG server to query and generate responses from your knowledge base:
+
+| Tool | Description |
+|------|-------------|
+| `generate` | Generate answers using the RAG pipeline with context from the knowledge base |
+| `search` | Search the vector database for relevant documents |
+| `get_summary` | Retrieve document summaries from the knowledge base |
+
+#### Ingestor Tools
+
+These tools manage collections and documents in the vector database:
+
+| Tool | Description |
+|------|-------------|
+| `create_collections` | Create one or more collections in the vector database |
+| `upload_documents` | Upload documents to a collection with optional summary generation |
+| `delete_collections` | Delete one or more collections from the vector database |
+
+### Supported Transport Modes
+
+The MCP server supports three transport modes:
+
+| Transport | Description | Server Required |
+|-----------|-------------|-----------------|
+| `sse` | Server-Sent Events over HTTP | Yes |
+| `streamable_http` | HTTP-based streaming | Yes |
+| `stdio` | Standard input/output | No |
+
+**Note:** The `stdio` transport can be run without starting the MCP server separately. The client spawns the server process directly, making it ideal for local development and testing.
 
 
 ### Prerequisites
@@ -22,27 +54,7 @@ This guide shows how to run the NVIDIA RAG MCP server and use the included Pytho
 pip install -r nvidia_rag_mcp/requirements.txt
 ```
 
-### 1) Seed the Knowledge Base (optional but recommended)
-
-Create a collection and upload a sample document so search/generate/summary tools have content.
-
-```bash
-export INGESTOR_URL="${INGESTOR_URL:-http://127.0.0.1:8082}"
-COLLECTION="my_collection"
-PDF_PATH="data/multimodal/woods_frost.pdf"
-
-# Create collection
-curl -sS -X POST "$INGESTOR_URL/v1/collections" \
-  -H "Content-Type: application/json" \
-  -d "[\"$COLLECTION\"]"
-
-# Upload document with summary generation enabled
-curl -sS -X POST "$INGESTOR_URL/v1/documents" \
-  -F "documents=@${PDF_PATH}" \
-  -F "data={\"collection_name\":\"$COLLECTION\",\"blocking\":true,\"custom_metadata\":[],\"generate_summary\":true}"
-```
-
-### 2) Start the MCP Server
+### 1) Start the MCP Server
 
 From the repo root, start either transport:
 
@@ -65,6 +77,24 @@ python nvidia_rag_mcp/mcp_server.py --transport streamable_http
 Notes:
 - The server uses `VITE_API_CHAT_URL` (default `http://localhost:8081`) to call the RAG HTTP endpoints.
 - For streamable_http, probing `http://127.0.0.1:8000/mcp` may return HTTP 406 for GET; that can still indicate readiness.
+
+### 2) Seed the Knowledge Base
+
+Before using retrieval tools, create a collection and upload documents using the ingestor tools:
+
+```bash
+# Create collection
+python nvidia_rag_mcp/mcp_client.py call \
+  --transport=sse --url=http://127.0.0.1:8000/sse \
+  --tool=create_collections \
+  --json-args='{"collection_names":["my_collection"]}'
+
+# Upload document with summary generation enabled
+python nvidia_rag_mcp/mcp_client.py call \
+  --transport=sse --url=http://127.0.0.1:8000/sse \
+  --tool=upload_documents \
+  --json-args='{"collection_name":"my_collection","file_paths":["data/multimodal/woods_frost.pdf"],"blocking":true,"generate_summary":true}'
+```
 
 ### 3) Use the MCP Client (List tools, Generate, Search, Get Summary)
 
