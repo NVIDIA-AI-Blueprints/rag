@@ -15,6 +15,8 @@ Start with the following notebooks to learn basic API interactions.
 
 - [retriever_api_usage.ipynb](https://github.com/NVIDIA-AI-Blueprints/rag/tree/main/notebooks/retriever_api_usage.ipynb) – Demonstrates how to use the NVIDIA RAG retriever service, including different query techniques and retrieval strategies.
 
+- [retriever_api_image.ipynb](https://github.com/NVIDIA-AI-Blueprints/rag/tree/main/notebooks/retriever_api_image.ipynb) – Demonstrates multimodal query support, enabling you to query documents using both text and images. Covers VLM embeddings, image extraction, and the search/generate APIs with visual queries.
+
 
 
 ## Experiment with the Ingestion API Usage Notebook

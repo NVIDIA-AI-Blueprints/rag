@@ -85,6 +85,7 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
 - Multimodal and Advanced Generation
 
     - [Image captioning support for ingested documents](image_captioning.md)
+    - [Multimodal Query Support](multimodal-query.md)
     - [VLM based inferencing in RAG](vlm.md)
 
 
