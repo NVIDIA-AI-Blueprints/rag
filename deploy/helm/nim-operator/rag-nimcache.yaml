@@ -24,7 +24,7 @@ metadata:
 spec:
   source:
     ngc:
-      modelPuller: nvcr.io/nim/nvidia/nemoretriever-page-elements-v2:1.5.0
+      modelPuller: nvcr.io/nim/nvidia/nemoretriever-page-elements-v3:1.7.0
       pullSecret: ngc-secret
       authSecret: ngc-api-secret
       model:

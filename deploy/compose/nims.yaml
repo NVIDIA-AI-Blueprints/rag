@@ -121,7 +121,7 @@ services:
     profiles: ["", "rag", "vlm-generation"]
 
   page-elements:
-    image: ${YOLOX_IMAGE:-nvcr.io/nim/nvidia/nemoretriever-page-elements-v2}:${YOLOX_TAG:-1.5.0}
+    image: ${YOLOX_IMAGE:-nvcr.io/nim/nvidia/nemoretriever-page-elements-v3}:${YOLOX_TAG:-1.7.0}
     shm_size: 16gb
     ports:
       - "8000:8000"
