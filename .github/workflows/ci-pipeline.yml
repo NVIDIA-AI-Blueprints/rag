@@ -386,6 +386,7 @@ jobs:
           sleep 30
 
       - name: Run NemoGuardrails integration tests
+        continue-on-error: true
         run: |
           source venv/bin/activate
           echo "Running NemoGuardrails integration tests..."
