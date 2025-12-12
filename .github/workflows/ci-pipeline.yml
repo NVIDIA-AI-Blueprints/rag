@@ -23,7 +23,7 @@ env:
   APP_VECTORSTORE_ENABLEGPUINDEX: False
 
 concurrency:
-  group: pr-global-sequential
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -268,7 +268,7 @@ jobs:
           echo "Starting ingestor server..."
           docker compose -f deploy/compose/docker-compose-ingestor-server.yaml up -d --build
           echo "Waiting for services to be ready..."
-          sleep 30
+          sleep 60
           echo "Checking service status..."
           docker ps
 
