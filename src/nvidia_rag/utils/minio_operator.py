@@ -33,6 +33,7 @@ from minio.commonconfig import SnowballObject
 from nvidia_rag.utils.configuration import NvidiaRAGConfig
 
 logger = logging.getLogger(__name__)
+logging.getLogger("urllib3.connectionpool").setLevel(logging.ERROR)
 DEFAULT_BUCKET_NAME = "default-bucket"
 
 
@@ -50,16 +51,27 @@ class MinioOperator:
             endpoint, access_key=access_key, secret_key=secret_key, secure=False
         )
         self.default_bucket_name = default_bucket_name
-        self._make_bucket(bucket_name=self.default_bucket_name)
+        self.endpoint = endpoint
+        try:
+            self._make_bucket(bucket_name=self.default_bucket_name)
+        except Exception as e:
+            logger.warning(
+                "MinIO unavailable at %s - bucket operations will fail at runtime: %s",
+                endpoint,
+                e,
+            )
 
     def _make_bucket(self, bucket_name: str):
         """Create new bucket if doesn't exists"""
-        if not self.client.bucket_exists(bucket_name):
-            logger.info(f"Creating bucket: {bucket_name}")
-            self.client.make_bucket(bucket_name)
-            logger.info(f"Bucket created: {bucket_name}")
-        else:
-            logger.info(f"Bucket already exists: {bucket_name}")
+        try:
+            if not self.client.bucket_exists(bucket_name):
+                logger.info(f"Creating bucket: {bucket_name}")
+                self.client.make_bucket(bucket_name)
+                logger.info(f"Bucket created: {bucket_name}")
+            else:
+                logger.info(f"Bucket already exists: {bucket_name}")
+        except Exception:
+            raise
 
     def put_payload(self, payload: dict, object_name: str):
         """Put dictionary to S3 storage using minio client"""

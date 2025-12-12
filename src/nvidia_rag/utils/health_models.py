@@ -103,4 +103,3 @@ class IngestorHealthResponse(HealthResponseBase):
     task_management: list[TaskManagementHealthInfo] = Field(
         default_factory=list
     )  # Task management services (e.g., Redis)
-

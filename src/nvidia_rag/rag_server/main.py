@@ -60,6 +60,7 @@ from nvidia_rag.rag_server.reflection import (
     check_response_groundedness,
 )
 from nvidia_rag.rag_server.response_generator import (
+    APIError,
     Citations,
     ErrorCodeMapping,
     RAGResponse,
@@ -110,17 +111,6 @@ logger = logging.getLogger(__name__)
 MAX_COLLECTION_NAMES = 5
 
 
-class APIError(Exception):
-    """Custom exception class for API errors."""
-
-    def __init__(self, message: str, code: int = ErrorCodeMapping.BAD_REQUEST):
-        logger.error("APIError occurred: %s with HTTP status: %d", message, code)
-        print_exc()
-        self.message = message
-        self.code = code
-        super().__init__(message)
-
-
 class NvidiaRAG:
     def __init__(
         self,
@@ -129,6 +119,10 @@ class NvidiaRAG:
         prompts: str | dict | None = None,
     ):
         """Initialize NvidiaRAG with configuration.
+
+        Attempts to initialize all NIM services during startup. If any NIM is unavailable,
+        logs a warning and continues initialization. Unavailable services will return
+        proper error responses at request time.
 
         Args:
             config: Configuration object. If None, loads from environment.
@@ -149,20 +143,47 @@ class NvidiaRAG:
         # Initialize models and utilities from config
         logger.info("Initializing NvidiaRAG models...")
 
+        # Track initialization errors for runtime reporting
+        self._init_errors = {}
+
         # Default embedding model
-        self.document_embedder = get_embedding_model(
-            model=self.config.embeddings.model_name,
-            url=self.config.embeddings.server_url,
-            config=self.config,
-        )
+        try:
+            self.document_embedder = get_embedding_model(
+                model=self.config.embeddings.model_name,
+                url=self.config.embeddings.server_url,
+                config=self.config,
+            )
+        except (
+            requests.exceptions.ConnectionError,
+            requests.exceptions.RequestException,
+        ) as e:
+            self.document_embedder = None
+            self._init_errors["embeddings"] = str(e)
+            logger.warning(
+                "Embedding NIM unavailable at %s - will fail at request time: %s",
+                self.config.embeddings.server_url,
+                e,
+            )
 
         # Default ranker
-        self.ranker = get_ranking_model(
-            model=self.config.ranking.model_name,
-            url=self.config.ranking.server_url,
-            top_n=self.config.retriever.top_k,
-            config=self.config,
-        )
+        try:
+            self.ranker = get_ranking_model(
+                model=self.config.ranking.model_name,
+                url=self.config.ranking.server_url,
+                top_n=self.config.retriever.top_k,
+                config=self.config,
+            )
+        except (
+            requests.exceptions.ConnectionError,
+            requests.exceptions.RequestException,
+        ) as e:
+            self.ranker = None
+            self._init_errors["ranking"] = str(e)
+            logger.warning(
+                "Ranking NIM unavailable at %s - will fail at request time: %s",
+                self.config.ranking.server_url,
+                e,
+            )
 
         # Query rewriter LLM
         query_rewriter_llm_config = {
@@ -176,12 +197,24 @@ class NvidiaRAG:
             self.config.query_rewriter.server_url,
             query_rewriter_llm_config,
         )
-        self.query_rewriter_llm = get_llm(
-            config=self.config,
-            model=self.config.query_rewriter.model_name,
-            llm_endpoint=self.config.query_rewriter.server_url,
-            **query_rewriter_llm_config,
-        )
+        try:
+            self.query_rewriter_llm = get_llm(
+                config=self.config,
+                model=self.config.query_rewriter.model_name,
+                llm_endpoint=self.config.query_rewriter.server_url,
+                **query_rewriter_llm_config,
+            )
+        except (
+            requests.exceptions.ConnectionError,
+            requests.exceptions.RequestException,
+        ) as e:
+            self.query_rewriter_llm = None
+            self._init_errors["query_rewriter"] = str(e)
+            logger.warning(
+                "Query rewriter NIM unavailable at %s - will fail at request time: %s",
+                self.config.query_rewriter.server_url,
+                e,
+            )
 
         # Filter expression generator LLM
         filter_generator_llm_config = {
@@ -190,19 +223,39 @@ class NvidiaRAG:
             "max_tokens": self.config.filter_expression_generator.max_tokens,
             "api_key": self.config.filter_expression_generator.get_api_key(),
         }
-        self.filter_generator_llm = get_llm(
-            config=self.config,
-            model=self.config.filter_expression_generator.model_name,
-            llm_endpoint=self.config.filter_expression_generator.server_url,
-            **filter_generator_llm_config,
-        )
+        try:
+            self.filter_generator_llm = get_llm(
+                config=self.config,
+                model=self.config.filter_expression_generator.model_name,
+                llm_endpoint=self.config.filter_expression_generator.server_url,
+                **filter_generator_llm_config,
+            )
+        except (
+            requests.exceptions.ConnectionError,
+            requests.exceptions.RequestException,
+        ) as e:
+            self.filter_generator_llm = None
+            self._init_errors["filter_generator"] = str(e)
+            logger.warning(
+                "Filter generator NIM unavailable at %s - will fail at request time: %s",
+                self.config.filter_expression_generator.server_url,
+                e,
+            )
 
         # Load prompts and other utilities
         self.prompts = get_prompts(prompts)
         self.vdb_top_k = int(self.config.retriever.vdb_top_k)
         self.StreamingFilterThinkParser = get_streaming_filter_think_parser_async()
 
-        logger.info("NvidiaRAG initialization complete")
+        if self._init_errors:
+            logger.warning(
+                "NvidiaRAG initialization completed with %d unavailable service(s): %s. "
+                "Server will start but requests using these services will fail.",
+                len(self._init_errors),
+                list(self._init_errors.keys()),
+            )
+        else:
+            logger.info("NvidiaRAG initialization complete - all services available")
 
     @staticmethod
     async def _eager_prefetch_astream(stream_gen):
@@ -788,12 +841,31 @@ class NvidiaRAG:
                         )
 
             docs = []
-            local_ranker = get_ranking_model(
-                model=reranker_model,
-                url=reranker_endpoint,
-                top_n=reranker_top_k,
-                config=self.config,
-            )
+            try:
+                local_ranker = get_ranking_model(
+                    model=reranker_model,
+                    url=reranker_endpoint,
+                    top_n=reranker_top_k,
+                    config=self.config,
+                )
+            except APIError:
+                # Re-raise APIError as-is
+                raise
+            except (
+                requests.exceptions.ConnectionError,
+                requests.exceptions.RequestException,
+                ConnectionError,
+                OSError,
+            ) as e:
+                # Wrap connection errors from reranker service
+                reranker_url = reranker_endpoint or self.config.ranking.server_url
+                error_msg = f"Reranker NIM unavailable at {reranker_url}. Please verify the service is running and accessible."
+                logger.error("Connection error in reranker initialization: %s", e)
+                raise APIError(
+                    error_msg,
+                    ErrorCodeMapping.SERVICE_UNAVAILABLE,
+                ) from e
+
             top_k = vdb_top_k if local_ranker and enable_reranker else reranker_top_k
             logger.info("Setting top k as: %s.", top_k)
 
@@ -812,6 +884,14 @@ class NvidiaRAG:
                 conversation_history_count = int(os.environ.get("CONVERSATION_HISTORY", 0))
                 
                 if enable_query_rewriting:
+                    # Check if query rewriter is available (fails early if not)
+                    if self.query_rewriter_llm is None:
+                        raise APIError(
+                            "Query rewriting is enabled but the query rewriter NIM is unavailable. "
+                            f"Please verify the service is running at {self.config.query_rewriter.server_url}.",
+                            ErrorCodeMapping.SERVICE_UNAVAILABLE,
+                        )
+
                     # Skip query rewriting if conversation history is disabled
                     if conversation_history_count == 0:
                         logger.warning(
@@ -888,10 +968,24 @@ class NvidiaRAG:
                         except Exception as e:
                             logger.warning("Could not format prompt for logging: %s", e)
 
+                    try:
                         retriever_query = await q_prompt.ainvoke(
                             {"input": query, "chat_history": formatted_history}
                         )
-                        logger.info("Rewritten Query: %s", retriever_query)
+                    except (ConnectionError, OSError, Exception) as e:
+                        # Wrap connection errors from query rewriter LLM
+                        if isinstance(e, APIError):
+                            raise
+                        query_rewriter_url = self.config.query_rewriter.server_url
+                        endpoint_msg = (
+                            f" at {query_rewriter_url}" if query_rewriter_url else ""
+                        )
+                        raise APIError(
+                            f"Query rewriter LLM NIM unavailable{endpoint_msg}. Please verify the service is running and accessible or disable query rewriting.",
+                            ErrorCodeMapping.SERVICE_UNAVAILABLE,
+                        ) from e
+
+                    logger.info("Rewritten Query: %s", retriever_query)
 
                         # When query rewriting is enabled, we can use it as processed_query for other modules
                         processed_query = retriever_query
@@ -919,6 +1013,14 @@ class NvidiaRAG:
                         f"Current vector store: {self.config.vector_store.name}. Skipping filter generation."
                     )
                 else:
+                    # Check if filter generator LLM is available (fails early if not)
+                    if self.filter_generator_llm is None:
+                        raise APIError(
+                            "Filter expression generator is enabled but the filter generator NIM is unavailable. "
+                            f"Please verify the service is running at {self.config.filter_expression_generator.server_url}.",
+                            ErrorCodeMapping.SERVICE_UNAVAILABLE,
+                        )
+
                     logger.debug(
                         "Filter expression generator enabled, attempting to generate filter from query"
                     )
@@ -1078,10 +1180,25 @@ class NvidiaRAG:
                             docs.extend(future.result())
 
                     context_reranker_start_time = time.time()
-                    docs = await context_reranker.ainvoke(
-                        {"context": docs, "question": processed_query},
-                        config={"run_name": "context_reranker"},
-                    )
+                    try:
+                        docs = await context_reranker.ainvoke(
+                            {"context": docs, "question": processed_query},
+                            config={"run_name": "context_reranker"},
+                        )
+                    except (
+                        requests.exceptions.ConnectionError,
+                        ConnectionError,
+                        OSError,
+                    ) as e:
+                        reranker_url = (
+                            reranker_endpoint or self.config.ranking.server_url
+                        )
+                        error_msg = f"Reranker NIM unavailable at {reranker_url}. Please verify the service is running and accessible."
+                        logger.error("Connection error in reranker: %s", e)
+                        raise APIError(
+                            error_msg, ErrorCodeMapping.SERVICE_UNAVAILABLE
+                        ) from e
+
                     logger.info(
                         "    == Context reranker time: %.2f ms ==",
                         (time.time() - context_reranker_start_time) * 1000,
@@ -1129,7 +1246,11 @@ class NvidiaRAG:
                         retrieved_documents=docs, force_citations=True
                     )
 
+        except APIError:
+            # Re-raise APIError as-is to preserve status_code
+            raise
         except Exception as e:
+            # Only wrap non-APIError exceptions
             raise APIError(f"Failed to search documents. {str(e)}") from e
 
     @staticmethod
@@ -1328,6 +1449,23 @@ class NvidiaRAG:
                     otel_metrics_client=metrics,
                 ),
                 status_code=ErrorCodeMapping.REQUEST_TIMEOUT,
+            )
+
+        except (requests.exceptions.ConnectionError, ConnectionError, OSError) as e:
+            # Fallback for uncaught LLM connection errors
+            llm_url = llm_settings.get("llm_endpoint") or self.config.llm.server_url
+            error_msg = f"LLM NIM unavailable at {llm_url}. Please verify the service is running and accessible."
+            logger.exception("Connection error (LLM): %s", e)
+            return RAGResponse(
+                generate_answer_async(
+                    _async_iter([error_msg]),
+                    [],
+                    model=model,
+                    collection_name=collection_name,
+                    enable_citations=enable_citations,
+                    otel_metrics_client=metrics,
+                ),
+                status_code=ErrorCodeMapping.SERVICE_UNAVAILABLE,
             )
 
         except Exception as e:
@@ -1630,14 +1768,35 @@ class NvidiaRAG:
                             processed_filter_expr
                         )
 
+            # LLM and ranker creation - let the existing exception handler at the bottom catch runtime errors
             llm = get_llm(config=self.config, **llm_settings)
             logger.info("Ranker enabled: %s", enable_reranker)
-            ranker = get_ranking_model(
-                model=reranker_model,
-                url=reranker_endpoint,
-                top_n=reranker_top_k,
-                config=self.config,
-            )
+
+            # Try to get ranking model if reranker is enabled
+            ranker = None
+            if enable_reranker:
+                try:
+                    ranker = get_ranking_model(
+                        model=reranker_model,
+                        url=reranker_endpoint,
+                        top_n=reranker_top_k,
+                        config=self.config,
+                    )
+                except (
+                    requests.exceptions.ConnectionError,
+                    requests.exceptions.RequestException,
+                ) as e:
+                    service_url = (
+                        reranker_endpoint
+                        or reranker_model
+                        or self.config.ranking.server_url
+                    )
+                    raise APIError(
+                        f"Ranking NIM unavailable at {service_url}. "
+                        f"Please verify the service is running and accessible.",
+                        ErrorCodeMapping.SERVICE_UNAVAILABLE,
+                    ) from e
+
             top_k = vdb_top_k if ranker and enable_reranker else reranker_top_k
             logger.info("Setting retriever top k as: %s.", top_k)
 
@@ -1680,6 +1839,14 @@ class NvidiaRAG:
             # 2. Query combination: Concatenates history for retrieval, keeps original for specific tasks
             if chat_history and not is_image_query:
                 if enable_query_rewriting:
+                    # Check if query rewriter is available (fails early if not)
+                    if self.query_rewriter_llm is None:
+                        raise APIError(
+                            "Query rewriting is enabled but the query rewriter NIM is unavailable. "
+                            f"Please verify the service is running at {self.config.query_rewriter.server_url}.",
+                            ErrorCodeMapping.SERVICE_UNAVAILABLE,
+                        )
+
                     # Based on conversation history recreate query for better
                     # document retrieval
                     contextualize_q_system_prompt = (
@@ -1738,13 +1905,27 @@ class NvidiaRAG:
                     except Exception as e:
                         logger.warning("Could not format prompt for logging: %s", e)
 
-                    retriever_query = await q_prompt.ainvoke(
-                        {
-                            "input": retriever_query,
-                            "chat_history": formatted_history,
-                        },
-                        config={"run_name": "query-rewriter"},
-                    )
+                    try:
+                        retriever_query = await q_prompt.ainvoke(
+                            {
+                                "input": retriever_query,
+                                "chat_history": formatted_history,
+                            },
+                            config={"run_name": "query-rewriter"},
+                        )
+                    except (ConnectionError, OSError, Exception) as e:
+                        # Wrap connection errors from query rewriter LLM
+                        if isinstance(e, APIError):
+                            raise
+                        query_rewriter_url = self.config.query_rewriter.server_url
+                        endpoint_msg = (
+                            f" at {query_rewriter_url}" if query_rewriter_url else ""
+                        )
+                        raise APIError(
+                            f"Query rewriter LLM NIM unavailable{endpoint_msg}. Please verify the service is running and accessible or disable query rewriting.",
+                            ErrorCodeMapping.SERVICE_UNAVAILABLE,
+                        ) from e
+
                     logger.info(
                         "Rewritten Query: %s %s", retriever_query, len(retriever_query)
                     )
@@ -1775,6 +1956,14 @@ class NvidiaRAG:
                         f"Current vector store: {self.config.vector_store.name}. Skipping filter generation."
                     )
                 else:
+                    # Check if filter generator LLM is available (fails early if not)
+                    if self.filter_generator_llm is None:
+                        raise APIError(
+                            "Filter expression generator is enabled but the filter generator NIM is unavailable. "
+                            f"Please verify the service is running at {self.config.filter_expression_generator.server_url}.",
+                            ErrorCodeMapping.SERVICE_UNAVAILABLE,
+                        )
+
                     logger.debug(
                         "Filter expression generator enabled, attempting to generate filter from query"
                     )
@@ -1883,18 +2072,33 @@ class NvidiaRAG:
             if self.config.reflection.enable_reflection:
                 reflection_counter = ReflectionCounter(self.config.reflection.max_loops)
 
-                context_to_show, is_relevant = await check_context_relevance(
-                    vdb_op=vdb_op,
-                    retriever_query=processed_query,
-                    collection_names=validated_collections,
-                    ranker=ranker,
-                    reflection_counter=reflection_counter,
-                    top_k=top_k,
-                    enable_reranker=enable_reranker,
-                    collection_filter_mapping=collection_filter_mapping,
-                    config=self.config,
-                    prompts=self.prompts,
-                )
+                try:
+                    context_to_show, is_relevant = await check_context_relevance(
+                        vdb_op=vdb_op,
+                        retriever_query=processed_query,
+                        collection_names=validated_collections,
+                        ranker=ranker,
+                        reflection_counter=reflection_counter,
+                        top_k=top_k,
+                        enable_reranker=enable_reranker,
+                        collection_filter_mapping=collection_filter_mapping,
+                        config=self.config,
+                        prompts=self.prompts,
+                    )
+                except (ConnectionError, OSError, Exception) as e:
+                    # Wrap any connection errors from reflection LLM with proper message
+                    if isinstance(e, APIError):
+                        raise
+                    reflection_llm_endpoint = self.config.reflection.server_url
+                    endpoint_msg = (
+                        f" at {reflection_llm_endpoint}"
+                        if reflection_llm_endpoint
+                        else ""
+                    )
+                    raise APIError(
+                        f"Reflection LLM NIM unavailable{endpoint_msg}. Please verify the service is running and accessible or disable reflection.",
+                        ErrorCodeMapping.SERVICE_UNAVAILABLE,
+                    ) from e
 
                 # Normalize scores to 0-1 range
                 if ranker and enable_reranker:
@@ -1965,10 +2169,25 @@ class NvidiaRAG:
                     logger.debug(
                         "Using processed query for reranker %s", processed_query
                     )
-                    docs = await context_reranker.ainvoke(
-                        {"context": docs, "question": processed_query},
-                        config={"run_name": "context_reranker"},
-                    )
+                    try:
+                        docs = await context_reranker.ainvoke(
+                            {"context": docs, "question": processed_query},
+                            config={"run_name": "context_reranker"},
+                        )
+                    except (
+                        requests.exceptions.ConnectionError,
+                        ConnectionError,
+                        OSError,
+                    ) as e:
+                        reranker_url = (
+                            reranker_endpoint or self.config.ranking.server_url
+                        )
+                        error_msg = f"Reranker NIM unavailable at {reranker_url}. Please verify the service is running and accessible."
+                        logger.error("Connection error in reranker: %s", e)
+                        raise APIError(
+                            error_msg, ErrorCodeMapping.SERVICE_UNAVAILABLE
+                        ) from e
+
                     context_reranker_time_ms = (
                         time.time() - context_reranker_start_time
                     ) * 1000
@@ -2106,20 +2325,25 @@ class NvidiaRAG:
                         )
                         # Always stream VLM response directly using async streaming (reasoning gate deprecated)
                         logger.info("Streaming VLM response directly (async).")
+                        vlm_generator = vlm.stream_with_messages(
+                            docs=context_to_show,
+                            messages=vlm_messages,
+                            context_text=vlm_text_context,
+                            question_text=self._extract_text_from_content(query),
+                            temperature=vlm_temperature_cfg,
+                            top_p=vlm_top_p_cfg,
+                            max_tokens=vlm_max_tokens_cfg,
+                            max_total_images=vlm_max_total_images_cfg,
+                        )
+                        # Eagerly prefetch first chunk to trigger any errors before creating RAGResponse
+                        # ensures connection errors are caught early
+                        prefetched_vlm_stream = await self._eager_prefetch_astream(
+                            vlm_generator
+                        )
+
                         return RAGResponse(
                             generate_answer_async(
-                                vlm.stream_with_messages(
-                                    docs=context_to_show,
-                                    messages=vlm_messages,
-                                    context_text=vlm_text_context,
-                                    question_text=self._extract_text_from_content(
-                                        query
-                                    ),
-                                    temperature=vlm_temperature_cfg,
-                                    top_p=vlm_top_p_cfg,
-                                    max_tokens=vlm_max_tokens_cfg,
-                                    max_total_images=vlm_max_total_images_cfg,
-                                ),
+                                prefetched_vlm_stream,
                                 context_to_show,
                                 model=model,
                                 collection_name=collection_name,
@@ -2127,7 +2351,21 @@ class NvidiaRAG:
                             ),
                             status_code=ErrorCodeMapping.SUCCESS,
                         )
-                    except (OSError, ValueError) as e:
+                    except APIError as e:
+                        # Catch APIError from VLM (raised during eager prefetch) and return with correct status code
+                        logger.warning("APIError from VLM in _rag_chain: %s", e.message)
+                        return RAGResponse(
+                            generate_answer_async(
+                                _async_iter([e.message]),
+                                [],
+                                model=model,
+                                collection_name=collection_name,
+                                enable_citations=enable_citations,
+                                otel_metrics_client=metrics,
+                            ),
+                            status_code=e.status_code,
+                        )
+                    except (OSError, ValueError, ConnectionError) as e:
                         logger.warning(
                             "VLM processing failed for query='%s', collection='%s': %s",
                             query,
@@ -2196,14 +2434,29 @@ class NvidiaRAG:
                 initial_response = await chain.ainvoke(
                     {"question": query, "context": docs}
                 )
-                final_response, is_grounded = await check_response_groundedness(
-                    query,
-                    initial_response,
-                    docs,
-                    reflection_counter,
-                    config=self.config,
-                    prompts=self.prompts,
-                )
+                try:
+                    final_response, is_grounded = await check_response_groundedness(
+                        query,
+                        initial_response,
+                        docs,
+                        reflection_counter,
+                        config=self.config,
+                        prompts=self.prompts,
+                    )
+                except (ConnectionError, OSError, Exception) as e:
+                    # Wrap any connection errors from reflection LLM with proper message
+                    if isinstance(e, APIError):
+                        raise
+                    reflection_llm_endpoint = self.config.reflection.server_url
+                    endpoint_msg = (
+                        f" at {reflection_llm_endpoint}"
+                        if reflection_llm_endpoint
+                        else ""
+                    )
+                    raise APIError(
+                        f"Reflection LLM NIM unavailable{endpoint_msg}. Please verify the service is running and accessible or disable reflection.",
+                        ErrorCodeMapping.SERVICE_UNAVAILABLE,
+                    ) from e
                 if not is_grounded:
                     logger.warning(
                         "Could not generate sufficiently grounded response after %d total reflection attempts",
@@ -2267,26 +2520,37 @@ class NvidiaRAG:
                 status_code=ErrorCodeMapping.REQUEST_TIMEOUT,
             )
 
-        except requests.exceptions.ConnectionError as e:
-            if "HTTPConnectionPool" in str(e):
-                logger.exception(
-                    "Connection pool error while connecting to service: %s", e
-                )
-                return RAGResponse(
-                    generate_answer_async(
-                        _async_iter(
-                            [
-                                "Connection error: Failed to connect to service. Please verify if all required NIMs are running and accessible."
-                            ]
-                        ),
-                        [],
-                        model=model,
-                        collection_name=collection_name,
-                        enable_citations=enable_citations,
-                        otel_metrics_client=metrics,
-                    ),
-                    status_code=ErrorCodeMapping.SERVICE_UNAVAILABLE,
-                )
+        except APIError as e:
+            # APIError from any service (embedding, reranker, etc.) - convert to RAGResponse
+            logger.warning("APIError in _rag_chain: %s", e.message)
+            return RAGResponse(
+                generate_answer_async(
+                    _async_iter([e.message]),
+                    [],
+                    model=model,
+                    collection_name=collection_name,
+                    enable_citations=enable_citations,
+                    otel_metrics_client=metrics,
+                ),
+                status_code=e.status_code,
+            )
+
+        except (requests.exceptions.ConnectionError, ConnectionError, OSError) as e:
+            # Fallback for uncaught LLM connection errors
+            llm_url = llm_settings.get("llm_endpoint") or self.config.llm.server_url
+            error_msg = f"LLM NIM unavailable at {llm_url}. Please verify the service is running and accessible."
+            logger.exception("Connection error (LLM): %s", e)
+            return RAGResponse(
+                generate_answer_async(
+                    _async_iter([error_msg]),
+                    [],
+                    model=model,
+                    collection_name=collection_name,
+                    enable_citations=enable_citations,
+                    otel_metrics_client=metrics,
+                ),
+                status_code=ErrorCodeMapping.SERVICE_UNAVAILABLE,
+            )
 
         except Exception as e:
             # Extract just the error type and message for cleaner logs

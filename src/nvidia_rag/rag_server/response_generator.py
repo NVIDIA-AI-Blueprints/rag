@@ -25,12 +25,12 @@
 """
 
 import asyncio
+import json
 import logging
 import os
 import time
-from collections.abc import Generator
-
-# Added for metrics tracking
+from collections.abc import AsyncGenerator, Generator
+from traceback import print_exc
 from typing import Any, Literal, Optional, Union
 from uuid import uuid4
 
@@ -46,6 +46,38 @@ from nvidia_rag.utils.minio_operator import (
 )
 from nvidia_rag.utils.observability.otel_metrics import OtelMetrics
 
+logger = logging.getLogger(__name__)
+
+
+class ErrorCodeMapping:
+    """Centralized mapping for HTTP status codes based on error types"""
+
+    SUCCESS = 200
+    ACCEPTED = 202
+    BAD_REQUEST = 400
+    UNAUTHORIZED = 401
+    FORBIDDEN = 403
+    NOT_FOUND = 404
+    METHOD_NOT_ALLOWED = 405
+    REQUEST_TIMEOUT = 408
+    UNPROCESSABLE_ENTITY = 422
+    CLIENT_CLOSED_REQUEST = 499
+    INTERNAL_SERVER_ERROR = 500
+    SERVICE_UNAVAILABLE = 503
+
+
+class APIError(Exception):
+    """Custom exception class for API errors."""
+
+    def __init__(self, message: str, status_code: int = None):
+        if status_code is None:
+            status_code = ErrorCodeMapping.BAD_REQUEST
+        logger.error("APIError occurred: %s with HTTP status: %d", message, status_code)
+        print_exc()
+        self.message = message
+        self.status_code = status_code
+        super().__init__(message)
+
 
 class RAGResponse:
     """Wrapper class to hold both the generator and HTTP status code"""
@@ -55,35 +87,7 @@ class RAGResponse:
         self.status_code = status_code
 
 
-class ErrorCodeMapping:
-    """Centralized mapping for HTTP status codes based on error types"""
-
-    # Success codes
-    SUCCESS = 200
-    ACCEPTED = 202  # Request accepted, processing in progress
-
-    # Client error codes (4xx)
-    BAD_REQUEST = (
-        400  # General errors, collection errors, VLM errors, validation errors
-    )
-    UNAUTHORIZED = 401  # Authentication required
-    FORBIDDEN = 403  # Authentication/authorization errors
-    NOT_FOUND = 404  # Model not found, resource not found
-    METHOD_NOT_ALLOWED = 405  # HTTP method not allowed
-    REQUEST_TIMEOUT = 408  # Connection timeout errors
-    UNPROCESSABLE_ENTITY = 422  # Validation errors (FastAPI default)
-    CLIENT_CLOSED_REQUEST = 499  # Client closed connection
-
-    # Server error codes (5xx)
-    INTERNAL_SERVER_ERROR = 500  # Unexpected server errors
-    SERVICE_UNAVAILABLE = 503  # Connection pool errors, service unavailable
-
-
-# Summary polling configuration
-SUMMARY_POLL_INTERVAL_SECONDS = 2  # Interval for polling summary status
-
-
-logger = logging.getLogger(__name__)
+SUMMARY_POLL_INTERVAL_SECONDS = 2
 
 FALLBACK_EXCEPTION_MSG = (
     "Error from rag-server. Please check rag-server logs for more details."
@@ -695,6 +699,14 @@ async def generate_answer_async(
         async for msg in error_response_generator_async(exception_msg):
             yield msg
 
+    except APIError as e:
+        logger.error(
+            "APIError in generate_answer_async. Error details: %s",
+            e.message,
+            exc_info=logger.getEffectiveLevel() <= logging.DEBUG,
+        )
+        async for msg in error_response_generator_async(e.message):
+            yield msg
     except Exception as e:
         logger.error(
             "Error from generate endpoint. Error details: %s",

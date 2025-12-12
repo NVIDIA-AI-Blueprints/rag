@@ -31,6 +31,7 @@ from collections.abc import Generator
 from pathlib import Path
 from typing import Any
 
+import requests
 from fastapi import APIRouter, FastAPI, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
@@ -137,7 +138,7 @@ app.add_middleware(
 PROMPT_CONFIG_FILE = os.environ.get("PROMPT_CONFIG_FILE", "/prompt.yaml")
 NVIDIA_RAG = NvidiaRAG(
     config=CONFIG,
-    prompts=PROMPT_CONFIG_FILE if Path(PROMPT_CONFIG_FILE).is_file() else None
+    prompts=PROMPT_CONFIG_FILE if Path(PROMPT_CONFIG_FILE).is_file() else None,
 )
 
 # Register routers
@@ -168,7 +169,9 @@ def validate_confidence_threshold_field(confidence_threshold: float) -> float:
 
 def _extract_vdb_auth_token(request: Request) -> str | None:
     """Extract bearer token from Authorization header (e.g., 'Bearer <token>')."""
-    auth_header = request.headers.get("Authorization") or request.headers.get("authorization")
+    auth_header = request.headers.get("Authorization") or request.headers.get(
+        "authorization"
+    )
     if isinstance(auth_header, str) and auth_header.lower().startswith("bearer "):
         return auth_header.split(" ", 1)[1].strip()
     return None
@@ -761,23 +764,41 @@ class SummaryResponse(BaseModel):
 class RagConfigurationDefaults(BaseModel):
     """Default values for RAG configuration parameters."""
 
-    temperature: float = Field(description="Default sampling temperature for generation")
+    temperature: float = Field(
+        description="Default sampling temperature for generation"
+    )
     top_p: float = Field(description="Default top-p sampling mass")
     max_tokens: int = Field(description="Default maximum tokens to generate")
-    vdb_top_k: int = Field(description="Default number of documents to retrieve from vector DB")
-    reranker_top_k: int = Field(description="Default number of documents after reranking")
-    confidence_threshold: float = Field(description="Default confidence score threshold")
+    vdb_top_k: int = Field(
+        description="Default number of documents to retrieve from vector DB"
+    )
+    reranker_top_k: int = Field(
+        description="Default number of documents after reranking"
+    )
+    confidence_threshold: float = Field(
+        description="Default confidence score threshold"
+    )
 
 
 class FeatureTogglesDefaults(BaseModel):
     """Default values for feature toggles."""
 
     enable_reranker: bool = Field(description="Whether reranker is enabled by default")
-    enable_citations: bool = Field(description="Whether citations are enabled by default")
-    enable_guardrails: bool = Field(description="Whether guardrails are enabled by default")
-    enable_query_rewriting: bool = Field(description="Whether query rewriting is enabled by default")
-    enable_vlm_inference: bool = Field(description="Whether VLM inference is enabled by default")
-    enable_filter_generator: bool = Field(description="Whether filter generator is enabled by default")
+    enable_citations: bool = Field(
+        description="Whether citations are enabled by default"
+    )
+    enable_guardrails: bool = Field(
+        description="Whether guardrails are enabled by default"
+    )
+    enable_query_rewriting: bool = Field(
+        description="Whether query rewriting is enabled by default"
+    )
+    enable_vlm_inference: bool = Field(
+        description="Whether VLM inference is enabled by default"
+    )
+    enable_filter_generator: bool = Field(
+        description="Whether filter generator is enabled by default"
+    )
 
 
 class ModelsDefaults(BaseModel):
@@ -1497,11 +1518,9 @@ async def generate_answer(request: Request, prompt: Prompt) -> StreamingResponse
         )
 
     except APIError as e:
-        # Handle API errors with specific messages (metadata filtering, etc.)
         logger.warning("API error in /generate endpoint: %s", e)
-        error_message = str(e)
-        # Use the status code from the APIError if available, otherwise use centralized mapping
-        status_code = getattr(e, "code", ErrorCodeMapping.BAD_REQUEST)
+        error_message = e.message
+        status_code = getattr(e, "status_code", ErrorCodeMapping.BAD_REQUEST)
         return StreamingResponse(
             error_response_generator(error_message),
             media_type="text/event-stream",
@@ -1673,10 +1692,21 @@ async def document_search(
             status_code=ErrorCodeMapping.CLIENT_CLOSED_REQUEST,
         )
     except APIError as e:
-        # Handle APIError with specific status codes
-        status_code = getattr(e, "code", ErrorCodeMapping.INTERNAL_SERVER_ERROR)
+        status_code = getattr(e, "status_code", ErrorCodeMapping.INTERNAL_SERVER_ERROR)
         logger.error("API Error from POST /search endpoint. Error details: %s", e)
-        return JSONResponse(content={"message": str(e)}, status_code=status_code)
+        return JSONResponse(content={"message": e.message}, status_code=status_code)
+    except (
+        requests.exceptions.ConnectionError,
+        requests.exceptions.RequestException,
+        ConnectionError,
+        OSError,
+    ) as e:
+        error_msg = "Failed to search documents. Service unavailable. Please verify the NIM services are running and accessible."
+        logger.error("Connection error from POST /search endpoint: %s", e)
+        return JSONResponse(
+            content={"message": error_msg},
+            status_code=ErrorCodeMapping.SERVICE_UNAVAILABLE,
+        )
     except Exception as e:
         logger.error(
             "Error from POST /search endpoint. Error details: %s",
@@ -1684,7 +1714,7 @@ async def document_search(
             exc_info=logger.getEffectiveLevel() <= logging.DEBUG,
         )
         return JSONResponse(
-            content={"message": "Error occurred while searching documents. " + str(e)},
+            content={"message": "Failed to search documents. " + str(e).split("\n")[0]},
             status_code=ErrorCodeMapping.INTERNAL_SERVER_ERROR,
         )
 

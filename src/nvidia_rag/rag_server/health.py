@@ -69,20 +69,20 @@ async def check_service_health(
         NIMServiceHealthInfo with status information
     """
     start_time = time.time()
-    
+
     if not url:
         return NIMServiceHealthInfo(
             service=service_name,
             url=url,
             status=ServiceStatus.SKIPPED,
             latency_ms=0,
-            error="No URL provided"
+            error="No URL provided",
         )
 
     http_status = None
     status = ServiceStatus.UNKNOWN
     error = None
-    
+
     try:
         # Add scheme if missing
         if not url.startswith(("http://", "https://")):
@@ -106,16 +106,20 @@ async def check_service_health(
             async with getattr(session, method.lower())(
                 url, **request_kwargs
             ) as response:
-                status = ServiceStatus.HEALTHY if response.status < 400 else ServiceStatus.UNHEALTHY
+                status = (
+                    ServiceStatus.HEALTHY
+                    if response.status < 400
+                    else ServiceStatus.UNHEALTHY
+                )
                 http_status = response.status
                 latency_ms = round((time.time() - start_time) * 1000, 2)
-                
+
                 return NIMServiceHealthInfo(
                     service=service_name,
                     url=url,
                     status=status,
                     latency_ms=latency_ms,
-                    http_status=http_status
+                    http_status=http_status,
                 )
 
     except TimeoutError:
@@ -125,7 +129,7 @@ async def check_service_health(
             url=url,
             status=ServiceStatus.TIMEOUT,
             latency_ms=0,
-            error=error
+            error=error,
         )
     except aiohttp.ClientError as e:
         return NIMServiceHealthInfo(
@@ -133,7 +137,7 @@ async def check_service_health(
             url=url,
             status=ServiceStatus.ERROR,
             latency_ms=0,
-            error=str(e)
+            error=str(e),
         )
     except Exception as e:
         return NIMServiceHealthInfo(
@@ -141,7 +145,7 @@ async def check_service_health(
             url=url,
             status=ServiceStatus.ERROR,
             latency_ms=0,
-            error=str(e)
+            error=str(e),
         )
 
 
@@ -155,7 +159,7 @@ async def check_minio_health(
             url=endpoint,
             status=ServiceStatus.SKIPPED,
             latency_ms=0,
-            error="No endpoint provided"
+            error="No endpoint provided",
         )
 
     try:
@@ -166,13 +170,13 @@ async def check_minio_health(
         # Test basic operation - list buckets
         buckets = minio_operator.client.list_buckets()
         latency_ms = round((time.time() - start_time) * 1000, 2)
-        
+
         return StorageHealthInfo(
             service="MinIO",
             url=endpoint,
             status=ServiceStatus.HEALTHY,
             latency_ms=latency_ms,
-            buckets=len(buckets)
+            buckets=len(buckets),
         )
     except Exception as e:
         return StorageHealthInfo(
@@ -180,7 +184,7 @@ async def check_minio_health(
             url=endpoint,
             status=ServiceStatus.ERROR,
             latency_ms=0,
-            error=str(e)
+            error=str(e),
         )
 
 
@@ -286,8 +290,12 @@ async def check_all_services_health(
                 qr_url = f"{qr_url}/v1/health/ready"
 
             # For local services, check health and add model info
-            qr_result = await check_service_health(url=qr_url, service_name="Query Rewriter")
-            nim.append(qr_result.model_copy(update={"model": config.query_rewriter.model_name}))
+            qr_result = await check_service_health(
+                url=qr_url, service_name="Query Rewriter"
+            )
+            nim.append(
+                qr_result.model_copy(update={"model": config.query_rewriter.model_name})
+            )
         else:
             # When URL is empty or from API catalog, assume the service is
             # running via API catalog
@@ -313,8 +321,12 @@ async def check_all_services_health(
             embed_url = f"{embed_url}/v1/health/ready"
 
         # For local services, check health and add model info
-        embed_result = await check_service_health(url=embed_url, service_name="Embeddings")
-        nim.append(embed_result.model_copy(update={"model": config.embeddings.model_name}))
+        embed_result = await check_service_health(
+            url=embed_url, service_name="Embeddings"
+        )
+        nim.append(
+            embed_result.model_copy(update={"model": config.embeddings.model_name})
+        )
     else:
         # When URL is empty or from API catalog, assume the service is running
         # via API catalog
@@ -342,8 +354,12 @@ async def check_all_services_health(
                 ranking_url = f"{ranking_url}/v1/health/ready"
 
             # For local services, check health and add model info
-            ranking_result = await check_service_health(url=ranking_url, service_name="Ranking")
-            nim.append(ranking_result.model_copy(update={"model": config.ranking.model_name}))
+            ranking_result = await check_service_health(
+                url=ranking_url, service_name="Ranking"
+            )
+            nim.append(
+                ranking_result.model_copy(update={"model": config.ranking.model_name})
+            )
         else:
             # When URL is empty or from API catalog, assume the service is
             # running via API catalog
@@ -403,9 +419,7 @@ async def check_all_services_health(
                 NIMServiceHealthInfo(
                     service="Reflection LLM",
                     model=reflection_llm,
-                    url=os.getenv("REFLECTION_LLM_SERVERURL", "")
-                    .strip('"')
-                    .strip("'")
+                    url=os.getenv("REFLECTION_LLM_SERVERURL", "").strip('"').strip("'")
                     or "",
                     status=ServiceStatus.HEALTHY,
                     latency_ms=0,
@@ -447,11 +461,17 @@ def print_health_report(health_results: HealthResponseBase) -> None:
     )
 
     for service in all_services:
-        if service.status == ServiceStatus.HEALTHY or service.status == ServiceStatus.HEALTHY.value:
+        if (
+            service.status == ServiceStatus.HEALTHY
+            or service.status == ServiceStatus.HEALTHY.value
+        ):
             logger.info(
                 f"Service '{service.service}' is healthy - Response time: {service.latency_ms}ms"
             )
-        elif service.status == ServiceStatus.SKIPPED or service.status == ServiceStatus.SKIPPED.value:
+        elif (
+            service.status == ServiceStatus.SKIPPED
+            or service.status == ServiceStatus.SKIPPED.value
+        ):
             logger.info(
                 f"Service '{service.service}' check skipped - Reason: {service.error or 'No URL provided'}"
             )

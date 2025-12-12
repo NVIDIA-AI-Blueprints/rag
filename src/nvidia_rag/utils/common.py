@@ -621,21 +621,22 @@ def perform_document_info_aggregation(
     Perform document info aggregation.
     If the value is a dictionary, perform aggregation recursively.
     """
+    boolean_flags = {"has_tables", "has_charts", "has_images"}
+
     result = {}
     all_keys = set(existing_info_value) | set(new_info_value)
     for key in all_keys:
         existing_val = existing_info_value.get(key)
         new_val = new_info_value.get(key)
 
-        # Handle dictionaries recursively
         if isinstance(existing_val, dict) or isinstance(new_val, dict):
             result[key] = perform_document_info_aggregation(
                 existing_info_value.get(key, {}), new_info_value.get(key, {})
             )
-        # Handle numeric values (aggregation)
+        elif key in boolean_flags:
+            result[key] = bool(existing_val) or bool(new_val)
         elif isinstance(existing_val, int | float) and isinstance(new_val, int | float):
             result[key] = existing_val + new_val
-        # Handle other types (prefer new value, fallback to existing)
         else:
             result[key] = (
                 new_val
