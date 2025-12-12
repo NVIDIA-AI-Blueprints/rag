@@ -20,8 +20,8 @@ This is the module for NV-Ingest client wrapper.
 
 import logging
 import os
-from tarfile import tar_filter
 import time
+from tarfile import tar_filter
 
 from nv_ingest_client.client import Ingestor, NvIngestClient
 
@@ -89,7 +89,9 @@ def get_nv_ingest_ingestor(
     ingestor = ingestor.files(filepaths)
 
     if config.nv_ingest.enable_pdf_split:
-        ingestor = ingestor.pdf_split_config(pages_per_chunk=config.nv_ingest.pages_per_chunk)
+        ingestor = ingestor.pdf_split_config(
+            pages_per_chunk=config.nv_ingest.pages_per_chunk
+        )
 
     # Add extraction task
     # Determine table_output_format
@@ -150,7 +152,7 @@ def get_nv_ingest_ingestor(
             f"Enabling captioning task. Captioning Endpoint URL: {config.nv_ingest.caption_endpoint_url}, Captioning Model Name: {config.nv_ingest.caption_model_name}"
         )
         ingestor = ingestor.caption(
-            api_key=os.environ.get("NGC_API_KEY", ""),
+            api_key=config.vlm.get_api_key(),
             endpoint_url=config.nv_ingest.caption_endpoint_url,
             model_name=config.nv_ingest.caption_model_name,
         )

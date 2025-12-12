@@ -36,6 +36,45 @@ You must update the new key information in your environment variables and code.
 
 
 
+## Service-Specific API Keys
+
+Service-specific API keys override global `NVIDIA_API_KEY` or `NGC_API_KEY`. Fallback order: service-specific → `NVIDIA_API_KEY` → `NGC_API_KEY` → `None`.
+
+Supported keys: `APP_LLM_APIKEY`, `APP_EMBEDDINGS_APIKEY`, `APP_RANKING_APIKEY`, `APP_QUERYREWRITER_APIKEY`, `APP_FILTEREXPRESSIONGENERATOR_APIKEY`, `APP_VLM_APIKEY`, `SUMMARY_LLM_APIKEY`, `REFLECTION_LLM_APIKEY`.
+
+### Library Mode (Python Package)
+
+Configure in `config.yaml`:
+
+```yaml
+llm:
+  api_key: "your-llm-api-key"  # Optional: overrides NVIDIA_API_KEY
+embeddings:
+  api_key: "your-embeddings-api-key"  # Optional: overrides NVIDIA_API_KEY
+```
+
+### Docker Compose
+
+```bash
+export APP_LLM_APIKEY="your-llm-api-key"
+export APP_EMBEDDINGS_APIKEY="your-embeddings-api-key"
+# Additional service-specific keys can be set as needed
+```
+
+### Helm
+
+Use `--set` flags to pass API keys securely via command line:
+
+```bash
+helm upgrade --install rag -n rag <chart-path-or-url> \
+  --set imagePullSecret.password=$NGC_API_KEY \
+  --set ngcApiSecret.password=$NGC_API_KEY \
+  --set apiKeysSecret.llmApiKey=$APP_LLM_APIKEY \
+  --set apiKeysSecret.embeddingsApiKey=$APP_EMBEDDINGS_APIKEY
+```
+
+Additional service-specific keys can be configured as needed (e.g., `rankingApiKey`, `vlmApiKey`, `summaryLlmApiKey`).
+
 ## Related Topics
 
 - [NVIDIA RAG Blueprint Documentation](readme.md)

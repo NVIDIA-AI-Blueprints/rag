@@ -67,3 +67,14 @@ Create secret to access NGC Api
 {{- define "ngcApiSecret" -}}
 {{- printf "%s" .Values.ngcApiSecret.password | b64enc -}}
 {{- end -}}
+
+{{/*
+Get API keys secret name (either existing or created)
+*/}}
+{{- define "apiKeysSecretName" -}}
+{{- if .Values.apiKeysSecret.existingSecret -}}
+{{- .Values.apiKeysSecret.existingSecret -}}
+{{- else -}}
+{{- .Values.apiKeysSecret.name -}}
+{{- end -}}
+{{- end -}}

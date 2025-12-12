@@ -33,6 +33,7 @@ nv_ingest:
 llm:
   server_url: ""  # URL endpoint for the LLM inference service
   model_name: "nvidia/llama-3.3-nemotron-super-49b-v1.5"  # Name of the language model to use for generation
+  # api_key: ""  # Optional: API key for LLM service (overrides NVIDIA_API_KEY environment variable)
   parameters:
     max_tokens: 32768  # Maximum number of tokens to generate in response
     temperature: 0.0  # Sampling temperature for controlling randomness (0.0 = deterministic)
@@ -43,24 +44,28 @@ query_rewriter:
   model_name: "nvidia/llama-3.3-nemotron-super-49b-v1.5"  # Model for rewriting user queries to improve retrieval
   server_url: "localhost:8999"  # URL endpoint for query rewriter service
   enable_query_rewriter: false  # Enable automatic query rewriting before retrieval
+  # api_key: ""  # Optional: API key for query rewriter (overrides NVIDIA_API_KEY environment variable)
 
 # Filter Expression Generator Configuration
 filter_expression_generator:
   model_name: "nvidia/llama-3.3-nemotron-super-49b-v1.5"  # Model for generating metadata filter expressions from queries
   server_url: "localhost:8999"  # URL endpoint for filter expression generator service
   enable_filter_generator: false  # Enable automatic filter expression generation from natural language
+  # api_key: ""  # Optional: API key for filter generator (overrides NVIDIA_API_KEY environment variable)
 
 # Embedding Configuration
 embeddings:
   model_name: "nvidia/llama-3.2-nv-embedqa-1b-v2"  # Model for generating text embeddings
   dimensions: 2048  # Dimensionality of the embedding vectors
   server_url: "https://integrate.api.nvidia.com/v1"  # URL endpoint for embedding service
+  # api_key: ""  # Optional: API key for embeddings (overrides NVIDIA_API_KEY environment variable)
 
 # Ranking Configuration
 ranking:
   model_name: "nvidia/llama-3.2-nv-rerankqa-1b-v2"  # Model for reranking retrieved documents
   server_url: "https://ai.api.nvidia.com/v1/retrieval/nvidia/llama-3_2-nv-rerankqa-1b-v2/reranking/v1"  # URL endpoint for reranking service
   enable_reranker: true  # Enable reranking of retrieved documents before generation
+  # api_key: ""  # Optional: API key for reranking (overrides NVIDIA_API_KEY environment variable)
 
 # Retriever Configuration
 retriever:
@@ -78,6 +83,7 @@ tracing:
 vlm:
   server_url: "http://localhost:1977/v1"  # URL endpoint for Vision-Language Model service
   model_name: "nvidia/nemotron-nano-12b-v2-vl"  # Vision-Language Model for processing images and text
+  # api_key: ""  # Optional: API key for VLM service (overrides NVIDIA_API_KEY environment variable)
 
 # MinIO Configuration
 minio:
@@ -93,6 +99,7 @@ summarizer:
   chunk_overlap: 200  # Character overlap between chunks during summarization
   temperature: 0.0  # Sampling temperature for summary generation
   top_p: 1.0  # Nucleus sampling threshold for summary generation
+  # api_key: ""  # Optional: API key for summarization (overrides NVIDIA_API_KEY environment variable)
 
 # Reflection Configuration
 reflection:
@@ -102,6 +109,7 @@ reflection:
   server_url: ""  # URL endpoint for reflection service
   context_relevance_threshold: 1  # Minimum relevance score for context to be considered useful
   response_groundedness_threshold: 1  # Minimum groundedness score for response to be considered factual
+  # api_key: ""  # Optional: API key for reflection (overrides NVIDIA_API_KEY environment variable)
 
 # Top-level Configuration Flags
 enable_guardrails: false  # Enable safety guardrails for input/output filtering

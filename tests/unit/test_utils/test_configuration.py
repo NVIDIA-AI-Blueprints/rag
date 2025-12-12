@@ -23,6 +23,7 @@ from unittest.mock import patch
 
 import pytest
 import yaml
+from pydantic import SecretStr
 
 from nvidia_rag.utils.configuration import (
     EmbeddingConfig,
@@ -191,6 +192,7 @@ class TestTextSplitterConfig:
 class TestEmbeddingConfig:
     """Test cases for EmbeddingConfig."""
 
+    @patch.dict(os.environ, {}, clear=True)
     def test_default_values(self):
         """Test default configuration values."""
         config = EmbeddingConfig()
@@ -307,12 +309,12 @@ class TestNvIngestConfig:
     @pytest.mark.parametrize(
         "input_value",
         [
-            "None",   # String "None"
-            "none",   # Lowercase
-            "NONE",   # Uppercase
-            "null",   # YAML null string
-            "NULL",   # Uppercase null
-            "",       # Empty string
+            "None",  # String "None"
+            "none",  # Lowercase
+            "NONE",  # Uppercase
+            "null",  # YAML null string
+            "NULL",  # Uppercase null
+            "",  # Empty string
         ],
     )
     def test_pdf_extract_method_normalizes_none_strings_to_none(self, input_value):
@@ -349,20 +351,20 @@ class TestNvIngestConfig:
     def test_pdf_extract_method_none_in_full_config(self):
         """Test pdf_extract_method normalization through NvidiaRAGConfig."""
         # Test via dict (simulates YAML loading)
-        config = NvidiaRAGConfig.from_dict({
-            "nv_ingest": {"pdf_extract_method": "None"}
-        })
+        config = NvidiaRAGConfig.from_dict(
+            {"nv_ingest": {"pdf_extract_method": "None"}}
+        )
         assert config.nv_ingest.pdf_extract_method is None
 
-        config = NvidiaRAGConfig.from_dict({
-            "nv_ingest": {"pdf_extract_method": "null"}
-        })
+        config = NvidiaRAGConfig.from_dict(
+            {"nv_ingest": {"pdf_extract_method": "null"}}
+        )
         assert config.nv_ingest.pdf_extract_method is None
 
         # Valid value should be preserved
-        config = NvidiaRAGConfig.from_dict({
-            "nv_ingest": {"pdf_extract_method": "pdfium"}
-        })
+        config = NvidiaRAGConfig.from_dict(
+            {"nv_ingest": {"pdf_extract_method": "pdfium"}}
+        )
         assert config.nv_ingest.pdf_extract_method == "pdfium"
 
 
@@ -556,8 +558,6 @@ class TestConfigurationIntegration:
     @patch.dict(os.environ, {}, clear=True)
     def test_secretstr_from_environment_variables(self):
         """Test that environment variables are automatically converted to SecretStr."""
-        from pydantic import SecretStr
-        
         env_vars = {
             "APP_VECTORSTORE_PASSWORD": "my_secret_password",
             "APP_VECTORSTORE_APIKEY": "my_api_key_123",
@@ -570,14 +570,16 @@ class TestConfigurationIntegration:
 
             # Verify automatic conversion to SecretStr
             assert isinstance(config.vector_store.password, SecretStr)
-            assert config.vector_store.password.get_secret_value() == "my_secret_password"
-            
+            assert (
+                config.vector_store.password.get_secret_value() == "my_secret_password"
+            )
+
             assert isinstance(config.vector_store.api_key, SecretStr)
             assert config.vector_store.api_key.get_secret_value() == "my_api_key_123"
-            
+
             assert isinstance(config.minio.access_key, SecretStr)
             assert config.minio.access_key.get_secret_value() == "minio_user"
-            
+
             assert isinstance(config.minio.secret_key, SecretStr)
             assert config.minio.secret_key.get_secret_value() == "minio_pass_456"
 
@@ -610,8 +612,61 @@ class TestConfigurationIntegration:
             # Verify string representation is masked
             password_str = str(config.vector_store.password)
             access_key_str = str(config.minio.access_key)
-            
+
             assert "secret123" not in password_str
             assert "access456" not in access_key_str
             assert "*" in password_str
             assert "*" in access_key_str
+
+
+class TestAPIKeyFallback:
+    """Test cases for API key fallback mechanism."""
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_get_api_key_service_specific_takes_precedence(self):
+        """Test that service-specific API key takes precedence over global keys."""
+        config = LLMConfig(api_key=SecretStr("service-specific-key"))
+
+        with patch.dict(
+            os.environ, {"NVIDIA_API_KEY": "global-key", "NGC_API_KEY": "ngc-key"}
+        ):
+            api_key = config.get_api_key()
+            assert api_key == "service-specific-key"
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_get_api_key_falls_back_to_nvidia_api_key(self):
+        """Test fallback to NVIDIA_API_KEY when service-specific key is not set."""
+        config = LLMConfig()
+
+        with patch.dict(
+            os.environ, {"NVIDIA_API_KEY": "nvidia-key", "NGC_API_KEY": "ngc-key"}
+        ):
+            api_key = config.get_api_key()
+            assert api_key == "nvidia-key"
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_get_api_key_falls_back_to_ngc_api_key(self):
+        """Test fallback to NGC_API_KEY when service-specific and NVIDIA_API_KEY are not set."""
+        config = LLMConfig()
+
+        with patch.dict(os.environ, {"NGC_API_KEY": "ngc-key"}):
+            api_key = config.get_api_key()
+            assert api_key == "ngc-key"
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_get_api_key_returns_none_when_no_keys_set(self):
+        """Test that get_api_key returns None when no keys are set."""
+        config = LLMConfig()
+
+        with patch.dict(os.environ, {}, clear=True):
+            api_key = config.get_api_key()
+            assert api_key is None
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_get_api_key_empty_string_returns_none(self):
+        """Test that empty string service-specific key falls back to global keys."""
+        config = LLMConfig(api_key=SecretStr(""))
+
+        with patch.dict(os.environ, {"NVIDIA_API_KEY": "global-key"}):
+            api_key = config.get_api_key()
+            assert api_key == "global-key"

@@ -59,13 +59,19 @@ def _get_ranking_model(
         top_n = 4
 
     if config.ranking.model_engine == "nvidia-ai-endpoints":
+        api_key = config.ranking.get_api_key()
+
         if url:
             logger.info("Using ranking model hosted at %s", url)
-            return NVIDIARerank(base_url=url, top_n=top_n, truncate="END")
+            return NVIDIARerank(
+                base_url=url, api_key=api_key, top_n=top_n, truncate="END"
+            )
 
         if model:
             logger.info("Using ranking model %s hosted at api catalog", model)
-            return NVIDIARerank(model=model, top_n=top_n, truncate="END")
+            return NVIDIARerank(
+                model=model, api_key=api_key, top_n=top_n, truncate="END"
+            )
 
         # No model or URL provided
         raise RuntimeError(

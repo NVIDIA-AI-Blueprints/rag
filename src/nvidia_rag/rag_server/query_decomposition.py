@@ -633,7 +633,7 @@ async def iterative_query_decomposition(
     if llm_settings is None:
         llm_settings = {}
 
-    llm = get_llm(**llm_settings)
+    llm = get_llm(config=config, **llm_settings)
     # Generate initial subqueries
     questions = await generate_subqueries(query, llm, prompts=prompts)
 

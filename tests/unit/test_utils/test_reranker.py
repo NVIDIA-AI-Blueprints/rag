@@ -15,7 +15,7 @@
 
 """Unit tests for the reranker utility functions."""
 
-from unittest.mock import MagicMock, Mock, patch, ANY
+from unittest.mock import ANY, MagicMock, Mock, patch
 
 import pytest
 
@@ -33,15 +33,21 @@ class TestGetRankingModelPrivate:
         """Test getting ranking model with NVIDIA endpoints and custom URL."""
         mock_config = MagicMock()
         mock_config.ranking.model_engine = "nvidia-ai-endpoints"
+        mock_config.ranking.get_api_key.return_value = "test-api-key"
         mock_sanitize.return_value = "http://test-url:8000"
         mock_reranker = Mock()
         mock_nvidia_rerank.return_value = mock_reranker
 
-        result = _get_ranking_model("test-model", "test-url:8000", 5, config=mock_config)
+        result = _get_ranking_model(
+            "test-model", "test-url:8000", 5, config=mock_config
+        )
 
         mock_sanitize.assert_called_once_with("test-url:8000", "test-model", "ranking")
         mock_nvidia_rerank.assert_called_once_with(
-            base_url="http://test-url:8000", top_n=5, truncate="END"
+            base_url="http://test-url:8000",
+            api_key="test-api-key",
+            top_n=5,
+            truncate="END",
         )
         assert result == mock_reranker
 
@@ -53,21 +59,25 @@ class TestGetRankingModelPrivate:
         """Test getting ranking model with model name (API catalog)."""
         mock_config = MagicMock()
         mock_config.ranking.model_engine = "nvidia-ai-endpoints"
+        mock_config.ranking.get_api_key.return_value = "test-api-key"
         mock_sanitize.return_value = ""  # No URL
         mock_reranker = Mock()
         mock_nvidia_rerank.return_value = mock_reranker
 
-        result = _get_ranking_model("nvidia/nv-rerankqa-mistral-4b-v3", "", 10, config=mock_config)
+        result = _get_ranking_model(
+            "nvidia/nv-rerankqa-mistral-4b-v3", "", 10, config=mock_config
+        )
 
         mock_nvidia_rerank.assert_called_once_with(
-            model="nvidia/nv-rerankqa-mistral-4b-v3", top_n=10, truncate="END"
+            model="nvidia/nv-rerankqa-mistral-4b-v3",
+            api_key="test-api-key",
+            top_n=10,
+            truncate="END",
         )
         assert result == mock_reranker
 
     @patch("nvidia_rag.utils.reranker.sanitize_nim_url")
-    def test_get_ranking_model_nvidia_endpoints_no_url_no_model(
-        self, mock_sanitize
-    ):
+    def test_get_ranking_model_nvidia_endpoints_no_url_no_model(self, mock_sanitize):
         """Test getting ranking model with no URL and no model name."""
         mock_config = MagicMock()
         mock_config.ranking.model_engine = "nvidia-ai-endpoints"
@@ -105,20 +115,22 @@ class TestGetRankingModelPrivate:
 
     @patch("nvidia_rag.utils.reranker.sanitize_nim_url")
     @patch("nvidia_rag.utils.reranker.NVIDIARerank")
-    def test_get_ranking_model_default_top_n(
-        self, mock_nvidia_rerank, mock_sanitize
-    ):
+    def test_get_ranking_model_default_top_n(self, mock_nvidia_rerank, mock_sanitize):
         """Test getting ranking model with default top_n parameter."""
         mock_config = MagicMock()
         mock_config.ranking.model_engine = "nvidia-ai-endpoints"
+        mock_config.ranking.get_api_key.return_value = "test-api-key"
         mock_sanitize.return_value = "http://test-url:8000"
         mock_reranker = Mock()
         mock_nvidia_rerank.return_value = mock_reranker
 
-        result = _get_ranking_model("test-model", "test-url", config=mock_config)  # No top_n specified
+        result = _get_ranking_model(
+            "test-model", "test-url", config=mock_config
+        )  # No top_n specified
 
         mock_nvidia_rerank.assert_called_once_with(
             base_url="http://test-url:8000",
+            api_key="test-api-key",
             top_n=4,  # Default value
             truncate="END",
         )
@@ -126,12 +138,11 @@ class TestGetRankingModelPrivate:
 
     @patch("nvidia_rag.utils.reranker.sanitize_nim_url")
     @patch("nvidia_rag.utils.reranker.NVIDIARerank")
-    def test_get_ranking_model_zero_top_n(
-        self, mock_nvidia_rerank, mock_sanitize
-    ):
+    def test_get_ranking_model_zero_top_n(self, mock_nvidia_rerank, mock_sanitize):
         """Test getting ranking model with zero top_n parameter."""
         mock_config = MagicMock()
         mock_config.ranking.model_engine = "nvidia-ai-endpoints"
+        mock_config.ranking.get_api_key.return_value = "test-api-key"
         mock_sanitize.return_value = "http://test-url:8000"
         mock_reranker = Mock()
         mock_nvidia_rerank.return_value = mock_reranker
@@ -139,18 +150,20 @@ class TestGetRankingModelPrivate:
         result = _get_ranking_model("test-model", "test-url", 0, config=mock_config)
 
         mock_nvidia_rerank.assert_called_once_with(
-            base_url="http://test-url:8000", top_n=4, truncate="END"
+            base_url="http://test-url:8000",
+            api_key="test-api-key",
+            top_n=4,
+            truncate="END",
         )
         assert result == mock_reranker
 
     @patch("nvidia_rag.utils.reranker.sanitize_nim_url")
     @patch("nvidia_rag.utils.reranker.NVIDIARerank")
-    def test_get_ranking_model_large_top_n(
-        self, mock_nvidia_rerank, mock_sanitize
-    ):
+    def test_get_ranking_model_large_top_n(self, mock_nvidia_rerank, mock_sanitize):
         """Test getting ranking model with large top_n parameter."""
         mock_config = MagicMock()
         mock_config.ranking.model_engine = "nvidia-ai-endpoints"
+        mock_config.ranking.get_api_key.return_value = "test-api-key"
         mock_sanitize.return_value = "http://test-url:8000"
         mock_reranker = Mock()
         mock_nvidia_rerank.return_value = mock_reranker
@@ -158,7 +171,10 @@ class TestGetRankingModelPrivate:
         result = _get_ranking_model("test-model", "test-url", 1000, config=mock_config)
 
         mock_nvidia_rerank.assert_called_once_with(
-            base_url="http://test-url:8000", top_n=1000, truncate="END"
+            base_url="http://test-url:8000",
+            api_key="test-api-key",
+            top_n=1000,
+            truncate="END",
         )
         assert result == mock_reranker
 
@@ -283,7 +299,7 @@ class TestRankingModelIntegration:
         # Patch config in the actual function
         with patch("nvidia_rag.utils.reranker._get_ranking_model") as mock_get_model:
             mock_get_model.return_value = mock_reranker
-            
+
             # Test the workflow
             model = get_ranking_model(
                 "nvidia/nv-rerankqa-mistral-4b-v3", "rerank-service:8080", 10
@@ -312,7 +328,7 @@ class TestRankingModelIntegration:
         # Patch config in the actual function
         with patch("nvidia_rag.utils.reranker._get_ranking_model") as mock_get_model:
             mock_get_model.return_value = mock_reranker
-            
+
             # Test the workflow
             model = get_ranking_model("nvidia/nv-rerankqa-mistral-4b-v3", "", 5)
 
@@ -328,7 +344,9 @@ class TestRankingModelIntegration:
 
         # Should raise RuntimeError for unsupported engine
         with patch("nvidia_rag.utils.reranker._get_ranking_model") as mock_get_model:
-            mock_get_model.side_effect = RuntimeError("Unsupported ranking model engine")
+            mock_get_model.side_effect = RuntimeError(
+                "Unsupported ranking model engine"
+            )
             with pytest.raises(RuntimeError, match="Unsupported ranking model engine"):
                 get_ranking_model("test-model-unsupported", "test-url-unsupported", 5)
 
@@ -345,7 +363,7 @@ class TestRankingModelIntegration:
         mock_nvidia_rerank.return_value = mock_reranker
 
         special_model_name = "nvidia/nv-rerank@v1.0-special"
-        
+
         # Patch config in the actual function
         with patch("nvidia_rag.utils.reranker._get_ranking_model") as mock_get_model:
             mock_get_model.return_value = mock_reranker
@@ -376,7 +394,9 @@ class TestRankingModelEdgeCases:
 
         # Should raise RuntimeError when no model or URL provided
         with patch("nvidia_rag.utils.reranker._get_ranking_model") as mock_get_model:
-            mock_get_model.side_effect = RuntimeError("Ranking model configuration incomplete")
+            mock_get_model.side_effect = RuntimeError(
+                "Ranking model configuration incomplete"
+            )
             with pytest.raises(
                 RuntimeError, match="Ranking model configuration incomplete"
             ):
@@ -407,7 +427,9 @@ class TestRankingModelEdgeCases:
 
         # With nvidia-ai-endpoints engine but no model/url, should raise RuntimeError
         with patch("nvidia_rag.utils.reranker._get_ranking_model") as mock_get_model:
-            mock_get_model.side_effect = RuntimeError("Ranking model configuration incomplete")
+            mock_get_model.side_effect = RuntimeError(
+                "Ranking model configuration incomplete"
+            )
             with pytest.raises(
                 RuntimeError, match="Ranking model configuration incomplete"
             ):
@@ -415,7 +437,7 @@ class TestRankingModelEdgeCases:
 
     def test_config_access_error(self):
         """Test behavior when config access fails."""
-        
+
         # The function should propagate the exception
         with patch("nvidia_rag.utils.reranker._get_ranking_model") as mock_get_model:
             mock_get_model.side_effect = Exception("Config error")

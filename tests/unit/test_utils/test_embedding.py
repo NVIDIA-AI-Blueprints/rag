@@ -36,8 +36,9 @@ class TestGetEmbeddingModel:
             mock_config = Mock()
             mock_config.embeddings.model_engine = "nvidia-ai-endpoints"
             mock_config.embeddings.dimensions = None
+            mock_config.embeddings.get_api_key.return_value = "test-api-key"
             mock_config_class.return_value = mock_config
-            
+
             mock_sanitize.return_value = "http://test-url:8000"
             mock_embeddings = Mock()
             mock_nvidia_embeddings.return_value = mock_embeddings
@@ -48,7 +49,11 @@ class TestGetEmbeddingModel:
                 "test-url:8000", "test-model", "embedding"
             )
             mock_nvidia_embeddings.assert_called_once_with(
-                base_url="http://test-url:8000", model="test-model", truncate="END", dimensions=None
+                base_url="http://test-url:8000",
+                model="test-model",
+                api_key="test-api-key",
+                truncate="END",
+                dimensions=None,
             )
             assert result == mock_embeddings
 
@@ -62,8 +67,9 @@ class TestGetEmbeddingModel:
             mock_config = Mock()
             mock_config.embeddings.model_engine = "nvidia-ai-endpoints"
             mock_config.embeddings.dimensions = None
+            mock_config.embeddings.get_api_key.return_value = "test-api-key"
             mock_config_class.return_value = mock_config
-            
+
             mock_sanitize.return_value = ""  # No URL, use API catalog
             mock_embeddings = Mock()
             mock_nvidia_embeddings.return_value = mock_embeddings
@@ -71,7 +77,10 @@ class TestGetEmbeddingModel:
             result = get_embedding_model("nvidia/nv-embedqa-e5-v5", "")
 
             mock_nvidia_embeddings.assert_called_once_with(
-                model="nvidia/nv-embedqa-e5-v5", truncate="END", dimensions=None
+                model="nvidia/nv-embedqa-e5-v5",
+                api_key="test-api-key",
+                truncate="END",
+                dimensions=None,
             )
             assert result == mock_embeddings
 
@@ -81,7 +90,7 @@ class TestGetEmbeddingModel:
             mock_config = Mock()
             mock_config.embeddings.model_engine = "unsupported-engine"
             mock_config_class.return_value = mock_config
-            
+
             with pytest.raises(
                 RuntimeError, match="Unable to find any supported embedding model"
             ):
@@ -89,16 +98,15 @@ class TestGetEmbeddingModel:
 
     @patch("nvidia_rag.utils.embedding.sanitize_nim_url")
     @patch("nvidia_rag.utils.embedding.NVIDIAEmbeddings")
-    def test_get_embedding_model_empty_url(
-        self, mock_nvidia_embeddings, mock_sanitize
-    ):
+    def test_get_embedding_model_empty_url(self, mock_nvidia_embeddings, mock_sanitize):
         """Test getting embedding model with empty URL."""
         with patch("nvidia_rag.utils.embedding.NvidiaRAGConfig") as mock_config_class:
             mock_config = Mock()
             mock_config.embeddings.model_engine = "nvidia-ai-endpoints"
             mock_config.embeddings.dimensions = None
+            mock_config.embeddings.get_api_key.return_value = "test-api-key"
             mock_config_class.return_value = mock_config
-            
+
             mock_sanitize.return_value = ""
             mock_embeddings = Mock()
             mock_nvidia_embeddings.return_value = mock_embeddings
@@ -106,22 +114,24 @@ class TestGetEmbeddingModel:
             result = get_embedding_model("test-model", "")
 
             mock_nvidia_embeddings.assert_called_once_with(
-                model="test-model", truncate="END", dimensions=None
+                model="test-model",
+                api_key="test-api-key",
+                truncate="END",
+                dimensions=None,
             )
             assert result == mock_embeddings
 
     @patch("nvidia_rag.utils.embedding.sanitize_nim_url")
     @patch("nvidia_rag.utils.embedding.NVIDIAEmbeddings")
-    def test_get_embedding_model_none_url(
-        self, mock_nvidia_embeddings, mock_sanitize
-    ):
+    def test_get_embedding_model_none_url(self, mock_nvidia_embeddings, mock_sanitize):
         """Test getting embedding model with None URL."""
         with patch("nvidia_rag.utils.embedding.NvidiaRAGConfig") as mock_config_class:
             mock_config = Mock()
             mock_config.embeddings.model_engine = "nvidia-ai-endpoints"
             mock_config.embeddings.dimensions = None
+            mock_config.embeddings.get_api_key.return_value = "test-api-key"
             mock_config_class.return_value = mock_config
-            
+
             mock_sanitize.return_value = ""
             mock_embeddings = Mock()
             mock_nvidia_embeddings.return_value = mock_embeddings
@@ -130,7 +140,10 @@ class TestGetEmbeddingModel:
 
             mock_sanitize.assert_called_once_with(None, "test-model", "embedding")
             mock_nvidia_embeddings.assert_called_once_with(
-                model="test-model", truncate="END", dimensions=None
+                model="test-model",
+                api_key="test-api-key",
+                truncate="END",
+                dimensions=None,
             )
             assert result == mock_embeddings
 
@@ -144,8 +157,9 @@ class TestGetEmbeddingModel:
             mock_config = Mock()
             mock_config.embeddings.model_engine = "nvidia-ai-endpoints"
             mock_config.embeddings.dimensions = None
+            mock_config.embeddings.get_api_key.return_value = "test-api-key"
             mock_config_class.return_value = mock_config
-            
+
             mock_sanitize.return_value = "http://test-url:8000"
             mock_embeddings = Mock()
             mock_nvidia_embeddings.return_value = mock_embeddings
@@ -154,22 +168,25 @@ class TestGetEmbeddingModel:
             result = get_embedding_model(special_model_name, "test-url")
 
             mock_nvidia_embeddings.assert_called_once_with(
-                base_url="http://test-url:8000", model=special_model_name, truncate="END", dimensions=None
+                base_url="http://test-url:8000",
+                model=special_model_name,
+                api_key="test-api-key",
+                truncate="END",
+                dimensions=None,
             )
             assert result == mock_embeddings
 
     @patch("nvidia_rag.utils.embedding.sanitize_nim_url")
     @patch("nvidia_rag.utils.embedding.NVIDIAEmbeddings")
-    def test_get_embedding_model_caching(
-        self, mock_nvidia_embeddings, mock_sanitize
-    ):
+    def test_get_embedding_model_caching(self, mock_nvidia_embeddings, mock_sanitize):
         """Test that get_embedding_model uses caching."""
         with patch("nvidia_rag.utils.embedding.NvidiaRAGConfig") as mock_config_class:
             mock_config = Mock()
             mock_config.embeddings.model_engine = "nvidia-ai-endpoints"
             mock_config.embeddings.dimensions = None
+            mock_config.embeddings.get_api_key.return_value = "test-api-key"
             mock_config_class.return_value = mock_config
-            
+
             mock_sanitize.return_value = "http://test-url:8000"
             mock_embeddings = Mock()
             mock_nvidia_embeddings.return_value = mock_embeddings
@@ -195,8 +212,9 @@ class TestGetEmbeddingModel:
             mock_config = Mock()
             mock_config.embeddings.model_engine = "nvidia-ai-endpoints"
             mock_config.embeddings.dimensions = None
+            mock_config.embeddings.get_api_key.return_value = "test-api-key"
             mock_config_class.return_value = mock_config
-            
+
             mock_sanitize.return_value = "http://test-url:8000"
             mock_embeddings = Mock()
             mock_nvidia_embeddings.return_value = mock_embeddings
@@ -227,15 +245,18 @@ class TestEmbeddingModelIntegration:
             mock_config = Mock()
             mock_config.embeddings.model_engine = "nvidia-ai-endpoints"
             mock_config.embeddings.dimensions = None
+            mock_config.embeddings.get_api_key.return_value = "test-api-key"
             mock_config_class.return_value = mock_config
-            
+
             mock_sanitize.return_value = "http://embedding-service:8080"
             mock_embeddings = Mock()
             mock_embeddings.embed_query.return_value = [0.1, 0.2, 0.3]
             mock_nvidia_embeddings.return_value = mock_embeddings
 
             # Test the workflow
-            model = get_embedding_model("nvidia/nv-embedqa-e5-v5", "embedding-service:8080")
+            model = get_embedding_model(
+                "nvidia/nv-embedqa-e5-v5", "embedding-service:8080"
+            )
 
             # Verify the embedding model was created correctly
             mock_sanitize.assert_called_once_with(
@@ -244,6 +265,7 @@ class TestEmbeddingModelIntegration:
             mock_nvidia_embeddings.assert_called_once_with(
                 base_url="http://embedding-service:8080",
                 model="nvidia/nv-embedqa-e5-v5",
+                api_key="test-api-key",
                 truncate="END",
                 dimensions=None,
             )
@@ -254,64 +276,81 @@ class TestEmbeddingModelIntegration:
 
     @patch("nvidia_rag.utils.embedding.sanitize_nim_url")
     @patch("nvidia_rag.utils.embedding.NVIDIAEmbeddings")
-    def test_get_embedding_model_with_custom_truncate(self, mock_nvidia_embeddings, mock_sanitize):
+    def test_get_embedding_model_with_custom_truncate(
+        self, mock_nvidia_embeddings, mock_sanitize
+    ):
         """Test getting embedding model with custom truncate parameter."""
         with patch("nvidia_rag.utils.embedding.NvidiaRAGConfig") as mock_config_class:
             mock_config = Mock()
             mock_config.embeddings.model_engine = "nvidia-ai-endpoints"
             mock_config.embeddings.dimensions = None
+            mock_config.embeddings.get_api_key.return_value = "test-api-key"
             mock_config_class.return_value = mock_config
-            
+
             mock_sanitize.return_value = "http://test-url:8000"
             mock_embeddings = Mock()
             mock_nvidia_embeddings.return_value = mock_embeddings
 
-            result = get_embedding_model("test-model", "test-url:8000", truncate="START")
+            result = get_embedding_model(
+                "test-model", "test-url:8000", truncate="START"
+            )
 
-            mock_sanitize.assert_called_once_with("test-url:8000", "test-model", "embedding")
+            mock_sanitize.assert_called_once_with(
+                "test-url:8000", "test-model", "embedding"
+            )
             mock_nvidia_embeddings.assert_called_once_with(
                 base_url="http://test-url:8000",
                 model="test-model",
+                api_key="test-api-key",
                 truncate="START",
-                dimensions=None
+                dimensions=None,
             )
             assert result == mock_embeddings
 
     @patch("nvidia_rag.utils.embedding.sanitize_nim_url")
     @patch("nvidia_rag.utils.embedding.NVIDIAEmbeddings")
-    def test_get_embedding_model_with_truncate_none(self, mock_nvidia_embeddings, mock_sanitize):
+    def test_get_embedding_model_with_truncate_none(
+        self, mock_nvidia_embeddings, mock_sanitize
+    ):
         """Test getting embedding model with truncate=None (disabled truncation)."""
         with patch("nvidia_rag.utils.embedding.NvidiaRAGConfig") as mock_config_class:
             mock_config = Mock()
             mock_config.embeddings.model_engine = "nvidia-ai-endpoints"
             mock_config.embeddings.dimensions = None
+            mock_config.embeddings.get_api_key.return_value = "test-api-key"
             mock_config_class.return_value = mock_config
-            
+
             mock_sanitize.return_value = "http://test-url:8000"
             mock_embeddings = Mock()
             mock_nvidia_embeddings.return_value = mock_embeddings
 
             result = get_embedding_model("test-model", "test-url:8000", truncate=None)
 
-            mock_sanitize.assert_called_once_with("test-url:8000", "test-model", "embedding")
+            mock_sanitize.assert_called_once_with(
+                "test-url:8000", "test-model", "embedding"
+            )
             mock_nvidia_embeddings.assert_called_once_with(
                 base_url="http://test-url:8000",
                 model="test-model",
-                dimensions=None
+                api_key="test-api-key",
+                dimensions=None,
                 # Note: no truncate parameter should be passed when truncate=None
             )
             assert result == mock_embeddings
 
     @patch("nvidia_rag.utils.embedding.sanitize_nim_url")
     @patch("nvidia_rag.utils.embedding.NVIDIAEmbeddings")
-    def test_get_embedding_model_api_catalog_with_truncate_none(self, mock_nvidia_embeddings, mock_sanitize):
+    def test_get_embedding_model_api_catalog_with_truncate_none(
+        self, mock_nvidia_embeddings, mock_sanitize
+    ):
         """Test getting embedding model from API catalog with truncate=None."""
         with patch("nvidia_rag.utils.embedding.NvidiaRAGConfig") as mock_config_class:
             mock_config = Mock()
             mock_config.embeddings.model_engine = "nvidia-ai-endpoints"
             mock_config.embeddings.dimensions = None
+            mock_config.embeddings.get_api_key.return_value = "test-api-key"
             mock_config_class.return_value = mock_config
-            
+
             mock_sanitize.return_value = ""  # No URL, use API catalog
             mock_embeddings = Mock()
             mock_nvidia_embeddings.return_value = mock_embeddings
@@ -320,7 +359,8 @@ class TestEmbeddingModelIntegration:
 
             mock_nvidia_embeddings.assert_called_once_with(
                 model="nvidia/nv-embedqa-e5-v5",
-                dimensions=None
+                api_key="test-api-key",
+                dimensions=None,
                 # Note: no truncate parameter should be passed when truncate=None
             )
             assert result == mock_embeddings

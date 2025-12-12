@@ -34,7 +34,7 @@ from collections.abc import AsyncGenerator
 from logging import getLogger
 from typing import Any
 
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 from PIL import Image as PILImage
 
@@ -138,7 +138,9 @@ class VLM:
         logger.info(f"VLM Server URL: {self.invoke_url}")
 
     @staticmethod
-    def init_model(model: str, endpoint: str, api_key: str | None = None, **kwargs) -> ChatOpenAI:
+    def init_model(
+        model: str, endpoint: str, api_key: str | None = None, **kwargs: Any
+    ) -> ChatOpenAI:
         """
         Initialize and return the VLM ChatOpenAI model instance.
 
@@ -150,13 +152,15 @@ class VLM:
         """
         return ChatOpenAI(
             model=model,
-            openai_api_key=api_key or os.getenv("NVIDIA_API_KEY"),
+            openai_api_key=api_key,
             openai_api_base=endpoint,
             **kwargs,
         )
 
     @staticmethod
-    def _normalize_messages(raw_messages: list[dict[str, Any]]) -> tuple[list[HumanMessage | AIMessage | SystemMessage], int, str]:
+    def _normalize_messages(
+        raw_messages: list[dict[str, Any]],
+    ) -> tuple[list[HumanMessage | AIMessage | SystemMessage], int, str]:
         """Normalize raw messages; return (messages_without_system, last_human_idx, incoming_system_text)."""
         lc_messages: list[HumanMessage | AIMessage | SystemMessage] = []
         last_human_idx: int | None = None
@@ -170,7 +174,9 @@ class VLM:
                 for item in raw_content:
                     if isinstance(item, dict):
                         if item.get("type") == "text":
-                            normalized.append({"type": "text", "text": item.get("text", "")})
+                            normalized.append(
+                                {"type": "text", "text": item.get("text", "")}
+                            )
                         elif item.get("type") == "image_url":
                             url = (item.get("image_url") or {}).get("url", "")
                             if url:
@@ -213,10 +219,16 @@ class VLM:
                     system_accum_text = (system_accum_text + " " + system_text).strip()
             elif role == "assistant":
                 # Assistant content should be a plain string
-                assistant_text = "".join([
-                    (part.get("text", "") if isinstance(part, dict) and part.get("type") == "text" else str(part))
-                    for part in content
-                ])
+                assistant_text = "".join(
+                    [
+                        (
+                            part.get("text", "")
+                            if isinstance(part, dict) and part.get("type") == "text"
+                            else str(part)
+                        )
+                        for part in content
+                    ]
+                )
                 lc_messages.append(AIMessage(content=assistant_text))
             else:
                 # User content can be multimodal list
@@ -237,16 +249,22 @@ class VLM:
         context_text: str | None,
         question_text: str | None,
         max_total_images: int | None = None,
-    ) -> tuple[SystemMessage, HumanMessage, list[HumanMessage | AIMessage | SystemMessage]]:
+    ) -> tuple[
+        SystemMessage, HumanMessage, list[HumanMessage | AIMessage | SystemMessage]
+    ]:
         """
         Build system and user messages from template, normalize chat history, and
         extract any query/context images to be attached to the last human message.
         Returns: (system_message, chat_history_messages, user_message, last_human_idx, query_images, context_images)
         """
-        textual_context = context_text if context_text is not None else self._format_docs_text(docs)
+        textual_context = (
+            context_text if context_text is not None else self._format_docs_text(docs)
+        )
 
         # Normalize chat history; keep images inline as image_url parts and collect incoming system text
-        chat_history_messages, _, incoming_system_text = self._normalize_messages(incoming_messages or [])
+        chat_history_messages, _, incoming_system_text = self._normalize_messages(
+            incoming_messages or []
+        )
 
         # Build system + citations instruction/user prompt
         system_text = (vlm_template.get("system") or "").strip()
@@ -261,7 +279,9 @@ class VLM:
         system_message = SystemMessage(content=system_text)
 
         # Build citations_instruct_user_message as multimodal: text + citation images from MinIO (if any)
-        content_parts: list[dict[str, Any]] = [{"type": "text", "text": formatted_human}]
+        content_parts: list[dict[str, Any]] = [
+            {"type": "text", "text": formatted_human}
+        ]
 
         # Count images already present in chat history to respect overall image budget
         existing_image_count = 0
@@ -292,12 +312,21 @@ class VLM:
                 # Inputs for unique thumbnail id
                 collection_name = metadata.get("collection_name") or ""
                 source_meta = metadata.get("source", {}) or {}
-                source_id = source_meta.get("source_id", "") if isinstance(source_meta, dict) else ""
+                source_id = (
+                    source_meta.get("source_id", "")
+                    if isinstance(source_meta, dict)
+                    else ""
+                )
                 file_name = os.path.basename(source_id) if source_id else ""
                 page_number = content_md.get("page_number")
                 location = content_md.get("location")
 
-                if not (collection_name and file_name and page_number is not None and location is not None):
+                if not (
+                    collection_name
+                    and file_name
+                    and page_number is not None
+                    and location is not None
+                ):
                     continue
 
                 try:
@@ -307,7 +336,9 @@ class VLM:
                         page_number=page_number,
                         location=location,
                     )
-                    payload = get_minio_operator().get_payload(object_name=unique_thumbnail_id)
+                    payload = get_minio_operator().get_payload(
+                        object_name=unique_thumbnail_id
+                    )
                     content_b64 = (payload or {}).get("content", "")
                     if not content_b64:
                         continue
@@ -424,8 +455,6 @@ class VLM:
             # Return original if conversion fails
             return image_url
 
-
-
     def _redact_messages_for_logging(
         self, messages: list[HumanMessage | AIMessage | SystemMessage]
     ) -> list[dict[str, Any]]:
@@ -443,15 +472,21 @@ class VLM:
                 role = "user"
 
             raw_content = m.content
-            parts = raw_content if isinstance(raw_content, list) else [
-                {"type": "text", "text": str(raw_content)}
-            ]
+            parts = (
+                raw_content
+                if isinstance(raw_content, list)
+                else [{"type": "text", "text": str(raw_content)}]
+            )
 
             safe_parts: list[dict[str, Any]] = []
             for p in parts:
                 if isinstance(p, dict) and p.get("type") == "image_url":
                     url = (p.get("image_url") or {}).get("url", "")
-                    if isinstance(url, str) and url.startswith("data:image/") and ";base64," in url:
+                    if (
+                        isinstance(url, str)
+                        and url.startswith("data:image/")
+                        and ";base64," in url
+                    ):
                         redacted_url = re.sub(
                             r"^data:image/[^;]+;base64,.*$",
                             "data:image/png;base64,[REDACTED]",
@@ -459,10 +494,12 @@ class VLM:
                         )
                     else:
                         redacted_url = url
-                    safe_parts.append({
-                        "type": "image_url",
-                        "image_url": {"url": redacted_url},
-                    })
+                    safe_parts.append(
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": redacted_url},
+                        }
+                    )
                 elif isinstance(p, dict) and p.get("type") == "text":
                     safe_parts.append({"type": "text", "text": "[TEXT REDACTED]"})
                 else:
@@ -487,8 +524,16 @@ class VLM:
                     continue
                 # filename from nested source
                 source = metadata.get("source", {})
-                source_path = source.get("source_name", "") if isinstance(source, dict) else source
-                filename = os.path.splitext(os.path.basename(source_path))[0] if source_path else ""
+                source_path = (
+                    source.get("source_name", "")
+                    if isinstance(source, dict)
+                    else source
+                )
+                filename = (
+                    os.path.splitext(os.path.basename(source_path))[0]
+                    if source_path
+                    else ""
+                )
                 header = f"File: {filename}\n" if filename else ""
                 content = getattr(doc, "page_content", "")
                 if content:
@@ -545,7 +590,9 @@ class VLM:
             max_total_images if max_total_images is not None else self.max_total_images
         )
 
-        vlm = self.init_model(self.model_name, self.invoke_url, api_key=os.getenv("NVIDIA_API_KEY"))
+        vlm = self.init_model(
+            self.model_name, self.invoke_url, api_key=self.config.vlm.get_api_key()
+        )
 
         (
             system_message,
@@ -560,7 +607,9 @@ class VLM:
             max_total_images=eff_max_total_images,
         )
 
-        lc_messages = self.assemble_messages(system_message, citations_instruct_user_message, chat_history_messages)
+        lc_messages = self.assemble_messages(
+            system_message, citations_instruct_user_message, chat_history_messages
+        )
 
         # Log final prompt with images redacted
         safe_prompt = self._redact_messages_for_logging(lc_messages)
@@ -577,7 +626,9 @@ class VLM:
             logger.info(f"VLM Response: {vlm_response}")
             return str(vlm_response or "")
         except Exception as e:
-            logger.warning(f"Exception during VLM call with messages: {e}", exc_info=True)
+            logger.warning(
+                f"Exception during VLM call with messages: {e}", exc_info=True
+            )
             return ""
 
     async def stream_with_messages(
@@ -603,14 +654,20 @@ class VLM:
 
         try:
             # Resolve effective settings (function overrides > instance defaults)
-            eff_temperature = temperature if temperature is not None else self.temperature
+            eff_temperature = (
+                temperature if temperature is not None else self.temperature
+            )
             eff_top_p = top_p if top_p is not None else self.top_p
             eff_max_tokens = max_tokens if max_tokens is not None else self.max_tokens
             eff_max_total_images = (
-                max_total_images if max_total_images is not None else self.max_total_images
+                max_total_images
+                if max_total_images is not None
+                else self.max_total_images
             )
 
-            vlm = self.init_model(self.model_name, self.invoke_url, api_key=os.getenv("NVIDIA_API_KEY"))
+            vlm = self.init_model(
+                self.model_name, self.invoke_url, api_key=self.config.vlm.get_api_key()
+            )
 
             (
                 system_message,
@@ -625,7 +682,9 @@ class VLM:
                 max_total_images=eff_max_total_images,
             )
 
-            lc_messages = self.assemble_messages(system_message, citations_instruct_user_message, chat_history_messages)
+            lc_messages = self.assemble_messages(
+                system_message, citations_instruct_user_message, chat_history_messages
+            )
 
             # Log final prompt with images redacted
             safe_prompt = self._redact_messages_for_logging(lc_messages)
@@ -654,5 +713,7 @@ class VLM:
                     )
                 idx += 1
         except Exception as e:
-            logger.warning(f"Exception during VLM streaming call with messages: {e}", exc_info=True)
+            logger.warning(
+                f"Exception during VLM streaming call with messages: {e}", exc_info=True
+            )
             return

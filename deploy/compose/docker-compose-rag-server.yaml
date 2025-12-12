@@ -112,9 +112,18 @@ services:
 
       NVIDIA_API_KEY: ${NGC_API_KEY:?"NGC_API_KEY is required"}
 
-      # Set LLM_API_KEY if non-NVIDIA hosted LLM API endpoint is being used
-      # If not set, NVIDIA_API_KEY will be used as fallback
-      LLM_API_KEY: ${LLM_API_KEY:-""}
+      # ==== Service-Specific API Keys (Optional) ====
+      # Set these to use different API keys for individual services.
+      # If not set or empty, services will use NVIDIA_API_KEY as fallback.
+      # Useful for multi-provider setups (e.g., OpenAI for LLM, NVIDIA for embeddings)
+      APP_LLM_APIKEY: ${APP_LLM_APIKEY:-""}
+      APP_EMBEDDINGS_APIKEY: ${APP_EMBEDDINGS_APIKEY:-""}
+      APP_RANKING_APIKEY: ${APP_RANKING_APIKEY:-""}
+      APP_QUERYREWRITER_APIKEY: ${APP_QUERYREWRITER_APIKEY:-""}
+      APP_FILTEREXPRESSIONGENERATOR_APIKEY: ${APP_FILTEREXPRESSIONGENERATOR_APIKEY:-""}
+      APP_VLM_APIKEY: ${APP_VLM_APIKEY:-""}
+      SUMMARY_LLM_APIKEY: ${SUMMARY_LLM_APIKEY:-""}
+      REFLECTION_LLM_APIKEY: ${REFLECTION_LLM_APIKEY:-""}
 
       # Number of document chunks to insert in LLM prompt, used only when ENABLE_RERANKER is set to True
       APP_RETRIEVER_TOPK: ${APP_RETRIEVER_TOPK:-10}
