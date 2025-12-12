@@ -224,7 +224,9 @@ nv-ingest:
 ## Related Topics
 
 - [NVIDIA RAG Blueprint Documentation](readme.md)
-- [Best Practices for Common Settings](accuracy_perf.md).
+- [VLM based inferencing in RAG](vlm.md)
+- [Multimodal Query Support](multimodal-query.md)
+- [Best Practices for Common Settings](accuracy_perf.md)
 - [RAG Pipeline Debugging Guide](debugging.md)
 - [Troubleshoot](troubleshooting.md)
 - [Notebooks](notebooks.md)

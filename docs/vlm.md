@@ -373,6 +373,8 @@ Mitigations:
 
 ## Related Topics
 
+- [VLM Embedding for Ingestion](vlm-embed.md)
+- [Multimodal Query Support](multimodal-query.md)
 - [Release Notes](release-notes.md)
 - [Debugging](debugging.md)
 - [Troubleshoot NVIDIA RAG Blueprint](troubleshooting.md)
