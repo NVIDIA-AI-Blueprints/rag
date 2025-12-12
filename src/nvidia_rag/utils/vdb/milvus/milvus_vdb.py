@@ -820,7 +820,7 @@ class MilvusVDB(Milvus, VDBRag):
             "vector": [0.0] * 2,
         }
         client.insert(collection_name=DEFAULT_DOCUMENT_INFO_COLLECTION, data=data)
-        logger.info(
+        logger.debug(
             f"Document info added to the collection {collection_name}. "
             f"Document info: {info_type}, {document_name}, {info_value}"
         )
@@ -837,7 +837,7 @@ class MilvusVDB(Milvus, VDBRag):
         if len(entities) > 0:
             return entities[0]["info_value"]
         else:
-            logger.info(
+            logger.debug(
                 f"No document info found for: {info_type}, {collection_name}, {document_name}"
             )
             return {}
