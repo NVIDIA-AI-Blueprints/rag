@@ -685,19 +685,18 @@ class NvidiaRAGIngestor:
             custom_metadata_item.get("filename"): custom_metadata_item.get("metadata")
             for custom_metadata_item in (state_manager.custom_metadata or [])
         }
-        filename_to_result_map = {
-            os.path.basename(
-                result[0].get("metadata").get("source_metadata").get("source_id")
-            ): result
-            for result in results
-        }
+        filename_to_result_map = {}
+        for result in results:
+            if len(result) > 0:
+                filename_to_result_map[os.path.basename(result[0].get("metadata").get("source_metadata").get("source_id"))] = result
+
         # Generate response dictionary
         uploaded_documents = []
         for filepath in filepaths:
             if os.path.basename(filepath) not in failures_filepaths:
                 doc_type_counts, _, total_elements, raw_text_elements_size = (
                     self._get_document_type_counts(
-                        [filename_to_result_map.get(os.path.basename(filepath))]
+                        [filename_to_result_map.get(os.path.basename(filepath), [])]
                     )
                 )
 
