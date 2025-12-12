@@ -294,12 +294,20 @@ jobs:
             sudo apt-get install -y python3 python3-venv python3-pip fuse lsof
 
           fi
-          rm -rf venv || echo "No existing venv to clean up"
+
           python3 --version || echo "Python3 not found"
           pip3 --version || echo "pip3 not found"
-          python3 -m venv venv
+
+          # Install uv (Python package and environment manager)
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          export PATH="$HOME/.local/bin:$PATH"
+
+          # Create a fresh virtual environment using uv
+          rm -rf venv || echo "No existing venv to clean up"
+          uv venv venv
           source venv/bin/activate
-          pip install -r tests/integration/requirements.txt
+          uv pip install -e .[all]
+          uv pip install -r tests/integration/requirements.txt
 
       - name: Run basic integration tests
         run: |

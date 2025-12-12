@@ -52,7 +52,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-
 class IntegrationTestRunner:
     """Integration test runner for RAG and Ingestion APIs"""
 

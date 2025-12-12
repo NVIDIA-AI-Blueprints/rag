@@ -96,7 +96,7 @@ from nvidia_rag.utils.llm import (
 from nvidia_rag.utils.reranker import get_ranking_model
 from nvidia_rag.utils.vdb import _get_vdb_op
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
-from observability.otel_metrics import OtelMetrics
+from nvidia_rag.utils.observability.otel_metrics import OtelMetrics
 
 
 async def _async_iter(items) -> AsyncGenerator[Any, None]:

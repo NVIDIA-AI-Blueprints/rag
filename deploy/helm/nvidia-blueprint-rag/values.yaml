@@ -396,6 +396,13 @@ ingestor-server:
     NV_INGEST_FILES_PER_BATCH: "16"
     NV_INGEST_CONCURRENT_BATCHES: "4"
 
+    # === Tracing ===
+    APP_TRACING_ENABLED: "False"
+    # HTTP endpoint
+    APP_TRACING_OTLPHTTPENDPOINT: "http://otel-collector:4318/v1/traces"
+    # GRPC endpoint
+    APP_TRACING_OTLPGRPCENDPOINT: "grpc://otel-collector:4317"
+
   # -- Persistent storage for ingestor-server data directory
   # If enabled, mounts a PVC at the path used by INGESTOR_SERVER_DATA_DIR
   persistence:

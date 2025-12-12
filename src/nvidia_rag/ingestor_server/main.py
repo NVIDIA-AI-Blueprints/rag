@@ -82,11 +82,18 @@ from nvidia_rag.utils.minio_operator import (
 from nvidia_rag.utils.llm import get_prompts
 from nvidia_rag.utils.summarization import generate_document_summaries
 from nvidia_rag.utils.summary_status_handler import SUMMARY_STATUS_HANDLER
+from nvidia_rag.utils.observability.tracing import (
+    create_nv_ingest_trace_context,
+    get_tracer,
+    process_nv_ingest_traces,
+    trace_function,
+)
 from nvidia_rag.utils.vdb import _get_vdb_op
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
 
 # Initialize logger
 logger = logging.getLogger(__name__)
+TRACER = get_tracer("nvidia_rag.ingestor.main")
 
 
 class Mode(str, Enum):
@@ -170,6 +177,7 @@ class NvidiaRAGIngestor:
         
         return IngestorHealthResponse(message="Service is up.")
 
+    @trace_function("ingestor.main.validate_directory_traversal_attack", tracer=TRACER)
     async def validate_directory_traversal_attack(self, file) -> None:
         try:
             # Path.resolve(strict=True) is a method used to
@@ -185,6 +193,7 @@ class NvidiaRAGIngestor:
                 f"File not found or a directory traversal attack detected! Filepath: {file}"
             ) from e
 
+    @trace_function("ingestor.main.prepare_vdb_op_and_collection_name", tracer=TRACER)
     def __prepare_vdb_op_and_collection_name(
         self,
         vdb_endpoint: str | None = None,
@@ -224,6 +233,7 @@ class NvidiaRAGIngestor:
 
         return self.vdb_op, self.vdb_op.collection_name
 
+    @trace_function("ingestor.main.upload_documents", tracer=TRACER)
     async def upload_documents(
         self,
         filepaths: list[str],
@@ -378,6 +388,7 @@ class NvidiaRAGIngestor:
                 "failed_documents": [],
             }
 
+    @trace_function("ingestor.main.run_background_ingest_task", tracer=TRACER)
     async def __run_background_ingest_task(
         self,
         filepaths: list[str],
@@ -640,6 +651,7 @@ class NvidiaRAGIngestor:
             )
             raise e
 
+    @trace_function("ingestor.main.build_ingestion_response", tracer=TRACER)
     async def __build_ingestion_response(
         self,
         results: list[list[dict[str, str | dict]]],
@@ -734,6 +746,7 @@ class NvidiaRAGIngestor:
         }
         return response_data
 
+    @trace_function("ingestor.main.ingest_document_summary", tracer=TRACER)
     async def __ingest_document_summary(
         self,
         results: list[list[dict[str, str | dict]]],
@@ -776,6 +789,7 @@ class NvidiaRAGIngestor:
                 f"Summary batch failed for {collection_name}: {e}", exc_info=True
             )
 
+    @trace_function("ingestor.main.update_documents", tracer=TRACER)
     async def update_documents(
         self,
         filepaths: list[str],
@@ -862,6 +876,7 @@ class NvidiaRAGIngestor:
         return response
 
     @staticmethod
+    @trace_function("ingestor.main.status", tracer=TRACER)
     async def status(task_id: str) -> dict[str, Any]:
         """Get the status of an ingestion task."""
 
@@ -901,6 +916,7 @@ class NvidiaRAGIngestor:
             logger.error(f"Task {task_id} not found with error: {e}")
             return {"state": "UNKNOWN", "result": {"message": "Unknown task state"}, "document_wise_status": document_wise_status}
 
+    @trace_function("ingestor.main.apply_documents_catalog_metadata", tracer=TRACER)
     async def __apply_documents_catalog_metadata(
         self,
         results: list[list[dict[str, Any]]],
@@ -955,6 +971,7 @@ class NvidiaRAGIngestor:
                             f"Failed to apply catalog metadata to document '{doc_name}': {e}"
                         )
 
+    @trace_function("ingestor.main.create_collection", tracer=TRACER)
     def create_collection(
         self,
         collection_name: str | None = None,
@@ -1057,6 +1074,7 @@ class NvidiaRAGIngestor:
             logger.exception(f"Failed to create collection: {e}")
             raise Exception(f"Failed to create collection: {e}") from e
 
+    @trace_function("ingestor.main.update_collection_metadata", tracer=TRACER)
     def update_collection_metadata(
         self,
         collection_name: str,
@@ -1115,6 +1133,7 @@ class NvidiaRAGIngestor:
             logger.exception(f"Failed to update collection metadata: {e}")
             raise Exception(f"Failed to update collection metadata: {e}") from e
 
+    @trace_function("ingestor.main.update_document_metadata", tracer=TRACER)
     def update_document_metadata(
         self,
         collection_name: str,
@@ -1175,6 +1194,7 @@ class NvidiaRAGIngestor:
             logger.exception(f"Failed to update document metadata: {e}")
             raise Exception(f"Failed to update document metadata: {e}") from e
 
+    @trace_function("ingestor.main.create_collections", tracer=TRACER)
     def create_collections(
         self,
         collection_names: list[str],
@@ -1250,6 +1270,7 @@ class NvidiaRAGIngestor:
                 "total_failed": len(collection_names),
             }
 
+    @trace_function("ingestor.main.delete_collections", tracer=TRACER)
     def delete_collections(
         self,
         collection_names: list[str],
@@ -1309,6 +1330,7 @@ class NvidiaRAGIngestor:
                 "total_collections": 0,
             }
 
+    @trace_function("ingestor.main.get_collections", tracer=TRACER)
     def get_collections(
         self,
         vdb_endpoint: str | None = None,
@@ -1364,6 +1386,7 @@ class NvidiaRAGIngestor:
                 "total_collections": 0,
             }
 
+    @trace_function("ingestor.main.get_documents", tracer=TRACER)
     def get_documents(
         self,
         collection_name: str | None = None,
@@ -1432,6 +1455,7 @@ class NvidiaRAGIngestor:
                 "message": f"Document listing failed due to error {e}.",
             }
 
+    @trace_function("ingestor.main.delete_documents", tracer=TRACER)
     def delete_documents(
         self,
         document_names: list[str],
@@ -1531,6 +1555,7 @@ class NvidiaRAGIngestor:
             "documents": [],
         }
 
+    @trace_function("ingestor.main.put_content_to_minio", tracer=TRACER)
     def __put_content_to_minio(
         self,
         results: list[list[dict[str, str | dict]]],
@@ -1598,6 +1623,7 @@ class NvidiaRAGIngestor:
                     payload=payload, object_name=object_name
                 )
 
+    @trace_function("ingestor.main.process_shallow_batch", tracer=TRACER)
     async def __process_shallow_batch(
         self,
         filepaths: list[str],
@@ -1668,6 +1694,7 @@ class NvidiaRAGIngestor:
 
         return shallow_failed_files
 
+    @trace_function("ingestor.main.perform_shallow_extraction_workflow", tracer=TRACER)
     async def __perform_shallow_extraction_workflow(
         self,
         filepaths: list[str],
@@ -1792,6 +1819,7 @@ class NvidiaRAGIngestor:
             logger.info("Shallow extraction complete, starting deep ingestion")
 
 
+    @trace_function("ingestor.main.run_nvingest_batched_ingestion", tracer=TRACER)
     async def __run_nvingest_batched_ingestion(
         self,
         filepaths: list[str],
@@ -1973,6 +2001,7 @@ class NvidiaRAGIngestor:
 
                 return all_results, all_failures
 
+    @trace_function("ingestor.main.run_nv_ingest_ingestion_pipeline", tracer=TRACER)
     async def __nv_ingest_ingestion_pipeline(
         self,
         filepaths: list[str],
@@ -2109,9 +2138,12 @@ class NvidiaRAGIngestor:
         return results, failures
 
     @staticmethod
+    @trace_function("ingestor.main.perform_async_nv_ingest_ingestion", tracer=TRACER)
     async def __perform_async_nv_ingest_ingestion(
         nv_ingest_ingestor,
         state_manager,
+        nv_ingest_traces: bool = False,
+        trace_context: dict[str, Any] | None = None,
     ):
         """
         Perform NV-Ingest ingestion asynchronously using .ingest_async() method
@@ -2123,9 +2155,11 @@ class NvidiaRAGIngestor:
         Returns:
             - tuple[list[list[dict[str, str | dict]]], list[dict[str, Any]]] - Results and failures
         """
+        ingest_start_ns = time.time_ns()
         future = nv_ingest_ingestor.ingest_async(
             return_failures=True,
             show_progress=logger.getEffectiveLevel() <= logging.DEBUG,
+            return_traces=nv_ingest_traces,
         )
         # Convert concurrent.futures.Future to asyncio.Future
         async_future = asyncio.wrap_future(future)
@@ -2145,9 +2179,25 @@ class NvidiaRAGIngestor:
             if future.done():
                 break
         
+        if nv_ingest_traces:
+            results, failures, traces = await async_future
+
+            if trace_context is not None:
+                process_nv_ingest_traces(
+                    traces,
+                    tracer=TRACER,
+                    span_namespace=trace_context.get("span_namespace", "nv_ingest"),
+                    collection_name=trace_context.get("collection_name"),
+                    batch_number=trace_context.get("batch_number"),
+                    reference_time_ns=trace_context.get("reference_time_ns", ingest_start_ns),
+                )
+
+            return results, failures
+
         results, failures = await async_future
         return results, failures
 
+    @trace_function("ingestor.main.perform_shallow_extraction", tracer=TRACER)
     async def _perform_shallow_extraction(
         self,
         filepaths: list[str],
@@ -2199,6 +2249,11 @@ class NvidiaRAGIngestor:
             results, failures = await self.__perform_async_nv_ingest_ingestion(
                 nv_ingest_ingestor=nv_ingest_ingestor,
                 state_manager=state_manager,
+                nv_ingest_traces=True,
+                trace_context=create_nv_ingest_trace_context(
+                    span_namespace=f"nv_ingest.shallow_batch_{batch_number}",
+                    batch_number=batch_number,
+                ),
             )
             total_time = time.time() - start_time
 
@@ -2231,6 +2286,7 @@ class NvidiaRAGIngestor:
             failure_records = [(filepath, e) for filepath in filepaths]
             return [], failure_records
 
+    @trace_function("ingestor.main.perform_file_ext_based_nv_ingest_ingestion", tracer=TRACER)
     async def _perform_file_ext_based_nv_ingest_ingestion(
         self,
         batch_number: int,
@@ -2269,6 +2325,12 @@ class NvidiaRAGIngestor:
             results, failures = await self.__perform_async_nv_ingest_ingestion(
                 nv_ingest_ingestor=nv_ingest_ingestor,
                 state_manager=state_manager,
+                nv_ingest_traces=True,
+                trace_context=create_nv_ingest_trace_context(
+                    span_namespace=f"nv_ingest.batch_{batch_number}",
+                    collection_name=vdb_op.collection_name,
+                    batch_number=batch_number,
+                ),
             )
             total_ingestion_time = time.time() - start_time
             document_info = self._log_result_info(
@@ -2304,9 +2366,15 @@ class NvidiaRAGIngestor:
                 logger.info(
                     f"Performing ingestion for PDF files for batch {batch_number} with parameters: {split_options}"
                 )
-                results_pdf, failures_pdf = self.__perform_async_nv_ingest_ingestion(
+                results_pdf, failures_pdf = await self.__perform_async_nv_ingest_ingestion(
                     nv_ingest_ingestor=nv_ingest_ingestor,
                     state_manager=state_manager,
+                    nv_ingest_traces=True,
+                    trace_context=create_nv_ingest_trace_context(
+                        span_namespace=f"nv_ingest.batch_{batch_number}.pdf",
+                        collection_name=vdb_op.collection_name,
+                        batch_number=batch_number,
+                    ),
                 )
                 total_ingestion_time = time.time() - start_time
                 document_info = self._log_result_info(
@@ -2333,9 +2401,15 @@ class NvidiaRAGIngestor:
                 logger.info(
                     f"Performing ingestion for non-PDF files for batch {batch_number} with parameters: {split_options}"
                 )
-                results_non_pdf, failures_non_pdf = self.__perform_async_nv_ingest_ingestion(
+                results_non_pdf, failures_non_pdf = await self.__perform_async_nv_ingest_ingestion(
                     nv_ingest_ingestor=nv_ingest_ingestor,
                     state_manager=state_manager,
+                    nv_ingest_traces=True,
+                    trace_context=create_nv_ingest_trace_context(
+                        span_namespace=f"nv_ingest.batch_{batch_number}.non_pdf",
+                        collection_name=vdb_op.collection_name,
+                        batch_number=batch_number,
+                    ),
                 )
                 total_ingestion_time = time.time() - start_time
                 document_info = self._log_result_info(
@@ -2357,6 +2431,7 @@ class NvidiaRAGIngestor:
 
             return results, failures
 
+    @trace_function("ingestor.main.get_document_type_counts", tracer=TRACER)
     def _get_document_type_counts(
         self, results: list[list[dict[str, str | dict]]]
     ) -> dict[str, int]:
@@ -2391,6 +2466,7 @@ class NvidiaRAGIngestor:
                         raw_text_elements_size += len(str(content))
         return doc_type_counts, total_documents, total_elements, raw_text_elements_size
 
+    @trace_function("ingestor.main.log_result_info", tracer=TRACER)
     def _log_result_info(
         self,
         batch_number: int,
@@ -2448,6 +2524,7 @@ class NvidiaRAGIngestor:
         )
         return document_info
 
+    @trace_function("ingestor.main.get_failed_documents", tracer=TRACER)
     async def __get_failed_documents(
         self,
         failures: list[dict[str, Any]],
@@ -2522,6 +2599,7 @@ class NvidiaRAGIngestor:
 
         return failed_documents
 
+    @trace_function("ingestor.main.remove_unsupported_files", tracer=TRACER)
     async def __remove_unsupported_files(
         self,
         filepaths: list[str],
@@ -2532,6 +2610,7 @@ class NvidiaRAGIngestor:
             filepath for filepath in filepaths if filepath not in non_supported_files
         ]
 
+    @trace_function("ingestor.main.split_pdf_and_non_pdf_files", tracer=TRACER)
     async def __split_pdf_and_non_pdf_files(
         self, filepaths: list[str]
     ) -> tuple[list[str], list[str]]:
@@ -2545,6 +2624,7 @@ class NvidiaRAGIngestor:
                 non_pdf_filepaths.append(filepath)
         return pdf_filepaths, non_pdf_filepaths
 
+    @trace_function("ingestor.main.get_non_supported_files", tracer=TRACER)
     async def __get_non_supported_files(self, filepaths: list[str]) -> list[str]:
         """Get filepaths of non-supported file extensions"""
         non_supported_files = []
@@ -2556,6 +2636,7 @@ class NvidiaRAGIngestor:
                 non_supported_files.append(filepath)
         return non_supported_files
 
+    @trace_function("ingestor.main.validate_custom_metadata", tracer=TRACER)
     async def _validate_custom_metadata(
         self,
         custom_metadata: list[dict[str, Any]],
