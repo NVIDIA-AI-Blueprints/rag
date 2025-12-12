@@ -327,6 +327,44 @@ jobs:
           cp tests/integration/integration_test.log logs/basic-tests/ 2>/dev/null || true
 
       # ========================================================================
+      # QUERY REWRITER TESTS
+      # ========================================================================
+      
+      - name: Configure environment for query rewriter tests
+        run: |
+          echo "ENABLE_QUERYREWRITER=True" >> $GITHUB_ENV
+          echo "CONVERSATION_HISTORY=5" >> $GITHUB_ENV
+
+      - name: Restart services for query rewriter tests
+        env:
+          CI_NV_RAG_BLUEPRINT_KEY: ${{ secrets.CI_NV_RAG_BLUEPRINT_KEY }}
+        run: |
+          echo "Restarting services with query rewriter configuration..."
+          docker compose -f deploy/compose/docker-compose-rag-server.yaml down || true
+          docker compose -f deploy/compose/docker-compose-ingestor-server.yaml down || true
+          sleep 5
+          docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d --build
+          docker compose -f deploy/compose/docker-compose-ingestor-server.yaml up -d --build
+          sleep 30
+          docker ps
+
+      - name: Run query rewriter integration tests
+        run: |
+          source venv/bin/activate
+          echo "Running query rewriter integration tests..."
+          python -m tests.integration.main --sequence query_rewriter
+          echo "Query rewriter integration tests completed"
+
+      - name: Collect logs after query rewriter tests
+        if: always()
+        run: |
+          mkdir -p logs/query-rewriter
+          docker logs rag-server > logs/query-rewriter/rag-server.log 2>&1 || true
+          docker logs ingestor-server > logs/query-rewriter/ingestor-server.log 2>&1 || true
+          docker logs compose-nv-ingest-ms-runtime-1 > logs/query-rewriter/nvingest.log 2>&1 || true
+          cp tests/integration/integration_test.log logs/query-rewriter/ 2>/dev/null || true
+
+      # ========================================================================
       # REFLECTION TESTS
       # ========================================================================
       
@@ -334,6 +372,9 @@ jobs:
         run: |
           echo "ENABLE_REFLECTION=True" >> $GITHUB_ENV
           echo "RESPONSE_GROUNDEDNESS_THRESHOLD=3" >> $GITHUB_ENV
+          # Unset query rewriter settings
+          echo "ENABLE_QUERYREWRITER=False" >> $GITHUB_ENV
+          echo "CONVERSATION_HISTORY=0" >> $GITHUB_ENV
 
       - name: Restart services for reflection tests
         env:
@@ -371,8 +412,10 @@ jobs:
       - name: Configure environment for guardrails tests
         run: |
           echo "ENABLE_GUARDRAILS=True" >> $GITHUB_ENV
-          # Unset reflection settings
+          # Unset reflection and query rewriter settings
           echo "ENABLE_REFLECTION=False" >> $GITHUB_ENV
+          echo "ENABLE_QUERYREWRITER=False" >> $GITHUB_ENV
+          echo "CONVERSATION_HISTORY=0" >> $GITHUB_ENV
 
       - name: Restart services for guardrails tests
         env:
@@ -424,6 +467,8 @@ jobs:
         run: |
           echo "APP_NVINGEST_EXTRACTIMAGES=True" >> $GITHUB_ENV
           echo "ENABLE_GUARDRAILS=False" >> $GITHUB_ENV
+          echo "ENABLE_QUERYREWRITER=False" >> $GITHUB_ENV
+          echo "CONVERSATION_HISTORY=0" >> $GITHUB_ENV
 
       - name: Restart services for image captioning tests
         env:
@@ -462,6 +507,8 @@ jobs:
         run: |
           echo "ENABLE_VLM_INFERENCE=True" >> $GITHUB_ENV
           echo "APP_NVINGEST_EXTRACTIMAGES=False" >> $GITHUB_ENV
+          echo "ENABLE_QUERYREWRITER=False" >> $GITHUB_ENV
+          echo "CONVERSATION_HISTORY=0" >> $GITHUB_ENV
 
       - name: Restart services for VLM generation tests
         env:
@@ -500,6 +547,8 @@ jobs:
         run: |
           echo "PROMPT_CONFIG_FILE=$(pwd)/tests/data/test_prompt.yaml" >> $GITHUB_ENV
           echo "ENABLE_VLM_INFERENCE=False" >> $GITHUB_ENV
+          echo "ENABLE_QUERYREWRITER=False" >> $GITHUB_ENV
+          echo "CONVERSATION_HISTORY=0" >> $GITHUB_ENV
 
       - name: Restart services for custom prompt tests
         env:
@@ -539,6 +588,8 @@ jobs:
           echo "APP_TRACING_ENABLED=True" >> $GITHUB_ENV
           echo "OPENTELEMETRY_CONFIG_FILE=$(pwd)/deploy/config/otel-collector-config.yaml" >> $GITHUB_ENV
           echo "PROMPT_CONFIG_FILE=${PWD}/src/nvidia_rag/rag_server/prompt.yaml" >> $GITHUB_ENV
+          echo "ENABLE_QUERYREWRITER=False" >> $GITHUB_ENV
+          echo "CONVERSATION_HISTORY=0" >> $GITHUB_ENV
 
       - name: Restart services for observability tests
         env:

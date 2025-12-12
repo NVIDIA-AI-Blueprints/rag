@@ -321,7 +321,7 @@ class QueryRewritingModule(BaseTestModule):
         """
         try:
             payload = {
-                "query": "When was the prime minister of India born?",
+                "query": "When was he born?",
                 "reranker_top_k": 1,
                 "vdb_top_k": 10,
                 "collection_names": [self.COLLECTION_NAME],

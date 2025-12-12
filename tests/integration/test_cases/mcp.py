@@ -121,7 +121,7 @@ class MCPIntegrationModule(BaseTestModule):
         while time.time() - start < timeout:
             try:
                 async with aiohttp.ClientSession() as session:
-                    async with session.get(url, timeout=5) as resp:
+                    async with session.get(url, timeout=10) as resp:
                         if 200 <= resp.status < 300 or resp.status == 406:
                             return True
             except Exception as e:

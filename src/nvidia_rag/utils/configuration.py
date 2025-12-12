@@ -505,6 +505,11 @@ class QueryRewriterConfig(_ConfigBase):
         env="APP_QUERYREWRITER_APIKEY",
         description="API key for query rewriter (overrides global NVIDIA_API_KEY)",
     )
+    multiturn_retrieval_simple: bool = Field(
+        default=False,
+        env="MULTITURN_RETRIEVAL_SIMPLE",
+        description="Enable concatenating conversation history with current query for retrieval (used when query rewriter is disabled)",
+    )
 
     @field_validator("server_url", mode="before")
     @classmethod

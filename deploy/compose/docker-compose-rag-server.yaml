@@ -135,6 +135,9 @@ services:
       # This will improve accuracy of the retrieiver pipeline but increase latency due to an additional LLM call
       ENABLE_QUERYREWRITER: ${ENABLE_QUERYREWRITER:-False}
 
+      # enable concatenating conversation history with current query for retrieval (when query rewriter is disabled)
+      MULTITURN_RETRIEVAL_SIMPLE: ${MULTITURN_RETRIEVAL_SIMPLE:-False}
+
       # Choose whether to enable citations in the response
       ENABLE_CITATIONS: ${ENABLE_CITATIONS:-True}
 
@@ -144,8 +147,8 @@ services:
       # NeMo Guardrails URL when ENABLE_GUARDRAILS is true
       NEMO_GUARDRAILS_URL: ${NEMO_GUARDRAILS_URL:-nemo-guardrails-microservice:7331}
 
-      # number of last n chat messages to consider from the provided conversation history
-      CONVERSATION_HISTORY: 5
+      # number of last n chat messages to consider from the provided conversation history (0 = no history)
+      CONVERSATION_HISTORY: ${CONVERSATION_HISTORY:-0}
 
       # Tracing
       APP_TRACING_ENABLED: ${APP_TRACING_ENABLED:-"False"}

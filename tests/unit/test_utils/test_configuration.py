@@ -371,6 +371,7 @@ class TestNvIngestConfig:
 class TestNvidiaRAGConfig:
     """Test cases for the main NvidiaRAGConfig class."""
 
+    @patch.dict(os.environ, {}, clear=True)
     def test_default_values(self):
         """Test default configuration values."""
         config = NvidiaRAGConfig.from_dict({})
