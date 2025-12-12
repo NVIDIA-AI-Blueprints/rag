@@ -114,7 +114,7 @@ helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprin
   --set nv-ingest.nemoretriever-page-elements-v2.deployed=false \
   --set nv-ingest.nemoretriever-graphic-elements-v1.deployed=false \
   --set nv-ingest.nemoretriever-table-structure-v1.deployed=false \
-  --set nv-ingest.paddleocr-nim.deployed=false \
+  --set nv-ingest.nemoretriever-ocr.deployed=false \
   --set imagePullSecret.password=$NGC_API_KEY \
   --set ngcApiSecret.password=$NGC_API_KEY
 ```
