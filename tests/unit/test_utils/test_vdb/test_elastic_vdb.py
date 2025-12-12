@@ -971,8 +971,10 @@ class TestElasticVDB(unittest.TestCase):
 
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.ElasticsearchStore")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.DenseVectorStrategy")
+    @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.Elasticsearch")
     def test_get_langchain_vectorstore_basic_auth(
         self,
+        mock_elasticsearch,
         mock_dense_strategy,
         mock_es_store_class,
     ):
@@ -987,6 +989,9 @@ class TestElasticVDB(unittest.TestCase):
         mock_config.vector_store.password = SecretStr("password")
         mock_es_store_class.return_value = Mock()
         mock_dense_strategy.return_value = Mock()
+        mock_es_connection = Mock()
+        mock_es_connection.info.return_value = {}
+        mock_elasticsearch.return_value.options.return_value = mock_es_connection
         elastic_vdb = ElasticVDB(
             self.index_name,
             self.es_url,
@@ -1002,8 +1007,10 @@ class TestElasticVDB(unittest.TestCase):
 
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.ElasticsearchStore")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.DenseVectorStrategy")
+    @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.Elasticsearch")
     def test_get_langchain_vectorstore_api_key_precedence(
         self,
+        mock_elasticsearch,
         mock_dense_strategy,
         mock_es_store_class,
     ):
@@ -1018,6 +1025,9 @@ class TestElasticVDB(unittest.TestCase):
         mock_config.vector_store.password = SecretStr("password")
         mock_es_store_class.return_value = Mock()
         mock_dense_strategy.return_value = Mock()
+        mock_es_connection = Mock()
+        mock_es_connection.info.return_value = {}
+        mock_elasticsearch.return_value.options.return_value = mock_es_connection
         elastic_vdb = ElasticVDB(
             self.index_name,
             self.es_url,
@@ -1055,7 +1065,7 @@ class TestElasticVDB(unittest.TestCase):
         mock_vector_store.return_value = Mock()
 
         # Create with auth_token
-        elastic_vdb = ElasticVDB(
+        ElasticVDB(
             index_name=self.index_name,
             es_url=self.es_url,
             config=mock_config,
@@ -1090,7 +1100,7 @@ class TestElasticVDB(unittest.TestCase):
         mock_vector_store.return_value = Mock()
 
         # Create with auth_token (should override api_key and basic_auth)
-        elastic_vdb = ElasticVDB(
+        ElasticVDB(
             index_name=self.index_name,
             es_url=self.es_url,
             config=mock_config,
@@ -1106,8 +1116,10 @@ class TestElasticVDB(unittest.TestCase):
 
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.ElasticsearchStore")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.DenseVectorStrategy")
+    @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.Elasticsearch")
     def test_get_langchain_vectorstore_bearer_auth(
         self,
+        mock_elasticsearch,
         mock_dense_strategy,
         mock_es_store_class,
     ):
@@ -1123,6 +1135,9 @@ class TestElasticVDB(unittest.TestCase):
 
         mock_es_store_class.return_value = Mock()
         mock_dense_strategy.return_value = Mock()
+        mock_es_connection = Mock()
+        mock_es_connection.info.return_value = {}
+        mock_elasticsearch.return_value.options.return_value = mock_es_connection
 
         elastic_vdb = ElasticVDB(
             self.index_name,
@@ -1144,8 +1159,10 @@ class TestElasticVDB(unittest.TestCase):
 
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.ElasticsearchStore")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.DenseVectorStrategy")
+    @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.Elasticsearch")
     def test_get_langchain_vectorstore_bearer_auth_priority(
         self,
+        mock_elasticsearch,
         mock_dense_strategy,
         mock_es_store_class,
     ):
@@ -1161,6 +1178,9 @@ class TestElasticVDB(unittest.TestCase):
 
         mock_es_store_class.return_value = Mock()
         mock_dense_strategy.return_value = Mock()
+        mock_es_connection = Mock()
+        mock_es_connection.info.return_value = {}
+        mock_elasticsearch.return_value.options.return_value = mock_es_connection
 
         elastic_vdb = ElasticVDB(
             self.index_name,

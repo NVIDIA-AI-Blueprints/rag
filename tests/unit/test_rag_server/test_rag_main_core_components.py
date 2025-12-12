@@ -18,13 +18,14 @@
 import asyncio
 import json
 import os
-from unittest.mock import AsyncMock, Mock, patch, MagicMock
-from typing import Any, Dict, List
+from typing import Any
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 from fastapi.testclient import TestClient
 
-from nvidia_rag.rag_server.main import APIError, NvidiaRAG
+from nvidia_rag.rag_server.main import NvidiaRAG
+from nvidia_rag.rag_server.response_generator import APIError
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
 
 
@@ -36,7 +37,7 @@ class TestAPIError:
         error = APIError("Test error message")
 
         assert error.message == "Test error message"
-        assert error.code == 400
+        assert error.status_code == 400
         assert str(error) == "Test error message"
 
     def test_api_error_init_custom_code(self):
@@ -44,19 +45,17 @@ class TestAPIError:
         error = APIError("Test error message", 500)
 
         assert error.message == "Test error message"
-        assert error.code == 500
+        assert error.status_code == 500
         assert str(error) == "Test error message"
 
-    @patch('nvidia_rag.rag_server.main.logger')
-    @patch('nvidia_rag.rag_server.main.print_exc')
+    @patch("nvidia_rag.rag_server.response_generator.logger")
+    @patch("nvidia_rag.rag_server.response_generator.print_exc")
     def test_api_error_logging(self, mock_print_exc, mock_logger):
         """Test that APIError logs and prints traceback."""
-        error = APIError("Test error message", 500)
+        APIError("Test error message", 500)
 
         mock_logger.error.assert_called_with(
-            "APIError occurred: %s with HTTP status: %d",
-            "Test error message",
-            500
+            "APIError occurred: %s with HTTP status: %d", "Test error message", 500
         )
         mock_print_exc.assert_called_once()
 
@@ -77,22 +76,32 @@ class TestNvidiaRAGInit:
 
     def test_init_with_invalid_vdb_op(self):
         """Test initialization with invalid vdb_op type."""
-        with pytest.raises(ValueError, match="vdb_op must be an instance of nvidia_rag.utils.vdb.vdb_base.VDBRag"):
+        with pytest.raises(
+            ValueError,
+            match="vdb_op must be an instance of nvidia_rag.utils.vdb.vdb_base.VDBRag",
+        ):
             NvidiaRAG(vdb_op="invalid_type")
 
     def test_init_with_invalid_vdb_op_class(self):
         """Test initialization with invalid vdb_op class."""
+
         class InvalidVDB:
             pass
 
-        with pytest.raises(ValueError, match="vdb_op must be an instance of nvidia_rag.utils.vdb.vdb_base.VDBRag"):
+        with pytest.raises(
+            ValueError,
+            match="vdb_op must be an instance of nvidia_rag.utils.vdb.vdb_base.VDBRag",
+        ):
             NvidiaRAG(vdb_op=InvalidVDB())
 
     def test_init_with_prompts_dict(self):
         """Test initialization with prompts as a dictionary."""
         custom_prompts = {
-            "rag_template": {"system": "Custom system", "human": "Custom human {context}"},
-            "custom_key": "custom_value"
+            "rag_template": {
+                "system": "Custom system",
+                "human": "Custom human {context}",
+            },
+            "custom_key": "custom_value",
         }
         rag = NvidiaRAG(prompts=custom_prompts)
 
@@ -129,7 +138,7 @@ class TestNvidiaRAGHealth:
 
         rag = NvidiaRAG()
 
-        with patch.object(rag, '_prepare_vdb_op') as mock_prepare:
+        with patch.object(rag, "_prepare_vdb_op") as mock_prepare:
             mock_prepare.return_value = Mock()
 
             result = await rag.health(check_dependencies=False)
@@ -149,8 +158,10 @@ class TestNvidiaRAGHealth:
         mock_vdb_op = Mock()
         mock_dependencies = RAGHealthResponse(message="Service is up.")
 
-        with patch.object(rag, '_prepare_vdb_op') as mock_prepare:
-            with patch('nvidia_rag.rag_server.main.check_all_services_health') as mock_check:
+        with patch.object(rag, "_prepare_vdb_op") as mock_prepare:
+            with patch(
+                "nvidia_rag.rag_server.main.check_all_services_health"
+            ) as mock_check:
                 mock_prepare.return_value = mock_vdb_op
                 mock_check.return_value = mock_dependencies
 
@@ -163,7 +174,9 @@ class TestNvidiaRAGHealth:
                 # Verify check_all_services_health was called with vdb_op and config
                 mock_check.assert_called_once()
                 call_args = mock_check.call_args
-                assert call_args[0][0] == mock_vdb_op  # First argument should be mock_vdb_op
+                assert (
+                    call_args[0][0] == mock_vdb_op
+                )  # First argument should be mock_vdb_op
                 # Second argument should be a NvidiaRAGConfig instance
                 assert len(call_args[0]) == 2  # Should have 2 positional arguments
 
@@ -184,7 +197,10 @@ class TestNvidiaRAGPrepareVDBOp:
         mock_vdb_op = Mock(spec=VDBRag)
         rag = NvidiaRAG(vdb_op=mock_vdb_op)
 
-        with pytest.raises(ValueError, match="vdb_endpoint is not supported when vdb_op is provided during initialization"):
+        with pytest.raises(
+            ValueError,
+            match="vdb_endpoint is not supported when vdb_op is provided during initialization",
+        ):
             rag._prepare_vdb_op(vdb_endpoint="http://test.com")
 
     def test_prepare_vdb_op_with_embedding_model_error(self):
@@ -192,7 +208,10 @@ class TestNvidiaRAGPrepareVDBOp:
         mock_vdb_op = Mock(spec=VDBRag)
         rag = NvidiaRAG(vdb_op=mock_vdb_op)
 
-        with pytest.raises(ValueError, match="embedding_model is not supported when vdb_op is provided during initialization"):
+        with pytest.raises(
+            ValueError,
+            match="embedding_model is not supported when vdb_op is provided during initialization",
+        ):
             rag._prepare_vdb_op(embedding_model="test-model")
 
     def test_prepare_vdb_op_with_embedding_endpoint_error(self):
@@ -200,12 +219,17 @@ class TestNvidiaRAGPrepareVDBOp:
         mock_vdb_op = Mock(spec=VDBRag)
         rag = NvidiaRAG(vdb_op=mock_vdb_op)
 
-        with pytest.raises(ValueError, match="embedding_endpoint is not supported when vdb_op is provided during initialization"):
+        with pytest.raises(
+            ValueError,
+            match="embedding_endpoint is not supported when vdb_op is provided during initialization",
+        ):
             rag._prepare_vdb_op(embedding_endpoint="http://test.com")
 
-    @patch('nvidia_rag.rag_server.main.get_embedding_model')
-    @patch('nvidia_rag.rag_server.main._get_vdb_op')
-    def test_prepare_vdb_op_without_existing_vdb_op(self, mock_get_vdb, mock_get_embedding):
+    @patch("nvidia_rag.rag_server.main.get_embedding_model")
+    @patch("nvidia_rag.rag_server.main._get_vdb_op")
+    def test_prepare_vdb_op_without_existing_vdb_op(
+        self, mock_get_vdb, mock_get_embedding
+    ):
         """Test __prepare_vdb_op when vdb_op is not set."""
         # Setup mocks
         mock_embedder = Mock()
@@ -219,12 +243,16 @@ class TestNvidiaRAGPrepareVDBOp:
         result = rag._prepare_vdb_op()
 
         assert result == mock_vdb_op
-        assert mock_get_embedding.call_count >= 1  # Called during init and __prepare_vdb_op
+        assert (
+            mock_get_embedding.call_count >= 1
+        )  # Called during init and __prepare_vdb_op
         assert mock_get_vdb.call_count >= 1  # Called during __prepare_vdb_op
 
-    @patch('nvidia_rag.rag_server.main.get_embedding_model')
-    @patch('nvidia_rag.rag_server.main._get_vdb_op')
-    def test_prepare_vdb_op_with_custom_parameters(self, mock_get_vdb, mock_get_embedding):
+    @patch("nvidia_rag.rag_server.main.get_embedding_model")
+    @patch("nvidia_rag.rag_server.main._get_vdb_op")
+    def test_prepare_vdb_op_with_custom_parameters(
+        self, mock_get_vdb, mock_get_embedding
+    ):
         """Test __prepare_vdb_op with custom parameters."""
         # Setup mocks
         mock_embedder = Mock()
@@ -238,11 +266,13 @@ class TestNvidiaRAGPrepareVDBOp:
         result = rag._prepare_vdb_op(
             vdb_endpoint="http://custom-vdb.com",
             embedding_model="custom-model",
-            embedding_endpoint="http://custom-embedding.com"
+            embedding_endpoint="http://custom-embedding.com",
         )
 
         assert result == mock_vdb_op
-        assert mock_get_embedding.call_count >= 1  # Called during init and __prepare_vdb_op
+        assert (
+            mock_get_embedding.call_count >= 1
+        )  # Called during init and __prepare_vdb_op
         assert mock_get_vdb.call_count >= 1  # Called during __prepare_vdb_op
 
 
@@ -262,7 +292,9 @@ class TestNvidiaRAGValidateCollections:
     def test_validate_collections_exist_missing_collection(self):
         """Test collection validation with missing collection."""
         mock_vdb_op = Mock(spec=VDBRag)
-        mock_vdb_op.check_collection_exists.side_effect = lambda name: name == "collection1"
+        mock_vdb_op.check_collection_exists.side_effect = (
+            lambda name: name == "collection1"
+        )
 
         rag = NvidiaRAG(vdb_op=mock_vdb_op)
 
@@ -296,7 +328,7 @@ class TestNvidiaRAGExtractTextFromContent:
         content = [
             {"type": "text", "text": "Hello"},
             {"type": "text", "text": "world"},
-            {"type": "image_url", "image_url": "http://example.com/image.jpg"}
+            {"type": "image_url", "image_url": "http://example.com/image.jpg"},
         ]
 
         result = rag._extract_text_from_content(content)
@@ -306,9 +338,7 @@ class TestNvidiaRAGExtractTextFromContent:
         """Test extracting text from list without text items."""
         rag = NvidiaRAG()
 
-        content = [
-            {"type": "image_url", "image_url": "http://example.com/image.jpg"}
-        ]
+        content = [{"type": "image_url", "image_url": "http://example.com/image.jpg"}]
 
         result = rag._extract_text_from_content(content)
         assert result == ""
@@ -337,7 +367,7 @@ class TestNvidiaRAGContainsImages:
 
         content = [
             {"type": "text", "text": "Hello world"},
-            {"type": "image_url", "image_url": "http://example.com/image1.jpg"}
+            {"type": "image_url", "image_url": "http://example.com/image1.jpg"},
         ]
 
         result = rag._contains_images(content)
@@ -349,17 +379,8 @@ class TestNvidiaRAGContainsImages:
 
         content = [
             {"type": "text", "text": "Hello world"},
-            {"type": "text", "text": "More text"}
+            {"type": "text", "text": "More text"},
         ]
-
-        result = rag._contains_images(content)
-        assert result is False
-
-    def test_contains_images_string(self):
-        """Test _contains_images with string content."""
-        rag = NvidiaRAG()
-
-        content = "Hello world"
 
         result = rag._contains_images(content)
         assert result is False
@@ -391,7 +412,7 @@ class TestNvidiaRAGBuildRetrieverQuery:
         content = [
             {"type": "text", "text": "Hello"},
             {"type": "text", "text": "world"},
-            {"type": "image_url", "image_url": {"url": "http://example.com/image.jpg"}}
+            {"type": "image_url", "image_url": {"url": "http://example.com/image.jpg"}},
         ]
 
         result = rag._build_retriever_query_from_content(content)
@@ -424,12 +445,9 @@ class TestNvidiaRAGPrintConversationHistory:
         """Test printing conversation history."""
         rag = NvidiaRAG()
 
-        conversation_history = [
-            ("user", "Hello"),
-            ("assistant", "Hi there!")
-        ]
+        conversation_history = [("user", "Hello"), ("assistant", "Hi there!")]
 
-        with patch('nvidia_rag.rag_server.main.logger') as mock_logger:
+        with patch("nvidia_rag.rag_server.main.logger") as mock_logger:
             rag._print_conversation_history(conversation_history)
 
             # Verify debug log was called
@@ -439,7 +457,7 @@ class TestNvidiaRAGPrintConversationHistory:
         """Test printing empty conversation history."""
         rag = NvidiaRAG()
 
-        with patch('nvidia_rag.rag_server.main.logger') as mock_logger:
+        with patch("nvidia_rag.rag_server.main.logger") as mock_logger:
             rag._print_conversation_history([])
 
             # Should not call debug log with empty history
@@ -456,7 +474,7 @@ class TestNvidiaRAGNormalizeRelevanceScores:
         documents = [
             Mock(metadata={"relevance_score": 0.8}),
             Mock(metadata={"relevance_score": 0.6}),
-            Mock(metadata={"relevance_score": 0.4})
+            Mock(metadata={"relevance_score": 0.4}),
         ]
 
         result = rag._normalize_relevance_scores(documents)

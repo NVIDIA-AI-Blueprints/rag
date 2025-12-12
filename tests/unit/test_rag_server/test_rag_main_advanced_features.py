@@ -21,8 +21,8 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 
-from nvidia_rag.rag_server.main import APIError, NvidiaRAG
-from nvidia_rag.rag_server.response_generator import Citations
+from nvidia_rag.rag_server.main import NvidiaRAG
+from nvidia_rag.rag_server.response_generator import APIError, Citations
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
 
 
@@ -100,14 +100,18 @@ class TestNvidiaRAGSearchCoverage:
                                         mock_executor.return_value.__enter__.return_value.submit.return_value = mock_future
 
                                         # Mock RunnableAssign
-                                        mock_runnable_assign.return_value.ainvoke = AsyncMock(return_value={
-                                            "context": [
-                                                Mock(
-                                                    page_content="test content",
-                                                    metadata={},
-                                                )
-                                            ]
-                                        })
+                                        mock_runnable_assign.return_value.ainvoke = (
+                                            AsyncMock(
+                                                return_value={
+                                                    "context": [
+                                                        Mock(
+                                                            page_content="test content",
+                                                            metadata={},
+                                                        )
+                                                    ]
+                                                }
+                                            )
+                                        )
 
                                         # Mock filter documents
                                         mock_filter_docs.return_value = [
@@ -263,14 +267,18 @@ class TestNvidiaRAGSearchCoverage:
                                         mock_executor.return_value.__enter__.return_value.submit.return_value = mock_future
 
                                         # Mock RunnableAssign
-                                        mock_runnable_assign.return_value.ainvoke = AsyncMock(return_value={
-                                            "context": [
-                                                Mock(
-                                                    page_content="test content",
-                                                    metadata={},
-                                                )
-                                            ]
-                                        })
+                                        mock_runnable_assign.return_value.ainvoke = (
+                                            AsyncMock(
+                                                return_value={
+                                                    "context": [
+                                                        Mock(
+                                                            page_content="test content",
+                                                            metadata={},
+                                                        )
+                                                    ]
+                                                }
+                                            )
+                                        )
 
                                         # Mock filter documents
                                         mock_filter_docs.return_value = [
@@ -309,7 +317,7 @@ class TestNvidiaRAGSearchCoverage:
         mock_chain = Mock()
         mock_chain.ainvoke = AsyncMock(return_value="rewritten query")
         mock_chain.__or__ = Mock(return_value=mock_chain)
-        
+
         rag.query_rewriter_llm = mock_chain
         rag.StreamingFilterThinkParser = mock_chain
 
@@ -353,7 +361,9 @@ class TestNvidiaRAGSearchCoverage:
                                                         )
                                                     ]
                                                 }
-                                                mock_get_ranking.return_value = mock_ranker
+                                                mock_get_ranking.return_value = (
+                                                    mock_ranker
+                                                )
 
                                                 # Mock filter validation
                                                 mock_validate_filter.return_value = {
@@ -375,39 +385,47 @@ class TestNvidiaRAGSearchCoverage:
                                                 mock_executor.return_value.__enter__.return_value.submit.return_value = mock_future
 
                                                 # Mock RunnableAssign
-                                                mock_runnable_assign.return_value.ainvoke = AsyncMock(return_value={
-                                                    "context": [
-                                                        Mock(
-                                                            page_content="test content",
-                                                            metadata={},
-                                                        )
-                                                    ]
-                                                })
-
-                                                # Mock filter documents
-                                                mock_filter_docs.return_value = [
+                                                mock_runnable_assign.return_value.ainvoke = AsyncMock(
+                                                    return_value={
+                                                        "context": [
                                                             Mock(
                                                                 page_content="test content",
                                                                 metadata={},
                                                             )
                                                         ]
+                                                    }
+                                                )
+
+                                                # Mock filter documents
+                                                mock_filter_docs.return_value = [
+                                                    Mock(
+                                                        page_content="test content",
+                                                        metadata={},
+                                                    )
+                                                ]
 
                                                 # Mock query rewriter chain with async support
                                                 mock_chain = Mock()
-                                                mock_chain.ainvoke = AsyncMock(return_value="rewritten query")
-                                                
+                                                mock_chain.ainvoke = AsyncMock(
+                                                    return_value="rewritten query"
+                                                )
+
                                                 # Support pipe operator chaining for LCEL
-                                                mock_chain.__or__ = Mock(return_value=mock_chain)
-                                                rag.query_rewriter_llm.__or__ = Mock(return_value=mock_chain)
-                                                rag.StreamingFilterThinkParser.__or__ = Mock(return_value=mock_chain)
-                                                
+                                                mock_chain.__or__ = Mock(
+                                                    return_value=mock_chain
+                                                )
+                                                rag.query_rewriter_llm.__or__ = Mock(
+                                                    return_value=mock_chain
+                                                )
+                                                rag.StreamingFilterThinkParser.__or__ = Mock(
+                                                    return_value=mock_chain
+                                                )
+
                                                 mock_prompt_template.from_messages.return_value = mock_chain
 
-                                                mock_prepare.return_value = (
-                                                    mock_vdb_op
-                                                )
-                                                mock_prepare_citations.return_value = Citations(
-                                                    documents=[], sources=[]
+                                                mock_prepare.return_value = mock_vdb_op
+                                                mock_prepare_citations.return_value = (
+                                                    Citations(documents=[], sources=[])
                                                 )
 
                                                 result = await rag.search(
@@ -416,9 +434,7 @@ class TestNvidiaRAGSearchCoverage:
                                                     enable_query_rewriting=True,
                                                 )
 
-                                                assert isinstance(
-                                                    result, Citations
-                                                )
+                                                assert isinstance(result, Citations)
 
     @pytest.mark.asyncio
     async def test_search_with_filter_generator_enabled(self):
@@ -467,9 +483,7 @@ class TestNvidiaRAGSearchCoverage:
                                                     )
                                                 ]
                                             }
-                                            mock_get_ranking.return_value = (
-                                                mock_ranker
-                                            )
+                                            mock_get_ranking.return_value = mock_ranker
 
                                             # Mock filter validation
                                             mock_validate_filter.return_value = {
@@ -491,14 +505,16 @@ class TestNvidiaRAGSearchCoverage:
                                             mock_executor.return_value.__enter__.return_value.submit.return_value = mock_future
 
                                             # Mock RunnableAssign
-                                            mock_runnable_assign.return_value.ainvoke = AsyncMock(return_value={
-                                                "context": [
-                                                    Mock(
-                                                        page_content="test content",
-                                                        metadata={},
-                                                    )
-                                                ]
-                                            })
+                                            mock_runnable_assign.return_value.ainvoke = AsyncMock(
+                                                return_value={
+                                                    "context": [
+                                                        Mock(
+                                                            page_content="test content",
+                                                            metadata={},
+                                                        )
+                                                    ]
+                                                }
+                                            )
 
                                             # Mock filter documents
                                             mock_filter_docs.return_value = [
@@ -523,9 +539,7 @@ class TestNvidiaRAGSearchCoverage:
 
                                             result = await rag.search(
                                                 "test query",
-                                                collection_names=[
-                                                    "test_collection"
-                                                ],
+                                                collection_names=["test_collection"],
                                                 enable_filter_generator=True,
                                             )
 
@@ -607,14 +621,16 @@ class TestNvidiaRAGSearchCoverage:
                                                     mock_executor.return_value.__enter__.return_value.submit.return_value = mock_future
 
                                                     # Mock RunnableAssign
-                                                    mock_runnable_assign.return_value.ainvoke = AsyncMock(return_value={
-                                                        "context": [
-                                                            Mock(
-                                                                page_content="test content",
-                                                                metadata={},
-                                                            )
-                                                        ]
-                                                    })
+                                                    mock_runnable_assign.return_value.ainvoke = AsyncMock(
+                                                        return_value={
+                                                            "context": [
+                                                                Mock(
+                                                                    page_content="test content",
+                                                                    metadata={},
+                                                                )
+                                                            ]
+                                                        }
+                                                    )
 
                                                     # Mock filter documents
                                                     mock_filter_docs.return_value = [
@@ -717,14 +733,18 @@ class TestNvidiaRAGSearchCoverage:
                                         mock_executor.return_value.__enter__.return_value.submit.return_value = mock_future
 
                                         # Mock RunnableAssign
-                                        mock_runnable_assign.return_value.ainvoke = AsyncMock(return_value={
-                                            "context": [
-                                                Mock(
-                                                    page_content="test content",
-                                                    metadata={},
-                                                )
-                                            ]
-                                        })
+                                        mock_runnable_assign.return_value.ainvoke = (
+                                            AsyncMock(
+                                                return_value={
+                                                    "context": [
+                                                        Mock(
+                                                            page_content="test content",
+                                                            metadata={},
+                                                        )
+                                                    ]
+                                                }
+                                            )
+                                        )
 
                                         # Mock filter documents
                                         mock_filter_docs.return_value = [
@@ -784,9 +804,7 @@ class TestNvidiaRAGLLMChainCoverage:
                         with patch(
                             "nvidia_rag.rag_server.main.generate_answer_async"
                         ) as mock_generate_answer:
-                            with patch.dict(
-                                os.environ, {"CONVERSATION_HISTORY": "15"}
-                            ):
+                            with patch.dict(os.environ, {"CONVERSATION_HISTORY": "15"}):
                                 mock_handle_prompt.return_value = (
                                     [("system", "test system")],
                                     [("user", "test user")],
@@ -804,9 +822,7 @@ class TestNvidiaRAGLLMChainCoverage:
 
                                 # Create a mock chain that handles the pipe operations
                                 mock_chain = Mock()
-                                mock_stream_gen = iter(
-                                    ["first chunk", "second chunk"]
-                                )
+                                mock_stream_gen = iter(["first chunk", "second chunk"])
                                 mock_chain.stream.return_value = mock_stream_gen
 
                                 # Mock the pipe operations to return the final chain
@@ -869,9 +885,7 @@ class TestNvidiaRAGLLMChainCoverage:
                         with patch(
                             "nvidia_rag.rag_server.main.generate_answer_async"
                         ) as mock_generate_answer:
-                            with patch.dict(
-                                os.environ, {"CONVERSATION_HISTORY": "15"}
-                            ):
+                            with patch.dict(os.environ, {"CONVERSATION_HISTORY": "15"}):
                                 mock_handle_prompt.return_value = (
                                     [("system", "test system")],
                                     [("user", "Hello"), ("assistant", "Hi there!")],
@@ -889,9 +903,7 @@ class TestNvidiaRAGLLMChainCoverage:
 
                                 # Create a mock chain that handles the pipe operations
                                 mock_chain = Mock()
-                                mock_stream_gen = iter(
-                                    ["first chunk", "second chunk"]
-                                )
+                                mock_stream_gen = iter(["first chunk", "second chunk"])
                                 mock_chain.stream.return_value = mock_stream_gen
 
                                 # Mock the pipe operations to return the final chain
@@ -949,9 +961,7 @@ class TestNvidiaRAGLLMChainCoverage:
                         with patch(
                             "nvidia_rag.rag_server.main.generate_answer_async"
                         ) as mock_generate_answer:
-                            with patch.dict(
-                                os.environ, {"CONVERSATION_HISTORY": "15"}
-                            ):
+                            with patch.dict(os.environ, {"CONVERSATION_HISTORY": "15"}):
                                 from requests import ConnectTimeout
 
                                 mock_handle_prompt.return_value = (
@@ -1030,9 +1040,7 @@ class TestNvidiaRAGLLMChainCoverage:
                         with patch(
                             "nvidia_rag.rag_server.main.generate_answer_async"
                         ) as mock_generate_answer:
-                            with patch.dict(
-                                os.environ, {"CONVERSATION_HISTORY": "15"}
-                            ):
+                            with patch.dict(os.environ, {"CONVERSATION_HISTORY": "15"}):
                                 mock_handle_prompt.return_value = (
                                     [("system", "test system")],
                                     [],
@@ -1109,9 +1117,7 @@ class TestNvidiaRAGLLMChainCoverage:
                         with patch(
                             "nvidia_rag.rag_server.main.generate_answer_async"
                         ) as mock_generate_answer:
-                            with patch.dict(
-                                os.environ, {"CONVERSATION_HISTORY": "15"}
-                            ):
+                            with patch.dict(os.environ, {"CONVERSATION_HISTORY": "15"}):
                                 mock_handle_prompt.return_value = (
                                     [("system", "test system")],
                                     [],
@@ -1159,8 +1165,7 @@ class TestNvidiaRAGLLMChainCoverage:
                                 assert hasattr(result, "status_code")
                                 response = [item async for item in result.generator]
                                 assert (
-                                    "404" in response[0]
-                                    or "Not Found" in response[0]
+                                    "404" in response[0] or "Not Found" in response[0]
                                 )
 
     @pytest.mark.asyncio
@@ -1191,9 +1196,7 @@ class TestNvidiaRAGLLMChainCoverage:
                         with patch(
                             "nvidia_rag.rag_server.main.generate_answer_async"
                         ) as mock_generate_answer:
-                            with patch.dict(
-                                os.environ, {"CONVERSATION_HISTORY": "15"}
-                            ):
+                            with patch.dict(os.environ, {"CONVERSATION_HISTORY": "15"}):
                                 mock_handle_prompt.return_value = (
                                     [("system", "test system")],
                                     [],
@@ -1415,7 +1418,9 @@ class TestNvidiaRAGHealthCoverage:
             ) as mock_check_health:
                 mock_vdb_op = Mock(spec=VDBRag)
                 mock_prepare.return_value = mock_vdb_op
-                mock_check_health.return_value = RAGHealthResponse(message="Service is up.")
+                mock_check_health.return_value = RAGHealthResponse(
+                    message="Service is up."
+                )
 
                 result = await rag.health(check_dependencies=True)
 
@@ -1426,7 +1431,9 @@ class TestNvidiaRAGHealthCoverage:
                 # Verify check_all_services_health was called with vdb_op and config
                 mock_check_health.assert_called_once()
                 call_args = mock_check_health.call_args
-                assert call_args[0][0] == mock_vdb_op  # First argument should be mock_vdb_op
+                assert (
+                    call_args[0][0] == mock_vdb_op
+                )  # First argument should be mock_vdb_op
                 # Second argument should be a NvidiaRAGConfig instance
                 assert len(call_args[0]) == 2  # Should have 2 positional arguments
 
@@ -1499,7 +1506,8 @@ class TestNvidiaRAGPrepareVdbOpCoverage:
                 assert mock_get_embedding.call_count >= 1
                 # Check at least one call matches our expected parameters
                 assert any(
-                    call[1].get('model') == 'test_model' and call[1].get('url') == 'http://embedding.com'
+                    call[1].get("model") == "test_model"
+                    and call[1].get("url") == "http://embedding.com"
                     for call in mock_get_embedding.call_args_list
                 )
                 # Allow optional presence of vdb_auth_token in kwargs (default empty string)
@@ -1566,7 +1574,7 @@ class TestNvidiaRAGAPICoverage:
         error = APIError("Test error message", 500)
 
         assert error.message == "Test error message"
-        assert error.code == 500
+        assert error.status_code == 500
         assert str(error) == "Test error message"
 
     def test_api_error_init_default_code(self):
@@ -1574,5 +1582,5 @@ class TestNvidiaRAGAPICoverage:
         error = APIError("Test error message")
 
         assert error.message == "Test error message"
-        assert error.code == 400
+        assert error.status_code == 400
         assert str(error) == "Test error message"

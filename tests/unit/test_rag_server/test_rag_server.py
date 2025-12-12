@@ -395,7 +395,7 @@ class TestDocumentSearchEndpoint:
         assert response.status_code == ErrorCodeMapping.INTERNAL_SERVER_ERROR
         error_data = response.json()
         assert "message" in error_data
-        assert "Error occurred while searching documents" in error_data["message"]
+        assert "Failed to search documents" in error_data["message"]
 
     def test_document_search_invalid_input(self, client):
         """Test document search with invalid input"""

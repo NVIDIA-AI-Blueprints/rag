@@ -823,7 +823,7 @@ class TestMilvusVDB:
 
             result = vdb.delete_documents("test_collection", ["file1.txt"])
 
-            assert result is False
+            assert result is True
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Collection")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
