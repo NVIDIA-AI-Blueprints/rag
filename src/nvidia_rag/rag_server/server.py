@@ -31,10 +31,12 @@ from collections.abc import Generator
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, Request
+from fastapi import APIRouter, FastAPI, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.openapi.docs import get_swagger_ui_html
+from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse, StreamingResponse
 from prometheus_client import REGISTRY, CollectorRegistry, generate_latest
 from prometheus_client.multiprocess import MultiProcessCollector
@@ -103,14 +105,20 @@ tags_metadata = [
 
 # create the FastAPI server
 app = FastAPI(
-    root_path="/v1",
     title="APIs for NVIDIA RAG Server",
     description="This API schema describes all the retriever endpoints exposed for NVIDIA RAG server Blueprint",
     version="1.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc",
+    docs_url=None,  # Custom docs per version
+    redoc_url=None,
+    openapi_url=None,  # Custom openapi per version
     openapi_tags=tags_metadata,
 )
+
+# Create v1 router for all standard endpoints (with /v1 prefix)
+v1_router = APIRouter(prefix="/v1")
+
+# Create v2 router for OpenAI-compatible vector_stores endpoint only
+v2_router = APIRouter(prefix="/v2")
 
 # Allow access in browser from RAG UI and Storybook (development)
 origins = ["*"]
@@ -131,6 +139,9 @@ NVIDIA_RAG = NvidiaRAG(
     config=CONFIG,
     prompts=PROMPT_CONFIG_FILE if Path(PROMPT_CONFIG_FILE).is_file() else None
 )
+
+# Register routers
+# Routers will be mounted at the end of the file after all routes are defined
 
 metrics = None
 if CONFIG.tracing.enabled:
@@ -161,6 +172,171 @@ def _extract_vdb_auth_token(request: Request) -> str | None:
     if isinstance(auth_header, str) and auth_header.lower().startswith("bearer "):
         return auth_header.split(" ", 1)[1].strip()
     return None
+
+
+def _convert_openai_filter_to_milvus_string(filter_obj: Any) -> str:
+    """
+    Convert OpenAI filter format to Milvus filter expression string.
+    
+    Args:
+        filter_obj: ComparisonFilter or CompoundFilter object
+        
+    Returns:
+        String representing the filter in Milvus format (e.g., 'content_metadata["key"] == "value"')
+    """
+    # Debug logging
+    logger.debug(f"Converting filter object type: {type(filter_obj)}")
+    logger.debug(f"Has 'key': {hasattr(filter_obj, 'key')}, Has 'type': {hasattr(filter_obj, 'type')}, Has 'value': {hasattr(filter_obj, 'value')}, Has 'filters': {hasattr(filter_obj, 'filters')}")
+    
+    # Handle ComparisonFilter
+    if hasattr(filter_obj, 'key') and hasattr(filter_obj, 'type') and hasattr(filter_obj, 'value'):
+        key = filter_obj.key
+        op = filter_obj.type
+        value = filter_obj.value
+        
+        # Format the key - if it doesn't contain brackets, wrap it in content_metadata
+        # Standard metadata fields: document_id, document_name, document_type, language, 
+        # date_created, last_modified, page_number, etc.
+        # Custom fields go in content_metadata["field_name"]
+        standard_fields = ["document_id", "document_name", "document_type", "language", 
+                          "date_created", "last_modified", "page_number", "description",
+                          "height", "width"]
+        
+        if "[" not in key:  # Simple field name without brackets
+            if key not in standard_fields:
+                # Custom field - wrap in content_metadata
+                formatted_key = f'content_metadata["{key}"]'
+            else:
+                # Standard field - use as-is
+                formatted_key = key
+        else:
+            # Already formatted (e.g., 'content_metadata["field"]')
+            formatted_key = key
+        
+        # Map OpenAI operators to Milvus operators
+        if op == "eq":
+            if isinstance(value, str):
+                return f'{formatted_key} == "{value}"'
+            elif isinstance(value, bool):
+                return f"{formatted_key} == {str(value).lower()}"
+            else:
+                return f"{formatted_key} == {value}"
+        elif op == "ne":
+            if isinstance(value, str):
+                return f'{formatted_key} != "{value}"'
+            elif isinstance(value, bool):
+                return f"{formatted_key} != {str(value).lower()}"
+            else:
+                return f"{formatted_key} != {value}"
+        elif op == "gt":
+            return f"{formatted_key} > {value}"
+        elif op == "gte":
+            return f"{formatted_key} >= {value}"
+        elif op == "lt":
+            return f"{formatted_key} < {value}"
+        elif op == "lte":
+            return f"{formatted_key} <= {value}"
+        elif op == "in":
+            if isinstance(value, list):
+                # Format list values for 'in' operator
+                if value and isinstance(value[0], str):
+                    formatted_values = ", ".join([f'"{v}"' for v in value])
+                else:
+                    formatted_values = ", ".join([str(v) for v in value])
+                return f"{formatted_key} in [{formatted_values}]"
+            else:
+                return f"{formatted_key} in [{value}]"
+        elif op == "nin":
+            if isinstance(value, list):
+                # Format list values for 'not in' operator
+                if value and isinstance(value[0], str):
+                    formatted_values = ", ".join([f'"{v}"' for v in value])
+                else:
+                    formatted_values = ", ".join([str(v) for v in value])
+                return f"{formatted_key} not in [{formatted_values}]"
+            else:
+                return f"{formatted_key} not in [{value}]"
+        else:
+            logger.warning(f"Unknown operator: {op}")
+            return ""
+    
+    # Handle CompoundFilter
+    elif hasattr(filter_obj, 'filters') and hasattr(filter_obj, 'type'):
+        filter_type = filter_obj.type
+        sub_filters = [_convert_openai_filter_to_milvus_string(f) for f in filter_obj.filters]
+        # Remove empty sub-filters
+        sub_filters = [f for f in sub_filters if f]
+        
+        if not sub_filters:
+            return ""
+        
+        if filter_type == "and":
+            return f"({' and '.join(sub_filters)})"
+        elif filter_type == "or":
+            return f"({' or '.join(sub_filters)})"
+        else:
+            logger.warning(f"Unknown compound filter type: {filter_type}")
+            return ""
+    
+    return ""
+
+
+def _convert_openai_filter_to_elasticsearch(filter_obj: Any) -> list[dict[str, Any]]:
+    """
+    Convert OpenAI filter format to Elasticsearch query DSL format.
+    
+    Args:
+        filter_obj: ComparisonFilter or CompoundFilter object
+        
+    Returns:
+        List of dictionaries in Elasticsearch query DSL format
+    """
+    # Handle ComparisonFilter
+    if hasattr(filter_obj, 'key') and hasattr(filter_obj, 'type') and hasattr(filter_obj, 'value'):
+        key = filter_obj.key
+        op = filter_obj.type
+        value = filter_obj.value
+        
+        # Map OpenAI operators to Elasticsearch query DSL
+        if op == "eq":
+            return [{"term": {key: value}}]
+        elif op == "ne":
+            return [{"bool": {"must_not": [{"term": {key: value}}]}}]
+        elif op == "gt":
+            return [{"range": {key: {"gt": value}}}]
+        elif op == "gte":
+            return [{"range": {key: {"gte": value}}}]
+        elif op == "lt":
+            return [{"range": {key: {"lt": value}}}]
+        elif op == "lte":
+            return [{"range": {key: {"lte": value}}}]
+        elif op == "in":
+            return [{"terms": {key: value if isinstance(value, list) else [value]}}]
+        elif op == "nin":
+            return [{"bool": {"must_not": [{"terms": {key: value if isinstance(value, list) else [value]}}]}}]
+        else:
+            logger.warning(f"Unknown operator: {op}")
+            return []
+    
+    # Handle CompoundFilter
+    elif hasattr(filter_obj, 'filters') and hasattr(filter_obj, 'type'):
+        filter_type = filter_obj.type
+        sub_filters = []
+        for f in filter_obj.filters:
+            sub_filters.extend(_convert_openai_filter_to_elasticsearch(f))
+        
+        if not sub_filters:
+            return []
+        
+        if filter_type == "and":
+            return [{"bool": {"must": sub_filters}}]
+        elif filter_type == "or":
+            return [{"bool": {"should": sub_filters, "minimum_should_match": 1}}]
+        else:
+            logger.warning(f"Unknown compound filter type: {filter_type}")
+            return []
+    
+    return []
 
 
 class Prompt(BaseModel):
@@ -636,6 +812,285 @@ class ConfigurationResponse(BaseModel):
     endpoints: EndpointsDefaults = Field(description="Default endpoint URLs")
 
 
+# OpenAI-compatible vector store search models
+
+class RankingOptions(BaseModel):
+    """Ranking options for vector store search."""
+
+    ranker: str = Field(
+        default="auto",
+        description="Control re-ranking behavior. "
+        "To enable: 'auto', 'true', 'on', 'enabled', 'yes', '1'. "
+        "To disable (reduces latency): 'none', 'false', 'off', 'disabled', 'no', '0'. "
+        "Case-insensitive.",
+        examples=["auto", "none", "false"],
+    )
+    score_threshold: float = Field(
+        default=0.0,
+        description="Minimum score threshold for filtering results. Only results with scores >= this value will be returned.",
+        ge=0.0,
+        le=1.0,
+        examples=[0.0, 0.5, 0.75],
+    )
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "ranker": "auto",
+                    "score_threshold": 0.5
+                }
+            ]
+        }
+    }
+
+
+class ComparisonFilter(BaseModel):
+    """A filter used to compare a specified attribute key to a given value using a defined comparison operation."""
+
+    key: str = Field(
+        ...,
+        description="The key to compare against the value.",
+        examples=["author", "page_number", "category"],
+    )
+    type: str = Field(
+        ...,
+        description="Specifies the comparison operator: eq (equals), ne (not equal), gt (greater than), "
+        "gte (greater than or equal), lt (less than), lte (less than or equal), in, nin (not in).",
+        examples=["eq", "gt", "in"],
+    )
+    value: str | int | float | bool | list[str | int | float | bool] = Field(
+        ...,
+        description="The value to compare against the attribute key; supports string, number, boolean, or array types.",
+        examples=["John Doe", 5, True, ["tech", "science"]],
+    )
+
+    @model_validator(mode="after")
+    def validate_type(cls, values):
+        """Validate that type is one of the allowed comparison operators."""
+        allowed_types = ["eq", "ne", "gt", "gte", "lt", "lte", "in", "nin"]
+        if values.type not in allowed_types:
+            raise ValueError(
+                f"Invalid comparison type '{values.type}'. Must be one of: {', '.join(allowed_types)}"
+            )
+        return values
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "key": "author",
+                    "type": "eq",
+                    "value": "John Doe"
+                },
+                {
+                    "key": "page_number",
+                    "type": "gte",
+                    "value": 5
+                },
+                {
+                    "key": "category",
+                    "type": "in",
+                    "value": ["tech", "science"]
+                }
+            ]
+        }
+    }
+
+
+class CompoundFilter(BaseModel):
+    """Combine multiple filters using 'and' or 'or'."""
+
+    type: str = Field(
+        ...,
+        description="Type of operation: 'and' or 'or'.",
+        examples=["and", "or"],
+    )
+    filters: list["ComparisonFilter | CompoundFilter"] = Field(
+        ...,
+        description="Array of filters to combine. Items can be ComparisonFilter or CompoundFilter.",
+    )
+
+    @model_validator(mode="after")
+    def validate_type(cls, values):
+        """Validate that type is either 'and' or 'or'."""
+        if values.type not in ["and", "or"]:
+            raise ValueError(
+                f"Invalid compound filter type '{values.type}'. Must be either 'and' or 'or'."
+            )
+        return values
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "type": "and",
+                    "filters": [
+                        {
+                            "key": "author",
+                            "type": "eq",
+                            "value": "John Doe"
+                        },
+                        {
+                            "key": "page_number",
+                            "type": "gte",
+                            "value": 5
+                        }
+                    ]
+                }
+            ]
+        }
+    }
+
+
+# Allow recursive filters
+CompoundFilter.model_rebuild()
+
+
+class VectorStoreSearchRequest(BaseModel):
+    """OpenAI-compatible vector store search request."""
+
+    query: str | list[TextContent | ImageContent] = Field(
+        ...,
+        description="A query string for a search or an array of content objects for multimodal queries.",
+        examples=["What is the return policy?", "Tell me about machine learning"],
+    )
+    filters: ComparisonFilter | CompoundFilter | None = Field(
+        default=None,
+        description="A filter to apply based on file attributes. Can be a comparison filter or compound filter.",
+    )
+    max_num_results: int = Field(
+        default=10,
+        description="The maximum number of results to return. This number should be between 1 and 50 inclusive.",
+        ge=1,
+        le=50,
+        examples=[10, 5, 20],
+    )
+    ranking_options: RankingOptions | None = Field(
+        default=None,
+        description="Ranking options for search.",
+    )
+    rewrite_query: bool = Field(
+        default=False,
+        description="Whether to rewrite the natural language query for vector search.",
+        examples=[False, True],
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def handle_empty_dicts(cls, values):
+        """Convert empty dicts to None for optional fields."""
+        if isinstance(values, dict):
+            # Handle empty filters
+            if "filters" in values and values["filters"] == {}:
+                values["filters"] = None
+            # Handle empty ranking_options
+            if "ranking_options" in values and values["ranking_options"] == {}:
+                values["ranking_options"] = None
+        return values
+
+    @model_validator(mode="after")
+    def sanitize_query_content(cls, values):
+        """Sanitize query content similar to DocumentSearch validation."""
+        import bleach
+
+        query = values.query
+        if isinstance(query, str):
+            values.query = bleach.clean(query, strip=True)
+        elif isinstance(query, list):
+            # For list content, sanitize text content but leave image URLs as-is
+            sanitized_content = []
+            for item in query:
+                if isinstance(item, TextContent):
+                    item.text = bleach.clean(item.text, strip=True)
+                sanitized_content.append(item)
+            values.query = sanitized_content
+        return values
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "query": "What is the return policy?",
+                    "max_num_results": 10,
+                    "ranking_options": {
+                        "ranker": "auto",
+                        "score_threshold": 0.5
+                    },
+                    "filters": {
+                        "type": "and",
+                        "filters": [
+                            {
+                                "key": "author",
+                                "type": "eq",
+                                "value": "John Doe"
+                            },
+                            {
+                                "key": "page_number",
+                                "type": "gte",
+                                "value": 5
+                            }
+                        ]
+                    },
+                    "rewrite_query": False
+                },
+                {
+                    "query": "machine learning basics",
+                    "max_num_results": 5,
+                    "ranking_options": {
+                        "ranker": "none",
+                        "score_threshold": 0.0
+                    },
+                    "filters": {
+                        "key": "category",
+                        "type": "in",
+                        "value": ["tech", "science"]
+                    },
+                    "rewrite_query": True
+                }
+            ]
+        }
+    }
+
+
+class VectorStoreSearchResultContent(BaseModel):
+    """Content object in search result."""
+
+    type: str = Field(description="Type of content (e.g., 'text')")
+    text: str = Field(description="Text content")
+
+
+class VectorStoreSearchResultItem(BaseModel):
+    """Single search result item in OpenAI format."""
+
+    file_id: str = Field(description="Identifier for the file")
+    filename: str = Field(description="Name of the file")
+    score: float = Field(description="Relevance score")
+    attributes: dict[str, Any] = Field(description="File attributes/metadata")
+    content: list[VectorStoreSearchResultContent] = Field(
+        description="Content chunks from the file"
+    )
+
+
+class VectorStoreSearchResponse(BaseModel):
+    """OpenAI-compatible vector store search response."""
+
+    object: str = Field(
+        default="vector_store.search_results.page",
+        description="Object type identifier",
+    )
+    search_query: str = Field(description="The search query that was executed")
+    data: list[VectorStoreSearchResultItem] = Field(
+        description="List of search results"
+    )
+    has_more: bool = Field(
+        default=False, description="Whether there are more results available"
+    )
+    next_page: str | None = Field(
+        default=None, description="Token for retrieving the next page of results"
+    )
+
+
 @app.exception_handler(RequestValidationError)
 async def request_validation_exception_handler(
     _: Request, exc: RequestValidationError
@@ -644,6 +1099,59 @@ async def request_validation_exception_handler(
         status_code=HTTP_422_UNPROCESSABLE_ENTITY,
         content={"detail": jsonable_encoder(exc.errors(), exclude={"input"})},
     )
+
+
+# Custom documentation endpoints for v1
+@app.get("/v1/docs", include_in_schema=False)
+async def v1_docs():
+    """Swagger UI documentation for v1 API."""
+    return get_swagger_ui_html(openapi_url="/v1/openapi.json", title="NVIDIA RAG API v1")
+
+
+@app.get("/v1/openapi.json", include_in_schema=False)
+async def v1_openapi():
+    """OpenAPI schema for v1 API."""
+    return get_openapi(
+        title="APIs for NVIDIA RAG Server (v1)",
+        version="1.0.0",
+        description="This API schema describes all the retriever endpoints exposed for NVIDIA RAG server Blueprint",
+        routes=v1_router.routes,
+        tags=tags_metadata,
+    )
+
+
+# Custom documentation endpoints for v2
+@app.get("/v2/docs", include_in_schema=False)
+async def v2_docs():
+    """Swagger UI documentation for v2 API."""
+    return get_swagger_ui_html(openapi_url="/v2/openapi.json", title="NVIDIA RAG API v2 (OpenAI Compatible)")
+
+
+@app.get("/v2/openapi.json", include_in_schema=False)
+async def v2_openapi():
+    """OpenAPI schema for v2 API."""
+    return get_openapi(
+        title="APIs for NVIDIA RAG Server (v2) - OpenAI Compatible",
+        version="2.0.0",
+        description="OpenAI-compatible API endpoints for NVIDIA RAG server Blueprint. This version includes enhanced OpenAI-compatible endpoints.",
+        routes=v2_router.routes,
+        tags=[{"name": "Retrieval APIs", "description": "OpenAI-compatible APIs for retrieving document chunks."}],
+    )
+
+
+# Default docs redirect to v1 (for backward compatibility)
+@app.get("/docs", include_in_schema=False)
+async def default_docs():
+    """Redirect to v1 docs for backward compatibility."""
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/v1/docs")
+
+
+@app.get("/openapi.json", include_in_schema=False)
+async def default_openapi():
+    """Redirect to v1 openapi for backward compatibility."""
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/v1/openapi.json")
 
 
 @app.get(
@@ -1181,6 +1689,348 @@ async def document_search(
         )
 
 
+async def _vector_store_search_impl(
+    request: Request,
+    vector_store_id: str,
+    search_request: VectorStoreSearchRequest,
+) -> JSONResponse:
+    """
+    OpenAI-compatible vector store search endpoint.
+    
+    Search within a vector store using natural language queries.
+    This endpoint maps to the existing /search functionality with OpenAI-compatible schema.
+    
+    Args:
+        request: FastAPI request object
+        vector_store_id: The ID of the vector store (collection name) to search
+        search_request: Search request parameters
+        
+    Returns:
+        JSONResponse: Search results in OpenAI-compatible format
+    """
+
+    # Helper function to sanitize query content for logging
+    def sanitize_query_for_logging(query):
+        """Remove image data from query for cleaner logging."""
+        if isinstance(query, str):
+            return query
+        elif isinstance(query, list):
+            sanitized_query = []
+            for item in query:
+                if hasattr(item, "type") and item.type == "image_url":
+                    sanitized_query.append(
+                        {
+                            "type": "image_url",
+                            "image_url": "[IMAGE_DATA_REMOVED_FOR_LOGGING]",
+                        }
+                    )
+                else:
+                    sanitized_query.append(
+                        item.dict() if hasattr(item, "dict") else item
+                    )
+            return sanitized_query
+        return query
+
+    # Helper function to serialize filters/ranking_options for logging
+    def serialize_for_logging(obj):
+        """Serialize Pydantic models or dicts for logging."""
+        if obj is None:
+            return None
+        if isinstance(obj, dict):
+            return obj
+        if hasattr(obj, "model_dump"):
+            return obj.model_dump()
+        elif hasattr(obj, "dict"):
+            return obj.dict()
+        return str(obj)
+
+    request_data = {
+        "vector_store_id": vector_store_id,
+        "query": sanitize_query_for_logging(search_request.query),
+        "filters": serialize_for_logging(search_request.filters),
+        "max_num_results": search_request.max_num_results,
+        "ranking_options": serialize_for_logging(search_request.ranking_options),
+        "rewrite_query": search_request.rewrite_query,
+    }
+    logger.info(
+        f"📥 Incoming request to /vector_stores/{vector_store_id}/search endpoint:\n{json.dumps(request_data, indent=2)}"
+    )
+
+    if metrics:
+        metrics.update_api_requests(method=request.method, endpoint=request.url.path)
+
+    try:
+        # Map OpenAI request to internal DocumentSearch format
+        # Parse ranking options if provided
+        enable_reranker = CONFIG.ranking.enable_reranker
+        reranker_model = CONFIG.ranking.model_name.strip('"')
+        reranker_endpoint = CONFIG.ranking.server_url.strip('"')
+        confidence_threshold = CONFIG.default_confidence_threshold
+        vdb_top_k = CONFIG.retriever.vdb_top_k
+
+        if search_request.ranking_options:
+            # Map ranking_options to internal parameters
+            # Handle ranker field: 'none', 'false', 'off', 'disabled' disables reranker
+            # 'auto', 'true', 'on', 'enabled' enables reranker
+            ranker_value = search_request.ranking_options.ranker.lower()
+            if ranker_value in ["none", "false", "off", "disabled", "no", "0"]:
+                enable_reranker = False
+            elif ranker_value in ["auto", "true", "on", "enabled", "yes", "1"]:
+                enable_reranker = True
+            # If ranker value is something else, keep the default from CONFIG
+            
+            # Map score_threshold to confidence_threshold
+            confidence_threshold = search_request.ranking_options.score_threshold
+
+        # Convert filters to filter_expr based on vector store type
+        filter_expr: str | list[dict[str, Any]] = ""
+        if search_request.filters:
+            # Log the original OpenAI filter
+            if hasattr(search_request.filters, 'model_dump'):
+                original_filter = search_request.filters.model_dump()
+            elif hasattr(search_request.filters, 'dict'):
+                original_filter = search_request.filters.dict()
+            else:
+                original_filter = search_request.filters
+            logger.info(f"Original OpenAI filter: {original_filter}")
+            
+            # Convert OpenAI filter format to the appropriate format based on vector store
+            if CONFIG.vector_store.name == "milvus":
+                # Convert to Milvus string format
+                filter_expr = _convert_openai_filter_to_milvus_string(search_request.filters)
+                logger.info(f"✓ Converted filter to Milvus format: {filter_expr}")
+            elif CONFIG.vector_store.name == "elasticsearch":
+                # Convert to Elasticsearch query DSL format
+                filter_expr = _convert_openai_filter_to_elasticsearch(search_request.filters)
+                logger.info(f"✓ Converted filter to Elasticsearch format: {json.dumps(filter_expr, indent=2)}")
+            else:
+                logger.warning(f"Unsupported vector store: {CONFIG.vector_store.name}. Filter will be empty.")
+                filter_expr = ""
+        else:
+            logger.info("No filters provided in request")
+            
+
+        # Process query to handle multimodal content
+        query_processed = search_request.query
+        if isinstance(search_request.query, list):
+            content_list = []
+            for content_item in search_request.query:
+                if hasattr(content_item, "type"):
+                    if content_item.type == "text":
+                        content_list.append({"type": "text", "text": content_item.text})
+                    elif content_item.type == "image_url":
+                        content_list.append(
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": content_item.image_url.url,
+                                    "detail": content_item.image_url.detail,
+                                },
+                            }
+                        )
+                else:
+                    content_list.append(content_item)
+            query_processed = content_list
+
+        # Extract bearer token from Authorization header
+        vdb_auth_token = _extract_vdb_auth_token(request)
+
+        # Get the original query string for response
+        original_query = (
+            search_request.query
+            if isinstance(search_request.query, str)
+            else "multimodal query"
+        )
+
+        # Log the parameters being passed to backend
+        logger.info(
+            f"🔍 Calling backend search with parameters:\n"
+            f"  - Collection: {vector_store_id}\n"
+            f"  - Query rewriting: {search_request.rewrite_query}\n"
+            f"  - Reranker enabled: {enable_reranker}\n"
+            f"  - Max results: {search_request.max_num_results}\n"
+            f"  - VDB top_k: {vdb_top_k}\n"
+            f"  - Confidence threshold: {confidence_threshold}\n"
+            f"  - Filter expression: {filter_expr if filter_expr else '(none)'}"
+        )
+
+        # Call the internal search method
+        internal_response = await NVIDIA_RAG.search(
+            query=query_processed,
+            messages=[],  # OpenAI format doesn't include conversation history
+            vdb_auth_token=vdb_auth_token,
+            reranker_top_k=search_request.max_num_results,
+            vdb_top_k=vdb_top_k,
+            collection_name="",  # Deprecated field, leave empty
+            collection_names=[vector_store_id],
+            vdb_endpoint=CONFIG.vector_store.url,
+            enable_query_rewriting=search_request.rewrite_query,
+            enable_reranker=enable_reranker,
+            enable_filter_generator=False,  # OpenAI format uses explicit filters
+            embedding_model=CONFIG.embeddings.model_name.strip('"'),
+            embedding_endpoint=CONFIG.embeddings.server_url.strip('"'),
+            reranker_model=reranker_model,
+            reranker_endpoint=reranker_endpoint,
+            filter_expr=filter_expr,
+            confidence_threshold=confidence_threshold,
+        )
+
+        # Transform internal response to OpenAI format
+        # internal_response is a Citations object (Pydantic model), not a dict
+        data = []
+        results = internal_response.results if hasattr(internal_response, 'results') else []
+        
+        logger.info(f"✓ Backend returned {len(results)} results")
+
+        for result in results:
+            # Generate file_id from document_id or document_name
+            # result is a SourceResult object (Pydantic model)
+            file_id = result.document_id if result.document_id else f"file_{abs(hash(result.document_name))}"
+
+            # Extract content
+            content_text = result.content
+            content_list = [
+                VectorStoreSearchResultContent(type="text", text=content_text)
+            ]
+
+            # Map metadata to attributes
+            # metadata is a SourceMetadata object (Pydantic model)
+            metadata = result.metadata
+            attributes = {
+                "document_type": result.document_type,
+                "page_number": metadata.page_number,
+                "language": metadata.language,
+                "date_created": metadata.date_created,
+                "last_modified": metadata.last_modified,
+                "description": metadata.description,
+                "height": metadata.height,
+                "width": metadata.width,
+                "location": metadata.location,
+                "location_max_dimensions": metadata.location_max_dimensions,
+            }
+            
+            # Add content_metadata if present
+            if metadata.content_metadata:
+                attributes["content_metadata"] = metadata.content_metadata
+
+            search_result_item = VectorStoreSearchResultItem(
+                file_id=file_id,
+                filename=result.document_name,
+                score=result.score,
+                attributes=attributes,
+                content=content_list,
+            )
+            data.append(search_result_item)
+
+        # Create OpenAI-compatible response
+        openai_response = VectorStoreSearchResponse(
+            object="vector_store.search_results.page",
+            search_query=original_query,
+            data=data,
+            has_more=False,  # Pagination not implemented yet
+            next_page=None,
+        )
+
+        return JSONResponse(
+            content=openai_response.model_dump(),
+            status_code=ErrorCodeMapping.SUCCESS,
+        )
+
+    except asyncio.CancelledError as e:
+        logger.warning(f"Request cancelled during vector store search. {str(e)}")
+        return JSONResponse(
+            content={"message": "Request was cancelled by the client."},
+            status_code=ErrorCodeMapping.CLIENT_CLOSED_REQUEST,
+        )
+    except APIError as e:
+        # Handle APIError with specific status codes
+        status_code = getattr(e, "code", ErrorCodeMapping.INTERNAL_SERVER_ERROR)
+        logger.error(
+            "API Error from POST /vector_stores/{vector_store_id}/search endpoint. Error details: %s",
+            e,
+        )
+        return JSONResponse(content={"message": str(e)}, status_code=status_code)
+    except ValueError as e:
+        # Handle validation errors
+        logger.warning(
+            "Validation error in /vector_stores/{vector_store_id}/search endpoint: %s",
+            e,
+        )
+        return JSONResponse(
+            content={"message": str(e)},
+            status_code=ErrorCodeMapping.BAD_REQUEST,
+        )
+    except Exception as e:
+        logger.error(
+            "Error from POST /vector_stores/{vector_store_id}/search endpoint. Error details: %s",
+            e,
+            exc_info=logger.getEffectiveLevel() <= logging.DEBUG,
+        )
+        return JSONResponse(
+            content={
+                "message": "Error occurred while searching vector store. " + str(e)
+            },
+            status_code=ErrorCodeMapping.INTERNAL_SERVER_ERROR,
+        )
+
+
+# V2 endpoint for vector store search (OpenAI-compatible)
+# NOTE: This endpoint is ONLY available in v2, not in v1
+@v2_router.post(
+    "/vector_stores/{vector_store_id}/search",
+    tags=["Retrieval APIs"],
+    response_model=VectorStoreSearchResponse,
+    responses={
+        400: {
+            "description": "Bad Request",
+            "content": {
+                "application/json": { 
+                    "example": {"detail": "Invalid request parameters"}
+                }
+            },
+        },
+        499: {
+            "description": "Client Closed Request",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "The client cancelled the request"}
+                }
+            },
+        },
+        500: {
+            "description": "Internal Server Error",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Internal server error occurred"}
+                }
+            },
+        },
+    },
+)
+async def vector_store_search(
+    request: Request,
+    vector_store_id: str,
+    search_request: VectorStoreSearchRequest,
+) -> JSONResponse:
+    """
+    OpenAI-compatible vector store search endpoint (v2 only).
+    
+    This is the primary OpenAI-compatible endpoint for vector store search.
+    Search within a vector store using natural language queries with full OpenAI API compatibility.
+    
+    **Note:** This endpoint is exclusive to the v2 API and is not available in v1.
+    
+    Args:
+        request: FastAPI request object
+        vector_store_id: The ID of the vector store (collection name) to search
+        search_request: Search request parameters in OpenAI format
+        
+    Returns:
+        JSONResponse: Search results in OpenAI-compatible format
+    """
+    return await _vector_store_search_impl(request, vector_store_id, search_request)
+
+
 @app.get(
     "/summary",
     tags=["Retrieval APIs"],
@@ -1341,3 +2191,60 @@ async def get_summary(
             },
             status_code=ErrorCodeMapping.INTERNAL_SERVER_ERROR,
         )
+
+
+# Manually add all v1 routes to v1_router to make them available at /v1/* paths
+# This allows endpoints to be accessible at both root level (/) and with /v1 prefix
+v1_router.add_api_route(
+    "/health",
+    health_check,
+    methods=["GET"],
+    response_model=RAGHealthResponse,
+    tags=["Health APIs"],
+)
+v1_router.add_api_route(
+    "/metrics",
+    metrics_endpoint,
+    methods=["GET"],
+)
+v1_router.add_api_route(
+    "/configuration",
+    get_configuration,
+    methods=["GET"],
+    response_model=ConfigurationResponse,
+    tags=["Health APIs"],
+)
+v1_router.add_api_route(
+    "/generate",
+    generate_answer,
+    methods=["POST"],
+    response_model=ChainResponse,
+    tags=["RAG APIs"],
+)
+v1_router.add_api_route(
+    "/chat/completions",
+    v1_chat_completions,
+    methods=["POST"],
+    response_model=ChainResponse,
+    tags=["RAG APIs"],
+)
+v1_router.add_api_route(
+    "/search",
+    document_search,
+    methods=["POST"],
+    response_model=Citations,
+    tags=["Retrieval APIs"],
+)
+v1_router.add_api_route(
+    "/summary",
+    get_summary,
+    methods=["GET"],
+    response_model=SummaryResponse,
+    tags=["Retrieval APIs"],
+)
+
+# Mount routers
+# v1_router is mounted to provide /v1/* endpoints
+app.include_router(v1_router)
+# v2_router is mounted to provide /v2/* endpoints (OpenAI-compatible)
+app.include_router(v2_router)
