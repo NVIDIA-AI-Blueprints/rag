@@ -77,6 +77,7 @@ Use the following notebooks to learn how to how to extend the system with custom
 
 - [mcp_server_usage.ipynb](https://github.com/NVIDIA-AI-Blueprints/rag/tree/main/notebooks/mcp_server_usage.ipynb) – Demonstrates how to use the NVIDIA RAG MCP server via MCP transports (SSE, streamable-http, and stdio) instead of REST APIs. Covers launching the server, connecting with the MCP Python client, listing tools, and calling Ingestor tools (`create_collections`, `upload_documents`, `delete_collections`) and RAG tools (`generate`, `search`, `get_summary`).
 
+- [image_input.ipynb](https://github.com/NVIDIA-AI-Blueprints/rag/tree/main/notebooks/image_input.ipynb) – Demonstrates how to use the NVIDIA RAG retriever APIs with multimodal queries (text + images). Covers deploying VLM and multimodal embedding NIMs, ingesting documents with image extraction, and using the search and generate APIs with visual inputs for use cases like querying product catalogs with images.
 
 
 ## Deployment Notebooks
