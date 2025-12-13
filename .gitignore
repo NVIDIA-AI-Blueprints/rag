@@ -79,4 +79,5 @@ coverage/
 .pytest_cache/
 cover/
 *.log
+tests/data/
 # Workbench Project Layout

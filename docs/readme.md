@@ -57,6 +57,7 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
     - [Model Profiles for Hardware Configurations](model-profiles.md)
     - [Multi-Collection Retrieval](multi-collection-retrieval.md)
     - [Multi-Turn Conversation Support](multiturn.md)
+    - [Conversation History Configuration](conversation-history.md)
     - [Query rewriting to improve the accuracy of multi-turn conversations](query_rewriter.md)
     - [Reasoning in Nemotron LLM model](enable-nemotron-thinking.md)
     - [Self-reflection to improve accuracy](self-reflection.md)

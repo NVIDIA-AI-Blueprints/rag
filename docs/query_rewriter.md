@@ -6,6 +6,12 @@
 
 You can enable query rewriting for the [NVIDIA RAG Blueprint](readme.md). Query rewriting enables higher accuracy for multiturn queries by making an additional LLM call to decontextualize the incoming question, before sending it to the retrieval pipeline.
 
+:::{important}
+**Query rewriting requires conversation history to work.**
+
+You must set `CONVERSATION_HISTORY > 0` (e.g., 3-5) when enabling query rewriting. If `CONVERSATION_HISTORY=0`, query rewriting will be skipped with a warning.
+:::
+
 After you have [deployed the blueprint](readme.md#deployment-options-for-rag-blueprint), to enable query rewriting support, developers have the following options:
 
   - [Using on-prem model (Recommended)](#using-on-prem-model-recommended)
@@ -27,14 +33,15 @@ After you have [deployed the blueprint](readme.md#deployment-options-for-rag-blu
    ```
 
 3. Enable query rewriting
-   Export the below environment variable and relaunch the rag-server container.
+   Export the below environment variables and relaunch the rag-server container.
    ```bash
    export APP_QUERYREWRITER_SERVERURL="nim-llm:8000"
    export ENABLE_QUERYREWRITER="True"
+   export CONVERSATION_HISTORY="5"  # Required for query rewriting to work
    docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d
    ```
 
-   Alternatively, you can enable this at runtime during retrieval by setting `enable_query_rewriting: True` as part of the schema of POST /generate API, without relaunching the containers. Refer to the [retrieval notebook](../notebooks/retriever_api_usage.ipynb).
+   Alternatively, you can enable this at runtime during retrieval by setting `enable_query_rewriting: True` as part of the schema of POST /generate API, without relaunching the containers. Refer to the [retrieval notebook](../notebooks/retriever_api_usage.ipynb). Note that you must still set `CONVERSATION_HISTORY > 0` for query rewriting to work.
 
 
 ## Using cloud hosted model
@@ -46,6 +53,7 @@ After you have [deployed the blueprint](readme.md#deployment-options-for-rag-blu
 2. Relaunch the rag-server container by enabling query rewriter.
    ```bash
    export ENABLE_QUERYREWRITER="True"
+   export CONVERSATION_HISTORY="5"  # Required for query rewriting to work
    docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d
    ```
 
@@ -76,6 +84,7 @@ Only on-prem deployment of the LLM is supported. The model must be deployed sepa
           APP_QUERYREWRITER_MODELNAME: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
           APP_QUERYREWRITER_SERVERURL: "nim-llm:8000"  # Fully qualified service name
           ENABLE_QUERYREWRITER: "True"
+          CONVERSATION_HISTORY: "5"  # Required for query rewriting to work
     ```
 
 Follow the steps from [Deploy with Helm](deploy-helm.md) and use the following command to deploy the chart.
@@ -88,4 +97,9 @@ helm install rag -n rag https://helm.ngc.nvidia.com/0648981100760671/charts/nvid
    --set ngcApiSecret.password=$NGC_API_KEY \
    -f deploy/helm/nvidia-blueprint-rag/values.yaml
 ```
+
+## Related Topics
+
+- [Multi-Turn Conversation Support](multiturn.md)
+- [Conversation History Configuration](conversation-history.md)
 

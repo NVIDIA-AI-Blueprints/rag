@@ -217,8 +217,10 @@ envVars:
   # enable query rewriting for multiturn conversation in the rag chain.
   # This will improve accuracy of the retrieiver pipeline but increase latency due to an additional LLM call
   ENABLE_QUERYREWRITER: "False"
-  # number of last n chat messages to consider from the provided conversation history
-  CONVERSATION_HISTORY: "5"
+  # enable concatenating conversation history with current query for retrieval (when query rewriter is disabled)
+  MULTITURN_RETRIEVAL_SIMPLE: "False"
+  # number of last n chat messages to consider from the provided conversation history (0 = no history)
+  CONVERSATION_HISTORY: "0"
 
   # === Tracing ===
   APP_TRACING_ENABLED: "False"
