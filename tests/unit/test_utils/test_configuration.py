@@ -23,10 +23,11 @@ from unittest.mock import patch
 
 import pytest
 import yaml
-from pydantic import SecretStr
+from pydantic import SecretStr, ValidationError
 
 from nvidia_rag.utils.configuration import (
     EmbeddingConfig,
+    FilterExpressionGeneratorConfig,
     LLMConfig,
     MinioConfig,
     ModelParametersConfig,
@@ -34,6 +35,7 @@ from nvidia_rag.utils.configuration import (
     NvIngestConfig,
     QueryRewriterConfig,
     RankingConfig,
+    ReflectionConfig,
     RetrieverConfig,
     SearchType,
     SummarizerConfig,
@@ -91,8 +93,6 @@ class TestVectorStoreConfig:
     @patch.dict(os.environ, {}, clear=True)
     def test_search_type_enum_invalid_value_raises_error(self):
         """Test that invalid search_type value raises validation error."""
-        from pydantic import ValidationError
-
         with patch.dict(os.environ, {"APP_VECTORSTORE_SEARCHTYPE": "invalid_type"}):
             with pytest.raises(ValidationError) as exc_info:
                 VectorStoreConfig()
@@ -671,3 +671,276 @@ class TestAPIKeyFallback:
         with patch.dict(os.environ, {"NVIDIA_API_KEY": "global-key"}):
             api_key = config.get_api_key()
             assert api_key == "global-key"
+
+
+class TestModelParametersConfigValidation:
+    """Test cases for ModelParametersConfig validation methods."""
+
+    def test_validate_temperature_negative_raises_error(self):
+        """Test that negative temperature raises ValueError."""
+        with pytest.raises(ValidationError) as exc_info:
+            ModelParametersConfig(temperature=-1.0)
+
+        assert "Temperature must be non-negative" in str(exc_info.value)
+
+    def test_validate_temperature_zero_allowed(self):
+        """Test that zero temperature is allowed."""
+        config = ModelParametersConfig(temperature=0.0)
+        assert config.temperature == 0.0
+
+    def test_validate_top_p_out_of_range_raises_error(self):
+        """Test that top_p outside [0, 1] raises ValueError."""
+        with pytest.raises(ValidationError) as exc_info:
+            ModelParametersConfig(top_p=1.5)
+
+        assert "top_p must be between 0.0 and 1.0" in str(exc_info.value)
+
+    def test_validate_top_p_negative_raises_error(self):
+        """Test that negative top_p raises ValueError."""
+        with pytest.raises(ValidationError) as exc_info:
+            ModelParametersConfig(top_p=-0.1)
+
+        assert "top_p must be between 0.0 and 1.0" in str(exc_info.value)
+
+
+class TestNvIngestConfigValidation:
+    """Test cases for NvIngestConfig validation methods."""
+
+    def test_validate_port_too_low_raises_error(self):
+        """Test that port < 1 raises ValueError."""
+        with pytest.raises(ValidationError) as exc_info:
+            NvIngestConfig(message_client_port=0)
+
+        assert "Port must be between 1 and 65535" in str(exc_info.value)
+
+    def test_validate_port_too_high_raises_error(self):
+        """Test that port > 65535 raises ValueError."""
+        with pytest.raises(ValidationError) as exc_info:
+            NvIngestConfig(message_client_port=65536)
+
+        assert "Port must be between 1 and 65535" in str(exc_info.value)
+
+    def test_validate_port_valid_range(self):
+        """Test that valid port range is accepted."""
+        config = NvIngestConfig(message_client_port=8080)
+        assert config.message_client_port == 8080
+
+    def test_normalize_url_adds_http_prefix(self):
+        """Test that normalize_url adds http:// prefix when missing."""
+        config = NvIngestConfig(caption_endpoint_url="example.com:8080")
+        assert config.caption_endpoint_url == "http://example.com:8080"
+
+    def test_normalize_url_preserves_https(self):
+        """Test that normalize_url preserves https:// prefix."""
+        config = NvIngestConfig(caption_endpoint_url="https://example.com")
+        assert config.caption_endpoint_url == "https://example.com"
+
+    def test_normalize_url_strips_quotes(self):
+        """Test that normalize_url strips quotes."""
+        config = NvIngestConfig(caption_endpoint_url='"example.com"')
+        assert config.caption_endpoint_url == "http://example.com"
+
+    def test_validate_chunk_settings_overlap_too_large(self):
+        """Test that chunk_overlap > chunk_size raises ValueError."""
+        with pytest.raises(ValidationError) as exc_info:
+            NvIngestConfig(chunk_size=100, chunk_overlap=150)
+
+        assert "chunk_overlap (150) must be less than chunk_size (100)" in str(
+            exc_info.value
+        )
+
+
+class TestLLMConfigValidation:
+    """Test cases for LLMConfig validation methods."""
+
+    def test_validate_url_adds_http_prefix(self):
+        """Test that validate_url adds http:// prefix when missing."""
+        config = LLMConfig(server_url="example.com:8080")
+        assert config.server_url == "http://example.com:8080"
+
+    def test_validate_url_preserves_https(self):
+        """Test that validate_url preserves https:// prefix."""
+        config = LLMConfig(server_url="https://example.com")
+        assert config.server_url == "https://example.com"
+
+    def test_validate_url_empty_string(self):
+        """Test that validate_url handles empty string."""
+        config = LLMConfig(server_url="")
+        assert config.server_url == ""
+
+
+class TestQueryRewriterConfigNormalize:
+    """Test cases for QueryRewriterConfig normalize_url method."""
+
+    def test_normalize_url_adds_http_prefix(self):
+        """Test that normalize_url adds http:// prefix when missing."""
+        config = QueryRewriterConfig(server_url="example.com:8080")
+        assert config.server_url == "http://example.com:8080"
+
+    def test_normalize_url_preserves_https(self):
+        """Test that normalize_url preserves https:// prefix."""
+        config = QueryRewriterConfig(server_url="https://example.com")
+        assert config.server_url == "https://example.com"
+
+
+class TestFilterExpressionGeneratorConfigNormalize:
+    """Test cases for FilterExpressionGeneratorConfig normalize_url method."""
+
+    def test_normalize_url_adds_http_prefix(self):
+        """Test that normalize_url adds http:// prefix when missing."""
+        config = FilterExpressionGeneratorConfig(server_url="example.com:8080")
+        assert config.server_url == "http://example.com:8080"
+
+
+class TestEmbeddingConfigNormalize:
+    """Test cases for EmbeddingConfig normalize_url method."""
+
+    def test_normalize_url_adds_http_prefix(self):
+        """Test that normalize_url adds http:// prefix when missing."""
+        config = EmbeddingConfig(server_url="example.com:8080")
+        assert config.server_url == "http://example.com:8080"
+
+
+class TestRankingConfigNormalize:
+    """Test cases for RankingConfig normalize_url method."""
+
+    def test_normalize_url_adds_http_prefix(self):
+        """Test that normalize_url adds http:// prefix when missing."""
+        config = RankingConfig(server_url="example.com:8080")
+        assert config.server_url == "http://example.com:8080"
+
+
+class TestRetrieverConfigValidation:
+    """Test cases for RetrieverConfig validation methods."""
+
+    def test_normalize_url_adds_http_prefix(self):
+        """Test that normalize_url adds http:// prefix when missing."""
+        config = RetrieverConfig(nr_url="example.com:8080")
+        assert config.nr_url == "http://example.com:8080"
+
+    def test_validate_vdb_top_k_zero_raises_error(self):
+        """Test that vdb_top_k <= 0 raises ValueError."""
+        with pytest.raises(ValidationError) as exc_info:
+            RetrieverConfig(vdb_top_k=0)
+
+        assert "vdb_top_k must be greater than 0" in str(exc_info.value)
+
+    def test_validate_vdb_top_k_negative_raises_error(self):
+        """Test that negative vdb_top_k raises ValueError."""
+        with pytest.raises(ValidationError) as exc_info:
+            RetrieverConfig(vdb_top_k=-1)
+
+        assert "vdb_top_k must be greater than 0" in str(exc_info.value)
+
+    def test_validate_reranker_top_k_exceeds_vdb_top_k(self):
+        """Test that top_k > vdb_top_k raises ValueError."""
+        with pytest.raises(ValidationError) as exc_info:
+            RetrieverConfig(top_k=50, vdb_top_k=20)
+
+        assert (
+            "reranker_top_k (50) must be less than or equal to vdb_top_k (20)"
+            in str(exc_info.value)
+        )
+
+
+class TestTracingConfigNormalize:
+    """Test cases for TracingConfig normalize_url method."""
+
+    def test_normalize_url_adds_http_prefix(self):
+        """Test that normalize_url adds http:// prefix when missing."""
+        config = TracingConfig(otlp_http_endpoint="example.com:8080")
+        assert config.otlp_http_endpoint == "http://example.com:8080"
+
+
+class TestVLMConfigNormalize:
+    """Test cases for VLMConfig normalize_url method."""
+
+    def test_normalize_url_adds_http_prefix(self):
+        """Test that normalize_url adds http:// prefix when missing."""
+        config = VLMConfig(server_url="example.com:8080")
+        assert config.server_url == "http://example.com:8080"
+
+
+class TestSummarizerConfigNormalize:
+    """Test cases for SummarizerConfig normalize_url method."""
+
+    def test_normalize_url_adds_http_prefix(self):
+        """Test that normalize_url adds http:// prefix when missing."""
+        config = SummarizerConfig(server_url="example.com:8080")
+        assert config.server_url == "http://example.com:8080"
+
+
+class TestReflectionConfigNormalize:
+    """Test cases for ReflectionConfig normalize_url method."""
+
+    def test_normalize_url_adds_http_prefix(self):
+        """Test that normalize_url adds http:// prefix when missing."""
+        config = ReflectionConfig(server_url="example.com:8080")
+        assert config.server_url == "http://example.com:8080"
+
+
+class TestNvidiaRAGConfigFileLoading:
+    """Test cases for NvidiaRAGConfig file loading methods."""
+
+    def test_from_yaml_file_not_exists(self):
+        """Test that from_yaml returns default config when file doesn't exist."""
+        config = NvidiaRAGConfig.from_yaml("/nonexistent/path/config.yaml")
+        assert isinstance(config, NvidiaRAGConfig)
+        assert config.vector_store.name == "milvus"
+
+    def test_from_json_file_not_exists(self):
+        """Test that from_json returns default config when file doesn't exist."""
+        config = NvidiaRAGConfig.from_json("/nonexistent/path/config.json")
+        assert isinstance(config, NvidiaRAGConfig)
+        assert config.vector_store.name == "milvus"
+
+    def test_from_yaml_file_exists(self):
+        """Test that from_yaml loads config from existing file."""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+            yaml.dump({"vector_store": {"name": "elasticsearch"}}, f)
+            temp_path = f.name
+
+        try:
+            config = NvidiaRAGConfig.from_yaml(temp_path)
+            assert config.vector_store.name == "elasticsearch"
+        finally:
+            os.unlink(temp_path)
+
+    def test_from_json_file_exists(self):
+        """Test that from_json loads config from existing file."""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            json.dump({"vector_store": {"name": "elasticsearch"}}, f)
+            temp_path = f.name
+
+        try:
+            config = NvidiaRAGConfig.from_json(temp_path)
+            assert config.vector_store.name == "elasticsearch"
+        finally:
+            os.unlink(temp_path)
+
+    def test_validate_confidence_threshold_out_of_range(self):
+        """Test that confidence_threshold outside [0, 1] raises ValueError."""
+        with pytest.raises(ValidationError) as exc_info:
+            NvidiaRAGConfig(default_confidence_threshold=1.5)
+
+        assert "confidence_threshold must be between 0.0 and 1.0" in str(exc_info.value)
+
+    def test_validate_confidence_threshold_negative(self):
+        """Test that negative confidence_threshold raises ValueError."""
+        with pytest.raises(ValidationError) as exc_info:
+            NvidiaRAGConfig(default_confidence_threshold=-0.1)
+
+        assert "confidence_threshold must be between 0.0 and 1.0" in str(exc_info.value)
+
+
+class TestTextSplitterConfigValidation:
+    """Test cases for TextSplitterConfig validation methods."""
+
+    def test_validate_chunk_settings_overlap_too_large(self):
+        """Test that chunk_overlap > chunk_size raises ValueError."""
+        with pytest.raises(ValidationError) as exc_info:
+            TextSplitterConfig(chunk_size=100, chunk_overlap=150)
+
+        assert "chunk_overlap (150) must be less than chunk_size (100)" in str(
+            exc_info.value
+        )

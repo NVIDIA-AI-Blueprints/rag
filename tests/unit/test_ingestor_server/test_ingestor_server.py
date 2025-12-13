@@ -19,12 +19,14 @@ from io import BytesIO
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
+from fastapi import Request
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 from nvidia_rag.ingestor_server.server import (
     DocumentUploadRequest,
     SummaryOptions,
+    _extract_vdb_auth_token,
 )
 
 
@@ -154,10 +156,14 @@ class MockNvidiaRAGIngestor:
             },
         }
 
-    def get_documents(self, collection_name: str, vdb_endpoint: str, vdb_auth_token: str = ""):
+    def get_documents(
+        self, collection_name: str, vdb_endpoint: str, vdb_auth_token: str = ""
+    ):
         """Mock get_documents method"""
         if self._get_documents_side_effect:
-            return self._get_documents_side_effect(collection_name, vdb_endpoint, vdb_auth_token)
+            return self._get_documents_side_effect(
+                collection_name, vdb_endpoint, vdb_auth_token
+            )
         return {
             "documents": [
                 {
@@ -215,17 +221,21 @@ class MockNvidiaRAGIngestor:
                 created_by,
                 business_domain,
                 status,
-                vdb_auth_token
+                vdb_auth_token,
             )
         return {
             "message": f"Collection {collection_name} created successfully.",
             "collection_name": collection_name,
         }
 
-    def delete_collections(self, vdb_endpoint: str, collection_names: list, vdb_auth_token: str = ""):
+    def delete_collections(
+        self, vdb_endpoint: str, collection_names: list, vdb_auth_token: str = ""
+    ):
         """Mock delete_collections method"""
         if self._delete_collections_side_effect:
-            return self._delete_collections_side_effect(vdb_endpoint, collection_names, vdb_auth_token)
+            return self._delete_collections_side_effect(
+                vdb_endpoint, collection_names, vdb_auth_token
+            )
         # Filter out None values and ensure all items are strings
         valid_collections = [str(name) for name in collection_names if name is not None]
         return {
@@ -247,7 +257,11 @@ class MockNvidiaRAGIngestor:
         """Mock delete_documents method"""
         if self._delete_documents_side_effect:
             return self._delete_documents_side_effect(
-                document_names, collection_name, vdb_endpoint, include_upload_path, vdb_auth_token
+                document_names,
+                collection_name,
+                vdb_endpoint,
+                include_upload_path,
+                vdb_auth_token,
             )
         return {
             "message": "Files deleted successfully",
@@ -316,7 +330,13 @@ class MockNvidiaRAGIngestor:
         self._get_collections_side_effect = error
 
     def raise_create_collection_error(self):
-        def error(collection_name, vdb_endpoint, embedding_dimension, metadata_schema, vdb_auth_token=""):
+        def error(
+            collection_name,
+            vdb_endpoint,
+            embedding_dimension,
+            metadata_schema,
+            vdb_auth_token="",
+        ):
             raise Exception("Failed to create collection")
 
         self._create_collection_side_effect = error
@@ -328,7 +348,13 @@ class MockNvidiaRAGIngestor:
         self._delete_collections_side_effect = error
 
     def raise_delete_documents_error(self):
-        def error(document_names, collection_name, vdb_endpoint, include_upload_path, vdb_auth_token=""):
+        def error(
+            document_names,
+            collection_name,
+            vdb_endpoint,
+            include_upload_path,
+            vdb_auth_token="",
+        ):
             raise Exception("Failed to delete documents")
 
         self._delete_documents_side_effect = error
@@ -1214,3 +1240,105 @@ class TestSummaryOptionsStrategyValidation:
         assert opts.page_filter == "odd"
         assert opts.shallow_summary is True
         assert opts.summarization_strategy == "hierarchical"
+
+
+class TestExtractVdbAuthToken:
+    """Tests for _extract_vdb_auth_token helper function in ingestor server"""
+
+    def test_extract_vdb_auth_token_with_bearer(self):
+        """Test extracting vdb_auth_token from Authorization header with Bearer prefix"""
+        mock_request = Mock(spec=Request)
+        mock_request.headers = {"Authorization": "Bearer test_token_123"}
+
+        result = _extract_vdb_auth_token(mock_request)
+        assert result == "test_token_123"
+
+    def test_extract_vdb_auth_token_with_lowercase_bearer(self):
+        """Test extracting vdb_auth_token from Authorization header with lowercase bearer"""
+        mock_request = Mock(spec=Request)
+        mock_request.headers = {"authorization": "bearer test_token_456"}
+
+        result = _extract_vdb_auth_token(mock_request)
+        assert result == "test_token_456"
+
+    def test_extract_vdb_auth_token_no_bearer(self):
+        """Test extracting vdb_auth_token when no Bearer prefix"""
+        mock_request = Mock(spec=Request)
+        mock_request.headers = {"Authorization": "Basic test_token"}
+
+        result = _extract_vdb_auth_token(mock_request)
+        assert result is None
+
+    def test_extract_vdb_auth_token_no_header(self):
+        """Test extracting vdb_auth_token when no Authorization header"""
+        mock_request = Mock(spec=Request)
+        mock_request.headers = {}
+
+        result = _extract_vdb_auth_token(mock_request)
+        assert result is None
+
+
+class TestVdbAuthTokenParameter:
+    """Tests for vdb_auth_token parameter passing through ingestor endpoints"""
+
+    def test_upload_document_with_vdb_auth_token(self, client):
+        """Test /documents POST endpoint passes vdb_auth_token to backend"""
+        with patch(
+            "nvidia_rag.ingestor_server.server.NV_INGEST_INGESTOR"
+        ) as mock_ingestor:
+            mock_ingestor.upload_documents = AsyncMock(
+                return_value={
+                    "message": "Upload successful",
+                    "total_documents": 1,
+                    "documents": [],
+                }
+            )
+
+            files = [
+                ("documents", ("test.txt", BytesIO(b"test content"), "text/plain"))
+            ]
+            data = {
+                "data": json.dumps(
+                    {
+                        "collection_name": "test_collection",
+                        "blocking": True,
+                    }
+                )
+            }
+
+            response = client.post(
+                "/v1/documents",
+                files=files,
+                data=data,
+                headers={"Authorization": "Bearer test_vdb_token"},
+            )
+
+            assert response.status_code == 200
+            mock_ingestor.upload_documents.assert_called_once()
+            call_kwargs = mock_ingestor.upload_documents.call_args[1]
+            assert call_kwargs.get("vdb_auth_token") == "test_vdb_token"
+
+    def test_get_documents_with_vdb_auth_token(self, client):
+        """Test /documents GET endpoint passes vdb_auth_token to backend"""
+        with patch(
+            "nvidia_rag.ingestor_server.server.NV_INGEST_INGESTOR"
+        ) as mock_ingestor:
+            mock_ingestor.get_documents = Mock(
+                return_value={
+                    "message": "Success",
+                    "total_documents": 0,
+                    "documents": [],
+                }
+            )
+
+            response = client.get(
+                "/v1/documents?collection_name=test_collection",
+                headers={"Authorization": "Bearer test_vdb_token"},
+            )
+
+            assert response.status_code == 200
+            mock_ingestor.get_documents.assert_called_once()
+            call_args = mock_ingestor.get_documents.call_args
+            # get_documents is called with positional args: (collection_name, vdb_endpoint, vdb_auth_token)
+            assert len(call_args[0]) >= 3
+            assert call_args[0][2] == "test_vdb_token"

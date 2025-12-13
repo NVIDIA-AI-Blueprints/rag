@@ -26,6 +26,7 @@ from unittest.mock import MagicMock, Mock, mock_open, patch
 import pytest
 
 from nvidia_rag.ingestor_server.main import Mode, NvidiaRAGIngestor
+from nvidia_rag.utils.vdb.milvus.milvus_vdb import MilvusClient
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
 
 
@@ -719,3 +720,140 @@ class TestNvidiaRAGIngestorCoverageImprovement:
                                 == "Failed to upload documents due to error: NV-Ingest ingestion failed with no results."
                             )
                             assert "failed_documents" in result
+
+    def test_delete_documents_collection_info_recalculation(self):
+        """Test that collection info is recalculated from remaining documents after deletion."""
+        mock_vdb_op = Mock(spec=VDBRag)
+
+        def mock_delete_documents(collection_name, source_values, result_dict=None):
+            if result_dict is not None:
+                result_dict["deleted"] = ["doc1"]
+                result_dict["not_found"] = []
+
+        mock_vdb_op.delete_documents.side_effect = mock_delete_documents
+        mock_vdb_op.get_metadata_schema.return_value = []
+        mock_vdb_op.get_documents.side_effect = [
+            [
+                {
+                    "document_name": "doc1",
+                    "metadata": {},
+                    "document_info": {"total_pages": 10, "has_images": True},
+                },
+                {
+                    "document_name": "doc2",
+                    "metadata": {},
+                    "document_info": {"total_pages": 5, "has_tables": True},
+                },
+                {
+                    "document_name": "doc3",
+                    "metadata": {},
+                    "document_info": {"total_pages": 3},
+                },
+            ],
+            [
+                {
+                    "document_name": "doc2",
+                    "metadata": {},
+                    "document_info": {"total_pages": 5, "has_tables": True},
+                },
+                {
+                    "document_name": "doc3",
+                    "metadata": {},
+                    "document_info": {"total_pages": 3},
+                },
+            ],
+        ]
+        mock_vdb_op.get_document_info.return_value = {}
+        mock_vdb_op.vdb_endpoint = "http://test.com"
+        mock_config = Mock()
+        mock_config.vector_store.password = None
+        mock_vdb_op.config = mock_config
+
+        ingestor = NvidiaRAGIngestor(mode=Mode.LIBRARY)
+
+        mock_minio = Mock()
+        mock_minio.list_payloads.return_value = []
+        mock_minio.delete_payloads.return_value = None
+        ingestor.minio_operator = mock_minio
+
+        with patch.object(
+            ingestor,
+            "_NvidiaRAGIngestor__prepare_vdb_op_and_collection_name",
+            return_value=(mock_vdb_op, "test_collection"),
+        ):
+            with patch(
+                "nvidia_rag.ingestor_server.main.get_unique_thumbnail_id_file_name_prefix",
+                return_value="test_prefix",
+            ):
+                with patch(
+                    "nvidia_rag.ingestor_server.main.MilvusClient"
+                ) as mock_milvus_client:
+                    mock_client_instance = Mock()
+                    mock_milvus_client.return_value = mock_client_instance
+                    mock_client_instance.query.return_value = []
+
+                    result = ingestor.delete_documents(
+                        collection_name="test_collection",
+                        document_names=["doc1"],
+                        vdb_endpoint="http://test.com",
+                    )
+
+                    assert result["message"] == "Files deleted successfully"
+                    assert result["total_documents"] == 1
+                    assert mock_vdb_op.get_documents.call_count == 2
+
+    def test_delete_documents_minio_unavailable(self):
+        """Test delete_documents when MinIO is unavailable."""
+        mock_vdb_op = Mock(spec=VDBRag)
+
+        def mock_delete_documents(collection_name, source_values, result_dict=None):
+            if result_dict is not None:
+                result_dict["deleted"] = ["doc1"]
+                result_dict["not_found"] = []
+
+        mock_vdb_op.delete_documents.side_effect = mock_delete_documents
+        mock_vdb_op.get_metadata_schema.return_value = []
+        mock_vdb_op.get_documents.return_value = [
+            {"document_name": "doc1", "metadata": {}, "document_info": {}},
+        ]
+        mock_vdb_op.get_document_info.return_value = {}
+        mock_vdb_op.vdb_endpoint = "http://test.com"
+        mock_config = Mock()
+        mock_config.vector_store.password = None
+        mock_vdb_op.config = mock_config
+
+        ingestor = NvidiaRAGIngestor(mode=Mode.LIBRARY)
+        ingestor.minio_operator = None
+
+        with patch.object(
+            ingestor,
+            "_NvidiaRAGIngestor__prepare_vdb_op_and_collection_name",
+            return_value=(mock_vdb_op, "test_collection"),
+        ):
+            with patch(
+                "nvidia_rag.ingestor_server.main.MilvusClient"
+            ) as mock_milvus_client:
+                mock_client_instance = Mock()
+                mock_milvus_client.return_value = mock_client_instance
+                mock_client_instance.query.return_value = []
+
+                result = ingestor.delete_documents(
+                    collection_name="test_collection",
+                    document_names=["doc1"],
+                    vdb_endpoint="http://test.com",
+                )
+
+                assert result["message"] == "Files deleted successfully"
+                assert result["total_documents"] == 1
+
+    def test_minio_initialization_error_handling(self):
+        """Test that MinIO initialization errors are handled gracefully."""
+        with patch(
+            "nvidia_rag.ingestor_server.main.get_minio_operator"
+        ) as mock_get_minio:
+            mock_get_minio.side_effect = Exception("MinIO connection failed")
+
+            ingestor = NvidiaRAGIngestor(mode=Mode.LIBRARY)
+
+            assert ingestor.minio_operator is None
+            mock_get_minio.assert_called_once()

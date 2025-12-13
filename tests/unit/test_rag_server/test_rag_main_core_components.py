@@ -22,10 +22,16 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
+import requests
 from fastapi.testclient import TestClient
 
 from nvidia_rag.rag_server.main import NvidiaRAG
+from nvidia_rag.rag_server.reflection import (
+    check_context_relevance,
+    check_response_groundedness,
+)
 from nvidia_rag.rag_server.response_generator import APIError
+from nvidia_rag.utils.health_models import RAGHealthResponse
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
 
 
@@ -134,8 +140,6 @@ class TestNvidiaRAGHealth:
     @pytest.mark.asyncio
     async def test_health_basic(self):
         """Test basic health check without dependencies."""
-        from nvidia_rag.utils.health_models import RAGHealthResponse
-
         rag = NvidiaRAG()
 
         with patch.object(rag, "_prepare_vdb_op") as mock_prepare:
@@ -151,8 +155,6 @@ class TestNvidiaRAGHealth:
     @pytest.mark.asyncio
     async def test_health_with_dependencies(self):
         """Test health check with dependencies."""
-        from nvidia_rag.utils.health_models import RAGHealthResponse
-
         rag = NvidiaRAG()
 
         mock_vdb_op = Mock()
@@ -535,3 +537,125 @@ class TestNvidiaRAGFormatDocumentWithSource:
 
             assert "Test content" in result
             assert "File: test" in result
+
+
+class TestInitErrorsTracking:
+    """Tests for _init_errors tracking in NvidiaRAG initialization"""
+
+    @patch("nvidia_rag.rag_server.main.get_embedding_model")
+    @patch("nvidia_rag.rag_server.main.get_ranking_model")
+    @patch("nvidia_rag.rag_server.main.get_llm")
+    @patch("nvidia_rag.rag_server.main._get_vdb_op")
+    def test_init_errors_tracking_embedding_failure(
+        self, mock_get_vdb, mock_get_llm, mock_get_ranking, mock_get_embedding
+    ):
+        """Test that embedding initialization errors are tracked in _init_errors"""
+        mock_get_vdb.return_value = Mock(spec=VDBRag)
+        mock_get_llm.return_value = Mock()
+        mock_get_ranking.return_value = Mock()
+        mock_get_embedding.side_effect = requests.exceptions.ConnectionError(
+            "Connection failed"
+        )
+
+        rag = NvidiaRAG()
+
+        assert "embeddings" in rag._init_errors
+        assert rag.document_embedder is None
+        assert "Connection failed" in rag._init_errors["embeddings"]
+
+    @patch("nvidia_rag.rag_server.main.get_embedding_model")
+    @patch("nvidia_rag.rag_server.main.get_ranking_model")
+    @patch("nvidia_rag.rag_server.main.get_llm")
+    @patch("nvidia_rag.rag_server.main._get_vdb_op")
+    def test_init_errors_tracking_ranker_failure(
+        self, mock_get_vdb, mock_get_llm, mock_get_ranking, mock_get_embedding
+    ):
+        """Test that ranker initialization errors are tracked in _init_errors"""
+        mock_get_vdb.return_value = Mock(spec=VDBRag)
+        mock_get_llm.return_value = Mock()
+        mock_get_embedding.return_value = Mock()
+        mock_get_ranking.side_effect = requests.exceptions.ConnectionError(
+            "Ranker connection failed"
+        )
+
+        rag = NvidiaRAG()
+
+        assert "ranking" in rag._init_errors
+        assert rag.ranker is None
+        assert "Ranker connection failed" in rag._init_errors["ranking"]
+
+    @patch("nvidia_rag.rag_server.main.get_embedding_model")
+    @patch("nvidia_rag.rag_server.main.get_ranking_model")
+    @patch("nvidia_rag.rag_server.main.get_llm")
+    @patch("nvidia_rag.rag_server.main._get_vdb_op")
+    def test_init_errors_empty_on_success(
+        self, mock_get_vdb, mock_get_llm, mock_get_ranking, mock_get_embedding
+    ):
+        """Test that _init_errors is empty when all services initialize successfully"""
+        mock_get_vdb.return_value = Mock(spec=VDBRag)
+        mock_get_embedding.return_value = Mock()
+        mock_get_ranking.return_value = Mock()
+        mock_get_llm.return_value = Mock()
+
+        rag = NvidiaRAG()
+
+        assert rag._init_errors == {}
+
+
+class TestReflectionLLMValidation:
+    """Tests for reflection LLM validation"""
+
+    @patch("nvidia_rag.rag_server.reflection.get_llm")
+    @patch("nvidia_rag.rag_server.reflection.get_prompts")
+    @pytest.mark.asyncio
+    async def test_check_context_relevance_without_reflection_llm(
+        self, mock_get_prompts, mock_get_llm
+    ):
+        """Test that check_context_relevance raises APIError when reflection enabled but LLM not configured"""
+        mock_config = MagicMock()
+        mock_reflection = MagicMock()
+        mock_reflection.enabled = True
+        mock_reflection.model_name = ""
+        mock_reflection.server_url = "http://test.com"
+        mock_reflection.get_api_key.return_value = "test_key"
+        mock_config.reflection = mock_reflection
+
+        with pytest.raises(APIError) as exc_info:
+            await check_context_relevance(
+                retriever_query="test query",
+                collection_names=["test_collection"],
+                vdb_op=Mock(),
+                ranker=Mock(),
+                reflection_counter=Mock(),
+                config=mock_config,
+            )
+
+        assert exc_info.value.status_code == 400
+        assert "reflection_llm" in exc_info.value.message.lower()
+
+    @patch("nvidia_rag.rag_server.reflection.get_llm")
+    @patch("nvidia_rag.rag_server.reflection.get_prompts")
+    @pytest.mark.asyncio
+    async def test_check_response_groundedness_without_reflection_llm(
+        self, mock_get_prompts, mock_get_llm
+    ):
+        """Test that check_response_groundedness raises APIError when reflection enabled but LLM not configured"""
+        mock_config = MagicMock()
+        mock_reflection = MagicMock()
+        mock_reflection.enabled = True
+        mock_reflection.model_name = ""
+        mock_reflection.server_url = "http://test.com"
+        mock_reflection.get_api_key.return_value = "test_key"
+        mock_config.reflection = mock_reflection
+
+        with pytest.raises(APIError) as exc_info:
+            await check_response_groundedness(
+                query="test query",
+                response="test response",
+                context=[],
+                reflection_counter=Mock(),
+                config=mock_config,
+            )
+
+        assert exc_info.value.status_code == 400
+        assert "reflection_llm" in exc_info.value.message.lower()

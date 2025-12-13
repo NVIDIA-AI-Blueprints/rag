@@ -21,10 +21,12 @@ from unittest.mock import MagicMock, Mock, call, patch
 
 import pandas as pd
 import pytest
+import requests
 from langchain_core.documents import Document
 from opentelemetry import context as otel_context
 from pydantic import SecretStr
 
+from nvidia_rag.rag_server.response_generator import APIError, ErrorCodeMapping
 from nvidia_rag.utils.vdb.elasticsearch import es_queries
 from nvidia_rag.utils.vdb.elasticsearch.elastic_vdb import ElasticVDB
 
@@ -911,6 +913,75 @@ class TestElasticVDB(unittest.TestCase):
         )
         mock_otel_context.attach.assert_called_once()
         mock_otel_context.detach.assert_called_once_with(mock_token)
+
+    @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.Elasticsearch")
+    @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.VectorStore")
+    def test_retrieval_langchain_connection_error(
+        self, mock_vector_store, mock_elasticsearch
+    ):
+        """Test retrieval_langchain raises APIError on connection error"""
+        mock_config = Mock()
+        mock_config.embeddings.dimensions = 768
+        mock_config.vector_store.search_type = "hybrid"
+
+        mock_es_connection = Mock()
+        mock_elasticsearch.return_value = mock_es_connection
+        mock_es_connection.options.return_value.info.return_value = {}
+
+        mock_embedding_model = Mock()
+        mock_embedding_model._client = Mock()
+        mock_embedding_model._client.base_url = "http://embedding:8080"
+
+        elastic_vdb = ElasticVDB(
+            self.index_name,
+            self.es_url,
+            embedding_model=mock_embedding_model,
+            config=mock_config,
+        )
+        elastic_vdb.embedding_model = mock_embedding_model
+
+        mock_vectorstore = Mock()
+        mock_retriever = Mock()
+        mock_vectorstore.as_retriever.return_value = mock_retriever
+        mock_retriever.invoke.side_effect = requests.exceptions.ConnectionError(
+            "Connection failed"
+        )
+
+        mock_chain = Mock()
+        mock_chain.invoke.side_effect = requests.exceptions.ConnectionError(
+            "Connection failed"
+        )
+
+        mock_assign_instance = Mock()
+        mock_assign_instance.__ror__ = Mock(return_value=mock_chain)
+
+        with (
+            patch(
+                "nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.ElasticsearchStore",
+                return_value=mock_vectorstore,
+            ),
+            patch(
+                "nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.RunnableLambda",
+                return_value=Mock(),
+            ),
+            patch(
+                "nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.RunnableAssign",
+                return_value=mock_assign_instance,
+            ),
+            patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.otel_context"),
+            patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.time"),
+        ):
+            with self.assertRaises(APIError) as context:
+                elastic_vdb.retrieval_langchain(
+                    query="test query",
+                    collection_name="test_collection",
+                    top_k=5,
+                )
+
+            self.assertEqual(
+                context.exception.status_code, ErrorCodeMapping.SERVICE_UNAVAILABLE
+            )
+            self.assertIn("Embedding NIM unavailable", context.exception.message)
 
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.Elasticsearch")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.VectorStore")

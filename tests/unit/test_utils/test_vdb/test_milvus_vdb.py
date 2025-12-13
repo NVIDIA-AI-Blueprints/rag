@@ -19,10 +19,13 @@ import os
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
+import requests
 from langchain_core.documents import Document
 from opentelemetry import context as otel_context
 from pydantic import SecretStr
+from pymilvus import MilvusException
 
+from nvidia_rag.rag_server.response_generator import APIError, ErrorCodeMapping
 from nvidia_rag.utils.vdb import (
     DEFAULT_DOCUMENT_INFO_COLLECTION,
     DEFAULT_METADATA_SCHEMA_COLLECTION,
@@ -829,7 +832,6 @@ class TestMilvusVDB:
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
     def test_delete_documents_milvus_exception(self, mock_connections, mock_collection):
         """Test delete_documents method with MilvusException fallback."""
-        from pymilvus import MilvusException
 
         mock_collection_obj = Mock()
         mock_resp = Mock()
@@ -1069,6 +1071,65 @@ class TestMilvusVDB:
                 mock_get_vs.assert_called_once_with("test_collection")
                 mock_otel.attach.assert_called_once_with(mock_ctx)
                 mock_otel.detach.assert_called_once_with(mock_token)
+
+    @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
+    def test_retrieval_langchain_connection_error(self, mock_connections):
+        """Test retrieval_langchain raises APIError on connection error"""
+        mock_config = Mock()
+        mock_embedding_model = Mock()
+        mock_embedding_model._client = Mock()
+        mock_embedding_model._client.base_url = "http://embedding:8080"
+
+        with (
+            patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"),
+            patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Milvus.__init__"),
+        ):
+            vdb = MilvusVDB(
+                embedding_model=mock_embedding_model,
+                milvus_uri="http://localhost:19530",
+                collection_name="test_collection",
+                config=mock_config,
+            )
+
+            mock_vectorstore = Mock()
+            mock_retriever = Mock()
+            mock_vectorstore.as_retriever.return_value = mock_retriever
+            mock_retriever.vectorstore.collection_name = "test_collection"
+
+            with patch.object(
+                vdb, "get_langchain_vectorstore", return_value=mock_vectorstore
+            ):
+                mock_chain = Mock()
+                mock_chain.invoke.side_effect = requests.exceptions.ConnectionError(
+                    "Connection failed"
+                )
+
+                mock_assign_instance = Mock()
+                mock_assign_instance.__ror__ = Mock(return_value=mock_chain)
+
+                with (
+                    patch(
+                        "nvidia_rag.utils.vdb.milvus.milvus_vdb.RunnableLambda",
+                        return_value=Mock(),
+                    ),
+                    patch(
+                        "nvidia_rag.utils.vdb.milvus.milvus_vdb.RunnableAssign",
+                        return_value=mock_assign_instance,
+                    ),
+                    patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.otel_context"),
+                ):
+                    with pytest.raises(APIError) as exc_info:
+                        vdb.retrieval_langchain(
+                            query="test query",
+                            collection_name="test_collection",
+                            top_k=5,
+                        )
+
+                    assert (
+                        exc_info.value.status_code
+                        == ErrorCodeMapping.SERVICE_UNAVAILABLE
+                    )
+                    assert "Embedding NIM unavailable" in exc_info.value.message
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
     def test_get_langchain_vectorstore_hybrid(self, mock_connections):
