@@ -1,5 +1,5 @@
 apiVersion: v2
-appVersion: v2.3.0
+appVersion: v2.4.0-dev
 dependencies:
 - condition: nim-llm.enabled
   name: nim-llm
@@ -23,12 +23,16 @@ dependencies:
   version: 1.3.0
 - condition: nv-ingest.enabled
   name: nv-ingest
-  repository: https://helm.ngc.nvidia.com/nvidia/nemo-microservices
-  version: 25.9.0
+  repository: https://helm.ngc.nvidia.com/nvstaging/nim
+  version: 26.1.0-RC2
 - condition: elasticsearch.enabled
-  name: elasticsearch
-  repository: https://charts.bitnami.com/bitnami
-  version: 22.0.13
+  name: eck-stack
+  repository: https://helm.elastic.co
+  version: 0.17.0
+- condition: elasticsearch.enabled
+  name: eck-operator
+  repository: https://helm.elastic.co
+  version: 3.2.0
 - condition: zipkin.enabled
   name: zipkin
   repository: https://zipkin.io/zipkin-helm
@@ -44,4 +48,4 @@ dependencies:
 description: An end to end Helm chart for the NVIDIA RAG Blueprint
 name: nvidia-blueprint-rag
 type: application
-version: v2.3.0
+version: v2.4.0-dev

@@ -80,8 +80,7 @@ If you are working directly with the source Helm chart, and you want to customiz
     ```
 
    :::{note}
-   Refer to [NIM Model Profile Configuration](model-profiles.md) to set NIM LLM profile according to the GPU type and count.
-   Set the profile explicitly to avoid any errors with NIM LLM pod deployment.
+   Refer to [NIM Model Profile Configuration](model-profiles.md) for using non-default NIM LLM profile.
    :::
 
 

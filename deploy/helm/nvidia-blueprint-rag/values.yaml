@@ -37,8 +37,8 @@ ngcApiSecret:
 
 # -- RAG server container image
 image:
-  repository: nvcr.io/nvidia/blueprint/rag-server
-  tag: "2.3.0"
+  repository: nvcr.io/0648981100760671/rag-server
+  tag: "latest"
   pullPolicy: Always
 
 # -- RAG server service configuration
@@ -95,19 +95,33 @@ envVars:
   MINIO_ACCESSKEY: "minioadmin"
   MINIO_SECRETKEY: "minioadmin"
 
+  ##===Redis configurations for summary status tracking===
+  REDIS_HOST: "rag-redis-master"
+  REDIS_PORT: "6379"
+  REDIS_DB: "0"
+
   ##===Vector DB specific configurations===
   # URL on which vectorstore is hosted
-  APP_VECTORSTORE_URL: "http://milvus:19530" # Use "http://elasticsearch:9200" for elasticsearch
+  APP_VECTORSTORE_URL: "http://elasticsearch-es-http:9200" # Use "http://elasticsearch:9200" for elasticsearch
   # Type of vectordb used to store embedding supported type "milvus" or "elasticsearch"
-  APP_VECTORSTORE_NAME: "milvus"
+  APP_VECTORSTORE_NAME: "elasticsearch"
   # Index type (e.g., GPU_CAGRA)
   APP_VECTORSTORE_INDEXTYPE: "GPU_CAGRA"
   # Type of vectordb search to be used
   APP_VECTORSTORE_SEARCHTYPE: "dense"
   # Boolean to control GPU search for milvus vectorstore specific to rag-server
-  APP_VECTORSTORE_ENABLEGPUSEARCH: "True"
+  APP_VECTORSTORE_ENABLEGPUSEARCH: "False"
   # ef: Parameter controlling query time/accuracy trade-off. Higher ef leads to more accurate but slower search.
   APP_VECTORSTORE_EF: "100"
+  # Username for vector store authentication
+  APP_VECTORSTORE_USERNAME: "elastic"
+  # Password for vector store authentication
+  APP_VECTORSTORE_PASSWORD: ""
+  # Elasticsearch API key auth (optional). Prefer these over username/password when set.
+  # Provide either base64 APP_VECTORSTORE_APIKEY or split ID/SECRET.
+  APP_VECTORSTORE_APIKEY_ID: ""
+  APP_VECTORSTORE_APIKEY_SECRET: ""
+  APP_VECTORSTORE_APIKEY: ""
 
   # vectorstore collection name to store embeddings
   COLLECTION_NAME: "multimodal_data"
@@ -140,8 +154,9 @@ envVars:
 
   ##===Embedding Model specific configurations===
   # URL on which embedding model is hosted. If "", Nvidia hosted API is used
-  APP_EMBEDDINGS_SERVERURL: "nemoretriever-embedding-ms:8000"
+  APP_EMBEDDINGS_SERVERURL: "nemoretriever-embedding-ms:8000/v1"
   APP_EMBEDDINGS_MODELNAME: "nvidia/llama-3.2-nv-embedqa-1b-v2"
+  APP_EMBEDDINGS_DIMENSIONS: "2048"
 
   ##===Reranking Model specific configurations===
   # URL on which ranking model is hosted. If "", Nvidia hosted API is used
@@ -153,18 +168,19 @@ envVars:
 
   ##===VLM Model specific configurations===
   ENABLE_VLM_INFERENCE: "false"
-  # Reasoning gate on VLM response
-  ENABLE_VLM_RESPONSE_REASONING: "false"
+  # When true, allow falling back to LLM flow if no images are present in query/messages/context.
+  # When false, always route generation through VLM when ENABLE_VLM_INFERENCE is true.
+  VLM_TO_LLM_FALLBACK: "true"
   # Max images sent to VLM per request (query + context)
-  APP_VLM_MAX_TOTAL_IMAGES: "4"
-  # Use VLM for final response generation
-  APP_VLM_RESPONSE_AS_FINAL_ANSWER: "false"
-  # Max number of query images to include in VLM input
-  APP_VLM_MAX_QUERY_IMAGES: "1"
-  # Max number of context images to include in VLM input
-  APP_VLM_MAX_CONTEXT_IMAGES: "1"
+  APP_VLM_MAX_TOTAL_IMAGES: "5"
+  # VLM generation parameters
+  APP_VLM_MAX_TOKENS: "8192"
+  APP_VLM_TEMPERATURE: "0.1"
+  APP_VLM_TOP_P: "1.0"
+  # VLM server URL
   APP_VLM_SERVERURL: "http://nim-vlm:8000/v1"
-  APP_VLM_MODELNAME: "nvidia/llama-3.1-nemotron-nano-vl-8b-v1"
+  # VLM model name
+  APP_VLM_MODELNAME: "nvidia/nemotron-nano-12b-v2-vl"
 
   # === Text Splitter ===
   APP_TEXTSPLITTER_CHUNKSIZE: "2000"
@@ -242,8 +258,8 @@ ingestor-server:
     password: ""
 
   image:
-    repository: nvcr.io/nvidia/blueprint/ingestor-server
-    tag: "2.3.0"
+    repository: nvcr.io/0648981100760671/ingestor-server
+    tag: "latest"
     pullPolicy: Always
 
   # -- Service config for ingestor-server
@@ -270,11 +286,20 @@ ingestor-server:
     # Absolute path to custom prompt.yaml file
     PROMPT_CONFIG_FILE: "/prompt.yaml"
     # === Vector Store Configurations ===
-    APP_VECTORSTORE_URL: "http://milvus:19530" # Use "http://elasticsearch:9200" for elasticsearch
-    APP_VECTORSTORE_NAME: "milvus" # supported values: "milvus" or "elasticsearch"
+    APP_VECTORSTORE_URL: "http://elasticsearch-es-http:9200" # Use "http://elasticsearch:9200" for elasticsearch
+    APP_VECTORSTORE_NAME: "elasticsearch" # supported values: "milvus" or "elasticsearch"
     APP_VECTORSTORE_SEARCHTYPE: "dense"
     APP_VECTORSTORE_ENABLEGPUINDEX: "True"
     APP_VECTORSTORE_ENABLEGPUSEARCH: "True"
+    # Username  for vector store authentication
+    APP_VECTORSTORE_USERNAME: "elastic"
+    # Password for vector store authentication
+    APP_VECTORSTORE_PASSWORD: "qBqWFOwxnXKSCDltuzF19lwk"
+    # Elasticsearch API key auth (optional). Prefer these over username/password when set.
+    # Provide either base64 APP_VECTORSTORE_APIKEY or split ID/SECRET.
+    APP_VECTORSTORE_APIKEY_ID: ""
+    APP_VECTORSTORE_APIKEY_SECRET: ""
+    APP_VECTORSTORE_APIKEY: ""
     COLLECTION_NAME: "multimodal_data"
 
     # === MinIO Configurations ===
@@ -288,7 +313,7 @@ ingestor-server:
     LLM_API_KEY: ""
 
     # === Embeddings Configurations ===
-    APP_EMBEDDINGS_SERVERURL: "nemoretriever-embedding-ms:8000"
+    APP_EMBEDDINGS_SERVERURL: "nemoretriever-embedding-ms:8000/v1"
     APP_EMBEDDINGS_MODELNAME: "nvidia/llama-3.2-nv-embedqa-1b-v2"
     APP_EMBEDDINGS_DIMENSIONS: "2048"
 
@@ -309,19 +334,26 @@ ingestor-server:
     APP_NVINGEST_TEXTDEPTH: "page"  # Extract text by "page" or "document"
 
     # === NV-Ingest caption configurations ===
-    APP_NVINGEST_CAPTIONMODELNAME: "nvidia/llama-3.1-nemotron-nano-vl-8b-v1"  # Model name for captioning
+    APP_NVINGEST_CAPTIONMODELNAME: "nvidia/nemotron-nano-12b-v2-vl"  # Model name for captioning
     APP_NVINGEST_CAPTIONENDPOINTURL: ""  # Endpoint URL for captioning model
 
     # === NV-Ingest save to disk configurations ===
     APP_NVINGEST_SAVETODISK: "False"
-    NVINGEST_MINIO_BUCKET: "nv-ingest"
+    NVINGEST_MINIO_BUCKET: "nv-ingest" # If this value is modified, ensure the corresponding Milvus bucketName is also updated
+
+    # === NV-Ingest performance configurations ===
+    APP_NVINGEST_ENABLEPDFSPLIT: "False"
+    APP_NVINGEST_PAGESPERCHUNK: "16"
 
     # === General ===
     # Summary Model Configurations
     SUMMARY_LLM: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
     SUMMARY_LLM_SERVERURL: "nim-llm:8000"
-    SUMMARY_LLM_MAX_CHUNK_LENGTH: "50000"
-    SUMMARY_CHUNK_OVERLAP: "200"
+    SUMMARY_LLM_MAX_CHUNK_LENGTH: "9000"
+    SUMMARY_CHUNK_OVERLAP: "400"
+    SUMMARY_LLM_TEMPERATURE: "0.0"
+    SUMMARY_LLM_TOP_P: "1.0"
+    SUMMARY_MAX_PARALLELIZATION: "20"
 
     # === General ===
     ENABLE_CITATIONS: "True"
@@ -375,9 +407,9 @@ frontend:
   replicaCount: 1
 
   image:
-    repository: nvcr.io/nvidia/blueprint/rag-frontend
+    repository: nvcr.io/0648981100760671/rag-frontend
     pullPolicy: IfNotPresent
-    tag: "2.3.0"
+    tag: "latest"
 
   imagePullSecret:
     name: "ngc-secret"
@@ -401,44 +433,33 @@ frontend:
     - name: VITE_API_VDB_URL
       value: "http://ingestor-server:8082/v1"
     - name: VITE_MILVUS_URL
-      value: "http://milvus:19530"
+      value: "http://elasticsearch-es-http:9200"
 
 # -- Elasticsearch dependency toggle
 # subsection: elasticsearch
 elasticsearch:
-  enabled: false
-  fullnameOverride: elasticsearch
-  security:
+  enabled: true
+
+# -- ECK Stack configuration
+# subsection: eck-stack
+eck-stack:
+  eck-kibana:
     enabled: false
-    tls:
-      restEncryption: false
-  extraConfig:
-    discovery.type: single-node
-  master:
-    masterOnly: false
-    replicaCount: 1
-  data:
-    replicaCount: 0
-  coordinating:
-    replicaCount: 0
-  ingest:
-    enabled: false
-  global:
-    security:
-      allowInsecureImages: true
-  image:
-    registry: docker.io
-    repository: bitnamilegacy/elasticsearch
-    tag: 9.0.3-debian-12-r1
-  volumePermissions:
-    image:
-      registry: docker.io
-      repository: bitnamilegacy/os-shell
-      tag: 12-debian-12-r48
-  sysctlImage:
-    registry: docker.io
-    repository: bitnamilegacy/os-shell
-    tag: 12-debian-12-r48
+  eck-elasticsearch:
+    enabled: true
+    http:
+      tls:
+        selfSignedCertificate:
+          disabled: true
+    nodeSets:
+    - name: default
+      count: 1
+      config:
+        node.store.allow_mmap: false
+
+# -- ECK Operator configuration
+eck-operator:
+  installCRDs: false
 
 # -- Observability
 # subsection: serviceMonitor
@@ -451,7 +472,7 @@ opentelemetry-collector:
   mode: deployment
   image:
     repository: otel/opentelemetry-collector-contrib
-    tag: "0.131.0"
+    tag: "0.140.0"
   command:
     name: otelcol-contrib
   config:
@@ -567,7 +588,7 @@ nim-llm:
   image:
     repository: nvcr.io/nim/nvidia/llama-3.3-nemotron-super-49b-v1.5
     pullPolicy: IfNotPresent
-    tag: "1.13.1"
+    tag: "1.14.0"
   resources:
     limits:
       nvidia.com/gpu: 1
@@ -576,7 +597,7 @@ nim-llm:
 
   env:
     - name: NIM_MODEL_PROFILE
-      value: "" # Provide correct profile name here
+      value: "" # TensorRT-LLM H100 FP8 profile
   model:
     ngcAPIKey: ""
     name: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
@@ -640,8 +661,8 @@ nim-vlm:
   service:
     name: "nim-vlm"
   image:
-    repository: nvcr.io/nim/nvidia/llama-3.1-nemotron-nano-vl-8b-v1
-    tag: "1.3.1"
+    repository: nvcr.io/nim/nvidia/nemotron-nano-12b-v2-vl
+    tag: "1"
   resources:
     limits:
       nvidia.com/gpu: 1
@@ -662,19 +683,20 @@ nv-ingest:
   ngcImagePullSecret:
     create: false
   image:
-    repository: "nvcr.io/nvidia/nemo-microservices/nv-ingest"
-    tag: "25.9.0"
+    repository: "nvcr.io/0648981100760671/nv-ingest"
+    tag: "26.1.0-RC1"
   resources:
     limits:
       nvidia.com/gpu: 0
   envVars:
     ARROW_DEFAULT_MEMORY_POOL: "system"
+    OMP_NUM_THREADS: "1"
     INGEST_LOG_LEVEL: WARNING
     INGEST_RAY_LOG_LEVEL: "PRODUCTION"
+    INGEST_DYNAMIC_MEMORY_THRESHOLD: "0.80"
+    INGEST_DISABLE_DYNAMIC_SCALING: "True"
     NV_INGEST_MAX_UTIL: 48
     INGEST_EDGE_BUFFER_SIZE: 64
-    INGEST_DYNAMIC_MEMORY_THRESHOLD: "0.8"
-    INGEST_DISABLE_DYNAMIC_SCALING: "false"
     MRC_IGNORE_NUMA_CHECK: 1
     READY_CHECK_ALL_COMPONENTS: "False"
     COMPONENTS_TO_READY_CHECK: "ALL"
@@ -682,6 +704,12 @@ nv-ingest:
     REDIS_INGEST_TASK_QUEUE: "ingest_task_queue"
     NV_INGEST_DEFAULT_TIMEOUT_MS: "1234"
     MAX_INGEST_PROCESS_WORKERS: 16
+    
+    # Ray internals configuration
+    RAY_num_grpc_threads: "1"
+    RAY_num_server_call_thread: "1"
+    RAY_worker_num_grpc_internal_threads: "1"
+    
     EMBEDDING_NIM_ENDPOINT: "http://nemoretriever-embedding-ms:8000/v1"
     EMBEDDING_NIM_MODEL_NAME: "nvidia/llama-3.2-nv-embedqa-1b-v2"
     MESSAGE_CLIENT_HOST: "rag-redis-master"
@@ -690,28 +718,29 @@ nv-ingest:
     MINIO_INTERNAL_ADDRESS: "rag-minio:9000"
     MINIO_PUBLIC_ADDRESS: "http://localhost:9000"
     MINIO_BUCKET: "nv-ingest"
-    MILVUS_ENDPOINT: "http://milvus:19530"
+    MINIO_ACCESS_KEY: "minioadmin"
+    MINIO_SECRET_KEY: "minioadmin"
+    MILVUS_ENDPOINT: "http://elasticsearch-es-http:9200"
     OTEL_EXPORTER_OTLP_ENDPOINT: "otel-collector:4317"
     MODEL_PREDOWNLOAD_PATH: "/workspace/models/"
     INSTALL_AUDIO_EXTRACTION_DEPS: "true"
-
-    # Paddle OCR endpoints
-    PADDLE_GRPC_ENDPOINT: nv-ingest-ocr:8001
-    PADDLE_HTTP_ENDPOINT: http://nv-ingest-ocr:8000/v1/infer
-    PADDLE_INFER_PROTOCOL: grpc
 
     # OCR routing (defaults to Paddle OCR service)
     OCR_GRPC_ENDPOINT: nv-ingest-ocr:8001
     OCR_HTTP_ENDPOINT: http://nv-ingest-ocr:8000/v1/infer
     OCR_INFER_PROTOCOL: grpc
-    OCR_MODEL_NAME: paddle
+    OCR_MODEL_NAME: scene_text_ensemble
 
     # NeMo Retriever Parse (VLM text extraction)
     NEMORETRIEVER_PARSE_HTTP_ENDPOINT: http://nim-vlm-text-extraction-nemoretriever-parse:8000/v1/chat/completions
     NEMORETRIEVER_PARSE_INFER_PROTOCOL: http
     NEMORETRIEVER_PARSE_MODEL_NAME: nvidia/nemoretriever-parse
 
+    # PDF splitting configuration
+    PDF_SPLIT_PAGE_COUNT: "32"
+
     # YOLOX endpoints
+    YOLOX_PAGE_IMAGE_FORMAT: "JPEG"
     YOLOX_GRPC_ENDPOINT: nemoretriever-page-elements-v2:8001
     YOLOX_HTTP_ENDPOINT: http://nemoretriever-page-elements-v2:8000/v1/infer
     YOLOX_INFER_PROTOCOL: grpc
@@ -723,7 +752,7 @@ nv-ingest:
     YOLOX_TABLE_STRUCTURE_INFER_PROTOCOL: grpc
 
     # Captioning
-    VLM_CAPTION_MODEL_NAME: nvidia/llama-3.1-nemotron-nano-vl-8b-v1
+    VLM_CAPTION_MODEL_NAME: nvidia/nemotron-nano-12b-v2-vl
     VLM_CAPTION_ENDPOINT: http://nim-vlm:8000/v1/chat/completions
 
     # Audio service
@@ -736,15 +765,24 @@ nv-ingest:
     image:
       all:
         repository: milvusdb/milvus
-        tag: v2.5.17-gpu
+        tag: v2.6.5-gpu
     etcd:
       image:
         repository: "milvusdb/etcd"
-        tag: "3.5.22-r1"
+        tag: "3.5.23-r2"
     standalone:
       resources:
         limits:
           nvidia.com/gpu: 1
+      # [Uncomment this below section if you want to use the authentication enabled Milvus config]
+      # extraVolumes:
+      #   - name: milvus-config
+      #     configMap:
+      #       name: milvus-config
+      # extraVolumeMounts:
+      #   - name: milvus-config
+      #     mountPath: /milvus/configs/milvus.yaml
+      #     subPath: milvus.yaml
     minio:
       image:
         repository: minio/minio
@@ -772,7 +810,7 @@ nv-ingest:
   # Sub-NIMs deployed by NV-Ingest
   # NIM OCR (PaddleOCR)
   paddleocr-nim:
-    deployed: true
+    deployed: false
     replicaCount: 1
     image:
       repository: nvcr.io/nim/baidu/paddleocr
@@ -800,31 +838,27 @@ nv-ingest:
 
   # Nemo Retriever OCR
   nemoretriever-ocr:
-    deployed: false
+    deployed: true
     replicaCount: 1
     image:
-      repository: nvcr.io/nvidia/nemo-microservices/nemoretriever-ocr-v1
-      tag: "1.1.0"
+      repository: nvcr.io/nim/nvidia/nemoretriever-ocr-v1
+      tag: "1.2.0"
     imagePullSecrets:
       - name: ngc-secret
     env:
+      - name: OMP_NUM_THREADS
+        value: "8"
       - name: NIM_HTTP_API_PORT
         value: "8000"
       - name: NIM_TRITON_LOG_VERBOSE
         value: "1"
-      - name: NIM_TRITON_RATE_LIMIT
-        value: "1"
       - name: CUDA_VISIBLE_DEVICES
         value: "0"
+      - name: NIM_TRITON_CUDA_MEMORY_POOL_MB
+        value: "8192"
       - name: NIM_TRITON_MAX_BATCH_SIZE
         value: "32"
-      - name: NIM_TRITON_CUDA_MEMORY_POOL_MB
-        value: "2048"
-      - name: NIM_TRITON_CPU_THREADS_PRE_PROCESSOR
-        value: "2"
-      - name: NIM_TRITON_CPU_THREADS_POST_PROCESSOR
-        value: "1"
-      - name: OMP_NUM_THREADS
+      - name: NIM_TRITON_ENABLE_MODEL_CONTROL
         value: "1"
     resources:
       limits:
