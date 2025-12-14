@@ -180,31 +180,46 @@ def _extract_vdb_auth_token(request: Request) -> str | None:
 def _convert_openai_filter_to_milvus_string(filter_obj: Any) -> str:
     """
     Convert OpenAI filter format to Milvus filter expression string.
-    
+
     Args:
         filter_obj: ComparisonFilter or CompoundFilter object
-        
+
     Returns:
         String representing the filter in Milvus format (e.g., 'content_metadata["key"] == "value"')
     """
     # Debug logging
     logger.debug(f"Converting filter object type: {type(filter_obj)}")
-    logger.debug(f"Has 'key': {hasattr(filter_obj, 'key')}, Has 'type': {hasattr(filter_obj, 'type')}, Has 'value': {hasattr(filter_obj, 'value')}, Has 'filters': {hasattr(filter_obj, 'filters')}")
-    
+    logger.debug(
+        f"Has 'key': {hasattr(filter_obj, 'key')}, Has 'type': {hasattr(filter_obj, 'type')}, Has 'value': {hasattr(filter_obj, 'value')}, Has 'filters': {hasattr(filter_obj, 'filters')}"
+    )
+
     # Handle ComparisonFilter
-    if hasattr(filter_obj, 'key') and hasattr(filter_obj, 'type') and hasattr(filter_obj, 'value'):
+    if (
+        hasattr(filter_obj, "key")
+        and hasattr(filter_obj, "type")
+        and hasattr(filter_obj, "value")
+    ):
         key = filter_obj.key
         op = filter_obj.type
         value = filter_obj.value
-        
+
         # Format the key - if it doesn't contain brackets, wrap it in content_metadata
-        # Standard metadata fields: document_id, document_name, document_type, language, 
+        # Standard metadata fields: document_id, document_name, document_type, language,
         # date_created, last_modified, page_number, etc.
         # Custom fields go in content_metadata["field_name"]
-        standard_fields = ["document_id", "document_name", "document_type", "language", 
-                          "date_created", "last_modified", "page_number", "description",
-                          "height", "width"]
-        
+        standard_fields = [
+            "document_id",
+            "document_name",
+            "document_type",
+            "language",
+            "date_created",
+            "last_modified",
+            "page_number",
+            "description",
+            "height",
+            "width",
+        ]
+
         if "[" not in key:  # Simple field name without brackets
             if key not in standard_fields:
                 # Custom field - wrap in content_metadata
@@ -215,7 +230,7 @@ def _convert_openai_filter_to_milvus_string(filter_obj: Any) -> str:
         else:
             # Already formatted (e.g., 'content_metadata["field"]')
             formatted_key = key
-        
+
         # Map OpenAI operators to Milvus operators
         if op == "eq":
             if isinstance(value, str):
@@ -262,17 +277,19 @@ def _convert_openai_filter_to_milvus_string(filter_obj: Any) -> str:
         else:
             logger.warning(f"Unknown operator: {op}")
             return ""
-    
+
     # Handle CompoundFilter
-    elif hasattr(filter_obj, 'filters') and hasattr(filter_obj, 'type'):
+    elif hasattr(filter_obj, "filters") and hasattr(filter_obj, "type"):
         filter_type = filter_obj.type
-        sub_filters = [_convert_openai_filter_to_milvus_string(f) for f in filter_obj.filters]
+        sub_filters = [
+            _convert_openai_filter_to_milvus_string(f) for f in filter_obj.filters
+        ]
         # Remove empty sub-filters
         sub_filters = [f for f in sub_filters if f]
-        
+
         if not sub_filters:
             return ""
-        
+
         if filter_type == "and":
             return f"({' and '.join(sub_filters)})"
         elif filter_type == "or":
@@ -280,26 +297,30 @@ def _convert_openai_filter_to_milvus_string(filter_obj: Any) -> str:
         else:
             logger.warning(f"Unknown compound filter type: {filter_type}")
             return ""
-    
+
     return ""
 
 
 def _convert_openai_filter_to_elasticsearch(filter_obj: Any) -> list[dict[str, Any]]:
     """
     Convert OpenAI filter format to Elasticsearch query DSL format.
-    
+
     Args:
         filter_obj: ComparisonFilter or CompoundFilter object
-        
+
     Returns:
         List of dictionaries in Elasticsearch query DSL format
     """
     # Handle ComparisonFilter
-    if hasattr(filter_obj, 'key') and hasattr(filter_obj, 'type') and hasattr(filter_obj, 'value'):
+    if (
+        hasattr(filter_obj, "key")
+        and hasattr(filter_obj, "type")
+        and hasattr(filter_obj, "value")
+    ):
         key = filter_obj.key
         op = filter_obj.type
         value = filter_obj.value
-        
+
         # Map OpenAI operators to Elasticsearch query DSL
         if op == "eq":
             return [{"term": {key: value}}]
@@ -316,21 +337,33 @@ def _convert_openai_filter_to_elasticsearch(filter_obj: Any) -> list[dict[str, A
         elif op == "in":
             return [{"terms": {key: value if isinstance(value, list) else [value]}}]
         elif op == "nin":
-            return [{"bool": {"must_not": [{"terms": {key: value if isinstance(value, list) else [value]}}]}}]
+            return [
+                {
+                    "bool": {
+                        "must_not": [
+                            {
+                                "terms": {
+                                    key: value if isinstance(value, list) else [value]
+                                }
+                            }
+                        ]
+                    }
+                }
+            ]
         else:
             logger.warning(f"Unknown operator: {op}")
             return []
-    
+
     # Handle CompoundFilter
-    elif hasattr(filter_obj, 'filters') and hasattr(filter_obj, 'type'):
+    elif hasattr(filter_obj, "filters") and hasattr(filter_obj, "type"):
         filter_type = filter_obj.type
         sub_filters = []
         for f in filter_obj.filters:
             sub_filters.extend(_convert_openai_filter_to_elasticsearch(f))
-        
+
         if not sub_filters:
             return []
-        
+
         if filter_type == "and":
             return [{"bool": {"must": sub_filters}}]
         elif filter_type == "or":
@@ -338,7 +371,7 @@ def _convert_openai_filter_to_elasticsearch(filter_obj: Any) -> list[dict[str, A
         else:
             logger.warning(f"Unknown compound filter type: {filter_type}")
             return []
-    
+
     return []
 
 
@@ -835,6 +868,7 @@ class ConfigurationResponse(BaseModel):
 
 # OpenAI-compatible vector store search models
 
+
 class RankingOptions(BaseModel):
     """Ranking options for vector store search."""
 
@@ -855,14 +889,7 @@ class RankingOptions(BaseModel):
     )
 
     model_config = {
-        "json_schema_extra": {
-            "examples": [
-                {
-                    "ranker": "auto",
-                    "score_threshold": 0.5
-                }
-            ]
-        }
+        "json_schema_extra": {"examples": [{"ranker": "auto", "score_threshold": 0.5}]}
     }
 
 
@@ -899,21 +926,9 @@ class ComparisonFilter(BaseModel):
     model_config = {
         "json_schema_extra": {
             "examples": [
-                {
-                    "key": "author",
-                    "type": "eq",
-                    "value": "John Doe"
-                },
-                {
-                    "key": "page_number",
-                    "type": "gte",
-                    "value": 5
-                },
-                {
-                    "key": "category",
-                    "type": "in",
-                    "value": ["tech", "science"]
-                }
+                {"key": "author", "type": "eq", "value": "John Doe"},
+                {"key": "page_number", "type": "gte", "value": 5},
+                {"key": "category", "type": "in", "value": ["tech", "science"]},
             ]
         }
     }
@@ -947,17 +962,9 @@ class CompoundFilter(BaseModel):
                 {
                     "type": "and",
                     "filters": [
-                        {
-                            "key": "author",
-                            "type": "eq",
-                            "value": "John Doe"
-                        },
-                        {
-                            "key": "page_number",
-                            "type": "gte",
-                            "value": 5
-                        }
-                    ]
+                        {"key": "author", "type": "eq", "value": "John Doe"},
+                        {"key": "page_number", "type": "gte", "value": 5},
+                    ],
                 }
             ]
         }
@@ -1034,41 +1041,27 @@ class VectorStoreSearchRequest(BaseModel):
                 {
                     "query": "What is the return policy?",
                     "max_num_results": 10,
-                    "ranking_options": {
-                        "ranker": "auto",
-                        "score_threshold": 0.5
-                    },
+                    "ranking_options": {"ranker": "auto", "score_threshold": 0.5},
                     "filters": {
                         "type": "and",
                         "filters": [
-                            {
-                                "key": "author",
-                                "type": "eq",
-                                "value": "John Doe"
-                            },
-                            {
-                                "key": "page_number",
-                                "type": "gte",
-                                "value": 5
-                            }
-                        ]
+                            {"key": "author", "type": "eq", "value": "John Doe"},
+                            {"key": "page_number", "type": "gte", "value": 5},
+                        ],
                     },
-                    "rewrite_query": False
+                    "rewrite_query": False,
                 },
                 {
                     "query": "machine learning basics",
                     "max_num_results": 5,
-                    "ranking_options": {
-                        "ranker": "none",
-                        "score_threshold": 0.0
-                    },
+                    "ranking_options": {"ranker": "none", "score_threshold": 0.0},
                     "filters": {
                         "key": "category",
                         "type": "in",
-                        "value": ["tech", "science"]
+                        "value": ["tech", "science"],
                     },
-                    "rewrite_query": True
-                }
+                    "rewrite_query": True,
+                },
             ]
         }
     }
@@ -1126,7 +1119,9 @@ async def request_validation_exception_handler(
 @app.get("/v1/docs", include_in_schema=False)
 async def v1_docs():
     """Swagger UI documentation for v1 API."""
-    return get_swagger_ui_html(openapi_url="/v1/openapi.json", title="NVIDIA RAG API v1")
+    return get_swagger_ui_html(
+        openapi_url="/v1/openapi.json", title="NVIDIA RAG API v1"
+    )
 
 
 @app.get("/v1/openapi.json", include_in_schema=False)
@@ -1145,7 +1140,9 @@ async def v1_openapi():
 @app.get("/v2/docs", include_in_schema=False)
 async def v2_docs():
     """Swagger UI documentation for v2 API."""
-    return get_swagger_ui_html(openapi_url="/v2/openapi.json", title="NVIDIA RAG API v2 (OpenAI Compatible)")
+    return get_swagger_ui_html(
+        openapi_url="/v2/openapi.json", title="NVIDIA RAG API v2 (OpenAI Compatible)"
+    )
 
 
 @app.get("/v2/openapi.json", include_in_schema=False)
@@ -1156,7 +1153,12 @@ async def v2_openapi():
         version="2.0.0",
         description="OpenAI-compatible API endpoints for NVIDIA RAG server Blueprint. This version includes enhanced OpenAI-compatible endpoints.",
         routes=v2_router.routes,
-        tags=[{"name": "Retrieval APIs", "description": "OpenAI-compatible APIs for retrieving document chunks."}],
+        tags=[
+            {
+                "name": "Retrieval APIs",
+                "description": "OpenAI-compatible APIs for retrieving document chunks.",
+            }
+        ],
     )
 
 
@@ -1165,6 +1167,7 @@ async def v2_openapi():
 async def default_docs():
     """Redirect to v1 docs for backward compatibility."""
     from fastapi.responses import RedirectResponse
+
     return RedirectResponse(url="/v1/docs")
 
 
@@ -1172,6 +1175,7 @@ async def default_docs():
 async def default_openapi():
     """Redirect to v1 openapi for backward compatibility."""
     from fastapi.responses import RedirectResponse
+
     return RedirectResponse(url="/v1/openapi.json")
 
 
@@ -1726,15 +1730,15 @@ async def _vector_store_search_impl(
 ) -> JSONResponse:
     """
     OpenAI-compatible vector store search endpoint.
-    
+
     Search within a vector store using natural language queries.
     This endpoint maps to the existing /search functionality with OpenAI-compatible schema.
-    
+
     Args:
         request: FastAPI request object
         vector_store_id: The ID of the vector store (collection name) to search
         search_request: Search request parameters
-        
+
     Returns:
         JSONResponse: Search results in OpenAI-compatible format
     """
@@ -1808,7 +1812,7 @@ async def _vector_store_search_impl(
             elif ranker_value in ["auto", "true", "on", "enabled", "yes", "1"]:
                 enable_reranker = True
             # If ranker value is something else, keep the default from CONFIG
-            
+
             # Map score_threshold to confidence_threshold
             confidence_threshold = search_request.ranking_options.score_threshold
 
@@ -1816,29 +1820,36 @@ async def _vector_store_search_impl(
         filter_expr: str | list[dict[str, Any]] = ""
         if search_request.filters:
             # Log the original OpenAI filter
-            if hasattr(search_request.filters, 'model_dump'):
+            if hasattr(search_request.filters, "model_dump"):
                 original_filter = search_request.filters.model_dump()
-            elif hasattr(search_request.filters, 'dict'):
+            elif hasattr(search_request.filters, "dict"):
                 original_filter = search_request.filters.dict()
             else:
                 original_filter = search_request.filters
             logger.info(f"Original OpenAI filter: {original_filter}")
-            
+
             # Convert OpenAI filter format to the appropriate format based on vector store
             if CONFIG.vector_store.name == "milvus":
                 # Convert to Milvus string format
-                filter_expr = _convert_openai_filter_to_milvus_string(search_request.filters)
+                filter_expr = _convert_openai_filter_to_milvus_string(
+                    search_request.filters
+                )
                 logger.info(f"✓ Converted filter to Milvus format: {filter_expr}")
             elif CONFIG.vector_store.name == "elasticsearch":
                 # Convert to Elasticsearch query DSL format
-                filter_expr = _convert_openai_filter_to_elasticsearch(search_request.filters)
-                logger.info(f"✓ Converted filter to Elasticsearch format: {json.dumps(filter_expr, indent=2)}")
+                filter_expr = _convert_openai_filter_to_elasticsearch(
+                    search_request.filters
+                )
+                logger.info(
+                    f"✓ Converted filter to Elasticsearch format: {json.dumps(filter_expr, indent=2)}"
+                )
             else:
-                logger.warning(f"Unsupported vector store: {CONFIG.vector_store.name}. Filter will be empty.")
+                logger.warning(
+                    f"Unsupported vector store: {CONFIG.vector_store.name}. Filter will be empty."
+                )
                 filter_expr = ""
         else:
             logger.info("No filters provided in request")
-            
 
         # Process query to handle multimodal content
         query_processed = search_request.query
@@ -1908,14 +1919,20 @@ async def _vector_store_search_impl(
         # Transform internal response to OpenAI format
         # internal_response is a Citations object (Pydantic model), not a dict
         data = []
-        results = internal_response.results if hasattr(internal_response, 'results') else []
-        
+        results = (
+            internal_response.results if hasattr(internal_response, "results") else []
+        )
+
         logger.info(f"✓ Backend returned {len(results)} results")
 
         for result in results:
             # Generate file_id from document_id or document_name
             # result is a SourceResult object (Pydantic model)
-            file_id = result.document_id if result.document_id else f"file_{abs(hash(result.document_name))}"
+            file_id = (
+                result.document_id
+                if result.document_id
+                else f"file_{abs(hash(result.document_name))}"
+            )
 
             # Extract content
             content_text = result.content
@@ -1938,7 +1955,7 @@ async def _vector_store_search_impl(
                 "location": metadata.location,
                 "location_max_dimensions": metadata.location_max_dimensions,
             }
-            
+
             # Add content_metadata if present
             if metadata.content_metadata:
                 attributes["content_metadata"] = metadata.content_metadata
@@ -2014,7 +2031,7 @@ async def _vector_store_search_impl(
         400: {
             "description": "Bad Request",
             "content": {
-                "application/json": { 
+                "application/json": {
                     "example": {"detail": "Invalid request parameters"}
                 }
             },
@@ -2044,17 +2061,17 @@ async def vector_store_search(
 ) -> JSONResponse:
     """
     OpenAI-compatible vector store search endpoint (v2 only).
-    
+
     This is the primary OpenAI-compatible endpoint for vector store search.
     Search within a vector store using natural language queries with full OpenAI API compatibility.
-    
+
     **Note:** This endpoint is exclusive to the v2 API and is not available in v1.
-    
+
     Args:
         request: FastAPI request object
         vector_store_id: The ID of the vector store (collection name) to search
         search_request: Search request parameters in OpenAI format
-        
+
     Returns:
         JSONResponse: Search results in OpenAI-compatible format
     """

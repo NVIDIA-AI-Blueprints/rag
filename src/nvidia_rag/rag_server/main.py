@@ -94,10 +94,10 @@ from nvidia_rag.utils.llm import (
     get_prompts,
     get_streaming_filter_think_parser_async,
 )
+from nvidia_rag.utils.observability.otel_metrics import OtelMetrics
 from nvidia_rag.utils.reranker import get_ranking_model
 from nvidia_rag.utils.vdb import _get_vdb_op
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
-from nvidia_rag.utils.observability.otel_metrics import OtelMetrics
 
 
 async def _async_iter(items) -> AsyncGenerator[Any, None]:
@@ -881,23 +881,24 @@ class NvidiaRAG:
             # 2. Query combination: Concatenates history for retrieval, keeps original for specific tasks
             if messages and not is_image_query:
                 # Check CONVERSATION_HISTORY setting
-                conversation_history_count = int(os.environ.get("CONVERSATION_HISTORY", 0))
-                
-                if enable_query_rewriting:
-                    # Check if query rewriter is available (fails early if not)
-                    if self.query_rewriter_llm is None:
-                        raise APIError(
-                            "Query rewriting is enabled but the query rewriter NIM is unavailable. "
-                            f"Please verify the service is running at {self.config.query_rewriter.server_url}.",
-                            ErrorCodeMapping.SERVICE_UNAVAILABLE,
-                        )
+                conversation_history_count = int(
+                    os.environ.get("CONVERSATION_HISTORY", 0)
+                )
 
+                if enable_query_rewriting:
                     # Skip query rewriting if conversation history is disabled
                     if conversation_history_count == 0:
                         logger.warning(
                             "Query rewriting is enabled but CONVERSATION_HISTORY is set to 0. "
                             "Query rewriting requires conversation history to work effectively. "
                             "Skipping query rewriting. Set CONVERSATION_HISTORY > 0 to enable query rewriting."
+                        )
+                    # Check if query rewriter is available (fails early if not)
+                    elif self.query_rewriter_llm is None:
+                        raise APIError(
+                            "Query rewriting is enabled but the query rewriter NIM is unavailable. "
+                            f"Please verify the service is running at {self.config.query_rewriter.server_url}.",
+                            ErrorCodeMapping.SERVICE_UNAVAILABLE,
                         )
                     else:
                         # conversation is tuple so it should be multiple of two
@@ -927,7 +928,9 @@ class NvidiaRAG:
                         system_prompt = query_rewriter_prompt_config.get(
                             "system", contextualize_q_system_prompt
                         )
-                        human_prompt = query_rewriter_prompt_config.get("human", "{input}")
+                        human_prompt = query_rewriter_prompt_config.get(
+                            "human", "{input}"
+                        )
 
                         # Format conversation history as a string
                         formatted_history = ""
@@ -968,24 +971,26 @@ class NvidiaRAG:
                         except Exception as e:
                             logger.warning("Could not format prompt for logging: %s", e)
 
-                    try:
-                        retriever_query = await q_prompt.ainvoke(
-                            {"input": query, "chat_history": formatted_history}
-                        )
-                    except (ConnectionError, OSError, Exception) as e:
-                        # Wrap connection errors from query rewriter LLM
-                        if isinstance(e, APIError):
-                            raise
-                        query_rewriter_url = self.config.query_rewriter.server_url
-                        endpoint_msg = (
-                            f" at {query_rewriter_url}" if query_rewriter_url else ""
-                        )
-                        raise APIError(
-                            f"Query rewriter LLM NIM unavailable{endpoint_msg}. Please verify the service is running and accessible or disable query rewriting.",
-                            ErrorCodeMapping.SERVICE_UNAVAILABLE,
-                        ) from e
+                        try:
+                            retriever_query = await q_prompt.ainvoke(
+                                {"input": query, "chat_history": formatted_history}
+                            )
+                        except (ConnectionError, OSError, Exception) as e:
+                            # Wrap connection errors from query rewriter LLM
+                            if isinstance(e, APIError):
+                                raise
+                            query_rewriter_url = self.config.query_rewriter.server_url
+                            endpoint_msg = (
+                                f" at {query_rewriter_url}"
+                                if query_rewriter_url
+                                else ""
+                            )
+                            raise APIError(
+                                f"Query rewriter LLM NIM unavailable{endpoint_msg}. Please verify the service is running and accessible or disable query rewriting.",
+                                ErrorCodeMapping.SERVICE_UNAVAILABLE,
+                            ) from e
 
-                    logger.info("Rewritten Query: %s", retriever_query)
+                        logger.info("Rewritten Query: %s", retriever_query)
 
                         # When query rewriting is enabled, we can use it as processed_query for other modules
                         processed_query = retriever_query
@@ -1004,7 +1009,10 @@ class NvidiaRAG:
                         logger.info("Combined retriever query: %s", retriever_query)
                     else:
                         # Use only the current query, ignore conversation history
-                        logger.info("Using only current query: %s for retrieval (conversation history disabled)", retriever_query)
+                        logger.info(
+                            "Using only current query: %s for retrieval (conversation history disabled)",
+                            retriever_query,
+                        )
 
             if enable_filter_generator and not is_image_query:
                 if self.config.vector_store.name != "milvus":
@@ -1839,99 +1847,113 @@ class NvidiaRAG:
             # 2. Query combination: Concatenates history for retrieval, keeps original for specific tasks
             if chat_history and not is_image_query:
                 if enable_query_rewriting:
+                    # Skip query rewriting if conversation history is disabled
+                    if conversation_history_count == 0:
+                        logger.warning(
+                            "Query rewriting is enabled but CONVERSATION_HISTORY is set to 0. "
+                            "Query rewriting requires conversation history to work effectively. "
+                            "Skipping query rewriting. Set CONVERSATION_HISTORY > 0 to enable query rewriting."
+                        )
                     # Check if query rewriter is available (fails early if not)
-                    if self.query_rewriter_llm is None:
+                    # Only check if we actually need it (CONVERSATION_HISTORY > 0)
+                    elif self.query_rewriter_llm is None:
                         raise APIError(
                             "Query rewriting is enabled but the query rewriter NIM is unavailable. "
                             f"Please verify the service is running at {self.config.query_rewriter.server_url}.",
                             ErrorCodeMapping.SERVICE_UNAVAILABLE,
                         )
+                    else:
+                        # Based on conversation history recreate query for better
+                        # document retrieval
+                        contextualize_q_system_prompt = (
+                            "Given a chat history and the latest user question "
+                            "which might reference context in the chat history, "
+                            "formulate a standalone question which can be understood "
+                            "without the chat history. Do NOT answer the question, "
+                            "just reformulate it if needed and otherwise return it as is."
+                        )
+                        query_rewriter_prompt_config = self.prompts.get(
+                            "query_rewriter_prompt", {}
+                        )
+                        system_prompt = query_rewriter_prompt_config.get(
+                            "system", contextualize_q_system_prompt
+                        )
+                        human_prompt = query_rewriter_prompt_config.get(
+                            "human", "{input}"
+                        )
 
-                    # Based on conversation history recreate query for better
-                    # document retrieval
-                    contextualize_q_system_prompt = (
-                        "Given a chat history and the latest user question "
-                        "which might reference context in the chat history, "
-                        "formulate a standalone question which can be understood "
-                        "without the chat history. Do NOT answer the question, "
-                        "just reformulate it if needed and otherwise return it as is."
-                    )
-                    query_rewriter_prompt_config = self.prompts.get(
-                        "query_rewriter_prompt", {}
-                    )
-                    system_prompt = query_rewriter_prompt_config.get(
-                        "system", contextualize_q_system_prompt
-                    )
-                    human_prompt = query_rewriter_prompt_config.get("human", "{input}")
+                        # Format conversation history as a string
+                        formatted_history = ""
+                        if conversation_history:
+                            formatted_history = "\n".join(
+                                [
+                                    f"{role.capitalize()}: {content}"
+                                    for role, content in conversation_history
+                                ]
+                            )
 
-                    # Format conversation history as a string
-                    formatted_history = ""
-                    if conversation_history:
-                        formatted_history = "\n".join(
+                        contextualize_q_prompt = ChatPromptTemplate.from_messages(
                             [
-                                f"{role.capitalize()}: {content}"
-                                for role, content in conversation_history
+                                ("system", system_prompt),
+                                ("human", human_prompt),
                             ]
                         )
-
-                    contextualize_q_prompt = ChatPromptTemplate.from_messages(
-                        [
-                            ("system", system_prompt),
-                            ("human", human_prompt),
-                        ]
-                    )
-                    q_prompt = (
-                        contextualize_q_prompt
-                        | self.query_rewriter_llm
-                        | self.StreamingFilterThinkParser
-                        | StrOutputParser()
-                    )
-                    # query to be used for document retrieval
-                    # logger.info("Query rewriter prompt: %s", contextualize_q_prompt)
-
-                    # Log the complete prompt that will be sent to LLM
-                    try:
-                        formatted_prompt = contextualize_q_prompt.format_messages(
-                            input=retriever_query, chat_history=formatted_history
+                        q_prompt = (
+                            contextualize_q_prompt
+                            | self.query_rewriter_llm
+                            | self.StreamingFilterThinkParser
+                            | StrOutputParser()
                         )
-                        logger.info("Complete query rewriter prompt sent to LLM:")
-                        for i, message in enumerate(formatted_prompt):
-                            logger.info(
-                                "  Message %d [%s]: %s",
-                                i,
-                                message.type,
-                                message.content,
+                        # query to be used for document retrieval
+                        # logger.info("Query rewriter prompt: %s", contextualize_q_prompt)
+
+                        # Log the complete prompt that will be sent to LLM
+                        try:
+                            formatted_prompt = contextualize_q_prompt.format_messages(
+                                input=retriever_query, chat_history=formatted_history
                             )
-                    except Exception as e:
-                        logger.warning("Could not format prompt for logging: %s", e)
+                            logger.info("Complete query rewriter prompt sent to LLM:")
+                            for i, message in enumerate(formatted_prompt):
+                                logger.info(
+                                    "  Message %d [%s]: %s",
+                                    i,
+                                    message.type,
+                                    message.content,
+                                )
+                        except Exception as e:
+                            logger.warning("Could not format prompt for logging: %s", e)
 
-                    try:
-                        retriever_query = await q_prompt.ainvoke(
-                            {
-                                "input": retriever_query,
-                                "chat_history": formatted_history,
-                            },
-                            config={"run_name": "query-rewriter"},
+                        try:
+                            retriever_query = await q_prompt.ainvoke(
+                                {
+                                    "input": retriever_query,
+                                    "chat_history": formatted_history,
+                                },
+                                config={"run_name": "query-rewriter"},
+                            )
+                        except (ConnectionError, OSError, Exception) as e:
+                            # Wrap connection errors from query rewriter LLM
+                            if isinstance(e, APIError):
+                                raise
+                            query_rewriter_url = self.config.query_rewriter.server_url
+                            endpoint_msg = (
+                                f" at {query_rewriter_url}"
+                                if query_rewriter_url
+                                else ""
+                            )
+                            raise APIError(
+                                f"Query rewriter LLM NIM unavailable{endpoint_msg}. Please verify the service is running and accessible or disable query rewriting.",
+                                ErrorCodeMapping.SERVICE_UNAVAILABLE,
+                            ) from e
+
+                        logger.info(
+                            "Rewritten Query: %s %s",
+                            retriever_query,
+                            len(retriever_query),
                         )
-                    except (ConnectionError, OSError, Exception) as e:
-                        # Wrap connection errors from query rewriter LLM
-                        if isinstance(e, APIError):
-                            raise
-                        query_rewriter_url = self.config.query_rewriter.server_url
-                        endpoint_msg = (
-                            f" at {query_rewriter_url}" if query_rewriter_url else ""
-                        )
-                        raise APIError(
-                            f"Query rewriter LLM NIM unavailable{endpoint_msg}. Please verify the service is running and accessible or disable query rewriting.",
-                            ErrorCodeMapping.SERVICE_UNAVAILABLE,
-                        ) from e
 
-                    logger.info(
-                        "Rewritten Query: %s %s", retriever_query, len(retriever_query)
-                    )
-
-                    # When query rewriting is enabled, we can use it as processed_query for other modules
-                    processed_query = retriever_query
+                        # When query rewriting is enabled, we can use it as processed_query for other modules
+                        processed_query = retriever_query
                 else:
                     # Query combination strategy: Concatenate history for better retrieval context
                     # Note: processed_query remains unchanged (original query) for clean task processing
@@ -1947,7 +1969,10 @@ class NvidiaRAG:
                         logger.info("Combined retriever query: %s", retriever_query)
                     else:
                         # Use only the current query, ignore conversation history
-                        logger.info("Using only current query %s for retrieval (conversation history disabled)", retriever_query)
+                        logger.info(
+                            "Using only current query %s for retrieval (conversation history disabled)",
+                            retriever_query,
+                        )
 
             if enable_filter_generator and not is_image_query:
                 if self.config.vector_store.name != "milvus":

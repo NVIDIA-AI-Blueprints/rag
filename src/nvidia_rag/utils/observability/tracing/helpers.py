@@ -28,7 +28,7 @@ import asyncio
 from collections.abc import Awaitable, Callable, Iterable, Mapping
 from contextlib import contextmanager
 from functools import wraps
-from typing import Any, TypeVar, Union
+from typing import Any, TypeVar
 
 from opentelemetry import trace
 from opentelemetry.trace import Span, Status, StatusCode, Tracer
@@ -37,7 +37,7 @@ DEFAULT_TRACER_NAME = "nvidia_rag"
 T = TypeVar("T")
 AsyncFn = Callable[..., Awaitable[T]]
 SyncFn = Callable[..., T]
-Function = Union[AsyncFn[T], SyncFn[T]]
+Function = AsyncFn[T] | SyncFn[T]
 
 
 def _normalize_text(value: str | None) -> str:
@@ -156,12 +156,12 @@ def process_nv_ingest_traces(
         entry_times = [
             _normalize_timestamp(value)
             for key, value in trace_record.items()
-            if key.startswith("trace::entry::") and isinstance(value, (int, float))
+            if key.startswith("trace::entry::") and isinstance(value, int | float)
         ]
         exit_times = [
             _normalize_timestamp(value)
             for key, value in trace_record.items()
-            if key.startswith("trace::exit::") and isinstance(value, (int, float))
+            if key.startswith("trace::exit::") and isinstance(value, int | float)
         ]
         if not entry_times or not exit_times:
             return 0
@@ -176,12 +176,12 @@ def process_nv_ingest_traces(
         entry_events = {
             key.removeprefix("trace::entry::"): _normalize_timestamp(value)
             for key, value in largest_trace.items()
-            if key.startswith("trace::entry::") and isinstance(value, (int, float))
+            if key.startswith("trace::entry::") and isinstance(value, int | float)
         }
         exit_events = {
             key.removeprefix("trace::exit::"): _normalize_timestamp(value)
             for key, value in largest_trace.items()
-            if key.startswith("trace::exit::") and isinstance(value, (int, float))
+            if key.startswith("trace::exit::") and isinstance(value, int | float)
         }
 
         if not entry_events or not exit_events:
@@ -250,9 +250,15 @@ def process_nv_ingest_traces(
                         child_span.end(end_time=end_time)
             finally:
                 parent_span.end(end_time=parent_end)
-    except Exception:
+    except Exception as e:
         # Tracing should be best-effort and must not break ingestion flows.
-        trace.get_tracer(__name__).get_current_span().record_exception  # pragma: no cover
+        try:
+            span = trace.get_tracer(__name__).get_current_span()
+            if span:
+                span.record_exception(e)  # pragma: no cover
+        except Exception:
+            # Ignore any errors during exception recording
+            pass
         # We intentionally swallow errors here.
         return
 
@@ -275,4 +281,3 @@ def create_nv_ingest_trace_context(
     if batch_number is not None:
         context["batch_number"] = batch_number
     return context
-

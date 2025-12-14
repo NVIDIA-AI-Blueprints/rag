@@ -134,6 +134,7 @@ class SplitOptions(BaseModel):
         description="Number of overlapping units between consecutive splits.",
     )
 
+
 @trace_function("ingestor.server.extract_vdb_auth_token", tracer=TRACER)
 def _extract_vdb_auth_token(request: Request) -> str | None:
     """Extract bearer token from Authorization header (e.g., 'Bearer <token>')."""
@@ -1081,9 +1082,10 @@ async def create_collections(
         },
     },
 )
-
 @trace_function("ingestor.server.create_collection", tracer=TRACER)
-async def create_collection(request: Request, data: CreateCollectionRequest) -> CreateCollectionResponse:
+async def create_collection(
+    request: Request, data: CreateCollectionRequest
+) -> CreateCollectionResponse:
     """
     Endpoint to create a collection with catalog metadata.
     Returns status message.

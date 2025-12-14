@@ -83,14 +83,14 @@ from nvidia_rag.utils.minio_operator import (
     get_unique_thumbnail_id_file_name_prefix,
     get_unique_thumbnail_id_from_result,
 )
-from nvidia_rag.utils.summarization import generate_document_summaries
-from nvidia_rag.utils.summary_status_handler import SUMMARY_STATUS_HANDLER
 from nvidia_rag.utils.observability.tracing import (
     create_nv_ingest_trace_context,
     get_tracer,
     process_nv_ingest_traces,
     trace_function,
 )
+from nvidia_rag.utils.summarization import generate_document_summaries
+from nvidia_rag.utils.summary_status_handler import SUMMARY_STATUS_HANDLER
 from nvidia_rag.utils.vdb import DEFAULT_DOCUMENT_INFO_COLLECTION, _get_vdb_op
 from nvidia_rag.utils.vdb.elasticsearch.es_queries import get_delete_document_info_query
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
@@ -711,7 +711,14 @@ class NvidiaRAGIngestor:
         filename_to_result_map = {}
         for result in results:
             if len(result) > 0:
-                filename_to_result_map[os.path.basename(result[0].get("metadata").get("source_metadata").get("source_id"))] = result
+                filename_to_result_map[
+                    os.path.basename(
+                        result[0]
+                        .get("metadata")
+                        .get("source_metadata")
+                        .get("source_id")
+                    )
+                ] = result
 
         # Generate response dictionary
         uploaded_documents = []
@@ -2113,7 +2120,6 @@ class NvidiaRAGIngestor:
 
             logger.info("Shallow extraction complete, starting deep ingestion")
 
-
     @trace_function("ingestor.main.run_nvingest_batched_ingestion", tracer=TRACER)
     async def __run_nvingest_batched_ingestion(
         self,
@@ -2482,7 +2488,7 @@ class NvidiaRAGIngestor:
 
             if future.done():
                 break
-        
+
         if nv_ingest_traces:
             results, failures, traces = await async_future
 
@@ -2493,7 +2499,9 @@ class NvidiaRAGIngestor:
                     span_namespace=trace_context.get("span_namespace", "nv_ingest"),
                     collection_name=trace_context.get("collection_name"),
                     batch_number=trace_context.get("batch_number"),
-                    reference_time_ns=trace_context.get("reference_time_ns", ingest_start_ns),
+                    reference_time_ns=trace_context.get(
+                        "reference_time_ns", ingest_start_ns
+                    ),
                 )
 
             return results, failures
@@ -2590,7 +2598,9 @@ class NvidiaRAGIngestor:
             failure_records = [(filepath, e) for filepath in filepaths]
             return [], failure_records
 
-    @trace_function("ingestor.main.perform_file_ext_based_nv_ingest_ingestion", tracer=TRACER)
+    @trace_function(
+        "ingestor.main.perform_file_ext_based_nv_ingest_ingestion", tracer=TRACER
+    )
     async def _perform_file_ext_based_nv_ingest_ingestion(
         self,
         batch_number: int,
@@ -2670,7 +2680,10 @@ class NvidiaRAGIngestor:
                 logger.info(
                     f"Performing ingestion for PDF files for batch {batch_number} with parameters: {split_options}"
                 )
-                results_pdf, failures_pdf = await self.__perform_async_nv_ingest_ingestion(
+                (
+                    results_pdf,
+                    failures_pdf,
+                ) = await self.__perform_async_nv_ingest_ingestion(
                     nv_ingest_ingestor=nv_ingest_ingestor,
                     state_manager=state_manager,
                     nv_ingest_traces=True,
@@ -2705,7 +2718,10 @@ class NvidiaRAGIngestor:
                 logger.info(
                     f"Performing ingestion for non-PDF files for batch {batch_number} with parameters: {split_options}"
                 )
-                results_non_pdf, failures_non_pdf = await self.__perform_async_nv_ingest_ingestion(
+                (
+                    results_non_pdf,
+                    failures_non_pdf,
+                ) = await self.__perform_async_nv_ingest_ingestion(
                     nv_ingest_ingestor=nv_ingest_ingestor,
                     state_manager=state_manager,
                     nv_ingest_traces=True,

@@ -45,8 +45,8 @@ from nvidia_rag.utils.health_models import (
     TaskManagementHealthInfo,
 )
 from nvidia_rag.utils.minio_operator import MinioOperator
-from nvidia_rag.utils.vdb.vdb_base import VDBRag
 from nvidia_rag.utils.observability.tracing import get_tracer, trace_function
+from nvidia_rag.utils.vdb.vdb_base import VDBRag
 
 logger = logging.getLogger(__name__)
 

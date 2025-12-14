@@ -17,10 +17,10 @@
 1. instrument(): Instrument the FastAPI app with OpenTelemetry.
 """
 
-from collections.abc import Callable, Sequence
-from functools import partial
 import logging
 import os
+from collections.abc import Callable, Sequence
+from functools import partial
 
 from fastapi import FastAPI
 from opentelemetry import metrics, trace
@@ -51,6 +51,7 @@ class InvalidKindError(ValueError):
 
     def __init__(self, kind: str) -> None:
         super().__init__(f"Invalid kind: {kind}")
+
 
 try:
     from opentelemetry.sdk.extension.prometheus_multiprocess import (
