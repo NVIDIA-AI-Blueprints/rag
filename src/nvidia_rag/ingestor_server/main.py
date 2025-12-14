@@ -293,6 +293,9 @@ class NvidiaRAGIngestor:
             filepaths=filepaths,
             vdb_auth_token=vdb_auth_token,
         )
+
+        state_manager.collection_name = collection_name
+
         vdb_op.create_document_info_collection()
 
         # Set default values for mutable arguments
@@ -616,16 +619,6 @@ class NvidiaRAGIngestor:
                 state_manager=state_manager,
             )
 
-            # Apply catalog metadata for successfully ingested documents
-            if state_manager.documents_catalog_metadata:
-                await self.__apply_documents_catalog_metadata(
-                    results=results,
-                    vdb_op=vdb_op,
-                    collection_name=collection_name,
-                    documents_catalog_metadata=state_manager.documents_catalog_metadata,
-                    filepaths=filepaths,
-                )
-
             logger.info(
                 "== Overall Ingestion completed successfully in %s seconds ==",
                 time.time() - start_time,
@@ -639,6 +632,16 @@ class NvidiaRAGIngestor:
                 is_final_batch=True,
                 vdb_op=vdb_op,
             )
+
+            # Apply catalog metadata for successfully ingested documents
+            if state_manager.documents_catalog_metadata:
+                await self.__apply_documents_catalog_metadata(
+                    results=results,
+                    vdb_op=vdb_op,
+                    collection_name=collection_name,
+                    documents_catalog_metadata=state_manager.documents_catalog_metadata,
+                    filepaths=filepaths,
+                )
             ingestion_state = await state_manager.update_total_progress(
                 total_progress_response=response_data,
             )
@@ -727,13 +730,13 @@ class NvidiaRAGIngestor:
                     raw_text_elements_size=raw_text_elements_size,
                 )
 
-                if not is_final_batch:
-                    vdb_op.add_document_info(
-                        info_type="document",
-                        collection_name=state_manager.collection_name,
-                        document_name=os.path.basename(filepath),
-                        info_value=document_info,
-                    )
+                # Always add document info for each document
+                vdb_op.add_document_info(
+                    info_type="document",
+                    collection_name=state_manager.collection_name,
+                    document_name=os.path.basename(filepath),
+                    info_value=document_info,
+                )
                 uploaded_document = {
                     "document_id": str(uuid4()),
                     "document_name": os.path.basename(filepath),

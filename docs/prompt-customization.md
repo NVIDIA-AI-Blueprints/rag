@@ -79,6 +79,12 @@ The `prompt.yaml` file contains a set of prompt templates used throughout the RA
 - **Usage:** Produces streamlined summaries when `shallow_summary: true` is set during document ingestion. Uses a simplified prompt optimized for fast text-only processing without multimodal elements (tables, images, charts).
 - **Context:** Automatically selected when shallow extraction is enabled. For full multimodal extraction, `document_summary_prompt` is used instead. See [document summarization](./summarization.md) for details on shallow vs. full extraction.
 
+### 17. `filter_expression_generator_prompt`
+- **Purpose:** Converts natural language queries into precise metadata filter expressions for targeted document retrieval.
+- **Usage:** Automatically generates filter expressions when `enable_filter_generator: true` is set in the `/generate` or `/chat/completions` API. The LLM analyzes the user's query and the collection's metadata schema to create appropriate filters.
+- **Context:** This enables users to ask questions in natural language (e.g., "Show me Ford vehicles with infotainment features") and have the system automatically convert them into metadata filters (e.g., `content_metadata["manufacturer"] == "ford" AND array_contains(content_metadata["features"], "infotainment")`).
+- **Customization:** For domain-specific applications, customize this prompt to map industry terminology to your metadata fields. See the [Customizing Filter Expression Generator Prompt](./custom-metadata.md#customizing-filter-expression-generator-prompt) section for detailed examples and best practices.
+
 ---
 
 ## Overriding Existing Templates in `prompt.yaml`

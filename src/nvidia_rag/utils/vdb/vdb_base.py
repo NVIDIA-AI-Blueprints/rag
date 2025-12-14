@@ -105,8 +105,16 @@ class VDBRag(VDB):
         self,
         collection_name: str,
         source_values: list[str],
+        result_dict: dict[str, list[str]] | None = None,
     ) -> bool:
-        """Remove documents matching the specified source values."""
+        """Remove documents matching the specified source values.
+
+        Args:
+            collection_name: Name of the collection to delete from
+            source_values: List of source values to match for deletion
+            result_dict: Optional dict to populate with deletion results.
+                        Should contain "deleted" and "not_found" lists.
+        """
         pass
 
     @abstractmethod

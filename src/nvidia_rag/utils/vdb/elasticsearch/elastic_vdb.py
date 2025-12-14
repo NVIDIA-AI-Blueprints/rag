@@ -455,13 +455,38 @@ class ElasticVDB(VDBRag):
         """
         Delete a collection from the Elasticsearch index.
         """
-        _ = self._es_connection.indices.delete(
-            index=",".join(collection_names), ignore_unavailable=True
-        )
-        deleted_collections, failed_collections = collection_names, []
+        deleted_collections = []
+        failed_collections = []
+
+        for collection_name in collection_names:
+            try:
+                # Check if collection exists before attempting deletion
+                if self._check_index_exists(collection_name):
+                    # Delete the collection
+                    self._es_connection.indices.delete(
+                        index=collection_name, ignore_unavailable=False
+                    )
+                    deleted_collections.append(collection_name)
+                    logger.info(f"Deleted collection: {collection_name}")
+                else:
+                    # Collection doesn't exist - add to failed list
+                    failed_collections.append(
+                        {
+                            "collection_name": collection_name,
+                            "error_message": f"Collection {collection_name} not found.",
+                        }
+                    )
+                    logger.warning(f"Collection {collection_name} not found.")
+            except Exception as e:
+                # Error during deletion - add to failed list
+                failed_collections.append(
+                    {"collection_name": collection_name, "error_message": str(e)}
+                )
+                logger.error(f"Failed to delete collection {collection_name}: {str(e)}")
+
         logger.info(f"Collections deleted: {deleted_collections}")
 
-        # Delete the metadata schema and document info from the collection
+        # Delete the metadata schema and document info for successfully deleted collections
         for collection_name in deleted_collections:
             try:
                 _ = self._es_connection.delete_by_query(

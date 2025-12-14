@@ -464,6 +464,9 @@ class TestElasticVDB(unittest.TestCase):
         mock_es_connection.indices.delete.return_value = {"acknowledged": True}
         mock_es_connection.delete_by_query.return_value = {"deleted": 1}
 
+        # Mock _check_index_exists to return True for both collections
+        mock_es_connection.indices.exists.return_value = True
+
         mock_delete_query.return_value = {"query": "test_query"}
         mock_delete_doc_info_query.return_value = {"query": "test_doc_info_query"}
 
@@ -484,8 +487,14 @@ class TestElasticVDB(unittest.TestCase):
         }
 
         self.assertEqual(result, expected_result)
-        mock_es_connection.indices.delete.assert_called_once_with(
-            index="collection1,collection2", ignore_unavailable=True
+        # Now calls delete once per collection (2 times total)
+        self.assertEqual(mock_es_connection.indices.delete.call_count, 2)
+        # Check that delete was called with individual collections
+        mock_es_connection.indices.delete.assert_any_call(
+            index="collection1", ignore_unavailable=False
+        )
+        mock_es_connection.indices.delete.assert_any_call(
+            index="collection2", ignore_unavailable=False
         )
         # Now expects 4 calls: 2 for metadata schema and 2 for document info
         self.assertEqual(mock_es_connection.delete_by_query.call_count, 4)

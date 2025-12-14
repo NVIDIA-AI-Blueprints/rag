@@ -531,6 +531,149 @@ export APP_FILTEREXPRESSIONGENERATOR_SERVERURL=""
 - **All collections must support** the filter expression for the request to succeed
 - **No partial results** are returned - it's all or nothing
 
+## Customizing Filter Expression Generator Prompt
+
+The `filter_expression_generator_prompt` determines how natural language queries are converted into metadata filter expressions. Customizing this prompt is essential for domain-specific applications where industry terminology needs accurate mapping to your metadata fields.
+
+### When to Customize
+
+Customize the filter generator prompt when:
+
+1. **Domain-Specific Terminology**: Your industry uses specialized terms (e.g., automotive: "EV", "crossover"; medical: "MRI", "cardiology")
+2. **Abbreviations and Synonyms**: Users might refer to concepts in multiple ways
+3. **Complex Mappings**: Single user terms should map to multiple metadata conditions
+4. **Improved Accuracy**: Default prompt doesn't understand your field names or values
+
+### Example: Automotive Domain
+
+For an automotive documentation system with this schema:
+
+```json
+[
+    {"name": "manufacturer", "type": "string"},
+    {"name": "model", "type": "string"},
+    {"name": "year", "type": "number"},
+    {"name": "vehicle_type", "type": "string"},
+    {"name": "powertrain", "type": "string"},
+    {"name": "features", "type": "array", "array_type": "string"}
+]
+```
+
+Create `automotive_filter_prompt.yaml`:
+
+```yaml
+filter_expression_generator_prompt:
+  system: |
+    /no_think
+  
+  human: |
+    You are an expert AI filter expression generator for automotive documentation.
+
+    ### Domain-Specific Knowledge: Automotive ###
+
+    **Vehicle Types:**
+    - "SUV", "sport utility", "crossover" → content_metadata["vehicle_type"] in ["suv", "crossover"]
+    - "sedan", "car" → content_metadata["vehicle_type"] == "sedan"
+    - "truck", "pickup" → content_metadata["vehicle_type"] == "truck"
+    
+    **Powertrain/Energy:**
+    - "electric", "EV", "battery", "BEV" → content_metadata["powertrain"] == "electric"
+    - "hybrid", "PHEV", "plug-in" → content_metadata["powertrain"] == "hybrid"
+    - "gas", "gasoline", "petrol" → content_metadata["powertrain"] == "gas"
+    
+    **Features (map to features array):**
+    - "lane assist", "lane keeping" → array_contains(content_metadata["features"], "lane_assist")
+    - "adaptive cruise", "ACC" → array_contains(content_metadata["features"], "adaptive_cruise_control")
+    - "navigation", "GPS", "nav" → array_contains(content_metadata["features"], "navigation")
+    - "infotainment", "touchscreen" → array_contains(content_metadata["features"], "infotainment")
+
+    ### Primary Directive ###
+
+    ALWAYS generate a filter expression using domain knowledge above.
+
+    ### Schema ###
+
+    {metadata_schema}
+
+    ### Core Logic ###
+
+    1. Extract entities using domain knowledge
+    2. Field format: content_metadata["field_name"]
+    3. Operators: AND, OR, NOT
+
+    ### Your Task ###
+
+    {user_request}
+
+    ### Response Format ###
+
+    Return only the raw filter expression string.
+```
+
+### Apply Custom Prompt
+
+**Library Mode (Python Package):**
+
+You can customize the prompt when creating `NvidiaRAG` or `NvidiaRAGIngestor` instances:
+
+```python
+# Option 1: Pass as a YAML file path (recommended - use the file created above)
+rag = NvidiaRAG(config=config, prompts="automotive_filter_prompt.yaml")
+```
+
+```python
+# Option 2: Pass as a dictionary (load the YAML content into a dict)
+import yaml
+with open("automotive_filter_prompt.yaml") as f:
+    custom_prompts = yaml.safe_load(f)
+
+rag = NvidiaRAG(config=config, prompts=custom_prompts)
+```
+
+**Docker Compose:**
+```bash
+export PROMPT_CONFIG_FILE=/path/to/automotive_filter_prompt.yaml
+docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d
+```
+
+**Helm:**
+Edit `deploy/helm/nvidia-blueprint-rag/files/prompt.yaml` and update the `filter_expression_generator_prompt` section.
+
+### Results
+
+With customization, queries work correctly:
+
+| Query | Generated Filter |
+|-------|------------------|
+| "Show me electric SUVs" | `(content_metadata["powertrain"] == "electric" AND content_metadata["vehicle_type"] in ["suv", "crossover"])` |
+| "Ford vehicles with GPS" | `(content_metadata["manufacturer"] == "ford" AND array_contains(content_metadata["features"], "navigation"))` |
+| "2024 hybrid crossovers" | `(content_metadata["year"] == 2024 AND content_metadata["powertrain"] == "hybrid" AND content_metadata["vehicle_type"] == "crossover")` |
+
+### Tips for Effective Customization
+
+1. **List Common Terms**: Include all ways users might refer to concepts in your domain
+2. **Map Abbreviations**: Define mappings for industry abbreviations (EV, ACC, GPS, etc.)
+3. **Group Related Terms**: Organize mappings by category for clarity
+4. **Test with Real Queries**: Use actual user questions to refine mappings
+5. **Keep Core Structure**: Don't remove the core prompt logic, only add domain knowledge
+6. **Document Your Changes**: Comment your custom mappings for future maintenance
+
+### Testing Custom Prompts
+
+Test your custom prompt with the metadata filtering notebook:
+
+```python
+# Test with natural language query
+response = await rag.generate(
+    messages=[{"role": "user", "content": "Show me electric SUVs with lane assist"}],
+    use_knowledge_base=True,
+    collection_names=["automotive_manuals"],
+    enable_filter_generator=True
+)
+```
+
+Check the logs to verify the generated filter expression matches your expectations. Refine the prompt based on test results.
+
 ## Troubleshooting
 
 ### Common Issues
