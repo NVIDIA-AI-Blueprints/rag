@@ -238,7 +238,6 @@ After the first time you deploy the RAG Blueprint successfully, you can consider
 
 - [NVIDIA RAG Blueprint Documentation](readme.md)
 - [Best Practices for Common Settings](accuracy_perf.md).
-- [Conversation History Configuration](conversation-history.md)
 - [Multi-Turn Conversation Support](multiturn.md)
 - [RAG Pipeline Debugging Guide](debugging.md)
 - [Troubleshoot](troubleshooting.md)

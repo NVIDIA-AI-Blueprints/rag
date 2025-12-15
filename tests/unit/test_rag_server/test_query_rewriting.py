@@ -224,7 +224,7 @@ async def test_search_combines_history_when_multiturn_enabled(monkeypatch):
     from nvidia_rag.rag_server.main import NvidiaRAG
 
     # Enable multiturn retrieval via environment variable BEFORE creating NvidiaRAG instance
-    monkeypatch.setenv("MULTITURN_RETRIEVAL_SIMPLE", "True")
+    monkeypatch.setenv("MULTITURN_RETRIEVER_SIMPLE", "True")
     
     fake_vdb = DummyVDB()
     rag = NvidiaRAG()
@@ -318,7 +318,7 @@ async def test_generate_combines_history_when_multiturn_enabled(monkeypatch):
     
     # Enable multiturn retrieval via environment variable BEFORE creating NvidiaRAG instance
     # Also set CONVERSATION_HISTORY > 0 so chat_history is not empty
-    monkeypatch.setenv("MULTITURN_RETRIEVAL_SIMPLE", "True")
+    monkeypatch.setenv("MULTITURN_RETRIEVER_SIMPLE", "True")
     monkeypatch.setenv("CONVERSATION_HISTORY", "5")
     
     fake_vdb = DummyVDB()

@@ -507,7 +507,7 @@ class QueryRewriterConfig(_ConfigBase):
     )
     multiturn_retrieval_simple: bool = Field(
         default=False,
-        env="MULTITURN_RETRIEVAL_SIMPLE",
+        env="MULTITURN_RETRIEVER_SIMPLE",
         description="Enable concatenating conversation history with current query for retrieval (used when query rewriter is disabled)",
     )
 
