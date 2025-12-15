@@ -22,9 +22,9 @@ This release contains the following key changes:
   - Shallow summarization support
   - Easy model switches and dedicated configurations
   - Ease of prompt changes
-  - Document-level summarization support with the ability to show summary for a given document
-- [Dedicated service specfific API keys](./api-key.md#service-specific-api-keys)
+- [Dedicated service specific API keys](./api-key.md#service-specific-api-keys)
   - Facilitates Non-NIM model support - Support hosted endpoints by openAI, NIM hosted on AWS/AZure, OSS models (e.g. Qwen)
+- Updated VLM model to nemotron-nano-12b-v2-vl for inference
 - Support passing image+text as input query. For details, refer to [Multimodal Query Support](multimodal-query.md).
   - Added [a new notebook](../notebooks/image_input.ipynb) showcasing this feature.
 - LLM NIM Thinking budget - support using thinking budget control to keep balance between accuracy & performance. For details, refer to [Enable Reasoning](enable-nemotron-thinking.md).
@@ -38,10 +38,9 @@ This release contains the following key changes:
   - RAG functionality exposed as MCP (Model Context Protocol) server for tool integration. For details, refer to [MCP Server and Client Usage](mcp.md) and the [MCP server usage notebook](../notebooks/mcp_server_usage.ipynb).
   - OpenAI compatible search endpoint for seamless integration with OpenAI tools. For details, refer to [API - RAG Server Schema](api-rag.md).
   - Collection-level data catalog with support for collection descriptions and metadata. For details, refer to [Data Catalog](data-catalog.md).
-  - Custom ingestion interface with Docling integration showcase
 - Observability improvements. For details, refer to [Observability Setup](observability.md).
   - Ingestion metrics endpoint support with OTEL (OpenTelemetry) for monitoring document uploads, elements ingested, and pages processed
-- Enhanced /status endpoint publishing ingestion metrics and status information. Refer to the ingestion notebook
+- Enhanced /status endpoint publishing ingestion metrics and status information in a more granular way. Refer to the [ingestion notebook](../notebooks/ingestion_api_usage.ipynb).
 - RAG library mode enhancements. For details, refer to [Use the NVIDIA RAG Blueprint Python Package](python-client.md) and the [RAG library usage notebook](../notebooks/rag_library_usage.ipynb).
   - Independent multi-instance support for RAG Server and Ingestor Server
   - Configuration support through function arguments
