@@ -28,6 +28,7 @@ import pytest
 from nvidia_rag.ingestor_server.main import Mode, NvidiaRAGIngestor
 from nvidia_rag.utils.vdb.milvus.milvus_vdb import MilvusClient
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
+from nvidia_rag.utils.vdb.vdb_ingest_base import VDBRagIngest
 
 
 class TestNvidiaRAGIngestorCoverageImprovement:
@@ -157,7 +158,7 @@ class TestNvidiaRAGIngestorCoverageImprovement:
     @pytest.mark.asyncio
     async def test_upload_documents_validation_failed_path(self):
         """Test upload_documents when validation fails (lines 320-341)."""
-        mock_vdb_op = Mock(spec=VDBRag)
+        mock_vdb_op = Mock(spec=VDBRagIngest)
         mock_vdb_op.check_collection_exists.return_value = True
         mock_vdb_op.get_metadata_schema.return_value = []
         mock_vdb_op.get_documents.return_value = []
@@ -685,7 +686,7 @@ class TestNvidiaRAGIngestorCoverageImprovement:
     @pytest.mark.asyncio
     async def test_validation_error_handling(self):
         """Test validation error handling paths."""
-        mock_vdb_op = Mock(spec=VDBRag)
+        mock_vdb_op = Mock(spec=VDBRagIngest)
         mock_vdb_op.check_collection_exists.return_value = True
         mock_vdb_op.get_metadata_schema.return_value = []
         mock_vdb_op.get_documents.return_value = []
