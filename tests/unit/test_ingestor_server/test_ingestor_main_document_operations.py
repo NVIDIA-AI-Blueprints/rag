@@ -457,7 +457,7 @@ class TestNvidiaRAGIngestorCoverageImprovement:
         mock_vdb_op = Mock(spec=VDBRag)
 
         # Mock delete_documents to populate result_dict
-        def mock_delete_documents(collection_name, source_values, result_dict=None):
+        def mock_delete_documents(_collection_name, _source_values, result_dict=None):
             if result_dict is not None:
                 result_dict["deleted"] = ["doc1", "doc2"]
                 result_dict["not_found"] = []
@@ -725,7 +725,7 @@ class TestNvidiaRAGIngestorCoverageImprovement:
         """Test that collection info is recalculated from remaining documents after deletion."""
         mock_vdb_op = Mock(spec=VDBRag)
 
-        def mock_delete_documents(collection_name, source_values, result_dict=None):
+        def mock_delete_documents(_collection_name, _source_values, result_dict=None):
             if result_dict is not None:
                 result_dict["deleted"] = ["doc1"]
                 result_dict["not_found"] = []
@@ -806,7 +806,7 @@ class TestNvidiaRAGIngestorCoverageImprovement:
         """Test delete_documents when MinIO is unavailable."""
         mock_vdb_op = Mock(spec=VDBRag)
 
-        def mock_delete_documents(collection_name, source_values, result_dict=None):
+        def mock_delete_documents(_collection_name, _source_values, result_dict=None):
             if result_dict is not None:
                 result_dict["deleted"] = ["doc1"]
                 result_dict["not_found"] = []

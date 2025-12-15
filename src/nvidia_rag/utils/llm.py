@@ -209,7 +209,7 @@ def get_llm(config: NvidiaRAGConfig | None = None, **kwargs) -> LLM | SimpleChat
                     )
                 except (requests.RequestException, requests.ConnectionError) as e:
                     error_msg = f"Guardrails NIM unavailable at {guardrails_url}. Please verify the service is running and accessible."
-                    logger.error(
+                    logger.exception(
                         "Connection error to guardrails at %s: %s", guardrails_url, e
                     )
                     raise APIError(

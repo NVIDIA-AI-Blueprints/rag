@@ -141,7 +141,7 @@ def test_setup_otlp_meter_success(fake_meter):
 
     class MockOTLPProvider:
         def get_meter(self, service_name):
-            return fake_meter
+            return FakeMeter()  # Return distinct meter instance for OTLP
 
     provider = MockOTLPProvider()
     m.setup_otlp_meter(provider)
@@ -169,66 +169,84 @@ def test_update_api_requests_with_otlp(fake_meter):
     """Test update_api_requests updates OTLP meter when available."""
     m = OtelMetrics(service_name="rag")
 
+    otlp_meter = FakeMeter()  # Distinct meter instance for OTLP
+
     class MockOTLPProvider:
         def get_meter(self, service_name):
-            return fake_meter
+            return otlp_meter
 
     provider = MockOTLPProvider()
     m.setup_otlp_meter(provider)
 
     m.update_api_requests(method="POST", endpoint="/v1/generate")
 
-    assert len(fake_meter.counters["api_requests_total"].add_calls) == 2
+    # Should update both base meter (via fake_meter) and OTLP meter
+    assert len(fake_meter.counters["api_requests_total"].add_calls) == 1
+    assert len(otlp_meter.counters["api_requests_total"].add_calls) == 1
 
 
 def test_update_llm_tokens_with_otlp(fake_meter):
     """Test update_llm_tokens updates OTLP meter when available."""
     m = OtelMetrics(service_name="rag")
 
+    otlp_meter = FakeMeter()  # Distinct meter instance for OTLP
+
     class MockOTLPProvider:
         def get_meter(self, service_name):
-            return fake_meter
+            return otlp_meter
 
     provider = MockOTLPProvider()
     m.setup_otlp_meter(provider)
 
     m.update_llm_tokens(input_t=10, output_t=20)
 
+    # Should update both base meter and OTLP meter
     assert fake_meter.gauges["input_tokens"].value == 10
     assert fake_meter.gauges["output_tokens"].value == 20
     assert fake_meter.gauges["total_tokens"].value == 30
+    assert otlp_meter.gauges["input_tokens"].value == 10
+    assert otlp_meter.gauges["output_tokens"].value == 20
+    assert otlp_meter.gauges["total_tokens"].value == 30
 
 
 def test_update_avg_words_per_chunk_with_otlp(fake_meter):
     """Test update_avg_words_per_chunk updates OTLP meter when available."""
     m = OtelMetrics(service_name="rag")
 
+    otlp_meter = FakeMeter()  # Distinct meter instance for OTLP
+
     class MockOTLPProvider:
         def get_meter(self, service_name):
-            return fake_meter
+            return otlp_meter
 
     provider = MockOTLPProvider()
     m.setup_otlp_meter(provider)
 
     m.update_avg_words_per_chunk(avg_words_per_chunk=50)
 
+    # Should update both base meter and OTLP meter
     assert fake_meter.gauges["avg_words_per_chunk"].value == 50
+    assert otlp_meter.gauges["avg_words_per_chunk"].value == 50
 
 
 def test_update_latency_metrics_with_otlp(fake_meter):
     """Test update_latency_metrics updates OTLP meter when available."""
     m = OtelMetrics(service_name="rag")
 
+    otlp_meter = FakeMeter()  # Distinct meter instance for OTLP
+
     class MockOTLPProvider:
         def get_meter(self, service_name):
-            return fake_meter
+            return otlp_meter
 
     provider = MockOTLPProvider()
     m.setup_otlp_meter(provider)
 
     m.update_latency_metrics({"retrieval_time_ms": 15.5})
 
+    # Should update both base meter and OTLP meter
     assert fake_meter.histograms["retrieval_time_ms"].records[-1] == 15.5
+    assert otlp_meter.histograms["retrieval_time_ms"].records[-1] == 15.5
 
 
 def test_update_api_requests_without_method_endpoint(fake_meter):

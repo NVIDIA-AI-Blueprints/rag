@@ -55,15 +55,13 @@ class TestAPIError:
         assert str(error) == "Test error message"
 
     @patch("nvidia_rag.rag_server.response_generator.logger")
-    @patch("nvidia_rag.rag_server.response_generator.print_exc")
-    def test_api_error_logging(self, mock_print_exc, mock_logger):
-        """Test that APIError logs and prints traceback."""
+    def test_api_error_logging(self, mock_logger):
+        """Test that APIError logs error message."""
         APIError("Test error message", 500)
 
         mock_logger.error.assert_called_with(
             "APIError occurred: %s with HTTP status: %d", "Test error message", 500
         )
-        mock_print_exc.assert_called_once()
 
 
 class TestNvidiaRAGInit:
@@ -609,7 +607,7 @@ class TestReflectionLLMValidation:
     @patch("nvidia_rag.rag_server.reflection.get_prompts")
     @pytest.mark.asyncio
     async def test_check_context_relevance_without_reflection_llm(
-        self, mock_get_prompts, mock_get_llm
+        self, _mock_get_prompts, _mock_get_llm
     ):
         """Test that check_context_relevance raises APIError when reflection enabled but LLM not configured"""
         mock_config = MagicMock()
@@ -637,7 +635,7 @@ class TestReflectionLLMValidation:
     @patch("nvidia_rag.rag_server.reflection.get_prompts")
     @pytest.mark.asyncio
     async def test_check_response_groundedness_without_reflection_llm(
-        self, mock_get_prompts, mock_get_llm
+        self, _mock_get_prompts, _mock_get_llm
     ):
         """Test that check_response_groundedness raises APIError when reflection enabled but LLM not configured"""
         mock_config = MagicMock()

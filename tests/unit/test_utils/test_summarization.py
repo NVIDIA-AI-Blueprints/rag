@@ -326,7 +326,7 @@ class TestPrepareSingleDocument:
         ) as mock_extract:
             mock_extract.side_effect = ["Page 1 content", "Page 3 content"]
 
-            with pytest.raises(ValueError, match="No content found.*page filter"):
+            with pytest.raises(ValueError, match=r"No content found.*page filter"):
                 await _prepare_single_document(
                     result_element=result_element,
                     results=results,

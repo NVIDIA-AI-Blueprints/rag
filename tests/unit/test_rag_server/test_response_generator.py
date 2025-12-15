@@ -1102,7 +1102,7 @@ class TestRetrieveSummaryEdgeCases:
             patch(
                 "nvidia_rag.utils.summary_status_handler.SUMMARY_STATUS_HANDLER"
             ) as mock_handler,
-            patch("asyncio.sleep") as mock_sleep,
+            patch("asyncio.sleep", new_callable=AsyncMock),
         ):
             mock_minio = Mock()
             mock_minio.get_payload.return_value = None
@@ -1110,7 +1110,6 @@ class TestRetrieveSummaryEdgeCases:
             mock_get_thumbnail.return_value = "test_thumbnail_id"
             mock_handler.is_available.return_value = True
             mock_handler.get_status.return_value = None
-            mock_sleep.return_value = None
 
             result = await retrieve_summary(
                 collection_name="test_collection",
@@ -1135,14 +1134,13 @@ class TestRetrieveSummaryEdgeCases:
             patch(
                 "nvidia_rag.utils.summary_status_handler.SUMMARY_STATUS_HANDLER"
             ) as mock_handler,
-            patch("asyncio.sleep") as mock_sleep,
+            patch("asyncio.sleep", new_callable=AsyncMock),
         ):
             mock_minio = Mock()
             mock_minio.get_payload.return_value = {"summary": "Test summary"}
             mock_minio_getter.return_value = mock_minio
             mock_get_thumbnail.return_value = "test_thumbnail_id"
             mock_handler.is_available.return_value = False
-            mock_sleep.return_value = None
 
             result = await retrieve_summary(
                 collection_name="test_collection",
@@ -1167,7 +1165,7 @@ class TestRetrieveSummaryEdgeCases:
             patch(
                 "nvidia_rag.utils.summary_status_handler.SUMMARY_STATUS_HANDLER"
             ) as mock_handler,
-            patch("asyncio.sleep") as mock_sleep,
+            patch("asyncio.sleep", new_callable=AsyncMock),
         ):
             mock_minio = Mock()
             mock_minio.get_payload.return_value = None
@@ -1175,7 +1173,6 @@ class TestRetrieveSummaryEdgeCases:
             mock_get_thumbnail.return_value = "test_thumbnail_id"
             mock_handler.is_available.return_value = True
             mock_handler.get_status.return_value = {"status": "SUCCESS"}
-            mock_sleep.return_value = None
 
             result = await retrieve_summary(
                 collection_name="test_collection",
@@ -1200,7 +1197,7 @@ class TestRetrieveSummaryEdgeCases:
             patch(
                 "nvidia_rag.utils.summary_status_handler.SUMMARY_STATUS_HANDLER"
             ) as mock_handler,
-            patch("asyncio.sleep") as mock_sleep,
+            patch("asyncio.sleep", new_callable=AsyncMock),
         ):
             mock_minio = Mock()
             mock_minio_getter.return_value = mock_minio
@@ -1210,7 +1207,6 @@ class TestRetrieveSummaryEdgeCases:
                 "status": "FAILED",
                 "error": "Generation failed",
             }
-            mock_sleep.return_value = None
 
             result = await retrieve_summary(
                 collection_name="test_collection",

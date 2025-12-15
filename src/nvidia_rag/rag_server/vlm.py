@@ -635,7 +635,7 @@ class VLM:
             ):
                 vlm_url = self.invoke_url or "VLM service"
                 error_msg = f"VLM NIM unavailable at {vlm_url}. Please verify the service is running and accessible."
-                logger.error("Connection error in VLM analysis: %s", e)
+                logger.exception("Connection error in VLM analysis: %s", e)
                 raise APIError(error_msg, ErrorCodeMapping.SERVICE_UNAVAILABLE) from e
             logger.warning(
                 f"Exception during VLM call with messages: {e}", exc_info=True
@@ -732,7 +732,7 @@ class VLM:
             ):
                 vlm_url = self.invoke_url or "VLM service"
                 error_msg = f"VLM NIM unavailable at {vlm_url}. Please verify the service is running and accessible."
-                logger.error("Connection error in VLM streaming: %s", e)
+                logger.exception("Connection error in VLM streaming: %s", e)
                 raise APIError(error_msg, ErrorCodeMapping.SERVICE_UNAVAILABLE) from e
             logger.warning(
                 f"Exception during VLM streaming call with messages: {e}", exc_info=True

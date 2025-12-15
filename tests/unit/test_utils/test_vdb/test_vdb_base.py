@@ -64,7 +64,12 @@ class ConcreteVDBRag(VDBRag):
         """Get documents."""
         return []
 
-    def delete_documents(self, collection_name: str, source_values: list[str]) -> bool:
+    def delete_documents(
+        self,
+        collection_name: str,
+        source_values: list[str],
+        result_dict: dict[str, list[str]] | None = None,
+    ) -> bool:
         """Delete documents."""
         return True
 
@@ -106,7 +111,9 @@ class ConcreteVDBRag(VDBRag):
 
     def get_langchain_vectorstore(self, collection_name: str) -> VectorStore:
         """Get langchain vectorstore."""
-        return None  # type: ignore
+        raise NotImplementedError(
+            "get_langchain_vectorstore must be implemented by concrete VDBRag subclass"
+        )
 
     def retrieval_langchain(
         self,

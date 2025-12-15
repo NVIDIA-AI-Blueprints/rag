@@ -613,6 +613,10 @@ def process_filter_expr(
         return filter_expr if isinstance(filter_expr, str) else []
 
 
+# Boolean flags used in document info aggregation
+BOOLEAN_FLAGS = {"has_tables", "has_charts", "has_images"}
+
+
 def perform_document_info_aggregation(
     existing_info_value: dict[str, Any],
     new_info_value: dict[str, Any],
@@ -621,7 +625,7 @@ def perform_document_info_aggregation(
     Perform document info aggregation.
     If the value is a dictionary, perform aggregation recursively.
     """
-    boolean_flags = {"has_tables", "has_charts", "has_images"}
+    boolean_flags = BOOLEAN_FLAGS
 
     result = {}
     all_keys = set(existing_info_value) | set(new_info_value)

@@ -308,13 +308,13 @@ class MockNvidiaRAGIngestor:
         self._get_documents_side_effect = empty
 
     def raise_get_documents_error(self):
-        def error(collection_name, vdb_endpoint, vdb_auth_token=""):
+        def error(_collection_name, _vdb_endpoint, _vdb_auth_token=""):
             raise Exception("Failed to get documents")
 
         self._get_documents_side_effect = error
 
     def return_empty_collections(self):
-        def empty(vdb_endpoint, vdb_auth_token=""):
+        def empty(_vdb_endpoint, _vdb_auth_token=""):
             return {
                 "collections": [],
                 "total_collections": 0,
@@ -324,36 +324,36 @@ class MockNvidiaRAGIngestor:
         self._get_collections_side_effect = empty
 
     def raise_get_collections_error(self):
-        def error(vdb_endpoint, vdb_auth_token=""):
+        def error(_vdb_endpoint, _vdb_auth_token=""):
             raise Exception("Failed to get collections")
 
         self._get_collections_side_effect = error
 
     def raise_create_collection_error(self):
         def error(
-            collection_name,
-            vdb_endpoint,
-            embedding_dimension,
-            metadata_schema,
-            vdb_auth_token="",
+            _collection_name,
+            _vdb_endpoint,
+            _embedding_dimension,
+            _metadata_schema,
+            _vdb_auth_token="",
         ):
             raise Exception("Failed to create collection")
 
         self._create_collection_side_effect = error
 
     def raise_delete_collections_error(self):
-        def error(vdb_endpoint, collection_names, vdb_auth_token=""):
+        def error(_vdb_endpoint, _collection_names, _vdb_auth_token=""):
             raise Exception("Failed to delete collections")
 
         self._delete_collections_side_effect = error
 
     def raise_delete_documents_error(self):
         def error(
-            document_names,
-            collection_name,
-            vdb_endpoint,
-            include_upload_path,
-            vdb_auth_token="",
+            _document_names,
+            _collection_name,
+            _vdb_endpoint,
+            _include_upload_path,
+            _vdb_auth_token="",
         ):
             raise Exception("Failed to delete documents")
 
@@ -1267,7 +1267,7 @@ class TestExtractVdbAuthToken:
         mock_request.headers = {"Authorization": "Basic test_token"}
 
         result = _extract_vdb_auth_token(mock_request)
-        assert result is None
+        assert result == ""  # Returns empty string, not None
 
     def test_extract_vdb_auth_token_no_header(self):
         """Test extracting vdb_auth_token when no Authorization header"""
@@ -1275,7 +1275,27 @@ class TestExtractVdbAuthToken:
         mock_request.headers = {}
 
         result = _extract_vdb_auth_token(mock_request)
-        assert result is None
+        assert result == ""
+
+    def test_extract_vdb_auth_token_empty_bearer(self):
+        """Test extracting vdb_auth_token when Bearer token is empty or missing"""
+        # Test case: "Bearer" with no token
+        mock_request1 = Mock(spec=Request)
+        mock_request1.headers = {"Authorization": "Bearer"}
+        result1 = _extract_vdb_auth_token(mock_request1)
+        assert result1 == ""
+
+        # Test case: "Bearer   " with only whitespace
+        mock_request2 = Mock(spec=Request)
+        mock_request2.headers = {"Authorization": "Bearer   "}
+        result2 = _extract_vdb_auth_token(mock_request2)
+        assert result2 == ""
+
+        # Test case: lowercase "bearer" with no token
+        mock_request3 = Mock(spec=Request)
+        mock_request3.headers = {"authorization": "bearer"}
+        result3 = _extract_vdb_auth_token(mock_request3)
+        assert result3 == ""
 
 
 class TestVdbAuthTokenParameter:
@@ -1339,6 +1359,5 @@ class TestVdbAuthTokenParameter:
             assert response.status_code == 200
             mock_ingestor.get_documents.assert_called_once()
             call_args = mock_ingestor.get_documents.call_args
-            # get_documents is called with positional args: (collection_name, vdb_endpoint, vdb_auth_token)
-            assert len(call_args[0]) >= 3
-            assert call_args[0][2] == "test_vdb_token"
+            assert call_args[1]["collection_name"] == "test_collection"
+            assert call_args[1]["vdb_auth_token"] == "test_vdb_token"

@@ -162,6 +162,9 @@ class TestNormalizeRelevanceScores:
 
         assert len(result) <= len(docs)
 
+    @pytest.mark.xfail(
+        reason="Documents current mutation bug. Will pass once normalize_relevance_scores is fixed to avoid mutating inputs."
+    )
     def test_mutation_of_original_documents_issue(self):
         """Test demonstrates the mutation issue in normalize_relevance_scores."""
         # This test documents the current problematic behavior
@@ -180,16 +183,17 @@ class TestNormalizeRelevanceScores:
         current_scores = [doc.metadata["relevance_score"] for doc in original_docs]
 
         # The following assertion shows the bug exists:
-        assert original_scores != current_scores, (
-            "BUG: Original documents should not be mutated!"
+        # Once the bug is fixed, this test will pass (documents should NOT be mutated)
+        assert original_scores == current_scores, (
+            "Original documents should not be mutated!"
         )
 
-        # Verify that the original documents now have normalized scores
+        # Verify that the original documents still have their original scores
         for doc in original_docs:
             if "relevance_score" in doc.metadata:
                 score = doc.metadata["relevance_score"]
-                assert 0 < score < 1, (
-                    "Original documents now have normalized scores (mutation issue)"
+                assert score in original_scores, (
+                    "Original documents should retain their original scores"
                 )
 
 

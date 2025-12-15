@@ -175,10 +175,12 @@ class ElasticVDB(VDBRag):
             self._es_connection.info()
             logger.debug(f"Connected to Elasticsearch at {self.es_url}")
         except (ESConnectionError, ConnectionError, OSError) as e:
-            logger.error(f"Failed to connect to Elasticsearch at {self.es_url}: {e}")
+            logger.exception(
+                "Failed to connect to Elasticsearch at %s: %s", self.es_url, e
+            )
             raise APIError(
                 f"Vector database (Elasticsearch) is unavailable at {self.es_url}. "
-                f"Please verify Elasticsearch is running and accessible. Error: {str(e)}",
+                "Please verify Elasticsearch is running and accessible.",
                 ErrorCodeMapping.SERVICE_UNAVAILABLE,
             ) from e
 
@@ -336,11 +338,12 @@ class ElasticVDB(VDBRag):
         self,
         records: list | Future,
     ) -> list:
-        """Run the process of ingestion of records to the Elasticsearch index asynchronously."""
+        """Run ingestion from either a list of records or a Future producing records."""
         logger.info(f"creating index - {self.index_name}")
         self.create_index()
 
-        records = records.result()
+        if isinstance(records, Future):
+            records = records.result()
 
         logger.info(f"writing to index, for collection - {self.index_name}")
         self.write_to_index(records)
@@ -482,7 +485,7 @@ class ElasticVDB(VDBRag):
                 failed_collections.append(
                     {"collection_name": collection_name, "error_message": str(e)}
                 )
-                logger.error(f"Failed to delete collection {collection_name}: {str(e)}")
+                logger.exception("Failed to delete collection %s", collection_name)
 
         logger.info(f"Collections deleted: {deleted_collections}")
 
@@ -494,8 +497,10 @@ class ElasticVDB(VDBRag):
                     body=get_delete_metadata_schema_query(collection_name),
                 )
             except Exception as e:
-                logger.error(
-                    f"Error deleting metadata schema for collection {collection_name}: {e}"
+                logger.exception(
+                    "Error deleting metadata schema for collection %s: %s",
+                    collection_name,
+                    e,
                 )
             try:
                 _ = self._es_connection.delete_by_query(
@@ -505,8 +510,10 @@ class ElasticVDB(VDBRag):
                     ),
                 )
             except Exception as e:
-                logger.error(
-                    f"Error deleting document info for collection {collection_name}: {e}"
+                logger.exception(
+                    "Error deleting document info for collection %s: %s",
+                    collection_name,
+                    e,
                 )
         return {
             "message": "Collection deletion process completed.",

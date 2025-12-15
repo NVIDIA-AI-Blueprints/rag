@@ -163,9 +163,9 @@ class NvidiaRAGIngestor:
             try:
                 self.minio_operator._make_bucket(bucket_name="a-bucket")
                 logger.debug("Ensured 'a-bucket' exists in MinIO")
-            except Exception:
-                # MinIO connection already failed, operator is None, skip this
-                pass
+            except Exception as bucket_err:
+                # Log specific exception for debugging bucket creation issues
+                logger.debug("Could not ensure bucket exists: %s", bucket_err)
         except Exception:
             self.minio_operator = None
             # Error already logged in MinioOperator.__init__, just note it here
@@ -711,14 +711,11 @@ class NvidiaRAGIngestor:
         filename_to_result_map = {}
         for result in results:
             if len(result) > 0:
-                filename_to_result_map[
-                    os.path.basename(
-                        result[0]
-                        .get("metadata")
-                        .get("source_metadata")
-                        .get("source_id")
-                    )
-                ] = result
+                metadata = result[0].get("metadata", {})
+                source_metadata = metadata.get("source_metadata", {})
+                source_id = source_metadata.get("source_id", "")
+                if source_id:
+                    filename_to_result_map[os.path.basename(source_id)] = result
 
         # Generate response dictionary
         uploaded_documents = []
@@ -912,6 +909,7 @@ class NvidiaRAGIngestor:
         """Get the status of an ingestion task."""
 
         logger.info(f"Getting status of task {task_id}")
+        document_wise_status = None
         try:
             status_and_result = INGESTION_TASK_HANDLER.get_task_status_and_result(
                 task_id
@@ -946,7 +944,7 @@ class NvidiaRAGIngestor:
                         "document_wise_status": document_wise_status,
                     }
                 except Exception as e:
-                    logger.error(f"Task {task_id} failed with error: {e}")
+                    logger.exception("Task %s failed with error: %s", task_id, e)
                     return {
                         "state": "FAILED",
                         "result": {"message": str(e)},

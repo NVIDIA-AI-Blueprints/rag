@@ -461,17 +461,11 @@ def print_health_report(health_results: HealthResponseBase) -> None:
     )
 
     for service in all_services:
-        if (
-            service.status == ServiceStatus.HEALTHY
-            or service.status == ServiceStatus.HEALTHY.value
-        ):
+        if service.status == ServiceStatus.HEALTHY:
             logger.info(
                 f"Service '{service.service}' is healthy - Response time: {service.latency_ms}ms"
             )
-        elif (
-            service.status == ServiceStatus.SKIPPED
-            or service.status == ServiceStatus.SKIPPED.value
-        ):
+        elif service.status == ServiceStatus.SKIPPED:
             logger.info(
                 f"Service '{service.service}' check skipped - Reason: {service.error or 'No URL provided'}"
             )

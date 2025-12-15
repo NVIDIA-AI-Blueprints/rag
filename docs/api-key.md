@@ -44,7 +44,7 @@ The RAG Blueprint supports service-specific API keys to provide fine-grained con
 
 Service-specific API keys override global `NVIDIA_API_KEY` or `NGC_API_KEY`. The system uses the following fallback order to determine which API key to use:
 
-```
+```text
 service-specific key → NVIDIA_API_KEY → NGC_API_KEY → None
 ```
 

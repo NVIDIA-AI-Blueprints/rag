@@ -841,30 +841,32 @@ class NvidiaRAG:
                         )
 
             docs = []
-            try:
-                local_ranker = get_ranking_model(
-                    model=reranker_model,
-                    url=reranker_endpoint,
-                    top_n=reranker_top_k,
-                    config=self.config,
-                )
-            except APIError:
-                # Re-raise APIError as-is
-                raise
-            except (
-                requests.exceptions.ConnectionError,
-                requests.exceptions.RequestException,
-                ConnectionError,
-                OSError,
-            ) as e:
-                # Wrap connection errors from reranker service
-                reranker_url = reranker_endpoint or self.config.ranking.server_url
-                error_msg = f"Reranker NIM unavailable at {reranker_url}. Please verify the service is running and accessible."
-                logger.error("Connection error in reranker initialization: %s", e)
-                raise APIError(
-                    error_msg,
-                    ErrorCodeMapping.SERVICE_UNAVAILABLE,
-                ) from e
+            local_ranker = None
+            if enable_reranker:
+                try:
+                    local_ranker = get_ranking_model(
+                        model=reranker_model,
+                        url=reranker_endpoint,
+                        top_n=reranker_top_k,
+                        config=self.config,
+                    )
+                except APIError:
+                    # Re-raise APIError as-is
+                    raise
+                except (
+                    requests.exceptions.ConnectionError,
+                    requests.exceptions.RequestException,
+                    ConnectionError,
+                    OSError,
+                ) as e:
+                    # Wrap connection errors from reranker service
+                    reranker_url = reranker_endpoint or self.config.ranking.server_url
+                    error_msg = f"Reranker NIM unavailable at {reranker_url}. Please verify the service is running and accessible."
+                    logger.error("Connection error in reranker initialization: %s", e)
+                    raise APIError(
+                        error_msg,
+                        ErrorCodeMapping.SERVICE_UNAVAILABLE,
+                    ) from e
 
             top_k = vdb_top_k if local_ranker and enable_reranker else reranker_top_k
             logger.info("Setting top k as: %s.", top_k)
@@ -1258,8 +1260,11 @@ class NvidiaRAG:
             # Re-raise APIError as-is to preserve status_code
             raise
         except Exception as e:
-            # Only wrap non-APIError exceptions
-            raise APIError(f"Failed to search documents. {str(e)}") from e
+            # Only wrap non-APIError exceptions - default to 500 for unexpected errors
+            raise APIError(
+                f"Failed to search documents. {str(e)}",
+                ErrorCodeMapping.INTERNAL_SERVER_ERROR,
+            ) from e
 
     @staticmethod
     async def get_summary(
@@ -1459,11 +1464,11 @@ class NvidiaRAG:
                 status_code=ErrorCodeMapping.REQUEST_TIMEOUT,
             )
 
-        except (requests.exceptions.ConnectionError, ConnectionError, OSError) as e:
+        except (requests.exceptions.ConnectionError, ConnectionError, OSError):
             # Fallback for uncaught LLM connection errors
             llm_url = llm_settings.get("llm_endpoint") or self.config.llm.server_url
             error_msg = f"LLM NIM unavailable at {llm_url}. Please verify the service is running and accessible."
-            logger.exception("Connection error (LLM): %s", e)
+            logger.exception("Connection error (LLM)")
             return RAGResponse(
                 generate_answer_async(
                     _async_iter([error_msg]),
@@ -2110,10 +2115,12 @@ class NvidiaRAG:
                         config=self.config,
                         prompts=self.prompts,
                     )
-                except (ConnectionError, OSError, Exception) as e:
-                    # Wrap any connection errors from reflection LLM with proper message
-                    if isinstance(e, APIError):
-                        raise
+                except (
+                    ConnectionError,
+                    OSError,
+                    requests.exceptions.ConnectionError,
+                ) as e:
+                    # Wrap connection errors from reflection LLM with proper message
                     reflection_llm_endpoint = self.config.reflection.server_url
                     endpoint_msg = (
                         f" at {reflection_llm_endpoint}"
@@ -2124,6 +2131,9 @@ class NvidiaRAG:
                         f"Reflection LLM NIM unavailable{endpoint_msg}. Please verify the service is running and accessible or disable reflection.",
                         ErrorCodeMapping.SERVICE_UNAVAILABLE,
                     ) from e
+                except APIError:
+                    # Re-raise APIError as-is
+                    raise
 
                 # Normalize scores to 0-1 range
                 if ranker and enable_reranker:
@@ -2468,10 +2478,12 @@ class NvidiaRAG:
                         config=self.config,
                         prompts=self.prompts,
                     )
-                except (ConnectionError, OSError, Exception) as e:
-                    # Wrap any connection errors from reflection LLM with proper message
-                    if isinstance(e, APIError):
-                        raise
+                except (
+                    ConnectionError,
+                    OSError,
+                    requests.exceptions.ConnectionError,
+                ) as e:
+                    # Wrap connection errors from reflection LLM with proper message
                     reflection_llm_endpoint = self.config.reflection.server_url
                     endpoint_msg = (
                         f" at {reflection_llm_endpoint}"
@@ -2482,6 +2494,9 @@ class NvidiaRAG:
                         f"Reflection LLM NIM unavailable{endpoint_msg}. Please verify the service is running and accessible or disable reflection.",
                         ErrorCodeMapping.SERVICE_UNAVAILABLE,
                     ) from e
+                except APIError:
+                    # Re-raise APIError as-is
+                    raise
                 if not is_grounded:
                     logger.warning(
                         "Could not generate sufficiently grounded response after %d total reflection attempts",
@@ -2560,11 +2575,11 @@ class NvidiaRAG:
                 status_code=e.status_code,
             )
 
-        except (requests.exceptions.ConnectionError, ConnectionError, OSError) as e:
+        except (requests.exceptions.ConnectionError, ConnectionError, OSError):
             # Fallback for uncaught LLM connection errors
             llm_url = llm_settings.get("llm_endpoint") or self.config.llm.server_url
             error_msg = f"LLM NIM unavailable at {llm_url}. Please verify the service is running and accessible."
-            logger.exception("Connection error (LLM): %s", e)
+            logger.exception("Connection error (LLM)")
             return RAGResponse(
                 generate_answer_async(
                     _async_iter([error_msg]),

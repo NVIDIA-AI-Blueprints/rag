@@ -361,22 +361,6 @@ class TestGenerateEndpoint:
 class TestDocumentSearchEndpoint:
     """Tests for the /search endpoint"""
 
-    @pytest.fixture
-    def search_data(self):
-        return {
-            "query": "What is machine learning?",
-            "reranker_top_k": 4,
-            "vdb_top_k": 10,
-            "collection_name": "test_collection",
-            "messages": [{"role": "user", "content": "What is machine learning?"}],
-            "enable_query_rewriting": True,
-            "enable_reranker": True,
-            "embedding_model": "test-embedding-model",
-            "embedding_endpoint": "http://embedding:8000",
-            "reranker_model": "test-reranker-model",
-            "reranker_endpoint": "http://reranker:8000",
-        }
-
     def test_document_search_success(self, client, search_data):
         response = client.post("/v1/search", json=search_data)
         assert response.status_code == ErrorCodeMapping.SUCCESS
@@ -500,25 +484,26 @@ class TestExtractVdbAuthToken:
         assert result == "test_token_with_spaces"
 
 
+@pytest.fixture
+def search_data():
+    """Fixture for search endpoint test data (shared across test classes)"""
+    return {
+        "query": "What is machine learning?",
+        "reranker_top_k": 4,
+        "vdb_top_k": 10,
+        "collection_name": "test_collection",
+        "messages": [{"role": "user", "content": "What is machine learning?"}],
+        "enable_query_rewriting": True,
+        "enable_reranker": True,
+        "embedding_model": "test-embedding-model",
+        "embedding_endpoint": "http://embedding:8000",
+        "reranker_model": "test-reranker-model",
+        "reranker_endpoint": "http://reranker:8000",
+    }
+
+
 class TestVdbAuthTokenParameter:
     """Tests for vdb_auth_token parameter passing through endpoints"""
-
-    @pytest.fixture
-    def search_data(self):
-        """Fixture for search endpoint test data"""
-        return {
-            "query": "What is machine learning?",
-            "reranker_top_k": 4,
-            "vdb_top_k": 10,
-            "collection_name": "test_collection",
-            "messages": [{"role": "user", "content": "What is machine learning?"}],
-            "enable_query_rewriting": True,
-            "enable_reranker": True,
-            "embedding_model": "test-embedding-model",
-            "embedding_endpoint": "http://embedding:8000",
-            "reranker_model": "test-reranker-model",
-            "reranker_endpoint": "http://reranker:8000",
-        }
 
     def test_generate_with_vdb_auth_token(self, client, valid_prompt_data):
         """Test /generate endpoint passes vdb_auth_token to backend"""
@@ -561,23 +546,6 @@ class TestVdbAuthTokenParameter:
 
 class TestServerErrorHandling:
     """Tests for error handling in server endpoints"""
-
-    @pytest.fixture
-    def search_data(self):
-        """Fixture for search endpoint test data"""
-        return {
-            "query": "What is machine learning?",
-            "reranker_top_k": 4,
-            "vdb_top_k": 10,
-            "collection_name": "test_collection",
-            "messages": [{"role": "user", "content": "What is machine learning?"}],
-            "enable_query_rewriting": True,
-            "enable_reranker": True,
-            "embedding_model": "test-embedding-model",
-            "embedding_endpoint": "http://embedding:8000",
-            "reranker_model": "test-reranker-model",
-            "reranker_endpoint": "http://reranker:8000",
-        }
 
     def test_generate_endpoint_value_error(self, client):
         """Test /generate endpoint handles ValueError"""
@@ -685,12 +653,12 @@ class TestServerValidation:
 
     def test_validate_confidence_threshold_negative(self):
         """Test validate_confidence_threshold_field with negative value"""
-        with pytest.raises(ValueError, match="confidence_threshold must be >= 0.0"):
+        with pytest.raises(ValueError, match=r"confidence_threshold must be >= 0\.0"):
             validate_confidence_threshold_field(-0.1)
 
     def test_validate_confidence_threshold_too_large(self):
         """Test validate_confidence_threshold_field with value > 1.0"""
-        with pytest.raises(ValueError, match="confidence_threshold must be <= 1.0"):
+        with pytest.raises(ValueError, match=r"confidence_threshold must be <= 1\.0"):
             validate_confidence_threshold_field(1.1)
 
     def test_generate_endpoint_empty_messages(self, client):

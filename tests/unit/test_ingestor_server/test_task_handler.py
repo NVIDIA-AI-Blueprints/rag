@@ -39,7 +39,12 @@ class TestIngestionTaskHandler:
     async def test_submit_task_success(self, handler):
         """Test successful task submission."""
 
+        started = asyncio.Event()
+        block = asyncio.Event()
+
         async def mock_task():
+            started.set()
+            await block.wait()
             return {"result": "success"}
 
         task_id = await handler.submit_task(mock_task)
@@ -47,6 +52,10 @@ class TestIngestionTaskHandler:
         assert task_id is not None
         assert task_id in handler.task_map
         assert handler.get_task_state(task_id) == "PENDING"
+
+        # Wait for task to start and block, then unblock it
+        await started.wait()
+        block.set()
 
     @pytest.mark.asyncio
     async def test_submit_task_with_custom_id(self, handler):

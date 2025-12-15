@@ -30,7 +30,6 @@ import logging
 import os
 import time
 from collections.abc import AsyncGenerator, Generator
-from traceback import print_exc
 from typing import Any, Literal, Optional, Union
 from uuid import uuid4
 
@@ -69,11 +68,10 @@ class ErrorCodeMapping:
 class APIError(Exception):
     """Custom exception class for API errors."""
 
-    def __init__(self, message: str, status_code: int = None):
+    def __init__(self, message: str, status_code: int | None = None):
         if status_code is None:
             status_code = ErrorCodeMapping.BAD_REQUEST
         logger.error("APIError occurred: %s with HTTP status: %d", message, status_code)
-        print_exc()
         self.message = message
         self.status_code = status_code
         super().__init__(message)

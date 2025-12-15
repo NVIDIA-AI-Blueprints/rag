@@ -1697,7 +1697,7 @@ async def document_search(
         )
     except APIError as e:
         status_code = getattr(e, "status_code", ErrorCodeMapping.INTERNAL_SERVER_ERROR)
-        logger.error("API Error from POST /search endpoint. Error details: %s", e)
+        logger.exception("API Error from POST /search endpoint. Error details: %s", e)
         return JSONResponse(content={"message": e.message}, status_code=status_code)
     except (
         requests.exceptions.ConnectionError,
@@ -1706,7 +1706,7 @@ async def document_search(
         OSError,
     ) as e:
         error_msg = "Failed to search documents. Service unavailable. Please verify the NIM services are running and accessible."
-        logger.error("Connection error from POST /search endpoint: %s", e)
+        logger.exception("Connection error from POST /search endpoint: %s", e)
         return JSONResponse(
             content={"message": error_msg},
             status_code=ErrorCodeMapping.SERVICE_UNAVAILABLE,

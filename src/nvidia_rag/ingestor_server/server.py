@@ -136,14 +136,16 @@ class SplitOptions(BaseModel):
 
 
 @trace_function("ingestor.server.extract_vdb_auth_token", tracer=TRACER)
-def _extract_vdb_auth_token(request: Request) -> str | None:
+def _extract_vdb_auth_token(request: Request) -> str:
     """Extract bearer token from Authorization header (e.g., 'Bearer <token>')."""
     auth_header = request.headers.get("Authorization") or request.headers.get(
         "authorization"
     )
     if isinstance(auth_header, str) and auth_header.lower().startswith("bearer "):
-        return auth_header.split(" ", 1)[1].strip()
-    return None
+        token = auth_header.split(" ", 1)[1].strip()
+        # Return empty string for empty/whitespace-only tokens (no-token case)
+        return token if token else ""
+    return ""
 
 
 class CustomMetadata(BaseModel):
@@ -694,7 +696,9 @@ async def upload_document(
         )
     except APIError as e:
         # Handle APIError with specific status codes from upstream (set when error was raised)
-        logger.error("API Error from POST /documents endpoint. Error details: %s", e)
+        logger.exception(
+            "API Error from POST /documents endpoint. Error details: %s", e
+        )
         return JSONResponse(content={"message": e.message}, status_code=e.status_code)
     except Exception as e:
         logger.error(
@@ -793,7 +797,9 @@ async def update_documents(
         )
     except APIError as e:
         # Handle APIError with specific status codes from upstream (set when error was raised)
-        logger.error("API Error from PATCH /documents endpoint. Error details: %s", e)
+        logger.exception(
+            "API Error from PATCH /documents endpoint. Error details: %s", e
+        )
         return JSONResponse(content={"message": e.message}, status_code=e.status_code)
     except Exception as e:
         logger.error(
@@ -841,7 +847,9 @@ async def get_documents(
         # Extract vdb auth token and pass through to backend
         vdb_auth_token = _extract_vdb_auth_token(request)
         documents = NV_INGEST_INGESTOR.get_documents(
-            collection_name, vdb_endpoint, vdb_auth_token
+            collection_name=collection_name,
+            vdb_endpoint=vdb_endpoint,
+            vdb_auth_token=vdb_auth_token,
         )
         return DocumentListResponse(**documents)
 
@@ -852,10 +860,10 @@ async def get_documents(
         )
     except APIError as e:
         # Handle APIError with specific status codes from upstream (set when error was raised)
-        logger.error("API Error from GET /documents endpoint. Error details: %s", e)
+        logger.exception("API Error from GET /documents endpoint. Error details: %s", e)
         return JSONResponse(content={"message": e.message}, status_code=e.status_code)
     except Exception as e:
-        logger.error("Error from GET /documents endpoint. Error details: %s", e)
+        logger.exception("Error from GET /documents endpoint. Error details: %s", e)
         return JSONResponse(
             content={"message": f"Error occurred while fetching documents: {e}"},
             status_code=500,
@@ -918,10 +926,12 @@ async def delete_documents(
         )
     except APIError as e:
         # Handle APIError with specific status codes from upstream (set when error was raised)
-        logger.error("API Error from DELETE /documents endpoint. Error details: %s", e)
+        logger.exception(
+            "API Error from DELETE /documents endpoint. Error details: %s", e
+        )
         return JSONResponse(content={"message": e.message}, status_code=e.status_code)
     except Exception as e:
-        logger.error("Error from DELETE /documents endpoint. Error details: %s", e)
+        logger.exception("Error from DELETE /documents endpoint. Error details: %s", e)
         return JSONResponse(
             content={"message": f"Error deleting document {document_names}: {e}"},
             status_code=500,
@@ -975,10 +985,12 @@ async def get_collections(
         )
     except APIError as e:
         # Handle APIError with specific status codes from upstream (set when error was raised)
-        logger.error("API Error from GET /collections endpoint. Error details: %s", e)
+        logger.exception(
+            "API Error from GET /collections endpoint. Error details: %s", e
+        )
         return JSONResponse(content={"message": e.message}, status_code=e.status_code)
     except Exception as e:
-        logger.error("Error from GET /collections endpoint. Error details: %s", e)
+        logger.exception("Error from GET /collections endpoint. Error details: %s", e)
         return JSONResponse(
             content={
                 "message": f"Error occurred while fetching collections. Error: {e}"
@@ -1047,10 +1059,12 @@ async def create_collections(
         )
     except APIError as e:
         # Handle APIError with specific status codes from upstream (set when error was raised)
-        logger.error("API Error from POST /collections endpoint. Error details: %s", e)
+        logger.exception(
+            "API Error from POST /collections endpoint. Error details: %s", e
+        )
         return JSONResponse(content={"message": e.message}, status_code=e.status_code)
     except Exception as e:
-        logger.error("Error from POST /collections endpoint. Error details: %s", e)
+        logger.exception("Error from POST /collections endpoint. Error details: %s", e)
         return JSONResponse(
             content={
                 "message": f"Error occurred while creating collections. Error: {e}"
@@ -1115,10 +1129,12 @@ async def create_collection(
         )
     except APIError as e:
         # Handle APIError with specific status codes from upstream (set when error was raised)
-        logger.error("API Error from POST /collection endpoint. Error details: %s", e)
+        logger.exception(
+            "API Error from POST /collection endpoint. Error details: %s", e
+        )
         return JSONResponse(content={"message": e.message}, status_code=e.status_code)
     except Exception as e:
-        logger.error("Error from POST /collection endpoint. Error details: %s", e)
+        logger.exception("Error from POST /collection endpoint. Error details: %s", e)
         return JSONResponse(
             content={
                 "message": f"Error occurred while creating collection. Error: {e}"
@@ -1313,7 +1329,9 @@ async def delete_collections(
         )
         return JSONResponse(content={"message": e.message}, status_code=e.status_code)
     except Exception as e:
-        logger.error("Error from DELETE /collections endpoint. Error details: %s", e)
+        logger.exception(
+            "Error from DELETE /collections endpoint. Error details: %s", e
+        )
         return JSONResponse(
             content={
                 "message": f"Error occurred while deleting collections. Error: {e}"

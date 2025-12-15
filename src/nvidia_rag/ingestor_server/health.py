@@ -131,28 +131,34 @@ async def check_service_health(
                 )
 
     except TimeoutError:
+        latency_ms = round((time.time() - start_time) * 1000, 2)
         error = f"Request timed out after {timeout}s"
         return NIMServiceHealthInfo(
             service=service_name,
             url=url,
             status=ServiceStatus.TIMEOUT,
-            latency_ms=0,
+            latency_ms=latency_ms,
             error=error,
         )
     except aiohttp.ClientError as e:
+        latency_ms = round((time.time() - start_time) * 1000, 2)
         return NIMServiceHealthInfo(
             service=service_name,
             url=url,
             status=ServiceStatus.ERROR,
-            latency_ms=0,
+            latency_ms=latency_ms,
             error=str(e),
         )
     except Exception as e:
+        latency_ms = round((time.time() - start_time) * 1000, 2)
+        logger.error(
+            "Unexpected error checking %s health: %s", service_name, e, exc_info=True
+        )
         return NIMServiceHealthInfo(
             service=service_name,
             url=url,
             status=ServiceStatus.ERROR,
-            latency_ms=0,
+            latency_ms=latency_ms,
             error=str(e),
         )
 
@@ -188,11 +194,13 @@ async def check_minio_health(
             buckets=len(buckets),
         )
     except Exception as e:
+        latency_ms = round((time.time() - start_time) * 1000, 2)
+        logger.error("Error checking MinIO health: %s", e, exc_info=True)
         return StorageHealthInfo(
             service="MinIO",
             url=endpoint,
             status=ServiceStatus.ERROR,
-            latency_ms=0,
+            latency_ms=latency_ms,
             error=str(e),
         )
 
@@ -319,11 +327,13 @@ async def check_redis_health(host: str, port: int, db: int) -> TaskManagementHea
             error="Redis not available (library not installed)",
         )
     except Exception as e:
+        latency_ms = round((time.time() - start_time) * 1000, 2)
+        logger.error("Error checking Redis health: %s", e, exc_info=True)
         return TaskManagementHealthInfo(
             service="Redis",
             url=url_base,
             status=ServiceStatus.ERROR,
-            latency_ms=0,
+            latency_ms=latency_ms,
             error=str(e),
         )
 
@@ -515,7 +525,20 @@ async def check_all_services_health(
 
     # Execute all health checks concurrently for vector DB
     for category, task in tasks:
-        result = await task
+        try:
+            result = await task
+        except Exception as e:
+            logger.error("Error awaiting %s health check: %s", category, e)
+            if category == "databases":
+                databases.append(
+                    DatabaseHealthInfo(
+                        service="Vector Store",
+                        url="Not configured",
+                        status=ServiceStatus.ERROR,
+                        error=f"Error checking vector store health: {e}",
+                    )
+                )
+            continue
         if category == "databases":
             databases.append(DatabaseHealthInfo(**result))
 
@@ -550,17 +573,11 @@ def print_health_report(health_results: IngestorHealthResponse) -> None:
     )
 
     for service in all_services:
-        if (
-            service.status == ServiceStatus.HEALTHY
-            or service.status == ServiceStatus.HEALTHY.value
-        ):
+        if service.status == ServiceStatus.HEALTHY:
             logger.info(
                 f"✓ {service.service} is healthy - Response time: {service.latency_ms}ms"
             )
-        elif (
-            service.status == ServiceStatus.SKIPPED
-            or service.status == ServiceStatus.SKIPPED.value
-        ):
+        elif service.status == ServiceStatus.SKIPPED:
             logger.info(
                 f"- {service.service} check skipped - Reason: {service.error or 'No URL provided'}"
             )
