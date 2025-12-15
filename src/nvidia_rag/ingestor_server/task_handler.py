@@ -215,7 +215,9 @@ class IngestionTaskHandler:
         )
         return self.task_status_result_map[task_id].get("result")
 
-    async def set_task_state_dict(self, task_id: str, state_dict: dict[str, Any]) -> None:
+    async def set_task_state_dict(
+        self, task_id: str, state_dict: dict[str, Any]
+    ) -> None:
         """
         Set custom state dictionary for a task in Redis or the local task state map.
         This allows storing arbitrary state information as a dictionary.
@@ -229,7 +231,9 @@ class IngestionTaskHandler:
             self._redis_client.json().set(
                 state_key,
                 "$",
-                TaskStateDictSchema(task_id=task_id, state_dict=state_dict).model_dump(),
+                TaskStateDictSchema(
+                    task_id=task_id, state_dict=state_dict
+                ).model_dump(),
             )
         else:
             async with self._asyncio_lock:
@@ -256,7 +260,6 @@ class IngestionTaskHandler:
                 return result.get("state_dict", {})
             return {}
         return self.task_state_map.get(task_id, {})
-    
 
 
 # Create a singleton instance of the IngestionTaskHandler

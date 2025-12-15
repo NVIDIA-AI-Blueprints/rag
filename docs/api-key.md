@@ -38,9 +38,31 @@ You must update the new key information in your environment variables and code.
 
 ## Service-Specific API Keys
 
-Service-specific API keys override global `NVIDIA_API_KEY` or `NGC_API_KEY`. Fallback order: service-specific → `NVIDIA_API_KEY` → `NGC_API_KEY` → `None`.
+The RAG Blueprint supports service-specific API keys to provide fine-grained control over API access for different components. This enables separate billing accounts, different rate limits, security segregation, usage tracking per service, or mixed cloud/on-premises deployments.
 
-Supported keys: `APP_LLM_APIKEY`, `APP_EMBEDDINGS_APIKEY`, `APP_RANKING_APIKEY`, `APP_QUERYREWRITER_APIKEY`, `APP_FILTEREXPRESSIONGENERATOR_APIKEY`, `APP_VLM_APIKEY`, `SUMMARY_LLM_APIKEY`, `REFLECTION_LLM_APIKEY`.
+### How It Works
+
+Service-specific API keys override global `NVIDIA_API_KEY` or `NGC_API_KEY`. The system uses the following fallback order to determine which API key to use:
+
+```text
+service-specific key → NVIDIA_API_KEY → NGC_API_KEY → None
+```
+
+For example, if you set `APP_LLM_APIKEY`, the LLM service will use that key instead of the global `NVIDIA_API_KEY`.
+
+### Supported Service Keys
+
+| Service Key | Purpose | Used By |
+|------------|---------|---------|
+| `APP_LLM_APIKEY` | Main language model for RAG responses | RAG Server (generate endpoint) |
+| `APP_EMBEDDINGS_APIKEY` | Text embedding generation | Ingestor Server, RAG Server (search) |
+| `APP_RANKING_APIKEY` | Document reranking | RAG Server (reranker) |
+| `APP_QUERYREWRITER_APIKEY` | Query rewriting and optimization | RAG Server (query decomposition) |
+| `APP_FILTEREXPRESSIONGENERATOR_APIKEY` | Metadata filter generation from natural language | RAG Server (search with filters) |
+| `APP_VLM_APIKEY` | Vision-Language Model for image understanding | RAG Server (multimodal queries) |
+| `SUMMARY_LLM_APIKEY` | Document summarization | Ingestor Server (summary generation) |
+| `REFLECTION_LLM_APIKEY` | Self-reflection and answer validation | RAG Server (reflection mode) |
+
 
 ### Library Mode (Python Package)
 

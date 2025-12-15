@@ -14,11 +14,11 @@
 # limitations under the License.
 
 import os
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-from nvidia_rag.utils.vdb import _get_vdb_op, DEFAULT_METADATA_SCHEMA_COLLECTION
+from nvidia_rag.utils.vdb import DEFAULT_METADATA_SCHEMA_COLLECTION, _get_vdb_op
 
 
 class TestVDBInit:
@@ -29,13 +29,11 @@ class TestVDBInit:
         assert DEFAULT_METADATA_SCHEMA_COLLECTION == "metadata_schema"
 
     def test_config_constant(self):
-        """Test CONFIG constant is set from get_config"""
-        # The CONFIG is set at module import time, so we just test it exists
-    def test_config_constant(self):
         """Test CONFIG constant - no longer exists as module constant"""
         # CONFIG removed in refactoring - skip this test
         pass
-    @patch('nvidia_rag.utils.vdb.get_metadata_configuration')
+
+    @patch("nvidia_rag.utils.vdb.get_metadata_configuration")
     def test_get_vdb_op_milvus_without_custom_metadata(self, mock_get_metadata_config):
         """Test _get_vdb_op with Milvus without custom metadata"""
         # Setup mocks
@@ -51,13 +49,18 @@ class TestVDBInit:
 
         mock_get_metadata_config.return_value = (None, None, None)
 
-        with patch.dict(os.environ, {
-            "MINIO_ENDPOINT": "http://minio:9000",
-            "MINIO_ACCESSKEY": "minioadmin",
-            "MINIO_SECRETKEY": "minioadmin",
-            "NVINGEST_MINIO_BUCKET": "test-bucket"
-        }):
-            with patch('nvidia_rag.utils.vdb.milvus.milvus_vdb.MilvusVDB') as mock_milvus_vdb:
+        with patch.dict(
+            os.environ,
+            {
+                "MINIO_ENDPOINT": "http://minio:9000",
+                "MINIO_ACCESSKEY": "minioadmin",
+                "MINIO_SECRETKEY": "minioadmin",
+                "NVINGEST_MINIO_BUCKET": "test-bucket",
+            },
+        ):
+            with patch(
+                "nvidia_rag.utils.vdb.milvus.milvus_vdb.MilvusVDB"
+            ) as mock_milvus_vdb:
                 mock_vdb_instance = Mock()
                 mock_milvus_vdb.return_value = mock_vdb_instance
 
@@ -65,7 +68,7 @@ class TestVDBInit:
                     vdb_endpoint="http://test-milvus:19530",
                     collection_name="test_collection",
                     embedding_model="test-embedding",
-                    config=mock_config
+                    config=mock_config,
                 )
 
                 assert result == mock_vdb_instance
@@ -85,7 +88,7 @@ class TestVDBInit:
                 assert call_args["gpu_search"] is True
                 assert call_args["embedding_model"] == "test-embedding"
 
-    @patch('nvidia_rag.utils.vdb.get_metadata_configuration')
+    @patch("nvidia_rag.utils.vdb.get_metadata_configuration")
     def test_get_vdb_op_milvus_with_custom_metadata(self, mock_get_metadata_config):
         """Test _get_vdb_op with Milvus with custom metadata"""
         # Setup mocks
@@ -99,15 +102,24 @@ class TestVDBInit:
         mock_config.nv_ingest.extract_page_as_image = True
         mock_config.embeddings.dimensions = 1024
 
-        mock_get_metadata_config.return_value = ("/path/to/metadata.csv", "source_field", ["field1", "field2"])
+        mock_get_metadata_config.return_value = (
+            "/path/to/metadata.csv",
+            "source_field",
+            ["field1", "field2"],
+        )
 
-        with patch.dict(os.environ, {
-            "MINIO_ENDPOINT": "http://minio:9000",
-            "MINIO_ACCESSKEY": "minioadmin",
-            "MINIO_SECRETKEY": "minioadmin",
-            "NVINGEST_MINIO_BUCKET": "test-bucket"
-        }):
-            with patch('nvidia_rag.utils.vdb.milvus.milvus_vdb.MilvusVDB') as mock_milvus_vdb:
+        with patch.dict(
+            os.environ,
+            {
+                "MINIO_ENDPOINT": "http://minio:9000",
+                "MINIO_ACCESSKEY": "minioadmin",
+                "MINIO_SECRETKEY": "minioadmin",
+                "NVINGEST_MINIO_BUCKET": "test-bucket",
+            },
+        ):
+            with patch(
+                "nvidia_rag.utils.vdb.milvus.milvus_vdb.MilvusVDB"
+            ) as mock_milvus_vdb:
                 mock_vdb_instance = Mock()
                 mock_milvus_vdb.return_value = mock_vdb_instance
 
@@ -117,7 +129,7 @@ class TestVDBInit:
                     custom_metadata=[{"field": "value"}],
                     all_file_paths=["/path/to/file1.pdf"],
                     embedding_model="test-embedding",
-                    config=mock_config
+                    config=mock_config,
                 )
 
                 assert result == mock_vdb_instance
@@ -130,8 +142,10 @@ class TestVDBInit:
                 assert call_args["meta_source_field"] == "source_field"
                 assert call_args["meta_fields"] == ["field1", "field2"]
 
-    @patch('nvidia_rag.utils.vdb.get_metadata_configuration')
-    def test_get_vdb_op_milvus_uses_config_url_when_endpoint_none(self, mock_get_metadata_config):
+    @patch("nvidia_rag.utils.vdb.get_metadata_configuration")
+    def test_get_vdb_op_milvus_uses_config_url_when_endpoint_none(
+        self, mock_get_metadata_config
+    ):
         """Test _get_vdb_op with Milvus uses config URL when endpoint is None"""
         # Setup mocks
         mock_config = Mock()
@@ -146,28 +160,35 @@ class TestVDBInit:
 
         mock_get_metadata_config.return_value = (None, None, None)
 
-        with patch.dict(os.environ, {
-            "MINIO_ENDPOINT": "http://minio:9000",
-            "MINIO_ACCESSKEY": "minioadmin",
-            "MINIO_SECRETKEY": "minioadmin",
-            "NVINGEST_MINIO_BUCKET": "test-bucket"
-        }):
-            with patch('nvidia_rag.utils.vdb.milvus.milvus_vdb.MilvusVDB') as mock_milvus_vdb:
+        with patch.dict(
+            os.environ,
+            {
+                "MINIO_ENDPOINT": "http://minio:9000",
+                "MINIO_ACCESSKEY": "minioadmin",
+                "MINIO_SECRETKEY": "minioadmin",
+                "NVINGEST_MINIO_BUCKET": "test-bucket",
+            },
+        ):
+            with patch(
+                "nvidia_rag.utils.vdb.milvus.milvus_vdb.MilvusVDB"
+            ) as mock_milvus_vdb:
                 mock_vdb_instance = Mock()
                 mock_milvus_vdb.return_value = mock_vdb_instance
 
                 result = _get_vdb_op(
                     vdb_endpoint=None,
                     collection_name="test_collection",
-                    config=mock_config
+                    config=mock_config,
                 )
 
                 assert result == mock_vdb_instance
                 call_args = mock_milvus_vdb.call_args[1]
                 assert call_args["milvus_uri"] == "http://config-milvus:19530"
 
-    @patch('nvidia_rag.utils.vdb.get_metadata_configuration')
-    def test_get_vdb_op_elasticsearch_without_custom_metadata(self, mock_get_metadata_config):
+    @patch("nvidia_rag.utils.vdb.get_metadata_configuration")
+    def test_get_vdb_op_elasticsearch_without_custom_metadata(
+        self, mock_get_metadata_config
+    ):
         """Test _get_vdb_op with Elasticsearch without custom metadata"""
         # Setup mocks
         mock_config = Mock()
@@ -177,7 +198,9 @@ class TestVDBInit:
 
         mock_get_metadata_config.return_value = (None, None, None)
 
-        with patch('nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.ElasticVDB') as mock_elastic_vdb:
+        with patch(
+            "nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.ElasticVDB"
+        ) as mock_elastic_vdb:
             mock_vdb_instance = Mock()
             mock_elastic_vdb.return_value = mock_vdb_instance
 
@@ -185,7 +208,7 @@ class TestVDBInit:
                 vdb_endpoint="http://test-elasticsearch:9200",
                 collection_name="test_index",
                 embedding_model="test-embedding",
-                config=mock_config
+                config=mock_config,
             )
 
             assert result == mock_vdb_instance
@@ -200,8 +223,10 @@ class TestVDBInit:
             assert call_args["embedding_model"] == "test-embedding"
             assert call_args["csv_file_path"] is None
 
-    @patch('nvidia_rag.utils.vdb.get_metadata_configuration')
-    def test_get_vdb_op_elasticsearch_with_custom_metadata(self, mock_get_metadata_config):
+    @patch("nvidia_rag.utils.vdb.get_metadata_configuration")
+    def test_get_vdb_op_elasticsearch_with_custom_metadata(
+        self, mock_get_metadata_config
+    ):
         """Test _get_vdb_op with Elasticsearch with custom metadata"""
         # Setup mocks
         mock_config = Mock()
@@ -209,11 +234,18 @@ class TestVDBInit:
         mock_config.vector_store.url = "http://elasticsearch:9200"
         mock_config.vector_store.search_type = "hybrid"
 
-        mock_get_metadata_config.return_value = ("/path/to/metadata.csv", "source_field", ["field1", "field2"])
+        mock_get_metadata_config.return_value = (
+            "/path/to/metadata.csv",
+            "source_field",
+            ["field1", "field2"],
+        )
 
-        with patch('nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.ElasticVDB') as mock_elastic_vdb, \
-             patch('nvidia_rag.utils.vdb.pandas_file_reader') as mock_pandas_reader:
-
+        with (
+            patch(
+                "nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.ElasticVDB"
+            ) as mock_elastic_vdb,
+            patch("nvidia_rag.utils.vdb.pandas_file_reader") as mock_pandas_reader,
+        ):
             mock_vdb_instance = Mock()
             mock_elastic_vdb.return_value = mock_vdb_instance
             mock_dataframe = Mock()
@@ -225,7 +257,7 @@ class TestVDBInit:
                 custom_metadata=[{"field": "value"}],
                 all_file_paths=["/path/to/file1.pdf"],
                 embedding_model="test-embedding",
-                config=mock_config
+                config=mock_config,
             )
 
             assert result == mock_vdb_instance
@@ -241,8 +273,10 @@ class TestVDBInit:
             assert call_args["csv_file_path"] == "/path/to/metadata.csv"
             mock_pandas_reader.assert_called_once_with("/path/to/metadata.csv")
 
-    @patch('nvidia_rag.utils.vdb.get_metadata_configuration')
-    def test_get_vdb_op_elasticsearch_uses_config_url_when_endpoint_none(self, mock_get_metadata_config):
+    @patch("nvidia_rag.utils.vdb.get_metadata_configuration")
+    def test_get_vdb_op_elasticsearch_uses_config_url_when_endpoint_none(
+        self, mock_get_metadata_config
+    ):
         """Test _get_vdb_op with Elasticsearch uses config URL when endpoint is None"""
         # Setup mocks
         mock_config = Mock()
@@ -252,35 +286,37 @@ class TestVDBInit:
 
         mock_get_metadata_config.return_value = (None, None, None)
 
-        with patch('nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.ElasticVDB') as mock_elastic_vdb:
+        with patch(
+            "nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.ElasticVDB"
+        ) as mock_elastic_vdb:
             mock_vdb_instance = Mock()
             mock_elastic_vdb.return_value = mock_vdb_instance
 
             result = _get_vdb_op(
-                vdb_endpoint=None,
-                collection_name="test_index",
-                config=mock_config
+                vdb_endpoint=None, collection_name="test_index", config=mock_config
             )
 
             assert result == mock_vdb_instance
             call_args = mock_elastic_vdb.call_args[1]
             assert call_args["es_url"] == "http://config-elasticsearch:9200"
 
-    @patch('nvidia_rag.utils.vdb.get_metadata_configuration')
+    @patch("nvidia_rag.utils.vdb.get_metadata_configuration")
     def test_get_vdb_op_invalid_vector_store(self, mock_get_metadata_config):
         """Test _get_vdb_op with invalid vector store name raises ValueError"""
         mock_config = Mock()
         mock_config.vector_store.name = "invalid_store"
         mock_get_metadata_config.return_value = (None, None, None)
 
-        with pytest.raises(ValueError, match="Invalid vector store name: invalid_store"):
+        with pytest.raises(
+            ValueError, match="Invalid vector store name: invalid_store"
+        ):
             _get_vdb_op(
                 vdb_endpoint="http://test:1234",
                 collection_name="test_collection",
-                config=mock_config
+                config=mock_config,
             )
 
-    @patch('nvidia_rag.utils.vdb.get_metadata_configuration')
+    @patch("nvidia_rag.utils.vdb.get_metadata_configuration")
     def test_get_vdb_op_default_parameters(self, mock_get_metadata_config):
         """Test _get_vdb_op with default parameters"""
         # Setup mocks
@@ -296,18 +332,23 @@ class TestVDBInit:
 
         mock_get_metadata_config.return_value = (None, None, None)
 
-        with patch.dict(os.environ, {
-            "MINIO_ENDPOINT": "http://minio:9000",
-            "MINIO_ACCESSKEY": "minioadmin",
-            "MINIO_SECRETKEY": "minioadmin",
-            "NVINGEST_MINIO_BUCKET": "test-bucket"
-        }):
-            with patch('nvidia_rag.utils.vdb.milvus.milvus_vdb.MilvusVDB') as mock_milvus_vdb:
+        with patch.dict(
+            os.environ,
+            {
+                "MINIO_ENDPOINT": "http://minio:9000",
+                "MINIO_ACCESSKEY": "minioadmin",
+                "MINIO_SECRETKEY": "minioadmin",
+                "NVINGEST_MINIO_BUCKET": "test-bucket",
+            },
+        ):
+            with patch(
+                "nvidia_rag.utils.vdb.milvus.milvus_vdb.MilvusVDB"
+            ) as mock_milvus_vdb:
                 mock_vdb_instance = Mock()
                 mock_milvus_vdb.return_value = mock_vdb_instance
 
-                result = _get_vdb_op(vdb_endpoint="http://test-milvus:19530",
-                    config=mock_config
+                result = _get_vdb_op(
+                    vdb_endpoint="http://test-milvus:19530", config=mock_config
                 )
 
                 assert result == mock_vdb_instance

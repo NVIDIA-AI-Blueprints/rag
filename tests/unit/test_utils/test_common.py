@@ -20,6 +20,7 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pandas as pd
 import pytest
+from langchain_core.documents import Document
 
 from nvidia_rag.utils.common import (
     combine_dicts,
@@ -935,14 +936,33 @@ class TestDataCatalogUtilities:
         assert result["field1"] == 5
         assert result["field2"] == 10
 
+    def test_perform_document_info_aggregation_boolean_flags_or_logic(self):
+        """Test that boolean flags (has_tables, has_charts, has_images) use OR logic"""
+        existing = {"has_tables": False, "has_charts": True, "has_images": False}
+        new = {"has_tables": True, "has_charts": False, "has_images": True}
+
+        result = perform_document_info_aggregation(existing, new)
+
+        assert result["has_tables"] is True
+        assert result["has_charts"] is True
+        assert result["has_images"] is True
+
+    def test_perform_document_info_aggregation_boolean_flags_both_false(self):
+        """Test boolean flags when both are False"""
+        existing = {"has_tables": False, "has_charts": False}
+        new = {"has_tables": False, "has_charts": False}
+
+        result = perform_document_info_aggregation(existing, new)
+
+        assert result["has_tables"] is False
+        assert result["has_charts"] is False
+
 
 class TestFilterDocumentsByConfidence:
     """Test filter_documents_by_confidence function"""
 
     def test_filter_with_zero_threshold(self):
         """Test filtering with 0.0 threshold (should return all documents)"""
-        from langchain_core.documents import Document
-
         docs = [
             Document(page_content="doc1", metadata={"relevance_score": 0.3}),
             Document(page_content="doc2", metadata={"relevance_score": 0.7}),
@@ -954,8 +974,6 @@ class TestFilterDocumentsByConfidence:
 
     def test_filter_with_low_threshold(self):
         """Test filtering with 0.2 threshold"""
-        from langchain_core.documents import Document
-
         docs = [
             Document(page_content="doc1", metadata={"relevance_score": 0.3}),
             Document(page_content="doc2", metadata={"relevance_score": 0.7}),
@@ -969,8 +987,6 @@ class TestFilterDocumentsByConfidence:
 
     def test_filter_with_medium_threshold(self):
         """Test filtering with 0.5 threshold"""
-        from langchain_core.documents import Document
-
         docs = [
             Document(page_content="doc1", metadata={"relevance_score": 0.3}),
             Document(page_content="doc2", metadata={"relevance_score": 0.7}),
@@ -982,8 +998,6 @@ class TestFilterDocumentsByConfidence:
 
     def test_filter_with_high_threshold(self):
         """Test filtering with 0.7 threshold"""
-        from langchain_core.documents import Document
-
         docs = [
             Document(page_content="doc1", metadata={"relevance_score": 0.3}),
             Document(page_content="doc2", metadata={"relevance_score": 0.9}),
@@ -996,8 +1010,6 @@ class TestFilterDocumentsByConfidence:
 
     def test_filter_with_very_high_threshold(self):
         """Test filtering with 0.9 threshold (should filter most docs)"""
-        from langchain_core.documents import Document
-
         docs = [
             Document(page_content="doc1", metadata={"relevance_score": 0.3}),
             Document(page_content="doc2", metadata={"relevance_score": 0.7}),
@@ -1009,8 +1021,6 @@ class TestFilterDocumentsByConfidence:
 
     def test_filter_documents_without_relevance_score(self):
         """Test filtering documents that don't have relevance_score"""
-        from langchain_core.documents import Document
-
         docs = [
             Document(page_content="doc1", metadata={}),
             Document(page_content="doc2", metadata={"other_field": "value"}),
@@ -1027,8 +1037,6 @@ class TestFilterDocumentsByConfidence:
 
     def test_filter_single_document(self):
         """Test filtering single document"""
-        from langchain_core.documents import Document
-
         docs = [Document(page_content="doc1", metadata={"relevance_score": 0.7})]
 
         result = filter_documents_by_confidence(docs, 0.5)
@@ -1036,8 +1044,6 @@ class TestFilterDocumentsByConfidence:
 
     def test_filter_exact_threshold_match(self):
         """Test that documents with exact threshold score are included"""
-        from langchain_core.documents import Document
-
         docs = [
             Document(page_content="doc1", metadata={"relevance_score": 0.5}),
             Document(page_content="doc2", metadata={"relevance_score": 0.4}),
@@ -1049,8 +1055,6 @@ class TestFilterDocumentsByConfidence:
 
     def test_filter_preserves_original_documents(self):
         """Test that filtering doesn't modify original document list"""
-        from langchain_core.documents import Document
-
         docs = [
             Document(page_content="doc1", metadata={"relevance_score": 0.3}),
             Document(page_content="doc2", metadata={"relevance_score": 0.7}),
@@ -1064,8 +1068,6 @@ class TestFilterDocumentsByConfidence:
 
     def test_filter_with_negative_threshold(self):
         """Test filtering with negative threshold (should return all)"""
-        from langchain_core.documents import Document
-
         docs = [
             Document(page_content="doc1", metadata={"relevance_score": 0.0}),
             Document(page_content="doc2", metadata={"relevance_score": 0.5}),
@@ -1076,8 +1078,6 @@ class TestFilterDocumentsByConfidence:
 
     def test_filter_with_threshold_greater_than_one(self):
         """Test filtering with threshold > 1.0"""
-        from langchain_core.documents import Document
-
         docs = [
             Document(page_content="doc1", metadata={"relevance_score": 1.0}),
             Document(page_content="doc2", metadata={"relevance_score": 0.9}),
@@ -1088,8 +1088,6 @@ class TestFilterDocumentsByConfidence:
 
     def test_filter_logging_behavior(self, caplog):
         """Test that filtering logs appropriate information"""
-        from langchain_core.documents import Document
-
         docs = [
             Document(page_content="doc1", metadata={"relevance_score": 0.3}),
             Document(page_content="doc2", metadata={"relevance_score": 0.7}),
@@ -1106,8 +1104,6 @@ class TestFilterDocumentsByConfidence:
 
     def test_filter_documents_with_non_numeric_relevance_score(self):
         """Test handling of invalid relevance scores"""
-        from langchain_core.documents import Document
-
         docs = [
             Document(page_content="doc1", metadata={"relevance_score": "invalid"}),
             Document(page_content="doc2", metadata={"relevance_score": 0.7}),

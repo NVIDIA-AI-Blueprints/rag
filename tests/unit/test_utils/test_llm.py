@@ -25,6 +25,7 @@ import pytest
 import requests
 import yaml
 
+from nvidia_rag.rag_server.response_generator import APIError
 from nvidia_rag.utils.llm import (
     _is_nvidia_endpoint,
     get_llm,
@@ -347,9 +348,7 @@ class TestGetLLM:
             ):
                 kwargs = {"model": "test-model", "enable_guardrails": True}
 
-                with pytest.raises(
-                    RuntimeError, match="Failed to connect to guardrails service"
-                ):
+                with pytest.raises(APIError, match="Guardrails NIM unavailable"):
                     get_llm(**kwargs)
 
     def test_get_llm_with_guardrails_no_url(self):

@@ -55,9 +55,12 @@ Retrieval Operations:
 import logging
 import os
 import time
-from typing import Any, Optional, Union, Tuple
+from concurrent.futures import Future
+from typing import Any, Optional, Union
 
 import pandas as pd
+import requests
+from elastic_transport import ConnectionError as ESConnectionError
 from elasticsearch import Elasticsearch
 from elasticsearch.helpers.vectorstore import DenseVectorStrategy, VectorStore
 from langchain_core.documents import Document
@@ -66,6 +69,7 @@ from langchain_elasticsearch import ElasticsearchStore
 from nv_ingest_client.util.milvus import cleanup_records
 from opentelemetry import context as otel_context
 
+from nvidia_rag.rag_server.response_generator import APIError, ErrorCodeMapping
 from nvidia_rag.utils.common import (
     get_current_timestamp,
     perform_document_info_aggregation,
@@ -118,41 +122,67 @@ class ElasticVDB(VDBRag):
         self.index_name = index_name
         self.es_url = es_url
         # Prefer Bearer token when provided; then API key; otherwise fall back to basic auth.
-        resolved_api_key: Optional[Union[str, Tuple[str, str]]] = None
-        resolved_basic_auth: Optional[Tuple[str, str]] = None
-        resolved_bearer_auth: Optional[str] = None
-        
+        resolved_api_key: str | tuple[str, str] | None = None
+        resolved_basic_auth: tuple[str, str] | None = None
+        resolved_bearer_auth: str | None = None
+
         if auth_token:
             resolved_bearer_auth = auth_token
         elif self.config.vector_store.api_key:
             resolved_api_key = self.config.vector_store.api_key.get_secret_value()
-        elif self.config.vector_store.api_key_id and self.config.vector_store.api_key_secret:
-            resolved_api_key = (self.config.vector_store.api_key_id, self.config.vector_store.api_key_secret.get_secret_value())
+        elif (
+            self.config.vector_store.api_key_id
+            and self.config.vector_store.api_key_secret
+        ):
+            resolved_api_key = (
+                self.config.vector_store.api_key_id,
+                self.config.vector_store.api_key_secret.get_secret_value(),
+            )
         # Resolve basic auth from config
         elif self.config.vector_store.username and self.config.vector_store.password:
-            resolved_basic_auth = (self.config.vector_store.username, self.config.vector_store.password.get_secret_value())
+            resolved_basic_auth = (
+                self.config.vector_store.username,
+                self.config.vector_store.password.get_secret_value(),
+            )
 
         # Keep on instance for reuse (e.g., langchain vectorstore)
         self._bearer_auth = resolved_bearer_auth
         self._api_key = resolved_api_key
         self._basic_auth = resolved_basic_auth
         self._username = self.config.vector_store.username
-        self._password = self.config.vector_store.password.get_secret_value() if self.config.vector_store.password is not None else ""
+        self._password = (
+            self.config.vector_store.password.get_secret_value()
+            if self.config.vector_store.password is not None
+            else ""
+        )
 
         es_conn_params = {
             "hosts": [self.es_url],
         }
-        
+
         if self._bearer_auth:
             es_conn_params["bearer_auth"] = self._bearer_auth
         elif self._api_key:
             es_conn_params["api_key"] = self._api_key
         elif self._basic_auth:
             es_conn_params["basic_auth"] = self._basic_auth
-        
+
         self._es_connection = Elasticsearch(**es_conn_params).options(
             request_timeout=int(os.environ.get("ES_REQUEST_TIMEOUT", 600))
         )
+
+        try:
+            self._es_connection.info()
+            logger.debug(f"Connected to Elasticsearch at {self.es_url}")
+        except (ESConnectionError, ConnectionError, OSError) as e:
+            logger.exception(
+                "Failed to connect to Elasticsearch at %s: %s", self.es_url, e
+            )
+            raise APIError(
+                f"Vector database (Elasticsearch) is unavailable at {self.es_url}. "
+                "Please verify Elasticsearch is running and accessible.",
+                ErrorCodeMapping.SERVICE_UNAVAILABLE,
+            ) from e
 
         # Track if system collections have been initialized
         self._metadata_schema_collection_initialized = False
@@ -304,6 +334,22 @@ class ElasticVDB(VDBRag):
         self.create_index()
         self.write_to_index(records)
 
+    def run_async(
+        self,
+        records: list | Future,
+    ) -> list:
+        """Run ingestion from either a list of records or a Future producing records."""
+        logger.info(f"creating index - {self.index_name}")
+        self.create_index()
+
+        if isinstance(records, Future):
+            records = records.result()
+
+        logger.info(f"writing to index, for collection - {self.index_name}")
+        self.write_to_index(records)
+
+        return records
+
     # ----------------------------------------------------------------------------------------------
     # Implementations of the abstract methods specific to VDBRag class for ingestion
     async def check_health(self) -> dict[str, Any]:
@@ -329,7 +375,9 @@ class ElasticVDB(VDBRag):
             status["status"] = ServiceStatus.HEALTHY.value
             status["latency_ms"] = round((time.time() - start_time) * 1000, 2)
             status["indices"] = len(indices)
-            status["cluster_status"] = cluster_health.get("status", ServiceStatus.UNKNOWN.value)
+            status["cluster_status"] = cluster_health.get(
+                "status", ServiceStatus.UNKNOWN.value
+            )
 
         except ImportError:
             status["status"] = ServiceStatus.ERROR.value
@@ -410,13 +458,38 @@ class ElasticVDB(VDBRag):
         """
         Delete a collection from the Elasticsearch index.
         """
-        _ = self._es_connection.indices.delete(
-            index=",".join(collection_names), ignore_unavailable=True
-        )
-        deleted_collections, failed_collections = collection_names, []
+        deleted_collections = []
+        failed_collections = []
+
+        for collection_name in collection_names:
+            try:
+                # Check if collection exists before attempting deletion
+                if self._check_index_exists(collection_name):
+                    # Delete the collection
+                    self._es_connection.indices.delete(
+                        index=collection_name, ignore_unavailable=False
+                    )
+                    deleted_collections.append(collection_name)
+                    logger.info(f"Deleted collection: {collection_name}")
+                else:
+                    # Collection doesn't exist - add to failed list
+                    failed_collections.append(
+                        {
+                            "collection_name": collection_name,
+                            "error_message": f"Collection {collection_name} not found.",
+                        }
+                    )
+                    logger.warning(f"Collection {collection_name} not found.")
+            except Exception as e:
+                # Error during deletion - add to failed list
+                failed_collections.append(
+                    {"collection_name": collection_name, "error_message": str(e)}
+                )
+                logger.exception("Failed to delete collection %s", collection_name)
+
         logger.info(f"Collections deleted: {deleted_collections}")
 
-        # Delete the metadata schema and document info from the collection
+        # Delete the metadata schema and document info for successfully deleted collections
         for collection_name in deleted_collections:
             try:
                 _ = self._es_connection.delete_by_query(
@@ -424,8 +497,10 @@ class ElasticVDB(VDBRag):
                     body=get_delete_metadata_schema_query(collection_name),
                 )
             except Exception as e:
-                logger.error(
-                    f"Error deleting metadata schema for collection {collection_name}: {e}"
+                logger.exception(
+                    "Error deleting metadata schema for collection %s: %s",
+                    collection_name,
+                    e,
                 )
             try:
                 _ = self._es_connection.delete_by_query(
@@ -435,8 +510,10 @@ class ElasticVDB(VDBRag):
                     ),
                 )
             except Exception as e:
-                logger.error(
-                    f"Error deleting document info for collection {collection_name}: {e}"
+                logger.exception(
+                    "Error deleting document info for collection %s: %s",
+                    collection_name,
+                    e,
                 )
         return {
             "message": "Collection deletion process completed.",
@@ -484,14 +561,53 @@ class ElasticVDB(VDBRag):
         self,
         collection_name: str,
         source_values: list[str],
+        result_dict: dict[str, list[str]] | None = None,
     ) -> bool:
         """
         Delete documents from a collection by source values.
         """
+        if result_dict is not None:
+            result_dict["deleted"] = []
+            result_dict["not_found"] = []
+
+        source_to_basename = {
+            source: os.path.basename(source) if "/" in source else source
+            for source in source_values
+        }
+        existing_doc_basenames = set()
+        if result_dict is not None:
+            try:
+                all_docs = self.get_documents(collection_name)
+                existing_doc_basenames = {
+                    os.path.basename(doc.get("document_name", "")) for doc in all_docs
+                }
+            except Exception as e:
+                logger.warning(
+                    f"Failed to check existing documents before deletion: {e}"
+                )
+                existing_doc_basenames = set(source_to_basename.values())
+
         for source_value in source_values:
-            self._es_connection.delete_by_query(
-                index=collection_name, body=get_delete_docs_query(source_value)
-            )
+            doc_basename = source_to_basename[source_value]
+            try:
+                response = self._es_connection.delete_by_query(
+                    index=collection_name, body=get_delete_docs_query(source_value)
+                )
+                deleted_count = response.get("deleted", 0)
+
+                if result_dict is not None:
+                    if deleted_count > 0 or doc_basename in existing_doc_basenames:
+                        result_dict["deleted"].append(doc_basename)
+                    else:
+                        result_dict["not_found"].append(doc_basename)
+            except Exception as e:
+                logger.warning(f"Failed to delete document {source_value}: {e}")
+                if result_dict is not None:
+                    if doc_basename in existing_doc_basenames:
+                        result_dict["deleted"].append(doc_basename)
+                    else:
+                        result_dict["not_found"].append(doc_basename)
+
         self._es_connection.indices.refresh(index=collection_name)
         return True
 
@@ -775,8 +891,16 @@ class ElasticVDB(VDBRag):
             logger.info(f" Elasticsearch Retrieval latency: {latency:.4f} seconds")
 
             return self._add_collection_name_to_retreived_docs(docs, collection_name)
+        except (requests.exceptions.ConnectionError, ConnectionError, OSError) as e:
+            embedding_url = (
+                self.embedding_model._client.base_url
+                if hasattr(self.embedding_model, "_client")
+                else "configured endpoint"
+            )
+            error_msg = f"Embedding NIM unavailable at {embedding_url}. Please verify the service is running and accessible."
+            logger.error("Connection error in retrieval_langchain: %s", e)
+            raise APIError(error_msg, ErrorCodeMapping.SERVICE_UNAVAILABLE) from e
         finally:
-            # Detach OTel context only if it was attached
             if token is not None:
                 otel_context.detach(token)
 

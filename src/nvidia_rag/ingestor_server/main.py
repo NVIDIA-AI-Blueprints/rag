@@ -52,6 +52,7 @@ from uuid import uuid4
 from nv_ingest_client.primitives.tasks.extract import _DEFAULT_EXTRACTOR_MAP
 from nv_ingest_client.util.file_processing.extract import EXTENSION_TO_DOCUMENT_TYPE
 from nv_ingest_client.util.vdb.adt_vdb import VDB
+from pymilvus import MilvusClient
 
 from nvidia_rag.ingestor_server.ingestion_state_manager import IngestionStateManager
 from nvidia_rag.ingestor_server.nvingest import (
@@ -59,14 +60,17 @@ from nvidia_rag.ingestor_server.nvingest import (
     get_nv_ingest_ingestor,
 )
 from nvidia_rag.ingestor_server.task_handler import INGESTION_TASK_HANDLER
+from nvidia_rag.rag_server.main import APIError
 from nvidia_rag.utils.common import (
     create_catalog_metadata,
     create_document_metadata,
     derive_boolean_flags,
     get_current_timestamp,
+    perform_document_info_aggregation,
 )
 from nvidia_rag.utils.configuration import NvidiaRAGConfig
 from nvidia_rag.utils.health_models import IngestorHealthResponse
+from nvidia_rag.utils.llm import get_prompts
 from nvidia_rag.utils.metadata_validation import (
     SYSTEM_MANAGED_FIELDS,
     MetadataField,
@@ -79,16 +83,16 @@ from nvidia_rag.utils.minio_operator import (
     get_unique_thumbnail_id_file_name_prefix,
     get_unique_thumbnail_id_from_result,
 )
-from nvidia_rag.utils.llm import get_prompts
-from nvidia_rag.utils.summarization import generate_document_summaries
-from nvidia_rag.utils.summary_status_handler import SUMMARY_STATUS_HANDLER
 from nvidia_rag.utils.observability.tracing import (
     create_nv_ingest_trace_context,
     get_tracer,
     process_nv_ingest_traces,
     trace_function,
 )
-from nvidia_rag.utils.vdb import _get_vdb_op
+from nvidia_rag.utils.summarization import generate_document_summaries
+from nvidia_rag.utils.summary_status_handler import SUMMARY_STATUS_HANDLER
+from nvidia_rag.utils.vdb import DEFAULT_DOCUMENT_INFO_COLLECTION, _get_vdb_op
+from nvidia_rag.utils.vdb.elasticsearch.es_queries import get_delete_document_info_query
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
 
 # Initialize logger
@@ -101,6 +105,7 @@ class Mode(str, Enum):
 
     LIBRARY = "library"
     SERVER = "server"
+
 
 SUPPORTED_FILE_TYPES = set(_DEFAULT_EXTRACTOR_MAP.keys()) & set(
     EXTENSION_TO_DOCUMENT_TYPE.keys()
@@ -136,10 +141,10 @@ class NvidiaRAGIngestor:
         if isinstance(mode, str):
             try:
                 mode = Mode(mode)
-            except ValueError:
+            except ValueError as err:
                 raise ValueError(
                     f"Invalid mode: {mode}. Supported modes are: {[m.value for m in Mode]}"
-                )
+                ) from err
         self.mode = mode
         self.vdb_op = vdb_op
 
@@ -150,14 +155,21 @@ class NvidiaRAGIngestor:
 
         # Initialize instance-based clients
         self.nv_ingest_client = get_nv_ingest_client(self.config)
-        self.minio_operator = get_minio_operator(config=self.config)
 
-        # Ensure default bucket exists (idempotent operation)
+        # Initialize MinIO operator - handle failures gracefully
         try:
-            self.minio_operator._make_bucket(bucket_name="a-bucket")
-            logger.debug("Ensured 'a-bucket' exists in MinIO")
-        except Exception as e:
-            logger.warning(f"Failed to create/verify bucket 'a-bucket': {e}")
+            self.minio_operator = get_minio_operator(config=self.config)
+            # Ensure default bucket exists (idempotent operation)
+            try:
+                self.minio_operator._make_bucket(bucket_name="a-bucket")
+                logger.debug("Ensured 'a-bucket' exists in MinIO")
+            except Exception as bucket_err:
+                # Log specific exception for debugging bucket creation issues
+                logger.debug("Could not ensure bucket exists: %s", bucket_err)
+        except Exception:
+            self.minio_operator = None
+            # Error already logged in MinioOperator.__init__, just note it here
+            logger.debug("MinIO operator set to None due to initialization failure")
 
         if self.vdb_op is not None:
             if not (isinstance(self.vdb_op, VDBRag) or isinstance(self.vdb_op, VDB)):
@@ -172,9 +184,11 @@ class NvidiaRAGIngestor:
         if check_dependencies:
             from nvidia_rag.ingestor_server.health import check_all_services_health
 
-            vdb_op, _ = self.__prepare_vdb_op_and_collection_name(bypass_validation=True)
+            vdb_op, _ = self.__prepare_vdb_op_and_collection_name(
+                bypass_validation=True
+            )
             return await check_all_services_health(vdb_op, self.config)
-        
+
         return IngestorHealthResponse(message="Service is up.")
 
     @trace_function("ingestor.main.validate_directory_traversal_attack", tracer=TRACER)
@@ -279,6 +293,9 @@ class NvidiaRAGIngestor:
             filepaths=filepaths,
             vdb_auth_token=vdb_auth_token,
         )
+
+        state_manager.collection_name = collection_name
+
         vdb_op.create_document_info_collection()
 
         # Set default values for mutable arguments
@@ -310,9 +327,11 @@ class NvidiaRAGIngestor:
             raise ValueError(
                 f"Collection {collection_name} does not exist. Ensure a collection is created using POST /collection endpoint first."
             )
-        
+
         # Initialize document-wise status
-        document_wise_status = await state_manager.initialize_nv_ingest_document_wise_status(filepaths)
+        document_wise_status = (
+            await state_manager.initialize_nv_ingest_document_wise_status(filepaths)
+        )
 
         try:
             if not blocking:
@@ -339,7 +358,10 @@ class NvidiaRAGIngestor:
                 )
 
                 # Set initial document-wise status in IngestionTaskHandler
-                await INGESTION_TASK_HANDLER.set_task_state_dict(state_manager.get_task_id(), {"document_wise_status": document_wise_status})
+                await INGESTION_TASK_HANDLER.set_task_state_dict(
+                    state_manager.get_task_id(),
+                    {"document_wise_status": document_wise_status},
+                )
 
                 # Update initial batch progress response to indicate that the ingestion has started
                 batch_progress_response = await self.__build_ingestion_response(
@@ -376,6 +398,7 @@ class NvidiaRAGIngestor:
                     additional_validation_errors=additional_validation_errors,
                     state_manager=state_manager,
                     documents_catalog_metadata=documents_catalog_metadata,
+                    vdb_auth_token=vdb_auth_token,
                 )
             return response_dict
 
@@ -460,7 +483,7 @@ class NvidiaRAGIngestor:
                     filepaths=filepaths,
                     metadata_schema=metadata_schema,
                     vdb_auth_token=vdb_auth_token,
-                )   
+                )
 
             if not validation_status:
                 failed_filenames = set()
@@ -532,7 +555,7 @@ class NvidiaRAGIngestor:
                             "error_message": f"Document {filename} already exists. Use update document API instead.",
                         }
                     )
-                
+
                 # Check for unsupported file formats (.rst, .rtf, etc.)
                 not_supported_formats = (".rst", ".rtf", ".org")
                 if filename.endswith(not_supported_formats):
@@ -596,16 +619,6 @@ class NvidiaRAGIngestor:
                 state_manager=state_manager,
             )
 
-            # Apply catalog metadata for successfully ingested documents
-            if state_manager.documents_catalog_metadata:
-                await self.__apply_documents_catalog_metadata(
-                    results=results,
-                    vdb_op=vdb_op,
-                    collection_name=collection_name,
-                    documents_catalog_metadata=state_manager.documents_catalog_metadata,
-                    filepaths=filepaths,
-                )
-
             logger.info(
                 "== Overall Ingestion completed successfully in %s seconds ==",
                 time.time() - start_time,
@@ -619,6 +632,16 @@ class NvidiaRAGIngestor:
                 is_final_batch=True,
                 vdb_op=vdb_op,
             )
+
+            # Apply catalog metadata for successfully ingested documents
+            if state_manager.documents_catalog_metadata:
+                await self.__apply_documents_catalog_metadata(
+                    results=results,
+                    vdb_op=vdb_op,
+                    collection_name=collection_name,
+                    documents_catalog_metadata=state_manager.documents_catalog_metadata,
+                    filepaths=filepaths,
+                )
             ingestion_state = await state_manager.update_total_progress(
                 total_progress_response=response_data,
             )
@@ -688,7 +711,11 @@ class NvidiaRAGIngestor:
         filename_to_result_map = {}
         for result in results:
             if len(result) > 0:
-                filename_to_result_map[os.path.basename(result[0].get("metadata").get("source_metadata").get("source_id"))] = result
+                metadata = result[0].get("metadata", {})
+                source_metadata = metadata.get("source_metadata", {})
+                source_id = source_metadata.get("source_id", "")
+                if source_id:
+                    filename_to_result_map[os.path.basename(source_id)] = result
 
         # Generate response dictionary
         uploaded_documents = []
@@ -707,13 +734,13 @@ class NvidiaRAGIngestor:
                     raw_text_elements_size=raw_text_elements_size,
                 )
 
-                if not is_final_batch:
-                    vdb_op.add_document_info(
-                        info_type="document",
-                        collection_name=state_manager.collection_name,
-                        document_name=os.path.basename(filepath),
-                        info_value=document_info,
-                    )
+                # Always add document info for each document
+                vdb_op.add_document_info(
+                    info_type="document",
+                    collection_name=state_manager.collection_name,
+                    document_name=os.path.basename(filepath),
+                    info_value=document_info,
+                )
                 uploaded_document = {
                     "document_id": str(uuid4()),
                     "document_name": os.path.basename(filepath),
@@ -844,7 +871,9 @@ class NvidiaRAGIngestor:
                 )
             else:
                 response = self.delete_documents(
-                    [file], collection_name=collection_name, vdb_auth_token=vdb_auth_token,
+                    [file],
+                    collection_name=collection_name,
+                    vdb_auth_token=vdb_auth_token,
                 )
 
             if response["total_documents"] == 0:
@@ -880,14 +909,21 @@ class NvidiaRAGIngestor:
         """Get the status of an ingestion task."""
 
         logger.info(f"Getting status of task {task_id}")
+        document_wise_status = None
         try:
             status_and_result = INGESTION_TASK_HANDLER.get_task_status_and_result(
                 task_id
             )
-            document_wise_status = INGESTION_TASK_HANDLER.get_task_state_dict(task_id).get("document_wise_status")
+            document_wise_status = INGESTION_TASK_HANDLER.get_task_state_dict(
+                task_id
+            ).get("document_wise_status")
             if status_and_result.get("state") == "PENDING":
                 logger.info(f"Task {task_id} is pending")
-                return {"state": "PENDING", "result": status_and_result.get("result"), "document_wise_status": document_wise_status}
+                return {
+                    "state": "PENDING",
+                    "result": status_and_result.get("result"),
+                    "document_wise_status": document_wise_status,
+                }
             elif status_and_result.get("state") == "FINISHED":
                 try:
                     result = status_and_result.get("result")
@@ -896,24 +932,48 @@ class NvidiaRAGIngestor:
                             f"Task {task_id} failed with error: {result.get('message')}"
                         )
                         result.pop("state")
-                        return {"state": "FAILED", "result": result, "document_wise_status": document_wise_status}
+                        return {
+                            "state": "FAILED",
+                            "result": result,
+                            "document_wise_status": document_wise_status,
+                        }
                     logger.info(f"Task {task_id} is finished")
-                    return {"state": "FINISHED", "result": result, "document_wise_status": document_wise_status}
+                    return {
+                        "state": "FINISHED",
+                        "result": result,
+                        "document_wise_status": document_wise_status,
+                    }
                 except Exception as e:
-                    logger.error(f"Task {task_id} failed with error: {e}")
-                    return {"state": "FAILED", "result": {"message": str(e)}, "document_wise_status": document_wise_status}
+                    logger.exception("Task %s failed with error: %s", task_id, e)
+                    return {
+                        "state": "FAILED",
+                        "result": {"message": str(e)},
+                        "document_wise_status": document_wise_status,
+                    }
             elif status_and_result.get("state") == "FAILED":
                 logger.error(
                     f"Task {task_id} failed with error: {status_and_result.get('result').get('message')}"
                 )
-                return {"state": "FAILED", "result": status_and_result.get("result"), "document_wise_status": document_wise_status}
+                return {
+                    "state": "FAILED",
+                    "result": status_and_result.get("result"),
+                    "document_wise_status": document_wise_status,
+                }
             else:
                 task_state = INGESTION_TASK_HANDLER.get_task_status(task_id)
                 logger.error(f"Unknown task state: {task_state}")
-                return {"state": "UNKNOWN", "result": {"message": "Unknown task state"}, "document_wise_status": document_wise_status}
+                return {
+                    "state": "UNKNOWN",
+                    "result": {"message": "Unknown task state"},
+                    "document_wise_status": document_wise_status,
+                }
         except KeyError as e:
             logger.error(f"Task {task_id} not found with error: {e}")
-            return {"state": "UNKNOWN", "result": {"message": "Unknown task state"}, "document_wise_status": document_wise_status}
+            return {
+                "state": "UNKNOWN",
+                "result": {"message": "Unknown task state"},
+                "document_wise_status": document_wise_status,
+            }
 
     @trace_function("ingestor.main.apply_documents_catalog_metadata", tracer=TRACER)
     async def __apply_documents_catalog_metadata(
@@ -1070,6 +1130,9 @@ class NvidiaRAGIngestor:
                 "collection_name": collection_name,
             }
         except Exception as e:
+            # Re-raise APIError to propagate proper HTTP status code via global exception handler
+            if isinstance(e, APIError):
+                raise
             logger.exception(f"Failed to create collection: {e}")
             raise Exception(f"Failed to create collection: {e}") from e
 
@@ -1129,6 +1192,9 @@ class NvidiaRAGIngestor:
                 "collection_name": collection_name,
             }
         except Exception as e:
+            # Re-raise APIError to propagate proper HTTP status code via global exception handler
+            if isinstance(e, APIError):
+                raise
             logger.exception(f"Failed to update collection metadata: {e}")
             raise Exception(f"Failed to update collection metadata: {e}") from e
 
@@ -1190,6 +1256,9 @@ class NvidiaRAGIngestor:
                 "collection_name": collection_name,
             }
         except Exception as e:
+            # Re-raise APIError to propagate proper HTTP status code via global exception handler
+            if isinstance(e, APIError):
+                raise
             logger.exception(f"Failed to update document metadata: {e}")
             raise Exception(f"Failed to update document metadata: {e}") from e
 
@@ -1293,32 +1362,48 @@ class NvidiaRAGIngestor:
             )
 
             response = vdb_op.delete_collections(collection_names)
-            # Delete citation metadata from Minio
-            for collection in collection_names:
-                collection_prefix = get_unique_thumbnail_id_collection_prefix(
-                    collection
-                )
-                delete_object_names = self.minio_operator.list_payloads(
-                    collection_prefix
-                )
-                self.minio_operator.delete_payloads(delete_object_names)
-
-            # Delete document summary from Minio
-            for collection in collection_names:
-                collection_prefix = get_unique_thumbnail_id_collection_prefix(
-                    f"summary_{collection}"
-                )
-                delete_object_names = self.minio_operator.list_payloads(
-                    collection_prefix
-                )
-                if len(delete_object_names):
-                    self.minio_operator.delete_payloads(delete_object_names)
-                    logger.info(
-                        f"Deleted all document summaries from Minio for collection: {collection}"
+            # Delete citation metadata from Minio (skip if MinIO unavailable)
+            if self.minio_operator is not None:
+                for collection in collection_names:
+                    collection_prefix = get_unique_thumbnail_id_collection_prefix(
+                        collection
                     )
+                    try:
+                        delete_object_names = self.minio_operator.list_payloads(
+                            collection_prefix
+                        )
+                        self.minio_operator.delete_payloads(delete_object_names)
+                    except Exception as e:
+                        logger.warning(
+                            f"Failed to delete MinIO objects for collection {collection}: {e}"
+                        )
+
+                # Delete document summary from Minio
+                for collection in collection_names:
+                    collection_prefix = get_unique_thumbnail_id_collection_prefix(
+                        f"summary_{collection}"
+                    )
+                    try:
+                        delete_object_names = self.minio_operator.list_payloads(
+                            collection_prefix
+                        )
+                        if len(delete_object_names):
+                            self.minio_operator.delete_payloads(delete_object_names)
+                            logger.info(
+                                f"Deleted all document summaries from Minio for collection: {collection}"
+                            )
+                    except Exception as e:
+                        logger.warning(
+                            f"Failed to delete MinIO summaries for collection {collection}: {e}"
+                        )
+            else:
+                logger.warning("MinIO unavailable - skipping metadata deletion")
 
             return response
         except Exception as e:
+            # Re-raise APIError to propagate proper HTTP status code via global exception handler
+            if isinstance(e, APIError):
+                raise
             logger.error(f"Failed to delete collections in milvus: {e}")
             from traceback import print_exc
 
@@ -1378,6 +1463,11 @@ class NvidiaRAGIngestor:
             }
 
         except Exception as e:
+            # Re-raise APIError to propagate proper HTTP status code via global exception handler
+            if isinstance(e, APIError):
+                # Let APIError propagate so global exception handler can return proper status code
+                raise
+
             logger.error(f"Failed to retrieve collections: {e}")
             return {
                 "message": f"Failed to retrieve collections due to error: {str(e)}",
@@ -1447,6 +1537,9 @@ class NvidiaRAGIngestor:
             }
 
         except Exception as e:
+            # Re-raise APIError to propagate proper HTTP status code via global exception handler
+            if isinstance(e, APIError):
+                raise
             logger.exception(f"Failed to retrieve documents due to error {e}.")
             return {
                 "documents": [],
@@ -1504,44 +1597,238 @@ class NvidiaRAGIngestor:
                 os.path.join(upload_folder, filename) for filename in document_names
             ]
 
-            if vdb_op.delete_documents(collection_name, source_values):
-                # Generate response dictionary
-                documents = [
-                    {
-                        "document_id": "",  # TODO - Use actual document_id
-                        "document_name": doc,
-                        "size_bytes": 0,  # TODO - Use actual size
-                    }
-                    for doc in document_names
-                ]
-                # Delete citation metadata from Minio
-                for doc in document_names:
+            # Fetch document info before deletion so we can return it and update collection stats
+            documents_list = vdb_op.get_documents(collection_name)
+            documents_map = {
+                os.path.basename(doc.get("document_name", "")): doc
+                for doc in documents_list
+            }
+
+            # Get metadata schema to filter out chunk-level auto-extracted fields
+            metadata_schema = vdb_op.get_metadata_schema(collection_name)
+            user_defined_fields = {
+                field["name"]
+                for field in metadata_schema
+                if field.get("user_defined", True)
+            }
+
+            # Process all documents (idempotent - always returns True)
+            # Pass result_dict to get detailed deletion results
+            # Milvus populates it based on delete_count, Elasticsearch populates it by checking existing documents
+            deletion_result = {}
+            vdb_op.delete_documents(
+                collection_name, source_values, result_dict=deletion_result
+            )
+
+            deleted_docs = deletion_result.get("deleted", [])
+            not_found_docs = deletion_result.get("not_found", [])
+
+            # If result_dict wasn't populated (fallback for older VDB implementations),
+            # assume all documents were deleted successfully
+            if not deleted_docs and not not_found_docs:
+                deleted_docs = document_names
+
+            # Helper function to delete MinIO metadata for documents
+            def delete_minio_metadata(docs_to_delete: list[str]) -> None:
+                if self.minio_operator is None:
+                    logger.warning("MinIO unavailable - skipping metadata deletion")
+                    return
+
+                for doc in docs_to_delete:
+                    # Delete citation metadata
                     filename_prefix = get_unique_thumbnail_id_file_name_prefix(
                         collection_name, doc
                     )
-                    delete_object_names = self.minio_operator.list_payloads(
-                        filename_prefix
-                    )
-                    self.minio_operator.delete_payloads(delete_object_names)
+                    try:
+                        delete_object_names = self.minio_operator.list_payloads(
+                            filename_prefix
+                        )
+                        self.minio_operator.delete_payloads(delete_object_names)
+                    except Exception as e:
+                        logger.warning(
+                            f"Failed to delete MinIO objects for doc {doc}: {e}"
+                        )
 
-                # Delete document summary from Minio
-                for doc in document_names:
+                    # Delete document summary
                     filename_prefix = get_unique_thumbnail_id_file_name_prefix(
                         f"summary_{collection_name}", doc
                     )
-                    delete_object_names = self.minio_operator.list_payloads(
-                        filename_prefix
+                    try:
+                        delete_object_names = self.minio_operator.list_payloads(
+                            filename_prefix
+                        )
+                        if len(delete_object_names):
+                            self.minio_operator.delete_payloads(delete_object_names)
+                            logger.info(f"Deleted summary for doc: {doc} from Minio")
+                    except Exception as e:
+                        logger.warning(
+                            f"Failed to delete MinIO summary for doc {doc}: {e}"
+                        )
+
+            # Recalculate collection info from remaining documents after deletion
+            # This is more reliable than subtracting, and avoids double-aggregation issues
+            if deleted_docs:
+                # Get all remaining documents after deletion (fetch again after deletion)
+                remaining_documents_list = vdb_op.get_documents(collection_name)
+
+                # Aggregate collection info from all remaining documents
+                aggregated_collection_info = {}
+                for doc_item in remaining_documents_list:
+                    doc_info = doc_item.get("document_info", {})
+                    if doc_info:
+                        aggregated_collection_info = perform_document_info_aggregation(
+                            aggregated_collection_info, doc_info
+                        )
+
+                # Get catalog metadata (description, tags, etc.) - these shouldn't be recalculated
+                catalog_info = vdb_op.get_document_info(
+                    info_type="catalog",
+                    collection_name=collection_name,
+                    document_name="NA",
+                )
+
+                # Merge catalog info with aggregated metrics
+                # Catalog info contains: description, tags, owner, business_domain, status, date_created, last_updated
+                # Aggregated info contains: has_images, has_tables, has_charts, total_elements, etc.
+                if aggregated_collection_info or catalog_info:
+                    # Re-derive boolean flags from doc_type_counts to ensure they're proper booleans
+                    doc_type_counts = aggregated_collection_info.get(
+                        "doc_type_counts", {}
                     )
-                    if len(delete_object_names):
-                        self.minio_operator.delete_payloads(delete_object_names)
-                        logger.info(f"Deleted summary for doc: {doc} from Minio")
+                    boolean_flags = derive_boolean_flags(doc_type_counts)
+
+                    # Preserve catalog fields and update metrics
+                    updated_collection_info = {
+                        **catalog_info,  # Preserve catalog metadata
+                        **aggregated_collection_info,  # Update metrics from remaining documents
+                        **boolean_flags,  # Override boolean flags to ensure they're proper booleans
+                        "last_updated": get_current_timestamp(),  # Update timestamp
+                    }
+
+                    # Recalculate collection info by aggregating from remaining documents
+                    # Need to bypass add_document_info's aggregation which happens before deletion
+                    # So we manually delete and insert the recalculated value
+                    if hasattr(vdb_op, "vdb_endpoint") and hasattr(
+                        vdb_op, "_delete_entities"
+                    ):
+                        # Milvus: Delete existing collection info, then insert recalculated value
+                        vdb_op._delete_entities(
+                            collection_name=DEFAULT_DOCUMENT_INFO_COLLECTION,
+                            filter=f"info_type == 'collection' and collection_name == '{collection_name}' and document_name == 'NA'",
+                        )
+                        # Add new collection info directly without aggregation
+                        password = (
+                            vdb_op.config.vector_store.password.get_secret_value()
+                            if vdb_op.config.vector_store.password is not None
+                            else ""
+                        )
+                        auth_token = getattr(vdb_op, "_auth_token", None)
+                        client = MilvusClient(
+                            vdb_op.vdb_endpoint,
+                            token=auth_token
+                            if auth_token
+                            else f"{vdb_op.config.vector_store.username}:{password}",
+                        )
+                        data = {
+                            "info_type": "collection",
+                            "collection_name": collection_name,
+                            "document_name": "NA",
+                            "info_value": updated_collection_info,
+                            "vector": [0.0] * 2,
+                        }
+                        client.insert(
+                            collection_name=DEFAULT_DOCUMENT_INFO_COLLECTION, data=data
+                        )
+                        logger.info(
+                            f"Recalculated collection info for {collection_name} after document deletion"
+                        )
+                    elif hasattr(vdb_op, "_es_connection"):
+                        # Elasticsearch: Delete first, then add without aggregation
+                        vdb_op._es_connection.delete_by_query(
+                            index=DEFAULT_DOCUMENT_INFO_COLLECTION,
+                            body=get_delete_document_info_query(
+                                collection_name=collection_name,
+                                document_name="NA",
+                                info_type="collection",
+                            ),
+                        )
+                        # Insert new collection info directly
+                        data = {
+                            "collection_name": collection_name,
+                            "info_type": "collection",
+                            "document_name": "NA",
+                            "info_value": updated_collection_info,
+                        }
+                        vdb_op._es_connection.index(
+                            index=DEFAULT_DOCUMENT_INFO_COLLECTION, body=data
+                        )
+                        vdb_op._es_connection.indices.refresh(
+                            index=DEFAULT_DOCUMENT_INFO_COLLECTION
+                        )
+                        logger.info(
+                            f"Recalculated collection info for {collection_name} after document deletion"
+                        )
+                    else:
+                        # Fallback: Use add_document_info (may cause double-aggregation, but better than nothing)
+                        logger.warning(
+                            f"Could not directly update collection info for {collection_name}, using add_document_info (may cause aggregation issues)"
+                        )
+                        vdb_op.add_document_info(
+                            info_type="collection",
+                            collection_name=collection_name,
+                            document_name="NA",
+                            info_value=updated_collection_info,
+                        )
+
+            # Build response based on what was actually deleted vs not found
+            if not_found_docs and not deleted_docs:
+                # All documents don't exist
                 return {
-                    "message": "Files deleted successfully",
+                    "message": f"The following document(s) do not exist in the vectorstore: {', '.join(not_found_docs)}",
+                    "total_documents": 0,
+                    "documents": [],
+                }
+
+            # Delete MinIO metadata for successfully deleted documents
+            delete_minio_metadata(deleted_docs)
+
+            # Build documents response with metadata and document_info from fetched data
+            documents = []
+            for doc_name in deleted_docs:
+                doc_item = documents_map.get(doc_name, {})
+                documents.append(
+                    {
+                        "document_id": "",  # TODO - Use actual document_id
+                        "document_name": doc_name,
+                        "size_bytes": 0,  # TODO - Use actual size
+                        "metadata": {
+                            k: v
+                            for k, v in doc_item.get("metadata", {}).items()
+                            if k in user_defined_fields
+                        },
+                        "document_info": doc_item.get("document_info", {}),
+                    }
+                )
+
+            if not_found_docs:
+                # Some documents don't exist, but some were deleted
+                return {
+                    "message": f"Some documents deleted successfully. The following document(s) do not exist in the vectorstore: {', '.join(not_found_docs)}",
                     "total_documents": len(documents),
                     "documents": documents,
                 }
 
+            # All documents were deleted successfully
+            return {
+                "message": "Files deleted successfully",
+                "total_documents": len(documents),
+                "documents": documents,
+            }
+
         except Exception as e:
+            # Re-raise APIError to propagate proper HTTP status code via global exception handler
+            if isinstance(e, APIError):
+                raise
             return {
                 "message": f"Failed to delete files due to error: {e}",
                 "total_documents": 0,
@@ -1610,17 +1897,28 @@ class NvidiaRAGIngestor:
                     # If unique_thumbnail_id is None, the item is skipped
                     # (warning already logged in get_unique_thumbnail_id_from_result)
 
-        if os.getenv("ENABLE_MINIO_BULK_UPLOAD", "True") in ["True", "true"]:
-            logger.info(f"Bulk uploading {len(payloads)} payloads to MinIO")
-            self.minio_operator.put_payloads_bulk(
-                payloads=payloads, object_names=object_names
-            )
+        if self.minio_operator is not None:
+            if os.getenv("ENABLE_MINIO_BULK_UPLOAD", "True") in ["True", "true"]:
+                logger.info(f"Bulk uploading {len(payloads)} payloads to MinIO")
+                try:
+                    self.minio_operator.put_payloads_bulk(
+                        payloads=payloads, object_names=object_names
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to bulk upload to MinIO: {e}")
+            else:
+                logger.info(f"Sequentially uploading {len(payloads)} payloads to MinIO")
+                for payload, object_name in zip(payloads, object_names, strict=False):
+                    try:
+                        self.minio_operator.put_payload(
+                            payload=payload, object_name=object_name
+                        )
+                    except Exception as e:
+                        logger.warning(f"Failed to upload {object_name} to MinIO: {e}")
         else:
-            logger.info(f"Sequentially uploading {len(payloads)} payloads to MinIO")
-            for payload, object_name in zip(payloads, object_names, strict=False):
-                self.minio_operator.put_payload(
-                    payload=payload, object_name=object_name
-                )
+            logger.warning(
+                f"MinIO unavailable - skipping upload of {len(payloads)} payloads"
+            )
 
     @trace_function("ingestor.main.process_shallow_batch", tracer=TRACER)
     async def __process_shallow_batch(
@@ -1650,7 +1948,10 @@ class NvidiaRAGIngestor:
         shallow_failed_files: set[str] = set()
 
         shallow_results, shallow_failures = await self._perform_shallow_extraction(
-            filepaths, split_options, batch_num, state_manager=state_manager,
+            filepaths,
+            split_options,
+            batch_num,
+            state_manager=state_manager,
         )
 
         # Mark per-file shallow extraction failures immediately
@@ -1817,7 +2118,6 @@ class NvidiaRAGIngestor:
 
             logger.info("Shallow extraction complete, starting deep ingestion")
 
-
     @trace_function("ingestor.main.run_nvingest_batched_ingestion", tracer=TRACER)
     async def __run_nvingest_batched_ingestion(
         self,
@@ -1909,7 +2209,9 @@ class NvidiaRAGIngestor:
                         i : i + self.config.nv_ingest.files_per_batch
                     ]
                     batch_num = i // self.config.nv_ingest.files_per_batch + 1
-                    total_batches = (len(filepaths) + self.config.nv_ingest.files_per_batch - 1) // self.config.nv_ingest.files_per_batch
+                    total_batches = (
+                        len(filepaths) + self.config.nv_ingest.files_per_batch - 1
+                    ) // self.config.nv_ingest.files_per_batch
                     logger.info(
                         f"=== Batch Processing Status - Collection: {collection_name} - "
                         f"Processing batch {batch_num} of {total_batches} - "
@@ -2164,20 +2466,27 @@ class NvidiaRAGIngestor:
         async_future = asyncio.wrap_future(future)
 
         while True:
-            status = await asyncio.to_thread(nv_ingest_ingestor.get_status)
-            filename_status_map = dict()
+            status_dict = await asyncio.to_thread(nv_ingest_ingestor.get_status)
+            filename_status_map = {}
             # Normalize the status to a dictionary of filename to status
-            for filepath, status in status.items():
+            for filepath, file_status in status_dict.items():
                 filename = os.path.basename(filepath)
-                filename_status_map[filename] = status
-            document_wise_status = await state_manager.update_nv_ingest_document_wise_status(filename_status_map)
-            await INGESTION_TASK_HANDLER.set_task_state_dict(state_manager.get_task_id(), {"document_wise_status": document_wise_status})
+                filename_status_map[filename] = file_status
+            document_wise_status = (
+                await state_manager.update_nv_ingest_document_wise_status(
+                    filename_status_map
+                )
+            )
+            await INGESTION_TASK_HANDLER.set_task_state_dict(
+                state_manager.get_task_id(),
+                {"document_wise_status": document_wise_status},
+            )
 
             await asyncio.sleep(1)
-            
+
             if future.done():
                 break
-        
+
         if nv_ingest_traces:
             results, failures, traces = await async_future
 
@@ -2188,7 +2497,9 @@ class NvidiaRAGIngestor:
                     span_namespace=trace_context.get("span_namespace", "nv_ingest"),
                     collection_name=trace_context.get("collection_name"),
                     batch_number=trace_context.get("batch_number"),
-                    reference_time_ns=trace_context.get("reference_time_ns", ingest_start_ns),
+                    reference_time_ns=trace_context.get(
+                        "reference_time_ns", ingest_start_ns
+                    ),
                 )
 
             return results, failures
@@ -2285,7 +2596,9 @@ class NvidiaRAGIngestor:
             failure_records = [(filepath, e) for filepath in filepaths]
             return [], failure_records
 
-    @trace_function("ingestor.main.perform_file_ext_based_nv_ingest_ingestion", tracer=TRACER)
+    @trace_function(
+        "ingestor.main.perform_file_ext_based_nv_ingest_ingestion", tracer=TRACER
+    )
     async def _perform_file_ext_based_nv_ingest_ingestion(
         self,
         batch_number: int,
@@ -2365,7 +2678,10 @@ class NvidiaRAGIngestor:
                 logger.info(
                     f"Performing ingestion for PDF files for batch {batch_number} with parameters: {split_options}"
                 )
-                results_pdf, failures_pdf = await self.__perform_async_nv_ingest_ingestion(
+                (
+                    results_pdf,
+                    failures_pdf,
+                ) = await self.__perform_async_nv_ingest_ingestion(
                     nv_ingest_ingestor=nv_ingest_ingestor,
                     state_manager=state_manager,
                     nv_ingest_traces=True,
@@ -2400,7 +2716,10 @@ class NvidiaRAGIngestor:
                 logger.info(
                     f"Performing ingestion for non-PDF files for batch {batch_number} with parameters: {split_options}"
                 )
-                results_non_pdf, failures_non_pdf = await self.__perform_async_nv_ingest_ingestion(
+                (
+                    results_non_pdf,
+                    failures_non_pdf,
+                ) = await self.__perform_async_nv_ingest_ingestion(
                     nv_ingest_ingestor=nv_ingest_ingestor,
                     state_manager=state_manager,
                     nv_ingest_traces=True,

@@ -15,12 +15,13 @@
 
 """Minimal unit tests for rag_server/main.py to improve coverage for specific lines."""
 
-import pytest
 from unittest.mock import AsyncMock, Mock, patch
 
-from nvidia_rag.rag_server.main import APIError, NvidiaRAG
+import pytest
+
+from nvidia_rag.rag_server.main import NvidiaRAG
+from nvidia_rag.rag_server.response_generator import APIError, Citations
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
-from nvidia_rag.rag_server.response_generator import Citations
 
 
 class TestNvidiaRAGMinimalCoverage:
@@ -33,44 +34,88 @@ class TestNvidiaRAGMinimalCoverage:
         mock_vdb_op.check_collection_exists.return_value = True
         mock_vdb_op.get_metadata_schema.return_value = []
         mock_vdb_op.get_langchain_vectorstore.return_value = Mock()
-        mock_vdb_op.retrieval_langchain.return_value = [Mock(page_content="test content", metadata={})]
+        mock_vdb_op.retrieval_langchain.return_value = [
+            Mock(page_content="test content", metadata={})
+        ]
 
         rag = NvidiaRAG(vdb_op=mock_vdb_op)
 
-        with patch.object(rag, '_prepare_vdb_op', return_value=mock_vdb_op):
-            with patch('nvidia_rag.rag_server.main.prepare_citations', return_value=Citations(documents=[], sources=[])):
-                with patch('nvidia_rag.rag_server.main.get_ranking_model') as mock_get_ranking:
-                    with patch('nvidia_rag.rag_server.main.validate_filter_expr') as mock_validate_filter:
-                        with patch('nvidia_rag.rag_server.main.ThreadPoolExecutor') as mock_executor:
-                            with patch('nvidia_rag.rag_server.main.RunnableAssign') as mock_runnable_assign:
-                                with patch('nvidia_rag.rag_server.main.filter_documents_by_confidence', return_value=[Mock(page_content="test content", metadata={})]):
-                                    with patch('nvidia_rag.rag_server.main.logger') as mock_logger:
+        with patch.object(rag, "_prepare_vdb_op", return_value=mock_vdb_op):
+            with patch(
+                "nvidia_rag.rag_server.main.prepare_citations",
+                return_value=Citations(documents=[], sources=[]),
+            ):
+                with patch(
+                    "nvidia_rag.rag_server.main.get_ranking_model"
+                ) as mock_get_ranking:
+                    with patch(
+                        "nvidia_rag.rag_server.main.validate_filter_expr"
+                    ) as mock_validate_filter:
+                        with patch(
+                            "nvidia_rag.rag_server.main.ThreadPoolExecutor"
+                        ) as mock_executor:
+                            with patch(
+                                "nvidia_rag.rag_server.main.RunnableAssign"
+                            ) as mock_runnable_assign:
+                                with patch(
+                                    "nvidia_rag.rag_server.main.filter_documents_by_confidence",
+                                    return_value=[
+                                        Mock(page_content="test content", metadata={})
+                                    ],
+                                ):
+                                    with patch(
+                                        "nvidia_rag.rag_server.main.logger"
+                                    ) as mock_logger:
                                         # Mock the ranker
                                         mock_ranker = Mock()
-                                        mock_ranker.compress_documents.return_value = {"context": [Mock(page_content="test content", metadata={})]}
+                                        mock_ranker.compress_documents.return_value = {
+                                            "context": [
+                                                Mock(
+                                                    page_content="test content",
+                                                    metadata={},
+                                                )
+                                            ]
+                                        }
                                         mock_get_ranking.return_value = mock_ranker
 
                                         # Mock filter validation
                                         mock_validate_filter.return_value = {
                                             "status": True,
-                                            "validated_collections": ["test_collection"]
+                                            "validated_collections": [
+                                                "test_collection"
+                                            ],
                                         }
 
                                         # Mock ThreadPoolExecutor - use the same pattern as working tests
                                         mock_future = Mock()
-                                        mock_future.result.return_value = [Mock(page_content="test content", metadata={})]
+                                        mock_future.result.return_value = [
+                                            Mock(
+                                                page_content="test content", metadata={}
+                                            )
+                                        ]
                                         mock_executor.return_value.__enter__.return_value.submit.return_value = mock_future
 
                                         # Mock RunnableAssign for async
                                         mock_runnable_instance = Mock()
-                                        mock_runnable_instance.ainvoke = AsyncMock(return_value={"context": [Mock(page_content="test content", metadata={})]})
-                                        mock_runnable_assign.return_value = mock_runnable_instance
+                                        mock_runnable_instance.ainvoke = AsyncMock(
+                                            return_value={
+                                                "context": [
+                                                    Mock(
+                                                        page_content="test content",
+                                                        metadata={},
+                                                    )
+                                                ]
+                                            }
+                                        )
+                                        mock_runnable_assign.return_value = (
+                                            mock_runnable_instance
+                                        )
 
                                         # Call search with empty filter expression
                                         result = await rag.search(
                                             "test query",
                                             collection_names=["test_collection"],
-                                            filter_expr=""  # Empty filter expression
+                                            filter_expr="",  # Empty filter expression
                                         )
 
                                         # Verify result
@@ -85,44 +130,88 @@ class TestNvidiaRAGMinimalCoverage:
         mock_vdb_op.check_collection_exists.return_value = True
         mock_vdb_op.get_metadata_schema.return_value = []
         mock_vdb_op.get_langchain_vectorstore.return_value = Mock()
-        mock_vdb_op.retrieval_langchain.return_value = [Mock(page_content="test content", metadata={})]
+        mock_vdb_op.retrieval_langchain.return_value = [
+            Mock(page_content="test content", metadata={})
+        ]
 
         rag = NvidiaRAG(vdb_op=mock_vdb_op)
 
-        with patch.object(rag, '_prepare_vdb_op', return_value=mock_vdb_op):
-            with patch('nvidia_rag.rag_server.main.prepare_citations', return_value=Citations(documents=[], sources=[])):
-                with patch('nvidia_rag.rag_server.main.get_ranking_model') as mock_get_ranking:
-                    with patch('nvidia_rag.rag_server.main.validate_filter_expr') as mock_validate_filter:
-                        with patch('nvidia_rag.rag_server.main.ThreadPoolExecutor') as mock_executor:
-                            with patch('nvidia_rag.rag_server.main.RunnableAssign') as mock_runnable_assign:
-                                with patch('nvidia_rag.rag_server.main.filter_documents_by_confidence', return_value=[Mock(page_content="test content", metadata={})]):
-                                    with patch('nvidia_rag.rag_server.main.logger') as mock_logger:
+        with patch.object(rag, "_prepare_vdb_op", return_value=mock_vdb_op):
+            with patch(
+                "nvidia_rag.rag_server.main.prepare_citations",
+                return_value=Citations(documents=[], sources=[]),
+            ):
+                with patch(
+                    "nvidia_rag.rag_server.main.get_ranking_model"
+                ) as mock_get_ranking:
+                    with patch(
+                        "nvidia_rag.rag_server.main.validate_filter_expr"
+                    ) as mock_validate_filter:
+                        with patch(
+                            "nvidia_rag.rag_server.main.ThreadPoolExecutor"
+                        ) as mock_executor:
+                            with patch(
+                                "nvidia_rag.rag_server.main.RunnableAssign"
+                            ) as mock_runnable_assign:
+                                with patch(
+                                    "nvidia_rag.rag_server.main.filter_documents_by_confidence",
+                                    return_value=[
+                                        Mock(page_content="test content", metadata={})
+                                    ],
+                                ):
+                                    with patch(
+                                        "nvidia_rag.rag_server.main.logger"
+                                    ) as mock_logger:
                                         # Mock the ranker
                                         mock_ranker = Mock()
-                                        mock_ranker.compress_documents.return_value = {"context": [Mock(page_content="test content", metadata={})]}
+                                        mock_ranker.compress_documents.return_value = {
+                                            "context": [
+                                                Mock(
+                                                    page_content="test content",
+                                                    metadata={},
+                                                )
+                                            ]
+                                        }
                                         mock_get_ranking.return_value = mock_ranker
 
                                         # Mock filter validation
                                         mock_validate_filter.return_value = {
                                             "status": True,
-                                            "validated_collections": ["test_collection"]
+                                            "validated_collections": [
+                                                "test_collection"
+                                            ],
                                         }
 
                                         # Mock ThreadPoolExecutor - use the same pattern as working tests
                                         mock_future = Mock()
-                                        mock_future.result.return_value = [Mock(page_content="test content", metadata={})]
+                                        mock_future.result.return_value = [
+                                            Mock(
+                                                page_content="test content", metadata={}
+                                            )
+                                        ]
                                         mock_executor.return_value.__enter__.return_value.submit.return_value = mock_future
 
                                         # Mock RunnableAssign for async
                                         mock_runnable_instance = Mock()
-                                        mock_runnable_instance.ainvoke = AsyncMock(return_value={"context": [Mock(page_content="test content", metadata={})]})
-                                        mock_runnable_assign.return_value = mock_runnable_instance
+                                        mock_runnable_instance.ainvoke = AsyncMock(
+                                            return_value={
+                                                "context": [
+                                                    Mock(
+                                                        page_content="test content",
+                                                        metadata={},
+                                                    )
+                                                ]
+                                            }
+                                        )
+                                        mock_runnable_assign.return_value = (
+                                            mock_runnable_instance
+                                        )
 
                                         # Call search with whitespace-only filter expression
                                         result = await rag.search(
                                             "test query",
                                             collection_names=["test_collection"],
-                                            filter_expr="   "  # Whitespace-only filter expression
+                                            filter_expr="   ",  # Whitespace-only filter expression
                                         )
 
                                         # Verify result
@@ -137,48 +226,91 @@ class TestNvidiaRAGMinimalCoverage:
         mock_vdb_op.check_collection_exists.return_value = True
         mock_vdb_op.get_metadata_schema.return_value = []
         mock_vdb_op.get_langchain_vectorstore.return_value = Mock()
-        mock_vdb_op.retrieval_langchain.return_value = [Mock(page_content="test content", metadata={})]
+        mock_vdb_op.retrieval_langchain.return_value = [
+            Mock(page_content="test content", metadata={})
+        ]
 
         rag = NvidiaRAG(vdb_op=mock_vdb_op)
 
-        with patch.object(rag, '_prepare_vdb_op', return_value=mock_vdb_op):
-            with patch('nvidia_rag.rag_server.main.prepare_citations', return_value=Citations(documents=[], sources=[])):
-                with patch('nvidia_rag.rag_server.main.get_ranking_model') as mock_get_ranking:
-                    with patch('nvidia_rag.rag_server.main.validate_filter_expr') as mock_validate_filter:
-                        with patch('nvidia_rag.rag_server.main.ThreadPoolExecutor') as mock_executor:
-                            with patch('nvidia_rag.rag_server.main.RunnableAssign') as mock_runnable_assign:
-                                with patch('nvidia_rag.rag_server.main.filter_documents_by_confidence', return_value=[Mock(page_content="test content", metadata={})]):
-                                    with patch('nvidia_rag.rag_server.main.logger') as mock_logger:
+        with patch.object(rag, "_prepare_vdb_op", return_value=mock_vdb_op):
+            with patch(
+                "nvidia_rag.rag_server.main.prepare_citations",
+                return_value=Citations(documents=[], sources=[]),
+            ):
+                with patch(
+                    "nvidia_rag.rag_server.main.get_ranking_model"
+                ) as mock_get_ranking:
+                    with patch(
+                        "nvidia_rag.rag_server.main.validate_filter_expr"
+                    ) as mock_validate_filter:
+                        with patch(
+                            "nvidia_rag.rag_server.main.ThreadPoolExecutor"
+                        ) as mock_executor:
+                            with patch(
+                                "nvidia_rag.rag_server.main.RunnableAssign"
+                            ) as mock_runnable_assign:
+                                with patch(
+                                    "nvidia_rag.rag_server.main.filter_documents_by_confidence",
+                                    return_value=[
+                                        Mock(page_content="test content", metadata={})
+                                    ],
+                                ):
+                                    with patch(
+                                        "nvidia_rag.rag_server.main.logger"
+                                    ) as mock_logger:
                                         # Mock the ranker
                                         mock_ranker = Mock()
-                                        mock_ranker.compress_documents.return_value = {"context": [Mock(page_content="test content", metadata={})]}
+                                        mock_ranker.compress_documents.return_value = {
+                                            "context": [
+                                                Mock(
+                                                    page_content="test content",
+                                                    metadata={},
+                                                )
+                                            ]
+                                        }
                                         mock_get_ranking.return_value = mock_ranker
 
                                         # Mock filter validation
                                         mock_validate_filter.return_value = {
                                             "status": True,
-                                            "validated_collections": ["test_collection"]
+                                            "validated_collections": [
+                                                "test_collection"
+                                            ],
                                         }
 
                                         # Mock ThreadPoolExecutor - use the same pattern as working tests
                                         mock_future = Mock()
-                                        mock_future.result.return_value = [Mock(page_content="test content", metadata={})]
+                                        mock_future.result.return_value = [
+                                            Mock(
+                                                page_content="test content", metadata={}
+                                            )
+                                        ]
                                         mock_executor.return_value.__enter__.return_value.submit.return_value = mock_future
 
                                         # Mock RunnableAssign for async
                                         mock_runnable_instance = Mock()
-                                        mock_runnable_instance.ainvoke = AsyncMock(return_value={"context": [Mock(page_content="test content", metadata={})]})
-                                        mock_runnable_assign.return_value = mock_runnable_instance
+                                        mock_runnable_instance.ainvoke = AsyncMock(
+                                            return_value={
+                                                "context": [
+                                                    Mock(
+                                                        page_content="test content",
+                                                        metadata={},
+                                                    )
+                                                ]
+                                            }
+                                        )
+                                        mock_runnable_assign.return_value = (
+                                            mock_runnable_instance
+                                        )
 
                                         # Call search with None filter expression
                                         result = await rag.search(
                                             "test query",
                                             collection_names=["test_collection"],
-                                            filter_expr=None  # None filter expression
+                                            filter_expr=None,  # None filter expression
                                         )
 
                                         # Verify result
                                         assert isinstance(result, Citations)
                                         # Verify debug logging was called for empty filter
                                         mock_logger.debug.assert_called()
-

@@ -41,6 +41,7 @@ from langchain_core.prompts.chat import ChatPromptTemplate
 from langchain_core.runnables import RunnableAssign
 from opentelemetry import context as otel_context
 
+from nvidia_rag.rag_server.response_generator import APIError, ErrorCodeMapping
 from nvidia_rag.utils.configuration import NvidiaRAGConfig
 from nvidia_rag.utils.llm import get_llm, get_prompts
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
@@ -183,6 +184,13 @@ async def check_context_relevance(
     relevance_threshold = config.reflection.context_relevance_threshold
     reflection_llm_name = config.reflection.model_name
     reflection_llm_endpoint = config.reflection.server_url
+
+    if not reflection_llm_name:
+        raise APIError(
+            "Reflection is enabled but REFLECTION_LLM is not configured. "
+            "Please set REFLECTION_LLM in your environment or disable reflection.",
+            ErrorCodeMapping.BAD_REQUEST,
+        )
 
     llm_params = {
         "model": reflection_llm_name,
@@ -344,6 +352,13 @@ async def check_response_groundedness(
     groundedness_threshold = config.reflection.response_groundedness_threshold
     reflection_llm_name = config.reflection.model_name
     reflection_llm_endpoint = config.reflection.server_url
+
+    if not reflection_llm_name:
+        raise APIError(
+            "Reflection is enabled but REFLECTION_LLM is not configured. "
+            "Please set REFLECTION_LLM in your environment or disable reflection.",
+            ErrorCodeMapping.BAD_REQUEST,
+        )
 
     # Set deterministic LLM parameters for consistent and reproducible reflection
     llm_params = {

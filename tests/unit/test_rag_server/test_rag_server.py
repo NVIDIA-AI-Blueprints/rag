@@ -19,10 +19,21 @@ import types
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
+import requests
+from fastapi import Request
 from fastapi.testclient import TestClient
 from pymilvus.exceptions import MilvusException
 
-from nvidia_rag.rag_server.response_generator import ErrorCodeMapping, RAGResponse
+from nvidia_rag.rag_server.response_generator import (
+    APIError,
+    ErrorCodeMapping,
+    RAGResponse,
+)
+from nvidia_rag.rag_server.server import (
+    _extract_vdb_auth_token,
+    validate_confidence_threshold_field,
+)
+from nvidia_rag.utils.health_models import RAGHealthResponse
 
 
 class MockNvidiaRAG:
@@ -350,22 +361,6 @@ class TestGenerateEndpoint:
 class TestDocumentSearchEndpoint:
     """Tests for the /search endpoint"""
 
-    @pytest.fixture
-    def search_data(self):
-        return {
-            "query": "What is machine learning?",
-            "reranker_top_k": 4,
-            "vdb_top_k": 10,
-            "collection_name": "test_collection",
-            "messages": [{"role": "user", "content": "What is machine learning?"}],
-            "enable_query_rewriting": True,
-            "enable_reranker": True,
-            "embedding_model": "test-embedding-model",
-            "embedding_endpoint": "http://embedding:8000",
-            "reranker_model": "test-reranker-model",
-            "reranker_endpoint": "http://reranker:8000",
-        }
-
     def test_document_search_success(self, client, search_data):
         response = client.post("/v1/search", json=search_data)
         assert response.status_code == ErrorCodeMapping.SUCCESS
@@ -395,7 +390,7 @@ class TestDocumentSearchEndpoint:
         assert response.status_code == ErrorCodeMapping.INTERNAL_SERVER_ERROR
         error_data = response.json()
         assert "message" in error_data
-        assert "Error occurred while searching documents" in error_data["message"]
+        assert "Failed to search documents" in error_data["message"]
 
     def test_document_search_invalid_input(self, client):
         """Test document search with invalid input"""
@@ -443,3 +438,527 @@ class TestChatCompletionsEndpoint:
         assert len(response_text) > 0
         first_chunk = json.loads(response_text[0])
         assert first_chunk["choices"][0]["message"]["content"] == "Hello"
+
+
+class TestExtractVdbAuthToken:
+    """Tests for _extract_vdb_auth_token helper function"""
+
+    def test_extract_vdb_auth_token_with_bearer(self):
+        """Test extracting vdb_auth_token from Authorization header with Bearer prefix"""
+        mock_request = Mock(spec=Request)
+        mock_request.headers = {"Authorization": "Bearer test_token_123"}
+
+        result = _extract_vdb_auth_token(mock_request)
+        assert result == "test_token_123"
+
+    def test_extract_vdb_auth_token_with_lowercase_bearer(self):
+        """Test extracting vdb_auth_token from Authorization header with lowercase bearer"""
+        mock_request = Mock(spec=Request)
+        mock_request.headers = {"authorization": "bearer test_token_456"}
+
+        result = _extract_vdb_auth_token(mock_request)
+        assert result == "test_token_456"
+
+    def test_extract_vdb_auth_token_no_bearer(self):
+        """Test extracting vdb_auth_token when no Bearer prefix"""
+        mock_request = Mock(spec=Request)
+        mock_request.headers = {"Authorization": "Basic test_token"}
+
+        result = _extract_vdb_auth_token(mock_request)
+        assert result is None
+
+    def test_extract_vdb_auth_token_no_header(self):
+        """Test extracting vdb_auth_token when no Authorization header"""
+        mock_request = Mock(spec=Request)
+        mock_request.headers = {}
+
+        result = _extract_vdb_auth_token(mock_request)
+        assert result is None
+
+    def test_extract_vdb_auth_token_with_spaces(self):
+        """Test extracting vdb_auth_token with extra spaces"""
+        mock_request = Mock(spec=Request)
+        mock_request.headers = {"Authorization": "Bearer  test_token_with_spaces  "}
+
+        result = _extract_vdb_auth_token(mock_request)
+        assert result == "test_token_with_spaces"
+
+
+@pytest.fixture
+def search_data():
+    """Fixture for search endpoint test data (shared across test classes)"""
+    return {
+        "query": "What is machine learning?",
+        "reranker_top_k": 4,
+        "vdb_top_k": 10,
+        "collection_name": "test_collection",
+        "messages": [{"role": "user", "content": "What is machine learning?"}],
+        "enable_query_rewriting": True,
+        "enable_reranker": True,
+        "embedding_model": "test-embedding-model",
+        "embedding_endpoint": "http://embedding:8000",
+        "reranker_model": "test-reranker-model",
+        "reranker_endpoint": "http://reranker:8000",
+    }
+
+
+class TestVdbAuthTokenParameter:
+    """Tests for vdb_auth_token parameter passing through endpoints"""
+
+    def test_generate_with_vdb_auth_token(self, client, valid_prompt_data):
+        """Test /generate endpoint passes vdb_auth_token to backend"""
+        with patch("nvidia_rag.rag_server.server.NVIDIA_RAG") as mock_rag:
+            mock_response = RAGResponse(
+                mock_nvidia_rag_instance._async_gen(["Hello"]),
+                status_code=ErrorCodeMapping.SUCCESS,
+            )
+            mock_rag.generate = AsyncMock(return_value=mock_response)
+
+            response = client.post(
+                "/v1/generate",
+                json=valid_prompt_data,
+                headers={"Authorization": "Bearer test_vdb_token"},
+            )
+
+            assert response.status_code == ErrorCodeMapping.SUCCESS
+            mock_rag.generate.assert_called_once()
+            call_kwargs = mock_rag.generate.call_args[1]
+            assert call_kwargs.get("vdb_auth_token") == "test_vdb_token"
+
+    def test_search_with_vdb_auth_token(self, client, search_data):
+        """Test /search endpoint passes vdb_auth_token to backend"""
+        with patch("nvidia_rag.rag_server.server.NVIDIA_RAG") as mock_rag:
+            mock_rag.search = AsyncMock(
+                return_value={"total_results": 1, "results": []}
+            )
+
+            response = client.post(
+                "/v1/search",
+                json=search_data,
+                headers={"Authorization": "Bearer test_vdb_token"},
+            )
+
+            assert response.status_code == ErrorCodeMapping.SUCCESS
+            mock_rag.search.assert_called_once()
+            call_kwargs = mock_rag.search.call_args[1]
+            assert call_kwargs.get("vdb_auth_token") == "test_vdb_token"
+
+
+class TestServerErrorHandling:
+    """Tests for error handling in server endpoints"""
+
+    def test_generate_endpoint_value_error(self, client):
+        """Test /generate endpoint handles ValueError"""
+        invalid_data = {
+            "messages": [],  # Empty messages should raise ValueError
+            "collection_name": "test_collection",
+        }
+
+        response = client.post("/v1/generate", json=invalid_data)
+
+        assert response.status_code == ErrorCodeMapping.UNPROCESSABLE_ENTITY
+        # For Pydantic validation errors, the response is JSON (not streaming)
+        response_data = response.json()
+        assert "detail" in response_data
+
+    def test_generate_endpoint_api_error(self, client, valid_prompt_data):
+        """Test /generate endpoint handles APIError"""
+
+        with patch("nvidia_rag.rag_server.server.NVIDIA_RAG") as mock_rag:
+            mock_rag.generate = AsyncMock(
+                side_effect=APIError("Test API error", status_code=503)
+            )
+
+            response = client.post("/v1/generate", json=valid_prompt_data)
+
+            assert response.status_code == 503
+            response_text = [
+                line.replace("data: ", "") for line in response.iter_lines() if line
+            ]
+            assert len(response_text) > 0
+            # Combine content from all chunks to get the full error message
+            combined_content = ""
+            for line in response_text:
+                chunk = json.loads(line)
+                if "choices" in chunk and len(chunk["choices"]) > 0:
+                    content = chunk["choices"][0].get("message", {}).get("content", "")
+                    combined_content += content
+            assert "Test API error" in combined_content
+
+    def test_generate_endpoint_general_exception(self, client, valid_prompt_data):
+        """Test /generate endpoint handles general Exception"""
+        with patch("nvidia_rag.rag_server.server.NVIDIA_RAG") as mock_rag:
+            mock_rag.generate = AsyncMock(side_effect=RuntimeError("Unexpected error"))
+
+            response = client.post("/v1/generate", json=valid_prompt_data)
+
+            assert response.status_code == ErrorCodeMapping.INTERNAL_SERVER_ERROR
+            response_text = [
+                line.replace("data: ", "") for line in response.iter_lines() if line
+            ]
+            assert len(response_text) > 0
+
+    def test_generate_endpoint_cancelled_error(self, client, valid_prompt_data):
+        """Test /generate endpoint handles CancelledError"""
+        with patch("nvidia_rag.rag_server.server.NVIDIA_RAG") as mock_rag:
+            mock_rag.generate = AsyncMock(side_effect=asyncio.CancelledError())
+
+            response = client.post("/v1/generate", json=valid_prompt_data)
+
+            assert response.status_code == ErrorCodeMapping.CLIENT_CLOSED_REQUEST
+            response_data = response.json()
+            assert "cancelled" in response_data["message"].lower()
+
+    def test_search_endpoint_connection_error(self, client, search_data):
+        """Test /search endpoint handles connection errors"""
+        with patch("nvidia_rag.rag_server.server.NVIDIA_RAG") as mock_rag:
+            mock_rag.search = AsyncMock(
+                side_effect=requests.exceptions.ConnectionError("Connection failed")
+            )
+
+            response = client.post("/v1/search", json=search_data)
+
+            assert response.status_code == ErrorCodeMapping.SERVICE_UNAVAILABLE
+            response_data = response.json()
+            assert "Service unavailable" in response_data["message"]
+
+    def test_search_endpoint_api_error(self, client, search_data):
+        """Test /search endpoint handles APIError"""
+
+        with patch("nvidia_rag.rag_server.server.NVIDIA_RAG") as mock_rag:
+            mock_rag.search = AsyncMock(
+                side_effect=APIError("Search failed", status_code=500)
+            )
+
+            response = client.post("/v1/search", json=search_data)
+
+            assert response.status_code == 500
+            response_data = response.json()
+            assert "Search failed" in response_data["message"]
+
+    def test_search_endpoint_cancelled_error(self, client, search_data):
+        """Test /search endpoint handles CancelledError"""
+        with patch("nvidia_rag.rag_server.server.NVIDIA_RAG") as mock_rag:
+            mock_rag.search = AsyncMock(side_effect=asyncio.CancelledError())
+
+            response = client.post("/v1/search", json=search_data)
+
+            assert response.status_code == ErrorCodeMapping.CLIENT_CLOSED_REQUEST
+            response_data = response.json()
+            assert "cancelled" in response_data["message"].lower()
+
+
+class TestServerValidation:
+    """Tests for validation logic in server"""
+
+    def test_validate_confidence_threshold_negative(self):
+        """Test validate_confidence_threshold_field with negative value"""
+        with pytest.raises(ValueError, match=r"confidence_threshold must be >= 0\.0"):
+            validate_confidence_threshold_field(-0.1)
+
+    def test_validate_confidence_threshold_too_large(self):
+        """Test validate_confidence_threshold_field with value > 1.0"""
+        with pytest.raises(ValueError, match=r"confidence_threshold must be <= 1\.0"):
+            validate_confidence_threshold_field(1.1)
+
+    def test_generate_endpoint_empty_messages(self, client):
+        """Test /generate endpoint rejects empty messages"""
+        invalid_data = {
+            "messages": [],
+            "collection_name": "test_collection",
+        }
+
+        response = client.post("/v1/generate", json=invalid_data)
+
+        assert response.status_code == ErrorCodeMapping.UNPROCESSABLE_ENTITY
+
+    def test_generate_endpoint_no_user_message(self, client):
+        """Test /generate endpoint rejects messages without user role"""
+        invalid_data = {
+            "messages": [{"role": "assistant", "content": "Hello"}],
+            "collection_name": "test_collection",
+        }
+
+        response = client.post("/v1/generate", json=invalid_data)
+
+        assert response.status_code == ErrorCodeMapping.UNPROCESSABLE_ENTITY
+
+    def test_generate_endpoint_last_message_not_user(self, client):
+        """Test /generate endpoint rejects when last message is not user"""
+        invalid_data = {
+            "messages": [
+                {"role": "user", "content": "Hello"},
+                {"role": "assistant", "content": "Hi there"},
+            ],
+            "collection_name": "test_collection",
+        }
+
+        response = client.post("/v1/generate", json=invalid_data)
+
+        assert response.status_code == ErrorCodeMapping.UNPROCESSABLE_ENTITY
+
+    def test_search_endpoint_no_user_message(self, client):
+        """Test /search endpoint rejects messages without user role"""
+        invalid_data = {
+            "query": "test query",
+            "messages": [{"role": "assistant", "content": "Hello"}],
+            "collection_name": "test_collection",
+        }
+
+        response = client.post("/v1/search", json=invalid_data)
+
+        assert response.status_code == ErrorCodeMapping.UNPROCESSABLE_ENTITY
+
+    def test_search_endpoint_last_message_not_user(self, client):
+        """Test /search endpoint rejects when last message is not user"""
+        invalid_data = {
+            "query": "test query",
+            "messages": [
+                {"role": "user", "content": "Hello"},
+                {"role": "assistant", "content": "Hi there"},
+            ],
+            "collection_name": "test_collection",
+        }
+
+        response = client.post("/v1/search", json=invalid_data)
+
+        assert response.status_code == ErrorCodeMapping.UNPROCESSABLE_ENTITY
+
+
+class TestServerConfigurationEndpoint:
+    """Tests for /configuration endpoint"""
+
+    def test_configuration_endpoint_success(self, client):
+        """Test /configuration endpoint returns configuration"""
+        with patch("nvidia_rag.rag_server.server.CONFIG") as mock_config:
+            mock_config.llm.get_model_parameters.return_value = {
+                "temperature": 0.7,
+                "top_p": 0.9,
+                "max_tokens": 1024,
+            }
+            mock_config.retriever.vdb_top_k = 10
+            mock_config.retriever.top_k = 5
+            mock_config.default_confidence_threshold = 0.5
+            mock_config.ranking.enable_reranker = True
+            mock_config.enable_citations = True
+            mock_config.enable_guardrails = False
+            mock_config.query_rewriter.enable_query_rewriter = True
+            mock_config.enable_vlm_inference = False
+            mock_config.filter_expression_generator.enable_filter_generator = True
+            mock_config.llm.model_name = '"test-llm"'
+            mock_config.embeddings.model_name = '"test-embedding"'
+            mock_config.ranking.model_name = '"test-reranker"'
+            mock_config.vlm.model_name = '"test-vlm"'
+            mock_config.llm.server_url = '"http://llm:8000"'
+            mock_config.embeddings.server_url = '"http://embedding:8000"'
+            mock_config.ranking.server_url = '"http://reranker:8000"'
+            mock_config.vlm.server_url = '"http://vlm:8000"'
+            mock_config.vector_store.url = "http://vdb:19530"
+
+            response = client.get("/v1/configuration")
+
+            assert response.status_code == ErrorCodeMapping.SUCCESS
+            data = response.json()
+            assert "rag_configuration" in data
+            assert "feature_toggles" in data
+            assert "models" in data
+            assert "endpoints" in data
+
+    def test_configuration_endpoint_error(self, client):
+        """Test /configuration endpoint handles errors"""
+        with patch("nvidia_rag.rag_server.server.CONFIG") as mock_config:
+            mock_config.llm.get_model_parameters.side_effect = Exception("Config error")
+
+            response = client.get("/v1/configuration")
+
+            assert response.status_code == 500
+            data = response.json()
+            assert "Error fetching configuration" in data["detail"]
+
+
+class TestServerHealthEndpoint:
+    """Tests for /health endpoint with dependencies"""
+
+    def test_health_endpoint_with_dependencies_error(self, client):
+        """Test /health endpoint handles print_health_report errors"""
+        with patch("nvidia_rag.rag_server.server.NVIDIA_RAG") as mock_rag:
+            mock_rag.health = AsyncMock(
+                return_value=RAGHealthResponse(message="Service is up.")
+            )
+            with patch(
+                "nvidia_rag.rag_server.server.print_health_report"
+            ) as mock_print:
+                mock_print.side_effect = Exception("Print error")
+
+                response = client.get("/v1/health?check_dependencies=true")
+
+                assert response.status_code == ErrorCodeMapping.SUCCESS
+                assert response.json()["message"] == "Service is up."
+
+    def test_health_endpoint_without_dependencies(self, client):
+        """Test /health endpoint without dependencies check"""
+        response = client.get("/v1/health?check_dependencies=false")
+
+        assert response.status_code == ErrorCodeMapping.SUCCESS
+        assert response.json()["message"] == "Service is up."
+
+
+class TestServerSummaryEndpoint:
+    """Tests for /summary endpoint error handling"""
+
+    def test_summary_endpoint_unknown_status(self, client):
+        """Test /summary endpoint handles unknown status"""
+        with patch("nvidia_rag.rag_server.server.NVIDIA_RAG") as mock_rag:
+            mock_rag.get_summary = AsyncMock(
+                return_value={"status": "UNKNOWN_STATUS", "message": "Test"}
+            )
+
+            response = client.get(
+                "/v1/summary",
+                params={
+                    "collection_name": "test_collection",
+                    "file_name": "test.pdf",
+                    "blocking": False,
+                    "timeout": 300,
+                },
+            )
+
+            assert response.status_code == ErrorCodeMapping.INTERNAL_SERVER_ERROR
+
+    def test_summary_endpoint_cancelled_error(self, client):
+        """Test /summary endpoint handles CancelledError"""
+        with patch("nvidia_rag.rag_server.server.NVIDIA_RAG") as mock_rag:
+            mock_rag.get_summary = AsyncMock(side_effect=asyncio.CancelledError())
+
+            response = client.get(
+                "/v1/summary",
+                params={
+                    "collection_name": "test_collection",
+                    "file_name": "test.pdf",
+                    "blocking": False,
+                    "timeout": 300,
+                },
+            )
+
+            assert response.status_code == ErrorCodeMapping.CLIENT_CLOSED_REQUEST
+            response_data = response.json()
+            assert "cancelled" in response_data["message"].lower()
+
+
+class TestServerMessageProcessing:
+    """Tests for message processing in generate and search endpoints"""
+
+    def test_generate_endpoint_list_content_text(self, client):
+        """Test /generate endpoint handles list content with text type"""
+        with patch("nvidia_rag.rag_server.server.NVIDIA_RAG") as mock_rag:
+            mock_response = RAGResponse(
+                mock_nvidia_rag_instance._async_gen(["Hello"]),
+                status_code=ErrorCodeMapping.SUCCESS,
+            )
+            mock_rag.generate = AsyncMock(return_value=mock_response)
+
+            data = {
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": "What is AI?"},
+                        ],
+                    }
+                ],
+                "collection_name": "test_collection",
+            }
+
+            response = client.post("/v1/generate", json=data)
+
+            assert response.status_code == ErrorCodeMapping.SUCCESS
+
+    def test_generate_endpoint_list_content_image_url(self, client):
+        """Test /generate endpoint handles list content with image_url type"""
+        with patch("nvidia_rag.rag_server.server.NVIDIA_RAG") as mock_rag:
+            mock_response = RAGResponse(
+                mock_nvidia_rag_instance._async_gen(["Hello"]),
+                status_code=ErrorCodeMapping.SUCCESS,
+            )
+            mock_rag.generate = AsyncMock(return_value=mock_response)
+
+            data = {
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "image_url",
+                                "image_url": {"url": "data:image/png;base64,test"},
+                            },
+                        ],
+                    }
+                ],
+                "collection_name": "test_collection",
+            }
+
+            response = client.post("/v1/generate", json=data)
+
+            assert response.status_code == ErrorCodeMapping.SUCCESS
+
+    def test_generate_endpoint_list_content_fallback(self, client):
+        """Test /generate endpoint handles list content fallback"""
+        with patch("nvidia_rag.rag_server.server.NVIDIA_RAG") as mock_rag:
+            mock_response = RAGResponse(
+                mock_nvidia_rag_instance._async_gen(["Hello"]),
+                status_code=ErrorCodeMapping.SUCCESS,
+            )
+            mock_rag.generate = AsyncMock(return_value=mock_response)
+
+            data = {
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [{"unknown": "value"}],
+                    }
+                ],
+                "collection_name": "test_collection",
+            }
+
+            response = client.post("/v1/generate", json=data)
+
+            assert response.status_code == ErrorCodeMapping.UNPROCESSABLE_ENTITY
+
+    def test_search_endpoint_list_query(self, client):
+        """Test /search endpoint handles list query"""
+        with patch("nvidia_rag.rag_server.server.NVIDIA_RAG") as mock_rag:
+            mock_rag.search = AsyncMock(
+                return_value={"total_results": 1, "results": []}
+            )
+
+            data = {
+                "query": [{"type": "text", "text": "test query"}],
+                "messages": [{"role": "user", "content": "test"}],
+                "collection_name": "test_collection",
+            }
+
+            response = client.post("/v1/search", json=data)
+
+            assert response.status_code == ErrorCodeMapping.SUCCESS
+
+    def test_search_endpoint_list_query_image_url(self, client):
+        """Test /search endpoint handles list query with image_url"""
+        with patch("nvidia_rag.rag_server.server.NVIDIA_RAG") as mock_rag:
+            mock_rag.search = AsyncMock(
+                return_value={"total_results": 1, "results": []}
+            )
+
+            data = {
+                "query": [
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": "data:image/png;base64,test"},
+                    }
+                ],
+                "messages": [{"role": "user", "content": "test"}],
+                "collection_name": "test_collection",
+            }
+
+            response = client.post("/v1/search", json=data)
+
+            assert response.status_code == ErrorCodeMapping.SUCCESS

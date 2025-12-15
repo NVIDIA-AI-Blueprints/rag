@@ -38,6 +38,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 from PIL import Image as PILImage
 
+from nvidia_rag.rag_server.response_generator import APIError, ErrorCodeMapping
 from nvidia_rag.utils.configuration import NvidiaRAGConfig
 from nvidia_rag.utils.llm import get_prompts
 from nvidia_rag.utils.minio_operator import (
@@ -626,6 +627,16 @@ class VLM:
             logger.info(f"VLM Response: {vlm_response}")
             return str(vlm_response or "")
         except Exception as e:
+            error_type = type(e).__name__
+            if (
+                "Connection" in error_type
+                or "Connect" in error_type
+                or isinstance(e, ConnectionError | OSError)
+            ):
+                vlm_url = self.invoke_url or "VLM service"
+                error_msg = f"VLM NIM unavailable at {vlm_url}. Please verify the service is running and accessible."
+                logger.exception("Connection error in VLM analysis: %s", e)
+                raise APIError(error_msg, ErrorCodeMapping.SERVICE_UNAVAILABLE) from e
             logger.warning(
                 f"Exception during VLM call with messages: {e}", exc_info=True
             )
@@ -713,6 +724,16 @@ class VLM:
                     )
                 idx += 1
         except Exception as e:
+            error_type = type(e).__name__
+            if (
+                "Connection" in error_type
+                or "Connect" in error_type
+                or isinstance(e, ConnectionError | OSError)
+            ):
+                vlm_url = self.invoke_url or "VLM service"
+                error_msg = f"VLM NIM unavailable at {vlm_url}. Please verify the service is running and accessible."
+                logger.exception("Connection error in VLM streaming: %s", e)
+                raise APIError(error_msg, ErrorCodeMapping.SERVICE_UNAVAILABLE) from e
             logger.warning(
                 f"Exception during VLM streaming call with messages: {e}", exc_info=True
             )

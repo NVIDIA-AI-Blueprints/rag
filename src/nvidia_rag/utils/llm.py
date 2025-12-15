@@ -34,6 +34,7 @@ from langchain.llms.base import LLM
 from langchain_core.language_models.chat_models import SimpleChatModel
 from langchain_nvidia_ai_endpoints import ChatNVIDIA
 
+from nvidia_rag.rag_server.response_generator import APIError, ErrorCodeMapping
 from nvidia_rag.utils.common import (
     combine_dicts,
     sanitize_nim_url,
@@ -207,12 +208,13 @@ def get_llm(config: NvidiaRAGConfig | None = None, **kwargs) -> LLM | SimpleChat
                         stop=kwargs.get("stop", []),
                     )
                 except (requests.RequestException, requests.ConnectionError) as e:
-                    error_msg = (
-                        f"Failed to connect to guardrails service at {guardrails_url}: "
-                        f"{str(e)} Make sure the guardrails service is running and accessible."
+                    error_msg = f"Guardrails NIM unavailable at {guardrails_url}. Please verify the service is running and accessible."
+                    logger.exception(
+                        "Connection error to guardrails at %s: %s", guardrails_url, e
                     )
-                    logger.error(error_msg)
-                    raise RuntimeError(error_msg) from e
+                    raise APIError(
+                        error_msg, ErrorCodeMapping.SERVICE_UNAVAILABLE
+                    ) from e
 
         if url:
             logger.debug(f"Length of llm endpoint url string {url}")

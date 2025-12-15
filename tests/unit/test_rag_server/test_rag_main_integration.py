@@ -16,14 +16,14 @@
 """Working unit tests for rag_server/main.py to improve coverage."""
 
 import os
-from unittest.mock import AsyncMock, Mock, patch
 from collections.abc import Generator as GeneratorType
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from nvidia_rag.rag_server.main import APIError, NvidiaRAG
+from nvidia_rag.rag_server.main import NvidiaRAG
+from nvidia_rag.rag_server.response_generator import APIError, Citations
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
-from nvidia_rag.rag_server.response_generator import Citations
 
 
 class TestNvidiaRAGGenerateWorking:
@@ -40,14 +40,16 @@ class TestNvidiaRAGGenerateWorking:
         async def mock_async_iter():
             yield "Test response"
 
-        with patch('nvidia_rag.rag_server.main.prepare_llm_request') as mock_prepare_request:
-            with patch.object(rag, '_rag_chain') as mock_rag_chain:
+        with patch(
+            "nvidia_rag.rag_server.main.prepare_llm_request"
+        ) as mock_prepare_request:
+            with patch.object(rag, "_rag_chain") as mock_rag_chain:
                 mock_prepare_request.return_value = ("test query", [])
                 mock_rag_chain.return_value = mock_async_iter()
 
                 result = await rag.generate(messages, use_knowledge_base=True)
 
-                assert hasattr(result, '__aiter__') or hasattr(result, '__iter__')
+                assert hasattr(result, "__aiter__") or hasattr(result, "__iter__")
 
     @pytest.mark.asyncio
     async def test_generate_without_knowledge_base(self):
@@ -60,14 +62,16 @@ class TestNvidiaRAGGenerateWorking:
         async def mock_async_iter():
             yield "Test response"
 
-        with patch('nvidia_rag.rag_server.main.prepare_llm_request') as mock_prepare_request:
-            with patch.object(rag, '_llm_chain') as mock_llm_chain:
+        with patch(
+            "nvidia_rag.rag_server.main.prepare_llm_request"
+        ) as mock_prepare_request:
+            with patch.object(rag, "_llm_chain") as mock_llm_chain:
                 mock_prepare_request.return_value = ("test query", [])
                 mock_llm_chain.return_value = mock_async_iter()
 
                 result = await rag.generate(messages, use_knowledge_base=False)
 
-                assert hasattr(result, '__aiter__') or hasattr(result, '__iter__')
+                assert hasattr(result, "__aiter__") or hasattr(result, "__iter__")
 
     @pytest.mark.asyncio
     async def test_generate_with_validation_errors(self):
@@ -77,7 +81,9 @@ class TestNvidiaRAGGenerateWorking:
 
         messages = [{"role": "user", "content": "Test query"}]
 
-        with patch('nvidia_rag.rag_server.main.validate_use_knowledge_base') as mock_validate:
+        with patch(
+            "nvidia_rag.rag_server.main.validate_use_knowledge_base"
+        ) as mock_validate:
             mock_validate.side_effect = ValueError("Invalid use_knowledge_base")
 
             with pytest.raises(ValueError, match="Invalid use_knowledge_base"):
@@ -94,43 +100,99 @@ class TestNvidiaRAGSearchWorking:
         mock_vdb_op.check_collection_exists.return_value = True
         mock_vdb_op.get_metadata_schema.return_value = []
         mock_vdb_op.get_langchain_vectorstore.return_value = Mock()
-        mock_vdb_op.retrieval_langchain.return_value = [Mock(page_content="test content", metadata={})]
+        mock_vdb_op.retrieval_langchain.return_value = [
+            Mock(page_content="test content", metadata={})
+        ]
         rag = NvidiaRAG(vdb_op=mock_vdb_op)
 
-        with patch.object(rag, '_prepare_vdb_op') as mock_prepare:
-            with patch('nvidia_rag.rag_server.main.prepare_llm_request') as mock_prepare_request:
-                with patch('nvidia_rag.rag_server.main.prepare_citations') as mock_prepare_citations:
-                    with patch('nvidia_rag.rag_server.main.get_ranking_model') as mock_get_ranking:
-                        with patch('nvidia_rag.rag_server.main.validate_filter_expr') as mock_validate_filter:
-                            with patch('nvidia_rag.rag_server.main.process_filter_expr') as mock_process_filter:
-                                with patch('nvidia_rag.rag_server.main.ThreadPoolExecutor') as mock_executor:
-                                    with patch('nvidia_rag.rag_server.main.RunnableAssign') as mock_runnable_assign:
-                                        with patch('nvidia_rag.rag_server.main.filter_documents_by_confidence') as mock_filter_docs:
+        with patch.object(rag, "_prepare_vdb_op") as mock_prepare:
+            with patch(
+                "nvidia_rag.rag_server.main.prepare_llm_request"
+            ) as mock_prepare_request:
+                with patch(
+                    "nvidia_rag.rag_server.main.prepare_citations"
+                ) as mock_prepare_citations:
+                    with patch(
+                        "nvidia_rag.rag_server.main.get_ranking_model"
+                    ) as mock_get_ranking:
+                        with patch(
+                            "nvidia_rag.rag_server.main.validate_filter_expr"
+                        ) as mock_validate_filter:
+                            with patch(
+                                "nvidia_rag.rag_server.main.process_filter_expr"
+                            ) as mock_process_filter:
+                                with patch(
+                                    "nvidia_rag.rag_server.main.ThreadPoolExecutor"
+                                ) as mock_executor:
+                                    with patch(
+                                        "nvidia_rag.rag_server.main.RunnableAssign"
+                                    ) as mock_runnable_assign:
+                                        with patch(
+                                            "nvidia_rag.rag_server.main.filter_documents_by_confidence"
+                                        ) as mock_filter_docs:
                                             # Mock the ranker
                                             mock_ranker = Mock()
-                                            mock_ranker.compress_documents.return_value = {"context": [Mock(page_content="test content", metadata={})]}
+                                            mock_ranker.compress_documents.return_value = {
+                                                "context": [
+                                                    Mock(
+                                                        page_content="test content",
+                                                        metadata={},
+                                                    )
+                                                ]
+                                            }
                                             mock_get_ranking.return_value = mock_ranker
 
                                             # Mock filter validation
-                                            mock_validate_filter.return_value = {"status": True, "validated_collections": ["test_collection"]}
+                                            mock_validate_filter.return_value = {
+                                                "status": True,
+                                                "validated_collections": [
+                                                    "test_collection"
+                                                ],
+                                            }
                                             mock_process_filter.return_value = ""
 
                                             # Mock ThreadPoolExecutor
                                             mock_future = Mock()
-                                            mock_future.result.return_value = [Mock(page_content="test content", metadata={})]
+                                            mock_future.result.return_value = [
+                                                Mock(
+                                                    page_content="test content",
+                                                    metadata={},
+                                                )
+                                            ]
                                             mock_executor.return_value.__enter__.return_value.submit.return_value = mock_future
 
                                             # Mock RunnableAssign for async
                                             mock_runnable_instance = Mock()
-                                            mock_runnable_instance.ainvoke = AsyncMock(return_value={"context": [Mock(page_content="test content", metadata={})]})
-                                            mock_runnable_assign.return_value = mock_runnable_instance
+                                            mock_runnable_instance.ainvoke = AsyncMock(
+                                                return_value={
+                                                    "context": [
+                                                        Mock(
+                                                            page_content="test content",
+                                                            metadata={},
+                                                        )
+                                                    ]
+                                                }
+                                            )
+                                            mock_runnable_assign.return_value = (
+                                                mock_runnable_instance
+                                            )
 
                                             # Mock filter documents
-                                            mock_filter_docs.return_value = [Mock(page_content="test content", metadata={})]
+                                            mock_filter_docs.return_value = [
+                                                Mock(
+                                                    page_content="test content",
+                                                    metadata={},
+                                                )
+                                            ]
 
                                             mock_prepare.return_value = mock_vdb_op
-                                            mock_prepare_request.return_value = ("test query", [])
-                                            mock_prepare_citations.return_value = Citations(documents=[], sources=[])
+                                            mock_prepare_request.return_value = (
+                                                "test query",
+                                                [],
+                                            )
+                                            mock_prepare_citations.return_value = (
+                                                Citations(documents=[], sources=[])
+                                            )
 
                                             result = await rag.search("test query")
 
@@ -143,47 +205,105 @@ class TestNvidiaRAGSearchWorking:
         mock_vdb_op.check_collection_exists.return_value = True
         mock_vdb_op.get_metadata_schema.return_value = []
         mock_vdb_op.get_langchain_vectorstore.return_value = Mock()
-        mock_vdb_op.retrieval_langchain.return_value = [Mock(page_content="test content", metadata={})]
+        mock_vdb_op.retrieval_langchain.return_value = [
+            Mock(page_content="test content", metadata={})
+        ]
         rag = NvidiaRAG(vdb_op=mock_vdb_op)
 
         messages = [{"role": "user", "content": "Test query"}]
 
-        with patch.object(rag, '_prepare_vdb_op') as mock_prepare:
-            with patch('nvidia_rag.rag_server.main.prepare_llm_request') as mock_prepare_request:
-                with patch('nvidia_rag.rag_server.main.prepare_citations') as mock_prepare_citations:
-                    with patch('nvidia_rag.rag_server.main.get_ranking_model') as mock_get_ranking:
-                        with patch('nvidia_rag.rag_server.main.validate_filter_expr') as mock_validate_filter:
-                            with patch('nvidia_rag.rag_server.main.process_filter_expr') as mock_process_filter:
-                                with patch('nvidia_rag.rag_server.main.ThreadPoolExecutor') as mock_executor:
-                                    with patch('nvidia_rag.rag_server.main.RunnableAssign') as mock_runnable_assign:
-                                        with patch('nvidia_rag.rag_server.main.filter_documents_by_confidence') as mock_filter_docs:
+        with patch.object(rag, "_prepare_vdb_op") as mock_prepare:
+            with patch(
+                "nvidia_rag.rag_server.main.prepare_llm_request"
+            ) as mock_prepare_request:
+                with patch(
+                    "nvidia_rag.rag_server.main.prepare_citations"
+                ) as mock_prepare_citations:
+                    with patch(
+                        "nvidia_rag.rag_server.main.get_ranking_model"
+                    ) as mock_get_ranking:
+                        with patch(
+                            "nvidia_rag.rag_server.main.validate_filter_expr"
+                        ) as mock_validate_filter:
+                            with patch(
+                                "nvidia_rag.rag_server.main.process_filter_expr"
+                            ) as mock_process_filter:
+                                with patch(
+                                    "nvidia_rag.rag_server.main.ThreadPoolExecutor"
+                                ) as mock_executor:
+                                    with patch(
+                                        "nvidia_rag.rag_server.main.RunnableAssign"
+                                    ) as mock_runnable_assign:
+                                        with patch(
+                                            "nvidia_rag.rag_server.main.filter_documents_by_confidence"
+                                        ) as mock_filter_docs:
                                             # Mock the ranker
                                             mock_ranker = Mock()
-                                            mock_ranker.compress_documents.return_value = {"context": [Mock(page_content="test content", metadata={})]}
+                                            mock_ranker.compress_documents.return_value = {
+                                                "context": [
+                                                    Mock(
+                                                        page_content="test content",
+                                                        metadata={},
+                                                    )
+                                                ]
+                                            }
                                             mock_get_ranking.return_value = mock_ranker
 
                                             # Mock filter validation
-                                            mock_validate_filter.return_value = {"status": True, "validated_collections": ["test_collection"]}
+                                            mock_validate_filter.return_value = {
+                                                "status": True,
+                                                "validated_collections": [
+                                                    "test_collection"
+                                                ],
+                                            }
                                             mock_process_filter.return_value = ""
 
                                             # Mock ThreadPoolExecutor
                                             mock_future = Mock()
-                                            mock_future.result.return_value = [Mock(page_content="test content", metadata={})]
+                                            mock_future.result.return_value = [
+                                                Mock(
+                                                    page_content="test content",
+                                                    metadata={},
+                                                )
+                                            ]
                                             mock_executor.return_value.__enter__.return_value.submit.return_value = mock_future
 
                                             # Mock RunnableAssign for async
                                             mock_runnable_instance = Mock()
-                                            mock_runnable_instance.ainvoke = AsyncMock(return_value={"context": [Mock(page_content="test content", metadata={})]})
-                                            mock_runnable_assign.return_value = mock_runnable_instance
+                                            mock_runnable_instance.ainvoke = AsyncMock(
+                                                return_value={
+                                                    "context": [
+                                                        Mock(
+                                                            page_content="test content",
+                                                            metadata={},
+                                                        )
+                                                    ]
+                                                }
+                                            )
+                                            mock_runnable_assign.return_value = (
+                                                mock_runnable_instance
+                                            )
 
                                             # Mock filter documents
-                                            mock_filter_docs.return_value = [Mock(page_content="test content", metadata={})]
+                                            mock_filter_docs.return_value = [
+                                                Mock(
+                                                    page_content="test content",
+                                                    metadata={},
+                                                )
+                                            ]
 
                                             mock_prepare.return_value = mock_vdb_op
-                                            mock_prepare_request.return_value = ("test query", [])
-                                            mock_prepare_citations.return_value = Citations(documents=[], sources=[])
+                                            mock_prepare_request.return_value = (
+                                                "test query",
+                                                [],
+                                            )
+                                            mock_prepare_citations.return_value = (
+                                                Citations(documents=[], sources=[])
+                                            )
 
-                                            result = await rag.search("test query", messages=messages)
+                                            result = await rag.search(
+                                                "test query", messages=messages
+                                            )
 
                                             assert isinstance(result, Citations)
                                             # Note: prepare_llm_request is only called when messages is not None
@@ -194,7 +314,7 @@ class TestNvidiaRAGSearchWorking:
         """Test search with empty collection_names raises APIError."""
         rag = NvidiaRAG()
 
-        with patch.object(rag, '_prepare_vdb_op') as mock_prepare:
+        with patch.object(rag, "_prepare_vdb_op") as mock_prepare:
             mock_vdb_op = Mock(spec=VDBRag)
             mock_prepare.return_value = mock_vdb_op
 
@@ -206,12 +326,14 @@ class TestNvidiaRAGSearchWorking:
         """Test search with collection validation error."""
         rag = NvidiaRAG()
 
-        with patch.object(rag, '_prepare_vdb_op') as mock_prepare:
+        with patch.object(rag, "_prepare_vdb_op") as mock_prepare:
             mock_vdb_op = Mock(spec=VDBRag)
             mock_vdb_op.check_collection_exists.return_value = False
             mock_prepare.return_value = mock_vdb_op
 
-            with pytest.raises(APIError, match="Collection test_collection does not exist"):
+            with pytest.raises(
+                APIError, match="Collection test_collection does not exist"
+            ):
                 await rag.search("test query", collection_names=["test_collection"])
 
 
@@ -223,7 +345,7 @@ class TestNvidiaRAGGetSummaryWorking:
         """Test basic get_summary functionality."""
         rag = NvidiaRAG()
 
-        with patch('nvidia_rag.rag_server.main.retrieve_summary') as mock_retrieve:
+        with patch("nvidia_rag.rag_server.main.retrieve_summary") as mock_retrieve:
             mock_retrieve.return_value = {"summary": "Test summary"}
 
             result = await rag.get_summary("test_collection", "test_document")
@@ -236,14 +358,11 @@ class TestNvidiaRAGGetSummaryWorking:
         """Test get_summary with custom parameters."""
         rag = NvidiaRAG()
 
-        with patch('nvidia_rag.rag_server.main.retrieve_summary') as mock_retrieve:
+        with patch("nvidia_rag.rag_server.main.retrieve_summary") as mock_retrieve:
             mock_retrieve.return_value = {"summary": "Test summary"}
 
             result = await rag.get_summary(
-                "test_collection",
-                "test_document",
-                blocking=True,
-                timeout=600
+                "test_collection", "test_document", blocking=True, timeout=600
             )
 
             assert result == {"summary": "Test summary"}
@@ -251,7 +370,7 @@ class TestNvidiaRAGGetSummaryWorking:
                 collection_name="test_collection",
                 file_name="test_document",
                 wait=True,
-                timeout=600
+                timeout=600,
             )
 
 
@@ -272,7 +391,7 @@ class TestNvidiaRAGPrivateMethodsWorking:
         content = [
             {"type": "text", "text": "Hello"},
             {"type": "text", "text": "world"},
-            {"type": "image_url", "image_url": {"url": "http://example.com/image.jpg"}}
+            {"type": "image_url", "image_url": {"url": "http://example.com/image.jpg"}},
         ]
 
         result = rag._extract_text_from_content(content)
@@ -291,7 +410,7 @@ class TestNvidiaRAGPrivateMethodsWorking:
 
         content = [
             {"type": "text", "text": "Hello world"},
-            {"type": "image_url", "image_url": {"url": "http://example.com/image.jpg"}}
+            {"type": "image_url", "image_url": {"url": "http://example.com/image.jpg"}},
         ]
 
         result = rag._contains_images(content)
@@ -311,7 +430,7 @@ class TestNvidiaRAGPrivateMethodsWorking:
         content = [
             {"type": "text", "text": "Hello"},
             {"type": "text", "text": "world"},
-            {"type": "image_url", "image_url": {"url": "http://example.com/image.jpg"}}
+            {"type": "image_url", "image_url": {"url": "http://example.com/image.jpg"}},
         ]
 
         result = rag._build_retriever_query_from_content(content)
@@ -322,12 +441,9 @@ class TestNvidiaRAGPrivateMethodsWorking:
         """Test __print_conversation_history method."""
         rag = NvidiaRAG()
 
-        conversation_history = [
-            ("user", "Hello"),
-            ("assistant", "Hi there!")
-        ]
+        conversation_history = [("user", "Hello"), ("assistant", "Hi there!")]
 
-        with patch('nvidia_rag.rag_server.main.logger') as mock_logger:
+        with patch("nvidia_rag.rag_server.main.logger") as mock_logger:
             rag._print_conversation_history(conversation_history)
 
             # Verify debug log was called
@@ -340,7 +456,7 @@ class TestNvidiaRAGPrivateMethodsWorking:
         documents = [
             Mock(metadata={"relevance_score": 0.8}),
             Mock(metadata={"relevance_score": 0.6}),
-            Mock(metadata={"relevance_score": 0.4})
+            Mock(metadata={"relevance_score": 0.4}),
         ]
 
         result = rag._normalize_relevance_scores(documents)
@@ -402,14 +518,16 @@ class TestNvidiaRAGEdgeCasesWorking:
         async def mock_async_iter():
             yield "Test response"
 
-        with patch('nvidia_rag.rag_server.main.prepare_llm_request') as mock_prepare_request:
-            with patch.object(rag, '_llm_chain') as mock_llm_chain:
+        with patch(
+            "nvidia_rag.rag_server.main.prepare_llm_request"
+        ) as mock_prepare_request:
+            with patch.object(rag, "_llm_chain") as mock_llm_chain:
                 mock_prepare_request.return_value = ("", [])
                 mock_llm_chain.return_value = mock_async_iter()
 
                 result = await rag.generate([], use_knowledge_base=False)
 
-                assert hasattr(result, '__aiter__') or hasattr(result, '__iter__')
+                assert hasattr(result, "__aiter__") or hasattr(result, "__iter__")
 
     def test_private_methods_edge_cases(self):
         """Test private methods with edge cases."""

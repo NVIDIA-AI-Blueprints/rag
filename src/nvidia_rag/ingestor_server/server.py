@@ -50,6 +50,7 @@ from pydantic import BaseModel, Field, model_validator
 from starlette.status import HTTP_422_UNPROCESSABLE_ENTITY
 
 from nvidia_rag.ingestor_server.main import Mode, NvidiaRAGIngestor
+from nvidia_rag.rag_server.main import APIError
 from nvidia_rag.utils.configuration import NvidiaRAGConfig
 from nvidia_rag.utils.health_models import (
     DatabaseHealthInfo,
@@ -133,13 +134,18 @@ class SplitOptions(BaseModel):
         description="Number of overlapping units between consecutive splits.",
     )
 
+
 @trace_function("ingestor.server.extract_vdb_auth_token", tracer=TRACER)
-def _extract_vdb_auth_token(request: Request) -> str | None:
+def _extract_vdb_auth_token(request: Request) -> str:
     """Extract bearer token from Authorization header (e.g., 'Bearer <token>')."""
-    auth_header = request.headers.get("Authorization") or request.headers.get("authorization")
+    auth_header = request.headers.get("Authorization") or request.headers.get(
+        "authorization"
+    )
     if isinstance(auth_header, str) and auth_header.lower().startswith("bearer "):
-        return auth_header.split(" ", 1)[1].strip()
-    return None
+        token = auth_header.split(" ", 1)[1].strip()
+        # Return empty string for empty/whitespace-only tokens (no-token case)
+        return token if token else ""
+    return ""
 
 
 class CustomMetadata(BaseModel):
@@ -688,6 +694,12 @@ async def upload_document(
         return JSONResponse(
             content={"message": "Request was cancelled by the client"}, status_code=499
         )
+    except APIError as e:
+        # Handle APIError with specific status codes from upstream (set when error was raised)
+        logger.exception(
+            "API Error from POST /documents endpoint. Error details: %s", e
+        )
+        return JSONResponse(content={"message": e.message}, status_code=e.status_code)
     except Exception as e:
         logger.error(
             f"Error from POST /documents endpoint. Ingestion of file failed with error: {e}"
@@ -718,7 +730,9 @@ async def get_task_status(task_id: str):
     except KeyError as e:
         logger.error(f"Task {task_id} not found with error: {e}")
         return IngestionTaskStatusResponse(
-            state="UNKNOWN", result={"message": "Task not found"}, document_wise_status={}
+            state="UNKNOWN",
+            result={"message": "Task not found"},
+            document_wise_status={},
         )
 
 
@@ -781,6 +795,12 @@ async def update_documents(
         return JSONResponse(
             content={"message": "Request was cancelled by the client"}, status_code=499
         )
+    except APIError as e:
+        # Handle APIError with specific status codes from upstream (set when error was raised)
+        logger.exception(
+            "API Error from PATCH /documents endpoint. Error details: %s", e
+        )
+        return JSONResponse(content={"message": e.message}, status_code=e.status_code)
     except Exception as e:
         logger.error(
             f"Error from PATCH /documents endpoint. Ingestion failed with error: {e}"
@@ -826,7 +846,11 @@ async def get_documents(
     try:
         # Extract vdb auth token and pass through to backend
         vdb_auth_token = _extract_vdb_auth_token(request)
-        documents = NV_INGEST_INGESTOR.get_documents(collection_name, vdb_endpoint, vdb_auth_token)
+        documents = NV_INGEST_INGESTOR.get_documents(
+            collection_name=collection_name,
+            vdb_endpoint=vdb_endpoint,
+            vdb_auth_token=vdb_auth_token,
+        )
         return DocumentListResponse(**documents)
 
     except asyncio.CancelledError as e:
@@ -834,8 +858,12 @@ async def get_documents(
         return JSONResponse(
             content={"message": "Request was cancelled by the client."}, status_code=499
         )
+    except APIError as e:
+        # Handle APIError with specific status codes from upstream (set when error was raised)
+        logger.exception("API Error from GET /documents endpoint. Error details: %s", e)
+        return JSONResponse(content={"message": e.message}, status_code=e.status_code)
     except Exception as e:
-        logger.error("Error from GET /documents endpoint. Error details: %s", e)
+        logger.exception("Error from GET /documents endpoint. Error details: %s", e)
         return JSONResponse(
             content={"message": f"Error occurred while fetching documents: {e}"},
             status_code=500,
@@ -896,8 +924,14 @@ async def delete_documents(
         return JSONResponse(
             content={"message": "Request was cancelled by the client."}, status_code=499
         )
+    except APIError as e:
+        # Handle APIError with specific status codes from upstream (set when error was raised)
+        logger.exception(
+            "API Error from DELETE /documents endpoint. Error details: %s", e
+        )
+        return JSONResponse(content={"message": e.message}, status_code=e.status_code)
     except Exception as e:
-        logger.error("Error from DELETE /documents endpoint. Error details: %s", e)
+        logger.exception("Error from DELETE /documents endpoint. Error details: %s", e)
         return JSONResponse(
             content={"message": f"Error deleting document {document_names}: {e}"},
             status_code=500,
@@ -949,8 +983,14 @@ async def get_collections(
         return JSONResponse(
             content={"message": "Request was cancelled by the client."}, status_code=499
         )
+    except APIError as e:
+        # Handle APIError with specific status codes from upstream (set when error was raised)
+        logger.exception(
+            "API Error from GET /collections endpoint. Error details: %s", e
+        )
+        return JSONResponse(content={"message": e.message}, status_code=e.status_code)
     except Exception as e:
-        logger.error("Error from GET /collections endpoint. Error details: %s", e)
+        logger.exception("Error from GET /collections endpoint. Error details: %s", e)
         return JSONResponse(
             content={
                 "message": f"Error occurred while fetching collections. Error: {e}"
@@ -1017,8 +1057,14 @@ async def create_collections(
         return JSONResponse(
             content={"message": "Request was cancelled by the client."}, status_code=499
         )
+    except APIError as e:
+        # Handle APIError with specific status codes from upstream (set when error was raised)
+        logger.exception(
+            "API Error from POST /collections endpoint. Error details: %s", e
+        )
+        return JSONResponse(content={"message": e.message}, status_code=e.status_code)
     except Exception as e:
-        logger.error("Error from POST /collections endpoint. Error details: %s", e)
+        logger.exception("Error from POST /collections endpoint. Error details: %s", e)
         return JSONResponse(
             content={
                 "message": f"Error occurred while creating collections. Error: {e}"
@@ -1050,9 +1096,10 @@ async def create_collections(
         },
     },
 )
-
 @trace_function("ingestor.server.create_collection", tracer=TRACER)
-async def create_collection(request: Request, data: CreateCollectionRequest) -> CreateCollectionResponse:
+async def create_collection(
+    request: Request, data: CreateCollectionRequest
+) -> CreateCollectionResponse:
     """
     Endpoint to create a collection with catalog metadata.
     Returns status message.
@@ -1080,8 +1127,14 @@ async def create_collection(request: Request, data: CreateCollectionRequest) -> 
         return JSONResponse(
             content={"message": "Request was cancelled by the client."}, status_code=499
         )
+    except APIError as e:
+        # Handle APIError with specific status codes from upstream (set when error was raised)
+        logger.exception(
+            "API Error from POST /collection endpoint. Error details: %s", e
+        )
+        return JSONResponse(content={"message": e.message}, status_code=e.status_code)
     except Exception as e:
-        logger.error("Error from POST /collection endpoint. Error details: %s", e)
+        logger.exception("Error from POST /collection endpoint. Error details: %s", e)
         return JSONResponse(
             content={
                 "message": f"Error occurred while creating collection. Error: {e}"
@@ -1137,6 +1190,13 @@ async def update_collection_metadata(
         return JSONResponse(
             content={"message": "Request was cancelled by the client."}, status_code=499
         )
+    except APIError as e:
+        # Handle APIError with specific status codes from upstream (set when error was raised)
+        logger.error(
+            "API Error from PATCH /collections/{collection_name}/metadata endpoint. Error: %s",
+            e,
+        )
+        return JSONResponse(content={"message": e.message}, status_code=e.status_code)
     except Exception as e:
         logger.error(
             "Error from PATCH /collections/{collection_name}/metadata endpoint. Error: %s",
@@ -1192,6 +1252,13 @@ async def update_document_metadata(
         return JSONResponse(
             content={"message": "Request was cancelled by the client."}, status_code=499
         )
+    except APIError as e:
+        # Handle APIError with specific status codes from upstream (set when error was raised)
+        logger.error(
+            "API Error from PATCH /collections/{collection_name}/documents/{document_name}/metadata endpoint. Error: %s",
+            e,
+        )
+        return JSONResponse(content={"message": e.message}, status_code=e.status_code)
     except Exception as e:
         logger.error(
             "Error from PATCH /collections/{collection_name}/documents/{document_name}/metadata endpoint. Error: %s",
@@ -1244,7 +1311,9 @@ async def delete_collections(
         # Extract vdb auth token and pass through to backend
         vdb_auth_token = _extract_vdb_auth_token(request)
         response = NV_INGEST_INGESTOR.delete_collections(
-            collection_names=collection_names, vdb_endpoint=vdb_endpoint, vdb_auth_token=vdb_auth_token
+            collection_names=collection_names,
+            vdb_endpoint=vdb_endpoint,
+            vdb_auth_token=vdb_auth_token,
         )
         return CollectionsResponse(**response)
 
@@ -1253,8 +1322,16 @@ async def delete_collections(
         return JSONResponse(
             content={"message": "Request was cancelled by the client."}, status_code=499
         )
+    except APIError as e:
+        # Handle APIError with specific status codes from upstream (set when error was raised)
+        logger.error(
+            "API Error from DELETE /collections endpoint. Error details: %s", e
+        )
+        return JSONResponse(content={"message": e.message}, status_code=e.status_code)
     except Exception as e:
-        logger.error("Error from DELETE /collections endpoint. Error details: %s", e)
+        logger.exception(
+            "Error from DELETE /collections endpoint. Error details: %s", e
+        )
         return JSONResponse(
             content={
                 "message": f"Error occurred while deleting collections. Error: {e}"

@@ -17,12 +17,13 @@ This module manages the state of the ingestion process.
 """
 
 import asyncio
-import os
 import logging
+import os
 from typing import Any
 from uuid import uuid4
 
 logger = logging.getLogger(__name__)
+
 
 class IngestionStateManager:
     def __init__(
@@ -98,20 +99,22 @@ class IngestionStateManager:
             }
         )
         return total_progress_response
-    
+
     async def initialize_nv_ingest_document_wise_status(
         self,
         filepaths: list[str],
     ):
         filenames = [os.path.basename(filepath) for filepath in filepaths]
-        self.nv_ingest_document_wise_status = {filename: "not_started" for filename in filenames}
+        self.nv_ingest_document_wise_status = dict.fromkeys(filenames, "not_started")
         return self.nv_ingest_document_wise_status
-    
+
     async def update_nv_ingest_document_wise_status(
         self,
         nv_ingest_document_wise_status: dict[str, Any],
     ):
         async with self.asyncio_lock:
             self.nv_ingest_document_wise_status.update(nv_ingest_document_wise_status)
-        logger.debug(f"Updated NV-Ingest document-wise status: {self.nv_ingest_document_wise_status}")
+        logger.debug(
+            f"Updated NV-Ingest document-wise status: {self.nv_ingest_document_wise_status}"
+        )
         return self.nv_ingest_document_wise_status

@@ -24,6 +24,7 @@ from pymilvus.exceptions import MilvusException, MilvusUnavailableException
 
 from nvidia_rag.rag_server.response_generator import (
     FALLBACK_EXCEPTION_MSG,
+    APIError,
     ChainResponse,
     ChainResponseChoices,
     Citations,
@@ -37,9 +38,11 @@ from nvidia_rag.rag_server.response_generator import (
     Usage,
     _is_empty_content,
     error_response_generator,
+    error_response_generator_async,
     escape_json_content,
     escape_json_content_multimodal,
     generate_answer,
+    generate_answer_async,
     prepare_citations,
     prepare_llm_request,
     retrieve_summary,
@@ -733,3 +736,498 @@ class TestRetrieveSummary:
 
             assert result["status"] == "FAILED"
             assert "error" in result
+
+
+class TestGenerateAnswerAsync:
+    """Test generate_answer_async function"""
+
+    @pytest.mark.asyncio
+    async def test_generate_answer_async_success(self):
+        """Test generate_answer_async with successful generation"""
+
+        async def mock_generator():
+            yield "Hello"
+            yield " world"
+            yield "!"
+
+        mock_doc = Mock()
+        mock_doc.page_content = "Test content"
+        mock_doc.metadata = {"source": "test.pdf", "content_metadata": {"type": "text"}}
+        contexts = [mock_doc]
+
+        result = []
+        async for chunk in generate_answer_async(
+            generator=mock_generator(),
+            contexts=contexts,
+            model="test-model",
+            enable_citations=True,
+        ):
+            result.append(chunk)
+
+        assert len(result) > 0
+        for chunk in result:
+            assert chunk.startswith("data: ")
+            assert chunk.endswith("\n\n")
+
+    @pytest.mark.asyncio
+    async def test_generate_answer_async_no_generator(self):
+        """Test generate_answer_async with no generator"""
+        mock_doc = Mock()
+        mock_doc.page_content = "Test content"
+        mock_doc.metadata = {"source": "test.pdf", "content_metadata": {"type": "text"}}
+        contexts = [mock_doc]
+
+        result = []
+        async for chunk in generate_answer_async(
+            generator=None,
+            contexts=contexts,
+            model="test-model",
+        ):
+            result.append(chunk)
+
+        assert len(result) == 1
+        assert result[0].startswith("data: ")
+
+    @pytest.mark.asyncio
+    async def test_generate_answer_async_error_response_chunk(self):
+        """Test generate_answer_async with error response chunk"""
+
+        async def mock_generator():
+            yield "I'm sorry, I can't respond to that."
+
+        mock_doc = Mock()
+        mock_doc.page_content = "Test content"
+        mock_doc.metadata = {"source": "test.pdf", "content_metadata": {"type": "text"}}
+        contexts = [mock_doc]
+
+        result = []
+        async for chunk in generate_answer_async(
+            generator=mock_generator(),
+            contexts=contexts,
+            model="test-model",
+        ):
+            result.append(chunk)
+
+        assert len(result) > 0
+
+    @pytest.mark.asyncio
+    async def test_generate_answer_async_with_rag_start_time(self):
+        """Test generate_answer_async with rag_start_time_sec"""
+
+        async def mock_generator():
+            yield "Hello"
+
+        mock_doc = Mock()
+        mock_doc.page_content = "Test content"
+        mock_doc.metadata = {"source": "test.pdf", "content_metadata": {"type": "text"}}
+        contexts = [mock_doc]
+
+        result = []
+        async for chunk in generate_answer_async(
+            generator=mock_generator(),
+            contexts=contexts,
+            model="test-model",
+            rag_start_time_sec=time.time(),
+        ):
+            result.append(chunk)
+
+        assert len(result) > 0
+
+    @pytest.mark.asyncio
+    async def test_generate_answer_async_with_otel_metrics(self):
+        """Test generate_answer_async with OpenTelemetry metrics"""
+
+        async def mock_generator():
+            yield "Hello"
+
+        mock_doc = Mock()
+        mock_doc.page_content = "Test content"
+        mock_doc.metadata = {"source": "test.pdf", "content_metadata": {"type": "text"}}
+        contexts = [mock_doc]
+
+        mock_otel = Mock()
+        mock_otel.update_latency_metrics = Mock()
+
+        result = []
+        async for chunk in generate_answer_async(
+            generator=mock_generator(),
+            contexts=contexts,
+            model="test-model",
+            otel_metrics_client=mock_otel,
+            rag_start_time_sec=time.time(),
+        ):
+            result.append(chunk)
+
+        assert len(result) > 0
+        mock_otel.update_latency_metrics.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_generate_answer_async_otel_metrics_exception(self):
+        """Test generate_answer_async with OpenTelemetry metrics exception"""
+
+        async def mock_generator():
+            yield "Hello"
+
+        mock_doc = Mock()
+        mock_doc.page_content = "Test content"
+        mock_doc.metadata = {"source": "test.pdf", "content_metadata": {"type": "text"}}
+        contexts = [mock_doc]
+
+        mock_otel = Mock()
+        mock_otel.update_latency_metrics = Mock(side_effect=Exception("OTEL error"))
+
+        result = []
+        async for chunk in generate_answer_async(
+            generator=mock_generator(),
+            contexts=contexts,
+            model="test-model",
+            otel_metrics_client=mock_otel,
+            rag_start_time_sec=time.time(),
+        ):
+            result.append(chunk)
+
+        assert len(result) > 0
+
+    @pytest.mark.asyncio
+    async def test_generate_answer_async_milvus_exception(self):
+        """Test generate_answer_async with MilvusException"""
+
+        async def mock_generator():
+            yield "Hello"
+            raise MilvusException("Milvus error")
+
+        mock_doc = Mock()
+        mock_doc.page_content = "Test content"
+        mock_doc.metadata = {"source": "test.pdf", "content_metadata": {"type": "text"}}
+        contexts = [mock_doc]
+
+        result = []
+        async for chunk in generate_answer_async(
+            generator=mock_generator(),
+            contexts=contexts,
+            model="test-model",
+        ):
+            result.append(chunk)
+
+        assert len(result) > 0
+        combined_content = "".join(
+            json.loads(chunk.replace("data: ", ""))["choices"][0]["message"]["content"]
+            for chunk in result
+        )
+        assert "milvus server" in combined_content.lower()
+
+    @pytest.mark.asyncio
+    async def test_generate_answer_async_milvus_unavailable_exception(self):
+        """Test generate_answer_async with MilvusUnavailableException"""
+
+        async def mock_generator():
+            yield "Hello"
+            raise MilvusUnavailableException("Milvus unavailable")
+
+        mock_doc = Mock()
+        mock_doc.page_content = "Test content"
+        mock_doc.metadata = {"source": "test.pdf", "content_metadata": {"type": "text"}}
+        contexts = [mock_doc]
+
+        result = []
+        async for chunk in generate_answer_async(
+            generator=mock_generator(),
+            contexts=contexts,
+            model="test-model",
+        ):
+            result.append(chunk)
+
+        assert len(result) > 0
+
+    @pytest.mark.asyncio
+    async def test_generate_answer_async_api_error(self):
+        """Test generate_answer_async with APIError"""
+
+        async def mock_generator():
+            yield "Hello"
+            raise APIError("API error", status_code=400)
+
+        mock_doc = Mock()
+        mock_doc.page_content = "Test content"
+        mock_doc.metadata = {"source": "test.pdf", "content_metadata": {"type": "text"}}
+        contexts = [mock_doc]
+
+        result = []
+        async for chunk in generate_answer_async(
+            generator=mock_generator(),
+            contexts=contexts,
+            model="test-model",
+        ):
+            result.append(chunk)
+
+        assert len(result) > 0
+        combined_content = "".join(
+            json.loads(chunk.replace("data: ", ""))["choices"][0]["message"]["content"]
+            for chunk in result
+        )
+        assert "API error" in combined_content
+
+    @pytest.mark.asyncio
+    async def test_generate_answer_async_general_exception(self):
+        """Test generate_answer_async with general exception"""
+
+        async def mock_generator():
+            yield "Hello"
+            raise Exception("General error")
+
+        mock_doc = Mock()
+        mock_doc.page_content = "Test content"
+        mock_doc.metadata = {"source": "test.pdf", "content_metadata": {"type": "text"}}
+        contexts = [mock_doc]
+
+        result = []
+        async for chunk in generate_answer_async(
+            generator=mock_generator(),
+            contexts=contexts,
+            model="test-model",
+        ):
+            result.append(chunk)
+
+        assert len(result) > 0
+
+
+class TestErrorResponseGeneratorAsync:
+    """Test error_response_generator_async function"""
+
+    @pytest.mark.asyncio
+    async def test_error_response_generator_async_basic(self):
+        """Test error_response_generator_async with basic error message"""
+        error_msg = "Test error message"
+        result = []
+        async for chunk in error_response_generator_async(error_msg):
+            result.append(chunk)
+
+        assert len(result) >= 2
+        response_data = json.loads(result[0].replace("data: ", ""))
+        first_content = response_data["choices"][0]["message"]["content"]
+        assert error_msg.startswith(first_content)
+
+
+class TestPrepareCitationsErrorHandling:
+    """Test prepare_citations error handling"""
+
+    def test_prepare_citations_minio_exception(self):
+        """Test prepare_citations with MinIO exception"""
+        mock_doc = Mock()
+        mock_doc.page_content = "Test content"
+        mock_doc.metadata = {
+            "source": {"source_id": "test.pdf"},
+            "content_metadata": {
+                "type": "image",
+                "subtype": "image",
+                "page_number": 1,
+                "location": [],
+            },
+            "collection_name": "test_collection",
+        }
+
+        with (
+            patch(
+                "nvidia_rag.rag_server.response_generator.get_unique_thumbnail_id_from_result"
+            ) as mock_get_thumbnail,
+            patch(
+                "nvidia_rag.rag_server.response_generator.get_minio_operator_instance"
+            ) as mock_minio_getter,
+        ):
+            mock_get_thumbnail.return_value = "test_thumbnail_id"
+            mock_minio = Mock()
+            mock_minio.get_payload.side_effect = Exception("MinIO error")
+            mock_minio_getter.return_value = mock_minio
+
+            result = prepare_citations([mock_doc], enable_citations=True)
+
+            assert isinstance(result, Citations)
+            # When MinIO fails, content is empty, so citation is not added (content check fails)
+            assert result.total_results == 0
+
+    def test_prepare_citations_with_document_type_audio(self):
+        """Test prepare_citations with audio document type"""
+        mock_doc = Mock()
+        mock_doc.page_content = "Test audio content"
+        mock_doc.metadata = {
+            "source": "test.mp3",
+            "content_metadata": {"type": "audio", "subtype": "audio"},
+        }
+
+        result = prepare_citations([mock_doc], enable_citations=True)
+
+        assert isinstance(result, Citations)
+        assert result.total_results == 1
+        assert result.results[0].document_type == "audio"
+
+
+class TestRetrieveSummaryEdgeCases:
+    """Test retrieve_summary edge cases"""
+
+    @pytest.mark.asyncio
+    async def test_retrieve_summary_not_found_no_wait(self):
+        """Test retrieve_summary when not found and wait=False"""
+        with (
+            patch(
+                "nvidia_rag.rag_server.response_generator.get_minio_operator_instance"
+            ) as mock_minio_getter,
+            patch(
+                "nvidia_rag.rag_server.response_generator.get_unique_thumbnail_id"
+            ) as mock_get_thumbnail,
+        ):
+            mock_minio = Mock()
+            mock_minio.get_payload.return_value = None
+            mock_minio_getter.return_value = mock_minio
+            mock_get_thumbnail.return_value = "test_thumbnail_id"
+
+            result = await retrieve_summary(
+                collection_name="test_collection",
+                file_name="test.pdf",
+                wait=False,
+            )
+
+            assert result["status"] == "NOT_FOUND"
+            assert "not found" in result["message"].lower()
+
+    @pytest.mark.asyncio
+    async def test_retrieve_summary_wait_timeout(self):
+        """Test retrieve_summary with timeout"""
+        with (
+            patch(
+                "nvidia_rag.rag_server.response_generator.get_minio_operator_instance"
+            ) as mock_minio_getter,
+            patch(
+                "nvidia_rag.rag_server.response_generator.get_unique_thumbnail_id"
+            ) as mock_get_thumbnail,
+            patch(
+                "nvidia_rag.utils.summary_status_handler.SUMMARY_STATUS_HANDLER"
+            ) as mock_handler,
+            patch("asyncio.sleep", new_callable=AsyncMock),
+        ):
+            mock_minio = Mock()
+            mock_minio.get_payload.return_value = None
+            mock_minio_getter.return_value = mock_minio
+            mock_get_thumbnail.return_value = "test_thumbnail_id"
+            mock_handler.is_available.return_value = True
+            mock_handler.get_status.return_value = None
+
+            result = await retrieve_summary(
+                collection_name="test_collection",
+                file_name="test.pdf",
+                wait=True,
+                timeout=1,
+            )
+
+            assert result["status"] == "FAILED"
+            assert "timeout" in result["message"].lower()
+
+    @pytest.mark.asyncio
+    async def test_retrieve_summary_redis_unavailable_fallback(self):
+        """Test retrieve_summary with Redis unavailable fallback"""
+        with (
+            patch(
+                "nvidia_rag.rag_server.response_generator.get_minio_operator_instance"
+            ) as mock_minio_getter,
+            patch(
+                "nvidia_rag.rag_server.response_generator.get_unique_thumbnail_id"
+            ) as mock_get_thumbnail,
+            patch(
+                "nvidia_rag.utils.summary_status_handler.SUMMARY_STATUS_HANDLER"
+            ) as mock_handler,
+            patch("asyncio.sleep", new_callable=AsyncMock),
+        ):
+            mock_minio = Mock()
+            mock_minio.get_payload.return_value = {"summary": "Test summary"}
+            mock_minio_getter.return_value = mock_minio
+            mock_get_thumbnail.return_value = "test_thumbnail_id"
+            mock_handler.is_available.return_value = False
+
+            result = await retrieve_summary(
+                collection_name="test_collection",
+                file_name="test.pdf",
+                wait=True,
+                timeout=10,
+            )
+
+            assert result["status"] == "SUCCESS"
+            assert result["summary"] == "Test summary"
+
+    @pytest.mark.asyncio
+    async def test_retrieve_summary_status_success_no_content(self):
+        """Test retrieve_summary when status is SUCCESS but no content"""
+        with (
+            patch(
+                "nvidia_rag.rag_server.response_generator.get_minio_operator_instance"
+            ) as mock_minio_getter,
+            patch(
+                "nvidia_rag.rag_server.response_generator.get_unique_thumbnail_id"
+            ) as mock_get_thumbnail,
+            patch(
+                "nvidia_rag.utils.summary_status_handler.SUMMARY_STATUS_HANDLER"
+            ) as mock_handler,
+            patch("asyncio.sleep", new_callable=AsyncMock),
+        ):
+            mock_minio = Mock()
+            mock_minio.get_payload.return_value = None
+            mock_minio_getter.return_value = mock_minio
+            mock_get_thumbnail.return_value = "test_thumbnail_id"
+            mock_handler.is_available.return_value = True
+            mock_handler.get_status.return_value = {"status": "SUCCESS"}
+
+            result = await retrieve_summary(
+                collection_name="test_collection",
+                file_name="test.pdf",
+                wait=True,
+                timeout=10,
+            )
+
+            assert result["status"] == "FAILED"
+            assert "content not found" in result["message"].lower()
+
+    @pytest.mark.asyncio
+    async def test_retrieve_summary_status_failed(self):
+        """Test retrieve_summary when status is FAILED"""
+        with (
+            patch(
+                "nvidia_rag.rag_server.response_generator.get_minio_operator_instance"
+            ) as mock_minio_getter,
+            patch(
+                "nvidia_rag.rag_server.response_generator.get_unique_thumbnail_id"
+            ) as mock_get_thumbnail,
+            patch(
+                "nvidia_rag.utils.summary_status_handler.SUMMARY_STATUS_HANDLER"
+            ) as mock_handler,
+            patch("asyncio.sleep", new_callable=AsyncMock),
+        ):
+            mock_minio = Mock()
+            mock_minio_getter.return_value = mock_minio
+            mock_get_thumbnail.return_value = "test_thumbnail_id"
+            mock_handler.is_available.return_value = True
+            mock_handler.get_status.return_value = {
+                "status": "FAILED",
+                "error": "Generation failed",
+            }
+
+            result = await retrieve_summary(
+                collection_name="test_collection",
+                file_name="test.pdf",
+                wait=True,
+                timeout=10,
+            )
+
+            assert result["status"] == "FAILED"
+            assert "failed" in result["message"].lower()
+
+
+class TestMessageValidationEdgeCases:
+    """Test Message validation edge cases"""
+
+    def test_message_role_validation_none_value(self):
+        """Test Message role validation with None value"""
+        message = Message(role=None)
+        assert message.role is None
+
+    def test_message_role_validation_invalid_after_clean(self):
+        """Test Message role validation with invalid role after cleaning"""
+        with pytest.raises(ValidationError):
+            Message(role="invalid_role")
