@@ -22,7 +22,7 @@ The `prompt.yaml` file contains a set of prompt templates used throughout the RA
 
 ### 3. `query_rewriter_prompt`
 - **Purpose:** Reformulates user questions into standalone queries.
-- **Usage:** Ensures that follow-up questions referencing previous context are rewritten for clarity. Used by the [query rewriting component](./query_rewriter.md) before retrieval if enabled.
+- **Usage:** Ensures that follow-up questions referencing previous context are rewritten for clarity. Used by the [query rewriting component](./multiturn.md) before retrieval if enabled.
 
 ### 4. `reflection_relevance_check_prompt`
 - **Purpose:** Evaluates the relevance of a context chunk to a user question.

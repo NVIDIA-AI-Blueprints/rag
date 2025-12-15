@@ -12,6 +12,61 @@ This documentation contains the release notes for [NVIDIA RAG Blueprint](readme.
 <!-- Delete all previous versions from this page -->
 <!-- And populate the Previous Versions section at the end of this page with version 2.3.0 -->
 
+## Release 2.4.0 (TBD)
+This release adds new features to the RAG pipeline for supporting features/functionalities for agents workflows and enhances generations with vlms augmenting multimodal input.
+
+### Highlights
+
+This release contains the following key changes:
+- Summarization enhancements. [Dedicated notebook](../notebooks/summarization.ipynb) available showcasing new features.
+  - Shallow summarization support
+  - Easy model switches and dedicated configurations
+  - Ease of prompt changes
+  - Document-level summarization support with the ability to show summary for a given document
+- [Dedicated service specfific API keys](./api-key.md#service-specific-api-keys)
+  - Facilitates Non-NIM model support - Support hosted endpoints by openAI, NIM hosted on AWS/AZure, OSS models (e.g. Qwen)
+- Support passing image+text as input query. For details, refer to [Multimodal Query Support](multimodal-query.md).
+  - Added [a new notebook](../notebooks/image_input.ipynb) showcasing this feature.
+- LLM NIM Thinking budget - support using thinking budget control to keep balance between accuracy & performance. For details, refer to [Enable Reasoning](enable-nemotron-thinking.md).
+- Migrated page element NIM to V3 for improved document processing and element extraction
+- Updated NemoRetriever OCR (GA) - Switched to NemoRetriever OCR as the default OCR engine. For details, refer to [NeMo Retriever OCR Configuration Guide](nemoretriever-ocr.md).
+- Vector Database enhancements. For details, refer to [Milvus Configuration](milvus-configuration.md) and [Elasticsearch Configuration](change-vectordb.md).
+  - Milvus authorization support for secure database access
+  - Elasticsearch authorization support for secure database access
+  - Vector DB authentication token support through REST API
+- Interface enhancements
+  - RAG functionality exposed as MCP (Model Context Protocol) server for tool integration. For details, refer to [MCP Server and Client Usage](mcp.md) and the [MCP server usage notebook](../notebooks/mcp_server_usage.ipynb).
+  - OpenAI compatible search endpoint for seamless integration with OpenAI tools. For details, refer to [API - RAG Server Schema](api-rag.md).
+  - Collection-level data catalog with support for collection descriptions and metadata. For details, refer to [Data Catalog](data-catalog.md).
+  - Custom ingestion interface with Docling integration showcase
+- Observability improvements. For details, refer to [Observability Setup](observability.md).
+  - Ingestion metrics endpoint support with OTEL (OpenTelemetry) for monitoring document uploads, elements ingested, and pages processed
+- Enhanced /status endpoint publishing ingestion metrics and status information. Refer to the ingestion notebook
+- RAG library mode enhancements. For details, refer to [Use the NVIDIA RAG Blueprint Python Package](python-client.md) and the [RAG library usage notebook](../notebooks/rag_library_usage.ipynb).
+  - Independent multi-instance support for RAG Server and Ingestor Server
+  - Configuration support through function arguments
+  - Async interface for RAG methods
+  - Dependency compatibility with [NVIDIA NeMo Agent Toolkit (NAT)](https://github.com/NVIDIA/NeMo-Agent-Toolkit)
+- Multiturn at both retrieval and generated stage disabled as default in the pipeline. Refer to [Multiturn Usage](./multiturn.md) for details.
+- UI improvements. For details, refer to [User Interface](user-interface.md).
+  - Collection metadata and information exposed in the UI
+  - Support for collection catalog display
+  - Enhanced support for images+text as part of query input
+  - File level summarization support
+- Technical improvements and migrations
+  - Replaced third party containers with stable releases and versions
+  - Migrated development to GitHub
+  - Migrated to latest NIMs and NvIngest packages
+  - Migrated from bitnami legacy hosted containers
+  - Added comprehensive unit and integration tests to the repository. For details refer [here](./../tests/).
+
+### Fixed Known Issues
+
+The following are the known issues that are fixed in this version:
+
+- Fixed issue in NIM LLM for automatic profile selection.
+
+For the full list of known issues, see [Known Issues](#all-known-issues).
 
 
 ## Release 2.3.0 (2025-10-14)
@@ -171,7 +226,7 @@ This release contains the following key changes:
 - Default settings are now configured to achieve a balance between accuracy and perf. For details, refer to [Best Practices](accuracy_perf.md).
 - Added support for observability and telemetry. For details, refer to [Observability](observability.md).
 - Added new react and nodeJS-based user interface to showcase runtime configurations. For details, refer to [User Interface](user-interface.md).
-- Query rewriting now uses a smaller llama3.1-8b-instruct model and is turned off by default. For details, refer to [Query Rewriting](query_rewriter.md).
+- Query rewriting now uses a smaller llama3.1-8b-instruct model and is turned off by default. For details, refer to [Multi-Turn Conversation Support](multiturn.md).
 - Added support for the following optional features to improve accuracy and reliability of the pipeline. These are turned off by default. For details, refer to [Best Practices](accuracy_perf.md).
   - [Self Reflection](self-reflection.md)
   - [NeMo Guardrails](nemo-guardrails.md)

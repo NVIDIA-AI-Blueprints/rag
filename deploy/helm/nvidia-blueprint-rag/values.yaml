@@ -57,7 +57,7 @@ apiKeysSecret:
 # -- RAG server container image
 image:
   repository: nvcr.io/0648981100760671/rag-server
-  tag: "latest"
+  tag: "2.4.0.rc1"
   pullPolicy: Always
 
 # -- RAG server service configuration
@@ -218,7 +218,7 @@ envVars:
   # This will improve accuracy of the retrieiver pipeline but increase latency due to an additional LLM call
   ENABLE_QUERYREWRITER: "False"
   # enable concatenating conversation history with current query for retrieval (when query rewriter is disabled)
-  MULTITURN_RETRIEVAL_SIMPLE: "False"
+  MULTITURN_RETRIEVER_SIMPLE: "False"
   # number of last n chat messages to consider from the provided conversation history (0 = no history)
   CONVERSATION_HISTORY: "0"
 
@@ -279,7 +279,7 @@ ingestor-server:
 
   image:
     repository: nvcr.io/0648981100760671/ingestor-server
-    tag: "latest"
+    tag: "2.4.0.rc1"
     pullPolicy: Always
 
   # -- Service config for ingestor-server
@@ -435,7 +435,7 @@ frontend:
   image:
     repository: nvcr.io/0648981100760671/rag-frontend
     pullPolicy: IfNotPresent
-    tag: "latest"
+    tag: "2.4.0.rc1"
 
   imagePullSecret:
     name: "ngc-secret"

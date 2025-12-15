@@ -204,7 +204,7 @@ services:
   # Main ingestor server which is responsible for ingestion
   ingestor-server:
     container_name: ingestor-server
-    image: nvcr.io/0648981100760671/ingestor-server:${TAG:-latest}
+    image: nvcr.io/0648981100760671/ingestor-server:${TAG:-2.4.0.rc1}
     build:
       # Set context to repo's root directory
       context: ../../
@@ -426,7 +426,7 @@ services:
   # Main orchestrator server which stiches together all calls to different services to fulfill the user request
   rag-server:
     container_name: rag-server
-    image: nvcr.io/0648981100760671/rag-server:${TAG:-latest}
+    image: nvcr.io/0648981100760671/rag-server:${TAG:-2.4.0.rc1}
     build:
       # Set context to repo's root directory
       context: ../../
@@ -555,7 +555,7 @@ services:
   # Sample UI container which interacts with APIs exposed by rag-server container
   rag-frontend:
     container_name: rag-frontend
-    image: nvcr.io/0648981100760671/rag-frontend:${TAG:-latest}
+    image: nvcr.io/0648981100760671/rag-frontend:${TAG:-2.4.0.rc1}
     build:
       # Set context to repo's root directory
       context: ../../frontend

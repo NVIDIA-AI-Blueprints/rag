@@ -3,7 +3,7 @@ services:
   # Main orchestrator server which stiches together all calls to different services to fulfill the user request
   rag-server:
     container_name: rag-server
-    image: nvcr.io/0648981100760671/rag-server:${TAG:-latest}
+    image: nvcr.io/0648981100760671/rag-server:${TAG:-2.4.0.rc1}
     build:
       # Set context to repo's root directory
       context: ../../
@@ -136,7 +136,7 @@ services:
       ENABLE_QUERYREWRITER: ${ENABLE_QUERYREWRITER:-False}
 
       # enable concatenating conversation history with current query for retrieval (when query rewriter is disabled)
-      MULTITURN_RETRIEVAL_SIMPLE: ${MULTITURN_RETRIEVAL_SIMPLE:-False}
+      MULTITURN_RETRIEVER_SIMPLE: ${MULTITURN_RETRIEVER_SIMPLE:-False}
 
       # Choose whether to enable citations in the response
       ENABLE_CITATIONS: ${ENABLE_CITATIONS:-True}
@@ -196,7 +196,7 @@ services:
   # Sample UI container which interacts with APIs exposed by rag-server container
   rag-frontend:
     container_name: rag-frontend
-    image: nvcr.io/0648981100760671/rag-frontend:${TAG:-latest}
+    image: nvcr.io/0648981100760671/rag-frontend:${TAG:-2.4.0.rc1}
     build:
       # Set context to repo's root directory
       context: ../../frontend
