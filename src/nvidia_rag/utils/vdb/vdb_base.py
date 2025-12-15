@@ -17,6 +17,9 @@
 This module contains the implementation of the VDBRag class,
 which provides an abstract base class for vector database operations in RAG applications.
 
+This is a pure abstract base class with NO nv_ingest dependencies, allowing the RAG server
+to operate independently without requiring nv-ingest-client packages.
+
 Collection Management:
 1. create_collection: Create a new collection with specified dimensions and type
 2. check_collection_exists: Check if the specified collection exists
@@ -36,16 +39,19 @@ Retrieval Operations:
 10. retrieval_langchain: Perform semantic search and return top-k relevant documents
 """
 
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 from typing import Any
 
 from langchain_core.vectorstores import VectorStore
-from nv_ingest_client.util.vdb.adt_vdb import VDB
 
 
-class VDBRag(VDB):
+class VDBRag(ABC):
     """
-    VDBRag is a class for the RAG mode of the VDB class.
+    VDBRag is a pure abstract base class for vector database operations in RAG applications.
+
+    This class defines the interface for VDB operations without any nv_ingest dependencies,
+    allowing the RAG server to work independently. For ingestion operations that require
+    nv_ingest support, use VDBRagIngest from vdb_ingest_base.py instead.
     """
 
     @property

@@ -37,43 +37,33 @@ class TestMilvusVDB:
     """Test the MilvusVDB class."""
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse")
-    def test_init(self, mock_urlparse, mock_connections):
+    def test_init(self, mock_connections):
         """Test MilvusVDB initialization."""
         mock_config = Mock()
         mock_config.vector_store.username = ""
         mock_config.vector_store.password = None
 
-        mock_url = Mock()
-        mock_url.hostname = "localhost"
-        mock_url.port = 19530
-        mock_urlparse.return_value = mock_url
-
         embedding_model = Mock()
 
-        with patch(
-            "nvidia_rag.utils.vdb.milvus.milvus_vdb.Milvus.__init__"
-        ) as mock_super_init:
-            mock_super_init.return_value = None
-            vdb = MilvusVDB(
-                collection_name="test_collection",
-                milvus_uri="http://localhost:19530",
-                embedding_model=embedding_model,
-                config=mock_config,
-                meta_dataframe="/path/to/csv",
-            )
+        vdb = MilvusVDB(
+            collection_name="test_collection",
+            milvus_uri="http://localhost:19530",
+            embedding_model=embedding_model,
+            config=mock_config,
+            meta_dataframe="/path/to/csv",
+        )
 
-            assert vdb.embedding_model == embedding_model
-            assert vdb.vdb_endpoint == "http://localhost:19530"
-            assert vdb.collection_name == "test_collection"
-            assert vdb.connection_alias.startswith("milvus_localhost_19530_")
-            assert vdb.csv_file_path == "/path/to/csv"
+        assert vdb.embedding_model == embedding_model
+        assert vdb.vdb_endpoint == "http://localhost:19530"
+        assert vdb.collection_name == "test_collection"
+        assert vdb.connection_alias.startswith("milvus_localhost_19530_")
+        assert vdb.csv_file_path == "/path/to/csv"
 
-            mock_connections.connect.assert_called_once_with(
-                vdb.connection_alias, uri="http://localhost:19530", token=""
-            )
+        mock_connections.connect.assert_called_once_with(
+            vdb.connection_alias, uri="http://localhost:19530", token=""
+        )
 
-    @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.create_nvingest_collection")
+    @patch("nv_ingest_client.util.milvus.create_nvingest_collection")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
     def test_create_collection(self, mock_connections, mock_create_nvingest):
         """Test create_collection method."""
@@ -86,7 +76,6 @@ class TestMilvusVDB:
 
         with (
             patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"),
-            patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Milvus.__init__"),
         ):
             vdb = MilvusVDB(
                 embedding_model=Mock(),
@@ -119,7 +108,6 @@ class TestMilvusVDB:
 
         with (
             patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"),
-            patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Milvus.__init__"),
         ):
             vdb = MilvusVDB(
                 embedding_model=Mock(),
@@ -143,7 +131,6 @@ class TestMilvusVDB:
 
         with (
             patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"),
-            patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Milvus.__init__"),
         ):
             vdb = MilvusVDB(
                 embedding_model=Mock(),
@@ -167,7 +154,6 @@ class TestMilvusVDB:
 
         with (
             patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"),
-            patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Milvus.__init__"),
         ):
             vdb = MilvusVDB(
                 embedding_model=Mock(),
@@ -193,7 +179,6 @@ class TestMilvusVDB:
 
         with (
             patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"),
-            patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Milvus.__init__"),
         ):
             vdb = MilvusVDB(
                 embedding_model=Mock(),
@@ -222,7 +207,6 @@ class TestMilvusVDB:
 
         with (
             patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"),
-            patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Milvus.__init__"),
         ):
             vdb = MilvusVDB(
                 embedding_model=Mock(),
@@ -244,7 +228,6 @@ class TestMilvusVDB:
         """Test get_collection method."""
         with (
             patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"),
-            patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Milvus.__init__"),
         ):
             vdb = MilvusVDB(
                 embedding_model=Mock(),
@@ -350,7 +333,6 @@ class TestMilvusVDB:
 
         with (
             patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"),
-            patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Milvus.__init__"),
         ):
             vdb = MilvusVDB(
                 embedding_model=Mock(),
@@ -373,7 +355,6 @@ class TestMilvusVDB:
 
         with (
             patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"),
-            patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Milvus.__init__"),
         ):
             vdb = MilvusVDB(
                 embedding_model=Mock(),
@@ -398,7 +379,6 @@ class TestMilvusVDB:
 
         with (
             patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"),
-            patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Milvus.__init__"),
         ):
             vdb = MilvusVDB(
                 embedding_model=Mock(),
@@ -424,7 +404,6 @@ class TestMilvusVDB:
 
         with (
             patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"),
-            patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Milvus.__init__"),
         ):
             vdb = MilvusVDB(
                 embedding_model=Mock(),
@@ -451,7 +430,6 @@ class TestMilvusVDB:
 
         with (
             patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"),
-            patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Milvus.__init__"),
         ):
             vdb = MilvusVDB(
                 embedding_model=Mock(),
@@ -469,7 +447,6 @@ class TestMilvusVDB:
         """Test delete_collections method (complete flow)."""
         with (
             patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"),
-            patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Milvus.__init__"),
         ):
             vdb = MilvusVDB(
                 embedding_model=Mock(),
@@ -563,7 +540,6 @@ class TestMilvusVDB:
 
         with (
             patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"),
-            patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Milvus.__init__"),
         ):
             vdb = MilvusVDB(
                 embedding_model=Mock(),
@@ -598,7 +574,6 @@ class TestMilvusVDB:
 
         with (
             patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"),
-            patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Milvus.__init__"),
         ):
             vdb = MilvusVDB(
                 embedding_model=Mock(),
@@ -623,7 +598,6 @@ class TestMilvusVDB:
 
         with (
             patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"),
-            patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Milvus.__init__"),
         ):
             vdb = MilvusVDB(
                 embedding_model=Mock(),
@@ -657,7 +631,6 @@ class TestMilvusVDB:
 
         with (
             patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"),
-            patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Milvus.__init__"),
         ):
             vdb = MilvusVDB(
                 embedding_model=Mock(),
@@ -705,7 +678,6 @@ class TestMilvusVDB:
 
         with (
             patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"),
-            patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Milvus.__init__"),
         ):
             vdb = MilvusVDB(
                 embedding_model=Mock(),
@@ -732,7 +704,6 @@ class TestMilvusVDB:
         """Test get_documents method."""
         with (
             patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"),
-            patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Milvus.__init__"),
         ):
             vdb = MilvusVDB(
                 embedding_model=Mock(),
@@ -789,7 +760,6 @@ class TestMilvusVDB:
 
         with (
             patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"),
-            patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Milvus.__init__"),
         ):
             vdb = MilvusVDB(
                 embedding_model=Mock(),
@@ -815,7 +785,6 @@ class TestMilvusVDB:
 
         with (
             patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"),
-            patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Milvus.__init__"),
         ):
             vdb = MilvusVDB(
                 embedding_model=Mock(),
@@ -843,7 +812,6 @@ class TestMilvusVDB:
 
         with (
             patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"),
-            patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Milvus.__init__"),
         ):
             vdb = MilvusVDB(
                 embedding_model=Mock(),
@@ -877,7 +845,6 @@ class TestMilvusVDB:
 
         with (
             patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"),
-            patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Milvus.__init__"),
         ):
             vdb = MilvusVDB(
                 embedding_model=Mock(),
@@ -903,7 +870,6 @@ class TestMilvusVDB:
 
         with (
             patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"),
-            patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Milvus.__init__"),
         ):
             vdb = MilvusVDB(
                 embedding_model=Mock(),
@@ -927,7 +893,6 @@ class TestMilvusVDB:
 
         with (
             patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"),
-            patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Milvus.__init__"),
         ):
             vdb = MilvusVDB(
                 embedding_model=Mock(),
@@ -954,7 +919,6 @@ class TestMilvusVDB:
 
         with (
             patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"),
-            patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Milvus.__init__"),
         ):
             vdb = MilvusVDB(
                 embedding_model=Mock(),
@@ -979,7 +943,6 @@ class TestMilvusVDB:
         """Test get_metadata_schema method when schema doesn't exist."""
         with (
             patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"),
-            patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Milvus.__init__"),
         ):
             vdb = MilvusVDB(
                 embedding_model=Mock(),
@@ -1014,7 +977,6 @@ class TestMilvusVDB:
 
         with (
             patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"),
-            patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Milvus.__init__"),
         ):
             vdb = MilvusVDB(
                 embedding_model=Mock(),
@@ -1082,7 +1044,7 @@ class TestMilvusVDB:
 
         with (
             patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"),
-            patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Milvus.__init__"),
+            patch("nv_ingest_client.util.milvus.Milvus.__init__", return_value=None),
         ):
             vdb = MilvusVDB(
                 embedding_model=mock_embedding_model,
@@ -1139,7 +1101,6 @@ class TestMilvusVDB:
 
         with (
             patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"),
-            patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Milvus.__init__"),
             patch(
                 "nvidia_rag.utils.vdb.milvus.milvus_vdb.LangchainMilvus"
             ) as mock_langchain_milvus,
@@ -1171,7 +1132,6 @@ class TestMilvusVDB:
 
         with (
             patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"),
-            patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Milvus.__init__"),
             patch(
                 "nvidia_rag.utils.vdb.milvus.milvus_vdb.LangchainMilvus"
             ) as mock_langchain_milvus,
@@ -1199,7 +1159,6 @@ class TestMilvusVDB:
 
         with (
             patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"),
-            patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Milvus.__init__"),
         ):
             vdb = MilvusVDB(
                 embedding_model=Mock(),

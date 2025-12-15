@@ -16,8 +16,6 @@
 import os
 from typing import Any
 
-from nv_ingest_client.util.milvus import pandas_file_reader
-
 from nvidia_rag.utils.common import get_metadata_configuration
 from nvidia_rag.utils.configuration import NvidiaRAGConfig, SearchType
 
@@ -108,17 +106,13 @@ def _get_vdb_op(
     elif config.vector_store.name == "elasticsearch":
         from nvidia_rag.utils.vdb.elasticsearch.elastic_vdb import ElasticVDB
 
-        if csv_file_path is not None:
-            meta_dataframe = pandas_file_reader(csv_file_path)
-        else:
-            meta_dataframe = None
-
+        # Note: meta_dataframe is loaded lazily inside ElasticVDB.write_to_index()
+        # when actually needed for ingestion. This allows search to work without nv_ingest.
         return ElasticVDB(
             index_name=collection_name,
             es_url=vdb_endpoint or config.vector_store.url,
             hybrid=config.vector_store.search_type == SearchType.HYBRID,
             auth_token=vdb_auth_token,
-            meta_dataframe=meta_dataframe,
             meta_source_field=meta_source_field,
             meta_fields=meta_fields,
             embedding_model=embedding_model,

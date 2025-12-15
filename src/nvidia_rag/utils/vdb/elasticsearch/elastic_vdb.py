@@ -66,7 +66,6 @@ from elasticsearch.helpers.vectorstore import DenseVectorStrategy, VectorStore
 from langchain_core.documents import Document
 from langchain_core.runnables import RunnableAssign, RunnableLambda
 from langchain_elasticsearch import ElasticsearchStore
-from nv_ingest_client.util.milvus import cleanup_records
 from opentelemetry import context as otel_context
 
 from nvidia_rag.rag_server.response_generator import APIError, ErrorCodeMapping
@@ -94,12 +93,12 @@ from nvidia_rag.utils.vdb.elasticsearch.es_queries import (
     get_metadata_schema_query,
     get_unique_sources_query,
 )
-from nvidia_rag.utils.vdb.vdb_base import VDBRag
+from nvidia_rag.utils.vdb.vdb_ingest_base import VDBRagIngest
 
 logger = logging.getLogger(__name__)
 
 
-class ElasticVDB(VDBRag):
+class ElasticVDB(VDBRagIngest):
     """
     ElasticVDB is a subclass of the VDB class in the nv_ingest_client.util.vdb module.
     It is used to store and retrieve documents in Elasticsearch.
@@ -251,11 +250,27 @@ class ElasticVDB(VDBRag):
     def write_to_index(self, records: list, **kwargs) -> None:
         """
         Write records to the Elasticsearch index in batches.
+
+        Requires nv_ingest_client to be installed. Install with: pip install nvidia-rag[ingest]
         """
+        # Lazy import - only needed for ingestion operations
+        try:
+            from nv_ingest_client.util.milvus import cleanup_records, pandas_file_reader
+        except ImportError as e:
+            raise ImportError(
+                "nv_ingest_client is required for write_to_index operation. "
+                "Install with: pip install nvidia-rag[ingest]"
+            ) from e
+
+        # Load meta_dataframe lazily if not already loaded
+        meta_dataframe = self.meta_dataframe
+        if meta_dataframe is None and self.csv_file_path is not None:
+            meta_dataframe = pandas_file_reader(self.csv_file_path)
+
         # Clean up and flatten records to pull appropriate fields from the records
         cleaned_records = cleanup_records(
             records=records,
-            meta_dataframe=self.meta_dataframe,
+            meta_dataframe=meta_dataframe,
             meta_source_field=self.meta_source_field,
             meta_fields=self.meta_fields,
         )

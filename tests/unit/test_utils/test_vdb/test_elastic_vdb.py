@@ -153,7 +153,7 @@ class TestElasticVDB(unittest.TestCase):
 
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.Elasticsearch")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.VectorStore")
-    @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.cleanup_records")
+    @patch("nv_ingest_client.util.milvus.cleanup_records")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.logger")
     def test_write_to_index(
         self,

@@ -89,17 +89,21 @@ from nvidia_rag.utils.vdb import (
     DEFAULT_METADATA_SCHEMA_COLLECTION,
     SYSTEM_COLLECTIONS,
 )
-from nvidia_rag.utils.vdb.vdb_base import VDBRag
+from nvidia_rag.utils.vdb.vdb_ingest_base import VDBRagIngest
 
 logger = logging.getLogger(__name__)
 
-try:
-    from nv_ingest_client.util.milvus import Milvus, create_nvingest_collection
-except ImportError:
-    logger.warning("Optional nv_ingest_client module not installed.")
 
-
-class MilvusVDB(Milvus, VDBRag):
+class MilvusVDB(VDBRagIngest):
+    """
+    Milvus vector database implementation for RAG applications.
+    
+    Inherits from VDBRagIngest which provides the abstract interface.
+    
+    - For RAG/search operations: Works without nv_ingest_client
+    - For ingestion operations: Requires nv_ingest_client (pip install nvidia-rag[ingest])
+    """
+    
     def __init__(
         self,
         collection_name: str,
@@ -156,32 +160,6 @@ class MilvusVDB(Milvus, VDBRag):
         self.config = config or NvidiaRAGConfig()
         self._auth_token = auth_token
 
-        # Build kwargs for parent Milvus class
-        parent_kwargs = {
-            "collection_name": collection_name,
-            "milvus_uri": milvus_uri,
-            "minio_endpoint": minio_endpoint,
-            "access_key": access_key,
-            "secret_key": secret_key,
-            "bucket_name": bucket_name,
-            "sparse": sparse,
-            "enable_images": enable_images,
-            "recreate": recreate,
-            "dense_dim": dense_dim,
-            "gpu_index": gpu_index,
-            "gpu_search": gpu_search,
-        }
-
-        # Add optional metadata configurations if provided
-        if meta_dataframe is not None:
-            parent_kwargs["meta_dataframe"] = meta_dataframe
-        if meta_source_field is not None:
-            parent_kwargs["meta_source_field"] = meta_source_field
-        if meta_fields is not None:
-            parent_kwargs["meta_fields"] = meta_fields
-
-        super().__init__(**parent_kwargs)
-
         self.vdb_endpoint = milvus_uri
         self._collection_name = collection_name
         self.csv_file_path = meta_dataframe
@@ -212,6 +190,46 @@ class MilvusVDB(Milvus, VDBRag):
                 f"Please verify Milvus is running and accessible. Error: {str(e)}",
                 ErrorCodeMapping.SERVICE_UNAVAILABLE,
             ) from e
+
+        # Try to create nv_ingest Milvus instance for ingestion support
+        # This is optional - only needed for ingestion operations
+        self._nv_milvus = None
+        try:
+            from nv_ingest_client.util.milvus import Milvus as NvIngestMilvus
+
+            # Build kwargs for NvIngestMilvus - match all supported parameters
+            nv_milvus_kwargs = {
+                "collection_name": collection_name,
+                "milvus_uri": milvus_uri,
+                "minio_endpoint": minio_endpoint,
+                "access_key": access_key,
+                "secret_key": secret_key,
+                "bucket_name": bucket_name,
+                "sparse": sparse,
+                "enable_images": enable_images,
+                "recreate": recreate,
+                "dense_dim": dense_dim,
+                "gpu_index": gpu_index,
+                "gpu_search": gpu_search,
+                "username": username if username else None,
+                "password": password if password else None,
+            }
+
+            # Add optional metadata configurations if provided
+            if meta_dataframe is not None:
+                nv_milvus_kwargs["meta_dataframe"] = meta_dataframe
+            if meta_source_field is not None:
+                nv_milvus_kwargs["meta_source_field"] = meta_source_field
+            if meta_fields is not None:
+                nv_milvus_kwargs["meta_fields"] = meta_fields
+
+            self._nv_milvus = NvIngestMilvus(**nv_milvus_kwargs)
+            logger.debug("nv_ingest Milvus instance created for ingestion support")
+        except ImportError:
+            logger.debug(
+                "nv_ingest_client not available - ingestion methods will require "
+                "nvidia-rag[ingest] to be installed"
+            )
 
     def close(self):
         """Close the Milvus connection."""
@@ -309,7 +327,17 @@ class MilvusVDB(Milvus, VDBRag):
     ) -> None:
         """
         Create a new collection in the Milvus index.
+
+        Requires nv_ingest_client to be installed. Install with: pip install nvidia-rag[ingest]
         """
+        try:
+            from nv_ingest_client.util.milvus import create_nvingest_collection
+        except ImportError as e:
+            raise ImportError(
+                "nv_ingest_client is required for create_collection. "
+                "Install with: pip install nvidia-rag[ingest]"
+            ) from e
+
         create_nvingest_collection(
             collection_name=collection_name,
             milvus_uri=self.vdb_endpoint,
@@ -1130,3 +1158,128 @@ class MilvusVDB(Milvus, VDBRag):
         for doc in docs:
             doc.metadata["collection_name"] = collection_name
         return docs
+
+    # ----------------------------------------------------------------------------------------------
+    # NV-Ingest VDB Interface Methods (required by VDB abstract class for ingestion)
+    # These methods delegate to the nv_ingest Milvus instance created during __init__
+    
+    def _require_nv_milvus(self, method_name: str):
+        """Helper to check if nv_ingest Milvus is available."""
+        if self._nv_milvus is None:
+            raise ImportError(
+                f"nv_ingest_client is required for {method_name}. "
+                "Install with: pip install nvidia-rag[ingest]"
+            )
+
+    def create_index(self, **kwargs) -> None:
+        """
+        Create the Milvus collection/index.
+        
+        This method is part of the VDB interface from nv_ingest.
+        Delegates to the nv_ingest Milvus instance.
+        
+        Args:
+            **kwargs: Must include 'collection_name' and other index parameters
+        """
+        self._require_nv_milvus("create_index")
+        return self._nv_milvus.create_index(**kwargs)
+
+    def write_to_index(self, records: list, **kwargs) -> None:
+        """
+        Write records to the Milvus index.
+        
+        This method is part of the VDB interface from nv_ingest.
+        Delegates to the nv_ingest Milvus instance.
+        
+        Args:
+            records: List of records to write to Milvus
+        """
+        self._require_nv_milvus("write_to_index")
+        return self._nv_milvus.write_to_index(records, **kwargs)
+
+    def retrieval(self, queries: list, **kwargs) -> list[dict[str, Any]]:
+        """
+        Retrieve documents from Milvus based on queries.
+        
+        This method is part of the VDB interface from nv_ingest.
+        Delegates to the nv_ingest Milvus instance.
+        
+        Note: For RAG applications, use retrieval_langchain() instead.
+        
+        Args:
+            queries: List of query strings
+            
+        Returns:
+            List of retrieved documents
+        """
+        self._require_nv_milvus("retrieval")
+        return self._nv_milvus.retrieval(queries, **kwargs)
+
+    def run(self, records: list) -> None:
+        """
+        Run the ingestion process to write records to Milvus.
+        
+        This method is called by nv_ingest's vdb_upload task.
+        Delegates to the nv_ingest Milvus instance.
+        
+        Args:
+            records: List of records to ingest into Milvus
+        """
+        self._require_nv_milvus("run")
+        return self._nv_milvus.run(records)
+
+    def run_async(self, records) -> None:
+        """
+        Run the ingestion process with a Future-based records parameter.
+        
+        This method is called by nv_ingest's vdb_upload task when records
+        are passed as a Future. The method waits for the Future to resolve
+        via records.result() before processing.
+        
+        Note: Despite the name, this is NOT an async method. The 'async'
+        refers to the fact that records may be a Future that gets resolved.
+        
+        Args:
+            records: A Future containing records to ingest, or list of records
+        """
+        self._require_nv_milvus("run_async")
+        return self._nv_milvus.run_async(records)
+
+    def get_connection_params(self):
+        """
+        Get connection parameters for the Milvus instance.
+        
+        This method is part of the VDB interface from nv_ingest.
+        Delegates to the nv_ingest Milvus instance.
+        
+        Returns:
+            Tuple of (collection_name, connection_params_dict)
+        """
+        self._require_nv_milvus("get_connection_params")
+        return self._nv_milvus.get_connection_params()
+
+    def get_write_params(self):
+        """
+        Get write parameters for the Milvus instance.
+        
+        This method is part of the VDB interface from nv_ingest.
+        Delegates to the nv_ingest Milvus instance.
+        
+        Returns:
+            Tuple of (collection_name, write_params_dict)
+        """
+        self._require_nv_milvus("get_write_params")
+        return self._nv_milvus.get_write_params()
+
+    def reindex(self, **kwargs) -> None:
+        """
+        Reindex a collection in Milvus.
+        
+        This method is part of the VDB interface from nv_ingest.
+        Delegates to the nv_ingest Milvus instance.
+        
+        Args:
+            **kwargs: Reindex parameters including current_collection_name
+        """
+        self._require_nv_milvus("reindex")
+        return self._nv_milvus.reindex(**kwargs)

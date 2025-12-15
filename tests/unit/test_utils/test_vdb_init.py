@@ -217,7 +217,7 @@ class TestVDBInit:
             assert call_args["index_name"] == "test_index"
             assert call_args["es_url"] == "http://test-elasticsearch:9200"
             assert call_args["hybrid"] is False
-            assert call_args["meta_dataframe"] is None
+            # Note: meta_dataframe is no longer passed; csv_file_path is used for lazy loading
             assert call_args["meta_source_field"] is None
             assert call_args["meta_fields"] is None
             assert call_args["embedding_model"] == "test-embedding"
@@ -240,16 +240,11 @@ class TestVDBInit:
             ["field1", "field2"],
         )
 
-        with (
-            patch(
-                "nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.ElasticVDB"
-            ) as mock_elastic_vdb,
-            patch("nvidia_rag.utils.vdb.pandas_file_reader") as mock_pandas_reader,
-        ):
+        with patch(
+            "nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.ElasticVDB"
+        ) as mock_elastic_vdb:
             mock_vdb_instance = Mock()
             mock_elastic_vdb.return_value = mock_vdb_instance
-            mock_dataframe = Mock()
-            mock_pandas_reader.return_value = mock_dataframe
 
             result = _get_vdb_op(
                 vdb_endpoint="http://test-elasticsearch:9200",
@@ -266,12 +261,11 @@ class TestVDBInit:
             assert call_args["index_name"] == "test_index"
             assert call_args["es_url"] == "http://test-elasticsearch:9200"
             assert call_args["hybrid"] is True  # hybrid search
-            assert call_args["meta_dataframe"] == mock_dataframe
+            # Note: meta_dataframe is loaded lazily, csv_file_path is passed instead
             assert call_args["meta_source_field"] == "source_field"
             assert call_args["meta_fields"] == ["field1", "field2"]
             assert call_args["embedding_model"] == "test-embedding"
             assert call_args["csv_file_path"] == "/path/to/metadata.csv"
-            mock_pandas_reader.assert_called_once_with("/path/to/metadata.csv")
 
     @patch("nvidia_rag.utils.vdb.get_metadata_configuration")
     def test_get_vdb_op_elasticsearch_uses_config_url_when_endpoint_none(
