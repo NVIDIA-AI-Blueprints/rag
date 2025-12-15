@@ -30,13 +30,8 @@ from nvidia_rag.utils.vdb.vdb_base import VDBRag
 
 logger = logging.getLogger(__name__)
 
-# Flag to track if nv_ingest is available
-NV_INGEST_AVAILABLE = False
-
 try:
     from nv_ingest_client.util.vdb.adt_vdb import VDB
-
-    NV_INGEST_AVAILABLE = True
 
     class VDBRagIngest(VDBRag, VDB):
         """
