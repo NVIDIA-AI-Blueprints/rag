@@ -67,65 +67,21 @@ def _create_role(client: MilvusClient, role: str):
         roles = client.list_roles()
         if role not in roles:
             client.create_role(role_name=role)
-    except Exception:
-        # Some Milvus versions create role implicitly on grant; ignore errors
-        pass
+    except Exception as e:
+        # Some Milvus versions create role implicitly on grant; log and continue
+        logger.warning(f"Failed to create or list role '{role}': {e}")
 
 
 def _grant_role(client: MilvusClient, role: str, user: str):
     client.grant_role(role_name=role, user_name=user)
 
 
-def _grant_collection_privilege(client: MilvusClient, role: str, object_type: str, object_name: str, privilege: str):
-    # Valid privilege examples include (for object_type="Collection"): "All", "CreateIndex", "DropCollection", "Search", "Query", "Insert"
-    client.grant_privilege(role_name=role, object_type=object_type, privilege=privilege, object_name=object_name)
+def _grant_collection_privilege(client: MilvusClient, role: str, object_type: str, object_name: str, privilege: str, db_name: str = "default"):
+    # Valid privilege examples:
+    # - object_type="Collection": "Search", "Query", "Insert", "Delete", "GetLoadState", "CreateIndex", "DropIndex", etc.
+    # - object_type="Global": "ShowCollections", "CreateCollection", "DropCollection", etc.
+    client.grant_privilege(role_name=role, object_type=object_type, privilege=privilege, object_name=object_name, db_name=db_name)
 
-
-def _grant_reader_privileges(client: MilvusClient, role: str, collection_name: str):
-    """
-    Grant read privileges to a role for a collection.
-    
-    In Milvus 2.5+, GetLoadState is an internal privilege that cannot be granted individually.
-    It's included in the ClusterReadOnly privilege group. We use grant_privilege_v2() API
-    which supports privilege groups.
-    
-    IMPORTANT: ClusterReadOnly is a CLUSTER-level privilege and must use "*" as collection_name.
-    """
-    # Grant ClusterReadOnly at CLUSTER level (collection_name must be "*")
-    # This includes GetLoadState, GetLoadingProgress, ShowCollections, etc.
-    # Required because langchain-milvus calls utility.load_state() during vectorstore init
-    try:
-        client.grant_privilege_v2(role_name=role, privilege="ClusterReadOnly", collection_name="*", db_name="*")
-        logger.info(f"Granted ClusterReadOnly (cluster-level) to {role}")
-    except Exception as e:
-        logger.warning(f"Failed to grant ClusterReadOnly: {e}")
-    
-    # Grant collection-specific privileges using v2 API
-    for priv in ("Query", "Search", "Load"):
-        try:
-            client.grant_privilege_v2(role_name=role, privilege=priv, collection_name=collection_name)
-            logger.info(f"Granted {priv} to {role} on {collection_name}")
-        except Exception as e:
-            logger.warning(f"Failed to grant {priv} via v2 API: {e}")
-            # Fallback to v1 API for older Milvus versions
-            try:
-                _grant_collection_privilege(client, role, "Collection", collection_name, priv)
-                logger.info(f"Granted {priv} to {role} on {collection_name} via v1 API")
-            except Exception as e2:
-                logger.warning(f"Failed to grant {priv} via v1 API: {e2}")
-    
-    # Grant global privileges needed for collection operations
-    try:
-        _grant_collection_privilege(client, role, "Global", "*", "DescribeCollection")
-        logger.info(f"Granted DescribeCollection to {role}")
-    except Exception as e:
-        logger.warning(f"Failed to grant DescribeCollection: {e}")
-    
-    try:
-        _grant_collection_privilege(client, role, "Global", "*", "ShowCollections")
-        logger.info(f"Granted ShowCollections to {role}")
-    except Exception as e:
-        logger.warning(f"Failed to grant ShowCollections: {e}")
 
 
 class MilvusVdbAuthModule(BaseTestModule):
@@ -139,7 +95,7 @@ class MilvusVdbAuthModule(BaseTestModule):
         cfg = NvidiaRAGConfig()
 
         # Prepare identities (use fixed names to avoid relying on random suffixes)
-        self.collection_name = "auth_it"
+        self.collection_name = "auth_test"
         self.reader_user = "reader"
         self.reader_pwd = "pwd_reader"
         self.reader_role = "role_reader"
@@ -265,9 +221,14 @@ class MilvusVdbAuthModule(BaseTestModule):
         start = time.time()
         try:
             client = MilvusClient(uri=_milvus_uri(), token=_milvus_root_token())
-            # Use the helper that handles Milvus 2.5+ privilege groups (ClusterReadOnly includes GetLoadState)
-            _grant_reader_privileges(client, self.reader_role, self.collection_name)
-
+            for priv in ("Query", "Search", "DescribeCollection", "Load"):
+                try:
+                    if priv == "DescribeCollection":
+                        _grant_collection_privilege(client, self.reader_role, "Global", self.collection_name, privilege=priv)
+                    else:
+                        _grant_collection_privilege(client, self.reader_role, "Collection", self.collection_name, privilege=priv)
+                except Exception:
+                    pass
             headers = {"Authorization": f"Bearer {self.reader_user}:{self.reader_pwd}"}
             async with aiohttp.ClientSession() as session:
                 async with session.get(f"{self.ingestor_server_url}/v1/collections", headers=headers) as resp:
@@ -371,12 +332,20 @@ class MilvusVdbAuthModule(BaseTestModule):
         logger.info("\n=== Test 75: Writer can drop collection with privilege (API) ===")
         start = time.time()
         try:
-            # Grant writer the DropCollection (or All) privilege
+            # Grant writer the DropCollection privilege (database-level privilege)
             client = MilvusClient(uri=_milvus_uri(), token=_milvus_root_token())
             try:
-                _grant_collection_privilege(client, self.writer_role, "Global", self.collection_name, privilege="DropCollection")
-            except Exception:
-                pass
+                _grant_collection_privilege(
+                    client,
+                    self.writer_role,
+                    "Global",
+                    "*",
+                    privilege="DropCollection",
+                )
+            except Exception as e:
+                logger.error(
+                    f"Failed to grant DropCollection privilege on {self.collection_name} to role {self.writer_role}: {e}"
+                )
 
             headers = {"Authorization": f"Bearer {self.writer_user}:{self.writer_pwd}"}
             async with aiohttp.ClientSession() as session:
@@ -514,7 +483,7 @@ class MilvusVdbAuthModule(BaseTestModule):
                         headers=headers_admin,
                     )
             except Exception:
-                pass
+                logger.error(f"Failed to delete temp collection {temp_collection}")
 
     @test_case(84, "RAG search allowed after privileges (reader)")
     async def _test_rag_search_allowed_after_privileges(self) -> bool:
@@ -522,7 +491,7 @@ class MilvusVdbAuthModule(BaseTestModule):
         logger.info("\n=== Test 77: RAG search allowed after privileges (reader) ===")
         start = time.time()
         cfg = NvidiaRAGConfig()
-        temp_collection = "auth_rag_2"
+        temp_collection = "auth_rag"
         try:
             # Create temp collection via ingestor API as admin
             headers_admin = {"Authorization": f"Bearer {_milvus_root_token()}"}
@@ -533,11 +502,15 @@ class MilvusVdbAuthModule(BaseTestModule):
                     if c_resp.status != 200:
                         raise RuntimeError(f"Failed to create temp collection {temp_collection}")
 
-            # Grant reader privileges to this temp collection
-            # Use the helper that handles Milvus 2.5+ privilege groups (ClusterReadOnly includes GetLoadState)
             client = MilvusClient(uri=_milvus_uri(), token=_milvus_root_token())
-            _grant_reader_privileges(client, self.reader_role, temp_collection)
-            await asyncio.sleep(6)
+            for priv in ("Query", "Search", "DescribeCollection", "Load", "GetLoadState"):
+                try:
+                    if priv == "DescribeCollection":
+                        _grant_collection_privilege(client, self.reader_role, "Global", temp_collection, privilege=priv)
+                    else:
+                        _grant_collection_privilege(client, self.reader_role, "Collection", temp_collection, privilege=priv)
+                except Exception:
+                    pass
 
             # Call RAG /search as reader (should succeed)
             headers_reader = {"Authorization": f"Bearer {self.reader_user}:{self.reader_pwd}"}
@@ -595,7 +568,7 @@ class MilvusVdbAuthModule(BaseTestModule):
                         headers=headers_admin,
                     )
             except Exception:
-                pass
+                logger.error(f"Failed to delete temp collection {temp_collection}")
 
 
 
@@ -619,7 +592,7 @@ class MilvusVdbAuthModule(BaseTestModule):
                             headers=headers_admin,
                         )
             except Exception:
-                pass
+                logger.error(f"Failed to delete main collection {self.collection_name}")
 
             # 2) Sweep temporary collections created by these tests
             #    Handle both fixed names and historical suffixed variants.
@@ -645,8 +618,10 @@ class MilvusVdbAuthModule(BaseTestModule):
                                 json=to_delete,
                                 headers=headers_admin,
                             )
-            except Exception:
-                pass
+            except Exception as e:
+                logger.error(
+                    f"Failed to sweep temporary auth collections during cleanup: {e}"
+                )
 
             # 3) Drop test users (reader, writer) if present; also attempt standard names
             for attr_user in ("reader_user", "writer_user"):
@@ -654,13 +629,13 @@ class MilvusVdbAuthModule(BaseTestModule):
                     user_val = getattr(self, attr_user, None)
                     if user_val:
                         client.drop_user(user_name=user_val)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.error(f"Failed to drop test user '{user_val}': {e}")
             for standard_user in ("reader", "writer"):
                 try:
                     client.drop_user(user_name=standard_user)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.error(f"Failed to drop standard user '{standard_user}': {e}")
 
             # 4) Drop test roles (reader_role, writer_role) if supported; also attempt standard names
             for attr_role in ("reader_role", "writer_role"):
@@ -668,14 +643,14 @@ class MilvusVdbAuthModule(BaseTestModule):
                     role_val = getattr(self, attr_role, None)
                     if role_val and hasattr(client, "drop_role"):
                         client.drop_role(role_name=role_val, force_drop=True)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.error(f"Failed to drop test role '{role_val}': {e}")
             for standard_role in ("role_reader", "role_writer"):
                 try:
                     if hasattr(client, "drop_role"):
                         client.drop_role(role_name=standard_role, force_drop=True)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.error(f"Failed to drop standard role '{standard_role}': {e}")
 
             self.add_test_result(
                 self._test_cleanup_auth_resources.test_number,
