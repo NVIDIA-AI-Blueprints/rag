@@ -724,7 +724,7 @@ nv-ingest:
     create: false
   image:
     repository: "nvcr.io/0648981100760671/nv-ingest"
-    tag: "26.1.0-RC1"
+    tag: "26.1.0-RC2"
   resources:
     limits:
       nvidia.com/gpu: 0

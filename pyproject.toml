@@ -40,8 +40,8 @@ dependencies = [
     "langchain-openai==0.2.8",
     "lark>=1.2.2",
     "python-dateutil>=2.9.0.post0",
-    "nv-ingest-api==26.1.0rc1",
-    "nv-ingest-client==26.1.0rc1",
+    "nv-ingest-api==26.1.0rc2",
+    "nv-ingest-client==26.1.0rc2",
     "tritonclient==2.57.0",
 ]
 
