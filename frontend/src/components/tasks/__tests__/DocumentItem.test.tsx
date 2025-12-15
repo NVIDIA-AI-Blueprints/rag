@@ -165,11 +165,12 @@ describe('DocumentItem', () => {
       await user.click(confirmButton);
 
       await waitFor(() => {
-        // Backend expects document_names and collection_name as query parameters
         expect(fetchMock).toHaveBeenCalledWith(
-          '/api/documents?collection_name=test-collection&document_names=test-document.pdf',
+          '/api/documents?collection_name=test-collection',
           expect.objectContaining({
             method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(['test-document.pdf']),
           })
         );
       });

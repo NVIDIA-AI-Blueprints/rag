@@ -315,9 +315,12 @@ class MilvusVdbAuthModule(BaseTestModule):
         start = time.time()
         try:
             headers = {"Authorization": f"Bearer {self.writer_user}:{self.writer_pwd}"}
-            params = [("collection_names", self.collection_name)]
             async with aiohttp.ClientSession() as session:
-                async with session.delete(f"{self.ingestor_server_url}/v1/collections", params=params, headers=headers) as resp:
+                async with session.delete(
+                    f"{self.ingestor_server_url}/v1/collections",
+                    json=[self.collection_name],
+                    headers=headers,
+                ) as resp:
                     # Assert expected authorization/privilege error content from response body
                     try:
                         body = await resp.json()
@@ -376,9 +379,12 @@ class MilvusVdbAuthModule(BaseTestModule):
                 pass
 
             headers = {"Authorization": f"Bearer {self.writer_user}:{self.writer_pwd}"}
-            params = [("collection_names", self.collection_name)]
             async with aiohttp.ClientSession() as session:
-                async with session.delete(f"{self.ingestor_server_url}/v1/collections", params=params, headers=headers) as resp:
+                async with session.delete(
+                    f"{self.ingestor_server_url}/v1/collections",
+                    json=[self.collection_name],
+                    headers=headers,
+                ) as resp:
                     result = await resp.json()
                     if resp.status == 200:
                         self.add_test_result(
@@ -501,9 +507,12 @@ class MilvusVdbAuthModule(BaseTestModule):
             # cleanup temp collection as admin
             try:
                 headers_admin = {"Authorization": f"Bearer {_milvus_root_token()}"}
-                params = [("collection_names", temp_collection)]
                 async with aiohttp.ClientSession() as session:
-                    await session.delete(f"{self.ingestor_server_url}/v1/collections", params=params, headers=headers_admin)
+                    await session.delete(
+                        f"{self.ingestor_server_url}/v1/collections",
+                        json=[temp_collection],
+                        headers=headers_admin,
+                    )
             except Exception:
                 pass
 
@@ -579,9 +588,12 @@ class MilvusVdbAuthModule(BaseTestModule):
             # cleanup temp collection as admin
             try:
                 headers_admin = {"Authorization": f"Bearer {_milvus_root_token()}"}
-                params = [("collection_names", temp_collection)]
                 async with aiohttp.ClientSession() as session:
-                    await session.delete(f"{self.ingestor_server_url}/v1/collections", params=params, headers=headers_admin)
+                    await session.delete(
+                        f"{self.ingestor_server_url}/v1/collections",
+                        json=[temp_collection],
+                        headers=headers_admin,
+                    )
             except Exception:
                 pass
 
@@ -600,11 +612,10 @@ class MilvusVdbAuthModule(BaseTestModule):
             # 1) Delete known main collection if present
             try:
                 if getattr(self, "collection_name", None):
-                    params = [("collection_names", self.collection_name)]
                     async with aiohttp.ClientSession() as session:
                         await session.delete(
                             f"{self.ingestor_server_url}/v1/collections",
-                            params=params,
+                            json=[self.collection_name],
                             headers=headers_admin,
                         )
             except Exception:
@@ -629,11 +640,9 @@ class MilvusVdbAuthModule(BaseTestModule):
                             if c in targets_exact or c.startswith(targets_prefix):
                                 to_delete.append(c)
                         if to_delete:
-                            # Repeat param for each collection
-                            params = [("collection_names", c) for c in to_delete]
                             await session.delete(
                                 f"{self.ingestor_server_url}/v1/collections",
-                                params=params,
+                                json=to_delete,
                                 headers=headers_admin,
                             )
             except Exception:

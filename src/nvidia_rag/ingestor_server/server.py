@@ -1299,7 +1299,7 @@ async def delete_collections(
     vdb_endpoint: str = Query(
         default=os.getenv("APP_VECTORSTORE_URL"), include_in_schema=False
     ),
-    collection_names: list[str] = Query(default=None),
+    collection_names: list[str] | None = None,
 ) -> CollectionsResponse:
     if collection_names is None:
         collection_names = [os.getenv("COLLECTION_NAME")]

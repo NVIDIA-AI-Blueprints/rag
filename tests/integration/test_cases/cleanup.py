@@ -273,10 +273,10 @@ class CleanupModule(BaseTestModule):
                     f"📋 Collections to delete: {json.dumps(collection_names, indent=2)}"
                 )
 
-                # DELETE /v1/collections expects query params:
-                # collection_names=<col1>&collection_names=<col2>...
-                params = [("collection_names", name) for name in collection_names]
-                async with session.delete(f"{self.ingestor_server_url}/v1/collections", params=params) as response:
+                async with session.delete(
+                    f"{self.ingestor_server_url}/v1/collections",
+                    json=collection_names,
+                ) as response:
                     result = await response.json()
                     if response.status == 200:
                         logger.info("✅ Collections deleted successfully:")
