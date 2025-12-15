@@ -53,16 +53,13 @@ export const useCollectionDocuments = (collectionName: string) =>
  */
 export function useDeleteAllDocuments() {
   return useMutation({
-    mutationFn: async (collectionName: string) => {
-      // Backend expects collection_name as query parameter
-      // When no document_names provided, it deletes all documents in the collection
-      const params = new URLSearchParams();
-      params.append("collection_name", collectionName);
-      
+    mutationFn: async (collectionName: string) => {   
       const res = await fetch(
-        `/api/documents?${params.toString()}`,
+        `/api/documents?collection_name=${encodeURIComponent(collectionName)}`,
         {
           method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify([]),
         }
       );
       if (!res.ok) {
@@ -76,16 +73,13 @@ export function useDeleteAllDocuments() {
 
 export function useDeleteDocument() {
   return useMutation({
-    mutationFn: async ({ collectionName, documentName }: { collectionName: string; documentName: string }) => {
-      // Backend expects document_names and collection_name as query parameters
-      const params = new URLSearchParams();
-      params.append("collection_name", collectionName);
-      params.append("document_names", documentName);
-      
+    mutationFn: async ({ collectionName, documentName }: { collectionName: string; documentName: string }) => {      
       const res = await fetch(
-        `/api/documents?${params.toString()}`,
+        `/api/documents?collection_name=${encodeURIComponent(collectionName)}`,
         {
           method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify([documentName]),
         }
       );
       if (!res.ok) {
