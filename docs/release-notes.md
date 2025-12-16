@@ -35,7 +35,7 @@ This release contains the following key changes:
   - Elasticsearch authorization support for secure database access
   - Vector DB authentication token support through REST API
 - Interface enhancements
-  - RAG functionality exposed as MCP (Model Context Protocol) server for tool integration. For details, refer to [MCP Server and Client Usage](mcp.md) and the [MCP server usage notebook](../notebooks/mcp_server_usage.ipynb).
+  - RAG functionality exposed as MCP (Model Context Protocol) server for tool integration. For details, refer to [MCP Server and Client Usage](nvidia-rag-mcp.md) and the [MCP server usage notebook](../notebooks/mcp_server_usage.ipynb).
   - OpenAI compatible search endpoint for seamless integration with OpenAI tools. For details, refer to [API - RAG Server Schema](api-rag.md).
   - Collection-level data catalog with support for collection descriptions and metadata. For details, refer to [Data Catalog](data-catalog.md).
 - Observability improvements. For details, refer to [Observability Setup](observability.md).

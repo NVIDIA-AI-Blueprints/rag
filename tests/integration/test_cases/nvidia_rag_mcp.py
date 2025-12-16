@@ -27,7 +27,7 @@ Flow overview (numbered tests):
   86) Start MCP server over SSE and wait for readiness
   87) SSE (Ingestor): Create Collections
   88) SSE (Ingestor): Upload Documents
-  89) SSE: List Tools (requires: generate, search, get_summary)
+  89) SSE: List Tools (RAG + Ingestor tools present)
   90) SSE: Call 'generate' (expects 'ok')
   91) SSE: Call 'search' (expects 'frost' or 'woods')
   92) SSE: Call 'get_summary' (expects 'frost' or 'woods')
@@ -35,18 +35,18 @@ Flow overview (numbered tests):
   94) Start MCP server over streamable_http and wait for readiness
   95) streamable_http (Ingestor): Create Collections
   96) streamable_http (Ingestor): Upload Documents
-  97) streamable_http: List Tools (requires: generate, search, get_summary)
+  97) streamable_http: List Tools (RAG + Ingestor tools present)
   98) streamable_http: Call 'generate' (expects 'ok')
- 100) streamable_http: Call 'search' (expects 'frost' or 'woods')
- 101) streamable_http: Call 'get_summary' (expects 'frost' or 'woods')
- 102) streamable_http (Ingestor): Delete Collections
- 103) stdio (Ingestor): Create Collections
- 104) stdio (Ingestor): Upload Documents
- 105) stdio: List Tools (requires: generate, search, get_summary)
- 106) stdio: Call 'generate' (expects 'ok')
- 107) stdio: Call 'search' (expects 'frost' or 'woods')
- 108) stdio: Call 'get_summary' (expects 'frost' or 'woods')
- 109) stdio (Ingestor): Delete Collections
+  100) streamable_http: Call 'search' (expects 'frost' or 'woods')
+  101) streamable_http: Call 'get_summary' (expects 'frost' or 'woods')
+  102) streamable_http (Ingestor): Delete Collections
+  103) stdio (Ingestor): Create Collections
+  104) stdio (Ingestor): Upload Documents
+  105) stdio: List Tools (RAG + Ingestor tools present)
+  106) stdio: Call 'generate' (expects 'ok')
+  107) stdio: Call 'search' (expects 'frost' or 'woods')
+  108) stdio: Call 'get_summary' (expects 'frost' or 'woods')
+  109) stdio (Ingestor): Delete Collections
 """
 
 import json
@@ -64,14 +64,37 @@ from ..base import BaseTestModule, TestStatus, test_case
 
 logger = logging.getLogger(__name__)
 
+# Full expected MCP tool surface (Retriever + Ingestor) that should be exposed
+# consistently across all transports.
+EXPECTED_MCP_TOOLS: set[str] = {
+    "generate",
+    "search",
+    "get_summary",
+    "get_documents",
+    "delete_documents",
+    "update_documents",
+    "list_collections",
+    "update_collection_metadata",
+    "update_document_metadata",
+    "create_collections",
+    "delete_collections",
+    "upload_documents",
+}
+
 
 class MCPIntegrationModule(BaseTestModule):
     """
-    End-to-end MCP integration module.
+    End-to-end MCP integration module for NVIDIA RAG.
+
+    This suite exercises:
+    - Retriever tools (`generate`, `search`, `get_summary`) over all transports
+    - Ingestor tools (collections + documents CRUD/metadata) over all transports
+    - Tool discovery (`list` RPC) to ensure the MCP server surface matches expectations
 
     Each method corresponds to a numbered test that logs its own result via
-    add_test_result. The module prefers small, robust checks (keyword presence)
-    to verify returned content without introducing tight coupling to response schemas.
+    `add_test_result`. We intentionally use lightweight content checks
+    (e.g., presence of key substrings) instead of asserting full JSON schemas
+    to keep the tests stable across minor response-shape changes.
     """
 
     def __init__(self, test_runner):
@@ -158,6 +181,16 @@ class MCPIntegrationModule(BaseTestModule):
                 proc.kill()
 
     def _run_mcp_client(self, args: list[str], timeout: float = 60.0) -> tuple[int, str, str]:
+        """
+        Invoke the `mcp_client.py` CLI as a subprocess.
+
+        Returns:
+            (exit_code, stdout, stderr)
+
+        Notes:
+            - `args` is the CLI argument list *after* the client path.
+            - `timeout` guards against hung transports or server bugs.
+        """
         repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
         client_path = os.path.join(repo_root, "nvidia_rag_mcp", "mcp_client.py")
         mcp_client_cmd = [sys.executable, client_path]
@@ -208,7 +241,12 @@ class MCPIntegrationModule(BaseTestModule):
 
     @test_case(87, "SSE (Ingestor): Create Collections")
     async def _sse_ingestor_create_collections(self) -> bool:
-        """Call 'create_collections' ingestor tool over SSE."""
+        """
+        Call `create_collections` ingestor tool over SSE.
+
+        This primes the environment by ensuring the test collection exists
+        before subsequent upload/search/summary tests run.
+        """
         start = time.time()
         try:
             payload = {"collection_names": [self.collection]}
@@ -243,7 +281,12 @@ class MCPIntegrationModule(BaseTestModule):
 
     @test_case(88, "SSE (Ingestor): Upload Documents")
     async def _sse_ingestor_upload_documents(self) -> bool:
-        """Call 'upload_documents' ingestor tool over SSE."""
+        """
+        Call `upload_documents` ingestor tool over SSE.
+
+        Uses the sample `woods_frost.pdf` multimodal document so that later
+        RAG `search` and `get_summary` tests can assert against known content.
+        """
         start = time.time()
         try:
             repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
@@ -286,16 +329,23 @@ class MCPIntegrationModule(BaseTestModule):
 
     @test_case(89, "SSE: List Tools")
     async def _sse_list_tools(self) -> bool:
-        """List MCP tools over SSE and require generate/search/get_summary to be present."""
+        """
+        List MCP tools over SSE and verify all expected tools are exposed.
+
+        The expectation is that both Retriever tools and all Ingestor tools are
+        registered with FastMCP, matching the server implementation in
+        `nvidia_rag_mcp/mcp_server.py`.
+        """
         logger.info("\n=== Test 89: SSE: List Tools ===")
         start = time.time()
+        missing = []
         try:
             args = ["list", "--transport", "sse", "--url", self.sse_url]
             code, out, _ = self._run_mcp_client(args)
             logger.info("MCP client output (SSE list): %s", (out.strip() if out and out.strip() else "<empty>"))
             listed = {t.lower() for t in self._parse_listed_tools(out)}
-            required = {"generate", "search", "get_summary"}
-            ok = code == 0 and required.issubset(listed)
+            missing = sorted(EXPECTED_MCP_TOOLS - listed)
+            ok = code == 0 and not missing
         except Exception as e:
             ok, _ = False, str(e)
             logger.error("Error listing tools: %s", e)
@@ -307,13 +357,18 @@ class MCPIntegrationModule(BaseTestModule):
             [],
             time.time() - start,
             TestStatus.SUCCESS if ok else TestStatus.FAILURE,
-            None if ok else "SSE list tools did not include all required tools",
+            None if ok else f"SSE list tools did not include all required tools; missing={missing}",
         )
         return ok
 
     @test_case(90, "SSE: Call Generate")
     async def _sse_call_generate(self) -> bool:
-        """Call 'generate' over SSE and require the output to contain 'ok'."""
+        """
+        Call `generate` over SSE and require the output to contain 'ok'.
+
+        This validates that the RAG pipeline is wired correctly end‑to‑end via MCP,
+        including streaming handling and basic prompt forwarding.
+        """
         logger.info("\n=== Test 90: SSE: Call Generate ===")
         start = time.time()
         try:
@@ -353,7 +408,12 @@ class MCPIntegrationModule(BaseTestModule):
 
     @test_case(91, "SSE: Call Search")
     async def _sse_call_search(self) -> bool:
-        """Call 'search' over SSE and require the output to mention 'frost' or 'woods'."""
+        """
+        Call `search` over SSE and require the output to mention 'frost' or 'woods'.
+
+        The test asserts that the search pipeline can retrieve citations from the
+        previously ingested `woods_frost.pdf` collection.
+        """
         logger.info("\n=== Test 91: SSE: Call Search ===")
         start = time.time()
         try:
@@ -393,7 +453,12 @@ class MCPIntegrationModule(BaseTestModule):
 
     @test_case(92, "SSE: Call Get Summary")
     async def _sse_call_get_summary(self) -> bool:
-        """Call 'get_summary' over SSE and require the output to mention 'frost' or 'woods'."""
+        """
+        Call `get_summary` over SSE and require the output to mention 'frost' or 'woods'.
+
+        This verifies that document summaries can be retrieved via MCP and that
+        the ingestor‑generated summaries are accessible to clients.
+        """
         logger.info("\n=== Test 92: SSE: Call Get Summary ===")
         start = time.time()
         try:
@@ -574,9 +639,15 @@ class MCPIntegrationModule(BaseTestModule):
 
     @test_case(97, "streamable_http: List Tools")
     async def _streamable_http_list_tools(self) -> bool:
-        """List MCP tools over streamable_http and require generate/search/get_summary to be present."""
+        """
+        List MCP tools over streamable_http and verify all expected tools are exposed.
+
+        This mirrors `_sse_list_tools` but exercises the FastMCP streamable_http
+        transport instead of raw SSE, ensuring the tool surface is identical.
+        """
         logger.info("\n=== Test 97: streamable_http: List Tools ===")
         start = time.time()
+        missing = []
         try:
             args = [
                 "list",
@@ -588,8 +659,8 @@ class MCPIntegrationModule(BaseTestModule):
             code, out, _ = self._run_mcp_client(args)
             logger.info("MCP client output (streamable_http list): %s", (out.strip() if out and out.strip() else "<empty>"))
             listed = {t.lower() for t in self._parse_listed_tools(out)}
-            required = {"generate", "search", "get_summary"}
-            ok = code == 0 and required.issubset(listed)
+            missing = sorted(EXPECTED_MCP_TOOLS - listed)
+            ok = code == 0 and not missing
         except Exception as e:
             ok, _ = False, str(e)
             logger.error("Error listing tools: %s", e)
@@ -601,7 +672,7 @@ class MCPIntegrationModule(BaseTestModule):
             [],
             time.time() - start,
             TestStatus.SUCCESS if ok else TestStatus.FAILURE,
-            None if ok else "streamable_http list tools failed",
+            None if ok else f"streamable_http list tools failed; missing={missing}",
         )
         return ok
 
@@ -850,8 +921,14 @@ class MCPIntegrationModule(BaseTestModule):
 
     @test_case(105, "stdio: List Tools")
     async def _stdio_list_tools(self) -> bool:
-        """List MCP tools over stdio and require generate/search/get_summary to be present."""
+        """
+        List MCP tools over stdio and verify all expected tools are exposed.
+
+        This validates the stdio transport path (used for local MCP servers),
+        asserting that the same RAG + Ingestor tools are available as over HTTP.
+        """
         start = time.time()
+        missing = []
         try:
             repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
             server_path = os.path.join(repo_root, "nvidia_rag_mcp", "mcp_server.py")
@@ -867,8 +944,8 @@ class MCPIntegrationModule(BaseTestModule):
             code, out, _ = self._run_mcp_client(args)
             logger.info("MCP client output (stdio list): %s", (out.strip() if out and out.strip() else "<empty>"))
             listed = {t.lower() for t in self._parse_listed_tools(out)}
-            required = {"generate", "search", "get_summary"}
-            ok = code == 0 and required.issubset(listed)
+            missing = sorted(EXPECTED_MCP_TOOLS - listed)
+            ok = code == 0 and not missing
         except Exception as e:
             ok, _ = False, str(e)
             logger.error("Error listing tools (stdio): %s", e)
@@ -880,7 +957,7 @@ class MCPIntegrationModule(BaseTestModule):
             [],
             time.time() - start,
             TestStatus.SUCCESS if ok else TestStatus.FAILURE,
-            None if ok else "stdio list tools did not include all required tools",
+            None if ok else f"stdio list tools did not include all required tools; missing={missing}",
         )
         return ok
 

@@ -15,6 +15,7 @@ You should use these profiles for all deployment methods (Docker Compose, Helm C
 - **TensorRT-LLM profiles** (`tensorrt_llm-*`) are recommended for best performance
 - For multi-GPU setups, ensure proper GPU allocation by setting `LLM_MS_GPU_ID` environment variable in docker setup.
 - Always verify available profiles using the `list-model-profiles` command before deployment
+- By default, NIM uses automatic profile detection. However, you can manually specify a profile for optimal performance using the instructions below
 
 
 
@@ -34,28 +35,97 @@ USERID=$(id -u) docker run --rm --gpus all \
 The following profiles are optimized for different common GPU configurations:
 
 ### 1xH100 NVL
+
 ```bash
-NIM_MODEL_PROFILE=tensorrt_llm-h100_nvl-fp8-tp1-pp1-throughput-2321:10de-d347471b749e4e6b6e5956bb0f600b6646461c214cadadf6614baf305054a743-1
+tensorrt_llm-h100_nvl-fp8-tp1-pp1-throughput-2321:10de-d347471b749e4e6b6e5956bb0f600b6646461c214cadadf6614baf305054a743-1
 ```
 
 ### 1xH100 SXM
+
 ```bash
-NIM_MODEL_PROFILE=tensorrt_llm-h100-fp8-tp1-pp1-throughput-2330:10de-a5381c1be0b8ee66ad41e7dc7b4e6d2cffaa7a4e37ca05f57898817560b0bd2b-1
+tensorrt_llm-h100-fp8-tp1-pp1-throughput-2330:10de-a5381c1be0b8ee66ad41e7dc7b4e6d2cffaa7a4e37ca05f57898817560b0bd2b-1
 ```
 
 ### 2xA100 SXM
+
 ```bash
-NIM_MODEL_PROFILE=vllm-bf16-tp2-pp1-32c3b968468aefcfb3ea1db5a16e3dc9d64395f02ef68a06175e8bbdb0038601
+vllm-bf16-tp2-pp1-32c3b968468aefcfb3ea1db5a16e3dc9d64395f02ef68a06175e8bbdb0038601
 ```
 
 ### 1xRTX PRO 6000
+
 ```bash
-NIM_MODEL_PROFILE=tensorrt_llm-rtx6000_blackwell_sv-fp8-tp1-pp1-throughput-2bb5:10de-d21d6986d29d8abf555f35c9a4c8146c4b10595d9e57e6efabd4a026efcc0c4a-1
+tensorrt_llm-rtx6000_blackwell_sv-fp8-tp1-pp1-throughput-2bb5:10de-d21d6986d29d8abf555f35c9a4c8146c4b10595d9e57e6efabd4a026efcc0c4a-1
 ```
 
 ### 2xB200
+
 ```bash
-NIM_MODEL_PROFILE=tensorrt_llm-b200-fp8-tp2-pp1-throughput-2901:10de-d2ff2bbf26fdabe28afaf754ca8e5615ed337e19d873da15627c209849f51072-2
+tensorrt_llm-b200-fp8-tp2-pp1-throughput-2901:10de-d2ff2bbf26fdabe28afaf754ca8e5615ed337e19d873da15627c209849f51072-2
+```
+
+## Configuring Model Profiles
+
+**Note:** NIM automatically detects and selects the optimal profile for your hardware. Only configure a specific profile if you experience issues with the default deployment, such as performance problems or out-of-memory errors.
+
+### Docker Compose Deployment
+
+To set a specific model profile in Docker Compose, add the `NIM_MODEL_PROFILE` environment variable to the `nim-llm` service in `deploy/compose/nims.yaml`:
+
+```yaml
+  nim-llm:
+    container_name: nim-llm-ms
+    image: nvcr.io/nim/nvidia/llama-3.3-nemotron-super-49b-v1.5:1.14.0
+    # ... other configuration ...
+    environment:
+      NGC_API_KEY: ${NGC_API_KEY}
+      NIM_MODEL_PROFILE: ${NIM_MODEL_PROFILE-""}  # Add this line
+```
+
+Then set the profile in your environment or `.env` file before deploying:
+
+```bash
+export NIM_MODEL_PROFILE="tensorrt_llm-h100-fp8-tp1-pp1-throughput-2330:10de-a5381c1be0b8ee66ad41e7dc7b4e6d2cffaa7a4e37ca05f57898817560b0bd2b-1"
+docker compose -f deploy/compose/nims.yaml up -d
+```
+
+### Helm Deployment
+
+To set a specific model profile in Helm, add the `NIM_MODEL_PROFILE` environment variable to the `nim-llm` section in `deploy/helm/nvidia-blueprint-rag/values.yaml`:
+
+```yaml
+nim-llm:
+  enabled: true
+  service:
+    name: "nim-llm"
+  image:
+    repository: nvcr.io/nim/nvidia/llama-3.3-nemotron-super-49b-v1.5
+    pullPolicy: IfNotPresent
+    tag: "1.14.0"
+  resources:
+    limits:
+      nvidia.com/gpu: 1
+    requests:
+      nvidia.com/gpu: 1
+
+  env:  # Add this section
+    - name: NIM_MODEL_PROFILE
+      value: "tensorrt_llm-h100-fp8-tp1-pp1-throughput-2330:10de-a5381c1be0b8ee66ad41e7dc7b4e6d2cffaa7a4e37ca05f57898817560b0bd2b-1"
+  model:
+    ngcAPIKey: ""
+    name: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+    hfTokenSecret: ""
+```
+
+After modifying the `values.yaml` file, deploy or update the Helm chart:
+
+```sh
+helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/0648981100760671/charts/nvidia-blueprint-rag-v2.4.0-dev.tgz \
+--username '$oauthtoken' \
+--password "${NGC_API_KEY}" \
+--set imagePullSecret.password=$NGC_API_KEY \
+--set ngcApiSecret.password=$NGC_API_KEY \
+-f nvidia-blueprint-rag/values.yaml
 ```
 
 
