@@ -16,6 +16,7 @@
 import { useEffect, useRef } from "react";
 import { useHealthStatus } from "../api/useHealthApi";
 import { useNotificationStore } from "../store/useNotificationStore";
+import { openNotificationPanel } from "../components/notifications/NotificationBell";
 import type { HealthResponse } from "../types/api";
 import type { NotificationSeverity, HealthNotification } from "../types/notifications";
 
@@ -114,13 +115,15 @@ const getCategoryContext = (category: string): string => {
 
 /**
  * Process health response and create notifications for unhealthy services.
+ * @returns true if any new unhealthy services were detected
  */
 const processHealthData = (
   health: HealthResponse,
   addHealthNotification: (notification: HealthNotification) => void,
   clearServiceNotifications: (serviceName: string) => void
-) => {
+): boolean => {
   const categories = ['databases', 'nim', 'processing', 'task_management', 'object_storage'] as const;
+  let hasNewUnhealthyService = false;
   
   categories.forEach(category => {
     const services = health[category] as ServiceHealthInfo[] | undefined;
@@ -148,12 +151,15 @@ const processHealthData = (
           read: false,
           dismissed: false,
         });
+        hasNewUnhealthyService = true;
       } else if (service.status.toLowerCase() === 'healthy') {
         // Clear any existing notifications for this service since it's now healthy
         clearServiceNotifications(service.service);
       }
     });
   });
+  
+  return hasNewUnhealthyService;
 };
 
 /**
@@ -184,8 +190,13 @@ export function useHealthMonitoring() {
   useEffect(() => {
     // Only process health data if it's different from the previous check
     if (health && !isLoading && JSON.stringify(health) !== JSON.stringify(previousHealthRef.current)) {
-      processHealthData(health, addHealthNotification, clearServiceNotifications);
+      const hasNewIssues = processHealthData(health, addHealthNotification, clearServiceNotifications);
       previousHealthRef.current = health;
+      
+      // Auto-open notification panel when health issues are detected
+      if (hasNewIssues) {
+        openNotificationPanel();
+      }
     }
   }, [health, isLoading, addHealthNotification, clearServiceNotifications]);
   
