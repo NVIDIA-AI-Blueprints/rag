@@ -38,6 +38,7 @@ Environment variables:
 import argparse
 import aiohttp
 import json
+import logging
 import os
 from typing import Any
 
@@ -394,6 +395,287 @@ async def tool_get_summary(
             except aiohttp.ContentTypeError:
                 text = await resp.text()
                 return {"error": "Non-JSON response", "status": resp.status, "body": text}
+
+
+@server.tool(
+    "get_documents",
+    description="""List documents in a collection via the Ingestor service.
+Args JSON:
+{
+  "collection_name": "my_collection",
+  "vdb_endpoint": "http://milvus:19530"
+}
+""",
+)
+async def tool_get_documents(
+    collection_name: str,
+    vdb_endpoint: str | None = None,
+) -> dict[str, Any]:
+    """
+    Retrieve documents ingested into a given collection.
+    """
+    base_url = _ingestor_base_url()
+    url = f"{base_url}/v1/documents"
+    params: dict[str, Any] = {"collection_name": collection_name}
+    if vdb_endpoint is not None:
+        params["vdb_endpoint"] = vdb_endpoint
+
+    timeout_cfg = aiohttp.ClientTimeout(total=120)
+    async with aiohttp.ClientSession(timeout=timeout_cfg) as session:
+        async with session.get(url, params=params) as resp:
+            try:
+                return await resp.json()
+            except aiohttp.ContentTypeError:
+                text = await resp.text()
+                return {
+                    "error": "Non-JSON response",
+                    "status": resp.status,
+                    "body": text,
+                }
+
+
+@server.tool(
+    "delete_documents",
+    description="""Delete one or more documents from a collection via the Ingestor service.
+Args JSON:
+{
+  "collection_name": "my_collection",
+  "document_names": ["file1.pdf", "file2.pdf"]
+}
+""",
+)
+async def tool_delete_documents(
+    collection_name: str,
+    document_names: list[str] | None = None,
+) -> dict[str, Any]:
+    """
+    Delete one or more documents from the specified collection.
+    """
+    base_url = _ingestor_base_url()
+    url = f"{base_url}/v1/documents"
+    names = document_names or []
+    params: list[tuple[str, str]] = [("collection_name", collection_name)]
+    for name in names:
+        params.append(("document_names", name))
+
+    timeout_cfg = aiohttp.ClientTimeout(total=120)
+    async with aiohttp.ClientSession(timeout=timeout_cfg) as session:
+        async with session.delete(url, params=params) as resp:
+            try:
+                return await resp.json()
+            except aiohttp.ContentTypeError:
+                text = await resp.text()
+                return {
+                    "error": "Non-JSON response",
+                    "status": resp.status,
+                    "body": text,
+                }
+
+
+@server.tool(
+    "update_documents",
+    description="""Update (re-upload) one or more local files for a collection (Ingestor).
+Same semantics as upload_documents but uses PATCH /v1/documents.
+Args JSON:
+{
+  "collection_name": "test",
+  "file_paths": ["/abs/path/a.pdf"],
+  "blocking": true,
+  "generate_summary": false,
+  "custom_metadata": [{}],
+  "split_options": {
+    "chunk_size": 512,
+    "chunk_overlap": 150
+  }
+}
+""",
+)
+async def tool_update_documents(
+    collection_name: str,
+    file_paths: list[str],
+    blocking: bool = True,
+    generate_summary: bool = False,
+    custom_metadata: list[dict[str, Any]] | None = None,
+    split_options: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """
+    Update documents in the Ingestor for a given collection (PATCH /v1/documents).
+    """
+    base_url = _ingestor_base_url()
+    url = f"{base_url}/v1/documents"
+    form_data = aiohttp.FormData()
+
+    for path in file_paths or []:
+        try:
+            if os.path.exists(path):
+                with open(path, "rb") as f:
+                    form_data.add_field(
+                        "documents",
+                        f.read(),
+                        filename=os.path.basename(path),
+                        content_type="application/octet-stream",
+                    )
+            else:
+                logging.getLogger(__name__).warning(f"File not found, skipping: {path}")
+        except OSError as e:
+            logging.getLogger(__name__).warning(f"Failed to read file {path}: {e}")
+            continue
+
+    data: dict[str, Any] = {
+        "collection_name": collection_name,
+        "blocking": bool(blocking),
+        "custom_metadata": custom_metadata or [],
+        "generate_summary": bool(generate_summary),
+    }
+    if split_options:
+        data["split_options"] = split_options
+    form_data.add_field("data", json.dumps(data), content_type="application/json")
+
+    timeout_cfg = aiohttp.ClientTimeout(total=300)
+    async with aiohttp.ClientSession(timeout=timeout_cfg) as session:
+        async with session.patch(url, data=form_data) as resp:
+            try:
+                return await resp.json()
+            except aiohttp.ContentTypeError:
+                text = await resp.text()
+                return {
+                    "error": "Non-JSON response",
+                    "status": resp.status,
+                    "body": text,
+                }
+
+
+@server.tool(
+    "list_collections",
+    description="""List collections from the Ingestor service.
+Args JSON:
+{
+  "vdb_endpoint": "http://milvus:19530"
+}
+""",
+)
+async def tool_list_collections(
+    vdb_endpoint: str | None = None,
+) -> dict[str, Any]:
+    """
+    List collections known to the underlying vector database via the Ingestor.
+    """
+    base_url = _ingestor_base_url()
+    url = f"{base_url}/v1/collections"
+    params: dict[str, Any] = {}
+    if vdb_endpoint is not None:
+        params["vdb_endpoint"] = vdb_endpoint
+
+    timeout_cfg = aiohttp.ClientTimeout(total=60)
+    async with aiohttp.ClientSession(timeout=timeout_cfg) as session:
+        async with session.get(url, params=params or None) as resp:
+            try:
+                return await resp.json()
+            except aiohttp.ContentTypeError:
+                text = await resp.text()
+                return {
+                    "error": "Non-JSON response",
+                    "status": resp.status,
+                    "body": text,
+                }
+
+
+@server.tool(
+    "update_collection_metadata",
+    description="""Update catalog metadata for an existing collection via the Ingestor service.
+Args JSON:
+{
+  "collection_name": "my_collection",
+  "description": "Updated description",
+  "tags": ["tag1", "tag2"],
+  "owner": "owner@example.com",
+  "business_domain": "demo",
+  "status": "Active"
+}
+""",
+)
+async def tool_update_collection_metadata(
+    collection_name: str,
+    description: str | None = None,
+    tags: list[str] | None = None,
+    owner: str | None = None,
+    business_domain: str | None = None,
+    status: str | None = None,
+) -> dict[str, Any]:
+    """
+    Update catalog metadata for the specified collection.
+    """
+    base_url = _ingestor_base_url()
+    url = f"{base_url}/v1/collections/{collection_name}/metadata"
+
+    body: dict[str, Any] = {}
+    if description is not None:
+        body["description"] = description
+    if tags is not None:
+        body["tags"] = tags
+    if owner is not None:
+        body["owner"] = owner
+    if business_domain is not None:
+        body["business_domain"] = business_domain
+    if status is not None:
+        body["status"] = status
+
+    timeout_cfg = aiohttp.ClientTimeout(total=60)
+    async with aiohttp.ClientSession(timeout=timeout_cfg) as session:
+        async with session.patch(url, json=body) as resp:
+            try:
+                return await resp.json()
+            except aiohttp.ContentTypeError:
+                text = await resp.text()
+                return {
+                    "error": "Non-JSON response",
+                    "status": resp.status,
+                    "body": text,
+                }
+
+
+@server.tool(
+    "update_document_metadata",
+    description="""Update catalog metadata for a specific document in a collection via the Ingestor service.
+Args JSON:
+{
+  "collection_name": "my_collection",
+  "document_name": "file1.pdf",
+  "description": "Updated description",
+  "tags": ["tag1", "tag2"]
+}
+""",
+)
+async def tool_update_document_metadata(
+    collection_name: str,
+    document_name: str,
+    description: str | None = None,
+    tags: list[str] | None = None,
+) -> dict[str, Any]:
+    """
+    Update catalog metadata for a specific document in a collection.
+    """
+    base_url = _ingestor_base_url()
+    url = f"{base_url}/v1/collections/{collection_name}/documents/{document_name}/metadata"
+
+    body: dict[str, Any] = {}
+    if description is not None:
+        body["description"] = description
+    if tags is not None:
+        body["tags"] = tags
+
+    timeout_cfg = aiohttp.ClientTimeout(total=60)
+    async with aiohttp.ClientSession(timeout=timeout_cfg) as session:
+        async with session.patch(url, json=body) as resp:
+            try:
+                return await resp.json()
+            except aiohttp.ContentTypeError:
+                text = await resp.text()
+                return {
+                    "error": "Non-JSON response",
+                    "status": resp.status,
+                    "body": text,
+                }
 
 
 @server.tool(
