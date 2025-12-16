@@ -45,6 +45,7 @@ interface NotificationState {
   dismissNotification: (id: string) => void;
   removeNotification: (id: string) => void;
   clearNotifications: () => void;
+  clearAllNotifications: () => void;
   cleanupDuplicates: () => void;
   
   // Getters for existing notification system compatibility
@@ -130,12 +131,29 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     const seenTaskIds = new Set<string>();
     const taskKeys = new Map<string, string>(); // taskId -> localStorage key
     
+    // Check if notifications are old (more than 24 hours for completed, 1 hour for pending)
+    // This helps clean up stale data from previous deployments
+    const now = Date.now();
+    const COMPLETED_TASK_MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours
+    const PENDING_TASK_MAX_AGE = 60 * 60 * 1000; // 1 hour - pending tasks shouldn't be this old
+    
     // First pass: collect all task keys and detect duplicates
     Object.keys(localStorage).forEach(key => {
       if (key.startsWith('completedTask:') || key.startsWith('ingestion-task-')) {
         try {
           const task = JSON.parse(localStorage.getItem(key)!);
           if (task?.id) {
+            // Check task age based on type
+            const taskAge = task.created_at ? now - new Date(task.created_at).getTime() : Infinity;
+            const isPending = key.startsWith('ingestion-task-');
+            const maxAge = isPending ? PENDING_TASK_MAX_AGE : COMPLETED_TASK_MAX_AGE;
+            
+            // Remove tasks that are too old (likely from previous deployments)
+            if (taskAge > maxAge) {
+              localStorage.removeItem(key);
+              return;
+            }
+            
             const existingKey = taskKeys.get(task.id);
             if (existingKey) {
               // Duplicate detected - prefer completedTask over ingestion-task
@@ -347,6 +365,18 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
   }),
 
   clearNotifications: () => set({ notifications: [] }),
+
+  // Clear all notifications and their localStorage entries
+  clearAllNotifications: () => {
+    // Remove all task-related localStorage entries
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith('ingestion-task-') || key.startsWith('completedTask:')) {
+        localStorage.removeItem(key);
+      }
+    });
+    
+    return set({ notifications: [] });
+  },
 
   // Clean up duplicate notifications based on task IDs and orphaned localStorage entries
   cleanupDuplicates: () => set((state) => {
