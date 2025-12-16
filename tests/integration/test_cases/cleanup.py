@@ -232,20 +232,17 @@ class CleanupModule(BaseTestModule):
         """Delete documents from a collection"""
         async with aiohttp.ClientSession() as session:
             try:
-                # DELETE /v1/documents expects query params:
-                # collection_name=<name>&document_names=<file1>&document_names=<file2>...
-                params = [("collection_name", collection_name)]
-                for name in file_names:
-                    params.append(("document_names", name))
+                params = {"collection_name": collection_name}
                 logger.info(
                     f"🗑️ Deleting documents from collection '{collection_name}':"
                 )
-                logger.info(f"📋 Delete request params: {params}")
+                logger.info(f"📋 Delete request params: {json.dumps(params, indent=2)}")
                 logger.info(f"📁 Files to delete: {json.dumps(file_names, indent=2)}")
 
                 async with session.delete(
                     f"{self.ingestor_server_url}/v1/documents",
-                    params=params
+                    params=params,
+                    json=file_names,
                 ) as response:
                     result = await response.json()
                     if response.status == 200:
