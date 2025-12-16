@@ -13,16 +13,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNewCollectionStore } from "../../store/useNewCollectionStore";
 import { useCollectionDrawerStore } from "../../store/useCollectionDrawerStore";
 import { useCollectionActions } from "../../hooks/useCollectionActions";
+import { useCollections } from "../../api/useCollectionsApi";
 import { DrawerActions } from "../drawer/DrawerActions";
 import { ConfirmationModal } from "../modals/ConfirmationModal";
 import { Notification, SidePanel, Stack } from "@kui/react";
 import { DocumentsList } from "../tasks/DocumentsList";
 import { UploaderSection } from "../drawer/UploaderSection";
 import { CollectionCatalogInfo } from "./CollectionCatalogInfo";
+import type { Collection } from "../../types/collections";
 
 // Export all drawer components for external use
 export { LoadingState } from "../ui/LoadingState";
@@ -34,10 +36,30 @@ export { UploaderSection } from "../drawer/UploaderSection";
 export { DrawerActions } from "../drawer/DrawerActions";
 
 export default function CollectionDrawer() {
-  const { activeCollection, closeDrawer, toggleUploader, deleteError, showUploader } = useCollectionDrawerStore();
+  const { activeCollection, closeDrawer, toggleUploader, deleteError, showUploader, updateActiveCollection } = useCollectionDrawerStore();
   const { setMetadataSchema } = useNewCollectionStore();
   const { deleteCollectionWithoutConfirm, isDeleting } = useCollectionActions();
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  
+  // Subscribe to collections query to sync activeCollection with fresh data
+  const { data: collections } = useCollections();
+  
+  // Sync activeCollection with fresh data from query when collections change
+  useEffect(() => {
+    if (activeCollection && collections) {
+      const freshCollection = collections.find(
+        (c: Collection) => c.collection_name === activeCollection.collection_name
+      );
+      if (freshCollection) {
+        // Only update if data has actually changed (avoid infinite loops)
+        const hasChanged = JSON.stringify(freshCollection.collection_info) !== 
+                          JSON.stringify(activeCollection.collection_info);
+        if (hasChanged) {
+          updateActiveCollection(freshCollection);
+        }
+      }
+    }
+  }, [collections, activeCollection?.collection_name, updateActiveCollection]);
 
   const title = useMemo(() => 
     activeCollection?.collection_name || "Collection", 

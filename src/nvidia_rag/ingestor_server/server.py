@@ -33,6 +33,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import (
+    Body,
     Depends,
     FastAPI,
     File,
@@ -922,15 +923,15 @@ async def get_documents(
 @trace_function("ingestor.server.delete_documents", tracer=TRACER)
 async def delete_documents(
     request: Request,
-    document_names: list[str] | None = None,
+    document_names: list[str] | None = Body(default=None),
     collection_name: str = os.getenv("COLLECTION_NAME"),
     vdb_endpoint: str = Query(
         default=os.getenv("APP_VECTORSTORE_URL"), include_in_schema=False
     ),
 ) -> DocumentListResponse:
+    """Delete a document from vectorstore."""
     if document_names is None:
         document_names = []
-    """Delete a document from vectorstore."""
     try:
         # Extract vdb auth token and pass through to backend
         vdb_auth_token = _extract_vdb_auth_token(request)

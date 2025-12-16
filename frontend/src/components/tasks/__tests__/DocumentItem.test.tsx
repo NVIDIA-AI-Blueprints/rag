@@ -42,6 +42,7 @@ describe('DocumentItem', () => {
       closeDrawer: vi.fn(),
       toggleUploader: vi.fn(),
       setDeleteError: mockSetDeleteError,
+      updateActiveCollection: vi.fn(),
       reset: vi.fn(),
     });
   });
@@ -147,8 +148,13 @@ describe('DocumentItem', () => {
       const qc = createQueryClient();
 
       const fetchMock = vi.spyOn(global, 'fetch');
+      // Mock delete response
       fetchMock.mockResolvedValueOnce(
         new Response(JSON.stringify({ message: 'Document deleted' }), { status: 200 })
+      );
+      // Mock collections fetch for refresh after delete
+      fetchMock.mockResolvedValueOnce(
+        new Response(JSON.stringify({ collections: [] }), { status: 200 })
       );
 
       render(
