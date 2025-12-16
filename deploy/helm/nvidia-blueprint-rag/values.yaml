@@ -635,9 +635,6 @@ nim-llm:
     requests:
       nvidia.com/gpu: 1
 
-  env:
-    - name: NIM_MODEL_PROFILE
-      value: "" # Provide correct profile name here
   model:
     ngcAPIKey: ""
     name: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
