@@ -37,9 +37,6 @@ spec:
       name: nemotron-llama3-49b-super
       profile: ''
     sharedMemorySizeLimit: 16Gi
-  env:
-    - name: NIM_MODEL_PROFILE
-      value: "" # Provide correct profile name here
   replicas: 1
   draResources:
   - claimCreationSpec:
