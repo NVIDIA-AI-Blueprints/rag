@@ -5,11 +5,11 @@
         "description": "This API schema describes all the Ingestion endpoints exposed for NVIDIA RAG server Blueprint",
         "version": "1.0.0"
     },
-  "servers": [
-    {
-      "url": "/v1"
-    }
-  ],
+    "servers": [
+        {
+            "url": "/v1"
+        }
+    ],
     "paths": {
         "/health": {
             "get": {
@@ -37,17 +37,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/HealthResponse"
-                                }
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "content": {
-                            "application/json": {
-                                "example": {
-                                    "detail": "Internal server error occurred"
+                                    "$ref": "#/components/schemas/IngestorHealthResponse"
                                 }
                             }
                         }
@@ -58,6 +48,16 @@
                             "application/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "detail": "Internal server error occurred"
                                 }
                             }
                         }
@@ -94,6 +94,16 @@
                             }
                         }
                     },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    },
                     "499": {
                         "description": "Client Closed Request",
                         "content": {
@@ -110,16 +120,6 @@
                             "application/json": {
                                 "example": {
                                     "detail": "Internal server error occurred"
-                                }
-                            }
-                        }
-                    },
-                    "422": {
-                        "description": "Validation Error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/HTTPValidationError"
                                 }
                             }
                         }
@@ -154,6 +154,16 @@
                             }
                         }
                     },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    },
                     "499": {
                         "description": "Client Closed Request",
                         "content": {
@@ -170,16 +180,6 @@
                             "application/json": {
                                 "example": {
                                     "detail": "Internal server error occurred"
-                                }
-                            }
-                        }
-                    },
-                    "422": {
-                        "description": "Validation Error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/HTTPValidationError"
                                 }
                             }
                         }
@@ -200,7 +200,7 @@
                         "required": false,
                         "schema": {
                             "type": "string",
-                            "default": "",
+                            "default": "multimodal_data",
                             "title": "Collection Name"
                         }
                     }
@@ -212,6 +212,16 @@
                             "application/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/DocumentListResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
                                 }
                             }
                         }
@@ -232,16 +242,6 @@
                             "application/json": {
                                 "example": {
                                     "detail": "Internal server error occurred"
-                                }
-                            }
-                        }
-                    },
-                    "422": {
-                        "description": "Validation Error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/HTTPValidationError"
                                 }
                             }
                         }
@@ -261,6 +261,7 @@
                         "required": false,
                         "schema": {
                             "type": "string",
+                            "default": "multimodal_data",
                             "title": "Collection Name"
                         }
                     }
@@ -269,10 +270,17 @@
                     "content": {
                         "application/json": {
                             "schema": {
-                                "type": "array",
-                                "items": {
-                                    "type": "string"
-                                },
+                                "anyOf": [
+                                    {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    {
+                                        "type": "null"
+                                    }
+                                ],
                                 "title": "Document Names"
                             }
                         }
@@ -285,6 +293,16 @@
                             "application/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/DocumentListResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
                                 }
                             }
                         }
@@ -305,16 +323,6 @@
                             "application/json": {
                                 "example": {
                                     "detail": "Internal server error occurred"
-                                }
-                            }
-                        }
-                    },
-                    "422": {
-                        "description": "Validation Error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/HTTPValidationError"
                                 }
                             }
                         }
@@ -384,6 +392,16 @@
                             }
                         }
                     },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    },
                     "499": {
                         "description": "Client Closed Request",
                         "content": {
@@ -400,16 +418,6 @@
                             "application/json": {
                                 "example": {
                                     "detail": "Internal server error occurred"
-                                }
-                            }
-                        }
-                    },
-                    "422": {
-                        "description": "Validation Error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/HTTPValidationError"
                                 }
                             }
                         }
@@ -450,10 +458,17 @@
                     "content": {
                         "application/json": {
                             "schema": {
-                                "type": "array",
-                                "items": {
-                                    "type": "string"
-                                },
+                                "anyOf": [
+                                    {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    {
+                                        "type": "null"
+                                    }
+                                ],
                                 "title": "Collection Names"
                             }
                         }
@@ -466,6 +481,16 @@
                             "application/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/CollectionsResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
                                 }
                             }
                         }
@@ -486,16 +511,6 @@
                             "application/json": {
                                 "example": {
                                     "detail": "Internal server error occurred"
-                                }
-                            }
-                        }
-                    },
-                    "422": {
-                        "description": "Validation Error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/HTTPValidationError"
                                 }
                             }
                         }
@@ -512,10 +527,17 @@
                     "content": {
                         "application/json": {
                             "schema": {
-                                "type": "array",
-                                "items": {
-                                    "type": "string"
-                                },
+                                "anyOf": [
+                                    {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    {
+                                        "type": "null"
+                                    }
+                                ],
                                 "title": "Collection Names"
                             }
                         }
@@ -528,6 +550,16 @@
                             "application/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/CollectionsResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
                                 }
                             }
                         }
@@ -551,16 +583,6 @@
                                 }
                             }
                         }
-                    },
-                    "422": {
-                        "description": "Validation Error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/HTTPValidationError"
-                                }
-                            }
-                        }
                     }
                 }
             }
@@ -571,7 +593,7 @@
                     "Vector DB APIs"
                 ],
                 "summary": "Create Collection",
-                "description": "Endpoint to create a collection from the Milvus server.\nReturns status message.",
+                "description": "Endpoint to create a collection with catalog metadata.\nReturns status message.",
                 "operationId": "create_collection_collection_post",
                 "requestBody": {
                     "content": {
@@ -594,6 +616,16 @@
                             }
                         }
                     },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    },
                     "499": {
                         "description": "Client Closed Request",
                         "content": {
@@ -613,6 +645,49 @@
                                 }
                             }
                         }
+                    }
+                }
+            }
+        },
+        "/collections/{collection_name}/metadata": {
+            "patch": {
+                "tags": [
+                    "Vector DB APIs"
+                ],
+                "summary": "Update Collection Metadata",
+                "description": "Endpoint to update collection catalog metadata.",
+                "operationId": "update_collection_metadata_collections__collection_name__metadata_patch",
+                "parameters": [
+                    {
+                        "name": "collection_name",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Collection Name"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateCollectionMetadataRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UpdateMetadataResponse"
+                                }
+                            }
+                        }
                     },
                     "422": {
                         "description": "Validation Error",
@@ -620,6 +695,108 @@
                             "application/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    },
+                    "499": {
+                        "description": "Client Closed Request",
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "detail": "The client cancelled the request"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "detail": "Internal server error occurred"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/collections/{collection_name}/documents/{document_name}/metadata": {
+            "patch": {
+                "tags": [
+                    "Vector DB APIs"
+                ],
+                "summary": "Update Document Metadata",
+                "description": "Endpoint to update document catalog metadata.",
+                "operationId": "update_document_metadata_collections__collection_name__documents__document_name__metadata_patch",
+                "parameters": [
+                    {
+                        "name": "collection_name",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Collection Name"
+                        }
+                    },
+                    {
+                        "name": "document_name",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Document Name"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateDocumentMetadataRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UpdateMetadataResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    },
+                    "499": {
+                        "description": "Client Closed Request",
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "detail": "The client cancelled the request"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "detail": "Internal server error occurred"
                                 }
                             }
                         }
@@ -645,7 +822,7 @@
                         "title": "Data",
                         "description": "JSON data in string format containing metadata about the documents which needs to be uploaded.",
                         "examples": [
-                            "{\"collection_name\": \"multimodal_data\", \"blocking\": false, \"split_options\": {\"chunk_size\": 1024, \"chunk_overlap\": 150}, \"custom_metadata\": [], \"generate_summary\": false, \"summary_options\": null}"
+                            "{\"collection_name\": \"multimodal_data\", \"blocking\": false, \"split_options\": {\"chunk_size\": 512, \"chunk_overlap\": 150}, \"custom_metadata\": [], \"generate_summary\": false, \"documents_catalog_metadata\": [], \"summary_options\": null}"
                         ]
                     }
                 },
@@ -671,7 +848,7 @@
                         "title": "Data",
                         "description": "JSON data in string format containing metadata about the documents which needs to be uploaded.",
                         "examples": [
-                            "{\"collection_name\": \"multimodal_data\", \"blocking\": false, \"split_options\": {\"chunk_size\": 1024, \"chunk_overlap\": 150}, \"custom_metadata\": [], \"generate_summary\": false, \"summary_options\": null}"
+                            "{\"collection_name\": \"multimodal_data\", \"blocking\": false, \"split_options\": {\"chunk_size\": 512, \"chunk_overlap\": 150}, \"custom_metadata\": [], \"generate_summary\": false, \"documents_catalog_metadata\": [], \"summary_options\": null}"
                         ]
                     }
                 },
@@ -759,19 +936,19 @@
                         "type": "string",
                         "title": "Vdb Endpoint",
                         "description": "Endpoint of the vector database.",
-                        "default": ""
+                        "default": "http://milvus:19530"
                     },
                     "collection_name": {
                         "type": "string",
                         "title": "Collection Name",
                         "description": "Name of the collection.",
-                        "default": ""
+                        "default": "multimodal_data"
                     },
                     "embedding_dimension": {
                         "type": "integer",
                         "title": "Embedding Dimension",
                         "description": "Embedding dimension of the collection.",
-                        "default": 2048
+                        "default": "2048"
                     },
                     "metadata_schema": {
                         "items": {
@@ -781,6 +958,45 @@
                         "title": "Metadata Schema",
                         "description": "Metadata schema of the collection.",
                         "default": []
+                    },
+                    "description": {
+                        "type": "string",
+                        "title": "Description",
+                        "description": "Human-readable description of the collection",
+                        "default": ""
+                    },
+                    "tags": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "title": "Tags",
+                        "description": "Tags for categorization and search",
+                        "default": []
+                    },
+                    "owner": {
+                        "type": "string",
+                        "title": "Owner",
+                        "description": "Owner team or person",
+                        "default": ""
+                    },
+                    "created_by": {
+                        "type": "string",
+                        "title": "Created By",
+                        "description": "Username/email of creator",
+                        "default": ""
+                    },
+                    "business_domain": {
+                        "type": "string",
+                        "title": "Business Domain",
+                        "description": "Business domain (Finance, Engineering, HR, Legal, etc.)",
+                        "default": ""
+                    },
+                    "status": {
+                        "type": "string",
+                        "title": "Status",
+                        "description": "Collection status (Active, Archived, Stale, Pending)",
+                        "default": "Active"
                     }
                 },
                 "type": "object",
@@ -819,7 +1035,14 @@
                         "title": "Url"
                     },
                     "status": {
-                        "type": "string",
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "$ref": "#/components/schemas/ServiceStatus"
+                            }
+                        ],
                         "title": "Status"
                     },
                     "latency_ms": {
@@ -938,7 +1161,51 @@
                 "type": "object",
                 "title": "HTTPValidationError"
             },
-            "HealthResponse": {
+            "IngestionTaskResponse": {
+                "properties": {
+                    "message": {
+                        "type": "string",
+                        "title": "Message",
+                        "description": "Message indicating the status of the request.",
+                        "default": ""
+                    },
+                    "task_id": {
+                        "type": "string",
+                        "title": "Task Id",
+                        "description": "Task ID of the ingestion process.",
+                        "default": ""
+                    }
+                },
+                "type": "object",
+                "title": "IngestionTaskResponse",
+                "description": "Response model for uploading a document."
+            },
+            "IngestionTaskStatusResponse": {
+                "properties": {
+                    "state": {
+                        "type": "string",
+                        "title": "State",
+                        "description": "State of the ingestion task.",
+                        "default": ""
+                    },
+                    "result": {
+                        "$ref": "#/components/schemas/UploadDocumentResponse",
+                        "description": "Result of the ingestion task."
+                    },
+                    "nv_ingest_status": {
+                        "$ref": "#/components/schemas/NVIngestStatusResponse",
+                        "description": "NV-Ingest status."
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "result",
+                    "nv_ingest_status"
+                ],
+                "title": "IngestionTaskStatusResponse",
+                "description": "Response model for getting the status of an ingestion task."
+            },
+            "IngestorHealthResponse": {
                 "properties": {
                     "message": {
                         "type": "string",
@@ -984,47 +1251,8 @@
                     }
                 },
                 "type": "object",
-                "title": "HealthResponse",
-                "description": "Overall health response with specialized fields for each service type"
-            },
-            "IngestionTaskResponse": {
-                "properties": {
-                    "message": {
-                        "type": "string",
-                        "title": "Message",
-                        "description": "Message indicating the status of the request.",
-                        "default": ""
-                    },
-                    "task_id": {
-                        "type": "string",
-                        "title": "Task Id",
-                        "description": "Task ID of the ingestion process.",
-                        "default": ""
-                    }
-                },
-                "type": "object",
-                "title": "IngestionTaskResponse",
-                "description": "Response model for uploading a document."
-            },
-            "IngestionTaskStatusResponse": {
-                "properties": {
-                    "state": {
-                        "type": "string",
-                        "title": "State",
-                        "description": "State of the ingestion task.",
-                        "default": ""
-                    },
-                    "result": {
-                        "$ref": "#/components/schemas/UploadDocumentResponse",
-                        "description": "Result of the ingestion task."
-                    }
-                },
-                "type": "object",
-                "required": [
-                    "result"
-                ],
-                "title": "IngestionTaskStatusResponse",
-                "description": "Response model for getting the status of an ingestion task."
+                "title": "IngestorHealthResponse",
+                "description": "Health response for Ingestor server with additional processing and task management services"
             },
             "MetadataField": {
                 "properties": {
@@ -1128,7 +1356,14 @@
                         "title": "Url"
                     },
                     "status": {
-                        "type": "string",
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "$ref": "#/components/schemas/ServiceStatus"
+                            }
+                        ],
                         "title": "Status"
                     },
                     "latency_ms": {
@@ -1190,6 +1425,26 @@
                 "title": "NIMServiceHealthInfo",
                 "description": "Health info specific to NIM services (LLM, embeddings, etc.)"
             },
+            "NVIngestStatusResponse": {
+                "properties": {
+                    "extraction_completed": {
+                        "type": "integer",
+                        "title": "Extraction Completed",
+                        "description": "Number of documents extraction completed.",
+                        "default": 0
+                    },
+                    "document_wise_status": {
+                        "additionalProperties": true,
+                        "type": "object",
+                        "title": "Document Wise Status",
+                        "description": "NV-Ingest document-wise status.",
+                        "default": {}
+                    }
+                },
+                "type": "object",
+                "title": "NVIngestStatusResponse",
+                "description": "Response model for getting the status of an NV-Ingest task."
+            },
             "ProcessingHealthInfo": {
                 "properties": {
                     "service": {
@@ -1201,7 +1456,14 @@
                         "title": "Url"
                     },
                     "status": {
-                        "type": "string",
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "$ref": "#/components/schemas/ServiceStatus"
+                            }
+                        ],
                         "title": "Status"
                     },
                     "latency_ms": {
@@ -1241,6 +1503,19 @@
                 "title": "ProcessingHealthInfo",
                 "description": "Health info specific to document processing services"
             },
+            "ServiceStatus": {
+                "type": "string",
+                "enum": [
+                    "healthy",
+                    "unhealthy",
+                    "skipped",
+                    "timeout",
+                    "error",
+                    "unknown"
+                ],
+                "title": "ServiceStatus",
+                "description": "Enum for service health status values."
+            },
             "StorageHealthInfo": {
                 "properties": {
                     "service": {
@@ -1252,7 +1527,14 @@
                         "title": "Url"
                     },
                     "status": {
-                        "type": "string",
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "$ref": "#/components/schemas/ServiceStatus"
+                            }
+                        ],
                         "title": "Status"
                     },
                     "latency_ms": {
@@ -1314,7 +1596,14 @@
                         "title": "Url"
                     },
                     "status": {
-                        "type": "string",
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "$ref": "#/components/schemas/ServiceStatus"
+                            }
+                        ],
                         "title": "Status"
                     },
                     "latency_ms": {
@@ -1354,6 +1643,131 @@
                 "title": "TaskManagementHealthInfo",
                 "description": "Health info specific to task management services"
             },
+            "UpdateCollectionMetadataRequest": {
+                "properties": {
+                    "description": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Description",
+                        "description": "Updated description"
+                    },
+                    "tags": {
+                        "anyOf": [
+                            {
+                                "items": {
+                                    "type": "string"
+                                },
+                                "type": "array"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Tags",
+                        "description": "Updated tags"
+                    },
+                    "owner": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Owner",
+                        "description": "Updated owner"
+                    },
+                    "business_domain": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Business Domain",
+                        "description": "Updated business domain"
+                    },
+                    "status": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Status",
+                        "description": "Updated status"
+                    }
+                },
+                "type": "object",
+                "title": "UpdateCollectionMetadataRequest",
+                "description": "Request model for updating collection metadata."
+            },
+            "UpdateDocumentMetadataRequest": {
+                "properties": {
+                    "description": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Description",
+                        "description": "Updated description"
+                    },
+                    "tags": {
+                        "anyOf": [
+                            {
+                                "items": {
+                                    "type": "string"
+                                },
+                                "type": "array"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Tags",
+                        "description": "Updated tags"
+                    }
+                },
+                "type": "object",
+                "title": "UpdateDocumentMetadataRequest",
+                "description": "Request model for updating document metadata."
+            },
+            "UpdateMetadataResponse": {
+                "properties": {
+                    "message": {
+                        "type": "string",
+                        "title": "Message",
+                        "description": "Status message"
+                    },
+                    "collection_name": {
+                        "type": "string",
+                        "title": "Collection Name",
+                        "description": "Collection name"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "message",
+                    "collection_name"
+                ],
+                "title": "UpdateMetadataResponse",
+                "description": "Response model for metadata update operations."
+            },
             "UploadDocumentResponse": {
                 "properties": {
                     "message": {
@@ -1366,6 +1780,18 @@
                         "type": "integer",
                         "title": "Total Documents",
                         "description": "Total number of documents uploaded.",
+                        "default": 0
+                    },
+                    "documents_completed": {
+                        "type": "integer",
+                        "title": "Documents Completed",
+                        "description": "Number of documents completed.",
+                        "default": 0
+                    },
+                    "batches_completed": {
+                        "type": "integer",
+                        "title": "Batches Completed",
+                        "description": "Number of batches completed.",
                         "default": 0
                     },
                     "documents": {
@@ -1424,6 +1850,13 @@
                         "title": "Metadata Schema",
                         "description": "Metadata schema of the collection.",
                         "default": []
+                    },
+                    "collection_info": {
+                        "additionalProperties": true,
+                        "type": "object",
+                        "title": "Collection Info",
+                        "description": "Collection info of the collection.",
+                        "default": {}
                     }
                 },
                 "type": "object",
@@ -1443,6 +1876,13 @@
                         "type": "object",
                         "title": "Metadata",
                         "description": "Metadata of the document.",
+                        "default": {}
+                    },
+                    "document_info": {
+                        "additionalProperties": true,
+                        "type": "object",
+                        "title": "Document Info",
+                        "description": "Document information.",
                         "default": {}
                     }
                 },

@@ -329,8 +329,8 @@ class NvidiaRAGIngestor:
             )
 
         # Initialize document-wise status
-        document_wise_status = (
-            await state_manager.initialize_nv_ingest_document_wise_status(filepaths)
+        nv_ingest_status = (
+            await state_manager.initialize_nv_ingest_status(filepaths)
         )
 
         try:
@@ -360,7 +360,7 @@ class NvidiaRAGIngestor:
                 # Set initial document-wise status in IngestionTaskHandler
                 await INGESTION_TASK_HANDLER.set_task_state_dict(
                     state_manager.get_task_id(),
-                    {"document_wise_status": document_wise_status},
+                    {"nv_ingest_status": nv_ingest_status},
                 )
 
                 # Update initial batch progress response to indicate that the ingestion has started
@@ -914,15 +914,15 @@ class NvidiaRAGIngestor:
             status_and_result = INGESTION_TASK_HANDLER.get_task_status_and_result(
                 task_id
             )
-            document_wise_status = INGESTION_TASK_HANDLER.get_task_state_dict(
+            nv_ingest_status = INGESTION_TASK_HANDLER.get_task_state_dict(
                 task_id
-            ).get("document_wise_status")
+            ).get("nv_ingest_status")
             if status_and_result.get("state") == "PENDING":
                 logger.info(f"Task {task_id} is pending")
                 return {
                     "state": "PENDING",
                     "result": status_and_result.get("result"),
-                    "document_wise_status": document_wise_status,
+                    "nv_ingest_status": nv_ingest_status,
                 }
             elif status_and_result.get("state") == "FINISHED":
                 try:
@@ -935,20 +935,20 @@ class NvidiaRAGIngestor:
                         return {
                             "state": "FAILED",
                             "result": result,
-                            "document_wise_status": document_wise_status,
+                            "nv_ingest_status": nv_ingest_status,
                         }
                     logger.info(f"Task {task_id} is finished")
                     return {
                         "state": "FINISHED",
                         "result": result,
-                        "document_wise_status": document_wise_status,
+                        "nv_ingest_status": nv_ingest_status,
                     }
                 except Exception as e:
                     logger.exception("Task %s failed with error: %s", task_id, e)
                     return {
                         "state": "FAILED",
                         "result": {"message": str(e)},
-                        "document_wise_status": document_wise_status,
+                        "nv_ingest_status": nv_ingest_status,
                     }
             elif status_and_result.get("state") == "FAILED":
                 logger.error(
@@ -957,7 +957,7 @@ class NvidiaRAGIngestor:
                 return {
                     "state": "FAILED",
                     "result": status_and_result.get("result"),
-                    "document_wise_status": document_wise_status,
+                    "nv_ingest_status": nv_ingest_status,
                 }
             else:
                 task_state = INGESTION_TASK_HANDLER.get_task_status(task_id)
@@ -965,14 +965,14 @@ class NvidiaRAGIngestor:
                 return {
                     "state": "UNKNOWN",
                     "result": {"message": "Unknown task state"},
-                    "document_wise_status": document_wise_status,
+                    "nv_ingest_status": nv_ingest_status,
                 }
         except KeyError as e:
             logger.error(f"Task {task_id} not found with error: {e}")
             return {
                 "state": "UNKNOWN",
                 "result": {"message": "Unknown task state"},
-                "document_wise_status": document_wise_status,
+                "nv_ingest_status": nv_ingest_status,
             }
 
     @trace_function("ingestor.main.apply_documents_catalog_metadata", tracer=TRACER)
@@ -2472,14 +2472,14 @@ class NvidiaRAGIngestor:
             for filepath, file_status in status_dict.items():
                 filename = os.path.basename(filepath)
                 filename_status_map[filename] = file_status
-            document_wise_status = (
-                await state_manager.update_nv_ingest_document_wise_status(
+            nv_ingest_status = (
+                await state_manager.update_nv_ingest_status(
                     filename_status_map
                 )
             )
             await INGESTION_TASK_HANDLER.set_task_state_dict(
                 state_manager.get_task_id(),
-                {"document_wise_status": document_wise_status},
+                {"nv_ingest_status": nv_ingest_status},
             )
 
             await asyncio.sleep(1)

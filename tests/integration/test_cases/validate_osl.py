@@ -416,7 +416,7 @@ class OutputSequenceLengthValidationModule(BaseTestModule):
                 self.add_test_result(
                     self._validate_output_sequence_length.test_number,
                     self._validate_output_sequence_length.test_name,
-                    f"Validate output tokens equal requested tokens when min==max ({expected})",
+                    f"Validate output token count {token_count} is within 50 tokens of {expected}",
                     ["POST /v1/generate"],
                     ["min_tokens", "max_tokens", "ignore_eos"],
                     elapsed,
@@ -424,10 +424,11 @@ class OutputSequenceLengthValidationModule(BaseTestModule):
                 )
                 return True
             else:
+                logger.error(f"❌ Expected {expected} tokens, got {token_count}. Token count is not within 50 tokens of {expected}")
                 self.add_test_result(
                     self._validate_output_sequence_length.test_number,
                     self._validate_output_sequence_length.test_name,
-                    f"Validate output tokens equal requested tokens when min==max ({expected})",
+                    f"Validate output token count {token_count} is within 50 tokens of {expected}",
                     ["POST /v1/generate"],
                     ["min_tokens", "max_tokens", "ignore_eos"],
                     elapsed,
