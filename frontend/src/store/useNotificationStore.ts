@@ -75,13 +75,17 @@ const generateNotificationId = (type: string, identifier: string): string => {
 
 /**
  * Convert task to task notification.
+ * Accepts an optional existing completedAt to preserve original completion time on hydration.
  */
-const taskToNotification = (task: IngestionTask): TaskNotification => {
+const taskToNotification = (task: IngestionTask & { completedAt?: number }): TaskNotification => {
   // Determine severity based on task state
   let severity: NotificationSeverity = "info";
   if (task.state === "FAILED") severity = "error";
   else if (task.state === "FINISHED") severity = "success";
   else if (task.state === "PENDING") severity = "info";
+
+  // Preserve existing completedAt if available (from localStorage), otherwise set on completion
+  const completedAt = task.completedAt ?? (task.state !== "PENDING" ? Date.now() : undefined);
 
   return {
     id: generateNotificationId("task", task.id),
@@ -98,7 +102,7 @@ const taskToNotification = (task: IngestionTask): TaskNotification => {
     dismissed: false,
     task: { 
       ...task, 
-      completedAt: task.state !== "PENDING" ? Date.now() : undefined 
+      completedAt 
     },
     collectionName: task.collection_name,
   };
@@ -262,11 +266,22 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     const notifications = state.notifications.map(notification => {
       if (notification.type === "task" && (notification as TaskNotification).task.id === taskId) {
         const taskNotification = notification as TaskNotification;
-        const updatedTask = { ...taskNotification.task, ...updates };
         
         // Clean up localStorage properly to prevent duplicates
         const wasCompleted = taskNotification.task.state !== "PENDING";
         const isNowCompleted = updates.state && updates.state !== "PENDING";
+        
+        // Calculate completedAt - preserve existing or set new on completion
+        const completedAt = isNowCompleted && !wasCompleted 
+          ? Date.now()  // Just completing now
+          : taskNotification.task.completedAt;  // Preserve existing
+        
+        // Build updated task with completedAt included for localStorage
+        const updatedTask = { 
+          ...taskNotification.task, 
+          ...updates,
+          completedAt 
+        };
         
         if (isNowCompleted) {
           // Task is completing - remove any pending keys and add completed key
@@ -290,10 +305,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
         // Update notification
         const updatedNotification: TaskNotification = {
           ...taskNotification,
-          task: {
-            ...updatedTask,
-            completedAt: updates.state && updates.state !== "PENDING" ? Date.now() : taskNotification.task.completedAt
-          },
+          task: updatedTask,
           severity: updates.state === "FAILED" ? "error" : 
                    updates.state === "FINISHED" ? "success" : 
                    taskNotification.severity,
