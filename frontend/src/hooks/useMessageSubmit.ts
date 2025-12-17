@@ -40,14 +40,21 @@ function cleanRequestObject(obj: Partial<GenerateRequest>): GenerateRequest {
       continue;
     }
     
-    // For boolean values, only include true values (skip false to avoid sending defaults)
-    // Exception: always include use_knowledge_base since it's required
+    // For boolean values, always include feature toggles that users can explicitly set
+    // These must be sent even when false to override backend defaults
     if (typeof value === "boolean") {
-      const alwaysInclude = ['use_knowledge_base'];
+      const alwaysInclude = [
+        'use_knowledge_base',
+        'enable_reranker',
+        'enable_citations',
+        'enable_query_rewriting',
+        'enable_guardrails',
+        'enable_vlm_inference',
+        'enable_filter_generator'
+      ];
       if (value === true || alwaysInclude.includes(key)) {
         (cleaned as Record<string, unknown>)[key] = value;
       }
-      // Skip false values for other boolean fields to avoid sending defaults
       continue;
     }
     
