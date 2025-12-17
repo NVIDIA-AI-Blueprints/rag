@@ -22,6 +22,7 @@ import logging
 import os
 import time
 from tarfile import tar_filter
+from typing import Any
 
 from nv_ingest_client.client import Ingestor, NvIngestClient
 
@@ -64,6 +65,8 @@ def get_nv_ingest_ingestor(
     remove_extract_method: bool = False,
     extract_override: dict = None,
     config: NvidiaRAGConfig = None,
+    enable_pdf_split_processing: bool = False,
+    pdf_split_processing_options: dict[str, Any] | None = None,
 ):
     """
     Prepare NV-Ingest ingestor instance based on nv-ingest configuration
@@ -92,9 +95,9 @@ def get_nv_ingest_ingestor(
     # Add files to ingestor
     ingestor = ingestor.files(filepaths)
 
-    if config.nv_ingest.enable_pdf_split:
+    if enable_pdf_split_processing:
         ingestor = ingestor.pdf_split_config(
-            pages_per_chunk=config.nv_ingest.pages_per_chunk
+            pages_per_chunk=pdf_split_processing_options.get("pages_per_chunk")
         )
 
     # Add extraction task

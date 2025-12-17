@@ -32,6 +32,8 @@ class IngestionStateManager:
         collection_name: str,
         custom_metadata: list[dict[str, Any]],
         documents_catalog_metadata: list[dict[str, Any]] | None = None,
+        enable_pdf_split_processing: bool = False,
+        pdf_split_processing_options: dict[str, Any] | None = None,
     ):
         self.task_id = str(uuid4())
         self._is_background = False  # Whether the ingestion is running in background
@@ -53,6 +55,10 @@ class IngestionStateManager:
         # NV-Ingest document-wise status variables
         self.nv_ingest_status = {} # { "extraction_completed": int, "document_wise_status": dict[str, Any] }
         self.nv_ingest_document_wise_status = {}
+
+        # Add request data
+        self.enable_pdf_split_processing = enable_pdf_split_processing
+        self.pdf_split_processing_options = pdf_split_processing_options
 
         self.asyncio_lock = asyncio.Lock()
 

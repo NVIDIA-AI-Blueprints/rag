@@ -293,6 +293,13 @@ class SummaryOptions(BaseModel):
 
         return self
 
+class PdfSplitProcessingOptions(BaseModel):
+    """Options for PDF split processing."""
+
+    pages_per_chunk: int = Field(
+        default=CONFIG.nv_ingest.pages_per_chunk,
+        description="Number of pages per chunk for PDF split processing.",
+    )
 
 class DocumentUploadRequest(BaseModel):
     """Request model for uploading and processing documents."""
@@ -341,6 +348,16 @@ class DocumentUploadRequest(BaseModel):
     summary_options: SummaryOptions | None = Field(
         None,
         description="Advanced options for summary generation (e.g., page filtering). Only used when generate_summary is True.",
+    )
+
+    enable_pdf_split_processing: bool = Field(
+        default=CONFIG.nv_ingest.enable_pdf_split_processing,
+        description="Enable PDF splitting during ingestion.",
+    )
+
+    pdf_split_processing_options: PdfSplitProcessingOptions = Field(
+        default_factory=PdfSplitProcessingOptions,
+        description="Options for PDF split processing.",
     )
 
     # Reserved for future use

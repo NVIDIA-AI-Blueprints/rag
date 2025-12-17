@@ -38,6 +38,7 @@ Private methods:
 """
 
 import asyncio
+from gc import enable
 import json
 import logging
 import os
@@ -261,6 +262,8 @@ class NvidiaRAGIngestor:
         additional_validation_errors: list[dict[str, Any]] | None = None,
         documents_catalog_metadata: list[dict[str, Any]] | None = None,
         vdb_auth_token: str = "",
+        enable_pdf_split_processing: bool = False,
+        pdf_split_processing_options: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Upload documents to the vector store.
 
@@ -284,6 +287,8 @@ class NvidiaRAGIngestor:
             collection_name=collection_name,
             custom_metadata=custom_metadata,
             documents_catalog_metadata=documents_catalog_metadata,
+            enable_pdf_split_processing=enable_pdf_split_processing,
+            pdf_split_processing_options=pdf_split_processing_options,
         )
         task_id = state_manager.get_task_id()
 
@@ -829,6 +834,8 @@ class NvidiaRAGIngestor:
         additional_validation_errors: list[dict[str, Any]] | None = None,
         documents_catalog_metadata: list[dict[str, Any]] | None = None,
         vdb_auth_token: str = "",
+        enable_pdf_split_processing: bool = False,
+        pdf_split_processing_options: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Upload a document to the vector store. If the document already exists, it will be replaced.
 
@@ -900,6 +907,8 @@ class NvidiaRAGIngestor:
             additional_validation_errors=additional_validation_errors,
             documents_catalog_metadata=documents_catalog_metadata,
             vdb_auth_token=vdb_auth_token,
+            enable_pdf_split_processing=enable_pdf_split_processing,
+            pdf_split_processing_options=pdf_split_processing_options,
         )
         return response
 
@@ -2553,6 +2562,8 @@ class NvidiaRAGIngestor:
                 vdb_op=None,
                 extract_override=extract_override,
                 config=self.config,
+                enable_pdf_split_processing=state_manager.enable_pdf_split_processing,
+                pdf_split_processing_options=state_manager.pdf_split_processing_options,
             )
 
             start_time = time.time()
@@ -2629,6 +2640,8 @@ class NvidiaRAGIngestor:
                 split_options=split_options,
                 vdb_op=vdb_op,
                 config=self.config,
+                enable_pdf_split_processing=state_manager.enable_pdf_split_processing,
+                pdf_split_processing_options=state_manager.pdf_split_processing_options,
             )
             start_time = time.time()
             logger.info(
@@ -2673,6 +2686,8 @@ class NvidiaRAGIngestor:
                     split_options=split_options,
                     vdb_op=vdb_op,
                     config=self.config,
+                    enable_pdf_split_processing=state_manager.enable_pdf_split_processing,
+                    pdf_split_processing_options=state_manager.pdf_split_processing_options,
                 )
                 start_time = time.time()
                 logger.info(
@@ -2711,6 +2726,8 @@ class NvidiaRAGIngestor:
                     vdb_op=vdb_op,
                     remove_extract_method=True,
                     config=self.config,
+                    enable_pdf_split_processing=state_manager.enable_pdf_split_processing,
+                    pdf_split_processing_options=state_manager.pdf_split_processing_options,
                 )
                 start_time = time.time()
                 logger.info(
