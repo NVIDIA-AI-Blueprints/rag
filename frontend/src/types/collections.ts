@@ -78,6 +78,12 @@ export interface Collection {
     has_tables?: boolean;
     has_charts?: boolean;
     has_images?: boolean;
+    doc_type_counts?: {
+      text?: number;
+      table?: number;
+      chart?: number;
+      image?: number;
+    };
   };
 }
 

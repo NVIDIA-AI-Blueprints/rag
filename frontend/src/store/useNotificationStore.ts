@@ -45,6 +45,7 @@ interface NotificationState {
   dismissNotification: (id: string) => void;
   removeNotification: (id: string) => void;
   clearNotifications: () => void;
+  clearAllNotifications: () => void;
   cleanupDuplicates: () => void;
   
   // Getters for existing notification system compatibility
@@ -74,13 +75,17 @@ const generateNotificationId = (type: string, identifier: string): string => {
 
 /**
  * Convert task to task notification.
+ * Accepts an optional existing completedAt to preserve original completion time on hydration.
  */
-const taskToNotification = (task: IngestionTask): TaskNotification => {
+const taskToNotification = (task: IngestionTask & { completedAt?: number }): TaskNotification => {
   // Determine severity based on task state
   let severity: NotificationSeverity = "info";
   if (task.state === "FAILED") severity = "error";
   else if (task.state === "FINISHED") severity = "success";
   else if (task.state === "PENDING") severity = "info";
+
+  // Preserve existing completedAt if available (from localStorage), otherwise set on completion
+  const completedAt = task.completedAt ?? (task.state !== "PENDING" ? Date.now() : undefined);
 
   return {
     id: generateNotificationId("task", task.id),
@@ -97,7 +102,7 @@ const taskToNotification = (task: IngestionTask): TaskNotification => {
     dismissed: false,
     task: { 
       ...task, 
-      completedAt: task.state !== "PENDING" ? Date.now() : undefined 
+      completedAt 
     },
     collectionName: task.collection_name,
   };
@@ -130,12 +135,29 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     const seenTaskIds = new Set<string>();
     const taskKeys = new Map<string, string>(); // taskId -> localStorage key
     
+    // Check if notifications are old (more than 24 hours for completed, 1 hour for pending)
+    // This helps clean up stale data from previous deployments
+    const now = Date.now();
+    const COMPLETED_TASK_MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours
+    const PENDING_TASK_MAX_AGE = 60 * 60 * 1000; // 1 hour - pending tasks shouldn't be this old
+    
     // First pass: collect all task keys and detect duplicates
     Object.keys(localStorage).forEach(key => {
       if (key.startsWith('completedTask:') || key.startsWith('ingestion-task-')) {
         try {
           const task = JSON.parse(localStorage.getItem(key)!);
           if (task?.id) {
+            // Check task age based on type
+            const taskAge = task.created_at ? now - new Date(task.created_at).getTime() : Infinity;
+            const isPending = key.startsWith('ingestion-task-');
+            const maxAge = isPending ? PENDING_TASK_MAX_AGE : COMPLETED_TASK_MAX_AGE;
+            
+            // Remove tasks that are too old (likely from previous deployments)
+            if (taskAge > maxAge) {
+              localStorage.removeItem(key);
+              return;
+            }
+            
             const existingKey = taskKeys.get(task.id);
             if (existingKey) {
               // Duplicate detected - prefer completedTask over ingestion-task
@@ -244,11 +266,22 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     const notifications = state.notifications.map(notification => {
       if (notification.type === "task" && (notification as TaskNotification).task.id === taskId) {
         const taskNotification = notification as TaskNotification;
-        const updatedTask = { ...taskNotification.task, ...updates };
         
         // Clean up localStorage properly to prevent duplicates
         const wasCompleted = taskNotification.task.state !== "PENDING";
         const isNowCompleted = updates.state && updates.state !== "PENDING";
+        
+        // Calculate completedAt - preserve existing or set new on completion
+        const completedAt = isNowCompleted && !wasCompleted 
+          ? Date.now()  // Just completing now
+          : taskNotification.task.completedAt;  // Preserve existing
+        
+        // Build updated task with completedAt included for localStorage
+        const updatedTask = { 
+          ...taskNotification.task, 
+          ...updates,
+          completedAt 
+        };
         
         if (isNowCompleted) {
           // Task is completing - remove any pending keys and add completed key
@@ -272,10 +305,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
         // Update notification
         const updatedNotification: TaskNotification = {
           ...taskNotification,
-          task: {
-            ...updatedTask,
-            completedAt: updates.state && updates.state !== "PENDING" ? Date.now() : taskNotification.task.completedAt
-          },
+          task: updatedTask,
           severity: updates.state === "FAILED" ? "error" : 
                    updates.state === "FINISHED" ? "success" : 
                    taskNotification.severity,
@@ -347,6 +377,18 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
   }),
 
   clearNotifications: () => set({ notifications: [] }),
+
+  // Clear all notifications and their localStorage entries
+  clearAllNotifications: () => {
+    // Remove all task-related localStorage entries
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith('ingestion-task-') || key.startsWith('completedTask:')) {
+        localStorage.removeItem(key);
+      }
+    });
+    
+    return set({ notifications: [] });
+  },
 
   // Clean up duplicate notifications based on task IDs and orphaned localStorage entries
   cleanupDuplicates: () => set((state) => {

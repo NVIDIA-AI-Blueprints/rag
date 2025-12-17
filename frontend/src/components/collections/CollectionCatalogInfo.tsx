@@ -134,25 +134,25 @@ export function CollectionCatalogInfo({ collection }: CollectionCatalogInfoProps
             </Flex>
           )}
 
-          {/* Content Type Indicators */}
-          {info.has_tables && (
+          {/* Content Type Counts */}
+          {info.doc_type_counts?.table !== undefined && info.doc_type_counts.table > 0 && (
             <Flex align="center" gap="density-xs">
               <Table size={14} style={{ color: 'var(--color-brand)' }} />
-              <Text kind="body/regular/sm">Tables</Text>
+              <Text kind="body/regular/sm">{info.doc_type_counts.table} Tables</Text>
             </Flex>
           )}
 
-          {info.has_charts && (
+          {info.doc_type_counts?.chart !== undefined && info.doc_type_counts.chart > 0 && (
             <Flex align="center" gap="density-xs">
               <BarChart3 size={14} style={{ color: 'var(--color-brand)' }} />
-              <Text kind="body/regular/sm">Charts</Text>
+              <Text kind="body/regular/sm">{info.doc_type_counts.chart} Charts</Text>
             </Flex>
           )}
 
-          {info.has_images && (
+          {info.doc_type_counts?.image !== undefined && info.doc_type_counts.image > 0 && (
             <Flex align="center" gap="density-xs">
               <Image size={14} style={{ color: 'var(--color-brand)' }} />
-              <Text kind="body/regular/sm">Images</Text>
+              <Text kind="body/regular/sm">{info.doc_type_counts.image} Images</Text>
             </Flex>
           )}
         </Flex>
