@@ -42,6 +42,9 @@ Change the setting if you want different behavior.
 | `RERANKER TOP K` | 10 | Increase `reranker TOP K` to increase the probability of relevant context being part of the top-k contexts. | Increasing the value can improve accuracy. | Increasing the value can increase latency. |
 | `VDB TOP K` | 100 | Increase `VDB TOP K` to provide a larger candidate pool for reranking. | Increasing the value can improve accuracy. | Increasing the value can increase latency. |
 
+:::{note}
+If relevant information is not appearing in responses, consider increasing `reranker_top_k`. This can occur when querying multiple collections (chunks compete for top-k slots) or when queries require information from many chunks. Adjust `reranker_top_k` based on the number of collections and query complexity, while balancing latency requirements.
+:::
 
 
 ## Advanced Ingestion Batch Mode Optimization
