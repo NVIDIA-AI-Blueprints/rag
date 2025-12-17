@@ -103,8 +103,34 @@ def _get_tokenizer(config: NvidiaRAGConfig):
     global _tokenizer_cache
     if _tokenizer_cache is None:
         tokenizer_name = config.nv_ingest.tokenizer
-        _tokenizer_cache = AutoTokenizer.from_pretrained(tokenizer_name)
-        logger.info(f"Loaded tokenizer for summarization: {tokenizer_name}")
+        model_predownload_path = os.environ.get("MODEL_PREDOWNLOAD_PATH")
+
+        tokenizer_identifier = tokenizer_name
+        if model_predownload_path is not None:
+            # Check for pre-downloaded tokenizer
+            e5_path = os.path.join(
+                model_predownload_path, "e5-large-unsupervised/tokenizer/tokenizer.json"
+            )
+            if (
+                os.path.exists(e5_path)
+                and tokenizer_name == "intfloat/e5-large-unsupervised"
+            ):
+                tokenizer_identifier = os.path.join(
+                    model_predownload_path, "e5-large-unsupervised/tokenizer/"
+                )
+                logger.info(
+                    f"Using pre-downloaded tokenizer from: {tokenizer_identifier}"
+                )
+
+        try:
+            _tokenizer_cache = AutoTokenizer.from_pretrained(tokenizer_identifier)
+            logger.info(
+                f"Loaded tokenizer for summarization: {tokenizer_name} (from: {tokenizer_identifier})"
+            )
+        except Exception as e:
+            raise RuntimeError(
+                f"Tokenizer '{tokenizer_name}' failed to load: {e}"
+            ) from e
     return _tokenizer_cache
 
 
