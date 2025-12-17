@@ -14,7 +14,8 @@
 // limitations under the License.
 
 import { useCallback, useMemo } from "react";
-import { Stack, Text, Divider } from "@kui/react";
+import { Stack, Text, Divider, Button, Flex } from "@kui/react";
+import { Trash2 } from "lucide-react";
 import type { HealthNotification, TaskNotification } from "../../types/notifications";
 import { TaskDisplay } from "../tasks/TaskDisplay";
 import { HealthNotificationDisplay } from "./HealthNotificationDisplay";
@@ -24,7 +25,8 @@ export const NotificationDropdown = () => {
   const { 
     getAllNotifications, 
     markAsRead, 
-    removeNotification 
+    removeNotification,
+    clearAllNotifications
   } = useNotificationStore();
 
   // Get all notifications from the unified store
@@ -37,6 +39,10 @@ export const NotificationDropdown = () => {
   const handleRemove = useCallback((id: string) => {
     removeNotification(id);
   }, [removeNotification]);
+
+  const handleClearAll = useCallback(() => {
+    clearAllNotifications();
+  }, [clearAllNotifications]);
 
   // Group notifications by type
   const groupedNotifications = useMemo(() => {
@@ -68,6 +74,24 @@ export const NotificationDropdown = () => {
         padding: '8px'
       }}
     >
+      {/* Header with Clear All button */}
+      <Flex justify="between" align="center">
+        <Text kind="body/semibold/md">Notifications</Text>
+        <Button 
+          kind="tertiary" 
+          size="tiny" 
+          onClick={handleClearAll}
+          title="Clear all notifications"
+        >
+          <Flex align="center" gap="density-xs">
+            <Trash2 size={14} />
+            <Text kind="body/regular/xs">Clear All</Text>
+          </Flex>
+        </Button>
+      </Flex>
+
+      <Divider />
+
       {/* Health Notifications Section */}
       {groupedNotifications.health.length > 0 && (
         <>
