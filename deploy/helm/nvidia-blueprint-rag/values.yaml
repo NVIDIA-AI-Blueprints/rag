@@ -361,8 +361,8 @@ ingestor-server:
     NVINGEST_MINIO_BUCKET: "nv-ingest" # If this value is modified, ensure the corresponding Milvus bucketName is also updated
 
     # === NV-Ingest performance configurations ===
-    APP_NVINGEST_ENABLEPDFSPLIT: "False"
-    APP_NVINGEST_PAGESPERCHUNK: "16"
+    APP_NVINGEST_ENABLE_PDF_SPLIT_PROCESSING: "False"
+    APP_NVINGEST_PAGES_PER_CHUNK: "16"
 
     # === General ===
     # Summary Model Configurations
