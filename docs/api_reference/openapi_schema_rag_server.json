@@ -60,9 +60,7 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {
-
-                }
+                "schema": {}
               }
             }
           }
@@ -373,9 +371,7 @@
               }
             ],
             "description": "Latency metrics associated with the request",
-            "default": {
-
-            }
+            "default": {}
           }
         },
         "type": "object",
@@ -689,7 +685,7 @@
             "maximum": 1,
             "minimum": 0,
             "title": "Confidence Threshold",
-            "description": "Minimum confidence score threshold for filtering chunks. Only chunks with relevance scores \u003E= this threshold will be included. Range: 0.0 to 1.0. Default: 0.0 (no filtering). Note: Requires enable_reranker=True to generate relevance scores.",
+            "description": "Minimum confidence score threshold for filtering chunks. Only chunks with relevance scores >= this threshold will be included. Range: 0.0 to 1.0. Default: 0.0 (no filtering). Note: Requires enable_reranker=True to generate relevance scores.",
             "default": 0
           }
         },
@@ -821,7 +817,7 @@
             "type": "string",
             "maxLength": 20971520,
             "title": "Url",
-            "description": "Either a URL of the image or the base64 encoded image data. Supports data URIs in the format data:image/jpeg;base64,\u003Cbase64-data\u003E"
+            "description": "Either a URL of the image or the base64 encoded image data. Supports data URIs in the format data:image/jpeg;base64,<base64-data>"
           },
           "detail": {
             "type": "string",
@@ -849,7 +845,8 @@
               "user",
               "assistant",
               "system",
-              null],
+              null
+            ],
             "title": "Role",
             "description": "Role for a message: either 'user' or 'assistant' or 'system",
             "default": "user"
@@ -889,7 +886,8 @@
               "user",
               "assistant",
               "system",
-              null],
+              null
+            ],
             "title": "Role",
             "description": "Role for a message: either 'user' or 'assistant' or 'system",
             "default": "user"
@@ -1402,7 +1400,7 @@
             "maximum": 1,
             "minimum": 0,
             "title": "Confidence Threshold",
-            "description": "Minimum confidence score threshold for filtering chunks. Only chunks with relevance scores \u003E= this threshold will be included. Range: 0.0 to 1.0. Default: 0.0 (no filtering). Note: Requires enable_reranker=True to generate relevance scores.",
+            "description": "Minimum confidence score threshold for filtering chunks. Only chunks with relevance scores >= this threshold will be included. Range: 0.0 to 1.0. Default: 0.0 (no filtering). Note: Requires enable_reranker=True to generate relevance scores.",
             "default": 0
           }
         },
@@ -1590,9 +1588,7 @@
             "type": "object",
             "title": "Content Metadata",
             "description": "Metadata about the content",
-            "default": {
-
-            }
+            "default": {}
           }
         },
         "type": "object",

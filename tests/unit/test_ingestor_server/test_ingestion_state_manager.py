@@ -55,13 +55,33 @@ class TestIngestionStateManager:
         assert manager.filepaths == filepaths
         assert manager.collection_name == collection_name
         assert manager.custom_metadata == custom_metadata
+        assert manager.documents_catalog_metadata == []
         assert manager.validation_errors == []
         assert manager.failed_validation_documents == []
         assert manager.total_documents_completed == 0
         assert manager.total_batches_completed == 0
         assert manager.documents_completed_list == []
+        assert manager.nv_ingest_status == {}
+        assert manager.nv_ingest_document_wise_status == {}
         assert manager.is_background is False
         assert manager.asyncio_lock is not None
+
+    def test_init_with_documents_catalog_metadata(self):
+        """Test that initialization with documents_catalog_metadata works correctly"""
+        filepaths = ["file1.pdf", "file2.pdf"]
+        collection_name = "test_collection"
+        custom_metadata = [{"key1": "value1"}, {"key2": "value2"}]
+        documents_catalog_metadata = [{"catalog_id": "1"}, {"catalog_id": "2"}]
+
+        manager = IngestionStateManager(
+            filepaths=filepaths,
+            collection_name=collection_name,
+            custom_metadata=custom_metadata,
+            documents_catalog_metadata=documents_catalog_metadata,
+        )
+
+        assert manager.documents_catalog_metadata == documents_catalog_metadata
+        assert len(manager.documents_catalog_metadata) == 2
 
     def test_is_background_property_getter(self):
         """Test is_background property getter"""
@@ -182,6 +202,48 @@ class TestIngestionStateManager:
         assert result["documents_completed"] == 0
         assert result["batches_completed"] == 1
         assert len(result["documents"]) == 0
+
+    @pytest.mark.asyncio
+    async def test_update_batch_progress_with_is_batch_zero_true(self):
+        """Test that is_batch_zero=True does not increment batch count"""
+        manager = IngestionStateManager(
+            filepaths=["file1.pdf"],
+            collection_name="test_collection",
+            custom_metadata=[{}],
+        )
+
+        batch_response = {
+            "documents": [{"document_name": "file1.pdf", "id": "doc1"}],
+            "status": "success",
+        }
+
+        result = await manager.update_batch_progress(batch_response, is_batch_zero=True)
+
+        assert manager.total_documents_completed == 1
+        assert manager.total_batches_completed == 0  # Should not increment
+        assert result["documents_completed"] == 1
+        assert result["batches_completed"] == 0
+
+    @pytest.mark.asyncio
+    async def test_update_batch_progress_with_is_batch_zero_false(self):
+        """Test that is_batch_zero=False increments batch count (default behavior)"""
+        manager = IngestionStateManager(
+            filepaths=["file1.pdf"],
+            collection_name="test_collection",
+            custom_metadata=[{}],
+        )
+
+        batch_response = {
+            "documents": [{"document_name": "file1.pdf", "id": "doc1"}],
+            "status": "success",
+        }
+
+        result = await manager.update_batch_progress(batch_response, is_batch_zero=False)
+
+        assert manager.total_documents_completed == 1
+        assert manager.total_batches_completed == 1  # Should increment
+        assert result["documents_completed"] == 1
+        assert result["batches_completed"] == 1
 
     @pytest.mark.asyncio
     async def test_update_batch_progress_concurrent_updates(self):
@@ -363,4 +425,176 @@ class TestIngestionStateManager:
         assert manager.documents_completed_list[0]["id"] == "doc1"
         assert manager.documents_completed_list[1]["id"] == "doc2"
         assert manager.documents_completed_list[2]["id"] == "doc3"
+
+    @pytest.mark.asyncio
+    async def test_initialize_nv_ingest_status(self):
+        """Test initialization of NV-Ingest status"""
+        manager = IngestionStateManager(
+            filepaths=["file1.pdf", "file2.pdf"],
+            collection_name="test_collection",
+            custom_metadata=[{}, {}],
+        )
+
+        filepaths = ["/path/to/file1.pdf", "/path/to/file2.pdf"]
+        result = await manager.initialize_nv_ingest_status(filepaths)
+
+        assert result["extraction_completed"] == 0
+        assert "document_wise_status" in result
+        assert "file1.pdf" in result["document_wise_status"]
+        assert "file2.pdf" in result["document_wise_status"]
+        assert result["document_wise_status"]["file1.pdf"] == "not_started"
+        assert result["document_wise_status"]["file2.pdf"] == "not_started"
+
+        # Verify instance variables are set
+        assert manager.nv_ingest_status == result
+        assert manager.nv_ingest_document_wise_status == result["document_wise_status"]
+
+    @pytest.mark.asyncio
+    async def test_initialize_nv_ingest_status_extracts_basenames(self):
+        """Test that initialize_nv_ingest_status extracts basenames from full paths"""
+        manager = IngestionStateManager(
+            filepaths=["file1.pdf"],
+            collection_name="test_collection",
+            custom_metadata=[{}],
+        )
+
+        filepaths = [
+            "/usr/local/docs/report.pdf",
+            "/home/user/documents/invoice.pdf",
+            "simple_file.pdf",
+        ]
+        result = await manager.initialize_nv_ingest_status(filepaths)
+
+        assert "report.pdf" in result["document_wise_status"]
+        assert "invoice.pdf" in result["document_wise_status"]
+        assert "simple_file.pdf" in result["document_wise_status"]
+        assert len(result["document_wise_status"]) == 3
+
+    @pytest.mark.asyncio
+    async def test_update_nv_ingest_status_single_document(self):
+        """Test updating NV-Ingest status for a single document"""
+        manager = IngestionStateManager(
+            filepaths=["file1.pdf", "file2.pdf"],
+            collection_name="test_collection",
+            custom_metadata=[{}, {}],
+        )
+
+        # Initialize first
+        await manager.initialize_nv_ingest_status(["file1.pdf", "file2.pdf"])
+
+        # Update one document to completed
+        update = {"file1.pdf": "completed"}
+        result = await manager.update_nv_ingest_status(update)
+
+        assert result["extraction_completed"] == 1
+        assert result["document_wise_status"]["file1.pdf"] == "completed"
+        assert result["document_wise_status"]["file2.pdf"] == "not_started"
+
+    @pytest.mark.asyncio
+    async def test_update_nv_ingest_status_multiple_documents(self):
+        """Test updating NV-Ingest status for multiple documents"""
+        manager = IngestionStateManager(
+            filepaths=["file1.pdf", "file2.pdf", "file3.pdf"],
+            collection_name="test_collection",
+            custom_metadata=[{}, {}, {}],
+        )
+
+        # Initialize
+        await manager.initialize_nv_ingest_status(["file1.pdf", "file2.pdf", "file3.pdf"])
+
+        # Update multiple documents
+        update1 = {"file1.pdf": "completed", "file2.pdf": "processing"}
+        result1 = await manager.update_nv_ingest_status(update1)
+
+        assert result1["extraction_completed"] == 1
+        assert result1["document_wise_status"]["file1.pdf"] == "completed"
+        assert result1["document_wise_status"]["file2.pdf"] == "processing"
+        assert result1["document_wise_status"]["file3.pdf"] == "not_started"
+
+        # Update more documents
+        update2 = {"file2.pdf": "completed", "file3.pdf": "completed"}
+        result2 = await manager.update_nv_ingest_status(update2)
+
+        assert result2["extraction_completed"] == 3
+        assert result2["document_wise_status"]["file1.pdf"] == "completed"
+        assert result2["document_wise_status"]["file2.pdf"] == "completed"
+        assert result2["document_wise_status"]["file3.pdf"] == "completed"
+
+    @pytest.mark.asyncio
+    async def test_update_nv_ingest_status_concurrent_updates(self):
+        """Test that concurrent NV-Ingest status updates are properly synchronized"""
+        manager = IngestionStateManager(
+            filepaths=["file1.pdf", "file2.pdf", "file3.pdf", "file4.pdf"],
+            collection_name="test_collection",
+            custom_metadata=[{}, {}, {}, {}],
+        )
+
+        # Initialize
+        await manager.initialize_nv_ingest_status([
+            "file1.pdf", "file2.pdf", "file3.pdf", "file4.pdf"
+        ])
+
+        # Run concurrent updates
+        update1 = {"file1.pdf": "completed", "file2.pdf": "completed"}
+        update2 = {"file3.pdf": "completed", "file4.pdf": "completed"}
+
+        results = await asyncio.gather(
+            manager.update_nv_ingest_status(update1),
+            manager.update_nv_ingest_status(update2),
+        )
+
+        # Verify final state
+        assert manager.nv_ingest_status["extraction_completed"] == 4
+        assert all(
+            status == "completed"
+            for status in manager.nv_ingest_document_wise_status.values()
+        )
+
+    @pytest.mark.asyncio
+    async def test_update_nv_ingest_status_only_counts_completed(self):
+        """Test that extraction_completed only counts documents with 'completed' status"""
+        manager = IngestionStateManager(
+            filepaths=["file1.pdf", "file2.pdf", "file3.pdf"],
+            collection_name="test_collection",
+            custom_metadata=[{}, {}, {}],
+        )
+
+        # Initialize
+        await manager.initialize_nv_ingest_status(["file1.pdf", "file2.pdf", "file3.pdf"])
+
+        # Update with various statuses
+        update = {
+            "file1.pdf": "completed",
+            "file2.pdf": "processing",
+            "file3.pdf": "failed",
+        }
+        result = await manager.update_nv_ingest_status(update)
+
+        # Only file1.pdf should be counted as completed
+        assert result["extraction_completed"] == 1
+        assert result["document_wise_status"]["file1.pdf"] == "completed"
+        assert result["document_wise_status"]["file2.pdf"] == "processing"
+        assert result["document_wise_status"]["file3.pdf"] == "failed"
+
+    @pytest.mark.asyncio
+    async def test_nv_ingest_status_persistence(self):
+        """Test that NV-Ingest status persists correctly across updates"""
+        manager = IngestionStateManager(
+            filepaths=["file1.pdf", "file2.pdf"],
+            collection_name="test_collection",
+            custom_metadata=[{}, {}],
+        )
+
+        # Initialize
+        await manager.initialize_nv_ingest_status(["file1.pdf", "file2.pdf"])
+        initial_status = manager.nv_ingest_status.copy()
+
+        # Update
+        await manager.update_nv_ingest_status({"file1.pdf": "completed"})
+
+        # Verify structure persists
+        assert "extraction_completed" in manager.nv_ingest_status
+        assert "document_wise_status" in manager.nv_ingest_status
+        assert isinstance(manager.nv_ingest_status["document_wise_status"], dict)
+        assert manager.nv_ingest_status != initial_status  # But values changed
 
