@@ -48,6 +48,18 @@ COPY --from=builder /build/dist/*.whl /workspace/
 RUN WHEEL_NAME=$(ls /workspace/nvidia_rag-*.whl) && \
     uv pip install --no-deps --no-cache-dir "$WHEEL_NAME"
 
+# Pre-download default tokenizer to MODEL_PREDOWNLOAD_PATH
+ARG MODEL_PREDOWNLOAD_PATH=/workspace/models
+ENV MODEL_PREDOWNLOAD_PATH=${MODEL_PREDOWNLOAD_PATH}
+ENV HF_HOME=${MODEL_PREDOWNLOAD_PATH}
+
+# Copy post build triggers script
+COPY ./src/nvidia_rag/ingestor_server/docker/scripts/post_build_triggers.py /workspace/docker/post_build_triggers.py
+
+RUN --mount=type=cache,target=/root/.cache/pip \
+    /workspace/.venv/bin/python /workspace/docker/post_build_triggers.py || \
+    echo "Warning: Tokenizer pre-download failed, will download at runtime if internet is available"
+
 # -------- Stage 3: Minimal Runtime Stage --------
 FROM ${BASE_IMAGE_URL}:${BASE_IMAGE_TAG} AS runtime
 
@@ -78,10 +90,17 @@ ENV PATH="/workspace/.venv/bin:$PATH"
 WORKDIR /workspace
 
 # Set environment variables needed for Text splitter
-RUN mkdir /tmp-data/;
+RUN mkdir -p /tmp-data
 RUN chmod 777 -R /tmp-data
 RUN chown 1000:1000 -R /tmp-data
-ENV HF_HOME=/tmp-data
+
+# Set MODEL_PREDOWNLOAD_PATH and HF_HOME
+ARG MODEL_PREDOWNLOAD_PATH=/workspace/models
+ENV MODEL_PREDOWNLOAD_PATH=${MODEL_PREDOWNLOAD_PATH}
+ENV HF_HOME=${MODEL_PREDOWNLOAD_PATH}
+
+# Copy pre-downloaded tokenizer from python-env stage
+COPY --from=python-env ${MODEL_PREDOWNLOAD_PATH} ${MODEL_PREDOWNLOAD_PATH}
 
 WORKDIR /workspace
 
