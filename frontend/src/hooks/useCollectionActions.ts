@@ -240,6 +240,10 @@ export function useCollectionActions() {
         onSuccess: (data) => {
           console.log("✅ Add source upload successful:", data);
           
+          // Invalidate collections to refresh file counts
+          queryClient.invalidateQueries({ queryKey: ["collections"] });
+          queryClient.invalidateQueries({ queryKey: ["collection-documents", activeCollection?.collection_name] });
+          
           // Reset upload state and close drawer immediately
           console.log("🧹 Cleaning up add source state and closing drawer");
           reset();

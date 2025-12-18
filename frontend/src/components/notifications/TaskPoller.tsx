@@ -100,4 +100,4 @@ export const TaskPoller = ({ taskId }: TaskPollerProps) => {
   }, [data, isLoading, error, taskId, updateTaskNotification, getAllNotifications, queryClient]);
 
   return null;
-}; 
+};

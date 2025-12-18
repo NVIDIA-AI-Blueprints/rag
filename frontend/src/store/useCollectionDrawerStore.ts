@@ -29,6 +29,7 @@ interface CollectionDrawerState {
   closeDrawer: () => void;
   toggleUploader: (show?: boolean) => void;
   setDeleteError: (error: string | null) => void;
+  updateActiveCollection: (collection: Collection) => void;
   reset: () => void;
 }
 
@@ -64,6 +65,13 @@ export const useCollectionDrawerStore = create<CollectionDrawerState>((set) => (
   
   setDeleteError: (error) => 
     set({ deleteError: error }),
+  
+  updateActiveCollection: (collection) =>
+    set((state) => 
+      state.activeCollection?.collection_name === collection.collection_name 
+        ? { activeCollection: collection } 
+        : state
+    ),
   
   reset: () => 
     set({ isOpen: false, activeCollection: null, showUploader: false, deleteError: null }),

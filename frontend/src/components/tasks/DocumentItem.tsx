@@ -19,6 +19,7 @@ import { useDeleteDocument } from "../../api/useCollectionDocuments";
 import { useDocumentSummary } from "../../api/useDocumentSummary";
 import { useCollectionDrawerStore } from "../../store/useCollectionDrawerStore";
 import { useQueryClient } from "@tanstack/react-query";
+import type { Collection } from "../../types/collections";
 import { ConfirmationModal } from "../modals/ConfirmationModal";
 import { 
   Flex, 
@@ -136,7 +137,7 @@ const DocumentSummary = ({ collectionName, fileName }: { collectionName: string;
 export const DocumentItem = ({ name, metadata, collectionName, documentInfo }: DocumentItemProps) => {
   const { getFileIconByExtension } = useFileIcons();
   const queryClient = useQueryClient();
-  const { setDeleteError } = useCollectionDrawerStore();
+  const { setDeleteError, updateActiveCollection } = useCollectionDrawerStore();
   const deleteDoc = useDeleteDocument();
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
@@ -150,8 +151,13 @@ export const DocumentItem = ({ name, metadata, collectionName, documentInfo }: D
     deleteDoc.mutate(
       { collectionName, documentName: name },
       {
-        onSuccess: () => {
+        onSuccess: async () => {
           queryClient.invalidateQueries({ queryKey: ["collection-documents", collectionName] });
+          // Refresh collections and update drawer with new collection_info
+          await queryClient.refetchQueries({ queryKey: ["collections"] });
+          const data = queryClient.getQueryData<Collection[]>(["collections"]);
+          const fresh = data?.find((c: Collection) => c.collection_name === collectionName);
+          if (fresh) updateActiveCollection(fresh);
         },
         onError: (err: Error) => {
           setDeleteError(err?.message || "Failed to delete document");

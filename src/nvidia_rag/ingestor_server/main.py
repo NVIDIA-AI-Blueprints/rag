@@ -1711,6 +1711,7 @@ class NvidiaRAGIngestor:
                         **catalog_info,  # Preserve catalog metadata
                         **aggregated_collection_info,  # Update metrics from remaining documents
                         **boolean_flags,  # Override boolean flags to ensure they're proper booleans
+                        "number_of_files": len(remaining_documents_list),  # Explicitly set file count
                         "last_updated": get_current_timestamp(),  # Update timestamp
                     }
 
