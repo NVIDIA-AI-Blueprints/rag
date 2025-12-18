@@ -50,6 +50,10 @@ export MODEL_DIRECTORY=~/.cache/model-cache
 # Set your NGC API key
 export NGC_API_KEY="nvapi-..."
 
+# (Optional) Select a specific GPU for the VLM Microservice
+# Use `nvidia-smi` to check available GPUs and set the desired GPU ID
+export VLM_MS_GPU_ID=0  # Default is GPU 0; change to use a different GPU
+
 # Deploy NIMs with VLM and VLM embedding profiles
 USERID=$(id -u) docker compose --profile vlm-ingest --profile vlm-only -f deploy/compose/nims.yaml up -d
 ```
