@@ -69,7 +69,7 @@ describe('NvidiaUpload', () => {
     it('passes default accepted types to FileUploadZone', () => {
       render(<NvidiaUpload />);
       
-      expect(screen.getByText(/\.bmp,.docx,.html,.jpeg,.json,.md,.pdf,.png,.pptx,.sh,.tiff,.txt,.mp3,.wav/)).toBeInTheDocument();
+      expect(screen.getByText(/\.bmp,.docx,.html,.jpeg,.json,.md,.pdf,.png,.pptx,.sh,.tiff,.txt,.mp3,.wav,.mp4,.mov,.avi/)).toBeInTheDocument();
     });
 
     it('passes default max file size to FileUploadZone', () => {

@@ -108,9 +108,7 @@ class Mode(str, Enum):
     SERVER = "server"
 
 
-SUPPORTED_FILE_TYPES = set(_DEFAULT_EXTRACTOR_MAP.keys()) & set(
-    EXTENSION_TO_DOCUMENT_TYPE.keys()
-)
+SUPPORTED_FILE_TYPES = set(EXTENSION_TO_DOCUMENT_TYPE.keys()) - set({"svg", "mkv"})
 
 
 class NvidiaRAGIngestor:
