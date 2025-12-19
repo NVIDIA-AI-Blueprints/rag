@@ -296,10 +296,8 @@ class TestGenerateEndpoint:
         }
         response = client.post("/v1/generate", json=invalid_data)
         assert response.status_code == ErrorCodeMapping.UNPROCESSABLE_ENTITY
-        assert any(
-            "Input should be 'user', 'assistant', 'system' or None" in error["msg"]
-            for error in response.json()["detail"]
-        )
+        error_data = read_streaming_response(response)
+        assert "Input should be 'user', 'assistant', 'system' or None" in error_data
 
     def test_generate_answer_empty_generator(self, client, valid_prompt_data):
         """Test empty generator response"""
@@ -404,7 +402,10 @@ class TestDocumentSearchEndpoint:
 
         response = client.post("/v1/search", json=invalid_data)
         assert response.status_code == ErrorCodeMapping.UNPROCESSABLE_ENTITY
-        assert "detail" in response.json()
+        error_data = read_streaming_response(response)
+        assert (
+            "reranker_top_k" in error_data or "greater than or equal to 0" in error_data
+        )
 
     def test_document_search_cancelled_request(self, client, search_data):
         """Test document search with cancelled request"""
@@ -557,9 +558,9 @@ class TestServerErrorHandling:
         response = client.post("/v1/generate", json=invalid_data)
 
         assert response.status_code == ErrorCodeMapping.UNPROCESSABLE_ENTITY
-        # For Pydantic validation errors, the response is JSON (not streaming)
-        response_data = response.json()
-        assert "detail" in response_data
+        # For Pydantic validation errors, the response is streaming
+        error_data = read_streaming_response(response)
+        assert "At least one message is required" in error_data
 
     def test_generate_endpoint_api_error(self, client, valid_prompt_data):
         """Test /generate endpoint handles APIError"""
@@ -606,8 +607,8 @@ class TestServerErrorHandling:
             response = client.post("/v1/generate", json=valid_prompt_data)
 
             assert response.status_code == ErrorCodeMapping.CLIENT_CLOSED_REQUEST
-            response_data = response.json()
-            assert "cancelled" in response_data["message"].lower()
+            error_data = read_streaming_response(response)
+            assert "cancelled" in error_data.lower()
 
     def test_search_endpoint_connection_error(self, client, search_data):
         """Test /search endpoint handles connection errors"""

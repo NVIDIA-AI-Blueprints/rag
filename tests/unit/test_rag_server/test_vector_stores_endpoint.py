@@ -166,9 +166,10 @@ mock_nvidia_rag_vectorstore = MockNvidiaRAGForVectorStore()
 @pytest.fixture(scope="module")
 def setup_test_env():
     """Setup test environment with mocked NVIDIA_RAG"""
-    with patch(
-        "nvidia_rag.rag_server.server.NVIDIA_RAG", mock_nvidia_rag_vectorstore
-    ), patch("nvidia_rag.rag_server.server.CONFIG") as mock_config:
+    with (
+        patch("nvidia_rag.rag_server.server.NVIDIA_RAG", mock_nvidia_rag_vectorstore),
+        patch("nvidia_rag.rag_server.server.CONFIG") as mock_config,
+    ):
         # Configure mock config
         mock_config.vector_store.name = "milvus"
         mock_config.vector_store.url = "http://milvus:19530"
@@ -503,7 +504,19 @@ class TestVectorStoreSearchEndpoint:
         )
 
         assert response.status_code == ErrorCodeMapping.UNPROCESSABLE_ENTITY
-        assert "detail" in response.json()
+        # Parse streaming error response
+        error_data = ""
+        for line in response.iter_lines():
+            if line:
+                data = line.replace("data: ", "")
+                try:
+                    response_chunk = json.loads(data)
+                    if "choices" in response_chunk and response_chunk["choices"]:
+                        content = response_chunk["choices"][0]["message"]["content"]
+                        error_data += content
+                except (json.JSONDecodeError, KeyError):
+                    pass
+        assert "query" in error_data or "Field required" in error_data
 
     def test_vector_store_search_invalid_max_results(self, client):
         """Test search with invalid max_num_results (outside range)"""
@@ -674,9 +687,7 @@ class TestVectorStoreSearchEndpoint:
         assert "date_created" in first_result["attributes"]
         assert "last_modified" in first_result["attributes"]
 
-    def test_vector_store_search_file_id_generation(
-        self, client, basic_search_request
-    ):
+    def test_vector_store_search_file_id_generation(self, client, basic_search_request):
         """Test that file_id is properly generated"""
         response = client.post(
             "/v2/vector_stores/test_collection/search", json=basic_search_request
@@ -853,4 +864,3 @@ class TestFilterConversion:
         )
 
         assert response.status_code == ErrorCodeMapping.SUCCESS
-
