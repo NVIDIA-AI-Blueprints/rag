@@ -1107,11 +1107,24 @@ class VectorStoreSearchResponse(BaseModel):
 
 @app.exception_handler(RequestValidationError)
 async def request_validation_exception_handler(
-    _: Request, exc: RequestValidationError
-) -> JSONResponse:
-    return JSONResponse(
+    _request: Request, exc: RequestValidationError
+) -> StreamingResponse:
+    """Handle request validation errors by returning streaming response."""
+    errors = exc.errors()
+    error_parts = []
+    for err in errors:
+        loc = [str(loc_item) for loc_item in err.get("loc", ()) if loc_item != "body"]
+        field = ".".join(loc) if loc else ""
+        msg = err.get("msg", "Validation error")
+        error_parts.append(f"{field}: {msg}" if field else msg)
+
+    error_message = "Validation error: " + "; ".join(error_parts)
+    logger.warning("Request validation error: %s", error_message)
+
+    return StreamingResponse(
+        error_response_generator(error_message),
+        media_type="text/event-stream",
         status_code=HTTP_422_UNPROCESSABLE_ENTITY,
-        content={"detail": jsonable_encoder(exc.errors(), exclude={"input"})},
     )
 
 
@@ -1506,8 +1519,10 @@ async def generate_answer(request: Request, prompt: Prompt) -> StreamingResponse
 
     except asyncio.CancelledError as e:
         logger.warning(f"Request cancelled during response generation. {str(e)}")
-        return JSONResponse(
-            content={"message": "Request was cancelled by the client."},
+        error_message = "Request was cancelled by the client."
+        return StreamingResponse(
+            error_response_generator(error_message),
+            media_type="text/event-stream",
             status_code=ErrorCodeMapping.CLIENT_CLOSED_REQUEST,
         )
 
