@@ -120,7 +120,7 @@ This guide summarizes the key API changes and new features introduced in RAG v2.
   - Metadata information is now available in the responses of the `GET /collections` and `GET /documents APIs`.
 
 - Multi-collection support
-  - The `collection_names: List[str]` field has been added to the request schema of the `POST /generate` and `POST /search` endpoints, replacing `collection_name: str`. The old `collection_name: str` field will be deprecated in a future release.
+  - The `collection_names: List[str]` field has been added to the request schema of the `POST /generate` and `POST /search` endpoints, replacing `collection_name: str`. The old `collection_name: str` field has been removed.
 
 
 

@@ -120,7 +120,7 @@ python nvidia_rag_mcp/mcp_client.py call \
   --transport=sse \
   --url=http://127.0.0.1:8000/sse \
   --tool=generate \
-  --json-args='{"messages":[{"role":"user","content":"Say \"ok\""}],"collection_name":"my_collection"}'
+  --json-args='{"messages":[{"role":"user","content":"Say \"ok\""}],"collection_names":["my_collection"]}'
 ```
 
 streamable_http:
@@ -129,7 +129,7 @@ python nvidia_rag_mcp/mcp_client.py call \
   --transport=streamable_http \
   --url=http://127.0.0.1:8000/mcp \
   --tool=generate \
-  --json-args='{"messages":[{"role":"user","content":"Say \"ok\""}],"collection_name":"my_collection"}'
+  --json-args='{"messages":[{"role":"user","content":"Say \"ok\""}],"collection_names":["my_collection"]}'
 ```
 
 stdio:
@@ -139,7 +139,7 @@ python nvidia_rag_mcp/mcp_client.py call \
   --command=python \
   --args="nvidia_rag_mcp/mcp_server.py --transport stdio" \
   --tool=generate \
-  --json-args='{"messages":[{"role":"user","content":"Say \"ok\""}],"collection_name":"my_collection"}'
+  --json-args='{"messages":[{"role":"user","content":"Say \"ok\""}],"collection_names":["my_collection"]}'
 ```
 
 #### `search`
@@ -150,7 +150,7 @@ python nvidia_rag_mcp/mcp_client.py call \
   --transport=sse \
   --url=http://127.0.0.1:8000/sse \
   --tool=search \
-  --json-args='{"query":"Tell me about Robert Frost''s poems","collection_name":"my_collection","reranker_top_k":2,"vdb_top_k":5,"enable_query_rewriting":false,"enable_reranker":true}'
+  --json-args='{"query":"Tell me about Robert Frost''s poems","collection_names":["my_collection"],"reranker_top_k":2,"vdb_top_k":5,"enable_query_rewriting":false,"enable_reranker":true}'
 ```
 
 streamable_http:
@@ -159,7 +159,7 @@ python nvidia_rag_mcp/mcp_client.py call \
   --transport=streamable_http \
   --url=http://127.0.0.1:8000/mcp \
   --tool=search \
-  --json-args='{"query":"Tell me about Robert Frost''s poems","collection_name":"my_collection","reranker_top_k":2,"vdb_top_k":5,"enable_query_rewriting":false,"enable_reranker":true}'
+  --json-args='{"query":"Tell me about Robert Frost''s poems","collection_names":["my_collection"],"reranker_top_k":2,"vdb_top_k":5,"enable_query_rewriting":false,"enable_reranker":true}'
 ```
 
 stdio:
@@ -169,7 +169,7 @@ python nvidia_rag_mcp/mcp_client.py call \
   --command=python \
   --args="nvidia_rag_mcp/mcp_server.py --transport stdio" \
   --tool=search \
-  --json-args='{"query":"Tell me about Robert Frost''s poems","collection_name":"my_collection","reranker_top_k":2,"vdb_top_k":5,"enable_query_rewriting":false,"enable_reranker":true}'
+  --json-args='{"query":"Tell me about Robert Frost''s poems","collection_names":["my_collection"],"reranker_top_k":2,"vdb_top_k":5,"enable_query_rewriting":false,"enable_reranker":true}'
 ```
 
 #### `get_summary`

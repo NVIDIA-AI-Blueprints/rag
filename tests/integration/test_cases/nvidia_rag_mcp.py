@@ -374,7 +374,7 @@ class MCPIntegrationModule(BaseTestModule):
         try:
             payload = {
                 "messages": [{"role": "user", "content": "Say 'ok'"}],
-                "collection_name": self.collection,
+                "collection_names": [self.collection],
             }
             args = [
                 "call",
@@ -399,7 +399,7 @@ class MCPIntegrationModule(BaseTestModule):
             "SSE: Call Generate",
             "Call 'generate' tool over SSE.",
             ["MCP/SSE call_tool(generate)"],
-            ["messages", "collection_name"],
+            ["messages", "collection_names"],
             time.time() - start,
             TestStatus.SUCCESS if ok else TestStatus.FAILURE,
             None if ok else "SSE generate did not return expected content",
@@ -419,7 +419,7 @@ class MCPIntegrationModule(BaseTestModule):
         try:
             payload = {
                 "query": "woods frost",
-                "collection_name": self.collection,
+                "collection_names": [self.collection],
             }
             args = [
                 "call",
@@ -444,7 +444,7 @@ class MCPIntegrationModule(BaseTestModule):
             "SSE: Call Search",
             "Call 'search' tool over SSE.",
             ["MCP/SSE call_tool(search)"],
-            ["query", "collection_name"],
+            ["query", "collection_names"],
             time.time() - start,
             TestStatus.SUCCESS if ok else TestStatus.FAILURE,
             None if ok else "SSE search did not return results",
@@ -684,7 +684,7 @@ class MCPIntegrationModule(BaseTestModule):
         try:
             payload = {
                 "messages": [{"role": "user", "content": "Say 'ok'"}],
-                "collection_name": self.collection,
+                "collection_names": [self.collection],
             }
             args = [
                 "call",
@@ -708,7 +708,7 @@ class MCPIntegrationModule(BaseTestModule):
             "streamable_http: Call Generate",
             "Call 'generate' tool over streamable_http.",
             ["MCP/streamable_http call_tool(generate)"],
-            ["messages", "collection_name"],
+            ["messages", "collection_names"],
             time.time() - start,
             TestStatus.SUCCESS if ok else TestStatus.FAILURE,
             None if ok else "streamable_http generate failed",
@@ -723,7 +723,7 @@ class MCPIntegrationModule(BaseTestModule):
         try:
             payload = {
                 "query": "woods frost",
-                "collection_name": self.collection,
+                "collection_names": [self.collection],
             }
             args = [
                 "call",
@@ -748,7 +748,7 @@ class MCPIntegrationModule(BaseTestModule):
             "streamable_http: Call Search",
             "Call 'search' tool over streamable_http.",
             ["MCP/streamable_http call_tool(search)"],
-            ["query", "collection_name"],
+            ["query", "collection_names"],
             time.time() - start,
             TestStatus.SUCCESS if ok else TestStatus.FAILURE,
             None if ok else "streamable_http search failed",
@@ -968,7 +968,7 @@ class MCPIntegrationModule(BaseTestModule):
         try:
             payload = {
                 "messages": [{"role": "user", "content": "Say 'ok'"}],
-                "collection_name": self.collection,
+                "collection_names": [self.collection],
             }
             repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
             server_path = os.path.join(repo_root, "nvidia_rag_mcp", "mcp_server.py")
@@ -996,7 +996,7 @@ class MCPIntegrationModule(BaseTestModule):
             "stdio: Call Generate",
             "Call 'generate' tool over stdio.",
             ["MCP/stdio call_tool(generate)"],
-            ["messages", "collection_name"],
+            ["messages", "collection_names"],
             time.time() - start,
             TestStatus.SUCCESS if ok else TestStatus.FAILURE,
             None if ok else "stdio generate did not return expected content",
@@ -1010,7 +1010,7 @@ class MCPIntegrationModule(BaseTestModule):
         try:
             payload = {
                 "query": "woods frost",
-                "collection_name": self.collection,
+                "collection_names": [self.collection],
             }
             repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
             server_path = os.path.join(repo_root, "nvidia_rag_mcp", "mcp_server.py")
@@ -1039,7 +1039,7 @@ class MCPIntegrationModule(BaseTestModule):
             "stdio: Call Search",
             "Call 'search' tool over stdio.",
             ["MCP/stdio call_tool(search)"],
-            ["query", "collection_name"],
+            ["query", "collection_names"],
             time.time() - start,
             TestStatus.SUCCESS if ok else TestStatus.FAILURE,
             None if ok else "stdio search did not return results",

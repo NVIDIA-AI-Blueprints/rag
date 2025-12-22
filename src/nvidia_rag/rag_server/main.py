@@ -371,7 +371,6 @@ class NvidiaRAG:
         vdb_endpoint: str | None = None,
         min_thinking_tokens: int | None = None,
         max_thinking_tokens: int | None = None,
-        collection_name: str = "",
         collection_names: list[str] | None = None,
         enable_query_rewriting: bool | None = None,
         enable_reranker: bool | None = None,
@@ -411,7 +410,6 @@ class NvidiaRAG:
             stop: List of stop sequences
             reranker_top_k: Number of documents to return after reranking
             vdb_top_k: Number of documents to retrieve from vector DB
-            collection_name: Name of the collection to use
             collection_names: List of collection names to use
             enable_query_rewriting: Whether to enable query rewriting
             enable_reranker: Whether to enable reranking
@@ -591,7 +589,6 @@ class NvidiaRAG:
                 chat_history=chat_history,
                 reranker_top_k=reranker_top_k,
                 vdb_top_k=vdb_top_k,
-                collection_name=collection_name,
                 collection_names=collection_names,
                 enable_reranker=enable_reranker,
                 reranker_model=reranker_model,
@@ -618,7 +615,6 @@ class NvidiaRAG:
                 query=query,
                 chat_history=chat_history,
                 model=model,
-                collection_name=collection_name,
                 enable_citations=enable_citations,
                 metrics=metrics,
             )
@@ -629,7 +625,6 @@ class NvidiaRAG:
         messages: list[dict[str, str]] | None = None,
         reranker_top_k: int | None = None,
         vdb_top_k: int | None = None,
-        collection_name: str = "",
         collection_names: list[str] | None = None,
         vdb_endpoint: str | None = None,
         vdb_auth_token: str = "",
@@ -651,7 +646,6 @@ class NvidiaRAG:
             messages (List[Dict[str, str]]): List of chat messages for context.
             reranker_top_k (int): Number of document chunks to retrieve after reranking.
             vdb_top_k (int): Number of top results to retrieve from vector database.
-            collection_name (str): Name of the collection to be searched from vectorstore.
             collection_names (List[str]): List of collection names to be searched from vectorstore.
             vdb_endpoint (str): Endpoint URL of the vector database server.
             enable_query_rewriting (bool): Whether to enable query rewriting.
@@ -733,12 +727,6 @@ class NvidiaRAG:
         )
 
         try:
-            if collection_name:  # Would be deprecated in the future
-                logger.warning(
-                    "'collection_name' parameter is provided. This will be deprecated in the future. Use 'collection_names' instead."
-                )
-                collection_names = [collection_name]
-
             if not collection_names:
                 raise APIError(
                     "Collection names are not provided.", ErrorCodeMapping.BAD_REQUEST
@@ -1354,7 +1342,6 @@ class NvidiaRAG:
         query: str | list[dict[str, Any]],
         chat_history: list[dict[str, Any]],
         model: str = "",
-        collection_name: str = "",
         enable_citations: bool = True,
         metrics: OtelMetrics | None = None,
     ) -> AsyncGenerator[str, None]:
@@ -1366,7 +1353,6 @@ class NvidiaRAG:
             query: The user's query
             chat_history: List of conversation messages
             model: Name of the model used for generation
-            collection_name: Name of the collection used for retrieval
             enable_citations: Whether to enable citations in the response
         """
         try:
@@ -1438,7 +1424,7 @@ class NvidiaRAG:
                     prefetched_stream,
                     [],
                     model=model,
-                    collection_name=collection_name,
+                    collection_name="",
                     enable_citations=enable_citations,
                     otel_metrics_client=metrics,
                 ),
@@ -1457,7 +1443,7 @@ class NvidiaRAG:
                     ),
                     [],
                     model=model,
-                    collection_name=collection_name,
+                    collection_name="",
                     enable_citations=enable_citations,
                     otel_metrics_client=metrics,
                 ),
@@ -1474,7 +1460,7 @@ class NvidiaRAG:
                     _async_iter([error_msg]),
                     [],
                     model=model,
-                    collection_name=collection_name,
+                    collection_name="",
                     enable_citations=enable_citations,
                     otel_metrics_client=metrics,
                 ),
@@ -1505,7 +1491,7 @@ class NvidiaRAG:
                         ),
                         [],
                         model=model,
-                        collection_name=collection_name,
+                        collection_name="",
                         enable_citations=enable_citations,
                         otel_metrics_client=metrics,
                     ),
@@ -1521,7 +1507,7 @@ class NvidiaRAG:
                         _async_iter([error_msg]),
                         [],
                         model=model,
-                        collection_name=collection_name,
+                        collection_name="",
                         enable_citations=enable_citations,
                         otel_metrics_client=metrics,
                     ),
@@ -1533,7 +1519,7 @@ class NvidiaRAG:
                         _async_iter([str(e)]),
                         [],
                         model=model,
-                        collection_name=collection_name,
+                        collection_name="",
                         enable_citations=enable_citations,
                         otel_metrics_client=metrics,
                     ),
@@ -1618,7 +1604,6 @@ class NvidiaRAG:
         chat_history: list[dict[str, Any]],
         reranker_top_k: int = 10,
         vdb_top_k: int = 40,
-        collection_name: str = "",
         collection_names: list[str] | None = None,
         enable_reranker: bool = True,
         reranker_model: str = "",
@@ -1645,7 +1630,6 @@ class NvidiaRAG:
             chat_history: List of conversation messages
             reranker_top_k: Number of documents to return after reranking
             vdb_top_k: Number of documents to retrieve from vector DB
-            collection_name: Name of the collection to use
             collection_names: List of collection names to use
             embedding_model: Name of the embedding model
             embedding_endpoint: Embedding server endpoint URL
@@ -1674,13 +1658,6 @@ class NvidiaRAG:
                 else self.config.default_confidence_threshold
             )
 
-            # If collection_name is provided, use it as the collection name,
-            # Otherwise, use the collection names from the kwargs
-            if collection_name:  # Would be deprecated in the future
-                logger.warning(
-                    "'collection_name' parameter is provided. This will be deprecated in the future. Use 'collection_names' instead."
-                )
-                collection_names = [collection_name]
             # Check if collection names are provided
             if not collection_names:
                 raise APIError(
@@ -2381,7 +2358,7 @@ class NvidiaRAG:
                                 prefetched_vlm_stream,
                                 context_to_show,
                                 model=model,
-                                collection_name=collection_name,
+                                collection_name=validated_collections[0] if validated_collections else "",
                                 enable_citations=enable_citations,
                             ),
                             status_code=ErrorCodeMapping.SUCCESS,
@@ -2394,7 +2371,7 @@ class NvidiaRAG:
                                 _async_iter([e.message]),
                                 [],
                                 model=model,
-                                collection_name=collection_name,
+                                collection_name=validated_collections[0] if validated_collections else "",
                                 enable_citations=enable_citations,
                                 otel_metrics_client=metrics,
                             ),
@@ -2404,7 +2381,7 @@ class NvidiaRAG:
                         logger.warning(
                             "VLM processing failed for query='%s', collection='%s': %s",
                             query,
-                            collection_name,
+                            validated_collections[0] if validated_collections else "",
                             e,
                             exc_info=True,
                         )
@@ -2419,7 +2396,7 @@ class NvidiaRAG:
                         logger.error(
                             "Unexpected error during VLM processing for query='%s', collection='%s': %s",
                             query,
-                            collection_name,
+                            validated_collections[0] if validated_collections else "",
                             e,
                             exc_info=True,
                         )
@@ -2507,7 +2484,7 @@ class NvidiaRAG:
                         _async_iter([final_response]),
                         context_to_show,
                         model=model,
-                        collection_name=collection_name,
+                        collection_name=validated_collections[0] if validated_collections else "",
                         enable_citations=enable_citations,
                         context_reranker_time_ms=context_reranker_time_ms,
                         retrieval_time_ms=retrieval_time_ms,
@@ -2530,7 +2507,7 @@ class NvidiaRAG:
                         prefetched_stream,
                         context_to_show,
                         model=model,
-                        collection_name=collection_name,
+                        collection_name=validated_collections[0] if validated_collections else "",
                         enable_citations=enable_citations,
                         context_reranker_time_ms=context_reranker_time_ms,
                         retrieval_time_ms=retrieval_time_ms,
@@ -2553,7 +2530,7 @@ class NvidiaRAG:
                     ),
                     [],
                     model=model,
-                    collection_name=collection_name,
+                    collection_name=collection_names[0] if collection_names else "",
                     enable_citations=enable_citations,
                     otel_metrics_client=metrics,
                 ),
@@ -2568,7 +2545,7 @@ class NvidiaRAG:
                     _async_iter([e.message]),
                     [],
                     model=model,
-                    collection_name=collection_name,
+                    collection_name=collection_names[0] if collection_names else "",
                     enable_citations=enable_citations,
                     otel_metrics_client=metrics,
                 ),
@@ -2585,7 +2562,7 @@ class NvidiaRAG:
                     _async_iter([error_msg]),
                     [],
                     model=model,
-                    collection_name=collection_name,
+                    collection_name=collection_names[0] if collection_names else "",
                     enable_citations=enable_citations,
                     otel_metrics_client=metrics,
                 ),
@@ -2616,7 +2593,7 @@ class NvidiaRAG:
                         ),
                         [],
                         model=model,
-                        collection_name=collection_name,
+                        collection_name=collection_names[0] if collection_names else "",
                         enable_citations=enable_citations,
                         otel_metrics_client=metrics,
                     ),
@@ -2644,7 +2621,7 @@ class NvidiaRAG:
                         _async_iter([error_msg]),
                         [],
                         model=model,
-                        collection_name=collection_name,
+                        collection_name=collection_names[0] if collection_names else "",
                         enable_citations=enable_citations,
                         otel_metrics_client=metrics,
                     ),
@@ -2656,7 +2633,7 @@ class NvidiaRAG:
                         _async_iter([str(e)]),
                         [],
                         model=model,
-                        collection_name=collection_name,
+                        collection_name=collection_names[0] if collection_names else "",
                         enable_citations=enable_citations,
                         otel_metrics_client=metrics,
                     ),

@@ -75,7 +75,6 @@ Args JSON:
 {
   "messages": [{"role": "user", "content": "..."}],
   "use_knowledge_base": true,
-  "collection_name": "test",
   "collection_names": ["c1", "c2"],
   "temperature": 0.2,
   "top_p": 0.9,
@@ -117,7 +116,6 @@ async def tool_generate(
     reranker_top_k: int | None = None,
     vdb_top_k: int | None = None,
     vdb_endpoint: str | None = None,
-    collection_name: str = "",
     collection_names: list[str] | None = None,
     enable_query_rewriting: bool | None = None,
     enable_reranker: bool | None = None,
@@ -171,8 +169,6 @@ async def tool_generate(
         payload["vdb_top_k"] = vdb_top_k
     if vdb_endpoint is not None:
         payload["vdb_endpoint"] = vdb_endpoint
-    if collection_name:
-        payload["collection_name"] = collection_name
     if collection_names is not None:
         payload["collection_names"] = collection_names
     if enable_query_rewriting is not None:
@@ -265,7 +261,6 @@ Args JSON:
 {
   "query": "text or structured query",
   "messages": [{"role": "user", "content": "..."}],
-  "collection_name": "test",
   "collection_names": ["c1", "c2"],
   "vdb_endpoint": "",
   "reranker_top_k": 2,
@@ -287,7 +282,6 @@ async def tool_search(
     messages: list[dict[str, str]] | None = None,
     reranker_top_k: int | None = None,
     vdb_top_k: int | None = None,
-    collection_name: str = "",
     collection_names: list[str] | None = None,
     vdb_endpoint: str | None = None,
     enable_query_rewriting: bool | None = None,
@@ -320,8 +314,6 @@ async def tool_search(
         payload["reranker_top_k"] = reranker_top_k
     if vdb_top_k is not None:
         payload["vdb_top_k"] = vdb_top_k
-    if collection_name:
-        payload["collection_name"] = collection_name
     if collection_names is not None:
         payload["collection_names"] = collection_names
     if vdb_endpoint is not None:

@@ -224,7 +224,7 @@ def valid_prompt_data():
         "temperature": 0.7,
         "top_p": 0.9,
         "max_tokens": 1024,
-        "collection_name": "test_collection",
+        "collection_names": ["test_collection"],
         "model": "test-model",
         "reranker_top_k": 4,
         "vdb_top_k": 10,
@@ -372,7 +372,7 @@ class TestDocumentSearchEndpoint:
             "query": "",
             "reranker_top_k": 4,
             "vdb_top_k": 10,
-            "collection_name": "test_collection",
+            "collection_names": ["test_collection"],
             "messages": [{"role": "user", "content": ""}],
             "enable_query_rewriting": True,
             "enable_reranker": True,
@@ -396,7 +396,7 @@ class TestDocumentSearchEndpoint:
             "query": "What is machine learning?",
             "reranker_top_k": -1,  # Invalid value
             "vdb_top_k": 10,
-            "collection_name": "test_collection",
+            "collection_names": ["test_collection"],
             "messages": [{"role": "user", "content": "What is machine learning?"}],
         }
 
@@ -492,7 +492,7 @@ def search_data():
         "query": "What is machine learning?",
         "reranker_top_k": 4,
         "vdb_top_k": 10,
-        "collection_name": "test_collection",
+        "collection_names": ["test_collection"],
         "messages": [{"role": "user", "content": "What is machine learning?"}],
         "enable_query_rewriting": True,
         "enable_reranker": True,
@@ -552,7 +552,7 @@ class TestServerErrorHandling:
         """Test /generate endpoint handles ValueError"""
         invalid_data = {
             "messages": [],  # Empty messages should raise ValueError
-            "collection_name": "test_collection",
+            "collection_names": ["test_collection"],
         }
 
         response = client.post("/v1/generate", json=invalid_data)
@@ -666,7 +666,7 @@ class TestServerValidation:
         """Test /generate endpoint rejects empty messages"""
         invalid_data = {
             "messages": [],
-            "collection_name": "test_collection",
+            "collection_names": ["test_collection"],
         }
 
         response = client.post("/v1/generate", json=invalid_data)
@@ -677,7 +677,7 @@ class TestServerValidation:
         """Test /generate endpoint rejects messages without user role"""
         invalid_data = {
             "messages": [{"role": "assistant", "content": "Hello"}],
-            "collection_name": "test_collection",
+            "collection_names": ["test_collection"],
         }
 
         response = client.post("/v1/generate", json=invalid_data)
@@ -691,7 +691,7 @@ class TestServerValidation:
                 {"role": "user", "content": "Hello"},
                 {"role": "assistant", "content": "Hi there"},
             ],
-            "collection_name": "test_collection",
+            "collection_names": ["test_collection"],
         }
 
         response = client.post("/v1/generate", json=invalid_data)
@@ -703,7 +703,7 @@ class TestServerValidation:
         invalid_data = {
             "query": "test query",
             "messages": [{"role": "assistant", "content": "Hello"}],
-            "collection_name": "test_collection",
+            "collection_names": ["test_collection"],
         }
 
         response = client.post("/v1/search", json=invalid_data)
@@ -718,7 +718,7 @@ class TestServerValidation:
                 {"role": "user", "content": "Hello"},
                 {"role": "assistant", "content": "Hi there"},
             ],
-            "collection_name": "test_collection",
+            "collection_names": ["test_collection"],
         }
 
         response = client.post("/v1/search", json=invalid_data)
@@ -867,7 +867,7 @@ class TestServerMessageProcessing:
                         ],
                     }
                 ],
-                "collection_name": "test_collection",
+                "collection_names": ["test_collection"],
             }
 
             response = client.post("/v1/generate", json=data)
@@ -895,7 +895,7 @@ class TestServerMessageProcessing:
                         ],
                     }
                 ],
-                "collection_name": "test_collection",
+                "collection_names": ["test_collection"],
             }
 
             response = client.post("/v1/generate", json=data)
@@ -918,7 +918,7 @@ class TestServerMessageProcessing:
                         "content": [{"unknown": "value"}],
                     }
                 ],
-                "collection_name": "test_collection",
+                "collection_names": ["test_collection"],
             }
 
             response = client.post("/v1/generate", json=data)
@@ -935,7 +935,7 @@ class TestServerMessageProcessing:
             data = {
                 "query": [{"type": "text", "text": "test query"}],
                 "messages": [{"role": "user", "content": "test"}],
-                "collection_name": "test_collection",
+                "collection_names": ["test_collection"],
             }
 
             response = client.post("/v1/search", json=data)
@@ -957,7 +957,7 @@ class TestServerMessageProcessing:
                     }
                 ],
                 "messages": [{"role": "user", "content": "test"}],
-                "collection_name": "test_collection",
+                "collection_names": ["test_collection"],
             }
 
             response = client.post("/v1/search", json=data)

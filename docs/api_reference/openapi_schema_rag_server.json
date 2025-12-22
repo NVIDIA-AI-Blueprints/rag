@@ -60,7 +60,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+
+                }
               }
             }
           }
@@ -371,7 +373,9 @@
               }
             ],
             "description": "Latency metrics associated with the request",
-            "default": {}
+            "default": {
+
+            }
           }
         },
         "type": "object",
@@ -580,15 +584,6 @@
             "description": "Endpoint url of the vector database server.",
             "default": "http://milvus:19530"
           },
-          "collection_name": {
-            "type": "string",
-            "maxLength": 4096,
-            "pattern": "[\\s\\S]*",
-            "title": "Collection Name",
-            "description": "Name of collection to be used for searching document.",
-            "default": "",
-            "deprecated": true
-          },
           "collection_names": {
             "items": {
               "type": "string"
@@ -640,7 +635,7 @@
             "maxLength": 2048,
             "title": "Embedding Endpoint",
             "description": "Endpoint URL for the embedding model server.",
-            "default": "https://integrate.api.nvidia.com/v1"
+            "default": "http://nemoretriever-embedding-ms:8000/v1"
           },
           "reranker_model": {
             "type": "string",
@@ -661,7 +656,7 @@
             ],
             "title": "Reranker Endpoint",
             "description": "Endpoint URL for the reranker model server.",
-            "default": ""
+            "default": "http://nemoretriever-ranking-ms:8000"
           },
           "filter_expr": {
             "anyOf": [
@@ -685,7 +680,7 @@
             "maximum": 1,
             "minimum": 0,
             "title": "Confidence Threshold",
-            "description": "Minimum confidence score threshold for filtering chunks. Only chunks with relevance scores >= this threshold will be included. Range: 0.0 to 1.0. Default: 0.0 (no filtering). Note: Requires enable_reranker=True to generate relevance scores.",
+            "description": "Minimum confidence score threshold for filtering chunks. Only chunks with relevance scores \u003E= this threshold will be included. Range: 0.0 to 1.0. Default: 0.0 (no filtering). Note: Requires enable_reranker=True to generate relevance scores.",
             "default": 0
           }
         },
@@ -817,7 +812,7 @@
             "type": "string",
             "maxLength": 20971520,
             "title": "Url",
-            "description": "Either a URL of the image or the base64 encoded image data. Supports data URIs in the format data:image/jpeg;base64,<base64-data>"
+            "description": "Either a URL of the image or the base64 encoded image data. Supports data URIs in the format data:image/jpeg;base64,\u003Cbase64-data\u003E"
           },
           "detail": {
             "type": "string",
@@ -845,8 +840,7 @@
               "user",
               "assistant",
               "system",
-              null
-            ],
+              null],
             "title": "Role",
             "description": "Role for a message: either 'user' or 'assistant' or 'system",
             "default": "user"
@@ -886,8 +880,7 @@
               "user",
               "assistant",
               "system",
-              null
-            ],
+              null],
             "title": "Role",
             "description": "Role for a message: either 'user' or 'assistant' or 'system",
             "default": "user"
@@ -1199,15 +1192,6 @@
             "description": "Endpoint url of the vector database server.",
             "default": "http://milvus:19530"
           },
-          "collection_name": {
-            "type": "string",
-            "maxLength": 4096,
-            "pattern": "[\\s\\S]*",
-            "title": "Collection Name",
-            "description": "Name of collection to be used for inference.",
-            "default": "",
-            "deprecated": true
-          },
           "collection_names": {
             "items": {
               "type": "string"
@@ -1268,7 +1252,7 @@
             "maxLength": 2048,
             "title": "Llm Endpoint",
             "description": "Endpoint URL for the llm model server.",
-            "default": ""
+            "default": "http://nim-llm:8000"
           },
           "embedding_model": {
             "type": "string",
@@ -1289,7 +1273,7 @@
             ],
             "title": "Embedding Endpoint",
             "description": "Endpoint URL for the embedding model server.",
-            "default": "https://integrate.api.nvidia.com/v1"
+            "default": "http://nemoretriever-embedding-ms:8000/v1"
           },
           "reranker_model": {
             "type": "string",
@@ -1310,7 +1294,7 @@
             ],
             "title": "Reranker Endpoint",
             "description": "Endpoint URL for the reranker model server.",
-            "default": ""
+            "default": "http://nemoretriever-ranking-ms:8000"
           },
           "vlm_model": {
             "type": "string",
@@ -1331,7 +1315,7 @@
             ],
             "title": "Vlm Endpoint",
             "description": "Endpoint URL for the VLM model server.",
-            "default": "https://integrate.api.nvidia.com/v1"
+            "default": "http://vlm-ms:8000/v1"
           },
           "vlm_temperature": {
             "type": "number",
@@ -1400,7 +1384,7 @@
             "maximum": 1,
             "minimum": 0,
             "title": "Confidence Threshold",
-            "description": "Minimum confidence score threshold for filtering chunks. Only chunks with relevance scores >= this threshold will be included. Range: 0.0 to 1.0. Default: 0.0 (no filtering). Note: Requires enable_reranker=True to generate relevance scores.",
+            "description": "Minimum confidence score threshold for filtering chunks. Only chunks with relevance scores \u003E= this threshold will be included. Range: 0.0 to 1.0. Default: 0.0 (no filtering). Note: Requires enable_reranker=True to generate relevance scores.",
             "default": 0
           }
         },
@@ -1588,7 +1572,9 @@
             "type": "object",
             "title": "Content Metadata",
             "description": "Metadata about the content",
-            "default": {}
+            "default": {
+
+            }
           }
         },
         "type": "object",

@@ -463,14 +463,6 @@ class Prompt(BaseModel):
         description="Endpoint url of the vector database server.",
         default=CONFIG.vector_store.url,
     )
-    # TODO: Remove this field in the future
-    collection_name: str = Field(
-        description="Name of collection to be used for inference.",
-        default="",
-        max_length=4096,
-        pattern=r"[\s\S]*",
-        deprecated=True,
-    )
     collection_names: list[str] = Field(
         default=[CONFIG.vector_store.default_collection_name],
         description="Name of the collections in the vector database.",
@@ -649,14 +641,6 @@ class DocumentSearch(BaseModel):
     #     description="Search type for the vector space. Can be one of dense or hybrid",
     #     default=os.getenv("APP_VECTORSTORE_SEARCHTYPE", "dense")
     # )
-    # TODO: Remove this field in the future
-    collection_name: str = Field(
-        description="Name of collection to be used for searching document.",
-        default="",
-        max_length=4096,
-        pattern=r"[\s\S]*",
-        deprecated=True,
-    )
     collection_names: list[str] = Field(
         default=[CONFIG.vector_store.default_collection_name],
         description="Name of the collections in the vector database.",
@@ -1399,7 +1383,6 @@ async def generate_answer(request: Request, prompt: Prompt) -> StreamingResponse
         "reranker_top_k": prompt.reranker_top_k,
         "vdb_top_k": prompt.vdb_top_k,
         "vdb_endpoint": prompt.vdb_endpoint,
-        "collection_name": prompt.collection_name,
         "collection_names": prompt.collection_names,
         "enable_query_rewriting": prompt.enable_query_rewriting,
         "enable_reranker": prompt.enable_reranker,
@@ -1482,7 +1465,6 @@ async def generate_answer(request: Request, prompt: Prompt) -> StreamingResponse
             reranker_top_k=prompt.reranker_top_k,
             vdb_top_k=prompt.vdb_top_k,
             vdb_endpoint=prompt.vdb_endpoint,
-            collection_name=prompt.collection_name,
             collection_names=prompt.collection_names,
             enable_query_rewriting=prompt.enable_query_rewriting,
             enable_reranker=prompt.enable_reranker,
@@ -1690,7 +1672,6 @@ async def document_search(
             vdb_auth_token=vdb_auth_token,
             reranker_top_k=data.reranker_top_k,
             vdb_top_k=data.vdb_top_k,
-            collection_name=data.collection_name,
             collection_names=data.collection_names,
             vdb_endpoint=data.vdb_endpoint,
             enable_query_rewriting=data.enable_query_rewriting,
@@ -1917,7 +1898,6 @@ async def _vector_store_search_impl(
             vdb_auth_token=vdb_auth_token,
             reranker_top_k=search_request.max_num_results,
             vdb_top_k=vdb_top_k,
-            collection_name="",  # Deprecated field, leave empty
             collection_names=[vector_store_id],
             vdb_endpoint=CONFIG.vector_store.url,
             enable_query_rewriting=search_request.rewrite_query,
