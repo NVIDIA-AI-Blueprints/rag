@@ -461,7 +461,7 @@ class ElasticVDB(VDBRagIngest):
                             "collection_name": index_name,
                             "num_entities": index["docs.count"],
                             "metadata_schema": metadata_schema,
-                            "collection_info": {**catalog_data, **metrics_data},
+                            "collection_info": {**metrics_data, **catalog_data},
                         }
                     )
         return collection_info
