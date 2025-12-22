@@ -140,7 +140,7 @@ async def test_search_uses_query_rewriter_when_enabled(monkeypatch):
     await rag.search(
         query="How does it work?",
         messages=messages,
-        collection_name="test",
+        collection_names=["test"],
         enable_query_rewriting=True,
         enable_reranker=False,
         filter_expr="",
@@ -175,7 +175,7 @@ async def test_search_skips_query_rewriter_when_history_is_zero(monkeypatch, cap
         await rag.search(
             query="How does it work?",
             messages=messages,
-            collection_name="test",
+            collection_names=["test"],
             enable_query_rewriting=True,
             enable_reranker=False,
             filter_expr="",
@@ -208,7 +208,7 @@ async def test_search_uses_only_current_query_when_history_disabled(monkeypatch)
     await rag.search(
         query="How does it work?",
         messages=messages,
-        collection_name="test",
+        collection_names=["test"],
         enable_query_rewriting=False,
         enable_reranker=False,
         filter_expr="",
@@ -239,7 +239,7 @@ async def test_search_combines_history_when_multiturn_enabled(monkeypatch):
     await rag.search(
         query="How does it work?",
         messages=messages,
-        collection_name="test",
+        collection_names=["test"],
         enable_query_rewriting=False,
         enable_reranker=False,
         filter_expr="",
@@ -271,7 +271,7 @@ async def test_generate_uses_query_rewriter_when_enabled(monkeypatch):
     stream = await rag.generate(
         messages=messages,
         use_knowledge_base=True,
-        collection_name="test",
+        collection_names=["test"],
         enable_query_rewriting=True,
         enable_reranker=False,
         enable_vlm_inference=False,
@@ -300,7 +300,7 @@ async def test_generate_uses_only_current_query_when_history_disabled(monkeypatc
     stream = await rag.generate(
         messages=messages,
         use_knowledge_base=True,
-        collection_name="test",
+        collection_names=["test"],
         enable_query_rewriting=False,
         enable_reranker=False,
         enable_vlm_inference=False,
@@ -334,7 +334,7 @@ async def test_generate_combines_history_when_multiturn_enabled(monkeypatch):
     stream = await rag.generate(
         messages=messages,
         use_knowledge_base=True,
-        collection_name="test",
+        collection_names=["test"],
         enable_query_rewriting=False,
         enable_reranker=False,
         enable_vlm_inference=False,

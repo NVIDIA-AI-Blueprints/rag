@@ -741,7 +741,6 @@ class TestNvidiaRAGLLMChainCoverage:
                                     query="test query",
                                     chat_history=[],
                                     model="test_model",
-                                    collection_name="test_collection",
                                     enable_citations=True,
                                 )
 
@@ -822,7 +821,6 @@ class TestNvidiaRAGLLMChainCoverage:
                                     query="test query",
                                     chat_history=chat_history,
                                     model="test_model",
-                                    collection_name="test_collection",
                                     enable_citations=True,
                                 )
 
@@ -901,7 +899,6 @@ class TestNvidiaRAGLLMChainCoverage:
                                     query="test query",
                                     chat_history=[],
                                     model="test_model",
-                                    collection_name="test_collection",
                                     enable_citations=True,
                                 )
 
@@ -978,7 +975,6 @@ class TestNvidiaRAGLLMChainCoverage:
                                     query="test query",
                                     chat_history=[],
                                     model="test_model",
-                                    collection_name="test_collection",
                                     enable_citations=True,
                                 )
 
@@ -1055,7 +1051,6 @@ class TestNvidiaRAGLLMChainCoverage:
                                     query="test query",
                                     chat_history=[],
                                     model="test_model",
-                                    collection_name="test_collection",
                                     enable_citations=True,
                                 )
 
@@ -1134,7 +1129,6 @@ class TestNvidiaRAGLLMChainCoverage:
                                     query="test query",
                                     chat_history=[],
                                     model="test_model",
-                                    collection_name="test_collection",
                                     enable_citations=True,
                                 )
 
