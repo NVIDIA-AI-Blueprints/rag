@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 2
 requires-python = ">=3.11, <3.14"
 resolution-markers = [
     "python_full_version >= '3.13'",
@@ -1723,7 +1723,7 @@ wheels = [
 
 [[package]]
 name = "nv-ingest-api"
-version = "26.1.0rc2"
+version = "26.1.0rc3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "backoff" },
@@ -1737,14 +1737,14 @@ dependencies = [
     { name = "tritonclient" },
     { name = "universal-pathlib" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/94/c9/affc0c6727ee9cc6f6b027a596d211ca13417e67dd5d046c675cf273bdf2/nv_ingest_api-26.1.0rc2.tar.gz", hash = "sha256:d6c0d5fd0e6aaf0bc4d492ec5ff3df946bcc801cdd4d042c1ce215142db84933", size = 258541, upload-time = "2025-12-12T01:06:01.336Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/55/f8/eb37dbf22235c392505598d99ff858bb067b2e1531020df29b7c2de721f2/nv_ingest_api-26.1.0rc3.tar.gz", hash = "sha256:09858be8856350976ac43ce71af1ce8ba2bcb9ec8202711dd4c3ca720d76dff7", size = 259270, upload-time = "2025-12-19T15:10:05.77Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/de/34/7719f3eee5d3b8221895e349786e8853e358c2220000f79c3580384ffb13/nv_ingest_api-26.1.0rc2-py3-none-any.whl", hash = "sha256:5c83f0f260bd5ad66e25020bb3a8a3b67982ea1a2124b7d782037a889350ad69", size = 356350, upload-time = "2025-12-12T01:05:57.072Z" },
+    { url = "https://files.pythonhosted.org/packages/d1/98/d630522672360d33b0fa057fc289f74a1d4f48f897c5487bea2aeb28f508/nv_ingest_api-26.1.0rc3-py3-none-any.whl", hash = "sha256:ba5d1ca240fecd97c2fe1ffd098787b61763b1be34bb8c90c00c25991cbd45b3", size = 357095, upload-time = "2025-12-19T15:10:03.366Z" },
 ]
 
 [[package]]
 name = "nv-ingest-client"
-version = "26.1.0rc2"
+version = "26.1.0rc3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "build" },
@@ -1759,9 +1759,9 @@ dependencies = [
     { name = "setuptools" },
     { name = "tqdm" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/23/ca/e9c000a1261d802b722a448b9f7999055afab458a5abcdf2ea900a47a917/nv_ingest_client-26.1.0rc2.tar.gz", hash = "sha256:38d0c763cebdb78c11b14979a6c1f0e37fe6c0f7bd9e22da6a03e96a83f2cac9", size = 126406, upload-time = "2025-12-12T01:06:07.221Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/10/07/15f864fb408b1b642c9dbedb596f7a100be1227cb97928baa7379d95fb41/nv_ingest_client-26.1.0rc3.tar.gz", hash = "sha256:7753c48e9cc0390166f71745262eb395b323ce69e75fdb32aa2a9274fcf1178e", size = 126548, upload-time = "2025-12-19T15:10:10.611Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/eb/89/6ae1d52440a54fb882834c22ea482abf3bf1bf6e1d9eeee5e4c7cd44dabd/nv_ingest_client-26.1.0rc2-py3-none-any.whl", hash = "sha256:1bf1b6ef7492f9d2c5a79e6af99599f6cc7d9ec836176a642524cef18e5447cd", size = 146803, upload-time = "2025-12-12T01:06:03.753Z" },
+    { url = "https://files.pythonhosted.org/packages/ae/57/3169f88c550fa4e74a563d84c34d91032de362a27710cb7ac717d9437ff7/nv_ingest_client-26.1.0rc3-py3-none-any.whl", hash = "sha256:1cff01810db3812f772e498037c1dbb60c8c81a77ac4cf0d9f187e0837cc8bfc", size = 146879, upload-time = "2025-12-19T15:10:07.484Z" },
 ]
 
 [[package]]
@@ -1889,10 +1889,10 @@ requires-dist = [
     { name = "lark", specifier = ">=1.2.2" },
     { name = "mcp", specifier = ">=1.23.1" },
     { name = "minio", specifier = ">=7.2,<8.0" },
-    { name = "nv-ingest-api", marker = "extra == 'all'", specifier = "==26.1.0rc2" },
-    { name = "nv-ingest-api", marker = "extra == 'ingest'", specifier = "==26.1.0rc2" },
-    { name = "nv-ingest-client", marker = "extra == 'all'", specifier = "==26.1.0rc2" },
-    { name = "nv-ingest-client", marker = "extra == 'ingest'", specifier = "==26.1.0rc2" },
+    { name = "nv-ingest-api", marker = "extra == 'all'", specifier = "==26.1.0rc3" },
+    { name = "nv-ingest-api", marker = "extra == 'ingest'", specifier = "==26.1.0rc3" },
+    { name = "nv-ingest-client", marker = "extra == 'all'", specifier = "==26.1.0rc3" },
+    { name = "nv-ingest-client", marker = "extra == 'ingest'", specifier = "==26.1.0rc3" },
     { name = "opentelemetry-api", marker = "extra == 'all'", specifier = ">=1.29,<2.0" },
     { name = "opentelemetry-api", marker = "extra == 'ingest'", specifier = ">=1.29,<2.0" },
     { name = "opentelemetry-api", marker = "extra == 'rag'", specifier = ">=1.29,<2.0" },

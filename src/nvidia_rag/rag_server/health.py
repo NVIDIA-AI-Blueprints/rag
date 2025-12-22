@@ -23,6 +23,7 @@
 import asyncio
 import logging
 import os
+import re
 import time
 from typing import Any
 from urllib.parse import urlparse
@@ -316,9 +317,17 @@ async def check_all_services_health(
     ):
         embed_url = config.embeddings.server_url
         if not embed_url.startswith(("http://", "https://")):
-            embed_url = f"http://{embed_url}/v1/health/ready"
+            embed_url = f"http://{embed_url}"
+        
+        # Check if version suffix (v1, v2, vN) is already present in the URL
+        has_version = re.search(r'/v\d+(?:/|$)', embed_url)
+        
+        if has_version:
+            # Version already present, just add /health/ready
+            embed_url = f"{embed_url.rstrip('/')}/health/ready"
         else:
-            embed_url = f"{embed_url}/v1/health/ready"
+            # No version present, add /v1/health/ready
+            embed_url = f"{embed_url.rstrip('/')}/v1/health/ready"
 
         # For local services, check health and add model info
         embed_result = await check_service_health(

@@ -61,7 +61,7 @@ from typing import Any, Optional, Union
 import pandas as pd
 import requests
 from elastic_transport import ConnectionError as ESConnectionError
-from elasticsearch import Elasticsearch
+from elasticsearch import Elasticsearch, ConflictError
 from elasticsearch.helpers.vectorstore import DenseVectorStrategy, VectorStore
 from langchain_core.documents import Document
 from langchain_core.runnables import RunnableAssign, RunnableLambda
@@ -201,10 +201,6 @@ class ElasticVDB(VDBRagIngest):
             dimensions=self.config.embeddings.dimensions,
             hybrid=self.hybrid,
         )
-
-        kwargs = locals().copy()
-        kwargs.pop("self", None)
-        super().__init__(**kwargs)
 
     @property
     def collection_name(self) -> str:
@@ -762,16 +758,19 @@ class ElasticVDB(VDBRagIngest):
                 info_value=info_value,
             )
 
-        # Delete the metadata schema from the index
-        _ = self._es_connection.delete_by_query(
-            index=DEFAULT_DOCUMENT_INFO_COLLECTION,
-            body=get_delete_document_info_query(
-                collection_name=collection_name,
-                document_name=document_name,
-                info_type=info_type,
-            ),
-        )
-        # Add the metadata schema to the index
+        # Delete the document info from the index
+        try:
+            _ = self._es_connection.delete_by_query(
+                index=DEFAULT_DOCUMENT_INFO_COLLECTION,
+                body=get_delete_document_info_query(
+                    collection_name=collection_name,
+                    document_name=document_name,
+                    info_type=info_type,
+                ),
+            )
+        except ConflictError as e:
+            logger.info(f"Document info not found for collection: {collection_name}, document: {document_name}, info type: {info_type}")
+        # Add the document info to the index
         data = {
             "collection_name": collection_name,
             "info_type": info_type,
