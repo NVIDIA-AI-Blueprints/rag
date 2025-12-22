@@ -97,13 +97,13 @@ logger = logging.getLogger(__name__)
 class MilvusVDB(VDBRagIngest):
     """
     Milvus vector database implementation for RAG applications.
-    
+
     Inherits from VDBRagIngest which provides the abstract interface.
-    
+
     - For RAG/search operations: Works without nv_ingest_client
     - For ingestion operations: Requires nv_ingest_client (pip install nvidia-rag[ingest])
     """
-    
+
     def __init__(
         self,
         collection_name: str,
@@ -440,7 +440,7 @@ class MilvusVDB(VDBRagIngest):
                     "metadata_schema": collection_metadata_schema_map.get(
                         collection_name, []
                     ),
-                    "collection_info": {**catalog_data, **metrics_data},
+                    "collection_info": {**metrics_data, **catalog_data},
                 }
             )
 
@@ -1162,7 +1162,7 @@ class MilvusVDB(VDBRagIngest):
     # ----------------------------------------------------------------------------------------------
     # NV-Ingest VDB Interface Methods (required by VDB abstract class for ingestion)
     # These methods delegate to the nv_ingest Milvus instance created during __init__
-    
+
     def _require_nv_milvus(self, method_name: str):
         """Helper to check if nv_ingest Milvus is available."""
         if self._nv_milvus is None:
@@ -1174,10 +1174,10 @@ class MilvusVDB(VDBRagIngest):
     def create_index(self, **kwargs) -> None:
         """
         Create the Milvus collection/index.
-        
+
         This method is part of the VDB interface from nv_ingest.
         Delegates to the nv_ingest Milvus instance.
-        
+
         Args:
             **kwargs: Must include 'collection_name' and other index parameters
         """
@@ -1187,10 +1187,10 @@ class MilvusVDB(VDBRagIngest):
     def write_to_index(self, records: list, **kwargs) -> None:
         """
         Write records to the Milvus index.
-        
+
         This method is part of the VDB interface from nv_ingest.
         Delegates to the nv_ingest Milvus instance.
-        
+
         Args:
             records: List of records to write to Milvus
         """
@@ -1200,15 +1200,15 @@ class MilvusVDB(VDBRagIngest):
     def retrieval(self, queries: list, **kwargs) -> list[dict[str, Any]]:
         """
         Retrieve documents from Milvus based on queries.
-        
+
         This method is part of the VDB interface from nv_ingest.
         Delegates to the nv_ingest Milvus instance.
-        
+
         Note: For RAG applications, use retrieval_langchain() instead.
-        
+
         Args:
             queries: List of query strings
-            
+
         Returns:
             List of retrieved documents
         """
@@ -1218,10 +1218,10 @@ class MilvusVDB(VDBRagIngest):
     def run(self, records: list) -> None:
         """
         Run the ingestion process to write records to Milvus.
-        
+
         This method is called by nv_ingest's vdb_upload task.
         Delegates to the nv_ingest Milvus instance.
-        
+
         Args:
             records: List of records to ingest into Milvus
         """
@@ -1231,14 +1231,14 @@ class MilvusVDB(VDBRagIngest):
     def run_async(self, records) -> None:
         """
         Run the ingestion process with a Future-based records parameter.
-        
+
         This method is called by nv_ingest's vdb_upload task when records
         are passed as a Future. The method waits for the Future to resolve
         via records.result() before processing.
-        
+
         Note: Despite the name, this is NOT an async method. The 'async'
         refers to the fact that records may be a Future that gets resolved.
-        
+
         Args:
             records: A Future containing records to ingest, or list of records
         """
@@ -1248,10 +1248,10 @@ class MilvusVDB(VDBRagIngest):
     def get_connection_params(self):
         """
         Get connection parameters for the Milvus instance.
-        
+
         This method is part of the VDB interface from nv_ingest.
         Delegates to the nv_ingest Milvus instance.
-        
+
         Returns:
             Tuple of (collection_name, connection_params_dict)
         """
@@ -1261,10 +1261,10 @@ class MilvusVDB(VDBRagIngest):
     def get_write_params(self):
         """
         Get write parameters for the Milvus instance.
-        
+
         This method is part of the VDB interface from nv_ingest.
         Delegates to the nv_ingest Milvus instance.
-        
+
         Returns:
             Tuple of (collection_name, write_params_dict)
         """
@@ -1274,10 +1274,10 @@ class MilvusVDB(VDBRagIngest):
     def reindex(self, **kwargs) -> None:
         """
         Reindex a collection in Milvus.
-        
+
         This method is part of the VDB interface from nv_ingest.
         Delegates to the nv_ingest Milvus instance.
-        
+
         Args:
             **kwargs: Reindex parameters including current_collection_name
         """

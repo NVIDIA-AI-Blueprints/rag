@@ -38,7 +38,6 @@ Private methods:
 """
 
 import asyncio
-from gc import enable
 import json
 import logging
 import os
@@ -332,9 +331,7 @@ class NvidiaRAGIngestor:
             )
 
         # Initialize document-wise status
-        nv_ingest_status = (
-            await state_manager.initialize_nv_ingest_status(filepaths)
-        )
+        nv_ingest_status = await state_manager.initialize_nv_ingest_status(filepaths)
 
         try:
             if not blocking:
@@ -916,14 +913,13 @@ class NvidiaRAGIngestor:
         """Get the status of an ingestion task."""
 
         logger.info(f"Getting status of task {task_id}")
-        document_wise_status = None
         try:
             status_and_result = INGESTION_TASK_HANDLER.get_task_status_and_result(
                 task_id
             )
-            nv_ingest_status = INGESTION_TASK_HANDLER.get_task_state_dict(
-                task_id
-            ).get("nv_ingest_status")
+            nv_ingest_status = INGESTION_TASK_HANDLER.get_task_state_dict(task_id).get(
+                "nv_ingest_status"
+            )
             if status_and_result.get("state") == "PENDING":
                 logger.info(f"Task {task_id} is pending")
                 return {
@@ -1687,106 +1683,98 @@ class NvidiaRAGIngestor:
                             aggregated_collection_info, doc_info
                         )
 
-                # Get catalog metadata (description, tags, etc.) - these shouldn't be recalculated
-                catalog_info = vdb_op.get_document_info(
-                    info_type="catalog",
-                    collection_name=collection_name,
-                    document_name="NA",
-                )
-
-                # Merge catalog info with aggregated metrics
-                # Catalog info contains: description, tags, owner, business_domain, status, date_created, last_updated
+                # Catalog metadata should NOT be stored in collection entry - it's stored separately in catalog entry
+                # Only collection metrics need to be recalculated from remaining documents
                 # Aggregated info contains: has_images, has_tables, has_charts, total_elements, etc.
-                if aggregated_collection_info or catalog_info:
-                    # Re-derive boolean flags from doc_type_counts to ensure they're proper booleans
-                    doc_type_counts = aggregated_collection_info.get(
-                        "doc_type_counts", {}
+                # Always update collection info when documents are deleted, even if all documents are removed
+                # Re-derive boolean flags from doc_type_counts to ensure they're proper booleans
+                doc_type_counts = aggregated_collection_info.get("doc_type_counts", {})
+                boolean_flags = derive_boolean_flags(doc_type_counts)
+
+                # Update only metrics (not catalog metadata) from remaining documents
+                updated_collection_info = {
+                    **aggregated_collection_info,  # Update metrics from remaining documents
+                    **boolean_flags,  # Override boolean flags to ensure they're proper booleans
+                    "number_of_files": len(
+                        remaining_documents_list
+                    ),  # Explicitly set file count
+                    "last_updated": get_current_timestamp(),  # Update timestamp
+                }
+
+                # Recalculate collection info by aggregating from remaining documents
+                # Need to bypass add_document_info's aggregation which happens before deletion
+                # So we manually delete and insert the recalculated value
+                if hasattr(vdb_op, "vdb_endpoint") and hasattr(
+                    vdb_op, "_delete_entities"
+                ):
+                    # Milvus: Delete existing collection info, then insert recalculated value
+                    vdb_op._delete_entities(
+                        collection_name=DEFAULT_DOCUMENT_INFO_COLLECTION,
+                        filter=f"info_type == 'collection' and collection_name == '{collection_name}' and document_name == 'NA'",
                     )
-                    boolean_flags = derive_boolean_flags(doc_type_counts)
-
-                    # Preserve catalog fields and update metrics
-                    updated_collection_info = {
-                        **catalog_info,  # Preserve catalog metadata
-                        **aggregated_collection_info,  # Update metrics from remaining documents
-                        **boolean_flags,  # Override boolean flags to ensure they're proper booleans
-                        "number_of_files": len(remaining_documents_list),  # Explicitly set file count
-                        "last_updated": get_current_timestamp(),  # Update timestamp
+                    # Add new collection info directly without aggregation
+                    password = (
+                        vdb_op.config.vector_store.password.get_secret_value()
+                        if vdb_op.config.vector_store.password is not None
+                        else ""
+                    )
+                    auth_token = getattr(vdb_op, "_auth_token", None)
+                    client = MilvusClient(
+                        vdb_op.vdb_endpoint,
+                        token=auth_token
+                        if auth_token
+                        else f"{vdb_op.config.vector_store.username}:{password}",
+                    )
+                    data = {
+                        "info_type": "collection",
+                        "collection_name": collection_name,
+                        "document_name": "NA",
+                        "info_value": updated_collection_info,
+                        "vector": [0.0] * 2,
                     }
-
-                    # Recalculate collection info by aggregating from remaining documents
-                    # Need to bypass add_document_info's aggregation which happens before deletion
-                    # So we manually delete and insert the recalculated value
-                    if hasattr(vdb_op, "vdb_endpoint") and hasattr(
-                        vdb_op, "_delete_entities"
-                    ):
-                        # Milvus: Delete existing collection info, then insert recalculated value
-                        vdb_op._delete_entities(
-                            collection_name=DEFAULT_DOCUMENT_INFO_COLLECTION,
-                            filter=f"info_type == 'collection' and collection_name == '{collection_name}' and document_name == 'NA'",
-                        )
-                        # Add new collection info directly without aggregation
-                        password = (
-                            vdb_op.config.vector_store.password.get_secret_value()
-                            if vdb_op.config.vector_store.password is not None
-                            else ""
-                        )
-                        auth_token = getattr(vdb_op, "_auth_token", None)
-                        client = MilvusClient(
-                            vdb_op.vdb_endpoint,
-                            token=auth_token
-                            if auth_token
-                            else f"{vdb_op.config.vector_store.username}:{password}",
-                        )
-                        data = {
-                            "info_type": "collection",
-                            "collection_name": collection_name,
-                            "document_name": "NA",
-                            "info_value": updated_collection_info,
-                            "vector": [0.0] * 2,
-                        }
-                        client.insert(
-                            collection_name=DEFAULT_DOCUMENT_INFO_COLLECTION, data=data
-                        )
-                        logger.info(
-                            f"Recalculated collection info for {collection_name} after document deletion"
-                        )
-                    elif hasattr(vdb_op, "_es_connection"):
-                        # Elasticsearch: Delete first, then add without aggregation
-                        vdb_op._es_connection.delete_by_query(
-                            index=DEFAULT_DOCUMENT_INFO_COLLECTION,
-                            body=get_delete_document_info_query(
-                                collection_name=collection_name,
-                                document_name="NA",
-                                info_type="collection",
-                            ),
-                        )
-                        # Insert new collection info directly
-                        data = {
-                            "collection_name": collection_name,
-                            "info_type": "collection",
-                            "document_name": "NA",
-                            "info_value": updated_collection_info,
-                        }
-                        vdb_op._es_connection.index(
-                            index=DEFAULT_DOCUMENT_INFO_COLLECTION, body=data
-                        )
-                        vdb_op._es_connection.indices.refresh(
-                            index=DEFAULT_DOCUMENT_INFO_COLLECTION
-                        )
-                        logger.info(
-                            f"Recalculated collection info for {collection_name} after document deletion"
-                        )
-                    else:
-                        # Fallback: Use add_document_info (may cause double-aggregation, but better than nothing)
-                        logger.warning(
-                            f"Could not directly update collection info for {collection_name}, using add_document_info (may cause aggregation issues)"
-                        )
-                        vdb_op.add_document_info(
-                            info_type="collection",
+                    client.insert(
+                        collection_name=DEFAULT_DOCUMENT_INFO_COLLECTION, data=data
+                    )
+                    logger.info(
+                        f"Recalculated collection info for {collection_name} after document deletion"
+                    )
+                elif hasattr(vdb_op, "_es_connection"):
+                    # Elasticsearch: Delete first, then add without aggregation
+                    vdb_op._es_connection.delete_by_query(
+                        index=DEFAULT_DOCUMENT_INFO_COLLECTION,
+                        body=get_delete_document_info_query(
                             collection_name=collection_name,
                             document_name="NA",
-                            info_value=updated_collection_info,
-                        )
+                            info_type="collection",
+                        ),
+                    )
+                    # Insert new collection info directly
+                    data = {
+                        "collection_name": collection_name,
+                        "info_type": "collection",
+                        "document_name": "NA",
+                        "info_value": updated_collection_info,
+                    }
+                    vdb_op._es_connection.index(
+                        index=DEFAULT_DOCUMENT_INFO_COLLECTION, body=data
+                    )
+                    vdb_op._es_connection.indices.refresh(
+                        index=DEFAULT_DOCUMENT_INFO_COLLECTION
+                    )
+                    logger.info(
+                        f"Recalculated collection info for {collection_name} after document deletion"
+                    )
+                else:
+                    # Fallback: Use add_document_info (may cause double-aggregation, but better than nothing)
+                    logger.warning(
+                        f"Could not directly update collection info for {collection_name}, using add_document_info (may cause aggregation issues)"
+                    )
+                    vdb_op.add_document_info(
+                        info_type="collection",
+                        collection_name=collection_name,
+                        document_name="NA",
+                        info_value=updated_collection_info,
+                    )
 
             # Build response based on what was actually deleted vs not found
             if not_found_docs and not deleted_docs:
@@ -2480,10 +2468,8 @@ class NvidiaRAGIngestor:
             for filepath, file_status in status_dict.items():
                 filename = os.path.basename(filepath)
                 filename_status_map[filename] = file_status
-            nv_ingest_status = (
-                await state_manager.update_nv_ingest_status(
-                    filename_status_map
-                )
+            nv_ingest_status = await state_manager.update_nv_ingest_status(
+                filename_status_map
             )
             await INGESTION_TASK_HANDLER.set_task_state_dict(
                 state_manager.get_task_id(),
