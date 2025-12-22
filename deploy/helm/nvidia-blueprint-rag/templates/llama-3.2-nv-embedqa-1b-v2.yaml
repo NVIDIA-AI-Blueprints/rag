@@ -1,0 +1,54 @@
+{{- $nimModel := index .Values.nimOperator "nvidia-nim-llama-32-nv-embedqa-1b-v2" -}}
+{{- if and (.Capabilities.APIVersions.Has "apps.nvidia.com/v1alpha1") (eq $nimModel.enabled true) }}
+apiVersion: apps.nvidia.com/v1alpha1
+kind: NIMCache
+metadata:
+  name: {{ $nimModel.service.name }}-cache
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  source:
+    ngc:
+      modelPuller: "{{ $nimModel.image.repository }}:{{ $nimModel.image.tag }}"
+      pullSecret: {{ .Values.imagePullSecret.name }}
+      authSecret: {{ .Values.ngcApiSecret.name }}
+  storage:
+    pvc:
+      create: {{ $nimModel.storage.pvc.create | default true }}
+      storageClass: {{ $nimModel.storage.pvc.storageClass | default "default" }}
+      size: {{ $nimModel.storage.pvc.size | default "50Gi" }}
+      volumeAccessMode: {{ $nimModel.storage.pvc.volumeAccessMode | default "ReadWriteMany" }}
+---
+apiVersion: apps.nvidia.com/v1alpha1
+kind: NIMService
+metadata:
+  name: {{ $nimModel.service.name }}
+spec:
+  image:
+    repository: {{ $nimModel.image.repository }}
+    tag: {{ $nimModel.image.tag }}
+    pullPolicy: {{ $nimModel.image.pullPolicy | default "IfNotPresent" }}
+    pullSecrets:
+      - {{ .Values.imagePullSecret.name }}
+  authSecret: {{ .Values.ngcApiSecret.name }}
+  storage:
+    nimCache:
+      name: {{ $nimModel.service.name }}-cache
+  replicas: {{ $nimModel.replicas | default 1 }}
+  nodeSelector:
+{{ toYaml $nimModel.nodeSelector | nindent 4 }}
+{{- if .Values.nimOperator.draResources.enabled }}
+  draResources:
+{{ toYaml $nimModel.draResources | nindent 4 }}
+{{- end }}
+{{- if not .Values.nimOperator.draResources.enabled }}
+  resources:
+{{ toYaml $nimModel.resources | nindent 4 }}
+{{- end }}
+  tolerations:
+{{ toYaml $nimModel.tolerations | nindent 4 }}
+  expose:
+{{ toYaml $nimModel.expose | nindent 4 }}
+  env:
+{{ toYaml $nimModel.env | nindent 4 }}
+{{- end }}

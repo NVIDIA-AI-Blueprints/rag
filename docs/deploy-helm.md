@@ -25,9 +25,11 @@ The following are the core services that you install:
 
 3. Verify that you have the NGC CLI available on your client computer. You can download the CLI from <https://ngc.nvidia.com/setup/installers/cli>.
 
-4. Verify that you have Kubernetes v1.33 installed and running on Ubuntu 22.04. For more information, see [Kubernetes documentation](https://kubernetes.io/docs/setup/) and [NVIDIA Cloud Native Stack repository](https://github.com/NVIDIA/cloud-native-stack/).
+4. Verify that you have Kubernetes v1.33 installed and running on Ubuntu 22.04/24.04. For more information, see [Kubernetes documentation](https://kubernetes.io/docs/setup/) and [NVIDIA Cloud Native Stack repository](https://github.com/NVIDIA/cloud-native-stack/).
 
-5. Verify that you have a default storage class available in the cluster for PVC provisioning. One option is the local path provisioner by Rancher.   Refer to the [installation](https://github.com/rancher/local-path-provisioner?tab=readme-ov-file#installation) section of the README in the GitHub repository.
+5. Verify that you have installed Helm 3, see [Helm 3 Installation](https://helm.sh/docs/v3/intro/install) 
+
+6. Verify that you have a default storage class available in the cluster for PVC provisioning. One option is the local path provisioner by Rancher.   Refer to the [installation](https://github.com/rancher/local-path-provisioner?tab=readme-ov-file#installation) section of the README in the GitHub repository.
 
     ```console
     kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/v0.0.26/deploy/local-path-storage.yaml
@@ -35,16 +37,16 @@ The following are the core services that you install:
     kubectl get storageclass
     ```
 
-6. If the local path storage class is not set as default, you can make it default by running the following code.
+7. If the local path storage class is not set as default, you can make it default by running the following code.
 
     ```
     kubectl patch storageclass local-path -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
     ```
+8. Verify that you have installed the NVIDIA GPU Operator by using the instructions [here](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/getting-started.html).
 
-7. Verify that you have installed the NVIDIA GPU Operator by using the instructions [here](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/getting-started.html).
+9. (Optional) You can enable time slicing for sharing GPUs between pods. For details, refer to [Time-Slicing GPUs in Kubernetes](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/gpu-sharing.html).
 
-8. (Optional) You can enable time slicing for sharing GPUs between pods. For details, refer to [Time-Slicing GPUs in Kubernetes](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/gpu-sharing.html).
-
+10. Verify that you have installed the NVIDIA NIM Operator by using the instructions [here](https://docs.nvidia.com/nim-operator/latest/install.html).
 
 
 ## Deploy the RAG Helm chart
@@ -201,6 +203,11 @@ To uninstall a deployment, run the following code.
 helm uninstall rag -n rag
 ```
 
+Run the following code to remove the NIMCache
+
+```sh
+kubectl delete nimcache nim-llm-cache nemoretriever-embedding-ms-cache nemoretriever-ranking-ms-cache
+```
 
 ## (Optional) Enable Persistence
 
