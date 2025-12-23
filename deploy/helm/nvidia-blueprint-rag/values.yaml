@@ -57,7 +57,7 @@ apiKeysSecret:
 # -- RAG server container image
 image:
   repository: nvcr.io/0648981100760671/rag-server
-  tag: "2.4.0.rc1"
+  tag: "2.4.0.rc1.1"
   pullPolicy: Always
 
 # -- RAG server service configuration
@@ -279,7 +279,7 @@ ingestor-server:
 
   image:
     repository: nvcr.io/0648981100760671/ingestor-server
-    tag: "2.4.0.rc1"
+    tag: "2.4.0.rc1.1"
     pullPolicy: Always
 
   # -- Service config for ingestor-server
@@ -435,7 +435,7 @@ frontend:
   image:
     repository: nvcr.io/0648981100760671/rag-frontend
     pullPolicy: IfNotPresent
-    tag: "2.4.0.rc1"
+    tag: "2.4.0.rc1.1"
 
   imagePullSecret:
     name: "ngc-secret"
