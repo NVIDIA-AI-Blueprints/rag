@@ -93,13 +93,38 @@ If you're using Helm for deployment, use the following steps to configure Elasti
 3. After you modify values.yaml, apply the changes as described in [Change a Deployment](deploy-helm.md#change-a-deployment).
 
 
-4. After the Helm deployment, port-forward the RAG UI service:
+4. Retrieve the Elasticsearch password from the secret.
+
+   The Elasticsearch operator generates a default password for the `elastic` user. Run the following command to retrieve it:
+
+   ```bash
+   kubectl get secret elasticsearch-es-elastic-user -n rag -o go-template='{{.data.elastic | base64decode}}'
+   ```
+
+5. Update `values.yaml` with the retrieved password.
+
+   Set the `APP_VECTORSTORE_PASSWORD` in [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) to the retrieved password and apply the changes again.
+
+   ```yaml
+   envVars:
+     APP_VECTORSTORE_URL: "http://elasticsearch:9200"
+     APP_VECTORSTORE_NAME: "elasticsearch"
+     APP_VECTORSTORE_PASSWORD: "<retrieved-password>"
+
+   ingestor-server:
+     envVars:
+       APP_VECTORSTORE_URL: "http://elasticsearch:9200"
+       APP_VECTORSTORE_NAME: "elasticsearch"
+       APP_VECTORSTORE_PASSWORD: "<retrieved-password>"
+   ```
+
+6. After the Helm deployment, port-forward the RAG UI service:
 
    ```bash
    kubectl port-forward -n rag service/rag-frontend 3000:3000 --address 0.0.0.0
    ```
 
-5. Access the UI at `http://<host-ip>:3000` and set Settings > Endpoint Configuration > Vector Database Endpoint to `http://elasticsearch:9200`.
+7. Access the UI at `http://<host-ip>:3000` and set Settings > Endpoint Configuration > Vector Database Endpoint to `http://elasticsearch:9200`.
 
 
 ## Verify Your Elasticsearch Vector Database Setup
