@@ -132,7 +132,7 @@ envVars:
   # ef: Parameter controlling query time/accuracy trade-off. Higher ef leads to more accurate but slower search.
   APP_VECTORSTORE_EF: "100"
   # Username for vector store authentication
-  APP_VECTORSTORE_USERNAME: "elastic"
+  APP_VECTORSTORE_USERNAME: ""
   # Password for vector store authentication
   APP_VECTORSTORE_PASSWORD: ""
   # Elasticsearch API key auth (optional). Prefer these over username/password when set.
@@ -312,7 +312,7 @@ ingestor-server:
     APP_VECTORSTORE_ENABLEGPUINDEX: "True"
     APP_VECTORSTORE_ENABLEGPUSEARCH: "True"
     # Username  for vector store authentication
-    APP_VECTORSTORE_USERNAME: "elastic"
+    APP_VECTORSTORE_USERNAME: ""
     # Password for vector store authentication
     APP_VECTORSTORE_PASSWORD: ""
     # Elasticsearch API key auth (optional). Prefer these over username/password when set.
@@ -361,8 +361,8 @@ ingestor-server:
     NVINGEST_MINIO_BUCKET: "nv-ingest" # If this value is modified, ensure the corresponding Milvus bucketName is also updated
 
     # === NV-Ingest performance configurations ===
-    APP_NVINGEST_ENABLEPDFSPLIT: "False"
-    APP_NVINGEST_PAGESPERCHUNK: "16"
+    APP_NVINGEST_ENABLE_PDF_SPLIT_PROCESSING: "False"
+    APP_NVINGEST_PAGES_PER_CHUNK: "16"
 
     # === General ===
     # Summary Model Configurations
