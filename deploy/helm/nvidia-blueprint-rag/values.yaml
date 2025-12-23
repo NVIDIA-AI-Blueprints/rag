@@ -341,7 +341,7 @@ ingestor-server:
     APP_NVINGEST_MESSAGECLIENTPORT: "7670"
 
     # === NV-Ingest extraction configurations ===
-    APP_NVINGEST_PDFEXTRACTMETHOD: "None"  # Method used for text extraction from "None", "pdfium", "nemoretriever_parse"
+    APP_NVINGEST_PDFEXTRACTMETHOD: "None"  # Method used for text extraction from "None", "pdfium", "nemotron_parse"
     APP_NVINGEST_EXTRACTTEXT: "True"  # Enable text extraction
     APP_NVINGEST_EXTRACTINFOGRAPHICS: "False"  # Enable infographic extraction
     APP_NVINGEST_EXTRACTTABLES: "True"  # Enable table extraction
@@ -887,9 +887,9 @@ nv-ingest:
     OCR_MODEL_NAME: scene_text_ensemble
 
     # NeMo Retriever Parse (VLM text extraction)
-    NEMORETRIEVER_PARSE_HTTP_ENDPOINT: http://nim-vlm-text-extraction-nemoretriever-parse:8000/v1/chat/completions
-    NEMORETRIEVER_PARSE_INFER_PROTOCOL: http
-    NEMORETRIEVER_PARSE_MODEL_NAME: nvidia/nemoretriever-parse
+    NEMOTRON_PARSE_HTTP_ENDPOINT: http://nim-vlm-text-extraction-nemotron-parse:8000/v1/chat/completions
+    NEMOTRON_PARSE_INFER_PROTOCOL: http
+    NEMOTRON_PARSE_MODEL_NAME: nvidia/nemotron-parse
 
     # PDF splitting configuration
     PDF_SPLIT_PAGE_COUNT: "32"
