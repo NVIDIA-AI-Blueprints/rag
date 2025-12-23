@@ -197,10 +197,11 @@ To uninstall a deployment, run the following code.
 helm uninstall rag -n rag
 ```
 
-Run the following code to remove the NIMCache
+Run the following code to remove the NIMCache and Persistent Volume Claims (PVCs) created by the chart which are not removed by default.
 
 ```sh
-kubectl delete nimcache nim-llm-cache nemoretriever-embedding-ms-cache nemoretriever-ranking-ms-cache
+kubectl delete nimcache --all -n rag
+kubectl delete pvc --all -n rag
 ```
 
 ## (Optional) Enable Persistence
