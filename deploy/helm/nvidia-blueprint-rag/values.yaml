@@ -464,7 +464,7 @@ frontend:
 # -- Elasticsearch dependency toggle
 # subsection: elasticsearch
 elasticsearch:
-  enabled: true
+  enabled: false
 
 # -- ECK Stack configuration
 # subsection: eck-stack
@@ -472,7 +472,7 @@ eck-stack:
   eck-kibana:
     enabled: false
   eck-elasticsearch:
-    enabled: true
+    enabled: false
     http:
       tls:
         selfSignedCertificate:
@@ -868,8 +868,8 @@ nv-ingest:
     INSTALL_AUDIO_EXTRACTION_DEPS: "true"
 
     # OCR routing (defaults to Paddle OCR service)
-    OCR_GRPC_ENDPOINT: nv-ingest-ocr:8001
-    OCR_HTTP_ENDPOINT: http://nv-ingest-ocr:8000/v1/infer
+    OCR_GRPC_ENDPOINT: nemoretriever-ocr-v1:8001
+    OCR_HTTP_ENDPOINT: http://nemoretriever-ocr-v1:8000/v1/infer
     OCR_INFER_PROTOCOL: grpc
     OCR_MODEL_NAME: scene_text_ensemble
 
@@ -883,8 +883,8 @@ nv-ingest:
 
     # YOLOX endpoints
     YOLOX_PAGE_IMAGE_FORMAT: "JPEG"
-    YOLOX_GRPC_ENDPOINT: nemoretriever-page-elements-v2:8001
-    YOLOX_HTTP_ENDPOINT: http://nemoretriever-page-elements-v2:8000/v1/infer
+    YOLOX_GRPC_ENDPOINT: nemoretriever-page-elements-v3:8001
+    YOLOX_HTTP_ENDPOINT: http://nemoretriever-page-elements-v3:8000/v1/infer
     YOLOX_INFER_PROTOCOL: grpc
     YOLOX_GRAPHIC_ELEMENTS_GRPC_ENDPOINT: nemoretriever-graphic-elements-v1:8001
     YOLOX_GRAPHIC_ELEMENTS_HTTP_ENDPOINT: http://nemoretriever-graphic-elements-v1:8000/v1/infer
@@ -957,6 +957,9 @@ nv-ingest:
     # Nemo Retriever OCR
     nemoretriever_ocr_v1:
       enabled: true
+      storage:
+        pvc:
+          volumeAccessMode: "ReadWriteOnce"
       replicaCount: 1
       image:
         repository: nvcr.io/nim/nvidia/nemoretriever-ocr-v1
@@ -987,6 +990,9 @@ nv-ingest:
     # NIM Graphic Elements
     graphic_elements:
       enabled: true
+      storage:
+        pvc:
+          volumeAccessMode: "ReadWriteOnce"
       replicaCount: 1
       image:
         repository: nvcr.io/nim/nvidia/nemoretriever-graphic-elements-v1
@@ -1015,6 +1021,9 @@ nv-ingest:
     # NIM Page Elements
     page_elements:
       enabled: true
+      storage:
+        pvc:
+          volumeAccessMode: "ReadWriteOnce"
       replicaCount: 1
       image:
         repository: nvcr.io/nim/nvidia/nemoretriever-page-elements-v3
@@ -1061,6 +1070,9 @@ nv-ingest:
     # NIM Table Structure
     table_structure:
       enabled: true
+      storage:
+        pvc:
+          volumeAccessMode: "ReadWriteOnce"
       replicaCount: 1
       image:
         repository: nvcr.io/nim/nvidia/nemoretriever-table-structure-v1
