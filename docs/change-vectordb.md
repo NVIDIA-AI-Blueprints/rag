@@ -338,7 +338,6 @@ curl -N -X POST "$RAG_URL/v1/generate" \
 - If you receive authentication/authorization errors from Elasticsearch, verify your token (API key validity, scopes, and expiration).
 - Ensure the server is not also configured with conflicting credentials for the same request.
 - Confirm that `APP_VECTORSTORE_NAME=elasticsearch` and `APP_VECTORSTORE_URL` are set correctly.
-- If using Helm, see the [Elasticsearch Authentication](#elasticsearch-authentication) section above for configuring API key or basic auth as defaults when a runtime header is not supplied.
 
 # Define Your Own Vector Database
 
