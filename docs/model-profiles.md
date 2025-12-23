@@ -138,4 +138,3 @@ helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/0648981100760671/c
 - [Deploy with Docker (NVIDIA-Hosted Models)](deploy-docker-nvidia-hosted.md)
 - [Deploy with Helm](deploy-helm.md)
 - [Deploy with Helm and MIG Support](mig-deployment.md)
-- [Deploy with NIM Operator](deploy-nim-operator.md)

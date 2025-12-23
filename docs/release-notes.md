@@ -78,7 +78,7 @@ This release contains the following key changes:
 
 - You can now deploy the RAG Blueprint on [RTX Pro 6000 Blackwell Server Edition](https://www.nvidia.com/en-us/data-center/rtx-pro-6000-blackwell-server-edition/).
 - Migrated to [`llama-3.3-nemotron-super-49b-v1.5`](https://build.nvidia.com/nvidia/llama-3_3-nemotron-super-49b-v1_5) as the default LLM model.
-- Added support to deploy the helm chart by using NVIDIA NIM operator. For details, refer to [Deploy NVIDIA RAG Blueprint with NIM Operator](deploy-nim-operator.md).
+- Added support to deploy the helm chart by using NVIDIA NIM operator.
 - Updated all NIMs, NVIDIA Ingest and third party dependencies to latest versions.
 - Refactored to support custom 3rd-party vector database integration in a streamlined manner. For details, refer to [Building Custom Vector Database Operators](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/building_rag_vdb_operator.ipynb).
 - Added support for [elasticsearch vector DB as an alternate to milvus](change-vectordb.md).
