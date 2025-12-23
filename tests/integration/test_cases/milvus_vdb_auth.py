@@ -29,7 +29,7 @@ except Exception:
             class embeddings:
                 dimensions = int(os.getenv("EMBEDDING_DIM", "1536"))
             class vector_store:
-                url = os.getenv("APP_VECTORSTORE_URL", "http://milvus:19530")
+                url = os.getenv("APP_VECTORSTORE_URL", "http://localhost:19530")
         return _DummyCfg()
 
 from ..base import BaseTestModule, TestStatus, test_case
@@ -227,8 +227,16 @@ class MilvusVdbAuthModule(BaseTestModule):
                         _grant_collection_privilege(client, self.reader_role, "Global", self.collection_name, privilege=priv)
                     else:
                         _grant_collection_privilege(client, self.reader_role, "Collection", self.collection_name, privilege=priv)
-                except Exception:
-                    pass
+                except Exception as e:
+                    # Best-effort privilege grant: log and continue so the test can still
+                    # verify the endpoint behavior even if some grants fail (e.g., already granted).
+                    logger.warning(
+                        "Failed to grant privilege %s to role %s on collection %s: %s",
+                        priv,
+                        self.reader_role,
+                        self.collection_name,
+                        e,
+                    )
             headers = {"Authorization": f"Bearer {self.reader_user}:{self.reader_pwd}"}
             async with aiohttp.ClientSession() as session:
                 async with session.get(f"{self.ingestor_server_url}/v1/collections", headers=headers) as resp:
