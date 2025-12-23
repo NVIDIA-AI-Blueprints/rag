@@ -49,7 +49,7 @@ To install the RAG Blueprint on Kubernetes, you need one of the following:
 - 9 x B200
 - 9 x A100-80GB SXM
 - 8 x RTX PRO 6000
-- 3 x H100 (with [Multi-Instance GPU](./mig-deployment.md) / [DRA with NIM Operator](deploy-nim-operator.md))
+- 3 x H100 (with [Multi-Instance GPU](./mig-deployment.md) / [DRA with NIM Operator](deploy-helm.md))
 
 
 
@@ -80,4 +80,3 @@ To switch between Paddle OCR and NeMo Retriever OCR, see [NeMo Retriever OCR](ne
 - [Deploy with Docker (NVIDIA-Hosted Models)](deploy-docker-nvidia-hosted.md)
 - [Deploy with Helm](deploy-helm.md)
 - [Deploy with Helm and MIG Support](mig-deployment.md)
-- [Deploy with NIM Operator](deploy-nim-operator.md)

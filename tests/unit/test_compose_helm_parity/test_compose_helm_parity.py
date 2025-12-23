@@ -281,22 +281,40 @@ def test_compose_helm_image_and_env_parity():
         str(compose_nims_path): {
             # Image parity checks only; env parity enforced for API key presence
             "nim-llm": {
-                "values_image_repo_path": ["nim-llm", "image", "repository"],
-                "values_image_tag_path": ["nim-llm", "image", "tag"],
-                "requires_ngc_api_key_path": ["nim-llm", "model", "ngcAPIKey"],
+                "values_image_repo_path": [
+                    "nimOperator",
+                    "nim-llm",
+                    "image",
+                    "repository",
+                ],
+                "values_image_tag_path": [
+                    "nimOperator",
+                    "nim-llm",
+                    "image",
+                    "tag",
+                ],
+                "requires_ngc_api_key_path": [
+                    "nimOperator",
+                    "nim-llm",
+                    "model",
+                    "ngcAPIKey",
+                ],
             },
             "nemoretriever-embedding-ms": {
                 "values_image_repo_path": [
+                    "nimOperator",
                     "nvidia-nim-llama-32-nv-embedqa-1b-v2",
                     "image",
                     "repository",
                 ],
                 "values_image_tag_path": [
+                    "nimOperator",
                     "nvidia-nim-llama-32-nv-embedqa-1b-v2",
                     "image",
                     "tag",
                 ],
                 "requires_ngc_api_key_path": [
+                    "nimOperator",
                     "nvidia-nim-llama-32-nv-embedqa-1b-v2",
                     "nim",
                     "ngcAPIKey",
@@ -304,25 +322,43 @@ def test_compose_helm_image_and_env_parity():
             },
             "nemoretriever-ranking-ms": {
                 "values_image_repo_path": [
+                    "nimOperator",
                     "nvidia-nim-llama-32-nv-rerankqa-1b-v2",
                     "image",
                     "repository",
                 ],
                 "values_image_tag_path": [
+                    "nimOperator",
                     "nvidia-nim-llama-32-nv-rerankqa-1b-v2",
                     "image",
                     "tag",
                 ],
                 "requires_ngc_api_key_path": [
+                    "nimOperator",
                     "nvidia-nim-llama-32-nv-rerankqa-1b-v2",
                     "nim",
                     "ngcAPIKey",
                 ],
             },
             "vlm-ms": {
-                "values_image_repo_path": ["nim-vlm", "image", "repository"],
-                "values_image_tag_path": ["nim-vlm", "image", "tag"],
-                "requires_ngc_api_key_path": ["nim-vlm", "nim", "ngcAPIKey"],
+                "values_image_repo_path": [
+                    "nimOperator",
+                    "nim-vlm",
+                    "image",
+                    "repository",
+                ],
+                "values_image_tag_path": [
+                    "nimOperator",
+                    "nim-vlm",
+                    "image",
+                    "tag",
+                ],
+                "requires_ngc_api_key_path": [
+                    "nimOperator",
+                    "nim-vlm",
+                    "nim",
+                    "ngcAPIKey",
+                ],
             },
         },
         str(compose_vectordb_path): {
@@ -495,6 +531,37 @@ def test_compose_helm_image_and_env_parity():
             return False
         return bool(file_map.get(service_name))
 
+    def is_ngc_api_key_presence_exempt(
+        compose_file: str, service_name: str
+    ) -> bool:
+        """Return True if NGC API key presence check should be skipped for this service.
+        Config format (optional file tests/unit/test_compose_helm_parity/env_parity_exemptions.yaml):
+        ngcApiKeyPresenceExemptions:
+          global:
+            - serviceName
+          perService:
+            nims.yaml:
+              nim-llm: true
+        """
+        if not isinstance(env_exemptions, dict):
+            return False
+        cfg = env_exemptions.get("ngcApiKeyPresenceExemptions", {})
+        if not isinstance(cfg, dict):
+            return False
+        global_list = cfg.get("global", [])
+        if isinstance(global_list, list):
+            for name in global_list:
+                if str(name) == service_name:
+                    return True
+        per_service = cfg.get("perService", {})
+        if not isinstance(per_service, dict):
+            return False
+        compose_basename = Path(compose_file).name
+        file_map = per_service.get(compose_basename)
+        if not isinstance(file_map, dict):
+            return False
+        return bool(file_map.get(service_name))
+
     def is_value_exempt(
         env_key: str, exempt_exact: set[str] | None, exempt_globs: list[str] | None
     ) -> bool:
@@ -627,15 +694,16 @@ def test_compose_helm_image_and_env_parity():
 
             # For NIM services ensure API key is configurable in Helm when present in compose
             if "requires_ngc_api_key_path" in rules:
-                compose_env = svc.get("environment")
-                # Some NIM services use list form; check for presence of NGC_API_KEY in any form
-                compose_env_names = extract_compose_env_names(compose_env)
-                if "NGC_API_KEY" in compose_env_names:
-                    ngc_key_path = rules["requires_ngc_api_key_path"]
-                    ngc_key_value = get_dict_path(values, ngc_key_path)
-                    assert ngc_key_value is not None, (
-                        f"Expected Helm values key for NGC API under {ngc_key_path}, but it was missing"
-                    )
+                if not is_ngc_api_key_presence_exempt(compose_file, svc_name):
+                    compose_env = svc.get("environment")
+                    # Some NIM services use list form; check for presence of NGC_API_KEY in any form
+                    compose_env_names = extract_compose_env_names(compose_env)
+                    if "NGC_API_KEY" in compose_env_names:
+                        ngc_key_path = rules["requires_ngc_api_key_path"]
+                        ngc_key_value = get_dict_path(values, ngc_key_path)
+                        assert ngc_key_value is not None, (
+                            f"Expected Helm values key for NGC API under {ngc_key_path}, but it was missing"
+                        )
 
 
 def test_prompt_yaml_parity():

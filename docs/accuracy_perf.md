@@ -78,4 +78,3 @@ For optimal resource utilization, `NV_INGEST_CONCURRENT_BATCHES` times `NV_INGES
 - [Deploy with Docker (NVIDIA-Hosted Models)](deploy-docker-nvidia-hosted.md)
 - [Deploy with Helm](deploy-helm.md)
 - [Deploy with Helm and MIG Support](mig-deployment.md)
-- [Deploy with NIM Operator](deploy-nim-operator.md)

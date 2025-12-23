@@ -49,3 +49,12 @@ imageParityExemptions:
       etcd: true
       minio: true
 
+ngcApiKeyPresenceExemptions:
+  perService:
+    nims.yaml:
+      nim-llm: true
+      nemoretriever-embedding-ms: true
+      nemoretriever-ranking-ms: true
+      vlm-ms: true
+
+

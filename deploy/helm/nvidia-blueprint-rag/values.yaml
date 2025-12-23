@@ -621,92 +621,210 @@ kube-prometheus-stack:
 # -- NIMs (dependencies) configuration
 # subsection: nim-llm
 # NIM LLM
-nim-llm:
-  enabled: true
-  service:
-    name: "nim-llm"
-  image:
-    repository: nvcr.io/nim/nvidia/llama-3.3-nemotron-super-49b-v1.5
-    pullPolicy: IfNotPresent
-    tag: "1.14.0"
-  resources:
-    limits:
-      nvidia.com/gpu: 1
-    requests:
-      nvidia.com/gpu: 1
-
-  model:
-    ngcAPIKey: ""
-    name: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
-    hfTokenSecret: ""
-
+nimOperator:       
+  draResources:
+    enabled: false
+    name: "rag-claim"
+    type: "TimeSlicing"
+  nim-llm:
+    enabled: true
+    replicas: 1
+    service:
+      name: "nim-llm"
+    image:
+      repository: nvcr.io/nim/nvidia/llama-3.3-nemotron-super-49b-v1.5
+      pullPolicy: IfNotPresent
+      tag: "1.14.0"
+    resources:
+      limits:
+        nvidia.com/gpu: 1
+      requests:
+        nvidia.com/gpu: 1
+    model:
+      engine: tensorrt_llm
+# -- Uncomment this section to enable FP8 precision and throughput profile for the NIM LLM, change the GPU product according to the GPU you are using
+#      precision: "fp8"
+#      qosProfile: "throughput"
+#      tensorParallelism: "1"
+#      gpus:
+#        - product: "rtx6000_blackwell_sv"
+#        - product: "h100"
+    storage:
+      pvc:
+        create: true
+        size: "120Gi"
+        volumeAccessMode: ReadWriteOnce
+        storageClass: ""
+      sharedMemorySizeLimit: "16Gi"
+#    draResources:
+#      - claimCreationSpec:
+#          devices:
+#            - name: nimllm-gpu
+#              count: 1
+#              deviceClassName: gpu.nvidia.com
+#              driverName: gpu.nvidia.com
+#              attributeSelectors:
+#                - key: driverVersion
+#                  op: GreaterThanOrEqual
+#                  value:
+#                    versionValue: "550.127.8"
+#              capacitySelectors:
+#                - key: memory
+#                  op: GreaterThanOrEqual
+#                  value: 40Gi
+    env:
+      - name: NIM_HTTP_API_PORT
+        value: "8000"
+      - name: NIM_TRITON_LOG_VERBOSE
+        value: "1"
+      - name: NIM_SERVED_MODEL_NAME
+        value: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+#      - name: CUDA_VISIBLE_DEVICES
+#        value: "0"
+    expose:
+      service:
+        name: http
+        type: ClusterIP
+        port: 8000
+        grpcPort: 8001
 # subsection: nvidia-nim-llama-32-nv-embedqa-1b-v2
 # NIM Text Embedding
-nvidia-nim-llama-32-nv-embedqa-1b-v2:
-  enabled: true
-  service:
-    name: "nemoretriever-embedding-ms"
-  image:
-    repository: nvcr.io/nim/nvidia/llama-3.2-nv-embedqa-1b-v2
-    tag: "1.10.0"
-  resources:
-    limits:
-      nvidia.com/gpu: 1
-    requests:
-      nvidia.com/gpu: 1
-  nim:
-    ngcAPIKey: ""
+  nvidia-nim-llama-32-nv-embedqa-1b-v2:
+    enabled: true
+    replicas: 1
+    service:
+      name: "nemoretriever-embedding-ms"
+    image:
+      repository: nvcr.io/nim/nvidia/llama-3.2-nv-embedqa-1b-v2
+      tag: "1.10.0"
+      pullPolicy: IfNotPresent
+    resources:
+      limits:
+        nvidia.com/gpu: 1
+      requests:
+        nvidia.com/gpu: 1
+    storage:
+      pvc:
+        create: true
+        size: "50Gi"
+        volumeAccessMode: ReadWriteOnce
+        storageClass: ""
+#    draResources:
+#      - resourceClaimName: rag-claim
+    env:
+      - name: NIM_HTTP_API_PORT
+        value: "8000"
+      - name: NIM_TRITON_LOG_VERBOSE
+        value: "1"
+      - name: OMP_NUM_THREADS
+        value: "1"
+      - name: NIM_TRITON_PERFORMANCE_MODE
+        value: "throughput"
+    expose:
+      service:
+        name: http
+        type: ClusterIP
+        port: 8000
+        grpcPort: 8001
 
 # subsection: nvidia-nim-llama-32-nemoretriever-1b-vlm-embed-v1
 # NIM VLM Embedding
-nvidia-nim-llama-32-nemoretriever-1b-vlm-embed-v1:
-  enabled: false
-  service:
-    name: "nemoretriever-vlm-embedding-ms"
-  image:
-    repository: nvcr.io/nvidia/nemo-microservices/llama-3.2-nemoretriever-1b-vlm-embed-v1
-    tag: "1.7.0"
-  resources:
-    limits:
-      nvidia.com/gpu: 1
-    requests:
-      nvidia.com/gpu: 1
-  nim:
-    ngcAPIKey: ""
-
+  nvidia-nim-llama-32-nemoretriever-1b-vlm-embed-v1:
+    enabled: false
+    service:
+      name: "nemoretriever-vlm-embedding-ms"
+    image:
+      repository: nvcr.io/nvidia/nemo-microservices/llama-3.2-nemoretriever-1b-vlm-embed-v1
+      tag: "1.7.0"
+      pullPolicy: IfNotPresent
+    replicas: 1
+    resources:
+      limits:
+        nvidia.com/gpu: 1
+      requests:
+        nvidia.com/gpu: 1
+#    draResources:
+#      - resourceClaimName: rag-claim
+    storage:
+      pvc:
+        create: true
+        size: "50Gi"
+        volumeAccessMode: ReadWriteOnce
+        storageClass: ""
+    env:
+      - name: NIM_HTTP_API_PORT
+        value: "8000"
+      - name: NIM_TRITON_LOG_VERBOSE
+        value: "1"
+    expose:
+      service:
+        name: http
+        type: ClusterIP
+        port: 8000
+        grpcPort: 8001
 # subsection: text-reranking-nim
 # NIM Text Reranking
-nvidia-nim-llama-32-nv-rerankqa-1b-v2:
-  enabled: true
-  service:
-    name: "nemoretriever-ranking-ms"
-  image:
-    repository: nvcr.io/nim/nvidia/llama-3.2-nv-rerankqa-1b-v2
-    tag: "1.8.0"
-  resources:
-    limits:
-      nvidia.com/gpu: 1
-    requests:
-      nvidia.com/gpu: 1
-  nim:
-    ngcAPIKey: ""
+  nvidia-nim-llama-32-nv-rerankqa-1b-v2:
+    enabled: true
+    replicas: 1
+    service:
+      name: "nemoretriever-ranking-ms"
+    image:
+      repository: nvcr.io/nim/nvidia/llama-3.2-nv-rerankqa-1b-v2
+      tag: "1.8.0"
+      pullPolicy: IfNotPresent
+    resources:
+      limits:
+        nvidia.com/gpu: 1
+      requests:
+        nvidia.com/gpu: 1
+#    draResources:
+#      - resourceClaimName: rag-claim
+    storage:
+      pvc:
+        create: true
+        size: "50Gi"
+        volumeAccessMode: ReadWriteOnce
+        storageClass: ""
+    env: []
+    expose:
+      service:
+        name: http
+        type: ClusterIP
+        port: 8000
+        grpcPort: 8001
 
-# subsection: nim-vlm
-# NIM Vision-Language (VLM)
-nim-vlm:
-  enabled: false
-  service:
-    name: "nim-vlm"
-  image:
-    repository: nvcr.io/nim/nvidia/nemotron-nano-12b-v2-vl
-    tag: "1"
-  resources:
-    limits:
-      nvidia.com/gpu: 1
-    requests:
-      nvidia.com/gpu: 1
-  nim:
-    ngcAPIKey: ""
+  # subsection: nim-vlm
+  # NIM Vision-Language (VLM)
+  nim-vlm:
+    enabled: false
+    replicas: 1
+    service:
+      name: "nim-vlm"
+    image:
+      repository: nvcr.io/nim/nvidia/nemotron-nano-12b-v2-vl
+      tag: "1"
+      pullPolicy: IfNotPresent
+    resources:
+      limits:
+        nvidia.com/gpu: 1
+      requests:
+        nvidia.com/gpu: 1
+#    draResources:
+#      - resourceClaimName: rag-claim
+    storage:
+      pvc:
+        create: true
+        size: "50Gi"
+        volumeAccessMode: ReadWriteOnce
+        storageClass: ""
+    env: []
+    expose:
+      service:
+        name: http
+        type: ClusterIP
+        port: 8000
+        grpcPort: 8001
 
 # -- NV-Ingest dependency configuration
 # subsection: nv-ingest

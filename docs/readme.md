@@ -40,7 +40,6 @@ Use the following documentation to deploy the blueprint.
 - [Deploy on Kubernetes with Helm](deploy-helm.md)
 - [Deploy on Kubernetes with Helm from the repository](deploy-helm-from-repo.md)
 - [Deploy on Kubernetes with Helm and MIG Support](mig-deployment.md)
-- [Deploy on Kubernetes with NIM Operator](deploy-nim-operator.md)
 
 
 
