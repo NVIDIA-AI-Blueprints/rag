@@ -123,7 +123,7 @@ services:
     profiles: ["local"]
 
   graphic-elements:
-    image: ${YOLOX_GRAPHIC_ELEMENTS_IMAGE:-nvcr.io/nim/nvidia/nemoretriever-graphic-elements-v1}:${YOLOX_GRAPHIC_ELEMENTS_TAG:-1.5.0}
+    image: ${YOLOX_GRAPHIC_ELEMENTS_IMAGE:-nvcr.io/nim/nvidia/nemoretriever-graphic-elements-v1}:${YOLOX_GRAPHIC_ELEMENTS_TAG:-1.6.0}
     ports:
       - "8003:8000"
       - "8004:8001"
@@ -149,7 +149,7 @@ services:
     profiles: ["local"]
 
   table-structure:
-    image: ${YOLOX_TABLE_STRUCTURE_IMAGE:-nvcr.io/nim/nvidia/nemoretriever-table-structure-v1}:${YOLOX_TABLE_STRUCTURE_TAG:-1.5.0}
+    image: ${YOLOX_TABLE_STRUCTURE_IMAGE:-nvcr.io/nim/nvidia/nemoretriever-table-structure-v1}:${YOLOX_TABLE_STRUCTURE_TAG:-1.6.0}
     ports:
       - "8006:8000"
       - "8007:8001"
@@ -175,7 +175,7 @@ services:
     profiles: ["local"]
 
   nemoretriever-ocr:
-    image: ${NEMORETRIEVER_OCR_IMAGE:-nvcr.io/nim/nvidia/nemoretriever-ocr-v1}:${NEMORETRIEVER_OCR_TAG:-1.2.0}
+    image: ${NEMORETRIEVER_OCR_IMAGE:-nvcr.io/nim/nvidia/nemoretriever-ocr-v1}:${NEMORETRIEVER_OCR_TAG:-1.2.1}
     shm_size: 16gb
     ports:
       - "8012:8000"
@@ -330,7 +330,7 @@ services:
     profiles: ["ingest"]
 
   nv-ingest-ms-runtime:
-    image: nvcr.io/nvstaging/blueprint/nv-ingest:26.1.0-RC2
+    image: nvcr.io/nvstaging/blueprint/nv-ingest:26.1.0-RC3
     # cpuset: "0-15" # Uncomment to restrict this container to CPU cores 0–15
     volumes:
       - ${DATASET_ROOT:-./data}:/workspace/data
