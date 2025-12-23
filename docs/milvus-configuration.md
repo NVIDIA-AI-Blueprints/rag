@@ -204,7 +204,7 @@ To use a custom Milvus endpoint, use the following procedure.
 3. Redeploy the Helm chart by running the following code.
 
    ```sh
-   helm upgrade rag https://helm.ngc.nvidia.com/0648981100760671/charts/nvidia-blueprint-rag-v2.4.0-dev-dev.tgz -f nvidia-blueprint-rag/values.yaml -n rag
+   helm upgrade rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-dev-dev.tgz -f nvidia-blueprint-rag/values.yaml -n rag
    ```
 
 
@@ -302,7 +302,7 @@ ingestor-server:
 
 #### 3. Deploy with Helm:
 ```bash
-helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/0648981100760671/charts/nvidia-blueprint-rag-v2.4.0-dev-dev-rc2.tgz \
+helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-dev-dev-rc2.tgz \
 --username '$oauthtoken' \
 --password "${NGC_API_KEY}" \
 --set imagePullSecret.password=$NGC_API_KEY \
