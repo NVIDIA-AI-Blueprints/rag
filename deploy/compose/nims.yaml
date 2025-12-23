@@ -265,8 +265,8 @@ services:
     profiles: ["", "ingest", "vlm-ingest", "nemoretriever-ocr"]
 
   # Optional NIM microservices
-  nemoretriever-parse:
-    image: ${NEMORETRIEVER_PARSE_IMAGE:-nvcr.io/nim/nvidia/nemoretriever-parse}:${NEMORETRIEVER_PARSE_TAG:-1.2}
+  nemotron-parse:
+    image: ${NEMOTRON_PARSE_IMAGE:-nvcr.io/nim/nvidia/nemotron-parse}:${NEMOTRON_PARSE_TAG:-1.5.0}
     shm_size: 16gb
     ports:
       - "8015:8000"
@@ -284,10 +284,10 @@ services:
         reservations:
           devices:
             - driver: nvidia
-              device_ids: ['${NEMORETRIEVER_PARSE_MS_GPU_ID:-1}']
+              device_ids: ['${NEMOTRON_PARSE_MS_GPU_ID:-1}']
               capabilities: [gpu]
     runtime: nvidia
-    profiles: ["nemoretriever-parse"]
+    profiles: ["nemotron-parse"]
 
   audio:
     image: ${AUDIO_IMAGE:-nvcr.io/nim/nvidia/riva-asr}:${AUDIO_TAG:-1.3.0}

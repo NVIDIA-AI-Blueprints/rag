@@ -85,7 +85,7 @@ services:
       APP_NVINGEST_EXTRACTPAGEASIMAGE: ${APP_NVINGEST_EXTRACTPAGEASIMAGE:-False}
       APP_NVINGEST_STRUCTURED_ELEMENTS_MODALITY: ${APP_NVINGEST_STRUCTURED_ELEMENTS_MODALITY:-""} # Select from "image", "text_image"
       APP_NVINGEST_IMAGE_ELEMENTS_MODALITY: ${APP_NVINGEST_IMAGE_ELEMENTS_MODALITY:-""} # Select from "image"
-      APP_NVINGEST_PDFEXTRACTMETHOD: ${APP_NVINGEST_PDFEXTRACTMETHOD:-None} # Select from pdfium, nemoretriever_parse, None
+      APP_NVINGEST_PDFEXTRACTMETHOD: ${APP_NVINGEST_PDFEXTRACTMETHOD:-None} # Select from pdfium, nemoretron_parse, None
       # Extract text by "page" only recommended for documents with pages like .pdf, .docx, etc.
       APP_NVINGEST_TEXTDEPTH: ${APP_NVINGEST_TEXTDEPTH:-page} # extract by "page" or "document"
 
@@ -194,9 +194,10 @@ services:
       - MINIO_BUCKET=${MINIO_BUCKET:-${NVINGEST_MINIO_BUCKET:-nv-ingest}}
       - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY:-minioadmin}
       - MINIO_SECRET_KEY=${MINIO_SECRET_KEY:-minioadmin}
-      - NEMORETRIEVER_PARSE_HTTP_ENDPOINT=${NEMORETRIEVER_PARSE_HTTP_ENDPOINT:-http://nemoretriever-parse:8000/v1/chat/completions}
-      - NEMORETRIEVER_PARSE_INFER_PROTOCOL=${NEMORETRIEVER_PARSE_INFER_PROTOCOL:-http}
-      - NEMORETRIEVER_PARSE_MODEL_NAME=${NEMORETRIEVER_PARSE_MODEL_NAME:-nvidia/nemoretriever-parse}
+      # - NEMOTRON_PARSE_HTTP_ENDPOINT=https://integrate.api.nvidia.com/v1/chat/completions
+      - NEMOTRON_PARSE_HTTP_ENDPOINT=${NEMOTRON_PARSE_HTTP_ENDPOINT:-http://nemotron-parse:8000/v1/chat/completions}
+      - NEMOTRON_PARSE_INFER_PROTOCOL=${NEMOTRON_PARSE_INFER_PROTOCOL:-http}
+      - NEMOTRON_PARSE_MODEL_NAME=${NEMOTRON_PARSE_MODEL_NAME:-nvidia/nemotron-parse}
       - NVIDIA_API_KEY=${NVIDIA_API_KEY:-nvidiaapikey}
       - NGC_API_KEY=${NGC_API_KEY:-nvidiaapikey}
       - NVIDIA_BUILD_API_KEY=${NGC_API_KEY:-nvidiaapikey}
