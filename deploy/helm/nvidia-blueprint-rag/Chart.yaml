@@ -1,5 +1,5 @@
 apiVersion: v2
-appVersion: v2.4.0-dev
+appVersion: 2.4.0-rc1
 dependencies:
 - condition: nim-llm.enabled
   name: nim-llm
@@ -48,4 +48,4 @@ dependencies:
 description: An end to end Helm chart for the NVIDIA RAG Blueprint
 name: nvidia-blueprint-rag
 type: application
-version: v2.4.0-dev
+version: 2.4.0-rc1

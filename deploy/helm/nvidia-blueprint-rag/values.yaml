@@ -120,15 +120,15 @@ envVars:
 
   ##===Vector DB specific configurations===
   # URL on which vectorstore is hosted
-  APP_VECTORSTORE_URL: "http://elasticsearch-es-http:9200" # Use "http://elasticsearch:9200" for elasticsearch
+  APP_VECTORSTORE_URL: "http://milvus:19530" # Use "http://elasticsearch:9200" for elasticsearch
   # Type of vectordb used to store embedding supported type "milvus" or "elasticsearch"
-  APP_VECTORSTORE_NAME: "elasticsearch"
+  APP_VECTORSTORE_NAME: "milvus"
   # Index type (e.g., GPU_CAGRA)
   APP_VECTORSTORE_INDEXTYPE: "GPU_CAGRA"
   # Type of vectordb search to be used
   APP_VECTORSTORE_SEARCHTYPE: "dense"
   # Boolean to control GPU search for milvus vectorstore specific to rag-server
-  APP_VECTORSTORE_ENABLEGPUSEARCH: "False"
+  APP_VECTORSTORE_ENABLEGPUSEARCH: "True"
   # ef: Parameter controlling query time/accuracy trade-off. Higher ef leads to more accurate but slower search.
   APP_VECTORSTORE_EF: "100"
   # Username for vector store authentication
@@ -306,15 +306,15 @@ ingestor-server:
     # Absolute path to custom prompt.yaml file
     PROMPT_CONFIG_FILE: "/prompt.yaml"
     # === Vector Store Configurations ===
-    APP_VECTORSTORE_URL: "http://elasticsearch-es-http:9200" # Use "http://elasticsearch:9200" for elasticsearch
-    APP_VECTORSTORE_NAME: "elasticsearch" # supported values: "milvus" or "elasticsearch"
+    APP_VECTORSTORE_URL: "http://milvus:19530" # Use "http://elasticsearch:9200" for elasticsearch
+    APP_VECTORSTORE_NAME: "milvus" # supported values: "milvus" or "elasticsearch"
     APP_VECTORSTORE_SEARCHTYPE: "dense"
     APP_VECTORSTORE_ENABLEGPUINDEX: "True"
     APP_VECTORSTORE_ENABLEGPUSEARCH: "True"
     # Username  for vector store authentication
     APP_VECTORSTORE_USERNAME: "elastic"
     # Password for vector store authentication
-    APP_VECTORSTORE_PASSWORD: "qBqWFOwxnXKSCDltuzF19lwk"
+    APP_VECTORSTORE_PASSWORD: ""
     # Elasticsearch API key auth (optional). Prefer these over username/password when set.
     # Provide either base64 APP_VECTORSTORE_APIKEY or split ID/SECRET.
     APP_VECTORSTORE_APIKEY_ID: ""
@@ -459,7 +459,7 @@ frontend:
     - name: VITE_API_VDB_URL
       value: "http://ingestor-server:8082/v1"
     - name: VITE_MILVUS_URL
-      value: "http://elasticsearch-es-http:9200"
+      value: "http://milvus:19530"
 
 # -- Elasticsearch dependency toggle
 # subsection: elasticsearch
@@ -861,7 +861,7 @@ nv-ingest:
     MINIO_BUCKET: "nv-ingest"
     MINIO_ACCESS_KEY: "minioadmin"
     MINIO_SECRET_KEY: "minioadmin"
-    MILVUS_ENDPOINT: "http://elasticsearch-es-http:9200"
+    MILVUS_ENDPOINT: "http://milvus:19530"
     OTEL_EXPORTER_OTLP_ENDPOINT: "otel-collector:4317"
     MODEL_PREDOWNLOAD_PATH: "/workspace/models/"
     INSTALL_AUDIO_EXTRACTION_DEPS: "true"
