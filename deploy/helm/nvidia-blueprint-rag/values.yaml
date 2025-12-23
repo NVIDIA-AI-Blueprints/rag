@@ -845,6 +845,7 @@ nv-ingest:
     REDIS_INGEST_TASK_QUEUE: "ingest_task_queue"
     NV_INGEST_DEFAULT_TIMEOUT_MS: "1234"
     MAX_INGEST_PROCESS_WORKERS: 16
+    VLM_CAPTION_PROMPT: "Caption the content of this image"
     
     # Ray internals configuration
     RAY_num_grpc_threads: "1"
