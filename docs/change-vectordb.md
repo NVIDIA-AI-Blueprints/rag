@@ -70,6 +70,13 @@ If you're using Helm for deployment, use the following steps to configure Elasti
 **Performance Consideration**: Slow VDB upload is observed in Helm deployments for Elasticsearch (ES). For more details, refer to the [troubleshooting documentation](./troubleshooting.md).
 :::
 
+:::{important}
+If you encounter an error "no matches for kind Elasticsearch", it indicates a race condition where the CRDs are not yet established. To resolve this, install the ECK operator CRDs manually before installing the chart:
+```sh
+helm install temp-eck-operator elastic/eck-operator -n rag --create-namespace --set installCRDs=true && helm uninstall temp-eck-operator -n rag
+```
+:::
+
 1. Configure Elasticsearch as the vector database in [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml).
 
     ```yaml
