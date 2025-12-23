@@ -46,7 +46,17 @@ The following are the core services that you install:
 
 9. (Optional) You can enable time slicing for sharing GPUs between pods. For details, refer to [Time-Slicing GPUs in Kubernetes](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/gpu-sharing.html).
 
-10. Verify that you have installed the NVIDIA NIM Operator by using the instructions [here](https://docs.nvidia.com/nim-operator/latest/install.html).
+10. Verify that you have installed the NVIDIA NIM Operator. If not, install it by running the following code:
+
+    ```bash
+    helm repo add nvidia https://helm.ngc.nvidia.com/nvidia \
+      --username='$oauthtoken' \
+      --password=$NGC_API_KEY
+    helm repo update
+    helm install nim-operator nvidia/k8s-nim-operator -n nim-operator --create-namespace
+    ```
+
+    For more details, see instructions [here](https://docs.nvidia.com/nim-operator/latest/install.html).
 
 
 ## Deploy the RAG Helm chart
@@ -61,28 +71,12 @@ To deploy End-to-End RAG Server and Ingestor Server, use the following procedure
 
 2. Install the Helm chart by running the following command.
 
-    :::{IMPORTANT}
-    The Bitnami project has moved some Redis container artifacts, which can affect the availability of some image tags. To use a supported version of Redis, override the Redis image in your `helm upgrade` command as shown in the second code block following. This uses the Bitnami Legacy Redis 8.2.1-debian-12-r0 image. Adjust the tag as needed for your environment.
-    :::    
-
     ```sh
     helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-dev.tgz \
     --username '$oauthtoken' \
     --password "${NGC_API_KEY}" \
     --set imagePullSecret.password=$NGC_API_KEY \
     --set ngcApiSecret.password=$NGC_API_KEY
-    ```
-
-   — OR —
-
-    ```sh
-    helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-dev.tgz \
-    --username '$oauthtoken' \
-    --password "${NGC_API_KEY}" \
-    --set imagePullSecret.password=$NGC_API_KEY \
-    --set ngcApiSecret.password=$NGC_API_KEY \ 
-    --set nv-ingest.redis.image.repository=bitnamilegacy/redis \
-    --set nv-ingest.redis.image.tag=8.2.1-debian-12-r0
     ```
 
    :::{note}
