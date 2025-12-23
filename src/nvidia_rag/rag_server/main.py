@@ -191,11 +191,13 @@ class NvidiaRAG:
             "top_p": 0.1,
             "api_key": self.config.query_rewriter.get_api_key(),
         }
+        # Log config without sensitive api_key
+        safe_config = {k: v for k, v in query_rewriter_llm_config.items() if k != "api_key"}
         logger.info(
             "Query rewriter llm config: model name %s, url %s, config %s",
             self.config.query_rewriter.model_name,
             self.config.query_rewriter.server_url,
-            query_rewriter_llm_config,
+            safe_config,
         )
         try:
             self.query_rewriter_llm = get_llm(
