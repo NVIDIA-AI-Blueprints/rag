@@ -465,41 +465,27 @@ frontend:
 # subsection: elasticsearch
 elasticsearch:
   enabled: false
-  fullnameOverride: elasticsearch
-  security:
+
+# -- ECK Stack configuration
+# subsection: eck-stack
+eck-stack:
+  eck-kibana:
     enabled: false
-    tls:
-      restEncryption: false
-  # xpack:
-  #   security:
-  #     enabled: true
-  extraConfig:
-    discovery.type: single-node
-  master:
-    masterOnly: false
-    replicaCount: 1
-  data:
-    replicaCount: 0
-  coordinating:
-    replicaCount: 0
-  ingest:
+  eck-elasticsearch:
     enabled: false
-  global:
-    security:
-      allowInsecureImages: true
-  image:
-    registry: docker.io
-    repository: bitnamilegacy/elasticsearch
-    tag: 9.0.3-debian-12-r1
-  volumePermissions:
-    image:
-      registry: docker.io
-      repository: bitnamilegacy/os-shell
-      tag: 12-debian-12-r48
-  sysctlImage:
-    registry: docker.io
-    repository: bitnamilegacy/os-shell
-    tag: 12-debian-12-r48
+    http:
+      tls:
+        selfSignedCertificate:
+          disabled: true
+    nodeSets:
+    - name: default
+      count: 1
+      config:
+        node.store.allow_mmap: false
+
+# -- ECK Operator configuration
+eck-operator:
+  installCRDs: false
 
 # -- Observability
 # subsection: serviceMonitor
@@ -512,7 +498,7 @@ opentelemetry-collector:
   mode: deployment
   image:
     repository: otel/opentelemetry-collector-contrib
-    tag: "0.131.0"
+    tag: "0.140.0"
   command:
     name: otelcol-contrib
   config:
@@ -859,6 +845,7 @@ nv-ingest:
     REDIS_INGEST_TASK_QUEUE: "ingest_task_queue"
     NV_INGEST_DEFAULT_TIMEOUT_MS: "1234"
     MAX_INGEST_PROCESS_WORKERS: 16
+    VLM_CAPTION_PROMPT: "Caption the content of this image"
     
     # Ray internals configuration
     RAY_num_grpc_threads: "1"
@@ -881,8 +868,8 @@ nv-ingest:
     INSTALL_AUDIO_EXTRACTION_DEPS: "true"
 
     # OCR routing (defaults to Paddle OCR service)
-    OCR_GRPC_ENDPOINT: nv-ingest-ocr:8001
-    OCR_HTTP_ENDPOINT: http://nv-ingest-ocr:8000/v1/infer
+    OCR_GRPC_ENDPOINT: nemoretriever-ocr-v1:8001
+    OCR_HTTP_ENDPOINT: http://nemoretriever-ocr-v1:8000/v1/infer
     OCR_INFER_PROTOCOL: grpc
     OCR_MODEL_NAME: scene_text_ensemble
 
@@ -896,8 +883,8 @@ nv-ingest:
 
     # YOLOX endpoints
     YOLOX_PAGE_IMAGE_FORMAT: "JPEG"
-    YOLOX_GRPC_ENDPOINT: nemoretriever-page-elements-v2:8001
-    YOLOX_HTTP_ENDPOINT: http://nemoretriever-page-elements-v2:8000/v1/infer
+    YOLOX_GRPC_ENDPOINT: nemoretriever-page-elements-v3:8001
+    YOLOX_HTTP_ENDPOINT: http://nemoretriever-page-elements-v3:8000/v1/infer
     YOLOX_INFER_PROTOCOL: grpc
     YOLOX_GRAPHIC_ELEMENTS_GRPC_ENDPOINT: nemoretriever-graphic-elements-v1:8001
     YOLOX_GRAPHIC_ELEMENTS_HTTP_ENDPOINT: http://nemoretriever-graphic-elements-v1:8000/v1/infer
@@ -920,11 +907,11 @@ nv-ingest:
     image:
       all:
         repository: milvusdb/milvus
-        tag: v2.5.17-gpu
+        tag: v2.6.5-gpu
     etcd:
       image:
         repository: "milvusdb/etcd"
-        tag: "3.5.22-r1"
+        tag: "3.5.23-r2"
     standalone:
       resources:
         limits:
@@ -954,178 +941,159 @@ nv-ingest:
       tag: 8.2.1
 
 
-  # Ensure nv-ingest does not deploy its own embedding NIM
-  nvidia-nim-llama-32-nv-embedqa-1b-v2:
-    deployed: false
-
   # Ensure nv-ingest does not deploy its own observability components
   otelDeployed: false
   zipkinDeployed: false
 
-  # Sub-NIMs deployed by NV-Ingest
-  # NIM OCR (PaddleOCR)
-  paddleocr-nim:
-    deployed: false
-    replicaCount: 1
-    image:
-      repository: nvcr.io/nim/baidu/paddleocr
-      tag: "1.5.0"
-    imagePullSecrets:
-      - name: ngc-secret
-    env:
-      - name: NIM_HTTP_API_PORT
-        value: "8000"
-      - name: NIM_TRITON_LOG_VERBOSE
-        value: "1"
-      - name: CUDA_VISIBLE_DEVICES
-        value: "0"
-      - name: NIM_TRITON_RATE_LIMIT
-        value: "3"
-      - name: NIM_TRITON_CUDA_MEMORY_POOL_MB
-        value: "3072"
-      - name: OMP_NUM_THREADS
-        value: "8"
-    resources:
-      limits:
-        nvidia.com/gpu: 1
-      requests:
-        nvidia.com/gpu: 1
+  nimOperator:
+    # Ensure nv-ingest does not deploy its own embedding NIM
+    embedqa:
+      enabled: false
 
-  # Nemo Retriever OCR
-  nemoretriever-ocr:
-    deployed: true
-    replicaCount: 1
-    image:
-      repository: nvcr.io/nim/nvidia/nemoretriever-ocr-v1
-      tag: "1.2.1"
-    imagePullSecrets:
-      - name: ngc-secret
-    env:
-      - name: OMP_NUM_THREADS
-        value: "8"
-      - name: NIM_HTTP_API_PORT
-        value: "8000"
-      - name: NIM_TRITON_LOG_VERBOSE
-        value: "1"
-      - name: CUDA_VISIBLE_DEVICES
-        value: "0"
-      - name: NIM_TRITON_CUDA_MEMORY_POOL_MB
-        value: "8192"
-      - name: NIM_TRITON_MAX_BATCH_SIZE
-        value: "32"
-      - name: NIM_TRITON_ENABLE_MODEL_CONTROL
-        value: "1"
-    resources:
-      limits:
-        nvidia.com/gpu: 1
-      requests:
-        nvidia.com/gpu: 1
+    # NIM OCR (PaddleOCR)
+    paddleocr:
+      enabled: false
 
-  # NIM Graphic Elements
-  nemoretriever-graphic-elements-v1:
-    deployed: true
-    replicaCount: 1
-    image:
-      repository: nvcr.io/nim/nvidia/nemoretriever-graphic-elements-v1
-      tag: "1.6.0"
-    env:
-      - name: NIM_HTTP_API_PORT
-        value: "8000"
-      - name: NIM_TRITON_LOG_VERBOSE
-        value: "1"
-      - name: NIM_TRITON_RATE_LIMIT
-        value: "3"
-      - name: CUDA_VISIBLE_DEVICES
-        value: "0"
-      - name: NIM_TRITON_MAX_BATCH_SIZE
-        value: "32"
-      - name: NIM_TRITON_CUDA_MEMORY_POOL_MB
-        value: "2048"
-      - name: OMP_NUM_THREADS
-        value: "1"
-    resources:
-      limits:
-        nvidia.com/gpu: 1
-      requests:
-        nvidia.com/gpu: 1
+    # Nemo Retriever OCR
+    nemoretriever_ocr_v1:
+      enabled: true
+      storage:
+        pvc:
+          volumeAccessMode: "ReadWriteOnce"
+      replicaCount: 1
+      image:
+        repository: nvcr.io/nim/nvidia/nemoretriever-ocr-v1
+        tag: "1.2.0"
+      imagePullSecrets:
+        - name: ngc-secret
+      env:
+        - name: OMP_NUM_THREADS
+          value: "8"
+        - name: NIM_HTTP_API_PORT
+          value: "8000"
+        - name: NIM_TRITON_LOG_VERBOSE
+          value: "1"
+        - name: CUDA_VISIBLE_DEVICES
+          value: "0"
+        - name: NIM_TRITON_CUDA_MEMORY_POOL_MB
+          value: "8192"
+        - name: NIM_TRITON_MAX_BATCH_SIZE
+          value: "32"
+        - name: NIM_TRITON_ENABLE_MODEL_CONTROL
+          value: "1"
+      resources:
+        limits:
+          nvidia.com/gpu: 1
+        requests:
+          nvidia.com/gpu: 1
 
-  # NIM Page Elements
-  nemoretriever-page-elements-v2:
-    deployed: true
-    replicaCount: 1
-    image:
-      repository: nvcr.io/nim/nvidia/nemoretriever-page-elements-v3
-      tag: "1.7.0"
-    env:
-      - name: NIM_HTTP_API_PORT
-        value: "8000"
-      - name: NIM_TRITON_LOG_VERBOSE
-        value: "1"
-      - name: NIM_TRITON_RATE_LIMIT
-        value: "3"
-      - name: CUDA_VISIBLE_DEVICES
-        value: "0"
-      - name: NIM_TRITON_MAX_BATCH_SIZE
-        value: "32"
-      - name: NIM_TRITON_CUDA_MEMORY_POOL_MB
-        value: "2048"
-      - name: NIM_TRITON_CPU_THREADS_PRE_PROCESSOR
-        value: "2"
-      - name: NIM_TRITON_CPU_THREADS_POST_PROCESSOR
-        value: "1"
-      - name: OMP_NUM_THREADS
-        value: "2"
-      - name: NIM_ENABLE_OTEL
-        value: "true"
-      - name: NIM_OTEL_SERVICE_NAME
-        value: "page-elements"
-      - name: NIM_OTEL_TRACES_EXPORTER
-        value: "otlp"
-      - name: NIM_OTEL_METRICS_EXPORTER
-        value: "console"
-      - name: NIM_OTEL_EXPORTER_OTLP_ENDPOINT
-        value: "http://otel-collector:4318"
-      - name: TRITON_OTEL_URL
-        value: "http://otel-collector:4318/v1/traces"
-      - name: TRITON_OTEL_RATE
-        value: "1"
-    resources:
-      limits:
-        nvidia.com/gpu: 1
-      requests:
-        nvidia.com/gpu: 1
+    # NIM Graphic Elements
+    graphic_elements:
+      enabled: true
+      storage:
+        pvc:
+          volumeAccessMode: "ReadWriteOnce"
+      replicaCount: 1
+      image:
+        repository: nvcr.io/nim/nvidia/nemoretriever-graphic-elements-v1
+        tag: "1.6.0"
+      env:
+        - name: NIM_HTTP_API_PORT
+          value: "8000"
+        - name: NIM_TRITON_LOG_VERBOSE
+          value: "1"
+        - name: NIM_TRITON_RATE_LIMIT
+          value: "3"
+        - name: CUDA_VISIBLE_DEVICES
+          value: "0"
+        - name: NIM_TRITON_MAX_BATCH_SIZE
+          value: "32"
+        - name: NIM_TRITON_CUDA_MEMORY_POOL_MB
+          value: "2048"
+        - name: OMP_NUM_THREADS
+          value: "1"
+      resources:
+        limits:
+          nvidia.com/gpu: 1
+        requests:
+          nvidia.com/gpu: 1
 
-  # NIM Table Structure
-  nemoretriever-table-structure-v1:
-    deployed: true
-    replicaCount: 1
-    image:
-      repository: nvcr.io/nim/nvidia/nemoretriever-table-structure-v1
-      tag: "1.6.0"
-    env:
-      - name: NIM_HTTP_API_PORT
-        value: "8000"
-      - name: NIM_TRITON_LOG_VERBOSE
-        value: "1"
-      - name: NIM_TRITON_RATE_LIMIT
-        value: "3"
-      - name: CUDA_VISIBLE_DEVICES
-        value: "0"
-      - name: NIM_TRITON_MAX_BATCH_SIZE
-        value: "32"
-      - name: NIM_TRITON_CUDA_MEMORY_POOL_MB
-        value: "2048"
-      - name: OMP_NUM_THREADS
-        value: "1"
-    resources:
-      limits:
-        nvidia.com/gpu: 1
-      requests:
-        nvidia.com/gpu: 1
+    # NIM Page Elements
+    page_elements:
+      enabled: true
+      storage:
+        pvc:
+          volumeAccessMode: "ReadWriteOnce"
+      replicaCount: 1
+      image:
+        repository: nvcr.io/nim/nvidia/nemoretriever-page-elements-v3
+        tag: "1.7.0"
+      env:
+        - name: NIM_HTTP_API_PORT
+          value: "8000"
+        - name: NIM_TRITON_LOG_VERBOSE
+          value: "1"
+        - name: NIM_TRITON_RATE_LIMIT
+          value: "3"
+        - name: CUDA_VISIBLE_DEVICES
+          value: "0"
+        - name: NIM_TRITON_MAX_BATCH_SIZE
+          value: "32"
+        - name: NIM_TRITON_CUDA_MEMORY_POOL_MB
+          value: "2048"
+        - name: NIM_TRITON_CPU_THREADS_PRE_PROCESSOR
+          value: "2"
+        - name: NIM_TRITON_CPU_THREADS_POST_PROCESSOR
+          value: "1"
+        - name: OMP_NUM_THREADS
+          value: "2"
+        - name: NIM_ENABLE_OTEL
+          value: "true"
+        - name: NIM_OTEL_SERVICE_NAME
+          value: "page-elements"
+        - name: NIM_OTEL_TRACES_EXPORTER
+          value: "otlp"
+        - name: NIM_OTEL_METRICS_EXPORTER
+          value: "console"
+        - name: NIM_OTEL_EXPORTER_OTLP_ENDPOINT
+          value: "http://otel-collector:4318"
+        - name: TRITON_OTEL_URL
+          value: "http://otel-collector:4318/v1/traces"
+        - name: TRITON_OTEL_RATE
+          value: "1"
+      resources:
+        limits:
+          nvidia.com/gpu: 1
+        requests:
+          nvidia.com/gpu: 1
 
-  # NIM VLM Text Extraction
-  nim-vlm-text-extraction:
-    deployed: false
-    image:
-      repository: nvcr.io/nim/nvidia/nemoretriever-parse
-      tag: "1.5.0"
+    # NIM Table Structure
+    table_structure:
+      enabled: true
+      storage:
+        pvc:
+          volumeAccessMode: "ReadWriteOnce"
+      replicaCount: 1
+      image:
+        repository: nvcr.io/nim/nvidia/nemoretriever-table-structure-v1
+        tag: "1.6.0"
+      env:
+        - name: NIM_HTTP_API_PORT
+          value: "8000"
+        - name: NIM_TRITON_LOG_VERBOSE
+          value: "1"
+        - name: NIM_TRITON_RATE_LIMIT
+          value: "3"
+        - name: CUDA_VISIBLE_DEVICES
+          value: "0"
+        - name: NIM_TRITON_MAX_BATCH_SIZE
+          value: "32"
+        - name: NIM_TRITON_CUDA_MEMORY_POOL_MB
+          value: "2048"
+        - name: OMP_NUM_THREADS
+          value: "1"
+      resources:
+        limits:
+          nvidia.com/gpu: 1
+        requests:
+          nvidia.com/gpu: 1

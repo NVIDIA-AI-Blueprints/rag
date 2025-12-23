@@ -65,7 +65,7 @@ When using NVIDIA hosted endpoints, you may encounter rate limiting with larger 
 To enable PDF extraction with Nemotron Parse using Helm, you need to enable the Nemotron Parse service along with other required services:
 
 ```bash
-helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-dev.tgz \
+helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-rc1.tgz \
   --username '$oauthtoken' \
   --password "${NGC_API_KEY}" \
   --set imagePullSecret.password=$NGC_API_KEY \

@@ -44,8 +44,10 @@ If you are working directly with the source Helm chart, and you want to customiz
     helm repo add nvidia-nim https://helm.ngc.nvidia.com/nim/nvidia/ --username='$oauthtoken' --password=$NGC_API_KEY
     helm repo add nim https://helm.ngc.nvidia.com/nim/ --username='$oauthtoken' --password=$NGC_API_KEY
     helm repo add nemo-microservices https://helm.ngc.nvidia.com/nvidia/nemo-microservices --username='$oauthtoken' --password=$NGC_API_KEY
+    helm repo add nvstaging https://helm.ngc.nvidia.com/nvstaging/nim --username='$oauthtoken' --password=$NGC_API_KEY
     helm repo add baidu-nim https://helm.ngc.nvidia.com/nim/baidu --username='$oauthtoken' --password=$NGC_API_KEY
     helm repo add bitnami https://charts.bitnami.com/bitnami
+    helm repo add elastic https://helm.elastic.co
     helm repo add otel https://open-telemetry.github.io/opentelemetry-helm-charts
     helm repo add zipkin https://zipkin.io/zipkin-helm
     helm repo add prometheus https://prometheus-community.github.io/helm-charts
@@ -59,24 +61,10 @@ If you are working directly with the source Helm chart, and you want to customiz
 
 5. Install the chart by running the following code.
 
-    :::{IMPORTANT}
-    The Bitnami project has moved some Redis container artifacts, which can affect the availability of some image tags. To use a supported version of Redis, override the Redis image in your `helm upgrade` command as shown in the second code block following. This uses the Bitnami Legacy Redis 8.2.1-debian-12-r0 image. Adjust the tag as needed for your environment.
-    :::    
-
     ```sh
     helm upgrade --install rag -n rag nvidia-blueprint-rag/ \
     --set imagePullSecret.password=$NGC_API_KEY \
     --set ngcApiSecret.password=$NGC_API_KEY
-    ```
-
-   — OR —
-
-    ```sh
-    helm upgrade --install rag -n rag nvidia-blueprint-rag/ \
-    --set imagePullSecret.password=$NGC_API_KEY \
-    --set ngcApiSecret.password=$NGC_API_KEY
-    --set nv-ingest.redis.image.repository=bitnamilegacy/redis \
-    --set nv-ingest.redis.image.tag=8.2.1-debian-12-r0
     ```
 
    :::{note}

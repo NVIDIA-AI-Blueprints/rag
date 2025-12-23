@@ -74,7 +74,7 @@ You can deploy RAG with query decomposition using Helm for Kubernetes environmen
 Use the Helm upgrade command below to enable query decomposition in RAG Blueprint by setting `ENABLE_QUERY_DECOMPOSITION` and `MAX_RECURSION_DEPTH`:
 
 ```bash
-helm upgrade rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-dev.tgz \
+helm upgrade rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-rc1.tgz \
   --username '$oauthtoken' \
   --password "${NGC_API_KEY}" \
   --set imagePullSecret.password=${NGC_API_KEY} \

@@ -172,6 +172,32 @@ Adding this information may impact response accuracy, especially when partial in
 
 
 
+## Helm Deployment Issues
+
+### PVCs in Pending state (StorageClass issues)
+If NIM Cache PVCs (e.g., `nemoretriever-embedding-ms-cache-pvc`) remain in `Pending` state, check if they are requesting a `storageClassName: default` that does not exist.
+**Fix:** Ensure you have a default storage class. If using `local-path`, you can create an alias:
+```yaml
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: default
+provisioner: rancher.io/local-path
+reclaimPolicy: Delete
+volumeBindingMode: WaitForFirstConsumer
+```
+
+### ProvisioningFailed (Access Mode mismatch)
+If using `local-path` provisioner, it does not support `ReadWriteMany` access mode, which is the default for some NIM Caches.
+**Fix:** Patch the NIMCache resources to use `ReadWriteOnce`:
+```bash
+kubectl patch nimcache nemoretriever-page-elements-v3 -n rag --type='merge' -p '{"spec":{"storage":{"pvc":{"volumeAccessMode":"ReadWriteOnce"}}}}'
+# Repeat for other affected caches (table-structure-v1, ocr-v1, graphic-elements-v1)
+kubectl delete pvc nemoretriever-page-elements-v3-pvc -n rag --wait=false # Delete pending PVC to trigger recreation
+```
+
+
+
 ## Ingestion failures
 
 In case a PDF or PPTx file is not ingested properly, check if that PDF/PPTx only contains images. If the images contain text that you want to extract, try enabling `APP_NVINGEST_EXTRACTINFOGRAPHICS` from [`deploy/compose/docker-compose-ingestor-server.yaml`](../deploy/compose/docker-compose-ingestor-server.yaml).
