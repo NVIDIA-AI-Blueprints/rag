@@ -1124,11 +1124,13 @@ class NvidiaRAGConfig(_ConfigBase):
         return cls.from_dict(data)
 
     def __str__(self) -> str:
-        """Return formatted config as YAML-like string for easy reading."""
-        import yaml
+        """Return formatted config as YAML-like string for easy reading.
 
+        Uses mode='json' to properly mask SecretStr fields (api_key, password, etc.)
+        as '**********' instead of exposing actual values.
+        """
         return yaml.dump(
-            self.model_dump(),
+            self.model_dump(mode="json"),
             default_flow_style=False,
             sort_keys=False,
             indent=2,
