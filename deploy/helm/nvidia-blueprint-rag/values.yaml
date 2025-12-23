@@ -582,6 +582,9 @@ opentelemetry-collector:
 # subsection: zipkin
 zipkin:
   enabled: false
+  image:
+    repository: docker.io/openzipkin/zipkin
+    tag: 3.5.0
 
 # subsection: kube-prometheus-stack
 kube-prometheus-stack:

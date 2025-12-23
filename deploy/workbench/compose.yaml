@@ -670,7 +670,7 @@ services:
     profiles: ["observability"]
 
   zipkin:
-    image: openzipkin/zipkin
+    image: docker.io/openzipkin/zipkin:3.5.0
     environment:
       JAVA_OPTS: "-Xms4g -Xmx8g -XX:+ExitOnOutOfMemoryError"
     ports:
