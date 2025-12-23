@@ -1,6 +1,6 @@
 services:
   otel-collector:
-    image: otel/opentelemetry-collector-contrib:0.131.0
+    image: otel/opentelemetry-collector-contrib:0.140.0
     hostname: otel-collector
     command: ["--config=/etc/otel-collector-config.yaml"]
     volumes:
@@ -17,7 +17,7 @@ services:
       - zipkin
 
   zipkin:
-    image: openzipkin/zipkin
+    image: docker.io/openzipkin/zipkin:3.5.0
     environment:
       JAVA_OPTS: "-Xms4g -Xmx8g -XX:+ExitOnOutOfMemoryError"
     ports:
