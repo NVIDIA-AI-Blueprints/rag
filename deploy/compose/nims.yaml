@@ -158,7 +158,7 @@ services:
     profiles: ["", "ingest", "vlm-ingest"]
 
   graphic-elements:
-    image: ${YOLOX_GRAPHIC_ELEMENTS_IMAGE:-nvcr.io/nim/nvidia/nemoretriever-graphic-elements-v1}:${YOLOX_GRAPHIC_ELEMENTS_TAG:-1.5.0}
+    image: ${YOLOX_GRAPHIC_ELEMENTS_IMAGE:-nvcr.io/nim/nvidia/nemoretriever-graphic-elements-v1}:${YOLOX_GRAPHIC_ELEMENTS_TAG:-1.6.0}
     shm_size: 16gb
     ports:
       - "8003:8000"
@@ -185,7 +185,7 @@ services:
     profiles: ["", "ingest", "vlm-ingest"]
 
   table-structure:
-    image: ${YOLOX_TABLE_STRUCTURE_IMAGE:-nvcr.io/nim/nvidia/nemoretriever-table-structure-v1}:${YOLOX_TABLE_STRUCTURE_TAG:-1.5.0}
+    image: ${YOLOX_TABLE_STRUCTURE_IMAGE:-nvcr.io/nim/nvidia/nemoretriever-table-structure-v1}:${YOLOX_TABLE_STRUCTURE_TAG:-1.6.0}
     shm_size: 16gb
     ports:
       - "8006:8000"
@@ -238,7 +238,7 @@ services:
     profiles: ["paddle"]
 
   nemoretriever-ocr:
-    image: ${NEMORETRIEVER_OCR_IMAGE:-nvcr.io/nim/nvidia/nemoretriever-ocr-v1}:${NEMORETRIEVER_OCR_TAG:-1.2.0}
+    image: ${NEMORETRIEVER_OCR_IMAGE:-nvcr.io/nim/nvidia/nemoretriever-ocr-v1}:${NEMORETRIEVER_OCR_TAG:-1.2.1}
     shm_size: 16gb
     ports:
       - "8012:8000"
@@ -267,6 +267,7 @@ services:
   # Optional NIM microservices
   nemoretriever-parse:
     image: ${NEMORETRIEVER_PARSE_IMAGE:-nvcr.io/nim/nvidia/nemoretriever-parse}:${NEMORETRIEVER_PARSE_TAG:-1.2}
+    shm_size: 16gb
     ports:
       - "8015:8000"
       - "8016:8001"
@@ -312,7 +313,7 @@ services:
 
   vlm-ms:
     container_name: nemo-vlm-microservice
-    image: nvcr.io/nim/nvidia/nemotron-nano-12b-v2-vl:1
+    image: nvcr.io/nim/nvidia/nemotron-nano-12b-v2-vl:1.5.0
     volumes:
     - ${MODEL_DIRECTORY:-./}:/opt/nim/.cache
     ports:
@@ -321,6 +322,9 @@ services:
     - "8000"
     environment:
       NGC_API_KEY: ${NGC_API_KEY}
+      NIM_HTTP_API_PORT: 8000
+      NIM_TRITON_LOG_VERBOSE: 1
+      CUDA_VISIBLE_DEVICES: 0
     user: "${USERID}"
     healthcheck:
       test: ["CMD", "python3", "-c", "import requests; requests.get('http://localhost:8000/v1/health/ready')"]

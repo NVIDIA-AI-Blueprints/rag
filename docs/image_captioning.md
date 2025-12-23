@@ -22,7 +22,7 @@ For this feature, use H100 or A100 GPUs instead.
 1. Deploy the VLM model on-prem. You need a H100 or A100 or B200 GPU to deploy this model.
    ```bash
    export VLM_MS_GPU_ID=<AVAILABLE_GPU_ID>
-   USERID=$(id -u) docker compose -f deploy/compose/nims.yaml --profile vlm up -d
+   USERID=$(id -u) docker compose -f deploy/compose/nims.yaml --profile vlm-only up -d
    ```
 
 2. Make sure the vlm container is up and running
