@@ -48,13 +48,13 @@ jobs:
       - name: Add Helm repositories
         env:
           NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
-          CI_NV_RAG_BLUEPRINT_KEY: ${{ secrets.CI_NV_RAG_BLUEPRINT_KEY }}
+          CI_NVSTAGING_BLUEPRINT_KEY: ${{ secrets.CI_NVSTAGING_BLUEPRINT_KEY }}
         run: |
           helm repo add nvidia-nim https://helm.ngc.nvidia.com/nim/nvidia/ --username='$oauthtoken' --password=$NGC_API_KEY
           helm repo add nim https://helm.ngc.nvidia.com/nim/ --username='$oauthtoken' --password=$NGC_API_KEY
           helm repo add nemo-microservices https://helm.ngc.nvidia.com/nvidia/nemo-microservices --username='$oauthtoken' --password=$NGC_API_KEY
           helm repo add baidu-nim https://helm.ngc.nvidia.com/nim/baidu --username='$oauthtoken' --password=$NGC_API_KEY
-          helm repo add nvstaging-nim https://helm.ngc.nvidia.com/0648981100760671 --username='$oauthtoken' --password=$CI_NV_RAG_BLUEPRINT_KEY
+          helm repo add nvstaging-nim https://helm.ngc.nvidia.com/nvstaging/blueprint --username='$oauthtoken' --password=$CI_NVSTAGING_BLUEPRINT_KEY
           helm repo update
 
       - name: Run Helm Blueprint Compliance
@@ -178,7 +178,7 @@ jobs:
 
       - name: Install NGC CLI
         env:          
-          NGC_API_KEY: ${{ secrets.CI_NV_RAG_BLUEPRINT_KEY }}
+          NGC_API_KEY: ${{ secrets.CI_NVSTAGING_BLUEPRINT_KEY }}
         run: |
           echo "Installing NGC CLI..."
           wget --content-disposition https://api.ngc.nvidia.com/v2/resources/nvidia/ngc-apps/ngc_cli/versions/4.9.10/files/ngccli_linux.zip -O ngccli_linux.zip
@@ -255,9 +255,9 @@ jobs:
 
       - name: Docker login
         env:
-          CI_NV_RAG_BLUEPRINT_KEY: ${{ secrets.CI_NV_RAG_BLUEPRINT_KEY }}
+          CI_NVSTAGING_BLUEPRINT_KEY: ${{ secrets.CI_NVSTAGING_BLUEPRINT_KEY }}
         run: |
-          echo "$CI_NV_RAG_BLUEPRINT_KEY" | docker login nvcr.io -u '$oauthtoken' --password-stdin
+          echo "$CI_NVSTAGING_BLUEPRINT_KEY" | docker login nvcr.io -u '$oauthtoken' --password-stdin
 
       - name: Start services
         run: |
@@ -337,7 +337,7 @@ jobs:
 
       - name: Restart services for query rewriter tests
         env:
-          CI_NV_RAG_BLUEPRINT_KEY: ${{ secrets.CI_NV_RAG_BLUEPRINT_KEY }}
+          CI_NVSTAGING_BLUEPRINT_KEY: ${{ secrets.CI_NVSTAGING_BLUEPRINT_KEY }}
         run: |
           echo "Restarting services with query rewriter configuration..."
           docker compose -f deploy/compose/docker-compose-rag-server.yaml down || true
@@ -378,7 +378,7 @@ jobs:
 
       - name: Restart services for reflection tests
         env:
-          CI_NV_RAG_BLUEPRINT_KEY: ${{ secrets.CI_NV_RAG_BLUEPRINT_KEY }}
+          CI_NVSTAGING_BLUEPRINT_KEY: ${{ secrets.CI_NVSTAGING_BLUEPRINT_KEY }}
         run: |
           echo "Restarting services with reflection configuration..."
           docker compose -f deploy/compose/docker-compose-rag-server.yaml down || true
@@ -419,7 +419,7 @@ jobs:
 
       - name: Restart services for guardrails tests
         env:
-          CI_NV_RAG_BLUEPRINT_KEY: ${{ secrets.CI_NV_RAG_BLUEPRINT_KEY }}
+          CI_NVSTAGING_BLUEPRINT_KEY: ${{ secrets.CI_NVSTAGING_BLUEPRINT_KEY }}
         run: |
           echo "Restarting services with guardrails configuration..."
           docker compose -f deploy/compose/docker-compose-rag-server.yaml down || true
@@ -472,7 +472,7 @@ jobs:
 
       - name: Restart services for image captioning tests
         env:
-          CI_NV_RAG_BLUEPRINT_KEY: ${{ secrets.CI_NV_RAG_BLUEPRINT_KEY }}
+          CI_NVSTAGING_BLUEPRINT_KEY: ${{ secrets.CI_NVSTAGING_BLUEPRINT_KEY }}
         run: |
           echo "Restarting services with image captioning configuration..."
           docker compose -f deploy/compose/docker-compose-rag-server.yaml down || true
@@ -512,7 +512,7 @@ jobs:
 
       - name: Restart services for VLM generation tests
         env:
-          CI_NV_RAG_BLUEPRINT_KEY: ${{ secrets.CI_NV_RAG_BLUEPRINT_KEY }}
+          CI_NVSTAGING_BLUEPRINT_KEY: ${{ secrets.CI_NVSTAGING_BLUEPRINT_KEY }}
         run: |
           echo "Restarting services with VLM generation configuration..."
           docker compose -f deploy/compose/docker-compose-rag-server.yaml down || true
@@ -552,7 +552,7 @@ jobs:
 
       - name: Restart services for custom prompt tests
         env:
-          CI_NV_RAG_BLUEPRINT_KEY: ${{ secrets.CI_NV_RAG_BLUEPRINT_KEY }}
+          CI_NVSTAGING_BLUEPRINT_KEY: ${{ secrets.CI_NVSTAGING_BLUEPRINT_KEY }}
         run: |
           echo "Restarting services with custom prompt configuration..."
           docker compose -f deploy/compose/docker-compose-rag-server.yaml down || true
@@ -593,7 +593,7 @@ jobs:
 
       - name: Restart services for observability tests
         env:
-          CI_NV_RAG_BLUEPRINT_KEY: ${{ secrets.CI_NV_RAG_BLUEPRINT_KEY }}
+          CI_NVSTAGING_BLUEPRINT_KEY: ${{ secrets.CI_NVSTAGING_BLUEPRINT_KEY }}
         run: |
           echo "Restarting services with observability configuration..."
           docker compose -f tests/integration/vectordb.yaml down -v || true
@@ -703,7 +703,7 @@ jobs:
       
       # - name: Restart services for Milvus VDB auth tests
       #   env:
-      #     CI_NV_RAG_BLUEPRINT_KEY: ${{ secrets.CI_NV_RAG_BLUEPRINT_KEY }}
+      #     CI_NVSTAGING_BLUEPRINT_KEY: ${{ secrets.CI_NVSTAGING_BLUEPRINT_KEY }}
       #   run: |
       #     echo "Restarting rag/ingestor services to pick up Milvus auth configuration..."
       #     docker compose -f deploy/compose/docker-compose-rag-server.yaml down || true

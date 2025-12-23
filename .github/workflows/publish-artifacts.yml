@@ -114,7 +114,7 @@ jobs:
         with:
           registry: nvcr.io
           username: '$oauthtoken'
-          password: ${{ secrets.CI_NV_RAG_BLUEPRINT_KEY }}
+          password: ${{ secrets.CI_NVSTAGING_BLUEPRINT_KEY }}
 
       - name: Build and push RAG server container
         env:
@@ -126,9 +126,9 @@ jobs:
 
           # Tag and push to NGC Container Registry
           echo "Pushing rag-server to NGC Container Registry..."
-          docker push nvcr.io/0648981100760671/rag-server:$TAG
-          docker tag nvcr.io/0648981100760671/rag-server:$TAG nvcr.io/0648981100760671/rag-server:latest
-          docker push nvcr.io/0648981100760671/rag-server:latest
+          docker push nvcr.io/nvstaging/blueprint/rag-server:$TAG
+          docker tag nvcr.io/nvstaging/blueprint/rag-server:$TAG nvcr.io/nvstaging/blueprint/rag-server:latest
+          docker push nvcr.io/nvstaging/blueprint/rag-server:latest
           echo "RAG server container publishing completed successfully"
 
       - name: Cleanup Docker images
@@ -171,7 +171,7 @@ jobs:
         with:
           registry: nvcr.io
           username: '$oauthtoken'
-          password: ${{ secrets.CI_NV_RAG_BLUEPRINT_KEY }}
+          password: ${{ secrets.CI_NVSTAGING_BLUEPRINT_KEY }}
 
       - name: Build and push ingestor server container
         env:
@@ -183,9 +183,9 @@ jobs:
 
           # Tag and push to NGC Container Registry
           echo "Pushing ingestor-server to NGC Container Registry..."
-          docker push nvcr.io/0648981100760671/ingestor-server:$TAG
-          docker tag nvcr.io/0648981100760671/ingestor-server:$TAG nvcr.io/0648981100760671/ingestor-server:latest
-          docker push nvcr.io/0648981100760671/ingestor-server:latest
+          docker push nvcr.io/nvstaging/blueprint/ingestor-server:$TAG
+          docker tag nvcr.io/nvstaging/blueprint/ingestor-server:$TAG nvcr.io/nvstaging/blueprint/ingestor-server:latest
+          docker push nvcr.io/nvstaging/blueprint/ingestor-server:latest
           echo "Ingestor server container publishing completed successfully"
 
       - name: Cleanup Docker images
@@ -228,7 +228,7 @@ jobs:
         with:
           registry: nvcr.io
           username: '$oauthtoken'
-          password: ${{ secrets.CI_NV_RAG_BLUEPRINT_KEY }}
+          password: ${{ secrets.CI_NVSTAGING_BLUEPRINT_KEY }}
 
       - name: Build and push RAG frontend container
         env:
@@ -240,9 +240,9 @@ jobs:
 
           # Tag and push to NGC Container Registry
           echo "Pushing rag-frontend to NGC Container Registry..."
-          docker push nvcr.io/0648981100760671/rag-frontend:$TAG
-          docker tag nvcr.io/0648981100760671/rag-frontend:$TAG nvcr.io/0648981100760671/rag-frontend:latest
-          docker push nvcr.io/0648981100760671/rag-frontend:latest
+          docker push nvcr.io/nvstaging/blueprint/rag-frontend:$TAG
+          docker tag nvcr.io/nvstaging/blueprint/rag-frontend:$TAG nvcr.io/nvstaging/blueprint/rag-frontend:latest
+          docker push nvcr.io/nvstaging/blueprint/rag-frontend:latest
           echo "RAG frontend container publishing completed successfully"
 
       - name: Cleanup Docker images

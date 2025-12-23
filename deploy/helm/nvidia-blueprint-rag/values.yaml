@@ -56,7 +56,7 @@ apiKeysSecret:
 
 # -- RAG server container image
 image:
-  repository: nvcr.io/0648981100760671/rag-server
+  repository: nvcr.io/nvstaging/blueprint/rag-server
   tag: "2.4.0.rc1.1"
   pullPolicy: Always
 
@@ -278,7 +278,7 @@ ingestor-server:
     password: ""
 
   image:
-    repository: nvcr.io/0648981100760671/ingestor-server
+    repository: nvcr.io/nvstaging/blueprint/ingestor-server
     tag: "2.4.0.rc1.1"
     pullPolicy: Always
 
@@ -433,7 +433,7 @@ frontend:
   replicaCount: 1
 
   image:
-    repository: nvcr.io/0648981100760671/rag-frontend
+    repository: nvcr.io/nvstaging/blueprint/rag-frontend
     pullPolicy: IfNotPresent
     tag: "2.4.0.rc1.1"
 
@@ -838,7 +838,7 @@ nv-ingest:
   ngcImagePullSecret:
     create: false
   image:
-    repository: "nvcr.io/0648981100760671/nv-ingest"
+    repository: "nvcr.io/nvstaging/blueprint/nv-ingest"
     tag: "26.1.0-RC2"
   resources:
     limits:
