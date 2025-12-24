@@ -209,9 +209,9 @@ For Kubernetes deployments, configure the Helm chart to disable the LLM NIM:
 ```bash
 helm upgrade --install rag nvidia-blueprint-rag \
   --namespace rag \
-  --set nim-llm.enabled=false \
-  --set nvidia-nim-llama-32-nv-embedqa-1b-v2.enabled=true \
-  --set nvidia-nim-llama-32-nv-rerankqa-1b-v2.enabled=true \
+  --set nimOperator.nim-llm.enabled=false \
+  --set nimOperator.nvidia-nim-llama-32-nv-embedqa-1b-v2.enabled=true \
+  --set nimOperator.nvidia-nim-llama-32-nv-rerankqa-1b-v2.enabled=true \
   --set imagePullSecret.password=$NGC_API_KEY \
   --set ngcApiSecret.password=$NGC_API_KEY
 ```
@@ -220,15 +220,16 @@ Or modify `values.yaml`:
 
 ```yaml
 # Disable LLM NIM for retrieval-only deployment
-nim-llm:
-  enabled: false
+nimOperator:
+  nim-llm:
+    enabled: false
 
-# Keep embedding and reranking NIMs enabled
-nvidia-nim-llama-32-nv-embedqa-1b-v2:
-  enabled: true
+  # Keep embedding and reranking NIMs enabled
+  nvidia-nim-llama-32-nv-embedqa-1b-v2:
+    enabled: true
 
-nvidia-nim-llama-32-nv-rerankqa-1b-v2:
-  enabled: true
+  nvidia-nim-llama-32-nv-rerankqa-1b-v2:
+    enabled: true
 ```
 
 

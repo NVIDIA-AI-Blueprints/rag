@@ -17,7 +17,7 @@ on:
 
 env:
   # Common environment variables
-  MILVUS_VERSION: v2.6.2
+  MILVUS_VERSION: v2.6.5
   NV_INGEST_MAX_UTIL: 8
   APP_VECTORSTORE_ENABLEGPUSEARCH: False
   APP_VECTORSTORE_ENABLEGPUINDEX: False
@@ -671,7 +671,7 @@ jobs:
           mkdir -p tests/integration
           if [ ! -f tests/integration/milvus.yaml ]; then
             echo "Creating temporary Milvus container to extract config..."
-            docker run --rm -d --name milvus-temp milvusdb/milvus:${MILVUS_VERSION:-v2.6.2-gpu} sleep 60
+            docker run --rm -d --name milvus-temp milvusdb/milvus:${MILVUS_VERSION:-v2.6.5-gpu} sleep 60
             docker cp milvus-temp:/milvus/configs/milvus.yaml tests/integration/milvus.yaml
             docker stop milvus-temp || true
           fi

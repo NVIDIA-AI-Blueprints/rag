@@ -3,7 +3,7 @@ services:
   # Milvus can be made GPU accelerated by uncommenting the lines as specified below
   milvus:
     container_name: milvus-standalone
-    image: milvusdb/milvus:${MILVUS_VERSION:-v2.6.5-gpu} # milvusdb/milvus:v2.6.2 for CPU
+    image: milvusdb/milvus:${MILVUS_VERSION:-v2.6.5-gpu} # milvusdb/milvus:v2.6.5 for CPU
     command: >
       bash -lc 'tmpfile=$(mktemp) &&
       sed "s/bucketName: a-bucket/bucketName: ${MINIO_BUCKET:-${NVINGEST_MINIO_BUCKET:-nv-ingest}}/" /milvus/configs/milvus.yaml > "$$tmpfile" &&
@@ -32,14 +32,14 @@ services:
     # Comment out this section if CPU based image is used and set below env variables to False
     # export APP_VECTORSTORE_ENABLEGPUSEARCH=False
     # export APP_VECTORSTORE_ENABLEGPUINDEX=False
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              capabilities: ["gpu"]
-              # count: ${INFERENCE_GPU_COUNT:-all}
-              device_ids: ['${VECTORSTORE_GPU_DEVICE_ID:-0}']
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           capabilities: ["gpu"]
+    #           # count: ${INFERENCE_GPU_COUNT:-all}
+    #           device_ids: ['${VECTORSTORE_GPU_DEVICE_ID:-0}']
     profiles: ["", "milvus"]
 
   etcd:

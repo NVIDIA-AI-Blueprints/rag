@@ -37,10 +37,10 @@ Comment out the entire deploy section that reserves GPU resources:
 **Step 2: Change the Milvus Docker Image**
 ```yaml
 # Change this line:
-image: milvusdb/milvus:v2.6.2-gpu # milvusdb/milvus:v2.6.2 for CPU
+image: milvusdb/milvus:v2.6.5-gpu # milvusdb/milvus:v2.6.5-gpu for GPU
 
 # To this:
-image: milvusdb/milvus:v2.6.2 # milvusdb/milvus:v2.6.2-gpu for GPU
+image: milvusdb/milvus:v2.6.5 # milvusdb/milvus:v2.6.5 for CPU
 ```
 
 #### 2. Set Environment Variables
@@ -126,7 +126,7 @@ With `APP_VECTORSTORE_ENABLEGPUSEARCH=False`, the client enables `adapt_for_cpu=
 
 ### Docker Compose notes
 
-- Keep Milvus running with a GPU-capable image if you want GPU index-building (for example: `milvusdb/milvus:v2.6.2-gpu`).
+- Keep Milvus running with a GPU-capable image if you want GPU index-building (for example: `milvusdb/milvus:v2.6.5-gpu`).
 - Set the environment variables above before starting the ingestor server.
 - For inference (search and generate) in `rag-server`, you can use either the GPU or CPU Docker image. Search will run on CPU for the Milvus collection built with GPU indexing when `APP_VECTORSTORE_ENABLEGPUSEARCH=False`.
 
