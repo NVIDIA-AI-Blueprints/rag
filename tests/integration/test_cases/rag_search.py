@@ -100,7 +100,7 @@ class RAGSearchModule(BaseTestModule):
     async def test_search_with_citations(self) -> bool:
         """Test /search endpoint and verify citations are returned"""
         payload = {
-            "query": "Tell me something interesting",
+            "query": "What is lion doing?",
             "reranker_top_k": 2,
             "vdb_top_k": 10,
             "collection_names": [self.collections["with_metadata"]],

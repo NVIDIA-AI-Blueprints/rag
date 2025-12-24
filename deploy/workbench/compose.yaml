@@ -393,7 +393,7 @@ services:
       - REDIS_MORPHEUS_TASK_QUEUE=morpheus_task_queue
       # Self-hosted redis endpoints.
       # build.nvidia.com hosted yolox endpoints.
-      # - YOLOX_HTTP_ENDPOINT=https://ai.api.nvidia.com/v1/cv/nvidia/nemoretriever-page-elements-v2
+      # - YOLOX_HTTP_ENDPOINT=https://ai.api.nvidia.com/v1/cv/nvidia/nemoretriever-page-elements-v3
       # - YOLOX_INFER_PROTOCOL=http
       - YOLOX_PAGE_IMAGE_FORMAT=JPEG
       - YOLOX_GRPC_ENDPOINT=${YOLOX_GRPC_ENDPOINT:-page-elements:8001}

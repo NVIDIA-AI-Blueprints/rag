@@ -83,7 +83,7 @@ Original error: Error during NimClient inference [yolox-page-elements, grpc]: [S
 In case you were expecting to use NVIDIA-hosted model for this service, then ensure the corresponding environment variables were set in the same terminal from where you did docker compose up. Following the above example the environment variables which are expected to be set are:
 
 ```output
-   export YOLOX_HTTP_ENDPOINT="https://ai.api.nvidia.com/v1/cv/nvidia/nemoretriever-page-elements-v2"
+   export YOLOX_HTTP_ENDPOINT="https://ai.api.nvidia.com/v1/cv/nvidia/nemoretriever-page-elements-v3"
    export YOLOX_INFER_PROTOCOL="http"
 ```
 
