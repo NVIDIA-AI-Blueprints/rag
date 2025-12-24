@@ -26,43 +26,22 @@ To see all available profiles for your specific hardware configuration, run the 
 ```bash
 USERID=$(id -u) docker run --rm --gpus all \
   -v ~/.cache/model-cache:/opt/nim/.cache \
-  nvcr.io/nim/nvidia/llama-3.3-nemotron-super-49b-v1.5:1.13.1 \
+  nvcr.io/nim/nvidia/llama-3.3-nemotron-super-49b-v1.5:1.15.1 \
   list-model-profiles
 ```
 
-## Hardware-Specific Profiles
+## How to Find the Correct Profile for Your Hardware
 
-The following profiles are optimized for different common GPU configurations:
+1. **Run** the `list-model-profiles` command (see above) to see all available profiles
+2. **Select** a profile from the "Compatible with system and runnable" section
+3. **Choose** based on these profile name components:
+   - `tensorrt_llm` = best performance (recommended), `vllm` = alternative
+   - GPU type: `h100_nvl`, `h100`, `a100`, `b200`, `rtx6000_blackwell_sv`, etc.
+   - Precision: `fp8` (faster) or `bf16` (better accuracy)
+   - `tp<N>` = number of GPUs (e.g., `tp1` = 1 GPU, `tp2` = 2 GPUs)
+   - `throughput` = batch processing, `latency` = interactive
 
-### 1xH100 NVL
-
-```bash
-tensorrt_llm-h100_nvl-fp8-tp1-pp1-throughput-2321:10de-d347471b749e4e6b6e5956bb0f600b6646461c214cadadf6614baf305054a743-1
-```
-
-### 1xH100 SXM
-
-```bash
-tensorrt_llm-h100-fp8-tp1-pp1-throughput-2330:10de-a5381c1be0b8ee66ad41e7dc7b4e6d2cffaa7a4e37ca05f57898817560b0bd2b-1
-```
-
-### 2xA100 SXM
-
-```bash
-vllm-bf16-tp2-pp1-32c3b968468aefcfb3ea1db5a16e3dc9d64395f02ef68a06175e8bbdb0038601
-```
-
-### 1xRTX PRO 6000
-
-```bash
-tensorrt_llm-rtx6000_blackwell_sv-fp8-tp1-pp1-throughput-2bb5:10de-d21d6986d29d8abf555f35c9a4c8146c4b10595d9e57e6efabd4a026efcc0c4a-1
-```
-
-### 2xB200
-
-```bash
-tensorrt_llm-b200-fp8-tp2-pp1-throughput-2901:10de-d2ff2bbf26fdabe28afaf754ca8e5615ed337e19d873da15627c209849f51072-2
-```
+**Example**: For 1xH100 NVL, select a profile like `tensorrt_llm-h100_nvl-fp8-tp1-pp1-throughput-...` and copy the full string from the output.
 
 ## Configuring Model Profiles
 
@@ -75,7 +54,7 @@ To set a specific model profile in Docker Compose, add the `NIM_MODEL_PROFILE` e
 ```yaml
   nim-llm:
     container_name: nim-llm-ms
-    image: nvcr.io/nim/nvidia/llama-3.3-nemotron-super-49b-v1.5:1.14.0
+    image: nvcr.io/nim/nvidia/llama-3.3-nemotron-super-49b-v1.5:1.15.1
     # ... other configuration ...
     environment:
       NGC_API_KEY: ${NGC_API_KEY}
@@ -101,7 +80,7 @@ nim-llm:
   image:
     repository: nvcr.io/nim/nvidia/llama-3.3-nemotron-super-49b-v1.5
     pullPolicy: IfNotPresent
-    tag: "1.14.0"
+    tag: "1.15.1"
   resources:
     limits:
       nvidia.com/gpu: 1

@@ -2,7 +2,7 @@ services:
 
   nim-llm:
     container_name: nim-llm-ms
-    image: nvcr.io/nim/nvidia/llama-3.3-nemotron-super-49b-v1.5:1.14.0
+    image: nvcr.io/nim/nvidia/llama-3.3-nemotron-super-49b-v1.5:1.15.1
     volumes:
     - ${MODEL_DIRECTORY:-/tmp}:/opt/nim/.cache
     user: "${USERID}"
@@ -119,7 +119,6 @@ services:
             - driver: nvidia
               device_ids: ['${YOLOX_MS_GPU_ID:-0}']
               capabilities: [gpu]
-    runtime: nvidia
     profiles: ["local"]
 
   graphic-elements:
@@ -145,7 +144,6 @@ services:
             - driver: nvidia
               device_ids: ['${YOLOX_GRAPHICS_MS_GPU_ID:-0}']
               capabilities: [gpu]
-    runtime: nvidia
     profiles: ["local"]
 
   table-structure:
@@ -171,7 +169,6 @@ services:
             - driver: nvidia
               device_ids:  ['${YOLOX_TABLE_MS_GPU_ID:-0}']
               capabilities: [gpu]
-    runtime: nvidia
     profiles: ["local"]
 
   nemoretriever-ocr:
@@ -198,7 +195,6 @@ services:
             - driver: nvidia
               device_ids: ["${OCR_MS_GPU_ID:-${PADDLE_MS_GPU_ID:-0}}"]
               capabilities: [gpu]
-    runtime: nvidia
     profiles: ["local"]
 
   # Main ingestor server which is responsible for ingestion

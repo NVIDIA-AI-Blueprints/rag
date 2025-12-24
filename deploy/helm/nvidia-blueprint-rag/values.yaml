@@ -624,7 +624,7 @@ nimOperator:
     image:
       repository: nvcr.io/nim/nvidia/llama-3.3-nemotron-super-49b-v1.5
       pullPolicy: IfNotPresent
-      tag: "1.14.0"
+      tag: "1.15.1"
     resources:
       limits:
         nvidia.com/gpu: 1
