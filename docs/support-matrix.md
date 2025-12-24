@@ -64,7 +64,7 @@ The following are requirements and recommendations for the individual components
 - **NVIDIA NIM for Image OCR (baidu/paddleocr)**: Refer to the [Support Matrix](https://docs.nvidia.com/nim/ingestion/table-extraction/latest/support-matrix.html#supported-hardware).
 - **NeMo Retriever OCR**: Refer to the [Support Matrix](https://docs.nvidia.com/nim/ingestion/image-ocr/latest/support-matrix.html).
 - **NVIDIA NIMs for Object Detection**:
-  - NeMo Retriever Page Elements v2 [Support Matrix](https://docs.nvidia.com/nim/ingestion/object-detection/latest/support-matrix.html#nemo-retriever-page-elements-v2)
+  - NeMo Retriever Page Elements v3 [Support Matrix](https://docs.nvidia.com/nim/ingestion/object-detection/latest/support-matrix.html#nemo-retriever-page-elements-v3)
   - NeMo Retriever Graphic Elements v1 [Support Matrix](https://docs.nvidia.com/nim/ingestion/object-detection/latest/support-matrix.html#nemo-retriever-graphic-elements-v1)
   - NeMo Retriever Table Structure v1 [Support Matrix](https://docs.nvidia.com/nim/ingestion/object-detection/latest/support-matrix.html#nemo-retriever-table-structure-v1)
 
