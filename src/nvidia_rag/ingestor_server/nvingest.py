@@ -135,7 +135,7 @@ def get_nv_ingest_ingestor(
 
     # Add splitting task (By default only works for text documents)
     if split_options is not None:
-        split_source_types = ["text", "html", "mp3", "docx"]
+        split_source_types = ["text", "html", "mp3", "docx", "pptx"]
         split_source_types = (
             ["PDF"] + split_source_types
             if config.nv_ingest.enable_pdf_splitter
