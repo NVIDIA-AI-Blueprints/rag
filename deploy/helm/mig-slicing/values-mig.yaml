@@ -6,101 +6,100 @@ ingestor-server:
     NV_INGEST_FILES_PER_BATCH: "4"
     NV_INGEST_CONCURRENT_BATCHES: "1"
 
-# NV-Ingest NIMs
+nimOperator:
+  draResources:
+    enabled: false
+    name: "rag-claim"
+    type: "Mig"
+  nim-llm:
+    resources:
+      limits:
+        nvidia.com/mig-7g.80gb: 1
+        nvidia.com/gpu: 0
+      requests:
+        nvidia.com/gpu: 0
+        nvidia.com/mig-7g.80gb: 1
+  nvidia-nim-llama-32-nv-embedqa-1b-v2:
+    resources:
+      limits:
+        nvidia.com/mig-2g.20gb: 1
+        nvidia.com/gpu: 0
+      requests:
+        nvidia.com/mig-2g.20gb: 1
+        nvidia.com/gpu: 0
+  nvidia-nim-llama-32-nv-rerankqa-1b-v2:
+    resources:
+      limits:
+        nvidia.com/mig-2g.20gb: 1
+        nvidia.com/gpu: 0
+      requests:
+        nvidia.com/mig-2g.20gb: 1
+        nvidia.com/gpu: 0
 nv-ingest:
+  nimOperator:
+    draResources:
+      enabled: false
+      name: "nvingest-claim"
+    embedqa:
+      enabled: false
+    page_elements:
+      resources:
+        limits:
+          nvidia.com/mig-2g.20gb: 1
+          nvidia.com/gpu: 0
+        requests:
+          nvidia.com/mig-2g.20gb: 1
+          nvidia.com/gpu: 0
+    graphic_elements:
+      resources:
+        limits:
+          nvidia.com/mig-2g.20gb: 1
+          nvidia.com/gpu: 0
+        requests:
+          nvidia.com/mig-2g.20gb: 1
+          nvidia.com/gpu: 0
+    table_structure:
+      resources:
+        limits:
+          nvidia.com/mig-2g.20gb: 1
+          nvidia.com/gpu: 0
+        requests:
+          nvidia.com/mig-2g.20gb: 1
+          nvidia.com/gpu: 0
+    nemoretriever_ocr_v1:
+      resources:
+        limits:
+          nvidia.com/mig-2g.20gb: 1
+          nvidia.com/gpu: 0
+        requests:
+          nvidia.com/mig-2g.20gb: 1
+          nvidia.com/gpu: 0
+      env:
+        - name: NIM_TRITON_CUDA_MEMORY_POOL_MB
+          value: "4096"
+        - name: NIM_TRITON_MAX_BATCH_SIZE
+          value: "16"
   envVars:
+    CUDA_VISIBLE_DEVICES: "1"
     NV_INGEST_MAX_UTIL: 8
     MAX_INGEST_PROCESS_WORKERS: 2
-  # PaddleOCR NIM
-  paddleocr-nim:
-    resources:
-      limits:
-        nvidia.com/mig-2g.20gb: 1
-        nvidia.com/gpu: 0
-      requests:
-        nvidia.com/mig-2g.20gb: 1
-        nvidia.com/gpu: 0
-
-  # Nemoretriever OCR NIM
-  nemoretriever-ocr:
-    resources:
-      limits:
-        nvidia.com/mig-2g.20gb: 1
-        nvidia.com/gpu: 0
-      requests:
-        nvidia.com/mig-2g.20gb: 1
-        nvidia.com/gpu: 0
-
-  # Nemoretriever Graphic Elements NIM
-  nemoretriever-graphic-elements-v1:
-    resources:
-      limits:
-        nvidia.com/mig-2g.20gb: 1
-        nvidia.com/gpu: 0
-      requests:
-        nvidia.com/mig-2g.20gb: 1
-        nvidia.com/gpu: 0
-
-  # Nemoretriever Page Elements NIM
-  nemoretriever-page-elements-v2:
-    resources:
-      limits:
-        #nvidia.com/mig-1g.10gb: 1
-        nvidia.com/mig-2g.20gb: 1
-        nvidia.com/gpu: 0
-      requests:
-        nvidia.com/mig-2g.20gb: 1
-        #nvidia.com/mig-1g.10gb: 1
-        nvidia.com/gpu: 0
-
-  # Nemoretriever Table Structure NIM
-  nemoretriever-table-structure-v1:
-    resources:
-      limits:
-        nvidia.com/mig-2g.20gb: 1
-        nvidia.com/gpu: 0
-      requests:
-        nvidia.com/mig-2g.20gb: 1
-        nvidia.com/gpu: 0
-
-  # Milvus
+  resources:
+    limits:
+      nvidia.com/mig-2g.20gb: 1
+      nvidia.com/gpu: 0
+    requests:
+      nvidia.com/mig-2g.20gb: 1
+      nvidia.com/gpu: 0
   milvus:
+    image:
+      all:
+        repository: milvusdb/milvus
+        tag: v2.6.5-gpu
     standalone:
       resources:
         limits:
           nvidia.com/gpu: 0
           nvidia.com/mig-2g.20gb: 1
         requests:
-          nvidia.com/gpu: 0
           nvidia.com/mig-2g.20gb: 1
-# Retrieval NIMs
-# LLM NIM
-nim-llm:
-  resources:
-    limits:
-      nvidia.com/mig-7g.80gb: 1
-      nvidia.com/gpu: 0
-    requests:
-      nvidia.com/mig-7g.80gb: 1
-      nvidia.com/gpu: 0
-
-
-# Embedding NIM
-nvidia-nim-llama-32-nv-embedqa-1b-v2:
-  resources:
-    limits:
-      nvidia.com/mig-2g.20gb: 1
-      nvidia.com/gpu: 0
-    requests:
-      nvidia.com/mig-2g.20gb: 1
-      nvidia.com/gpu: 0
-
-# Text Reranking NIM
-nvidia-nim-llama-32-nv-rerankqa-1b-v2:
-  resources:
-    limits:
-      nvidia.com/mig-2g.20gb: 1
-      nvidia.com/gpu: 0
-    requests:
-      nvidia.com/mig-2g.20gb: 1
-      nvidia.com/gpu: 0
+          nvidia.com/gpu: 0
