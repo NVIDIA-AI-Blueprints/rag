@@ -242,7 +242,7 @@ def extract_location_from_metadata(
         )
 
         if location:
-            logger.info("Extracted location is %s", location)
+            logger.debug("Extracted location is %s", location)
 
     return location
 
