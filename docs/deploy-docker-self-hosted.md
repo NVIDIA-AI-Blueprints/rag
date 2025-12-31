@@ -265,6 +265,16 @@ After the first time you deploy the RAG Blueprint successfully, you can consider
 
 - For information about advanced settings, see [Best Practices for Common Settings](accuracy_perf.md).
 
+### (Optional) Redis Backend Configuration
+
+The ingestor server uses Redis for task status tracking. The `ENABLE_REDIS_BACKEND` environment variable controls whether Redis is used (default: `False`). When disabled, task state is stored in-memory.
+
+To enable Redis backend for multi-instance deployments:
+```bash
+export ENABLE_REDIS_BACKEND=True
+docker compose -f deploy/compose/docker-compose-ingestor-server.yaml up -d
+```
+
 - To turn on recommended configurations for accuracy optimized profile set additional configs by running the following code:
 
    ```bash
