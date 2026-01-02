@@ -297,7 +297,7 @@ After the first time you deploy the RAG Blueprint successfully, you can consider
 
 - For improved accuracy, consider enabling reasoning mode. For details, refer to [Enable thinking](./enable-nemotron-thinking.md).
 
-- To use NeMo Retriever OCR (Early Access) instead of Paddle OCR, refer to [NeMo Retriever OCR](nemoretriever-ocr.md).
+- To use NeMo Retriever OCR instead of Paddle OCR, refer to [NeMo Retriever OCR](nemoretriever-ocr.md).
 
 - For advanced users who need direct filesystem access to extraction results, refer to [Ingestor Server Volume Mounting](mount-ingestor-volume.md).
 

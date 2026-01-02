@@ -2,15 +2,12 @@
   SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
   SPDX-License-Identifier: Apache-2.0
 -->
-# NeMo Retriever OCR Configuration Guide for NVIDIA RAG Blueprint (Early Access)
+# NeMo Retriever OCR Configuration Guide for NVIDIA RAG Blueprint
 
 You can enable NeMO Retriever OCR for your [NVIDIA RAG Blueprint](readme.md). NeMo Retriever OCR is an advanced optical character recognition service that provides enhanced text extraction capabilities for document processing workflows. It serves as a high-performance alternative to the default Paddle OCR service, offering significant improvements in speed and resource efficiency.
 
-For more information about NeMo Retriever OCR, refer to [NeMo Retriever OCR v1 Container](https://build.nvidia.com/nvidia/nemoretriever-ocr-v1).
+For more information about NeMo Retriever OCR, refer to [nemoretriever-ocr-v1](https://build.nvidia.com/nvidia/nemoretriever-ocr-v1/modelcard).
 
-:::{note}
-**Early Access**: Currently, the NeMo Retriever OCR v1 container is in early access preview.
-:::
 
 
 ## Key Benefits of NeMo Retriever OCR
@@ -22,7 +19,7 @@ For more information about NeMo Retriever OCR, refer to [NeMo Retriever OCR v1 C
 - **GPU Requirements**: Check the [NeMo Retriever OCR Support Matrix](https://docs.nvidia.com/nim/ingestion/image-ocr/latest/support-matrix.html) for detailed hardware requirements and supported GPUs
   - **GPU Memory**: Requires approximately **~4.1GB of GPU memory** [Triton server (~2.3GB) + Python backend processes(~1.8GB)] - ensure sufficient GPU memory is available
 - **Quality Variance**: Extraction quality may vary based on image quality and text complexity
-- **Early Access**: Currently in preview - monitor for updates and stability improvements
+
 
 
 ## How to Enable NeMo Retriever OCR

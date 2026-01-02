@@ -455,3 +455,9 @@ python nvidia_rag_mcp/mcp_client.py call \
 - 406 on `/mcp`: For streamable_http, a 406 on GET can still indicate the server is up; use the client list/call commands above.
 - Port conflicts: Free port 8000 before launching (e.g., `fuser -k 8000/tcp` on Linux).
 - Ensure the RAG and Ingestor services are running and reachable at the configured URLs.
+
+
+
+## Related Topics
+
+- [MCP server usage notebook](../notebooks/mcp_server_usage.ipynb)
