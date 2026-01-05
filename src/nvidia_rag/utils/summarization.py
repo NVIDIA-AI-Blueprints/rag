@@ -35,7 +35,6 @@ from typing import Any
 from langchain_core.documents import Document
 from langchain_core.output_parsers.string import StrOutputParser
 from langchain_core.prompts.chat import ChatPromptTemplate
-from langchain_text_splitters import RecursiveCharacterTextSplitter
 from transformers import AutoTokenizer
 
 from nvidia_rag.rag_server.response_generator import get_minio_operator_instance
@@ -151,6 +150,87 @@ def _token_length(text: str, config: NvidiaRAGConfig) -> int:
     """
     tokenizer = _get_tokenizer(config)
     return len(tokenizer.encode(text, add_special_tokens=False))
+
+
+def _split_text_into_chunks(
+    text: str, tokenizer, chunk_size: int, chunk_overlap: int
+) -> list[str]:
+    """Split text into chunks using token offsets with semantic boundary preservation.
+
+    Pre-encodes text once with offset mapping for efficiency, then splits at token
+    boundaries while respecting semantic separators (sentences, paragraphs).
+
+    Args:
+        text: Text to split
+        tokenizer: Tokenizer instance
+        chunk_size: Target chunk size in tokens
+        chunk_overlap: Overlap between chunks in tokens
+
+    Returns:
+        List of text chunks
+    """
+    if not text.strip():
+        return []
+
+    # Validate inputs
+    if chunk_size <= 0:
+        raise ValueError(f"chunk_size must be positive, got {chunk_size}")
+    if chunk_overlap < 0:
+        chunk_overlap = 0
+    if chunk_overlap >= chunk_size:
+        chunk_overlap = max(0, chunk_size - 1)
+
+    encoding = tokenizer.encode_plus(
+        text, add_special_tokens=False, return_offsets_mapping=True
+    )
+    offsets = encoding["offset_mapping"]
+
+    # Handle case where text fits in one chunk
+    if len(offsets) <= chunk_size:
+        return [text]
+
+    step = chunk_size - chunk_overlap
+    if step <= 0:
+        step = 1
+
+    chunks = [offsets[i : i + chunk_size] for i in range(0, len(offsets), step)]
+
+    separators = ["\n\n", "\n", ". ", "! ", "? ", " ", ""]
+    text_chunks = []
+    for chunk in chunks:
+        if not chunk:
+            continue
+        char_start = chunk[0][0]
+        char_end = chunk[-1][1]
+
+        # Find nearest separator before boundary for semantic splitting
+        search_start = max(char_start, char_end - int((char_end - char_start) * 0.3))
+        best_split = char_end
+        separator_found = False
+
+        for separator in separators:
+            if not separator:
+                break
+            pos = text.rfind(separator, search_start, char_end + len(separator))
+            if pos != -1:
+                best_split = pos + len(separator)
+                separator_found = True
+                break
+
+        # Verify chunk doesn't exceed size after separator adjustment
+        # Always verify if separator was found, or if adjustment is significant
+        if separator_found or abs(best_split - char_end) > 100:
+            chunk_text = text[char_start:best_split]
+            chunk_tokens = len(tokenizer.encode(chunk_text, add_special_tokens=False))
+            if chunk_tokens > chunk_size:
+                # If separator adjustment exceeds size, use exact token boundary
+                best_split = char_end
+
+        text_chunk = text[char_start:best_split]
+        if text_chunk.strip():  # Only add non-empty chunks
+            text_chunks.append(text_chunk)
+
+    return text_chunks
 
 
 def matches_page_filter(
@@ -756,14 +836,10 @@ async def _summarize_iterative(
             await progress_callback(current=1, total=1)
 
     else:
-        # Token-based splitting with recursive character splitting at semantic boundaries
-        text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=max_chunk_tokens,
-            chunk_overlap=chunk_overlap,
-            length_function=partial(_token_length, config=config),
-            separators=["\n\n", "\n", ". ", "! ", "? ", " ", ""],
+        tokenizer = _get_tokenizer(config)
+        text_chunks = _split_text_into_chunks(
+            document_text, tokenizer, max_chunk_tokens, chunk_overlap
         )
-        text_chunks = text_splitter.split_text(document_text)
         total_chunks = len(text_chunks)
 
         logger.info(
@@ -821,14 +897,10 @@ async def _summarize_hierarchical(
             document, config, progress_callback, is_shallow, prompts=prompts
         )
 
-    # Token-based splitting with recursive character splitting at semantic boundaries
-    text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=max_chunk_tokens,
-        chunk_overlap=config.summarizer.chunk_overlap,
-        length_function=partial(_token_length, config=config),
-        separators=["\n\n", "\n", ". ", "! ", "? ", " ", ""],
+    tokenizer = _get_tokenizer(config)
+    text_chunks = _split_text_into_chunks(
+        document_text, tokenizer, max_chunk_tokens, config.summarizer.chunk_overlap
     )
-    text_chunks = text_splitter.split_text(document_text)
     total_chunks = len(text_chunks)
 
     logger.info(f"Split {file_name} into {total_chunks} chunks for parallel processing")

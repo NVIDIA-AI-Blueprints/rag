@@ -625,8 +625,11 @@ class TestSummarizeIterative:
             ) as mock_create_chains,
             patch("nvidia_rag.utils.summarization._token_length") as mock_token_length,
             patch(
-                "nvidia_rag.utils.summarization.RecursiveCharacterTextSplitter"
-            ) as mock_splitter,
+                "nvidia_rag.utils.summarization._get_tokenizer"
+            ) as mock_get_tokenizer,
+            patch(
+                "nvidia_rag.utils.summarization._split_text_into_chunks"
+            ) as mock_split_chunks,
         ):
             mock_get_llm.return_value = mock_llm
             mock_get_prompts.return_value = {}
@@ -635,13 +638,12 @@ class TestSummarizeIterative:
                 mock_iterative_chain,
             )
             mock_token_length.return_value = 300
-            mock_splitter_instance = Mock()
-            mock_splitter_instance.split_text.return_value = [
+            mock_get_tokenizer.return_value = Mock()
+            mock_split_chunks.return_value = [
                 "Chunk 1 content.",
                 "Chunk 2 content.",
                 "Chunk 3 content.",
             ]
-            mock_splitter.return_value = mock_splitter_instance
 
             progress_callback = AsyncMock()
 
@@ -717,8 +719,11 @@ class TestSummarizeHierarchical:
             ) as mock_create_chains,
             patch("nvidia_rag.utils.summarization._token_length") as mock_token_length,
             patch(
-                "nvidia_rag.utils.summarization.RecursiveCharacterTextSplitter"
-            ) as mock_splitter,
+                "nvidia_rag.utils.summarization._get_tokenizer"
+            ) as mock_get_tokenizer,
+            patch(
+                "nvidia_rag.utils.summarization._split_text_into_chunks"
+            ) as mock_split_chunks,
             patch(
                 "nvidia_rag.utils.summarization._batch_summaries_by_length"
             ) as mock_batch,
@@ -733,13 +738,12 @@ class TestSummarizeHierarchical:
                 mock_iterative_chain,
             )
             mock_token_length.return_value = 300
-            mock_splitter_instance = Mock()
-            mock_splitter_instance.split_text.return_value = [
+            mock_get_tokenizer.return_value = Mock()
+            mock_split_chunks.return_value = [
                 "Chunk 1.",
                 "Chunk 2.",
                 "Chunk 3.",
             ]
-            mock_splitter.return_value = mock_splitter_instance
             mock_batch.return_value = [["Summary 1", "Summary 2", "Summary 3"]]
             mock_combine.return_value = "Combined Summary"
 
