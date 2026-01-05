@@ -118,7 +118,7 @@ For the latest supported models, refer to the [NIM Thinking Budget Control docum
 
 ### Enabling Thinking Budget on RAG
 
-To use the thinking budget feature in RAG, include the following parameters in your API request:
+After enabling the reasoning as per the steps mentioned above, enable the thinking budget feature in RAG by including the following parameters in your API request:
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
@@ -136,7 +136,8 @@ To use the thinking budget feature in RAG, include the following parameters in y
     }
   ],
   "min_thinking_tokens": 1,
-  "max_thinking_tokens": 8192
+  "max_thinking_tokens": 8192,
+  "model": "nvidia/nvidia-nemotron-nano-9b-v2",
 }
 ```
 

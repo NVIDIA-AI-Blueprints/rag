@@ -29,6 +29,7 @@ It is used to submit tasks to the task handler and get the status and result of 
 """
 
 import asyncio
+import json
 import logging
 import os
 from collections.abc import Callable
@@ -131,10 +132,9 @@ class IngestionTaskHandler:
         )
         self.task_map[task_id] = asyncio_task
         if self._enable_redis_backend:
-            self._redis_client.json().set(
+            self._redis_client.set(
                 task_id,
-                "$",
-                IngestionTaskStateSchema(task_id=task_id, state="PENDING").model_dump(),
+                json.dumps(IngestionTaskStateSchema(task_id=task_id, state="PENDING").model_dump()),
             )
         else:
             async with self._asyncio_lock:
@@ -152,7 +152,10 @@ class IngestionTaskHandler:
             state: The state of the task.
         """
         if self._enable_redis_backend:
-            return self._redis_client.json().get(task_id).get("state")
+            data = self._redis_client.get(task_id)
+            if data:
+                return json.loads(data).get("state")
+            return None
         return self.task_status_result_map[task_id].get("state")
 
     async def set_task_status_and_result(
@@ -166,12 +169,11 @@ class IngestionTaskHandler:
             result: The result of the task.
         """
         if self._enable_redis_backend:
-            self._redis_client.json().set(
+            self._redis_client.set(
                 task_id,
-                "$",
-                IngestionTaskStateSchema(
+                json.dumps(IngestionTaskStateSchema(
                     task_id=task_id, state=status, result=result
-                ).model_dump(),
+                ).model_dump()),
             )
         else:
             async with self._asyncio_lock:
@@ -194,7 +196,10 @@ class IngestionTaskHandler:
             f"Getting result of task {task_id}, enable_redis_backend: {self._enable_redis_backend}"
         )
         if self._enable_redis_backend:
-            return self._redis_client.json().get(task_id)
+            data = self._redis_client.get(task_id)
+            if data:
+                return json.loads(data)
+            return None
         return self.task_status_result_map[task_id]
 
     def get_task_result(self, task_id: str):
@@ -209,7 +214,10 @@ class IngestionTaskHandler:
             f"Getting result of task {task_id}, enable_redis_backend: {self._enable_redis_backend}"
         )
         if self._enable_redis_backend:
-            return self._redis_client.json().get(task_id).get("result")
+            data = self._redis_client.get(task_id)
+            if data:
+                return json.loads(data).get("result")
+            return None
         logger.debug(
             f"Task result: {self.task_status_result_map[task_id].get('result')}"
         )
@@ -228,12 +236,11 @@ class IngestionTaskHandler:
         if self._enable_redis_backend:
             # Store the state_dict in Redis with a specific key pattern
             state_key = f"{task_id}:state_dict"
-            self._redis_client.json().set(
+            self._redis_client.set(
                 state_key,
-                "$",
-                TaskStateDictSchema(
+                json.dumps(TaskStateDictSchema(
                     task_id=task_id, state_dict=state_dict
-                ).model_dump(),
+                ).model_dump()),
             )
         else:
             async with self._asyncio_lock:
@@ -255,8 +262,9 @@ class IngestionTaskHandler:
         )
         if self._enable_redis_backend:
             state_key = f"{task_id}:state_dict"
-            result = self._redis_client.json().get(state_key)
-            if result:
+            data = self._redis_client.get(state_key)
+            if data:
+                result = json.loads(data)
                 return result.get("state_dict", {})
             return {}
         return self.task_state_map.get(task_id, {})

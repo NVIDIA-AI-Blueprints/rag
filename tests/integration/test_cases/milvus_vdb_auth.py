@@ -29,7 +29,7 @@ except Exception:
             class embeddings:
                 dimensions = int(os.getenv("EMBEDDING_DIM", "1536"))
             class vector_store:
-                url = os.getenv("APP_VECTORSTORE_URL", "http://milvus:19530")
+                url = os.getenv("APP_VECTORSTORE_URL", "http://localhost:19530")
         return _DummyCfg()
 
 from ..base import BaseTestModule, TestStatus, test_case
@@ -67,65 +67,21 @@ def _create_role(client: MilvusClient, role: str):
         roles = client.list_roles()
         if role not in roles:
             client.create_role(role_name=role)
-    except Exception:
-        # Some Milvus versions create role implicitly on grant; ignore errors
-        pass
+    except Exception as e:
+        # Some Milvus versions create role implicitly on grant; log and continue
+        logger.warning(f"Failed to create or list role '{role}': {e}")
 
 
 def _grant_role(client: MilvusClient, role: str, user: str):
     client.grant_role(role_name=role, user_name=user)
 
 
-def _grant_collection_privilege(client: MilvusClient, role: str, object_type: str, object_name: str, privilege: str):
-    # Valid privilege examples include (for object_type="Collection"): "All", "CreateIndex", "DropCollection", "Search", "Query", "Insert"
-    client.grant_privilege(role_name=role, object_type=object_type, privilege=privilege, object_name=object_name)
+def _grant_collection_privilege(client: MilvusClient, role: str, object_type: str, object_name: str, privilege: str, db_name: str = "default"):
+    # Valid privilege examples:
+    # - object_type="Collection": "Search", "Query", "Insert", "Delete", "GetLoadState", "CreateIndex", "DropIndex", etc.
+    # - object_type="Global": "ShowCollections", "CreateCollection", "DropCollection", etc.
+    client.grant_privilege(role_name=role, object_type=object_type, privilege=privilege, object_name=object_name, db_name=db_name)
 
-
-def _grant_reader_privileges(client: MilvusClient, role: str, collection_name: str):
-    """
-    Grant read privileges to a role for a collection.
-    
-    In Milvus 2.5+, GetLoadState is an internal privilege that cannot be granted individually.
-    It's included in the ClusterReadOnly privilege group. We use grant_privilege_v2() API
-    which supports privilege groups.
-    
-    IMPORTANT: ClusterReadOnly is a CLUSTER-level privilege and must use "*" as collection_name.
-    """
-    # Grant ClusterReadOnly at CLUSTER level (collection_name must be "*")
-    # This includes GetLoadState, GetLoadingProgress, ShowCollections, etc.
-    # Required because langchain-milvus calls utility.load_state() during vectorstore init
-    try:
-        client.grant_privilege_v2(role_name=role, privilege="ClusterReadOnly", collection_name="*", db_name="*")
-        logger.info(f"Granted ClusterReadOnly (cluster-level) to {role}")
-    except Exception as e:
-        logger.warning(f"Failed to grant ClusterReadOnly: {e}")
-    
-    # Grant collection-specific privileges using v2 API
-    for priv in ("Query", "Search", "Load"):
-        try:
-            client.grant_privilege_v2(role_name=role, privilege=priv, collection_name=collection_name)
-            logger.info(f"Granted {priv} to {role} on {collection_name}")
-        except Exception as e:
-            logger.warning(f"Failed to grant {priv} via v2 API: {e}")
-            # Fallback to v1 API for older Milvus versions
-            try:
-                _grant_collection_privilege(client, role, "Collection", collection_name, priv)
-                logger.info(f"Granted {priv} to {role} on {collection_name} via v1 API")
-            except Exception as e2:
-                logger.warning(f"Failed to grant {priv} via v1 API: {e2}")
-    
-    # Grant global privileges needed for collection operations
-    try:
-        _grant_collection_privilege(client, role, "Global", "*", "DescribeCollection")
-        logger.info(f"Granted DescribeCollection to {role}")
-    except Exception as e:
-        logger.warning(f"Failed to grant DescribeCollection: {e}")
-    
-    try:
-        _grant_collection_privilege(client, role, "Global", "*", "ShowCollections")
-        logger.info(f"Granted ShowCollections to {role}")
-    except Exception as e:
-        logger.warning(f"Failed to grant ShowCollections: {e}")
 
 
 class MilvusVdbAuthModule(BaseTestModule):
@@ -134,12 +90,16 @@ class MilvusVdbAuthModule(BaseTestModule):
     @test_case(78, "Milvus Auth Setup (users/roles) and Create Collection")
     async def _test_milvus_auth_setup_and_create_collection(self) -> bool:
         """Create test users/roles and collection as admin."""
-        logger.info("\n=== Test 71: Milvus Auth Setup (users/roles) and Create Collection ===")
+        logger.info(
+            "\n=== Test %d: %s ===",
+            self._test_milvus_auth_setup_and_create_collection.test_number,
+            self._test_milvus_auth_setup_and_create_collection.test_name,
+        )
         start = time.time()
         cfg = NvidiaRAGConfig()
 
         # Prepare identities (use fixed names to avoid relying on random suffixes)
-        self.collection_name = "auth_it"
+        self.collection_name = "auth_test"
         self.reader_user = "reader"
         self.reader_pwd = "pwd_reader"
         self.reader_role = "role_reader"
@@ -191,7 +151,7 @@ class MilvusVdbAuthModule(BaseTestModule):
                         )
                         return False
         except Exception as e:
-            logger.error(f"❌ Exception during auth setup: {e}")
+            logger.exception("❌ Exception during auth setup")
             self.add_test_result(
                 self._test_milvus_auth_setup_and_create_collection.test_number,
                 self._test_milvus_auth_setup_and_create_collection.test_name,
@@ -207,7 +167,11 @@ class MilvusVdbAuthModule(BaseTestModule):
     @test_case(79, "GET /v1/collections denied without privileges")
     async def _test_get_collections_denied_without_privileges(self) -> bool:
         """GET /v1/collections should be denied without grants."""
-        logger.info("\n=== Test 72: Access denied without privileges (reader) ===")
+        logger.info(
+            "\n=== Test %d: %s ===",
+            self._test_get_collections_denied_without_privileges.test_number,
+            self._test_get_collections_denied_without_privileges.test_name,
+        )
         start = time.time()
         try:
             headers = {"Authorization": f"Bearer {self.reader_user}:{self.reader_pwd}"}
@@ -261,13 +225,42 @@ class MilvusVdbAuthModule(BaseTestModule):
     @test_case(80, "GET /v1/collections allowed after granting privileges")
     async def _test_get_collections_allowed_after_privileges(self) -> bool:
         """GET /v1/collections should succeed after granting read privileges."""
-        logger.info("\n=== Test 73: Grant read privileges and verify access ===")
+        logger.info(
+            "\n=== Test %d: %s ===",
+            self._test_get_collections_allowed_after_privileges.test_number,
+            self._test_get_collections_allowed_after_privileges.test_name,
+        )
         start = time.time()
         try:
             client = MilvusClient(uri=_milvus_uri(), token=_milvus_root_token())
-            # Use the helper that handles Milvus 2.5+ privilege groups (ClusterReadOnly includes GetLoadState)
-            _grant_reader_privileges(client, self.reader_role, self.collection_name)
-
+            for priv in ("Query", "Search", "DescribeCollection", "Load"):
+                try:
+                    if priv == "DescribeCollection":
+                        _grant_collection_privilege(
+                            client, 
+                            self.reader_role, 
+                            "Global", 
+                            "*", 
+                            privilege=priv
+                        )
+                    else:
+                        _grant_collection_privilege(
+                            client, 
+                            self.reader_role, 
+                            "Collection", 
+                            self.collection_name, 
+                            privilege=priv
+                        )
+                except Exception as e:
+                    # Best-effort privilege grant: log and continue so the test can still
+                    # verify the endpoint behavior even if some grants fail (e.g., already granted).
+                    logger.warning(
+                        "Failed to grant privilege %s to role %s on collection %s: %s",
+                        priv,
+                        self.reader_role,
+                        self.collection_name,
+                        e,
+                    )
             headers = {"Authorization": f"Bearer {self.reader_user}:{self.reader_pwd}"}
             async with aiohttp.ClientSession() as session:
                 async with session.get(f"{self.ingestor_server_url}/v1/collections", headers=headers) as resp:
@@ -311,7 +304,11 @@ class MilvusVdbAuthModule(BaseTestModule):
     @test_case(81, "DELETE /v1/collections denied without privilege")
     async def _test_delete_collections_denied_without_privilege(self) -> bool:
         """DELETE /v1/collections should be denied without drop privilege."""
-        logger.info("\n=== Test 74: Writer cannot drop collection without privilege (API) ===")
+        logger.info(
+            "\n=== Test %d: %s ===",
+            self._test_delete_collections_denied_without_privilege.test_number,
+            self._test_delete_collections_denied_without_privilege.test_name,
+        )
         start = time.time()
         try:
             headers = {"Authorization": f"Bearer {self.writer_user}:{self.writer_pwd}"}
@@ -368,15 +365,29 @@ class MilvusVdbAuthModule(BaseTestModule):
     @test_case(82, "DELETE /v1/collections allowed after granting privilege")
     async def _test_delete_collections_allowed_after_privilege(self) -> bool:
         """DELETE /v1/collections should succeed after granting DropCollection privilege."""
-        logger.info("\n=== Test 75: Writer can drop collection with privilege (API) ===")
+        logger.info(
+            "\n=== Test %d: %s ===",
+            self._test_delete_collections_allowed_after_privilege.test_number,
+            self._test_delete_collections_allowed_after_privilege.test_name,
+        )
         start = time.time()
         try:
-            # Grant writer the DropCollection (or All) privilege
+            # Grant writer the DropCollection privilege (database-level privilege)
             client = MilvusClient(uri=_milvus_uri(), token=_milvus_root_token())
             try:
-                _grant_collection_privilege(client, self.writer_role, "Global", self.collection_name, privilege="DropCollection")
+                _grant_collection_privilege(
+                    client,
+                    self.writer_role,
+                    "Global",
+                    "*",
+                    privilege="DropCollection",
+                )
             except Exception:
-                pass
+                logger.exception(
+                    "Failed to grant DropCollection privilege on %s to role %s",
+                    self.collection_name,
+                    self.writer_role,
+                )
 
             headers = {"Authorization": f"Bearer {self.writer_user}:{self.writer_pwd}"}
             async with aiohttp.ClientSession() as session:
@@ -425,7 +436,11 @@ class MilvusVdbAuthModule(BaseTestModule):
     @test_case(83, "RAG search denied without privileges (reader)")
     async def _test_rag_search_denied_without_privileges(self) -> bool:
         """Reader should not be able to perform RAG search without grants on a new collection."""
-        logger.info("\n=== Test 76: RAG search denied without privileges (reader) ===")
+        logger.info(
+            "\n=== Test %d: %s ===",
+            self._test_rag_search_denied_without_privileges.test_number,
+            self._test_rag_search_denied_without_privileges.test_name,
+        )
         start = time.time()
         cfg = NvidiaRAGConfig()
         temp_collection = "auth_rag"
@@ -514,15 +529,19 @@ class MilvusVdbAuthModule(BaseTestModule):
                         headers=headers_admin,
                     )
             except Exception:
-                pass
+                logger.exception("Failed to delete temp collection %s", temp_collection)
 
     @test_case(84, "RAG search allowed after privileges (reader)")
     async def _test_rag_search_allowed_after_privileges(self) -> bool:
         """Grant reader access and verify RAG search succeeds on a new collection."""
-        logger.info("\n=== Test 77: RAG search allowed after privileges (reader) ===")
+        logger.info(
+            "\n=== Test %d: %s ===",
+            self._test_rag_search_allowed_after_privileges.test_number,
+            self._test_rag_search_allowed_after_privileges.test_name,
+        )
         start = time.time()
         cfg = NvidiaRAGConfig()
-        temp_collection = "auth_rag_2"
+        temp_collection = "auth_rag"
         try:
             # Create temp collection via ingestor API as admin
             headers_admin = {"Authorization": f"Bearer {_milvus_root_token()}"}
@@ -533,34 +552,126 @@ class MilvusVdbAuthModule(BaseTestModule):
                     if c_resp.status != 200:
                         raise RuntimeError(f"Failed to create temp collection {temp_collection}")
 
-            # Grant reader privileges to this temp collection
-            # Use the helper that handles Milvus 2.5+ privilege groups (ClusterReadOnly includes GetLoadState)
             client = MilvusClient(uri=_milvus_uri(), token=_milvus_root_token())
-            _grant_reader_privileges(client, self.reader_role, temp_collection)
-            await asyncio.sleep(6)
+            for priv in ("Query", "Search", "Load", "GetLoadState"):
+                try:
+                    _grant_collection_privilege(
+                        client,
+                        self.reader_role,
+                        "Collection",
+                        temp_collection,
+                        privilege=priv,
+                    )
+                    time.sleep(1)
+                except Exception as e:
+                    logger.warning(
+                        "Failed to grant privilege %s on collection %s to role %s: %s",
+                        priv,
+                        temp_collection,
+                        self.reader_role,
+                        e,
+                    )
 
-            # Call RAG /search as reader (should succeed)
+            # Call RAG /search as reader (should succeed).
+            # Milvus privilege changes can be slightly eventual-consistent, so add
+            # a small retry loop that specifically tolerates transient permission
+            # errors and retries for a short window before failing the test.
             headers_reader = {"Authorization": f"Bearer {self.reader_user}:{self.reader_pwd}"}
             search_payload = {
                 "query": "what is milvus?",
                 "collection_names": [temp_collection],
                 "messages": [],
             }
+            max_attempts = 5
+            delay_seconds = 2.0
+
             async with aiohttp.ClientSession() as session:
-                async with session.post(f"{self.rag_server_url}/v1/search", json=search_payload, headers=headers_reader) as resp:
-                    result = await resp.json()
-                    if resp.status == 200:
-                        self.add_test_result(
-                            self._test_rag_search_allowed_after_privileges.test_number,
-                            self._test_rag_search_allowed_after_privileges.test_name,
-                            "POST /v1/search should succeed after granting read privileges.",
-                            ["POST /v1/search"],
-                            ["query", "collection_names"],
-                            time.time() - start,
-                            TestStatus.SUCCESS,
+                for attempt in range(1, max_attempts + 1):
+                    try:
+                        async with session.post(
+                            f"{self.rag_server_url}/v1/search",
+                            json=search_payload,
+                            headers=headers_reader,
+                        ) as resp:
+                            # Try JSON first, fall back to plain text
+                            try:
+                                body = await resp.json()
+                                body_text = json.dumps(body)
+                            except Exception:
+                                body_text = await resp.text()
+                                body = None
+
+                            if resp.status == 200:
+                                self.add_test_result(
+                                    self._test_rag_search_allowed_after_privileges.test_number,
+                                    self._test_rag_search_allowed_after_privileges.test_name,
+                                    "POST /v1/search should succeed after granting read privileges.",
+                                    ["POST /v1/search"],
+                                    ["query", "collection_names"],
+                                    time.time() - start,
+                                    TestStatus.SUCCESS,
+                                )
+                                return True
+
+                            # If we still see permission/privilege style errors, treat
+                            # them as transient for a few attempts to avoid flakes.
+                            message_lower = body_text.lower()
+                            is_permission_error = any(
+                                substr in message_lower
+                                for substr in (
+                                    "denied",
+                                    "not authorized",
+                                    "permission",
+                                    "privilege",
+                                )
+                            )
+                            if is_permission_error and attempt < max_attempts:
+                                logger.info(
+                                    "RAG search got permission-related error on attempt %d/%d, "
+                                    "retrying in %.1fs: %s",
+                                    attempt,
+                                    max_attempts,
+                                    delay_seconds,
+                                    body_text,
+                                )
+                                await asyncio.sleep(delay_seconds)
+                                continue
+
+                            # Non-permission errors or exhausted retries -> fail.
+                            self.add_test_result(
+                                self._test_rag_search_allowed_after_privileges.test_number,
+                                self._test_rag_search_allowed_after_privileges.test_name,
+                                "POST /v1/search should succeed after granting read privileges.",
+                                ["POST /v1/search"],
+                                ["query", "collection_names"],
+                                time.time() - start,
+                                TestStatus.FAILURE,
+                                f"status={resp.status} body={body_text}",
+                            )
+                            return False
+                    except Exception as e:
+                        message_lower = str(e).lower()
+                        is_permission_error = any(
+                            substr in message_lower
+                            for substr in (
+                                "denied",
+                                "not authorized",
+                                "permission",
+                                "privilege",
+                            )
                         )
-                        return True
-                    else:
+                        if is_permission_error and attempt < max_attempts:
+                            logger.info(
+                                "RAG search raised permission-related exception on attempt %d/%d, "
+                                "retrying in %.1fs: %s",
+                                attempt,
+                                max_attempts,
+                                delay_seconds,
+                                e,
+                            )
+                            await asyncio.sleep(delay_seconds)
+                            continue
+
                         self.add_test_result(
                             self._test_rag_search_allowed_after_privileges.test_number,
                             self._test_rag_search_allowed_after_privileges.test_name,
@@ -569,7 +680,7 @@ class MilvusVdbAuthModule(BaseTestModule):
                             ["query", "collection_names"],
                             time.time() - start,
                             TestStatus.FAILURE,
-                            f"status={resp.status} body={json.dumps(result)}",
+                            str(e),
                         )
                         return False
         except Exception as e:
@@ -595,14 +706,18 @@ class MilvusVdbAuthModule(BaseTestModule):
                         headers=headers_admin,
                     )
             except Exception:
-                pass
+                logger.exception("Failed to delete temp collection %s", temp_collection)
 
 
 
     @test_case(85, "Cleanup auth resources (collections, users, roles)")
     async def _test_cleanup_auth_resources(self) -> bool:
         """Cleanup resources created by this module: collections, users, roles."""
-        logger.info("\n=== Test 78: Cleanup auth resources (collections, users, roles) ===")
+        logger.info(
+            "\n=== Test %d: %s ===",
+            self._test_cleanup_auth_resources.test_number,
+            self._test_cleanup_auth_resources.test_name,
+        )
         start = time.time()
         try:
             headers_admin = {"Authorization": f"Bearer {_milvus_root_token()}"}
@@ -619,7 +734,7 @@ class MilvusVdbAuthModule(BaseTestModule):
                             headers=headers_admin,
                         )
             except Exception:
-                pass
+                logger.exception("Failed to delete main collection %s", self.collection_name)
 
             # 2) Sweep temporary collections created by these tests
             #    Handle both fixed names and historical suffixed variants.
@@ -646,7 +761,7 @@ class MilvusVdbAuthModule(BaseTestModule):
                                 headers=headers_admin,
                             )
             except Exception:
-                pass
+                logger.exception("Failed to sweep temporary auth collections during cleanup")
 
             # 3) Drop test users (reader, writer) if present; also attempt standard names
             for attr_user in ("reader_user", "writer_user"):
@@ -655,12 +770,12 @@ class MilvusVdbAuthModule(BaseTestModule):
                     if user_val:
                         client.drop_user(user_name=user_val)
                 except Exception:
-                    pass
+                    logger.exception("Failed to drop test user '%s'", user_val)
             for standard_user in ("reader", "writer"):
                 try:
                     client.drop_user(user_name=standard_user)
                 except Exception:
-                    pass
+                    logger.exception("Failed to drop standard user '%s'", standard_user)
 
             # 4) Drop test roles (reader_role, writer_role) if supported; also attempt standard names
             for attr_role in ("reader_role", "writer_role"):
@@ -669,13 +784,13 @@ class MilvusVdbAuthModule(BaseTestModule):
                     if role_val and hasattr(client, "drop_role"):
                         client.drop_role(role_name=role_val, force_drop=True)
                 except Exception:
-                    pass
+                    logger.exception("Failed to drop test role '%s'", role_val)
             for standard_role in ("role_reader", "role_writer"):
                 try:
                     if hasattr(client, "drop_role"):
                         client.drop_role(role_name=standard_role, force_drop=True)
                 except Exception:
-                    pass
+                    logger.exception("Failed to drop standard role '%s'", standard_role)
 
             self.add_test_result(
                 self._test_cleanup_auth_resources.test_number,
