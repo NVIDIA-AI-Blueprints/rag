@@ -156,6 +156,10 @@ Query Decomposition Flow — The system breaks down a complex query into subquer
 Query decomposition is not available for direct LLM calls (when `use_kb=false`). This feature requires the knowledge base integration to process subqueries and retrieve relevant documents. For direct LLM interactions, queries are processed without decomposition.
 :::
 
+:::{note}
+Query decomposition is currently limited to single collection operations. When query decomposition is enabled, multi-collection queries are not supported and will not function as expected.
+:::
+
 
 
 ## Related Topics
