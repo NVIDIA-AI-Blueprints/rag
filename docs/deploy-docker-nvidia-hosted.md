@@ -216,6 +216,8 @@ After the first time you deploy the RAG Blueprint successfully, you can consider
 
 - For information about advanced settings, see [Best Practices for Common Settings](accuracy_perf.md).
 
+- For Redis backend configuration, refer to [(Optional) Redis Backend Configuration](deploy-docker-self-hosted.md#optional-redis-backend-configuration).
+
 - To turn on recommended configurations for accuracy optimization, run the following code:
 
    ```bash

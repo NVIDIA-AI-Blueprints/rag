@@ -127,6 +127,7 @@ services:
       REDIS_HOST: ${REDIS_HOST:-redis}
       REDIS_PORT: ${REDIS_PORT:-6379}
       REDIS_DB: ${REDIS_DB:-0}
+      ENABLE_REDIS_BACKEND: ${ENABLE_REDIS_BACKEND:-False}
 
       # Bulk upload to MinIO
       ENABLE_MINIO_BULK_UPLOAD: ${ENABLE_MINIO_BULK_UPLOAD:-True}
