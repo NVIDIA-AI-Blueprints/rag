@@ -388,6 +388,7 @@ ingestor-server:
     REDIS_HOST: "rag-redis-master"
     REDIS_PORT: "6379"
     REDIS_DB: "0"
+    ENABLE_REDIS_BACKEND: "False"
 
     # === Bulk upload to MinIO ===
     ENABLE_MINIO_BULK_UPLOAD: "True"

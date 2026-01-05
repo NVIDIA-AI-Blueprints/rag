@@ -16,6 +16,7 @@
 """Unit tests for task_handler.py."""
 
 import asyncio
+import json
 import os
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
@@ -434,8 +435,6 @@ class TestIngestionTaskHandlerRedisBackend:
         handler = IngestionTaskHandler()
 
         mock_client = MagicMock()
-        mock_json = MagicMock()
-        mock_client.json.return_value = mock_json
         handler._enable_redis_backend = True
         handler._redis_client = mock_client
 
@@ -445,23 +444,21 @@ class TestIngestionTaskHandlerRedisBackend:
         task_id = await handler.submit_task(mock_task)
 
         assert task_id is not None
-        mock_json.set.assert_called_once()
+        mock_client.set.assert_called_once()
 
     def test_get_task_state_with_redis(self):
         """Test getting task state with Redis backend."""
         handler = IngestionTaskHandler()
 
         mock_client = MagicMock()
-        mock_json = MagicMock()
-        mock_json.get.return_value = {"state": "RUNNING"}
-        mock_client.json.return_value = mock_json
+        mock_client.get.return_value = json.dumps({"state": "RUNNING"})
         handler._enable_redis_backend = True
         handler._redis_client = mock_client
 
         state = handler.get_task_state("test-task-123")
 
         assert state == "RUNNING"
-        mock_json.get.assert_called_once()
+        mock_client.get.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_set_task_status_and_result_with_redis(self):
@@ -469,8 +466,6 @@ class TestIngestionTaskHandlerRedisBackend:
         handler = IngestionTaskHandler()
 
         mock_client = MagicMock()
-        mock_json = MagicMock()
-        mock_client.json.return_value = mock_json
         handler._enable_redis_backend = True
         handler._redis_client = mock_client
 
@@ -478,39 +473,35 @@ class TestIngestionTaskHandlerRedisBackend:
             "test-task-123", "FINISHED", {"result": "success"}
         )
 
-        mock_json.set.assert_called_once()
+        mock_client.set.assert_called_once()
 
     def test_get_task_status_and_result_with_redis(self):
         """Test getting task status and result with Redis backend."""
         handler = IngestionTaskHandler()
 
         mock_client = MagicMock()
-        mock_json = MagicMock()
-        mock_json.get.return_value = {"state": "FINISHED", "result": {"data": "test"}}
-        mock_client.json.return_value = mock_json
+        mock_client.get.return_value = json.dumps({"state": "FINISHED", "result": {"data": "test"}})
         handler._enable_redis_backend = True
         handler._redis_client = mock_client
 
         result = handler.get_task_status_and_result("test-task-123")
 
         assert result == {"state": "FINISHED", "result": {"data": "test"}}
-        mock_json.get.assert_called_once()
+        mock_client.get.assert_called_once()
 
     def test_get_task_result_with_redis(self):
         """Test getting task result with Redis backend."""
         handler = IngestionTaskHandler()
 
         mock_client = MagicMock()
-        mock_json = MagicMock()
-        mock_json.get.return_value = {"state": "FINISHED", "result": {"data": "test"}}
-        mock_client.json.return_value = mock_json
+        mock_client.get.return_value = json.dumps({"state": "FINISHED", "result": {"data": "test"}})
         handler._enable_redis_backend = True
         handler._redis_client = mock_client
 
         result = handler.get_task_result("test-task-123")
 
         assert result == {"data": "test"}
-        assert mock_json.get.call_count == 1
+        assert mock_client.get.call_count == 1
 
     @pytest.mark.asyncio
     async def test_set_task_state_dict_with_redis(self):
@@ -518,23 +509,19 @@ class TestIngestionTaskHandlerRedisBackend:
         handler = IngestionTaskHandler()
 
         mock_client = MagicMock()
-        mock_json = MagicMock()
-        mock_client.json.return_value = mock_json
         handler._enable_redis_backend = True
         handler._redis_client = mock_client
 
         await handler.set_task_state_dict("test-task-123", {"key": "value"})
 
-        mock_json.set.assert_called_once()
+        mock_client.set.assert_called_once()
 
     def test_get_task_state_dict_with_redis(self):
         """Test getting task state dictionary with Redis backend."""
         handler = IngestionTaskHandler()
 
         mock_client = MagicMock()
-        mock_json = MagicMock()
-        mock_json.get.return_value = {"state_dict": {"key": "value"}}
-        mock_client.json.return_value = mock_json
+        mock_client.get.return_value = json.dumps({"state_dict": {"key": "value"}})
         handler._enable_redis_backend = True
         handler._redis_client = mock_client
 
@@ -547,9 +534,7 @@ class TestIngestionTaskHandlerRedisBackend:
         handler = IngestionTaskHandler()
 
         mock_client = MagicMock()
-        mock_json = MagicMock()
-        mock_json.get.return_value = None
-        mock_client.json.return_value = mock_json
+        mock_client.get.return_value = None
         handler._enable_redis_backend = True
         handler._redis_client = mock_client
 
@@ -563,8 +548,6 @@ class TestIngestionTaskHandlerRedisBackend:
         handler = IngestionTaskHandler()
 
         mock_client = MagicMock()
-        mock_json = MagicMock()
-        mock_client.json.return_value = mock_json
         handler._enable_redis_backend = True
         handler._redis_client = mock_client
 
@@ -572,7 +555,7 @@ class TestIngestionTaskHandlerRedisBackend:
         await handler.set_task_state_dict(task_id, {"key": "value"})
 
         # Verify the key format includes :state_dict suffix
-        calls = mock_json.set.call_args_list
+        calls = mock_client.set.call_args_list
         assert len(calls) == 1
         call_args = calls[0][0]
         assert call_args[0] == f"{task_id}:state_dict"
@@ -582,9 +565,7 @@ class TestIngestionTaskHandlerRedisBackend:
         handler = IngestionTaskHandler()
 
         mock_client = MagicMock()
-        mock_json = MagicMock()
-        mock_json.get.return_value = {"state_dict": {"key": "value"}}
-        mock_client.json.return_value = mock_json
+        mock_client.get.return_value = json.dumps({"state_dict": {"key": "value"}})
         handler._enable_redis_backend = True
         handler._redis_client = mock_client
 
@@ -592,7 +573,7 @@ class TestIngestionTaskHandlerRedisBackend:
         result = handler.get_task_state_dict(task_id)
 
         # Verify the correct key format was used
-        mock_json.get.assert_called_once_with(f"{task_id}:state_dict")
+        mock_client.get.assert_called_once_with(f"{task_id}:state_dict")
         assert result == {"key": "value"}
 
     @pytest.mark.asyncio
@@ -601,8 +582,6 @@ class TestIngestionTaskHandlerRedisBackend:
         handler = IngestionTaskHandler()
 
         mock_client = MagicMock()
-        mock_json = MagicMock()
-        mock_client.json.return_value = mock_json
         handler._enable_redis_backend = True
         handler._redis_client = mock_client
 
@@ -616,7 +595,7 @@ class TestIngestionTaskHandlerRedisBackend:
 
         assert len(tasks) == 5
         # Verify Redis set was called for each task (2 times per task: PENDING + FINISHED)
-        assert mock_json.set.call_count == 10  # 5 tasks * 2 states each
+        assert mock_client.set.call_count == 10  # 5 tasks * 2 states each
 
     @pytest.mark.asyncio
     async def test_execute_task_with_redis_updates_state(self):
@@ -624,8 +603,6 @@ class TestIngestionTaskHandlerRedisBackend:
         handler = IngestionTaskHandler()
 
         mock_client = MagicMock()
-        mock_json = MagicMock()
-        mock_client.json.return_value = mock_json
         handler._enable_redis_backend = True
         handler._redis_client = mock_client
 
@@ -636,11 +613,11 @@ class TestIngestionTaskHandlerRedisBackend:
         await handler._execute_ingestion_task(task_id, mock_task)
 
         # Verify Redis was updated with FINISHED state
-        calls = mock_json.set.call_args_list
+        calls = mock_client.set.call_args_list
         # Last call should be the FINISHED state
         last_call = calls[-1]
-        assert last_call[0][1] == "$"
-        state_data = last_call[0][2]
+        assert last_call[0][0] == task_id
+        state_data = json.loads(last_call[0][1])
         assert state_data["state"] == "FINISHED"
         assert state_data["result"] == {"data": "completed"}
 
