@@ -2,7 +2,7 @@ services:
 
   nim-llm:
     container_name: nim-llm-ms
-    image: nvcr.io/nim/nvidia/llama-3.3-nemotron-super-49b-v1.5:1.13.1
+    image: nvcr.io/nim/nvidia/llama-3.3-nemotron-super-49b-v1.5:1.14.0
     volumes:
     - ${MODEL_DIRECTORY:-/tmp}:/opt/nim/.cache
     user: "${USERID}"
@@ -30,7 +30,7 @@ services:
 
   nemoretriever-embedding-ms:
     container_name: nemoretriever-embedding-ms
-    image: nvcr.io/nim/nvidia/llama-3.2-nv-embedqa-1b-v2:1.10.0
+    image: nvcr.io/nim/nvidia/llama-3.2-nv-embedqa-1b-v2:1.10.1
     volumes:
     - ${MODEL_DIRECTORY:-/tmp}:/opt/nim/.cache
     ports:
