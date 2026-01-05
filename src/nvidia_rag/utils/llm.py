@@ -240,6 +240,8 @@ def get_llm(config: NvidiaRAGConfig | None = None, **kwargs) -> LLM | SimpleChat
                 chat_nvidia_kwargs["top_p"] = kwargs["top_p"]
             if kwargs.get("max_tokens") is not None:
                 chat_nvidia_kwargs["max_tokens"] = kwargs["max_tokens"]
+                # Also set max_completion_tokens as max_tokens is deprecated in newer libs
+                chat_nvidia_kwargs["max_completion_tokens"] = kwargs["max_tokens"]
             # Only include NVIDIA-specific parameters for NVIDIA endpoints
             if is_nvidia:
                 if kwargs.get("min_tokens") is not None:
@@ -256,16 +258,25 @@ def get_llm(config: NvidiaRAGConfig | None = None, **kwargs) -> LLM | SimpleChat
         logger.info("Using llm model %s from api catalog", kwargs.get("model"))
 
         api_key = kwargs.get("api_key") or config.llm.get_api_key()
-        llm = ChatNVIDIA(
-            model=kwargs.get("model"),
-            api_key=api_key,
-            temperature=kwargs.get("temperature", None),
-            top_p=kwargs.get("top_p", None),
-            max_tokens=kwargs.get("max_tokens", None),
-            min_tokens=kwargs.get("min_tokens", None),
-            ignore_eos=kwargs.get("ignore_eos", False),
-            stop=kwargs.get("stop", []),
-        )
+        
+        chat_nvidia_kwargs = {
+            "model": kwargs.get("model"),
+            "api_key": api_key,
+            "stop": kwargs.get("stop", []),
+        }
+        if kwargs.get("temperature") is not None:
+            chat_nvidia_kwargs["temperature"] = kwargs["temperature"]
+        if kwargs.get("top_p") is not None:
+            chat_nvidia_kwargs["top_p"] = kwargs["top_p"]
+        if kwargs.get("max_tokens") is not None:
+            chat_nvidia_kwargs["max_tokens"] = kwargs["max_tokens"]
+            chat_nvidia_kwargs["max_completion_tokens"] = kwargs["max_tokens"]
+        if kwargs.get("min_tokens") is not None:
+            chat_nvidia_kwargs["min_tokens"] = kwargs["min_tokens"]
+        if kwargs.get("ignore_eos") is not None:
+            chat_nvidia_kwargs["ignore_eos"] = kwargs["ignore_eos"]
+
+        llm = ChatNVIDIA(**chat_nvidia_kwargs)
         llm = _bind_thinking_tokens_if_configured(llm, **kwargs)
         return llm
 
@@ -450,7 +461,7 @@ async def streaming_filter_think_async(chunks):
         chunks: Async iterable of chunks from a streaming LLM response
 
     Yields:
-        str: Filtered content with think blocks removed
+        AIMessageChunk: Filtered content with think blocks removed
     """
     # Complete tags
     FULL_START_TAG = "<think>"
@@ -471,10 +482,16 @@ async def streaming_filter_think_async(chunks):
     buffer = ""
     output_buffer = ""
     chunk_count = 0
+    last_usage = None
 
     async for chunk in chunks:
         content = chunk.content
         chunk_count += 1
+        
+        # Capture usage metadata if present
+        if hasattr(chunk, "usage_metadata") and chunk.usage_metadata:
+            last_usage = chunk.usage_metadata
+            logger.info(f"Usage found in streaming chunk: {last_usage}")
 
         # Let's first check for full tags - this is the most reliable approach
         buffer += content
@@ -567,15 +584,40 @@ async def streaming_filter_think_async(chunks):
 
         # Yield accumulated output before processing next chunk
         if output_buffer:
-            yield output_buffer
+            msg = AIMessageChunk(content=output_buffer)
+            if last_usage:
+                msg.usage_metadata = last_usage
+            yield msg
             output_buffer = ""
 
+    # Handle partial matches at EOF - treat as content
+    if state == MATCHING_START or state == MATCHING_END:
+        output_buffer += buffer
+        buffer = ""
+        state = NORMAL
+
+    emitted_content = False
     # Yield any remaining content if not in a think block
     if state == NORMAL:
         if buffer:
-            yield buffer
+            msg = AIMessageChunk(content=buffer)
+            if last_usage:
+                msg.usage_metadata = last_usage
+            yield msg
+            emitted_content = True
         if output_buffer:
-            yield output_buffer
+            msg = AIMessageChunk(content=output_buffer)
+            if last_usage:
+                msg.usage_metadata = last_usage
+            yield msg
+            emitted_content = True
+
+    if last_usage and not emitted_content:
+        # If we have usage but didn't emit it above (either because everything was filtered
+        # or just end of stream with empty buffer), emit an empty chunk with usage
+        msg = AIMessageChunk(content="")
+        msg.usage_metadata = last_usage
+        yield msg
 
     logger.info(
         "Finished streaming_filter_think_async processing after %d chunks", chunk_count
@@ -605,29 +647,3 @@ def get_streaming_filter_think_parser_async():
         logger.info("Think token filtering is disabled (async)")
         # If filtering is disabled, use a passthrough that passes content as-is
         return RunnablePassthrough()
-
-
-USAGE_SENTINEL_PREFIX = "__RAG_USAGE_SENTINEL__:"
-
-
-async def stream_with_usage_sentinel(chunks):
-    """
-    Pass through model chunks and, at the end, emit a synthetic chunk whose
-    content encodes token-usage metadata.
-    """
-    last_usage = None
-
-    async for chunk in chunks:
-        logger.info("Chunk: %s", chunk.usage_metadata)
-        if hasattr(chunk, "usage_metadata") and getattr(chunk, "usage_metadata", None):
-            last_usage = getattr(chunk, "usage_metadata", None)
-            logger.info("Usage metadata: %s", last_usage)
-        yield chunk
-
-    if last_usage is not None:
-        try:
-            payload = json.dumps(last_usage)
-            logger.info("Usage sentinel chunk: %s", payload)
-            yield AIMessageChunk(content=f"{USAGE_SENTINEL_PREFIX}{payload}")
-        except Exception as e:
-            logger.debug("Failed to emit usage sentinel chunk: %s", e)

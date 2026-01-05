@@ -38,7 +38,6 @@ from langchain_core.documents import Document
 from pydantic import BaseModel, Field, validator
 from pymilvus.exceptions import MilvusException, MilvusUnavailableException
 
-from nvidia_rag.utils.llm import USAGE_SENTINEL_PREFIX
 from nvidia_rag.utils.minio_operator import (
     get_minio_operator,
     get_unique_thumbnail_id,
@@ -446,11 +445,10 @@ def generate_answer(
             llm_generation_time_ms: float | None = None
             usage: Usage | None = None
             for chunk in generator:
-                # Sentinel from LangChain runnable carrying token-usage JSON.
-                if isinstance(chunk, str) and chunk.startswith(USAGE_SENTINEL_PREFIX):
-                    usage_json = chunk[len(USAGE_SENTINEL_PREFIX) :]
+                # Handle usage metadata if present (AIMessageChunk)
+                if hasattr(chunk, "usage_metadata") and chunk.usage_metadata:
+                    usage_dict = chunk.usage_metadata
                     try:
-                        usage_dict = json.loads(usage_json) or {}
                         prompt_tokens = int(usage_dict.get("input_tokens", 0))
                         completion_tokens = int(usage_dict.get("output_tokens", 0))
                         total_tokens = int(
@@ -472,18 +470,27 @@ def generate_answer(
                             usage_dict,
                         )
                     except Exception as e:
-                        logger.debug("Failed to parse usage sentinel: %s", e)
+                        logger.debug("Failed to parse usage metadata: %s", e)
+
+                # Extract content
+                content = chunk
+                if hasattr(chunk, "content"):
+                    content = chunk.content
+
+                # Skip empty content (e.g. usage-only chunks)
+                if not content:
                     continue
+
                 # TODO: This is a hack to clear contexts if we get an error
                 # response from nemoguardrails
-                if chunk == "I'm sorry, I can't respond to that.":
+                if content == "I'm sorry, I can't respond to that.":
                     # Clear contexts if we get an error response
                     contexts = []
                 chain_response = ChainResponse()
                 response_choice = ChainResponseChoices(
                     index=0,
-                    message=Message(role="assistant", content=chunk),
-                    delta=Message(role=None, content=chunk),
+                    message=Message(role="assistant", content=content),
+                    delta=Message(role=None, content=content),
                     finish_reason=None,
                 )
                 chain_response.id = resp_id
@@ -625,10 +632,10 @@ async def generate_answer_async(
             llm_generation_time_ms: float | None = None
             usage: Usage | None = None
             async for chunk in generator:
-                if isinstance(chunk, str) and chunk.startswith(USAGE_SENTINEL_PREFIX):
-                    usage_json = chunk[len(USAGE_SENTINEL_PREFIX) :]
+                # Handle usage metadata if present (AIMessageChunk)
+                if hasattr(chunk, "usage_metadata") and chunk.usage_metadata:
+                    usage_dict = chunk.usage_metadata
                     try:
-                        usage_dict = json.loads(usage_json) or {}
                         prompt_tokens = int(usage_dict.get("input_tokens", 0))
                         completion_tokens = int(usage_dict.get("output_tokens", 0))
                         total_tokens = int(
@@ -650,18 +657,27 @@ async def generate_answer_async(
                             usage_dict,
                         )
                     except Exception as e:
-                        logger.debug("Failed to parse usage sentinel: %s", e)
+                        logger.debug("Failed to parse usage metadata: %s", e)
+
+                # Extract content
+                content = chunk
+                if hasattr(chunk, "content"):
+                    content = chunk.content
+
+                # Skip empty content (e.g. usage-only chunks)
+                if not content:
                     continue
+
                 # TODO: This is a hack to clear contexts if we get an error
                 # response from nemoguardrails
-                if chunk == "I'm sorry, I can't respond to that.":
+                if content == "I'm sorry, I can't respond to that.":
                     # Clear contexts if we get an error response
                     contexts = []
                 chain_response = ChainResponse()
                 response_choice = ChainResponseChoices(
                     index=0,
-                    message=Message(role="assistant", content=chunk),
-                    delta=Message(role=None, content=chunk),
+                    message=Message(role="assistant", content=content),
+                    delta=Message(role=None, content=content),
                     finish_reason=None,
                 )
                 chain_response.id = resp_id
