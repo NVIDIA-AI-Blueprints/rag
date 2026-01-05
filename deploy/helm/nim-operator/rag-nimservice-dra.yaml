@@ -27,7 +27,7 @@ metadata:
 spec:
   image:
     repository: nvcr.io/nim/nvidia/llama-3.3-nemotron-super-49b-v1.5
-    tag: 1.14.0
+    tag: 1.13.1
     pullPolicy: IfNotPresent
     pullSecrets:
       - ngc-secret
@@ -148,7 +148,7 @@ metadata:
 spec:
   image:
     repository: nvcr.io/nim/nvidia/llama-3.2-nv-embedqa-1b-v2
-    tag: 1.10.1
+    tag: 1.10.0
     pullPolicy: IfNotPresent
     pullSecrets:
       - ngc-secret
