@@ -48,6 +48,15 @@ export function useDocumentSummary(collectionName: string, fileName: string) {
     enabled: !!collectionName && !!fileName,
     staleTime: 5 * 60 * 1000, // Cache for 5 minutes
     retry: false, // Don't retry on failure
+    // Poll every 10 seconds when summary is being generated
+    refetchInterval: (query: { state: { data?: DocumentSummaryResponse } }) => {
+      const data = query.state.data;
+      // Poll if status is PENDING or IN_PROGRESS, stop polling otherwise
+      if (!data || data.status === "PENDING" || data.status === "IN_PROGRESS") {
+        return 10000; // 10 seconds
+      }
+      return false; // Stop polling for terminal states (SUCCESS, FAILED, NOT_FOUND)
+    },
   });
 }
 
