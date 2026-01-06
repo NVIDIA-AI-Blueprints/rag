@@ -1685,6 +1685,8 @@ class NvidiaRAG:
 
             self._validate_collections_exist(collection_names, vdb_op)
 
+            # Store summary filter file names for later use (after filter processing)
+            summary_filter_files: list[str] = []
             if self.config.summary_filter.enable:
                 try:
                     query_text = self._extract_text_from_content(query)
@@ -1693,7 +1695,6 @@ class NvidiaRAG:
                     logger.info(
                         f"Summary filter enabled. Processing query: {query_text[:200]}"
                     )
-                    all_relevant_files = []
                     for collection_name in collection_names:
                         relevant_files = await get_relevant_file_names_from_summaries(
                             collection_name=collection_name,
@@ -1702,35 +1703,16 @@ class NvidiaRAG:
                             config=self.config,
                             prompts=prompts,
                         )
-                        all_relevant_files.extend(relevant_files)
+                        summary_filter_files.extend(relevant_files)
                         logger.info(
                             f"Summary filter for collection '{collection_name}': "
                             f"Found {len(relevant_files)} relevant files: {relevant_files}"
                         )
 
-                    if all_relevant_files:
-                        file_filter_expr = create_milvus_filter_from_file_names(
-                            all_relevant_files
-                        )
+                    if summary_filter_files:
                         logger.info(
-                            f"Summary filter created Milvus expression: {file_filter_expr}"
+                            f"Summary filter selected {len(summary_filter_files)} total files: {summary_filter_files}"
                         )
-                        if (
-                            filter_expr
-                            and isinstance(filter_expr, str)
-                            and filter_expr.strip()
-                        ):
-                            original_filter = filter_expr
-                            filter_expr = f"({filter_expr}) and ({file_filter_expr})"
-                            logger.info(
-                                f"Combined with existing filter: original='{original_filter}', "
-                                f"combined='{filter_expr}'"
-                            )
-                        else:
-                            filter_expr = file_filter_expr
-                            logger.info(
-                                f"Using summary filter expression as main filter: {filter_expr}"
-                            )
                     else:
                         logger.warning(
                             "Summary filter enabled but no relevant files found. "
@@ -1822,6 +1804,32 @@ class NvidiaRAG:
                         collection_filter_mapping[collection_name] = (
                             processed_filter_expr
                         )
+
+            # Apply summary filter AFTER filter processing to preserve case sensitivity for filenames
+            if self.config.summary_filter.enable and summary_filter_files:
+                file_filter_expr = create_milvus_filter_from_file_names(
+                    summary_filter_files
+                )
+                logger.info(
+                    f"Summary filter created Milvus expression (after processing): {file_filter_expr}"
+                )
+                
+                # Add summary filter to each collection's filter expression
+                for collection_name in validated_collections:
+                    existing_filter = collection_filter_mapping.get(collection_name, "")
+                    if existing_filter and existing_filter.strip():
+                        combined_filter = f"({existing_filter}) and ({file_filter_expr})"
+                        logger.info(
+                            f"Collection '{collection_name}': Combined filter - "
+                            f"existing='{existing_filter}', summary='{file_filter_expr}', "
+                            f"combined='{combined_filter}'"
+                        )
+                        collection_filter_mapping[collection_name] = combined_filter
+                    else:
+                        logger.info(
+                            f"Collection '{collection_name}': Using summary filter as main filter: {file_filter_expr}"
+                        )
+                        collection_filter_mapping[collection_name] = file_filter_expr
 
             # LLM and ranker creation - let the existing exception handler at the bottom catch runtime errors
             llm = get_llm(config=self.config, **llm_settings)
