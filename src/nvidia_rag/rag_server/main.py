@@ -1690,6 +1690,9 @@ class NvidiaRAG:
                     query_text = self._extract_text_from_content(query)
                     prompts = get_prompts(self.prompts)
 
+                    logger.info(
+                        f"Summary filter enabled. Processing query: {query_text[:200]}"
+                    )
                     all_relevant_files = []
                     for collection_name in collection_names:
                         relevant_files = await get_relevant_file_names_from_summaries(
@@ -1700,19 +1703,39 @@ class NvidiaRAG:
                             prompts=prompts,
                         )
                         all_relevant_files.extend(relevant_files)
+                        logger.info(
+                            f"Summary filter for collection '{collection_name}': "
+                            f"Found {len(relevant_files)} relevant files: {relevant_files}"
+                        )
 
                     if all_relevant_files:
                         file_filter_expr = create_milvus_filter_from_file_names(
                             all_relevant_files
+                        )
+                        logger.info(
+                            f"Summary filter created Milvus expression: {file_filter_expr}"
                         )
                         if (
                             filter_expr
                             and isinstance(filter_expr, str)
                             and filter_expr.strip()
                         ):
+                            original_filter = filter_expr
                             filter_expr = f"({filter_expr}) and ({file_filter_expr})"
+                            logger.info(
+                                f"Combined with existing filter: original='{original_filter}', "
+                                f"combined='{filter_expr}'"
+                            )
                         else:
                             filter_expr = file_filter_expr
+                            logger.info(
+                                f"Using summary filter expression as main filter: {filter_expr}"
+                            )
+                    else:
+                        logger.warning(
+                            "Summary filter enabled but no relevant files found. "
+                            "Continuing without summary-based filtering."
+                        )
                 except Exception as e:
                     logger.warning(
                         f"Error applying summary-based filtering: {e}. Continuing without summary filter.",
@@ -2211,13 +2234,43 @@ class NvidiaRAG:
                                 validated_collections, vectorstores, strict=False
                             )
                         ]
-                        for future in futures:
-                            docs.extend(future.result())
+                        for collection_name, future in zip(validated_collections, futures, strict=False):
+                            collection_docs = future.result()
+                            docs.extend(collection_docs)
+                            # Log what Milvus returned for this collection
+                            if self.config.summary_filter.enable:
+                                retrieved_filenames = []
+                                for doc in collection_docs:
+                                    metadata = getattr(doc, "metadata", {})
+                                    content_metadata = metadata.get("content_metadata", {})
+                                    filename = content_metadata.get("filename")
+                                    if filename:
+                                        retrieved_filenames.append(filename)
+                                logger.info(
+                                    f"Milvus retrieval for collection '{collection_name}' with filter "
+                                    f"'{collection_filter_mapping.get(collection_name, '')}': "
+                                    f"Retrieved {len(collection_docs)} documents. "
+                                    f"Unique filenames: {list(set(retrieved_filenames))}"
+                                )
 
                     retrieval_time_ms = (time.time() - retrieval_start_time) * 1000
                     logger.info(
                         "== Total retrieval time: %.2f ms ==", retrieval_time_ms
                     )
+                    
+                    # Log total documents and filenames after all retrievals
+                    if self.config.summary_filter.enable and docs:
+                        all_filenames = []
+                        for doc in docs:
+                            metadata = getattr(doc, "metadata", {})
+                            content_metadata = metadata.get("content_metadata", {})
+                            filename = content_metadata.get("filename")
+                            if filename:
+                                all_filenames.append(filename)
+                        logger.info(
+                            f"Total documents from all collections: {len(docs)}. "
+                            f"Unique filenames: {list(set(all_filenames))}"
+                        )
 
                     context_reranker_start_time = time.time()
                     logger.debug(

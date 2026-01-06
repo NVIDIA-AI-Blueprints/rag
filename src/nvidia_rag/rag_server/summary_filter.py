@@ -219,10 +219,15 @@ async def get_relevant_file_names_from_summaries(
     total_summaries = len(summaries)
 
     if total_summaries == 0:
-        logger.debug(f"No summaries found for collection {collection_name}")
+        logger.warning(f"No summaries found for collection {collection_name}")
         return []
 
-    logger.info(f"Found {total_summaries} summaries in collection {collection_name}")
+    # Log all filenames available for summary filtering
+    all_filenames = [s.get("file_name", "") for s in summaries]
+    logger.info(
+        f"Found {total_summaries} summaries in collection {collection_name}. "
+        f"Filenames: {all_filenames}"
+    )
 
     batches = batch_summaries(summaries, summaries_per_call)
     total_batches = len(batches)
@@ -245,7 +250,15 @@ async def get_relevant_file_names_from_summaries(
 
     async def process_batch(batch: list[dict[str, str]]) -> list[str]:
         async with semaphore:
-            return await filter_summaries_with_llm(batch, query, llm, prompts)
+            batch_filenames = [b.get("file_name", "") for b in batch]
+            logger.info(
+                f"Processing batch with {len(batch)} summaries. Files: {batch_filenames}"
+            )
+            result = await filter_summaries_with_llm(batch, query, llm, prompts)
+            logger.info(
+                f"LLM filtered batch result: selected {len(result)} files from {len(batch)}: {result}"
+            )
+            return result
 
     tasks = [process_batch(batch) for batch in batches]
     results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -267,7 +280,8 @@ async def get_relevant_file_names_from_summaries(
             unique_file_names.append(file_name)
 
     logger.info(
-        f"Extracted {len(unique_file_names)} relevant file names from {total_batches} LLM calls"
+        f"Summary filter final result: Extracted {len(unique_file_names)} relevant file names "
+        f"from {total_batches} LLM calls: {unique_file_names}"
     )
 
     return unique_file_names
@@ -284,6 +298,7 @@ def create_milvus_filter_from_file_names(file_names: list[str]) -> str:
         Milvus filter expression string
     """
     if not file_names:
+        logger.warning("No file names provided to create Milvus filter")
         return ""
 
     filter_parts = []
@@ -292,6 +307,11 @@ def create_milvus_filter_from_file_names(file_names: list[str]) -> str:
         filter_parts.append(f'content_metadata["filename"] == "{escaped_name}"')
 
     if len(filter_parts) == 1:
-        return filter_parts[0]
+        filter_expr = filter_parts[0]
     else:
-        return "(" + " or ".join(filter_parts) + ")"
+        filter_expr = "(" + " or ".join(filter_parts) + ")"
+    
+    logger.info(
+        f"Created Milvus filter expression for {len(file_names)} files: {filter_expr}"
+    )
+    return filter_expr
