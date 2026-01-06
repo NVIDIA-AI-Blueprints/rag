@@ -98,6 +98,7 @@ export APP_NVINGEST_IMAGE_ELEMENTS_MODALITY="image"
 export APP_NVINGEST_EXTRACTIMAGES="True"
 
 # Disable reranker (not supported with multimodal queries)
+export ENABLE_RERANKER="false"
 export APP_RANKING_SERVERURL=""
 ```
 
@@ -178,6 +179,7 @@ export APP_NVINGEST_IMAGE_ELEMENTS_MODALITY="image"
 export APP_NVINGEST_EXTRACTIMAGES="True"
 
 # Disable reranker (not supported with multimodal queries)
+export ENABLE_RERANKER="false"
 export APP_RANKING_SERVERURL=""
 ```
 
