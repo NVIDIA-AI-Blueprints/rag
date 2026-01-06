@@ -83,6 +83,8 @@ export APP_LLM_SERVERURL=""
 # Multimodal embedding model configuration
 export APP_EMBEDDINGS_MODELNAME="nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1"
 export APP_EMBEDDINGS_SERVERURL="nemoretriever-vlm-embedding-ms:8000/v1"
+export ENABLE_VLM_INFERENCE="true"
+export VLM_TO_LLM_FALLBACK="false"
 ```
 
 ### 4. Configure Image Extraction for Ingestion
@@ -163,6 +165,8 @@ export APP_LLM_SERVERURL=""
 # Multimodal embedding model configuration - cloud hosted
 export APP_EMBEDDINGS_MODELNAME="nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1"
 export APP_EMBEDDINGS_SERVERURL="https://integrate.api.nvidia.com/v1"
+export ENABLE_VLM_INFERENCE="true"
+export VLM_TO_LLM_FALLBACK="false"
 ```
 
 ### 3. Configure Image Extraction for Ingestion
