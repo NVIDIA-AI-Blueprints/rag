@@ -25,7 +25,7 @@ To see all available profiles for your specific hardware configuration, run the 
 ```bash
 USERID=$(id -u) docker run --rm --gpus all \
   -v ~/.cache/model-cache:/opt/nim/.cache \
-  nvcr.io/nim/nvidia/llama-3.3-nemotron-super-49b-v1.5:1.13.1 \
+  nvcr.io/nim/nvidia/llama-3.3-nemotron-super-49b-v1.5:1.14.0 \
   list-model-profiles
 ```
 
