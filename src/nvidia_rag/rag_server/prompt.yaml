@@ -494,15 +494,18 @@ summary_filter_prompt:
     /no_think
 
   human: |
-    You are a document filtering assistant. Given a query and a list of document summaries with file names, identify which documents are relevant to answering the query.
+    You are a document filtering assistant. Given a query and document summaries with file names, identify which documents are relevant.
 
-    Your task is to return ONLY the file names of documents that contain information relevant to answering the query. Return one file name per line. If no documents are relevant, return an empty response.
-
-    Do not include any explanations, reasoning, or additional text. Only return the file names.
+    CRITICAL RULES - MUST FOLLOW EXACTLY:
+    1. Return ONLY file names, one per line
+    2. NEVER add explanations, reasoning, or any other text
+    3. If no documents are relevant, return absolutely nothing (blank/empty response)
+    4. Do NOT write sentences like "None of the documents..." or "The response is:" or "Based on..."
+    5. Each line must be ONLY a filename ending in .pdf, .doc, .txt, etc.
 
     Query: {query}
 
     Document Summaries:
     {summaries}
 
-    Return only the relevant file names (one per line):
+    Relevant file names (one per line, NO explanations):
