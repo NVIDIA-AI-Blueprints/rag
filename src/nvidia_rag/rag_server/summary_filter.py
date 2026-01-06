@@ -25,6 +25,7 @@ import re
 from typing import Any
 
 from langchain_nvidia_ai_endpoints import ChatNVIDIA
+from pydantic import BaseModel, Field
 
 from nvidia_rag.rag_server.response_generator import retrieve_summary
 from nvidia_rag.utils.configuration import NvidiaRAGConfig
@@ -32,6 +33,15 @@ from nvidia_rag.utils.llm import get_llm, get_prompts
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
 
 logger = logging.getLogger(__name__)
+
+
+class RelevantFiles(BaseModel):
+    """Structured output for relevant file names."""
+
+    file_names: list[str] = Field(
+        default_factory=list,
+        description="List of relevant file names. Empty list if no documents are relevant.",
+    )
 
 
 async def get_summaries_for_collection(
@@ -113,7 +123,7 @@ async def filter_summaries_with_llm(
     prompts: dict[str, Any],
 ) -> list[str]:
     """
-    Use LLM to filter summaries and return relevant file names.
+    Use LLM with structured output to filter summaries and return relevant file names.
 
     Args:
         summaries_batch: Batch of summaries with 'file_name' and 'summary'
@@ -152,26 +162,25 @@ Return only the relevant file names, one per line. If no documents are relevant,
             messages.append({"role": "system", "content": system_prompt})
         messages.append({"role": "user", "content": prompt_text})
 
-        response = await llm.ainvoke(messages)
-        response_text = (
-            response.content if hasattr(response, "content") else str(response)
-        )
+        # Use structured output with Pydantic model
+        llm_with_structure = llm.with_structured_output(RelevantFiles)
+        response = await llm_with_structure.ainvoke(messages)
 
-        file_names = []
-        for line in response_text.strip().split("\n"):
-            line = line.strip()
-            if line:
-                line = re.sub(
-                    r"^(File\s*:?\s*|File\s+name\s*:?\s*)",
-                    "",
-                    line,
-                    flags=re.IGNORECASE,
+        # Extract file names from structured response
+        file_names = response.file_names if hasattr(response, "file_names") else []
+        
+        # Filter to only include valid filenames (with file extensions)
+        valid_file_names = []
+        for file_name in file_names:
+            file_name = file_name.strip()
+            if file_name and re.search(r'\.\w{2,5}$', file_name):
+                valid_file_names.append(file_name)
+            elif file_name:
+                logger.debug(
+                    f"Filtered out invalid filename from structured output: '{file_name}'"
                 )
-                line = line.strip()
-                if line:
-                    file_names.append(line)
 
-        return file_names
+        return valid_file_names
     except Exception as e:
         logger.error(
             f"Error filtering summaries with LLM: {e}",
