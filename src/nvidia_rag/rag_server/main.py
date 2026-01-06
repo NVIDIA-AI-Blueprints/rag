@@ -69,6 +69,10 @@ from nvidia_rag.rag_server.response_generator import (
     prepare_llm_request,
     retrieve_summary,
 )
+from nvidia_rag.rag_server.summary_filter import (
+    create_milvus_filter_from_file_names,
+    get_relevant_file_names_from_summaries,
+)
 from nvidia_rag.rag_server.validation import (
     validate_model_info,
     validate_reranker_k,
@@ -192,7 +196,9 @@ class NvidiaRAG:
             "api_key": self.config.query_rewriter.get_api_key(),
         }
         # Log config without sensitive api_key
-        safe_config = {k: v for k, v in query_rewriter_llm_config.items() if k != "api_key"}
+        safe_config = {
+            k: v for k, v in query_rewriter_llm_config.items() if k != "api_key"
+        }
         logger.info(
             "Query rewriter llm config: model name %s, url %s, config %s",
             self.config.query_rewriter.model_name,
@@ -1679,6 +1685,40 @@ class NvidiaRAG:
 
             self._validate_collections_exist(collection_names, vdb_op)
 
+            if self.config.summary_filter.enable:
+                try:
+                    query_text = self._extract_text_from_content(query)
+                    prompts = get_prompts(self.prompts)
+
+                    all_relevant_files = []
+                    for collection_name in collection_names:
+                        relevant_files = await get_relevant_file_names_from_summaries(
+                            collection_name=collection_name,
+                            query=query_text,
+                            vdb_op=vdb_op,
+                            config=self.config,
+                            prompts=prompts,
+                        )
+                        all_relevant_files.extend(relevant_files)
+
+                    if all_relevant_files:
+                        file_filter_expr = create_milvus_filter_from_file_names(
+                            all_relevant_files
+                        )
+                        if (
+                            filter_expr
+                            and isinstance(filter_expr, str)
+                            and filter_expr.strip()
+                        ):
+                            filter_expr = f"({filter_expr}) and ({file_filter_expr})"
+                        else:
+                            filter_expr = file_filter_expr
+                except Exception as e:
+                    logger.warning(
+                        f"Error applying summary-based filtering: {e}. Continuing without summary filter.",
+                        exc_info=logger.getEffectiveLevel() <= logging.DEBUG,
+                    )
+
             metadata_schemas = {}
             if (
                 filter_expr
@@ -2360,7 +2400,9 @@ class NvidiaRAG:
                                 prefetched_vlm_stream,
                                 context_to_show,
                                 model=model,
-                                collection_name=validated_collections[0] if validated_collections else "",
+                                collection_name=validated_collections[0]
+                                if validated_collections
+                                else "",
                                 enable_citations=enable_citations,
                             ),
                             status_code=ErrorCodeMapping.SUCCESS,
@@ -2373,7 +2415,9 @@ class NvidiaRAG:
                                 _async_iter([e.message]),
                                 [],
                                 model=model,
-                                collection_name=validated_collections[0] if validated_collections else "",
+                                collection_name=validated_collections[0]
+                                if validated_collections
+                                else "",
                                 enable_citations=enable_citations,
                                 otel_metrics_client=metrics,
                             ),
@@ -2486,7 +2530,9 @@ class NvidiaRAG:
                         _async_iter([final_response]),
                         context_to_show,
                         model=model,
-                        collection_name=validated_collections[0] if validated_collections else "",
+                        collection_name=validated_collections[0]
+                        if validated_collections
+                        else "",
                         enable_citations=enable_citations,
                         context_reranker_time_ms=context_reranker_time_ms,
                         retrieval_time_ms=retrieval_time_ms,
@@ -2509,7 +2555,9 @@ class NvidiaRAG:
                         prefetched_stream,
                         context_to_show,
                         model=model,
-                        collection_name=validated_collections[0] if validated_collections else "",
+                        collection_name=validated_collections[0]
+                        if validated_collections
+                        else "",
                         enable_citations=enable_citations,
                         context_reranker_time_ms=context_reranker_time_ms,
                         retrieval_time_ms=retrieval_time_ms,

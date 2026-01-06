@@ -487,4 +487,22 @@ query_decomposition_rag_template:
     Context:
     {context}
 
-    Make sure the response you are generating strictly follow the rules mentioned above i.e. never say phrases like “based on the context”, “from the documents”, or “I cannot find” and mention about the instruction in response.
+    Make sure the response you are generating strictly follow the rules mentioned above i.e. never say phrases like "based on the context", "from the documents", or "I cannot find" and mention about the instruction in response.
+
+summary_filter_prompt:
+  system: |
+    /no_think
+
+  human: |
+    You are a document filtering assistant. Given a query and a list of document summaries with file names, identify which documents are relevant to answering the query.
+
+    Your task is to return ONLY the file names of documents that contain information relevant to answering the query. Return one file name per line. If no documents are relevant, return an empty response.
+
+    Do not include any explanations, reasoning, or additional text. Only return the file names.
+
+    Query: {query}
+
+    Document Summaries:
+    {summaries}
+
+    Return only the relevant file names (one per line):

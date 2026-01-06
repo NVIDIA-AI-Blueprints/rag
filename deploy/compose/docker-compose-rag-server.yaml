@@ -77,6 +77,22 @@ services:
       # enable filter expression generator for natural language to filter expression conversion
       ENABLE_FILTER_GENERATOR: ${ENABLE_FILTER_GENERATOR:-False}
 
+      ##===Summary Filter Model specific configurations===
+      # Enable shallow summary-based filtering for improving RAG accuracy
+      ENABLE_SUMMARY_FILTER: ${ENABLE_SUMMARY_FILTER:-False}
+      # Model name for summary filtering
+      SUMMARY_FILTER_MODEL_NAME: ${SUMMARY_FILTER_MODEL_NAME:-nvidia/llama-3.3-nemotron-super-49b-v1.5}
+      # URL on which summary filter model is hosted. If "", Nvidia hosted API is used
+      SUMMARY_FILTER_SERVER_URL: ${SUMMARY_FILTER_SERVER_URL-"nim-llm:8000"}
+      # Number of summaries to include in each LLM call
+      SUMMARY_FILTER_SUMMARIES_PER_CALL: ${SUMMARY_FILTER_SUMMARIES_PER_CALL:-10}
+      # Maximum number of parallel LLM calls for summary filtering
+      SUMMARY_FILTER_MAX_PARALLEL_CALLS: ${SUMMARY_FILTER_MAX_PARALLEL_CALLS:-20}
+      # Summary filter LLM parameters
+      SUMMARY_FILTER_TEMPERATURE: ${SUMMARY_FILTER_TEMPERATURE:-0.0}
+      SUMMARY_FILTER_TOP_P: ${SUMMARY_FILTER_TOP_P:-1.0}
+      SUMMARY_FILTER_MAX_TOKENS: ${SUMMARY_FILTER_MAX_TOKENS:-512}
+
       ##===Embedding Model specific configurations===
       # url on which embedding model is hosted. If "", Nvidia hosted API is used
       APP_EMBEDDINGS_SERVERURL: ${APP_EMBEDDINGS_SERVERURL-"nemoretriever-embedding-ms:8000/v1"}
@@ -123,6 +139,7 @@ services:
       APP_FILTEREXPRESSIONGENERATOR_APIKEY: ${APP_FILTEREXPRESSIONGENERATOR_APIKEY:-""}
       APP_VLM_APIKEY: ${APP_VLM_APIKEY:-""}
       SUMMARY_LLM_APIKEY: ${SUMMARY_LLM_APIKEY:-""}
+      SUMMARY_FILTER_APIKEY: ${SUMMARY_FILTER_APIKEY:-""}
       REFLECTION_LLM_APIKEY: ${REFLECTION_LLM_APIKEY:-""}
 
       # Number of document chunks to insert in LLM prompt, used only when ENABLE_RERANKER is set to True

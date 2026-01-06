@@ -899,6 +899,66 @@ class SummarizerConfig(_ConfigBase):
         return v
 
 
+class SummaryFilterConfig(_ConfigBase):
+    """Configuration for shallow summary-based filtering."""
+
+    enable: bool = Field(
+        default=False,
+        env="ENABLE_SUMMARY_FILTER",
+        description="Enable shallow summary-based filtering for RAG",
+    )
+    model_name: str = Field(
+        default="meta/llama-3.1-8b-instruct",
+        env="SUMMARY_FILTER_MODEL_NAME",
+        description="LLM model name for summary filtering",
+    )
+    server_url: str = Field(
+        default="",
+        env="SUMMARY_FILTER_SERVER_URL",
+        description="LLM server URL for summary filtering (overrides model_name if provided)",
+    )
+    temperature: float = Field(
+        default=0.0,
+        env="SUMMARY_FILTER_TEMPERATURE",
+        description="Sampling temperature for summary filtering",
+    )
+    top_p: float = Field(
+        default=1.0,
+        env="SUMMARY_FILTER_TOP_P",
+        description="Nucleus sampling threshold for summary filtering",
+    )
+    max_tokens: int = Field(
+        default=512,
+        env="SUMMARY_FILTER_MAX_TOKENS",
+        description="Maximum tokens for summary filtering response",
+    )
+    summaries_per_llm_call: int = Field(
+        default=10,
+        env="SUMMARY_FILTER_SUMMARIES_PER_CALL",
+        description="Number of summaries to include in each LLM call",
+    )
+    max_parallel_llm_calls: int = Field(
+        default=20,
+        env="SUMMARY_FILTER_MAX_PARALLEL_CALLS",
+        description="Maximum number of parallel LLM calls for summary filtering",
+    )
+    api_key: SecretStr | None = Field(
+        default=None,
+        env="SUMMARY_FILTER_APIKEY",
+        description="API key for summary filtering service (overrides global NVIDIA_API_KEY)",
+    )
+
+    @field_validator("server_url", mode="before")
+    @classmethod
+    def normalize_url(cls, v: Any) -> Any:
+        """Normalize URL fields by stripping whitespace/quotes and adding scheme."""
+        if isinstance(v, str):
+            v = v.strip().strip('"').strip("'")
+            if v and not v.startswith(("http://", "https://")):
+                return f"http://{v}"
+        return v
+
+
 class MetadataConfig(_ConfigBase):
     """Metadata configuration."""
 
@@ -1014,6 +1074,9 @@ class NvidiaRAGConfig(_ConfigBase):
     vlm: VLMConfig = PydanticField(default_factory=VLMConfig)
     minio: MinioConfig = PydanticField(default_factory=MinioConfig)
     summarizer: SummarizerConfig = PydanticField(default_factory=SummarizerConfig)
+    summary_filter: SummaryFilterConfig = PydanticField(
+        default_factory=SummaryFilterConfig
+    )
     metadata: MetadataConfig = PydanticField(default_factory=MetadataConfig)
     query_decomposition: QueryDecompositionConfig = PydanticField(
         default_factory=QueryDecompositionConfig
