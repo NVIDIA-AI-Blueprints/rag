@@ -142,6 +142,7 @@ class TestLLMConfig:
             "max_tokens": 32768,
             "min_thinking_tokens": 1,
             "max_thinking_tokens": 8192,
+            "reasoning_budget": 8192,
             "temperature": 0,
             "top_p": 1.0,
         }
@@ -159,6 +160,7 @@ class TestLLMConfig:
             "max_tokens": 32768,
             "min_thinking_tokens": 1,
             "max_thinking_tokens": 8192,
+            "reasoning_budget": 8192,
             "temperature": 0,
             "top_p": 1.0,
         }

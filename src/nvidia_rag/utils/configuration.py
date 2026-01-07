@@ -395,6 +395,15 @@ class ModelParametersConfig(_ConfigBase):
         env="LLM_MIN_THINKING_TOKENS",
         description="Minimum thinking tokens to allocate for reasoning models",
     )
+    reasoning_budget: int = Field(
+        default=8192,
+        env="LLM_REASONING_BUDGET",
+        description="The reasoning budget for the model. "
+        "The reasoning budget is the maximum number of tokens that the model can use for reasoning. "
+        "Enable reasoning mode if reasoning_budget is provided.",
+        ge=0,
+        format="int64",
+    )
     ignore_eos: bool = Field(
         default=False,
         env="LLM_IGNORE_EOS",
@@ -477,6 +486,7 @@ class LLMConfig(_ConfigBase):
             "max_tokens": self.parameters.max_tokens,
             "min_thinking_tokens": self.parameters.min_thinking_tokens,
             "max_thinking_tokens": self.parameters.max_thinking_tokens,
+            "reasoning_budget": self.parameters.reasoning_budget,
             "temperature": self.parameters.temperature,
             "top_p": self.parameters.top_p,
         }

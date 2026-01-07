@@ -130,13 +130,52 @@ def _bind_thinking_tokens_if_configured(
     llm: LLM | SimpleChatModel, **kwargs
 ) -> LLM | SimpleChatModel:
     """
-    If min_thinking_tokens or max_thinking_tokens are > 0 in kwargs, bind them to the LLM.
+    If min_thinking_tokens, max_thinking_tokens, or reasoning_budget are > 0 in kwargs, bind them to the LLM.
+    For reasoning_budget, also enables thinking via chat_template_kwargs.
+
+    Raises:
+        ValueError: If min_thinking_tokens or max_thinking_tokens is passed but model is not nvidia/nvidia-nemotron-nano-9b-v2,
+                    or if reasoning_budget is passed but model is not nvidia/nemotron-3-nano-30b-a3b,
+                    or if any of these parameters have invalid values (0 or negative).
     """
     min_think = kwargs.get("min_thinking_tokens", None)
     max_think = kwargs.get("max_thinking_tokens", None)
-    enable_thinking = (max_think is not None and max_think > 0) or (
-        min_think is not None and min_think > 0
+    reasoning_budget = kwargs.get("reasoning_budget", None)
+    model = kwargs.get("model", None)
+
+    # Validate parameter values - must be positive if provided
+    if min_think is not None and min_think <= 0:
+        raise ValueError(
+            f"min_thinking_tokens must be a positive integer, but got {min_think}"
+        )
+    if max_think is not None and max_think <= 0:
+        raise ValueError(
+            f"max_thinking_tokens must be a positive integer, but got {max_think}"
+        )
+    if reasoning_budget is not None and reasoning_budget <= 0:
+        raise ValueError(
+            f"reasoning_budget must be a positive integer, but got {reasoning_budget}"
+        )
+
+    # Validate model compatibility for thinking tokens
+    has_thinking_tokens = (min_think is not None and min_think > 0) or (
+        max_think is not None and max_think > 0
     )
+    has_reasoning_budget = reasoning_budget is not None and reasoning_budget > 0
+
+    if has_thinking_tokens and model != "nvidia/nvidia-nemotron-nano-9b-v2":
+        raise ValueError(
+            f"min_thinking_tokens and max_thinking_tokens are only supported for model 'nvidia/nvidia-nemotron-nano-9b-v2', "
+            f"but got model '{model}'"
+        )
+
+    if has_reasoning_budget and model != "nvidia/nemotron-3-nano-30b-a3b":
+        raise ValueError(
+            f"reasoning_budget is only supported for model 'nvidia/nemotron-3-nano-30b-a3b', "
+            f"but got model '{model}'"
+        )
+
+    enable_thinking = has_thinking_tokens or has_reasoning_budget
     if not enable_thinking:
         return llm
 
@@ -145,6 +184,9 @@ def _bind_thinking_tokens_if_configured(
         bind_args["min_thinking_tokens"] = min_think
     if max_think is not None and max_think > 0:
         bind_args["max_thinking_tokens"] = max_think
+    if reasoning_budget is not None and reasoning_budget > 0:
+        bind_args["reasoning_budget"] = reasoning_budget
+        bind_args["chat_template_kwargs"] = {"enable_thinking": True}
     if bind_args:
         return llm.bind(**bind_args)
     return llm
