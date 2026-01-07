@@ -828,3 +828,85 @@ class TestLLMIntegration:
         chunk = Mock()
         chunk.content = content
         return chunk
+
+
+class TestThinkingBudgetNemotron3Nano30B:
+    """Tests for thinking budget behavior with nvidia/nemotron-3-nano-30b-a3b."""
+
+    def test_bind_thinking_tokens_for_nemotron_30b_maps_reasoning_budget(self):
+        """max_thinking_tokens for nemotron-3-nano-30b-a3b maps to reasoning_budget."""
+        from nvidia_rag.utils.llm import _bind_thinking_tokens_if_configured
+
+        mock_llm = Mock()
+        bound_llm = _bind_thinking_tokens_if_configured(
+            mock_llm,
+            model="nvidia/nemotron-3-nano-30b-a3b",
+            max_thinking_tokens=8192,
+        )
+
+        mock_llm.bind.assert_called_once_with(
+            reasoning_budget=8192,
+            chat_template_kwargs={"enable_thinking": True},
+        )
+        assert bound_llm is mock_llm.bind.return_value
+
+    def test_min_thinking_tokens_ignored_for_nemotron_30b(self):
+        """min_thinking_tokens alone does not bind for nemotron-3-nano-30b-a3b."""
+        from nvidia_rag.utils.llm import _bind_thinking_tokens_if_configured
+
+        mock_llm = Mock()
+        bound_llm = _bind_thinking_tokens_if_configured(
+            mock_llm,
+            model="nvidia/nemotron-3-nano-30b-a3b",
+            min_thinking_tokens=1,
+        )
+
+        mock_llm.bind.assert_not_called()
+        assert bound_llm is mock_llm
+
+    def test_thinking_tokens_unsupported_model_raises(self):
+        """Using thinking tokens with unsupported model raises ValueError."""
+        from nvidia_rag.utils.llm import _bind_thinking_tokens_if_configured
+
+        mock_llm = Mock()
+        with pytest.raises(ValueError):
+            _bind_thinking_tokens_if_configured(
+                mock_llm,
+                model="meta/llama-3.1-8b-instruct",
+                max_thinking_tokens=10,
+            )
+
+
+class TestThinkingBudgetNemotronNano9B:
+    """Tests for thinking budget behavior with nvidia/nvidia-nemotron-nano-9b-v2."""
+
+    def test_bind_thinking_tokens_for_nano_9b_binds_min_and_max(self):
+        """Both min_thinking_tokens and max_thinking_tokens bind for nano-9b."""
+        from nvidia_rag.utils.llm import _bind_thinking_tokens_if_configured
+
+        mock_llm = Mock()
+        bound_llm = _bind_thinking_tokens_if_configured(
+            mock_llm,
+            model="nvidia/nvidia-nemotron-nano-9b-v2",
+            min_thinking_tokens=1,
+            max_thinking_tokens=8192,
+        )
+
+        mock_llm.bind.assert_called_once_with(
+            min_thinking_tokens=1,
+            max_thinking_tokens=8192,
+        )
+        assert bound_llm is mock_llm.bind.return_value
+
+    def test_no_thinking_tokens_for_nano_9b_returns_original_llm(self):
+        """If no thinking tokens are provided, nano-9b returns original LLM."""
+        from nvidia_rag.utils.llm import _bind_thinking_tokens_if_configured
+
+        mock_llm = Mock()
+        bound_llm = _bind_thinking_tokens_if_configured(
+            mock_llm,
+            model="nvidia/nvidia-nemotron-nano-9b-v2",
+        )
+
+        mock_llm.bind.assert_not_called()
+        assert bound_llm is mock_llm

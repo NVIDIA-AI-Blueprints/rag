@@ -386,14 +386,14 @@ class ModelParametersConfig(_ConfigBase):
         description="Minimum number of tokens to generate in response",
     )
     max_thinking_tokens: int = Field(
-        default=8192,
+        default=0,
         env="LLM_MAX_THINKING_TOKENS",
-        description="Maximum thinking tokens to allocate for reasoning models",
+        description="Maximum thinking tokens to allocate for reasoning models (0 = disabled by default)",
     )
     min_thinking_tokens: int = Field(
-        default=1,
+        default=0,
         env="LLM_MIN_THINKING_TOKENS",
-        description="Minimum thinking tokens to allocate for reasoning models",
+        description="Minimum thinking tokens to allocate for reasoning models (0 = disabled by default)",
     )
     ignore_eos: bool = Field(
         default=False,

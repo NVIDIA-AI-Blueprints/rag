@@ -1158,7 +1158,7 @@
             "format": "int64",
             "title": "Min Thinking Tokens",
             "description": "Minimum number of thinking tokens to allocate for reasoning models. Enable thinking mode if either min_thinking_tokens or max_thinking_tokens is provided.",
-            "default": 1
+            "default": 0
           },
           "max_thinking_tokens": {
             "type": "integer",
@@ -1166,7 +1166,7 @@
             "format": "int64",
             "title": "Max Thinking Tokens",
             "description": "Maximum number of thinking tokens to allocate for reasoning models. Enable thinking mode if either min_thinking_tokens or max_thinking_tokens is provided.",
-            "default": 8192
+            "default": 0
           },
           "reranker_top_k": {
             "type": "integer",
