@@ -82,6 +82,7 @@ default_temperature = model_params["temperature"]
 default_top_p = model_params["top_p"]
 default_min_thinking_tokens = model_params.get("min_thinking_tokens", 1)
 default_max_thinking_tokens = model_params.get("max_thinking_tokens", 8192)
+default_reasoning_budget = model_params.get("reasoning_budget", 8192)
 
 logger.debug("Default LLM parameters:")
 logger.debug(f"  min_tokens: {default_min_tokens}")
@@ -91,7 +92,7 @@ logger.debug(f"  temperature: {default_temperature}")
 logger.debug(f"  top_p: {default_top_p}")
 logger.debug(f"  min_thinking_tokens: {default_min_thinking_tokens}")
 logger.debug(f"  max_thinking_tokens: {default_max_thinking_tokens}")
-
+logger.debug(f"  reasoning_budget: {default_reasoning_budget}")
 tags_metadata = [
     {
         "name": "Health APIs",
@@ -430,6 +431,14 @@ class Prompt(BaseModel):
         default=default_min_thinking_tokens,
         description="Minimum number of thinking tokens to allocate for reasoning models. "
         "Enable thinking mode if either min_thinking_tokens or max_thinking_tokens is provided.",
+        ge=0,
+        format="int64",
+    )
+    reasoning_budget: int = Field(
+        default=default_reasoning_budget,
+        description="The reasoning budget for the model. "
+        "The reasoning budget is the maximum number of tokens that the model can use for reasoning. "
+        "Enable reasoning mode if reasoning_budget is provided.",
         ge=0,
         format="int64",
     )
@@ -1379,6 +1388,7 @@ async def generate_answer(request: Request, prompt: Prompt) -> StreamingResponse
         "ignore_eos": prompt.ignore_eos,
         "min_thinking_tokens": prompt.min_thinking_tokens,
         "max_thinking_tokens": prompt.max_thinking_tokens,
+        "reasoning_budget": prompt.reasoning_budget,
         "stop": prompt.stop,
         "reranker_top_k": prompt.reranker_top_k,
         "vdb_top_k": prompt.vdb_top_k,
@@ -1461,6 +1471,7 @@ async def generate_answer(request: Request, prompt: Prompt) -> StreamingResponse
             max_tokens=prompt.max_tokens,
             min_thinking_tokens=prompt.min_thinking_tokens,
             max_thinking_tokens=prompt.max_thinking_tokens,
+            reasoning_budget=prompt.reasoning_budget,
             stop=prompt.stop,
             reranker_top_k=prompt.reranker_top_k,
             vdb_top_k=prompt.vdb_top_k,

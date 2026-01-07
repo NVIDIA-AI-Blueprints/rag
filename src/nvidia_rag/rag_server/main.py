@@ -373,6 +373,7 @@ class NvidiaRAG:
         vdb_endpoint: str | None = None,
         min_thinking_tokens: int | None = None,
         max_thinking_tokens: int | None = None,
+        reasoning_budget: int | None = None,
         collection_names: list[str] | None = None,
         enable_query_rewriting: bool | None = None,
         enable_reranker: bool | None = None,
@@ -554,6 +555,7 @@ class NvidiaRAG:
             "max_tokens": max_tokens,
             "min_thinking_tokens": min_thinking_tokens,
             "max_thinking_tokens": max_thinking_tokens,
+            "reasoning_budget": reasoning_budget,
             "enable_guardrails": enable_guardrails,
             "stop": stop,
         }
