@@ -331,7 +331,7 @@ services:
     profiles: ["ingest"]
 
   nv-ingest-ms-runtime:
-    image: nvcr.io/nvstaging/blueprint/nv-ingest:26.1.0-RC3
+    image: nvcr.io/nvstaging/blueprint/nv-ingest:26.1.0-RC5
     # cpuset: "0-15" # Uncomment to restrict this container to CPU cores 0–15
     volumes:
       - ${DATASET_ROOT:-./data}:/workspace/data

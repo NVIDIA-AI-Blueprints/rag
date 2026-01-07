@@ -829,7 +829,7 @@ nv-ingest:
     create: false
   image:
     repository: "nvcr.io/nvstaging/blueprint/nv-ingest"
-    tag: "26.1.0-RC3"
+    tag: "26.1.0-RC5"
   resources:
     limits:
       nvidia.com/gpu: 0
