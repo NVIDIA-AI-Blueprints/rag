@@ -307,7 +307,8 @@ docker compose -f deploy/compose/docker-compose-ingestor-server.yaml up -d
 
 - For improved accuracy, consider enabling reasoning mode. For details, refer to [Enable thinking](./enable-nemotron-thinking.md).
 
-- To use NeMo Retriever OCR instead of Paddle OCR, refer to [NeMo Retriever OCR](nemoretriever-ocr.md).
+
+- NeMo Retriever OCR is now the default OCR service. To use legacy Paddle OCR instead, refer to [OCR Configuration Guide](nemoretriever-ocr.md).
 
 - For advanced users who need direct filesystem access to extraction results, refer to [Ingestor Server Volume Mounting](mount-ingestor-volume.md).
 
