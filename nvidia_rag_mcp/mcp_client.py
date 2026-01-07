@@ -122,7 +122,6 @@ async def _open_connection(ns: argparse.Namespace):
     For SSE: Connects to remote/local HTTP server with automatic endpoint probing.
     For streamable_http: Connects to FastMCP streamable-http endpoint.
     """
-
     if ns.transport == "stdio":
         try:
             from mcp.client.stdio import stdio_client

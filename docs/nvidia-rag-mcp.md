@@ -75,7 +75,7 @@ python nvidia_rag_mcp/mcp_server.py --transport sse --host 127.0.0.1 --port 8000
 # Free port 8000 if needed (Linux)
 fuser -k 8000/tcp || true
 
-python nvidia_rag_mcp/mcp_server.py --transport streamable_http
+python nvidia_rag_mcp/mcp_server.py --transport streamable_http --host 127.0.0.1 --port 8000
 ```
 
 ### 2) List available MCP tools
