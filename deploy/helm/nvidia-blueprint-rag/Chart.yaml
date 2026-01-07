@@ -4,7 +4,7 @@ dependencies:
 - condition: nv-ingest.enabled
   name: nv-ingest
   repository: https://helm.ngc.nvidia.com/nvstaging/nim
-  version: 26.1.0-RC3
+  version: 26.1.0-RC5
 - condition: elasticsearch.enabled
   name: eck-stack
   repository: https://helm.elastic.co
