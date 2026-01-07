@@ -67,7 +67,7 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
     - [Custom Metadata Support](custom-metadata.md)
     - [File System Access to Extraction Results](mount-ingestor-volume.md)
     - [Multimodal Embedding Support (Early Access)](vlm-embed.md)
-    - [NeMo Retriever OCR for Enhanced Text Extraction (Early Access)](nemoretriever-ocr.md)
+    - [NeMo Retriever OCR for Enhanced Text Extraction](nemoretriever-ocr.md)
     - [PDF Extraction with Nemotron Parse](nemoretriever-parse-extraction.md)
     - [Text-Only Ingestion](text_only_ingest.md)
 
