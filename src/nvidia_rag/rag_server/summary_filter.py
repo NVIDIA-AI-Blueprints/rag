@@ -168,12 +168,12 @@ Return only the relevant file names, one per line. If no documents are relevant,
 
         # Extract file names from structured response
         file_names = response.file_names if hasattr(response, "file_names") else []
-        
+
         # Filter to only include valid filenames (with file extensions)
         valid_file_names = []
         for file_name in file_names:
             file_name = file_name.strip()
-            if file_name and re.search(r'\.\w{2,5}$', file_name):
+            if file_name and re.search(r"\.\w{2,5}$", file_name):
                 valid_file_names.append(file_name)
             elif file_name:
                 logger.debug(
@@ -249,6 +249,7 @@ async def get_relevant_file_names_from_summaries(
     }
 
     llm = get_llm(
+        config=config,
         model=config.summary_filter.model_name,
         llm_endpoint=config.summary_filter.server_url,
         **llm_settings,
@@ -288,12 +289,32 @@ async def get_relevant_file_names_from_summaries(
             seen.add(file_name)
             unique_file_names.append(file_name)
 
+    # Validate that all returned file names exist in the original summaries
+    available_filenames_set = set(all_filenames)
+    invalid_filenames = [
+        f for f in unique_file_names if f not in available_filenames_set
+    ]
+    valid_filenames = [f for f in unique_file_names if f in available_filenames_set]
+
+    all_files_valid = len(invalid_filenames) == 0
+
+    if all_files_valid:
+        logger.info(
+            f"✓ Summary filter validation: All {len(unique_file_names)} file names are VALID and exist in collection."
+        )
+    else:
+        logger.warning(
+            f"✗ Summary filter validation: Found {len(invalid_filenames)} INVALID file names that don't exist in collection. "
+            f"Invalid: {invalid_filenames}. Valid: {len(valid_filenames)}/{len(unique_file_names)}. "
+            f"The LLM may have hallucinated non-existent file names."
+        )
+
     logger.info(
-        f"Summary filter final result: Extracted {len(unique_file_names)} relevant file names "
-        f"from {total_batches} LLM calls: {unique_file_names}"
+        f"Summary filter final result: Extracted {len(valid_filenames)} valid file names "
+        f"from {total_batches} LLM calls: {valid_filenames}"
     )
 
-    return unique_file_names
+    return valid_filenames
 
 
 def create_milvus_filter_from_file_names(file_names: list[str]) -> str:
@@ -319,7 +340,7 @@ def create_milvus_filter_from_file_names(file_names: list[str]) -> str:
         filter_expr = filter_parts[0]
     else:
         filter_expr = "(" + " or ".join(filter_parts) + ")"
-    
+
     logger.info(
         f"Created Milvus filter expression for {len(file_names)} files: {filter_expr}"
     )
