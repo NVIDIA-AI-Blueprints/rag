@@ -21,7 +21,7 @@ interface NvidiaUploadProps {
 
 export default function NvidiaUpload({
   onFilesChange,
-  acceptedTypes = ['.bmp', '.docx', '.html', '.jpeg', '.json', '.md', '.pdf', '.png', '.pptx', '.sh', '.tiff', '.txt', '.mp3', '.wav', '.mp4', '.mov', '.avi'],
+  acceptedTypes = ['.bmp', '.docx', '.html', '.jpeg', '.json', '.md', '.pdf', '.png', '.pptx', '.sh', '.tiff', '.txt', '.mp3', '.wav', '.mp4', '.mov', '.avi', '.mkv'],
   maxFileSize = 400,
   maxFiles = 100,
   onValidationChange
