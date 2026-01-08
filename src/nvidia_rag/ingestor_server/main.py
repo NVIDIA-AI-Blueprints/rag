@@ -107,7 +107,7 @@ class Mode(str, Enum):
     SERVER = "server"
 
 
-SUPPORTED_FILE_TYPES = set(EXTENSION_TO_DOCUMENT_TYPE.keys()) - set({"svg", "mkv"})
+SUPPORTED_FILE_TYPES = set(EXTENSION_TO_DOCUMENT_TYPE.keys()) - set({"svg"})
 
 
 class NvidiaRAGIngestor:
