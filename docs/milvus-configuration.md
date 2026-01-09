@@ -204,7 +204,7 @@ To use a custom Milvus endpoint, use the following procedure.
 3. Redeploy the Helm chart by running the following code.
 
    ```sh
-   helm upgrade rag https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.3.0.tgz -f nvidia-blueprint-rag/values.yaml -n rag
+   helm upgrade rag https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.3.2.tgz -f nvidia-blueprint-rag/values.yaml -n rag
    ```
 
 ## Troubleshooting
