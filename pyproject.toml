@@ -17,6 +17,7 @@ dependencies = [
     "bleach>=6.2,<7.0",
     "dataclass-wizard>=0.27,<1.0",
     "fastapi>=0.115.5,<1.0",
+    "fastmcp>=2.3.5",
     "mcp>=1.23.1",
     "anyio>=4.12.0",
     "httpx>=0.28.1",

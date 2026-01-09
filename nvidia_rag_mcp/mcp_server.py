@@ -42,7 +42,7 @@ import logging
 import os
 from typing import Any
 
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 
 
 server = FastMCP("nvidia-rag-mcp-server")
@@ -821,23 +821,17 @@ def main() -> None:
     ns = parser.parse_args()
 
     if ns.transport == "streamable_http":
-        try:
-            server.run(
-                transport="streamable-http",
-                host=ns.host,
-                port=ns.port,
+        server.run(
+            transport="streamable-http",
+            host=ns.host,
+            port=ns.port
             )
-        except TypeError:
-            server.run(transport="streamable-http")
     elif ns.transport == "sse":
-        try:
-            server.run(
-                transport="sse",
-                host=ns.host,
-                port=ns.port,
-            )
-        except TypeError:
-            server.run(transport="sse")
+        server.run(
+            transport="sse",
+            host=ns.host,
+            port=ns.port
+        )
     elif ns.transport == "stdio":
         server.run(transport="stdio")
 

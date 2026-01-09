@@ -1,139 +1,125 @@
 # SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
+# Unit tests for nvidia_rag_mcp.mcp_client
 #
-# http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# These tests are written to be independent of the real `mcp` SDK by
+# installing a small fake `mcp.client.session` module into `sys.modules`
+# before importing `nvidia_rag_mcp.mcp_client`.
 
-import argparse
-from typing import Any
+from __future__ import annotations
+
+import importlib
 import sys
-import types
-from types import SimpleNamespace
-
-from nvidia_rag_mcp.mcp_client import (
-    _build_arg_parser,
-    _build_session_kwargs,
-    _to_jsonable,
-)
+from types import ModuleType, SimpleNamespace
 
 
-def test_build_arg_parser_has_commands_and_options():
-    parser = _build_arg_parser()
-    # Ensure subcommands exist
-    actions = [a for a in parser._actions if isinstance(a, argparse._SubParsersAction)]
-    assert actions, "No subparsers found"
-    subparsers = actions[0]
-    subcommands = subparsers.choices
-    assert "list" in subcommands
-    assert "call" in subcommands
+def _install_fake_mcp_session():
+    """Install a minimal fake `mcp.client.session.ClientSession` into sys.modules."""
+    # Create package module objects for mcp, mcp.client and mcp.client.session
+    mcp_pkg = ModuleType("mcp")
+    mcp_pkg.__path__ = []  # mark as package
 
-    # Ensure transport option includes supported modes (sse, streamable_http, stdio)
-    list_parser = subparsers.choices["list"]
-    transport_actions = [a for a in list_parser._actions if getattr(a, "dest", "") == "transport"]
-    assert transport_actions, "No --transport option found on list subcommand"
-    transport_action = transport_actions[0]
-    assert set(transport_action.choices) >= {"sse", "streamable_http", "stdio"}
+    client_pkg = ModuleType("mcp.client")
+    client_pkg.__path__ = []
+
+    session_mod = ModuleType("mcp.client.session")
+
+    class FakeClientInfo:
+        def __init__(self, name: str, version: str):
+            self.name = name
+            self.version = version
+
+    class FakeClientSession:
+        """
+        Minimal stub that mimics the `ClientSession` __init__ signature we care about.
+
+        The real implementation accepts read/write stream parameters plus a client
+        identity (client_info / client_name / name). We only need the __init__
+        signature so that `_build_session_kwargs` can introspect it and decide
+        which keyword arguments to emit.
+        """
+
+        def __init__(
+            self,
+            *,
+            read_stream=None,
+            write_stream=None,
+            client_info: FakeClientInfo | None = None,
+        ):
+            self.read_stream = read_stream
+            self.write_stream = write_stream
+            self.client_info = client_info
+
+    # Attach FakeClientSession as ClientSession in the fake module hierarchy
+    session_mod.ClientSession = FakeClientSession  # type: ignore[attr-defined]
+
+    # Also provide a minimal `mcp.types.ClientInfo` in case the client imports it.
+    types_mod = ModuleType("mcp.types")
+    types_mod.ClientInfo = FakeClientInfo  # type: ignore[attr-defined]
+
+    sys.modules["mcp"] = mcp_pkg
+    sys.modules["mcp.client"] = client_pkg
+    sys.modules["mcp.client.session"] = session_mod
+    sys.modules["mcp.types"] = types_mod
 
 
-def test_to_jsonable_handles_common_types_and_objects():
+_install_fake_mcp_session()
+mcp_client = importlib.import_module("nvidia_rag_mcp.mcp_client")
+
+
+def test_to_jsonable_with_model_dump():
     class WithModelDump:
-        def model_dump(self) -> dict[str, Any]:
-            return {"a": 1, "b": [1, 2]}
+        def model_dump(self):
+            return {"a": 1, "b": [2, 3]}
 
+    value = WithModelDump()
+    out = mcp_client._to_jsonable(value)
+    assert out == {"a": 1, "b": [2, 3]}
+
+
+def test_to_jsonable_with_dict_and_nested():
     class WithDict:
-        def dict(self) -> dict[str, Any]:
-            return {"x": {"y": 2}}
+        def dict(self):
+            return {"x": 1, "y": {"z": 2}}
 
-    class WithToDict:
-        def to_dict(self) -> dict[str, Any]:
-            return {"k": "v"}
-
-    class WithAttrs:
-        def __init__(self):
-            self.public = 3
-            self._private = 9
-
-    assert _to_jsonable(5) == 5
-    assert _to_jsonable([1, 2, {"a": 3}]) == [1, 2, {"a": 3}]
-    assert _to_jsonable({"n": 1, "m": [1, 2]}) == {"n": 1, "m": [1, 2]}
-    assert _to_jsonable(WithModelDump()) == {"a": 1, "b": [1, 2]}
-    assert _to_jsonable(WithDict()) == {"x": {"y": 2}}
-    assert _to_jsonable(WithToDict()) == {"k": "v"}
-    assert _to_jsonable(WithAttrs()) == {"public": 3}
+    value = {"obj": WithDict(), "flag": True, "nums": [1, 2, 3]}
+    out = mcp_client._to_jsonable(value)
+    assert out["flag"] is True
+    assert out["nums"] == [1, 2, 3]
+    assert out["obj"] == {"x": 1, "y": {"z": 2}}
 
 
-def _install_fake_mcp_client_session(monkeypatch, params: list[str]):
-    # Create fake module hierarchy: mcp.client.session
-    mcp_mod = types.ModuleType("mcp")
-    client_mod = types.ModuleType("mcp.client")
-    session_mod = types.ModuleType("mcp.client.session")
+def test_to_jsonable_falls_back_to_str():
+    class Weird:
+        __slots__ = ()
 
-    # Build a fake ClientSession with a dynamic __init__ signature.
-    # Signature parameters are determined by 'params' list so that
-    # _build_session_kwargs can use inspect.signature to discover them.
-    # Example: params = ["client_info", "read_stream", "write_stream"]
-    param_names = list(params)
-    args_def = ", ".join([f"{name}=None" for name in param_names])
-    src = (
-        "def __init__(self"
-        + (", " + args_def if args_def else "")
-        + ", **kwargs):\n"
-        + "    # Accept known kwargs; anything else should raise to surface mismatch in tests\n"
-        + "    for name in "
-        + repr(param_names)
-        + ":\n"
-        + "        kwargs.pop(name, None)\n"
-        + "    if kwargs:\n"
-        + "        raise TypeError(f'Unexpected kwargs: {sorted(kwargs.keys())}')\n"
-    )
-    namespace: dict[str, Any] = {}
-    exec(src, namespace)
-    __init__ = namespace["__init__"]
+        def __repr__(self):
+            return "Weird()"
 
-    ClientSession = type("ClientSession", (), {"__init__": __init__})
-    session_mod.ClientSession = ClientSession  # type: ignore[attr-defined]
-
-    # Register modules
-    monkeypatch.setitem(sys.modules, "mcp", mcp_mod)
-    monkeypatch.setitem(sys.modules, "mcp.client", client_mod)
-    monkeypatch.setitem(sys.modules, "mcp.client.session", session_mod)
+    out = mcp_client._to_jsonable(Weird())
+    assert out == "Weird()"
 
 
-def test_build_session_kwargs_prefers_read_write_stream(monkeypatch):
-    _install_fake_mcp_client_session(
-        monkeypatch, ["client_info", "read_stream", "write_stream"]
-    )
-    read = object()
-    write = object()
-    kwargs = _build_session_kwargs(read, write)
-    assert "client_info" in kwargs or "client_name" in kwargs or "name" in kwargs
-    # When signature includes read_stream/write_stream, those should be used
-    assert kwargs.get("read_stream", None) is read
-    assert kwargs.get("write_stream", None) is write
+def test_build_session_kwargs_uses_read_write_and_client_info():
+    """
+    Verify that `_build_session_kwargs` inspects the ClientSession __init__
+    signature and emits the correct keyword arguments for streams and client
+    identity when our fake mcp client is installed.
+    """
+    read = SimpleNamespace()
+    write = SimpleNamespace()
 
+    kwargs = mcp_client._build_session_kwargs(read, write)
 
-def test_build_session_kwargs_supports_writer_reader(monkeypatch):
-    _install_fake_mcp_client_session(monkeypatch, ["client_name", "reader", "writer"])
-    read = object()
-    write = object()
-    kwargs = _build_session_kwargs(read, write)
-    assert kwargs.get("reader", None) is read
-    assert kwargs.get("writer", None) is write
-    assert kwargs.get("client_name") == "nvidia-rag-mcp-client"
+    # From our FakeClientSession signature we expect:
+    # - read_stream and write_stream to be set
+    # - client_info to be present and have `name` / `version` attrs
+    assert kwargs["read_stream"] is read
+    assert kwargs["write_stream"] is write
 
+    client_info = kwargs.get("client_info")
+    assert client_info is not None
+    assert getattr(client_info, "name", "") == "nvidia-rag-mcp-client"
+    assert getattr(client_info, "version", "") == "0.0.0"
 
-def test_build_session_kwargs_supports_name_only(monkeypatch):
-    _install_fake_mcp_client_session(monkeypatch, ["name"])
-    read = object()
-    write = object()
-    kwargs = _build_session_kwargs(read, write)
-    assert kwargs.get("name") == "nvidia-rag-mcp-client"

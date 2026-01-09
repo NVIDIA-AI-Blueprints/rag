@@ -4,6 +4,7 @@ pytest-cov>=4.0.0
 pytest-asyncio>=0.21.0  # For async test support
 pytest-mock>=3.10.0
 mcp>=1.23.1
+fastmcp>=2.3.5
 
 # FastAPI testing
 httpx>=0.28.1

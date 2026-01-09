@@ -1,36 +1,54 @@
 # SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
+# Unit tests for `nvidia_rag_mcp.mcp_server`.
 #
-# http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# These tests avoid real HTTP calls by monkeypatching `aiohttp` and, when
+# needed, unwrapping FastMCP `FunctionTool` wrappers to call the underlying
+# async functions directly.
+
+from __future__ import annotations
 
 from types import SimpleNamespace
 from typing import Any
 
 import pytest
 
-# Try to import mcp_server, skip tests if not available (optional dependency)
 try:
     import nvidia_rag_mcp.mcp_server as mcp_server
-    MCP_AVAILABLE = True
-except ImportError:
-    MCP_AVAILABLE = False
-    mcp_server = None
 
-# Skip all tests in this module if MCP is not available
+    MCP_AVAILABLE = True
+except ImportError:  # pragma: no cover - optional dependency
+    MCP_AVAILABLE = False
+    mcp_server = None  # type: ignore[assignment]
+
+try:  # FastMCP exports FunctionTool in recent versions
+    from fastmcp.tools import FunctionTool  # type: ignore
+except Exception:  # pragma: no cover - older FastMCP
+    FunctionTool = None  # type: ignore
+
+
 pytestmark = pytest.mark.skipif(
     not MCP_AVAILABLE,
-    reason="MCP dependencies not installed (optional dependency)"
+    reason="MCP server dependencies not installed (optional dependency)",
 )
+
+
+def _tool_fn(tool: Any):
+    """
+    Helper to obtain the underlying coroutine function for FastMCP tools.
+
+    Newer FastMCP versions wrap tool functions in a `FunctionTool` object.
+    When that is the case, the original coroutine is exposed via `.func`
+    (or sometimes `__wrapped__`). These tests call the unwrapped function
+    directly, since they are exercising the HTTP adapter logic rather than
+    the FastMCP runtime itself.
+    """
+    if FunctionTool is not None and isinstance(tool, FunctionTool):  # type: ignore[arg-type]
+        inner = getattr(tool, "func", None) or getattr(tool, "__wrapped__", None)
+        if inner is not None:
+            return inner
+    return tool
 
 
 @pytest.mark.anyio
@@ -71,7 +89,6 @@ async def test_tool_generate_concatenates_stream(monkeypatch):
 
             return Ctx()
 
-    # Provide a fake aiohttp with ClientSession and ClientTimeout used by server
     FakeClientTimeout = type("ClientTimeout", (), {"__init__": lambda self, total=None: None})
     fake_aiohttp = SimpleNamespace(
         ClientSession=lambda timeout=None: FakeSession(),
@@ -79,7 +96,9 @@ async def test_tool_generate_concatenates_stream(monkeypatch):
         ContentTypeError=Exception,
     )
     monkeypatch.setattr(mcp_server, "aiohttp", fake_aiohttp, raising=True)
-    out = await mcp_server.tool_generate(messages=[{"role": "user", "content": "hi"}])
+
+    tool = _tool_fn(mcp_server.tool_generate)
+    out = await tool(messages=[{"role": "user", "content": "hi"}])
     assert out == "Hello world"
 
 
@@ -116,7 +135,9 @@ async def test_tool_search_returns_json(monkeypatch):
         ContentTypeError=Exception,
     )
     monkeypatch.setattr(mcp_server, "aiohttp", fake_aiohttp, raising=True)
-    out = await mcp_server.tool_search(query="q")
+
+    tool = _tool_fn(mcp_server.tool_search)
+    out = await tool(query="q")
     assert out == {"ok": True, "total": 1}
 
 
@@ -153,13 +174,15 @@ async def test_tool_get_summary_returns_json(monkeypatch):
         ContentTypeError=Exception,
     )
     monkeypatch.setattr(mcp_server, "aiohttp", fake_aiohttp, raising=True)
-    out = await mcp_server.tool_get_summary(collection_name="c", file_name="f", blocking=True, timeout=5)
+
+    tool = _tool_fn(mcp_server.tool_get_summary)
+    out = await tool(collection_name="c", file_name="f", blocking=True, timeout=5)
     assert out == {"summary": "done"}
 
 
 @pytest.mark.anyio
 async def test_tool_get_documents_calls_ingestor(monkeypatch):
-    """tool_get_documents should GET /v1/documents with collection_name (and optional vdb_endpoint)."""
+    """tool_get_documents should GET /v1/documents with collection_name and optional vdb_endpoint."""
 
     captured: dict[str, Any] = {}
 
@@ -198,7 +221,8 @@ async def test_tool_get_documents_calls_ingestor(monkeypatch):
     )
     monkeypatch.setattr(mcp_server, "aiohttp", fake_aiohttp, raising=True)
 
-    out = await mcp_server.tool_get_documents(collection_name="c", vdb_endpoint="http://milvus:19530")
+    tool = _tool_fn(mcp_server.tool_get_documents)
+    out = await tool(collection_name="c", vdb_endpoint="http://milvus:19530")
     assert out == {"documents": [], "ok": True}
     assert "/v1/documents" in captured["url"]
     assert captured["params"]["collection_name"] == "c"
@@ -246,12 +270,11 @@ async def test_tool_delete_documents_calls_ingestor(monkeypatch):
     )
     monkeypatch.setattr(mcp_server, "aiohttp", fake_aiohttp, raising=True)
 
-    out = await mcp_server.tool_delete_documents(
-        collection_name="c", document_names=["a.pdf", "b.pdf"]
-    )
+    tool = _tool_fn(mcp_server.tool_delete_documents)
+    out = await tool(collection_name="c", document_names=["a.pdf", "b.pdf"])
+
     assert out["ok"] is True
     assert "/v1/documents" in captured["url"]
-    # Params should contain collection_name and two document_names entries
     assert ("collection_name", "c") in captured["params"]
     assert ("document_names", "a.pdf") in captured["params"]
     assert ("document_names", "b.pdf") in captured["params"]
@@ -261,7 +284,6 @@ async def test_tool_delete_documents_calls_ingestor(monkeypatch):
 async def test_tool_update_documents_uses_patch_and_form(monkeypatch, tmp_path):
     """tool_update_documents should PATCH /v1/documents with form-data including files and JSON payload."""
 
-    # Prepare fake files
     p1 = tmp_path / "a.pdf"
     p1.write_bytes(b"%PDF-1.4 a")
     p2 = tmp_path / "b.pdf"
@@ -284,7 +306,6 @@ async def test_tool_update_documents_uses_patch_and_form(monkeypatch, tmp_path):
             self.fields: list[tuple[str, str]] = []
 
         def add_field(self, name, value, filename=None, content_type=None):
-            # Record field names and filenames for assertions
             self.fields.append((name, filename or name))
 
     class FakeSession:
@@ -316,7 +337,8 @@ async def test_tool_update_documents_uses_patch_and_form(monkeypatch, tmp_path):
     )
     monkeypatch.setattr(mcp_server, "aiohttp", fake_aiohttp, raising=True)
 
-    out = await mcp_server.tool_update_documents(
+    tool = _tool_fn(mcp_server.tool_update_documents)
+    out = await tool(
         collection_name="c",
         file_paths=[str(p1), str(p2)],
         blocking=True,
@@ -326,7 +348,6 @@ async def test_tool_update_documents_uses_patch_and_form(monkeypatch, tmp_path):
     )
     assert out.get("ok") is True
     assert "/v1/documents" in captured["url"]
-    # Ensure form-data was constructed with both documents and a data field
     doc_fields = [f for f in captured["data"].fields if f[0] == "documents"]
     assert ("documents", "a.pdf") in doc_fields
     assert ("documents", "b.pdf") in doc_fields
@@ -373,7 +394,8 @@ async def test_tool_list_collections_calls_ingestor(monkeypatch):
     )
     monkeypatch.setattr(mcp_server, "aiohttp", fake_aiohttp, raising=True)
 
-    out = await mcp_server.tool_list_collections(vdb_endpoint="http://milvus:19530")
+    tool = _tool_fn(mcp_server.tool_list_collections)
+    out = await tool(vdb_endpoint="http://milvus:19530")
     assert out == {"collections": ["c1", "c2"]}
     assert "/v1/collections" in captured["url"]
     assert captured["params"]["vdb_endpoint"] == "http://milvus:19530"
@@ -420,7 +442,8 @@ async def test_tool_update_collection_metadata_calls_ingestor(monkeypatch):
     )
     monkeypatch.setattr(mcp_server, "aiohttp", fake_aiohttp, raising=True)
 
-    out = await mcp_server.tool_update_collection_metadata(
+    tool = _tool_fn(mcp_server.tool_update_collection_metadata)
+    out = await tool(
         collection_name="c",
         description="d",
         tags=["t1"],
@@ -478,7 +501,8 @@ async def test_tool_update_document_metadata_calls_ingestor(monkeypatch):
     )
     monkeypatch.setattr(mcp_server, "aiohttp", fake_aiohttp, raising=True)
 
-    out = await mcp_server.tool_update_document_metadata(
+    tool = _tool_fn(mcp_server.tool_update_document_metadata)
+    out = await tool(
         collection_name="c",
         document_name="doc.pdf",
         description="d",
@@ -531,7 +555,8 @@ async def test_tool_create_collections_calls_ingestor(monkeypatch):
     )
     monkeypatch.setattr(mcp_server, "aiohttp", fake_aiohttp, raising=True)
 
-    out = await mcp_server.tool_create_collections(collection_names=["c1", "c2"])
+    tool = _tool_fn(mcp_server.tool_create_collections)
+    out = await tool(collection_names=["c1", "c2"])
     assert out["ok"] is True
     assert "/v1/collections" in captured["url"]
     assert captured["json"] == ["c1", "c2"]
@@ -578,7 +603,8 @@ async def test_tool_delete_collections_calls_ingestor(monkeypatch):
     )
     monkeypatch.setattr(mcp_server, "aiohttp", fake_aiohttp, raising=True)
 
-    out = await mcp_server.tool_delete_collections(collection_names=["c1"])
+    tool = _tool_fn(mcp_server.tool_delete_collections)
+    out = await tool(collection_names=["c1"])
     assert out["ok"] is True
     assert "/v1/collections" in captured["url"]
     assert captured["json"] == ["c1"]
@@ -586,9 +612,10 @@ async def test_tool_delete_collections_calls_ingestor(monkeypatch):
 
 @pytest.mark.anyio
 async def test_tool_upload_documents(monkeypatch, tmp_path):
-    # Prepare a fake file to upload
+    """tool_upload_documents should POST /v1/documents with form-data including files and JSON payload."""
+
     p = tmp_path / "doc.pdf"
-    p.write_bytes(b"%PDF-1.4...")  # minimal bytes
+    p.write_bytes(b"%PDF-1.4...")
 
     class FakeResp:
         def __init__(self):
@@ -602,7 +629,7 @@ async def test_tool_upload_documents(monkeypatch, tmp_path):
 
     class FakeFormData:
         def __init__(self):
-            self.fields = []
+            self.fields: list[tuple[str, str]] = []
 
         def add_field(self, name, value, filename=None, content_type=None):
             self.fields.append((name, filename or name))
@@ -633,7 +660,8 @@ async def test_tool_upload_documents(monkeypatch, tmp_path):
     )
     monkeypatch.setattr(mcp_server, "aiohttp", fake_aiohttp, raising=True)
 
-    out = await mcp_server.tool_upload_documents(
+    tool = _tool_fn(mcp_server.tool_upload_documents)
+    out = await tool(
         collection_name="c",
         file_paths=[str(p)],
         blocking=True,
@@ -657,7 +685,9 @@ def test_main_streamable_http_uses_server_run(monkeypatch):
         def parse_args(self):
             return ns
 
-    monkeypatch.setattr(mcp_server.argparse, "ArgumentParser", lambda *a, **k: DummyParser(), raising=True)
+    monkeypatch.setattr(
+        mcp_server.argparse, "ArgumentParser", lambda *a, **k: DummyParser(), raising=True
+    )
 
     called = {"server_run": False}
 
@@ -683,7 +713,9 @@ def test_main_sse_uses_server_run(monkeypatch):
         def parse_args(self):
             return ns
 
-    monkeypatch.setattr(mcp_server.argparse, "ArgumentParser", lambda *a, **k: DummyParser(), raising=True)
+    monkeypatch.setattr(
+        mcp_server.argparse, "ArgumentParser", lambda *a, **k: DummyParser(), raising=True
+    )
 
     called = {"server_run": False}
 
@@ -709,7 +741,9 @@ def test_main_stdio_uses_server_run(monkeypatch):
         def parse_args(self):
             return ns
 
-    monkeypatch.setattr(mcp_server.argparse, "ArgumentParser", lambda *a, **k: DummyParser(), raising=True)
+    monkeypatch.setattr(
+        mcp_server.argparse, "ArgumentParser", lambda *a, **k: DummyParser(), raising=True
+    )
 
     called = {"server_run": False}
 
@@ -721,114 +755,3 @@ def test_main_stdio_uses_server_run(monkeypatch):
     mcp_server.main()
     assert called["server_run"] is True
 
-
-@pytest.mark.anyio
-async def test_tool_create_and_delete_collections(monkeypatch):
-    # Mock aiohttp for POST and DELETE flows
-    class FakeResp:
-        def __init__(self, data):
-            self._data = data
-            self.status = 200
-
-        async def json(self):
-            return self._data
-
-    class FakeSession:
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, exc_type, exc, tb):
-            return False
-
-        def post(self, url, json=None):
-            class Ctx:
-                async def __aenter__(self_inner):
-                    return FakeResp({"ok": True, "collections": json})
-
-                async def __aexit__(self_inner, exc_type, exc, tb):
-                    return False
-
-            return Ctx()
-
-        def delete(self, url, json=None, params=None):
-            class Ctx:
-                async def __aenter__(self_inner):
-                    # Accept either json list or params for flexibility
-                    payload = json if json is not None else params
-                    return FakeResp({"ok": True, "deleted": payload})
-
-                async def __aexit__(self_inner, exc_type, exc, tb):
-                    return False
-
-            return Ctx()
-
-    FakeClientTimeout = type("ClientTimeout", (), {"__init__": lambda self, total=None: None})
-    fake_aiohttp = SimpleNamespace(
-        ClientSession=lambda timeout=None: FakeSession(),
-        ClientTimeout=FakeClientTimeout,
-        ContentTypeError=Exception,
-    )
-    monkeypatch.setattr(mcp_server, "aiohttp", fake_aiohttp, raising=True)
-
-    out_create = await mcp_server.tool_create_collections(["c1", "c2"])
-    assert out_create.get("ok") is True
-    assert out_create.get("collections") == ["c1", "c2"]
-
-    out_delete = await mcp_server.tool_delete_collections(["c1", "c2"])
-    assert out_delete.get("ok") is True
-    assert out_delete.get("deleted") == ["c1", "c2"]
-
-@pytest.mark.anyio
-async def test_tool_create_and_delete_collections(monkeypatch):
-    # Mock aiohttp for POST and DELETE flows
-    class FakeResp:
-        def __init__(self, data):
-            self._data = data
-            self.status = 200
-
-        async def json(self):
-            return self._data
-
-    class FakeSession:
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, exc_type, exc, tb):
-            return False
-
-        def post(self, url, json=None):
-            class Ctx:
-                async def __aenter__(self_inner):
-                    return FakeResp({"ok": True, "collections": json})
-
-                async def __aexit__(self_inner, exc_type, exc, tb):
-                    return False
-
-            return Ctx()
-
-        def delete(self, url, json=None, params=None):
-            class Ctx:
-                async def __aenter__(self_inner):
-                    # Accept either json list or params for flexibility
-                    payload = json if json is not None else params
-                    return FakeResp({"ok": True, "deleted": payload})
-
-                async def __aexit__(self_inner, exc_type, exc, tb):
-                    return False
-
-            return Ctx()
-
-    FakeClientTimeout = type("ClientTimeout", (), {"__init__": lambda self, total=None: None})
-    fake_aiohttp = SimpleNamespace(
-        ClientSession=lambda timeout=None: FakeSession(),
-        ClientTimeout=FakeClientTimeout,
-        ContentTypeError=Exception,
-    )
-    monkeypatch.setattr(mcp_server, "aiohttp", fake_aiohttp, raising=True)
-
-    out_create = await mcp_server.tool_create_collections(["c1", "c2"])
-    assert out_create.get("ok") is True
-    assert out_create.get("collections") == ["c1", "c2"]
-
-    out_delete = await mcp_server.tool_delete_collections(["c1", "c2"])
-    assert out_delete.get("ok") is True
