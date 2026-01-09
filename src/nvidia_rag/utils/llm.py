@@ -22,6 +22,7 @@
 6. get_streaming_filter_think_parser_async: Get the parser for filtering the think tokens (async).
 """
 
+import json
 import logging
 import os
 from collections.abc import Iterable
@@ -32,7 +33,8 @@ import requests
 import yaml
 from langchain.llms.base import LLM
 from langchain_core.language_models.chat_models import SimpleChatModel
-from langchain_nvidia_ai_endpoints import ChatNVIDIA
+from langchain_core.messages import AIMessageChunk
+from langchain_openai import ChatOpenAI
 
 from nvidia_rag.rag_server.response_generator import APIError, ErrorCodeMapping
 from nvidia_rag.utils.common import (
@@ -43,12 +45,6 @@ from nvidia_rag.utils.common import (
 from nvidia_rag.utils.configuration import NvidiaRAGConfig
 
 logger = logging.getLogger(__name__)
-
-try:
-    from langchain_openai import ChatOpenAI
-except ImportError:
-    logger.info("Langchain OpenAI is not installed.")
-    pass
 
 
 def get_prompts(source: str | dict | None = None) -> dict:
@@ -216,55 +212,68 @@ def get_llm(config: NvidiaRAGConfig | None = None, **kwargs) -> LLM | SimpleChat
                         error_msg, ErrorCodeMapping.SERVICE_UNAVAILABLE
                     ) from e
 
-        if url:
-            logger.debug(f"Length of llm endpoint url string {url}")
-            logger.info("Using llm model %s hosted at %s", kwargs.get("model"), url)
-
-            api_key = kwargs.get("api_key") or config.llm.get_api_key()
-            # Detect endpoint type using URL patterns only
-            is_nvidia = _is_nvidia_endpoint(url)
-
-            # Build kwargs dict, only including parameters that are set
-            # For non-NVIDIA endpoints, exclude NVIDIA-specific parameters
-            chat_nvidia_kwargs = {
-                "base_url": url,
-                "model": kwargs.get("model"),
-                "api_key": api_key,
-                "stop": kwargs.get("stop", []),
-            }
-            if kwargs.get("temperature") is not None:
-                chat_nvidia_kwargs["temperature"] = kwargs["temperature"]
-            if kwargs.get("top_p") is not None:
-                chat_nvidia_kwargs["top_p"] = kwargs["top_p"]
-            if kwargs.get("max_tokens") is not None:
-                chat_nvidia_kwargs["max_tokens"] = kwargs["max_tokens"]
-            # Only include NVIDIA-specific parameters for NVIDIA endpoints
-            if is_nvidia:
-                if kwargs.get("min_tokens") is not None:
-                    chat_nvidia_kwargs["min_tokens"] = kwargs["min_tokens"]
-                if kwargs.get("ignore_eos") is not None:
-                    chat_nvidia_kwargs["ignore_eos"] = kwargs["ignore_eos"]
-
-            llm = ChatNVIDIA(**chat_nvidia_kwargs)
-            # Only bind thinking tokens for NVIDIA endpoints
-            if is_nvidia:
-                llm = _bind_thinking_tokens_if_configured(llm, **kwargs)
-            return llm
-
-        logger.info("Using llm model %s from api catalog", kwargs.get("model"))
+        # Consolidate logic for both NVIDIA endpoints and API Catalog using ChatOpenAI
+        # to avoid token usage reporting issues with ChatNVIDIA
+        base_url = url
+        if not base_url:
+            logger.info("Using llm model %s from api catalog (via ChatOpenAI)", kwargs.get("model"))
+            # Default to NVIDIA API Catalog URL for OpenAI client
+            base_url = "https://integrate.api.nvidia.com/v1"
+        else:
+            logger.debug(f"Length of llm endpoint url string {base_url}")
+            logger.info("Using llm model %s hosted at %s", kwargs.get("model"), base_url)
 
         api_key = kwargs.get("api_key") or config.llm.get_api_key()
-        llm = ChatNVIDIA(
-            model=kwargs.get("model"),
-            api_key=api_key,
-            temperature=kwargs.get("temperature", None),
-            top_p=kwargs.get("top_p", None),
-            max_tokens=kwargs.get("max_tokens", None),
-            min_tokens=kwargs.get("min_tokens", None),
-            ignore_eos=kwargs.get("ignore_eos", False),
-            stop=kwargs.get("stop", []),
-        )
-        llm = _bind_thinking_tokens_if_configured(llm, **kwargs)
+        
+        # Detect endpoint type (still useful for logic branching)
+        is_nvidia = _is_nvidia_endpoint(base_url)
+
+        # Prepare kwargs for ChatOpenAI
+        chat_openai_kwargs = {
+            "model": kwargs.get("model"),
+            "api_key": api_key,
+            "base_url": base_url,
+            "stop": kwargs.get("stop", []),
+        }
+
+        # Optional standard parameters
+        if kwargs.get("temperature") is not None:
+            chat_openai_kwargs["temperature"] = kwargs["temperature"]
+        if kwargs.get("top_p") is not None:
+            chat_openai_kwargs["top_p"] = kwargs["top_p"]
+        if kwargs.get("max_tokens") is not None:
+            chat_openai_kwargs["max_tokens"] = kwargs["max_tokens"]
+
+        # Prepare extra parameters (NVIDIA specific) for model_kwargs via extra_body
+        # OpenAI API client requires non-standard parameters to be in 'extra_body'
+        # Also request stream options to ensure usage is returned
+        model_kwargs = {
+            "stream_options": {"include_usage": True}
+        }
+        extra_body = {}
+        
+        if is_nvidia:
+            if kwargs.get("min_tokens") is not None:
+                extra_body["min_tokens"] = kwargs["min_tokens"]
+            if kwargs.get("ignore_eos") is not None:
+                extra_body["ignore_eos"] = kwargs["ignore_eos"]
+            
+            # Handle thinking tokens
+            min_think = kwargs.get("min_thinking_tokens", None)
+            max_think = kwargs.get("max_thinking_tokens", None)
+            if min_think is not None and min_think > 0:
+                extra_body["min_thinking_tokens"] = min_think
+            if max_think is not None and max_think > 0:
+                extra_body["max_thinking_tokens"] = max_think
+        
+        if extra_body:
+            model_kwargs["extra_body"] = extra_body
+        
+        if model_kwargs:
+            chat_openai_kwargs["model_kwargs"] = model_kwargs
+
+        llm = ChatOpenAI(**chat_openai_kwargs)
+            
         return llm
 
     raise RuntimeError(
@@ -419,7 +428,7 @@ def get_streaming_filter_think_parser():
 
     If FILTER_THINK_TOKENS environment variable is set to "true" (case-insensitive),
     returns a parser that filters out content between <think> and </think> tags.
-    Otherwise, returns a pass-through parser that doesn't modify the content.
+    Otherwise, returns a parser that passes content as-is.
 
     Returns:
         RunnableGenerator: A parser for filtering (or not filtering) think tokens
@@ -448,7 +457,7 @@ async def streaming_filter_think_async(chunks):
         chunks: Async iterable of chunks from a streaming LLM response
 
     Yields:
-        str: Filtered content with think blocks removed
+        AIMessageChunk: Filtered content with think blocks removed
     """
     # Complete tags
     FULL_START_TAG = "<think>"
@@ -469,10 +478,16 @@ async def streaming_filter_think_async(chunks):
     buffer = ""
     output_buffer = ""
     chunk_count = 0
+    last_usage = None
 
     async for chunk in chunks:
         content = chunk.content
         chunk_count += 1
+        
+        # Capture usage metadata if present
+        if hasattr(chunk, "usage_metadata") and chunk.usage_metadata:
+            last_usage = chunk.usage_metadata
+            logger.info(f"Usage found in streaming chunk: {last_usage}")
 
         # Let's first check for full tags - this is the most reliable approach
         buffer += content
@@ -565,15 +580,40 @@ async def streaming_filter_think_async(chunks):
 
         # Yield accumulated output before processing next chunk
         if output_buffer:
-            yield output_buffer
+            msg = AIMessageChunk(content=output_buffer)
+            if last_usage:
+                msg.usage_metadata = last_usage
+            yield msg
             output_buffer = ""
 
+    # Handle partial matches at EOF - treat as content
+    if state == MATCHING_START or state == MATCHING_END:
+        output_buffer += buffer
+        buffer = ""
+        state = NORMAL
+
+    emitted_content = False
     # Yield any remaining content if not in a think block
     if state == NORMAL:
         if buffer:
-            yield buffer
+            msg = AIMessageChunk(content=buffer)
+            if last_usage:
+                msg.usage_metadata = last_usage
+            yield msg
+            emitted_content = True
         if output_buffer:
-            yield output_buffer
+            msg = AIMessageChunk(content=output_buffer)
+            if last_usage:
+                msg.usage_metadata = last_usage
+            yield msg
+            emitted_content = True
+
+    if last_usage and not emitted_content:
+        # If we have usage but didn't emit it above (either because everything was filtered
+        # or just end of stream with empty buffer), emit an empty chunk with usage
+        msg = AIMessageChunk(content="")
+        msg.usage_metadata = last_usage
+        yield msg
 
     logger.info(
         "Finished streaming_filter_think_async processing after %d chunks", chunk_count
@@ -586,7 +626,7 @@ def get_streaming_filter_think_parser_async():
 
     If FILTER_THINK_TOKENS environment variable is set to "true" (case-insensitive),
     returns a parser that filters out content between <think> and </think> tags.
-    Otherwise, returns a pass-through parser that doesn't modify the content.
+    Otherwise, returns a parser that passes content as-is.
 
     Returns:
         RunnableGenerator: An async parser for filtering (or not filtering) think tokens
@@ -603,3 +643,4 @@ def get_streaming_filter_think_parser_async():
         logger.info("Think token filtering is disabled (async)")
         # If filtering is disabled, use a passthrough that passes content as-is
         return RunnablePassthrough()
+
