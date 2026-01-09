@@ -12,6 +12,17 @@ This documentation contains the release notes for [NVIDIA RAG Blueprint](readme.
 <!-- Delete all previous versions from this page -->
 <!-- And populate the Previous Versions section at the end of this page with version 2.3.0 -->
 
+## Version 2.3.2 (2025-12-25)
+
+This release focuses on updating NIM dependencies.
+
+It includes the following version upgrades:
+
+- llama-3.2-nv-embedqa-1b-v2 → 1.10.1
+- llama-3.3-nemotron-super-49b-v1.5 (nim-llm) → 1.14.0
+
+All updates are applied to both Docker Compose files and Helm chart values, ensuring that all referenced image tags are aligned with the new versions.
+
 
 
 ## Release 2.3.0 (2025-10-14)

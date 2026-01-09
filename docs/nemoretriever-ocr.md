@@ -95,7 +95,7 @@ Update the deployment to enable NeMo Retriever OCR and disable Paddle OCR for re
 ```bash
 # Apply to a fresh deployment (recommended to uninstall existing deployments first)
 # helm uninstall rag -n rag
-helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.3.0.tgz \
+helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.3.2.tgz \
   --username '$oauthtoken' \
   --password "${NGC_API_KEY}" \
   --set nv-ingest.paddleocr-nim.deployed=false \
