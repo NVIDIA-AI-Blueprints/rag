@@ -12,7 +12,7 @@ This documentation contains the release notes for [NVIDIA RAG Blueprint](readme.
 <!-- Delete all previous versions from this page -->
 <!-- And populate the Previous Versions section at the end of this page with version 2.3.0 -->
 
-## Version 2.3.2 (2025-12-25)
+## Release 2.3.2 (2025-12-25)
 
 This release focuses on updating NIM dependencies.
 
