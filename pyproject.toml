@@ -26,6 +26,7 @@ dependencies = [
     "langchain-community>=0.3.27",
     "langchain-milvus>=0.2.1",
     "langchain-nvidia-ai-endpoints>=0.3.18",
+    "langchain-openai>=0.2,<1.0",
     "minio>=7.2,<8.0",
     "pdfplumber>=0.6",
     "pydantic>=2.11,<3.0",
@@ -44,7 +45,6 @@ dependencies = [
 
 [project.optional-dependencies]
 rag = [
-    "langchain-openai>=0.2,<1.0",
     "opentelemetry-api>=1.29,<2.0",
     "opentelemetry-exporter-otlp>=1.29,<2.0",
     "opentelemetry-exporter-prometheus>=0.50b0,<1.0",
@@ -65,7 +65,6 @@ ingest = [
     "nv-ingest-client==26.1.0rc5",
     "tritonclient==2.57.0",
     # Other ingest dependencies
-    "langchain-openai>=0.2,<1.0",
     "overrides>=7.7,<8.0",
     "tqdm>=4.67,<5.0",
     "opentelemetry-api>=1.29,<2.0",
@@ -86,7 +85,6 @@ all = [
     "nv-ingest-client==26.1.0rc5",
     "tritonclient==2.57.0",
     # RAG + Ingest dependencies
-    "langchain-openai>=0.2,<1.0",
     "overrides>=7.7,<8.0",
     "tqdm>=4.67,<5.0",
     "opentelemetry-api>=1.29,<2.0",
