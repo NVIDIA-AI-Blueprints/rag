@@ -31,7 +31,7 @@ nv_ingest:
 
 # LLM Configuration
 llm:
-  server_url: ""  # URL endpoint for the LLM inference service
+  server_url: "http://localhost:8999"  # URL endpoint for the LLM inference service (on-prem NIM default)
   model_name: "nvidia/llama-3.3-nemotron-super-49b-v1.5"  # Name of the language model to use for generation
   # api_key: ""  # Optional: API key for LLM service (overrides NVIDIA_API_KEY environment variable)
   parameters:
@@ -57,13 +57,13 @@ filter_expression_generator:
 embeddings:
   model_name: "nvidia/llama-3.2-nv-embedqa-1b-v2"  # Model for generating text embeddings
   dimensions: 2048  # Dimensionality of the embedding vectors
-  server_url: "https://integrate.api.nvidia.com/v1"  # URL endpoint for embedding service
+  server_url: "http://localhost:9080/v1"  # URL endpoint for embedding service (on-prem NIM default)
   # api_key: ""  # Optional: API key for embeddings (overrides NVIDIA_API_KEY environment variable)
 
 # Ranking Configuration
 ranking:
   model_name: "nvidia/llama-3.2-nv-rerankqa-1b-v2"  # Model for reranking retrieved documents
-  server_url: "https://ai.api.nvidia.com/v1/retrieval/nvidia/llama-3_2-nv-rerankqa-1b-v2/reranking/v1"  # URL endpoint for reranking service
+  server_url: "http://localhost:1976"  # URL endpoint for reranking service (on-prem NIM default)
   enable_reranker: true  # Enable reranking of retrieved documents before generation
   # api_key: ""  # Optional: API key for reranking (overrides NVIDIA_API_KEY environment variable)
 
