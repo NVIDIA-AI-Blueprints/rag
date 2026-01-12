@@ -12,6 +12,10 @@ For other deployment options, refer to [Deployment Options](readme.md#deployment
 If you want to run the RAG Blueprint with [NVIDIA AI Workbench](https://docs.nvidia.com/ai-workbench/user-guide/latest/overview/introduction.html), use [Quickstart for NVIDIA AI Workbench](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/deploy/workbench/README.md).
 :::
 
+:::{tip}
+Looking for a simpler setup without Docker? Check out the [Containerless Deployment (Lite Mode)](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/rag_library_lite_usage.ipynb) for a Python-only deployment using Milvus Lite and NVIDIA cloud APIs.
+:::
+
 
 ## Prerequisites
 

@@ -40,6 +40,9 @@ Use the following documentation to deploy the blueprint.
 - [Deploy on Kubernetes with Helm from the repository](deploy-helm-from-repo.md)
 - [Deploy on Kubernetes with Helm and MIG Support](mig-deployment.md)
 
+**Alternative Deployment Options:**
+- [Containerless Deployment (Lite Mode)](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/rag_library_lite_usage.ipynb) - Simplified Python-only setup using Milvus Lite and NVIDIA cloud APIs, without Docker containers
+
 
 
 ## Developer Guide

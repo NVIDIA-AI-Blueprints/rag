@@ -701,6 +701,10 @@ class DocumentSearch(BaseModel):
         ge=0.0,
         le=1.0,
     )
+    enable_citations: bool = Field(
+        description="Enable or disable image/table/chart citations as part of response.",
+        default=CONFIG.enable_citations,
+    )
 
     @model_validator(mode="after")
     def validate_confidence_threshold(cls, values):
@@ -1627,6 +1631,7 @@ async def document_search(
         "enable_query_rewriting": data.enable_query_rewriting,
         "enable_filter_generator": data.enable_filter_generator,
         "confidence_threshold": data.confidence_threshold,
+        "enable_citations": data.enable_citations,
     }
     logger.info(
         f"📥 Incoming request to /search endpoint:\n{json.dumps(request_data, indent=2)}"
@@ -1683,6 +1688,7 @@ async def document_search(
             reranker_endpoint=data.reranker_endpoint,
             filter_expr=data.filter_expr,
             confidence_threshold=data.confidence_threshold,
+            enable_citations=data.enable_citations,
         )
 
     except asyncio.CancelledError as e:

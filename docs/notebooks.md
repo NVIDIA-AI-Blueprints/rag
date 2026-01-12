@@ -67,6 +67,8 @@ Use the following notebooks to learn comprehensive Python client usage, metadata
 
 - [rag_library_usage.ipynb](https://github.com/NVIDIA-AI-Blueprints/rag/tree/main/notebooks/rag_library_usage.ipynb) – Demonstrates native usage of the NVIDIA RAG Python client, including environment setup, document ingestion, collection management, and querying. This notebook provides end-to-end API usage examples for interacting directly with the RAG system from Python, covering both ingestion and retrieval workflows.
 
+- [rag_library_lite_usage.ipynb](https://github.com/NVIDIA-AI-Blueprints/rag/tree/main/notebooks/rag_library_lite_usage.ipynb) – Demonstrates containerless deployment of the NVIDIA RAG Python package in lite mode. Uses Milvus Lite (embedded vector database) and NV-Ingest subprocess mode for a simplified setup without Docker containers. Leverages NVIDIA cloud APIs for embeddings, ranking, and LLM inference. **Note**: This mode does not support image/table/chart citations or document summarization.
+
 
 
 ## Advanced Notebooks

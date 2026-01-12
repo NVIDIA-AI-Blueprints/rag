@@ -35,7 +35,7 @@ dependencies = [
     "pyyaml>=6.0,<7.0",
     "uvicorn[standard]>=0.32,<1.0",
     "langchain-core>=0.3.72",
-    "redis>=4.3.4,<5.0",
+    "redis>=4.3.4",
     "protobuf>=5.29.5",
     "langchain-elasticsearch>=0.3,<1.0",
     "lark>=1.2.2",
@@ -82,6 +82,7 @@ ingest = [
 ]
 all = [
     # nv-ingest dependencies (required for ingestion operations)
+    "nv-ingest==26.1.0rc5",
     "nv-ingest-api==26.1.0rc5",
     "nv-ingest-client==26.1.0rc5",
     "tritonclient==2.57.0",
