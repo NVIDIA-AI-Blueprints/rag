@@ -1,7 +1,7 @@
 services:
   nim-llm:
     container_name: nim-llm-ms
-    image: nvcr.io/nim/nvidia/llama-3.3-nemotron-super-49b-v1.5:1.14.0
+    image: nvcr.io/nim/nvidia/llama-3.3-nemotron-super-49b-v1.5:1.15.1
     shm_size: 16GB
     volumes:
     - ${MODEL_DIRECTORY:-./}:/opt/nim/.cache
@@ -154,7 +154,6 @@ services:
             - driver: nvidia
               device_ids: ['${YOLOX_MS_GPU_ID:-0}']
               capabilities: [gpu]
-    runtime: nvidia
     profiles: ["", "ingest", "vlm-ingest"]
 
   graphic-elements:
@@ -181,7 +180,6 @@ services:
             - driver: nvidia
               device_ids: ['${YOLOX_GRAPHICS_MS_GPU_ID:-0}']
               capabilities: [gpu]
-    runtime: nvidia
     profiles: ["", "ingest", "vlm-ingest"]
 
   table-structure:
@@ -208,7 +206,6 @@ services:
             - driver: nvidia
               device_ids:  ['${YOLOX_TABLE_MS_GPU_ID:-0}']
               capabilities: [gpu]
-    runtime: nvidia
     profiles: ["", "ingest", "vlm-ingest"]
 
   paddle:
@@ -234,7 +231,6 @@ services:
             - driver: nvidia
               device_ids:  ['${OCR_MS_GPU_ID:-${PADDLE_MS_GPU_ID:-0}}']
               capabilities: [gpu]
-    runtime: nvidia
     profiles: ["paddle"]
 
   nemoretriever-ocr:
@@ -261,7 +257,6 @@ services:
             - driver: nvidia
               device_ids: ["${OCR_MS_GPU_ID:-${PADDLE_MS_GPU_ID:-0}}"]
               capabilities: [gpu]
-    runtime: nvidia
     profiles: ["", "ingest", "vlm-ingest", "nemoretriever-ocr"]
 
   # Optional NIM microservices
@@ -286,7 +281,6 @@ services:
             - driver: nvidia
               device_ids: ['${NEMOTRON_PARSE_MS_GPU_ID:-1}']
               capabilities: [gpu]
-    runtime: nvidia
     profiles: ["nemotron-parse"]
 
   audio:
@@ -308,7 +302,6 @@ services:
             - driver: nvidia
               device_ids: ["${AUDIO_MS_GPU_ID:-0}"]
               capabilities: [gpu]
-    runtime: nvidia
     profiles: ["audio"]
 
   vlm-ms:
