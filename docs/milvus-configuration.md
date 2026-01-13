@@ -252,39 +252,52 @@ docker compose -f deploy/compose/docker-compose-ingestor-server.yaml up -d
 docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d
 ```
 
+:::{important}
+**Set the password before deployment** as it persists in the etcd volume. To change the password after deployment, stop the containers, remove the volumes, and restart:
+
+```bash
+docker compose -f deploy/compose/vectordb.yaml down
+rm -rf deploy/compose/volumes/milvus deploy/compose/volumes/minio deploy/compose/volumes/etcd
+docker compose -f deploy/compose/vectordb.yaml up -d
+```
+:::
+
 ### Helm Chart
 
 #### 1. Configure Milvus Authentication in Helm:
 
-Configure Milvus Authentication
+Configure user config:
 
-Edit `deploy/helm/nvidia-blueprint-rag/files/milvus.yaml` to enable authentication:
+The `values.yaml` file includes the necessary configuration:
 ```yaml
-security:
-  authorizationEnabled: true
-  defaultRootPassword: "your-secure-password"
+  milvus:
+    extraConfigFiles:
+      user.yaml: |+
+        common:
+          security:
+            authorizationEnabled: true
+            defaultRootPassword: your-secure-password
 ```
 
-Create a ConfigMap from the milvus.yaml file:
-```bash
-kubectl create configmap milvus-config --from-file=milvus.yaml=deploy/helm/nvidia-blueprint-rag/files/milvus.yaml
-```
+:::{important}
+**Change the password before starting the Helm deployment.** Once the deployment is started, the default password becomes persistent in the etcd volume. To change the password after deployment:
 
-Configure Volume Mounting
+1. Uninstall the deployment:
+   ```bash
+   helm uninstall rag -n rag
+   ```
 
-The `values.yaml` file includes the necessary volume configuration:
-```yaml
-milvus:
-  standalone:
-    extraVolumes:
-      - name: milvus-config
-        configMap:
-          name: milvus-config
-    extraVolumeMounts:
-      - name: milvus-config
-        mountPath: /milvus/configs/milvus.yaml
-        subPath: milvus.yaml
-```
+2. Delete the Milvus and etcd PVCs (list PVCs first to confirm names):
+   ```bash
+   kubectl get pvc -n rag
+   kubectl delete pvc milvus -n rag
+   kubectl delete pvc data-rag-etcd-0 -n rag
+   ```
+
+3. Redeploy with the new password in `values.yaml`.
+
+For additional instructions, refer to [Uninstall a Deployment](deploy-helm.md#uninstall-a-deployment).
+:::
 
 #### 2. Configure username and password in `deploy/helm/nvidia-blueprint-rag/values.yaml`:
 

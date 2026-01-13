@@ -908,6 +908,13 @@ nv-ingest:
   # Expose internal Milvus/MinIO config managed by nv-ingest subchart
   milvusDeployed: true
   milvus:
+    # Uncomment this section to enable authentication for Milvus
+    # extraConfigFiles:
+    #   user.yaml: |+
+    #     common:
+    #       security:
+    #         authorizationEnabled: true
+    #         defaultRootPassword: Milvus
     image:
       all:
         repository: milvusdb/milvus
@@ -920,15 +927,6 @@ nv-ingest:
       resources:
         limits:
           nvidia.com/gpu: 1
-      # [Uncomment this below section if you want to use the authentication enabled Milvus config]
-      # extraVolumes:
-      #   - name: milvus-config
-      #     configMap:
-      #       name: milvus-config
-      # extraVolumeMounts:
-      #   - name: milvus-config
-      #     mountPath: /milvus/configs/milvus.yaml
-      #     subPath: milvus.yaml
     minio:
       image:
         repository: minio/minio
