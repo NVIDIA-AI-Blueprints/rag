@@ -60,8 +60,8 @@ source nv-ingest-env/bin/activate  # On Linux/Mac
 # OR
 .\nv-ingest-env\Scripts\activate  # On Windows
 
-# Install required packages
-uv pip install nv-ingest-api==25.8.0rc6 nv-ingest-client==25.8.0rc6 tritonclient==2.57.0 pymilvus==2.5.8 pymilvus[model] pymilvus[bulk-writer]
+# Install required packages (versions automatically synced from pyproject.toml)
+uv pip install -e ".[ingest]" pymilvus[bulk-writer]
 ```
 
 Using pip:
@@ -72,8 +72,8 @@ source nv-ingest-env/bin/activate  # On Linux/Mac
 # OR
 .\nv-ingest-env\Scripts\activate  # On Windows
 
-# Install required packages
-pip install nv-ingest-api==25.8.0rc6 nv-ingest-client==25.8.0rc6 tritonclient==2.57.0 pymilvus==2.5.8 pymilvus[model] pymilvus[bulk-writer]
+# Install required packages (versions automatically synced from pyproject.toml)
+pip install -e ".[ingest]" pymilvus[bulk-writer]
 ```
 
 3. Create a Python script to ingest documents. Here's a placeholder script that you can customize:
