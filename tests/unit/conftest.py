@@ -19,11 +19,16 @@ Pytest configuration for NVIDIA RAG tests
 
 import atexit
 import logging
+import os
 import sys
 import types
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+# Set a dummy OpenAI API key to prevent initialization errors during test collection
+# This must happen before any imports that might instantiate OpenAI clients
+os.environ.setdefault("OPENAI_API_KEY", "dummy-test-api-key")
 
 # OpenTelemetry imports (optional - may not be available in all environments)
 try:

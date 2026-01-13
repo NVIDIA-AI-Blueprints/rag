@@ -48,7 +48,7 @@ from langchain_core.documents import Document
 from langchain_core.output_parsers.string import StrOutputParser
 from langchain_core.prompts import MessagesPlaceholder
 from langchain_core.prompts.chat import ChatPromptTemplate
-from langchain_core.runnables import RunnableAssign
+from langchain_core.runnables import RunnableAssign, RunnableGenerator
 from opentelemetry import context as otel_context
 from requests import ConnectTimeout
 
@@ -1408,14 +1408,15 @@ class NvidiaRAG:
             prompt_template = ChatPromptTemplate.from_messages(message)
             llm = get_llm(config=self.config, **llm_settings)
 
-            chain = (
+            # Chain for streaming: we remove StrOutputParser so we yield AIMessageChunks,
+            # allowing us to access .usage_metadata in the response generator.
+            stream_chain = (
                 prompt_template
                 | llm
                 | self.StreamingFilterThinkParser
-                | StrOutputParser()
             )
             # Create async stream generator
-            stream_gen = chain.astream(
+            stream_gen = stream_chain.astream(
                 {"question": query_text}, config={"run_name": "llm-stream"}
             )
             # Eagerly fetch first chunk to trigger any errors before returning response
@@ -2437,7 +2438,16 @@ class NvidiaRAG:
             self._print_conversation_history(message)
             prompt = ChatPromptTemplate.from_messages(message)
 
-            chain = prompt | llm | self.StreamingFilterThinkParser | StrOutputParser()
+            # Base chain (no usage sentinel) used for non-streaming reflection path.
+            # We keep StrOutputParser here because we want the full string response for logic.
+            base_chain = prompt | llm | self.StreamingFilterThinkParser | StrOutputParser()
+
+            # Streaming chain: yields AIMessageChunks to preserve usage metadata.
+            stream_chain = (
+                prompt
+                | llm
+                | self.StreamingFilterThinkParser
+            )
 
             # Check response groundedness if we still have reflection
             # iterations available
@@ -2496,8 +2506,8 @@ class NvidiaRAG:
                     status_code=ErrorCodeMapping.SUCCESS,
                 )
             else:
-                # Create async stream generator
-                stream_gen = chain.astream(
+                # Create async stream generator using the streaming chain
+                stream_gen = stream_chain.astream(
                     {"question": query, "context": docs},
                     config={"run_name": "llm-stream"},
                 )

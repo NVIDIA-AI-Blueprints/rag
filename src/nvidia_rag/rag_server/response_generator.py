@@ -443,17 +443,54 @@ def generate_answer(
             llm_ttft_ms: float | None = None
             rag_ttft_ms: float | None = None
             llm_generation_time_ms: float | None = None
+            usage: Usage | None = None
             for chunk in generator:
+                # Handle usage metadata if present (AIMessageChunk)
+                if hasattr(chunk, "usage_metadata") and chunk.usage_metadata:
+                    usage_dict = chunk.usage_metadata
+                    try:
+                        prompt_tokens = int(usage_dict.get("input_tokens", 0))
+                        completion_tokens = int(usage_dict.get("output_tokens", 0))
+                        total_tokens = int(
+                            usage_dict.get(
+                                "total_tokens", prompt_tokens + completion_tokens
+                            )
+                        )
+                        usage = Usage(
+                            total_tokens=total_tokens,
+                            prompt_tokens=prompt_tokens,
+                            completion_tokens=completion_tokens,
+                        )
+                        logger.info(
+                            "LLM usage for model %s (sync): prompt_tokens=%d, completion_tokens=%d, total_tokens=%d, raw=%s",
+                            model,
+                            prompt_tokens,
+                            completion_tokens,
+                            total_tokens,
+                            usage_dict,
+                        )
+                    except Exception as e:
+                        logger.debug("Failed to parse usage metadata: %s", e)
+
+                # Extract content
+                content = chunk
+                if hasattr(chunk, "content"):
+                    content = chunk.content
+
+                # Skip empty content (e.g. usage-only chunks)
+                if not content:
+                    continue
+
                 # TODO: This is a hack to clear contexts if we get an error
                 # response from nemoguardrails
-                if chunk == "I'm sorry, I can't respond to that.":
+                if content == "I'm sorry, I can't respond to that.":
                     # Clear contexts if we get an error response
                     contexts = []
                 chain_response = ChainResponse()
                 response_choice = ChainResponseChoices(
                     index=0,
-                    message=Message(role="assistant", content=chunk),
-                    delta=Message(role=None, content=chunk),
+                    message=Message(role="assistant", content=content),
+                    delta=Message(role=None, content=content),
                     finish_reason=None,
                 )
                 chain_response.id = resp_id
@@ -519,6 +556,8 @@ def generate_answer(
             # Create response first, then attach metrics for clarity
             chain_response = ChainResponse()
             chain_response.metrics = final_metrics
+            if usage is not None:
+                chain_response.usage = usage
 
             # [DONE] indicate end of response from server
             response_choice = ChainResponseChoices(
@@ -591,17 +630,54 @@ async def generate_answer_async(
             llm_ttft_ms: float | None = None
             rag_ttft_ms: float | None = None
             llm_generation_time_ms: float | None = None
+            usage: Usage | None = None
             async for chunk in generator:
+                # Handle usage metadata if present (AIMessageChunk)
+                if hasattr(chunk, "usage_metadata") and chunk.usage_metadata:
+                    usage_dict = chunk.usage_metadata
+                    try:
+                        prompt_tokens = int(usage_dict.get("input_tokens", 0))
+                        completion_tokens = int(usage_dict.get("output_tokens", 0))
+                        total_tokens = int(
+                            usage_dict.get(
+                                "total_tokens", prompt_tokens + completion_tokens
+                            )
+                        )
+                        usage = Usage(
+                            total_tokens=total_tokens,
+                            prompt_tokens=prompt_tokens,
+                            completion_tokens=completion_tokens,
+                        )
+                        logger.info(
+                            "LLM usage for model %s (async): prompt_tokens=%d, completion_tokens=%d, total_tokens=%d, raw=%s",
+                            model,
+                            prompt_tokens,
+                            completion_tokens,
+                            total_tokens,
+                            usage_dict,
+                        )
+                    except Exception as e:
+                        logger.debug("Failed to parse usage metadata: %s", e)
+
+                # Extract content
+                content = chunk
+                if hasattr(chunk, "content"):
+                    content = chunk.content
+
+                # Skip empty content (e.g. usage-only chunks)
+                if not content:
+                    continue
+
                 # TODO: This is a hack to clear contexts if we get an error
                 # response from nemoguardrails
-                if chunk == "I'm sorry, I can't respond to that.":
+                if content == "I'm sorry, I can't respond to that.":
                     # Clear contexts if we get an error response
                     contexts = []
                 chain_response = ChainResponse()
                 response_choice = ChainResponseChoices(
                     index=0,
-                    message=Message(role="assistant", content=chunk),
-                    delta=Message(role=None, content=chunk),
+                    message=Message(role="assistant", content=content),
+                    delta=Message(role=None, content=content),
                     finish_reason=None,
                 )
                 chain_response.id = resp_id
@@ -667,6 +743,8 @@ async def generate_answer_async(
             # Create response first, then attach metrics for clarity
             chain_response = ChainResponse()
             chain_response.metrics = final_metrics
+            if usage is not None:
+                chain_response.usage = usage
 
             # [DONE] indicate end of response from server
             response_choice = ChainResponseChoices(

@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = ">=3.11, <3.14"
 resolution-markers = [
     "python_full_version >= '3.13'",
@@ -1920,6 +1920,7 @@ dependencies = [
     { name = "langchain-elasticsearch" },
     { name = "langchain-milvus" },
     { name = "langchain-nvidia-ai-endpoints" },
+    { name = "langchain-openai" },
     { name = "lark" },
     { name = "mcp" },
     { name = "minio" },
@@ -1939,7 +1940,6 @@ dependencies = [
 all = [
     { name = "azure-core" },
     { name = "azure-storage-blob" },
-    { name = "langchain-openai" },
     { name = "nv-ingest-api" },
     { name = "nv-ingest-client" },
     { name = "opentelemetry-api" },
@@ -1958,7 +1958,6 @@ all = [
 ingest = [
     { name = "azure-core" },
     { name = "azure-storage-blob" },
-    { name = "langchain-openai" },
     { name = "nv-ingest-api" },
     { name = "nv-ingest-client" },
     { name = "opentelemetry-api" },
@@ -1977,7 +1976,6 @@ ingest = [
 rag = [
     { name = "azure-core" },
     { name = "azure-storage-blob" },
-    { name = "langchain-openai" },
     { name = "opentelemetry-api" },
     { name = "opentelemetry-exporter-otlp" },
     { name = "opentelemetry-exporter-prometheus" },
@@ -2023,9 +2021,7 @@ requires-dist = [
     { name = "langchain-elasticsearch", specifier = ">=0.3,<1.0" },
     { name = "langchain-milvus", specifier = ">=0.2.1" },
     { name = "langchain-nvidia-ai-endpoints", specifier = ">=0.3.18" },
-    { name = "langchain-openai", marker = "extra == 'all'", specifier = ">=0.2,<1.0" },
-    { name = "langchain-openai", marker = "extra == 'ingest'", specifier = ">=0.2,<1.0" },
-    { name = "langchain-openai", marker = "extra == 'rag'", specifier = ">=0.2,<1.0" },
+    { name = "langchain-openai", specifier = ">=0.2,<1.0" },
     { name = "lark", specifier = ">=1.2.2" },
     { name = "mcp", specifier = ">=1.23.1" },
     { name = "minio", specifier = ">=7.2,<8.0" },
