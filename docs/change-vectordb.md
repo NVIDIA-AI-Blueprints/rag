@@ -393,6 +393,10 @@ Choose your integration path:
 
 Before wiring your custom VDB into the servers, the quickest way to iterate is to run it in library mode. This is ideal for development, debugging, and ensuring the operator behaves correctly.
 
+:::{tip}
+New to library mode? Check out the [Containerless Deployment (Lite Mode)](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/rag_library_lite_usage.ipynb) notebook for a complete example of using the RAG library without Docker containers.
+:::
+
 - Reference implementation (start here)
   - Read the notebook: `../notebooks/building_rag_vdb_operator.ipynb`.
   - It contains a complete, working example you can copy and adapt.

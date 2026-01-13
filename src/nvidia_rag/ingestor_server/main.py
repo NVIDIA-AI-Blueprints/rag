@@ -105,6 +105,7 @@ class Mode(str, Enum):
 
     LIBRARY = "library"
     SERVER = "server"
+    LITE = "lite"
 
 
 SUPPORTED_FILE_TYPES = set(EXTENSION_TO_DOCUMENT_TYPE.keys()) - set({"svg"})
@@ -152,10 +153,14 @@ class NvidiaRAGIngestor:
         self.prompts = get_prompts(prompts)
 
         # Initialize instance-based clients
-        self.nv_ingest_client = get_nv_ingest_client(self.config)
+        self.nv_ingest_client = get_nv_ingest_client(
+            config=self.config, get_lite_client=self.mode == Mode.LITE
+        )
 
         # Initialize MinIO operator - handle failures gracefully
         try:
+            if self.mode == Mode.LITE:
+                raise ValueError("MinIO operations are not supported in RAG Lite mode")
             self.minio_operator = get_minio_operator(config=self.config)
             # Ensure default bucket exists (idempotent operation)
             try:
@@ -164,10 +169,10 @@ class NvidiaRAGIngestor:
             except Exception as bucket_err:
                 # Log specific exception for debugging bucket creation issues
                 logger.debug("Could not ensure bucket exists: %s", bucket_err)
-        except Exception:
+        except Exception as e:
             self.minio_operator = None
             # Error already logged in MinioOperator.__init__, just note it here
-            logger.debug("MinIO operator set to None due to initialization failure")
+            logger.debug("MinIO operator set to None due to initialization failure, reason: %s", e)
 
         if self.vdb_op is not None:
             if not (isinstance(self.vdb_op, VDBRag) or isinstance(self.vdb_op, VDB)):
@@ -2399,15 +2404,16 @@ class NvidiaRAGIngestor:
             raise Exception(error_message)
 
         try:
-            start_time = time.time()
-            self.__put_content_to_minio(
-                results=results, collection_name=collection_name
-            )
-            end_time = time.time()
-            logger.info(
-                f"== MinIO upload for collection_name: {collection_name} "
-                f"for batch {batch_number} is complete! Time taken: {end_time - start_time} seconds =="
-            )
+            if self.mode != Mode.LITE:
+                start_time = time.time()
+                self.__put_content_to_minio(
+                    results=results, collection_name=collection_name
+                )
+                end_time = time.time()
+                logger.info(
+                    f"== MinIO upload for collection_name: {collection_name} "
+                    f"for batch {batch_number} is complete! Time taken: {end_time - start_time} seconds =="
+                )
             batch_progress_response = await self.__build_ingestion_response(
                 results=results,
                 failures=failures,

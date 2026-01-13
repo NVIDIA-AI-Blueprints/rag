@@ -41,6 +41,10 @@ By default, the RAG Blueprint deploys the NIM microservices locally ([self-hoste
 You can also modify the RAG Blueprint to use [NVIDIA-hosted](deploy-docker-nvidia-hosted.md) NIM microservices.
 :::
 
+:::{tip}
+**No GPU Available?** Try the [Containerless Deployment (Lite Mode)](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/rag_library_lite_usage.ipynb) which requires no GPU hardware and uses NVIDIA cloud APIs for all processing.
+:::
+
 ## Hardware Requirements (Kubernetes)
 
 To install the RAG Blueprint on Kubernetes, you need one of the following:

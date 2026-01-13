@@ -7,6 +7,10 @@
 Use this documentation to learn about the [NVIDIA RAG Blueprint](readme.md) Python Package. 
 For a notebook that walks you through these code examples, see [NVIDIA RAG Python Package](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/rag_library_usage.ipynb).
 
+:::{tip}
+Looking for a containerless deployment without Docker? See the [NVIDIA RAG Python Package - Lite Mode](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/rag_library_lite_usage.ipynb) notebook for a simplified setup using Milvus Lite and NVIDIA cloud APIs.
+:::
+
 
 ## Set logging level
 

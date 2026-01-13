@@ -639,6 +639,7 @@ class NvidiaRAG:
         reranker_endpoint: str | None = None,
         filter_expr: str | list[dict[str, Any]] = "",
         confidence_threshold: float | None = None,
+        enable_citations: bool | None = None,
     ) -> Citations:
         """Search for the most relevant documents for the given search parameters.
         It's called when the `/search` API is invoked.
@@ -704,6 +705,11 @@ class NvidiaRAG:
             confidence_threshold
             if confidence_threshold is not None
             else self.config.default_confidence_threshold
+        )
+        enable_citations = (
+            enable_citations
+            if enable_citations is not None
+            else self.config.enable_citations
         )
 
         vdb_op = self._prepare_vdb_op(
@@ -1131,7 +1137,7 @@ class NvidiaRAG:
                     logger.warning(
                         "Could not find sufficiently relevant context after maximum attempts"
                     )
-                return prepare_citations(retrieved_documents=docs, force_citations=True)
+                return prepare_citations(retrieved_documents=docs, force_citations=True, enable_citations=enable_citations)
             else:
                 if local_ranker and enable_reranker and not is_image_query:
                     logger.info(
@@ -1213,7 +1219,7 @@ class NvidiaRAG:
                         )
 
                     return prepare_citations(
-                        retrieved_documents=docs, force_citations=True
+                        retrieved_documents=docs, force_citations=True, enable_citations=enable_citations
                     )
                 else:
                     # Handle case where reranker is disabled or image query
@@ -1243,7 +1249,7 @@ class NvidiaRAG:
                             otel_ctx=otel_ctx,
                         )
                     return prepare_citations(
-                        retrieved_documents=docs, force_citations=True
+                        retrieved_documents=docs, force_citations=True, enable_citations=enable_citations
                     )
 
         except APIError:

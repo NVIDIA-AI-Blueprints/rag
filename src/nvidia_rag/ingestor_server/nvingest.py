@@ -36,23 +36,36 @@ TRACER = get_tracer("nvidia_rag.ingestor.nvingest")
 
 
 @trace_function("ingestor.nvingest.get_nv_ingest_client", tracer=TRACER)
-def get_nv_ingest_client(config: NvidiaRAGConfig = None):
+def get_nv_ingest_client(
+    config: NvidiaRAGConfig = None, 
+    get_lite_client: bool = False
+) -> NvIngestClient:
     """
     Creates and returns NV-Ingest client
 
     Args:
         config: NvidiaRAGConfig instance. If None, creates a new one.
+        get_lite_client: Whether to get the lite NV-Ingest client
     """
     if config is None:
         config = NvidiaRAGConfig()
 
-    client = NvIngestClient(
-        # Host where nv-ingest-ms-runtime is running
-        message_client_hostname=config.nv_ingest.message_client_hostname,
-        # REST port, defaults to 7670
-        message_client_port=config.nv_ingest.message_client_port,
-        message_client_kwargs={"api_version": "v2"},
-    )
+    if get_lite_client:
+        from nv_ingest_api.util.message_brokers.simple_message_broker import SimpleClient
+        logger.info("== Initializing NV-Ingest client instance for RAG Lite mode ...")
+        client = NvIngestClient(
+            message_client_allocator=SimpleClient,
+            message_client_port=config.nv_ingest.message_client_port,
+            message_client_hostname=config.nv_ingest.message_client_hostname,
+        )
+    else:
+        client = NvIngestClient(
+            # Host where nv-ingest-ms-runtime is running
+            message_client_hostname=config.nv_ingest.message_client_hostname,
+            # REST port, defaults to 7670
+            message_client_port=config.nv_ingest.message_client_port,
+            message_client_kwargs={"api_version": "v2"},
+        )
     return client
 
 

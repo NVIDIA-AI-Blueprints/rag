@@ -57,6 +57,106 @@ class TestGetNvIngestClient:
             with pytest.raises(Exception, match="Config error"):
                 get_nv_ingest_client()
 
+    @patch("nv_ingest_api.util.message_brokers.simple_message_broker.SimpleClient")
+    @patch("nvidia_rag.ingestor_server.nvingest.NvIngestClient")
+    def test_get_nv_ingest_client_lite_mode(self, mock_nv_ingest_client, mock_simple_client):
+        """Test get_nv_ingest_client creates lite client with correct parameters"""
+        mock_config = Mock()
+        mock_config.nv_ingest = Mock()
+        mock_config.nv_ingest.message_client_hostname = "test-host"
+        mock_config.nv_ingest.message_client_port = 7670
+
+        mock_client = Mock()
+        mock_nv_ingest_client.return_value = mock_client
+
+        result = get_nv_ingest_client(mock_config, get_lite_client=True)
+
+        assert result == mock_client
+        mock_nv_ingest_client.assert_called_once_with(
+            message_client_allocator=mock_simple_client,
+            message_client_port=7670,
+            message_client_hostname="test-host",
+        )
+
+    @patch("nv_ingest_api.util.message_brokers.simple_message_broker.SimpleClient")
+    @patch("nvidia_rag.ingestor_server.nvingest.NvIngestClient")
+    def test_get_nv_ingest_client_lite_mode_no_api_version(self, mock_nv_ingest_client, mock_simple_client):
+        """Test get_nv_ingest_client lite mode does not pass api_version"""
+        mock_config = Mock()
+        mock_config.nv_ingest = Mock()
+        mock_config.nv_ingest.message_client_hostname = "lite-host"
+        mock_config.nv_ingest.message_client_port = 8080
+
+        mock_client = Mock()
+        mock_nv_ingest_client.return_value = mock_client
+
+        result = get_nv_ingest_client(mock_config, get_lite_client=True)
+
+        # Verify api_version is not in the call kwargs
+        call_kwargs = mock_nv_ingest_client.call_args[1]
+        assert "message_client_kwargs" not in call_kwargs
+        assert call_kwargs["message_client_allocator"] == mock_simple_client
+        assert call_kwargs["message_client_hostname"] == "lite-host"
+        assert call_kwargs["message_client_port"] == 8080
+
+    @patch("nvidia_rag.ingestor_server.nvingest.NvidiaRAGConfig")
+    @patch("nv_ingest_api.util.message_brokers.simple_message_broker.SimpleClient")
+    @patch("nvidia_rag.ingestor_server.nvingest.NvIngestClient")
+    def test_get_nv_ingest_client_lite_mode_default_config(
+        self, mock_nv_ingest_client, mock_simple_client, mock_config_class
+    ):
+        """Test get_nv_ingest_client lite mode with default config"""
+        mock_client = Mock()
+        mock_nv_ingest_client.return_value = mock_client
+
+        mock_config_instance = Mock()
+        mock_config_instance.nv_ingest = Mock()
+        mock_config_instance.nv_ingest.message_client_hostname = "default-host"
+        mock_config_instance.nv_ingest.message_client_port = 7670
+        mock_config_class.return_value = mock_config_instance
+
+        result = get_nv_ingest_client(get_lite_client=True)
+
+        assert result == mock_client
+        mock_nv_ingest_client.assert_called_once_with(
+            message_client_allocator=mock_simple_client,
+            message_client_port=7670,
+            message_client_hostname="default-host",
+        )
+
+    @patch("nv_ingest_api.util.message_brokers.simple_message_broker.SimpleClient")
+    @patch("nvidia_rag.ingestor_server.nvingest.NvIngestClient")
+    def test_get_nv_ingest_client_standard_vs_lite_mode(
+        self, mock_nv_ingest_client, mock_simple_client
+    ):
+        """Test get_nv_ingest_client standard mode vs lite mode behavior"""
+        mock_config = Mock()
+        mock_config.nv_ingest = Mock()
+        mock_config.nv_ingest.message_client_hostname = "test-host"
+        mock_config.nv_ingest.message_client_port = 7670
+
+        mock_client = Mock()
+        mock_nv_ingest_client.return_value = mock_client
+
+        # Test standard mode (default)
+        result_standard = get_nv_ingest_client(mock_config, get_lite_client=False)
+        assert result_standard == mock_client
+        standard_call_kwargs = mock_nv_ingest_client.call_args[1]
+        assert "message_client_kwargs" in standard_call_kwargs
+        assert standard_call_kwargs["message_client_kwargs"] == {"api_version": "v2"}
+        assert "message_client_allocator" not in standard_call_kwargs
+
+        # Reset mock
+        mock_nv_ingest_client.reset_mock()
+
+        # Test lite mode
+        result_lite = get_nv_ingest_client(mock_config, get_lite_client=True)
+        assert result_lite == mock_client
+        lite_call_kwargs = mock_nv_ingest_client.call_args[1]
+        assert "message_client_allocator" in lite_call_kwargs
+        assert lite_call_kwargs["message_client_allocator"] == mock_simple_client
+        assert "message_client_kwargs" not in lite_call_kwargs
+
 
 class TestGetNvIngestIngestor:
     """Test get_nv_ingest_ingestor function"""
