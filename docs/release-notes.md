@@ -12,6 +12,14 @@ This documentation contains the release notes for [NVIDIA RAG Blueprint](readme.
 
 This release adds new features to the RAG pipeline for supporting agent workflows and enhances generations with VLMs augmenting multimodal input.
 
+## Release 2.3.2 (2025-12-25)
+
+This release is a hotfix for RAG v2.3.0, and includes the following changes:
+
+- Bump embedqa version to 1.10.1 and nim-llm to version 1.14.0.
+- Align Helm values and any referenced tags with the new embedqa and nim-llm versions.
+
+
 
 ### Highlights 
 
