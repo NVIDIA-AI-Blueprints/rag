@@ -227,6 +227,12 @@ services:
       APP_VECTORSTORE_NAME: "milvus"
       # Type of vectordb search to be used
       APP_VECTORSTORE_SEARCHTYPE: ${APP_VECTORSTORE_SEARCHTYPE:-"dense"} # Can be dense or hybrid
+      # Type of ranker to use for vector store in case of Hybrid Search
+      APP_VECTORSTORE_RANKER_TYPE: ${APP_VECTORSTORE_RANKER_TYPE:-"rrf"} # Can be "rrf" or "weighted"
+      # Weight for dense vector search in case of "weighted" Hybrid Search
+      APP_VECTORSTORE_DENSE_WEIGHT: ${APP_VECTORSTORE_DENSE_WEIGHT:-0.5}
+      # Weight for sparse vector search in case of "weighted" Hybrid Search
+      APP_VECTORSTORE_SPARSE_WEIGHT: ${APP_VECTORSTORE_SPARSE_WEIGHT:-0.5}
       # Boolean to enable GPU index for milvus vectorstore specific to nvingest
       APP_VECTORSTORE_ENABLEGPUINDEX: ${APP_VECTORSTORE_ENABLEGPUINDEX:-True}
       # Boolean to control GPU search for milvus vectorstore specific to nvingest
@@ -453,8 +459,16 @@ services:
       APP_VECTORSTORE_NAME: "milvus"
       # Type of index to be used for vectorstore
       APP_VECTORSTORE_INDEXTYPE: ${APP_VECTORSTORE_INDEXTYPE:-"GPU_CAGRA"}
+      
       # Type of vectordb search to be used
       APP_VECTORSTORE_SEARCHTYPE: ${APP_VECTORSTORE_SEARCHTYPE:-"dense"} # Can be dense or hybrid
+      # Type of ranker to use for vector store in case of Hybrid Search
+      APP_VECTORSTORE_RANKER_TYPE: ${APP_VECTORSTORE_RANKER_TYPE:-"rrf"} # Can be "rrf" or "weighted"
+      # Weight for dense vector search in case of "weighted" Hybrid Search
+      APP_VECTORSTORE_DENSE_WEIGHT: ${APP_VECTORSTORE_DENSE_WEIGHT:-0.5}
+      # Weight for sparse vector search in case of "weighted" Hybrid Search
+      APP_VECTORSTORE_SPARSE_WEIGHT: ${APP_VECTORSTORE_SPARSE_WEIGHT:-0.5}
+      
       # vectorstore collection name to store embeddings
       COLLECTION_NAME: ${COLLECTION_NAME:-multimodal_data}
       APP_RETRIEVER_SCORETHRESHOLD: 0.25
