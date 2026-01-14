@@ -2341,7 +2341,7 @@ name = "linkify-it-py"
 version = "2.0.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "uc-micro-py" },
+    { name = "uc-micro-py", marker = "sys_platform != 'win32'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/2a/ae/bb56c6828e4797ba5a4821eec7c43b8bf40f69cda4d4f5f8c8a2810ec96a/linkify-it-py-2.0.3.tar.gz", hash = "sha256:68cda27e162e9215c17d786649d1da0021a451bdc436ef9e0fa0ba5234b9b048", size = 27946, upload-time = "2024-02-04T14:48:04.179Z" }
 wheels = [
@@ -2613,7 +2613,7 @@ wheels = [
 
 [package.optional-dependencies]
 linkify = [
-    { name = "linkify-it-py" },
+    { name = "linkify-it-py", marker = "sys_platform != 'win32'" },
 ]
 
 [[package]]
@@ -2796,9 +2796,9 @@ name = "memray"
 version = "1.19.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "jinja2" },
-    { name = "rich" },
-    { name = "textual" },
+    { name = "jinja2", marker = "sys_platform != 'win32'" },
+    { name = "rich", marker = "sys_platform != 'win32'" },
+    { name = "textual", marker = "sys_platform != 'win32'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/36/18/5df5995a7b142e12ab194f4b2fd1473efd51f4f622dfe47f3c013c3c11f7/memray-1.19.1.tar.gz", hash = "sha256:7fcf306eae2c00144920b01913f42fa7f235af7a80fa3226ab124672a5cb1d8f", size = 2395421, upload-time = "2025-10-16T02:26:51.513Z" }
 wheels = [
@@ -2827,7 +2827,7 @@ name = "milvus-lite"
 version = "2.5.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "tqdm" },
+    { name = "tqdm", marker = "sys_platform != 'win32'" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a9/b2/acc5024c8e8b6a0b034670b8e8af306ebd633ede777dcbf557eac4785937/milvus_lite-2.5.1-py3-none-macosx_10_9_x86_64.whl", hash = "sha256:6b014453200ba977be37ba660cb2d021030375fa6a35bc53c2e1d92980a0c512", size = 27934713, upload-time = "2025-06-30T04:23:37.028Z" },
@@ -3353,7 +3353,7 @@ requires-dist = [
     { name = "httpx-sse", specifier = ">=0.4.3" },
     { name = "langchain", specifier = ">=0.3.27" },
     { name = "langchain-community", specifier = ">=0.3.27" },
-    { name = "langchain-core", specifier = ">=0.3.72" },
+    { name = "langchain-core", specifier = ">=0.3.81" },
     { name = "langchain-elasticsearch", specifier = ">=0.3,<1.0" },
     { name = "langchain-milvus", specifier = ">=0.2.1" },
     { name = "langchain-nvidia-ai-endpoints", specifier = ">=0.3.18" },
@@ -3395,7 +3395,7 @@ requires-dist = [
     { name = "opentelemetry-sdk-extension-prometheus-multiprocess", marker = "extra == 'rag'", specifier = ">=1.0,<2.0" },
     { name = "overrides", marker = "extra == 'all'", specifier = ">=7.7,<8.0" },
     { name = "overrides", marker = "extra == 'ingest'", specifier = ">=7.7,<8.0" },
-    { name = "pdfplumber", specifier = ">=0.6" },
+    { name = "pdfplumber", specifier = ">=0.11.9" },
     { name = "prometheus-client", marker = "extra == 'rag'", specifier = ">=0.20,<1.0" },
     { name = "protobuf", specifier = ">=5.29.5" },
     { name = "pyarrow", marker = "extra == 'all'", specifier = ">=21.0,<22.0" },
@@ -5859,12 +5859,12 @@ name = "textual"
 version = "7.2.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "markdown-it-py", extra = ["linkify"] },
-    { name = "mdit-py-plugins" },
-    { name = "platformdirs" },
-    { name = "pygments" },
-    { name = "rich" },
-    { name = "typing-extensions" },
+    { name = "markdown-it-py", extra = ["linkify"], marker = "sys_platform != 'win32'" },
+    { name = "mdit-py-plugins", marker = "sys_platform != 'win32'" },
+    { name = "platformdirs", marker = "sys_platform != 'win32'" },
+    { name = "pygments", marker = "sys_platform != 'win32'" },
+    { name = "rich", marker = "sys_platform != 'win32'" },
+    { name = "typing-extensions", marker = "sys_platform != 'win32'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/15/4b/24ae02d857ec0fa6661d27a989994e65c6a3b3d56c7177b2d8e022d29ccc/textual-7.2.0.tar.gz", hash = "sha256:5355f2dc16fbdc452a714dee2e440125e33b82373b3032cb53bea96e7019fa0b", size = 1582530, upload-time = "2026-01-11T17:40:50.75Z" }
 wheels = [
