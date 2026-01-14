@@ -110,9 +110,10 @@ When the thinking budget is enabled, the model monitors the token count within t
 
 ### Supported Models
 
-As of NIM version 1.12, the Thinking Budget feature is supported on the following model:
+As of NIM version 1.12, the Thinking Budget feature is supported on the following models:
 
 - **nvidia/nvidia-nemotron-nano-9b-v2**
+- **nvidia/nemotron-3-nano-30b-a3b**
 
 For the latest supported models, refer to the [NIM Thinking Budget Control documentation](https://docs.nvidia.com/nim/large-language-models/latest/thinking-budget-control.html).
 
@@ -125,7 +126,12 @@ After enabling the reasoning as per the steps mentioned above, enable the thinki
 | `min_thinking_tokens` | 1 | Minimum number of thinking tokens to allocate for reasoning models. |
 | `max_thinking_tokens` | 8192 | Maximum number of thinking tokens to allocate for reasoning models. |
 
-**Example API request:**
+> **Note for `nvidia/nemotron-3-nano-30b-a3b`**  
+> This model only uses the `max_thinking_tokens` parameter.  
+> - `min_thinking_tokens` is ignored for this model.  
+> - Thinking budget is enabled by passing a positive `max_thinking_tokens` value in the request.
+
+**Example API requests:**
 
 ```json
 {
@@ -137,7 +143,20 @@ After enabling the reasoning as per the steps mentioned above, enable the thinki
   ],
   "min_thinking_tokens": 1,
   "max_thinking_tokens": 8192,
-  "model": "nvidia/nvidia-nemotron-nano-9b-v2",
+  "model": "nvidia/nvidia-nemotron-nano-9b-v2"
+}
+```
+
+```json
+{
+  "messages": [
+    {
+      "role": "user",
+      "content": "What is the FY2017 operating cash flow ratio for Adobe?"
+    }
+  ],
+  "max_thinking_tokens": 8192,
+  "model": "nvidia/nemotron-3-nano-30b-a3b"
 }
 ```
 
