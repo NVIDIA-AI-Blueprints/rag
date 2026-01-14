@@ -8,6 +8,9 @@ services:
       # Set context to repo's root directory
       context: ../../
       dockerfile: ./src/nvidia_rag/ingestor_server/Dockerfile
+      args:
+        PREDOWNLOAD_TOKENIZER: ${PREDOWNLOAD_TOKENIZER:-}
+        HF_TOKEN: ${HF_TOKEN:-}
     # start the server on port 8082 with 4 workers for improved latency on concurrent requests.
     command: --port 8082 --host 0.0.0.0 --workers 1
 
@@ -94,6 +97,8 @@ services:
       APP_NVINGEST_CHUNKOVERLAP: ${APP_NVINGEST_CHUNKOVERLAP:-150}
       APP_NVINGEST_ENABLEPDFSPLITTER: ${APP_NVINGEST_ENABLEPDFSPLITTER:-True}
       APP_NVINGEST_SEGMENTAUDIO: ${APP_NVINGEST_SEGMENTAUDIO:-False} # Enable audio segmentation for NV Ingest
+      APP_NVINGEST_TOKENIZER: ${APP_NVINGEST_TOKENIZER:-intfloat/e5-large-unsupervised}
+      HF_TOKEN: ${HF_TOKEN:-""} # HuggingFace token for runtime tokenizer downloads
 
       ##===NV-Ingest Caption Model configurations====
       APP_NVINGEST_CAPTIONMODELNAME: ${APP_NVINGEST_CAPTIONMODELNAME:-"nvidia/nemotron-nano-12b-v2-vl"}

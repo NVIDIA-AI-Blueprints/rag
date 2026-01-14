@@ -106,19 +106,22 @@ def _get_tokenizer(config: NvidiaRAGConfig):
 
         tokenizer_identifier = tokenizer_name
         if model_predownload_path is not None:
-            # Check for pre-downloaded tokenizer
-            e5_path = os.path.join(
-                model_predownload_path, "e5-large-unsupervised/tokenizer/tokenizer.json"
+            tokenizer_dir_name = tokenizer_name.replace("/", "-")
+            tokenizer_path = os.path.join(
+                model_predownload_path, f"{tokenizer_dir_name}/tokenizer/tokenizer.json"
             )
-            if (
-                os.path.exists(e5_path)
-                and tokenizer_name == "intfloat/e5-large-unsupervised"
-            ):
+
+            # Check for pre-downloaded tokenizer
+            if os.path.exists(tokenizer_path):
                 tokenizer_identifier = os.path.join(
-                    model_predownload_path, "e5-large-unsupervised/tokenizer/"
+                    model_predownload_path, f"{tokenizer_dir_name}/tokenizer/"
                 )
                 logger.info(
                     f"Using pre-downloaded tokenizer from: {tokenizer_identifier}"
+                )
+            else:
+                logger.info(
+                    f"Pre-downloaded tokenizer not found at {tokenizer_path}, will download from HuggingFace"
                 )
 
         try:

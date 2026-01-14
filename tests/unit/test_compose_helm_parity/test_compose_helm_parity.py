@@ -266,6 +266,7 @@ def test_compose_helm_image_and_env_parity():
                     "NVIDIA_API_KEY",
                     "APP_EMBEDDINGS_APIKEY",
                     "SUMMARY_LLM_APIKEY",
+                    "HF_TOKEN",
                 },
             },
             # nv-ingest runtime parity against Helm nv-ingest.envVars
@@ -531,9 +532,7 @@ def test_compose_helm_image_and_env_parity():
             return False
         return bool(file_map.get(service_name))
 
-    def is_ngc_api_key_presence_exempt(
-        compose_file: str, service_name: str
-    ) -> bool:
+    def is_ngc_api_key_presence_exempt(compose_file: str, service_name: str) -> bool:
         """Return True if NGC API key presence check should be skipped for this service.
         Config format (optional file tests/unit/test_compose_helm_parity/env_parity_exemptions.yaml):
         ngcApiKeyPresenceExemptions:

@@ -340,6 +340,32 @@ docker compose -f deploy/compose/docker-compose-ingestor-server.yaml up -d
    ```
 
 
+### Pre-download Tokenizer
+
+By default, no tokenizer is pre-downloaded. Use the `PREDOWNLOAD_TOKENIZER` build argument for offline deployments:
+
+```bash
+# Docker CLI (public model, no token needed)
+docker build --build-arg PREDOWNLOAD_TOKENIZER=intfloat/e5-large-unsupervised \
+  -f src/nvidia_rag/ingestor_server/Dockerfile .
+
+# Docker CLI with HF token for private/gated models
+docker build --build-arg PREDOWNLOAD_TOKENIZER=your/private-model \
+  --build-arg HF_TOKEN=your_token_here \
+  -f src/nvidia_rag/ingestor_server/Dockerfile .
+
+# Docker Compose
+export PREDOWNLOAD_TOKENIZER=intfloat/e5-large-unsupervised
+export HF_TOKEN=your_token_here  # Optional, only for private models
+docker compose -f deploy/compose/docker-compose-ingestor-server.yaml build
+```
+
+# Or export first
+export PREDOWNLOAD_TOKENIZER=intfloat/e5-large-unsupervised
+docker compose -f deploy/compose/docker-compose-ingestor-server.yaml build
+```
+
+
 
 ## Related Topics
 

@@ -71,7 +71,7 @@ In v2.2.0, only `generate_summary: bool` was available. v2.3.0 adds a new `summa
 **Action Required**:
 - If you've customized `SUMMARY_LLM_MAX_CHUNK_LENGTH` or `SUMMARY_CHUNK_OVERLAP`, adjust values from characters to tokens
 - Typical conversion: divide character count by ~4 for token estimate
-- The system now uses the same tokenizer as nv-ingest (`e5-large-unsupervised`) for consistency
+- The system now uses the `e5-large-unsupervised` tokenizer
 
 #### Migration Example
 

@@ -53,6 +53,8 @@ apiKeysSecret:
   vlmApiKey: ""
   summaryLlmApiKey: ""
   reflectionLlmApiKey: ""
+  # -- HuggingFace token for accessing private/gated models (optional, only for private tokenizers)
+  hfToken: ""
 
 # -- RAG server container image
 image:
@@ -383,6 +385,7 @@ ingestor-server:
     APP_NVINGEST_CHUNKOVERLAP: "150"  # Overlap size for chunks
     APP_NVINGEST_ENABLEPDFSPLITTER: "True"  # Enable PDF splitter
     APP_NVINGEST_SEGMENTAUDIO: "False"  # Enable audio segmentation for NV Ingest
+    APP_NVINGEST_TOKENIZER: "intfloat/e5-large-unsupervised"  # Tokenizer model for NV-Ingest
 
     # === Redis configurations ===
     REDIS_HOST: "rag-redis-master"

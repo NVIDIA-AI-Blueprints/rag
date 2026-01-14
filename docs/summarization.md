@@ -325,7 +325,7 @@ export SUMMARY_MAX_PARALLELIZATION=20
 
 The summarization system uses **token-based chunking** aligned with nv-ingest for consistency:
 
-- **Tokenizer**: Uses `e5-large-unsupervised` (same as nv-ingest)
+- **Tokenizer**: Uses `e5-large-unsupervised`
 - **Max Chunk Length**: 9000 tokens
 - **Chunk Overlap**: 400 tokens
 - **Benefits**: More accurate chunking, better context preservation, aligned with ingestion pipeline

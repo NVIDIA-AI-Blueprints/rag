@@ -48,7 +48,7 @@ spec:
           ports:
             - containerPort: 8082
           {{- $apiKeysSecretName := include "apiKeysSecretName" . }}
-          {{- $hasAnyKey := or .Values.apiKeysSecret.embeddingsApiKey .Values.apiKeysSecret.summaryLlmApiKey }}
+          {{- $hasAnyKey := or .Values.apiKeysSecret.embeddingsApiKey .Values.apiKeysSecret.summaryLlmApiKey .Values.apiKeysSecret.hfToken }}
           {{- $shouldCreateSecret := and .Values.apiKeysSecret.create (not .Values.apiKeysSecret.existingSecret) $hasAnyKey }}
           {{- $useExistingSecret := .Values.apiKeysSecret.existingSecret }}
           {{- $hasApiKeys := or $shouldCreateSecret $useExistingSecret }}
@@ -74,6 +74,13 @@ spec:
                 secretKeyRef:
                   name: {{ $apiKeysSecretName }}
                   key: SUMMARY_LLM_APIKEY
+          {{- end }}
+          {{- if or $useExistingSecret .Values.apiKeysSecret.hfToken }}
+            - name: HF_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $apiKeysSecretName }}
+                  key: HF_TOKEN
           {{- end }}
           {{- end }}
           {{- end }}
