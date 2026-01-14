@@ -18,6 +18,16 @@ To navigate this page more easily, click the outline button at the top of the pa
 
 The following are some important notes to keep in mind before you switch from Milvus to Elasticsearch.
 
+- **Elasticsearch Dependency** – Elasticsearch support is provided as an optional dependency. For local development, install it with:
+    ```bash
+    pip install nvidia_rag[elasticsearch]
+    ```
+    Or when using uv:
+    ```bash
+    uv sync --extra elasticsearch
+    ```
+    The Docker images already include this dependency by default.
+
 - **Fresh Setup Required** – When you switch from Milvus to Elasticsearch, you need to re-upload your documents. The data stored in Milvus isn't automatically migrated to Elasticsearch.
 
 - **Port Availability** – Elasticsearch runs on port 9200 by default. Ensure this port is available and not in conflict with other services.

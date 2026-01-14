@@ -40,7 +40,7 @@ WORKDIR /workspace
 COPY --from=builder /build/pyproject.toml /workspace/
 COPY --from=builder /build/uv.lock /workspace/
 
-RUN uv sync --locked --no-install-project --no-dev --extra rag
+RUN uv sync --locked --no-install-project --no-dev --extra rag --extra elasticsearch
 
 COPY --from=builder /build/dist/*.whl /workspace/
 
