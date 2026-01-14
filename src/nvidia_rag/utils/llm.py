@@ -159,26 +159,28 @@ def _bind_thinking_tokens_if_configured(
                 f"but got model '{model}'"
             )
 
-    # Validate parameter values - must be positive if provided
-    if min_think is not None and min_think <= 0:
-        raise ValueError(
-            f"min_thinking_tokens must be a positive integer, but got {min_think}"
-        )
-    if max_think is not None and max_think <= 0:
-        raise ValueError(
-            f"max_thinking_tokens must be a positive integer, but got {max_think}"
-        )
-
     bind_args = {}
     if "nvidia-nemotron-nano-9b-v2" in model:
         if min_think is not None and min_think > 0:
             bind_args["min_thinking_tokens"] = min_think
+        else:
+            raise ValueError(
+                f"min_thinking_tokens must be a positive integer, but got {min_think}"
+            )
         if max_think is not None and max_think > 0:
             bind_args["max_thinking_tokens"] = max_think
+        else:
+            raise ValueError(
+                f"max_thinking_tokens must be a positive integer, but got {max_think}"
+            )
     elif "nemotron-3-nano-30b-a3b" in model:
         if max_think is not None and max_think > 0:
             bind_args["reasoning_budget"] = max_think
             bind_args["chat_template_kwargs"] = {"enable_thinking": True}
+        else:
+            raise ValueError(
+                f"max_thinking_tokens must be a positive integer, but got {max_think}"
+            )
 
     if bind_args:
         return llm.bind(**bind_args)

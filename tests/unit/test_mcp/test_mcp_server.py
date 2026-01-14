@@ -231,7 +231,7 @@ async def test_tool_get_documents_calls_ingestor(monkeypatch):
 
 @pytest.mark.anyio
 async def test_tool_delete_documents_calls_ingestor(monkeypatch):
-    """tool_delete_documents should DELETE /v1/documents with collection_name and repeated document_names."""
+    """tool_delete_documents should DELETE /v1/documents with collection_name query param and JSON body of document_names."""
 
     captured: dict[str, Any] = {}
 
@@ -249,9 +249,10 @@ async def test_tool_delete_documents_calls_ingestor(monkeypatch):
         async def __aexit__(self, exc_type, exc, tb):
             return False
 
-        def delete(self, url, params=None):
+        def delete(self, url, params=None, json=None):
             captured["url"] = url
             captured["params"] = params
+            captured["json"] = json
 
             class Ctx:
                 async def __aenter__(self_inner):
@@ -275,9 +276,8 @@ async def test_tool_delete_documents_calls_ingestor(monkeypatch):
 
     assert out["ok"] is True
     assert "/v1/documents" in captured["url"]
-    assert ("collection_name", "c") in captured["params"]
-    assert ("document_names", "a.pdf") in captured["params"]
-    assert ("document_names", "b.pdf") in captured["params"]
+    assert captured["params"]["collection_name"] == "c"
+    assert captured["json"] == ["a.pdf", "b.pdf"]
 
 
 @pytest.mark.anyio

@@ -81,5 +81,5 @@ sequences:
     name: "Milvus VDB Auth Through REST API Tests"
     description: "Milvus VDB Auth functionality tests through REST API"
     test_numbers: [78, 79, 80, 81, 82, 83, 84]
-    pre_sequence: []  # Cleanup collection before Milvus VDB Auth through REST API tests
+    pre_sequence: []
     post_sequence: [85]  # Cleanup tests after sequence

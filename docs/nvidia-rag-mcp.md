@@ -51,7 +51,7 @@ The MCP server supports three transport modes:
 
 ### Prerequisites
 
-- NVIDIA RAG HTTP services are reachable. Follow the [quickstart guide](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/docs/deploy-docker-self-hosted.md) to start the RAG server and Ingestor server.
+- NVIDIA RAG HTTP services are reachable. Follow the [quickstart guide](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/docs/deploy-docker-self-hosted.md) to start the end-to-end RAG workflow.
 - Python 3.11+ and dependencies:
 
 ```bash
