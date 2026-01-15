@@ -12,9 +12,9 @@ on:
         required: false
         default: ''
       ARTIFACTORY_VERSION:
-        description: 'Artifactory version (optional)'
+        description: 'Artifactory version (optional, defaults to auto-generated from get_version.sh)'
         required: false
-        default: '2.4.0.dev'
+        default: ''
 
 env:
   RELEASE_TYPE: dev
@@ -34,12 +34,15 @@ jobs:
 
       - name: Set artifactory version
         run: |
-          if [ -n "${{ github.event.inputs.WHEEL_VERSION }}" ]; then
-            echo "Using custom Artifactory version: ${{ github.event.inputs.WHEEL_VERSION }}"
-            echo "ARTIFACTORY_VERSION=${{ github.event.inputs.WHEEL_VERSION }}" >> $GITHUB_ENV
+          if [ -n "${{ github.event.inputs.ARTIFACTORY_VERSION }}" ]; then
+            echo "Using custom Artifactory version: ${{ github.event.inputs.ARTIFACTORY_VERSION }}"
+            echo "ARTIFACTORY_VERSION=${{ github.event.inputs.ARTIFACTORY_VERSION }}" >> $GITHUB_ENV
           else
-            echo "Using default Artifactory version: 2.4.0.dev"
-            echo "ARTIFACTORY_VERSION=2.4.0.dev" >> $GITHUB_ENV
+            echo "Using version from get_version.sh..."
+            chmod +x ./ci/get_version.sh
+            DEFAULT_VERSION=$(./ci/get_version.sh)
+            echo "Generated default version: $DEFAULT_VERSION"
+            echo "ARTIFACTORY_VERSION=$DEFAULT_VERSION" >> $GITHUB_ENV
           fi
 
       - name: Install dependencies
@@ -57,7 +60,7 @@ jobs:
       - name: Upload wheel artifact
         uses: actions/upload-artifact@v4
         with:
-          name: wheel-${{ env.VERSION }}
+          name: wheel-${{ env.ARTIFACTORY_VERSION }}
           path: dist/*.whl
           retention-days: 30
 
