@@ -13,6 +13,14 @@ This documentation contains the release notes for [NVIDIA RAG Blueprint](readme.
 <!-- And populate the Previous Versions section at the end of this page with version 2.3.0 -->
 
 
+## Release 2.3.2 (2025-12-25)
+
+This release is a hotfix for RAG v2.3.0, and includes the following changes:
+
+- Bump embedqa version to 1.10.1 and nim-llm to version 1.14.0.
+- Align Helm values and any referenced tags with the new embedqa and nim-llm versions.
+
+
 
 ## Release 2.3.0 (2025-10-14)
 
