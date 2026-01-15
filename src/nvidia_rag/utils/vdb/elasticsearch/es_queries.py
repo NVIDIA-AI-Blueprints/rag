@@ -189,3 +189,43 @@ def get_delete_document_info_query_by_collection_name(collection_name: str):
         "query": {"term": {"collection_name": collection_name}}
     }
     return query_delete_document_info
+
+def get_weighted_hybrid_custom_query(
+    embedding_model,
+    dense_weight,
+    sparse_weight,
+    k: int,
+    num_candidates: int = 100,
+):  
+    
+    def weighted_hybrid_query_builder(query_body: dict, query_text: str):
+        """
+        Overrides the default query to perform Weighted Hybrid Search.
+        """        
+        query_vector = embedding_model.embed_query(query_text)
+        
+        # Construct the Hybrid Query (KNN + Match)
+        new_query = {
+            "knn": {
+                "field": "vector",  # Ensure this matches your index field
+                "query_vector": query_vector,
+                "k": k,
+                "num_candidates": num_candidates,
+                "boost": dense_weight
+            },
+            "query": {
+                "match": {
+                    "text": {  # Ensure this matches your text field
+                        "query": query_text,
+                        "boost": sparse_weight
+                    }
+                }
+            },
+            # Optional: Use RRF if you prefer rank fusion over boosting
+            # "rank": { "rrf": {} }, 
+            "_source": ["text", "metadata"] # Fields to retrieve
+        }
+        
+        return new_query
+
+    return weighted_hybrid_query_builder

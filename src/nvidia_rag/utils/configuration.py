@@ -104,6 +104,12 @@ class SearchType(StrEnum):
     HYBRID = "hybrid"
 
 
+class RankerType(StrEnum):
+    """Allowed ranker types for vector store in case of Hybrid Search"""
+    RRF = "rrf"
+    WEIGHTED = "weighted"
+
+
 class VectorStoreConfig(_ConfigBase):
     """Vector Store configuration.
 
@@ -161,6 +167,21 @@ class VectorStoreConfig(_ConfigBase):
         env="APP_VECTORSTORE_SEARCHTYPE",
         description="Type of search to perform (dense, hybrid)",
     )
+    ranker_type: RankerType = Field(
+        default=RankerType.RRF,
+        env="APP_VECTORSTORE_RANKER_TYPE",
+        description="Type of ranker to use ('rrf', 'weighted')",
+    )
+    dense_weight: float = Field(
+        default=0.5,
+        env="APP_VECTORSTORE_DENSE_WEIGHT",
+        description="Weight for dense vector search in case of weighted Hybrid Search",
+    )
+    sparse_weight: float = Field(
+        default=0.5,
+        env="APP_VECTORSTORE_SPARSE_WEIGHT",
+        description="Weight for sparse vector search in case of weighted Hybrid Search",
+    )   
     default_collection_name: str = Field(
         default="multimodal_data",
         env="COLLECTION_NAME",

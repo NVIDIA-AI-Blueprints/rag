@@ -82,7 +82,6 @@ from nvidia_rag.utils.common import (
     perform_document_info_aggregation,
 )
 from nvidia_rag.utils.configuration import NvidiaRAGConfig, SearchType
-from nvidia_rag.utils.embedding import get_embedding_model
 from nvidia_rag.utils.health_models import ServiceStatus
 from nvidia_rag.utils.vdb import (
     DEFAULT_DOCUMENT_INFO_COLLECTION,
@@ -953,6 +952,11 @@ class MilvusVDB(VDBRagIngest):
         otel_ctx: Any | None = None,
     ) -> list[dict[str, Any]]:
         """Retrieve documents from a collection using langchain."""
+        logger.info(
+            "Milvus Retrieval: Retrieving documents from collection: %s, search type: '%s'",
+            collection_name,
+            self.config.vector_store.search_type,
+        )
         if vectorstore is None:
             vectorstore = self.get_langchain_vectorstore(collection_name)
 
@@ -964,12 +968,31 @@ class MilvusVDB(VDBRagIngest):
         try:
             retriever = vectorstore.as_retriever(search_kwargs={"k": top_k})
 
-            retriever_lambda = RunnableLambda(
-                lambda x: retriever.invoke(
-                    x,
-                    expr=filter_expr,
+            if self.config.vector_store.search_type == SearchType.HYBRID:
+                logger.info(
+                    "Milvus Retrieval: Using hybrid search with ranker type: '%s'",
+                    self.config.vector_store.ranker_type,
                 )
-            )
+                retriever_lambda = RunnableLambda(
+                    lambda x: retriever.invoke(
+                        x,
+                        expr=filter_expr,
+                        ranker_type=self.config.vector_store.ranker_type,
+                        ranker_params={
+                            "weights": [  # Used for "weighted" ranker type
+                                self.config.vector_store.dense_weight,
+                                self.config.vector_store.sparse_weight,
+                            ],
+                        }
+                    )
+                )
+            else:
+                retriever_lambda = RunnableLambda(
+                    lambda x: retriever.invoke(
+                        x,
+                        expr=filter_expr,
+                    )
+                )
             retriever_chain = {"context": retriever_lambda} | RunnableAssign(
                 {"context": lambda input: input["context"]}
             )
@@ -1023,7 +1046,6 @@ class MilvusVDB(VDBRagIngest):
             else ""
         )
         if self.config.vector_store.search_type == SearchType.HYBRID:
-            logger.info("Creating Langchain Milvus object for Hybrid search")
             vectorstore = LangchainMilvus(
                 self.embedding_model,
                 connection_args={
