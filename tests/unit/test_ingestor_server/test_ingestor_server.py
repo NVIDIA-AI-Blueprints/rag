@@ -198,7 +198,6 @@ class MockNvidiaRAGIngestor:
         self,
         collection_name: str,
         vdb_endpoint: str,
-        embedding_dimension: int = 2048,
         metadata_schema: list = None,
         description: str = "",
         tags: list = None,
@@ -213,7 +212,6 @@ class MockNvidiaRAGIngestor:
             return self._create_collection_side_effect(
                 collection_name,
                 vdb_endpoint,
-                embedding_dimension,
                 metadata_schema,
                 description,
                 tags,
@@ -333,7 +331,6 @@ class MockNvidiaRAGIngestor:
         def error(
             _collection_name,
             _vdb_endpoint,
-            _embedding_dimension,
             _metadata_schema,
             _vdb_auth_token="",
         ):
@@ -931,7 +928,6 @@ class TestCreateCollectionEndpoint:
         collection_data = {
             "collection_name": "new_collection",
             "vdb_endpoint": "http://localhost:19530",
-            "embedding_dimension": 2048,
             "metadata_schema": [],
         }
 
@@ -945,7 +941,6 @@ class TestCreateCollectionEndpoint:
         collection_data = {
             "collection_name": "",  # Invalid empty name
             "vdb_endpoint": "http://localhost:19530",
-            "embedding_dimension": 2048,
             "metadata_schema": [],
         }
 

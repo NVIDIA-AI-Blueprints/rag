@@ -80,7 +80,6 @@ ingestor = NvidiaRAGIngestor(mode="client")
 result = ingestor.create_collection(
     collection_name="financial_reports_2024",
     vdb_endpoint="http://milvus:19530",
-    embedding_dimension=2048,
     description="Q4 2024 Financial Reports and Analysis",
     tags=["finance", "reports", "q4-2024"],
     owner="Finance Team",

@@ -253,6 +253,7 @@
                     "Ingestion APIs"
                 ],
                 "summary": "Delete Documents",
+                "description": "Delete a document from vectorstore.",
                 "operationId": "delete_documents_documents_delete",
                 "parameters": [
                     {
@@ -943,12 +944,6 @@
                         "title": "Collection Name",
                         "description": "Name of the collection.",
                         "default": "multimodal_data"
-                    },
-                    "embedding_dimension": {
-                        "type": "integer",
-                        "title": "Embedding Dimension",
-                        "description": "Embedding dimension of the collection.",
-                        "default": "2048"
                     },
                     "metadata_schema": {
                         "items": {
