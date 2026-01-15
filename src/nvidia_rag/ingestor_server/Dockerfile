@@ -1,5 +1,5 @@
 ARG BASE_IMAGE_URL=nvcr.io/nvidia/base/ubuntu
-ARG BASE_IMAGE_TAG=jammy-20250415.1
+ARG BASE_IMAGE_TAG=jammy-20251013
 
 # -------- Stage 1: Build Stage --------
 FROM ${BASE_IMAGE_URL}:${BASE_IMAGE_TAG} as builder
@@ -24,10 +24,12 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV DEBIAN_FRONTEND noninteractive
 
 # Install required ubuntu packages for setting up python 3.13
+# Update all packages to address security vulnerabilities including CVE-2025-68973 (gpgv)
 RUN apt update && \
+    apt upgrade -y && \
     apt install -y curl software-properties-common libgl1 libglib2.0-0 libmagic1 file build-essential && \
     add-apt-repository ppa:deadsnakes/ppa && \
-    apt update && apt install -y python3.13 python3.13-dev && \
+    apt update && apt upgrade -y && apt install -y python3.13 python3.13-dev && \
     apt-get clean
 
 # Install uv https://docs.astral.sh/uv/guides/integration/docker/#installing-uv
@@ -67,7 +69,9 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV DEBIAN_FRONTEND noninteractive
 
 # Install ONLY the essential runtime libraries (no build tools, no Python installation process)
+# Update all packages to address CVE-2025-68973 (gpgv) and other security vulnerabilities
 RUN apt update && \
+    apt upgrade -y && \
     apt install -y libexpat1 ca-certificates && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*

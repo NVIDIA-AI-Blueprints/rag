@@ -1,5 +1,5 @@
 ARG BASE_IMAGE_URL=nvcr.io/nvidia/base/ubuntu
-ARG BASE_IMAGE_TAG=jammy-20250415.1
+ARG BASE_IMAGE_TAG=jammy-20251013
 
 # -------- Stage 1: Build Stage --------
 FROM ${BASE_IMAGE_URL}:${BASE_IMAGE_TAG} as builder

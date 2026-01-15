@@ -1,8 +1,9 @@
 # Build stage - OSRB approved Ubuntu base (Bug 3840915)
-FROM nvcr.io/nvidia/base/ubuntu:jammy-20250415.1 AS builder
+FROM nvcr.io/nvidia/base/ubuntu:jammy-20251013 AS builder
 
 # Install required OS dependencies for building
-RUN apt-get update && apt-get install -y \
+# Update all packages to address security vulnerabilities including CVE-2026-0861 (libc6)
+RUN apt-get update && apt-get upgrade -y && apt-get install -y \
     curl \
     gnupg2 \
     build-essential \
@@ -52,7 +53,7 @@ RUN pnpm run build
 
 # Production stage - NVIDIA distroless (pre-approved)
 # Updated to latest version to address CVE-2025-9230 (libssl3)
-FROM nvcr.io/nvidia/distroless/node:24-v3.1.0
+FROM nvcr.io/nvidia/distroless/node:24-v3.1.2
 
 # Copy built application and config for production preview
 WORKDIR /app/frontend
