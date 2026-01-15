@@ -14,7 +14,7 @@
 // limitations under the License.
 
 import { Text, Flex, Stack, Badge, Tag, Divider, Panel } from "@kui/react";
-import { User, Building2, Calendar, FileText, Table, BarChart3, Image, Volume2 } from "lucide-react";
+import { User, Mail, Building2, Calendar, FileText, Table, BarChart3, Image, Volume2 } from "lucide-react";
 import type { Collection } from "../../types/collections";
 
 interface CollectionCatalogInfoProps {
@@ -86,6 +86,16 @@ export function CollectionCatalogInfo({ collection, documentCount }: CollectionC
               <User size={14} style={{ color: 'var(--text-color-subtle)' }} />
               <Text kind="body/regular/sm" style={{ color: 'var(--text-color-subtle)' }}>
                 {info.owner}
+              </Text>
+            </Flex>
+          )}
+
+          {/* Created By */}
+          {info.created_by && (
+            <Flex align="center" gap="density-xs">
+              <Mail size={14} style={{ color: 'var(--text-color-subtle)' }} />
+              <Text kind="body/regular/sm" style={{ color: 'var(--text-color-subtle)' }}>
+                {info.created_by}
               </Text>
             </Flex>
           )}
