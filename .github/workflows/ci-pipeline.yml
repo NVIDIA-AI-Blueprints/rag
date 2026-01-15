@@ -580,6 +580,48 @@ jobs:
           cp tests/integration/integration_test.log logs/custom-prompt/ 2>/dev/null || true
 
       # ========================================================================
+      # LIBRARY USAGE TESTS
+      # ========================================================================
+      
+      - name: Configure environment for library usage tests
+        run: |
+          echo "PROMPT_CONFIG_FILE=${PWD}/src/nvidia_rag/rag_server/prompt.yaml" >> $GITHUB_ENV
+          echo "ENABLE_QUERYREWRITER=False" >> $GITHUB_ENV
+          echo "CONVERSATION_HISTORY=0" >> $GITHUB_ENV
+
+      - name: Run library usage integration tests
+        run: |
+          source venv/bin/activate
+          echo "Running library usage integration tests..."
+          python -m tests.integration.main --sequence library_usage
+          echo "Library usage integration tests completed"
+
+      - name: Collect logs after library usage tests
+        if: always()
+        run: |
+          mkdir -p logs/library-usage
+          docker logs compose-nv-ingest-ms-runtime-1 > logs/library-usage/nvingest.log 2>&1 || true
+          cp tests/integration/integration_test.log logs/library-usage/ 2>/dev/null || true
+
+      # ========================================================================
+      # LIBRARY SUMMARIZATION TESTS
+      # ========================================================================
+      
+      - name: Run library summarization integration tests
+        run: |
+          source venv/bin/activate
+          echo "Running library summarization integration tests..."
+          python -m tests.integration.main --sequence library_summarization
+          echo "Library summarization integration tests completed"
+
+      - name: Collect logs after library summarization tests
+        if: always()
+        run: |
+          mkdir -p logs/library-summarization
+          docker logs compose-nv-ingest-ms-runtime-1 > logs/library-summarization/nvingest.log 2>&1 || true
+          cp tests/integration/integration_test.log logs/library-summarization/ 2>/dev/null || true
+
+      # ========================================================================
       # OBSERVABILITY TESTS
       # ========================================================================
       
