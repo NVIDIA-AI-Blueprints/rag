@@ -92,7 +92,6 @@ from nvidia_rag.utils.observability.tracing import (
 from nvidia_rag.utils.summarization import generate_document_summaries
 from nvidia_rag.utils.summary_status_handler import SUMMARY_STATUS_HANDLER
 from nvidia_rag.utils.vdb import DEFAULT_DOCUMENT_INFO_COLLECTION, _get_vdb_op
-from nvidia_rag.utils.vdb.elasticsearch.es_queries import get_delete_document_info_query
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
 
 # Initialize logger
@@ -1745,6 +1744,11 @@ class NvidiaRAGIngestor:
                     )
                 elif hasattr(vdb_op, "_es_connection"):
                     # Elasticsearch: Delete first, then add without aggregation
+                    # Lazy import to avoid requiring elasticsearch when not used
+                    from nvidia_rag.utils.vdb.elasticsearch.es_queries import (
+                        get_delete_document_info_query,
+                    )
+
                     vdb_op._es_connection.delete_by_query(
                         index=DEFAULT_DOCUMENT_INFO_COLLECTION,
                         body=get_delete_document_info_query(
