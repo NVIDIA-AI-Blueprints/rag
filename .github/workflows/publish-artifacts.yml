@@ -45,7 +45,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install uv==0.8.12
-          pip install twine
+          apt-get update && apt-get install -y wget unzip
 
       - name: Build wheel with version
         run: |
@@ -61,25 +61,41 @@ jobs:
           path: dist/*.whl
           retention-days: 30
 
-      - name: Publish to NVIDIA Artifactory
+      - name: Install NGC CLI
         env:
-          NVIDIA_ARTIFACTORY_USERNAME: ${{ secrets.NVIDIA_ARTIFACTORY_USERNAME }}
-          NVIDIA_ARTIFACTORY_PASSWORD: ${{ secrets.NVIDIA_ARTIFACTORY_PASSWORD }}
+          NGC_API_KEY: ${{ secrets.CI_NVSTAGING_BLUEPRINT_KEY }}
         run: |
-          # Build wheel for Artifactory with fixed version
-          echo "Building wheel for Artifactory with version: $ARTIFACTORY_VERSION"
-          sed -i "s#^version = \".*\"#version = \"$ARTIFACTORY_VERSION\"#" pyproject.toml
-          uv build
-          ARTIFACTORY_WHEEL_FILE=$(ls dist/*.whl | tail -n 1)
-          echo "Found Artifactory wheel file: $ARTIFACTORY_WHEEL_FILE"
+          echo "Installing NGC CLI..."
+          wget --content-disposition https://api.ngc.nvidia.com/v2/resources/nvidia/ngc-apps/ngc_cli/versions/4.9.10/files/ngccli_linux.zip -O ngccli_linux.zip
+          unzip -o ngccli_linux.zip
+          chmod u+x ngc-cli/ngc
           
-          # Publish to NVIDIA Artifactory
-          python -m twine upload \
-            --repository-url https://urm.nvidia.com/artifactory/api/pypi/sw-foundational-rag-dev-pypi-local/ \
-            "$ARTIFACTORY_WHEEL_FILE" \
-            --username "$NVIDIA_ARTIFACTORY_USERNAME" \
-            --password "$NVIDIA_ARTIFACTORY_PASSWORD"
-          echo "Wheel published to NVIDIA Artifactory successfully"
+          # Add NGC CLI to PATH for subsequent steps
+          echo "$(pwd)/ngc-cli" >> $GITHUB_PATH
+          
+          echo "NGC CLI installed successfully"
+      
+      - name: Publish wheel to NGC
+        env:
+          NGC_API_KEY: ${{ secrets.CI_NVSTAGING_BLUEPRINT_KEY }}
+        run: |
+          # Find the wheel file
+          WHEEL_FILE=$(ls dist/*.whl | tail -n 1)
+          echo "Found wheel file: $WHEEL_FILE"
+          
+          # Extract just the filename for display
+          WHEEL_FILENAME=$(basename "$WHEEL_FILE")
+          echo "Wheel filename: $WHEEL_FILENAME"
+          
+          # Publish to NGC
+          echo "Publishing wheel to NGC: nvstaging/blueprint/nvidia_rag:$ARTIFACTORY_VERSION"
+          ngc registry resource upload-version \
+            "nvstaging/blueprint/nvidia_rag:$ARTIFACTORY_VERSION" \
+            --source "$WHEEL_FILE" \
+            --org nvstaging
+          
+          echo "Wheel published to NGC successfully"
+          echo "NGC Resource: nvstaging/blueprint/nvidia_rag:$ARTIFACTORY_VERSION"
 
   # ============================================================================
   # PUBLISH RAG SERVER CONTAINER
