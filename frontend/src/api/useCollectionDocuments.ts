@@ -91,3 +91,45 @@ export function useDeleteDocument() {
     },
   });
 }
+
+/**
+ * Payload for updating document metadata.
+ */
+export interface UpdateDocumentMetadataPayload {
+  collectionName: string;
+  documentName: string;
+  description?: string;
+  tags?: string[];
+}
+
+/**
+ * Custom hook to update document catalog metadata.
+ * 
+ * @returns A React Query mutation object for updating document metadata
+ * 
+ * @example
+ * ```tsx
+ * const { mutate: updateMetadata, isPending } = useUpdateDocumentMetadata();
+ * updateMetadata({ collectionName: "my-collection", documentName: "doc.pdf", description: "New description", tags: ["tag1"] });
+ * ```
+ */
+export function useUpdateDocumentMetadata() {
+  return useMutation({
+    mutationFn: async ({ collectionName, documentName, description, tags }: UpdateDocumentMetadataPayload) => {
+      const res = await fetch(
+        `/api/collections/${encodeURIComponent(collectionName)}/documents/${encodeURIComponent(documentName)}/metadata`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ description, tags }),
+        }
+      );
+      if (!res.ok) {
+        let message = "Failed to update document metadata";
+        try { const err = await res.json(); message = err.message || message; } catch { /* ignore parse errors */ }
+        throw new Error(message);
+      }
+      return res.json();
+    },
+  });
+}

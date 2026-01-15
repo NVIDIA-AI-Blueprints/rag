@@ -17,6 +17,18 @@ vi.mock('../../../api/useDocumentSummary', () => ({
   useDocumentSummary: () => ({ data: null, isLoading: false })
 }));
 
+// Mock the update document metadata hook
+vi.mock('../../../api/useCollectionDocuments', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../api/useCollectionDocuments')>();
+  return {
+    ...actual,
+    useUpdateDocumentMetadata: () => ({
+      mutate: vi.fn(),
+      isPending: false,
+    }),
+  };
+});
+
 const mockSetDeleteError = vi.fn();
 
 vi.mock('../../../store/useCollectionDrawerStore', () => ({
