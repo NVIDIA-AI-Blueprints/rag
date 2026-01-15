@@ -3470,5 +3470,129 @@ class TestSystemManagedFields:
         assert field3.support_dynamic_filtering is True
 
 
+class TestReservedFieldNames:
+    """Test cases for reserved field name validation."""
+
+    def test_reserved_fields_are_marked(self):
+        """Test that reserved fields are properly marked in SYSTEM_MANAGED_FIELDS."""
+        # These fields should be reserved
+        assert SYSTEM_MANAGED_FIELDS["type"]["reserved"] is True
+        assert SYSTEM_MANAGED_FIELDS["subtype"]["reserved"] is True
+        assert SYSTEM_MANAGED_FIELDS["location"]["reserved"] is True
+
+    def test_non_reserved_fields_not_marked(self):
+        """Test that non-reserved fields are not marked as reserved."""
+        # These fields should not be reserved (can be overridden by users)
+        assert SYSTEM_MANAGED_FIELDS["filename"].get("reserved", False) is False
+        assert SYSTEM_MANAGED_FIELDS["page_number"].get("reserved", False) is False
+        assert SYSTEM_MANAGED_FIELDS["start_time"].get("reserved", False) is False
+        assert SYSTEM_MANAGED_FIELDS["end_time"].get("reserved", False) is False
+
+    def test_cannot_create_field_with_reserved_name_type(self):
+        """Test that creating a field with reserved name 'type' raises ValueError."""
+        with pytest.raises(ValueError) as exc_info:
+            MetadataField(name="type", type="string")
+
+        error_msg = str(exc_info.value)
+        assert "reserved" in error_msg.lower()
+        assert "type" in error_msg
+        assert "cannot be used" in error_msg.lower()
+
+    def test_cannot_create_field_with_reserved_name_subtype(self):
+        """Test that creating a field with reserved name 'subtype' raises ValueError."""
+        with pytest.raises(ValueError) as exc_info:
+            MetadataField(name="subtype", type="string")
+
+        error_msg = str(exc_info.value)
+        assert "reserved" in error_msg.lower()
+        assert "subtype" in error_msg
+        assert "cannot be used" in error_msg.lower()
+
+    def test_cannot_create_field_with_reserved_name_location(self):
+        """Test that creating a field with reserved name 'location' raises ValueError."""
+        with pytest.raises(ValueError) as exc_info:
+            MetadataField(name="location", type="array", array_type="integer")
+
+        error_msg = str(exc_info.value)
+        assert "reserved" in error_msg.lower()
+        assert "location" in error_msg
+        assert "cannot be used" in error_msg.lower()
+
+    def test_can_create_field_with_non_reserved_names(self):
+        """Test that non-reserved field names can be used."""
+        # These should work without errors
+        field1 = MetadataField(name="filename", type="string")
+        assert field1.name == "filename"
+
+        field2 = MetadataField(name="page_number", type="integer")
+        assert field2.name == "page_number"
+
+        field3 = MetadataField(name="custom_type", type="string")
+        assert field3.name == "custom_type"
+
+        field4 = MetadataField(name="my_location", type="string")
+        assert field4.name == "my_location"
+
+    def test_reserved_field_validation_in_schema(self):
+        """Test that reserved fields are rejected when creating a schema."""
+        with pytest.raises(ValueError) as exc_info:
+            MetadataSchema(
+                schema=[
+                    MetadataField(name="title", type="string"),
+                    MetadataField(name="type", type="string"),  # Reserved
+                ]
+            )
+
+        error_msg = str(exc_info.value)
+        assert "reserved" in error_msg.lower()
+        assert "type" in error_msg
+
+    def test_reserved_fields_properties(self):
+        """Test the properties of reserved fields."""
+        # Type field
+        assert SYSTEM_MANAGED_FIELDS["type"]["type"] == "string"
+        assert SYSTEM_MANAGED_FIELDS["type"]["rag_managed"] is False
+        assert SYSTEM_MANAGED_FIELDS["type"]["support_dynamic_filtering"] is False
+        assert "Content type" in SYSTEM_MANAGED_FIELDS["type"]["description"]
+
+        # Subtype field
+        assert SYSTEM_MANAGED_FIELDS["subtype"]["type"] == "string"
+        assert SYSTEM_MANAGED_FIELDS["subtype"]["rag_managed"] is False
+        assert SYSTEM_MANAGED_FIELDS["subtype"]["support_dynamic_filtering"] is False
+
+        # Location field
+        assert SYSTEM_MANAGED_FIELDS["location"]["type"] == "array"
+        assert SYSTEM_MANAGED_FIELDS["location"]["rag_managed"] is False
+        assert SYSTEM_MANAGED_FIELDS["location"]["support_dynamic_filtering"] is False
+
+    def test_case_sensitive_reserved_field_names(self):
+        """Test that reserved field names are case-sensitive."""
+        # These should work (different case)
+        field1 = MetadataField(name="Type", type="string")
+        assert field1.name == "Type"
+
+        field2 = MetadataField(name="LOCATION", type="string")
+        assert field2.name == "LOCATION"
+
+        field3 = MetadataField(name="SubType", type="string")
+        assert field3.name == "SubType"
+
+    def test_whitespace_handling_with_reserved_names(self):
+        """Test that whitespace trimming doesn't bypass reserved name validation."""
+        with pytest.raises(ValueError) as exc_info:
+            MetadataField(name="  type  ", type="string")
+
+        error_msg = str(exc_info.value)
+        assert "reserved" in error_msg.lower()
+
+    def test_error_message_suggests_alternative(self):
+        """Test that error message provides helpful information."""
+        with pytest.raises(ValueError) as exc_info:
+            MetadataField(name="type", type="string")
+
+        error_msg = str(exc_info.value)
+        assert "Please choose a different field name" in error_msg
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

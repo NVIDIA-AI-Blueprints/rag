@@ -37,10 +37,13 @@ describe('NewCollectionButtons', () => {
     
     mockUseNewCollectionStore.mockReturnValue({
       collectionName: '',
+      collectionNameTouched: false,
       metadataSchema: [],
       fileMetadata: {},
       selectedFiles: [],
       isLoading: false,
+      hasInvalidFiles: false,
+      error: null,
       setError: mockSetError
     });
     
@@ -95,10 +98,13 @@ describe('NewCollectionButtons', () => {
     it('is disabled when collection name is empty', () => {
       mockUseNewCollectionStore.mockReturnValue({
         collectionName: '',
+        collectionNameTouched: false,
         metadataSchema: [],
         fileMetadata: {},
         selectedFiles: [],
         isLoading: false,
+        hasInvalidFiles: false,
+        error: null,
         setError: mockSetError
       });
 
@@ -111,10 +117,13 @@ describe('NewCollectionButtons', () => {
     it('is disabled when collection name is only whitespace', () => {
       mockUseNewCollectionStore.mockReturnValue({
         collectionName: '   ',
+        collectionNameTouched: false,
         metadataSchema: [],
         fileMetadata: {},
         selectedFiles: [],
         isLoading: false,
+        hasInvalidFiles: false,
+        error: null,
         setError: mockSetError
       });
 
@@ -127,10 +136,13 @@ describe('NewCollectionButtons', () => {
     it('is enabled when collection name is valid', () => {
       mockUseNewCollectionStore.mockReturnValue({
         collectionName: 'valid_collection_name',
+        collectionNameTouched: false,
         metadataSchema: [],
         fileMetadata: {},
         selectedFiles: [],
         isLoading: false,
+        hasInvalidFiles: false,
+        error: null,
         setError: mockSetError
       });
 
@@ -143,10 +155,13 @@ describe('NewCollectionButtons', () => {
     it('is disabled when loading', () => {
       mockUseNewCollectionStore.mockReturnValue({
         collectionName: 'valid_name',
+        collectionNameTouched: false,
         metadataSchema: [],
         fileMetadata: {},
         selectedFiles: [],
         isLoading: true,
+        hasInvalidFiles: false,
+        error: null,
         setError: mockSetError
       });
 
@@ -160,10 +175,13 @@ describe('NewCollectionButtons', () => {
     it('shows spinner when loading', () => {
       mockUseNewCollectionStore.mockReturnValue({
         collectionName: 'valid_name',
+        collectionNameTouched: false,
         metadataSchema: [],
         fileMetadata: {},
         selectedFiles: [],
         isLoading: true,
+        hasInvalidFiles: false,
+        error: null,
         setError: mockSetError
       });
 
@@ -181,10 +199,13 @@ describe('NewCollectionButtons', () => {
     it('shows error for invalid name format', () => {
       mockUseNewCollectionStore.mockReturnValue({
         collectionName: '123invalid',
+        collectionNameTouched: false,
         metadataSchema: [],
         fileMetadata: {},
         selectedFiles: [],
         isLoading: false,
+        hasInvalidFiles: false,
+        error: null,
         setError: mockSetError
       });
 
@@ -200,10 +221,13 @@ describe('NewCollectionButtons', () => {
 
       mockUseNewCollectionStore.mockReturnValue({
         collectionName: 'existing_collection',
+        collectionNameTouched: false,
         metadataSchema: [],
         fileMetadata: {},
         selectedFiles: [],
         isLoading: false,
+        hasInvalidFiles: false,
+        error: null,
         setError: mockSetError
       });
 
@@ -215,10 +239,13 @@ describe('NewCollectionButtons', () => {
     it('does not show error for valid name', () => {
       mockUseNewCollectionStore.mockReturnValue({
         collectionName: 'valid_collection_123',
+        collectionNameTouched: false,
         metadataSchema: [],
         fileMetadata: {},
         selectedFiles: [],
         isLoading: false,
+        hasInvalidFiles: false,
+        error: null,
         setError: mockSetError
       });
 
@@ -231,10 +258,13 @@ describe('NewCollectionButtons', () => {
     it('validates names starting with underscore', () => {
       mockUseNewCollectionStore.mockReturnValue({
         collectionName: '_valid_name',
+        collectionNameTouched: false,
         metadataSchema: [],
         fileMetadata: {},
         selectedFiles: [],
         isLoading: false,
+        hasInvalidFiles: false,
+        error: null,
         setError: mockSetError
       });
 
@@ -246,10 +276,13 @@ describe('NewCollectionButtons', () => {
     it('rejects names starting with numbers', () => {
       mockUseNewCollectionStore.mockReturnValue({
         collectionName: '123invalid',
+        collectionNameTouched: false,
         metadataSchema: [],
         fileMetadata: {},
         selectedFiles: [],
         isLoading: false,
+        hasInvalidFiles: false,
+        error: null,
         setError: mockSetError
       });
 
@@ -263,6 +296,7 @@ describe('NewCollectionButtons', () => {
     it('is disabled when required metadata fields are missing', () => {
       mockUseNewCollectionStore.mockReturnValue({
         collectionName: 'valid_name',
+        collectionNameTouched: false,
         metadataSchema: [
           { name: 'author', type: 'string', optional: false },
           { name: 'tags', type: 'array', optional: true }
@@ -272,6 +306,8 @@ describe('NewCollectionButtons', () => {
         },
         selectedFiles: [{ name: 'file1.pdf' }],
         isLoading: false,
+        hasInvalidFiles: false,
+        error: null,
         setError: mockSetError
       });
 
@@ -284,6 +320,7 @@ describe('NewCollectionButtons', () => {
     it('is enabled when all required metadata fields are filled', () => {
       mockUseNewCollectionStore.mockReturnValue({
         collectionName: 'valid_name',
+        collectionNameTouched: false,
         metadataSchema: [
           { name: 'author', type: 'string', optional: false },
           { name: 'tags', type: 'array', optional: true }
@@ -293,6 +330,8 @@ describe('NewCollectionButtons', () => {
         },
         selectedFiles: [{ name: 'file1.pdf' }],
         isLoading: false,
+        hasInvalidFiles: false,
+        error: null,
         setError: mockSetError
       });
 
@@ -305,10 +344,13 @@ describe('NewCollectionButtons', () => {
     it('handles files with no metadata requirements', () => {
       mockUseNewCollectionStore.mockReturnValue({
         collectionName: 'valid_name',
+        collectionNameTouched: false,
         metadataSchema: [],
         fileMetadata: {},
         selectedFiles: [{ name: 'file1.pdf' }],
         isLoading: false,
+        hasInvalidFiles: false,
+        error: null,
         setError: mockSetError
       });
 
@@ -323,10 +365,13 @@ describe('NewCollectionButtons', () => {
     it('calls submit when create button is clicked with valid data', () => {
       mockUseNewCollectionStore.mockReturnValue({
         collectionName: 'valid_name',
+        collectionNameTouched: false,
         metadataSchema: [],
         fileMetadata: {},
         selectedFiles: [],
         isLoading: false,
+        hasInvalidFiles: false,
+        error: null,
         setError: mockSetError
       });
 
@@ -341,10 +386,13 @@ describe('NewCollectionButtons', () => {
     it('calls setError when submit is attempted with name error', () => {
       mockUseNewCollectionStore.mockReturnValue({
         collectionName: '123invalid',
+        collectionNameTouched: false,
         metadataSchema: [],
         fileMetadata: {},
         selectedFiles: [],
         isLoading: false,
+        hasInvalidFiles: false,
+        error: null,
         setError: mockSetError
       });
 
@@ -360,10 +408,13 @@ describe('NewCollectionButtons', () => {
     it('does not submit when button is disabled', () => {
       mockUseNewCollectionStore.mockReturnValue({
         collectionName: '',
+        collectionNameTouched: false,
         metadataSchema: [],
         fileMetadata: {},
         selectedFiles: [],
         isLoading: false,
+        hasInvalidFiles: false,
+        error: null,
         setError: mockSetError
       });
 
@@ -380,10 +431,13 @@ describe('NewCollectionButtons', () => {
     it('shows name error when name is invalid', () => {
       mockUseNewCollectionStore.mockReturnValue({
         collectionName: '123invalid',
+        collectionNameTouched: false,
         metadataSchema: [],
         fileMetadata: {},
         selectedFiles: [],
         isLoading: false,
+        hasInvalidFiles: false,
+        error: null,
         setError: mockSetError
       });
 
@@ -391,16 +445,37 @@ describe('NewCollectionButtons', () => {
       
       expect(screen.getByText(/Name must start with a letter\/underscore and contain only alphanumerics and underscores/)).toBeInTheDocument();
     });
+
+    it('shows API error from store when error prop is set', () => {
+      mockUseNewCollectionStore.mockReturnValue({
+        collectionName: 'valid_name',
+        collectionNameTouched: false,
+        metadataSchema: [],
+        fileMetadata: {},
+        selectedFiles: [],
+        isLoading: false,
+        hasInvalidFiles: false,
+        error: "Field name 'type' is reserved and cannot be used as a custom metadata field. Please choose a different field name.",
+        setError: mockSetError
+      });
+
+      render(<NewCollectionButtons />);
+      
+      expect(screen.getByText("Field name 'type' is reserved and cannot be used as a custom metadata field. Please choose a different field name.")).toBeInTheDocument();
+    });
   });
 
   describe('Integration Tests', () => {
     it('handles complete workflow with valid input', () => {
       mockUseNewCollectionStore.mockReturnValue({
         collectionName: 'test_collection',
+        collectionNameTouched: false,
         metadataSchema: [],
         fileMetadata: {},
         selectedFiles: [],
         isLoading: false,
+        hasInvalidFiles: false,
+        error: null,
         setError: mockSetError
       });
 
