@@ -140,22 +140,39 @@ async def filter_summaries_with_llm(
         human_template = prompt_config.get("human", "")
 
         summaries_text = ""
-        for summary_item in summaries_batch:
+        for idx, summary_item in enumerate(summaries_batch, 1):
             file_name = summary_item.get("file_name", "")
             summary = summary_item.get("summary", "")
-            summaries_text += f"File: {file_name}\nSummary: {summary}\n\n"
+            summaries_text += f"[Document {idx}]\n"
+            summaries_text += f"Filename: {file_name}\n"
+            summaries_text += f"Summary: {summary}\n"
+            summaries_text += f"{'-' * 80}\n\n"
 
         if human_template:
             prompt_text = human_template.format(query=query, summaries=summaries_text)
         else:
-            prompt_text = f"""Given the following query and document summaries, return only the file names of documents that are relevant to answering the query.
+            # Fallback prompt with better structure
+            prompt_text = f"""You are an expert document filtering assistant. Identify which documents are most likely to contain information relevant to the user's query.
 
-Query: {query}
+## ANALYSIS STEPS:
+1. Understand what the query is asking for
+2. Review each document's summary
+3. Select documents that likely contain relevant information
 
-Document Summaries:
+## USER QUERY:
+{query}
+
+## AVAILABLE DOCUMENTS:
+
 {summaries_text}
 
-Return only the relevant file names, one per line. If no documents are relevant, return an empty response."""
+## INSTRUCTIONS:
+- Return ONLY filenames (one per line)
+- Each filename must be exact - copied from the list above
+- If no documents are relevant, return an empty response
+- Do NOT add any explanations or other text
+
+## YOUR RESPONSE (filenames only):"""
 
         messages = []
         if system_prompt:
@@ -168,19 +185,46 @@ Return only the relevant file names, one per line. If no documents are relevant,
 
         # Extract file names from structured response
         file_names = response.file_names if hasattr(response, "file_names") else []
+        
+        logger.debug(
+            f"LLM returned {len(file_names)} filenames from structured output: {file_names}"
+        )
 
-        # Filter to only include valid filenames (with file extensions)
-        valid_file_names = []
+        # Create a set of all valid filenames from the batch for exact matching
+        valid_filenames_in_batch = {
+            item.get("file_name", "").strip() for item in summaries_batch
+        }
+
+        # Filter to match exact filenames from the batch (case-sensitive)
+        validated_file_names = []
         for file_name in file_names:
             file_name = file_name.strip()
-            if file_name and re.search(r"\.\w{2,5}$", file_name):
-                valid_file_names.append(file_name)
-            elif file_name:
-                logger.debug(
-                    f"Filtered out invalid filename from structured output: '{file_name}'"
-                )
+            if not file_name:
+                continue
+            
+            # Check if filename exists in the batch (exact match)
+            if file_name in valid_filenames_in_batch:
+                validated_file_names.append(file_name)
+            else:
+                # Try to find a close match (case-insensitive) if exact match fails
+                matched = False
+                for valid_fn in valid_filenames_in_batch:
+                    if valid_fn.lower() == file_name.lower():
+                        # Use the correct case from the batch
+                        validated_file_names.append(valid_fn)
+                        matched = True
+                        logger.debug(
+                            f"Corrected filename case: '{file_name}' -> '{valid_fn}'"
+                        )
+                        break
+                
+                if not matched:
+                    logger.warning(
+                        f"LLM returned filename '{file_name}' that doesn't exist in the batch. "
+                        f"Available filenames: {list(valid_filenames_in_batch)[:5]}..."
+                    )
 
-        return valid_file_names
+        return validated_file_names
     except Exception as e:
         logger.error(
             f"Error filtering summaries with LLM: {e}",

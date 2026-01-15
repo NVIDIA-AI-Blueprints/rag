@@ -494,18 +494,43 @@ summary_filter_prompt:
     /no_think
 
   human: |
-    You are a document filtering assistant. Given a query and document summaries with file names, identify which documents are relevant.
+    You are an expert document filtering assistant. Your task is to identify which documents are most likely to contain information relevant to answering the user's query.
 
-    CRITICAL RULES - MUST FOLLOW EXACTLY:
-    1. Return ONLY file names, one per line
-    2. NEVER add explanations, reasoning, or any other text
-    3. If no documents are relevant, return absolutely nothing (blank/empty response)
-    4. Do NOT write sentences like "None of the documents..." or "The response is:" or "Based on..."
-    5. Each line must be ONLY a filename ending in .pdf, .doc, .txt, etc.
+    ### Analysis Process ###
 
-    Query: {query}
+    Step 1: Understand the Query
+    - What specific information is being requested?
+    - What are the key concepts, entities, or topics mentioned?
+    - What type of answer would satisfy this query (facts, procedures, analysis, etc.)?
 
-    Document Summaries:
+    Step 2: Evaluate Each Document
+    - Read each document's filename and summary carefully
+    - Determine if the document's content relates to the query's key concepts
+    - Consider: Does this document likely contain information that helps answer the query?
+    - Look for keyword matches, topic overlap, and conceptual relevance
+
+    Step 3: Select Relevant Documents
+    - Choose documents where the summary indicates relevant content
+    - Be selective - only include documents that genuinely could help answer the query
+    - Exclude documents that are tangentially related but unlikely to contain the answer
+
+    ### Output Rules ###
+
+    CRITICAL: You MUST follow these rules exactly:
+    1. Return ONLY filenames, one per line
+    2. Each filename must be EXACT - copied character-for-character from the list below
+    3. NEVER add explanations, reasoning, notes, or any other text
+    4. If no documents are relevant, return absolutely nothing (empty list)
+    5. Do NOT write "None of the documents..." or "Based on..." or any prose
+    6. Each line must contain ONLY a complete filename with its extension
+
+    ### User Query ###
+
+    {query}
+
+    ### Available Documents ###
+
     {summaries}
 
-    Relevant file names (one per line, NO explanations):
+    Return only relevant filenames, one per line. No other text.
+
