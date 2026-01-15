@@ -1042,7 +1042,6 @@ class NvidiaRAGIngestor:
         self,
         collection_name: str | None = None,
         vdb_endpoint: str | None = None,
-        embedding_dimension: int | None = None,
         metadata_schema: list[dict[str, str]] | None = None,
         description: str = "",
         tags: list[str] | None = None,
@@ -1058,8 +1057,7 @@ class NvidiaRAGIngestor:
         # Apply defaults from config if not provided
         if vdb_endpoint is None:
             vdb_endpoint = self.config.vector_store.url
-        if embedding_dimension is None:
-            embedding_dimension = self.config.embeddings.dimensions
+        embedding_dimension = self.config.embeddings.dimensions
 
         vdb_op, collection_name = self.__prepare_vdb_op_and_collection_name(
             vdb_endpoint=vdb_endpoint,

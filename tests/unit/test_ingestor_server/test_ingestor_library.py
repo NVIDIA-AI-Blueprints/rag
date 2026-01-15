@@ -51,6 +51,11 @@ class TestNvidiaRAGIngestor:
         config.vector_store.url = "http://localhost:19530"
         config.nv_ingest.chunk_size = 1024
         config.nv_ingest.chunk_overlap = 200
+        config.nv_ingest.enable_batch_mode = True
+        config.nv_ingest.files_per_batch = 10
+        config.nv_ingest.enable_parallel_batch_mode = False
+        config.nv_ingest.concurrent_batches = 1
+        config.embeddings.dimensions = 1024
         return config
 
     @pytest.fixture
@@ -104,7 +109,7 @@ class TestNvidiaRAGIngestor:
                 mock_task_handler,
             ),
         ):
-            return NvidiaRAGIngestor(vdb_op=mock_vdb_op, mode=Mode.LIBRARY)
+            return NvidiaRAGIngestor(vdb_op=mock_vdb_op, mode=Mode.LIBRARY, config=mock_config)
 
     @pytest.fixture
     def mock_nvingest_upload_doc(self, ingestor):
@@ -311,7 +316,7 @@ class TestNvidiaRAGIngestor:
         ]
 
         result = ingestor.create_collection(
-            embedding_dimension=1024, metadata_schema=metadata_schema
+            metadata_schema=metadata_schema
         )
 
         assert result["message"] == "Collection test_collection created successfully."
@@ -631,7 +636,6 @@ class TestNvidiaRAGIngestor:
 
         result = ingestor.create_collections(
             collection_names=collection_names,
-            embedding_dimension=1024,
             collection_type="text",
         )
 
