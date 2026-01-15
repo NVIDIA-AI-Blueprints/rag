@@ -48,6 +48,7 @@ This release contains the following key changes:
   - Shallow summarization support
   - Easy model switches and dedicated configurations
   - Ease of prompt changes
+- Reserved field names `type`, `subtype`, and `location` for NV-Ingest exclusive use in metadata schemas.
 
 
 

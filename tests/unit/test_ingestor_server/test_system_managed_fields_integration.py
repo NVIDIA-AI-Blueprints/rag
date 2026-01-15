@@ -323,5 +323,135 @@ class TestGetDocumentsFiltering:
             assert "start_time" not in metadata
 
 
+class TestReservedFieldsFiltering:
+    """Test that reserved fields are not auto-added to collection schema"""
+
+    @pytest.fixture
+    def ingestor(self):
+        """Create NvidiaRAGIngestor instance"""
+        return NvidiaRAGIngestor()
+
+    def test_reserved_fields_not_added_to_schema(self, ingestor):
+        """Test that reserved fields (type, subtype, location) are not auto-added to schema"""
+        with patch.object(
+            ingestor, "_NvidiaRAGIngestor__prepare_vdb_op_and_collection_name"
+        ) as mock_prepare:
+            mock_vdb = MagicMock()
+            mock_vdb.create_metadata_schema_collection = MagicMock()
+            mock_vdb.get_collection = MagicMock(return_value=[])
+            mock_vdb.create_collection = MagicMock()
+            mock_vdb.add_metadata_schema = MagicMock()
+            mock_prepare.return_value = (mock_vdb, "test_collection")
+
+            ingestor.create_collection(
+                collection_name="test_collection",
+                metadata_schema=[],  # Empty schema
+            )
+
+            # Check that add_metadata_schema was called
+            assert mock_vdb.add_metadata_schema.called
+            call_args = mock_vdb.add_metadata_schema.call_args[0]
+            schema = call_args[1]
+
+            # Extract field names
+            field_names = {field["name"] for field in schema}
+
+            # Reserved fields should NOT be present
+            assert "type" not in field_names
+            assert "subtype" not in field_names
+            assert "location" not in field_names
+
+            # Non-reserved system fields SHOULD be present
+            assert "filename" in field_names
+            assert "page_number" in field_names
+
+    def test_reserved_fields_are_marked_in_system_managed_fields(self):
+        """Test that reserved fields are properly marked in SYSTEM_MANAGED_FIELDS"""
+        # Reserved fields should have reserved=True
+        assert SYSTEM_MANAGED_FIELDS["type"]["reserved"] is True
+        assert SYSTEM_MANAGED_FIELDS["subtype"]["reserved"] is True
+        assert SYSTEM_MANAGED_FIELDS["location"]["reserved"] is True
+
+        # Non-reserved fields should not have the flag or have reserved=False
+        assert SYSTEM_MANAGED_FIELDS["filename"].get("reserved", False) is False
+        assert SYSTEM_MANAGED_FIELDS["page_number"].get("reserved", False) is False
+        assert SYSTEM_MANAGED_FIELDS["start_time"].get("reserved", False) is False
+        assert SYSTEM_MANAGED_FIELDS["end_time"].get("reserved", False) is False
+
+    def test_reserved_fields_properties(self):
+        """Test the properties of reserved fields in SYSTEM_MANAGED_FIELDS"""
+        # Type field
+        assert SYSTEM_MANAGED_FIELDS["type"]["type"] == "string"
+        assert SYSTEM_MANAGED_FIELDS["type"]["rag_managed"] is False
+        assert SYSTEM_MANAGED_FIELDS["type"]["support_dynamic_filtering"] is False
+        assert (
+            "Content type extracted by NV-Ingest"
+            in SYSTEM_MANAGED_FIELDS["type"]["description"]
+        )
+
+        # Subtype field
+        assert SYSTEM_MANAGED_FIELDS["subtype"]["type"] == "string"
+        assert SYSTEM_MANAGED_FIELDS["subtype"]["rag_managed"] is False
+        assert SYSTEM_MANAGED_FIELDS["subtype"]["support_dynamic_filtering"] is False
+        assert (
+            "Content subtype extracted by NV-Ingest"
+            in SYSTEM_MANAGED_FIELDS["subtype"]["description"]
+        )
+
+        # Location field
+        assert SYSTEM_MANAGED_FIELDS["location"]["type"] == "array"
+        assert SYSTEM_MANAGED_FIELDS["location"]["rag_managed"] is False
+        assert SYSTEM_MANAGED_FIELDS["location"]["support_dynamic_filtering"] is False
+        assert (
+            "Bounding box coordinates extracted by NV-Ingest"
+            in SYSTEM_MANAGED_FIELDS["location"]["description"]
+        )
+
+    def test_only_non_reserved_system_fields_auto_added(self, ingestor):
+        """Test that only non-reserved system fields are auto-added when filtering is applied"""
+        with patch.object(
+            ingestor, "_NvidiaRAGIngestor__prepare_vdb_op_and_collection_name"
+        ) as mock_prepare:
+            mock_vdb = MagicMock()
+            mock_vdb.create_metadata_schema_collection = MagicMock()
+            mock_vdb.get_collection = MagicMock(return_value=[])
+            mock_vdb.create_collection = MagicMock()
+            mock_vdb.add_metadata_schema = MagicMock()
+            mock_prepare.return_value = (mock_vdb, "test_collection")
+
+            # Create collection with custom fields
+            user_schema = [
+                {"name": "title", "type": "string"},
+                {"name": "author", "type": "string"},
+            ]
+
+            ingestor.create_collection(
+                collection_name="test_collection",
+                metadata_schema=user_schema,
+            )
+
+            # Check that add_metadata_schema was called
+            assert mock_vdb.add_metadata_schema.called
+            call_args = mock_vdb.add_metadata_schema.call_args[0]
+            schema = call_args[1]
+
+            field_names = {field["name"] for field in schema}
+
+            # User fields should be present
+            assert "title" in field_names
+            assert "author" in field_names
+
+            # Non-reserved system fields should be auto-added
+            assert "filename" in field_names
+            assert "page_number" in field_names
+            assert "start_time" in field_names
+            assert "end_time" in field_names
+
+            # Reserved system fields should NOT be auto-added
+            assert "type" not in field_names
+            assert "subtype" not in field_names
+            assert "location" not in field_names
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

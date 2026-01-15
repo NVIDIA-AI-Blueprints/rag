@@ -171,7 +171,10 @@ class NvidiaRAGIngestor:
         except Exception as e:
             self.minio_operator = None
             # Error already logged in MinioOperator.__init__, just note it here
-            logger.debug("MinIO operator set to None due to initialization failure, reason: %s", e)
+            logger.debug(
+                "MinIO operator set to None due to initialization failure, reason: %s",
+                e,
+            )
 
         if self.vdb_op is not None:
             if not (isinstance(self.vdb_op, VDBRag) or isinstance(self.vdb_op, VDB)):
@@ -1071,6 +1074,10 @@ class NvidiaRAGIngestor:
         existing_field_names = {field.get("name") for field in metadata_schema}
 
         for field_name, field_def in SYSTEM_MANAGED_FIELDS.items():
+            # Skip reserved fields - they are managed by NV-Ingest and should not be in the schema
+            if field_def.get("reserved", False):
+                continue
+
             if field_name not in existing_field_names:
                 metadata_schema.append(
                     {
