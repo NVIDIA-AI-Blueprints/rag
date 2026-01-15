@@ -858,3 +858,137 @@ class TestNvidiaRAGIngestorCoverageImprovement:
 
             assert ingestor.minio_operator is None
             mock_get_minio.assert_called_once()
+
+
+class TestGetDocumentTypeCounts:
+    """Test cases for _get_document_type_counts method with type normalization."""
+
+    def test_normalizes_structured_to_table(self):
+        """Test that 'structured' document type is normalized to 'table'."""
+        ingestor = NvidiaRAGIngestor(mode=Mode.LIBRARY)
+        
+        # Simulate nv-ingest result with document_type="structured" and no subtype
+        results = [[{
+            "document_type": "structured",
+            "metadata": {"content_metadata": {}},
+        }]]
+        
+        doc_type_counts, total_docs, total_elements, _ = ingestor._get_document_type_counts(results)
+        
+        # Should be normalized to "table" not "structured"
+        assert "table" in doc_type_counts
+        assert "structured" not in doc_type_counts
+        assert doc_type_counts["table"] == 1
+        assert total_docs == 1
+        assert total_elements == 1
+
+    def test_uses_subtype_when_available(self):
+        """Test that subtype is used when available (e.g., 'table' from subtype)."""
+        ingestor = NvidiaRAGIngestor(mode=Mode.LIBRARY)
+        
+        # Simulate result with subtype explicitly set
+        results = [[{
+            "document_type": "structured",
+            "metadata": {"content_metadata": {"subtype": "table"}},
+        }]]
+        
+        doc_type_counts, _, _, _ = ingestor._get_document_type_counts(results)
+        
+        # Should use subtype "table" directly
+        assert "table" in doc_type_counts
+        assert doc_type_counts["table"] == 1
+
+    def test_preserves_text_type(self):
+        """Test that 'text' document type is preserved."""
+        ingestor = NvidiaRAGIngestor(mode=Mode.LIBRARY)
+        
+        results = [[{
+            "document_type": "text",
+            "metadata": {"content_metadata": {}, "content": "Hello world"},
+        }]]
+        
+        doc_type_counts, _, _, raw_text_size = ingestor._get_document_type_counts(results)
+        
+        assert "text" in doc_type_counts
+        assert doc_type_counts["text"] == 1
+        assert raw_text_size == len("Hello world")
+
+    def test_preserves_image_type(self):
+        """Test that 'image' document type is preserved."""
+        ingestor = NvidiaRAGIngestor(mode=Mode.LIBRARY)
+        
+        results = [[{
+            "document_type": "image",
+            "metadata": {"content_metadata": {}},
+        }]]
+        
+        doc_type_counts, _, _, _ = ingestor._get_document_type_counts(results)
+        
+        assert "image" in doc_type_counts
+        assert doc_type_counts["image"] == 1
+
+    def test_preserves_chart_subtype(self):
+        """Test that 'chart' subtype is preserved."""
+        ingestor = NvidiaRAGIngestor(mode=Mode.LIBRARY)
+        
+        results = [[{
+            "document_type": "structured",
+            "metadata": {"content_metadata": {"subtype": "chart"}},
+        }]]
+        
+        doc_type_counts, _, _, _ = ingestor._get_document_type_counts(results)
+        
+        assert "chart" in doc_type_counts
+        assert doc_type_counts["chart"] == 1
+
+    def test_multiple_documents_mixed_types(self):
+        """Test counting multiple documents with mixed types."""
+        ingestor = NvidiaRAGIngestor(mode=Mode.LIBRARY)
+        
+        results = [
+            # Document 1: has text and a table
+            [
+                {"document_type": "text", "metadata": {"content_metadata": {}, "content": "Hello"}},
+                {"document_type": "structured", "metadata": {"content_metadata": {}}},  # Should become "table"
+            ],
+            # Document 2: has text and an image
+            [
+                {"document_type": "text", "metadata": {"content_metadata": {}, "content": "World"}},
+                {"document_type": "image", "metadata": {"content_metadata": {}}},
+            ],
+        ]
+        
+        doc_type_counts, total_docs, total_elements, _ = ingestor._get_document_type_counts(results)
+        
+        assert total_docs == 2
+        assert total_elements == 4
+        assert doc_type_counts["text"] == 2
+        assert doc_type_counts["table"] == 1
+        assert doc_type_counts["image"] == 1
+
+    def test_unknown_type_preserved(self):
+        """Test that unknown document types are preserved as-is."""
+        ingestor = NvidiaRAGIngestor(mode=Mode.LIBRARY)
+        
+        results = [[{
+            "document_type": "custom_type",
+            "metadata": {"content_metadata": {}},
+        }]]
+        
+        doc_type_counts, _, _, _ = ingestor._get_document_type_counts(results)
+        
+        assert "custom_type" in doc_type_counts
+        assert doc_type_counts["custom_type"] == 1
+
+    def test_empty_results(self):
+        """Test handling of empty results."""
+        ingestor = NvidiaRAGIngestor(mode=Mode.LIBRARY)
+        
+        results = []
+        
+        doc_type_counts, total_docs, total_elements, raw_text_size = ingestor._get_document_type_counts(results)
+        
+        assert len(doc_type_counts) == 0
+        assert total_docs == 0
+        assert total_elements == 0
+        assert raw_text_size == 0

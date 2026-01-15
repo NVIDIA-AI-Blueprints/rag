@@ -2756,8 +2756,16 @@ class NvidiaRAGIngestor:
         self, results: list[list[dict[str, str | dict]]]
     ) -> dict[str, int]:
         """
-        Get document type counts from the results
+        Get document type counts from the results.
+        
+        Note: Document types are normalized to standard keys (table, chart, image, text)
+        to ensure consistency with frontend expectations and derive_boolean_flags().
         """
+        # Mapping from nv-ingest types/subtypes to normalized keys
+        type_normalization = {
+            "structured": "table",  # Structured data defaults to table
+        }
+        
         doc_type_counts = defaultdict(int)
         total_documents = 0
         total_elements = 0
@@ -2773,11 +2781,16 @@ class NvidiaRAGIngestor:
                     .get("content_metadata", {})
                     .get("subtype", "")
                 )
+                # Use subtype if available, otherwise use document_type
                 if document_subtype:
-                    document_type_subtype = document_subtype
+                    doc_type_key = document_subtype
                 else:
-                    document_type_subtype = document_type
-                doc_type_counts[document_type_subtype] += 1
+                    doc_type_key = document_type
+                
+                # Normalize the key to standard names (table, chart, image, text)
+                doc_type_key = type_normalization.get(doc_type_key, doc_type_key)
+                
+                doc_type_counts[doc_type_key] += 1
                 if document_type == "text":
                     content = result_element.get("metadata", {}).get("content", "")
                     if isinstance(content, str):
