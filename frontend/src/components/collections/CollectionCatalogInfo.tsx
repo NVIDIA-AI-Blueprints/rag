@@ -14,7 +14,7 @@
 // limitations under the License.
 
 import { Text, Flex, Stack, Badge, Tag, Divider, Panel } from "@kui/react";
-import { User, Building2, Calendar, FileText, Table, BarChart3, Image } from "lucide-react";
+import { User, Building2, Calendar, FileText, Table, BarChart3, Image, Volume2 } from "lucide-react";
 import type { Collection } from "../../types/collections";
 
 interface CollectionCatalogInfoProps {
@@ -153,6 +153,13 @@ export function CollectionCatalogInfo({ collection }: CollectionCatalogInfoProps
             <Flex align="center" gap="density-xs">
               <Image size={14} style={{ color: 'var(--color-brand)' }} />
               <Text kind="body/regular/sm">{info.doc_type_counts.image} Images</Text>
+            </Flex>
+          )}
+
+          {info.doc_type_counts?.audio !== undefined && info.doc_type_counts.audio > 0 && (
+            <Flex align="center" gap="density-xs">
+              <Volume2 size={14} style={{ color: 'var(--color-brand)' }} />
+              <Text kind="body/regular/sm">{info.doc_type_counts.audio} Audio</Text>
             </Flex>
           )}
         </Flex>

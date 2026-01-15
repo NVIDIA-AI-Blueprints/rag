@@ -83,6 +83,7 @@ export interface Collection {
       table?: number;
       chart?: number;
       image?: number;
+      audio?: number;
     };
   };
 }
