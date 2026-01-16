@@ -83,6 +83,64 @@ To deploy End-to-End RAG Server and Ingestor Server, use the following procedure
    Refer to [NIM Model Profile Configuration](model-profiles.md) for using non-default NIM LLM profile.
    :::
 
+### Deploy RAG with GPU Sharing Using Dynamic Resource Allocation (DRA)
+
+Below steps are leverages [NVIDIA DRA](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/dra-intro-install.html) with [NIM Operator](https://docs.nvidia.com/nim-operator/latest/dra.html)
+
+>[!TIP]
+>
+>With DRA Setup, All NIM Service can run on 3 GPUs with atleast 80GB memory, it could be A100 or H100 or B200
+
+
+- Prerequisite: [NVIDIA DRA Driver](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/dra-intro-install.html)
+
+    - Kubernetes v1.33 or newer. Run the below commands to enable DRA FeatureGates on existing Kubernetes Cluster
+         
+         ```sh
+         sudo sed -i 's/- kube-apiserver/- kube-apiserver\n    - --feature-gates=DynamicResourceAllocation=true\n    - --runtime-config=resource.k8s.io\/v1beta1=true\n    - --runtime-config=resource.k8s.io\/v1beta2=true/' /etc/kubernetes/manifests/kube-apiserver.yaml
+
+         sudo sed -i 's/- kube-scheduler/- kube-scheduler\n    - --feature-gates=DynamicResourceAllocation=true/' /etc/kubernetes/manifests/kube-scheduler.yaml
+
+         sudo sed -i 's/- kube-controller-manager/- kube-controller-manager\n    - --feature-gates=DynamicResourceAllocation=true/' /etc/kubernetes/manifests/kube-controller-manager.yaml
+
+         sudo sed -i '$a\'$'\n''featureGates:\n  DynamicResourceAllocation: true' /var/lib/kubelet/config.yaml
+
+         sudo systemctl daemon-reload; sudo systemctl restart kubelet
+         ```
+
+    - Enable CDI to the GPU Operator and wait for few minutes
+         
+         ```sh
+         kubectl patch clusterpolicies.nvidia.com/cluster-policy --type='json' -p='[{"op": "replace", "path": "/spec/cdi/enabled", "value":true}]'
+         kubectl patch clusterpolicies.nvidia.com/cluster-policy --type='json' -p='[{"op": "replace", "path": "/spec/cdi/default", "value":true}]'
+         ```
+
+    - Verify NVIDIA GPU Driver 565 or later.
+         
+         ```sh
+         kubectl get pods -l app.kubernetes.io/component=nvidia-driver -n nvidia-gpu-operator -o name | xargs -I {} kubectl exec -n nvidia-gpu-operator  {} -- nvidia-smi
+         ```
+
+    - Install the NVIDIA DRA Driver
+         
+         ```sh
+         helm upgrade --install --version="25.8.1" --create-namespace --namespace nvidia-dra-driver-gpu nvidia-dra-driver-gpu nvidia/nvidia-dra-driver-gpu -n nvidia-dra-driver-gpu --set gpuResourcesEnabledOverride=true     --set nvidiaDriverRoot=/run/nvidia/driver
+         ```
+
+Run the below command to install the RAG Blueprint with NVIDIA DRA
+
+```sh
+helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-rc1.tgz \
+--username '$oauthtoken' \
+--password "${NGC_API_KEY}" \
+--set imagePullSecret.password=$NGC_API_KEY \
+--set ngcApiSecret.password=$NGC_API_KEY \
+-f ./dra/values-dra.yaml
+```
+
+>[!NOTE]
+>
+>Refer to [NIM Model Profile Configuration](model-profiles.md) for using non-default NIM LLM profile.
 
 ## Verify a Deployment
 
