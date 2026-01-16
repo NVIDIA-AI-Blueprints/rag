@@ -40,6 +40,54 @@ class LibraryUsageModule(BaseTestModule):
         self.library_collection = "test_library_usage"
         self.test_data_dir = test_runner.data_dir
         
+        # Shared configuration and instances (initialized lazily)
+        self._config = None
+        self._ingestor = None
+        self._rag = None
+    
+    def _get_config(self):
+        """Get or create shared config object with common settings"""
+        if self._config is None:
+            from nvidia_rag.utils.configuration import NvidiaRAGConfig
+            
+            config_path = Path(__file__).parent.parent.parent.parent / "notebooks" / "config.yaml"
+            self._config = NvidiaRAGConfig.from_yaml(str(config_path))
+            
+            # Common configuration for all library tests
+            self._config.embeddings.server_url = "https://integrate.api.nvidia.com/v1"
+            self._config.ranking.server_url = ""  # Empty uses NVIDIA API catalog
+            self._config.llm.server_url = ""  # Empty uses NVIDIA API catalog
+            
+            # Disable GPU vectorstore features for CI compatibility
+            self._config.vector_store.enable_gpu_index = False
+            self._config.vector_store.enable_gpu_search = False
+            
+            logger.info("✅ Shared config initialized with cloud deployment settings")
+        
+        return self._config
+    
+    def _get_ingestor(self):
+        """Get or create shared NvidiaRAGIngestor instance"""
+        if self._ingestor is None:
+            from nvidia_rag import NvidiaRAGIngestor
+            
+            config = self._get_config()
+            self._ingestor = NvidiaRAGIngestor(config=config)
+            logger.info("✅ Shared NvidiaRAGIngestor instance created")
+        
+        return self._ingestor
+    
+    def _get_rag(self):
+        """Get or create shared NvidiaRAG instance"""
+        if self._rag is None:
+            from nvidia_rag import NvidiaRAG
+            
+            config = self._get_config()
+            self._rag = NvidiaRAG(config=config)
+            logger.info("✅ Shared NvidiaRAG instance created")
+        
+        return self._rag
+        
     @test_case(120, "Library - Import and Configuration")
     async def _test_library_imports_and_config(self) -> bool:
         """Test library imports and configuration loading (Notebook cells: imports and config setup)"""
@@ -55,33 +103,14 @@ class LibraryUsageModule(BaseTestModule):
             
             # Test configuration loading (Notebook: "Import the NvidiaRAGIngestor packages")
             logger.info("🔧 Testing configuration loading...")
-            config_path = Path(__file__).parent.parent.parent.parent / "notebooks" / "config.yaml"
+            config = self._get_config()  # Use shared config
             
-            if not config_path.exists():
-                logger.error(f"❌ Config file not found: {config_path}")
-                self.add_test_result(
-                    120, "Library - Import and Configuration",
-                    "Test library imports and configuration loading from YAML file",
-                    ["NvidiaRAG", "NvidiaRAGIngestor", "NvidiaRAGConfig.from_yaml()"],
-                    ["config_file_path"],
-                    time.time() - start_time,
-                    TestStatus.FAILURE,
-                    f"Config file not found: {config_path}"
-                )
-                return False
-            
-            config = NvidiaRAGConfig.from_yaml(str(config_path))
             logger.info(f"✅ Configuration loaded successfully")
             logger.info(f"  - LLM model: {config.llm.model_name}")
             logger.info(f"  - Embeddings model: {config.embeddings.model_name}")
             logger.info(f"  - Ranking model: {config.ranking.model_name}")
-            
-            # Configure for cloud deployment (Notebook: Option 2 - Using Nvidia Hosted models)
-            logger.info("🔧 Configuring for cloud deployment...")
-            config.embeddings.server_url = "https://integrate.api.nvidia.com/v1"
-            config.ranking.server_url = ""  # Empty uses NVIDIA API catalog
-            config.llm.server_url = ""  # Empty uses NVIDIA API catalog
-            logger.info("✅ Cloud deployment configuration applied")
+            logger.info(f"  - GPU Index: {config.vector_store.enable_gpu_index}")
+            logger.info(f"  - GPU Search: {config.vector_store.enable_gpu_search}")
             
             self.add_test_result(
                 120, "Library - Import and Configuration",
@@ -115,18 +144,9 @@ class LibraryUsageModule(BaseTestModule):
         start_time = time.time()
         
         try:
-            from nvidia_rag import NvidiaRAGIngestor
-            from nvidia_rag.utils.configuration import NvidiaRAGConfig
-            
             logger.info("🔧 Initializing NvidiaRAGIngestor...")
-            config_path = Path(__file__).parent.parent.parent.parent / "notebooks" / "config.yaml"
-            config = NvidiaRAGConfig.from_yaml(str(config_path))
+            ingestor = self._get_ingestor()  # Use shared instance
             
-            # Cloud deployment configuration
-            config.embeddings.server_url = "https://integrate.api.nvidia.com/v1"
-            config.llm.server_url = ""
-            
-            ingestor = NvidiaRAGIngestor(config=config)
             logger.info(f"✅ NvidiaRAGIngestor initialized successfully")
             logger.info(f"  - Type: {type(ingestor).__name__}")
             logger.info(f"  - Has create_collection: {hasattr(ingestor, 'create_collection')}")
@@ -164,16 +184,8 @@ class LibraryUsageModule(BaseTestModule):
         start_time = time.time()
         
         try:
-            from nvidia_rag import NvidiaRAGIngestor
-            from nvidia_rag.utils.configuration import NvidiaRAGConfig
-            
             logger.info(f"🔧 Creating collection '{self.library_collection}'...")
-            config_path = Path(__file__).parent.parent.parent.parent / "notebooks" / "config.yaml"
-            config = NvidiaRAGConfig.from_yaml(str(config_path))
-            config.embeddings.server_url = "https://integrate.api.nvidia.com/v1"
-            config.llm.server_url = ""
-            
-            ingestor = NvidiaRAGIngestor(config=config)
+            ingestor = self._get_ingestor()  # Use shared instance
             
             # Create collection (Notebook: ingestor.create_collection())
             response = ingestor.create_collection(
@@ -230,16 +242,8 @@ class LibraryUsageModule(BaseTestModule):
         start_time = time.time()
         
         try:
-            from nvidia_rag import NvidiaRAGIngestor
-            from nvidia_rag.utils.configuration import NvidiaRAGConfig
-            
             logger.info("🔧 Listing collections...")
-            config_path = Path(__file__).parent.parent.parent.parent / "notebooks" / "config.yaml"
-            config = NvidiaRAGConfig.from_yaml(str(config_path))
-            config.embeddings.server_url = "https://integrate.api.nvidia.com/v1"
-            config.llm.server_url = ""
-            
-            ingestor = NvidiaRAGIngestor(config=config)
+            ingestor = self._get_ingestor()  # Use shared instance
             
             # List collections (Notebook: ingestor.get_collections())
             response = ingestor.get_collections(vdb_endpoint="http://localhost:19530")
@@ -294,19 +298,9 @@ class LibraryUsageModule(BaseTestModule):
         start_time = time.time()
         
         try:
-            from nvidia_rag import NvidiaRAG
-            from nvidia_rag.utils.configuration import NvidiaRAGConfig
-            
             logger.info("🔧 Initializing NvidiaRAG...")
-            config_path = Path(__file__).parent.parent.parent.parent / "notebooks" / "config.yaml"
-            config = NvidiaRAGConfig.from_yaml(str(config_path))
+            rag = self._get_rag()  # Use shared instance
             
-            # Cloud deployment configuration (Notebook: Option 2)
-            config.embeddings.server_url = "https://integrate.api.nvidia.com/v1"
-            config.ranking.server_url = ""  # Empty uses NVIDIA API catalog
-            config.llm.server_url = ""  # Empty uses NVIDIA API catalog
-            
-            rag = NvidiaRAG(config=config)
             logger.info(f"✅ NvidiaRAG initialized successfully")
             logger.info(f"  - Type: {type(rag).__name__}")
             logger.info(f"  - Has generate method: {hasattr(rag, 'generate')}")
@@ -346,14 +340,9 @@ class LibraryUsageModule(BaseTestModule):
         
         try:
             from nvidia_rag import NvidiaRAG
-            from nvidia_rag.utils.configuration import NvidiaRAGConfig
             
             logger.info("🔧 Testing custom prompts initialization...")
-            config_path = Path(__file__).parent.parent.parent.parent / "notebooks" / "config.yaml"
-            config = NvidiaRAGConfig.from_yaml(str(config_path))
-            config.embeddings.server_url = "https://integrate.api.nvidia.com/v1"
-            config.ranking.server_url = ""
-            config.llm.server_url = ""
+            config = self._get_config()  # Use shared config
             
             # Define custom prompts (Notebook: pirate_prompts example)
             custom_prompts = {
@@ -364,6 +353,7 @@ class LibraryUsageModule(BaseTestModule):
             }
             
             # Initialize with custom prompts (Notebook: rag_pirate = NvidiaRAG(config, prompts=...))
+            # This needs a separate instance because it has custom prompts
             rag_custom = NvidiaRAG(config=config, prompts=custom_prompts)
             logger.info(f"✅ NvidiaRAG with custom prompts initialized successfully")
             logger.info(f"  - Custom prompts applied: {bool(custom_prompts)}")
@@ -400,16 +390,8 @@ class LibraryUsageModule(BaseTestModule):
         start_time = time.time()
         
         try:
-            from nvidia_rag import NvidiaRAGIngestor
-            from nvidia_rag.utils.configuration import NvidiaRAGConfig
-            
             logger.info(f"🔧 Uploading documents to collection '{self.library_collection}'...")
-            config_path = Path(__file__).parent.parent.parent.parent / "notebooks" / "config.yaml"
-            config = NvidiaRAGConfig.from_yaml(str(config_path))
-            config.embeddings.server_url = "https://integrate.api.nvidia.com/v1"
-            config.llm.server_url = ""
-            
-            ingestor = NvidiaRAGIngestor(config=config)
+            ingestor = self._get_ingestor()  # Use shared instance
             
             # Get test files
             test_files = []
@@ -499,9 +481,6 @@ class LibraryUsageModule(BaseTestModule):
         start_time = time.time()
         
         try:
-            from nvidia_rag import NvidiaRAGIngestor
-            from nvidia_rag.utils.configuration import NvidiaRAGConfig
-            
             # Get task_id from previous test
             task_id = getattr(self.test_runner, 'library_upload_task_id', None)
             if not task_id:
@@ -517,12 +496,7 @@ class LibraryUsageModule(BaseTestModule):
                 return True
             
             logger.info(f"🔧 Checking status for task_id: {task_id}")
-            config_path = Path(__file__).parent.parent.parent.parent / "notebooks" / "config.yaml"
-            config = NvidiaRAGConfig.from_yaml(str(config_path))
-            config.embeddings.server_url = "https://integrate.api.nvidia.com/v1"
-            config.llm.server_url = ""
-            
-            ingestor = NvidiaRAGIngestor(config=config)
+            ingestor = self._get_ingestor()  # Use shared instance
             
             # Poll for completion (with timeout)
             max_wait = 300  # 5 minutes (increased for document processing)
@@ -616,16 +590,8 @@ class LibraryUsageModule(BaseTestModule):
         start_time = time.time()
         
         try:
-            from nvidia_rag import NvidiaRAGIngestor
-            from nvidia_rag.utils.configuration import NvidiaRAGConfig
-            
             logger.info(f"🔧 Getting documents from collection '{self.library_collection}'...")
-            config_path = Path(__file__).parent.parent.parent.parent / "notebooks" / "config.yaml"
-            config = NvidiaRAGConfig.from_yaml(str(config_path))
-            config.embeddings.server_url = "https://integrate.api.nvidia.com/v1"
-            config.llm.server_url = ""
-            
-            ingestor = NvidiaRAGIngestor(config=config)
+            ingestor = self._get_ingestor()  # Use shared instance
             
             # Get documents (Notebook: ingestor.get_documents())
             response = ingestor.get_documents(
@@ -671,17 +637,8 @@ class LibraryUsageModule(BaseTestModule):
         start_time = time.time()
         
         try:
-            from nvidia_rag import NvidiaRAG
-            from nvidia_rag.utils.configuration import NvidiaRAGConfig
-            
             logger.info("🔧 Checking health of all services...")
-            config_path = Path(__file__).parent.parent.parent.parent / "notebooks" / "config.yaml"
-            config = NvidiaRAGConfig.from_yaml(str(config_path))
-            config.embeddings.server_url = "https://integrate.api.nvidia.com/v1"
-            config.ranking.server_url = ""
-            config.llm.server_url = ""
-            
-            rag = NvidiaRAG(config=config)
+            rag = self._get_rag()  # Use shared instance
             
             # Health check (Notebook: await rag.health())
             health_status = await rag.health()
@@ -736,17 +693,8 @@ class LibraryUsageModule(BaseTestModule):
         start_time = time.time()
         
         try:
-            from nvidia_rag import NvidiaRAG
-            from nvidia_rag.utils.configuration import NvidiaRAGConfig
-            
             logger.info(f"🔧 Testing RAG query with collection '{self.library_collection}'...")
-            config_path = Path(__file__).parent.parent.parent.parent / "notebooks" / "config.yaml"
-            config = NvidiaRAGConfig.from_yaml(str(config_path))
-            config.embeddings.server_url = "https://integrate.api.nvidia.com/v1"
-            config.ranking.server_url = ""
-            config.llm.server_url = ""
-            
-            rag = NvidiaRAG(config=config)
+            rag = self._get_rag()  # Use shared instance
             
             # Generate query (Notebook: await rag.generate())
             query = "What is the content of the document?"
@@ -827,17 +775,8 @@ class LibraryUsageModule(BaseTestModule):
         start_time = time.time()
         
         try:
-            from nvidia_rag import NvidiaRAG
-            from nvidia_rag.utils.configuration import NvidiaRAGConfig
-            
             logger.info(f"🔧 Testing search with collection '{self.library_collection}'...")
-            config_path = Path(__file__).parent.parent.parent.parent / "notebooks" / "config.yaml"
-            config = NvidiaRAGConfig.from_yaml(str(config_path))
-            config.embeddings.server_url = "https://integrate.api.nvidia.com/v1"
-            config.ranking.server_url = ""
-            config.llm.server_url = ""
-            
-            rag = NvidiaRAG(config=config)
+            rag = self._get_rag()  # Use shared instance
             
             # Search (Notebook: await rag.search())
             query = "What is in the document?"
@@ -900,16 +839,8 @@ class LibraryUsageModule(BaseTestModule):
         start_time = time.time()
         
         try:
-            from nvidia_rag import NvidiaRAGIngestor
-            from nvidia_rag.utils.configuration import NvidiaRAGConfig
-            
             logger.info(f"🔧 Deleting documents from collection '{self.library_collection}'...")
-            config_path = Path(__file__).parent.parent.parent.parent / "notebooks" / "config.yaml"
-            config = NvidiaRAGConfig.from_yaml(str(config_path))
-            config.embeddings.server_url = "https://integrate.api.nvidia.com/v1"
-            config.llm.server_url = ""
-            
-            ingestor = NvidiaRAGIngestor(config=config)
+            ingestor = self._get_ingestor()  # Use shared instance
             
             # First get documents to know what to delete
             docs_response = ingestor.get_documents(
@@ -1007,11 +938,8 @@ class LibraryUsageModule(BaseTestModule):
         start_time = time.time()
         
         try:
-            from nvidia_rag.utils.configuration import NvidiaRAGConfig
-            
             logger.info("🔧 Loading configuration to view summarizer settings...")
-            config_path = Path(__file__).parent.parent.parent.parent / "notebooks" / "config.yaml"
-            config = NvidiaRAGConfig.from_yaml(str(config_path))
+            config = self._get_config()  # Use shared config
             
             # Log summarizer configuration
             logger.info("📋 Default Summarizer Configuration:")
@@ -1070,17 +998,11 @@ class LibraryUsageModule(BaseTestModule):
         start_time = time.time()
         
         try:
-            from nvidia_rag import NvidiaRAGIngestor
-            from nvidia_rag.utils.configuration import NvidiaRAGConfig
-            
             logger.info("🔧 Initializing NvidiaRAGIngestor to view prompts...")
-            config_path = Path(__file__).parent.parent.parent.parent / "notebooks" / "config.yaml"
-            config = NvidiaRAGConfig.from_yaml(str(config_path))
-            config.embeddings.server_url = "https://integrate.api.nvidia.com/v1"
-            config.llm.server_url = ""
+            config = self._get_config()  # Use shared config
             config.summarizer.server_url = ""  # Use cloud-hosted model for summarization
             
-            ingestor = NvidiaRAGIngestor(config=config)
+            ingestor = self._get_ingestor()  # Use shared instance
             
             # Check for summary prompts
             logger.info("📋 Checking for default summary prompts:")
@@ -1142,13 +1064,10 @@ class LibraryUsageModule(BaseTestModule):
         start_time = time.time()
         
         try:
-            from nvidia_rag.utils.configuration import NvidiaRAGConfig
-            
             logger.info("🔧 Modifying summarizer configuration...")
-            config_path = Path(__file__).parent.parent.parent.parent / "notebooks" / "config.yaml"
-            config = NvidiaRAGConfig.from_yaml(str(config_path))
+            config = self._get_config()  # Use shared config
             
-            # Change summarizer settings
+            # Change summarizer settings (modifying shared config for this test)
             original_model = config.summarizer.model_name
             original_temp = config.summarizer.temperature
             original_top_p = config.summarizer.top_p
@@ -1215,13 +1134,9 @@ class LibraryUsageModule(BaseTestModule):
         
         try:
             from nvidia_rag import NvidiaRAGIngestor
-            from nvidia_rag.utils.configuration import NvidiaRAGConfig
             
             logger.info("🔧 Creating NvidiaRAGIngestor with custom summary prompts...")
-            config_path = Path(__file__).parent.parent.parent.parent / "notebooks" / "config.yaml"
-            config = NvidiaRAGConfig.from_yaml(str(config_path))
-            config.embeddings.server_url = "https://integrate.api.nvidia.com/v1"
-            config.llm.server_url = ""
+            config = self._get_config()  # Use shared config
             config.summarizer.server_url = ""  # Use cloud-hosted model for summarization
             
             # Define custom prompts for summarization
@@ -1245,7 +1160,7 @@ Summary:"""
                 }
             }
             
-            # Initialize with custom prompts
+            # Initialize with custom prompts (separate instance needed for custom prompts)
             ingestor_custom = NvidiaRAGIngestor(config=config, prompts=custom_prompts)
             
             # Verify custom prompt was applied
@@ -1374,17 +1289,11 @@ Summary:"""
         start_time = time.time()
         
         try:
-            from nvidia_rag import NvidiaRAGIngestor
-            from nvidia_rag.utils.configuration import NvidiaRAGConfig
-            
             # Get summary collection name
             summary_collection = "test_library_summary"
             
             logger.info(f"🔧 Uploading documents with summary generation to '{summary_collection}'...")
-            config_path = Path(__file__).parent.parent.parent.parent / "notebooks" / "config.yaml"
-            config = NvidiaRAGConfig.from_yaml(str(config_path))
-            config.embeddings.server_url = "https://integrate.api.nvidia.com/v1"
-            config.llm.server_url = ""
+            config = self._get_config()  # Use shared config
             config.summarizer.server_url = ""  # Use cloud-hosted model for summarization
             
             logger.info(f"📋 Configuration:")
@@ -1393,7 +1302,7 @@ Summary:"""
             logger.info(f"   summarizer.server_url: {config.summarizer.server_url}")
             logger.info(f"   summarizer.model_name: {config.summarizer.model_name}")
             
-            ingestor = NvidiaRAGIngestor(config=config)
+            ingestor = self._get_ingestor()  # Use shared instance
             
             # Create collection first
             create_response = ingestor.create_collection(
@@ -1642,18 +1551,10 @@ Summary:"""
         start_time = time.time()
         
         try:
-            from nvidia_rag import NvidiaRAGIngestor
-            from nvidia_rag.utils.configuration import NvidiaRAGConfig
-            
             summary_collection = getattr(self.test_runner, 'summary_collection', 'test_library_summary')
             
             logger.info(f"🔧 Deleting summary collection '{summary_collection}'...")
-            config_path = Path(__file__).parent.parent.parent.parent / "notebooks" / "config.yaml"
-            config = NvidiaRAGConfig.from_yaml(str(config_path))
-            config.embeddings.server_url = "https://integrate.api.nvidia.com/v1"
-            config.llm.server_url = ""
-            
-            ingestor = NvidiaRAGIngestor(config=config)
+            ingestor = self._get_ingestor()  # Use shared instance
             
             response = ingestor.delete_collections(
                 vdb_endpoint="http://localhost:19530",
@@ -1695,16 +1596,8 @@ Summary:"""
         start_time = time.time()
         
         try:
-            from nvidia_rag import NvidiaRAGIngestor
-            from nvidia_rag.utils.configuration import NvidiaRAGConfig
-            
             logger.info(f"🔧 Deleting collection '{self.library_collection}'...")
-            config_path = Path(__file__).parent.parent.parent.parent / "notebooks" / "config.yaml"
-            config = NvidiaRAGConfig.from_yaml(str(config_path))
-            config.embeddings.server_url = "https://integrate.api.nvidia.com/v1"
-            config.llm.server_url = ""
-            
-            ingestor = NvidiaRAGIngestor(config=config)
+            ingestor = self._get_ingestor()  # Use shared instance
             
             # Delete collection (Notebook: ingestor.delete_collections())
             response = ingestor.delete_collections(
