@@ -24,6 +24,13 @@ from nvidia_rag.rag_server.response_generator import APIError, Citations
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
 
 
+@pytest.fixture(autouse=True)
+def _disable_reflection(monkeypatch):
+    """Ensure reflection is disabled for these minimal edge-case tests."""
+
+    monkeypatch.setenv("ENABLE_REFLECTION", "false")
+
+
 class TestNvidiaRAGMinimalCoverage:
     """Minimal test cases to improve coverage for specific lines."""
 

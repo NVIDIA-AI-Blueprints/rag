@@ -200,7 +200,7 @@ docker compose -f deploy/compose/docker-compose-ingestor-server.yaml up -d
 docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d
 ```
 
-API Key (preferred):
+API Key (preferred): see [Get an Elasticsearch API key](#get-an-elasticsearch-api-key) below for how to obtain the key.
 ```bash
 # Either provide base64 apikey (base64 of "id:secret")
 export APP_VECTORSTORE_APIKEY="base64-id-colon-secret"
@@ -310,7 +310,7 @@ For detailed HELM deployment instructions, see [Helm Deployment Guide](deploy-he
 When using Elasticsearch as the vector database, you can pass a per-request VDB authentication token via the HTTP `Authorization` header. The servers forward this token to Elasticsearch for that request. This enables per-user authentication or per-request scoping without changing server env configuration.
 
 Prerequisite:
-- Ensure Elasticsearch authentication is enabled so security is enforced. In Elasticsearch this typically requires `xpack.security.enabled=true`. See the "Elasticsearch Authentication" section above for enabling security via Docker Compose or Helm and for obtaining API keys or setting credentials.
+- Ensure Elasticsearch authentication is enabled so security is enforced. In Elasticsearch this typically requires `xpack.security.enabled=true`. See the [Elasticsearch Authentication](#elasticsearch-authentication) section above for enabling security via Docker Compose or Helm and for obtaining API keys or setting credentials.
 
 ### Header format
 

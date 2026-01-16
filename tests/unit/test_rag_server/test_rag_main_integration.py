@@ -26,6 +26,17 @@ from nvidia_rag.rag_server.response_generator import APIError, Citations
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
 
 
+@pytest.fixture(autouse=True)
+def _disable_reflection(monkeypatch):
+    """Disable reflection by default for integration-style tests.
+
+    These tests focus on search/generate happy paths without exercising
+    the reflection logic, which is covered separately.
+    """
+
+    monkeypatch.setenv("ENABLE_REFLECTION", "false")
+
+
 class TestNvidiaRAGGenerateWorking:
     """Working test cases for NvidiaRAG generate method."""
 

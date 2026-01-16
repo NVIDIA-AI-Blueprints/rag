@@ -82,6 +82,10 @@ class DummyVDB:
 
 @pytest.fixture(autouse=True)
 def stub_chat_prompt(monkeypatch):
+    # Disable reflection for these tests so search/generate follow the
+    # non-reflection code paths (reflection behaviour is covered elsewhere).
+    monkeypatch.setenv("ENABLE_REFLECTION", "false")
+
     # Replace ChatPromptTemplate.from_messages to avoid real LCEL graph
     import nvidia_rag.rag_server.main as main
 
