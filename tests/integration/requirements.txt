@@ -8,5 +8,5 @@ fastmcp>=2.3.5
 anyio>=4.12.0
 httpx>=0.28.1
 httpx-sse>=0.4.3
-uvicorn[standard]<0.36
+uvicorn[standard]>=0.32,<1.0
 openai>=1.109.1
