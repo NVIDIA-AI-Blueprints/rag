@@ -44,7 +44,6 @@ If you are working directly with the source Helm chart, and you want to customiz
     helm repo add nvidia-nim https://helm.ngc.nvidia.com/nim/nvidia/ --username='$oauthtoken' --password=$NGC_API_KEY
     helm repo add nim https://helm.ngc.nvidia.com/nim/ --username='$oauthtoken' --password=$NGC_API_KEY
     helm repo add nemo-microservices https://helm.ngc.nvidia.com/nvidia/nemo-microservices --username='$oauthtoken' --password=$NGC_API_KEY
-    helm repo add nvstaging https://helm.ngc.nvidia.com/nvstaging/nim --username='$oauthtoken' --password=$NGC_API_KEY
     helm repo add baidu-nim https://helm.ngc.nvidia.com/nim/baidu --username='$oauthtoken' --password=$NGC_API_KEY
     helm repo add bitnami https://charts.bitnami.com/bitnami
     helm repo add elastic https://helm.elastic.co

@@ -42,13 +42,14 @@ The following are the core services that you install:
     ```
     kubectl patch storageclass local-path -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
     ```
+
 8. Verify that you have installed the NVIDIA GPU Operator by using the instructions [here](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/getting-started.html).
 
 9. (Optional) You can enable time slicing for sharing GPUs between pods. For details, refer to [Time-Slicing GPUs in Kubernetes](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/gpu-sharing.html).
 
 10. Verify that you have installed the NVIDIA NIM Operator. If not, install it by running the following code:
 
-    ```bash
+    ```sh
     helm repo add nvidia https://helm.ngc.nvidia.com/nvidia \
       --username='$oauthtoken' \
       --password=$NGC_API_KEY
@@ -119,9 +120,24 @@ To verify a deployment, use the following procedure.
     ```
 
    :::{note}
-   It takes approximately 5 minutes for all pods to come up. You can check Kubernetes events by running the following code.
+   With the latest Helm NIM Operator deployment, approximately **60 to 70 minutes** is required for the entire pipeline to come up into a running state. This includes time for:
+   - Downloading NIM model caches (largest time component)
+   - NIMService initialization
+   - Pod startup and readiness checks
+
+   You can monitor the deployment progress by running:
 
    ```sh
+   # Check pod status
+   kubectl get pods -n rag
+
+   # Check NIMCache download status
+   kubectl get nimcache -n rag
+
+   # Check NIMService status
+   kubectl get nimservice -n rag
+
+   # Check events for detailed information
    kubectl get events -n rag
    ```
    :::
