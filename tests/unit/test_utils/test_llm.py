@@ -850,19 +850,17 @@ class TestThinkingBudgetNemotron3Nano30B:
         )
         assert bound_llm is mock_llm.bind.return_value
 
-    def test_min_thinking_tokens_ignored_for_nemotron_30b(self):
-        """min_thinking_tokens alone does not bind for nemotron-3-nano-30b-a3b."""
+    def test_min_thinking_tokens_alone_raises_for_nemotron_30b(self):
+        """min_thinking_tokens alone raises ValueError for nemotron-3-nano-30b-a3b (max_thinking_tokens required)."""
         from nvidia_rag.utils.llm import _bind_thinking_tokens_if_configured
 
         mock_llm = Mock()
-        bound_llm = _bind_thinking_tokens_if_configured(
-            mock_llm,
-            model="nvidia/nemotron-3-nano-30b-a3b",
-            min_thinking_tokens=1,
-        )
-
-        mock_llm.bind.assert_not_called()
-        assert bound_llm is mock_llm
+        with pytest.raises(ValueError, match="max_thinking_tokens must be a positive integer"):
+            _bind_thinking_tokens_if_configured(
+                mock_llm,
+                model="nvidia/nemotron-3-nano-30b-a3b",
+                min_thinking_tokens=1,
+            )
 
     def test_thinking_tokens_unsupported_model_raises(self):
         """Using thinking tokens with unsupported model raises ValueError."""

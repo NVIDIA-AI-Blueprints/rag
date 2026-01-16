@@ -571,6 +571,8 @@ class MilvusVdbAuthModule(BaseTestModule):
                         self.reader_role,
                         e,
                     )
+            # Wait for privilege propagation before proceeding
+            await asyncio.sleep(3.0)
 
             # Call RAG /search as reader (should succeed).
             # Milvus privilege changes can be slightly eventual-consistent, so add
@@ -582,8 +584,8 @@ class MilvusVdbAuthModule(BaseTestModule):
                 "collection_names": [temp_collection],
                 "messages": [],
             }
-            max_attempts = 5
-            delay_seconds = 2.0
+            max_attempts = 10
+            delay_seconds = 3.0
 
             async with aiohttp.ClientSession() as session:
                 for attempt in range(1, max_attempts + 1):
@@ -707,8 +709,6 @@ class MilvusVdbAuthModule(BaseTestModule):
                     )
             except Exception:
                 logger.exception("Failed to delete temp collection %s", temp_collection)
-
-
 
     @test_case(85, "Cleanup auth resources (collections, users, roles)")
     async def _test_cleanup_auth_resources(self) -> bool:

@@ -432,27 +432,32 @@ async def tool_get_documents(
 Args JSON:
 {
   "collection_name": "my_collection",
-  "document_names": ["file1.pdf", "file2.pdf"]
+  "document_names": ["file1.pdf", "file2.pdf"],
+  "vdb_endpoint": "http://milvus:19530"
 }
 """,
 )
 async def tool_delete_documents(
     collection_name: str,
     document_names: list[str] | None = None,
+    vdb_endpoint: str | None = None,
 ) -> dict[str, Any]:
     """
     Delete one or more documents from the specified collection.
     """
     base_url = _ingestor_base_url()
     url = f"{base_url}/v1/documents"
+    # Ingestor DELETE /documents expects:
+    #   - query params: collection_name, optional vdb_endpoint
+    #   - JSON body: list of document_names
     names = document_names or []
-    params: list[tuple[str, str]] = [("collection_name", collection_name)]
-    for name in names:
-        params.append(("document_names", name))
+    params: dict[str, Any] = {"collection_name": collection_name}
+    if vdb_endpoint is not None:
+        params["vdb_endpoint"] = vdb_endpoint
 
     timeout_cfg = aiohttp.ClientTimeout(total=120)
     async with aiohttp.ClientSession(timeout=timeout_cfg) as session:
-        async with session.delete(url, params=params) as resp:
+        async with session.delete(url, params=params, json=names) as resp:
             try:
                 return await resp.json()
             except aiohttp.ContentTypeError:
