@@ -333,8 +333,9 @@ services:
     profiles: ["ingest"]
 
   nv-ingest-ms-runtime:
-    image: nvcr.io/nvstaging/blueprint/nv-ingest:26.1.0-RC5
+    image: nvcr.io/nvidia/nemo-microservices/nv-ingest:26.1.1
     # cpuset: "0-15" # Uncomment to restrict this container to CPU cores 0–15
+    shm_size: 40gb # Should be at minimum 30% of assigned memory per Ray documentation
     volumes:
       - ${DATASET_ROOT:-./data}:/workspace/data
     ports:
@@ -342,6 +343,8 @@ services:
       - "7670:7670"
       # Simple Broker
       - "7671:7671"
+      # Ray dashboard
+      - "8265:8265"
     cap_add:
       - sys_nice
     environment:
