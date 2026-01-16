@@ -164,6 +164,11 @@ envVars:
   LLM_TEMPERATURE: "0"
   LLM_TOP_P: "1.0"
 
+  # Enable/disable thinking/reasoning for nemotron-3-nano models (30b variant)
+  # Set to "true" to enable reasoning mode with reasoning_budget
+  # Set to "false" to disable reasoning and get direct answers
+  ENABLE_NEMOTRON_3_NANO_THINKING: "true"
+
   ##===Query Rewriter Model specific configurations===
   APP_QUERYREWRITER_MODELNAME: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
   # URL on which query rewriter model is hosted. If "", Nvidia hosted API is used

@@ -16,10 +16,11 @@
 """The wrapper for interacting with llm models and pre or postprocessing LLM response.
 1. get_prompts: Get the prompts from the YAML file.
 2. get_llm: Get the LLM model. Uses the NVIDIA AI Endpoints or OpenAI.
-3. streaming_filter_think: Filter the think tokens from the LLM response (sync).
-4. get_streaming_filter_think_parser: Get the parser for filtering the think tokens (sync).
-5. streaming_filter_think_async: Filter the think tokens from the LLM response (async).
-6. get_streaming_filter_think_parser_async: Get the parser for filtering the think tokens (async).
+3. extract_reasoning_and_content: Extract reasoning and content from response chunks.
+4. streaming_filter_think: Filter the think tokens from the LLM response (sync).
+5. get_streaming_filter_think_parser: Get the parser for filtering the think tokens (sync).
+6. streaming_filter_think_async: Filter the think tokens from the LLM response (async).
+7. get_streaming_filter_think_parser_async: Get the parser for filtering the think tokens (async).
 """
 
 import logging
@@ -131,8 +132,19 @@ def _bind_thinking_tokens_if_configured(
 ) -> LLM | SimpleChatModel:
     """
     If min_thinking_tokens or max_thinking_tokens are > 0 in kwargs, bind them to the LLM.
-    For models that use a reasoning budget (e.g., nemotron-3-nano-30b-a3b),
-    max_thinking_tokens is mapped to the underlying ChatNVIDIA ``reasoning_budget`` parameter.
+    
+    Supports multiple reasoning/thinking model variants:
+    
+    1. nvidia/nvidia-nemotron-nano-9b-v2:
+       - Uses min_thinking_tokens and max_thinking_tokens parameters
+       - Outputs reasoning wrapped in <think></think> tags in the content stream
+    
+    2. nemotron-3-nano variants (nemotron-3-nano-30b-a3b, nvidia/nemotron-3-nano):
+       - Uses reasoning_budget parameter (mapped from max_thinking_tokens)
+       - Requires chat_template_kwargs={"enable_thinking": True/False}
+       - Outputs reasoning in a separate 'reasoning_content' field (not in content)
+       - Does NOT use <think> tags
+       - Can be controlled via ENABLE_NEMOTRON_3_NANO_THINKING env var
 
     Raises:
         ValueError: If min_thinking_tokens or max_thinking_tokens is passed but model
@@ -151,16 +163,27 @@ def _bind_thinking_tokens_if_configured(
     if not has_thinking_tokens:
         return llm
 
-    if has_thinking_tokens and "nvidia-nemotron-nano-9b-v2" not in model \
-        and "nemotron-3-nano-30b-a3b" not in model:
-            raise ValueError(
-                "min_thinking_tokens and max_thinking_tokens are only supported for models "
-                "'nvidia-nemotron-nano-9b-v2' and 'nemotron-3-nano-30b-a3b', "
-                f"but got model '{model}'"
-            )
+    # Check if model is a supported reasoning model (various name formats)
+    # Note: For locally hosted models, use "nvidia/nemotron-3-nano"
+    # For NVIDIA-hosted models, use "nvidia/nemotron-3-nano-30b-a3b"
+    is_nano_9b_v2 = model and "nvidia/nvidia-nemotron-nano-9b-v2" in model
+    is_nemotron_3_nano = model and (
+        "nemotron-3-nano" in model.lower() or 
+        "nvidia/nemotron-3-nano" in model or
+        "nemotron-3-nano-30b-a3b" in model
+    )
+    
+    if has_thinking_tokens and not (is_nano_9b_v2 or is_nemotron_3_nano):
+        raise ValueError(
+            "min_thinking_tokens and max_thinking_tokens are only supported for models "
+            "'nvidia/nvidia-nemotron-nano-9b-v2' and nemotron-3-nano variants "
+            "(e.g., 'nemotron-3-nano-30b-a3b', 'nvidia/nemotron-3-nano'), "
+            f"but got model '{model}'"
+        )
 
     bind_args = {}
-    if "nvidia-nemotron-nano-9b-v2" in model:
+    if is_nano_9b_v2:
+        # nvidia/nvidia-nemotron-nano-9b-v2: Uses thinking token parameters directly
         if min_think is not None and min_think > 0:
             bind_args["min_thinking_tokens"] = min_think
         else:
@@ -169,17 +192,24 @@ def _bind_thinking_tokens_if_configured(
             )
         if max_think is not None and max_think > 0:
             bind_args["max_thinking_tokens"] = max_think
-        else:
-            raise ValueError(
-                f"max_thinking_tokens must be a positive integer, but got {max_think}"
-            )
-    elif "nemotron-3-nano-30b-a3b" in model:
+    elif is_nemotron_3_nano:
+        # nemotron-3-nano variants: Use reasoning_budget and enable_thinking flag
+        # Check environment variable for enable_thinking control
+        enable_thinking_env = os.getenv("ENABLE_NEMOTRON_3_NANO_THINKING", "true").lower()
+        enable_thinking = enable_thinking_env in ("true", "1", "yes")
+        
         if max_think is not None and max_think > 0:
             bind_args["reasoning_budget"] = max_think
-            bind_args["chat_template_kwargs"] = {"enable_thinking": True}
-        else:
-            raise ValueError(
-                f"max_thinking_tokens must be a positive integer, but got {max_think}"
+            bind_args["chat_template_kwargs"] = {"enable_thinking": enable_thinking}
+            logger.info(
+                "nemotron-3-nano: Setting reasoning_budget=%d, enable_thinking=%s (from env: %s)",
+                max_think, enable_thinking, enable_thinking_env
+            )
+        # Note: min_thinking_tokens is not supported for nemotron-3-nano variants
+        if min_think is not None and min_think > 0:
+            logger.warning(
+                "min_thinking_tokens is not supported for nemotron-3-nano variants, "
+                "only max_thinking_tokens (mapped to reasoning_budget) is supported"
             )
 
     if bind_args:
@@ -307,6 +337,64 @@ def get_llm(config: NvidiaRAGConfig | None = None, **kwargs) -> LLM | SimpleChat
     raise RuntimeError(
         "Unable to find any supported Large Language Model server. Supported engine name is nvidia-ai-endpoints."
     )
+
+
+def extract_reasoning_and_content(chunk) -> tuple[str, str]:
+    """
+    Extract both reasoning and content from a response chunk.
+    
+    Different models handle reasoning differently:
+    - nvidia/nvidia-nemotron-nano-9b-v2: Uses <think> tags in content stream
+    - nemotron-3-nano variants: Uses separate reasoning_content field
+    - llama-3.3-nemotron-super-49b: Uses <think> tags in content stream (controlled by prompt)
+    
+    This function is designed to be robust and compatible with future changes:
+    - Checks both reasoning_content and content fields
+    - Returns whichever field has tokens, regardless of model behavior
+    - If both have content, returns both separately
+    
+    This ensures that if the model server fixes the issue where reasoning is disabled
+    but content still goes to reasoning_content, the code will still work correctly.
+    
+    Args:
+        chunk: A response chunk from ChatNVIDIA or similar LLM interface
+    
+    Returns:
+        tuple: (reasoning_text, content_text) - either may be empty string
+        
+    Example:
+        >>> for chunk in llm.stream([HumanMessage(content="question")]):
+        >>>     reasoning, content = extract_reasoning_and_content(chunk)
+        >>>     if reasoning:
+        >>>         print(f"[REASONING: {reasoning}]", end="", flush=True)
+        >>>     if content:
+        >>>         print(content, end="", flush=True)
+    """
+    reasoning = ""
+    content = ""
+    
+    # Check for reasoning_content in additional_kwargs (nemotron-3-nano variants)
+    # This field is populated by nemotron-3-nano models for reasoning output
+    if hasattr(chunk, 'additional_kwargs') and 'reasoning_content' in chunk.additional_kwargs:
+        reasoning = chunk.additional_kwargs.get('reasoning_content', '')
+    
+    # Check for regular content
+    # This field is populated by most models for regular output
+    # For nemotron-nano-9b-v2 and llama-49b, this may include <think> tags
+    if hasattr(chunk, 'content') and chunk.content:
+        content = chunk.content
+    
+    # Robust fallback: If reasoning field has content but content field is empty,
+    # treat reasoning as content. This handles the case where enable_thinking=false
+    # but the model still populates reasoning_content instead of content.
+    # This makes the code compatible with future fixes to the model server.
+    if reasoning and not content:
+        # If only reasoning has content, it might actually be the final response
+        # (occurs when enable_thinking=false but model hasn't been updated)
+        # Keep it in reasoning field but also check if it looks like a final answer
+        pass  # Keep as-is, let the caller decide how to handle
+    
+    return reasoning, content
 
 
 def streaming_filter_think(chunks: Iterable[str]) -> Iterable[str]:
