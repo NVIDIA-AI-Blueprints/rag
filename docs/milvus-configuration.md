@@ -331,7 +331,7 @@ For detailed HELM deployment instructions, see [Helm Deployment Guide](deploy-he
 NVIDIA RAG Blueprint servers accept a Vector DB (VDB) authentication token via the HTTP `Authorization` header at runtime. This header is forwarded to Milvus for auth-protected operations.
 
 Prerequisite:
-- Ensure Milvus authentication is enabled so auth is enforced. In Milvus config this is `security.authorizationEnabled: true`. See the "Milvus Authentication" section above for setup via Docker Compose or Helm.
+- Ensure Milvus authentication is enabled so auth is enforced. In Milvus config this is `security.authorizationEnabled: true`. See the [Milvus Authentication](#milvus-authentication) section above for setup via Docker Compose or Helm.
 
 ### Header format
 - Preferred: `Authorization: Bearer <token>`

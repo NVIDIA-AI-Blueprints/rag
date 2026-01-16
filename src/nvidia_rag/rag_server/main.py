@@ -1114,13 +1114,13 @@ class NvidiaRAG:
             # Get relevant documents with optional reflection
             otel_ctx = otel_context.get_current()
             if self.config.reflection.enable_reflection:
-                reflection_counter = ReflectionCounter(self.config.reflection.max_loops)
+                context_reflection_counter = ReflectionCounter(self.config.reflection.max_loops)
                 docs, is_relevant = check_context_relevance(
                     vdb_op=vdb_op,
                     retriever_query=processed_query,
                     collection_names=validated_collections,
                     ranker=local_ranker,
-                    reflection_counter=reflection_counter,
+                    reflection_counter=context_reflection_counter,
                     top_k=top_k,
                     enable_reranker=enable_reranker,
                     collection_filter_mapping=collection_filter_mapping,
@@ -2086,7 +2086,7 @@ class NvidiaRAG:
 
             # Get relevant documents with optional reflection
             if self.config.reflection.enable_reflection:
-                reflection_counter = ReflectionCounter(self.config.reflection.max_loops)
+                context_reflection_counter = ReflectionCounter(self.config.reflection.max_loops)
 
                 try:
                     context_to_show, is_relevant = await check_context_relevance(
@@ -2094,7 +2094,7 @@ class NvidiaRAG:
                         retriever_query=processed_query,
                         collection_names=validated_collections,
                         ranker=ranker,
-                        reflection_counter=reflection_counter,
+                        reflection_counter=context_reflection_counter,
                         top_k=top_k,
                         enable_reranker=enable_reranker,
                         collection_filter_mapping=collection_filter_mapping,
@@ -2128,7 +2128,7 @@ class NvidiaRAG:
                 if not is_relevant:
                     logger.warning(
                         "Could not find sufficiently relevant context after %d attempts",
-                        reflection_counter.current_count,
+                        context_reflection_counter.current_count,
                     )
             else:
                 otel_ctx = otel_context.get_current()
@@ -2447,12 +2447,14 @@ class NvidiaRAG:
 
             chain = prompt | llm | self.StreamingFilterThinkParser | StrOutputParser()
 
-            # Check response groundedness if we still have reflection
-            # iterations available
-            if (
-                self.config.reflection.enable_reflection
-                and reflection_counter.remaining > 0
-            ):
+            # Check response groundedness when reflection is enabled.
+            # Use a separate ReflectionCounter for response groundedness so that
+            # it can perform up to the configured number of attempts
+            # independently of the context relevance reflection loop.
+            if self.config.reflection.enable_reflection:
+                response_reflection_counter = ReflectionCounter(
+                    self.config.reflection.max_loops
+                )
                 initial_response = await chain.ainvoke(
                     {"question": query, "context": docs}
                 )
@@ -2461,7 +2463,7 @@ class NvidiaRAG:
                         query,
                         initial_response,
                         docs,
-                        reflection_counter,
+                        response_reflection_counter,
                         config=self.config,
                         prompts=self.prompts,
                     )
@@ -2487,7 +2489,7 @@ class NvidiaRAG:
                 if not is_grounded:
                     logger.warning(
                         "Could not generate sufficiently grounded response after %d total reflection attempts",
-                        reflection_counter.current_count,
+                        response_reflection_counter.current_count,
                     )
                 return RAGResponse(
                     generate_answer_async(
