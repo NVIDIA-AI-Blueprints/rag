@@ -583,6 +583,14 @@ jobs:
       # LIBRARY USAGE TESTS
       # ========================================================================
       
+      - name: Stop rag-server and ingestor-server for library tests
+        run: |
+          echo "Stopping rag-server and ingestor-server containers (library mode doesn't need them)..."
+          docker compose -f deploy/compose/docker-compose-rag-server.yaml down || true
+          docker compose -f deploy/compose/docker-compose-ingestor-server.yaml down || true
+          echo "Services stopped. Library tests will use the nvidia_rag library directly."
+          docker ps
+      
       - name: Configure environment for library usage tests
         run: |
           echo "PROMPT_CONFIG_FILE=${PWD}/src/nvidia_rag/rag_server/prompt.yaml" >> $GITHUB_ENV
@@ -638,6 +646,7 @@ jobs:
           CI_NVSTAGING_BLUEPRINT_KEY: ${{ secrets.CI_NVSTAGING_BLUEPRINT_KEY }}
         run: |
           echo "Restarting services with observability configuration..."
+          echo "(rag-server and ingestor-server were stopped for library tests, now restarting)"
           docker compose -f tests/integration/vectordb.yaml down -v || true
           docker compose -f deploy/compose/docker-compose-rag-server.yaml down || true
           docker compose -f deploy/compose/docker-compose-ingestor-server.yaml down || true
