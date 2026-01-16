@@ -62,7 +62,12 @@ When using NVIDIA hosted endpoints, you may encounter rate limiting with larger 
 
 ## Using Helm
 
-To enable PDF extraction with Nemotron Parse using Helm, you need to enable the Nemotron Parse service along with other required services:
+To enable PDF extraction with Nemotron Parse using Helm, you need to enable the Nemotron Parse service and configure the ingestor-server to use it.
+
+### Prerequisites
+- Ensure you have sufficient GPU resources. Nemotron Parse requires a dedicated GPU.
+
+### Deployment Command
 
 ```bash
 helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-rc1.tgz \
@@ -70,9 +75,15 @@ helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprin
   --password "${NGC_API_KEY}" \
   --set imagePullSecret.password=$NGC_API_KEY \
   --set ngcApiSecret.password=$NGC_API_KEY \
-  --set nv-ingest.nim-vlm-text-extraction.deployed=true \
+  --set nv-ingest.nimOperator.nemotron_parse.enabled=true \
   --set ingestor-server.envVars.APP_NVINGEST_PDFEXTRACTMETHOD="nemotron_parse"
 ```
+
+:::{note}
+**Key Configuration Changes:**
+- `nv-ingest.nimOperator.nemotron_parse.enabled=true` - Enables Nemotron Parse NIM
+- `ingestor-server.envVars.APP_NVINGEST_PDFEXTRACTMETHOD="nemotron_parse"` - Configures ingestor to use Nemotron Parse
+:::
 
 ## Limitations and Requirements
 
