@@ -75,45 +75,6 @@ uv sync
 source .venv/bin/activate
 ```
 
-## Configuration
-
-### Sample Config File
-
-The plugin includes a sample configuration at:
-```
-src/nat/plugins/rag/configs/config.yml
-```
-
-### Available Functions
-
-#### `nvidia_rag_query`
-Queries documents using NVIDIA RAG and returns an AI-generated response.
-
-```yaml
-functions:
-  rag_query:
-    _type: nvidia_rag_query
-    config_file: config.yaml          # Path to nvidia_rag config
-    collection_names: ["test_library"]     # Milvus collection names
-    vdb_endpoint: "./milvus.db"
-    use_knowledge_base: true
-    # embedding_endpoint: "localhost:9080"  # Optional: for on-prem embeddings
-```
-
-#### `nvidia_rag_search`
-Searches for relevant document chunks without generating a response.
-
-```yaml
-functions:
-  rag_search:
-    _type: nvidia_rag_search
-    config_file: config.yaml
-    collection_names: ["test_library"]
-    vdb_endpoint: "./milvus.db"
-    reranker_top_k: 3                 # Number of results after reranking
-    vdb_top_k: 20                     # Number of results from vector search
-```
-
 ## Usage
 
 ### Running a RAG Workflow
@@ -123,24 +84,29 @@ functions:
 nat run --config_file src/nat/plugins/rag/configs/config.yml --input "what is giraffee doing?"
 ```
 
-### Example Workflow Config
+## Configuration
+
+The plugin includes a sample configuration at `src/nat/plugins/rag/configs/config.yml`:
 
 ```yaml
 functions:
+  # nvidia_rag_query: Queries documents and returns AI-generated response
   rag_query:
     _type: nvidia_rag_query
-    config_file: config.yaml
-    collection_names: ["test_library"]
+    config_file: config.yaml              # Path to nvidia_rag config
+    collection_names: ["test_library"]    # Milvus collection names
     vdb_endpoint: "./milvus.db"
     use_knowledge_base: true
+    # embedding_endpoint: "localhost:9080"  # Optional: for on-prem embeddings
 
+  # nvidia_rag_search: Searches for relevant document chunks
   rag_search:
     _type: nvidia_rag_search
     config_file: config.yaml
     collection_names: ["test_library"]
     vdb_endpoint: "./milvus.db"
-    reranker_top_k: 3
-    vdb_top_k: 20
+    reranker_top_k: 3                     # Number of results after reranking
+    vdb_top_k: 20                         # Number of results from vector search
 
   current_datetime:
     _type: current_datetime
@@ -160,6 +126,13 @@ workflow:
   llm_name: nim_llm
   verbose: true
 ```
+
+### Available Functions
+
+| Function | Description |
+|----------|-------------|
+| `nvidia_rag_query` | Queries documents using NVIDIA RAG and returns an AI-generated response |
+| `nvidia_rag_search` | Searches for relevant document chunks without generating a response |
 
 ## Troubleshooting
 
