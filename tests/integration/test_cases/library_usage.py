@@ -498,14 +498,17 @@ class LibraryUsageModule(BaseTestModule):
             logger.info(f"🔧 Checking status for task_id: {task_id}")
             ingestor = self._get_ingestor()  # Use shared instance
             
-            # Poll for completion (with timeout)
-            max_wait = 300  # 5 minutes (increased for document processing)
+            # Poll for completion (with timeout and fail-fast for repeated errors)
+            max_wait = 300  # 5 minutes
             poll_interval = 5
             elapsed = 0
+            consecutive_errors = 0
+            max_consecutive_errors = 3  # Fail fast after 3 consecutive errors
             
             while elapsed < max_wait:
                 try:
                     response = await ingestor.status(task_id=task_id)
+                    consecutive_errors = 0  # Reset counter on successful response
                     
                     # Log full response for debugging
                     if elapsed == 0 or elapsed % 30 == 0:  # Log every 30 seconds
@@ -548,9 +551,40 @@ class LibraryUsageModule(BaseTestModule):
                     # Still processing
                     logger.info(f"⏳ Task state: {state}, waiting... (elapsed: {elapsed}s)")
                     
+                except KeyError as e:
+                    # Task not found - likely critical error
+                    consecutive_errors += 1
+                    logger.error(f"❌ Task not found error (attempt {consecutive_errors}/{max_consecutive_errors}): {e}")
+                    
+                    if consecutive_errors >= max_consecutive_errors:
+                        logger.error(f"❌ Task {task_id} not found after {consecutive_errors} attempts. Failing fast.")
+                        self.add_test_result(
+                            128, "Library - Check Upload Status",
+                            "Test checking upload status via library API",
+                            ["ingestor.status()"],
+                            ["task_id"],
+                            time.time() - start_time,
+                            TestStatus.FAILURE,
+                            f"Task not found after {consecutive_errors} attempts"
+                        )
+                        return False
+                        
                 except Exception as poll_error:
-                    logger.error(f"❌ Error polling status: {poll_error}")
-                    # Continue polling despite errors
+                    consecutive_errors += 1
+                    logger.error(f"❌ Error polling status (attempt {consecutive_errors}/{max_consecutive_errors}): {poll_error}")
+                    
+                    if consecutive_errors >= max_consecutive_errors:
+                        logger.error(f"❌ Too many consecutive errors ({consecutive_errors}). Failing fast.")
+                        self.add_test_result(
+                            128, "Library - Check Upload Status",
+                            "Test checking upload status via library API",
+                            ["ingestor.status()"],
+                            ["task_id"],
+                            time.time() - start_time,
+                            TestStatus.FAILURE,
+                            f"Too many consecutive errors: {poll_error}"
+                        )
+                        return False
                     
                 await asyncio.sleep(poll_interval)
                 elapsed += poll_interval

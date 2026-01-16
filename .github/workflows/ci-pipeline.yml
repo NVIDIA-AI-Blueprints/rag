@@ -586,9 +586,11 @@ jobs:
       - name: Stop rag-server and ingestor-server for library tests
         run: |
           echo "Stopping rag-server and ingestor-server containers (library mode doesn't need them)..."
-          docker compose -f deploy/compose/docker-compose-rag-server.yaml down || true
-          docker compose -f deploy/compose/docker-compose-ingestor-server.yaml down || true
+          echo "Keeping nv-ingest-ms-runtime, Milvus, Redis, MinIO running for library mode..."
+          docker stop rag-server || true
+          docker stop ingestor-server || true
           echo "Services stopped. Library tests will use the nvidia_rag library directly."
+          echo "Remaining services (needed for library mode):"
           docker ps
       
       - name: Configure environment for library usage tests

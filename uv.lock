@@ -1,15 +1,5 @@
-<<<<<<< HEAD
-<<<<<<< HEAD
 version = 1
 revision = 2
-=======
-    version = 1
-revision = 3
->>>>>>> Fix vulnerabilities in rag aand ingestor server containers
-=======
-version = 1
-revision = 2
->>>>>>> Update langchain dependencies to latest versions
 requires-python = ">=3.11, <3.14"
 resolution-markers = [
     "python_full_version >= '3.13'",
@@ -566,7 +556,7 @@ wheels = [
 
 [[package]]
 name = "cyclopts"
-version = "4.4.6"
+version = "4.5.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "attrs" },
@@ -574,9 +564,9 @@ dependencies = [
     { name = "rich" },
     { name = "rich-rst" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/dd/6d/0e0f03214f6a5fae79d934d1de8a570bda37235d991d1b6dee9cd99c8e44/cyclopts-4.4.6.tar.gz", hash = "sha256:ffeef064d867b8a567b5efdfc09e3295b2774735ea1df33e5230e818d52d9942", size = 160439, upload-time = "2026-01-15T01:37:51.365Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/13/7b/663f3285c1ac0e5d0854bd9db2c87caa6fa3d1a063185e3394a6cdca9151/cyclopts-4.5.0.tar.gz", hash = "sha256:717ac4235548b58d500baf7e688aa4d024caf0ee68f61a012ffd5e29db3099f9", size = 161980, upload-time = "2026-01-16T02:07:16.171Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/3f/f7/3c861e6aa5ba70f61b70ce61e979bc8d60a324149c8974e639020f374ca8/cyclopts-4.4.6-py3-none-any.whl", hash = "sha256:9d06febb128b765b7fd283b55820db282f209a0cb166125f43345b4809dbee62", size = 197810, upload-time = "2026-01-15T01:37:52.267Z" },
+    { url = "https://files.pythonhosted.org/packages/12/a3/2e00fececc34a99ae3a5d5702a5dd29c5371e4ed016647301a2b9bcc1976/cyclopts-4.5.0-py3-none-any.whl", hash = "sha256:305b9aa90a9cd0916f0a450b43e50ad5df9c252680731a0719edfb9b20381bf5", size = 199772, upload-time = "2026-01-16T02:07:14.707Z" },
 ]
 
 [[package]]
@@ -1668,7 +1658,7 @@ wheels = [
 
 [[package]]
 name = "langsmith"
-version = "0.6.3"
+version = "0.6.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
@@ -1680,9 +1670,9 @@ dependencies = [
     { name = "uuid-utils" },
     { name = "zstandard" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/da/02/ac91c812238cd232ff3270c253eea31b28253fdeb28df61571932cb26e88/langsmith-0.6.3.tar.gz", hash = "sha256:33246769c0bb24e2c17e0c34bb21931084437613cd37faf83bd0978a297b826f", size = 1739709, upload-time = "2026-01-14T19:26:23.529Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e7/85/9c7933052a997da1b85bc5c774f3865e9b1da1c8d71541ea133178b13229/langsmith-0.6.4.tar.gz", hash = "sha256:36f7223a01c218079fbb17da5e536ebbaf5c1468c028abe070aa3ae59bc99ec8", size = 919964, upload-time = "2026-01-15T20:02:28.873Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ff/11/22a56b615f1ca84f65fda68b1a53b6e2765f2bdb1c6d885793430a664bfe/langsmith-0.6.3-py3-none-any.whl", hash = "sha256:44fdf8084165513e6bede9dda715e7b460b1b3f57ac69f2ca3f03afa911233ec", size = 282991, upload-time = "2026-01-14T19:26:21.882Z" },
+    { url = "https://files.pythonhosted.org/packages/66/0f/09a6637a7ba777eb307b7c80852d9ee26438e2bdafbad6fcc849ff9d9192/langsmith-0.6.4-py3-none-any.whl", hash = "sha256:ac4835860160be371042c7adbba3cb267bcf8d96a5ea976c33a8a4acad6c5486", size = 283503, upload-time = "2026-01-15T20:02:26.662Z" },
 ]
 
 [[package]]
@@ -4331,7 +4321,7 @@ wheels = [
 
 [[package]]
 name = "transformers"
-version = "4.57.5"
+version = "4.57.6"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "filelock" },
@@ -4345,9 +4335,9 @@ dependencies = [
     { name = "tokenizers" },
     { name = "tqdm" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/35/3a/7c90ee739871495f1a5cb9bdb074b42fe69357d7ccc1a8818af858d8e63b/transformers-4.57.5.tar.gz", hash = "sha256:d631faea6bd32fc51962e482744afeaa70170c70e5e991cf8e355d7275631524", size = 10138171, upload-time = "2026-01-13T13:28:24.19Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c4/35/67252acc1b929dc88b6602e8c4a982e64f31e733b804c14bc24b47da35e6/transformers-4.57.6.tar.gz", hash = "sha256:55e44126ece9dc0a291521b7e5492b572e6ef2766338a610b9ab5afbb70689d3", size = 10134912, upload-time = "2026-01-16T10:38:39.284Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/f8/de/4f95d22d9764659d2bd35065f383f3fe099699a9e6e89fa4728dbcd7244a/transformers-4.57.5-py3-none-any.whl", hash = "sha256:5a1e0deb989cd0b8f141b6d8c9b7c956fc029cd288d68844f57dc0acbaf2fe39", size = 11993481, upload-time = "2026-01-13T13:28:16.542Z" },
+    { url = "https://files.pythonhosted.org/packages/03/b8/e484ef633af3887baeeb4b6ad12743363af7cce68ae51e938e00aaa0529d/transformers-4.57.6-py3-none-any.whl", hash = "sha256:4c9e9de11333ddfe5114bc872c9f370509198acf0b87a832a0ab9458e2bd0550", size = 11993498, upload-time = "2026-01-16T10:38:31.289Z" },
 ]
 
 [[package]]
