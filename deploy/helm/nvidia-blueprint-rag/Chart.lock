@@ -1,7 +1,7 @@
 dependencies:
 - name: nv-ingest
-  repository: https://helm.ngc.nvidia.com/nvstaging/nim
-  version: 26.1.0-RC5
+  repository: https://helm.ngc.nvidia.com/nvidia/nemo-microservices
+  version: 26.1.1
 - name: eck-stack
   repository: https://helm.elastic.co
   version: 0.17.0
@@ -17,5 +17,5 @@ dependencies:
 - name: kube-prometheus-stack
   repository: https://prometheus-community.github.io/helm-charts
   version: 76.3.0
-digest: sha256:9d1abe37bbd4df47136d455a4a1384786aac2cb385fa2895562f61f9be2ffc80
-generated: "2026-01-07T10:32:03.010464304+05:30"
+digest: sha256:4758e803b3308d23bf68092410bdedd360401c334d4f401c80cddd119faa4220
+generated: "2026-01-16T08:45:06.432105965+05:30"

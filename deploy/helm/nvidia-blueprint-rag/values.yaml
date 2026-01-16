@@ -353,7 +353,7 @@ ingestor-server:
     APP_NVINGEST_MESSAGECLIENTPORT: "7670"
 
     # === NV-Ingest extraction configurations ===
-    APP_NVINGEST_PDFEXTRACTMETHOD: "None"  # Method used for text extraction from "None", "pdfium", "nemotron_parse"
+    APP_NVINGEST_PDFEXTRACTMETHOD: "pdfium"  # Method used for text extraction from "None", "pdfium", "nemotron_parse"
     APP_NVINGEST_EXTRACTTEXT: "True"  # Enable text extraction
     APP_NVINGEST_EXTRACTINFOGRAPHICS: "False"  # Enable infographic extraction
     APP_NVINGEST_EXTRACTTABLES: "True"  # Enable table extraction
@@ -711,6 +711,8 @@ nimOperator:
         size: "50Gi"
         volumeAccessMode: ReadWriteOnce
         storageClass: ""
+    nodeSelector: {}
+    tolerations: []
 #    draResources:
 #      - resourceClaimName: rag-claim
     env:
@@ -780,6 +782,8 @@ nimOperator:
         nvidia.com/gpu: 1
       requests:
         nvidia.com/gpu: 1
+    nodeSelector: {}
+    tolerations: []
 #    draResources:
 #      - resourceClaimName: rag-claim
     storage:
@@ -856,7 +860,7 @@ nv-ingest:
     INGEST_EDGE_BUFFER_SIZE: 64
     MRC_IGNORE_NUMA_CHECK: 1
     READY_CHECK_ALL_COMPONENTS: "False"
-    COMPONENTS_TO_READY_CHECK: "ALL"
+    COMPONENTS_TO_READY_CHECK: ""
     REDIS_MORPHEUS_TASK_QUEUE: morpheus_task_queue
     REDIS_INGEST_TASK_QUEUE: "ingest_task_queue"
     NV_INGEST_DEFAULT_TIMEOUT_MS: "1234"
@@ -890,7 +894,7 @@ nv-ingest:
     OCR_MODEL_NAME: scene_text_ensemble
 
     # NeMo Retriever Parse (VLM text extraction)
-    NEMOTRON_PARSE_HTTP_ENDPOINT: http://nim-vlm-text-extraction-nemotron-parse:8000/v1/chat/completions
+    NEMOTRON_PARSE_HTTP_ENDPOINT: http://nemotron-parse:8000/v1/chat/completions
     NEMOTRON_PARSE_INFER_PROTOCOL: http
     NEMOTRON_PARSE_MODEL_NAME: nvidia/nemotron-parse
 
@@ -929,11 +933,15 @@ nv-ingest:
     #         defaultRootPassword: Milvus
     image:
       all:
-        repository: milvusdb/milvus
+        repository: docker.io/milvusdb/milvus
         tag: v2.6.5-gpu
+      tools:
+        repository: docker.io/milvusdb/milvus-config-tool
+        tag: v0.1.2
+        pullPolicy: IfNotPresent
     etcd:
       image:
-        repository: "milvusdb/etcd"
+        repository: milvusdb/etcd
         tag: "3.5.23-r2"
     standalone:
       resources:
@@ -941,7 +949,7 @@ nv-ingest:
           nvidia.com/gpu: 1
     minio:
       image:
-        repository: minio/minio
+        repository: docker.io/minio/minio
         tag: "RELEASE.2025-09-07T16-13-09Z"
       accessKey: minioadmin
       secretKey: minioadmin
@@ -973,7 +981,10 @@ nv-ingest:
       enabled: true
       storage:
         pvc:
+          storageClass: ""
           volumeAccessMode: "ReadWriteOnce"
+      nodeSelector: {}
+      tolerations: []
       replicaCount: 1
       image:
         repository: nvcr.io/nim/nvidia/nemoretriever-ocr-v1
@@ -1006,7 +1017,10 @@ nv-ingest:
       enabled: true
       storage:
         pvc:
+          storageClass: ""
           volumeAccessMode: "ReadWriteOnce"
+      nodeSelector: {}
+      tolerations: []
       replicaCount: 1
       image:
         repository: nvcr.io/nim/nvidia/nemoretriever-graphic-elements-v1
@@ -1037,7 +1051,10 @@ nv-ingest:
       enabled: true
       storage:
         pvc:
+          storageClass: ""
           volumeAccessMode: "ReadWriteOnce"
+      nodeSelector: {}
+      tolerations: []
       replicaCount: 1
       image:
         repository: nvcr.io/nim/nvidia/nemoretriever-page-elements-v3
@@ -1086,7 +1103,10 @@ nv-ingest:
       enabled: true
       storage:
         pvc:
+          storageClass: ""
           volumeAccessMode: "ReadWriteOnce"
+      nodeSelector: {}
+      tolerations: []
       replicaCount: 1
       image:
         repository: nvcr.io/nim/nvidia/nemoretriever-table-structure-v1
@@ -1106,6 +1126,65 @@ nv-ingest:
           value: "2048"
         - name: OMP_NUM_THREADS
           value: "1"
+      resources:
+        limits:
+          nvidia.com/gpu: 1
+        requests:
+          nvidia.com/gpu: 1
+
+    # Nemotron Parse (VLM text extraction)
+    nemotron_parse:
+      enabled: false
+      storage:
+        pvc:
+          storageClass: ""
+          volumeAccessMode: "ReadWriteOnce"
+      nodeSelector: {}
+      tolerations: []
+      replicaCount: 1
+      image:
+        repository: nvcr.io/nim/nvidia/nemotron-parse
+        tag: "1.5.0"
+      env:
+        - name: NIM_HTTP_API_PORT
+          value: "8000"
+        - name: NIM_TRITON_LOG_VERBOSE
+          value: "1"
+      resources:
+        limits:
+          nvidia.com/gpu: 1
+        requests:
+          nvidia.com/gpu: 1
+
+    # Riva NIM for Audio Transcription
+    audio:
+      enabled: false
+      authSecret: ngc-api
+      storage:
+        pvc:
+          create: true
+          storageClass: ""
+          size: "25Gi"
+          volumeAccessMode: "ReadWriteOnce"
+      nodeSelector: {}
+      tolerations: []
+      replicas: 1
+      image:
+        repository: nvcr.io/nim/nvidia/parakeet-1-1b-ctc-en-us
+        tag: "1.4.0"
+        pullSecrets:
+          - ngc-secret
+      env:
+        - name: NIM_TAGS_SELECTOR
+          value: "name=parakeet-1-1b-ctc-en-us,mode=ofl"
+        - name: NIM_TRITON_LOG_VERBOSE
+          value: "1"
+      expose:
+        service:
+          type: ClusterIP
+          name: http
+          port: 9000
+          grpcPort: 50051
       resources:
         limits:
           nvidia.com/gpu: 1
