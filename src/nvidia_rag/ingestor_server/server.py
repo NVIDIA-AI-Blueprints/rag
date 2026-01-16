@@ -495,6 +495,10 @@ class CreateCollectionRequest(BaseModel):
     collection_name: str = Field(
         os.getenv("COLLECTION_NAME", ""), description="Name of the collection."
     )
+    embedding_dimension: int = Field(
+        os.getenv("APP_EMBEDDINGS_DIMENSIONS", 2048),
+        description="Embedding dimension of the collection.",
+    )
     metadata_schema: list[MetadataField] = Field(
         [], description="Metadata schema of the collection."
     )
@@ -1133,6 +1137,7 @@ async def create_collection(
         response = NV_INGEST_INGESTOR.create_collection(
             collection_name=data.collection_name,
             vdb_endpoint=data.vdb_endpoint,
+            embedding_dimension=data.embedding_dimension,
             metadata_schema=[field.model_dump() for field in data.metadata_schema],
             description=data.description,
             tags=data.tags,

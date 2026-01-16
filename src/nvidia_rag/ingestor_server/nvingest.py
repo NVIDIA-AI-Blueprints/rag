@@ -185,28 +185,39 @@ def get_nv_ingest_ingestor(
         embedding_url = sanitize_nim_url(
             config.embeddings.server_url, config.embeddings.model_name, "embedding"
         )
+
+        # Get embedding dimension from vdb_op
+        embedding_dimension = vdb_op.get_catalog_metadata(
+            info_type="catalog",
+            collection_name=vdb_op.collection_name,
+            document_name="NA",
+        ).get("embedding_dimension", config.embeddings.dimensions)
+
         logger.info(
-            f"Enabling embedding task. Embedding Endpoint URL: {embedding_url}, Embedding Model Name: {config.embeddings.model_name}"
+            f"Enabling embedding task. Embedding Endpoint URL: {embedding_url}, "
+            f"Embedding Model Name: {config.embeddings.model_name}, "
+            f"Embedding Dimension: {embedding_dimension}"
         )
+
         if config.nv_ingest.structured_elements_modality:
             ingestor = ingestor.embed(
                 structured_elements_modality=config.nv_ingest.structured_elements_modality,
                 endpoint_url=embedding_url,
                 model_name=config.embeddings.model_name,
-                dimensions=config.embeddings.dimensions,
+                dimensions=embedding_dimension,
             )
         elif config.nv_ingest.image_elements_modality:
             ingestor = ingestor.embed(
                 image_elements_modality=config.nv_ingest.image_elements_modality,
                 endpoint_url=embedding_url,
                 model_name=config.embeddings.model_name,
-                dimensions=config.embeddings.dimensions,
+                dimensions=embedding_dimension,
             )
         else:
             ingestor = ingestor.embed(
                 endpoint_url=embedding_url,
                 model_name=config.embeddings.model_name,
-                dimensions=config.embeddings.dimensions,
+                dimensions=embedding_dimension,
             )
 
     # Add save to disk task (only when VDB operations are enabled)

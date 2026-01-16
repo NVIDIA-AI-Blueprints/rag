@@ -671,6 +671,7 @@ def create_catalog_metadata(
     created_by: str = "",
     business_domain: str = "",
     status: str = "Active",
+    embedding_dimension: int | None = 2048,
 ) -> dict[str, Any]:
     """Create catalog metadata dictionary for collection.
 
@@ -693,6 +694,7 @@ def create_catalog_metadata(
         "created_by": created_by,
         "business_domain": business_domain,
         "status": status,
+        "embedding_dimension": embedding_dimension,
         "date_created": current_time,
         "last_updated": current_time,
     }
