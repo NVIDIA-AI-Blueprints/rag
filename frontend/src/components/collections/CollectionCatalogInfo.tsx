@@ -14,19 +14,24 @@
 // limitations under the License.
 
 import { Text, Flex, Stack, Badge, Tag, Divider, Panel } from "@kui/react";
-import { User, Building2, Calendar, FileText, Table, BarChart3, Image } from "lucide-react";
+import { User, Building2, Calendar, FileText, Table, BarChart3, Image, Volume2 } from "lucide-react";
 import type { Collection } from "../../types/collections";
 
 interface CollectionCatalogInfoProps {
   collection: Collection;
+  /** Optional override for file count - use actual document count from API for accuracy */
+  documentCount?: number;
 }
 
-export function CollectionCatalogInfo({ collection }: CollectionCatalogInfoProps) {
+export function CollectionCatalogInfo({ collection, documentCount }: CollectionCatalogInfoProps) {
   const info = collection.collection_info;
   
   if (!info) {
     return null;
   }
+  
+  // Use actual document count if provided, otherwise fall back to collection_info
+  const fileCount = documentCount ?? info.number_of_files;
 
   const formatDate = (dateString?: string) => {
     if (!dateString) return 'N/A';
@@ -124,12 +129,12 @@ export function CollectionCatalogInfo({ collection }: CollectionCatalogInfoProps
 
         {/* Content Metrics */}
         <Flex gap="density-md" style={{ flexWrap: 'wrap' }}>
-          {/* File Count */}
-          {info.number_of_files !== undefined && (
+          {/* File Count - use actual document count if available */}
+          {fileCount !== undefined && (
             <Flex align="center" gap="density-xs">
               <FileText size={14} style={{ color: 'var(--text-color-subtle)' }} />
               <Text kind="body/regular/sm">
-                {info.number_of_files} files
+                {fileCount} files
               </Text>
             </Flex>
           )}
@@ -153,6 +158,13 @@ export function CollectionCatalogInfo({ collection }: CollectionCatalogInfoProps
             <Flex align="center" gap="density-xs">
               <Image size={14} style={{ color: 'var(--color-brand)' }} />
               <Text kind="body/regular/sm">{info.doc_type_counts.image} Images</Text>
+            </Flex>
+          )}
+
+          {info.doc_type_counts?.audio !== undefined && info.doc_type_counts.audio > 0 && (
+            <Flex align="center" gap="density-xs">
+              <Volume2 size={14} style={{ color: 'var(--color-brand)' }} />
+              <Text kind="body/regular/sm">{info.doc_type_counts.audio} Audio</Text>
             </Flex>
           )}
         </Flex>

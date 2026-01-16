@@ -31,7 +31,6 @@ from typing import Any, Optional
 from urllib.parse import urlparse
 
 import aiohttp
-from elasticsearch import Elasticsearch
 from pymilvus import connections, utility
 
 from nvidia_rag.utils.configuration import NvidiaRAGConfig

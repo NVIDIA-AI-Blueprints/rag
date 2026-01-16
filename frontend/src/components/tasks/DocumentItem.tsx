@@ -15,7 +15,7 @@
 
 import { useState } from "react";
 import { useFileIcons } from "../../hooks/useFileIcons";
-import { useDeleteDocument } from "../../api/useCollectionDocuments";
+import { useDeleteDocument, useUpdateDocumentMetadata } from "../../api/useCollectionDocuments";
 import { useDocumentSummary } from "../../api/useDocumentSummary";
 import { useCollectionDrawerStore } from "../../store/useCollectionDrawerStore";
 import { useQueryClient } from "@tanstack/react-query";
@@ -27,9 +27,13 @@ import {
   Text, 
   Button,
   Spinner,
-  Badge
+  Badge,
+  TextInput,
+  Modal,
+  Tag,
+  FormField
 } from "@kui/react";
-import { Trash2, ChevronDown } from "lucide-react";
+import { Trash2, ChevronDown, Pencil, X } from "lucide-react";
 import type { DocumentInfo } from "../../types/api";
 
 interface DocumentItemProps {
@@ -139,11 +143,58 @@ export const DocumentItem = ({ name, metadata, collectionName, documentInfo }: D
   const queryClient = useQueryClient();
   const { setDeleteError, updateActiveCollection } = useCollectionDrawerStore();
   const deleteDoc = useDeleteDocument();
+  const updateMetadata = useUpdateDocumentMetadata();
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editDescription, setEditDescription] = useState(documentInfo?.description || "");
+  const [editTags, setEditTags] = useState<string[]>(documentInfo?.tags || []);
+  const [newTag, setNewTag] = useState("");
 
   const handleDeleteClick = () => {
     if (!collectionName) return;
     setShowDeleteModal(true);
+  };
+
+  const handleEditClick = () => {
+    setEditDescription(documentInfo?.description || "");
+    setEditTags(documentInfo?.tags || []);
+    setShowEditModal(true);
+  };
+
+  const handleAddTag = () => {
+    const trimmedTag = newTag.trim();
+    if (trimmedTag && !editTags.includes(trimmedTag)) {
+      setEditTags([...editTags, trimmedTag]);
+      setNewTag("");
+    }
+  };
+
+  const handleRemoveTag = (tagToRemove: string) => {
+    setEditTags(editTags.filter(tag => tag !== tagToRemove));
+  };
+
+  const handleTagKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleAddTag();
+    }
+  };
+
+  const handleSaveMetadata = () => {
+    updateMetadata.mutate(
+      {
+        collectionName,
+        documentName: name,
+        description: editDescription || undefined,
+        tags: editTags.length > 0 ? editTags : undefined,
+      },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: ["collection-documents", collectionName] });
+          setShowEditModal(false);
+        },
+      }
+    );
   };
 
   const handleConfirmDelete = () => {
@@ -179,21 +230,32 @@ export const DocumentItem = ({ name, metadata, collectionName, documentInfo }: D
           </Text>
         </Flex>
         
-        {/* Delete button */}
-        <Button
-          kind="tertiary"
-          size="tiny"
-          onClick={handleDeleteClick}
-          disabled={deleteDoc.isPending}
-          aria-label={`Delete ${name}`}
-          title="Delete"
-        >
-          {deleteDoc.isPending ? (
-            <Spinner size="small" description="" />
-          ) : (
-            <Trash2 size={16} />
-          )}
-        </Button>
+        {/* Action buttons */}
+        <Flex gap="density-xs">
+          <Button
+            kind="tertiary"
+            size="tiny"
+            onClick={handleEditClick}
+            aria-label={`Edit ${name} metadata`}
+            title="Edit metadata"
+          >
+            <Pencil size={16} />
+          </Button>
+          <Button
+            kind="tertiary"
+            size="tiny"
+            onClick={handleDeleteClick}
+            disabled={deleteDoc.isPending}
+            aria-label={`Delete ${name}`}
+            title="Delete"
+          >
+            {deleteDoc.isPending ? (
+              <Spinner size="small" description="" />
+            ) : (
+              <Trash2 size={16} />
+            )}
+          </Button>
+        </Flex>
       </Flex>
       
       {/* Document Info Badges */}
@@ -211,6 +273,24 @@ export const DocumentItem = ({ name, metadata, collectionName, documentInfo }: D
           {documentInfo.doc_type_counts?.chart && documentInfo.doc_type_counts.chart > 0 && (
             <Badge kind="outline" color="gray">{documentInfo.doc_type_counts.chart} charts</Badge>
           )}
+        </Flex>
+      )}
+
+      {/* Document Description */}
+      {documentInfo?.description && (
+        <Text kind="body/regular/sm" style={{ color: 'var(--text-color-subtle)' }}>
+          {documentInfo.description}
+        </Text>
+      )}
+
+      {/* Document Tags */}
+      {documentInfo?.tags && documentInfo.tags.length > 0 && (
+        <Flex gap="density-xs" wrap="wrap">
+          {documentInfo.tags.map((tag) => (
+            <Tag key={tag} color="gray" kind="outline" density="compact" readOnly>
+              {tag}
+            </Tag>
+          ))}
         </Flex>
       )}
       
@@ -244,6 +324,70 @@ export const DocumentItem = ({ name, metadata, collectionName, documentInfo }: D
         confirmText="Delete"
         confirmColor="danger"
       />
+
+      {/* Edit Metadata Modal */}
+      <Modal
+        open={showEditModal}
+        onOpenChange={() => setShowEditModal(false)}
+        slotHeading="Edit Document Info"
+        slotFooter={
+          <Flex gap="density-sm" justify="end">
+            <Button kind="secondary" onClick={() => setShowEditModal(false)}>
+              Cancel
+            </Button>
+            <Button 
+              kind="primary" 
+              onClick={handleSaveMetadata}
+              disabled={updateMetadata.isPending}
+            >
+              {updateMetadata.isPending ? <Spinner size="small" description="" /> : "Save"}
+            </Button>
+          </Flex>
+        }
+      >
+        <Stack gap="density-md">
+          <FormField slotLabel="Description">
+            <TextInput
+              value={editDescription}
+              onValueChange={setEditDescription}
+              placeholder="Enter a description for this document"
+            />
+          </FormField>
+          
+          <Stack gap="density-sm">
+            <Text kind="body/bold/sm">Tags</Text>
+            <Flex gap="density-xs" wrap="wrap">
+              {editTags.map((tag) => (
+                <Tag 
+                  key={tag} 
+                  color="gray" 
+                  kind="outline" 
+                  density="compact"
+                  onClick={() => handleRemoveTag(tag)}
+                >
+                  <Flex align="center" gap="density-xs">
+                    {tag}
+                    <X size={12} />
+                  </Flex>
+                </Tag>
+              ))}
+            </Flex>
+            <Flex gap="density-sm" align="end">
+              <div style={{ flex: 1 }}>
+                <TextInput
+                  value={newTag}
+                  onValueChange={setNewTag}
+                  onKeyDown={handleTagKeyDown}
+                  placeholder="Add a tag and press Enter"
+                />
+              </div>
+              <Button kind="secondary" size="small" onClick={handleAddTag} disabled={!newTag.trim()}>
+                Add
+              </Button>
+            </Flex>
+          </Stack>
+        </Stack>
+      </Modal>
     </Stack>
   );
 };

@@ -1301,6 +1301,230 @@ class TestElasticVDB(unittest.TestCase):
         self.assertEqual(result[0].metadata["source"], "file1.pdf")
         self.assertEqual(result[1].metadata["source"], "file2.pdf")
 
+    @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.Elasticsearch")
+    @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.VectorStore")
+    @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.ElasticsearchStore")
+    @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.time")
+    @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.otel_context")
+    @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.get_weighted_hybrid_custom_query")
+    def test_retrieval_langchain_hybrid_weighted_ranker(
+        self,
+        mock_custom_query,
+        mock_otel_context,
+        mock_time,
+        mock_es_store_class,
+        mock_vector_store,
+        mock_elasticsearch,
+    ):
+        """Test retrieval_langchain with hybrid search and weighted ranker."""
+        from nvidia_rag.utils.configuration import SearchType, RankerType
+
+        # Setup mocks
+        mock_config = Mock()
+        mock_config.embeddings.dimensions = 768
+        mock_config.vector_store.search_type = SearchType.HYBRID
+        mock_config.vector_store.ranker_type = RankerType.WEIGHTED
+        mock_config.vector_store.dense_weight = 0.7
+        mock_config.vector_store.sparse_weight = 0.3
+
+        mock_es_connection = Mock()
+        mock_elasticsearch.return_value = mock_es_connection
+
+        # Mock time
+        mock_time.time.side_effect = [1000.0, 1002.5]
+
+        # Mock otel context
+        mock_token = Mock()
+        mock_otel_context.attach.return_value = mock_token
+
+        # Mock ElasticsearchStore
+        mock_vectorstore = Mock()
+        mock_es_store_class.return_value = mock_vectorstore
+
+        # Mock retriever
+        mock_retriever = Mock()
+        mock_vectorstore.as_retriever.return_value = mock_retriever
+
+        # Mock documents
+        mock_docs = [
+            Document(page_content="doc1", metadata={"source": "file1.pdf"}),
+            Document(page_content="doc2", metadata={"source": "file2.pdf"}),
+        ]
+        mock_retriever.invoke.return_value = mock_docs
+
+        # Mock custom query builder
+        mock_query_builder = Mock()
+        mock_custom_query.return_value = mock_query_builder
+
+        # Create instance and test
+        mock_embedding_model = Mock()
+        elastic_vdb = ElasticVDB(
+            self.index_name,
+            self.es_url,
+            embedding_model=mock_embedding_model,
+            config=mock_config,
+        )
+
+        result = elastic_vdb.retrieval_langchain(
+            query="test query",
+            collection_name="test_collection",
+            top_k=5,
+            filter_expr={"field": "value"},
+            otel_ctx=Mock(),
+        )
+
+        # Verify custom query was called with correct parameters
+        mock_custom_query.assert_called_once_with(
+            embedding_model=mock_embedding_model,
+            dense_weight=0.7,
+            sparse_weight=0.3,
+            k=5,
+        )
+
+        # Verify results have collection_name added
+        for doc in result:
+            self.assertEqual(doc.metadata["collection_name"], "test_collection")
+
+        mock_otel_context.attach.assert_called_once()
+        mock_otel_context.detach.assert_called_once_with(mock_token)
+
+    @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.Elasticsearch")
+    @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.VectorStore")
+    @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.ElasticsearchStore")
+    @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.time")
+    @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.otel_context")
+    def test_retrieval_langchain_hybrid_rrf_ranker(
+        self,
+        mock_otel_context,
+        mock_time,
+        mock_es_store_class,
+        mock_vector_store,
+        mock_elasticsearch,
+    ):
+        """Test retrieval_langchain with hybrid search and RRF ranker (no custom query)."""
+        from nvidia_rag.utils.configuration import SearchType, RankerType
+
+        # Setup mocks
+        mock_config = Mock()
+        mock_config.embeddings.dimensions = 768
+        mock_config.vector_store.search_type = SearchType.HYBRID
+        mock_config.vector_store.ranker_type = RankerType.RRF
+
+        mock_es_connection = Mock()
+        mock_elasticsearch.return_value = mock_es_connection
+
+        # Mock time
+        mock_time.time.side_effect = [1000.0, 1002.0]
+
+        # Mock otel context
+        mock_token = Mock()
+        mock_otel_context.attach.return_value = mock_token
+
+        # Mock ElasticsearchStore
+        mock_vectorstore = Mock()
+        mock_es_store_class.return_value = mock_vectorstore
+
+        # Mock retriever
+        mock_retriever = Mock()
+        mock_vectorstore.as_retriever.return_value = mock_retriever
+
+        # Mock documents
+        mock_docs = [
+            Document(page_content="doc1", metadata={"source": "file1.pdf"}),
+        ]
+        mock_retriever.invoke.return_value = mock_docs
+
+        # Create instance and test
+        elastic_vdb = ElasticVDB(
+            self.index_name,
+            self.es_url,
+            embedding_model="test_model",
+            config=mock_config,
+        )
+
+        result = elastic_vdb.retrieval_langchain(
+            query="test query",
+            collection_name="test_collection",
+            top_k=5,
+        )
+
+        # Verify results have collection_name added
+        for doc in result:
+            self.assertEqual(doc.metadata["collection_name"], "test_collection")
+
+        # Verify invoke was called without custom_query (RRF uses default)
+        mock_retriever.invoke.assert_called_once()
+        call_kwargs = mock_retriever.invoke.call_args[1]
+        self.assertNotIn("custom_query", call_kwargs)
+
+    @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.Elasticsearch")
+    @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.VectorStore")
+    @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.ElasticsearchStore")
+    @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.time")
+    @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.otel_context")
+    def test_retrieval_langchain_dense_search(
+        self,
+        mock_otel_context,
+        mock_time,
+        mock_es_store_class,
+        mock_vector_store,
+        mock_elasticsearch,
+    ):
+        """Test retrieval_langchain with dense search (no custom query)."""
+        from nvidia_rag.utils.configuration import SearchType
+
+        # Setup mocks
+        mock_config = Mock()
+        mock_config.embeddings.dimensions = 768
+        mock_config.vector_store.search_type = SearchType.DENSE
+
+        mock_es_connection = Mock()
+        mock_elasticsearch.return_value = mock_es_connection
+
+        # Mock time
+        mock_time.time.side_effect = [1000.0, 1001.5]
+
+        # Mock otel context
+        mock_token = Mock()
+        mock_otel_context.attach.return_value = mock_token
+
+        # Mock ElasticsearchStore
+        mock_vectorstore = Mock()
+        mock_es_store_class.return_value = mock_vectorstore
+
+        # Mock retriever
+        mock_retriever = Mock()
+        mock_vectorstore.as_retriever.return_value = mock_retriever
+
+        # Mock documents
+        mock_docs = [
+            Document(page_content="doc1", metadata={"source": "file1.pdf"}),
+        ]
+        mock_retriever.invoke.return_value = mock_docs
+
+        # Create instance and test
+        elastic_vdb = ElasticVDB(
+            self.index_name,
+            self.es_url,
+            embedding_model="test_model",
+            config=mock_config,
+        )
+
+        result = elastic_vdb.retrieval_langchain(
+            query="test query",
+            collection_name="test_collection",
+            top_k=5,
+        )
+
+        # Verify results have collection_name added
+        for doc in result:
+            self.assertEqual(doc.metadata["collection_name"], "test_collection")
+
+        # Verify invoke was called without custom_query (dense search)
+        mock_retriever.invoke.assert_called_once()
+        call_kwargs = mock_retriever.invoke.call_args[1]
+        self.assertNotIn("custom_query", call_kwargs)
+
 
 class TestEsQueries(unittest.TestCase):
     """Test cases for es_queries module functions."""
@@ -1432,6 +1656,105 @@ class TestEsQueries(unittest.TestCase):
         self.assertEqual(
             term_query["metadata.source.source_name.keyword"], source_value
         )
+
+    def test_get_weighted_hybrid_custom_query(self):
+        """Test get_weighted_hybrid_custom_query function returns correct query builder."""
+        # Mock embedding model
+        mock_embedding_model = Mock()
+        mock_embedding_model.embed_query.return_value = [0.1, 0.2, 0.3]
+
+        # Get the query builder function
+        query_builder = es_queries.get_weighted_hybrid_custom_query(
+            embedding_model=mock_embedding_model,
+            dense_weight=0.7,
+            sparse_weight=0.3,
+            k=10,
+            num_candidates=100,
+        )
+
+        # Verify it returns a callable
+        self.assertTrue(callable(query_builder))
+
+        # Test the query builder with sample inputs
+        query_body = {}
+        query_text = "test query"
+        result = query_builder(query_body, query_text)
+
+        # Verify the structure
+        self.assertIn("knn", result)
+        self.assertIn("query", result)
+        self.assertIn("_source", result)
+
+        # Verify KNN configuration
+        knn = result["knn"]
+        self.assertEqual(knn["field"], "vector")
+        self.assertEqual(knn["query_vector"], [0.1, 0.2, 0.3])
+        self.assertEqual(knn["k"], 10)
+        self.assertEqual(knn["num_candidates"], 100)
+        self.assertEqual(knn["boost"], 0.7)
+
+        # Verify query configuration
+        query = result["query"]
+        self.assertIn("match", query)
+        match = query["match"]
+        self.assertIn("text", match)
+        self.assertEqual(match["text"]["query"], query_text)
+        self.assertEqual(match["text"]["boost"], 0.3)
+
+        # Verify _source fields
+        self.assertEqual(result["_source"], ["text", "metadata"])
+
+        # Verify embedding model was called
+        mock_embedding_model.embed_query.assert_called_once_with(query_text)
+
+    def test_get_weighted_hybrid_custom_query_default_num_candidates(self):
+        """Test get_weighted_hybrid_custom_query with default num_candidates."""
+        mock_embedding_model = Mock()
+        mock_embedding_model.embed_query.return_value = [0.5, 0.5]
+
+        query_builder = es_queries.get_weighted_hybrid_custom_query(
+            embedding_model=mock_embedding_model,
+            dense_weight=0.5,
+            sparse_weight=0.5,
+            k=5,
+            # num_candidates defaults to 100
+        )
+
+        result = query_builder({}, "test")
+
+        # Verify default num_candidates
+        self.assertEqual(result["knn"]["num_candidates"], 100)
+
+    def test_get_weighted_hybrid_custom_query_different_weights(self):
+        """Test get_weighted_hybrid_custom_query with different weight combinations."""
+        mock_embedding_model = Mock()
+        mock_embedding_model.embed_query.return_value = [0.1]
+
+        # Test with high dense weight
+        query_builder = es_queries.get_weighted_hybrid_custom_query(
+            embedding_model=mock_embedding_model,
+            dense_weight=0.9,
+            sparse_weight=0.1,
+            k=3,
+        )
+
+        result = query_builder({}, "query")
+
+        self.assertEqual(result["knn"]["boost"], 0.9)
+        self.assertEqual(result["query"]["match"]["text"]["boost"], 0.1)
+
+        # Test with high sparse weight
+        query_builder = es_queries.get_weighted_hybrid_custom_query(
+            embedding_model=mock_embedding_model,
+            dense_weight=0.2,
+            sparse_weight=0.8,
+            k=3,
+        )
+
+        result = query_builder({}, "query")
+
+        self.assertEqual(result["knn"]["boost"], 0.2)
+        self.assertEqual(result["query"]["match"]["text"]["boost"], 0.8)
 
 
 if __name__ == "__main__":

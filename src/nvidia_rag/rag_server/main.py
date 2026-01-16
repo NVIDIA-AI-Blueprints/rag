@@ -1231,6 +1231,7 @@ class NvidiaRAG:
                                 validated_collections[0]
                             ),
                             top_k=top_k,
+                            reranker_top_k=reranker_top_k,
                             # Note: Filter expressions may not be supported for image queries
                             # filter_expr=collection_filter_mapping.get(validated_collections[0], ""),
                             # otel_ctx=otel_ctx,
@@ -2229,6 +2230,7 @@ class NvidiaRAG:
                                 validated_collections[0]
                             ),
                             top_k=top_k,
+                            reranker_top_k=reranker_top_k,
                             # filter_expr=collection_filter_mapping.get(
                             #     validated_collections[0], ""
                             # ),

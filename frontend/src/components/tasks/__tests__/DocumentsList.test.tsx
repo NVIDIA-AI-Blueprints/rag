@@ -8,7 +8,8 @@ const mockUseCollectionDocuments = vi.fn();
 
 vi.mock('../../../api/useCollectionDocuments', () => ({
   useCollectionDocuments: () => mockUseCollectionDocuments(),
-  useDeleteDocument: () => ({ mutate: vi.fn(), isPending: false })
+  useDeleteDocument: () => ({ mutate: vi.fn(), isPending: false }),
+  useUpdateDocumentMetadata: () => ({ mutate: vi.fn(), isPending: false })
 }));
 
 vi.mock('../../../store/useCollectionDrawerStore', () => ({

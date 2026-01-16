@@ -61,7 +61,6 @@ class TestSystemManagedFieldsAutoAddition:
 
             ingestor.create_collection(
                 collection_name="test_collection",
-                embedding_dimension=1024,
                 metadata_schema=[],  # Empty schema
             )
 
@@ -102,7 +101,6 @@ class TestSystemManagedFieldsAutoAddition:
 
             ingestor.create_collection(
                 collection_name="test_collection",
-                embedding_dimension=1024,
                 metadata_schema=user_schema,
             )
 
@@ -139,7 +137,6 @@ class TestSystemManagedFieldsAutoAddition:
 
             ingestor.create_collection(
                 collection_name="test_collection",
-                embedding_dimension=1024,
                 metadata_schema=[],
             )
 

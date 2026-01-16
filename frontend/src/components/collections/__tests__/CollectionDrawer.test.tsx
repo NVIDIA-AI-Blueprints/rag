@@ -24,10 +24,14 @@ vi.mock('../../../store/useCollectionDrawerStore', () => ({
   useCollectionDrawerStore: vi.fn(() => ({
     activeCollection: {
       collection_name: 'Test Collection',
-      metadata_schema: []
+      metadata_schema: [],
+      collection_info: { status: 'Active' }
     },
     closeDrawer: vi.fn(),
-    toggleUploader: vi.fn()
+    toggleUploader: vi.fn(),
+    deleteError: null,
+    showUploader: false,
+    updateActiveCollection: vi.fn()
   }))
 }));
 
@@ -38,6 +42,26 @@ vi.mock('../../../hooks/useCollectionActions', () => ({
   }))
 }));
 
+vi.mock('../../../api/useCollectionDocuments', () => ({
+  useCollectionDocuments: vi.fn(() => ({
+    data: { total_documents: 5, documents: [] },
+    isLoading: false,
+    error: null
+  }))
+}));
+
+vi.mock('../../../api/useCollectionsApi', () => ({
+  useCollections: vi.fn(() => ({
+    data: [{
+      collection_name: 'Test Collection',
+      metadata_schema: [],
+      collection_info: { status: 'Active' }
+    }],
+    isLoading: false,
+    error: null
+  }))
+}));
+
 // Mock child components that are still used
 interface MockDrawerActionsProps {
   onDelete: () => void;
@@ -45,7 +69,7 @@ interface MockDrawerActionsProps {
   isDeleting: boolean;
 }
 
-vi.mock('../../drawer/DrawerActions', () => ({
+vi.mock('../../../components/drawer/DrawerActions', () => ({
   DrawerActions: ({ onDelete, onAddSource, isDeleting }: MockDrawerActionsProps) => (
     <div data-testid="drawer-actions">
       <button data-testid="delete-button" onClick={onDelete} disabled={isDeleting}>
@@ -56,12 +80,20 @@ vi.mock('../../drawer/DrawerActions', () => ({
   )
 }));
 
-vi.mock('../tasks/DocumentsList', () => ({
+vi.mock('../../tasks/DocumentsList', () => ({
   DocumentsList: () => <div data-testid="documents-list">Loading documents...</div>
 }));
 
-vi.mock('../../drawer/UploaderSection', () => ({
+vi.mock('../../../components/drawer/UploaderSection', () => ({
   UploaderSection: () => <div data-testid="uploader-section">Uploader Section</div>
+}));
+
+vi.mock('../CollectionCatalogInfo', () => ({
+  CollectionCatalogInfo: ({ documentCount }: { documentCount?: number }) => (
+    <div data-testid="collection-catalog-info">
+      {documentCount !== undefined && <span>{documentCount} files</span>}
+    </div>
+  )
 }));
 
 describe('CollectionDrawer', () => {

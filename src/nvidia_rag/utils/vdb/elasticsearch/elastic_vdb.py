@@ -56,7 +56,7 @@ import logging
 import os
 import time
 from concurrent.futures import Future
-from typing import Any, Optional, Union
+from typing import Any
 
 import pandas as pd
 import requests
@@ -73,8 +73,7 @@ from nvidia_rag.utils.common import (
     get_current_timestamp,
     perform_document_info_aggregation,
 )
-from nvidia_rag.utils.configuration import NvidiaRAGConfig, SearchType
-from nvidia_rag.utils.embedding import get_embedding_model
+from nvidia_rag.utils.configuration import NvidiaRAGConfig, SearchType, RankerType
 from nvidia_rag.utils.health_models import ServiceStatus
 from nvidia_rag.utils.vdb import (
     DEFAULT_DOCUMENT_INFO_COLLECTION,
@@ -92,6 +91,7 @@ from nvidia_rag.utils.vdb.elasticsearch.es_queries import (
     get_document_info_query,
     get_metadata_schema_query,
     get_unique_sources_query,
+    get_weighted_hybrid_custom_query,
 )
 from nvidia_rag.utils.vdb.vdb_ingest_base import VDBRagIngest
 
@@ -877,6 +877,11 @@ class ElasticVDB(VDBRagIngest):
         otel_ctx: Any | None = None,
     ) -> list[dict[str, Any]]:
         """Retrieve documents from a collection using langchain."""
+        logger.info(
+            "Elasticsearch Retrieval: Retrieving documents from index: %s, search type: '%s'",
+            collection_name,
+            self.config.vector_store.search_type,
+        )
         if vectorstore is None:
             vectorstore = self.get_langchain_vectorstore(collection_name)
 
@@ -889,9 +894,29 @@ class ElasticVDB(VDBRagIngest):
             retriever = vectorstore.as_retriever(
                 search_kwargs={"k": top_k, "fetch_k": top_k}
             )
-            retriever_lambda = RunnableLambda(
-                lambda x: retriever.invoke(x, filter=filter_expr)
-            )
+            if self.config.vector_store.search_type == SearchType.HYBRID:
+                logger.info(
+                    "Elasticsearch Retrieval: Using hybrid search with ranker type: '%s'",
+                    self.config.vector_store.ranker_type,
+                )
+            if self.config.vector_store.search_type == SearchType.HYBRID and \
+               self.config.vector_store.ranker_type == RankerType.WEIGHTED:
+                retriever_lambda = RunnableLambda(
+                    lambda x: retriever.invoke(
+                        x,
+                        filter=filter_expr,
+                        custom_query=get_weighted_hybrid_custom_query(
+                            embedding_model=self._embedding_model,
+                            dense_weight=self.config.vector_store.dense_weight,
+                            sparse_weight=self.config.vector_store.sparse_weight,
+                            k=top_k,
+                        ),
+                    )
+                )
+            else:
+                retriever_lambda = RunnableLambda(
+                    lambda x: retriever.invoke(x, filter=filter_expr)
+                )
             retriever_chain = {"context": retriever_lambda} | RunnableAssign(
                 {"context": lambda input: input["context"]}
             )

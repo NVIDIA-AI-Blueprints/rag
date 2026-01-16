@@ -92,7 +92,6 @@ from nvidia_rag.utils.observability.tracing import (
 from nvidia_rag.utils.summarization import generate_document_summaries
 from nvidia_rag.utils.summary_status_handler import SUMMARY_STATUS_HANDLER
 from nvidia_rag.utils.vdb import DEFAULT_DOCUMENT_INFO_COLLECTION, _get_vdb_op
-from nvidia_rag.utils.vdb.elasticsearch.es_queries import get_delete_document_info_query
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
 
 # Initialize logger
@@ -1043,7 +1042,6 @@ class NvidiaRAGIngestor:
         self,
         collection_name: str | None = None,
         vdb_endpoint: str | None = None,
-        embedding_dimension: int | None = None,
         metadata_schema: list[dict[str, str]] | None = None,
         description: str = "",
         tags: list[str] | None = None,
@@ -1059,8 +1057,7 @@ class NvidiaRAGIngestor:
         # Apply defaults from config if not provided
         if vdb_endpoint is None:
             vdb_endpoint = self.config.vector_store.url
-        if embedding_dimension is None:
-            embedding_dimension = self.config.embeddings.dimensions
+        embedding_dimension = self.config.embeddings.dimensions
 
         vdb_op, collection_name = self.__prepare_vdb_op_and_collection_name(
             vdb_endpoint=vdb_endpoint,
@@ -1745,6 +1742,11 @@ class NvidiaRAGIngestor:
                     )
                 elif hasattr(vdb_op, "_es_connection"):
                     # Elasticsearch: Delete first, then add without aggregation
+                    # Lazy import to avoid requiring elasticsearch when not used
+                    from nvidia_rag.utils.vdb.elasticsearch.es_queries import (
+                        get_delete_document_info_query,
+                    )
+
                     vdb_op._es_connection.delete_by_query(
                         index=DEFAULT_DOCUMENT_INFO_COLLECTION,
                         body=get_delete_document_info_query(
@@ -2762,8 +2764,16 @@ class NvidiaRAGIngestor:
         self, results: list[list[dict[str, str | dict]]]
     ) -> dict[str, int]:
         """
-        Get document type counts from the results
+        Get document type counts from the results.
+        
+        Note: Document types are normalized to standard keys (table, chart, image, text)
+        to ensure consistency with frontend expectations and derive_boolean_flags().
         """
+        # Mapping from nv-ingest types/subtypes to normalized keys
+        type_normalization = {
+            "structured": "table",  # Structured data defaults to table
+        }
+        
         doc_type_counts = defaultdict(int)
         total_documents = 0
         total_elements = 0
@@ -2779,11 +2789,16 @@ class NvidiaRAGIngestor:
                     .get("content_metadata", {})
                     .get("subtype", "")
                 )
+                # Use subtype if available, otherwise use document_type
                 if document_subtype:
-                    document_type_subtype = document_subtype
+                    doc_type_key = document_subtype
                 else:
-                    document_type_subtype = document_type
-                doc_type_counts[document_type_subtype] += 1
+                    doc_type_key = document_type
+                
+                # Normalize the key to standard names (table, chart, image, text)
+                doc_type_key = type_normalization.get(doc_type_key, doc_type_key)
+                
+                doc_type_counts[doc_type_key] += 1
                 if document_type == "text":
                     content = result_element.get("metadata", {}).get("content", "")
                     if isinstance(content, str):

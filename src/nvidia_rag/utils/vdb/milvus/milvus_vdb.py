@@ -82,7 +82,6 @@ from nvidia_rag.utils.common import (
     perform_document_info_aggregation,
 )
 from nvidia_rag.utils.configuration import NvidiaRAGConfig, SearchType
-from nvidia_rag.utils.embedding import get_embedding_model
 from nvidia_rag.utils.health_models import ServiceStatus
 from nvidia_rag.utils.vdb import (
     DEFAULT_DOCUMENT_INFO_COLLECTION,
@@ -953,6 +952,11 @@ class MilvusVDB(VDBRagIngest):
         otel_ctx: Any | None = None,
     ) -> list[dict[str, Any]]:
         """Retrieve documents from a collection using langchain."""
+        logger.info(
+            "Milvus Retrieval: Retrieving documents from collection: %s, search type: '%s'",
+            collection_name,
+            self.config.vector_store.search_type,
+        )
         if vectorstore is None:
             vectorstore = self.get_langchain_vectorstore(collection_name)
 
@@ -964,12 +968,31 @@ class MilvusVDB(VDBRagIngest):
         try:
             retriever = vectorstore.as_retriever(search_kwargs={"k": top_k})
 
-            retriever_lambda = RunnableLambda(
-                lambda x: retriever.invoke(
-                    x,
-                    expr=filter_expr,
+            if self.config.vector_store.search_type == SearchType.HYBRID:
+                logger.info(
+                    "Milvus Retrieval: Using hybrid search with ranker type: '%s'",
+                    self.config.vector_store.ranker_type,
                 )
-            )
+                retriever_lambda = RunnableLambda(
+                    lambda x: retriever.invoke(
+                        x,
+                        expr=filter_expr,
+                        ranker_type=self.config.vector_store.ranker_type,
+                        ranker_params={
+                            "weights": [  # Used for "weighted" ranker type
+                                self.config.vector_store.dense_weight,
+                                self.config.vector_store.sparse_weight,
+                            ],
+                        }
+                    )
+                )
+            else:
+                retriever_lambda = RunnableLambda(
+                    lambda x: retriever.invoke(
+                        x,
+                        expr=filter_expr,
+                    )
+                )
             retriever_chain = {"context": retriever_lambda} | RunnableAssign(
                 {"context": lambda input: input["context"]}
             )
@@ -1023,7 +1046,6 @@ class MilvusVDB(VDBRagIngest):
             else ""
         )
         if self.config.vector_store.search_type == SearchType.HYBRID:
-            logger.info("Creating Langchain Milvus object for Hybrid search")
             vectorstore = LangchainMilvus(
                 self.embedding_model,
                 connection_args={
@@ -1083,13 +1105,29 @@ class MilvusVDB(VDBRagIngest):
         collection_name: str,
         vectorstore: LangchainMilvus | None = None,
         top_k: int = 10,
+        reranker_top_k: int | None = None,
     ) -> list[Document]:
         """Retrieve documents from a collection using langchain for image query.
 
         Returns LangChain Document objects with metadata and collection name.
+        The number of returned documents is limited to reranker_top_k (if provided)
+        or top_k to avoid populating the context with too much information
+        for multimodal queries.
+
+        Args:
+            query: The image query (base64 encoded or URL)
+            collection_name: Name of the collection to search
+            vectorstore: Optional pre-initialized vectorstore
+            top_k: Number of results for initial similarity search (VDB top_k)
+            reranker_top_k: Final number of documents to return (smaller value).
+                           If None, defaults to top_k.
 
         Note: Uses the embedding_model that was provided during initialization.
         """
+        # Use reranker_top_k for final limit (smaller value to avoid context overflow)
+        # Fall back to top_k if reranker_top_k is not provided
+        final_limit = reranker_top_k if reranker_top_k is not None else top_k
+
         if vectorstore is None:
             vectorstore = self.get_langchain_vectorstore(collection_name)
 
@@ -1118,22 +1156,26 @@ class MilvusVDB(VDBRagIngest):
         except (KeyError, IndexError) as e:
             logger.error("Error accessing metadata from search results: %s", e)
             return []
+
         filter_expr_partial = (
             f'content_metadata["page_number"] == {page_number} and '
             f'source["source_name"] like "%{source_name}%"'
         )
         try:
-            client = MilvusClient(self.vdb_endpoint)
-            entities = client.query(
-                collection_name=collection_name, filter=filter_expr_partial, limit=1000
+            milvus_client = MilvusClient(
+                self.vdb_endpoint,
+                token=self._get_milvus_token(),
+            )
+            # Limit query results to reranker_top_k to avoid returning too many chunks
+            # for pages with lots of content (e.g., text files or dense pages)
+            entities = milvus_client.query(
+                collection_name=collection_name,
+                filter=filter_expr_partial,
+                limit=final_limit,
             )
         except Exception as e:
             logger.error("Error querying Milvus collection: %s", e)
             return []
-        client = MilvusClient(self.vdb_endpoint)
-        entities = client.query(
-            collection_name=collection_name, filter=filter_expr_partial, limit=1000
-        )
 
         # Convert Milvus entities to LangChain Document objects
         docs: list[Document] = []

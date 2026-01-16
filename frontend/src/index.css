@@ -20,3 +20,19 @@ html, body {
     opacity: 1;
   }
 }
+
+/* Fix overflow in chat message bubbles */
+.prose {
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  min-width: 0; /* Prevent flex children from forcing container growth */
+}
+
+.prose pre,
+.prose code {
+  white-space: pre;
+  overflow-x: auto;
+  max-width: 100%;
+  word-wrap: normal;
+}

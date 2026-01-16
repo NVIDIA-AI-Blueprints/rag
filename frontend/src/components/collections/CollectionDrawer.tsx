@@ -18,6 +18,7 @@ import { useNewCollectionStore } from "../../store/useNewCollectionStore";
 import { useCollectionDrawerStore } from "../../store/useCollectionDrawerStore";
 import { useCollectionActions } from "../../hooks/useCollectionActions";
 import { useCollections } from "../../api/useCollectionsApi";
+import { useCollectionDocuments } from "../../api/useCollectionDocuments";
 import { DrawerActions } from "../drawer/DrawerActions";
 import { ConfirmationModal } from "../modals/ConfirmationModal";
 import { Notification, SidePanel, Stack } from "@kui/react";
@@ -43,6 +44,9 @@ export default function CollectionDrawer() {
   
   // Subscribe to collections query to sync activeCollection with fresh data
   const { data: collections } = useCollections();
+  
+  // Fetch actual document count for accurate display
+  const { data: documentsData } = useCollectionDocuments(activeCollection?.collection_name || "");
   
   // Sync activeCollection with fresh data from query when collections change
   useEffect(() => {
@@ -117,7 +121,12 @@ export default function CollectionDrawer() {
       closeOnClickOutside
     >
       <Stack gap="density-md">
-        {activeCollection && <CollectionCatalogInfo collection={activeCollection} />}
+        {activeCollection && (
+          <CollectionCatalogInfo 
+            collection={activeCollection} 
+            documentCount={documentsData?.total_documents}
+          />
+        )}
         <DocumentsList />
       </Stack>
       
