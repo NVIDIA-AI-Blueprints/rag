@@ -324,7 +324,7 @@ class RAGGenerationModule(BaseTestModule):
             "messages": [
                 {
                     "role": "user",
-                    "content": "In which year bill had 774 figure? What is the lion doing?",
+                    "content": "In which year bill had 774 figure? What is the lion putting on?",
                 }
             ],
             "use_knowledge_base": True,

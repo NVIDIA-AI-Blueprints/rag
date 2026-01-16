@@ -840,8 +840,8 @@ nv-ingest:
   ngcImagePullSecret:
     create: false
   image:
-    repository: "nvcr.io/nvstaging/blueprint/nv-ingest"
-    tag: "26.1.0-RC5"
+    repository: "nvcr.io/nvidia/nemo-microservices/nv-ingest"
+    tag: "26.1.1"
   resources:
     limits:
       nvidia.com/gpu: 0

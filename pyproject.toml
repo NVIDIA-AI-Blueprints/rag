@@ -60,8 +60,8 @@ rag = [
 ]
 ingest = [
     # nv-ingest dependencies (required for ingestion operations)
-    "nv-ingest-api==26.1.0rc5",
-    "nv-ingest-client==26.1.0rc5",
+    "nv-ingest-api==26.1.1",
+    "nv-ingest-client==26.1.1",
     "tritonclient==2.57.0",
     # Other ingest dependencies
     "langchain-openai>=0.2",
@@ -81,8 +81,8 @@ ingest = [
 ]
 all = [
     # nv-ingest dependencies (required for ingestion operations)
-    "nv-ingest-api==26.1.0rc5",
-    "nv-ingest-client==26.1.0rc5",
+    "nv-ingest-api==26.1.1",
+    "nv-ingest-client==26.1.1",
     "tritonclient==2.57.0",
     # RAG + Ingest dependencies
     "langchain-openai>=0.2",
