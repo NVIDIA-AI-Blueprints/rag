@@ -74,15 +74,16 @@ Ensure the specified GPU is available and has sufficient memory for the audio tr
 
 If you're using Helm for deployment, follow these steps to enable audio ingestion:
 
-1. Enable Riva NIM by setting `nv-ingest.riva-nim.deployed` to `true` in [values.yaml](../deploy/helm/nvidia-blueprint-rag/values.yaml).
+1. Enable the audio NIM service by setting `nv-ingest.nimOperator.audio.enabled` to `true` in [values.yaml](../deploy/helm/nvidia-blueprint-rag/values.yaml).
 
    ```yaml
    nv-ingest:
-      riva-nim:
-         deployed: true
+      nimOperator:
+        audio:
+          enabled: true
    ```
 
-2. Verify that audio extraction dependencies are installed by setting `nv-ingest.envVars.INSTALL_AUDIO_EXTRACTION_DEPS` to `true` in [values.yaml](../deploy/helm/nvidia-blueprint-rag/values.yaml).
+2. Verify that audio extraction dependencies are installed by checking `nv-ingest.envVars.INSTALL_AUDIO_EXTRACTION_DEPS` is set to `true` in [values.yaml](../deploy/helm/nvidia-blueprint-rag/values.yaml).
 
    ```yaml
    nv-ingest:
@@ -90,35 +91,47 @@ If you're using Helm for deployment, follow these steps to enable audio ingestio
          INSTALL_AUDIO_EXTRACTION_DEPS: "true"
    ```
 
-3. Apply the updated Helm chart by running the following code.
+3. Apply the updated Helm chart by running the following command.
 
    ```bash
-   helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-rc1.tgz \
+   helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-rc2.tgz \
     --username '$oauthtoken' \
     --password "${NGC_API_KEY}" \
     --set imagePullSecret.password=$NGC_API_KEY \
-   --set ngcApiSecret.password=$NGC_API_KEY \
-   -f deploy/helm/nvidia-blueprint-rag/values.yaml
+    --set ngcApiSecret.password=$NGC_API_KEY \
+    --set nv-ingest.nimOperator.audio.enabled=true
    ```
 
-4. Verify that the riva-nim pod is running:
+4. Verify that the audio pod is running:
    ```bash
-   kubectl get pods -n rag | grep riva-nim
+   kubectl get pods -n rag | grep audio
    ```
    Output:
    ```bash
-      nv-ingest-riva-nim-6578f4579f-4q75k                         1/1     Running   0             3m29s
+      audio-pod                                         1/1     Running   0             3m29s
    ```
+   
+   Check the audio service:
    ```bash
-   kubectl get svc -n rag | grep riva-nim
+   kubectl get svc -n rag | grep audio
    ```
    Output:
    ```bash
-      nv-ingest-riva-nim                  ClusterIP   10.103.184.78    <none>        9000/TCP,50051/TCP   4m27s
+      audio                           ClusterIP   10.103.184.78    <none>        9000/TCP,50051/TCP   4m27s
+   ```
+
+   Check the NIMService status:
+   ```bash
+   kubectl get nimservice -n rag | grep audio
+   ```
+   Output:
+   ```bash
+      audio                               Ready      4m30s
    ```
 
 :::{important}
-When using Helm deployment, the Riva NIM service requires an additional H100 or B200 GPU making the total GPU requirement to 9xH100 without MIG slicing.
+When using Helm deployment, the Audio NIM service requires an additional GPU.
+
 :::
 
 ## Audio Segmentation:

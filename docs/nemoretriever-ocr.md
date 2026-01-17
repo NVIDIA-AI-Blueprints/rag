@@ -197,7 +197,7 @@ To use Paddle OCR instead of the default NeMo Retriever OCR:
 ```bash
 # Apply to a fresh deployment (recommended to uninstall existing deployments first)
 # helm uninstall rag -n rag
-helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-rc1.tgz \
+helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-rc2.tgz \
   --username '$oauthtoken' \
   --password "${NGC_API_KEY}" \
   --set nv-ingest.paddleocr-nim.deployed=true \
