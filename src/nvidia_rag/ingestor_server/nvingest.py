@@ -109,6 +109,7 @@ def get_nv_ingest_ingestor(
     ingestor = ingestor.files(filepaths)
 
     if enable_pdf_split_processing:
+        logger.info("Enabling PDF split processing with options: %s", pdf_split_processing_options)
         ingestor = ingestor.pdf_split_config(
             pages_per_chunk=pdf_split_processing_options.get("pages_per_chunk")
         )
