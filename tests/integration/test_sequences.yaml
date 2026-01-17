@@ -2,7 +2,7 @@ sequences:
   basic:
     name: "Basic Integration Tests"
     description: "Core functionality tests excluding advanced features"
-    test_numbers: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 33, 34, 35, 36, 37, 38, 39, 40, 50, 51, 66, 67, 68, 69, 71, 72, 73, 74, 75, 76, 77, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 100, 101, 102, 103, 104, 105, 106, 107, 108, 99]
+    test_numbers: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 33, 34, 35, 36, 37, 38, 39, 40, 50, 51, 66, 67, 68, 69, 71, 72, 73, 74, 75, 76, 77, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 100, 101, 102, 103, 104, 105, 106, 107, 108, 99, 110, 111, 112, 113, 114]
     pre_sequence: [18]  # Cleanup collection before basic tests
     post_sequence: [16, 17, 18, 19, 70, 109]  # Cleanup tests after sequence
 
@@ -83,3 +83,17 @@ sequences:
     test_numbers: [78, 79, 80, 81, 82, 83, 84]
     pre_sequence: []
     post_sequence: [85]  # Cleanup tests after sequence
+
+  library_usage:
+    name: "Python Library Usage Tests"
+    description: "Tests nvidia_rag Python library directly as shown in notebooks/rag_library_usage.ipynb. Assumes cloud deployed models (NVIDIA API catalog). Covers imports, config, collection management, document upload/status/retrieval, health check, RAG generation, search, and cleanup."
+    test_numbers: [120, 121, 122, 123, 127, 128, 129, 124, 130, 131, 132, 125, 133]
+    pre_sequence: []  # No pre-cleanup needed
+    post_sequence: [126]  # Cleanup test collection after sequence
+
+  library_summarization:
+    name: "Python Library Summarization Tests"
+    description: "Tests nvidia_rag Python library document summarization feature as shown in notebooks/summarization.ipynb Part 2 (Library Mode). Covers viewing/modifying summarizer config, custom prompts, summary options, upload with summary generation, status checking, and summary retrieval."
+    test_numbers: [134, 135, 136, 137, 138, 139, 140, 141]
+    pre_sequence: []  # No pre-cleanup needed
+    post_sequence: [142]  # Cleanup summary test collection after sequence

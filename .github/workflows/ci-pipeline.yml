@@ -580,6 +580,58 @@ jobs:
           cp tests/integration/integration_test.log logs/custom-prompt/ 2>/dev/null || true
 
       # ========================================================================
+      # LIBRARY USAGE TESTS
+      # ========================================================================
+      
+      - name: Stop rag-server and ingestor-server for library tests
+        run: |
+          echo "Stopping rag-server and ingestor-server containers (library mode doesn't need them)..."
+          echo "Keeping nv-ingest-ms-runtime, Milvus, Redis, MinIO running for library mode..."
+          docker stop rag-server || true
+          docker stop ingestor-server || true
+          echo "Services stopped. Library tests will use the nvidia_rag library directly."
+          echo "Remaining services (needed for library mode):"
+          docker ps
+      
+      - name: Configure environment for library usage tests
+        run: |
+          echo "PROMPT_CONFIG_FILE=${PWD}/src/nvidia_rag/rag_server/prompt.yaml" >> $GITHUB_ENV
+          echo "ENABLE_QUERYREWRITER=False" >> $GITHUB_ENV
+          echo "CONVERSATION_HISTORY=0" >> $GITHUB_ENV
+
+      - name: Run library usage integration tests
+        run: |
+          source venv/bin/activate
+          echo "Running library usage integration tests..."
+          python -m tests.integration.main --sequence library_usage
+          echo "Library usage integration tests completed"
+
+      - name: Collect logs after library usage tests
+        if: always()
+        run: |
+          mkdir -p logs/library-usage
+          docker logs compose-nv-ingest-ms-runtime-1 > logs/library-usage/nvingest.log 2>&1 || true
+          cp tests/integration/integration_test.log logs/library-usage/ 2>/dev/null || true
+
+      # ========================================================================
+      # LIBRARY SUMMARIZATION TESTS
+      # ========================================================================
+      
+      - name: Run library summarization integration tests
+        run: |
+          source venv/bin/activate
+          echo "Running library summarization integration tests..."
+          python -m tests.integration.main --sequence library_summarization
+          echo "Library summarization integration tests completed"
+
+      - name: Collect logs after library summarization tests
+        if: always()
+        run: |
+          mkdir -p logs/library-summarization
+          docker logs compose-nv-ingest-ms-runtime-1 > logs/library-summarization/nvingest.log 2>&1 || true
+          cp tests/integration/integration_test.log logs/library-summarization/ 2>/dev/null || true
+
+      # ========================================================================
       # OBSERVABILITY TESTS
       # ========================================================================
       
@@ -596,6 +648,7 @@ jobs:
           CI_NVSTAGING_BLUEPRINT_KEY: ${{ secrets.CI_NVSTAGING_BLUEPRINT_KEY }}
         run: |
           echo "Restarting services with observability configuration..."
+          echo "(rag-server and ingestor-server were stopped for library tests, now restarting)"
           docker compose -f tests/integration/vectordb.yaml down -v || true
           docker compose -f deploy/compose/docker-compose-rag-server.yaml down || true
           docker compose -f deploy/compose/docker-compose-ingestor-server.yaml down || true
