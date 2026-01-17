@@ -64,7 +64,25 @@ export function useCreateCollection() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      if (!res.ok) throw new Error("Failed to create collection");
+      if (!res.ok) {
+        let errorMessage = "Failed to create collection";
+        try {
+          const errorData = await res.json();
+          if (Array.isArray(errorData.detail)) {
+            // Extract message from Pydantic validation error
+            const msg = errorData.detail[0]?.msg || errorMessage;
+            // Clean up "Value error, " prefix
+            errorMessage = msg.replace(/^Value error, /, '');
+          } else if (errorData.detail) {
+            errorMessage = errorData.detail;
+          } else if (errorData.message) {
+            errorMessage = errorData.message;
+          }
+        } catch {
+          // Keep default error message if parsing fails
+        }
+        throw new Error(errorMessage);
+      }
       return res.json();
     },
     onSuccess: () => {
