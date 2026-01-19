@@ -353,7 +353,7 @@ ingestor-server:
     APP_NVINGEST_MESSAGECLIENTPORT: "7670"
 
     # === NV-Ingest extraction configurations ===
-    APP_NVINGEST_PDFEXTRACTMETHOD: "pdfium"  # Method used for text extraction from "None", "pdfium", "nemotron_parse"
+    APP_NVINGEST_PDFEXTRACTMETHOD: "None"  # Method used for text extraction from "None", "pdfium", "nemotron_parse"
     APP_NVINGEST_EXTRACTTEXT: "True"  # Enable text extraction
     APP_NVINGEST_EXTRACTINFOGRAPHICS: "False"  # Enable infographic extraction
     APP_NVINGEST_EXTRACTTABLES: "True"  # Enable table extraction
