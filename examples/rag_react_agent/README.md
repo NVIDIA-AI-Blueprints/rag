@@ -1,4 +1,4 @@
-# NVIDIA NAT RAG Plugin
+# RAG React Agent Example
 
 This plugin integrates [NVIDIA RAG](https://github.com/NVIDIA-AI-Blueprints/rag) with NeMo Agent Toolkit, providing RAG query and search capabilities for your agent workflows.
 
@@ -20,7 +20,7 @@ The React Agent autonomously decides when to use RAG tools based on user queries
 
 ## Installation
 
-All commands should be run from the `examples/nvidia_nat_rag/` directory.
+All commands should be run from the `examples/rag_react_agent/` directory.
 
 ### 1. Set Environment Variables
 
@@ -41,8 +41,8 @@ The plugin uses Milvus Lite as an embedded vector database. You need to ingest d
 #### Create a Separate Virtual Environment for Ingestion
 
 ```bash
-# From examples/nvidia_nat_rag/ directory
-cd examples/nvidia_nat_rag
+# From examples/rag_react_agent/ directory
+cd examples/rag_react_agent
 
 # Create and activate a new virtual environment for ingestion
 uv venv .venv-ingest
@@ -77,7 +77,7 @@ deactivate
 ### 3. Install the Plugin and Run Agent
 
 ```bash
-# From examples/nvidia_nat_rag/ directory
+# From examples/rag_react_agent/ directory
 # Create virtual environment and install all dependencies (including nvidia-rag from local repo)
 uv sync
 
@@ -92,7 +92,7 @@ source .venv/bin/activate
 The example uses the **React Agent** workflow from NeMo Agent Toolkit, which enables the LLM to reason about which RAG tools to use based on the user's query.
 
 ```bash
-# From examples/nvidia_nat_rag/ directory with .venv activated
+# From examples/rag_react_agent/ directory with .venv activated
 nat run --config_file src/nat/plugins/rag/configs/config.yml --input "what is giraffee doing?"
 ```
 
@@ -213,7 +213,7 @@ workflow:
 
 The plugin is not installed. Run:
 ```bash
-# From examples/nvidia_nat_rag/ directory
+# From examples/rag_react_agent/ directory
 uv sync
 source .venv/bin/activate
 ```
@@ -239,7 +239,7 @@ export NVIDIA_API_KEY="your-api-key"
 ## Directory Structure
 
 ```
-examples/nvidia_nat_rag/
+examples/rag_react_agent/
 ├── LICENSE.md
 ├── README.md                 # This file
 ├── pyproject.toml           # Package configuration
@@ -248,15 +248,12 @@ examples/nvidia_nat_rag/
 ├── milvus.db                # Vector database (created after ingestion)
 └── src/
     └── nat/
-        ├── meta/
-        │   └── pypi.md
         └── plugins/
             └── rag/
                 ├── __init__.py
                 ├── configs/
                 │   └── config.yml    # Sample config
-                ├── rag_functions.py  # RAG function implementations
-                └── register.py       # Plugin registration
+                └── register.py       # RAG function implementations & plugin registration
 ```
 
 > **Note**: This plugin uses `nvidia-rag` from the parent repository (`../..`) in editable mode. 

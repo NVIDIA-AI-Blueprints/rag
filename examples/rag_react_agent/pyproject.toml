@@ -14,7 +14,7 @@ root = "../.."
 
 
 [project]
-name = "nvidia-nat-rag"
+name = "rag-react-agent"
 dynamic = ["version"]
 dependencies = [
   # Keep package version constraints as open as possible to avoid conflicts with other packages. Always define a minimum
@@ -27,7 +27,7 @@ dependencies = [
   "nvidia-rag[rag]~=2.4",
 ]
 requires-python = ">=3.11,<3.14"
-description = "Subpackage for NVIDIA RAG library integration in NeMo Agent toolkit"
+description = "RAG React Agent example using NVIDIA RAG with NeMo Agent Toolkit"
 readme = "src/nat/meta/pypi.md"
 keywords = ["ai", "rag", "agents"]
 license = { text = "Apache-2.0" }
