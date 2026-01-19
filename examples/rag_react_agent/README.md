@@ -93,7 +93,7 @@ The example uses the **React Agent** workflow from NeMo Agent Toolkit, which ena
 
 ```bash
 # From examples/rag_react_agent/ directory with .venv activated
-nat run --config_file src/nat/plugins/rag/configs/config.yml --input "what is giraffee doing?"
+nat run --config_file src/rag_react_agent/configs/config.yml --input "what is giraffee doing?"
 ```
 
 ### Example Queries
@@ -102,10 +102,10 @@ Try different queries to see how the React Agent decides which tool to use:
 
 ```bash
 # Query that triggers rag_query (generates a response using retrieved documents)
-nat run --config_file src/nat/plugins/rag/configs/config.yml --input "Summarize the main themes of the documents"
+nat run --config_file src/rag_react_agent/configs/config.yml --input "Summarize the main themes of the documents"
 
 # Query that triggers rag_search (returns relevant document chunks)
-nat run --config_file src/nat/plugins/rag/configs/config.yml --input "Find all animals mentioned in documents"
+nat run --config_file src/rag_react_agent/configs/config.yml --input "Find all animals mentioned in documents"
 ```
 
 ### Expected Output
@@ -153,7 +153,7 @@ Workflow Result:
 
 ## Configuration
 
-The plugin includes a sample configuration at `src/nat/plugins/rag/configs/config.yml`:
+The plugin includes a sample configuration at `src/rag_react_agent/configs/config.yml`:
 
 ```yaml
 functions:
@@ -240,20 +240,17 @@ export NVIDIA_API_KEY="your-api-key"
 
 ```
 examples/rag_react_agent/
-├── LICENSE.md
 ├── README.md                 # This file
 ├── pyproject.toml           # Package configuration
 ├── ingest_data.py           # Document ingestion script
 ├── requirements-ingest.txt  # Dependencies for ingestion
 ├── milvus.db                # Vector database (created after ingestion)
 └── src/
-    └── nat/
-        └── plugins/
-            └── rag/
-                ├── __init__.py
-                ├── configs/
-                │   └── config.yml    # Sample config
-                └── register.py       # RAG function implementations & plugin registration
+    └── rag_react_agent/
+        ├── __init__.py
+        ├── configs/
+        │   └── config.yml    # Sample config
+        └── register.py       # RAG function implementations & plugin registration
 ```
 
 > **Note**: This plugin uses `nvidia-rag` from the parent repository (`../..`) in editable mode. 
