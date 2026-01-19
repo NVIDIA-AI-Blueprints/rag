@@ -11,96 +11,87 @@ nv-ingest:
   envVars:
     NV_INGEST_MAX_UTIL: 8
     MAX_INGEST_PROCESS_WORKERS: 2
-  # PaddleOCR NIM
-  paddleocr-nim:
-    resources:
-      limits:
-        nvidia.com/mig-2g.20gb: 1
-        nvidia.com/gpu: 0
-      requests:
-        nvidia.com/mig-2g.20gb: 1
-        nvidia.com/gpu: 0
-
-  # Nemoretriever OCR NIM
-  nemoretriever-ocr:
-    resources:
-      limits:
-        nvidia.com/mig-2g.20gb: 1
-        nvidia.com/gpu: 0
-      requests:
-        nvidia.com/mig-2g.20gb: 1
-        nvidia.com/gpu: 0
-
-  # Nemoretriever Graphic Elements NIM
-  nemoretriever-graphic-elements-v1:
-    resources:
-      limits:
-        nvidia.com/mig-2g.20gb: 1
-        nvidia.com/gpu: 0
-      requests:
-        nvidia.com/mig-2g.20gb: 1
-        nvidia.com/gpu: 0
-
-  # Nemoretriever Page Elements NIM
-  nemoretriever-page-elements-v2:
-    resources:
-      limits:
-        #nvidia.com/mig-1g.10gb: 1
-        nvidia.com/mig-2g.20gb: 1
-        nvidia.com/gpu: 0
-      requests:
-        nvidia.com/mig-2g.20gb: 1
-        #nvidia.com/mig-1g.10gb: 1
-        nvidia.com/gpu: 0
-
-  # Nemoretriever Table Structure NIM
-  nemoretriever-table-structure-v1:
-    resources:
-      limits:
-        nvidia.com/mig-2g.20gb: 1
-        nvidia.com/gpu: 0
-      requests:
-        nvidia.com/mig-2g.20gb: 1
-        nvidia.com/gpu: 0
 
   # Milvus
   milvus:
     standalone:
       resources:
         limits:
-          nvidia.com/gpu: 0
-          nvidia.com/mig-2g.20gb: 1
+          nvidia.com/gpu: "0"
+          nvidia.com/mig-1g.10gb: 1
         requests:
-          nvidia.com/gpu: 0
-          nvidia.com/mig-2g.20gb: 1
-# Retrieval NIMs
-# LLM NIM
-nim-llm:
-  resources:
-    limits:
-      nvidia.com/mig-7g.80gb: 1
-      nvidia.com/gpu: 0
-    requests:
-      nvidia.com/mig-7g.80gb: 1
-      nvidia.com/gpu: 0
+          nvidia.com/gpu: "0"
+          nvidia.com/mig-1g.10gb: 1
 
+  # NIM Operator overrides for nv-ingest NIMs (from NV-Ingest team)
+  nimOperator:
+    # Page Elements - uses 1g.10gb
+    page_elements:
+      resources:
+        limits:
+          nvidia.com/gpu: "0"
+          nvidia.com/mig-1g.10gb: 1
+        requests:
+          nvidia.com/gpu: "0"
+          nvidia.com/mig-1g.10gb: 1
 
-# Embedding NIM
-nvidia-nim-llama-32-nv-embedqa-1b-v2:
-  resources:
-    limits:
-      nvidia.com/mig-2g.20gb: 1
-      nvidia.com/gpu: 0
-    requests:
-      nvidia.com/mig-2g.20gb: 1
-      nvidia.com/gpu: 0
+    # Graphic Elements - uses 1g.10gb
+    graphic_elements:
+      resources:
+        limits:
+          nvidia.com/gpu: "0"
+          nvidia.com/mig-1g.10gb: 1
+        requests:
+          nvidia.com/gpu: "0"
+          nvidia.com/mig-1g.10gb: 1
 
-# Text Reranking NIM
-nvidia-nim-llama-32-nv-rerankqa-1b-v2:
-  resources:
-    limits:
-      nvidia.com/mig-2g.20gb: 1
-      nvidia.com/gpu: 0
-    requests:
-      nvidia.com/mig-2g.20gb: 1
-      nvidia.com/gpu: 0
+    # Table Structure - uses 1g.10gb
+    table_structure:
+      resources:
+        limits:
+          nvidia.com/gpu: "0"
+          nvidia.com/mig-1g.10gb: 1
+        requests:
+          nvidia.com/gpu: "0"
+          nvidia.com/mig-1g.10gb: 1
+
+    # OCR - uses 3g.40gb (LARGER slice for better compatibility!)
+    nemoretriever_ocr_v1:
+      resources:
+        limits:
+          nvidia.com/gpu: "0"
+          nvidia.com/mig-3g.40gb: 1
+        requests:
+          nvidia.com/gpu: "0"
+          nvidia.com/mig-3g.40gb: 1
+# NIM Operator overrides for MIG (main NIMs)
+nimOperator:
+  # LLM - uses 7g.80gb
+  nim-llm:
+    resources:
+      limits:
+        nvidia.com/gpu: "0"
+        nvidia.com/mig-7g.80gb: 1
+      requests:
+        nvidia.com/gpu: "0"
+        nvidia.com/mig-7g.80gb: 1
+
+  # Embedding - uses 1g.10gb
+  nvidia-nim-llama-32-nv-embedqa-1b-v2:
+    resources:
+      limits:
+        nvidia.com/gpu: "0"
+        nvidia.com/mig-1g.10gb: 1
+      requests:
+        nvidia.com/gpu: "0"
+        nvidia.com/mig-1g.10gb: 1
+
+  # Reranking - uses 1g.20gb
+  nvidia-nim-llama-32-nv-rerankqa-1b-v2:
+    resources:
+      limits:
+        nvidia.com/gpu: "0"
+        nvidia.com/mig-1g.20gb: 1
+      requests:
+        nvidia.com/gpu: "0"
+        nvidia.com/mig-1g.20gb: 1

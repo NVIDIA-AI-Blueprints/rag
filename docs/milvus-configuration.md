@@ -92,7 +92,7 @@ To configure Milvus to run in CPU mode when deploying with Helm:
         image:
             all:
             repository: milvusdb/milvus
-            tag: v2.5.17  # instead of v2.5.17-gpu
+            tag: v2.6.2  # instead of v2.6.2-gpu
         ```
 
     C. (Optional) Remove or set GPU resource requests/limits to zero in the `milvus.standalone.resources` block.

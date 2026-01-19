@@ -253,7 +253,7 @@ Only on-prem deployment of the LLM is supported for Helm. The model must be depl
 2. Deploy or upgrade the chart:
 
    ```bash
-   helm upgrade rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-rc1.tgz \
+   helm upgrade rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-rc2.tgz \
      --username '$oauthtoken' \
      --password "${NGC_API_KEY}" \
      --set imagePullSecret.password=${NGC_API_KEY} \
@@ -276,7 +276,7 @@ Only on-prem deployment of the LLM is supported for Helm. The model must be depl
 2. Upgrade the deployment:
 
    ```bash
-   helm upgrade rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-rc1.tgz \
+   helm upgrade rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-rc2.tgz \
      --username '$oauthtoken' \
      --password "${NGC_API_KEY}" \
      --set imagePullSecret.password=${NGC_API_KEY} \
