@@ -627,7 +627,6 @@ nimOperator:
   draResources:
     enabled: false
     name: "rag-claim"
-    type: "TimeSlicing"
   nim-llm:
     enabled: true
     replicas: 1
@@ -961,6 +960,9 @@ nv-ingest:
 
   nimOperator:
     # Ensure nv-ingest does not deploy its own embedding NIM
+    draResources:
+      enabled: false
+      name: "nvingest-claim"
     embedqa:
       enabled: false
 
