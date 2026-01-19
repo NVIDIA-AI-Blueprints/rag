@@ -860,7 +860,6 @@ nv-ingest:
     INGEST_EDGE_BUFFER_SIZE: 64
     MRC_IGNORE_NUMA_CHECK: 1
     READY_CHECK_ALL_COMPONENTS: "False"
-    COMPONENTS_TO_READY_CHECK: ""
     REDIS_MORPHEUS_TASK_QUEUE: morpheus_task_queue
     REDIS_INGEST_TASK_QUEUE: "ingest_task_queue"
     NV_INGEST_DEFAULT_TIMEOUT_MS: "1234"
@@ -886,6 +885,7 @@ nv-ingest:
     OTEL_EXPORTER_OTLP_ENDPOINT: "otel-collector:4317"
     MODEL_PREDOWNLOAD_PATH: "/workspace/models/"
     INSTALL_AUDIO_EXTRACTION_DEPS: "true"
+    COMPONENTS_TO_READY_CHECK: "ALL"
 
     # OCR routing (defaults to Paddle OCR service)
     OCR_GRPC_ENDPOINT: nemoretriever-ocr-v1:8001
