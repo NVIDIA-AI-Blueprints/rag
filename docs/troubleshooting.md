@@ -19,8 +19,9 @@ To navigate this page more easily, click the outline button at the top of the pa
 
 ## 429 Rate Limit Issue for NVIDIA-Hosted Models
 
-You might see an error "429 Client Error: Too Many Requests for url" during ingestion while using NVIDIA-hosted models.
-This can be mitigated by setting the following parameters before starting ingestor-server and nv-ingest-ms-runtime:
+You may encounter a "429 Client Error: Too Many Requests for url" error during ingestion when using NVIDIA-hosted models. This error indicates that the rate limiting threshold for the API has been exceeded. This is not an application issue, but rather a constraint imposed by the API service.
+
+To mitigate rate limiting issues, configure the following parameters before starting ingestor-server and nv-ingest-ms-runtime:
 
 ```bash
 export NV_INGEST_FILES_PER_BATCH=4
@@ -28,6 +29,8 @@ export NV_INGEST_CONCURRENT_BATCHES=1
 export MAX_INGEST_PROCESS_WORKERS=8
 export NV_INGEST_MAX_UTIL=8
 ```
+
+If you continue to experience rate limiting errors after applying these settings, further reduce `NV_INGEST_FILES_PER_BATCH` and `MAX_INGEST_PROCESS_WORKERS` to 1.
 
 ```bash
 # Start the ingestor-server and nv-ingest-ms-runtime containers
