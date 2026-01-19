@@ -625,6 +625,8 @@ async def _prepare_single_document(
         .get("source_id", "")
     )
     file_name = os.path.basename(source_id)
+    file_ext = os.path.splitext(file_name)[1].lower()
+    supports_pages = file_ext in [".pdf", ".pptx"]
 
     # Collect pages with their content - nv-ingest provides sorted pages
     pages_data = []  # List of (page_num, content) tuples in order
@@ -653,19 +655,28 @@ async def _prepare_single_document(
 
     # Apply page filter if specified
     if page_filter:
-        total_pages = max(seen_pages)
-
-        # Filter pages with negative index resolution
-        pages_data = [
-            (page_num, content)
-            for page_num, content in pages_data
-            if matches_page_filter(page_num, page_filter, total_pages)
-        ]
-
-        if not pages_data:
-            raise ValueError(
-                f"No content found for file '{file_name}' with page filter: {page_filter}"
+        # Only apply page filter to document types with real page numbers (PDF, PPTX)
+        if not supports_pages:
+            logger.warning(
+                f"Page filter {page_filter} ignored for '{file_name}' ({file_ext}). "
+                f"Page filtering only applies to PDF and PPTX files. "
+                f"Other formats (DOCX, TXT, HTML, MD, JSON, images, audio, video) will be processed in full."
             )
+        else:
+            # Apply filter only for PDF and PPTX
+            total_pages = max(seen_pages)
+
+            # Filter pages with negative index resolution
+            pages_data = [
+                (page_num, content)
+                for page_num, content in pages_data
+                if matches_page_filter(page_num, page_filter, total_pages)
+            ]
+
+            if not pages_data:
+                raise ValueError(
+                    f"No content found for file '{file_name}' with page filter: {page_filter}"
+                )
 
     # Concatenate content - already in correct order from nv-ingest
     content_parts = [content for _, content in pages_data]

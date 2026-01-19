@@ -69,6 +69,7 @@ curl -X "POST" "http://$${RAG_HOSTNAME}/v1/documents" \
 #### Summary Options Explained
 
 - **page_filter** (optional): Select specific pages to summarize
+  - **Supported formats**: Page filtering **only applies to PDF and PPTX** files. Other formats do not have a page structure and will be processed in full with a warning logged.
   - **Ranges**: `[[1, 10], [20, 30]]` - Pages 1-10 and 20-30
   - **Negative indexing**: `[[-5, -1]]` - Last 5 pages (Pythonic indexing where -1 is last page)
   - **String filters**: `"even"` or `"odd"` - All even or odd pages
@@ -373,6 +374,7 @@ This approach ensures that even very large documents can be summarized effective
 - **Status Tracking**: Monitor summary generation progress in real-time using the `GET /summary` endpoint. The `IN_PROGRESS` status includes chunk-level progress (e.g., "Processing chunk 3/5").
 - **Redis Requirement**: For status tracking and global rate limiting to work across services, ensure Redis is configured and accessible to both ingestor and RAG servers. Without Redis, summaries will still be generated but status tracking and rate limiting will be unavailable.
 - **Timeout Handling**: When using `blocking=true`, set an appropriate timeout based on your document size. Large documents may take several minutes to summarize.
+- **Page Filtering Limitation**: The `page_filter` parameter only applies to **PDF and PPTX** files, which have a natural page structure. For other file types, the page filter will be ignored and the entire document will be processed, with a warning logged in the server logs.
 
 ### Performance Recommendations
 
