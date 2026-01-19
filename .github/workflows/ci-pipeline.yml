@@ -540,6 +540,60 @@ jobs:
           cp tests/integration/integration_test.log logs/vlm-generation/ 2>/dev/null || true
 
       # ========================================================================
+      # MULTIMODAL QUERY TESTS
+      # ========================================================================
+      
+      - name: Configure environment for multimodal query tests
+        run: |
+          # VLM Embedding Model (for multimodal embeddings)
+          echo "APP_EMBEDDINGS_MODELNAME=nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1" >> $GITHUB_ENV
+          echo "APP_EMBEDDINGS_SERVERURL=https://integrate.api.nvidia.com/v1" >> $GITHUB_ENV
+          # VLM Model (for multimodal generation)
+          echo "APP_VLM_MODELNAME=nvidia/nemotron-nano-12b-v2-vl" >> $GITHUB_ENV
+          echo "APP_VLM_SERVERURL=https://integrate.api.nvidia.com/v1" >> $GITHUB_ENV
+          echo "ENABLE_VLM_INFERENCE=True" >> $GITHUB_ENV
+          echo "VLM_TO_LLM_FALLBACK=False" >> $GITHUB_ENV
+          # Ingestion configuration (for image extraction)
+          echo "APP_NVINGEST_STRUCTURED_ELEMENTS_MODALITY=" >> $GITHUB_ENV
+          echo "APP_NVINGEST_IMAGE_ELEMENTS_MODALITY=image" >> $GITHUB_ENV
+          echo "APP_NVINGEST_EXTRACTIMAGES=True" >> $GITHUB_ENV
+          # Disable reranker (not supported with multimodal queries)
+          echo "ENABLE_RERANKER=False" >> $GITHUB_ENV
+          echo "APP_RANKING_SERVERURL=" >> $GITHUB_ENV
+          # Disable other features
+          echo "ENABLE_QUERYREWRITER=False" >> $GITHUB_ENV
+          echo "CONVERSATION_HISTORY=0" >> $GITHUB_ENV
+
+      - name: Restart services for multimodal query tests
+        env:
+          CI_NVSTAGING_BLUEPRINT_KEY: ${{ secrets.CI_NVSTAGING_BLUEPRINT_KEY }}
+        run: |
+          echo "Restarting services with multimodal query configuration..."
+          docker compose -f deploy/compose/docker-compose-rag-server.yaml down || true
+          docker compose -f deploy/compose/docker-compose-ingestor-server.yaml down || true
+          sleep 5
+          docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d --build
+          docker compose -f deploy/compose/docker-compose-ingestor-server.yaml up -d --build
+          sleep 30
+          docker ps
+
+      - name: Run multimodal query integration tests
+        run: |
+          source venv/bin/activate
+          echo "Running multimodal query integration tests..."
+          python -m tests.integration.main --sequence multimodal_query
+          echo "Multimodal query integration tests completed"
+
+      - name: Collect logs after multimodal query tests
+        if: always()
+        run: |
+          mkdir -p logs/multimodal-query
+          docker logs rag-server > logs/multimodal-query/rag-server.log 2>&1 || true
+          docker logs ingestor-server > logs/multimodal-query/ingestor-server.log 2>&1 || true
+          docker logs compose-nv-ingest-ms-runtime-1 > logs/multimodal-query/nvingest.log 2>&1 || true
+          cp tests/integration/integration_test.log logs/multimodal-query/ 2>/dev/null || true
+
+      # ========================================================================
       # CUSTOM PROMPT TESTS
       # ========================================================================
       
@@ -549,6 +603,12 @@ jobs:
           echo "ENABLE_VLM_INFERENCE=False" >> $GITHUB_ENV
           echo "ENABLE_QUERYREWRITER=False" >> $GITHUB_ENV
           echo "CONVERSATION_HISTORY=0" >> $GITHUB_ENV
+          # Reset embedding model to default (text-only) after multimodal query tests
+          echo "APP_EMBEDDINGS_MODELNAME=nvdev/nvidia/llama-3.2-nv-embedqa-1b-v2" >> $GITHUB_ENV
+          # Re-enable reranker
+          echo "ENABLE_RERANKER=True" >> $GITHUB_ENV
+          # Reset image extraction settings
+          echo "APP_NVINGEST_EXTRACTIMAGES=False" >> $GITHUB_ENV
 
       - name: Restart services for custom prompt tests
         env:

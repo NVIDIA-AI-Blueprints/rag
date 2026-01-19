@@ -97,3 +97,10 @@ sequences:
     test_numbers: [134, 135, 136, 137, 138, 139, 140, 141]
     pre_sequence: []  # No pre-cleanup needed
     post_sequence: [142]  # Cleanup summary test collection after sequence
+
+  multimodal_query:
+    name: "Multimodal Query Tests"
+    description: "Tests for multimodal RAG queries that combine text and images. Based on notebooks/image_input.ipynb. Covers collection creation with multimodal embeddings (2048 dim), document ingestion, multimodal search (text + image query), and multimodal generation using VLM."
+    test_numbers: [150, 151, 152, 153, 154]
+    pre_sequence: [155]  # Cleanup collection before multimodal query tests
+    post_sequence: [155]  # Cleanup tests after sequence
