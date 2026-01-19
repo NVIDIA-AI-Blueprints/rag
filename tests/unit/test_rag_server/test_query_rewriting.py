@@ -261,6 +261,8 @@ async def test_generate_uses_query_rewriter_when_enabled(monkeypatch):
     fake_vdb = DummyVDB()
     # Set CONVERSATION_HISTORY > 0 so chat_history is not empty (query rewriting requires chat history)
     monkeypatch.setenv("CONVERSATION_HISTORY", "5")
+    # Ensure multiturn simple retrieval is disabled (test relies on query rewriting)
+    monkeypatch.setenv("MULTITURN_RETRIEVER_SIMPLE", "False")
     rag = NvidiaRAG()
     monkeypatch.setattr(NvidiaRAG, "_prepare_vdb_op", lambda self, **kw: fake_vdb)
 
@@ -292,6 +294,8 @@ async def test_generate_uses_only_current_query_when_history_disabled(monkeypatc
     from nvidia_rag.rag_server.main import NvidiaRAG
 
     fake_vdb = DummyVDB()
+    # Explicitly ensure multiturn simple retrieval is disabled
+    monkeypatch.setenv("MULTITURN_RETRIEVER_SIMPLE", "False")
     rag = NvidiaRAG()
     monkeypatch.setattr(NvidiaRAG, "_prepare_vdb_op", lambda self, **kw: fake_vdb)
 

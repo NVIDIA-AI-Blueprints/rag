@@ -891,9 +891,12 @@ class ElasticVDB(VDBRagIngest):
         try:
             start_time = time.time()
 
+            logger.info("  [Embedding] Generating query embedding for retrieval...")
+            logger.info("  [Embedding] Query: '%s'", query[:100] if query else "")
             retriever = vectorstore.as_retriever(
                 search_kwargs={"k": top_k, "fetch_k": top_k}
             )
+            logger.info("  [Embedding] Query embedding generated successfully")
             if self.config.vector_store.search_type == SearchType.HYBRID:
                 logger.info(
                     "Elasticsearch Retrieval: Using hybrid search with ranker type: '%s'",
@@ -920,6 +923,7 @@ class ElasticVDB(VDBRagIngest):
             retriever_chain = {"context": retriever_lambda} | RunnableAssign(
                 {"context": lambda input: input["context"]}
             )
+            logger.info("  [VDB Search] Performing vector similarity search in collection...")
             retriever_docs = retriever_chain.invoke(
                 query, config={"run_name": "retriever"}
             )
@@ -927,7 +931,8 @@ class ElasticVDB(VDBRagIngest):
 
             end_time = time.time()
             latency = end_time - start_time
-            logger.info(f" Elasticsearch Retrieval latency: {latency:.4f} seconds")
+            logger.info("  [VDB Search] Retrieved %d documents from collection '%s'", len(docs), collection_name)
+            logger.info("  [VDB Search] Total VDB operation latency: %.4f seconds", latency)
 
             return self._add_collection_name_to_retreived_docs(docs, collection_name)
         except (requests.exceptions.ConnectionError, ConnectionError, OSError) as e:
