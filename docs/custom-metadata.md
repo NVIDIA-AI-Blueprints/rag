@@ -224,6 +224,7 @@ The system gracefully handles filter generation failures:
 - **Non-empty**: Field names cannot be empty or whitespace-only
 - **Unique**: Each field name must be unique within the schema
 - **Case-sensitive**: Field names are case-sensitive
+- **Not Reserved**: Field names cannot be reserved names (see note below)
 
 ### System-Managed Metadata Fields
 
@@ -235,6 +236,10 @@ The system automatically manages certain metadata fields that are added to all c
 | **`page_number`** | `integer` | Page number where content appears (1-indexed) | ✅ nv-ingest | ✅ Yes - define in schema |
 | **`start_time`** | `integer` | Start timestamp in milliseconds for audio/video segments | ✅ nv-ingest | ✅ Yes - define in schema |
 | **`end_time`** | `integer` | End timestamp in milliseconds for audio/video segments | ✅ nv-ingest | ✅ Yes - define in schema |
+
+:::{note}
+The following field names are **reserved** by NV-Ingest and cannot be used in custom metadata schemas: `type`, `subtype`, and `location`. These fields are exclusively managed by NV-Ingest during document processing and attempting to use them will result in a validation error.
+:::
 
 #### System-Managed Field Behavior
 

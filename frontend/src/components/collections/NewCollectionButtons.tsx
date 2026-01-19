@@ -55,7 +55,7 @@ const useResponsiveScreen = () => {
 
 export default function NewCollectionButtons() {
   const navigate = useNavigate();
-  const { collectionName, collectionNameTouched, metadataSchema, fileMetadata, selectedFiles, isLoading, hasInvalidFiles, setError } =
+  const { collectionName, collectionNameTouched, metadataSchema, fileMetadata, selectedFiles, isLoading, hasInvalidFiles, error, setError } =
     useNewCollectionStore();
 
   const { submit } = useSubmitNewCollection();
@@ -254,12 +254,12 @@ export default function NewCollectionButtons() {
   return (
     <>
       {/* Error notification - positioned normally */}
-      {(nameError || validationMessage) && (
+      {(nameError || validationMessage || error) && (
         <Block padding="4" data-testid="new-collection-buttons">
           <Notification
             status="error"
             slotHeading="Validation Error"
-            slotSubheading={nameError || validationMessage}
+            slotSubheading={nameError || validationMessage || error}
             data-testid="error-message"
           />
         </Block>
