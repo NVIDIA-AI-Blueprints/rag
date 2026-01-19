@@ -223,6 +223,103 @@ milvus-etcd                             Up 35 minutes (healthy)
 
 
 
+## Helm Chart Deployment
+
+Use this section to deploy multimodal query support on Kubernetes using Helm charts.
+
+:::{note}
+This configuration disables the default LLM NIM and text embedding NIM, replacing them with VLM NIM and VLM embedding NIM. The GPU resources previously used by the disabled services will be available for the VLM services.
+If MIG slicing is enabled on the cluster, ensure to assign a dedicated slice to the VLM. Check [mig-deployment.md](./mig-deployment.md) for more information.
+:::
+
+### 1. Update values.yaml
+
+Update `deploy/helm/nvidia-blueprint-rag/values.yaml` with the following configuration:
+
+```yaml
+# Enable VLM NIM for multimodal generation
+nim-vlm:
+  enabled: true
+
+# Enable VLM embedding NIM for multimodal embeddings
+nvidia-nim-llama-32-nemoretriever-1b-vlm-embed-v1:
+  enabled: true
+  image:
+    repository: nvcr.io/nvidia/nemo-microservices/llama-3.2-nemoretriever-1b-vlm-embed-v1
+    tag: "1.7.0"
+
+# Optional: disable the default text embedding NIM
+nvidia-nim-llama-32-nv-embedqa-1b-v2:
+  enabled: false
+
+# Disable LLM NIM (VLM handles generation)
+nim-llm:
+  enabled: false
+
+# Configure environment variables
+envVars:
+  # VLM inference settings
+  ENABLE_VLM_INFERENCE: "true"
+  VLM_TO_LLM_FALLBACK: "false"
+  APP_VLM_MODELNAME: "nvidia/nemotron-nano-12b-v2-vl"
+  APP_VLM_SERVERURL: "http://nim-vlm:8000/v1"
+
+  # VLM embedding settings
+  APP_EMBEDDINGS_SERVERURL: "nemoretriever-vlm-embedding-ms:8000"
+  APP_EMBEDDINGS_MODELNAME: "nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1"
+
+  # Disable reranker (not supported with multimodal queries)
+  ENABLE_RERANKER: "False"
+  APP_RANKING_SERVERURL: ""
+
+ingestor-server:
+  envVars:
+    # Image extraction settings
+    APP_NVINGEST_STRUCTURED_ELEMENTS_MODALITY: ""
+    APP_NVINGEST_IMAGE_ELEMENTS_MODALITY: "image"
+    APP_NVINGEST_EXTRACTIMAGES: "True"
+
+    # VLM embedding settings for ingestor
+    APP_EMBEDDINGS_SERVERURL: "nemoretriever-vlm-embedding-ms:8000"
+    APP_EMBEDDINGS_MODELNAME: "nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1"
+
+nv-ingest:
+  envVars:
+    EMBEDDING_NIM_ENDPOINT: "http://nemoretriever-vlm-embedding-ms:8000/v1"
+    EMBEDDING_NIM_MODEL_NAME: "nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1"
+```
+
+### 2. Deploy or Upgrade the Chart
+
+Run the following command to deploy or upgrade the Helm chart:
+
+```bash
+helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-rc1.tgz \
+  --username '$oauthtoken' \
+  --password "${NGC_API_KEY}" \
+  --set imagePullSecret.password=$NGC_API_KEY \
+  --set ngcApiSecret.password=$NGC_API_KEY \
+  -f deploy/helm/nvidia-blueprint-rag/values.yaml
+```
+
+### 3. Verify the Deployment
+
+Verify the VLM pods are running:
+
+```bash
+kubectl get pods -n rag | grep -E "(vlm|embedding)"
+```
+
+Expected pods:
+- `rag-0` (VLM model deployment)
+- `nemoretriever-vlm-embedding-ms` (VLM embedding service)
+
+:::{note}
+It may take several minutes for the VLM pods to initialize and download the model weights.
+:::
+
+
+
 ## Using Multimodal Queries
 
 After deployment, you can start querying your knowledge base with both text and images.
@@ -247,6 +344,7 @@ After deployment, you can start querying your knowledge base with both text and 
 - [Image Captioning Support](image_captioning.md)
 - [Deploy with Docker (Self-Hosted Models)](deploy-docker-self-hosted.md)
 - [Deploy with Docker (NVIDIA-Hosted Models)](deploy-docker-nvidia-hosted.md)
+- [Deploy with Helm](deploy-helm.md)
 - [Troubleshoot](troubleshooting.md)
 - [Notebooks](notebooks.md)
 
