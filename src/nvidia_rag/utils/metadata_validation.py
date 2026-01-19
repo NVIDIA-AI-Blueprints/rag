@@ -124,6 +124,27 @@ SYSTEM_MANAGED_FIELDS = {
         "rag_managed": False,
         "support_dynamic_filtering": False,
     },
+    "type": {
+        "type": "string",
+        "description": "Content type extracted by NV-Ingest (text, image, table, chart, audio)",
+        "rag_managed": False,
+        "support_dynamic_filtering": False,
+        "reserved": True,  # Cannot be overridden by users
+    },
+    "subtype": {
+        "type": "string",
+        "description": "Content subtype extracted by NV-Ingest",
+        "rag_managed": False,
+        "support_dynamic_filtering": False,
+        "reserved": True,  # Cannot be overridden by users
+    },
+    "location": {
+        "type": "array",
+        "description": "Bounding box coordinates extracted by NV-Ingest [x1, y1, x2, y2]",
+        "rag_managed": False,
+        "support_dynamic_filtering": False,
+        "reserved": True,  # Cannot be overridden by users
+    },
 }
 
 # ============================================================================
@@ -476,6 +497,15 @@ class MetadataField(BaseModel):
                 "Field name cannot be empty. Please provide a valid field name."
             )
         self.name = self.name.strip()
+
+        # Check if field name is reserved
+        if self.name in SYSTEM_MANAGED_FIELDS:
+            field_def = SYSTEM_MANAGED_FIELDS[self.name]
+            if field_def.get("reserved", False):
+                raise ValueError(
+                    f"Field name '{self.name}' is reserved and cannot be used as a custom metadata field. "
+                    f"Please choose a different field name."
+                )
 
     def _validate_array_type(self) -> None:
         """Validate array_type logic for array fields."""
