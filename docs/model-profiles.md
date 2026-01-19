@@ -26,7 +26,7 @@ To see all available profiles for your specific hardware configuration, run the 
 ```bash
 USERID=$(id -u) docker run --rm --gpus all \
   -v ~/.cache/model-cache:/opt/nim/.cache \
-  nvcr.io/nim/nvidia/llama-3.3-nemotron-super-49b-v1.5:1.15.1 \
+  nvcr.io/nim/nvidia/llama-3.3-nemotron-super-49b-v1.5:1.15.4 \
   list-model-profiles
 ```
 
@@ -54,7 +54,7 @@ To set a specific model profile in Docker Compose, add the `NIM_MODEL_PROFILE` e
 ```yaml
   nim-llm:
     container_name: nim-llm-ms
-    image: nvcr.io/nim/nvidia/llama-3.3-nemotron-super-49b-v1.5:1.15.1
+    image: nvcr.io/nim/nvidia/llama-3.3-nemotron-super-49b-v1.5:1.15.4
     # ... other configuration ...
     environment:
       NGC_API_KEY: ${NGC_API_KEY}
@@ -80,7 +80,7 @@ nim-llm:
   image:
     repository: nvcr.io/nim/nvidia/llama-3.3-nemotron-super-49b-v1.5
     pullPolicy: IfNotPresent
-    tag: "1.15.1"
+    tag: "1.15.4"
   resources:
     limits:
       nvidia.com/gpu: 1
