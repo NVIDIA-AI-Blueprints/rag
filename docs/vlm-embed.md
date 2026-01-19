@@ -55,8 +55,8 @@ Set the ingestor’s embedding endpoint and model to the VLM service and model. 
 
 ```bash
 # Point to the required VLM embedding endpoint
-export APP_EMBEDDINGS_SERVERURL="nemoretriever-vlm-embedding-ms:8000" # For on-prem deployed
-# export APP_EMBEDDINGS_SERVERURL="" # For cloud hosted NIM
+export APP_EMBEDDINGS_SERVERURL="nemoretriever-vlm-embedding-ms:8000/v1" # For on-prem deployed
+# export APP_EMBEDDINGS_SERVERURL="https://integrate.api.nvidia.com/v1" # For cloud hosted NIM
 export APP_EMBEDDINGS_MODELNAME="nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1"
 
 # Launch or restart the ingestor server so the new env vars take effect
@@ -132,7 +132,7 @@ docker compose -f deploy/compose/docker-compose-ingestor-server.yaml up -d
 ## Quick Reference
 - **Start only VLM embedding service**: `docker compose -f deploy/compose/nims.yaml --profile vlm-embed up -d`
 - **Point ingestor to VLM embedding**:
-  - `APP_EMBEDDINGS_SERVERURL=nemoretriever-vlm-embedding-ms:8000`
+  - `APP_EMBEDDINGS_SERVERURL=nemoretriever-vlm-embedding-ms:8000/v1`
   - `APP_EMBEDDINGS_MODELNAME=nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1`
 - **Modality env vars**:
   - `APP_NVINGEST_STRUCTURED_ELEMENTS_MODALITY`: `image` or empty
@@ -162,12 +162,12 @@ nvidia-nim-llama-32-nv-embedqa-1b-v2:
 
 # Point services to the VLM embedding endpoint and model
 envVars:
-  APP_EMBEDDINGS_SERVERURL: "nemoretriever-vlm-embedding-ms:8000"
+  APP_EMBEDDINGS_SERVERURL: "nemoretriever-vlm-embedding-ms:8000/v1"
   APP_EMBEDDINGS_MODELNAME: "nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1"
 
 ingestor-server:
   envVars:
-    APP_EMBEDDINGS_SERVERURL: "nemoretriever-vlm-embedding-ms:8000"
+    APP_EMBEDDINGS_SERVERURL: "nemoretriever-vlm-embedding-ms:8000/v1"
     APP_EMBEDDINGS_MODELNAME: "nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1"
 
 nv-ingest:
@@ -195,7 +195,7 @@ Set extraction-related variables under `envVars` and `ingestor-server.envVars`, 
 
 ```yaml
 envVars:
-  APP_EMBEDDINGS_SERVERURL: "nemoretriever-vlm-embedding-ms:8000"
+  APP_EMBEDDINGS_SERVERURL: "nemoretriever-vlm-embedding-ms:8000/v1"
   APP_EMBEDDINGS_MODELNAME: "nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1"
 ingestor-server:
   envVars:
@@ -209,7 +209,7 @@ ingestor-server:
     APP_NVINGEST_STRUCTURED_ELEMENTS_MODALITY: ""   # set to "image" to embed tables/charts as images
     APP_NVINGEST_IMAGE_ELEMENTS_MODALITY: ""        # set to "image" to embed page images as images
     # Ingestor-side embedding target
-    APP_EMBEDDINGS_SERVERURL: "nemoretriever-vlm-embedding-ms:8000"
+    APP_EMBEDDINGS_SERVERURL: "nemoretriever-vlm-embedding-ms:8000/v1"
     APP_EMBEDDINGS_MODELNAME: "nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1"
 
 nv-ingest:
