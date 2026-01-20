@@ -39,10 +39,10 @@ By default, the example connects to Milvus at `http://localhost:19530`. You can 
 
 ```bash
 # For standard Milvus server
-export APP_VECTORSTORE_URL="http://localhost:19530"
+# export APP_VECTORSTORE_URL="http://localhost:19530"
 
 # Or for a remote Milvus instance
-export APP_VECTORSTORE_URL="http://milvus-host:19530"
+# export APP_VECTORSTORE_URL="http://milvus-host:19530"
 ```
 
 **Option B: Update config.yml**
@@ -57,7 +57,7 @@ functions:
     vdb_endpoint: "http://localhost:19530"  # Your Milvus endpoint
 ```
 
-> **Note**: For Milvus Lite, provide an absolute path to the `.db` file (e.g., `/home/user/data/milvus.db`).
+> **Note**: If you have followed rag_library_lite_usage.ipynb notebook and have a setup using milvus-lite, provide an absolute path to the `.db` file (e.g., `/home/user/data/milvus.db`).
 
 ### 3. Install Dependencies and Run the Agent
 
@@ -142,9 +142,10 @@ The configuration file at `src/rag_react_agent/configs/config.yml` defines the R
 
 ```yaml
 functions:
-  # RAG Query Tool - Queries documents and returns AI-generated response
+  # RAG Query Tool - Queries documents and returns LLM or VLM Generated response
   rag_query:
     _type: nvidia_rag_query
+    # Ensure collection_name matches with the collection name used in the rag library notebook.
     collection_names: ["test_library"]    # Milvus collection names
     vdb_endpoint: "http://localhost:19530" # Milvus endpoint URL
 
@@ -202,22 +203,6 @@ workflow:
 | `reranker_top_k` | Number of results to return after reranking | `10` |
 | `vdb_top_k` | Number of results to retrieve before reranking | `100` |
 
-## How It Works
-
-1. **Tool Registration**: The `register.py` module registers `nvidia_rag_query` and `nvidia_rag_search` as NAT-compatible tools using the `@register_function` decorator.
-
-2. **Agent Reasoning**: When a user asks a question, the ReAct agent:
-   - Analyzes the query to determine if RAG tools are needed
-   - Selects the appropriate tool (`rag_query` for answers, `rag_search` for document retrieval)
-   - Executes the tool and processes the response
-   - Iterates if more information is needed
-
-3. **RAG Execution**: The tools use NVIDIA RAG to:
-   - Embed the query using NVIDIA embeddings
-   - Search the Milvus vector database
-   - Rerank results for relevance
-   - Generate responses using the configured LLM
-
 ## Troubleshooting
 
 ### Error: Function type `nvidia_rag_query` not found
@@ -258,25 +243,9 @@ Ensure Milvus is running and accessible at the configured endpoint. If you follo
 docker ps | grep milvus
 ```
 
-## Directory Structure
-
-```
-examples/rag_react_agent/
-├── README.md                 # This file
-├── pyproject.toml           # Package configuration with NAT dependencies
-└── src/
-    └── rag_react_agent/
-        ├── __init__.py
-        ├── configs/
-        │   └── config.yml    # Agent and RAG tool configuration
-        └── register.py       # RAG tool implementations for NAT
-```
-
 ## Learn More
 
 - [NeMo Agent Toolkit Documentation](https://docs.nvidia.com/nemo/agent-toolkit/latest/)
-- [NVIDIA RAG Blueprint](https://github.com/NVIDIA-AI-Blueprints/rag)
-- [Milvus Documentation](https://milvus.io/docs)
 
 ## License
 
