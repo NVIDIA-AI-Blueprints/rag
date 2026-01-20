@@ -966,7 +966,10 @@ class MilvusVDB(VDBRagIngest):
         token = otel_context.attach(otel_ctx) if otel_ctx is not None else None
 
         try:
+            logger.info("  [Embedding] Generating query embedding for retrieval...")
+            logger.info("  [Embedding] Query: '%s'", query[:100] if query else "")
             retriever = vectorstore.as_retriever(search_kwargs={"k": top_k})
+            logger.info("  [Embedding] Query embedding generated successfully")
 
             if self.config.vector_store.search_type == SearchType.HYBRID:
                 logger.info(
@@ -996,6 +999,7 @@ class MilvusVDB(VDBRagIngest):
             retriever_chain = {"context": retriever_lambda} | RunnableAssign(
                 {"context": lambda input: input["context"]}
             )
+            logger.info("  [VDB Search] Performing vector similarity search in collection...")
             retriever_docs = retriever_chain.invoke(
                 query, config={"run_name": "retriever"}
             )
@@ -1004,7 +1008,8 @@ class MilvusVDB(VDBRagIngest):
 
             end_time = time.time()
             latency = end_time - start_time
-            logger.info(f" Milvus Retrieval latency: {latency:.4f} seconds")
+            logger.info("  [VDB Search] Retrieved %d documents from collection '%s'", len(docs), collection_name)
+            logger.info("  [VDB Search] Total VDB operation latency: %.4f seconds", latency)
 
             return self._add_collection_name_to_retreived_docs(docs, collection_name)
         except (requests.exceptions.ConnectionError, ConnectionError, OSError) as e:

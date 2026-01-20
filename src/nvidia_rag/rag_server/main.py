@@ -423,6 +423,25 @@ class NvidiaRAG:
             reranker_endpoint: Reranker server endpoint URL
             filter_expr: Filter expression to filter document from vector DB
         """
+        # === STAGE 1: PIPELINE ENTRY ===
+        logger.info("=" * 80)
+        logger.info("RAG PIPELINE START - generate() method invoked")
+        logger.info("=" * 80)
+        logger.info("Input Parameters:")
+        logger.info("  - use_knowledge_base: %s", use_knowledge_base)
+        logger.info("  - messages count: %d", len(messages) if messages else 0)
+        logger.info("  - collection_names: %s", collection_names)
+        logger.info("  - enable_query_rewriting: %s", enable_query_rewriting)
+        logger.info("  - enable_reranker: %s", enable_reranker)
+        logger.info("  - enable_filter_generator: %s", enable_filter_generator)
+        logger.info("  - enable_query_decomposition: %s", enable_query_decomposition)
+        logger.info("  - enable_vlm_inference: %s", enable_vlm_inference)
+        logger.info("  - enable_reflection: %s", self.config.reflection.enable_reflection)
+        logger.info("  - vdb_top_k: %s, reranker_top_k: %s", vdb_top_k, reranker_top_k)
+        logger.info("  - temperature: %s, top_p: %s, max_tokens: %s", temperature, top_p, max_tokens)
+        logger.info("  - model: %s", model)
+        logger.info("-" * 80)
+        
         # Apply defaults from config for None values
         model_params = self.config.llm.get_model_parameters()
         temperature = (
@@ -544,6 +563,12 @@ class NvidiaRAG:
             collection_names = [self.config.vector_store.default_collection_name]
 
         query, chat_history = prepare_llm_request(messages)
+        
+        # Log extracted query
+        query_text = self._extract_text_from_content(query)
+        logger.info("Extracted Query: '%s'", query_text[:200] if query_text else "")
+        logger.info("Chat History: %d message(s)", len(chat_history) if chat_history else 0)
+        
         llm_settings = {
             "model": model,
             "llm_endpoint": llm_endpoint,
@@ -584,7 +609,9 @@ class NvidiaRAG:
         }
 
         if use_knowledge_base:
-            logger.info("Using knowledge base to generate response.")
+            logger.info("=" * 80)
+            logger.info("PIPELINE MODE: RAG Chain (with knowledge base)")
+            logger.info("=" * 80)
             return await self._rag_chain(
                 llm_settings=llm_settings,
                 query=query,
@@ -609,9 +636,9 @@ class NvidiaRAG:
                 metrics=metrics,
             )
         else:
-            logger.info(
-                "Using LLM to generate response directly without knowledge base."
-            )
+            logger.info("=" * 80)
+            logger.info("PIPELINE MODE: Direct LLM Chain (without knowledge base)")
+            logger.info("=" * 80)
             return await self._llm_chain(
                 llm_settings=llm_settings,
                 query=query,
@@ -662,10 +689,18 @@ class NvidiaRAG:
             Citations: Retrieved documents.
         """
 
-        logger.info(
-            "Searching relevant document for the query: %s",
-            self._extract_text_from_content(query),
-        )
+        query_text = self._extract_text_from_content(query)
+        logger.info("=" * 80)
+        logger.info("RAG PIPELINE START - search() method invoked")
+        logger.info("=" * 80)
+        logger.info("Search Parameters:")
+        logger.info("  - Query: '%s'", query_text[:200] if query_text else "")
+        logger.info("  - Collection Names: %s", collection_names)
+        logger.info("  - VDB Top-K: %s, Reranker Top-K: %s", vdb_top_k, reranker_top_k)
+        logger.info("  - Enable Query Rewriting: %s", enable_query_rewriting)
+        logger.info("  - Enable Reranker: %s", enable_reranker)
+        logger.info("  - Enable Filter Generator: %s", enable_filter_generator)
+        logger.info("-" * 80)
 
         # Apply defaults from config for None values
         reranker_top_k = (
@@ -1415,6 +1450,22 @@ class NvidiaRAG:
             prompt_template = ChatPromptTemplate.from_messages(message)
             llm = get_llm(config=self.config, **llm_settings)
 
+            logger.info("=" * 80)
+            logger.info("STAGE: LLM Generation (Direct)")
+            logger.info("=" * 80)
+            logger.info("LLM Configuration:")
+            logger.info("  - Model: %s", model)
+            llm_endpoint_display = llm_settings.get("llm_endpoint") or "api catalog"
+            logger.info("  - Endpoint: %s", llm_endpoint_display)
+            logger.info("  - Temperature: %s, Top-P: %s, Max Tokens: %s", 
+                       llm_settings.get("temperature"), 
+                       llm_settings.get("top_p"), 
+                       llm_settings.get("max_tokens"))
+            logger.info("Input:")
+            logger.info("  - Query: '%s'", query_text[:200] if query_text else "")
+            logger.info("Starting LLM stream generation...")
+            logger.info("-" * 80)
+
             chain = (
                 prompt_template
                 | llm
@@ -1427,6 +1478,9 @@ class NvidiaRAG:
             )
             # Eagerly fetch first chunk to trigger any errors before returning response
             prefetched_stream = await self._eager_prefetch_astream(stream_gen)
+            
+            logger.info("LLM stream initiated successfully (first chunk received)")
+            logger.info("-" * 80)
 
             return RAGResponse(
                 generate_answer_async(
@@ -1838,6 +1892,17 @@ class NvidiaRAG:
             # 2. Query combination: Concatenates history for retrieval, keeps original for specific tasks
             if chat_history and not is_image_query:
                 if enable_query_rewriting:
+                    logger.info("=" * 80)
+                    logger.info("STAGE: Query Rewriting")
+                    logger.info("=" * 80)
+                    logger.info("Configuration:")
+                    logger.info("  - Model: %s", self.config.query_rewriter.model_name)
+                    logger.info("  - Endpoint: %s", self.config.query_rewriter.server_url)
+                    logger.info("Input:")
+                    logger.info("  - Query: '%s'", retriever_query[:200] if retriever_query else "")
+                    logger.info("  - Chat History Messages: %d", len(chat_history) if chat_history else 0)
+                    logger.info("-" * 80)
+                    
                     # Skip query rewriting if conversation history is disabled
                     if conversation_history_count == 0:
                         logger.warning(
@@ -1937,11 +2002,12 @@ class NvidiaRAG:
                                 ErrorCodeMapping.SERVICE_UNAVAILABLE,
                             ) from e
 
-                        logger.info(
-                            "Rewritten Query: %s %s",
-                            retriever_query,
-                            len(retriever_query),
-                        )
+                        logger.info("Query Rewriting Output:")
+                        logger.info("  - Original Query: '%s'", processed_query[:200] if processed_query else "")
+                        logger.info("  - Rewritten Query: '%s'", retriever_query[:200] if retriever_query else "")
+                        logger.info("  - Rewritten Query Length: %d characters", len(retriever_query))
+                        logger.info("Query rewriting completed successfully")
+                        logger.info("-" * 80)
 
                         # When query rewriting is enabled, we can use it as processed_query for other modules
                         processed_query = retriever_query
@@ -1980,9 +2046,18 @@ class NvidiaRAG:
                             ErrorCodeMapping.SERVICE_UNAVAILABLE,
                         )
 
-                    logger.debug(
-                        "Filter expression generator enabled, attempting to generate filter from query"
-                    )
+                    logger.info("=" * 80)
+                    logger.info("STAGE: Filter Expression Generation")
+                    logger.info("=" * 80)
+                    logger.info("Configuration:")
+                    logger.info("  - Model: %s", self.config.filter_expression_generator.model_name)
+                    logger.info("  - Endpoint: %s", self.config.filter_expression_generator.server_url)
+                    logger.info("Input:")
+                    logger.info("  - Query: '%s'", processed_query[:200] if processed_query else "")
+                    logger.info("  - Collections: %s", validated_collections)
+                    logger.info("Generating filter expressions for collections...")
+                    logger.info("-" * 80)
+                    
                     try:
 
                         def generate_filter_for_collection(collection_name):
@@ -2045,19 +2120,40 @@ class NvidiaRAG:
                             [f for f in collection_filter_mapping.values() if f]
                         )
                         if generated_count > 0:
-                            logger.debug(
-                                f"Generated filter expressions for {generated_count}/{len(validated_collections)} collections"
-                            )
+                            logger.info("Filter Generation Output:")
+                            logger.info("  - Successfully generated filters for %d/%d collections", 
+                                       generated_count, len(validated_collections))
+                            for coll_name, filter_val in collection_filter_mapping.items():
+                                if filter_val:
+                                    logger.info("  - Collection '%s': %s", coll_name, filter_val[:100])
                         else:
-                            logger.debug(
-                                "No filter expressions generated for any collection"
-                            )
+                            logger.info("Filter Generation Output: No filter expressions generated")
+                        logger.info("-" * 80)
 
                     except Exception as e:
                         logger.warning(f"Error generating filter expression: {str(e)}")
 
             if enable_query_decomposition and not is_image_query:
-                logger.info("Using query decomposition for complex query processing")
+                logger.info("=" * 80)
+                logger.info("STAGE: Query Decomposition (Iterative)")
+                logger.info("=" * 80)
+                logger.info("Configuration:")
+                logger.info("  - LLM Model: %s", model)
+                llm_endpoint_display = llm_settings.get("llm_endpoint") or "api catalog"
+                logger.info("  - LLM Endpoint: %s", llm_endpoint_display)
+                logger.info("  - Recursion Depth: %d", self.config.query_decomposition.recursion_depth)
+                logger.info("  - Enable Reranker: %s", enable_reranker)
+                if enable_reranker:
+                    logger.info("  - Reranker Model: %s", reranker_model)
+                    logger.info("  - Reranker Top-K: %d", reranker_top_k)
+                logger.info("Input:")
+                logger.info("  - Query: '%s'", self._extract_text_from_content(query)[:200])
+                logger.info("  - Collection: %s", validated_collections[0] if validated_collections else "")
+                logger.info("  - Retrieval Top-K: %d", top_k)
+                logger.info("  - Confidence Threshold: %.2f", confidence_threshold)
+                logger.info("Starting iterative query decomposition...")
+                logger.info("-" * 80)
+                
                 # TODO: Pass processed_query instead of query and check accuracy
                 return await iterative_query_decomposition(
                     query=query,
@@ -2086,6 +2182,17 @@ class NvidiaRAG:
 
             # Get relevant documents with optional reflection
             if self.config.reflection.enable_reflection:
+                logger.info("=" * 80)
+                logger.info("STAGE: Context Relevance Reflection")
+                logger.info("=" * 80)
+                logger.info("Reflection Configuration:")
+                logger.info("  - Model: %s", self.config.reflection.model_name)
+                logger.info("  - Endpoint: %s", self.config.reflection.server_url)
+                logger.info("  - Max Loops: %d", self.config.reflection.max_loops)
+                logger.info("  - Relevance Threshold: %d", self.config.reflection.context_relevance_threshold)
+                logger.info("Starting context relevance check...")
+                logger.info("-" * 80)
+                
                 context_reflection_counter = ReflectionCounter(self.config.reflection.max_loops)
 
                 try:
@@ -2125,22 +2232,42 @@ class NvidiaRAG:
                 if ranker and enable_reranker:
                     context_to_show = self._normalize_relevance_scores(context_to_show)
 
+                logger.info("Reflection Output:")
+                logger.info("  - Context Relevant: %s", is_relevant)
+                logger.info("  - Reflection Iterations: %d", context_reflection_counter.current_count)
+                logger.info("  - Final Documents: %d", len(context_to_show))
                 if not is_relevant:
-                    logger.warning(
-                        "Could not find sufficiently relevant context after %d attempts",
-                        context_reflection_counter.current_count,
-                    )
+                    logger.warning("  - Could not find sufficiently relevant context after %d attempts",
+                                 context_reflection_counter.current_count)
+                logger.info("-" * 80)
             else:
                 otel_ctx = otel_context.get_current()
                 # Current reranker is not supported for image query
                 if ranker and enable_reranker and not is_image_query:
-                    logger.info(
-                        "Narrowing the collection from %s results and further narrowing it to "
-                        "%s with the reranker for rag chain.",
-                        top_k,
-                        reranker_top_k,
-                    )
-                    logger.info("Setting ranker top n as: %s.", reranker_top_k)
+                    logger.info("=" * 80)
+                    logger.info("STAGE: VDB Retrieval + Reranking")
+                    logger.info("=" * 80)
+                    logger.info("Embedding Configuration:")
+                    if hasattr(vdb_op, 'embedding_model') and vdb_op.embedding_model:
+                        logger.info("  - Model: %s", vdb_op.embedding_model._model if hasattr(vdb_op.embedding_model, '_model') else 'N/A')
+                        logger.info("  - Endpoint: %s", getattr(vdb_op.embedding_model, '_client', {}).base_url if hasattr(vdb_op.embedding_model, '_client') else 'N/A')
+                    else:
+                        logger.info("  - Model: N/A")
+                        logger.info("  - Endpoint: N/A")
+                    logger.info("Reranker Configuration:")
+                    logger.info("  - Model: %s", reranker_model)
+                    logger.info("  - Endpoint: %s", reranker_endpoint or self.config.ranking.server_url)
+                    logger.info("Retrieval Configuration:")
+                    logger.info("  - Query: '%s'", retriever_query[:200] if retriever_query else "")
+                    logger.info("  - Collections: %s", validated_collections)
+                    logger.info("  - VDB Top-K: %d", top_k)
+                    logger.info("  - Reranker Top-K: %d", reranker_top_k)
+                    logger.info("  - Filter Expressions: %s", 
+                               {k: v[:50] + "..." if len(v) > 50 else v 
+                                for k, v in collection_filter_mapping.items()})
+                    logger.info("Starting parallel retrieval from collections...")
+                    logger.info("-" * 80)
+                    
                     context_reranker = RunnableAssign(
                         {
                             "context": lambda input: ranker.compress_documents(
@@ -2158,9 +2285,6 @@ class NvidiaRAG:
                         vectorstores.append(
                             vdb_op.get_langchain_vectorstore(collection_name)
                         )
-                    logger.debug(
-                        "Using retriever query for retrieval %s", retriever_query
-                    )
                     with ThreadPoolExecutor() as executor:
                         futures = [
                             executor.submit(
@@ -2182,14 +2306,13 @@ class NvidiaRAG:
                             docs.extend(future.result())
 
                     retrieval_time_ms = (time.time() - retrieval_start_time) * 1000
-                    logger.info(
-                        "== Total retrieval time: %.2f ms ==", retrieval_time_ms
-                    )
+                    logger.info("Retrieval Output:")
+                    logger.info("  - Retrieved Documents: %d", len(docs))
+                    logger.info("  - Retrieval Time: %.2f ms", retrieval_time_ms)
+                    logger.info("-" * 80)
 
                     context_reranker_start_time = time.time()
-                    logger.debug(
-                        "Using processed query for reranker %s", processed_query
-                    )
+                    logger.info("Starting reranking with query: '%s'", processed_query[:200] if processed_query else "")
                     try:
                         docs = await context_reranker.ainvoke(
                             {"context": docs, "question": processed_query},
@@ -2212,15 +2335,39 @@ class NvidiaRAG:
                     context_reranker_time_ms = (
                         time.time() - context_reranker_start_time
                     ) * 1000
-                    logger.info(
-                        "    == Context reranker time: %.2f ms ==",
-                        context_reranker_time_ms,
-                    )
                     context_to_show = docs.get("context", [])
+                    
                     # Normalize scores to 0-1 range
                     context_to_show = self._normalize_relevance_scores(context_to_show)
+                    
+                    logger.info("Reranking Output:")
+                    logger.info("  - Reranked Documents: %d", len(context_to_show))
+                    logger.info("  - Reranking Time: %.2f ms", context_reranker_time_ms)
+                    if context_to_show:
+                        scores = [doc.metadata.get("relevance_score", "N/A") for doc in context_to_show[:3]]
+                        logger.info("  - Top Document Scores (normalized): %s", 
+                                   [f"{s:.4f}" if isinstance(s, (int, float)) else s for s in scores])
+                    logger.info("-" * 80)
                 else:
                     # Multiple retrievers are not supported when reranking is disabled
+                    logger.info("=" * 80)
+                    logger.info("STAGE: VDB Retrieval (without reranking)")
+                    logger.info("=" * 80)
+                    logger.info("Embedding Configuration:")
+                    if hasattr(vdb_op, 'embedding_model') and vdb_op.embedding_model:
+                        logger.info("  - Model: %s", vdb_op.embedding_model._model if hasattr(vdb_op.embedding_model, '_model') else 'N/A')
+                        logger.info("  - Endpoint: %s", getattr(vdb_op.embedding_model, '_client', {}).base_url if hasattr(vdb_op.embedding_model, '_client') else 'N/A')
+                    else:
+                        logger.info("  - Model: N/A")
+                        logger.info("  - Endpoint: N/A")
+                    logger.info("Retrieval Configuration:")
+                    logger.info("  - Query: '%s'", retriever_query[:200] if retriever_query else "")
+                    logger.info("  - Collection: %s", validated_collections[0] if validated_collections else "")
+                    logger.info("  - Top-K: %d", top_k)
+                    logger.info("  - Is Image Query: %s", is_image_query)
+                    logger.info("Starting retrieval...")
+                    logger.info("-" * 80)
+                    
                     retrieval_start_time = time.time()
                     if is_image_query:
                         docs = vdb_op.retrieval_image_langchain(
@@ -2252,12 +2399,28 @@ class NvidiaRAG:
                         )
                         context_to_show = docs
                     retrieval_time_ms = (time.time() - retrieval_start_time) * 1000
+                    
+                    logger.info("Retrieval Output:")
+                    logger.info("  - Retrieved Documents: %d", len(context_to_show))
+                    logger.info("  - Retrieval Time: %.2f ms", retrieval_time_ms)
+                    logger.info("-" * 80)
 
             if ranker and enable_reranker and confidence_threshold > 0.0:
+                logger.info("=" * 80)
+                logger.info("STAGE: Confidence Threshold Filtering")
+                logger.info("=" * 80)
+                logger.info("Configuration:")
+                logger.info("  - Input Documents: %d", len(context_to_show))
+                logger.info("  - Confidence Threshold: %.2f", confidence_threshold)
+                logger.info("-" * 80)
                 context_to_show = filter_documents_by_confidence(
                     documents=context_to_show,
                     confidence_threshold=confidence_threshold,
                 )
+                
+                logger.info("Filtering Output:")
+                logger.info("  - Filtered Documents: %d", len(context_to_show))
+                logger.info("-" * 80)
 
             if enable_vlm_inference or is_image_query:
                 # Initialize vlm_settings if not provided
@@ -2294,14 +2457,6 @@ class NvidiaRAG:
                 )
 
                 if should_call_vlm:
-                    logger.info(
-                        "Calling VLM (has_images_in_messages=%s, has_images_in_context=%s, "
-                        "is_image_query=%s, vlm_to_llm_fallback=%s)",
-                        has_images_in_messages,
-                        has_images_in_context,
-                        is_image_query,
-                        vlm_to_llm_fallback,
-                    )
                     try:
                         # Resolve all VLM settings to concrete values (no None)
                         vlm_model_cfg = (
@@ -2326,6 +2481,23 @@ class NvidiaRAG:
                             vlm_settings.get("vlm_max_total_images")
                             or self.config.vlm.max_total_images
                         )
+                        
+                        logger.info("=" * 80)
+                        logger.info("STAGE: VLM Generation (Vision Language Model)")
+                        logger.info("=" * 80)
+                        logger.info("VLM Configuration:")
+                        logger.info("  - Model: %s", vlm_model_cfg)
+                        logger.info("  - Endpoint: %s", vlm_endpoint_cfg)
+                        logger.info("  - Temperature: %s, Top-P: %s, Max Tokens: %s", 
+                                   vlm_temperature_cfg, vlm_top_p_cfg, vlm_max_tokens_cfg)
+                        logger.info("  - Max Total Images: %d", vlm_max_total_images_cfg)
+                        logger.info("Input:")
+                        logger.info("  - Has Images in Messages: %s", has_images_in_messages)
+                        logger.info("  - Has Images in Context: %s", has_images_in_context)
+                        logger.info("  - Is Image Query: %s", is_image_query)
+                        logger.info("  - Context Documents: %d", len(context_to_show))
+                        logger.info("Starting VLM stream generation...")
+                        logger.info("-" * 80)
 
                         vlm = VLM(
                             vlm_model=vlm_model_cfg,
@@ -2362,6 +2534,9 @@ class NvidiaRAG:
                         prefetched_vlm_stream = await self._eager_prefetch_astream(
                             vlm_generator
                         )
+                        
+                        logger.info("VLM stream initiated successfully (first chunk received)")
+                        logger.info("-" * 80)
 
                         return RAGResponse(
                             generate_answer_async(
@@ -2425,6 +2600,18 @@ class NvidiaRAG:
 
             docs = [self._format_document_with_source(d) for d in context_to_show]
 
+            logger.info("=" * 80)
+            logger.info("STAGE: Context Preparation for LLM")
+            logger.info("=" * 80)
+            logger.info("Context Configuration:")
+            logger.info("  - Final Context Documents: %d", len(context_to_show))
+            if context_to_show:
+                total_context_length = sum(len(d.page_content) for d in context_to_show)
+                logger.info("  - Total Context Length: %d characters", total_context_length)
+                logger.info("  - First Document Preview: %s...", 
+                           context_to_show[0].page_content[:100] if context_to_show else "")
+            logger.info("-" * 80)
+
             # Prompt for response generation based on context
             message = system_message + user_message
 
@@ -2445,6 +2632,22 @@ class NvidiaRAG:
             self._print_conversation_history(message)
             prompt = ChatPromptTemplate.from_messages(message)
 
+            logger.info("=" * 80)
+            logger.info("STAGE: LLM Generation (RAG)")
+            logger.info("=" * 80)
+            logger.info("LLM Configuration:")
+            logger.info("  - Model: %s", model)
+            llm_endpoint_display = llm_settings.get("llm_endpoint") or "api catalog"
+            logger.info("  - Endpoint: %s", llm_endpoint_display)
+            logger.info("  - Temperature: %s, Top-P: %s, Max Tokens: %s",
+                       llm_settings.get("temperature"),
+                       llm_settings.get("top_p"),
+                       llm_settings.get("max_tokens"))
+            logger.info("Input:")
+            logger.info("  - Query: '%s'", self._extract_text_from_content(query)[:200])
+            logger.info("  - Context Documents: %d", len(docs))
+            logger.info("-" * 80)
+
             chain = prompt | llm | self.StreamingFilterThinkParser | StrOutputParser()
 
             # Check response groundedness when reflection is enabled.
@@ -2452,12 +2655,24 @@ class NvidiaRAG:
             # it can perform up to the configured number of attempts
             # independently of the context relevance reflection loop.
             if self.config.reflection.enable_reflection:
+                logger.info("=" * 80)
+                logger.info("STAGE: Response Groundedness Reflection")
+                logger.info("=" * 80)
+                logger.info("Reflection Configuration:")
+                logger.info("  - Model: %s", self.config.reflection.model_name)
+                logger.info("  - Endpoint: %s", self.config.reflection.server_url)
+                logger.info("  - Max Loops: %d", self.config.reflection.max_loops)
+                logger.info("  - Groundedness Threshold: %d", self.config.reflection.response_groundedness_threshold)
+                logger.info("Starting LLM generation with reflection enabled...")
+                logger.info("-" * 80)
+                
                 response_reflection_counter = ReflectionCounter(
                     self.config.reflection.max_loops
                 )
                 initial_response = await chain.ainvoke(
                     {"question": query, "context": docs}
                 )
+                logger.info("Initial LLM response generated, checking groundedness...")
                 try:
                     final_response, is_grounded = await check_response_groundedness(
                         query,
@@ -2486,11 +2701,19 @@ class NvidiaRAG:
                 except APIError:
                     # Re-raise APIError as-is
                     raise
+                logger.info("Reflection Output:")
+                logger.info("  - Response Grounded: %s", is_grounded)
+                logger.info("  - Reflection Iterations: %d", response_reflection_counter.current_count)
+                logger.info("  - Response Length: %d characters", len(final_response) if final_response else 0)
+                logger.info("  - Response Preview: %s...", final_response[:100] if final_response else "")
                 if not is_grounded:
-                    logger.warning(
-                        "Could not generate sufficiently grounded response after %d total reflection attempts",
-                        response_reflection_counter.current_count,
-                    )
+                    logger.warning("  - Could not generate sufficiently grounded response after %d attempts",
+                                 response_reflection_counter.current_count)
+                logger.info("-" * 80)
+                logger.info("=" * 80)
+                logger.info("RAG PIPELINE COMPLETE")
+                logger.info("=" * 80)
+                
                 return RAGResponse(
                     generate_answer_async(
                         _async_iter([final_response]),
@@ -2506,6 +2729,7 @@ class NvidiaRAG:
                     status_code=ErrorCodeMapping.SUCCESS,
                 )
             else:
+                logger.info("Starting LLM stream generation...")
                 # Create async stream generator
                 stream_gen = chain.astream(
                     {"question": query, "context": docs},
@@ -2513,6 +2737,12 @@ class NvidiaRAG:
                 )
                 # Eagerly fetch first chunk to trigger any errors before returning response
                 prefetched_stream = await self._eager_prefetch_astream(stream_gen)
+                
+                logger.info("LLM stream initiated successfully (first chunk received)")
+                logger.info("-" * 80)
+                logger.info("=" * 80)
+                logger.info("RAG PIPELINE COMPLETE - Starting response streaming")
+                logger.info("=" * 80)
 
                 return RAGResponse(
                     generate_answer_async(
