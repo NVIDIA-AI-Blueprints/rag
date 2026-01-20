@@ -198,18 +198,25 @@ def _bind_thinking_tokens_if_configured(
         enable_thinking_env = os.getenv("ENABLE_NEMOTRON_3_NANO_THINKING", "true").lower()
         enable_thinking = enable_thinking_env in ("true", "1", "yes")
         
+        # For nemotron-3-nano variants, min_thinking_tokens is not supported
+        # If min_thinking_tokens is provided, max_thinking_tokens is required
+        if min_think is not None and min_think > 0:
+            if max_think is None or max_think <= 0:
+                raise ValueError(
+                    "max_thinking_tokens must be a positive integer when using "
+                    "min_thinking_tokens with nemotron-3-nano variants"
+                )
+            logger.warning(
+                "min_thinking_tokens is not supported for nemotron-3-nano variants, "
+                "only max_thinking_tokens (mapped to reasoning_budget) is supported"
+            )
+
         if max_think is not None and max_think > 0:
             bind_args["reasoning_budget"] = max_think
             bind_args["chat_template_kwargs"] = {"enable_thinking": enable_thinking}
             logger.info(
                 "nemotron-3-nano: Setting reasoning_budget=%d, enable_thinking=%s (from env: %s)",
                 max_think, enable_thinking, enable_thinking_env
-            )
-        # Note: min_thinking_tokens is not supported for nemotron-3-nano variants
-        if min_think is not None and min_think > 0:
-            logger.warning(
-                "min_thinking_tokens is not supported for nemotron-3-nano variants, "
-                "only max_thinking_tokens (mapped to reasoning_budget) is supported"
             )
 
     if bind_args:
