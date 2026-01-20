@@ -25,15 +25,13 @@ functions:
   rag_query:
     _type: nvidia_rag_query
     collection_names: ["test_library"]
-    vdb_endpoint: "./milvus.db"
-    use_knowledge_base: true
-    # embedding_endpoint: "localhost:9080"  # Uncomment for on-prem embeddings
+    vdb_endpoint: "http://localhost:19530"
 
   # RAG Search Tool - Search for relevant document chunks
   rag_search:
     _type: nvidia_rag_search
     collection_names: ["test_library"]
-    vdb_endpoint: "./milvus.db"
+    vdb_endpoint: "http://localhost:19530"
     reranker_top_k: 3  # Reduced to avoid token limit issues with large documents
     vdb_top_k: 20
 

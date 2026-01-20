@@ -8,7 +8,6 @@ This example shows how to:
 
 1. **Expose RAG as agent tools** - Wrap NVIDIA RAG query and search capabilities as tools that agents can use
 2. **Build a ReAct agent** - Use NAT's ReAct workflow to create an agent that reasons about when to use RAG
-3. **Use Milvus Lite** - Leverage an embedded vector database for document retrieval
 
 The ReAct (Reason + Act) agent pattern enables the LLM to iteratively reason about which tools to use based on the user's query, making it ideal for building conversational AI applications with document retrieval capabilities.
 
@@ -16,6 +15,7 @@ The ReAct (Reason + Act) agent pattern enables the LLM to iteratively reason abo
 
 - Python 3.11+
 - Access to NVIDIA AI endpoints (API key required)
+- **Data ingested into Milvus** - Complete the [rag_library_usage.ipynb](../../notebooks/rag_library_usage.ipynb) notebook to set up Milvus and ingest documents before running this example
 
 ## Quick Start
 
@@ -31,45 +31,33 @@ export NVIDIA_API_KEY="your-nvidia-api-key"
 # export NVIDIA_BASE_URL="https://integrate.api.nvidia.com/v1"
 ```
 
-### 2. Prepare the Vector Store
+### 2. Configure Vector Database Endpoint
 
-The example uses Milvus Lite as an embedded vector database. You need to ingest documents before running RAG queries.
+By default, the example connects to Milvus at `http://localhost:19530`. You can configure this in two ways:
 
-> **Note**: The ingestion script requires a separate virtual environment due to dependency conflicts.
-
-#### Create a Separate Virtual Environment for Ingestion
+**Option A: Environment Variable (takes precedence)**
 
 ```bash
-# From examples/rag_react_agent/ directory
-cd examples/rag_react_agent
+# For standard Milvus server
+export APP_VECTORSTORE_URL="http://localhost:19530"
 
-# Create and activate a new virtual environment for ingestion
-uv venv .venv-ingest
-source .venv-ingest/bin/activate
-
-# Install ingestion dependencies
-uv pip install -r requirements-ingest.txt
+# Or for a remote Milvus instance
+export APP_VECTORSTORE_URL="http://milvus-host:19530"
 ```
 
-#### Ingest Sample Data
+**Option B: Update config.yml**
 
-Sample documents are available in the repository's `data/multimodal/` directory:
+Edit `src/rag_react_agent/configs/config.yml` and update the `vdb_endpoint` field:
 
-```bash
-# Ingest the sample documents
-python ingest_data.py \
-  --collection test_library \
-  --files ../../data/multimodal/multimodal_test.pdf ../../data/multimodal/woods_frost.docx \
-  --db-path ./milvus.db
+```yaml
+functions:
+  rag_query:
+    vdb_endpoint: "http://localhost:19530"  # Your Milvus endpoint
+  rag_search:
+    vdb_endpoint: "http://localhost:19530"  # Your Milvus endpoint
 ```
 
-This creates a `milvus.db` file containing the vector embeddings.
-
-#### Deactivate Ingestion Environment
-
-```bash
-deactivate
-```
+> **Note**: For Milvus Lite, provide an absolute path to the `.db` file (e.g., `/home/user/data/milvus.db`).
 
 ### 3. Install Dependencies and Run the Agent
 
@@ -158,15 +146,13 @@ functions:
   rag_query:
     _type: nvidia_rag_query
     collection_names: ["test_library"]    # Milvus collection names
-    vdb_endpoint: "./milvus.db"           # Path to Milvus Lite database
-    use_knowledge_base: true
-    # embedding_endpoint: "localhost:9080"  # Optional: for on-prem embeddings
+    vdb_endpoint: "http://localhost:19530" # Milvus endpoint URL
 
   # RAG Search Tool - Searches for relevant document chunks
   rag_search:
     _type: nvidia_rag_search
     collection_names: ["test_library"]
-    vdb_endpoint: "./milvus.db"
+    vdb_endpoint: "http://localhost:19530"
     reranker_top_k: 3                     # Number of results after reranking
     vdb_top_k: 20                         # Number of results from vector search
 
@@ -205,17 +191,14 @@ workflow:
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `collection_names` | List of Milvus collection names to query | `[]` |
-| `vdb_endpoint` | Vector database endpoint (URL or local path) | `"http://localhost:19530"` |
-| `embedding_endpoint` | Custom embedding endpoint (optional) | `None` (uses cloud) |
-| `use_knowledge_base` | Whether to use the knowledge base for RAG | `true` |
+| `vdb_endpoint` | Vector database endpoint URL or absolute path to Milvus Lite `.db` file | `"http://localhost:19530"` |
 
 #### `nvidia_rag_search`
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `collection_names` | List of Milvus collection names to search | `[]` |
-| `vdb_endpoint` | Vector database endpoint (URL or local path) | `"http://localhost:19530"` |
-| `embedding_endpoint` | Custom embedding endpoint (optional) | `None` (uses cloud) |
+| `vdb_endpoint` | Vector database endpoint URL or absolute path to Milvus Lite `.db` file | `"http://localhost:19530"` |
 | `reranker_top_k` | Number of results to return after reranking | `10` |
 | `vdb_top_k` | Number of results to retrieve before reranking | `100` |
 
@@ -266,15 +249,21 @@ This commonly occurs when documents contain large base64-encoded images.
 export NVIDIA_API_KEY="your-api-key"
 ```
 
+### Error: Connection to Milvus failed
+
+Ensure Milvus is running and accessible at the configured endpoint. If you followed the [rag_library_usage.ipynb](../../notebooks/rag_library_usage.ipynb) notebook, Milvus should be running at `http://localhost:19530`.
+
+```bash
+# Check if Milvus is running
+docker ps | grep milvus
+```
+
 ## Directory Structure
 
 ```
 examples/rag_react_agent/
 ├── README.md                 # This file
 ├── pyproject.toml           # Package configuration with NAT dependencies
-├── ingest_data.py           # Document ingestion script
-├── requirements-ingest.txt  # Dependencies for ingestion
-├── milvus.db                # Vector database (created after ingestion)
 └── src/
     └── rag_react_agent/
         ├── __init__.py

@@ -17,7 +17,7 @@
 
 import json
 import logging
-from typing import Optional
+import os
 
 from pydantic import Field
 
@@ -27,6 +27,12 @@ from nat.cli.register_workflow import register_function
 from nat.data_models.function import FunctionBaseConfig
 
 logger = logging.getLogger(__name__)
+
+def _configure_nvidia_rag_logging(level: int = logging.WARNING) -> None:
+    """Configure logging level for nvidia_rag package to reduce verbosity."""
+    for name in logging.root.manager.loggerDict:
+        if name == "nvidia_rag" or name.startswith("nvidia_rag."):
+            logging.getLogger(name).setLevel(level)
 
 class NvidiaRAGQueryConfig(FunctionBaseConfig, name="nvidia_rag_query"):
     """
@@ -46,14 +52,6 @@ class NvidiaRAGQueryConfig(FunctionBaseConfig, name="nvidia_rag_query"):
         default="http://localhost:19530",
         description="Vector database endpoint URL.",
     )
-    embedding_endpoint: Optional[str] = Field(
-        default=None,
-        description="Embedding endpoint URL. If None, uses cloud embeddings.",
-    )
-    use_knowledge_base: bool = Field(
-        default=True,
-        description="Whether to use the knowledge base for RAG.",
-    )
 
 
 @register_function(config_type=NvidiaRAGQueryConfig)
@@ -63,9 +61,12 @@ async def nvidia_rag_query(config: NvidiaRAGQueryConfig, builder: Builder):
     from nvidia_rag import NvidiaRAG
     from nvidia_rag.utils.configuration import NvidiaRAGConfig
 
+    # Configure nvidia_rag logging to reduce verbosity
+    _configure_nvidia_rag_logging(logging.WARNING)
+
     # Initialize RAG config - use defaults and override with NAT config values
     rag_config = NvidiaRAGConfig()
-    rag_config.vector_store.url = config.vdb_endpoint
+    rag_config.vector_store.url = os.environ.get("APP_VECTORSTORE_URL", config.vdb_endpoint)
     logger.info(f"Vector store URL: {rag_config.vector_store.url}")
     rag = NvidiaRAG(config=rag_config)
 
@@ -84,9 +85,8 @@ async def nvidia_rag_query(config: NvidiaRAGQueryConfig, builder: Builder):
         try:
             response = await rag.generate(
                 messages=[{"role": "user", "content": query}],
-                use_knowledge_base=config.use_knowledge_base,
+                use_knowledge_base=True,
                 collection_names=config.collection_names,
-                embedding_endpoint=config.embedding_endpoint,
             )
 
             if response.status_code != 200:
@@ -142,10 +142,6 @@ class NvidiaRAGSearchConfig(FunctionBaseConfig, name="nvidia_rag_search"):
         default="http://localhost:19530",
         description="Vector database endpoint URL.",
     )
-    embedding_endpoint: Optional[str] = Field(
-        default=None,
-        description="Embedding endpoint URL. If None, uses cloud embeddings.",
-    )
     reranker_top_k: int = Field(
         default=10,
         description="Number of top results to return after reranking.",
@@ -163,9 +159,12 @@ async def nvidia_rag_search(config: NvidiaRAGSearchConfig, builder: Builder):
     from nvidia_rag import NvidiaRAG
     from nvidia_rag.utils.configuration import NvidiaRAGConfig
 
+    # Configure nvidia_rag logging to reduce verbosity
+    _configure_nvidia_rag_logging(logging.WARNING)
+
     # Initialize RAG config - use defaults and override with NAT config values
     rag_config = NvidiaRAGConfig()
-    rag_config.vector_store.url = config.vdb_endpoint
+    rag_config.vector_store.url = os.environ.get("APP_VECTORSTORE_URL", config.vdb_endpoint)
     logger.info(f"Vector store URL: {rag_config.vector_store.url}")
     rag = NvidiaRAG(config=rag_config)
 
@@ -187,7 +186,6 @@ async def nvidia_rag_search(config: NvidiaRAGSearchConfig, builder: Builder):
                 collection_names=config.collection_names,
                 reranker_top_k=config.reranker_top_k,
                 vdb_top_k=config.vdb_top_k,
-                embedding_endpoint=config.embedding_endpoint,
             )
 
             if not citations or not hasattr(citations, "results") or not citations.results:
