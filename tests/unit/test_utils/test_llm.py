@@ -242,9 +242,8 @@ class TestGetLLM:
                 api_key="test-api-key",
                 temperature=0.7,
                 top_p=0.9,
-                max_tokens=1024,
-                min_tokens=1024,
-                ignore_eos=True,
+                max_completion_tokens=1024,
+                model_kwargs={"min_tokens": 1024, "ignore_eos": True},
                 stop=[],
             )
 
@@ -271,9 +270,7 @@ class TestGetLLM:
                 api_key="test-api-key",
                 temperature=None,
                 top_p=None,
-                max_tokens=None,
-                min_tokens=None,
-                ignore_eos=False,
+                max_completion_tokens=None,
                 stop=[],
             )
 
@@ -413,15 +410,15 @@ class TestGetLLM:
             with patch("nvidia_rag.utils.llm.ChatNVIDIA") as mock_chatnvidia:
                 get_llm(**kwargs)
 
+                # When min_tokens is None and ignore_eos is False, model_kwargs is still added with ignore_eos
                 mock_chatnvidia.assert_called_once_with(
                     model="test-model",
                     api_key="test-api-key",
                     temperature=None,
                     top_p=None,
-                    max_tokens=None,
-                    min_tokens=None,
-                    ignore_eos=False,
+                    max_completion_tokens=None,
                     stop=[],
+                    model_kwargs={"ignore_eos": False},
                 )
 
 
@@ -685,9 +682,8 @@ class TestLLMIntegration:
                     api_key="test-api-key",
                     temperature=0.7,
                     top_p=0.9,
-                    max_tokens=2048,
-                    min_tokens=2048,
-                    ignore_eos=True,
+                    max_completion_tokens=2048,
+                    model_kwargs={"min_tokens": 2048, "ignore_eos": True},
                     stop=[],
                 )
 
@@ -725,9 +721,10 @@ class TestLLMIntegration:
             call_kwargs = mock_chatnvidia.call_args[1]
             assert call_kwargs["temperature"] == 0.7
             assert call_kwargs["top_p"] == 0.9
-            assert call_kwargs["max_tokens"] == 1024
+            assert call_kwargs["max_completion_tokens"] == 1024
             assert "min_tokens" not in call_kwargs
             assert "ignore_eos" not in call_kwargs
+            assert "model_kwargs" not in call_kwargs
             # Thinking tokens are bound separately, so they won't be in ChatNVIDIA kwargs
             # but they should not cause errors
 
@@ -759,8 +756,9 @@ class TestLLMIntegration:
 
             call_kwargs = mock_chatnvidia.call_args[1]
             assert call_kwargs["temperature"] == 0.7
-            assert call_kwargs["min_tokens"] == 100
-            assert call_kwargs["ignore_eos"] is True
+            # NVIDIA-specific params are now passed via model_kwargs
+            assert call_kwargs["model_kwargs"]["min_tokens"] == 100
+            assert call_kwargs["model_kwargs"]["ignore_eos"] is True
 
     @patch("nvidia_rag.utils.llm.sanitize_nim_url")
     @patch("nvidia_rag.utils.llm.ChatNVIDIA")
@@ -784,9 +782,9 @@ class TestLLMIntegration:
 
             get_llm(**kwargs)
 
-            # Empty URL should default to NVIDIA, so min_tokens should be included
+            # Empty URL should default to NVIDIA (API catalog), so min_tokens should be in model_kwargs
             call_kwargs = mock_chatnvidia.call_args[1]
-            assert call_kwargs["min_tokens"] == 100
+            assert call_kwargs["model_kwargs"]["min_tokens"] == 100
 
     def test_is_nvidia_endpoint(self):
         """Test _is_nvidia_endpoint function for various URL patterns."""

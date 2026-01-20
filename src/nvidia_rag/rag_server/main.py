@@ -2589,7 +2589,7 @@ class NvidiaRAG:
             )
 
             # Only show full traceback at DEBUG level
-            if logger.getEffectiveLevel() <= logging.DEBUG:
+            if logger.getEffectiveLevel() <= logging.INFO:
                 print_exc()
 
             if "[403] Forbidden" in str(e) and "Invalid UAM response" in str(e):
