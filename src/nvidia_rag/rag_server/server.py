@@ -908,9 +908,7 @@ class ComparisonFilter(BaseModel):
     model_config = {
         "json_schema_extra": {
             "examples": [
-                {"key": "author", "type": "eq", "value": "John Doe"},
-                {"key": "page_number", "type": "gte", "value": 5},
-                {"key": "category", "type": "in", "value": ["tech", "science"]},
+                {"key": "<KEYNAME>", "type": "eq", "value": "John Doe"}
             ]
         }
     }
@@ -1024,24 +1022,12 @@ class VectorStoreSearchRequest(BaseModel):
                     "query": "What is the return policy?",
                     "max_num_results": 10,
                     "ranking_options": {"ranker": "auto", "score_threshold": 0.5},
-                    "filters": {
-                        "type": "and",
-                        "filters": [
-                            {"key": "author", "type": "eq", "value": "John Doe"},
-                            {"key": "page_number", "type": "gte", "value": 5},
-                        ],
-                    },
                     "rewrite_query": False,
                 },
                 {
                     "query": "machine learning basics",
                     "max_num_results": 5,
                     "ranking_options": {"ranker": "none", "score_threshold": 0.0},
-                    "filters": {
-                        "key": "category",
-                        "type": "in",
-                        "value": ["tech", "science"],
-                    },
                     "rewrite_query": True,
                 },
             ]
