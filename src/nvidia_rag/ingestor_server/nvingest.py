@@ -31,6 +31,8 @@ from nvidia_rag.utils.configuration import NvidiaRAGConfig
 from nvidia_rag.utils.observability.tracing import get_tracer, trace_function
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
 
+from nvidia_rag.utils.llm import get_prompts
+
 logger = logging.getLogger(__name__)
 TRACER = get_tracer("nvidia_rag.ingestor.nvingest")
 
@@ -80,6 +82,7 @@ def get_nv_ingest_ingestor(
     config: NvidiaRAGConfig = None,
     enable_pdf_split_processing: bool = False,
     pdf_split_processing_options: dict[str, Any] | None = None,
+    prompts: dict | None = None,
 ):
     """
     Prepare NV-Ingest ingestor instance based on nv-ingest configuration
@@ -169,13 +172,19 @@ def get_nv_ingest_ingestor(
 
     # Add captioning task if extract_images is enabled
     if config.nv_ingest.extract_images:
+        prompts = prompts or get_prompts()
+        image_captioning_prompt_str = prompts.get("image_captioning_prompt").get("human")
+        reasoning = prompts.get("image_captioning_prompt").get("system") == "/think"
         logger.info(
             f"Enabling captioning task. Captioning Endpoint URL: {config.nv_ingest.caption_endpoint_url}, Captioning Model Name: {config.nv_ingest.caption_model_name}"
+            f"Reasoning: {reasoning}, Image Captioning Prompt: {image_captioning_prompt_str[:20]}..."
         )
         ingestor = ingestor.caption(
             api_key=config.vlm.get_api_key(),
             endpoint_url=config.nv_ingest.caption_endpoint_url,
             model_name=config.nv_ingest.caption_model_name,
+            prompt=image_captioning_prompt_str,
+            reasoning=reasoning,
         )
 
     # Add Embedding task (only when VDB operations are enabled)

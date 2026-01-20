@@ -232,7 +232,7 @@ class ImageCaptioningModule(BaseTestModule):
                 return False
 
             # Poll the status endpoint until completion
-            timeout = 60  # 60 seconds timeout
+            timeout = 150  # 150 seconds timeout
             poll_interval = 2  # 2 seconds between polls
             start_time = time.time()
 

@@ -85,6 +85,11 @@ The `prompt.yaml` file contains a set of prompt templates used throughout the RA
 - **Context:** This enables users to ask questions in natural language (e.g., "Show me Ford vehicles with infotainment features") and have the system automatically convert them into metadata filters (e.g., `content_metadata["manufacturer"] == "ford" AND array_contains(content_metadata["features"], "infotainment")`).
 - **Customization:** For domain-specific applications, customize this prompt to map industry terminology to your metadata fields. See the [Customizing Filter Expression Generator Prompt](./custom-metadata.md#customizing-filter-expression-generator-prompt) section for detailed examples and best practices.
 
+### 18. `image_captioning_prompt`
+- **Purpose:** Generates detailed descriptions of images encountered during document ingestion.
+- **Usage:** Used during the document ingestion process when image captioning is enabled. The prompt instructs the vision-language model to describe images in detail, including main subjects, actions, settings, and notable objects or features.
+- **Context:** When documents containing images are ingested, this prompt is applied to generate textual descriptions that can be embedded and searched alongside the document text. The generated captions help improve retrieval accuracy for questions about visual content in the documents.
+
 ---
 
 ## Overriding Existing Templates in `prompt.yaml`

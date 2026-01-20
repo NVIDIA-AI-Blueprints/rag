@@ -917,8 +917,9 @@ class TestElasticVDB(unittest.TestCase):
         for doc in result:
             self.assertEqual(doc.metadata["collection_name"], "test_collection")
 
+        # Check the new logging format
         mock_logger.info.assert_called_with(
-            " Elasticsearch Retrieval latency: 2.5000 seconds"
+            "  [VDB Search] Total VDB operation latency: %.4f seconds", 2.5
         )
         mock_otel_context.attach.assert_called_once()
         mock_otel_context.detach.assert_called_once_with(mock_token)

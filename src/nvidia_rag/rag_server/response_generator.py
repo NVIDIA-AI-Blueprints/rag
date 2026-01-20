@@ -443,7 +443,11 @@ def generate_answer(
             llm_ttft_ms: float | None = None
             rag_ttft_ms: float | None = None
             llm_generation_time_ms: float | None = None
+            accumulated_response = ""  # Track complete response for logging
             for chunk in generator:
+                # Accumulate chunks for final logging
+                accumulated_response += chunk
+                
                 # TODO: This is a hack to clear contexts if we get an error
                 # response from nemoguardrails
                 if chunk == "I'm sorry, I can't respond to that.":
@@ -482,6 +486,20 @@ def generate_answer(
                 logger.debug(response_choice)
                 # Send generator with tokens in ChainResponse format
                 yield "data: " + str(chain_response.json()) + "\n\n"
+
+            # Log the complete LLM response
+            logger.info("=" * 80)
+            logger.info("LLM GENERATION COMPLETE")
+            logger.info("=" * 80)
+            logger.info("Final LLM Response:")
+            logger.info("  - Length: %d characters", len(accumulated_response))
+            logger.info("  - Content Preview (first 500 chars): %s%s", 
+                       accumulated_response[:500],
+                       "..." if len(accumulated_response) > 500 else "")
+            if len(accumulated_response) > 500:
+                logger.info("  - Full response logged at DEBUG level")
+                logger.debug("Full LLM Response:\n%s", accumulated_response)
+            logger.info("-" * 80)
 
             # Prepare metrics for final chunk
             llm_generation_time_ms = (time.time() - request_start_time) * 1000
@@ -591,7 +609,11 @@ async def generate_answer_async(
             llm_ttft_ms: float | None = None
             rag_ttft_ms: float | None = None
             llm_generation_time_ms: float | None = None
+            accumulated_response = ""  # Track complete response for logging
             async for chunk in generator:
+                # Accumulate chunks for final logging
+                accumulated_response += chunk
+                
                 # TODO: This is a hack to clear contexts if we get an error
                 # response from nemoguardrails
                 if chunk == "I'm sorry, I can't respond to that.":
@@ -630,6 +652,20 @@ async def generate_answer_async(
                 logger.debug(response_choice)
                 # Send generator with tokens in ChainResponse format
                 yield "data: " + str(chain_response.json()) + "\n\n"
+
+            # Log the complete LLM response
+            logger.info("=" * 80)
+            logger.info("LLM GENERATION COMPLETE")
+            logger.info("=" * 80)
+            logger.info("Final LLM Response:")
+            logger.info("  - Length: %d characters", len(accumulated_response))
+            logger.info("  - Content Preview (first 500 chars): %s%s", 
+                       accumulated_response[:500],
+                       "..." if len(accumulated_response) > 500 else "")
+            if len(accumulated_response) > 500:
+                logger.info("  - Full response logged at DEBUG level")
+                logger.debug("Full LLM Response:\n%s", accumulated_response)
+            logger.info("-" * 80)
 
             # Prepare metrics for final chunk
             llm_generation_time_ms = (time.time() - request_start_time) * 1000
