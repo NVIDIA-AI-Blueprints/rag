@@ -2564,6 +2564,7 @@ class NvidiaRAGIngestor:
                 config=self.config,
                 enable_pdf_split_processing=state_manager.enable_pdf_split_processing,
                 pdf_split_processing_options=state_manager.pdf_split_processing_options,
+                prompts=self.prompts,
             )
 
             start_time = time.time()
@@ -2642,6 +2643,7 @@ class NvidiaRAGIngestor:
                 config=self.config,
                 enable_pdf_split_processing=state_manager.enable_pdf_split_processing,
                 pdf_split_processing_options=state_manager.pdf_split_processing_options,
+                prompts=self.prompts,
             )
             start_time = time.time()
             logger.info(
@@ -2688,6 +2690,7 @@ class NvidiaRAGIngestor:
                     config=self.config,
                     enable_pdf_split_processing=state_manager.enable_pdf_split_processing,
                     pdf_split_processing_options=state_manager.pdf_split_processing_options,
+                    prompts=self.prompts,
                 )
                 start_time = time.time()
                 logger.info(
@@ -2728,6 +2731,7 @@ class NvidiaRAGIngestor:
                     config=self.config,
                     enable_pdf_split_processing=state_manager.enable_pdf_split_processing,
                     pdf_split_processing_options=state_manager.pdf_split_processing_options,
+                    prompts=self.prompts,
                 )
                 start_time = time.time()
                 logger.info(
