@@ -15,7 +15,7 @@ from typing import Any
 import pytest
 
 try:
-    import nvidia_rag_mcp.mcp_server as mcp_server
+    import examples.nvidia_rag_mcp.mcp_server as mcp_server
 
     MCP_AVAILABLE = True
 except ImportError:  # pragma: no cover - optional dependency

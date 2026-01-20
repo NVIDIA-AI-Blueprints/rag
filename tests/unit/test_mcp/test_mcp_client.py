@@ -65,7 +65,7 @@ def _install_fake_mcp_session():
 
 
 _install_fake_mcp_session()
-mcp_client = importlib.import_module("nvidia_rag_mcp.mcp_client")
+mcp_client = importlib.import_module("examples.nvidia_rag_mcp.mcp_client")
 
 
 def test_to_jsonable_with_model_dump():

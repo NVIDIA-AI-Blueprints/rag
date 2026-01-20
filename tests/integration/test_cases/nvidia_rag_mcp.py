@@ -110,7 +110,7 @@ class MCPIntegrationModule(BaseTestModule):
         except Exception:
             pass
         repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-        server_path = os.path.join(repo_root, "nvidia_rag_mcp", "mcp_server.py")
+        server_path = os.path.join(repo_root, "examples", "nvidia_rag_mcp", "mcp_server.py")
         cmd = [sys.executable, server_path, "--transport", "sse"]
         logger.info("Launching SSE MCP server: %s", " ".join(shlex.quote(c) for c in cmd))
         try:
@@ -126,7 +126,7 @@ class MCPIntegrationModule(BaseTestModule):
         except Exception:
             pass
         repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-        server_path = os.path.join(repo_root, "nvidia_rag_mcp", "mcp_server.py")
+        server_path = os.path.join(repo_root, "examples", "nvidia_rag_mcp", "mcp_server.py")
         cmd = [sys.executable, server_path, "--transport", "streamable_http"]
         logger.info("Launching streamable_http MCP server: %s", " ".join(shlex.quote(c) for c in cmd))
         try:
@@ -192,7 +192,7 @@ class MCPIntegrationModule(BaseTestModule):
             - `timeout` guards against hung transports or server bugs.
         """
         repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-        client_path = os.path.join(repo_root, "nvidia_rag_mcp", "mcp_client.py")
+        client_path = os.path.join(repo_root, "examples", "nvidia_rag_mcp", "mcp_client.py")
         mcp_client_cmd = [sys.executable, client_path]
         proc = subprocess.run(mcp_client_cmd + args, capture_output=True, text=True, timeout=timeout)
         return proc.returncode, proc.stdout, proc.stderr
@@ -334,7 +334,7 @@ class MCPIntegrationModule(BaseTestModule):
 
         The expectation is that both Retriever tools and all Ingestor tools are
         registered with FastMCP, matching the server implementation in
-        `nvidia_rag_mcp/mcp_server.py`.
+        `examples/nvidia_rag_mcp/mcp_server.py`.
         """
         logger.info("\n=== Test 89: SSE: List Tools ===")
         start = time.time()
@@ -840,7 +840,7 @@ class MCPIntegrationModule(BaseTestModule):
         start = time.time()
         try:
             repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-            server_path = os.path.join(repo_root, "nvidia_rag_mcp", "mcp_server.py")
+            server_path = os.path.join(repo_root, "examples", "nvidia_rag_mcp", "mcp_server.py")
             payload = {"collection_names": [self.collection]}
             args = [
                 "call",
@@ -879,7 +879,7 @@ class MCPIntegrationModule(BaseTestModule):
         start = time.time()
         try:
             repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-            server_path = os.path.join(repo_root, "nvidia_rag_mcp", "mcp_server.py")
+            server_path = os.path.join(repo_root, "examples", "nvidia_rag_mcp", "mcp_server.py")
             pdf_path = os.path.join(repo_root, "data", "multimodal", "woods_frost.pdf")
             payload = {
                 "collection_name": self.collection,
@@ -931,7 +931,7 @@ class MCPIntegrationModule(BaseTestModule):
         missing = []
         try:
             repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-            server_path = os.path.join(repo_root, "nvidia_rag_mcp", "mcp_server.py")
+            server_path = os.path.join(repo_root, "examples", "nvidia_rag_mcp", "mcp_server.py")
             args = [
                 "list",
                 "--transport",
@@ -971,7 +971,7 @@ class MCPIntegrationModule(BaseTestModule):
                 "collection_names": [self.collection],
             }
             repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-            server_path = os.path.join(repo_root, "nvidia_rag_mcp", "mcp_server.py")
+            server_path = os.path.join(repo_root, "examples", "nvidia_rag_mcp", "mcp_server.py")
             args = [
                 "call",
                 "--transport",
@@ -1013,7 +1013,7 @@ class MCPIntegrationModule(BaseTestModule):
                 "collection_names": [self.collection],
             }
             repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-            server_path = os.path.join(repo_root, "nvidia_rag_mcp", "mcp_server.py")
+            server_path = os.path.join(repo_root, "examples", "nvidia_rag_mcp", "mcp_server.py")
             args = [
                 "call",
                 "--transport",
@@ -1058,7 +1058,7 @@ class MCPIntegrationModule(BaseTestModule):
                 "timeout": 60,
             }
             repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-            server_path = os.path.join(repo_root, "nvidia_rag_mcp", "mcp_server.py")
+            server_path = os.path.join(repo_root, "examples", "nvidia_rag_mcp", "mcp_server.py")
             args = [
                 "call",
                 "--transport",
@@ -1097,7 +1097,7 @@ class MCPIntegrationModule(BaseTestModule):
         start = time.time()
         try:
             repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-            server_path = os.path.join(repo_root, "nvidia_rag_mcp", "mcp_server.py")
+            server_path = os.path.join(repo_root, "examples", "nvidia_rag_mcp", "mcp_server.py")
             payload = {"collection_names": [self.collection]}
             args = [
                 "call",
