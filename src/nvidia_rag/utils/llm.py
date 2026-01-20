@@ -274,13 +274,16 @@ def get_llm(config: NvidiaRAGConfig | None = None, **kwargs) -> LLM | SimpleChat
             if kwargs.get("top_p") is not None:
                 chat_nvidia_kwargs["top_p"] = kwargs["top_p"]
             if kwargs.get("max_tokens") is not None:
-                chat_nvidia_kwargs["max_tokens"] = kwargs["max_tokens"]
+                chat_nvidia_kwargs["max_completion_tokens"] = kwargs["max_tokens"]
             # Only include NVIDIA-specific parameters for NVIDIA endpoints
             if is_nvidia:
+                model_kwargs = {}
                 if kwargs.get("min_tokens") is not None:
-                    chat_nvidia_kwargs["min_tokens"] = kwargs["min_tokens"]
+                    model_kwargs["min_tokens"] = kwargs["min_tokens"]
                 if kwargs.get("ignore_eos") is not None:
-                    chat_nvidia_kwargs["ignore_eos"] = kwargs["ignore_eos"]
+                    model_kwargs["ignore_eos"] = kwargs["ignore_eos"]
+                if model_kwargs:
+                    chat_nvidia_kwargs["model_kwargs"] = model_kwargs
 
             llm = ChatNVIDIA(**chat_nvidia_kwargs)
             # Only bind thinking tokens for NVIDIA endpoints
@@ -291,15 +294,21 @@ def get_llm(config: NvidiaRAGConfig | None = None, **kwargs) -> LLM | SimpleChat
         logger.info("Using llm model %s from api catalog", kwargs.get("model"))
 
         api_key = kwargs.get("api_key") or config.llm.get_api_key()
+
+        model_kwargs = {}
+        if kwargs.get("min_tokens") is not None:
+            model_kwargs["min_tokens"] = kwargs["min_tokens"]
+        if kwargs.get("ignore_eos") is not None:
+            model_kwargs["ignore_eos"] = kwargs["ignore_eos"]
+
         llm = ChatNVIDIA(
             model=kwargs.get("model"),
             api_key=api_key,
             temperature=kwargs.get("temperature", None),
             top_p=kwargs.get("top_p", None),
-            max_tokens=kwargs.get("max_tokens", None),
-            min_tokens=kwargs.get("min_tokens", None),
-            ignore_eos=kwargs.get("ignore_eos", False),
+            max_completion_tokens=kwargs.get("max_tokens", None),
             stop=kwargs.get("stop", []),
+            **({"model_kwargs": model_kwargs} if model_kwargs else {}),
         )
         llm = _bind_thinking_tokens_if_configured(llm, **kwargs)
         return llm
