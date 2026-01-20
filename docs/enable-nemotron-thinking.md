@@ -113,9 +113,15 @@ When the thinking budget is enabled, the model monitors the token count within t
 As of NIM version 1.12, the Thinking Budget feature is supported on the following models:
 
 - **nvidia/nvidia-nemotron-nano-9b-v2**
-- **nvidia/nemotron-3-nano-30b-a3b**
+- **nvidia/nemotron-3-nano-30b-a3b** (also accessible as `nvidia/nemotron-3-nano`)
 
 For the latest supported models, refer to the [NIM Thinking Budget Control documentation](https://docs.nvidia.com/nim/large-language-models/latest/thinking-budget-control.html).
+
+> **Note:** The model `nvidia/nemotron-3-nano` is an alias that can be used interchangeably with `nvidia/nemotron-3-nano-30b-a3b`. Both refer to the same underlying model.
+>
+> **Important - Model Naming:**
+> - **For locally deployed NIMs:** Use model name `nvidia/nemotron-3-nano`
+> - **For NVIDIA-hosted models:** Use model name `nvidia/nemotron-3-nano-30b-a3b`
 
 ### Enabling Thinking Budget on RAG
 
@@ -126,13 +132,29 @@ After enabling the reasoning as per the steps mentioned above, enable the thinki
 | `min_thinking_tokens` | 1 | Minimum number of thinking tokens to allocate for reasoning models. |
 | `max_thinking_tokens` | 8192 | Maximum number of thinking tokens to allocate for reasoning models. |
 
-> **Note for `nvidia/nemotron-3-nano-30b-a3b`**  
-> This model only uses the `max_thinking_tokens` parameter.  
-> - `min_thinking_tokens` is ignored for this model.  
+> **Note for `nvidia/nemotron-3-nano-30b-a3b` and `nvidia/nemotron-3-nano`**  
+> These models only use the `max_thinking_tokens` parameter.  
+> - `min_thinking_tokens` is ignored for these models.  
 > - Thinking budget is enabled by passing a positive `max_thinking_tokens` value in the request.
+> - The RAG blueprint automatically handles the model-specific parameter mapping internally (`max_thinking_tokens` → `reasoning_budget`).
+> - Unlike `nvidia/nvidia-nemotron-nano-9b-v2`, these models return reasoning in a separate `reasoning_content` field rather than using `<think>` tags.
+>
+> **Controlling Reasoning for nemotron-3-nano:**
+> - Set `ENABLE_NEMOTRON_3_NANO_THINKING=true` (default) to enable reasoning/thinking mode
+> - Set `ENABLE_NEMOTRON_3_NANO_THINKING=false` to disable reasoning mode
+> - This controls the `enable_thinking` flag in `chat_template_kwargs`
+>
+> **Model Behavior Differences:**
+> 
+> | Model | Reasoning Control | Reasoning Output | Token Budget Parameter |
+> |-------|------------------|------------------|----------------------|
+> | `nvidia/nvidia-nemotron-nano-9b-v2` | `min_thinking_tokens`, `max_thinking_tokens` | In `content` field with `<think>` tags | `min_thinking_tokens`, `max_thinking_tokens` |
+> | `nvidia/nemotron-3-nano-30b-a3b` | `ENABLE_NEMOTRON_3_NANO_THINKING` env var | In `reasoning_content` field | `reasoning_budget` (mapped from `max_thinking_tokens`) |
+> | `nvidia/llama-3.3-nemotron-super-49b-v1.5` | System prompt (`/think` or `/no_think`) | In `content` field with `<think>` tags | N/A (controlled by prompt) |
 
 **Example API requests:**
 
+**For nvidia/nvidia-nemotron-nano-9b-v2:**
 ```json
 {
   "messages": [
@@ -147,6 +169,21 @@ After enabling the reasoning as per the steps mentioned above, enable the thinki
 }
 ```
 
+**For nemotron-3-nano (locally deployed):**
+```json
+{
+  "messages": [
+    {
+      "role": "user",
+      "content": "What is the FY2017 operating cash flow ratio for Adobe?"
+    }
+  ],
+  "max_thinking_tokens": 8192,
+  "model": "nvidia/nemotron-3-nano"
+}
+```
+
+**For nemotron-3-nano (NVIDIA-hosted):**
 ```json
 {
   "messages": [
