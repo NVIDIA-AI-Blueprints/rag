@@ -300,16 +300,16 @@ def main() -> None:
     Main entry point for the MCP client CLI.
     Examples:
       List tools (SSE):
-        python nvidia_rag_mcp/mcp_client.py list --transport=sse --url=http://127.0.0.1:8000/sse
+        python examples/nvidia_rag_mcp/mcp_client.py list --transport=sse --url=http://127.0.0.1:8000/sse
       List tools (stdio):
-        python nvidia_rag_mcp/mcp_client.py list --transport=stdio --command=python \
-          --args="-m nvidia_rag_mcp.mcp_server --transport stdio"
+        python examples/nvidia_rag_mcp/mcp_client.py list --transport=stdio --command=python \
+          --args="examples/nvidia_rag_mcp/mcp_server.py --transport stdio"
       Call generate (streamable_http):
-        python nvidia_rag_mcp/mcp_client.py call --transport=streamable_http --url=http://127.0.0.1:8000/mcp \
+        python examples/nvidia_rag_mcp/mcp_client.py call --transport=streamable_http --url=http://127.0.0.1:8000/mcp \
           --tool=generate --json-args='{"messages":[{"role":"user","content":"Hi"}]}'
       Call upload_documents (stdio):
-        python nvidia_rag_mcp/mcp_client.py call --transport=stdio --command=python \
-          --args="-m nvidia_rag_mcp.mcp_server --transport stdio" \
+        python examples/nvidia_rag_mcp/mcp_client.py call --transport=stdio --command=python \
+          --args="examples/nvidia_rag_mcp/mcp_server.py --transport stdio" \
           --tool=upload_documents \
           --json-args='{"collection_name":"my_collection","file_paths":["/abs/path/file.pdf"]}'
     """

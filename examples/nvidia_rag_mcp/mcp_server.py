@@ -815,9 +815,9 @@ def main() -> None:
     Main entry point for the MCP server.
     Examples:
       SSE:
-        python nvidia_rag_mcp/mcp_server.py --transport sse
+        python examples/nvidia_rag_mcp/mcp_server.py --transport sse
       streamable_http:
-        python nvidia_rag_mcp/mcp_server.py --transport streamable_http
+        python examples/nvidia_rag_mcp/mcp_server.py --transport streamable_http
     """
     parser = argparse.ArgumentParser(description="NVIDIA RAG MCP server")
     parser.add_argument("--transport", choices=["sse", "streamable_http", "stdio"], help="Transport mode")
