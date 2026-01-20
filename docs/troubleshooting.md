@@ -24,15 +24,11 @@ You may encounter a "429 Client Error: Too Many Requests for url" error during i
 To mitigate rate limiting issues, configure the following parameters before starting ingestor-server and nv-ingest-ms-runtime:
 
 ```bash
-export NV_INGEST_FILES_PER_BATCH=4
+export NV_INGEST_FILES_PER_BATCH=1
 export NV_INGEST_CONCURRENT_BATCHES=1
-export MAX_INGEST_PROCESS_WORKERS=8
+export MAX_INGEST_PROCESS_WORKERS=1
 export NV_INGEST_MAX_UTIL=8
-```
 
-If you continue to experience rate limiting errors after applying these settings, further reduce `NV_INGEST_FILES_PER_BATCH` and `MAX_INGEST_PROCESS_WORKERS` to 1.
-
-```bash
 # Start the ingestor-server and nv-ingest-ms-runtime containers
 docker compose -f deploy/compose/docker-compose-ingestor-server.yaml up -d
 ```
