@@ -12,26 +12,18 @@ This documentation contains the release notes for [NVIDIA RAG Blueprint](readme.
 
 This release adds new features to the RAG pipeline for supporting agent workflows and enhances generations with VLMs augmenting multimodal input.
 
-## Release 2.3.2 (2025-12-25)
-
-This release is a hotfix for RAG v2.3.0, and includes the following changes:
-
-- Bump embedqa version to 1.10.1 and nim-llm to version 1.14.0.
-- Align Helm values and any referenced tags with the new embedqa and nim-llm versions.
-
-
-
 ### Highlights 
 
 This release contains the following key changes:
 
+- Updated NIMs and code to support  [Nvidia Ingest 26.01 release](https://docs.nvidia.com/nemo/retriever/latest/extraction/releasenotes-nv-ingest/).
 - Added support for non-NIM models including OpenAI, models hosted on AWS and Azure, OSS models, and others. Supported through service-specific API keys. For details, refer to [Get an API Key](api-key.md).
 - The RAG Blueprint now uses [nemoretriever-ocr-v1](https://build.nvidia.com/nvidia/nemoretriever-ocr-v1/modelcard) as the default OCR model. For details, refer to [NeMo Retriever OCR Configuration Guide](nemoretriever-ocr.md).
 - The Vision-Language Model (VLM) inference feature now uses the model [nemotron-nano-12b-v2-vl](https://build.nvidia.com/nvidia/nemotron-nano-12b-v2-vl/modelcard). For details, refer to [VLM for Generation](vlm.md).
 - User interface improvements including catalog display, image and text query, and others. For details, refer to [User Interface](user-interface.md).
 - Added ingestion metrics endpoint support with OpenTelemetry (OTEL) for monitoring document uploads, elements ingested, and pages processed. For details, refer to [Observability](observability.md).
 - Support image and text as input query. For details, refer to [Multimodal Query Support](multimodal-query.md).
-- Now support using thinking budget control to keep balance between accuracy and performance. For details, refer to [Enable Reasoning](enable-nemotron-thinking.md).
+- Nemotron-3-Nano reasoning budget support. For details, refer to [Enable Reasoning](enable-nemotron-thinking.md).
 - Vector Database enhancements including secure database access. For details, refer to [Milvus Configuration](milvus-configuration.md) and [Elasticsearch Configuration](change-vectordb.md).
 - You can now access RAG functionality from a Model Context Protocol (MCP) server for tool integration. For details, refer to [MCP Server and Client Usage](nvidia-rag-mcp.md).
 - Added OpenAI-compatible search endpoint for integration with OpenAI tools. For details, refer to [API - RAG Server Schema](api-rag.md).
@@ -49,7 +41,10 @@ This release contains the following key changes:
   - Easy model switches and dedicated configurations
   - Ease of prompt changes
 - Reserved field names `type`, `subtype`, and `location` for NV-Ingest exclusive use in metadata schemas.
-
+- Added support for [rag_library_lite_usage.ipynb](https://github.com/NVIDIA-AI-Blueprints/rag/tree/main/notebooks/rag_library_lite_usage.ipynb) which demonstrates containerless deployment of the NVIDIA RAG Python package in lite mode.
+- Added example showcasing [NeMo Agent Toolkit integration](https://github.com/NVIDIA/NeMo-Agent-Toolkit) with Nvidia RAG.
+- Added [weighted hybrid search](hybrid_search.md#weighted-hybrid-search) support with configurable weights.
+- RAG server logging improvements
 
 
 ### Fixed Known Issues
@@ -59,6 +54,14 @@ The following are the known issues that are fixed in this version:
 - Fixed issue in NIM LLM for automatic profile selection. For details, refer to [Model Profiles](model-profiles.md).
 
 For the full list of known issues, refer to [Known Issues](#all-known-issues).
+
+## Release 2.3.2 (2025-12-25)
+
+This release is a hotfix for RAG v2.3.0, and includes the following changes:
+
+- Bump embedqa version to 1.10.1 and nim-llm to version 1.14.0.
+- Align Helm values and any referenced tags with the new embedqa and nim-llm versions.
+
 
 
 
