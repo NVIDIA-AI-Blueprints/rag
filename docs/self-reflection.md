@@ -122,7 +122,7 @@ If you don't have sufficient GPU resources for on-premises deployment, you can u
    export ENABLE_REFLECTION=true
 
    # Set empty server URL to use NVIDIA hosted API
-   export REFLECTION_LLM_SERVERURL="nim-llm:8000"
+   export REFLECTION_LLM_SERVERURL=""
 
    # Choose the reflection model (options below)
    export REFLECTION_LLM="nvidia/llama-3.3-nemotron-super-49b-v1.5"  # Default option
