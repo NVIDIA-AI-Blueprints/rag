@@ -23,7 +23,7 @@ This release contains the following key changes:
 - User interface improvements including catalog display, image and text query, and others. For details, refer to [User Interface](user-interface.md).
 - Added ingestion metrics endpoint support with OpenTelemetry (OTEL) for monitoring document uploads, elements ingested, and pages processed. For details, refer to [Observability](observability.md).
 - Support image and text as input query. For details, refer to [Multimodal Query Support](multimodal-query.md).
-- Nemotron-3-Nano reasoning budget support. For details, refer to [Enable Reasoning](enable-nemotron-thinking.md).
+- Nemotron-3-Nano model support with reasoning budget. For details, refer to [Enable Reasoning](enable-nemotron-thinking.md).
 - Vector Database enhancements including secure database access. For details, refer to [Milvus Configuration](milvus-configuration.md) and [Elasticsearch Configuration](change-vectordb.md).
 - You can now access RAG functionality from a Model Context Protocol (MCP) server for tool integration. For details, refer to [MCP Server and Client Usage](nvidia-rag-mcp.md).
 - Added OpenAI-compatible search endpoint for integration with OpenAI tools. For details, refer to [API - RAG Server Schema](api-rag.md).
@@ -53,6 +53,10 @@ The following are the known issues that are fixed in this version:
 
 - Fixed issue in NIM LLM for automatic profile selection. For details, refer to [Model Profiles](model-profiles.md).
 
+### Known limitations
+The following are the known limitations in this version:
+- DRA support using NIM operator based helm chart is not available in this release.
+
 For the full list of known issues, refer to [Known Issues](#all-known-issues).
 
 ## Release 2.3.2 (2025-12-25)
@@ -69,6 +73,7 @@ This release is a hotfix for RAG v2.3.0, and includes the following changes:
 
 The following are the known issues for the NVIDIA RAG Blueprint:
 
+- DRA support 
 - Optional features reflection and image captioning are not available in Helm-based deployment.
 - Currently, Helm-based deployment is not supported for [NeMo Guardrails](nemo-guardrails.md).
 - The Blueprint responses can have significant latency when using [NVIDIA API Catalog cloud hosted models](deploy-docker-nvidia-hosted.md).
