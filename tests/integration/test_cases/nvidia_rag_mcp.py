@@ -64,7 +64,7 @@ from ..base import BaseTestModule, TestStatus, test_case
 
 logger = logging.getLogger(__name__)
 
-# Full expected MCP tool surface (Retriever + Ingestor) that should be exposed
+# Full expected MCP tool surface (RAG + Ingestor) that should be exposed
 # consistently across all transports.
 EXPECTED_MCP_TOOLS: set[str] = {
     "generate",
@@ -87,7 +87,7 @@ class MCPIntegrationModule(BaseTestModule):
     End-to-end MCP integration module for NVIDIA RAG.
 
     This suite exercises:
-    - Retriever tools (`generate`, `search`, `get_summary`) over all transports
+    - RAG tools (`generate`, `search`, `get_summary`) over all transports
     - Ingestor tools (collections + documents CRUD/metadata) over all transports
     - Tool discovery (`list` RPC) to ensure the MCP server surface matches expectations
 
@@ -332,7 +332,7 @@ class MCPIntegrationModule(BaseTestModule):
         """
         List MCP tools over SSE and verify all expected tools are exposed.
 
-        The expectation is that both Retriever tools and all Ingestor tools are
+        The expectation is that both RAG tools and all Ingestor tools are
         registered with FastMCP, matching the server implementation in
         `examples/nvidia_rag_mcp/mcp_server.py`.
         """

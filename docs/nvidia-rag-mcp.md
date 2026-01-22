@@ -10,7 +10,7 @@ This guide shows how to run the NVIDIA RAG MCP server and use the included Pytho
 
 The MCP server exposes two categories of tools:
 
-#### Retrieval Tools
+#### RAG Tools
 
 These tools interact with the RAG server to query and generate responses from your knowledge base:
 
@@ -108,9 +108,9 @@ Expected tools:
 `generate`, `search`, `get_summary`, `get_documents`, `delete_documents`, `update_documents`, `list_collections`, `update_collection_metadata`, `update_document_metadata`, `create_collections`, `delete_collections`, `upload_documents`.
 
 
-### 3) Retriever tools
+### 3) RAG tools
 
-The CLI lives at `examples/nvidia_rag_mcp/mcp_client.py`. The examples below show all transports (SSE, streamable_http, stdio) for the retriever (RAG) tools.
+The CLI lives at `examples/nvidia_rag_mcp/mcp_client.py`. The examples below show all transports (SSE, streamable_http, stdio) for the RAG tools.
 
 #### `generate`
 
@@ -204,7 +204,7 @@ python examples/nvidia_rag_mcp/mcp_client.py call \
 
 ### 4) Ingestor tools
 
-Use these before/after the retriever tools to manage collections and documents in the vector database.
+Use these before/after the RAG tools to manage collections and documents in the vector database.
 
 #### `create_collections`
 
