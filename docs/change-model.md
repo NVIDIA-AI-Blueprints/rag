@@ -62,6 +62,36 @@ To get a list of valid model names, use one of the following methods:
 Always use same embedding model or model having same tokinizers for both ingestion and retrieval to yield good accuracy.
 :::
 
+### Configure Embedding Dimensions
+
+The default embedding model (`nvidia/llama-3.2-nv-embedqa-1b-v2`) uses **2048 dimensions** by default. When changing to a different embedding model, you may need to update the dimensions to match the model's output.
+
+**Important:** Some embedding models have **fixed output dimensions** and do not accept a `dimensions` parameter. For example, `nvidia/nv-embedqa-e5-v5` always outputs 1024-dimensional embeddings. If you use such a model without configuring the dimensions, you may encounter an error like:
+
+```
+This model does not support 'dimensions', but a value of '2048' was provided.
+```
+
+#### Configure via Environment Variable
+
+```bash
+export APP_EMBEDDINGS_DIMENSIONS=1024  # Match your model's output dimensions
+export APP_EMBEDDINGS_MODELNAME='nvidia/nv-embedqa-e5-v5'
+```
+
+#### Configure via config.yaml (Library Mode)
+
+```yaml
+embeddings:
+  model_name: "nvidia/nv-embedqa-e5-v5"
+  dimensions: 1024  # Must match the model's output dimensions
+  server_url: "https://integrate.api.nvidia.com/v1"
+```
+
+:::{warning}
+**Ingestion and retrieval must use the same embedding model and dimensions.** If you change the embedding model or dimensions after ingesting documents, you must re-ingest your documents to the vector database for accurate retrieval results.
+:::
+
 :::{note}
 When using models from different providers (e.g., NVIDIA for LLM, Azure OpenAI for embeddings), you can configure service-specific API keys. See [Service-Specific API Keys](api-key.md#service-specific-api-keys) for details.
 :::

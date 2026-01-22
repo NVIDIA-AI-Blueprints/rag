@@ -326,7 +326,7 @@ After deployment, you can start querying your knowledge base with both text and 
 
 - **Web UI**: Access the RAG frontend at `http://localhost:8090` to experiment with multimodal queries through the user interface. For details, see [User Interface for NVIDIA RAG Blueprint](user-interface.md).
 
-- **Interactive Notebook**: For a step-by-step guide with code examples covering collection creation, document ingestion, and querying with images, see the [Multimodal Query Notebook](https://github.com/NVIDIA-AI-Blueprints/rag/tree/main/notebooks/retriever_api_image.ipynb).
+- **Interactive Notebook**: For a step-by-step guide with code examples covering collection creation, document ingestion, and querying with images, see the [Multimodal Query Notebook](https://github.com/NVIDIA-AI-Blueprints/rag/tree/main/notebooks/image_input.ipynb).
 
 ## Limitations
 

@@ -116,6 +116,29 @@ After updating the configuration, restart the ingestor server and try the ingest
 
 
 
+## Embedding Model Dimensions Error
+
+```
+This model does not support 'dimensions', but a value of '2048' was provided.
+```
+
+This error occurs when using an embedding model with fixed output dimensions (e.g., `nvidia/nv-embedqa-e5-v5` with 1024 dimensions) while the default 2048 dimensions is configured. Some embedding models have fixed output dimensions and do not accept a `dimensions` parameter.
+
+**Solution:** Configure the `APP_EMBEDDINGS_DIMENSIONS` environment variable or `embeddings.dimensions` in config.yaml to match your model's output dimensions:
+
+```bash
+export APP_EMBEDDINGS_DIMENSIONS=1024
+export APP_EMBEDDINGS_MODELNAME='nvidia/nv-embedqa-e5-v5'
+```
+
+See [Configure Embedding Dimensions](change-model.md#configure-embedding-dimensions) for detailed instructions.
+
+:::{warning}
+If you change the embedding model or dimensions after ingesting documents, you must re-ingest your documents for accurate retrieval results.
+:::
+
+
+
 ## Error details: [###] Too many open files for llama-3.3-nemotron-super-49b-v1.5 container
 source: hyper_util::client::legacy::Error(Connect, ConnectError("dns error", Os { code: 24, kind: Uncategorized, message: "Too many open files" })) })
 

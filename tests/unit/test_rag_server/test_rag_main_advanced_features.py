@@ -458,11 +458,9 @@ class TestNvidiaRAGSearchCoverage:
     async def test_search_with_reflection_enabled(self):
         """Test search with reflection enabled.
 
-        NOTE: The current implementation of search() calls the async
-        `check_context_relevance` function without awaiting it, which results
-        in an APIError wrapping a `cannot unpack non-iterable coroutine object`
-        message. Until the core implementation is fixed, this test asserts that
-        behaviour instead of successful search.
+        This test verifies that the search() method correctly awaits the async
+        `check_context_relevance` function when reflection is enabled, returning
+        valid search results.
         """
         mock_vdb_op = Mock(spec=VDBRag)
         mock_vdb_op.check_collection_exists.return_value = True
@@ -579,18 +577,14 @@ class TestNvidiaRAGSearchCoverage:
                                                         documents=[], sources=[]
                                                     )
 
-                                                    # With reflection enabled, the current implementation
-                                                    # raises an APIError wrapping a coroutine unpack error.
-                                                    with pytest.raises(
-                                                        APIError,
-                                                        match="Failed to search documents.",
-                                                    ):
-                                                        await rag.search(
-                                                            "test query",
-                                                            collection_names=[
-                                                                "test_collection"
-                                                            ],
-                                                        )
+                                                    # With the await fix, search should complete successfully
+                                                    result = await rag.search(
+                                                        "test query",
+                                                        collection_names=[
+                                                            "test_collection"
+                                                        ],
+                                                    )
+                                                    assert isinstance(result, Citations)
 
     @pytest.mark.asyncio
     async def test_search_with_confidence_threshold_warning(self):
