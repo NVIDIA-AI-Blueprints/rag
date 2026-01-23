@@ -66,7 +66,7 @@ For example, if you set `APP_LLM_APIKEY`, the LLM service will use that key inst
 
 ### Library Mode (Python Package)
 
-Configure in `config.yaml`:
+Configure in [`config.yaml`](https://github.com/NVIDIA-AI-Blueprints/rag/blob/develop/notebooks/config.yaml).
 
 ```yaml
 llm:
@@ -83,6 +83,8 @@ export APP_EMBEDDINGS_APIKEY="your-embeddings-api-key"
 # Additional service-specific keys can be set as needed
 ```
 
+**Note:** For security reasons, API keys must be configured (via NvidiaRAGConfig object or environment variables) before initialization and cannot be passed as runtime parameters in API requests, unlike model names and endpoints which can be overridden at runtime.
+
 ### Helm
 
 Use `--set` flags to pass API keys securely via command line:
@@ -95,7 +97,7 @@ helm upgrade --install rag -n rag <chart-path-or-url> \
   --set apiKeysSecret.embeddingsApiKey=$APP_EMBEDDINGS_APIKEY
 ```
 
-Additional service-specific keys can be configured as needed (e.g., `rankingApiKey`, `vlmApiKey`, `summaryLlmApiKey`).
+Additional service-specific keys can be configured as needed: `rankingApiKey`, `queryRewriterApiKey`, `filterExpressionGeneratorApiKey`, `vlmApiKey`, `summaryLlmApiKey`, `reflectionLlmApiKey`.
 
 ## Related Topics
 
