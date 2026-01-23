@@ -13,7 +13,7 @@ If you want to run the RAG Blueprint with [NVIDIA AI Workbench](https://docs.nvi
 :::
 
 :::{tip}
-Looking for a simpler setup without Docker? Check out the [Containerless Deployment (Lite Mode)](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/rag_library_lite_usage.ipynb) for a Python-only deployment using Milvus Lite and NVIDIA cloud APIs.
+Looking for a simpler setup without Docker? Check out the [Containerless Deployment (Lite Mode)](https://github.com/NVIDIA-AI-Blueprints/rag/blob/develop/notebooks/rag_library_lite_usage.ipynb) for a Python-only deployment using Milvus Lite and NVIDIA cloud APIs.
 :::
 
 
@@ -94,13 +94,13 @@ Use the following procedure to start all containers needed for this blueprint.
      ```output
         NAMES                                   STATUS
 
-        nemoretriever-ranking-ms                Up 14 minutes (healthy)
-        compose-page-elements-1                 Up 14 minutes
-        compose-paddle-1                        Up 14 minutes
-        compose-graphic-elements-1              Up 14 minutes
-        compose-table-structure-1               Up 14 minutes
-        nemoretriever-embedding-ms              Up 14 minutes (healthy)
-        nim-llm-ms                              Up 14 minutes (healthy)
+        nim-llm-ms                    Up 4 minutes (healthy)
+        nemoretriever-ranking-ms      Up 4 minutes (healthy)
+        compose-graphic-elements-1    Up 4 minutes
+        compose-page-elements-1       Up 4 minutes
+        nemoretriever-embedding-ms    Up 4 minutes (healthy)
+        compose-nemoretriever-ocr-1   Up 4 minutes
+        compose-table-structure-1     Up 4 minutes
      ```
 
 
@@ -217,22 +217,22 @@ Use the following procedure to start all containers needed for this blueprint.
     You should see output similar to the following. Confirm all the following containers are running.
 
     ```output
-    NAMES                                   STATUS
-    compose-nv-ingest-ms-runtime-1          Up 5 minutes (healthy)
-    ingestor-server                         Up 5 minutes
-    compose-redis-1                         Up 5 minutes
-    rag-frontend                            Up 9 minutes
-    rag-server                              Up 9 minutes
-    milvus-standalone                       Up 36 minutes
-    milvus-minio                            Up 35 minutes (healthy)
-    milvus-etcd                             Up 35 minutes (healthy)
-    nemoretriever-ranking-ms                Up 38 minutes (healthy)
-    compose-page-elements-1                 Up 38 minutes
-    compose-paddle-1                        Up 38 minutes
-    compose-graphic-elements-1              Up 38 minutes
-    compose-table-structure-1               Up 38 minutes
-    nemoretriever-embedding-ms              Up 38 minutes (healthy)
-    nim-llm-ms                              Up 38 minutes (healthy)
+    CONTAINER ID   NAMES                            STATUS
+    88181d20ba30   rag-frontend                     Up 2 minutes
+    5cf93ea91d4e   rag-server                       Up 2 minutes
+    03ff43bd4f53   compose-nv-ingest-ms-runtime-1   Up 2 minutes (healthy)
+    fcc703631b71   ingestor-server                  Up 2 minutes
+    77f64a4a5146   compose-redis-1                  Up 2 minutes
+    902445432dde   milvus-standalone                Up 3 minutes
+    340bc8210a0d   milvus-minio                     Up 3 minutes (healthy)
+    0be702b87ad6   milvus-etcd                      Up 3 minutes (healthy)
+    62eabf1d9f65   nim-llm-ms                       Up 10 minutes (healthy)
+    fe2751bfa734   nemoretriever-ranking-ms         Up 10 minutes (healthy)
+    7b5ddabf8be7   compose-graphic-elements-1       Up 10 minutes
+    ecfaa5190302   compose-page-elements-1          Up 10 minutes
+    ea8c7fdf20d1   nemoretriever-embedding-ms       Up 10 minutes (healthy)
+    6d62008a9b42   compose-nemoretriever-ocr-1      Up 10 minutes
+    969b9f5c987c   compose-table-structure-1        Up 10 minutes
     ```
 
 
@@ -294,7 +294,7 @@ docker compose -f deploy/compose/docker-compose-ingestor-server.yaml up -d
 - To start just the services specific to RAG or ingestion add the `--profile rag` or `--profile ingest` flag to the code. For example:
 
    ```bash
-   USERID=$(id -u) docker compose -f deploy/compose/nims.yaml up -d --profile rag
+   USERID=$(id -u) docker compose -f deploy/compose/nims.yaml --profile rag up -d
    ```
 
 - If you make code changes and want to redeploy services, add the --build flag to your code.  For example:
