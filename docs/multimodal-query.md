@@ -40,15 +40,20 @@ docker compose -f deploy/compose/vectordb.yaml up -d
 
 ### 2. Deploy the VLM and VLM Embedding NIMs
 
-Deploy the Vision-Language Model and multimodal embedding services:
+Deploy the Vision-Language Model and multimodal embedding services.
+
+Set your NGC API key (replace with your actual key):
+
+```bash
+export NGC_API_KEY="nvapi-..."
+```
+
+Then run the deployment commands:
 
 ```bash
 # Create the model cache directory
 mkdir -p ~/.cache/model-cache
 export MODEL_DIRECTORY=~/.cache/model-cache
-
-# Set your NGC API key
-export NGC_API_KEY="nvapi-..."
 
 # (Optional) Select a specific GPU for the VLM Microservice
 # Use `nvidia-smi` to check available GPUs and set the desired GPU ID
@@ -154,10 +159,15 @@ source deploy/compose/.env
 
 #### b. Set the environment variables to use NVIDIA-hosted endpoints for VLM models:
 
-```bash
-# Set your NGC API key
-export NGC_API_KEY="nvapi-..."
+Set your NGC API key (replace with your actual key):
 
+```bash
+export NGC_API_KEY="nvapi-..."
+```
+
+Then set the VLM configuration:
+
+```bash
 # VLM (Vision-Language Model) configuration - cloud hosted
 export APP_VLM_MODELNAME="nvidia/nemotron-nano-12b-v2-vl"
 export APP_VLM_SERVERURL="https://integrate.api.nvidia.com"
