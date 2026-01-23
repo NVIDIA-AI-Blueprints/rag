@@ -220,20 +220,6 @@ kubectl delete nimcache --all -n rag
 kubectl delete pvc --all -n rag
 ```
 
-## (Optional) Configure Redis Backend
-
-The ingestor server uses Redis for task status tracking. The `ENABLE_REDIS_BACKEND` environment variable controls whether Redis is used (default: `False`). **Redis backend is required when running multiple replicas of the ingestor-server.**
-
-To enable Redis backend in the `values.yaml` file:
-```yaml
-ingestor-server:
-  envVars:
-    ENABLE_REDIS_BACKEND: "True"
-```
-
-Then apply the changes using the [Change a Deployment](#change-a-deployment) procedure.
-
-
 ## (Optional) Enable Persistence
 
 1. Update the ***values.yaml*** file for the persistence that you want. Use the following instructions.

@@ -16,6 +16,7 @@ services:
       KNOWHERE_GPU_MEM_POOL_SIZE: 2048;4096
     volumes:
       - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/milvus:/var/lib/milvus
+      # Uncomment below line to mount the configuration file
       # - ${MILVUS_CONFIG_FILE:-./milvus.yaml}:/milvus/configs/milvus.yaml
     # healthcheck:
     #   test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
@@ -91,15 +92,17 @@ services:
     environment:
       - discovery.type=single-node
       - "ES_JAVA_OPTS=-Xms1024m -Xmx1024m"
-      - xpack.security.enabled=false
+      - xpack.security.enabled=false # Set to true to enable authentication
       - xpack.license.self_generated.type=basic
       - network.host=0.0.0.0
       - cluster.routing.allocation.disk.threshold_enabled=false
+      # Uncomment the line below to use the username and password environment variables
       # - ELASTIC_USERNAME=${APP_VECTORSTORE_USERNAME}
       # - ELASTIC_PASSWORD=${APP_VECTORSTORE_PASSWORD}
     hostname: elasticsearch
     healthcheck:
       test: ["CMD", "curl", "-s", "-f", "http://localhost:9200/_cat/health"]
+      # Uncomment the line below to use the username and password in healthcheck and comment out the line above
       # test: ["CMD", "curl", "-s", "-f", "-u", "${APP_VECTORSTORE_USERNAME}:${APP_VECTORSTORE_PASSWORD}", "http://localhost:9200/_cat/health"]
       interval: 10s
       timeout: 1s
