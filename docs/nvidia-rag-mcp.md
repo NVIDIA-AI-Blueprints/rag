@@ -2,15 +2,22 @@
   SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
   SPDX-License-Identifier: Apache-2.0
 -->
-## MCP Server and Client Usage
+# MCP Server and Client Usage
 
 This guide shows how to run the NVIDIA RAG MCP server and use the included Python MCP client to interact with the RAG system.
 
-### Available Tools
+## Prerequisites
 
-The MCP server exposes two categories of tools:
+Confirm you have the following prerequisites before you run the NVIDIA RAG MCP server:
 
-#### RAG Tools
+- NVIDIA RAG HTTP services are reachable. Follow the [quickstart guide](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/docs/deploy-docker-self-hosted.md) to start the end-to-end RAG workflow.
+- Python 3.11+ and dependencies:
+
+```bash
+pip install -r examples/nvidia_rag_mcp/requirements.txt
+```
+
+## RAG Tools
 
 These tools interact with the RAG server to query and generate responses from your knowledge base:
 
@@ -20,7 +27,7 @@ These tools interact with the RAG server to query and generate responses from yo
 | `search` | Search the vector database for relevant documents |
 | `get_summary` | Retrieve document summaries from the knowledge base |
 
-#### Ingestor Tools
+## Ingestor Tools
 
 These tools manage collections and documents in the vector database:
 
@@ -36,7 +43,7 @@ These tools manage collections and documents in the vector database:
 | `update_document_metadata` | Update catalog metadata for a specific document in a collection |
 | `delete_collections` | Delete one or more collections from the vector database |
 
-### Supported Transport Modes
+## Supported Transport Modes
 
 The MCP server supports three transport modes:
 
@@ -48,21 +55,14 @@ The MCP server supports three transport modes:
 
 **Note:** The `stdio` transport can be run without starting the MCP server separately. The client spawns the server process directly, making it ideal for local development and testing.
 
+## Use the MCP Server
 
-### Prerequisites
-
-- NVIDIA RAG HTTP services are reachable. Follow the [quickstart guide](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/docs/deploy-docker-self-hosted.md) to start the end-to-end RAG workflow.
-- Python 3.11+ and dependencies:
-
-```bash
-pip install -r examples/nvidia_rag_mcp/requirements.txt
-```
-
-### 1) Start the MCP Server
+1. Start the MCP Server
 
 From the repo root, start either transport:
 
-#### SSE
+
+ * For SSE
 ```bash
 # Free port 8000 if needed (Linux)
 fuser -k 8000/tcp || true
@@ -70,7 +70,7 @@ fuser -k 8000/tcp || true
 python examples/nvidia_rag_mcp/mcp_server.py --transport sse --host 127.0.0.1 --port 8000
 ```
 
-#### streamable_http
+ * For streamable_http
 ```bash
 # Free port 8000 if needed (Linux)
 fuser -k 8000/tcp || true
@@ -78,25 +78,23 @@ fuser -k 8000/tcp || true
 python examples/nvidia_rag_mcp/mcp_server.py --transport streamable_http --host 127.0.0.1 --port 8000
 ```
 
-### 2) List available MCP tools
+2. Use the `list` subcommand to see all exposed tools (RAG + Ingestor).
 
-Use the `list` subcommand to see all exposed tools (RAG + Ingestor):
-
-SSE:
+ * For SSE:
 ```bash
 python examples/nvidia_rag_mcp/mcp_client.py list \
   --transport=sse \
   --url=http://127.0.0.1:8000/sse
 ```
 
-streamable_http:
+ * For streamable_http:
 ```bash
 python examples/nvidia_rag_mcp/mcp_client.py list \
   --transport=streamable_http \
   --url=http://127.0.0.1:8000/mcp
 ```
 
-stdio:
+ * For stdio:
 ```bash
 python examples/nvidia_rag_mcp/mcp_client.py list \
   --transport=stdio \
@@ -104,17 +102,14 @@ python examples/nvidia_rag_mcp/mcp_client.py list \
   --args="examples/nvidia_rag_mcp/mcp_server.py --transport stdio"
 ```
 
-Expected tools:  
+You should see output similar to the following:  
 `generate`, `search`, `get_summary`, `get_documents`, `delete_documents`, `update_documents`, `list_collections`, `update_collection_metadata`, `update_document_metadata`, `create_collections`, `delete_collections`, `upload_documents`.
 
+3. The examples below show all transports (SSE, streamable_http, stdio) for the RAG tools. The CLI lives at `examples/nvidia_rag_mcp/mcp_client.py`. 
 
-### 3) RAG tools
+Here is the `generate` example:
 
-The CLI lives at `examples/nvidia_rag_mcp/mcp_client.py`. The examples below show all transports (SSE, streamable_http, stdio) for the RAG tools.
-
-#### `generate`
-
-SSE:
+* For SSE:
 ```bash
 python examples/nvidia_rag_mcp/mcp_client.py call \
   --transport=sse \
@@ -123,7 +118,7 @@ python examples/nvidia_rag_mcp/mcp_client.py call \
   --json-args='{"messages":[{"role":"user","content":"Say \"ok\""}],"collection_names":["my_collection"]}'
 ```
 
-streamable_http:
+ * For streamable_http:
 ```bash
 python examples/nvidia_rag_mcp/mcp_client.py call \
   --transport=streamable_http \
@@ -132,7 +127,7 @@ python examples/nvidia_rag_mcp/mcp_client.py call \
   --json-args='{"messages":[{"role":"user","content":"Say \"ok\""}],"collection_names":["my_collection"]}'
 ```
 
-stdio:
+ * For stdio:
 ```bash
 python examples/nvidia_rag_mcp/mcp_client.py call \
   --transport=stdio \
@@ -142,9 +137,9 @@ python examples/nvidia_rag_mcp/mcp_client.py call \
   --json-args='{"messages":[{"role":"user","content":"Say \"ok\""}],"collection_names":["my_collection"]}'
 ```
 
-#### `search`
+Here are the `search` examples:
 
-SSE:
+* For SSE:
 ```bash
 python examples/nvidia_rag_mcp/mcp_client.py call \
   --transport=sse \
@@ -153,7 +148,7 @@ python examples/nvidia_rag_mcp/mcp_client.py call \
   --json-args='{"query":"Tell me about Robert Frost''s poems","collection_names":["my_collection"],"reranker_top_k":2,"vdb_top_k":5,"enable_query_rewriting":false,"enable_reranker":true}'
 ```
 
-streamable_http:
+ * For streamable_http:
 ```bash
 python examples/nvidia_rag_mcp/mcp_client.py call \
   --transport=streamable_http \
@@ -162,7 +157,7 @@ python examples/nvidia_rag_mcp/mcp_client.py call \
   --json-args='{"query":"Tell me about Robert Frost''s poems","collection_names":["my_collection"],"reranker_top_k":2,"vdb_top_k":5,"enable_query_rewriting":false,"enable_reranker":true}'
 ```
 
-stdio:
+ * For stdio:
 ```bash
 python examples/nvidia_rag_mcp/mcp_client.py call \
   --transport=stdio \
@@ -172,9 +167,9 @@ python examples/nvidia_rag_mcp/mcp_client.py call \
   --json-args='{"query":"Tell me about Robert Frost''s poems","collection_names":["my_collection"],"reranker_top_k":2,"vdb_top_k":5,"enable_query_rewriting":false,"enable_reranker":true}'
 ```
 
-#### `get_summary`
+Here are the `get_summary` examples"
 
-SSE:
+ * For SSE:
 ```bash
 python examples/nvidia_rag_mcp/mcp_client.py call \
   --transport=sse \
@@ -183,7 +178,7 @@ python examples/nvidia_rag_mcp/mcp_client.py call \
   --json-args='{"collection_name":"my_collection","file_name":"woods_frost.pdf","blocking":false,"timeout":60}'
 ```
 
-streamable_http:
+* For streamable_http:
 ```bash
 python examples/nvidia_rag_mcp/mcp_client.py call \
   --transport=streamable_http \
@@ -192,7 +187,7 @@ python examples/nvidia_rag_mcp/mcp_client.py call \
   --json-args='{"collection_name":"my_collection","file_name":"woods_frost.pdf","blocking":false,"timeout":60}'
 ```
 
-stdio:
+ * For stdio:
 ```bash
 python examples/nvidia_rag_mcp/mcp_client.py call \
   --transport=stdio \
@@ -202,13 +197,11 @@ python examples/nvidia_rag_mcp/mcp_client.py call \
   --json-args='{"collection_name":"my_collection","file_name":"woods_frost.pdf","blocking":false,"timeout":60}'
 ```
 
-### 4) Ingestor tools
+4. Use these before/after the RAG tools to manage collections and documents in the vector database.
 
-Use these before/after the RAG tools to manage collections and documents in the vector database.
+Here are the `create_collections` examples:
 
-#### `create_collections`
-
-SSE:
+ * For SSE:
 ```bash
 python examples/nvidia_rag_mcp/mcp_client.py call \
   --transport=sse --url=http://127.0.0.1:8000/sse \
@@ -216,7 +209,7 @@ python examples/nvidia_rag_mcp/mcp_client.py call \
   --json-args='{"collection_names":["my_collection"]}'
 ```
 
-streamable_http:
+ * For streamable_http:
 ```bash
 python examples/nvidia_rag_mcp/mcp_client.py call \
   --transport=streamable_http --url=http://127.0.0.1:8000/mcp \
@@ -224,7 +217,7 @@ python examples/nvidia_rag_mcp/mcp_client.py call \
   --json-args='{"collection_names":["my_collection"]}'
 ```
 
-stdio:
+ * For stdio:
 ```bash
 python examples/nvidia_rag_mcp/mcp_client.py call \
   --transport=stdio --command=python \
@@ -233,9 +226,9 @@ python examples/nvidia_rag_mcp/mcp_client.py call \
   --json-args='{"collection_names":["my_collection"]}'
 ```
 
-#### `list_collections`
+Here are the `list_collections` examples:
 
-SSE:
+ * For SSE:
 ```bash
 python examples/nvidia_rag_mcp/mcp_client.py call \
   --transport=sse --url=http://127.0.0.1:8000/sse \
@@ -243,7 +236,7 @@ python examples/nvidia_rag_mcp/mcp_client.py call \
   --json-args='{}'
 ```
 
-streamable_http:
+* For streamable_http:
 ```bash
 python examples/nvidia_rag_mcp/mcp_client.py call \
   --transport=streamable_http --url=http://127.0.0.1:8000/mcp \
@@ -251,7 +244,7 @@ python examples/nvidia_rag_mcp/mcp_client.py call \
   --json-args='{}'
 ```
 
-stdio:
+ * For stdio:
 ```bash
 python examples/nvidia_rag_mcp/mcp_client.py call \
   --transport=stdio --command=python \
@@ -260,9 +253,9 @@ python examples/nvidia_rag_mcp/mcp_client.py call \
   --json-args='{}'
 ```
 
-#### `upload_documents`
+Here are the `upload_documents` examples:
 
-SSE:
+* For SSE:
 ```bash
 python examples/nvidia_rag_mcp/mcp_client.py call \
   --transport=sse --url=http://127.0.0.1:8000/sse \
@@ -270,7 +263,7 @@ python examples/nvidia_rag_mcp/mcp_client.py call \
   --json-args='{"collection_name":"my_collection","file_paths":["data/multimodal/woods_frost.pdf"],"blocking":true,"generate_summary":true,"split_options":{"chunk_size":512,"chunk_overlap":150}}'
 ```
 
-streamable_http:
+ * For streamable_http:
 ```bash
 python examples/nvidia_rag_mcp/mcp_client.py call \
   --transport=streamable_http --url=http://127.0.0.1:8000/mcp \
@@ -278,7 +271,7 @@ python examples/nvidia_rag_mcp/mcp_client.py call \
   --json-args='{"collection_name":"my_collection","file_paths":["data/multimodal/woods_frost.pdf"],"blocking":true,"generate_summary":true,"split_options":{"chunk_size":512,"chunk_overlap":150}}'
 ```
 
-stdio:
+ * For stdio:
 ```bash
 python examples/nvidia_rag_mcp/mcp_client.py call \
   --transport=stdio --command=python \
@@ -287,9 +280,9 @@ python examples/nvidia_rag_mcp/mcp_client.py call \
   --json-args='{"collection_name":"my_collection","file_paths":["data/multimodal/woods_frost.pdf"],"blocking":true,"generate_summary":true,"split_options":{"chunk_size":512,"chunk_overlap":150}}'
 ```
 
-#### `get_documents`
+Here are the `get_documents` examples:
 
-SSE:
+ * For SSE:
 ```bash
 python examples/nvidia_rag_mcp/mcp_client.py call \
   --transport=sse --url=http://127.0.0.1:8000/sse \
@@ -297,7 +290,7 @@ python examples/nvidia_rag_mcp/mcp_client.py call \
   --json-args='{"collection_name":"my_collection"}'
 ```
 
-streamable_http:
+ * For streamable_http:
 ```bash
 python examples/nvidia_rag_mcp/mcp_client.py call \
   --transport=streamable_http --url=http://127.0.0.1:8000/mcp \
@@ -305,7 +298,7 @@ python examples/nvidia_rag_mcp/mcp_client.py call \
   --json-args='{"collection_name":"my_collection"}'
 ```
 
-stdio:
+ * For stdio:
 ```bash
 python examples/nvidia_rag_mcp/mcp_client.py call \
   --transport=stdio --command=python \
@@ -314,9 +307,9 @@ python examples/nvidia_rag_mcp/mcp_client.py call \
   --json-args='{"collection_name":"my_collection"}'
 ```
 
-#### `update_documents`
+Here are the `update_documents` examples: 
 
-SSE:
+ * For SSE:
 ```bash
 python examples/nvidia_rag_mcp/mcp_client.py call \
   --transport=sse --url=http://127.0.0.1:8000/sse \
@@ -324,7 +317,7 @@ python examples/nvidia_rag_mcp/mcp_client.py call \
   --json-args='{"collection_name":"my_collection","file_paths":["data/multimodal/woods_frost.pdf"],"blocking":true,"generate_summary":false,"split_options":{"chunk_size":512,"chunk_overlap":150}}'
 ```
 
-streamable_http:
+ * For streamable_http:
 ```bash
 python examples/nvidia_rag_mcp/mcp_client.py call \
   --transport=streamable_http --url=http://127.0.0.1:8000/mcp \
@@ -332,7 +325,7 @@ python examples/nvidia_rag_mcp/mcp_client.py call \
   --json-args='{"collection_name":"my_collection","file_paths":["data/multimodal/woods_frost.pdf"],"blocking":true,"generate_summary":false,"split_options":{"chunk_size":512,"chunk_overlap":150}}'
 ```
 
-stdio:
+ * For stdio:
 ```bash
 python examples/nvidia_rag_mcp/mcp_client.py call \
   --transport=stdio --command=python \
@@ -341,9 +334,9 @@ python examples/nvidia_rag_mcp/mcp_client.py call \
   --json-args='{"collection_name":"my_collection","file_paths":["data/multimodal/woods_frost.pdf"],"blocking":true,"generate_summary":false,"split_options":{"chunk_size":512,"chunk_overlap":150}}'
 ```
 
-#### `delete_documents`
+Here are the `delete_document` examples:
 
-SSE:
+ * For SSE:
 ```bash
 python examples/nvidia_rag_mcp/mcp_client.py call \
   --transport=sse --url=http://127.0.0.1:8000/sse \
@@ -351,7 +344,7 @@ python examples/nvidia_rag_mcp/mcp_client.py call \
   --json-args='{"collection_name":"my_collection","document_names":["woods_frost.pdf"]}'
 ```
 
-streamable_http:
+ * For streamable_http:
 ```bash
 python examples/nvidia_rag_mcp/mcp_client.py call \
   --transport=streamable_http --url=http://127.0.0.1:8000/mcp \
@@ -359,7 +352,7 @@ python examples/nvidia_rag_mcp/mcp_client.py call \
   --json-args='{"collection_name":"my_collection","document_names":["woods_frost.pdf"]}'
 ```
 
-stdio:
+ * For stdio:
 ```bash
 python examples/nvidia_rag_mcp/mcp_client.py call \
   --transport=stdio --command=python \
@@ -368,9 +361,9 @@ python examples/nvidia_rag_mcp/mcp_client.py call \
   --json-args='{"collection_name":"my_collection","document_names":["woods_frost.pdf"]}'
 ```
 
-#### `update_collection_metadata`
+Here are the `update_collection_metadata` examples:
 
-SSE:
+* For SSE:
 ```bash
 python examples/nvidia_rag_mcp/mcp_client.py call \
   --transport=sse --url=http://127.0.0.1:8000/sse \
@@ -378,7 +371,7 @@ python examples/nvidia_rag_mcp/mcp_client.py call \
   --json-args='{"collection_name":"my_collection","description":"Updated description","tags":["tag1","tag2"],"owner":"owner@example.com","business_domain":"demo","status":"Active"}'
 ```
 
-streamable_http:
+ * For streamable_http:
 ```bash
 python examples/nvidia_rag_mcp/mcp_client.py call \
   --transport=streamable_http --url=http://127.0.0.1:8000/mcp \
@@ -386,7 +379,7 @@ python examples/nvidia_rag_mcp/mcp_client.py call \
   --json-args='{"collection_name":"my_collection","description":"Updated description","tags":["tag1","tag2"],"owner":"owner@example.com","business_domain":"demo","status":"Active"}'
 ```
 
-stdio:
+ * For stdio:
 ```bash
 python examples/nvidia_rag_mcp/mcp_client.py call \
   --transport=stdio --command=python \
@@ -395,9 +388,9 @@ python examples/nvidia_rag_mcp/mcp_client.py call \
   --json-args='{"collection_name":"my_collection","description":"Updated description","tags":["tag1","tag2"],"owner":"owner@example.com","business_domain":"demo","status":"Active"}'
 ```
 
-#### `update_document_metadata`
+Here are `update_document_metadata` examples:
 
-SSE:
+ * For SSE:
 ```bash
 python examples/nvidia_rag_mcp/mcp_client.py call \
   --transport=sse --url=http://127.0.0.1:8000/sse \
@@ -405,7 +398,7 @@ python examples/nvidia_rag_mcp/mcp_client.py call \
   --json-args='{"collection_name":"my_collection","document_name":"woods_frost.pdf","description":"Updated description","tags":["tag1","tag2"]}'
 ```
 
-streamable_http:
+ * For streamable_http:
 ```bash
 python examples/nvidia_rag_mcp/mcp_client.py call \
   --transport=streamable_http --url=http://127.0.0.1:8000/mcp \
@@ -413,7 +406,7 @@ python examples/nvidia_rag_mcp/mcp_client.py call \
   --json-args='{"collection_name":"my_collection","document_name":"woods_frost.pdf","description":"Updated description","tags":["tag1","tag2"]}'
 ```
 
-stdio:
+ * For stdio:
 ```bash
 python examples/nvidia_rag_mcp/mcp_client.py call \
   --transport=stdio --command=python \
@@ -422,9 +415,9 @@ python examples/nvidia_rag_mcp/mcp_client.py call \
   --json-args='{"collection_name":"my_collection","document_name":"woods_frost.pdf","description":"Updated description","tags":["tag1","tag2"]}'
 ```
 
-#### `delete_collections`
+Here are the `delete_collections` examples:
 
-SSE:
+ * For SSE:
 ```bash
 python examples/nvidia_rag_mcp/mcp_client.py call \
   --transport=sse --url=http://127.0.0.1:8000/sse \
@@ -432,7 +425,7 @@ python examples/nvidia_rag_mcp/mcp_client.py call \
   --json-args='{"collection_names":["my_collection"]}'
 ```
 
-streamable_http:
+ * For streamable_http:
 ```bash
 python examples/nvidia_rag_mcp/mcp_client.py call \
   --transport=streamable_http --url=http://127.0.0.1:8000/mcp \
@@ -440,7 +433,7 @@ python examples/nvidia_rag_mcp/mcp_client.py call \
   --json-args='{"collection_names":["my_collection"]}'
 ```
 
-stdio:
+  * For stdio:
 ```bash
 python examples/nvidia_rag_mcp/mcp_client.py call \
   --transport=stdio --command=python \
@@ -449,14 +442,14 @@ python examples/nvidia_rag_mcp/mcp_client.py call \
   --json-args='{"collection_names":["my_collection"]}'
 ```
 
-### Troubleshooting
+## Troubleshoot MCP Server and Client Usage
 
 - 404 on `/sse`: Ensure you are pointing the client at the base SSE URL (`http://127.0.0.1:8000/sse`).
 - 406 on `/mcp`: For streamable_http, a 406 on GET can still indicate the server is up; use the client list/call commands above.
 - Port conflicts: Free port 8000 before launching (e.g., `fuser -k 8000/tcp` on Linux).
 - Ensure the RAG and Ingestor services are running and reachable at the configured URLs.
 
-
+For more information, refer to [Troubleshoot RAG Blueprint](troubleshooting.md). 
 
 ## Related Topics
 

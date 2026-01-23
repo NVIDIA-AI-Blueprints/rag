@@ -39,6 +39,8 @@ Use the following documentation to deploy the blueprint.
 - [Deploy on Kubernetes with Helm](deploy-helm.md)
 - [Deploy on Kubernetes with Helm from the repository](deploy-helm-from-repo.md)
 - [Deploy on Kubernetes with Helm and MIG Support](mig-deployment.md)
+- [Deploy Retrieval-Only Mode](retrieval-only-deployment.md)
+
 
 **Alternative Deployment Options:**
 - [Containerless Deployment (Lite Mode)](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/rag_library_lite_usage.ipynb) - Simplified Python-only setup using Milvus Lite and NVIDIA cloud APIs, without Docker containers
@@ -70,8 +72,11 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
     - [File System Access to Extraction Results](mount-ingestor-volume.md)
     - [Multimodal Embedding Support (Early Access)](vlm-embed.md)
     - [OCR Configuration Guide](nemoretriever-ocr.md)
-    - [PDF Extraction with Nemotron Parse](nemoretriever-parse-extraction.md)
+    - [Enhanced PDF Extraction](nemoretriever-parse-extraction.md)
     - [Text-Only Ingestion](text_only_ingest.md)
+    - [Data catalog for collections](data-catalog.md)
+    - [MCP Server Usage](nvidia-rag-mcp.md)
+
 
 
 - Vector Database and Retrieval
@@ -85,6 +90,7 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
 - Multimodal and Advanced Generation
 
     - [Image captioning support for ingested documents](image_captioning.md)
+    - [Multimodal Query Support](multimodal-query.md)
     - [VLM based inferencing in RAG](vlm.md)
 
 
@@ -162,6 +168,7 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
    Deploy on Kubernetes with Helm <deploy-helm.md>
    Deploy on Kubernetes with Helm from the repository <deploy-helm-from-repo.md>
    Deploy on Kubernetes with Helm and MIG Support <mig-deployment.md>
+   Deploy Retrieval-Only Mode <retrieval-only-deployment.md>
 ```
 
 
@@ -193,16 +200,13 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
    Audio Ingestion Support <audio_ingestion.md>
    Custom metadata Support <custom-metadata.md>
    Data Catalog for Collections and Documents <data-catalog.md>
-   Enhanced PDF Extraction <nemoretriever-parse-extraction.md>
    File System Access to Results <mount-ingestor-volume.md>
    Multimodal Embedding Support (Early Access) <vlm-embed.md>
-<<<<<<< HEAD
-   NeMo Retriever OCR <nemoretriever-ocr.md>
-=======
    OCR Configuration Guide <nemoretriever-ocr.md>
->>>>>>> e04e2f3 (Documentation updates for default Nemoretriever OCR)
+   Enhanced PDF Extraction <nemoretriever-parse-extraction.md>
    Standalone NV-Ingest <nv-ingest-standalone.md>
    Text-Only Ingestion <text_only_ingest.md>
+   MCP Server Usage <nvidia-rag-mcp.md>
 ```
 
 
@@ -226,6 +230,7 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
    :hidden:
 
    Image Captioning <image_captioning.md>
+   Multimodal Query Support <multimodal-query.md>
    VLM-based Inferencing <vlm.md>
 ```
 
