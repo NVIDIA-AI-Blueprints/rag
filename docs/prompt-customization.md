@@ -154,45 +154,43 @@ query_rewriter_prompt:
 After the required changes have been made, you can deploy the Helm chart from source by following the steps [here](deploy-helm-from-repo.md).
 
 
-## Example: Access a Prompt in code
+## Prompt Customization in Python Library Mode
 
-The [`prompt.yaml`](../src/nvidia_rag/rag_server/prompt.yaml) file is loaded as a Python dictionary in the application.
-To access this dictionary, use the `get_prompts()` function provided by the [`llm utils`](../src/nvidia_rag/utils/llm.py) module.
+When using the `nvidia_rag` Python package directly (library mode), you can customize prompts by passing them to the `NvidiaRAG` constructor. This is the recommended approach for library usage.
 
-For example, if we have the following `prompt.yaml` file:
+### Using a Dictionary
 
-```yaml
-chat_template:
-  system: |
-    /no_think
+```python
+from nvidia_rag import NvidiaRAG
+from nvidia_rag.utils.configuration import NvidiaRAGConfig
 
-  human: |
-    You are a helpful, respectful and honest assistant.
-    Always answer as helpfully as possible, while being safe.
-    Please ensure that your responses are positive in nature.
+# Define custom prompts as a dictionary
+custom_prompts = {
+    "rag_template": {
+        "system": "/no_think",
+        "human": """You are a helpful AI assistant named Envie.
+You will reply to questions only based on the context that you are provided.
+If something is out of context, you will refrain from replying and politely decline to respond to the user.
 
-rag_template:
-  system: |
-    /no_think
+Context: {context}"""
+    }
+}
 
-  human: |
-    You are a helpful AI assistant named Envie.
-    You will reply to questions only based on the context that you are provided.
-    If something is out of context, you will refrain from replying and politely decline to respond to the user.
-
-    Context: {context}
+# Create NvidiaRAG instance with custom prompts
+config = NvidiaRAGConfig.from_yaml("config.yaml")
+rag = NvidiaRAG(config=config, prompts=custom_prompts)
 ```
 
-Use the following code to access the chat_template:
+### Using a YAML File
 
-```python3
-from .utils import get_prompts
+You can also load prompts from a YAML file:
 
-prompts = get_prompts()
-
-chat_template = prompts.get("chat_template", {}).get("system", "")
+```python
+# Load prompts from a YAML file
+rag = NvidiaRAG(config=config, prompts="custom_prompts.yaml")
 ```
 
-:::{tip}
-You will need to rebuild the containers for any changes in source code.
-:::
+For a complete working example with prompt customization in library mode, refer to the [RAG Library Usage Notebook](../notebooks/rag_library_usage.ipynb#9.-Customize-prompts).
+
+---
+
