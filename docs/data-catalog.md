@@ -170,7 +170,7 @@ for collection in result.get("collections", []):
     {
       "collection_name": "financial_reports_2024",
       "num_entities": 1250,
-      "metadata_schema": [...],
+      "metadata_schema": [],
       "collection_info": {
         "description": "Q4 2024 Financial Reports - Final Version",
         "tags": ["finance", "reports", "q4-2024", "final"],

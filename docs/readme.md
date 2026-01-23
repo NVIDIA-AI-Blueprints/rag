@@ -27,7 +27,7 @@ For hardware requirements and other information, refer to the [Support Matrix](s
 - Use the procedures in [Get Started](deploy-docker-self-hosted.md) to get started quickly with the NVIDIA RAG Blueprint.
 - Experiment and test in the [Web User Interface](user-interface.md).
 - Explore the notebooks that demonstrate how to use the APIs. For details refer to [Notebooks](notebooks.md).
-- Explore agentic usecases by following [example integrations](../examples/) with NeMo Agent Toolkit and MCP server.
+- Explore agentic use cases by following [example integrations](https://github.com/NVIDIA-AI-Blueprints/rag/tree/main/examples/) with NeMo Agent Toolkit and MCP server.
 
 
 
@@ -41,6 +41,8 @@ Use the following documentation to deploy the blueprint.
 - [Deploy on Kubernetes with Helm](deploy-helm.md)
 - [Deploy on Kubernetes with Helm from the repository](deploy-helm-from-repo.md)
 - [Deploy on Kubernetes with Helm and MIG Support](mig-deployment.md)
+- [Deploy Retrieval-Only Mode](retrieval-only-deployment.md)
+
 
 
 
@@ -68,11 +70,12 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
     - [Custom Metadata Support](custom-metadata.md)
     - [File System Access to Extraction Results](mount-ingestor-volume.md)
     - [Multimodal Embedding Support (Early Access)](vlm-embed.md)
-    - [NeMo Retriever OCR for Enhanced Text Extraction](nemoretriever-ocr.md)
     - [OCR Configuration Guide](nemoretriever-ocr.md)
-    - [PDF Extraction with Nemotron Parse](nemoretriever-parse-extraction.md)
+    - [Enhanced PDF Extraction](nemoretriever-parse-extraction.md)
     - [Text-Only Ingestion](text_only_ingest.md)
     - [Data catalog for collections](data-catalog.md)
+    - [MCP Server Usage](nvidia-rag-mcp.md)
+
 
 
 - Vector Database and Retrieval
