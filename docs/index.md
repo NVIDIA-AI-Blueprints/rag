@@ -25,6 +25,7 @@ For hardware requirements and other information, refer to the [Support Matrix](s
 
 - Use the procedures in [Get Started](deploy-docker-self-hosted.md) to get started quickly with the NVIDIA RAG Blueprint.
 - Experiment and test in the [Web User Interface](user-interface.md).
+- [Use the Python Package](python-client.md) to interact with the RAG system directly from Python code.
 - Explore the notebooks that demonstrate how to use the APIs. For details refer to [Notebooks](notebooks.md).
 
 
@@ -41,6 +42,7 @@ Use the following documentation to deploy the blueprint.
 - [Deploy on Kubernetes with Helm and MIG Support](mig-deployment.md)
 
 **Alternative Deployment Options:**
+- [Use the Python Package (Library Mode)](python-client.md) - Use the NVIDIA RAG Python package directly for programmatic access to the RAG system
 - [Containerless Deployment (Lite Mode)](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/rag_library_lite_usage.ipynb) - Simplified Python-only setup using Milvus Lite and NVIDIA cloud APIs, without Docker containers
 
 
@@ -113,7 +115,6 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
 
 ## Reference
 
-- [Use the Python Package](python-client.md)
 - [Milvus Collection Schema Requirements](milvus-schema.md)
 - [API - Ingestor Server Schema](api_reference/openapi_schema_ingestor_server.json)
 - [API - RAG Server Schema](api_reference/openapi_schema_rag_server.json)
@@ -147,6 +148,7 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
    Get an API Key <api-key.md>
    Get Started with the RAG Blueprint <deploy-docker-self-hosted.md>
    Web User Interface <user-interface.md>
+   Use the RAG Python Package <python-client.md>
    Notebooks <notebooks.md>
 ```
 
@@ -196,11 +198,7 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
    Enhanced PDF Extraction <nemoretriever-parse-extraction.md>
    File System Access to Results <mount-ingestor-volume.md>
    Multimodal Embedding Support (Early Access) <vlm-embed.md>
-<<<<<<< HEAD
-   NeMo Retriever OCR <nemoretriever-ocr.md>
-=======
    OCR Configuration Guide <nemoretriever-ocr.md>
->>>>>>> e04e2f3 (Documentation updates for default Nemoretriever OCR)
    Standalone NV-Ingest <nv-ingest-standalone.md>
    Text-Only Ingestion <text_only_ingest.md>
 ```
@@ -278,7 +276,6 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
    :maxdepth: 1
    :hidden:
 
-   Use the Python Client <python-client.md>
    Milvus Collection Schema <milvus-schema.md>
    API - Ingestor Server Schema <api-ingestor.md>
    API - RAG Server Schema <api-rag.md>
