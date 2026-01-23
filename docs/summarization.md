@@ -27,20 +27,38 @@ The NVIDIA RAG Blueprint features **intelligent document summarization** with re
 
 When uploading documents to the vector store using the ingestion API (`POST /documents`), you can request that a summary be generated for each document. This is controlled by the `generate_summary` flag and optional `summary_options` in the `data` field of the multipart form request.
 
+### Prerequisites
+
+Before uploading documents, you need to create a collection. If you haven't already created one, use the following command:
+
+```bash
+# Set server endpoints and collection name (modify if needed)
+export INGESTOR_SERVER_URL="http://localhost:8082"
+export RAG_SERVER_URL="http://localhost:8081"
+export COLLECTION_NAME="test_summary_api"
+
+# Create a collection
+curl -X POST "${INGESTOR_SERVER_URL}/v1/collection" \
+    -H "Content-Type: application/json" \
+    -d "{
+        \"collection_name\": \"${COLLECTION_NAME}\"
+    }"
+```
+
 ### Example: Basic Summarization
 
 ```bash
-curl -X "POST" "http://$${RAG_HOSTNAME}/v1/documents" \
-    -H 'accept: multipart/form-data' \
-    -H 'Content-Type: multipart/form-data' \
-    - documents: [file1.pdf, file2.docx, ...] \
-    - data: '{
-        "collection_name": "my_collection",
-        "blocking": false,
-        "split_options": {"chunk_size": 512, "chunk_overlap": 150},
-        "custom_metadata": [],
-        "generate_summary": true
-    }'
+# Upload documents with summary generation
+curl -X POST "${INGESTOR_SERVER_URL}/v1/documents" \
+    -H "accept: application/json" \
+    -F "documents=@data/multimodal/woods_frost.pdf" \
+    -F "documents=@data/multimodal/multimodal_test.pdf" \
+    -F "data={
+        \"collection_name\": \"${COLLECTION_NAME}\",
+        \"blocking\": false,
+        \"split_options\": {\"chunk_size\": 512, \"chunk_overlap\": 150},
+        \"generate_summary\": true
+    }"
 ```
 
 - **generate_summary**: Set to `true` to enable summary generation for each uploaded document. The summary generation always happens asynchronously in the backend after the ingestion is complete. The ingestion status is reported to be completed irrespective of whether summarization has been successfully completed or not. You can track the summary generation status independently using the `GET /summary` endpoint.
@@ -50,20 +68,20 @@ curl -X "POST" "http://$${RAG_HOSTNAME}/v1/documents" \
 You can customize summarization behavior using the `summary_options` parameter:
 
 ```bash
-curl -X "POST" "http://$${RAG_HOSTNAME}/v1/documents" \
-    -H 'accept: multipart/form-data' \
-    -H 'Content-Type: multipart/form-data' \
-    - documents: [file1.pdf] \
-    - data: '{
-        "collection_name": "my_collection",
-        "blocking": false,
-        "generate_summary": true,
-        "summary_options": {
-            "page_filter": [[1, 10], [-5, -1]],
-            "shallow_summary": true,
-            "summarization_strategy": "single"
+# Upload with advanced summarization options
+curl -X POST "${INGESTOR_SERVER_URL}/v1/documents" \
+    -H "accept: application/json" \
+    -F "documents=@data/multimodal/product_catalog.pdf" \
+    -F "data={
+        \"collection_name\": \"${COLLECTION_NAME}\",
+        \"blocking\": false,
+        \"generate_summary\": true,
+        \"summary_options\": {
+            \"page_filter\": [[1, 10], [-5, -1]],
+            \"shallow_summary\": true,
+            \"summarization_strategy\": \"single\"
         }
-    }'
+    }"
 ```
 
 #### Summary Options Explained
@@ -96,33 +114,6 @@ curl -X "POST" "http://$${RAG_HOSTNAME}/v1/documents" \
     - Best for: Long documents requiring best quality
     - Speed: Slower but highest quality
 
-#### Python Example with library mode
-
-```python
-# Basic summarization
-response = await ingestor.upload_documents(
-    collection_name="my_collection",
-    vdb_endpoint="http://localhost:19530",
-    blocking=False,
-    filepaths=["/path/to/file1.pdf"],
-    generate_summary=True
-)
-
-# Advanced summarization with options
-response = await ingestor.upload_documents(
-    collection_name="my_collection",
-    vdb_endpoint="http://localhost:19530",
-    blocking=False,
-    filepaths=["/path/to/file1.pdf"],
-    generate_summary=True,
-    summary_options={
-        "page_filter": [[1, 10], [-5, -1]],  # First 10 and last 5 pages
-        "shallow_summary": True,  # Fast text-only extraction
-        "summarization_strategy": "hierarchical"  # Balanced approach
-    }
-)
-```
-
 ## 2. Retrieving Document Summaries
 
 Once a document has been ingested with summarization enabled, you can retrieve its summary using the `GET /summary` endpoint. The endpoint provides real-time status tracking with chunk-level progress information.
@@ -153,28 +144,13 @@ The endpoint returns one of the following status values:
 ### Example Request
 
 ```bash
-curl -X "GET" --globoff \ 
-  "http://$${RAG_HOSTNAME}/v1/summary?collection_name=my_collection&file_name=file1.pdf&blocking=true&timeout=60" \
-  -H 'accept: application/json'
-```
+# Retrieve summary (non-blocking)
+curl -X GET --globoff "${RAG_SERVER_URL}/v1/summary?collection_name=${COLLECTION_NAME}&file_name=woods_frost.pdf&blocking=false" \
+  -H "accept: application/json"
 
-```python
-endpoint = f"http://$${RAG_HOSTNAME}/v1/summary?collection_name=my_collection&file_name=file1.pdf&blocking=true&timeout=60"
-response = requests.get(endpoint).json()
-response
-```
-
-
-#### Python Example with library mode
-
-```python
-response = await rag.get_summary(
-    collection_name="my_collection",
-    file_name="file1.pdf",
-    blocking=False,  # Set to True to wait for summary generation
-    timeout=20       # Maximum wait time in seconds if blocking is True
-)
-print(response)
+# Retrieve summary (blocking with timeout)
+curl -X GET --globoff "${RAG_SERVER_URL}/v1/summary?collection_name=${COLLECTION_NAME}&file_name=woods_frost.pdf&blocking=true&timeout=60" \
+  -H "accept: application/json"
 ```
 
 ### Example Response (Success)
@@ -183,8 +159,8 @@ print(response)
 {
   "message": "Summary retrieved successfully.",
   "summary": "This document provides an overview of ...",
-  "file_name": "file1.pdf",
-  "collection_name": "my_collection",
+  "file_name": "woods_frost.pdf",
+  "collection_name": "test_summary_api",
   "status": "SUCCESS"
 }
 ```
@@ -197,8 +173,8 @@ When summary generation is in progress, you'll receive real-time progress inform
 {
   "message": "Summary generation is in progress. Set blocking=true to wait for completion.",
   "status": "IN_PROGRESS",
-  "file_name": "file1.pdf",
-  "collection_name": "my_collection",
+  "file_name": "woods_frost.pdf",
+  "collection_name": "test_summary_api",
   "started_at": "2025-01-24T10:30:00.000Z",
   "updated_at": "2025-01-24T10:30:15.000Z",
   "progress": {
@@ -217,8 +193,8 @@ When summary generation is in progress, you'll receive real-time progress inform
 {
   "message": "Summary generation is pending. Set blocking=true to wait for completion.",
   "status": "PENDING",
-  "file_name": "file1.pdf",
-  "collection_name": "my_collection",
+  "file_name": "woods_frost.pdf",
+  "collection_name": "test_summary_api",
   "queued_at": "2025-01-24T10:30:00.000Z"
 }
 ```
@@ -231,10 +207,10 @@ When summary generation is in progress, you'll receive real-time progress inform
 
 ```json
 {
-  "message": "Summary for file1.pdf not found. To generate a summary, upload the document with generate_summary=true.",
+  "message": "Summary for woods_frost.pdf not found. To generate a summary, upload the document with generate_summary=true.",
   "status": "NOT_FOUND",
-  "file_name": "file1.pdf",
-  "collection_name": "my_collection"
+  "file_name": "woods_frost.pdf",
+  "collection_name": "test_summary_api"
 }
 ```
 
@@ -244,11 +220,11 @@ When summary generation is in progress, you'll receive real-time progress inform
 
 ```json
 {
-  "message": "Summary generation failed for file1.pdf",
+  "message": "Summary generation failed for woods_frost.pdf",
   "status": "FAILED",
   "error": "Error details here",
-  "file_name": "file1.pdf",
-  "collection_name": "my_collection",
+  "file_name": "woods_frost.pdf",
+  "collection_name": "test_summary_api",
   "started_at": "2025-01-24T10:30:00.000Z",
   "completed_at": "2025-01-24T10:30:30.000Z"
 }
@@ -262,11 +238,11 @@ When using blocking mode, if the summary is not generated within the specified t
 
 ```json
 {
-  "message": "Timeout waiting for summary generation for file1.pdf after 300 seconds",
+  "message": "Timeout waiting for summary generation for woods_frost.pdf after 300 seconds",
   "status": "FAILED",
   "error": "Timeout after 300 seconds",
-  "file_name": "file1.pdf",
-  "collection_name": "my_collection"
+  "file_name": "woods_frost.pdf",
+  "collection_name": "test_summary_api"
 }
 ```
 
@@ -395,9 +371,17 @@ This approach ensures that even very large documents can be summarized effective
 - Decrease it if experiencing GPU memory issues or API rate limits
 - Monitor Redis semaphore usage to optimize for your workload
 
-## 5. API Reference
+## 5. Python Examples and API Reference
 
-For more details, refer to the [OpenAPI schema](api_reference/openapi_schema_rag_server.json) and [Python usage examples](../notebooks/rag_library_usage.ipynb).
+For complete working Python code examples using the NVIDIA RAG library, see the [Document Summarization Notebook](../notebooks/summarization.ipynb). This notebook demonstrates:
+
+- Collection creation and document ingestion with summarization
+- All three summarization strategies (single, hierarchical, iterative)
+- Page filtering and shallow summary options
+- Summary retrieval with blocking and non-blocking modes
+- Complete end-to-end workflows in both library mode and API mode
+
+For API schema details, refer to the [OpenAPI schema](api_reference/openapi_schema_rag_server.json).
 
 :::{note}
 **Lite Mode Limitation**: Document summarization is not supported in lite mode (containerless deployment). For lite mode examples, see [rag_library_lite_usage.ipynb](../notebooks/rag_library_lite_usage.ipynb).
