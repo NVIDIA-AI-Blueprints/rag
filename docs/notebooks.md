@@ -6,6 +6,41 @@
 
 This section contains Jupyter notebooks that demonstrate how to use the [NVIDIA RAG Blueprint](readme.md) APIs and advanced development features.
 
+## Set Up the Notebook Environment
+
+To run a notebook in a Python virtual environment, use the following procedure.
+
+1. Create and activate a virtual environment.
+
+    ```bash
+    python3 -m virtualenv venv
+    source venv/bin/activate
+    ```
+
+2. Ensure that you have JupyterLab and required dependencies installed.
+
+    ```bash
+    pip3 install jupyterlab
+    ```
+
+3. Run the following command to start JupyterLab and allow access from any IP.
+
+    ```bash
+    jupyter lab --allow-root --ip=0.0.0.0 --NotebookApp.token='' --port=8889 --no-browser
+    ```
+
+### Set-up Notes
+
+- Ensure that API keys and credentials are correctly set up before you run a notebook.
+- Modify endpoints or request parameters as necessary to match your specific use case.
+- For the custom VDB operator notebook, ensure that Docker is available for running OpenSearch services.
+
+## Run a Notebook
+
+After your notebook environment is set up, follow these steps to run a notebook.
+
+1. Access JupyterLab by opening a browser and navigating to `http://<your-server-ip>:8889`.
+2. Navigate to the notebook and run the cells sequentially.
 
 ## Beginner Notebooks
 
@@ -16,7 +51,6 @@ Start with the following notebooks to learn basic API interactions.
 - [retriever_api_usage.ipynb](https://github.com/NVIDIA-AI-Blueprints/rag/tree/main/notebooks/retriever_api_usage.ipynb) – Demonstrates how to use the NVIDIA RAG retriever service, including different query techniques and retrieval strategies.
 
 - [retriever_api_image.ipynb](https://github.com/NVIDIA-AI-Blueprints/rag/tree/main/notebooks/retriever_api_image.ipynb) – Demonstrates multimodal query support, enabling you to query documents using both text and images. Covers VLM embeddings, image extraction, and the search/generate APIs with visual queries.
-
 
 
 ## Experiment with the Ingestion API Usage Notebook
@@ -90,42 +124,6 @@ Use the following notebook for cloud deployment scenarios.
 
 
 
-## Set Up the Notebook Environment
-
-To run a notebook in a Python virtual environment, use the following procedure.
-
-1. Create and activate a virtual environment.
-
-    ```bash
-    python3 -m virtualenv venv
-    source venv/bin/activate
-    ```
-
-2. Ensure that you have JupyterLab and required dependencies installed.
-
-    ```bash
-    pip3 install jupyterlab
-    ```
-
-3. Run the following command to start JupyterLab and allow access from any IP.
-
-    ```bash
-    jupyter lab --allow-root --ip=0.0.0.0 --NotebookApp.token='' --port=8889 --no-browser
-    ```
-
-### Set-up Notes
-- Ensure that API keys and credentials are correctly set up before you run a notebook.
-- Modify endpoints or request parameters as necessary to match your specific use case.
-- For the custom VDB operator notebook, ensure that Docker is available for running OpenSearch services.
-
-
-
-## Run a Notebook
-
-After you set up your notebook environment, to run a notebook, use the following procedure.
-
-1. Access JupyterLab by opening a browser and navigating to `http://<your-server-ip>:8889`.
-2. Navigate to the notebook and run the cells sequentially.
 
 
 
