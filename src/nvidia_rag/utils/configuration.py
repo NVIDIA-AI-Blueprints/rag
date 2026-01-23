@@ -1057,6 +1057,11 @@ class NvidiaRAGConfig(_ConfigBase):
         env="ENABLE_VLM_INFERENCE",
         description="Enable Vision-Language Model for multimodal queries",
     )
+    enable_document_summary_context: bool = Field(
+        default=False,
+        env="ENABLE_DOCUMENT_SUMMARY_CONTEXT",
+        description="Enable adding document-level summaries to the prompt context for enhanced RAG responses",
+    )
     vlm_to_llm_fallback: bool = Field(
         default=True,
         env="VLM_TO_LLM_FALLBACK",

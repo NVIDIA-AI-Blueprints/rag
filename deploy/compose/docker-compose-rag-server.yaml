@@ -63,6 +63,7 @@ services:
       APP_RETRIEVER_SCORETHRESHOLD: 0.25
       # Top K from vector DB, which goes as input to reranker model if enabled, else goes to LLM prompt
       VECTOR_DB_TOPK: ${VECTOR_DB_TOPK:-100}
+      ENABLE_DOCUMENT_SUMMARY_CONTEXT: ${ENABLE_DOCUMENT_SUMMARY_CONTEXT:-False}
 
       ##===LLM Model specific configurations===
       APP_LLM_MODELNAME: ${APP_LLM_MODELNAME:-"nvidia/llama-3.3-nemotron-super-49b-v1.5"}

@@ -2630,6 +2630,37 @@ class NvidiaRAG:
                 logger.info("  - Total Context Length: %d characters", total_context_length)
                 logger.info("  - First Document Preview: %s...", 
                            context_to_show[0].page_content[:100] if context_to_show else "")
+            
+            # Enhance context with document summaries if enabled
+            document_summaries_text = ""
+            if self.config.enable_document_summary_context and context_to_show:
+                logger.info("  - Document Summary Context: ENABLED")
+                try:
+                    from nvidia_rag.utils.document_summary_context import (
+                        enhance_context_with_summaries_async,
+                    )
+                    
+                    document_summaries_text = await enhance_context_with_summaries_async(
+                        retrieved_chunks=context_to_show,
+                        collection_name=validated_collections[0] if validated_collections else "",
+                        timeout=10,
+                    )
+                    
+                    if document_summaries_text:
+                        logger.info("  - ✓ Added document summaries to context (%d chars)", 
+                                   len(document_summaries_text))
+                    else:
+                        logger.info("  - ⚠ No document summaries available")
+                
+                except Exception as e:
+                    logger.warning("  - ⚠ Failed to enhance context with summaries: %s", e)
+                    logger.debug("Summary enhancement error details:", exc_info=True)
+            else:
+                if self.config.enable_document_summary_context:
+                    logger.info("  - Document Summary Context: ENABLED (but no context chunks)")
+                else:
+                    logger.info("  - Document Summary Context: DISABLED")
+            
             logger.info("-" * 80)
 
             # Prompt for response generation based on context
@@ -2644,6 +2675,11 @@ class NvidiaRAG:
                     ]
                 )
                 message += [("user", f"Conversation history:\n{formatted_history}")]
+
+            # Add document summaries to prompt if available
+            if document_summaries_text:
+                message += [("user", document_summaries_text)]
+                logger.info("✓ Document summaries added to prompt")
 
             # Add user query to prompt
             user_query = [("user", "Query: {question}\n\nAnswer: ")]
