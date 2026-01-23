@@ -26,7 +26,7 @@ To see all available profiles for your specific hardware configuration, run the 
 ```bash
 USERID=$(id -u) docker run --rm --gpus all \
   -v ~/.cache/model-cache:/opt/nim/.cache \
-  nvcr.io/nim/nvidia/llama-3.3-nemotron-super-49b-v1.5:1.15.4 \
+  nvcr.io/nim/nvidia/llama-3.3-nemotron-super-49b-v1.5:1.14.0 \
   list-model-profiles
 ```
 
@@ -54,7 +54,7 @@ To set a specific model profile in Docker Compose, add the `NIM_MODEL_PROFILE` e
 ```yaml
   nim-llm:
     container_name: nim-llm-ms
-    image: nvcr.io/nim/nvidia/llama-3.3-nemotron-super-49b-v1.5:1.15.4
+    image: nvcr.io/nim/nvidia/llama-3.3-nemotron-super-49b-v1.5:1.14.0
     # ... other configuration ...
     environment:
       NGC_API_KEY: ${NGC_API_KEY}
@@ -80,7 +80,7 @@ nim-llm:
   image:
     repository: nvcr.io/nim/nvidia/llama-3.3-nemotron-super-49b-v1.5
     pullPolicy: IfNotPresent
-    tag: "1.15.4"
+    tag: "1.14.0"
   resources:
     limits:
       nvidia.com/gpu: 1
@@ -99,7 +99,7 @@ nim-llm:
 After modifying the `values.yaml` file, deploy or update the Helm chart:
 
 ```sh
-helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-rc2.tgz \
+helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-rc2.1.tgz \
 --username '$oauthtoken' \
 --password "${NGC_API_KEY}" \
 --set imagePullSecret.password=$NGC_API_KEY \

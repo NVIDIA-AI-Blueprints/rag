@@ -2,7 +2,7 @@ services:
 
   nim-llm:
     container_name: nim-llm-ms
-    image: nvcr.io/nim/nvidia/llama-3.3-nemotron-super-49b-v1.5:1.15.4
+    image: nvcr.io/nim/nvidia/llama-3.3-nemotron-super-49b-v1.5:1.14.0
     volumes:
     - ${MODEL_DIRECTORY:-/tmp}:/opt/nim/.cache
     user: "${USERID}"
@@ -200,7 +200,7 @@ services:
   # Main ingestor server which is responsible for ingestion
   ingestor-server:
     container_name: ingestor-server
-    image: nvcr.io/nvstaging/blueprint/ingestor-server:${TAG:-2.4.0.rc2}
+    image: nvcr.io/nvstaging/blueprint/ingestor-server:${TAG:-2.4.0.rc2.1}
     build:
       # Set context to repo's root directory
       context: ../../
@@ -432,7 +432,7 @@ services:
   # Main orchestrator server which stiches together all calls to different services to fulfill the user request
   rag-server:
     container_name: rag-server
-    image: nvcr.io/nvstaging/blueprint/rag-server:${TAG:-2.4.0.rc2}
+    image: nvcr.io/nvstaging/blueprint/rag-server:${TAG:-2.4.0.rc2.1}
     build:
       # Set context to repo's root directory
       context: ../../
@@ -569,7 +569,7 @@ services:
   # Sample UI container which interacts with APIs exposed by rag-server container
   rag-frontend:
     container_name: rag-frontend
-    image: nvcr.io/nvstaging/blueprint/rag-frontend:${TAG:-2.4.0.rc2}
+    image: nvcr.io/nvstaging/blueprint/rag-frontend:${TAG:-2.4.0.rc2.1}
     build:
       # Set context to repo's root directory
       context: ../../frontend
