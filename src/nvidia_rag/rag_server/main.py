@@ -1398,7 +1398,27 @@ class NvidiaRAG:
             chat_history: List of conversation messages
             model: Name of the model used for generation
             enable_citations: Whether to enable citations in the response
+
+        Raises:
+            APIError: If images are present in the query or chat history.
+                Visual Q&A requires a knowledge base collection to be enabled.
         """
+        # Check for images in query or chat history - visual Q&A requires knowledge base
+        has_images_in_query = self._contains_images(query)
+
+        if has_images_in_query:
+            error_message = (
+                "Visual Q&A is not supported without a knowledge base. "
+                "Image-based queries require 'use_knowledge_base' to be enabled with a valid collection. "
+                "Please enable knowledge base and select a collection to use visual Q&A features."
+            )
+            logger.warning(
+                "Image detected in query/history with use_knowledge_base=False. "
+                "Returning error: %s",
+                error_message,
+            )
+            raise APIError(error_message, ErrorCodeMapping.BAD_REQUEST)
+
         try:
             # Limit conversation history to prevent overwhelming the model
             # conversation is tuple so it should be multiple of two
