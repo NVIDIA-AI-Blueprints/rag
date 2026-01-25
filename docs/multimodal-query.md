@@ -334,9 +334,44 @@ It may take several minutes for the VLM pods to initialize and download the mode
 
 After deployment, you can start querying your knowledge base with both text and images.
 
-- **Web UI**: Access the RAG frontend at `http://localhost:8090` to experiment with multimodal queries through the user interface. For details, see [User Interface for NVIDIA RAG Blueprint](user-interface.md).
+:::{important}
+**You must select a collection before querying.** Multimodal queries require a knowledge base to search against. Before performing any query (including visual Q&A, product identification, or document lookup), ensure you have:
 
-- **Interactive Notebook**: For a step-by-step guide with code examples covering collection creation, document ingestion, and querying with images, see the [Multimodal Query Notebook](https://github.com/NVIDIA-AI-Blueprints/rag/tree/main/notebooks/image_input.ipynb).
+1. **Created a collection**: Use the Web UI, Python client, or API to create a new collection
+2. **Ingested documents**: Upload documents (PDFs, images, etc.) to your collection
+3. **Selected the collection**: When querying, explicitly specify the collection name
+
+Queries without a selected collection will not return relevant results from your knowledge base.
+:::
+
+### Web UI
+
+Access the RAG frontend at `http://localhost:8090` to experiment with multimodal queries through the user interface.
+
+1. In the sidebar, select your collection from the **Collection** dropdown
+2. Upload an image and/or enter your text query
+3. Click **Send** to get responses based on your knowledge base
+
+For details, see [User Interface for NVIDIA RAG Blueprint](user-interface.md).
+
+### Python Client
+
+When using the Python client, always specify `collection_names` in your query:
+
+```python
+# Example: Multimodal query with collection specified
+await rag.generate(
+    messages=[{"role": "user", "content": "What is this product?"}],
+    use_knowledge_base=True,
+    collection_names=["your_collection_name"],  # Required: specify your collection
+)
+```
+
+For details, see [NVIDIA RAG Blueprint Python Package](python-client.md).
+
+### Interactive Notebook
+
+For a step-by-step guide with code examples covering collection creation, document ingestion, and querying with images, see the [Multimodal Query Notebook](https://github.com/NVIDIA-AI-Blueprints/rag/tree/main/notebooks/image_input.ipynb).
 
 ## Limitations
 
