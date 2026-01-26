@@ -92,22 +92,30 @@ Use the following notebook for cloud deployment scenarios.
 
 ## Set Up the Notebook Environment
 
-To run a notebook in a Python virtual environment, use the following procedure.
+To run a notebook, use the following procedure with [uv](https://docs.astral.sh/uv/) - a fast Python package manager.
 
-1. Create and activate a virtual environment.
+> **Note**: Python version **3.11 or higher** is required.
 
-    ```bash
-    python3 -m virtualenv venv
-    source venv/bin/activate
-    ```
-
-2. Ensure that you have JupyterLab and required dependencies installed.
+1. Install uv (if not already installed):
 
     ```bash
-    pip3 install jupyterlab
+    curl -LsSf https://astral.sh/uv/install.sh | sh
     ```
 
-3. Run the following command to start JupyterLab and allow access from any IP.
+2. Create and activate a virtual environment:
+
+    ```bash
+    uv venv --python=python3.12
+    source .venv/bin/activate
+    ```
+
+3. Install JupyterLab:
+
+    ```bash
+    uv pip install jupyterlab
+    ```
+
+4. Start JupyterLab:
 
     ```bash
     jupyter lab --allow-root --ip=0.0.0.0 --NotebookApp.token='' --port=8889 --no-browser
