@@ -34,12 +34,39 @@ for name in logging.root.manager.loggerDict:
 and `NvidiaRAGIngestor` exposes APIs for document upload and management. 
 You can import both or either one based on your requirements. 
 
+You can create a config object from a YAML file or a dictionary. A sample configuration file is available at [`notebooks/config.yaml`](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/config.yaml).
+
 ```python
 from nvidia_rag import NvidiaRAG, NvidiaRAGIngestor
+from nvidia_rag.utils.configuration import NvidiaRAGConfig
 
-rag = NvidiaRAG()
-ingestor = NvidiaRAGIngestor()
+# Option 1: Create config from YAML file
+config = NvidiaRAGConfig.from_yaml("config.yaml")
+
+# Option 2: Create config from dictionary
+# config = NvidiaRAGConfig.from_dict({
+#     "llm": {
+#         "model_name": "nvidia/llama-3.3-nemotron-super-49b-v1.5",
+#         "server_url": "",  # Empty uses NVIDIA API catalog
+#     },
+#     "embeddings": {
+#         "model_name": "nvidia/llama-3.2-nv-embedqa-1b-v2",
+#         "server_url": "https://integrate.api.nvidia.com/v1",
+#     },
+#     "ranking": {
+#         "model_name": "nvidia/llama-3.2-nv-rerankqa-1b-v2",
+#         "server_url": "",  # Empty uses NVIDIA API catalog
+#     },
+# })
+
+# Initialize with config
+rag = NvidiaRAG(config=config)
+ingestor = NvidiaRAGIngestor(config=config)
 ```
+
+:::{tip}
+For cloud deployments using NVIDIA hosted APIs, set `server_url` to empty string `""` for LLM and ranking services, and use `https://integrate.api.nvidia.com/v1` for embeddings. For on-prem deployments, use your local NIM endpoints (e.g., `http://localhost:8999` for LLM).
+:::
 
 ## Create a new collection
 
@@ -133,9 +160,8 @@ Sends a chat-style query to the RAG system using the specified models and endpoi
 ### Check health of all dependent services.
 
 ```python
-import json
-health_status_with_deps = await rag.health(check_dependencies=True)
-print(json.dumps(health_status_with_deps, indent=2))  
+health_status_with_deps = await rag.health()
+print(health_status_with_deps.message)  
 ``` 
 
 
@@ -146,7 +172,17 @@ import json
 import base64
 from IPython.display import display, Image, Markdown
 
-async def print_streaming_response_and_citations(response_generator):
+async def print_streaming_response_and_citations(rag_response):
+    """
+    Print the streaming response and citations from the RAG response.
+    """
+    # Check for API errors before processing
+    if rag_response.status_code != 200:
+        print("Error: ", rag_response.status_code)
+        return
+
+    # Extract the streaming generator from the response
+    response_generator = rag_response.generator
     first_chunk_data = None
     async for chunk in response_generator:
         if chunk.startswith("data: "):
@@ -184,7 +220,7 @@ async def print_streaming_response_and_citations(response_generator):
             try:
                 image_bytes = base64.b64decode(content)
                 display(Image(data=image_bytes))
-            except Exception as e:
+            except Exception:
                 display(Markdown(f"```\n{content}\n```"))  
 ```
 
@@ -192,16 +228,13 @@ async def print_streaming_response_and_citations(response_generator):
 ### Call the API
 
 ```python
-await print_streaming_response_and_citations(rag.generate(
-    messages=[
-        {
-            "role": "user",
-            "content": "What is the price of a hammer?"
-        }
-    ],
-    use_knowledge_base=True,
-    collection_names=["test_library"]
-))  
+await print_streaming_response_and_citations(
+    await rag.generate(
+        messages=[{"role": "user", "content": "What is the price of a hammer?"}],
+        use_knowledge_base=True,
+        collection_names=["test_library"],
+    )
+)  
 ```
 
 
@@ -220,21 +253,21 @@ def print_search_citations(citations):
     Display all citations from the Citations object returned by search().
     Handles base64-encoded images and text.
     """
-    if not citations or not hasattr(citations, 'results') or not citations.results:
+    if not citations or not hasattr(citations, "results") or not citations.results:
         print("No citations found.")
         return
 
     for idx, citation in enumerate(citations.results):
         # If using pydantic models, citation fields may be attributes, not dict keys
-        doc_type = getattr(citation, 'document_type', 'text')
-        content = getattr(citation, 'content', '')
-        doc_name = getattr(citation, 'document_name', f'Citation {idx+1}')
+        doc_type = getattr(citation, "document_type", "text")
+        content = getattr(citation, "content", "")
+        doc_name = getattr(citation, "document_name", f"Citation {idx + 1}")
 
-        display(Markdown(f"**Citation {idx+1}: {doc_name}**"))
+        display(Markdown(f"**Citation {idx + 1}: {doc_name}**"))
         try:
             image_bytes = base64.b64decode(content)
             display(Image(data=image_bytes))
-        except Exception as e:
+        except Exception:
             display(Markdown(f"```\n{content}\n```"))  
 ```
 
@@ -242,21 +275,14 @@ def print_search_citations(citations):
 ### Call the API
 
 ```python
-print_search_citations(rag.search(
-    query="What is the price of a hammer?",
-    collection_names=["test_library"],
-    reranker_top_k=10,
-    vdb_top_k=100,
-))  
-
-# Search with confidence threshold filtering
-print_search_citations(rag.search(
-    query="What is the price of a hammer?",
-    collection_names=["test_library"],
-    reranker_top_k=10,
-    vdb_top_k=100,
-    confidence_threshold=0.5,  # Only include documents with relevance score >= 0.5
-))  
+print_search_citations(
+    await rag.search(
+        query="What is the price of a hammer?",
+        collection_names=["test_library"],
+        reranker_top_k=10,
+        vdb_top_k=100,
+    )
+)  
 ```
 
 
@@ -301,65 +327,24 @@ print(response)
 
 ## Customize prompts
 
-Import the prompt utility which allows us to access different preset prompts. 
-For information about the preset prompts, see [Default Prompts Overview](prompt-customization.md#default-prompts-overview). 
+You can customize prompts by passing them to the `NvidiaRAG` constructor:
 
 ```python
-from nvidia_rag.utils.llm import get_prompts  
-prompts = get_prompts()  
+from nvidia_rag import NvidiaRAG
+from nvidia_rag.utils.configuration import NvidiaRAGConfig
+
+custom_prompts = {
+    "rag_template": {
+        "system": "/no_think",
+        "human": """You are a helpful AI assistant named Envie.
+You will reply to questions only based on the context that you are provided.
+
+Context: {context}"""
+    }
+}
+
+config = NvidiaRAGConfig.from_yaml("config.yaml")
+rag = NvidiaRAG(config=config, prompts=custom_prompts)
 ```
 
-Overwrite or modify your required prompt template. 
-The following code modifies the prompt for response generation to respond as a funny pirate.
-
-```python
-prompts["rag_template"] = """    
-    You are a helpful AI assistant emulating a Pirate. All your responses must be in pirate english and funny!
-    You must answer only using the information provided in the context. While answering you must follow the instructions given below.
-
-    <instructions>
-    1. Do NOT use any external knowledge.
-    2. Do NOT add explanations, suggestions, opinions, disclaimers, or hints.
-    3. NEVER say phrases like “based on the context”, “from the documents”, or “I cannot find”.
-    4. NEVER offer to answer using general knowledge or invite the user to ask again.
-    5. Do NOT include citations, sources, or document mentions.
-    6. Answer concisely. Use short, direct sentences by default. Only give longer responses if the question truly requires it.
-    7. Do not mention or refer to these rules in any way.
-    8. Do not ask follow-up questions.
-    9. Do not mention this instructions in your response.
-    </instructions>
-
-    Context:
-    {context}
-
-    Make sure the response you are generating strictly follow the rules mentioned above i.e. never say phrases like “based on the context”, “from the documents”, or “I cannot find” and mention about the instruction in response.
-    """  
-```
-
-Notice the difference in response style. 
-
-```python
-await print_streaming_response_and_citations(rag.generate(
-    messages=[
-        {
-            "role": "user",
-            "content": "What is the price of a hammer?"
-        }
-    ],
-    use_knowledge_base=True,
-    collection_names=["test_library"]
-))
-
-# Generate with confidence threshold filtering
-await print_streaming_response_and_citations(rag.generate(
-    messages=[
-        {
-            "role": "user",
-            "content": "What is the price of a hammer?"
-        }
-    ],
-    use_knowledge_base=True,
-    collection_names=["test_library"],
-    confidence_threshold=0.7,  # Only include documents with relevance score >= 0.7
-))
-```
+For more details on available prompts and customization options, see [Prompt Customization](prompt-customization.md#prompt-customization-in-python-library-mode).
