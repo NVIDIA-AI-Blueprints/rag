@@ -515,8 +515,8 @@ async def test_tool_update_document_metadata_calls_ingestor(monkeypatch):
 
 
 @pytest.mark.anyio
-async def test_tool_create_collections_calls_ingestor(monkeypatch):
-    """tool_create_collections should POST /v1/collections with JSON array of names."""
+async def test_tool_create_collection_calls_ingestor(monkeypatch):
+    """tool_create_collection should POST /v1/collection with JSON body."""
 
     captured: dict[str, Any] = {}
 
@@ -525,7 +525,7 @@ async def test_tool_create_collections_calls_ingestor(monkeypatch):
             self.status = 200
 
         async def json(self):
-            return {"collections": ["c1", "c2"], "ok": True}
+            return {"collection_name": "c1", "ok": True}
 
     class FakeSession:
         async def __aenter__(self):
@@ -555,11 +555,12 @@ async def test_tool_create_collections_calls_ingestor(monkeypatch):
     )
     monkeypatch.setattr(mcp_server, "aiohttp", fake_aiohttp, raising=True)
 
-    tool = _tool_fn(mcp_server.tool_create_collections)
-    out = await tool(collection_names=["c1", "c2"])
+    tool = _tool_fn(mcp_server.tool_create_collection)
+    out = await tool(collection_name="c1", vdb_endpoint="http://milvus:19530", metadata_schema=[])
     assert out["ok"] is True
-    assert "/v1/collections" in captured["url"]
-    assert captured["json"] == ["c1", "c2"]
+    assert "/v1/collection" in captured["url"]
+    assert captured["json"]["collection_name"] == "c1"
+    assert captured["json"]["vdb_endpoint"] == "http://milvus:19530"
 
 
 @pytest.mark.anyio

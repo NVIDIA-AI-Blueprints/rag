@@ -48,25 +48,6 @@ export LLM_TOP_P=0.95
 ```
 
 
-
-## Accuracy Improvement Example
-
-Accuracy improvements from enabling reasoning across datasets average approximately 5%, 
-with several cases demonstrating dramatic corrections.
-
-For example, using the [ADOBE_2017_10Kpdf](https://github.com/patronus-ai/financebench/blob/main/pdfs/ADOBE_2017_10K.pdf) from [FinanceBench](https://github.com/patronus-ai/financebench/), 
-and the following question: 
-
-```text
-What is the FY2017 operating cash flow ratio for Adobe? Operating cash flow ratio is defined as: cash from operations / total current liabilities. Round your answer to two decimal places. Please utilize information provided primarily within the balance sheet and the cash flow statement. 
-```
-
-Before enabling reasoning, the baseline model incorrectly computed Adobe's FY2017 operating cash flow ratio as 2.91. 
-After enabling reasoning, the model produced the correct answer (0.83), demonstrating precise contextual understanding. 
-The answer is found on 2 separate pages of the PDF; page 57 and page 61.
-
-
-
 ## Docker and Helm Deployment
 
 For details about how to deploy the RAG server with prompt changes, refer to [Customize Prompts](prompt-customization.md).
@@ -81,123 +62,61 @@ export FILTER_THINK_TOKENS=false
 ```
 
 
-## Previous Models
+## Nemotron-3-Nano Reasoning Configuration
 
-For the previous `llama-3.3-nemotron-super-49b-v1` model, you set the environment variable `ENABLE_NEMOTRON_THINKING` to `true` to enable reasoning.
+For the `nemotron-3-nano-30b-a3b` model (also accessible as `nvidia/nemotron-3-nano` for local NIMs), reasoning is controlled via an environment variable. There is no need to filter thinking tokens for this model as the thinking content is returned in a separate `reasoning_content` key in the model response.
 
-```bash 
-export ENABLE_NEMOTRON_THINKING=true
+```bash
+# Enable reasoning (default)
+export ENABLE_NEMOTRON_3_NANO_THINKING=true
+
+# Disable reasoning
+export ENABLE_NEMOTRON_3_NANO_THINKING=false
 ```
 
-For the previous `llama-3.3-nemotron-super-49b-v1` model, you can also add it to `services: rag-server: environment:` in `docker-compose-rag-server.yaml`.
+This controls the `enable_thinking` flag in the model's `chat_template_kwargs`.
 
-```yaml
-services:
-  rag-server:
-    environment:
-      # Enable Nemotron thinking/reasoning for llama-3.3-nemotron-super-49b-v1 model
-      ENABLE_NEMOTRON_THINKING: ${ENABLE_NEMOTRON_THINKING:-true}
-```
+> **Note - Model Naming:**
+> - **For locally deployed NIMs:** Use model name `nvidia/nemotron-3-nano`
+> - **For NVIDIA-hosted models:** Use model name `nvidia/nemotron-3-nano-30b-a3b`
 
+For other models, reasoning can be enabled by following the system prompt steps described at the beginning of this document.
 
 ## LLM Thinking Budget
 
 The **Thinking Budget** feature allows you to control the number of tokens a model generates during its reasoning phase before producing a final answer. This is useful for managing latency and computational costs while still benefiting from the model's reasoning capabilities.
 
-### Overview
-
-When the thinking budget is enabled, the model monitors the token count within the thinking region. Once the specified token limit is reached, the model concludes the reasoning phase and proceeds to generate the final answer. This provides a balance between reasoning depth and response time.
+When the thinking budget is enabled, the model monitors the token count within the thinking region. Once the specified token limit is reached, the model concludes the reasoning phase and proceeds to generate the final answer.
 
 ### Supported Models
 
-As of NIM version 1.12, the Thinking Budget feature is supported on the following models:
+The following models support the Thinking Budget feature:
 
-- **nvidia/nvidia-nemotron-nano-9b-v2**
-- **nvidia/nemotron-3-nano-30b-a3b** (also accessible as `nvidia/nemotron-3-nano`)
+- `nvidia/nvidia-nemotron-nano-9b-v2`
+- `nvidia/nemotron-3-nano-30b-a3b` (also accessible as `nvidia/nemotron-3-nano`)
 
 For the latest supported models, refer to the [NIM Thinking Budget Control documentation](https://docs.nvidia.com/nim/large-language-models/latest/thinking-budget-control.html).
 
-> **Note:** The model `nvidia/nemotron-3-nano` is an alias that can be used interchangeably with `nvidia/nemotron-3-nano-30b-a3b`. Both refer to the same underlying model.
->
-> **Important - Model Naming:**
-> - **For locally deployed NIMs:** Use model name `nvidia/nemotron-3-nano`
-> - **For NVIDIA-hosted models:** Use model name `nvidia/nemotron-3-nano-30b-a3b`
-
 ### Enabling Thinking Budget on RAG
 
-After enabling the reasoning as per the steps mentioned above, enable the thinking budget feature in RAG by including the following parameters in your API request:
+To use the thinking budget, reasoning should be enabled by following the steps described above. Enable the thinking budget feature by including the `max_thinking_tokens` parameter in your API request:
 
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `min_thinking_tokens` | 1 | Minimum number of thinking tokens to allocate for reasoning models. |
-| `max_thinking_tokens` | 8192 | Maximum number of thinking tokens to allocate for reasoning models. |
+**Example API request:**
 
-> **Note for `nvidia/nemotron-3-nano-30b-a3b` and `nvidia/nemotron-3-nano`**  
-> These models only use the `max_thinking_tokens` parameter.  
-> - `min_thinking_tokens` is ignored for these models.  
-> - Thinking budget is enabled by passing a positive `max_thinking_tokens` value in the request.
-> - The RAG blueprint automatically handles the model-specific parameter mapping internally (`max_thinking_tokens` → `reasoning_budget`).
-> - Unlike `nvidia/nvidia-nemotron-nano-9b-v2`, these models return reasoning in a separate `reasoning_content` field rather than using `<think>` tags.
->
-> **Controlling Reasoning for nemotron-3-nano:**
-> - Set `ENABLE_NEMOTRON_3_NANO_THINKING=true` (default) to enable reasoning/thinking mode
-> - Set `ENABLE_NEMOTRON_3_NANO_THINKING=false` to disable reasoning mode
-> - This controls the `enable_thinking` flag in `chat_template_kwargs`
->
-> **Model Behavior Differences:**
-> 
-> | Model | Reasoning Control | Reasoning Output | Token Budget Parameter |
-> |-------|------------------|------------------|----------------------|
-> | `nvidia/nvidia-nemotron-nano-9b-v2` | `min_thinking_tokens`, `max_thinking_tokens` | In `content` field with `<think>` tags | `min_thinking_tokens`, `max_thinking_tokens` |
-> | `nvidia/nemotron-3-nano-30b-a3b` | `ENABLE_NEMOTRON_3_NANO_THINKING` env var | In `reasoning_content` field | `reasoning_budget` (mapped from `max_thinking_tokens`) |
-> | `nvidia/llama-3.3-nemotron-super-49b-v1.5` | System prompt (`/think` or `/no_think`) | In `content` field with `<think>` tags | N/A (controlled by prompt) |
-
-**Example API requests:**
-
-**For nvidia/nvidia-nemotron-nano-9b-v2:**
 ```json
 {
+  "model": "nvidia/nemotron-3-nano-30b-a3b",
   "messages": [
     {
       "role": "user",
-      "content": "What is the FY2017 operating cash flow ratio for Adobe?"
+      "content": "What is the capital of France?"
     }
   ],
-  "min_thinking_tokens": 1,
-  "max_thinking_tokens": 8192,
-  "model": "nvidia/nvidia-nemotron-nano-9b-v2"
+  "max_thinking_tokens": 8192
 }
 ```
 
-**For nemotron-3-nano (locally deployed):**
-```json
-{
-  "messages": [
-    {
-      "role": "user",
-      "content": "What is the FY2017 operating cash flow ratio for Adobe?"
-    }
-  ],
-  "max_thinking_tokens": 8192,
-  "model": "nvidia/nemotron-3-nano"
-}
-```
-
-**For nemotron-3-nano (NVIDIA-hosted):**
-```json
-{
-  "messages": [
-    {
-      "role": "user",
-      "content": "What is the FY2017 operating cash flow ratio for Adobe?"
-    }
-  ],
-  "max_thinking_tokens": 8192,
-  "model": "nvidia/nemotron-3-nano-30b-a3b"
-}
-```
-
-**Recommendation:** A `max_thinking_tokens` value of **8192 tokens** is recommended to provide sufficient capacity for comprehensive reasoning while maintaining reasonable response times.
+A `max_thinking_tokens` value of **8192** is recommended to provide sufficient capacity for comprehensive reasoning while maintaining reasonable response times.
 
 
 ## Related Topics

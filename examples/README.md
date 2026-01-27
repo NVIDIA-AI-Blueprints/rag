@@ -7,7 +7,7 @@ This directory contains example integrations and extensions for NVIDIA RAG.
 | Example | Description | Documentation |
 |---------|-------------|---------------|
 | [rag_react_agent](./rag_react_agent/) | Integration with [NeMo Agent Toolkit (NAT)](https://github.com/NVIDIA/NeMo-Agent-Toolkit) providing RAG query and search capabilities for agent workflows | [README](./rag_react_agent/README.md) |
-| [nvidia_rag_mcp](./nvidia_rag_mcp/) | MCP (Model Context Protocol) server and client for exposing NVIDIA RAG capabilities to MCP-compatible applications | [Documentation](../docs/nvidia-rag-mcp.md) |
+| [nvidia_rag_mcp](./nvidia_rag_mcp/) | MCP (Model Context Protocol) server and client for exposing NVIDIA RAG capabilities to MCP-compatible applications | [Documentation](../docs/mcp.md) |
 
 ## rag_react_agent
 
@@ -26,4 +26,4 @@ This example provides an MCP server and client that exposes NVIDIA RAG and Inges
 - Search the vector database for relevant documents
 - Manage collections and documents in the vector database
 
-See the [MCP documentation](../docs/nvidia-rag-mcp.md) for detailed setup and usage instructions.
+See the [MCP documentation](../docs/mcp.md) for detailed setup and usage instructions.
