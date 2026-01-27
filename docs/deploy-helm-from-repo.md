@@ -23,6 +23,18 @@ The following are the core services that you install:
 
 2. [Clone the RAG Blueprint Git repository](deploy-docker-self-hosted.md#clone-the-rag-blueprint-git-repository) to get access to the Helm chart source files.
 
+3. Verify that you have installed the NVIDIA NIM Operator. If not, install it by running the following code:
+
+    ```sh
+    helm repo add nvidia https://helm.ngc.nvidia.com/nvidia \
+      --username='$oauthtoken' \
+      --password=$NGC_API_KEY
+    helm repo update
+    helm install nim-operator nvidia/k8s-nim-operator -n nim-operator --create-namespace
+    ```
+
+    For more details, see instructions [here](https://docs.nvidia.com/nim-operator/latest/install.html).
+
 :::{important}
 Consider the following before you deploy the RAG Blueprint:
 

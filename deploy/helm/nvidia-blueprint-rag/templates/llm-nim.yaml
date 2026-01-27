@@ -43,8 +43,10 @@ spec:
   env:
 {{ toYaml $nimLlm.env | nindent 4 }}
   replicas: {{ $nimLlm.replicas | default 1 }}
+  {{- with $nimLlm.nodeSelector }}
   nodeSelector:
-{{ toYaml $nimLlm.nodeSelector | nindent 4 }}
+{{ toYaml . | nindent 4 }}
+  {{- end }}
 {{- if .Values.nimOperator.draResources.enabled }}
   draResources:
 {{ toYaml $nimLlm.draResources | nindent 4 }}
