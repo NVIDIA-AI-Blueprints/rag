@@ -59,10 +59,10 @@ You can clone the RAG Blueprint GIt repository to create a local working copy yo
    ```bash
    git fetch --all --tags
    ```  
-6. Check out the `release-v2.4.0.rc2.1` branch:  
+6. Check out the `<latest-release>` branch:  
 
    ```bash
-   git checkout release-v2.4.0.rc2.1
+   git checkout release-<latest-release>
    ```  
 
 7. Navigate to the `docs` folder within that branch: 
