@@ -35,6 +35,9 @@ COPY --from=ghcr.io/astral-sh/uv:0.8.12 /uv /uvx /bin/
 
 RUN rm -rf /var/lib/apt/lists/*
 
+# Download MPL-licensed CA Bundle from curl.se
+RUN curl -fsSL https://curl.se/ca/cacert.pem -o /etc/ssl/certs/cacert.pem
+
 WORKDIR /workspace
 
 COPY --from=builder /build/pyproject.toml /workspace/
@@ -56,9 +59,16 @@ ENV DEBIAN_FRONTEND noninteractive
 
 # Install ONLY the essential runtime libraries (no build tools, no Python installation process)
 RUN apt update && \
-    apt install -y libexpat1 ca-certificates gpgv=2.2.27-3ubuntu2.5 && \
+    apt install -y libexpat1 gpgv=2.2.27-3ubuntu2.5 && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
+
+# Copy MPL-licensed CA Bundle from python-env stage
+COPY --from=python-env /etc/ssl/certs/cacert.pem /etc/ssl/certs/cacert.pem
+
+# Configure system and applications to use the MPL-licensed CA bundle
+ENV SSL_CERT_FILE=/etc/ssl/certs/cacert.pem
+ENV CURL_CA_BUNDLE=/etc/ssl/certs/cacert.pem
 
 # Copy the entire Python installation and virtual environment from python-env stage
 COPY --from=python-env /usr/bin/python3.13 /usr/bin/python3.13
