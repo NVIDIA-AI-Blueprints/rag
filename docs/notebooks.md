@@ -99,7 +99,7 @@ To run a notebook, use the following procedure with [uv](https://docs.astral.sh/
 1. Install uv (if not already installed):
 
     ```bash
-    curl -LsSf https://astral.sh/uv/install.sh | sh
+    curl -LsSf https://astral.sh/uv/0.8.12/install.sh | sh
     ```
 
 2. Create and activate a virtual environment:
