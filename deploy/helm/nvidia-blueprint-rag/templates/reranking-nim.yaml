@@ -37,8 +37,10 @@ spec:
     nimCache:
       name: {{ $nimModel.service.name }}-cache
   replicas: {{ $nimModel.replicas | default 1 }}
+  {{- with $nimModel.nodeSelector }}
   nodeSelector:
-{{ toYaml $nimModel.nodeSelector | nindent 4 }}
+{{ toYaml . | nindent 4 }}
+  {{- end }}
 {{- if .Values.nimOperator.draResources.enabled }}
   draResources:
 {{ toYaml $nimModel.draResources | nindent 4 }}

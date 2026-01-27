@@ -10,7 +10,7 @@ data:
         - devices: all
           mig-enabled: false
       
-      balanced-7x1g10-4x1g20-2x3g40-1x7g80:
+      custom-7x1g10-2x1g20-1x3g40-1x7g80:
         - devices: [0]
           mig-enabled: true
           mig-devices:
@@ -18,11 +18,8 @@ data:
         - devices: [1]
           mig-enabled: true
           mig-devices:
-            "1g.20gb": 4
-        - devices: [2]
-          mig-enabled: true
-          mig-devices:
-            "3g.40gb": 2
+            "1g.20gb": 2
+            "3g.40gb": 1
         - devices: [3]
           mig-enabled: true
           mig-devices:
