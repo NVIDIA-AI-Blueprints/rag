@@ -110,6 +110,7 @@ When using models from different providers (e.g., NVIDIA for LLM, Azure OpenAI f
 :::
 
 
+
 ## For Self-Hosted On Premises Microservices
 
 You can specify the model for NVIDIA NIM containers to use in the [nims.yaml](../deploy/compose/nims.yaml) file.
