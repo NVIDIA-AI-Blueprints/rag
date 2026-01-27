@@ -124,6 +124,50 @@ Use the following notebook for cloud deployment scenarios.
 
 
 
+## Set Up the Notebook Environment
+
+To run a notebook, use the following procedure with [uv](https://docs.astral.sh/uv/) - a fast Python package manager.
+
+> **Note**: Python version **3.11 or higher** is required.
+
+1. Install uv (if not already installed):
+
+    ```bash
+    curl -LsSf https://astral.sh/uv/0.8.12/install.sh | sh
+    ```
+
+2. Create and activate a virtual environment:
+
+    ```bash
+    uv venv --python=python3.12
+    source .venv/bin/activate
+    ```
+
+3. Install JupyterLab:
+
+    ```bash
+    uv pip install jupyterlab
+    ```
+
+4. Start JupyterLab:
+
+    ```bash
+    jupyter lab --allow-root --ip=0.0.0.0 --NotebookApp.token='' --port=8889 --no-browser
+    ```
+
+### Set-up Notes
+- Ensure that API keys and credentials are correctly set up before you run a notebook.
+- Modify endpoints or request parameters as necessary to match your specific use case.
+- For the custom VDB operator notebook, ensure that Docker is available for running OpenSearch services.
+
+
+
+## Run a Notebook
+
+After you set up your notebook environment, to run a notebook, use the following procedure.
+
+1. Access JupyterLab by opening a browser and navigating to `http://<your-server-ip>:8889`.
+2. Navigate to the notebook and run the cells sequentially.
 
 
 
