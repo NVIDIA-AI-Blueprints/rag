@@ -178,6 +178,12 @@ environment:
   - xpack.security.enabled=true
 ```
 
+Uncomment the username and password environment variables in the elasticsearch service in `deploy/compose/vectordb.yaml`:
+```yaml
+- ELASTIC_USERNAME=${APP_VECTORSTORE_USERNAME}
+- ELASTIC_PASSWORD=${APP_VECTORSTORE_PASSWORD}
+```
+
 Add authentication in `healthcheck` in `deploy/compose/vectordb.yaml` by uncommenting the following:
 ```yaml
 test: ["CMD", "curl", "-s", "-f", "-u", "${APP_VECTORSTORE_USERNAME}:${APP_VECTORSTORE_PASSWORD}", "http://localhost:9200/_cat/health"]
@@ -188,40 +194,22 @@ test: ["CMD", "curl", "-s", "-f", "http://localhost:9200/_cat/health"]
 ```
 
 
-#### 2. Start Services (choose ONE auth method)
+#### 2. Start Elasticsearch Container with Credentials
 
-Username/password:
+Start the Elasticsearch container with username and password:
+
 ```bash
-export APP_VECTORSTORE_USERNAME="elastic"
+export APP_VECTORSTORE_USERNAME="elastic" # elastic recommended
 export APP_VECTORSTORE_PASSWORD="your-secure-password"
 
 docker compose -f deploy/compose/vectordb.yaml --profile elasticsearch up -d
-docker compose -f deploy/compose/docker-compose-ingestor-server.yaml up -d
-docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d
 ```
 
-API Key (preferred): see [Get an Elasticsearch API key](#get-an-elasticsearch-api-key) below for how to obtain the key.
+#### 3. Generate Elasticsearch API Key (Optional but Recommended)
+
+If you prefer to use API key authentication instead of username/password (recommended for production), generate an API key using curl. You need the username and password from the previous step.
+
 ```bash
-# Either provide base64 apikey (base64 of "id:secret")
-export APP_VECTORSTORE_APIKEY="base64-id-colon-secret"
-# Or provide split ID/SECRET
-export APP_VECTORSTORE_APIKEY_ID="your_id"
-export APP_VECTORSTORE_APIKEY_SECRET="your_secret"
-
-docker compose -f deploy/compose/vectordb.yaml --profile elasticsearch up -d
-docker compose -f deploy/compose/docker-compose-ingestor-server.yaml up -d
-docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d
-```
-
-### Get an Elasticsearch API key
-
-If security is enabled, create an API key using either curl. You need a user with permission to create API keys (e.g., the built-in `elastic` superuser in dev).
-
-#### 1. Using curl (replace credentials and URL as appropriate):
-```bash
-# If running inside the cluster, port-forward first:
-# kubectl -n rag port-forward svc/elasticsearch 9200:9200
-
 curl -u elastic:your-secure-password \
   -X POST "http://127.0.0.1:9200/_security/api_key" \
   -H 'Content-Type: application/json' \
@@ -230,6 +218,7 @@ curl -u elastic:your-secure-password \
     "role_descriptors": {}
   }'
 ```
+
 Example response:
 ```json
 {
@@ -241,19 +230,52 @@ Example response:
 }
 ```
 
-#### 2. Convert to base64 and set envs:
+Convert the API key to base64:
+
 ```bash
 # Base64 is computed over "<id>:<api_key>"
 echo -n "AbCdEfGhIj:ZyXwVuTsRq" | base64
 # Output example: QWJ...cXE=
+```
 
-# Option A: single env
+#### 4. Set Environment Variables for Authentication
+
+Choose ONE of the following authentication methods:
+
+**Option A: API Key Authentication (Recommended)**
+
+Set environment variables using the base64-encoded API key or split ID/SECRET:
+
+```bash
+# Either provide base64 apikey (base64 of "id:secret")
 export APP_VECTORSTORE_APIKEY="QWJ...cXE="
 
-# Option B: split envs
+# Or provide split ID/SECRET
 export APP_VECTORSTORE_APIKEY_ID="AbCdEfGhIj"
 export APP_VECTORSTORE_APIKEY_SECRET="ZyXwVuTsRq"
 ```
+
+**Option B: Username/Password Authentication**
+
+If you prefer to use username/password instead of API key:
+
+```bash
+export APP_VECTORSTORE_USERNAME="elastic"
+export APP_VECTORSTORE_PASSWORD="your-secure-password"
+```
+
+#### 5. Start RAG Server and Ingestor Server
+
+Start the RAG and Ingestor services with the authentication credentials:
+
+```bash
+docker compose -f deploy/compose/docker-compose-ingestor-server.yaml up -d
+docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d
+```
+
+:::{note}
+API key authentication takes precedence over username/password when both are configured.
+:::
 
 
 ### Helm Chart
@@ -276,9 +298,24 @@ envVars:
   APP_VECTORSTORE_PASSWORD: "your-secure-password"
 ```
 
-Notes:
-- API key takes precedence over username/password when both are set.
-- The chart no longer uses a Kubernetes elastic-secret for these values; set them directly in envVars or via your own external secrets mechanism if desired.
+To obtain the API key, first deploy the Helm chart (see step 3 below), wait for Elasticsearch to be running, then create a port-forward tunnel to access Elasticsearch. You can complete the deployment first and come back to this section to obtain the API key.
+
+```bash
+# Replace with Elasticsearch svc name, get using `kubectl get svc -n rag`
+kubectl port-forward -n rag svc/<elasticsearch-service-name> 9200:9200 
+```
+
+Once the tunnel is established, follow the instructions in [Generate Elasticsearch API Key](#3-generate-elasticsearch-api-key-optional-but-recommended) to generate the API key using curl. After obtaining the API key, update your `values.yaml` file with the credentials and redeploy.
+
+:::
+
+:::{note}
+API key authentication takes precedence over username/password when both are configured.
+:::
+
+:::{note}
+The chart no longer uses a Kubernetes elastic-secret for these values; set them directly in envVars or via your own external secrets mechanism if desired.
+:::
 
 #### 2. Enable Elasticsearch xpack security in values.yaml
 
@@ -305,12 +342,36 @@ helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprin
 For detailed HELM deployment instructions, see [Helm Deployment Guide](deploy-helm.md).
 
 
-## Using VDB Auth Token at Runtime via APIs
+## Using VDB Auth Token at Runtime via APIs (Enterprise Feature)
 
 When using Elasticsearch as the vector database, you can pass a per-request VDB authentication token via the HTTP `Authorization` header. The servers forward this token to Elasticsearch for that request. This enables per-user authentication or per-request scoping without changing server env configuration.
 
 Prerequisite:
 - Ensure Elasticsearch authentication is enabled so security is enforced. In Elasticsearch this typically requires `xpack.security.enabled=true`. See the [Elasticsearch Authentication](#elasticsearch-authentication) section above for enabling security via Docker Compose or Helm and for obtaining API keys or setting credentials.
+
+### Set Up Runtime Token and Endpoints
+
+Before making API requests with authentication, export the required environment variables.
+
+**1. Export service endpoints:**
+
+```bash
+export INGESTOR_URL="http://localhost:8082"
+export RAG_URL="http://localhost:8081"
+```
+
+**2. Export authentication token:**
+
+Runtime authentication via the `Authorization` header only supports Elasticsearch API keys. Export your API key token:
+
+```bash
+# Export your bearer token
+export ES_VDB_TOKEN="your-bearer-token"
+```
+
+:::{note}
+Bearer token authentication (OAuth/OIDC/SAML) is an enterprise support feature and not available in the free version of Elasticsearch. For most use cases, use Elasticsearch API keys as shown in [Generate Elasticsearch API Key](#3-generate-elasticsearch-api-key-optional-but-recommended) above.
+:::
 
 ### Header format
 
@@ -338,9 +399,9 @@ curl -X DELETE "$INGESTOR_URL/v1/collections" \
   --data-urlencode "collection_names=es_demo_collection"
 ```
 
-Notes:
-- Set `ES_VDB_TOKEN` to your runtime credential (e.g., base64 of `id:secret` for ES API keys).
-- You may also set `vdb_endpoint` on requests if you need to override the configured `APP_VECTORSTORE_URL`.
+:::{note}
+You can also set `vdb_endpoint` in your request payload to override the configured `APP_VECTORSTORE_URL`.
+:::
 
 ### RAG Server examples
 

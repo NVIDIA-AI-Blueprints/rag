@@ -216,25 +216,27 @@ Enable authentication for Milvus to secure your vector database.
 
 #### 1. Configure Milvus Authentication
 
-Extract the default Milvus configuration:
+Download the default Milvus configuration file (matching the version used in `deploy/compose/vectordb.yaml`):
 ```bash
-docker cp milvus-standalone:/milvus/configs/milvus.yaml ./deploy/compose/
+wget https://raw.githubusercontent.com/milvus-io/milvus/v2.6.5/configs/milvus.yaml -O deploy/compose/milvus.yaml
 ```
 
-Edit `deploy/compose/milvus.yaml` to enable authentication:
+Edit the downloaded `deploy/compose/milvus.yaml` to enable authentication:
 ```yaml
-security:
-  authorizationEnabled: true
-  defaultRootPassword: "your-secure-password"
+common:
+  # ... existing milvus config ...
+  security:
+    authorizationEnabled: true
+    defaultRootPassword: "your-secure-password"
 ```
 
 Mount the configuration file in `deploy/compose/vectordb.yaml` by uncommenting the volume mount:
 ```yaml
 volumes:
-  - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/milvus:/var/lib/milvus
   - ${MILVUS_CONFIG_FILE:-./milvus.yaml}:/milvus/configs/milvus.yaml
 ```
 
+(Optional) For more details on configuring Milvus with Docker, refer to the [Milvus Docker configuration](https://milvus.io/docs/configure-docker.md).
 
 #### 2. Start Services
 
@@ -262,6 +264,10 @@ docker compose -f deploy/compose/vectordb.yaml up -d
 ```
 :::
 
+:::{warning}
+**Data Loss Warning:** Removing volumes deletes **all ingested data** (Milvus vectors and MinIO files). You must re-ingest all documents afterward. Ensure you have backups before proceeding.
+:::
+
 ### Helm Chart
 
 #### 1. Configure Milvus Authentication in Helm:
@@ -278,6 +284,8 @@ The `values.yaml` file includes the necessary configuration:
             authorizationEnabled: true
             defaultRootPassword: your-secure-password
 ```
+
+(Optional) For more details on configuring Milvus with Helm, refer to the [Milvus Helm configuration](https://milvus.io/docs/configure-helm.md).
 
 :::{important}
 **Change the password before starting the Helm deployment.** Once the deployment is started, the default password becomes persistent in the etcd volume. To change the password after deployment:
@@ -297,6 +305,10 @@ The `values.yaml` file includes the necessary configuration:
 3. Redeploy with the new password in `values.yaml`.
 
 For additional instructions, refer to [Uninstall a Deployment](deploy-helm.md#uninstall-a-deployment).
+:::
+
+:::{warning}
+**Data Loss Warning:** Deleting PVCs permanently removes **all ingested data** (vector embeddings and metadata). You must re-ingest all documents afterward. Ensure you have backups before proceeding.
 :::
 
 #### 2. Configure username and password in `deploy/helm/nvidia-blueprint-rag/values.yaml`:
@@ -330,17 +342,45 @@ For detailed HELM deployment instructions, see [Helm Deployment Guide](deploy-he
 
 NVIDIA RAG Blueprint servers accept a Vector DB (VDB) authentication token via the HTTP `Authorization` header at runtime. This header is forwarded to Milvus for auth-protected operations.
 
-Prerequisite:
-- Ensure Milvus authentication is enabled so auth is enforced. In Milvus config this is `security.authorizationEnabled: true`. See the [Milvus Authentication](#milvus-authentication) section above for setup via Docker Compose or Helm.
+### Prerequisites
+
+1. Ensure Milvus authentication is enabled so auth is enforced. In Milvus config this is `security.authorizationEnabled: true`. See the [Milvus Authentication](#milvus-authentication) section above for setup via Docker Compose or Helm.
+
+2. Export the required environment variables before running the API examples:
+
+```bash
+# Service URLs
+export INGESTOR_URL="http://localhost:8082"  # Adjust to your ingestor server URL
+export RAG_URL="http://localhost:8081"        # Adjust to your RAG server URL
+export APP_VECTORSTORE_URL="http://localhost:19530"  # Adjust to your Milvus endpoint
+
+# Root/Admin credentials (use your configured root password)
+export APP_VECTORSTORE_USERNAME="root"
+export APP_VECTORSTORE_PASSWORD="your-secure-password"
+
+# Reader user credentials (create these users in Milvus first)
+# Note: You can use root credentials if reader user is not created, but creating separate users is recommended for best practices
+export MILVUS_READER_USER="reader_user"
+export MILVUS_READER_PASSWORD="reader_password"
+
+# Writer user credentials (create these users in Milvus first)
+# Note: You can use root credentials if writer user is not created, but creating separate users is recommended for best practices
+export MILVUS_WRITER_USER="writer_user"
+export MILVUS_WRITER_PASSWORD="writer_password"
+```
+
+:::{note}
+Ensure you create the reader and writer users in Milvus with appropriate privileges before using them. For instructions, see [Managing Milvus users and authentication](#managing-milvus-users-and-authentication).
+:::
 
 ### Header format
 - Preferred: `Authorization: Bearer <token>`
 - Also accepted: `Authorization: <token>`
 
 For Milvus (with auth enabled), the token is typically the string `user:password`. For example:
-- Admin/root: `root:Milvus` (or your configured root password)
-- Reader user: `reader_user:reader_password`
-- Writer user: `writer_user:writer_password`
+- Admin/root: `${APP_VECTORSTORE_USERNAME}:${APP_VECTORSTORE_PASSWORD}` (use your configured root credentials)
+- Reader user: `${MILVUS_READER_USER}:${MILVUS_READER_PASSWORD}`
+- Writer user: `${MILVUS_WRITER_USER}:${MILVUS_WRITER_PASSWORD}`
 
 
 ### Ingestor Server examples
@@ -349,7 +389,7 @@ For Milvus (with auth enabled), the token is typically the string `user:password
 
 ```bash
 curl -G "$INGESTOR_URL/v1/documents" \
-  -H "Authorization: Bearer reader_user:reader_password" \
+  -H "Authorization: Bearer ${MILVUS_READER_USER}:${MILVUS_READER_PASSWORD}" \
   --data-urlencode "collection_name=demo_collection"
 ```
 
@@ -357,7 +397,7 @@ curl -G "$INGESTOR_URL/v1/documents" \
 
 ```bash
 curl -X DELETE "$INGESTOR_URL/v1/collections" \
-  -H "Authorization: Bearer writer_user:writer_password" \
+  -H "Authorization: Bearer ${MILVUS_WRITER_USER}:${MILVUS_WRITER_PASSWORD}" \
   --data-urlencode "collection_names=demo_collection"
 ```
 
@@ -367,7 +407,7 @@ curl -X DELETE "$INGESTOR_URL/v1/collections" \
 
 ```bash
 curl -X POST "$RAG_URL/v1/search" \
-  -H "Authorization: Bearer reader_user:reader_password" \
+  -H "Authorization: Bearer ${MILVUS_READER_USER}:${MILVUS_READER_PASSWORD}" \
   -H "Content-Type: application/json" \
   -d '{
     "query": "hello",
@@ -383,7 +423,7 @@ curl -X POST "$RAG_URL/v1/search" \
 
 ```bash
 curl -N -X POST "$RAG_URL/v1/generate" \
-  -H "Authorization: Bearer reader_user:reader_password" \
+  -H "Authorization: Bearer ${MILVUS_READER_USER}:${MILVUS_READER_PASSWORD}" \
   -H "Content-Type: application/json" \
   -d '{
     "messages": [{"role": "user", "content": "Say hello"}],
