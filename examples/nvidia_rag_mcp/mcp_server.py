@@ -676,32 +676,74 @@ async def tool_update_document_metadata(
 
 
 @server.tool(
-    "create_collections",
-    description="""Create one or more collections in the Ingestor service.
+    "create_collection",
+    description="""Create a collection in the Ingestor service.
 Args JSON:
 {
-  "collection_names": ["c1", "c2"]
+  "collection_name": "my_collection",
+  "vdb_endpoint": "http://milvus:19530",
+  "metadata_schema": [],
+  "description": "Optional description",
+  "tags": ["tag1", "tag2"],
+  "owner": "owner@example.com",
+  "created_by": "user@example.com",
+  "business_domain": "demo",
+  "status": "Active"
 }
 """,
 )
-async def tool_create_collections(
-    collection_names: list[str],
+async def tool_create_collection(
+    collection_name: str,
+    vdb_endpoint: str | None = None,
+    metadata_schema: list[dict[str, Any]] | None = None,
+    description: str = "",
+    tags: list[str] | None = None,
+    owner: str = "",
+    created_by: str = "",
+    business_domain: str = "",
+    status: str = "Active",
 ) -> dict[str, Any]:
     """
-    Create one or more collections.
-    Returns:
-        dict[str, Any]: Response JSON from the Ingestor service or error info.
+    Create a collection using the modern /v1/collection endpoint.
+
+    This aligns with the ingestor's CreateCollectionRequest model and supports
+    catalog metadata fields (description, tags, owner, business_domain, status).
     """
     base_url = _ingestor_base_url()
-    url = f"{base_url}/v1/collections"
+    url = f"{base_url}/v1/collection"
+
+    body: dict[str, Any] = {
+        "collection_name": collection_name,
+    }
+    if vdb_endpoint is not None:
+        body["vdb_endpoint"] = vdb_endpoint
+    if metadata_schema is not None:
+        body["metadata_schema"] = metadata_schema
+    if description:
+        body["description"] = description
+    if tags is not None:
+        body["tags"] = tags
+    if owner:
+        body["owner"] = owner
+    if created_by:
+        body["created_by"] = created_by
+    if business_domain:
+        body["business_domain"] = business_domain
+    if status:
+        body["status"] = status
+
     timeout_cfg = aiohttp.ClientTimeout(total=60)
     async with aiohttp.ClientSession(timeout=timeout_cfg) as session:
-        async with session.post(url, json=collection_names) as resp:
+        async with session.post(url, json=body) as resp:
             try:
                 return await resp.json()
             except aiohttp.ContentTypeError:
                 text = await resp.text()
-                return {"error": "Non-JSON response", "status": resp.status, "body": text}
+                return {
+                    "error": "Non-JSON response",
+                    "status": resp.status,
+                    "body": text,
+                }
 
 
 @server.tool(

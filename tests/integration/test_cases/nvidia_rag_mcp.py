@@ -76,7 +76,7 @@ EXPECTED_MCP_TOOLS: set[str] = {
     "list_collections",
     "update_collection_metadata",
     "update_document_metadata",
-    "create_collections",
+    "create_collection",
     "delete_collections",
     "upload_documents",
 }
@@ -239,17 +239,17 @@ class MCPIntegrationModule(BaseTestModule):
         )
         return status == TestStatus.SUCCESS
 
-    @test_case(87, "SSE (Ingestor): Create Collections")
-    async def _sse_ingestor_create_collections(self) -> bool:
+    @test_case(87, "SSE (Ingestor): Create Collection")
+    async def _sse_ingestor_create_collection(self) -> bool:
         """
-        Call `create_collections` ingestor tool over SSE.
+        Call `create_collection` ingestor tool over SSE.
 
         This primes the environment by ensuring the test collection exists
         before subsequent upload/search/summary tests run.
         """
         start = time.time()
         try:
-            payload = {"collection_names": [self.collection]}
+            payload = {"collection_name": self.collection}
             args = [
                 "call",
                 "--transport",
@@ -257,25 +257,25 @@ class MCPIntegrationModule(BaseTestModule):
                 "--url",
                 self.sse_url,
                 "--tool",
-                "create_collections",
+                "create_collection",
                 "--json-args",
                 json.dumps(payload),
             ]
             code, out, _ = self._run_mcp_client(args)
-            logger.info("MCP client output (SSE create_collections): %s", (out.strip() if out and out.strip() else "<empty>"))
+            logger.info("MCP client output (SSE create_collection): %s", (out.strip() if out and out.strip() else "<empty>"))
             ok = code == 0
         except Exception as e:
             ok, _ = False, str(e)
-            logger.error("Error calling create_collections (SSE): %s", e)
+            logger.error("Error calling create_collection (SSE): %s", e)
         self.add_test_result(
             87,
-            "SSE (Ingestor): Create Collections",
-            "Create collection(s) using ingestor tool over SSE.",
-            ["MCP/SSE call_tool(create_collections)"],
-            ["collection_names"],
+            "SSE (Ingestor): Create Collection",
+            "Create collection using ingestor tool over SSE.",
+            ["MCP/SSE call_tool(create_collection)"],
+            ["collection_name"],
             time.time() - start,
             TestStatus.SUCCESS if ok else TestStatus.FAILURE,
-            None if ok else "SSE ingestor create_collections failed",
+            None if ok else "SSE ingestor create_collection failed",
         )
         return ok
 
@@ -559,12 +559,12 @@ class MCPIntegrationModule(BaseTestModule):
         )
         return status == TestStatus.SUCCESS
 
-    @test_case(95, "streamable_http (Ingestor): Create Collections")
-    async def _streamable_http_ingestor_create_collections(self) -> bool:
-        """Call 'create_collections' ingestor tool over streamable_http."""
+    @test_case(95, "streamable_http (Ingestor): Create Collection")
+    async def _streamable_http_ingestor_create_collection(self) -> bool:
+        """Call 'create_collection' ingestor tool over streamable_http."""
         start = time.time()
         try:
-            payload = {"collection_names": [self.collection]}
+            payload = {"collection_name": self.collection}
             args = [
                 "call",
                 "--transport",
@@ -572,25 +572,25 @@ class MCPIntegrationModule(BaseTestModule):
                 "--url",
                 self.streamable_http_url,
                 "--tool",
-                "create_collections",
+                "create_collection",
                 "--json-args",
                 json.dumps(payload),
             ]
             code, out, _ = self._run_mcp_client(args)
-            logger.info("MCP client output (streamable_http create_collections): %s", (out.strip() if out and out.strip() else "<empty>"))
+            logger.info("MCP client output (streamable_http create_collection): %s", (out.strip() if out and out.strip() else "<empty>"))
             ok = code == 0
         except Exception as e:
             ok, _ = False, str(e)
-            logger.error("Error calling create_collections (streamable_http): %s", e)
+            logger.error("Error calling create_collection (streamable_http): %s", e)
         self.add_test_result(
             95,
-            "streamable_http (Ingestor): Create Collections",
-            "Create collection(s) using ingestor tool over streamable_http.",
-            ["MCP/streamable_http call_tool(create_collections)"],
-            ["collection_names"],
+            "streamable_http (Ingestor): Create Collection",
+            "Create collection using ingestor tool over streamable_http.",
+            ["MCP/streamable_http call_tool(create_collection)"],
+            ["collection_name"],
             time.time() - start,
             TestStatus.SUCCESS if ok else TestStatus.FAILURE,
-            None if ok else "streamable_http ingestor create_collections failed",
+            None if ok else "streamable_http ingestor create_collection failed",
         )
         return ok
 
@@ -834,14 +834,14 @@ class MCPIntegrationModule(BaseTestModule):
         )
         return ok
 
-    @test_case(103, "stdio (Ingestor): Create Collections")
-    async def _stdio_ingestor_create_collections(self) -> bool:
-        """Call 'create_collections' ingestor tool over stdio."""
+    @test_case(103, "stdio (Ingestor): Create Collection")
+    async def _stdio_ingestor_create_collection(self) -> bool:
+        """Call 'create_collection' ingestor tool over stdio."""
         start = time.time()
         try:
             repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
             server_path = os.path.join(repo_root, "examples", "nvidia_rag_mcp", "mcp_server.py")
-            payload = {"collection_names": [self.collection]}
+            payload = {"collection_name": self.collection}
             args = [
                 "call",
                 "--transport",
@@ -851,25 +851,25 @@ class MCPIntegrationModule(BaseTestModule):
                 "--args",
                 f"{server_path} --transport stdio",
                 "--tool",
-                "create_collections",
+                "create_collection",
                 "--json-args",
                 json.dumps(payload),
             ]
             code, out, _ = self._run_mcp_client(args)
-            logger.info("MCP client output (stdio create_collections): %s", (out.strip() if out and out.strip() else "<empty>"))
+            logger.info("MCP client output (stdio create_collection): %s", (out.strip() if out and out.strip() else "<empty>"))
             ok = code == 0
         except Exception as e:
             ok, _ = False, str(e)
-            logger.error("Error calling create_collections (stdio): %s", e)
+            logger.error("Error calling create_collection (stdio): %s", e)
         self.add_test_result(
             103,
-            "stdio (Ingestor): Create Collections",
-            "Create collection(s) using ingestor tool over stdio.",
-            ["MCP/stdio call_tool(create_collections)"],
-            ["collection_names"],
+            "stdio (Ingestor): Create Collection",
+            "Create collection using ingestor tool over stdio.",
+            ["MCP/stdio call_tool(create_collection)"],
+            ["collection_name"],
             time.time() - start,
             TestStatus.SUCCESS if ok else TestStatus.FAILURE,
-            None if ok else "stdio ingestor create_collections failed",
+            None if ok else "stdio ingestor create_collection failed",
         )
         return ok
 

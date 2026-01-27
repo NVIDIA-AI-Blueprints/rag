@@ -33,6 +33,19 @@ To get a list of valid model names, use one of the following methods:
 Follow steps in [For Helm Deployments](#for-helm-deployments) to change the inference model for Helm charts.
 :::
 
+#### Model-Specific Configuration
+
+##### Nemotron-3-Nano-30B
+
+The `nemotron-3-nano-30b` model has different naming conventions depending on the deployment method:
+
+| Deployment Type | Model Name |
+|-----------------|------------|
+| NVIDIA-hosted (build.nvidia.com) | `nvidia/nemotron-3-nano-30b-a3b` |
+| Self-hosted / Local NIM | `nvidia/nemotron-3-nano` |
+
+Both names refer to the same underlying model. Use the appropriate name based on your deployment type.
+
 
 ### Change the Embedding Model
 
@@ -95,7 +108,6 @@ embeddings:
 :::{note}
 When using models from different providers (e.g., NVIDIA for LLM, Azure OpenAI for embeddings), you can configure service-specific API keys. See [Service-Specific API Keys](api-key.md#service-specific-api-keys) for details.
 :::
-
 
 
 ## For Self-Hosted On Premises Microservices

@@ -25,7 +25,7 @@ This release contains the following key changes:
 - Support image and text as input query. For details, refer to [Multimodal Query Support](multimodal-query.md).
 - Nemotron-3-Nano model support with reasoning budget. For details, refer to [Enable Reasoning](enable-nemotron-thinking.md).
 - Vector Database enhancements including secure database access. For details, refer to [Milvus Configuration](milvus-configuration.md) and [Elasticsearch Configuration](change-vectordb.md).
-- You can now access RAG functionality from a Model Context Protocol (MCP) server for tool integration. For details, refer to [MCP Server and Client Usage](nvidia-rag-mcp.md).
+- You can now access RAG functionality from a Model Context Protocol (MCP) server for tool integration. For details, refer to [MCP Server and Client Usage](mcp.md).
 - Added OpenAI-compatible search endpoint for integration with OpenAI tools. For details, refer to [API - RAG Server Schema](api-rag.md).
 - Added support for collection-level data catalog, descriptions, and metadata. For details, refer to [Data Catalog](data-catalog.md).
 - Enhanced `/status` endpoint publishing ingestion metrics and status information. For details, refer to the [ingestion notebook](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/ingestion_api_usage.ipynb).

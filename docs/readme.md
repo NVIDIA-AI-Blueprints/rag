@@ -74,7 +74,7 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
     - [Enhanced PDF Extraction](nemoretriever-parse-extraction.md)
     - [Text-Only Ingestion](text_only_ingest.md)
     - [Data catalog for collections](data-catalog.md)
-    - [MCP Server Usage](nvidia-rag-mcp.md)
+    - [MCP Server Usage](mcp.md)
 
 
 
