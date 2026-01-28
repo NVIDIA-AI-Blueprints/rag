@@ -59,9 +59,9 @@ The MCP server supports three transport modes:
 **Note:** The `stdio` transport can be run without starting the MCP server separately. The client spawns the server process directly, making it ideal for local development and testing.
 
 ## **End-to-End Usage Example**  
-For a complete workflow demonstration including collection creation, document upload, and RAG queries, see the [MCP server usage notebook](../notebooks/mcp_server_usage.ipynb).
+For a complete workflow demonstration including collection creation, document upload, and RAG queries, see the [MCP server usage notebook](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/mcp_server_usage.ipynb).
 
 
 ## Related Topics
 
-- [NeMo Agent Toolkit integration with NVIDIA RAG MCP server](https://github.com/NVIDIA-AI-Blueprints/rag/blob/develop/notebooks/nat_mcp_integration.ipynb)
+- [NeMo Agent Toolkit integration with NVIDIA RAG MCP server](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/nat_mcp_integration.ipynb)

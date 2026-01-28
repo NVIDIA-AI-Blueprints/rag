@@ -371,7 +371,7 @@ For details, see [NVIDIA RAG Blueprint Python Package](python-client.md).
 
 ### Interactive Notebook
 
-For a step-by-step guide with code examples covering collection creation, document ingestion, and querying with images, see the [Multimodal Query Notebook](https://github.com/NVIDIA-AI-Blueprints/rag/tree/main/notebooks/image_input.ipynb).
+For a step-by-step guide with code examples covering collection creation, document ingestion, and querying with images, see the [Multimodal Query Notebook](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/image_input.ipynb).
 
 ## Limitations
 

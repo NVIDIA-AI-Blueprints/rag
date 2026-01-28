@@ -36,7 +36,7 @@ The RAG UI is provided as a sample and for experimentation only. It is not inten
    - **Video**: `.mp4`, `.mov`, `.avi`, `.mkv`
 
    :::{note}
-   The UI file upload interface has a hard limit of **100 files per upload batch**. When selecting more than 100 files, only the first 100 are processed. For bulk uploads beyond this limit, use multiple upload batches or the [programmatic API](../notebooks/ingestion_api_usage.ipynb).
+   The UI file upload interface has a hard limit of **100 files per upload batch**. When selecting more than 100 files, only the first 100 are processed. For bulk uploads beyond this limit, use multiple upload batches or the [programmatic API](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/ingestion_api_usage.ipynb).
    :::
 
 4. Create two collections, one named *test_collection_1* and one named *test_collection_2*.

@@ -117,7 +117,7 @@ Use the `/generate` endpoint to generate responses with custom conversation hist
 }
 ```
 
-For hands-on examples, refer to the [retriever API usage notebook](../notebooks/retriever_api_usage.ipynb).
+For hands-on examples, refer to the [retriever API usage notebook](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/retriever_api_usage.ipynb).
 
 ## Multi-Turn Conversation Strategies
 
@@ -191,7 +191,7 @@ Follow the deployment guide for [Self-Hosted Models](deploy-docker-self-hosted.m
    ```
 
 :::{tip}
-You can enable query rewriting at runtime by setting `enable_query_rewriting: True` in the POST /generate API schema without relaunching containers. Refer to the [retrieval notebook](../notebooks/retriever_api_usage.ipynb). Note that `CONVERSATION_HISTORY` must still be > 0.
+You can enable query rewriting at runtime by setting `enable_query_rewriting: True` in the POST /generate API schema without relaunching containers. Refer to the [retrieval notebook](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/retriever_api_usage.ipynb). Note that `CONVERSATION_HISTORY` must still be > 0.
 :::
 
 ### Enable Query Rewriting with Cloud-Hosted Model

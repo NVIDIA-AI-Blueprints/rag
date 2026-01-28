@@ -121,8 +121,8 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
 
 - [Use the Python Package](python-client.md)
 - [Milvus Collection Schema Requirements](milvus-schema.md)
-- [API - Ingestor Server Schema](api_reference/openapi_schema_ingestor_server.json)
-- [API - RAG Server Schema](api_reference/openapi_schema_rag_server.json)
+- [API - Ingestor Server Schema](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/docs/api_reference/openapi_schema_ingestor_server.json)
+- [API - RAG Server Schema](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/docs/api_reference/openapi_schema_rag_server.json)
 
 
 

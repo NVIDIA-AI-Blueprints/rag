@@ -151,7 +151,7 @@ If you need to use Paddle OCR instead:
    docker compose -f deploy/compose/docker-compose-ingestor-server.yaml up -d
    ```
 
-6. **Test Document Ingestion**: Use the [ingestion API usage notebook](../notebooks/ingestion_api_usage.ipynb) to verify functionality.
+6. **Test Document Ingestion**: Use the [ingestion API usage notebook](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/ingestion_api_usage.ipynb) to verify functionality.
 
 
 ### NVIDIA-Hosted Deployment
@@ -173,7 +173,7 @@ Follow the standard [NVIDIA-hosted deployment guide](deploy-docker-nvidia-hosted
 
 3. **Deploy Services**: Continue with the remaining steps in the deployment guide to deploy ingestion-server and rag-server containers.
 
-4. **Test Document Ingestion**: Use the [ingestion API usage notebook](../notebooks/ingestion_api_usage.ipynb) to verify functionality.
+4. **Test Document Ingestion**: Use the [ingestion API usage notebook](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/ingestion_api_usage.ipynb) to verify functionality.
 
 
 ### Helm Deployment
@@ -317,5 +317,5 @@ docker logs paddle
 - [Deploy with Helm](deploy-helm.md)
 - [Support Matrix](support-matrix.md)
 - [Troubleshoot](troubleshooting.md)
-- [Ingestion API Usage Notebook](../notebooks/ingestion_api_usage.ipynb)
+- [Ingestion API Usage Notebook](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/ingestion_api_usage.ipynb)
 
