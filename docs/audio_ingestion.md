@@ -28,7 +28,7 @@ After you have [deployed the blueprint](readme.md#deployment-options-for-rag-blu
    compose-audio-1                         Up 5 minutes (healthy)
    ```
 
-3. The ingestor-server is already configured to handle audio files. You can now ingest audio files (.mp3, .wav, .mp4, .avi, .mov or .mkv) using the ingestion API as shown in the [ingestion API usage notebook](../notebooks/ingestion_api_usage.ipynb).
+3. The ingestor-server is already configured to handle audio files. You can now ingest audio files (.mp3, .wav, .mp4, .avi, .mov or .mkv) using the ingestion API as shown in the [ingestion API usage notebook](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/ingestion_api_usage.ipynb).
 
    Example usage with the ingestion API:
    ```python

@@ -15,7 +15,7 @@ The ReAct (Reason + Act) agent pattern enables the LLM to iteratively reason abo
 
 - Python 3.11+
 - Access to NVIDIA AI endpoints (API key required)
-- **Data ingested into Milvus** - Complete the [rag_library_usage.ipynb](../../notebooks/rag_library_usage.ipynb) notebook to set up Milvus and ingest documents before running this example
+- **Data ingested into Milvus** - Complete the [rag_library_usage.ipynb](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/rag_library_usage.ipynb) notebook to set up Milvus and ingest documents before running this example
 
 ## Quick Start
 
@@ -236,7 +236,7 @@ export NVIDIA_API_KEY="your-api-key"
 
 ### Error: Connection to Milvus failed
 
-Ensure Milvus is running and accessible at the configured endpoint. If you followed the [rag_library_usage.ipynb](../../notebooks/rag_library_usage.ipynb) notebook, Milvus should be running at `http://localhost:19530`.
+Ensure Milvus is running and accessible at the configured endpoint. If you followed the [rag_library_usage.ipynb](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/rag_library_usage.ipynb) notebook, Milvus should be running at `http://localhost:19530`.
 
 ```bash
 # Check if Milvus is running

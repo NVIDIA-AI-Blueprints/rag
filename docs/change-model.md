@@ -60,7 +60,7 @@ docker compose -f deploy/compose/docker-compose-ingestor-server.yaml up -d
 docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d --build
 ```
 
-As an alternative you can also specify the model names at runtime using `/generate` API call. Refer to the `Generate Answer Endpoint` and `Document Search Endpoint` payload schema in [this](../notebooks/retriever_api_usage.ipynb) notebook.
+As an alternative you can also specify the model names at runtime using `/generate` API call. Refer to the `Generate Answer Endpoint` and `Document Search Endpoint` payload schema in [this](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/retriever_api_usage.ipynb) notebook.
 
 To get a list of valid model names, use one of the following methods:
 

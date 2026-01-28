@@ -224,4 +224,4 @@ Modify API calls in your client applications:
 
 #### Step 3: Adjust API Payloads
 
-You can understand the updated schemas for APIs in v2.0.0 by following the [notebooks](../notebooks/).
+You can understand the updated schemas for APIs in v2.0.0 by following the [notebooks](https://github.com/NVIDIA-AI-Blueprints/rag/tree/main/notebooks/).

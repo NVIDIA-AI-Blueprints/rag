@@ -451,7 +451,7 @@ This enables you to integrate with any vector database that isn't already suppor
 This section is for advanced developers who need to integrate custom vector databases beyond the supported database options.
 :::
 
-For a complete example, refer to [Custom VDB Operator Notebook](../notebooks/building_rag_vdb_operator.ipynb).
+For a complete example, refer to [Custom VDB Operator Notebook](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/building_rag_vdb_operator.ipynb).
 
 :::{tip}
 Choose your integration path:

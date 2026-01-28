@@ -13,7 +13,7 @@ If you want to run the RAG Blueprint with [NVIDIA AI Workbench](https://docs.nvi
 :::
 
 :::{tip}
-Looking for a simpler setup without Docker? Check out the [Containerless Deployment (Lite Mode)](https://github.com/NVIDIA-AI-Blueprints/rag/blob/develop/notebooks/rag_library_lite_usage.ipynb) for a Python-only deployment using Milvus Lite and NVIDIA cloud APIs.
+Looking for a simpler setup without Docker? Check out the [Containerless Deployment (Lite Mode)](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/rag_library_lite_usage.ipynb) for a Python-only deployment using Milvus Lite and NVIDIA cloud APIs.
 :::
 
 

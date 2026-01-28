@@ -66,7 +66,7 @@ For example, if you set `APP_LLM_APIKEY`, the LLM service will use that key inst
 
 ### Library Mode (Python Package)
 
-Configure in [`config.yaml`](https://github.com/NVIDIA-AI-Blueprints/rag/blob/develop/notebooks/config.yaml).
+Configure in [`config.yaml`](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/config.yaml).
 
 ```yaml
 llm:

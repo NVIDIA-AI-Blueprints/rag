@@ -45,7 +45,7 @@ You can enable text-only ingestion for the [NVIDIA RAG Blueprint](readme.md). Fo
 
 4. Continue following the rest of steps in deployment guide to deploy the rag-server containers.
 
-5. Once the ingestion and rag servers are deployed, open the [ingestion notebook](../notebooks/ingestion_api_usage.ipynb) and follow the steps. While trying out the the `Upload Document Endpoint` set the payload to below.
+5. Once the ingestion and rag servers are deployed, open the [ingestion notebook](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/ingestion_api_usage.ipynb) and follow the steps. While trying out the the `Upload Document Endpoint` set the payload to below.
    ```bash
        data = {
         "vdb_endpoint": "http://milvus:19530",
@@ -57,7 +57,7 @@ You can enable text-only ingestion for the [NVIDIA RAG Blueprint](readme.md). Fo
     }
    ```
 
-6. After ingestion completes, you can try out the queries relevant to the text in the documents using [retrieval notebook](../notebooks/retriever_api_usage.ipynb).
+6. After ingestion completes, you can try out the queries relevant to the text in the documents using [retrieval notebook](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/retriever_api_usage.ipynb).
 
 :::{note}
 In case you are [interacting with cloud hosted models](deploy-docker-nvidia-hosted.md) and want to enable text only mode, then in step 2, just export these specific environment variables as shown below:

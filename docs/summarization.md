@@ -248,7 +248,23 @@ When using blocking mode, if the summary is not generated within the specified t
 
 **HTTP Status Code**: 408 (Request Timeout)
 
-## 3. Configuration and Environment Variables
+## 3. Python Examples and API Reference
+
+For complete working Python code examples using the NVIDIA RAG library, see the [Document Summarization Notebook](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/summarization.ipynb). This notebook demonstrates:
+
+- Collection creation and document ingestion with summarization
+- All three summarization strategies (single, hierarchical, iterative)
+- Page filtering and shallow summary options
+- Summary retrieval with blocking and non-blocking modes
+- Complete end-to-end workflows in both library mode and API mode
+
+For API schema details, refer to the [OpenAPI schema](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/docs/api_reference/openapi_schema_rag_server.json).
+
+:::{note}
+**Lite Mode Limitation**: Document summarization is not supported in lite mode (containerless deployment). For lite mode examples, see [rag_library_lite_usage.ipynb](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/rag_library_lite_usage.ipynb).
+:::
+
+## 4. Configuration and Environment Variables
 
 The summarization feature can be configured using the following environment variables:
 
@@ -341,7 +357,7 @@ The summarization system uses an intelligent chunking approach with different pr
 
 This approach ensures that even very large documents can be summarized effectively while maintaining context across chunk boundaries. The prompt selection automatically adapts based on extraction mode, document size, processing stage, and selected strategy.
 
-## 4. Notes and Best Practices
+## 5. Notes and Best Practices
 
 - Summarization is only available if `generate_summary` was set to `true` during document upload.
 - If you request a summary for a document that was not ingested with summarization enabled, you'll receive a `NOT_FOUND` status.
@@ -370,19 +386,3 @@ This approach ensures that even very large documents can be summarized effective
 - Increase `SUMMARY_MAX_PARALLELIZATION` if you have more GPU resources available
 - Decrease it if experiencing GPU memory issues or API rate limits
 - Monitor Redis semaphore usage to optimize for your workload
-
-## 5. Python Examples and API Reference
-
-For complete working Python code examples using the NVIDIA RAG library, see the [Document Summarization Notebook](../notebooks/summarization.ipynb). This notebook demonstrates:
-
-- Collection creation and document ingestion with summarization
-- All three summarization strategies (single, hierarchical, iterative)
-- Page filtering and shallow summary options
-- Summary retrieval with blocking and non-blocking modes
-- Complete end-to-end workflows in both library mode and API mode
-
-For API schema details, refer to the [OpenAPI schema](api_reference/openapi_schema_rag_server.json).
-
-:::{note}
-**Lite Mode Limitation**: Document summarization is not supported in lite mode (containerless deployment). For lite mode examples, see [rag_library_lite_usage.ipynb](../notebooks/rag_library_lite_usage.ipynb).
-:::

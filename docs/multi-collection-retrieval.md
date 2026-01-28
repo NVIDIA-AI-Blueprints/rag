@@ -62,7 +62,7 @@ envVars:
 
 ## Multiple Collection Setup during Ingestion
 
-Before using multi-collection retrieval, you must first ingest documents into each collection separately. Use the ingestion API (see [Ingestion API Usage](../notebooks/ingestion_api_usage.ipynb)) to create and populate each collection individually. For example:
+Before using multi-collection retrieval, you must first ingest documents into each collection separately. Use the ingestion API (see [Ingestion API Usage](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/ingestion_api_usage.ipynb)) to create and populate each collection individually. For example:
 
 ```python
 # Create and ingest into first collection
@@ -76,7 +76,7 @@ await upload_documents(collection_name="collection2", filepaths=[...])
 
 ## API Usage
 
-The [Retriever API Usage Notebook](../notebooks/retriever_api_usage.ipynb) demonstrates basic API usage. To enable multi-collection retrieval, modify the notebook examples by:
+The [Retriever API Usage Notebook](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/retriever_api_usage.ipynb) demonstrates basic API usage. To enable multi-collection retrieval, modify the notebook examples by:
 
 1. Adding multiple collection names in the `collection_names` array
 2. Setting `enable_reranker` to `true`

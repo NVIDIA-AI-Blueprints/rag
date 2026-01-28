@@ -87,7 +87,7 @@ payload = {
 
 For a comprehensive, interactive demonstration of metadata functionality, check out our dedicated notebook:
 
-**[📖 nb_metadata.ipynb](../notebooks/nb_metadata.ipynb)**
+**[📖 nb_metadata.ipynb](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/nb_metadata.ipynb)**
 
 This notebook demonstrates:
 - **Real metadata ingestion** with Ford vehicle manuals (2015 Edge, 2023 Edge, 2024 Escape) including manufacturer, model, year, rating, tags, features, and document properties

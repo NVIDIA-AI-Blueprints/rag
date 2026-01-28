@@ -32,7 +32,7 @@ For this feature, use H100 or A100 GPUs instead.
 
 4. Deploy the ingestion-server and rag-server containers following the remaining steps in the deployment guide.
 
-5. You can now ingest PDF files using the [ingestion API usage notebook](../notebooks/ingestion_api_usage.ipynb).
+5. You can now ingest PDF files using the [ingestion API usage notebook](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/ingestion_api_usage.ipynb).
 
 ### Using NVIDIA Hosted API Endpoints
 
@@ -54,7 +54,7 @@ For this feature, use H100 or A100 GPUs instead.
 
 4. Deploy the ingestion-server and rag-server containers following the remaining steps in the deployment guide.
 
-5. You can now ingest PDF files using the [ingestion API usage notebook](../notebooks/ingestion_api_usage.ipynb).
+5. You can now ingest PDF files using the [ingestion API usage notebook](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/ingestion_api_usage.ipynb).
 
 :::{note}
 When using NVIDIA hosted endpoints, you may encounter rate limiting with larger file ingestions (>10 files).

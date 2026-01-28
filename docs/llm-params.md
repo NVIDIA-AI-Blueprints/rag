@@ -10,7 +10,7 @@ For full details, see [APIs for RAG Server](./api-rag.md).
 
 Use the `/generate` endpoint in the RAG server of a RAG pipeline to generate responses to prompts.
 
-To configure the behavior of the LLM dynamically at runtime, you can include or change the following parameters in the request body while trying out the generate API using [the notebook](../notebooks/retriever_api_usage.ipynb).
+To configure the behavior of the LLM dynamically at runtime, you can include or change the following parameters in the request body while trying out the generate API using [the notebook](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/retriever_api_usage.ipynb).
 
 | Parameter   | Description | Type   | Valid Values | Default | Optional? |
 |-------------|-------------|--------|--------------|---------|-----------|
@@ -23,7 +23,7 @@ To configure the behavior of the LLM dynamically at runtime, you can include or 
 
 ## Example payload for customization
 
-You can include or change the following parameters in the request body while trying out the generate API using [this notebook](../notebooks/retriever_api_usage.ipynb).
+You can include or change the following parameters in the request body while trying out the generate API using [this notebook](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/retriever_api_usage.ipynb).
 
 - max_tokens=150 — limits response length to 150 tokens
 - stop=["\n"] — generation stops at the newline character
