@@ -9,9 +9,8 @@ Unlike traditional image upload systems, this feature operates on image citation
 
 :::{note}
 B200 GPUs are not supported for VLM based inferencing in RAG.
-For this feature, use H100 or A100 GPUs instead. :::
-
-**GPU Requirements**: VLM-based generation can be deployed on **2xH100 GPUs** using the default deployment configuration. The VLM service replaces the standard LLM service and uses the same GPU allocation (GPU ID 1 by default).
+For this feature, use H100 or A100 GPUs instead.
+:::
 
 
 - Key Use Cases for VLM
@@ -38,13 +37,13 @@ Enabling VLM inference increases response latency from additional image processi
 
 ## How VLM Works in the RAG Pipeline
 
+When VLM inference is enabled, the **VLM replaces the traditional LLM** in the RAG pipeline for generation tasks.
+
 The VLM feature follows this flow:
 
 1. **Automatic Image Discovery**: When a user query is processed, the RAG system retrieves relevant documents from the vector database. If any of these documents contain images (charts, diagrams, photos, etc.), they are automatically identified.
 2. **Image Captioning at Ingestion**: During ingestion, images are extracted and captioned so they can be indexed and later cited for question answering.
-3. **VLM Answer Generation**: At query time, the RAG server sends the user question, conversation history, and cited images to a Vision-Language Model. The **VLM directly generates the final answer** for the user.
-
-There is no separate LLM reasoning step that post-processes the VLM output—once VLM inference is enabled, the VLM is responsible for generating the response (with optional fallback behavior described below).
+3. **VLM Answer Generation**: At query time, the RAG server sends the user question, conversation history, and cited images to a Vision-Language Model. The **VLM directly generates the final answer** for the user, taking the place of the traditional LLM.
 
 
 
@@ -117,69 +116,46 @@ NVIDIA RAG uses the [**nemotron-nano-12b-v2-vl**](https://build.nvidia.com/nvidi
 
 ### VLM-Generation Profile: VLM Replaces LLM
 
-The `vlm-generation` profile in `deploy/compose/nims.yaml` is specifically designed for VLM-based generation and **skips the NIM LLM deployment entirely**. This profile:
+The `vlm-generation` profile in `deploy/compose/nims.yaml` is specifically designed for VLM-based generation on **2xH100 GPUs**. This profile:
 
-- Deploys the VLM service (`vlm-ms`) as a **replacement** for the NIM LLM service.
+- **Skips the NIM LLM deployment entirely** - VLM replaces the LLM service
+- Deploys the VLM service (`vlm-ms`) as a replacement for the NIM LLM service
 - Deploys embedding and reranker microservices
 
-This VLM-based RAG pipeline can run on a minimum of **2xH100 GPUs** setup.
+### GPU Assignment for 2xH100 Deployment
 
-### Quick Start: VLM on 2xH100
-
-To deploy VLM on 2xH100 systems, follow these steps:
-
-```bash
-# STEP 1: Set VLM to use GPU 1 (REQUIRED for 2xH100 deployment)
-export VLM_MS_GPU_ID=1
-
-# STEP 2: Start VLM and supporting services (skips nim-llm)
-USERID=$(id -u) docker compose -f deploy/compose/nims.yaml --profile vlm-generation up -d
-
-# STEP 3: Enable VLM inference in RAG server
-export ENABLE_VLM_INFERENCE="true"
-export APP_VLM_MODELNAME="nvidia/nemotron-nano-12b-v2-vl"
-export APP_VLM_SERVERURL="http://vlm-ms:8000/v1"
-docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d
-```
-
-### Required GPU Assignment for 2xH100 Deployment
-
-**REQUIRED STEP**: To deploy VLM on 2xH100 systems, you **must** set `VLM_MS_GPU_ID=1` to assign VLM to the GPU normally used by the LLM service.
+VLM must use GPU 1 (the GPU normally assigned to LLM):
 
 **GPU Allocation**:
 - GPU 0: Embedding and Reranker services
 - GPU 1: VLM service (replaces LLM)
 
+**Required Environment Variable**:
+```bash
+export VLM_MS_GPU_ID=1  # REQUIRED
+```
 
-This will launch:
-- `vlm-ms` container (serving on port 1977, using GPU 1)
-- `nemoretriever-embedding-ms` (embedding microservice)
-- `nemoretriever-ranking-ms` (reranker microservice)
-
-### Customizing GPU Usage for VLM Service (Advanced)
-
-For systems with more than 2 GPUs, you can assign VLM to a different GPU by changing the `VLM_MS_GPU_ID` environment variable:
+### Quick Start: Deploy VLM
 
 ```bash
-export VLM_MS_GPU_ID=3  # Example: Use GPU 3 on a multi-GPU system
+# Step 1: Set VLM GPU assignment
+export VLM_MS_GPU_ID=1
+
+# Step 2: Start VLM and supporting services (skips nim-llm)
 USERID=$(id -u) docker compose -f deploy/compose/nims.yaml --profile vlm-generation up -d
 ```
 
-Alternatively, you can modify the `nims.yaml` file directly:
+### Customizing GPU Usage (Advanced)
 
-```yaml
-# In deploy/compose/nims.yaml, locate the vlm-ms service and modify:
-deploy:
-  resources:
-    reservations:
-      devices:
-        - driver: nvidia
-          device_ids: ['${VLM_MS_GPU_ID:-5}']  # Change this to your desired GPU
-          capabilities: [gpu]
+For systems with 3+ GPUs, you can assign VLM to a different GPU:
+
+```bash
+export VLM_MS_GPU_ID=3  # Example: Use GPU 3 on multi-GPU systems
+USERID=$(id -u) docker compose -f deploy/compose/nims.yaml --profile vlm-generation up -d
 ```
 
-:::{note}
-Ensure the specified GPU is available and has sufficient memory for the VLM model.
+:::{warning}
+Only change `VLM_MS_GPU_ID` for systems with 3+ GPUs.
 :::
 
 
@@ -204,37 +180,11 @@ This ensures that images are available as citations and can be sent to the VLM a
 
 ---
 
-### Enable VLM Inference in RAG Server
+## Enable VLM Inference in RAG Server
 
-The `vlm-generation` profile in `deploy/compose/nims.yaml` is designed specifically for VLM-based generation and **does NOT deploy the `nim-llm` service**. Instead, the VLM serves as the primary generation model.
+After starting the VLM NIM service with the `vlm-generation` profile, configure the RAG server to use VLM for generation.
 
-**Step 1**: Set the GPU assignment for VLM (REQUIRED for 2xH100 deployment):
-
-```bash
-export VLM_MS_GPU_ID=1  # REQUIRED: Assign VLM to GPU 1 (LLM's GPU)
-```
-
-**Step 2**: Start the VLM and required NIM services using the `vlm-generation` profile:
-
-```bash
-USERID=$(id -u) docker compose -f deploy/compose/nims.yaml --profile vlm-generation up -d
-```
-
-This profile starts the following services:
-
-- **vlm-ms** (VLM for generation, using GPU 1)
-- **nemoretriever-embedding-ms** (embedding service)
-- **nemoretriever-ranking-ms** (reranker service)
-
-:::{important}
-**GPU Allocation for 2xH100 Deployment**:
-- GPU 0: Embedding and Reranker services
-- GPU 1: VLM service (replaces the LLM service that would normally use GPU 1)
-
-**The `VLM_MS_GPU_ID=1` environment variable is REQUIRED** to enable this allocation on 2xH100 systems.
-:::
-
-Set the following environment variables in [docker-compose-rag-server.yaml](../deploy/compose/docker-compose-rag-server.yaml) to enable VLM inference in RAG server:
+Set the following environment variables in [docker-compose-rag-server.yaml](../deploy/compose/docker-compose-rag-server.yaml):
 
 ```bash
 export ENABLE_VLM_INFERENCE="true"
@@ -245,14 +195,13 @@ export APP_VLM_SERVERURL="http://vlm-ms:8000/v1"
 docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d
 ```
 
+**Environment Variable Descriptions**:
 - `ENABLE_VLM_INFERENCE`: Enables VLM inference in the RAG server.
-- `APP_VLM_MODELNAME`: The name of the VLM model to use (default: `nvidia/nemotron-nano-12b-v2-vl`).
+- `APP_VLM_MODELNAME`: The name of the VLM model to use.
 - `APP_VLM_SERVERURL`: The URL of the VLM NIM server (local or remote).
 
-Once `ENABLE_VLM_INFERENCE` is set and the `vlm-generation` profile is used, the RAG server uses the VLM to generate the final answer, **replacing the traditional LLM-based generation**. The `VLM_TO_LLM_FALLBACK` flag controls what happens when no images are available, as described later.
-
 :::{note}
-**Important**: When using the `vlm-generation` profile, there is no LLM service running. The VLM handles all generation tasks, with optional fallback behavior controlled by `VLM_TO_LLM_FALLBACK`.
+When using the `vlm-generation` profile, there is no LLM service running. The VLM handles all generation tasks, with optional fallback behavior controlled by `VLM_TO_LLM_FALLBACK` (described later).
 :::
 
 
@@ -283,7 +232,7 @@ Continue following the rest of the steps in [Deploy with Docker (NVIDIA-Hosted M
 
 :::{note}
 **GPU Requirements for Helm Deployment**:
-- **Default (2xH100)**: VLM uses GPU 1 (the same GPU normally assigned to LLM). This is the recommended configuration for 2xH100 systems.
+- VLM uses GPU 1 (the same GPU normally assigned to LLM)
 - **With MIG**: If MIG slicing is enabled, assign a dedicated MIG slice to the VLM. Refer to [mig-deployment.md](./mig-deployment.md) and [values-mig.yaml](../deploy/helm/mig-slicing/values-mig.yaml) for configuration details.
 - **Additional GPU**: If you want to run both VLM and LLM simultaneously (not typical), an additional GPU is required.
 :::
@@ -300,20 +249,21 @@ To enable VLM inference in Helm-based deployments, follow these steps:
    APP_VLM_SERVERURL: "http://nim-vlm:8000/v1"  # Local VLM NIM endpoint
    ```
 
-  Also enable the `nim-vlm` helm chart and disable `nim-llm` since VLM replaces LLM:
-  ```yaml
-  nim-vlm:
-    enabled: true
-  
-  nim-llm:
-    enabled: false  # VLM replaces LLM for generation
-  ```
+2. Enable the `nim-vlm` helm chart and disable `nim-llm` since VLM replaces LLM:
 
-  :::{important}
-  **GPU Assignment**: By disabling `nim-llm` and enabling `nim-vlm`, the VLM will use the GPU resources that would normally be allocated to the NIM LLM. This allows VLM deployment without requiring additional GPUs.
-  :::
+   ```yaml
+   nim-vlm:
+     enabled: true
+   
+   nim-llm:
+     enabled: false  # VLM replaces LLM for generation
+   ```
 
-2. Apply the updated Helm chart
+   :::{important}
+   **GPU Assignment**: By disabling `nim-llm` and enabling `nim-vlm`, the VLM will use the GPU resources normally allocated to the LLM, enabling VLM deployment without additional hardware.
+   :::
+
+3. Apply the updated Helm chart
 
    Run the following command to upgrade or install your deployment:
 
@@ -326,50 +276,25 @@ To enable VLM inference in Helm-based deployments, follow these steps:
      -f deploy/helm/nvidia-blueprint-rag/values.yaml
    ```
 
-3. Check if the VLM pod has come up
+4. Check if the VLM pod has come up
 
-  A pod with the name `rag-nim-vlm-0` will start, this pod corresponds to the VLM model deployment. The `nim-llm` pod will NOT be created since it's disabled.
+   A pod with the name `rag-nim-vlm-0` will start, this pod corresponds to the VLM model deployment. The `nim-llm` pod will NOT be created since it's disabled.
 
-    ```
-      rag       rag-nim-vlm-0       0/1     ContainerCreating   0          6m37s
-    ```
+   ```
+     rag       rag-nim-vlm-0       0/1     ContainerCreating   0          6m37s
+   ```
 
 
 :::{note}
 **Service Architecture**:
 - With VLM enabled and LLM disabled, the RAG pipeline uses VLM for all generation tasks
-- The embedding and reranking services remain active and are shared by both document retrieval and VLM processing
+- The embedding and reranking services remain active for document retrieval
 - For local VLM inference, ensure the VLM NIM service is running and accessible at the configured `APP_VLM_SERVERURL`
 - For remote endpoints, the `NGC_API_KEY` is required for authentication
 :::
 
 
-### When VLM Processing Occurs
-
-VLM processing is triggered when:
-- `ENABLE_VLM_INFERENCE` is set to `true`
-- The VLM service is accessible and responding
-- The `vlm-generation` profile is used (for Docker Compose) OR `nim-vlm` is enabled in Helm
-
-Once VLM inference is enabled, the RAG server uses the VLM to generate the final answer **instead of the traditional LLM**. The `VLM_TO_LLM_FALLBACK` flag controls behavior **only when no images are present** in the query, messages, or retrieved context:
-
-- If `VLM_TO_LLM_FALLBACK="false"` (default): the pipeline **still routes generation through the VLM**, even for text-only queries with no images.
-- If `VLM_TO_LLM_FALLBACK="true"`: text-only queries (with no images in the query, messages, or context) **fall back to the regular LLM-based RAG flow** instead of calling the VLM.
-
-:::{warning}
-When using the `vlm-generation` Docker Compose profile, `VLM_TO_LLM_FALLBACK="true"` will result in errors for text-only queries because no LLM service is running. Keep the default `"false"` setting when using this profile, or ensure an LLM service is available if you need fallback behavior.
-:::
-
-
-## Troubleshooting
-
-- Ensure the VLM NIM is running and accessible at the configured `APP_VLM_SERVERURL`.
-- For remote endpoints, ensure your `NGC_API_KEY` is valid and has access to the requested model.
-- Check rag-server logs for errors related to VLM inference or API authentication.
-- Verify that images are properly ingested, captioned, and indexed in your knowledge base.
-
-
-### Configure VLM image limits
+## Configure VLM image limits
 
 Control how many images are sent to the VLM per request:
 - `APP_VLM_MAX_TOTAL_IMAGES` (default: 5): Maximum total images (from the query, conversation history, and retrieved context) that are included in the VLM prompt. The pipeline will never exceed this.
@@ -384,55 +309,7 @@ export APP_VLM_MAX_TOTAL_IMAGES="5"
 docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d
 ```
 
-
-**Important Notes:**
-- When this flag is enabled and images are provided as input (either from context or query), the VLM response will always be used as the final answer
-- This mode is useful when you want pure visual analysis without additional text interpretation or reasoning
-- The response will be based solely on what the VLM can extract from the images, without incorporating textual context from retrieved documents
-
-#### Use VLM response as the final answer (Helm)
-
-To enable final-answer mode with Helm (skip `nim-llm` and return the VLM output directly):
-
-1) In your `values.yaml` for the chart at `deploy/helm/nvidia-blueprint-rag/values.yaml`, set the following under `envVars`:
-
-```yaml
-ENABLE_VLM_INFERENCE: "true"
-```
-
-2) Enable the VLM NIM and disable the LLM NIM:
-
-```yaml
-nim-vlm:
-  enabled: true
-
-nim-llm:
-  enabled: false
-```
-
-3) (Optional, recommended) Ensure features that depend on the LLM remain disabled:
-
-```yaml
-ENABLE_QUERYREWRITER: "False"
-ENABLE_REFLECTION: "False"
-```
-
-4) Apply or upgrade the release:
-
-```bash
-helm upgrade --install rag -n <namespace> https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-dev-rc1.tgz \
-  --username '$oauthtoken' \
-  --password "${NGC_API_KEY}" \
-  --set imagePullSecret.password=$NGC_API_KEY \
-  --set ngcApiSecret.password=$NGC_API_KEY \
-  -f deploy/helm/nvidia-blueprint-rag/values.yaml
-```
-
-:::{note}
-In this mode, the RAG server will use the VLM output as the final response. Keep the embedding and reranker services enabled as in the default chart configuration. If you use a local VLM, also set `APP_VLM_SERVERURL` (for example, `http://nim-vlm:8000/v1`) and enable the `nim-vlm` subchart as shown above.
-:::
-
-### Conversation history and context limitations
+## Conversation history and context limitations
 
 :::{warning}
 The VLM receives the **current user query**, a truncated **conversation history**, and a textual summary of retrieved documents, together with any cited images. The effective context window of the VLM is limited, so very long conversations or large document contexts may be truncated.
@@ -442,6 +319,88 @@ Mitigations:
 - Keep user questions as self-contained as possible, especially in long-running conversations.
 - Use retrieval and prompt tuning to focus the most relevant context for the VLM.
 
+
+
+## VLM to LLM Fallback (Optional)
+
+By default, once VLM inference is enabled, the RAG server uses VLM for **all** generation tasks, regardless of whether images are present. The `VLM_TO_LLM_FALLBACK` environment variable controls what happens for text-only queries (when no images are present in the query, messages, or retrieved context).
+
+### Default Behavior (No Fallback)
+
+```bash
+VLM_TO_LLM_FALLBACK="false"  # Default
+```
+
+With the default setting, the VLM handles all queries, even text-only queries without any images. This is the recommended configuration for the 2xH100 setup described earlier.
+
+### Enabling Fallback to LLM
+
+If you want text-only queries to use a traditional LLM instead of the VLM:
+
+```bash
+VLM_TO_LLM_FALLBACK="true"
+```
+
+**Important**: When fallback is enabled, you **must also deploy an LLM service** alongside the VLM.
+
+#### GPU Requirements for Fallback Configuration
+
+To run both VLM and LLM services simultaneously, you need a minimum of **3xH100 GPUs**:
+
+- **GPU 0**: Embedding and Reranker services
+- **GPU 1**: VLM service
+- **GPU 2**: LLM service (for fallback)
+
+#### Deploying with LLM Fallback (Docker Compose)
+
+To enable fallback with Docker Compose, you need to start both the VLM and LLM services:
+
+```bash
+# Set GPU assignments
+export VLM_MS_GPU_ID=1
+export LLM_MS_GPU_ID=2  # LLM on GPU 2
+
+# Start all services (do NOT use vlm-generation profile)
+USERID=$(id -u) docker compose -f deploy/compose/nims.yaml up -d
+
+# Enable VLM inference with fallback
+export ENABLE_VLM_INFERENCE="true"
+export VLM_TO_LLM_FALLBACK="true"
+export APP_VLM_MODELNAME="nvidia/nemotron-nano-12b-v2-vl"
+export APP_VLM_SERVERURL="http://vlm-ms:8000/v1"
+
+docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d
+```
+
+:::{warning}
+Do **NOT** use the `vlm-generation` profile when enabling fallback, as it skips the LLM deployment entirely. Using `VLM_TO_LLM_FALLBACK="true"` with the `vlm-generation` profile will cause errors for text-only queries.
+:::
+
+#### Deploying with LLM Fallback (Helm)
+
+For Helm deployments with fallback, enable both `nim-vlm` and `nim-llm`:
+
+```yaml
+# In values.yaml
+ENABLE_VLM_INFERENCE: "true"
+VLM_TO_LLM_FALLBACK: "true"
+APP_VLM_MODELNAME: "nvidia/nemotron-nano-12b-v2-vl"
+APP_VLM_SERVERURL: "http://nim-vlm:8000/v1"
+
+nim-vlm:
+  enabled: true
+
+nim-llm:
+  enabled: true  # Keep LLM enabled for fallback
+```
+
+
+## Troubleshooting
+
+- Ensure the VLM NIM is running and accessible at the configured `APP_VLM_SERVERURL`.
+- For remote endpoints, ensure your `NGC_API_KEY` is valid and has access to the requested model.
+- Check rag-server logs for errors related to VLM inference or API authentication.
+- Verify that images are properly ingested, captioned, and indexed in your knowledge base.
 
 
 ## Related Topics
