@@ -101,7 +101,7 @@ The following are the known issues for the NVIDIA RAG Blueprint:
 
 ## Related Topics
 
-- [Known Issues and Troubleshooting the RAG UI](user-interface.md#known-issues-and-troubleshooting-the-rag-ui)
+- [Known Issues and Troubleshooting the RAG UI](user-interface.md#known-issues-and-troubleshooting)
 - [Troubleshoot NVIDIA RAG Blueprint](troubleshooting.md)
 - [Migration Guide](migration_guide.md)
 - [Get Started with NVIDIA RAG Blueprint](deploy-docker-self-hosted.md)

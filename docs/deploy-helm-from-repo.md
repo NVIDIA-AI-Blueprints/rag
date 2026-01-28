@@ -78,7 +78,6 @@ If you are working directly with the source Helm chart, and you want to customiz
     - [Experiment with the Web User Interface](deploy-helm.md#experiment-with-the-web-user-interface)
     - [Change a deployment](deploy-helm.md#change-a-deployment)
     - [Uninstall a deployment](deploy-helm.md#uninstall-a-deployment)
-    - [(Optional) Configure Redis Backend](deploy-helm.md#optional-configure-redis-backend)
     - [(Optional) Enable Persistence](deploy-helm.md#optional-enable-persistence)
     - [Troubleshooting Helm Issues](deploy-helm.md#troubleshooting-helm-issues)
 
