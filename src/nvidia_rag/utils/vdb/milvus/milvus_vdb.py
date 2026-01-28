@@ -840,12 +840,6 @@ class MilvusVDB(VDBRagIngest):
                 info_value=info_value,
             )
 
-        # Delete the existing document info from the collection
-        client.delete(
-            collection_name=DEFAULT_DOCUMENT_INFO_COLLECTION,
-            filter=f"info_type == '{info_type}' and collection_name == '{collection_name}' and document_name == '{document_name}'",
-        )
-
         # Add the document info to the collection
         data = {
             "info_type": info_type,
