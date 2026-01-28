@@ -64,8 +64,7 @@ export default function SidebarDrawer() {
       closeOnClickOutside
       hideCloseButton
       style={{
-        "--side-panel-width": "75vw",
-        backgroundColor: "var(--background-color-interaction-inverse)"
+        "--side-panel-width": "75vw"
       }}
       slotHeading={
         <Flex align="center" justify="between" gap="3">
@@ -80,7 +79,7 @@ export default function SidebarDrawer() {
               <CitationsIcon />
             </Block>
             <Stack>
-              <Text kind="body/bold/lg" style={{ color: 'var(--text-color-inverse)' }}>
+              <Text kind="body/bold/lg">
                 {view === "citations" && "Source Citations"}
               </Text>
               <Text kind="body/regular/sm" style={{ color: 'var(--text-color-subtle)' }}>
@@ -93,11 +92,6 @@ export default function SidebarDrawer() {
             size="small"
             onClick={closeSidebar}
             aria-label="Close sidebar drawer"
-            style={{ 
-              color: 'var(--text-color-inverse)',
-              minWidth: 'auto',
-              padding: '8px'
-            }}
           >
             <CloseIcon />
           </Button>
