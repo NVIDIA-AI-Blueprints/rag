@@ -610,7 +610,8 @@ class NvidiaRAGIngestor:
             if len(failed_validation_documents):
                 logger.error(f"Validation errors: {failed_validation_documents}")
 
-            logger.info("Filepaths for ingestion after validation: %s", filepaths)
+            logger.info("Number of filepaths for ingestion after validation: %s", len(filepaths))
+            logger.debug("Filepaths for ingestion after validation: %s", filepaths)
 
             # Peform ingestion using nvingest for all files that have not failed
             # Check if the provided collection_name exists in vector-DB
@@ -661,7 +662,7 @@ class NvidiaRAGIngestor:
             # Optional: Clean up provided files after ingestion, needed for
             # docker workflow
             if self.mode == Mode.SERVER:
-                logger.info(f"Cleaning up files in {filepaths}")
+                logger.info(f"Cleaning up files count: {len(filepaths)}")
                 for file in filepaths:
                     try:
                         os.remove(file)
@@ -742,12 +743,13 @@ class NvidiaRAGIngestor:
                 )
 
                 # Always add document info for each document
-                vdb_op.add_document_info(
-                    info_type="document",
-                    collection_name=state_manager.collection_name,
-                    document_name=os.path.basename(filepath),
-                    info_value=document_info,
-                )
+                if not is_final_batch:
+                    vdb_op.add_document_info(
+                        info_type="document",
+                        collection_name=state_manager.collection_name,
+                        document_name=os.path.basename(filepath),
+                        info_value=document_info,
+                    )
                 uploaded_document = {
                     "document_id": str(uuid4()),
                     "document_name": os.path.basename(filepath),
