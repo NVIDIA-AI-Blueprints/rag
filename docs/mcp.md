@@ -2,7 +2,7 @@
   SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
   SPDX-License-Identifier: Apache-2.0
 -->
-## MCP Server and Client Usage
+# MCP Server and Client Usage
 
 This guide shows how to run the NVIDIA RAG MCP server and use the included Python MCP client to interact with the RAG system.
 
