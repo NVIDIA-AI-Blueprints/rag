@@ -24,7 +24,7 @@ from functools import lru_cache
 from langchain_core.documents.compressor import BaseDocumentCompressor
 from langchain_nvidia_ai_endpoints import NVIDIARerank
 
-from nvidia_rag.utils.common import sanitize_nim_url
+from nvidia_rag.utils.common import NVIDIA_API_DEFAULT_HEADERS, sanitize_nim_url
 from nvidia_rag.utils.configuration import NvidiaRAGConfig
 
 logger = logging.getLogger(__name__)
@@ -64,13 +64,21 @@ def _get_ranking_model(
         if url:
             logger.info("Using ranking model hosted at %s", url)
             return NVIDIARerank(
-                base_url=url, api_key=api_key, top_n=top_n, truncate="END"
+                base_url=url,
+                api_key=api_key,
+                top_n=top_n,
+                truncate="END",
+                default_headers=NVIDIA_API_DEFAULT_HEADERS,
             )
 
         if model:
             logger.info("Using ranking model %s hosted at api catalog", model)
             return NVIDIARerank(
-                model=model, api_key=api_key, top_n=top_n, truncate="END"
+                model=model,
+                api_key=api_key,
+                top_n=top_n,
+                truncate="END",
+                default_headers=NVIDIA_API_DEFAULT_HEADERS,
             )
 
         # No model or URL provided
