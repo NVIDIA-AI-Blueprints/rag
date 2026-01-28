@@ -57,7 +57,7 @@ apiKeysSecret:
 # -- RAG server container image
 image:
   repository: nvcr.io/nvstaging/blueprint/rag-server
-  tag: "2.4.0.rc2.1"
+  tag: "2.4.0.rc2.2"
   pullPolicy: Always
 
 # -- RAG server service configuration
@@ -290,7 +290,7 @@ ingestor-server:
 
   image:
     repository: nvcr.io/nvstaging/blueprint/ingestor-server
-    tag: "2.4.0.rc2.1"
+    tag: "2.4.0.rc2.2"
     pullPolicy: Always
 
   # -- Service config for ingestor-server
@@ -453,7 +453,7 @@ frontend:
   image:
     repository: nvcr.io/nvstaging/blueprint/rag-frontend
     pullPolicy: IfNotPresent
-    tag: "2.4.0.rc2.1"
+    tag: "2.4.0.rc2.2"
 
   imagePullSecret:
     name: "ngc-secret"
