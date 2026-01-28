@@ -28,7 +28,7 @@ export const CitationTextContent = ({ text }: CitationTextContentProps) => {
   return (
     <div style={{ maxWidth: '100%' }}>
       <Text 
-        kind="body/regular/xs"
+        kind="body/regular/sm"
         style={{ lineHeight: '1.6' }}
         dangerouslySetInnerHTML={{
           __html: renderMarkdown(toMarkdown(text)),

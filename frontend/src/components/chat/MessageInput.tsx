@@ -31,13 +31,6 @@ export default function MessageInput() {
   const { filters, setFilters } = useChatStore();
   const { selectedCollections } = useCollectionsStore();
 
-  // Debug: Check if MessageInput renders multiple times
-  console.log('💬 MessageInput RENDER:', {
-    selectedCollections: selectedCollections.length,
-    filters: filters.length,
-    timestamp: Date.now()
-  });
-
   return (
     <Flex direction="col" padding="density-sm">
       <CollectionChips />
