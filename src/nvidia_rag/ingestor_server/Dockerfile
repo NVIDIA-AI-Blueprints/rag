@@ -37,6 +37,9 @@ COPY --from=ghcr.io/astral-sh/uv:0.8.12 /uv /uvx /bin/
 
 RUN rm -rf /var/lib/apt/lists/*
 
+# Download MPL-licensed CA Bundle from curl.se
+RUN curl -fsSL https://curl.se/ca/cacert.pem -o /etc/ssl/certs/cacert.pem
+
 WORKDIR /workspace
 
 COPY --from=builder /build/pyproject.toml /workspace/
@@ -72,9 +75,16 @@ ENV DEBIAN_FRONTEND noninteractive
 # Update all packages to address CVE-2025-68973 (gpgv) and other security vulnerabilities
 RUN apt update && \
     apt upgrade -y && \
-    apt install -y libexpat1 ca-certificates && \
+    apt install -y libexpat1 && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
+
+# Copy MPL-licensed CA Bundle from python-env stage
+COPY --from=python-env /etc/ssl/certs/cacert.pem /etc/ssl/certs/cacert.pem
+
+# Configure system and applications to use the MPL-licensed CA bundle
+ENV SSL_CERT_FILE=/etc/ssl/certs/cacert.pem
+ENV CURL_CA_BUNDLE=/etc/ssl/certs/cacert.pem
 
 # Copy the entire Python installation and virtual environment from python-env stage
 COPY --from=python-env /usr/bin/python3.13 /usr/bin/python3.13
