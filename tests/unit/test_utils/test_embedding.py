@@ -54,6 +54,7 @@ class TestGetEmbeddingModel:
                 api_key="test-api-key",
                 truncate="END",
                 dimensions=None,
+                default_headers={"source": "rag-blueprint"},
             )
             assert result == mock_embeddings
 
@@ -81,6 +82,7 @@ class TestGetEmbeddingModel:
                 api_key="test-api-key",
                 truncate="END",
                 dimensions=None,
+                default_headers={"source": "rag-blueprint"},
             )
             assert result == mock_embeddings
 
@@ -118,6 +120,7 @@ class TestGetEmbeddingModel:
                 api_key="test-api-key",
                 truncate="END",
                 dimensions=None,
+                default_headers={"source": "rag-blueprint"},
             )
             assert result == mock_embeddings
 
@@ -144,6 +147,7 @@ class TestGetEmbeddingModel:
                 api_key="test-api-key",
                 truncate="END",
                 dimensions=None,
+                default_headers={"source": "rag-blueprint"},
             )
             assert result == mock_embeddings
 
@@ -173,6 +177,7 @@ class TestGetEmbeddingModel:
                 api_key="test-api-key",
                 truncate="END",
                 dimensions=None,
+                default_headers={"source": "rag-blueprint"},
             )
             assert result == mock_embeddings
 
@@ -268,6 +273,7 @@ class TestEmbeddingModelIntegration:
                 api_key="test-api-key",
                 truncate="END",
                 dimensions=None,
+                default_headers={"source": "rag-blueprint"},
             )
 
             # Test that the model can be used
@@ -304,6 +310,7 @@ class TestEmbeddingModelIntegration:
                 api_key="test-api-key",
                 truncate="START",
                 dimensions=None,
+                default_headers={"source": "rag-blueprint"},
             )
             assert result == mock_embeddings
 
@@ -334,6 +341,7 @@ class TestEmbeddingModelIntegration:
                 model="test-model",
                 api_key="test-api-key",
                 dimensions=None,
+                default_headers={"source": "rag-blueprint"},
                 # Note: no truncate parameter should be passed when truncate=None
             )
             assert result == mock_embeddings
@@ -361,6 +369,7 @@ class TestEmbeddingModelIntegration:
                 model="nvidia/nv-embedqa-e5-v5",
                 api_key="test-api-key",
                 dimensions=None,
+                default_headers={"source": "rag-blueprint"},
                 # Note: no truncate parameter should be passed when truncate=None
             )
             assert result == mock_embeddings
