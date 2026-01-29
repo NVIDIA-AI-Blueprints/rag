@@ -36,6 +36,29 @@ from nvidia_rag.utils.summarization import (
 
 logger = logging.getLogger(__name__)
 
+# Global semaphore to limit concurrent LLM calls across ALL files
+# This ensures max_parallelization is respected system-wide
+# Initialized once and shared by all RAPTORTreeBuilder instances
+_global_llm_semaphore = None
+_global_llm_semaphore_lock = asyncio.Lock()
+
+
+async def _get_global_llm_semaphore(max_concurrent: int) -> asyncio.Semaphore:
+    """Get or create the global LLM semaphore for RAPTOR.
+    
+    This ensures max_parallelization limit is enforced across all files.
+    If max_parallelization = 20, only 20 LLM calls run concurrently system-wide.
+    """
+    global _global_llm_semaphore
+    
+    async with _global_llm_semaphore_lock:
+        if _global_llm_semaphore is None:
+            _global_llm_semaphore = asyncio.Semaphore(max_concurrent)
+            logger.info(
+                f"RAPTOR: Created global LLM semaphore with limit={max_concurrent}"
+            )
+        return _global_llm_semaphore
+
 
 @dataclass
 class RAPTORConfig:
@@ -157,6 +180,7 @@ class RAPTORTreeBuilder:
         self.raptor_config = raptor_config
         self.llm = None
         self.embedding_model = None
+        self.llm_semaphore = None  # Will be initialized lazily with global semaphore
 
         # Statistics
         self.stats = {
@@ -193,6 +217,12 @@ class RAPTORTreeBuilder:
                 model=self.rag_config.embeddings.model_name,
                 url=self.rag_config.embeddings.server_url,
                 config=self.rag_config,
+            )
+        
+        # Initialize global LLM semaphore (shared across all files)
+        if self.llm_semaphore is None:
+            self.llm_semaphore = await _get_global_llm_semaphore(
+                self.rag_config.summarizer.max_parallelization
             )
 
     async def build_trees_from_results(
@@ -553,8 +583,8 @@ class RAPTORTreeBuilder:
     async def _generate_summary(self, text: str, level: int) -> str:
         """Generate summary using LLM with max_tokens enforced via parameter.
         
-        No additional slot acquisition - file-level slot already acquired in
-        _process_single_file_summary. This matches hierarchical strategy pattern.
+        Uses global semaphore to limit concurrent LLM calls across ALL files.
+        If max_parallelization=20, only 20 LLM calls run system-wide at any time.
         """
 
         # Validate input
@@ -592,22 +622,24 @@ Summaries to synthesize:
 
 Higher-level summary:""".format(text=text)
 
-        try:
-            response = await self.llm.ainvoke(prompt)
-            summary = (
-                response.content if hasattr(response, "content") else str(response)
-            )
-            
-            if not summary or not summary.strip():
-                raise ValueError("LLM returned empty summary")
-            
-            return summary.strip()
-        except Exception as e:
-            # Re-raise with context - will propagate to _process_single_file_summary
-            logger.error(
-                f"LLM summary generation failed at level {level}: {type(e).__name__}: {e}"
-            )
-            raise
+        # Use global semaphore to limit concurrent LLM calls system-wide
+        async with self.llm_semaphore:
+            try:
+                response = await self.llm.ainvoke(prompt)
+                summary = (
+                    response.content if hasattr(response, "content") else str(response)
+                )
+                
+                if not summary or not summary.strip():
+                    raise ValueError("LLM returned empty summary")
+                
+                return summary.strip()
+            except Exception as e:
+                # Re-raise with context - will propagate to _process_single_file_summary
+                logger.error(
+                    f"LLM summary generation failed at level {level}: {type(e).__name__}: {e}"
+                )
+                raise
 
     async def _embed_summaries(
         self, summary_nodes: List[RAPTORNode]
