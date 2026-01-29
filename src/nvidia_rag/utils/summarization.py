@@ -1151,23 +1151,17 @@ async def _summarize_raptor(
 
                 # Insert records directly
                 client.insert(collection_name=collection_name, data=vdb_records)
-                logger.info(
-                    f"Successfully uploaded {len(vdb_records)} RAPTOR summaries for {file_name}"
-                )
 
                 # Update stats
                 builder.stats["documents_processed"] += 1
                 builder.stats["summaries_created"] += len(summary_nodes)
 
-                logger.info(
-                    f"Completed RAPTOR tree for {file_name}: {len(summary_nodes)} summaries created"
-                )
-
         return document
 
     except Exception as e:
-        logger.error(f"Error building RAPTOR tree for {file_name}: {e}", exc_info=True)
-        return document
+        logger.error(f"RAPTOR tree build failed for {file_name}: {e}")
+        # Re-raise to mark file as FAILED
+        raise
 
 
 def _batch_summaries_by_length(
@@ -1289,6 +1283,13 @@ async def _update_file_progress(
 
 async def _store_summary_in_minio(document: Document):
     """Store document summary in MinIO."""
+    # Check if summary exists (may be missing if summarization failed)
+    if "summary" not in document.metadata:
+        logger.warning(
+            f"No summary found for {document.metadata.get('filename', 'unknown')}, skipping MinIO storage"
+        )
+        return
+    
     summary = document.metadata["summary"]
     file_name = document.metadata["filename"]
     collection_name = document.metadata["collection_name"]
