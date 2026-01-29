@@ -831,6 +831,7 @@ class TestLLMIntegration:
 class TestThinkingBudgetNemotron3Nano30B:
     """Tests for thinking budget behavior with nvidia/nemotron-3-nano-30b-a3b."""
 
+    @patch.dict(os.environ, {"ENABLE_NEMOTRON_3_NANO_THINKING": "true"})
     def test_bind_thinking_tokens_for_nemotron_30b_maps_reasoning_budget(self):
         """max_thinking_tokens for nemotron-3-nano-30b-a3b maps to reasoning_budget."""
         from nvidia_rag.utils.llm import _bind_thinking_tokens_if_configured
@@ -844,7 +845,6 @@ class TestThinkingBudgetNemotron3Nano30B:
 
         mock_llm.bind.assert_called_once_with(
             reasoning_budget=8192,
-            chat_template_kwargs={"enable_thinking": True},
         )
         assert bound_llm is mock_llm.bind.return_value
 
