@@ -24,7 +24,7 @@ from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_core.embeddings import Embeddings
 from langchain_nvidia_ai_endpoints import NVIDIAEmbeddings
 
-from nvidia_rag.utils.common import sanitize_nim_url
+from nvidia_rag.utils.common import NVIDIA_API_DEFAULT_HEADERS, sanitize_nim_url
 from nvidia_rag.utils.configuration import NvidiaRAGConfig
 
 logger = logging.getLogger(__name__)
@@ -68,6 +68,7 @@ def get_embedding_model(
                     api_key=api_key,
                     truncate=truncate,
                     dimensions=config.embeddings.dimensions,
+                    default_headers=NVIDIA_API_DEFAULT_HEADERS,
                 )
             else:
                 return NVIDIAEmbeddings(
@@ -75,6 +76,7 @@ def get_embedding_model(
                     model=model,
                     api_key=api_key,
                     dimensions=config.embeddings.dimensions,
+                    default_headers=NVIDIA_API_DEFAULT_HEADERS,
                 )
 
         logger.info("Using embedding model %s hosted at api catalog", model)
@@ -84,12 +86,14 @@ def get_embedding_model(
                 api_key=api_key,
                 truncate=truncate,
                 dimensions=config.embeddings.dimensions,
+                default_headers=NVIDIA_API_DEFAULT_HEADERS,
             )
         else:
             return NVIDIAEmbeddings(
                 model=model,
                 api_key=api_key,
                 dimensions=config.embeddings.dimensions,
+                default_headers=NVIDIA_API_DEFAULT_HEADERS,
             )
 
     raise RuntimeError(

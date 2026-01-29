@@ -240,11 +240,12 @@ class TestGetLLM:
                 base_url="http://test-url:8000",
                 model="test-model",
                 api_key="test-api-key",
+                stop=[],
+                default_headers={"source": "rag-blueprint"},
                 temperature=0.7,
                 top_p=0.9,
                 max_completion_tokens=1024,
                 model_kwargs={"min_tokens": 1024, "ignore_eos": True},
-                stop=[],
             )
 
     @patch("nvidia_rag.utils.llm.sanitize_nim_url")
@@ -272,6 +273,7 @@ class TestGetLLM:
                 top_p=None,
                 max_completion_tokens=None,
                 stop=[],
+                default_headers={"source": "rag-blueprint"},
             )
 
     @patch("nvidia_rag.utils.llm.sanitize_nim_url")
@@ -319,7 +321,7 @@ class TestGetLLM:
                     model_name="test-model",
                     openai_api_base="http://guardrails-service:8080/v1/guardrail",
                     openai_api_key="dummy-value",
-                    default_headers={"X-Model-Authorization": "test-api-key"},
+                    default_headers={"source": "rag-blueprint", "X-Model-Authorization": "test-api-key"},
                     temperature=0.7,
                     top_p=None,
                     max_tokens=None,
@@ -418,6 +420,7 @@ class TestGetLLM:
                     top_p=None,
                     max_completion_tokens=None,
                     stop=[],
+                    default_headers={"source": "rag-blueprint"},
                     model_kwargs={"ignore_eos": False},
                 )
 
@@ -680,11 +683,12 @@ class TestLLMIntegration:
                     base_url="http://test:8000",
                     model="meta/llama-3.1-8b-instruct",
                     api_key="test-api-key",
+                    stop=[],
+                    default_headers={"source": "rag-blueprint"},
                     temperature=0.7,
                     top_p=0.9,
                     max_completion_tokens=2048,
                     model_kwargs={"min_tokens": 2048, "ignore_eos": True},
-                    stop=[],
                 )
 
     @patch("nvidia_rag.utils.llm.sanitize_nim_url")

@@ -47,6 +47,9 @@ from nvidia_rag.utils.metadata_validation import (
 
 logger = logging.getLogger(__name__)
 
+# Header for tracking blueprint API usage in NVIDIA API endpoints
+NVIDIA_API_DEFAULT_HEADERS = {"source": "rag-blueprint"}
+
 
 def filter_documents_by_confidence(
     documents: list["Document"], confidence_threshold: float = 0.0

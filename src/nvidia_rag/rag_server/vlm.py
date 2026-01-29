@@ -39,6 +39,7 @@ from langchain_openai import ChatOpenAI
 from PIL import Image as PILImage
 
 from nvidia_rag.rag_server.response_generator import APIError, ErrorCodeMapping
+from nvidia_rag.utils.common import NVIDIA_API_DEFAULT_HEADERS
 from nvidia_rag.utils.configuration import NvidiaRAGConfig
 from nvidia_rag.utils.llm import get_prompts
 from nvidia_rag.utils.minio_operator import (
@@ -155,6 +156,7 @@ class VLM:
             model=model,
             openai_api_key=api_key,
             openai_api_base=endpoint,
+            default_headers=NVIDIA_API_DEFAULT_HEADERS,
             **kwargs,
         )
 
