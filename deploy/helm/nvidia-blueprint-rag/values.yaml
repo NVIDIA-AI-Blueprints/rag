@@ -516,7 +516,7 @@ opentelemetry-collector:
   enabled: false
   mode: deployment
   image:
-    repository: otel/opentelemetry-collector-contrib
+    repository: docker.io/otel/opentelemetry-collector-contrib
     tag: "0.140.0"
   command:
     name: otelcol-contrib
