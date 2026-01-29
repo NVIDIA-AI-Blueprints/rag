@@ -137,11 +137,11 @@ def _bind_thinking_tokens_if_configured(
     
     1. nvidia/nvidia-nemotron-nano-9b-v2:
        - Uses min_thinking_tokens and max_thinking_tokens parameters
-       - Outputs reasoning wrapped in <think></think> tags in the content stream
+       - Reasoning content is not available for this model
     
     2. nemotron-3-nano variants (nemotron-3-nano-30b-a3b, nvidia/nemotron-3-nano):
        - Uses reasoning_budget parameter (mapped from max_thinking_tokens)
-       - Requires chat_template_kwargs={"enable_thinking": True/False}
+       - reasoning_budget is ONLY set when enable_thinking is true
        - Outputs reasoning in a separate 'reasoning_content' field (not in content)
        - Does NOT use <think> tags
        - Can be controlled via ENABLE_NEMOTRON_3_NANO_THINKING env var
@@ -192,20 +192,23 @@ def _bind_thinking_tokens_if_configured(
             )
         if max_think is not None and max_think > 0:
             bind_args["max_thinking_tokens"] = max_think
+        else:
+            raise ValueError(
+                f"max_thinking_tokens must be a positive integer, but got {max_think}"
+            )
+        logger.info(
+            "nvidia-nemotron-nano-9b-v2: Setting min_thinking_tokens=%d, max_thinking_tokens=%d",
+            min_think, max_think
+        )
     elif is_nemotron_3_nano:
-        # nemotron-3-nano variants: Use reasoning_budget and enable_thinking flag
-        # Check environment variable for enable_thinking control
-        enable_thinking_env = os.getenv("ENABLE_NEMOTRON_3_NANO_THINKING", "true").lower()
-        enable_thinking = enable_thinking_env in ("true", "1", "yes")
-        
+        enable_thinking = os.getenv("ENABLE_NEMOTRON_3_NANO_THINKING", "true").lower() == "true"
+        if not enable_thinking:
+            raise ValueError(
+                "ENABLE_NEMOTRON_3_NANO_THINKING must be set to 'true' to use reasoning budget"
+            )
+
         # For nemotron-3-nano variants, min_thinking_tokens is not supported
-        # If min_thinking_tokens is provided, max_thinking_tokens is required
         if min_think is not None and min_think > 0:
-            if max_think is None or max_think <= 0:
-                raise ValueError(
-                    "max_thinking_tokens must be a positive integer when using "
-                    "min_thinking_tokens with nemotron-3-nano variants"
-                )
             logger.warning(
                 "min_thinking_tokens is not supported for nemotron-3-nano variants, "
                 "only max_thinking_tokens (mapped to reasoning_budget) is supported"
@@ -213,10 +216,13 @@ def _bind_thinking_tokens_if_configured(
 
         if max_think is not None and max_think > 0:
             bind_args["reasoning_budget"] = max_think
-            bind_args["chat_template_kwargs"] = {"enable_thinking": enable_thinking}
             logger.info(
-                "nemotron-3-nano: Setting reasoning_budget=%d, enable_thinking=%s (from env: %s)",
-                max_think, enable_thinking, enable_thinking_env
+                "nemotron-3-nano: Setting reasoning_budget=%d",
+                max_think
+            )
+        else:
+            raise ValueError(
+                f"max_thinking_tokens must be a positive integer, but got {max_think}"
             )
 
     if bind_args:
@@ -326,6 +332,12 @@ def get_llm(config: NvidiaRAGConfig | None = None, **kwargs) -> LLM | SimpleChat
             # Only bind thinking tokens for NVIDIA endpoints
             if is_nvidia:
                 llm = _bind_thinking_tokens_if_configured(llm, **kwargs)
+                # For nemotron-3-nano models, set enable_thinking from env var
+                model = kwargs.get("model")
+                if model and ("nemotron-3-nano" in model.lower() or "nvidia/nemotron-3-nano" in model or "nemotron-3-nano-30b-a3b" in model):
+                    enable_thinking = os.getenv("ENABLE_NEMOTRON_3_NANO_THINKING", "true").lower() == "true"
+                    llm = llm.bind(chat_template_kwargs={"enable_thinking": enable_thinking})
+                    logger.info("nemotron-3-nano: Setting enable_thinking=%s (from ENABLE_NEMOTRON_3_NANO_THINKING)", enable_thinking)
             return llm
 
         logger.info("Using llm model %s from api catalog", kwargs.get("model"))
@@ -348,6 +360,12 @@ def get_llm(config: NvidiaRAGConfig | None = None, **kwargs) -> LLM | SimpleChat
             **({"model_kwargs": model_kwargs} if model_kwargs else {}),
         )
         llm = _bind_thinking_tokens_if_configured(llm, **kwargs)
+        # For nemotron-3-nano models, set enable_thinking from env var
+        model = kwargs.get("model")
+        if model and ("nemotron-3-nano" in model.lower() or "nvidia/nemotron-3-nano" in model or "nemotron-3-nano-30b-a3b" in model):
+            enable_thinking = os.getenv("ENABLE_NEMOTRON_3_NANO_THINKING", "true").lower() == "true"
+            llm = llm.bind(chat_template_kwargs={"enable_thinking": enable_thinking})
+            logger.info("nemotron-3-nano: Setting enable_thinking=%s (from ENABLE_NEMOTRON_3_NANO_THINKING)", enable_thinking)
         return llm
 
     raise RuntimeError(
@@ -744,3 +762,4 @@ def get_streaming_filter_think_parser_async():
         logger.info("Think token filtering is disabled (async)")
         # If filtering is disabled, use a passthrough that passes content as-is
         return RunnablePassthrough()
+        
