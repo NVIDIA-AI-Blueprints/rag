@@ -2004,7 +2004,11 @@ class NvidiaRAGIngestor:
                 )
 
         if shallow_results:
-            vdb_op = _get_vdb_op(self.config)
+            vdb_op = _get_vdb_op(
+                vdb_endpoint=self.config.vector_store.url,
+                collection_name=collection_name,
+                config=self.config,
+            )
             
             task = asyncio.create_task(
                 self.__ingest_document_summary(
