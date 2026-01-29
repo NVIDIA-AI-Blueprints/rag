@@ -11,6 +11,195 @@ For a notebook that walks you through these code examples, see [NVIDIA RAG Pytho
 Looking for a containerless deployment without Docker? See the [NVIDIA RAG Python Package - Lite Mode](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/rag_library_lite_usage.ipynb) notebook for a simplified setup using Milvus Lite and NVIDIA cloud APIs.
 :::
 
+## Prerequisites
+
+Before running this notebook, ensure you have:
+1. **Python 3.11+** installed on your system
+2. **[uv](https://docs.astral.sh/uv/)** - A fast Python package manager (installation instructions below)
+
+### **Development Mode Note:**
+
+- Installing with `uv pip install -e ..[all]` allows you to make live edits to the `nvidia_rag` source code and have those changes reflected without reinstalling the package.
+- After making changes to the source code, you need to:
+  - Restart the kernel of your notebook server
+  - Re-execute the cells under `Setting up the dependencies` and `Import the packages` sections
+
+## Environment Setup
+
+### Step 1: Install uv (if not already installed)
+
+Run the cell below to check if `uv` is installed and install it if needed.
+
+```
+import subprocess
+import shutil
+```
+
+# Check if uv is installed
+if shutil.which("uv"):
+    result = subprocess.run(["uv", "--version"], capture_output=True, text=True)
+    print(f"✅ uv is already installed: {result.stdout.strip()}")
+else:
+    print("⚠️ uv is not installed. Installing now...")
+    # Install uv using the official installer
+    !curl -LsSf https://astral.sh/uv/install.sh | sh
+    print("\n✅ uv installed! Please restart your terminal/kernel and re-run this notebook.")
+
+
+### Step 2: Install the NVIDIA RAG Package
+
+Choose one of the installation options below:
+- **Option A**: Install from PyPI (recommended for most users)
+- **Option B**: Install from source in development mode (for contributors)
+- **Option C**: Build and install from source wheel
+
+# Option A: Install from PyPI (recommended)
+# Uncomment the line below to install from PyPI
+# !uv pip install nvidia-rag[all]
+
+# Option B: Install from source in development mode (for contributors)
+# Note: ".." refers to the parent directory where pyproject.toml is located
+!uv pip install -e "..[all]"
+
+# Option C: Build and install from source wheel
+# Uncomment the lines below to build and install from source
+# !cd .. && uv build
+# !uv pip install ../dist/nvidia_rag-*-py3-none-any.whl[all]
+
+
+### Step 3: Verify the installation
+
+The location of the package shown in the output should be inside your Python environment.
+
+Expected location: `<workspace_path>/rag/.venv/lib/python3.12/site-packages`
+
+!uv pip show nvidia_rag | grep Location
+
+## Setting up the dependencies
+
+After the environment for the python package is setup we now launch all the dependent services and NIMs the pipeline depends on.
+Fulfill the [prerequisites here](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/docs/deploy-docker-self-hosted.md) to setup docker on your system.
+
+### 1. Setup the default configurations
+
+!uv pip install python-dotenv
+import os
+from getpass import getpass
+
+Provide your NGC_API_KEY after executing the cell below. You can obtain a key by following steps [here](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/docs/api-key.md).
+
+
+# del os.environ['NVIDIA_API_KEY']  ## delete key and reset if needed
+if os.environ.get("NGC_API_KEY", "").startswith("nvapi-"):
+    print("Valid NGC_API_KEY already in environment. Delete to reset")
+else:
+    candidate_api_key = getpass("NVAPI Key (starts with nvapi-): ")
+    assert candidate_api_key.startswith("nvapi-"), (
+        f"{candidate_api_key[:5]}... is not a valid key"
+    )
+    os.environ["NGC_API_KEY"] = candidate_api_key
+
+
+Login to nvcr.io which is needed for pulling the containers of dependencies
+
+
+!echo "${NGC_API_KEY}" | docker login nvcr.io -u '$oauthtoken' --password-stdin
+
+### 2. Setup the Milvus vector DB services
+By default milvus uses GPU Indexing. Ensure you have provided correct GPU ID.
+Note: If you don't have a GPU available, you can switch to CPU-only Milvus by following the instructions in [milvus-configuration.md](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/docs/milvus-configuration.md).
+
+os.environ["VECTORSTORE_GPU_DEVICE_ID"] = "0"
+
+!docker compose -f ../deploy/compose/vectordb.yaml up -d
+
+### 3. Setup the NIMs
+
+#### Option 1: Deploy on-prem models
+
+Move to Option 2 if you are interested in using cloud models.
+
+Ensure you meet [the hardware requirements](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/docs/support-matrix.md). By default the NIMs are configured to use 2xH100.
+
+# Create the model cache directory
+!mkdir -p ~/.cache/model-cache
+
+# Set the MODEL_DIRECTORY environment variable in the Python kernel
+import os
+
+os.environ["MODEL_DIRECTORY"] = os.path.expanduser("~/.cache/model-cache")
+print("MODEL_DIRECTORY set to:", os.environ["MODEL_DIRECTORY"])
+
+# Set deployment mode for on-prem NIMs
+DEPLOYMENT_MODE = "on_prem"
+
+# Configure GPU IDs for the various microservices if needed
+os.environ["EMBEDDING_MS_GPU_ID"] = "0"
+os.environ["RANKING_MS_GPU_ID"] = "0"
+os.environ["YOLOX_MS_GPU_ID"] = "0"
+os.environ["YOLOX_GRAPHICS_MS_GPU_ID"] = "0"
+os.environ["YOLOX_TABLE_MS_GPU_ID"] = "0"
+os.environ["OCR_MS_GPU_ID"] = "0"
+os.environ["LLM_MS_GPU_ID"] = "1"
+
+# ⚠️ Deploying NIMs - This may take a while as models download. If kernel times out, just rerun this cell.
+!USERID=$(id -u) docker compose -f ../deploy/compose/nims.yaml up -d
+
+# Watch the status of running containers (run this cell repeatedly or in a terminal)
+!docker ps
+
+Ensure all the below are running and healthy before proceeding further
+```output
+NAMES                           STATUS
+nemoretriever-ranking-ms        Up ... (healthy)
+compose-page-elements-1         Up ...
+compose-nemoretriever-ocr-1     Up ...
+compose-graphic-elements-1      Up ...
+compose-table-structure-1       Up ...
+nemoretriever-embedding-ms      Up ... (healthy)
+nim-llm-ms                      Up ... (healthy)
+```
+
+#### Option 2: Using Nvidia Hosted models
+
+# Set deployment mode for NVIDIA hosted cloud APIs
+DEPLOYMENT_MODE = "cloud"
+
+# Configure NV-Ingest to use NVIDIA hosted cloud APIs
+os.environ["OCR_HTTP_ENDPOINT"] = "https://ai.api.nvidia.com/v1/cv/nvidia/nemoretriever-ocr"
+os.environ["OCR_INFER_PROTOCOL"] = "http"
+os.environ["YOLOX_HTTP_ENDPOINT"] = (
+    "https://ai.api.nvidia.com/v1/cv/nvidia/nemoretriever-page-elements-v3"
+)
+os.environ["YOLOX_INFER_PROTOCOL"] = "http"
+os.environ["YOLOX_GRAPHIC_ELEMENTS_HTTP_ENDPOINT"] = (
+    "https://ai.api.nvidia.com/v1/cv/nvidia/nemoretriever-graphic-elements-v1"
+)
+os.environ["YOLOX_GRAPHIC_ELEMENTS_INFER_PROTOCOL"] = "http"
+os.environ["YOLOX_TABLE_STRUCTURE_HTTP_ENDPOINT"] = (
+    "https://ai.api.nvidia.com/v1/cv/nvidia/nemoretriever-table-structure-v1"
+)
+os.environ["YOLOX_TABLE_STRUCTURE_INFER_PROTOCOL"] = "http"
+
+
+### 4. Setup the Nvidia Ingest runtime and redis service
+
+!docker compose -f ../deploy/compose/docker-compose-ingestor-server.yaml up nv-ingest-ms-runtime redis -d
+
+
+---
+# API usage example
+
+After setting up the python package and starting all dependent services, finally we can execute some snippets showcasing all different functionalities offered by the `nvidia_rag` package.
+
+
+
+
+
+
+
+
+
 
 ## Set logging level
 
@@ -28,7 +217,7 @@ for name in logging.root.manager.loggerDict:
         logging.getLogger(name).setLevel(LOGLEVEL) 
 ```
 
-## Import the packages
+## Import the NvidiaRAGIngestor packages
 
 `NvidiaRAG` exposes APIs to interact with the uploaded documents 
 and `NvidiaRAGIngestor` exposes APIs for document upload and management. 
@@ -68,7 +257,7 @@ ingestor = NvidiaRAGIngestor(config=config)
 For cloud deployments using NVIDIA hosted APIs, set `server_url` to empty string `""` for LLM and ranking services, and use `https://integrate.api.nvidia.com/v1` for embeddings. For on-prem deployments, use your local NIM endpoints (e.g., `http://localhost:8999` for LLM).
 :::
 
-## Create a new collection
+## 1. Create a new collection
 
 Creates a new collection in the vector database. 
 
@@ -81,7 +270,7 @@ print(response)
 ```
 
 
-## List all collections
+## 2. List all collections
 
 Retrieves all available collections from the vector database. 
 
@@ -91,7 +280,7 @@ print(response)
 ```
 
 
-## Add a document
+## 3. Add a document
 
 Uploads new documents to the specified collection in the vector database. 
 In case you have a requirement of updating existing documents in the specified collection, 
@@ -106,24 +295,23 @@ response = await ingestor.upload_documents(
     filepaths=["../data/multimodal/woods_frost.docx", "../data/multimodal/multimodal_test.pdf"],
     generate_summary=False
 )
+task_id = response.get("task_id")
 print(response)  
 ```
 
 
-## Check document upload status
+## 4. Check document upload status
 
 Checks the status of a document upload or update task. 
 Before you use this code, replace `task_id` with your actual task ID. 
 
 ```python
-response = await ingestor.status(
-    task_id="*********************************"
-)
+response = await ingestor.status(task_id="task_id")
 print(response)  
 ```
 
 
-## Update a document in a collection
+## [Optional] Update a document in a collection
 
 In you need to update an existing document in the specified collection, use the following code.
 
@@ -139,7 +327,7 @@ print(response)
 ```
 
 
-## Get documents in a collection
+## 5. Get documents in a collection
 
 Retrieves the list of documents uploaded to a collection. 
 
@@ -151,6 +339,9 @@ response = ingestor.get_documents(
 print(response)  
 ```
 
+
+## Import the NvidiaRAG packages
+You can import `NvidiaRAG()` which exposes APIs to interact with the uploaded documents.
 
 ## Query a document using RAG
 
