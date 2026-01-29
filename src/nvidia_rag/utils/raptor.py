@@ -28,7 +28,13 @@ import numpy as np
 
 from nvidia_rag.utils.embedding import get_embedding_model
 from nvidia_rag.utils.llm import get_llm, get_prompts
-from nvidia_rag.utils.summarization import _get_tokenizer, _token_length
+from nvidia_rag.utils.summarization import (
+    _get_tokenizer,
+    _split_text_into_chunks,
+    _token_length,
+    acquire_global_summary_slot,
+    release_global_summary_slot,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -414,64 +420,149 @@ class RAPTORTreeBuilder:
     async def _generate_cluster_summaries(
         self, clusters: List[List[RAPTORNode]], document_id: str, level: int
     ) -> List[RAPTORNode]:
-        """Generate summaries for clusters using proper tokenization"""
+        """Generate summaries for clusters with 2-pass approach for large texts.
+        
+        Uses global rate limiting (same as document summarization) via Redis.
+        """
 
-        summary_nodes = []
-
-        # Get tokenizer for proper token-based truncation (same as other strategies)
-        tokenizer = _get_tokenizer(self.rag_config)
-
-        for cluster_idx, cluster in enumerate(clusters):
-            # Combine texts
-            texts = [node.content for node in cluster]
-            combined_text = "\n\n".join(texts)
-
-            # Truncate if too long using TOKENIZER (not character count)
-            # Use same max_chunk_length as other strategies
-            max_tokens = self.rag_config.summarizer.max_chunk_length * len(cluster)
-            current_tokens = _token_length(combined_text, self.rag_config)
-
-            if current_tokens > max_tokens:
-                # Tokenize and truncate properly
-                tokens = tokenizer.encode(combined_text, add_special_tokens=False)
-                truncated_tokens = tokens[:max_tokens]
-                combined_text = tokenizer.decode(truncated_tokens) + "..."
-                logger.debug(
-                    f"Truncated cluster {cluster_idx} from {current_tokens} to {max_tokens} tokens"
-                )
-
-            # Generate summary
-            summary = await self._generate_summary(combined_text, level)
-
-            # Track children
-            if level == 1:
-                chunk_ids = [node.node_id for node in cluster]
-                summary_ids = []
-            else:
-                summary_ids = [node.node_id for node in cluster]
-                chunk_ids = []
-                for node in cluster:
-                    chunk_ids.extend(node.chunk_ids)
-
-            # Create summary node
-            node_id = f"{document_id}_L{level}_C{cluster_idx}"
-            summary_node = RAPTORNode(
-                content=summary,
-                level=level,
-                document_id=document_id,
-                node_id=node_id,
-                chunk_ids=chunk_ids,
-                summary_ids=summary_ids,
-                cluster_id=node_id,
-                metadata={
-                    "cluster_size": len(cluster),
-                    "num_chunks_covered": len(chunk_ids),
-                },
-            )
-
-            summary_nodes.append(summary_node)
-
+        # Process all clusters in parallel (controlled by global rate limiting)
+        tasks = [
+            self._generate_single_cluster_summary(cluster, cluster_idx, document_id, level)
+            for cluster_idx, cluster in enumerate(clusters)
+        ]
+        
+        summary_nodes = await asyncio.gather(*tasks)
         return summary_nodes
+
+    async def _generate_single_cluster_summary(
+        self,
+        cluster: List[RAPTORNode],
+        cluster_idx: int,
+        document_id: str,
+        level: int
+    ) -> RAPTORNode:
+        """Generate summary for a single cluster with 2-pass approach if needed."""
+        
+        # Get tokenizer for proper token-based operations
+        tokenizer = _get_tokenizer(self.rag_config)
+        
+        # Combine texts from cluster
+        texts = [node.content for node in cluster]
+        combined_text = "\n\n".join(texts)
+        
+        # Calculate safe token limit (reserve for prompt overhead and completion)
+        # Prompt overhead: ~200 tokens, Completion: max_chunk_length tokens
+        PROMPT_OVERHEAD = 200
+        max_safe_input_tokens = (
+            self.rag_config.summarizer.max_chunk_length - PROMPT_OVERHEAD
+        )
+        
+        current_tokens = _token_length(combined_text, self.rag_config)
+        
+        # If combined text fits in context, use direct summarization
+        if current_tokens <= max_safe_input_tokens:
+            summary = await self._generate_summary_with_global_limit(combined_text, level)
+        else:
+            # 2-Pass approach: Split -> Summarize chunks -> Merge summaries
+            logger.info(
+                f"Cluster {cluster_idx} too large ({current_tokens} tokens), "
+                f"using 2-pass summarization"
+            )
+            
+            # Step 1: Split combined text into chunks
+            text_chunks = _split_text_into_chunks(
+                combined_text,
+                tokenizer,
+                max_safe_input_tokens,
+                self.rag_config.summarizer.chunk_overlap
+            )
+            
+            logger.debug(
+                f"Split cluster {cluster_idx} into {len(text_chunks)} chunks for parallel summarization"
+            )
+            
+            # Step 2: Summarize each chunk in parallel (controlled by global rate limit)
+            chunk_summary_tasks = [
+                self._generate_summary_with_global_limit(chunk, level)
+                for chunk in text_chunks
+            ]
+            chunk_summaries = await asyncio.gather(*chunk_summary_tasks)
+            
+            # Step 3: Merge chunk summaries
+            merged_text = "\n\n".join(chunk_summaries)
+            merged_tokens = _token_length(merged_text, self.rag_config)
+            
+            # If merged summaries still too large (rare), split again recursively
+            if merged_tokens > max_safe_input_tokens:
+                logger.warning(
+                    f"Merged summaries for cluster {cluster_idx} still large ({merged_tokens} tokens), "
+                    f"applying recursive summarization"
+                )
+                # Recursively split and merge until it fits
+                final_chunks = _split_text_into_chunks(
+                    merged_text,
+                    tokenizer,
+                    max_safe_input_tokens,
+                    self.rag_config.summarizer.chunk_overlap
+                )
+                recursive_summaries = await asyncio.gather(
+                    *[self._generate_summary_with_global_limit(chunk, level) for chunk in final_chunks]
+                )
+                summary = await self._generate_summary_with_global_limit(
+                    "\n\n".join(recursive_summaries), level
+                )
+            else:
+                # Final summary from merged chunk summaries
+                summary = await self._generate_summary_with_global_limit(merged_text, level)
+        
+        # Track children
+        if level == 1:
+            chunk_ids = [node.node_id for node in cluster]
+            summary_ids = []
+        else:
+            summary_ids = [node.node_id for node in cluster]
+            chunk_ids = []
+            for node in cluster:
+                chunk_ids.extend(node.chunk_ids)
+        
+        # Create summary node
+        node_id = f"{document_id}_L{level}_C{cluster_idx}"
+        summary_node = RAPTORNode(
+            content=summary,
+            level=level,
+            document_id=document_id,
+            node_id=node_id,
+            chunk_ids=chunk_ids,
+            summary_ids=summary_ids,
+            cluster_id=node_id,
+            metadata={
+                "cluster_size": len(cluster),
+                "num_chunks_covered": len(chunk_ids),
+            },
+        )
+        
+        return summary_node
+    
+    async def _generate_summary_with_global_limit(self, text: str, level: int) -> str:
+        """Generate summary with global rate limiting (same as document summarization).
+        
+        Uses the same Redis-based global rate limiting as other summarization strategies,
+        respecting config.summarizer.max_parallelization across the entire system.
+        """
+        slot_acquired = False
+        try:
+            # Acquire global slot (same pattern as _process_single_file_summary)
+            while not await acquire_global_summary_slot(self.rag_config):
+                await asyncio.sleep(0.5)
+            
+            slot_acquired = True
+            
+            # Generate summary
+            return await self._generate_summary(text, level)
+            
+        finally:
+            if slot_acquired:
+                await release_global_summary_slot()
 
     async def _generate_summary(self, text: str, level: int) -> str:
         """Generate summary using LLM with max_tokens enforced via parameter"""
