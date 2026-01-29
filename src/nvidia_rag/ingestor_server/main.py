@@ -619,7 +619,9 @@ class NvidiaRAGIngestor:
             if len(failed_validation_documents):
                 logger.error(f"Validation errors: {failed_validation_documents}")
 
-            logger.info("Number of filepaths for ingestion after validation: %s", len(filepaths))
+            logger.info(
+                "Number of filepaths for ingestion after validation: %s", len(filepaths)
+            )
             logger.debug("Filepaths for ingestion after validation: %s", filepaths)
 
             # Peform ingestion using nvingest for all files that have not failed
@@ -810,16 +812,21 @@ class NvidiaRAGIngestor:
         page_filter: list[list[int]] | str | None = None,
         summarization_strategy: str | None = None,
         is_shallow: bool = False,
+        vdb_op: VDBRag | None = None,
     ) -> None:
         """
         Trigger parallel summary generation for documents with optional page filtering.
+
+        For RAPTOR strategy, this builds hierarchical trees.
+        For other strategies, this creates document-level summaries.
 
         Args:
             results: List of document extraction results from nv-ingest
             collection_name: Name of the collection
             page_filter: Optional page filter - either list of ranges [[start,end],...] or string ('even'/'odd')
-            summarization_strategy: Strategy for summarization ('single', 'hierarchical') or None for default
+            summarization_strategy: Strategy for summarization ('single', 'iterative', 'hierarchical', 'raptor') or None for default
             is_shallow: Whether this is shallow extraction (text-only, uses simplified prompt)
+            vdb_op: VDB operator for RAPTOR tree building (optional, only needed for RAPTOR)
         """
         try:
             stats = await generate_document_summaries(
@@ -830,6 +837,7 @@ class NvidiaRAGIngestor:
                 config=self.config,
                 is_shallow=is_shallow,
                 prompts=self.prompts,
+                vdb_op=vdb_op,  # Pass VDB operator for RAPTOR
             )
 
             if stats["failed"] > 0:
@@ -2402,12 +2410,14 @@ class NvidiaRAGIngestor:
                     collection_name=collection_name,
                     page_filter=page_filter,
                     summarization_strategy=summarization_strategy,
+                    vdb_op=vdb_op,  # Pass VDB operator for RAPTOR tree building
                 )
             )
             self._background_tasks.add(task)
             task.add_done_callback(self._background_tasks.discard)
             logger.info(
-                "Started summary generation after full ingestion for batch %d",
+                "Started summary generation (strategy: %s) for batch %d",
+                summarization_strategy or "iterative",
                 batch_number,
             )
 
@@ -2805,7 +2815,7 @@ class NvidiaRAGIngestor:
     ) -> dict[str, int]:
         """
         Get document type counts from the results.
-        
+
         Note: Document types are normalized to standard keys (table, chart, image, text)
         to ensure consistency with frontend expectations and derive_boolean_flags().
         """
@@ -2813,7 +2823,7 @@ class NvidiaRAGIngestor:
         type_normalization = {
             "structured": "table",  # Structured data defaults to table
         }
-        
+
         doc_type_counts = defaultdict(int)
         total_documents = 0
         total_elements = 0
@@ -2834,10 +2844,10 @@ class NvidiaRAGIngestor:
                     doc_type_key = document_subtype
                 else:
                     doc_type_key = document_type
-                
+
                 # Normalize the key to standard names (table, chart, image, text)
                 doc_type_key = type_normalization.get(doc_type_key, doc_type_key)
-                
+
                 doc_type_counts[doc_type_key] += 1
                 if document_type == "text":
                     content = result_element.get("metadata", {}).get("content", "")
