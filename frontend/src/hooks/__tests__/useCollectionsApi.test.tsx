@@ -42,7 +42,7 @@ function createWrapper() {
 }
 
 describe('useCollectionsApi', () => {
-  let fetchSpy: any;
+  let fetchSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
     fetchSpy = vi.spyOn(global, 'fetch');
