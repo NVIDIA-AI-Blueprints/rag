@@ -477,8 +477,9 @@ class RAPTORTreeBuilder:
                 self.rag_config.summarizer.chunk_overlap
             )
             
-            logger.debug(
-                f"Split cluster {cluster_idx} into {len(text_chunks)} chunks for parallel summarization"
+            logger.info(
+                f"Split cluster {cluster_idx} into {len(text_chunks)} chunks "
+                f"(each ~{max_safe_input_tokens} tokens max) for parallel summarization"
             )
             
             # Step 2: Summarize each chunk in parallel (controlled by global rate limit)
@@ -567,6 +568,20 @@ class RAPTORTreeBuilder:
     async def _generate_summary(self, text: str, level: int) -> str:
         """Generate summary using LLM with max_tokens enforced via parameter"""
 
+        # Validate input
+        if not text or not text.strip():
+            raise ValueError("Cannot generate summary for empty text")
+        
+        # Check token count before sending to LLM
+        current_tokens = _token_length(text, self.rag_config)
+        max_context = self.rag_config.summarizer.max_chunk_length
+        
+        if current_tokens > max_context:
+            logger.warning(
+                f"Input text has {current_tokens} tokens, exceeds max context {max_context}. "
+                f"This should have been split earlier!"
+            )
+
         # Note: max_tokens is enforced via LLM parameter (set in initialize())
         # No need to ask politely in the prompt!
 
@@ -592,15 +607,21 @@ Higher-level summary:""".format(text=text)
             summary = (
                 response.content if hasattr(response, "content") else str(response)
             )
+            
+            if not summary or not summary.strip():
+                raise ValueError("LLM returned empty summary")
+            
             return summary.strip()
         except Exception as e:
-            logger.error(f"Error generating summary: {e}")
-            # Fallback: truncate using tokenizer (same as other strategies)
-            tokenizer = _get_tokenizer(self.rag_config)
-            max_tokens = self.rag_config.summarizer.max_chunk_length
-            tokens = tokenizer.encode(text, add_special_tokens=False)
-            truncated_tokens = tokens[:max_tokens]
-            return tokenizer.decode(truncated_tokens)
+            # Log detailed error and re-raise to propagate to caller
+            # This ensures proper error handling and status updates
+            logger.error(
+                f"Error generating summary at level {level}: {type(e).__name__}: {e}",
+                exc_info=True
+            )
+            # Re-raise the exception so it propagates to _process_single_file_summary
+            # which will properly update the status to FAILED
+            raise
 
     async def _embed_summaries(
         self, summary_nodes: List[RAPTORNode]
