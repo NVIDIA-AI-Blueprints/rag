@@ -447,7 +447,7 @@ def generate_answer(
             for chunk in generator:
                 # Accumulate chunks for final logging
                 accumulated_response += chunk
-                
+
                 # TODO: This is a hack to clear contexts if we get an error
                 # response from nemoguardrails
                 if chunk == "I'm sorry, I can't respond to that.":
@@ -493,9 +493,11 @@ def generate_answer(
             logger.info("=" * 80)
             logger.info("Final LLM Response:")
             logger.info("  - Length: %d characters", len(accumulated_response))
-            logger.info("  - Content Preview (first 500 chars): %s%s", 
-                       accumulated_response[:500],
-                       "..." if len(accumulated_response) > 500 else "")
+            logger.info(
+                "  - Content Preview (first 500 chars): %s%s",
+                accumulated_response[:500],
+                "..." if len(accumulated_response) > 500 else "",
+            )
             if len(accumulated_response) > 500:
                 logger.info("  - Full response logged at DEBUG level")
                 logger.debug("Full LLM Response:\n%s", accumulated_response)
@@ -613,7 +615,7 @@ async def generate_answer_async(
             async for chunk in generator:
                 # Accumulate chunks for final logging
                 accumulated_response += chunk
-                
+
                 # TODO: This is a hack to clear contexts if we get an error
                 # response from nemoguardrails
                 if chunk == "I'm sorry, I can't respond to that.":
@@ -659,9 +661,11 @@ async def generate_answer_async(
             logger.info("=" * 80)
             logger.info("Final LLM Response:")
             logger.info("  - Length: %d characters", len(accumulated_response))
-            logger.info("  - Content Preview (first 500 chars): %s%s", 
-                       accumulated_response[:500],
-                       "..." if len(accumulated_response) > 500 else "")
+            logger.info(
+                "  - Content Preview (first 500 chars): %s%s",
+                accumulated_response[:500],
+                "..." if len(accumulated_response) > 500 else "",
+            )
             if len(accumulated_response) > 500:
                 logger.info("  - Full response logged at DEBUG level")
                 logger.debug("Full LLM Response:\n%s", accumulated_response)
@@ -796,6 +800,26 @@ def prepare_citations(
                 source_metadata = SourceMetadata(
                     page_number=page_number,
                     description=doc.page_content,
+                    content_metadata=content_metadata,
+                )
+
+            elif doc.metadata.get("content_metadata", {}).get("type") == "summary":
+                # RAPTOR summary node
+                content = doc.page_content
+                document_type = "text"  # Display as text in citations
+                content_metadata = doc.metadata.get("content_metadata", {})
+
+                # Summary-specific metadata
+                level = content_metadata.get("level", 0)
+                num_chunks = content_metadata.get("num_children", 0)
+
+                # Format description to indicate it's a synthesized summary
+                summary_label = (
+                    f"Synthesized Summary (Level {level}, covers {num_chunks} chunks)"
+                )
+                source_metadata = SourceMetadata(
+                    page_number=-1,  # -1 indicates no specific page (spans multiple)
+                    description=f"[{summary_label}]\n\n{doc.page_content}",
                     content_metadata=content_metadata,
                 )
 

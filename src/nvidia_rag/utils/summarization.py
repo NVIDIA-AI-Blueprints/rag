@@ -376,18 +376,26 @@ async def generate_document_summaries(
     config: NvidiaRAGConfig | None = None,
     is_shallow: bool = False,
     prompts: dict | None = None,
+    vdb_op: Any = None,
 ) -> dict[str, Any]:
     """
     Generate summaries for multiple documents in parallel with global rate limiting.
+
+    Supports two types of summarization:
+    1. Document-level: Creates one summary per document (stored in MinIO)
+       - Strategies: single, iterative, hierarchical
+    2. Hierarchical trees: Creates multi-level summaries (stored in VDB)
+       - Strategy: raptor
 
     Args:
         results: NV-Ingest extraction results (nested list structure)
         collection_name: Collection name for status tracking
         page_filter: Optional page filter - either list of ranges [[start,end],...] or string ('even'/'odd')
-        summarization_strategy: Strategy for summarization ('single', 'hierarchical') or None for default iterative
+        summarization_strategy: Strategy for summarization ('single', 'iterative', 'hierarchical', 'raptor') or None for default iterative
         config: NvidiaRAGConfig instance. If None, creates a new one from environment.
         is_shallow: Whether this is shallow extraction (text-only, uses simplified prompt)
         prompts: Optional prompts dictionary.
+        vdb_op: VDB operator for RAPTOR tree building (required if strategy='raptor')
 
     Returns:
         dict: Statistics with total_files, successful, failed, duration_seconds, files
@@ -397,7 +405,11 @@ async def generate_document_summaries(
 
     start_time = time.time()
 
-    logger.info(f"Starting summary generation for collection: {collection_name}")
+    logger.info(
+        f"Starting summary generation for collection: {collection_name}, strategy: {summarization_strategy or 'iterative'}"
+    )
+
+    # All strategies (single, iterative, hierarchical, raptor) process per-document
 
     if not SUMMARY_STATUS_HANDLER.is_available():
         logger.warning("Redis unavailable - summary status tracking disabled")
@@ -452,6 +464,7 @@ async def generate_document_summaries(
             summarization_strategy=summarization_strategy,
             is_shallow=is_shallow,
             prompts=prompts,
+            vdb_op=vdb_op,  # Pass VDB operator for RAPTOR
         )
         for file_data in file_results
     ]
@@ -497,6 +510,7 @@ async def _process_single_file_summary(
     summarization_strategy: str | None = None,
     is_shallow: bool = False,
     prompts: dict | None = None,
+    vdb_op: Any = None,
 ) -> dict[str, Any]:
     """
     Process summary for a single file with global rate limiting.
@@ -508,9 +522,10 @@ async def _process_single_file_summary(
         semaphore: Semaphore for concurrency control
         config: NvidiaRAGConfig instance
         page_filter: Global page filter for all files
-        summarization_strategy: Strategy for summarization ('single', 'hierarchical') or None for default iterative
+        summarization_strategy: Strategy for summarization ('single', 'iterative', 'hierarchical', 'raptor') or None for default iterative
         is_shallow: Whether this is shallow extraction (text-only, uses simplified prompt)
-        prompts: Optional prompts dictionary.
+        prompts: Optional prompts dictionary
+        vdb_op: VDB operator (required for RAPTOR strategy)
 
     Returns:
         dict: Result with status, duration, and optional error
@@ -558,6 +573,9 @@ async def _process_single_file_summary(
                 config=config,
                 is_shallow=is_shallow,
                 prompts=prompts,
+                results=results,
+                collection_name=collection_name,
+                vdb_op=vdb_op,
             )
 
             await _store_summary_in_minio(summary_doc)
@@ -686,6 +704,7 @@ async def _prepare_single_document(
         page_content=full_content,
         metadata={
             "filename": file_name,
+            "source_id": source_id,  # Full path for RAPTOR chunk matching
             "collection_name": collection_name,
         },
     )
@@ -737,8 +756,24 @@ async def _generate_single_document_summary(
     summarization_strategy: str | None = None,
     is_shallow: bool = False,
     prompts: dict | None = None,
+    results: list[list[dict[str, str | dict]]] | None = None,
+    collection_name: str | None = None,
+    vdb_op: Any = None,
 ) -> Document:
-    """Generate summary for a single document using configured strategy."""
+    """
+    Generate summary for a single document using configured strategy.
+
+    Args:
+        document: Document to summarize
+        config: Configuration
+        progress_callback: Optional progress callback
+        summarization_strategy: Strategy to use
+        is_shallow: Whether using shallow extraction
+        prompts: Optional custom prompts
+        results: Full NV-Ingest results (needed for RAPTOR)
+        collection_name: Collection name (needed for RAPTOR)
+        vdb_op: VDB operator (needed for RAPTOR)
+    """
     file_name = document.metadata.get("filename", "unknown")
 
     if summarization_strategy is None:
@@ -758,10 +793,20 @@ async def _generate_single_document_summary(
         return await _summarize_hierarchical(
             document, config, progress_callback, is_shallow, prompts=prompts
         )
+    elif summarization_strategy == "raptor":
+        # RAPTOR: Build hierarchical tree for this document
+        return await _summarize_raptor(
+            document=document,
+            config=config,
+            results=results,
+            collection_name=collection_name,
+            vdb_op=vdb_op,
+            progress_callback=progress_callback,
+        )
     else:
         raise ValueError(
             f"Unknown summarization_strategy: {summarization_strategy}. "
-            f"Supported: 'single', 'hierarchical', or None for default 'iterative'"
+            f"Supported: 'single', 'iterative', 'hierarchical', 'raptor', or None for default 'iterative'"
         )
 
 
@@ -956,6 +1001,173 @@ async def _summarize_hierarchical(
     logger.debug(f"Summary generated for {file_name}: {final_summary[:100]}...")
 
     return document
+
+
+async def _summarize_raptor(
+    document: Document,
+    config: NvidiaRAGConfig,
+    results: list[list[dict[str, str | dict]]],
+    collection_name: str,
+    vdb_op: Any,
+    progress_callback: Callable | None = None,
+) -> Document:
+    """
+    Build RAPTOR hierarchical tree for a single document.
+
+    RAPTOR creates multi-level summaries by clustering and summarizing chunks,
+    then storing them in VDB for tree-aware retrieval.
+
+    The top-level summary (highest level in the tree) is also extracted and
+    stored in document metadata for consistency with other summarization strategies.
+    This allows the summary to be stored in MinIO alongside other strategies.
+
+    Args:
+        document: Document metadata (filename, etc.)
+        config: Configuration
+        results: Full NV-Ingest results (to find this document's chunks)
+        collection_name: Collection name
+        vdb_op: VDB operator for uploading summaries
+        progress_callback: Optional progress callback
+
+    Returns:
+        Document with "summary" metadata set to the top-level RAPTOR summary
+    """
+    file_name = document.metadata.get("filename", "unknown")
+
+    if not vdb_op:
+        logger.error(
+            f"RAPTOR strategy for {file_name} requires vdb_op but it was not provided"
+        )
+        return document
+
+    if not results:
+        logger.error(
+            f"RAPTOR strategy for {file_name} requires results but they were not provided"
+        )
+        return document
+
+    logger.info(f"Building RAPTOR tree for {file_name}")
+
+    try:
+        from nvidia_rag.utils.raptor import RAPTORConfig, RAPTORTreeBuilder
+
+        # Create RAPTOR config
+        raptor_config = RAPTORConfig.from_config(config)
+
+        # Create tree builder
+        builder = RAPTORTreeBuilder(rag_config=config, raptor_config=raptor_config)
+
+        # Initialize models
+        await builder.initialize()
+
+        # Group chunks by document ID
+        documents_by_id = builder._group_chunks_by_document(results)
+
+        # Find this document's chunks using source_id (full path)
+        source_id = document.metadata.get("source_id")
+        if not source_id:
+            logger.error(f"Document {file_name} missing source_id in metadata")
+            return document
+
+        doc_chunks = documents_by_id.get(source_id, [])
+
+        if not doc_chunks:
+            logger.warning(f"No chunks found for {file_name} in RAPTOR processing")
+            return document
+
+        if len(doc_chunks) < raptor_config.min_cluster_size:
+            logger.info(
+                f"Document {file_name} has only {len(doc_chunks)} chunks, skipping RAPTOR (min: {raptor_config.min_cluster_size})"
+            )
+            return document
+
+        logger.info(f"Building RAPTOR tree for {file_name} ({len(doc_chunks)} chunks)")
+
+        # Build tree for this document
+        summary_nodes = await builder._build_tree_for_document(source_id, doc_chunks)
+
+        if summary_nodes:
+            # Embed summaries
+            summary_nodes = await builder._embed_summaries(summary_nodes)
+
+            # Extract top-level summary (highest level node)
+            # RAPTOR returns nodes sorted by level, so extract the highest level
+            top_level_nodes = [
+                node
+                for node in summary_nodes
+                if node.level == max(n.level for n in summary_nodes)
+            ]
+
+            if top_level_nodes:
+                # Create final document summary from top-level nodes
+                if len(top_level_nodes) == 1:
+                    # Single top-level summary - use it directly
+                    document.metadata["summary"] = top_level_nodes[0].content
+                else:
+                    # Multiple top-level summaries - use LLM to combine them
+                    # (same approach as hierarchical strategy)
+                    logger.info(
+                        f"Combining {len(top_level_nodes)} top-level summaries with LLM for {file_name}"
+                    )
+
+                    # Get LLM chain for combining summaries
+                    llm = _get_summary_llm(config)
+                    prompts = get_prompts()
+                    _, iterative_chain = _create_llm_chains(
+                        llm, prompts, is_shallow=False
+                    )
+
+                    # Combine summaries using LLM
+                    combined_texts = [node.content for node in top_level_nodes]
+                    combined_summary = await _combine_summaries_batch(
+                        summaries=combined_texts,
+                        iterative_chain=iterative_chain,
+                        file_name=file_name,
+                        level=max(n.level for n in top_level_nodes) + 1,
+                        batch_idx=0,
+                    )
+                    document.metadata["summary"] = combined_summary
+
+                logger.debug(
+                    f"Extracted top-level summary for {file_name}: {document.metadata['summary'][:100]}..."
+                )
+
+            # Format as VDB records
+            vdb_records = builder._format_as_vdb_records(summary_nodes, collection_name)
+
+            # Upload to VDB
+            if vdb_records:
+                logger.info(
+                    f"Uploading {len(vdb_records)} RAPTOR summaries for {file_name} to VDB"
+                )
+                # Insert directly using MilvusClient to avoid connection conflicts
+                # RAPTOR summaries are already in the correct format (text, vector, source, content_metadata)
+                from pymilvus import MilvusClient
+
+                client = MilvusClient(
+                    uri=vdb_op.vdb_endpoint,
+                    token=vdb_op._get_milvus_token(),
+                )
+
+                # Insert records directly
+                client.insert(collection_name=collection_name, data=vdb_records)
+                logger.info(
+                    f"Successfully uploaded {len(vdb_records)} RAPTOR summaries for {file_name}"
+                )
+
+                # Update stats
+                builder.stats["documents_processed"] += 1
+                builder.stats["summaries_created"] += len(summary_nodes)
+
+                logger.info(
+                    f"Completed RAPTOR tree for {file_name}: {len(summary_nodes)} summaries created"
+                )
+
+        return document
+
+    except Exception as e:
+        logger.error(f"Error building RAPTOR tree for {file_name}: {e}", exc_info=True)
+        return document
 
 
 def _batch_summaries_by_length(

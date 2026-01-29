@@ -217,6 +217,7 @@ class SummaryOptions(BaseModel):
             "Summarization strategy for combining document chunks. "
             "'single': Summarize entire document in one pass (truncates if exceeds max_chunk_length). "
             "'hierarchical': Parallel tree-based summarization (fastest for large documents). "
+            "'raptor': Build hierarchical RAPTOR tree with multi-level summaries for tree-aware retrieval. "
             "If not specified, uses default sequential iterative processing."
         ),
     )
@@ -285,7 +286,7 @@ class SummaryOptions(BaseModel):
 
         # Validate summarization_strategy
         if self.summarization_strategy is not None:
-            allowed_strategies = ["single", "hierarchical"]
+            allowed_strategies = ["single", "hierarchical", "raptor"]
             if self.summarization_strategy not in allowed_strategies:
                 raise ValueError(
                     f"Invalid summarization_strategy: '{self.summarization_strategy}'. "
