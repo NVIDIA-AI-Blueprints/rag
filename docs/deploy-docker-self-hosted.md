@@ -123,7 +123,8 @@ Use the following procedure to start all containers needed for this blueprint.
    - Subsequent deployments are much faster (2-5 minutes) because models are already cached
    
    **Monitoring Download Progress:**
-   To monitor the download and initialization progress, check the container logs:
+   To monitor the download and initialization progress, check the container logs by running the following code:
+   
    ```bash
    # Watch NIM LLM logs
    docker logs -f nim-llm-ms
