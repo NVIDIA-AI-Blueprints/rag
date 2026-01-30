@@ -1082,36 +1082,6 @@ async def _summarize_raptor(
             logger.warning(f"No chunks found for {file_name} in RAPTOR processing")
             return document
 
-        if len(doc_chunks) < raptor_config.min_cluster_size:
-            logger.info(
-                f"RAPTOR: Document {file_name} has only {len(doc_chunks)} chunks - creating simple summary instead of tree"
-            )
-            
-            # For small documents, create a simple combined summary instead of skipping
-            # Combine all chunk texts
-            combined_text = "\n\n".join([
-                chunk.get("metadata", {}).get("content", "")
-                for chunk in doc_chunks
-                if chunk.get("metadata", {}).get("content")
-            ])
-            
-            if combined_text.strip():
-                # Use LLM to create a summary from the combined text
-                # Respect is_shallow parameter for prompt selection
-                llm = _get_summary_llm(config)
-                prompts_config = prompts or get_prompts()
-                initial_chain, _ = _create_llm_chains(llm, prompts_config, is_shallow)
-                
-                summary = await initial_chain.ainvoke(
-                    {"document_text": combined_text},
-                    config={"run_name": f"raptor-simple-summary-{file_name}"},
-                )
-                
-                document.metadata["summary"] = summary
-                logger.debug(f"Created simple summary for {file_name}")
-            
-            return document
-
         logger.info(f"Building RAPTOR tree for {file_name} ({len(doc_chunks)} chunks)")
 
         # Build tree for this document
