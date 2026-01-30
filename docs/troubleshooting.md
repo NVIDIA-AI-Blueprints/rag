@@ -39,9 +39,10 @@ Understanding typical deployment times can help you determine if your deployment
 
 ### Docker Deployments (NVIDIA-Hosted Models)
 
-**First-time deployment:**
-- **Total time:** 5-10 minutes
-- Much faster as no model downloads are required
+The expected timeline for a first-time deployment is the following:
+
+- 5-10 minutes
+- Much faster because no model downloads are required
 
 ### Kubernetes/Helm Deployments
 
