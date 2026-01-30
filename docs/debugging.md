@@ -45,7 +45,8 @@ The expected timeline for Docker (Self-Hosted) deployment is the following:
 
 ### Kubernetes/Helm Deployments
 
-**Monitor deployment progress:**
+Monitor deployment progress by running the following code:
+
 ```bash
 # Watch pod status
 kubectl get pods -n rag -w
