@@ -26,7 +26,7 @@ Ensure you have at least 200GB of available disk space per node where NIMs will 
 - Persistent volumes for vector database and application data
 - Logs and temporary files
 
-Plan for additional space if enabling persistence for multiple services.
+Plan for additional space if you are enabling persistence for multiple services.
 :::
 
 1. [Get an API Key](api-key.md).
