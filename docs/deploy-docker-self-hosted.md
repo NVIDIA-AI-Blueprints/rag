@@ -114,7 +114,27 @@ Use the following procedure to start all containers needed for this blueprint.
    USERID=$(id -u) docker compose -f deploy/compose/nims.yaml up -d
    ```
 
-   The NIM LLM service can take 30 mins to start for the first time as the model is downloaded and cached. Subsequent deployments can take 2-5 minutes, depending on the GPU profile.
+   :::{important}
+   **First-Time Deployment Timing:**
+   - **Initial deployment takes 10-15 minutes** for the NIM LLM service as models are downloaded and cached
+   - Model downloads do not show a progress bar in the terminal
+   - Total deployment time can extend to 30+ minutes depending on your network speed and GPU profile
+   - Subsequent deployments are much faster (2-5 minutes) as models are already cached
+   
+   **Monitoring Download Progress:**
+   To monitor the download and initialization progress, check the container logs:
+   ```bash
+   # Watch NIM LLM logs
+   docker logs -f nim-llm-ms
+   
+   # Watch embedding service logs
+   docker logs -f nemoretriever-embedding-ms
+   
+   # Watch ranking service logs
+   docker logs -f nemoretriever-ranking-ms
+   ```
+   Look for messages indicating model download progress, cache creation, and service initialization.
+   :::
 
    :::{tip}
    The models are downloaded and cached in the path specified by `MODEL_DIRECTORY`.

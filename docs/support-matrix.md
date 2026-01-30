@@ -11,6 +11,18 @@ You can deploy the RAG Blueprint with Docker, Helm, or NIM Operator, and target 
 Some requirements are different depending on your target system and deployment method. 
 :::
 
+## Disk Space Requirements
+
+:::{important}
+**Minimum Disk Space:** Ensure you have at least **200GB of available disk space** before deploying the RAG Blueprint. This space is required for:
+- NIM model downloads and caching (largest component, ~100-150GB)
+- Container images (~20-30GB)
+- Vector database data and indices
+- Application logs and temporary files
+
+Insufficient disk space will cause deployment failures during model downloads or runtime operations.
+:::
+
 ## Operating System
 
 For the RAG Blueprint you need the following operating system:

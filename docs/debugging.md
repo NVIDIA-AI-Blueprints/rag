@@ -10,6 +10,63 @@ This guide provides comprehensive debugging guidance for the [NVIDIA RAG Bluepri
 This guide is mostly intended for developers who are working with docker setup.
 :::
 
+## How to Monitor Your Deployment Progress
+
+During first-time deployments, the RAG Blueprint downloads large models which can take significant time without visible progress bars. Here's how to monitor the deployment progress:
+
+### Docker Deployments
+
+**Check container startup status:**
+```bash
+# Watch all containers and their status
+watch -n 2 'docker ps --format "table {{.Names}}\t{{.Status}}"'
+```
+
+**Monitor model download progress:**
+```bash
+# Watch NIM LLM logs (shows download and initialization progress)
+docker logs -f nim-llm-ms
+
+# Monitor disk usage to see models being downloaded
+watch -n 10 'du -sh ~/.cache/model-cache/'
+
+# Check specific container resource usage
+docker stats nim-llm-ms nemoretriever-embedding-ms nemoretriever-ranking-ms
+```
+
+**Expected timeline for Docker (Self-Hosted):**
+- Model downloads: 10-20 minutes (no progress bar visible)
+- Service initialization: 5-10 minutes
+- Total first-time deployment: 15-30 minutes
+- Subsequent deployments: 2-5 minutes (cached models)
+
+### Kubernetes/Helm Deployments
+
+**Monitor deployment progress:**
+```bash
+# Watch pod status
+kubectl get pods -n rag -w
+
+# Check NIMCache download status
+kubectl get nimcache -n rag
+
+# View detailed events
+kubectl get events -n rag --sort-by='.lastTimestamp' | tail -20
+
+# Monitor logs of a specific pod
+kubectl logs -f <pod-name> -n rag
+```
+
+**Expected timeline for Kubernetes:**
+- NIM cache downloads: 40-50 minutes
+- Service initialization: 10-15 minutes
+- Total first-time deployment: 60-70 minutes
+- Subsequent deployments: 10-15 minutes (cached models)
+
+:::{tip}
+Pods may appear in "ContainerCreating" or "Init" state for extended periods during model downloads. This is normal. Use the log and event commands above to verify progress is being made.
+:::
+
 ## How to Verify Your RAG System is Running Correctly
 
 After you have [deployed the blueprint](readme.md#deployment-options-for-rag-blueprint), you need to verify that all components are healthy and functioning properly.

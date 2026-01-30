@@ -21,6 +21,13 @@ The following are the core services that you install:
 
 Verify that you meet the prerequisites specified in [prerequisites](./deploy-helm.md#prerequisites).
 
+:::{important}
+**Important Deployment Considerations:**
+- **Disk Space:** Ensure at least 200GB of available disk space per node for NIM model caches
+- **Deployment Time:** First-time deployment takes 60-70 minutes as models download without visible progress indicators
+- See [Deploy on Kubernetes with Helm - Prerequisites](./deploy-helm.md#prerequisites) for monitoring commands
+:::
+
 
 ## Deploy the RAG Helm chart from the repository
 

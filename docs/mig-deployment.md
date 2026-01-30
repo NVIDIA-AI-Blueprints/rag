@@ -22,6 +22,13 @@ Before you deploy, verify that you have the following:
    Refer to the [MIG User Guide](https://docs.nvidia.com/datacenter/tesla/mig-user-guide/) for MIG profiles of other GPU types.
    :::
 
+:::{important}
+**Deployment Requirements:**
+- **Disk Space:** Ensure at least 200GB of available disk space per node for NIM model caches and application data
+- **Deployment Time:** First-time deployment takes 60-70 minutes as large models download without visible progress indicators
+- See [Deploy on Kubernetes with Helm](./deploy-helm.md#verify-a-deployment) for monitoring commands
+:::
+
 1. [Get an API Key](api-key.md).
 
 2. Verify that you meet the [hardware requirements](support-matrix.md).

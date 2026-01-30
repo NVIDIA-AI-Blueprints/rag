@@ -32,6 +32,13 @@ Retrieval-only deployments are useful for:
 
 ## Prerequisites
 
+:::{important}
+**Deployment Requirements:**
+- **Disk Space:** For self-hosted NIMs, ensure at least **50-80GB of available disk space** for embedding and reranking model caches (significantly less than full deployment)
+- **Deployment Time:** First-time deployment takes 5-10 minutes for self-hosted NIMs, or 2-3 minutes for NVIDIA-hosted models
+- Model downloads do not show progress bars; monitor using `docker logs -f <container-name>`
+:::
+
 1. [Get an API Key](api-key.md).
 
 2. Install Docker Engine and Docker Compose. Ensure Docker Compose version is 2.29.1 or later.
