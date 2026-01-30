@@ -23,10 +23,10 @@ Before you deploy, verify that you have the following:
    :::
 
 :::{important}
-**Deployment Requirements:**
-- **Disk Space:** Ensure at least 200GB of available disk space per node for NIM model caches and application data
-- **Deployment Time:** First-time deployment takes 60-70 minutes as large models download without visible progress indicators
-- See [Deploy on Kubernetes with Helm](./deploy-helm.md#verify-a-deployment) for monitoring commands
+- Ensure that you have at least 200GB of available disk space per node for NIM model caches and application data
+- First-time deployment takes 60-70 minutes while large models download without visible progress indicators
+
+For monitoring deployment progress, refer to [Deploy on Kubernetes with Helm](./deploy-helm.md#verify-a-deployment).
 :::
 
 1. [Get an API Key](api-key.md).
