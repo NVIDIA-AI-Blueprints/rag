@@ -25,6 +25,8 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import ChatPromptTemplate
 
 from nvidia_rag.utils.embedding import get_embedding_model
 from nvidia_rag.utils.llm import get_llm, get_prompts
@@ -196,9 +198,23 @@ class RAPTORTreeBuilder:
             llm_params["llm_endpoint"] = self.rag_config.summarizer.server_url
         
         doc_llm = get_llm(**llm_params)
-        doc_initial_chain, doc_iterative_chain = _create_llm_chains(
-            doc_llm, self.prompts, is_shallow=False
-        )
+        
+        # Create RAPTOR-specific chains using specialized prompts for cluster summarization
+        raptor_cluster_prompt_config = self.prompts.get("raptor_cluster_summary_prompt")
+        raptor_enrichment_prompt_config = self.prompts.get("raptor_enrichment_prompt")
+        
+        cluster_summary_prompt = ChatPromptTemplate.from_messages([
+            ("system", raptor_cluster_prompt_config["system"]),
+            ("human", raptor_cluster_prompt_config["human"]),
+        ])
+        
+        enrichment_prompt = ChatPromptTemplate.from_messages([
+            ("system", raptor_enrichment_prompt_config["system"]),
+            ("human", raptor_enrichment_prompt_config["human"]),
+        ])
+        
+        doc_initial_chain = cluster_summary_prompt | doc_llm | StrOutputParser()
+        doc_iterative_chain = enrichment_prompt | doc_llm | StrOutputParser()
         
         num_chunks = len(chunks)
         cluster_size = self.raptor_config.calculate_cluster_size(num_chunks)
