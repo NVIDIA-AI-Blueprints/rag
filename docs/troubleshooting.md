@@ -33,8 +33,9 @@ Understanding typical deployment times can help you determine if your deployment
   - System resources (CPU, RAM, disk I/O)
 
 **Subsequent deployments:**
-- **Total time:** 2-5 minutes (models already cached)
-- Services start much faster since model downloads are skipped
+- 2-5 minutes total time
+- Models are already cached
+- Services start much sooner
 
 ### Docker Deployments (NVIDIA-Hosted Models)
 
