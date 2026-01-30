@@ -12,7 +12,7 @@ This guide is mostly intended for developers who are working with docker setup.
 
 ## How to Monitor Your Deployment Progress
 
-During first-time deployments, the RAG Blueprint downloads large models which can take significant time without visible progress bars. Here's how to monitor the deployment progress:
+During first-time deployments, the RAG Blueprint downloads large models which can take significant time without visible progress bars. Use the following information to monitor the deployment progress.
 
 ### Docker Deployments
 
