@@ -56,7 +56,7 @@ The expected timeline for a first-time deployment is the following:
 - **Total time:** 10-15 minutes (with cached models)
 
 :::{tip}
-If your deployment exceeds these time ranges significantly, check the monitoring commands in the relevant deployment guide or see the "Monitoring Model Download Progress" section below.
+If your deployment exceeds these time ranges significantly, check the monitoring commands in the relevant deployment guide or refer to "Monitoring Model Download Progress" in the following section.
 :::
 
 
