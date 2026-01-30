@@ -71,12 +71,35 @@ You can clone the RAG Blueprint GIt repository to create a local working copy yo
    ```bash
    git checkout release-<latest-release>
    ```  
+## First Time Deployment
 
-7. Navigate to the `docs` folder within that branch: 
-
+ The expected first-time deployment timeline consists of the following:
+   
+   - Initial deployment takes 10-15 minutes for the NIM LLM service while models are downloaded and cached
+   - Model downloads do not show a progress bar in the terminal
+   - Total deployment time can extend to 30 minutes or more depending on your network speed and GPU profile
+   - Subsequent deployments are much faster (2-5 minutes) because models are already cached
+   
+   **Monitoring Download Progress:**
+   To monitor the download and initialization progress, check the container logs by running the following code:
+   
    ```bash
-   cd docs
-   ```  
+   # Watch NIM LLM logs
+   docker logs -f nim-llm-ms
+   
+   # Watch embedding service logs
+   docker logs -f nemoretriever-embedding-ms
+   
+   # Watch ranking service logs
+   docker logs -f nemoretriever-ranking-ms
+   ```
+   Look for messages that indicate model download progress, cache creation, and service initialization.
+   :::
+
+   :::{tip}
+   The models are downloaded and cached in the path specified by `MODEL_DIRECTORY`.
+   :::
+
 
 ## Start services using self-hosted on-premises models
 
@@ -113,35 +136,6 @@ Use the following procedure to start all containers needed for this blueprint.
    ```bash
    USERID=$(id -u) docker compose -f deploy/compose/nims.yaml up -d
    ```
-
-   :::{important}
-   The expected first-time deployment timeline is the following:
-   
-   - Initial deployment takes 10-15 minutes for the NIM LLM service while models are downloaded and cached
-   - Model downloads do not show a progress bar in the terminal
-   - Total deployment time can extend to 30 minutes or more depending on your network speed and GPU profile
-   - Subsequent deployments are much faster (2-5 minutes) because models are already cached
-   
-   **Monitoring Download Progress:**
-   To monitor the download and initialization progress, check the container logs by running the following code:
-   
-   ```bash
-   # Watch NIM LLM logs
-   docker logs -f nim-llm-ms
-   
-   # Watch embedding service logs
-   docker logs -f nemoretriever-embedding-ms
-   
-   # Watch ranking service logs
-   docker logs -f nemoretriever-ranking-ms
-   ```
-   Look for messages that indicate model download progress, cache creation, and service initialization.
-   :::
-
-   :::{tip}
-   The models are downloaded and cached in the path specified by `MODEL_DIRECTORY`.
-   :::
-
 
 5. Check the status of the deployment by running the following code. Wait until all services are up and the `nemoretriever-ranking-ms`, `nemoretriever-embedding-ms` and `nim-llm-ms`  NIMs are in healthy state before proceeding further.
 

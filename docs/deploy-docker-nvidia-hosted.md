@@ -72,13 +72,7 @@ You can clone the RAG Blueprint GIt repository to create a local working copy yo
 
    ```bash
    git checkout release-<latest-release>
-   ```  
-
-7. Navigate to the `docs` folder within that branch: 
-
-   ```bash
-   cd docs
-   ```  
+   ```   
 
 ## Start services using NVIDIA-hosted models
 
