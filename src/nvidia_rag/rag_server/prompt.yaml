@@ -501,44 +501,17 @@ raptor_cluster_summary_prompt:
     /no_think
 
   human: |
-    You are creating a hierarchical summary for a cluster of related document chunks. Your goal is to synthesize information from multiple text segments while preserving all important details, metrics, and relationships.
+    Synthesize the key themes, topics, and main points from the following related document chunks. Focus on what ties these chunks together and the overarching concepts they discuss.
 
     <instructions>
-    Requirements for the cluster summary:
-    1. Preserve all critical information:
-      - ALL key statistics, numbers, percentages, and financial data
-      - ALL important entities (companies, people, products, locations)
-      - ALL significant dates, time periods, and timelines
-      - ALL major findings, conclusions, and recommendations
-      - ALL risks, concerns, and notable changes
-
-    2. Capture relationships and context:
-      - How different pieces of information relate to each other
-      - Cause-and-effect relationships
-      - Comparisons and trends across the chunks
-      - Dependencies and connections between concepts
-
-    3. Maintain factual accuracy:
-      - Keep numerical values exact and precise
-      - Preserve specific terminology and proper nouns
-      - Retain technical terms and domain-specific language
-      - Quote critical statements when necessary
-
-    4. Organize information logically:
-      - Group related information together
-      - Present information in a coherent narrative flow
-      - Use clear transitions between topics
-      - Maintain document structure when relevant
-
-    5. Do NOT:
-      - Use external knowledge
-      - Add opinions, explanations, or interpretations
-      - Include phrases like "based on the context" or "from the documents"
-      - Add citations or document mentions
-      - Mention these instructions in your response
-      - Add preambles like "This summary" or "Here is"
-
-    Create a comprehensive summary (aim for 8-12 sentences) that captures the complete picture from all the chunks below:
+    1. Identify the main topics and themes across all chunks
+    2. Capture key statistics, entities, and dates that are central to understanding the topic
+    3. Highlight relationships and connections between different pieces of information
+    4. Keep the summary concise (5-7 sentences) and focused on the big picture
+    5. Maintain factual accuracy - use exact numbers and proper nouns
+    6. Do NOT use external knowledge or add interpretations
+    7. Do NOT include phrases like "based on the context" or "from the documents"
+    8. Do NOT add preambles or postambles
     </instructions>
 
     {document_text}
@@ -548,38 +521,17 @@ raptor_enrichment_prompt:
     /no_think
 
   human: |
-    You are enriching an existing summary with new information from additional document chunks. Your goal is to integrate new details while preserving all existing information and maintaining a coherent narrative.
+    Update the summary below by integrating new information from an additional chunk. Maintain the focus on key themes and main points while incorporating relevant new details.
 
     <instructions>
-    Requirements for the enriched summary:
-    1. Preserve ALL information from the previous summary
-    2. Add ALL new important details from the new chunk:
-      - New statistics, numbers, and financial data
-      - New entities, dates, and specific facts
-      - New findings, conclusions, or recommendations
-      - New relationships or dependencies
-
-    3. Integrate seamlessly:
-      - Merge related information together
-      - Maintain logical flow and coherence
-      - Avoid redundancy but keep complementary details
-      - Expand on topics that appear in both
-
-    4. Maintain accuracy:
-      - Keep all numerical values exact
-      - Preserve specific terminology
-      - Retain technical language
-      - Do not drop any critical details
-
-    5. Do NOT:
-      - Use external knowledge
-      - Add opinions or interpretations
-      - Include phrases like "based on the context"
-      - Add citations or document mentions
-      - Mention these instructions
-      - Add preambles like "Updated summary"
-
-    Create an enriched summary that incorporates both the previous summary and the new information:
+    1. Keep all important information from the previous summary
+    2. Add significant new topics, themes, or key facts from the new chunk
+    3. Merge related information naturally
+    4. Keep the summary concise (5-8 sentences) and focused
+    5. Maintain exact numbers, dates, and proper nouns
+    6. Do NOT use external knowledge or add interpretations
+    7. Do NOT include phrases like "based on the context"
+    8. Do NOT add preambles like "Updated summary"
     </instructions>
 
     Previous Summary:
@@ -588,5 +540,4 @@ raptor_enrichment_prompt:
     New chunk:
     {new_chunk}
 
-    Please create an enriched summary that integrates information from both the previous summary and the new chunk.
 
