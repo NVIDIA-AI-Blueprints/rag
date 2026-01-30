@@ -389,8 +389,16 @@ class RAPTORTreeBuilder:
         if current_level > max_levels:
             return []
 
+        # If too few nodes to cluster, treat them as a single cluster and summarize
         if len(nodes) <= cluster_size:
-            return []
+            # Create a single summary from all remaining nodes
+            summary_node = await self._generate_single_cluster_summary(
+                cluster=nodes,
+                cluster_idx=0,
+                document_id=document_id,
+                level=current_level
+            )
+            return [summary_node]
 
         # Cluster nodes
         clusters = self._cluster_nodes(nodes, cluster_size)
