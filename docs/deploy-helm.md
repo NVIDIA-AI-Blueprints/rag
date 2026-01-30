@@ -138,7 +138,7 @@ To verify a deployment, use the following procedure.
 
    Model downloads do not show detailed progress indicators in pod status. Pods may appear in "ContainerCreating" or "Init" state for extended periods while models download in the background.
 
-   You can monitor the deployment progress by running:
+   You can monitor the deployment progress by running the following code.
 
    ```sh
    # Check pod status
