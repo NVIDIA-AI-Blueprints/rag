@@ -496,28 +496,3 @@ image_captioning_prompt:
   human: |
     Describe this image in detail, including the main subjects, their actions, the setting, and any notable objects or features.
 
-raptor_level1_summary_prompt:
-  system: |
-    /no_think
-
-  human: |
-    Summarize the following text chunks into a coherent, concise summary.
-    Focus on the main themes and key information.
-
-    Text chunks:
-    {text}
-
-    Summary:
-
-raptor_higher_level_summary_prompt:
-  system: |
-    /no_think
-
-  human: |
-    Create a higher-level summary by synthesizing the following summaries.
-    Focus on overarching themes and connections.
-
-    Summaries to synthesize:
-    {text}
-
-    Higher-level summary:
