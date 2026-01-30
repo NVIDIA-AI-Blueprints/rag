@@ -135,7 +135,7 @@ Use the following procedure to start all containers needed for this blueprint.
    # Watch ranking service logs
    docker logs -f nemoretriever-ranking-ms
    ```
-   Look for messages indicating model download progress, cache creation, and service initialization.
+   Look for messages that indicate model download progress, cache creation, and service initialization.
    :::
 
    :::{tip}
