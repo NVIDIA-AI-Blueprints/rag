@@ -23,7 +23,8 @@ Check container startup status by running the following code.
 watch -n 2 'docker ps --format "table {{.Names}}\t{{.Status}}"'
 ```
 
-**Monitor model download progress:**
+Monitor model download progress by running the following code.
+
 ```bash
 # Watch NIM LLM logs (shows download and initialization progress)
 docker logs -f nim-llm-ms
