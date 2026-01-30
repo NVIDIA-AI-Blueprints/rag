@@ -32,7 +32,8 @@ Understanding typical deployment times can help you determine if your deployment
   - GPU type and availability
   - System resources (CPU, RAM, disk I/O)
 
-**Subsequent deployments:**
+The expected timeline for subsequent deployments is the following:
+
 - 2-5 minutes total time
 - Models are already cached
 - Services start much sooner
