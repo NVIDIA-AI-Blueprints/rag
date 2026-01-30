@@ -25,9 +25,9 @@ Understanding typical deployment times can help you determine if your deployment
 
 The expected timeline for a first-time deployment is the following:
 
-- **Total time:** 15-30 minutes (can extend to 45+ minutes on slower networks)
-- **Model download phase:** 10-20 minutes (largest component, no progress bar visible)
-- **Service initialization:** 5-10 minutes
+- **Total time** – 15-30 minutes (can extend to 45+ minutes on slower networks)
+- **Model download** – 10-20 minutes (largest component, no progress bar visible)
+- **Service initialization** – 5-10 minutes
 - **Factors affecting time:**
   - Internet bandwidth (model downloads are ~100-150GB)
   - GPU type and availability
