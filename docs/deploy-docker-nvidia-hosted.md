@@ -20,7 +20,7 @@ When using NVIDIA-hosted endpoints, you might encounter rate limiting with large
 ## Prerequisites
 
 :::{important}
-**Disk Space Requirement:** While this deployment uses NVIDIA-hosted models (reducing disk space compared to self-hosted), ensure you have at least **50GB of available disk space** for container images, vector database data, and application files.
+While this deployment uses NVIDIA-hosted models (reducing disk space compared to self-hosted), ensure that you have at least 50GB of available disk space for container images, vector database data, and application files.
 :::
 
 :::{note}
