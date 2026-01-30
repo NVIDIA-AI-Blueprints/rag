@@ -16,7 +16,8 @@ During first-time deployments, the RAG Blueprint downloads large models which ca
 
 ### Docker Deployments
 
-**Check container startup status:**
+Check container startup status by running the following code.
+
 ```bash
 # Watch all containers and their status
 watch -n 2 'docker ps --format "table {{.Names}}\t{{.Status}}"'
