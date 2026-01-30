@@ -14,13 +14,14 @@ Some requirements are different depending on your target system and deployment m
 ## Disk Space Requirements
 
 :::{important}
-**Minimum Disk Space:** Ensure you have at least **200GB of available disk space** before deploying the RAG Blueprint. This space is required for:
+Ensure that you have at least 200GB of available disk space before you deploy the RAG Blueprint. This space is required for the following:
+
 - NIM model downloads and caching (largest component, ~100-150GB)
 - Container images (~20-30GB)
 - Vector database data and indices
 - Application logs and temporary files
 
-Insufficient disk space will cause deployment failures during model downloads or runtime operations.
+Insufficient disk space causes deployment failures during model downloads or runtime operations.
 :::
 
 ## Operating System
