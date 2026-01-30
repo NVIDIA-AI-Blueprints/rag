@@ -117,7 +117,7 @@ Use the following procedure to start all containers needed for this blueprint.
    :::{important}
    The expected first-time deployment timeline is the following:
    
-   - **Initial deployment takes 10-15 minutes** for the NIM LLM service as models are downloaded and cached
+   - Initial deployment takes 10-15 minutes for the NIM LLM service while models are downloaded and cached
    - Model downloads do not show a progress bar in the terminal
    - Total deployment time can extend to 30 minutes or more depending on your network speed and GPU profile
    - Subsequent deployments are much faster (2-5 minutes) as models are already cached
