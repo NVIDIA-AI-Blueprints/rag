@@ -19,6 +19,10 @@ Looking for a simpler setup without Docker? Check out the [Containerless Deploym
 
 ## Prerequisites
 
+:::{important}
+Ensure that you have at least **200GB of available disk space** before proceeding. The RAG Blueprint downloads and caches large models (NIMs), container images, and vector database data. Insufficient disk space causes deployment failures.
+:::
+
 1. [Get an API Key](api-key.md).
 
 2. Install Docker Engine. For more information, see [Ubuntu](https://docs.docker.com/engine/install/ubuntu/).
@@ -39,6 +43,62 @@ Looking for a simpler setup without Docker? Check out the [Containerless Deploym
 5. Containers that are enabled with GPU acceleration, such as Milvus and NVIDIA NIMS, deployed on-prem. To configure Docker for GPU-accelerated containers, install the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html).
 
 6. Ensure you meet [the hardware requirements](./support-matrix.md).
+
+## Clone the RAG Blueprint Git repository
+
+You can clone the RAG Blueprint GIt repository to create a local working copy you can run and modify, with full Git history and an easy way to update from upstream.
+
+1. Confirm that Git is installed on your machine. [git-scm](https://git-scm.com/docs/git-clone)
+2. Open a terminal and navigate to the directory where you want the project. [git-scm](https://git-scm.com/docs/git-clone)
+3. Clone the repository:  
+
+   ```bash
+   git clone https://github.com/NVIDIA-AI-Blueprints/rag.git
+   ```  
+
+4. Change into the cloned directory:  
+
+   ```bash
+   cd rag
+   ```  
+5. Fetch all remote branches and tags (optional but useful): 
+
+   ```bash
+   git fetch --all --tags
+   ```  
+6. Check out the latest release branch:  
+
+   ```bash
+   git checkout release-<latest-release>
+   ```  
+## First Time Deployment
+
+ The expected first-time deployment timeline consists of the following:
+   
+   - Initial deployment takes 10-15 minutes for the NIM LLM service while models are downloaded and cached
+   - Model downloads do not show a progress bar in the terminal
+   - Total deployment time can extend to 30 minutes or more depending on your network speed and GPU profile
+   - Subsequent deployments are much faster (2-5 minutes) because models are already cached
+   
+   **Monitoring Download Progress:**
+   To monitor the download and initialization progress, check the container logs by running the following code:
+   
+   ```bash
+   # Watch NIM LLM logs
+   docker logs -f nim-llm-ms
+   
+   # Watch embedding service logs
+   docker logs -f nemoretriever-embedding-ms
+   
+   # Watch ranking service logs
+   docker logs -f nemoretriever-ranking-ms
+   ```
+   Look for messages that indicate model download progress, cache creation, and service initialization.
+   :::
+
+   :::{tip}
+   The models are downloaded and cached in the path specified by `MODEL_DIRECTORY`.
+   :::
 
 
 ## Start services using self-hosted on-premises models
@@ -76,13 +136,6 @@ Use the following procedure to start all containers needed for this blueprint.
    ```bash
    USERID=$(id -u) docker compose -f deploy/compose/nims.yaml up -d
    ```
-
-   The NIM LLM service can take 30 mins to start for the first time as the model is downloaded and cached. Subsequent deployments can take 2-5 minutes, depending on the GPU profile.
-
-   :::{tip}
-   The models are downloaded and cached in the path specified by `MODEL_DIRECTORY`.
-   :::
-
 
 5. Check the status of the deployment by running the following code. Wait until all services are up and the `nemoretriever-ranking-ms`, `nemoretriever-embedding-ms` and `nim-llm-ms`  NIMs are in healthy state before proceeding further.
 

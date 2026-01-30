@@ -21,6 +21,15 @@ The following are the core services that you install:
 
 Verify that you meet the prerequisites specified in [prerequisites](./deploy-helm.md#prerequisites).
 
+:::{important}
+Consider the following before you deploy the RAG Blueprint:
+
+- Ensure that you have at least 200GB of available disk space per node for NIM model caches
+- First-time deployment takes 60-70 minutes as models download without visible progress indicators
+
+For monitoring commands, refer to [Deploy on Kubernetes with Helm - Prerequisites](./deploy-helm.md#prerequisites).
+:::
+
 
 ## Deploy the RAG Helm chart from the repository
 

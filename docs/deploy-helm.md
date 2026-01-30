@@ -19,6 +19,16 @@ The following are the core services that you install:
 
 ## Prerequisites
 
+:::{important}
+Ensure you have at least 200GB of available disk space per node where NIMs will be deployed. This space is required for the following:
+- NIM model cache downloads (~100-150GB)
+- Container images (~20-30GB)
+- Persistent volumes for vector database and application data
+- Logs and temporary files
+
+Plan for additional space if you are enabling persistence for multiple services.
+:::
+
 1. [Get an API Key](api-key.md).
 
 2. Verify that you meet the [hardware requirements](support-matrix.md).
@@ -120,26 +130,37 @@ To verify a deployment, use the following procedure.
     ```
 
    :::{note}
-   With the latest Helm NIM Operator deployment, approximately **60 to 70 minutes** is required for the entire pipeline to come up into a running state. This includes time for:
-   - Downloading NIM model caches (largest time component)
-   - NIMService initialization
-   - Pod startup and readiness checks
+   With the latest Helm NIM Operator deployment, approximately 60 to 70 minutes is required for the entire pipeline to come up into a running state. This includes time for the following:
+   
+   - Downloading NIM model caches (largest time component, ~40-50 minutes)
+   - NIMService initialization (~10-15 minutes)
+   - Pod startup and readiness checks (~5-10 minutes)
 
-   You can monitor the deployment progress by running:
+   Model downloads do not show detailed progress indicators in pod status. Pods may appear in "ContainerCreating" or "Init" state for extended periods while models download in the background.
+
+   You can monitor the deployment progress by running the following code.
 
    ```sh
    # Check pod status
    kubectl get pods -n rag
 
-   # Check NIMCache download status
+   # Check NIMCache download status (shows if cache is ready)
    kubectl get nimcache -n rag
 
    # Check NIMService status
    kubectl get nimservice -n rag
 
    # Check events for detailed information
-   kubectl get events -n rag
+   kubectl get events -n rag --sort-by='.lastTimestamp'
+
+   # Watch logs of a specific pod to see detailed progress
+   kubectl logs -f <pod-name> -n rag
+   
+   # Check PVC usage to monitor cache download size
+   kubectl get pvc -n rag
    ```
+   
+   Subsequent deployments are significantly faster (~10-15 minutes) because model caches are already populated.
    :::
 
 2.  List services by running the following code.
