@@ -69,7 +69,7 @@ The expected timeline for Kubernetes deployment is the following:
 - Subsequent deployments: 10-15 minutes (cached models)
 
 :::{tip}
-Pods may appear in "ContainerCreating" or "Init" state for extended periods during model downloads. This is normal. Use the log and event commands above to verify progress is being made.
+Pods may appear in "ContainerCreating" or "Init" state for extended periods during model downloads. This is normal. Use the previous log and event commands to verify that progress is being made.
 :::
 
 ## How to Verify Your RAG System is Running Correctly
