@@ -38,40 +38,6 @@ When using NVIDIA-hosted endpoints, you might encounter rate limiting with large
 
 5. Some containers with are enabled with GPU acceleration, such as Milvus and NVIDIA NIMS deployed on-prem. To configure Docker for GPU-accelerated containers, [install](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html), the NVIDIA Container Toolkit.
 
-## Clone the RAG Blueprint Git repository
-
-You can clone the RAG Blueprint GIt repository to create a local working copy you can run and modify, with full Git history and an easy way to update from upstream.
-
-1. Confirm that Git is installed on your machine. [git-scm](https://git-scm.com/docs/git-clone)
-2. Open a terminal and navigate to the directory where you want the project. [git-scm](https://git-scm.com/docs/git-clone)
-3. Clone the repository:  
-
-   ```bash
-   git clone https://github.com/NVIDIA-AI-Blueprints/rag.git
-   ```  
-
-4. Change into the cloned directory:  
-
-   ```bash
-   cd rag
-   ```  
-5. Fetch all remote branches and tags (optional but useful): 
-
-   ```bash
-   git fetch --all --tags
-   ```  
-6. Check out the latest release branch:  
-
-   ```bash
-   git checkout release-<latest-release>
-   ```  
-
-7. Navigate to the `docs` folder within that branch: 
-
-   ```bash
-   cd docs
-   ```  
-
 ## Start services using NVIDIA-hosted models
 
 Use the following procedure to start all containers needed for this blueprint.

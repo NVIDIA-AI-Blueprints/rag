@@ -40,6 +40,39 @@ Looking for a simpler setup without Docker? Check out the [Containerless Deploym
 
 6. Ensure you meet [the hardware requirements](./support-matrix.md).
 
+## Clone the RAG Blueprint Git repository
+
+You can clone the RAG Blueprint GIt repository to create a local working copy you can run and modify, with full Git history and an easy way to update from upstream.
+
+1. Confirm that Git is installed on your machine. [git-scm](https://git-scm.com/docs/git-clone)
+2. Open a terminal and navigate to the directory where you want the project. [git-scm](https://git-scm.com/docs/git-clone)
+3. Clone the repository:  
+
+   ```bash
+   git clone https://github.com/NVIDIA-AI-Blueprints/rag.git
+   ```  
+
+4. Change into the cloned directory:  
+
+   ```bash
+   cd rag
+   ```  
+5. Fetch all remote branches and tags (optional but useful): 
+
+   ```bash
+   git fetch --all --tags
+   ```  
+6. Check out the latest release branch:  
+
+   ```bash
+   git checkout release-<latest-release>
+   ```  
+
+7. Navigate to the `docs` folder within that branch: 
+
+   ```bash
+   cd docs
+   ```  
 
 ## Start services using self-hosted on-premises models
 
