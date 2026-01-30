@@ -160,7 +160,7 @@ To verify a deployment, use the following procedure.
    kubectl get pvc -n rag
    ```
    
-   Subsequent deployments are significantly faster (~10-15 minutes) when model caches are already populated.
+   Subsequent deployments are significantly faster (~10-15 minutes) because model caches are already populated.
    :::
 
 2.  List services by running the following code.
