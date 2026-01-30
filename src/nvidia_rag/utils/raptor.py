@@ -25,6 +25,8 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import StrOutputParser
 
 from nvidia_rag.utils.embedding import get_embedding_model
 from nvidia_rag.utils.llm import get_llm, get_prompts
@@ -203,7 +205,6 @@ class RAPTORTreeBuilder:
                 "top_p": self.rag_config.summarizer.top_p,
                 "max_tokens": self.rag_config.summarizer.max_chunk_length,
                 "api_key": self.rag_config.summarizer.get_api_key(),
-                "timeout": 300,  # 5 min timeout for large summarization
             }
 
             if self.rag_config.summarizer.server_url:
@@ -211,6 +212,24 @@ class RAPTORTreeBuilder:
 
             self.llm = get_llm(config=self.rag_config, **llm_params)
             self.prompts = get_prompts()
+            
+            # Create LangChain chains for RAPTOR prompts (like other strategies)
+            level1_prompt_config = self.prompts.get("raptor_level1_summary_prompt")
+            higher_prompt_config = self.prompts.get("raptor_higher_level_summary_prompt")
+            
+            level1_prompt = ChatPromptTemplate.from_messages([
+                ("system", level1_prompt_config["system"]),
+                ("human", level1_prompt_config["human"]),
+            ])
+            
+            higher_prompt = ChatPromptTemplate.from_messages([
+                ("system", higher_prompt_config["system"]),
+                ("human", higher_prompt_config["human"]),
+            ])
+            
+            # Create chains: prompt | llm | output_parser (LCEL pattern)
+            self.level1_chain = level1_prompt | self.llm | StrOutputParser()
+            self.higher_chain = higher_prompt | self.llm | StrOutputParser()
 
         if self.embedding_model is None:
             self.embedding_model = get_embedding_model(
@@ -621,29 +640,16 @@ class RAPTORTreeBuilder:
                 f"Text should have been split earlier!"
             )
 
-        # Construct prompt based on level using prompts from YAML
-        if level == 1:
-            # Level 1: Combine base chunks
-            prompt_config = self.prompts.get("raptor_level1_summary_prompt")
-        else:
-            # Higher levels: Synthesize summaries
-            prompt_config = self.prompts.get("raptor_higher_level_summary_prompt")
-        
-        # Format the human message with the text
-        human_message = prompt_config.get("human", "").format(text=text)
-        
-        # Create messages list with system and human messages
-        messages = [
-            {"role": "system", "content": prompt_config.get("system", "").strip()},
-            {"role": "user", "content": human_message}
-        ]
+        # Select appropriate chain based on level
+        chain = self.level1_chain if level == 1 else self.higher_chain
 
         # Use global semaphore to limit concurrent LLM calls system-wide
         async with self.llm_semaphore:
             try:
-                response = await self.llm.ainvoke(messages)
-                summary = (
-                    response.content if hasattr(response, "content") else str(response)
+                # Use LangChain chain.ainvoke() like other strategies
+                summary = await chain.ainvoke(
+                    {"text": text},
+                    config={"run_name": f"raptor-summary-level-{level}"}
                 )
                 
                 if not summary or not summary.strip():

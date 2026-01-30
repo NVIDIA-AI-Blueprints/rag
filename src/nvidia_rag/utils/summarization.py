@@ -1226,7 +1226,6 @@ def _get_summary_llm(config: NvidiaRAGConfig):
         "temperature": config.summarizer.temperature,
         "top_p": config.summarizer.top_p,
         "api_key": config.summarizer.get_api_key(),
-        "timeout": 300,  # 5 min timeout - matches RAPTOR's internal LLM
     }
 
     if config.summarizer.server_url:
