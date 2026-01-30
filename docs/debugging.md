@@ -61,7 +61,8 @@ kubectl get events -n rag --sort-by='.lastTimestamp' | tail -20
 kubectl logs -f <pod-name> -n rag
 ```
 
-**Expected timeline for Kubernetes:**
+The expected timeline for Kubernetes deployment is the following:
+
 - NIM cache downloads: 40-50 minutes
 - Service initialization: 10-15 minutes
 - Total first-time deployment: 60-70 minutes
