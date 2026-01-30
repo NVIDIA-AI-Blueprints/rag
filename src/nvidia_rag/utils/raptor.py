@@ -32,6 +32,9 @@ from nvidia_rag.utils.summarization import (
     _get_tokenizer,
     _split_text_into_chunks,
     _token_length,
+    acquire_global_summary_slot,
+    release_global_summary_slot,
+    get_summarization_semaphore,
 )
 
 logger = logging.getLogger(__name__)
@@ -193,8 +196,6 @@ class RAPTORTreeBuilder:
     async def initialize(self):
         """Lazy initialization of LLM and embedding model"""
         if self.llm is None:
-            logger.debug("Initializing RAPTOR LLM...")
-
             # Use summarizer configuration for RAPTOR summaries
             llm_params = {
                 "model": self.rag_config.summarizer.model_name,
@@ -212,7 +213,6 @@ class RAPTORTreeBuilder:
             self.prompts = get_prompts()
 
         if self.embedding_model is None:
-            logger.debug("Initializing RAPTOR embedding model...")
             self.embedding_model = get_embedding_model(
                 model=self.rag_config.embeddings.model_name,
                 url=self.rag_config.embeddings.server_url,
@@ -232,7 +232,11 @@ class RAPTORTreeBuilder:
         Build RAPTOR trees from NV-Ingest results.
 
         This is called when summarization_strategy="raptor".
-        No need to check enable flag - if this is called, RAPTOR is enabled.
+        Uses the EXACT same pattern as regular summarization:
+        - Get local semaphore for coordination
+        - Acquire global slot via Redis for rate limiting
+        - Process document
+        - Release slot
 
         Args:
             results: NV-Ingest results (grouped by document)
@@ -240,48 +244,56 @@ class RAPTORTreeBuilder:
             vdb_op: VDB operator for uploading summaries
         """
         if not results:
-            logger.debug("No results to process for RAPTOR")
             return
-
-        logger.info("Starting RAPTOR tree building for %d documents", len(results))
 
         # Initialize models
         await self.initialize()
 
+        # Get semaphore (SAME as regular summarization line 417)
+        semaphore = get_summarization_semaphore()
+
         # Group chunks by document
         documents_by_id = self._group_chunks_by_document(results)
+        
+        logger.info(f"RAPTOR: Processing {len(documents_by_id)} documents in collection '{collection_name}'")
 
-        # Process each document
+        # Process each document WITH EXACT SAME PATTERN as regular summarization
         all_summary_nodes = []
         for doc_id, chunks in documents_by_id.items():
+            slot_acquired = False
             try:
                 if len(chunks) < self.raptor_config.min_cluster_size:
                     logger.info(
-                        f"Document {doc_id} has only {len(chunks)} chunks, skipping RAPTOR (min: {self.raptor_config.min_cluster_size})"
+                        f"RAPTOR: Skipping {doc_id} - only {len(chunks)} chunks (min: {self.raptor_config.min_cluster_size})"
                     )
                     continue
 
-                logger.info(f"Building RAPTOR tree for {doc_id} ({len(chunks)} chunks)")
+                # EXACT SAME PATTERN as line 549 in summarization.py
+                async with semaphore:
+                    while not await acquire_global_summary_slot(self.rag_config):
+                        await asyncio.sleep(0.5)
+                    
+                    slot_acquired = True
 
-                summary_nodes = await self._build_tree_for_document(doc_id, chunks)
+                    summary_nodes = await self._build_tree_for_document(doc_id, chunks)
 
-                if summary_nodes:
-                    # Embed summaries
-                    summary_nodes = await self._embed_summaries(summary_nodes)
-                    all_summary_nodes.extend(summary_nodes)
+                    if summary_nodes:
+                        # Embed summaries
+                        summary_nodes = await self._embed_summaries(summary_nodes)
+                        all_summary_nodes.extend(summary_nodes)
+                        
+                        logger.info(f"RAPTOR: ✓ {doc_id} → {len(summary_nodes)} summary nodes created")
 
-                    logger.info(
-                        f"RAPTOR tree built: {len(summary_nodes)} summary nodes for {doc_id}"
-                    )
-
-                self.stats["documents_processed"] += 1
+                    self.stats["documents_processed"] += 1
 
             except Exception as e:
-                logger.error(
-                    f"Failed to build RAPTOR tree for {doc_id}: {e}", exc_info=True
-                )
+                logger.error(f"RAPTOR: ✗ {doc_id} failed: {e}")
                 # Re-raise to propagate error to caller for proper status update
                 raise
+            finally:
+                # Release slot when done (or on error)
+                if slot_acquired:
+                    await release_global_summary_slot()
 
         # Upload all summaries to VDB
         if all_summary_nodes:
@@ -291,13 +303,9 @@ class RAPTORTreeBuilder:
                 )
                 vdb_op.run(records)
 
-                logger.info(
-                    f"RAPTOR: Uploaded {len(records)} summary nodes to VDB"
-                )
+                logger.info(f"RAPTOR: Uploaded {len(records)} summary nodes to VDB")
             except Exception as e:
-                logger.error(
-                    f"Failed to upload RAPTOR summaries to VDB: {e}", exc_info=True
-                )
+                logger.error(f"RAPTOR: VDB upload failed: {e}")
                 # Re-raise to mark file as failed
                 raise
 
@@ -332,11 +340,6 @@ class RAPTORTreeBuilder:
         cluster_size = self.raptor_config.calculate_cluster_size(num_chunks)
         max_levels = self.raptor_config.calculate_max_levels(num_chunks, cluster_size)
 
-        logger.debug(
-            f"RAPTOR config for {document_id}: {num_chunks} chunks, "
-            f"cluster_size={cluster_size}, max_levels={max_levels}"
-        )
-
         # Convert to RAPTORNode objects
         level_0_nodes = []
         for idx, chunk in enumerate(chunks):
@@ -350,7 +353,6 @@ class RAPTORTreeBuilder:
             # Extract content from nv-ingest format: metadata.content
             content = chunk.get("metadata", {}).get("content", "")
             if not content:
-                logger.debug(f"Skipping empty chunk {chunk_id} in {document_id}")
                 continue
 
             node = RAPTORNode(
@@ -446,20 +448,39 @@ class RAPTORTreeBuilder:
     async def _generate_cluster_summaries(
         self, clusters: List[List[RAPTORNode]], document_id: str, level: int
     ) -> List[RAPTORNode]:
-        """Generate summaries for clusters with 2-pass approach for large texts.
+        """Generate summaries for clusters with semaphore-controlled concurrency.
         
-        File-level slot already acquired - processes all clusters in parallel
-        matching the hierarchical strategy pattern.
+        With global slot acquisition at document level (same as regular summarization),
+        we can safely process all clusters in parallel. The semaphore at _generate_summary()
+        ensures LLM calls stay under max_parallelization across the entire system.
+        
+        Flow:
+        1. Document acquires global slot (blocks other documents)
+        2. All clusters process in parallel
+        3. Semaphore throttles actual LLM calls to max_parallelization
+        4. When done, release slot for next document
         """
-
-        # Process all clusters in parallel (no additional slot acquisition needed)
+        
+        # Create all tasks - document-level slot + LLM-level semaphore control concurrency
         tasks = [
             self._generate_single_cluster_summary(cluster, cluster_idx, document_id, level)
             for cluster_idx, cluster in enumerate(clusters)
         ]
         
-        summary_nodes = await asyncio.gather(*tasks)
-        return summary_nodes
+        # Process all clusters - semaphore ensures only max_parallelization LLM calls run at once
+        summary_nodes = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # Handle any exceptions
+        results = []
+        for idx, result in enumerate(summary_nodes):
+            if isinstance(result, Exception):
+                logger.error(
+                    f"Failed to summarize cluster {idx} at level {level}: {result}"
+                )
+                raise result
+            results.append(result)
+        
+        return results
 
     async def _generate_single_cluster_summary(
         self,
@@ -491,11 +512,6 @@ class RAPTORTreeBuilder:
             summary = await self._generate_summary(combined_text, level)
         else:
             # 2-Pass approach: Split -> Summarize in parallel -> Merge
-            logger.debug(
-                f"Cluster {cluster_idx} at level {level}: {current_tokens} tokens, "
-                f"splitting into chunks for 2-pass summarization"
-            )
-            
             # Step 1: Split combined text into chunks
             text_chunks = _split_text_into_chunks(
                 combined_text,
@@ -515,11 +531,6 @@ class RAPTORTreeBuilder:
             
             # If merged summaries still too large (rare), split again recursively
             if merged_tokens > max_safe_input_tokens:
-                logger.debug(
-                    f"Cluster {cluster_idx} at level {level}: Merged summaries still large "
-                    f"({merged_tokens} tokens), applying 2nd pass"
-                )
-                
                 # Split merged summaries again
                 final_chunks = _split_text_into_chunks(
                     merged_text,
@@ -540,8 +551,7 @@ class RAPTORTreeBuilder:
                 if final_merged_tokens > max_safe_input_tokens:
                     # Last resort: truncate to prevent infinite recursion
                     logger.warning(
-                        f"Cluster {cluster_idx} at level {level}: After 2 passes, still {final_merged_tokens} tokens. "
-                        f"Truncating to {max_safe_input_tokens} tokens."
+                        f"RAPTOR: Cluster {cluster_idx} truncated from {final_merged_tokens} to {max_safe_input_tokens} tokens"
                     )
                     tokens = tokenizer.encode(final_merged, add_special_tokens=False)
                     truncated_tokens = tokens[:max_safe_input_tokens]
@@ -584,7 +594,8 @@ class RAPTORTreeBuilder:
         """Generate summary using LLM with max_tokens enforced via parameter.
         
         Uses global semaphore to limit concurrent LLM calls across ALL files.
-        If max_parallelization=20, only 20 LLM calls run system-wide at any time.
+        With document-level slot acquisition (same as regular summarization),
+        the system load is naturally limited, so semaphore wait times are minimal.
         """
 
         # Validate input
@@ -602,9 +613,7 @@ class RAPTORTreeBuilder:
                 f"Text should have been split earlier!"
             )
 
-        # Note: max_tokens is enforced via LLM parameter (set in initialize())
-        # No need to ask politely in the prompt!
-
+        # Construct prompt based on level
         if level == 1:
             prompt = """Summarize the following text chunks into a coherent, concise summary.
 Focus on the main themes and key information.
@@ -634,8 +643,12 @@ Higher-level summary:""".format(text=text)
                     raise ValueError("LLM returned empty summary")
                 
                 return summary.strip()
+            except asyncio.TimeoutError:
+                logger.error(
+                    f"LLM timeout at level {level} (input: {current_tokens} tokens)"
+                )
+                raise
             except Exception as e:
-                # Re-raise with context - will propagate to _process_single_file_summary
                 logger.error(
                     f"LLM summary generation failed at level {level}: {type(e).__name__}: {e}"
                 )
@@ -661,7 +674,7 @@ Higher-level summary:""".format(text=text)
                 )
                 all_embeddings.extend(batch_embeddings)
             except Exception as e:
-                logger.error(f"Error embedding batch: {e}")
+                logger.error(f"RAPTOR: Embedding batch failed: {e}")
                 # Fallback: zero vectors
                 all_embeddings.extend(
                     [[0.0] * self.rag_config.embeddings.dimensions] * len(batch_texts)
