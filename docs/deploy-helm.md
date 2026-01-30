@@ -20,7 +20,7 @@ The following are the core services that you install:
 ## Prerequisites
 
 :::{important}
-**Disk Space Requirement:** Ensure you have at least **200GB of available disk space per node** where NIMs will be deployed. This space is required for:
+Ensure you have at least 200GB of available disk space per node where NIMs will be deployed. This space is required for the following:
 - NIM model cache downloads (~100-150GB)
 - Container images (~20-30GB)
 - Persistent volumes for vector database and application data
