@@ -41,29 +41,6 @@ from nvidia_rag.utils.summarization import (
 
 logger = logging.getLogger(__name__)
 
-# Global semaphore to limit concurrent LLM calls across ALL files
-# This ensures max_parallelization is respected system-wide
-# Initialized once and shared by all RAPTORTreeBuilder instances
-_global_llm_semaphore = None
-_global_llm_semaphore_lock = asyncio.Lock()
-
-
-async def _get_global_llm_semaphore(max_concurrent: int) -> asyncio.Semaphore:
-    """Get or create the global LLM semaphore for RAPTOR.
-    
-    This ensures max_parallelization limit is enforced across all files.
-    If max_parallelization = 20, only 20 LLM calls run concurrently system-wide.
-    """
-    global _global_llm_semaphore
-    
-    async with _global_llm_semaphore_lock:
-        if _global_llm_semaphore is None:
-            _global_llm_semaphore = asyncio.Semaphore(max_concurrent)
-            logger.info(
-                f"RAPTOR: Created global LLM semaphore with limit={max_concurrent}"
-            )
-        return _global_llm_semaphore
-
 
 @dataclass
 class RAPTORConfig:
@@ -185,7 +162,9 @@ class RAPTORTreeBuilder:
         self.raptor_config = raptor_config
         self.llm = None
         self.embedding_model = None
-        self.llm_semaphore = None  # Will be initialized lazily with global semaphore
+        self.prompts = None
+        self.level1_chain = None
+        self.higher_chain = None
 
         # Statistics
         self.stats = {
@@ -236,12 +215,6 @@ class RAPTORTreeBuilder:
                 model=self.rag_config.embeddings.model_name,
                 url=self.rag_config.embeddings.server_url,
                 config=self.rag_config,
-            )
-        
-        # Initialize global LLM semaphore (shared across all files)
-        if self.llm_semaphore is None:
-            self.llm_semaphore = await _get_global_llm_semaphore(
-                self.rag_config.summarizer.max_parallelization
             )
 
     async def build_trees_from_results(
@@ -475,26 +448,26 @@ class RAPTORTreeBuilder:
     async def _generate_cluster_summaries(
         self, clusters: List[List[RAPTORNode]], document_id: str, level: int
     ) -> List[RAPTORNode]:
-        """Generate summaries for clusters with semaphore-controlled concurrency.
+        """Generate summaries for clusters in parallel (no artificial throttling).
         
-        With global slot acquisition at document level (same as regular summarization),
-        we can safely process all clusters in parallel. The semaphore at _generate_summary()
-        ensures LLM calls stay under max_parallelization across the entire system.
+        Redis slot acquisition at document level provides the actual concurrency control.
+        Within each document, all clusters process naturally in parallel without
+        artificial semaphore throttling, matching other summarization strategies.
         
         Flow:
-        1. Document acquires global slot (blocks other documents)
-        2. All clusters process in parallel
-        3. Semaphore throttles actual LLM calls to max_parallelization
+        1. Document acquires Redis slot (blocks other documents)
+        2. All clusters for this document process in parallel
+        3. LLM service naturally handles the concurrent requests
         4. When done, release slot for next document
         """
         
-        # Create all tasks - document-level slot + LLM-level semaphore control concurrency
+        # Create all tasks - Redis slots at document level control concurrency
         tasks = [
             self._generate_single_cluster_summary(cluster, cluster_idx, document_id, level)
             for cluster_idx, cluster in enumerate(clusters)
         ]
         
-        # Process all clusters - semaphore ensures only max_parallelization LLM calls run at once
+        # Process all clusters in parallel (like hierarchical strategy)
         summary_nodes = await asyncio.gather(*tasks, return_exceptions=True)
         
         # Handle any exceptions
@@ -643,29 +616,29 @@ class RAPTORTreeBuilder:
         # Select appropriate chain based on level
         chain = self.level1_chain if level == 1 else self.higher_chain
 
-        # Use global semaphore to limit concurrent LLM calls system-wide
-        async with self.llm_semaphore:
-            try:
-                # Use LangChain chain.ainvoke() like other strategies
-                summary = await chain.ainvoke(
-                    {"text": text},
-                    config={"run_name": f"raptor-summary-level-{level}"}
-                )
-                
-                if not summary or not summary.strip():
-                    raise ValueError("LLM returned empty summary")
-                
-                return summary.strip()
-            except asyncio.TimeoutError:
-                logger.error(
-                    f"LLM timeout at level {level} (input: {current_tokens} tokens)"
-                )
-                raise
-            except Exception as e:
-                logger.error(
-                    f"LLM summary generation failed at level {level}: {type(e).__name__}: {e}"
-                )
-                raise
+        # No semaphore here! Redis slots control document-level concurrency.
+        # LLM calls happen naturally without artificial queuing.
+        try:
+            # Use LangChain chain.ainvoke() like other strategies
+            summary = await chain.ainvoke(
+                {"text": text},
+                config={"run_name": f"raptor-summary-level-{level}"}
+            )
+            
+            if not summary or not summary.strip():
+                raise ValueError("LLM returned empty summary")
+            
+            return summary.strip()
+        except asyncio.TimeoutError:
+            logger.error(
+                f"LLM timeout at level {level} (input: {current_tokens} tokens)"
+            )
+            raise
+        except Exception as e:
+            logger.error(
+                f"LLM summary generation failed at level {level}: {type(e).__name__}: {e}"
+            )
+            raise
 
     async def _embed_summaries(
         self, summary_nodes: List[RAPTORNode]
