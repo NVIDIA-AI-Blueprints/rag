@@ -23,7 +23,8 @@ Understanding typical deployment times can help you determine if your deployment
 
 ### Docker Deployments (Self-Hosted Models)
 
-**First-time deployment:**
+The expected timeline for a first-time deployment is the following:
+
 - **Total time:** 15-30 minutes (can extend to 45+ minutes on slower networks)
 - **Model download phase:** 10-20 minutes (largest component, no progress bar visible)
 - **Service initialization:** 5-10 minutes
