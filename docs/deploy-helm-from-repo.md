@@ -22,7 +22,8 @@ The following are the core services that you install:
 Verify that you meet the prerequisites specified in [prerequisites](./deploy-helm.md#prerequisites).
 
 :::{important}
-**Important Deployment Considerations:**
+Consider the following before you deploy the RAG Blueprint:
+
 - **Disk Space:** Ensure at least 200GB of available disk space per node for NIM model caches
 - First-time deployment takes 60-70 minutes as models download without visible progress indicators
 
