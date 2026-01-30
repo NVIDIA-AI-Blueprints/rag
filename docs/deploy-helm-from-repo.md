@@ -25,7 +25,8 @@ Verify that you meet the prerequisites specified in [prerequisites](./deploy-hel
 **Important Deployment Considerations:**
 - **Disk Space:** Ensure at least 200GB of available disk space per node for NIM model caches
 - **Deployment Time:** First-time deployment takes 60-70 minutes as models download without visible progress indicators
-- See [Deploy on Kubernetes with Helm - Prerequisites](./deploy-helm.md#prerequisites) for monitoring commands
+
+For monitoring commands, refer to [Deploy on Kubernetes with Helm - Prerequisites](./deploy-helm.md#prerequisites).
 :::
 
 
