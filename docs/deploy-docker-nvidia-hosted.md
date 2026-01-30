@@ -24,7 +24,7 @@ While this deployment uses NVIDIA-hosted models (reducing disk space compared to
 :::
 
 :::{note}
-**Deployment Time:** Initial deployment typically takes 5-10 minutes as container images are pulled and services start. This is significantly faster than self-hosted deployments since model downloads are not required.
+Initial deployment typically takes 5-10 minutes as container images are pulled and services start. This is significantly faster than self-hosted deployments since model downloads are not required.
 :::
 
 1. [Get an API Key](api-key.md).
