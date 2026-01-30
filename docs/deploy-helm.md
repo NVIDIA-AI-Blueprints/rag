@@ -130,8 +130,6 @@ To verify a deployment, use the following procedure.
     ```
 
    :::{note}
-   **First-Time Deployment Timing:**
-   
    With the latest Helm NIM Operator deployment, approximately **60 to 70 minutes** is required for the entire pipeline to come up into a running state. This includes time for:
    - Downloading NIM model caches (largest time component, ~40-50 minutes)
    - NIMService initialization (~10-15 minutes)
