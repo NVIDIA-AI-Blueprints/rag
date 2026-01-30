@@ -621,28 +621,27 @@ class RAPTORTreeBuilder:
                 f"Text should have been split earlier!"
             )
 
-        # Construct prompt based on level
+        # Construct prompt based on level using prompts from YAML
         if level == 1:
-            prompt = """Summarize the following text chunks into a coherent, concise summary.
-Focus on the main themes and key information.
-
-Text chunks:
-{text}
-
-Summary:""".format(text=text)
+            # Level 1: Combine base chunks
+            prompt_config = self.prompts.get("raptor_level1_summary_prompt")
         else:
-            prompt = """Create a higher-level summary by synthesizing the following summaries.
-Focus on overarching themes and connections.
-
-Summaries to synthesize:
-{text}
-
-Higher-level summary:""".format(text=text)
+            # Higher levels: Synthesize summaries
+            prompt_config = self.prompts.get("raptor_higher_level_summary_prompt")
+        
+        # Format the human message with the text
+        human_message = prompt_config.get("human", "").format(text=text)
+        
+        # Create messages list with system and human messages
+        messages = [
+            {"role": "system", "content": prompt_config.get("system", "").strip()},
+            {"role": "user", "content": human_message}
+        ]
 
         # Use global semaphore to limit concurrent LLM calls system-wide
         async with self.llm_semaphore:
             try:
-                response = await self.llm.ainvoke(prompt)
+                response = await self.llm.ainvoke(messages)
                 summary = (
                     response.content if hasattr(response, "content") else str(response)
                 )

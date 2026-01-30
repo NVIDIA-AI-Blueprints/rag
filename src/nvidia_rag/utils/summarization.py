@@ -1213,13 +1213,20 @@ async def _combine_summaries_batch(
 
 
 def _get_summary_llm(config: NvidiaRAGConfig):
-    """Get configured LLM for summarization."""
+    """Get configured LLM for summarization with extended timeout for deep content.
+    
+    Uses 300s timeout to handle:
+    - Deep summaries with multimodal content (tables, images, charts)
+    - Large document combinations in RAPTOR
+    - Dense, information-rich texts requiring longer processing
+    """
     llm_params = {
         "config": config,
         "model": config.summarizer.model_name,
         "temperature": config.summarizer.temperature,
         "top_p": config.summarizer.top_p,
         "api_key": config.summarizer.get_api_key(),
+        "timeout": 300,  # 5 min timeout - matches RAPTOR's internal LLM
     }
 
     if config.summarizer.server_url:
