@@ -48,6 +48,7 @@ class TestGetRankingModelPrivate:
             api_key="test-api-key",
             top_n=5,
             truncate="END",
+            default_headers={"source": "rag-blueprint"},
         )
         assert result == mock_reranker
 
@@ -73,6 +74,7 @@ class TestGetRankingModelPrivate:
             api_key="test-api-key",
             top_n=10,
             truncate="END",
+            default_headers={"source": "rag-blueprint"},
         )
         assert result == mock_reranker
 
@@ -133,6 +135,7 @@ class TestGetRankingModelPrivate:
             api_key="test-api-key",
             top_n=4,  # Default value
             truncate="END",
+            default_headers={"source": "rag-blueprint"},
         )
         assert result == mock_reranker
 
@@ -154,6 +157,7 @@ class TestGetRankingModelPrivate:
             api_key="test-api-key",
             top_n=4,
             truncate="END",
+            default_headers={"source": "rag-blueprint"},
         )
         assert result == mock_reranker
 
@@ -175,6 +179,7 @@ class TestGetRankingModelPrivate:
             api_key="test-api-key",
             top_n=1000,
             truncate="END",
+            default_headers={"source": "rag-blueprint"},
         )
         assert result == mock_reranker
 

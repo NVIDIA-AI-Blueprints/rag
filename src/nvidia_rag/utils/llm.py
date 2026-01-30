@@ -37,6 +37,7 @@ from langchain_nvidia_ai_endpoints import ChatNVIDIA
 
 from nvidia_rag.rag_server.response_generator import APIError, ErrorCodeMapping
 from nvidia_rag.utils.common import (
+    NVIDIA_API_DEFAULT_HEADERS,
     combine_dicts,
     sanitize_nim_url,
     utils_cache,
@@ -274,7 +275,7 @@ def get_llm(config: NvidiaRAGConfig | None = None, **kwargs) -> LLM | SimpleChat
                     response.raise_for_status()
 
                     api_key = kwargs.get("api_key") or config.llm.get_api_key()
-                    default_headers = {}
+                    default_headers = {**NVIDIA_API_DEFAULT_HEADERS}
                     if api_key:
                         default_headers["X-Model-Authorization"] = api_key
                     return ChatOpenAI(
@@ -311,6 +312,7 @@ def get_llm(config: NvidiaRAGConfig | None = None, **kwargs) -> LLM | SimpleChat
                 "model": kwargs.get("model"),
                 "api_key": api_key,
                 "stop": kwargs.get("stop", []),
+                "default_headers": NVIDIA_API_DEFAULT_HEADERS,
             }
             if kwargs.get("temperature") is not None:
                 chat_nvidia_kwargs["temperature"] = kwargs["temperature"]
@@ -357,6 +359,7 @@ def get_llm(config: NvidiaRAGConfig | None = None, **kwargs) -> LLM | SimpleChat
             top_p=kwargs.get("top_p", None),
             max_completion_tokens=kwargs.get("max_tokens", None),
             stop=kwargs.get("stop", []),
+            default_headers=NVIDIA_API_DEFAULT_HEADERS,
             **({"model_kwargs": model_kwargs} if model_kwargs else {}),
         )
         llm = _bind_thinking_tokens_if_configured(llm, **kwargs)
