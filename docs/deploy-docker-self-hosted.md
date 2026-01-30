@@ -20,7 +20,7 @@ Looking for a simpler setup without Docker? Check out the [Containerless Deploym
 ## Prerequisites
 
 :::{important}
-**Disk Space Requirement:** Ensure you have at least **200GB of available disk space** before proceeding. The RAG Blueprint downloads and caches large models (NIMs), container images, and vector database data. Insufficient disk space will cause deployment failures.
+Ensure that you have at least **200GB of available disk space** before proceeding. The RAG Blueprint downloads and caches large models (NIMs), container images, and vector database data. Insufficient disk space causes deployment failures.
 :::
 
 1. [Get an API Key](api-key.md).
