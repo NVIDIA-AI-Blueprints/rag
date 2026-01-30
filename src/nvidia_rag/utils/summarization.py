@@ -802,6 +802,8 @@ async def _generate_single_document_summary(
             collection_name=collection_name,
             vdb_op=vdb_op,
             progress_callback=progress_callback,
+            is_shallow=is_shallow,
+            prompts=prompts,
         )
     else:
         raise ValueError(
@@ -1010,6 +1012,8 @@ async def _summarize_raptor(
     collection_name: str,
     vdb_op: Any,
     progress_callback: Callable | None = None,
+    is_shallow: bool = False,
+    prompts: dict | None = None,
 ) -> Document:
     """
     Build RAPTOR hierarchical tree for a single document.
@@ -1028,6 +1032,9 @@ async def _summarize_raptor(
         collection_name: Collection name
         vdb_op: VDB operator for uploading summaries
         progress_callback: Optional progress callback
+        is_shallow: Whether using shallow extraction (text-only). For small documents (< min_cluster_size),
+                   determines which prompt type to use: shallow_summary_prompt or document_summary_prompt
+        prompts: Optional custom prompts dictionary
 
     Returns:
         Document with "summary" metadata set to the top-level RAPTOR summary
@@ -1077,8 +1084,32 @@ async def _summarize_raptor(
 
         if len(doc_chunks) < raptor_config.min_cluster_size:
             logger.info(
-                f"Document {file_name} has only {len(doc_chunks)} chunks, skipping RAPTOR (min: {raptor_config.min_cluster_size})"
+                f"RAPTOR: Document {file_name} has only {len(doc_chunks)} chunks - creating simple summary instead of tree"
             )
+            
+            # For small documents, create a simple combined summary instead of skipping
+            # Combine all chunk texts
+            combined_text = "\n\n".join([
+                chunk.get("metadata", {}).get("content", "")
+                for chunk in doc_chunks
+                if chunk.get("metadata", {}).get("content")
+            ])
+            
+            if combined_text.strip():
+                # Use LLM to create a summary from the combined text
+                # Respect is_shallow parameter for prompt selection
+                llm = _get_summary_llm(config)
+                prompts_config = prompts or get_prompts()
+                initial_chain, _ = _create_llm_chains(llm, prompts_config, is_shallow)
+                
+                summary = await initial_chain.ainvoke(
+                    {"document_text": combined_text},
+                    config={"run_name": f"raptor-simple-summary-{file_name}"},
+                )
+                
+                document.metadata["summary"] = summary
+                logger.debug(f"Created simple summary for {file_name}")
+            
             return document
 
         logger.info(f"Building RAPTOR tree for {file_name} ({len(doc_chunks)} chunks)")
