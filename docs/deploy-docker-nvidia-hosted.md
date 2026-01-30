@@ -38,6 +38,8 @@ When using NVIDIA-hosted endpoints, you might encounter rate limiting with large
 
 5. Some containers with are enabled with GPU acceleration, such as Milvus and NVIDIA NIMS deployed on-prem. To configure Docker for GPU-accelerated containers, [install](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html), the NVIDIA Container Toolkit.
 
+6. [Clone the RAG Blueprint Git repository](deploy-docker-self-hosted.md#clone-the-rag-blueprint-git-repository) to get the necessary deployment files.
+
 ## Start services using NVIDIA-hosted models
 
 Use the following procedure to start all containers needed for this blueprint.
