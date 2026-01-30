@@ -87,11 +87,8 @@ class RAPTORTreeBuilder:
     def __init__(self, rag_config: Any, raptor_config: RAPTORConfig):
         self.rag_config = rag_config
         self.raptor_config = raptor_config
-        self.llm = None
         self.embedding_model = None
         self.prompts = None
-        self.initial_chain = None
-        self.iterative_chain = None
         self.stats = {
             "documents_processed": 0,
             "summaries_created": 0,
@@ -100,26 +97,9 @@ class RAPTORTreeBuilder:
         }
 
     async def initialize(self):
-        """Initialize LLM and embedding models."""
-        if self.llm is None:
-            llm_params = {
-                "model": self.rag_config.summarizer.model_name,
-                "temperature": self.rag_config.summarizer.temperature,
-                "top_p": self.rag_config.summarizer.top_p,
-                "max_tokens": self.rag_config.summarizer.max_chunk_length,
-                "api_key": self.rag_config.summarizer.get_api_key(),
-            }
-
-            if self.rag_config.summarizer.server_url:
-                llm_params["llm_endpoint"] = self.rag_config.summarizer.server_url
-
-            self.llm = get_llm(config=self.rag_config, **llm_params)
+        """Initialize embedding model and load prompts."""
+        if self.prompts is None:
             self.prompts = get_prompts()
-            
-            # Reuse existing prompts: document_summary_prompt and iterative_summary_prompt
-            self.initial_chain, self.iterative_chain = _create_llm_chains(
-                self.llm, self.prompts, is_shallow=False
-            )
 
         if self.embedding_model is None:
             self.embedding_model = get_embedding_model(
@@ -202,7 +182,23 @@ class RAPTORTreeBuilder:
     async def _build_tree_for_document(
         self, document_id: str, chunks: List[Dict[str, Any]]
     ) -> List[RAPTORNode]:
-        """Build RAPTOR tree for a single document."""
+        """Build RAPTOR tree for a single document with dedicated LLM instance."""
+        # Create fresh LLM and chains for this document (like hierarchical strategy)
+        llm_params = {
+            "model": self.rag_config.summarizer.model_name,
+            "temperature": self.rag_config.summarizer.temperature,
+            "top_p": self.rag_config.summarizer.top_p,
+            "max_tokens": self.rag_config.summarizer.max_chunk_length,
+            "api_key": self.rag_config.summarizer.get_api_key(),
+        }
+        if self.rag_config.summarizer.server_url:
+            llm_params["llm_endpoint"] = self.rag_config.summarizer.server_url
+        
+        doc_llm = get_llm(config=self.rag_config, **llm_params)
+        doc_initial_chain, doc_iterative_chain = _create_llm_chains(
+            doc_llm, self.prompts, is_shallow=False
+        )
+        
         num_chunks = len(chunks)
         cluster_size = self.raptor_config.calculate_cluster_size(num_chunks)
         max_levels = self.raptor_config.calculate_max_levels(num_chunks, cluster_size)
@@ -233,6 +229,8 @@ class RAPTORTreeBuilder:
             current_level=1,
             cluster_size=cluster_size,
             max_levels=max_levels,
+            doc_initial_chain=doc_initial_chain,
+            doc_iterative_chain=doc_iterative_chain,
         )
 
         return summary_nodes
@@ -244,6 +242,8 @@ class RAPTORTreeBuilder:
         current_level: int,
         cluster_size: int,
         max_levels: int,
+        doc_initial_chain,
+        doc_iterative_chain,
     ) -> List[RAPTORNode]:
         """Recursively cluster and summarize nodes."""
         if current_level > max_levels:
@@ -254,7 +254,9 @@ class RAPTORTreeBuilder:
                 cluster=nodes,
                 cluster_idx=0,
                 document_id=document_id,
-                level=current_level
+                level=current_level,
+                doc_initial_chain=doc_initial_chain,
+                doc_iterative_chain=doc_iterative_chain,
             )
             return [summary_node]
 
@@ -264,7 +266,7 @@ class RAPTORTreeBuilder:
 
         start_time = time.time()
         summary_nodes = await self._generate_cluster_summaries(
-            clusters, document_id, current_level
+            clusters, document_id, current_level, doc_initial_chain, doc_iterative_chain
         )
         self.stats["time_summarization"] += time.time() - start_time
         self.stats["summaries_created"] += len(summary_nodes)
@@ -275,6 +277,8 @@ class RAPTORTreeBuilder:
             current_level=current_level + 1,
             cluster_size=cluster_size,
             max_levels=max_levels,
+            doc_initial_chain=doc_initial_chain,
+            doc_iterative_chain=doc_iterative_chain,
         )
 
         return summary_nodes + higher_level_summaries
@@ -293,11 +297,14 @@ class RAPTORTreeBuilder:
         return clusters
 
     async def _generate_cluster_summaries(
-        self, clusters: List[List[RAPTORNode]], document_id: str, level: int
+        self, clusters: List[List[RAPTORNode]], document_id: str, level: int,
+        doc_initial_chain, doc_iterative_chain
     ) -> List[RAPTORNode]:
         """Generate summaries for all clusters in parallel."""
         tasks = [
-            self._generate_single_cluster_summary(cluster, cluster_idx, document_id, level)
+            self._generate_single_cluster_summary(
+                cluster, cluster_idx, document_id, level, doc_initial_chain, doc_iterative_chain
+            )
             for cluster_idx, cluster in enumerate(clusters)
         ]
         
@@ -317,7 +324,9 @@ class RAPTORTreeBuilder:
         cluster: List[RAPTORNode],
         cluster_idx: int,
         document_id: str,
-        level: int
+        level: int,
+        doc_initial_chain,
+        doc_iterative_chain,
     ) -> RAPTORNode:
         """Generate summary for a single cluster using iterative enrichment if needed."""
         tokenizer = _get_tokenizer(self.rag_config)
@@ -329,16 +338,16 @@ class RAPTORTreeBuilder:
         current_tokens = _token_length(combined_text, self.rag_config)
         
         if current_tokens <= max_safe_input_tokens:
-            summary = await self._generate_initial_summary(combined_text)
+            summary = await self._generate_initial_summary(combined_text, doc_initial_chain)
         else:
             text_chunks = _split_text_into_chunks(
                 combined_text, tokenizer, max_safe_input_tokens,
                 self.rag_config.summarizer.chunk_overlap
             )
             
-            summary = await self._generate_initial_summary(text_chunks[0])
+            summary = await self._generate_initial_summary(text_chunks[0], doc_initial_chain)
             for chunk in text_chunks[1:]:
-                summary = await self._generate_enriched_summary(summary, chunk)
+                summary = await self._generate_enriched_summary(summary, chunk, doc_iterative_chain)
         
         if level == 1:
             chunk_ids = [node.node_id for node in cluster]
@@ -366,10 +375,10 @@ class RAPTORTreeBuilder:
         
         return summary_node
     
-    async def _generate_initial_summary(self, text: str) -> str:
+    async def _generate_initial_summary(self, text: str, chain) -> str:
         """Generate initial summary using document_summary_prompt."""
         try:
-            summary = await self.initial_chain.ainvoke(
+            summary = await chain.ainvoke(
                 {"document_text": text},
                 config={"run_name": "raptor-initial-summary"}
             )
@@ -383,10 +392,10 @@ class RAPTORTreeBuilder:
             logger.error(f"Initial summary failed: {type(e).__name__}: {e}")
             raise
     
-    async def _generate_enriched_summary(self, previous_summary: str, new_chunk: str) -> str:
+    async def _generate_enriched_summary(self, previous_summary: str, new_chunk: str, chain) -> str:
         """Generate enriched summary using iterative_summary_prompt."""
         try:
-            summary = await self.iterative_chain.ainvoke(
+            summary = await chain.ainvoke(
                 {"previous_summary": previous_summary, "new_chunk": new_chunk},
                 config={"run_name": "raptor-enriched-summary"}
             )
