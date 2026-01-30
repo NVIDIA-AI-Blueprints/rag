@@ -18,7 +18,7 @@ For containerless deployment without Docker, refer to [NVIDIA RAG Python Package
 - **[uv](https://docs.astral.sh/uv/)** - Fast Python package manager
 
 ### Development Mode Note
-Installing with `uv pip install -e ..[all]` enables live edits to `nvidia_rag` source without reinstalling. After changes, restart the notebook kernel and re-execute [Setup the Dependencies](#setup-the-dependencies) and [Import the NvidiaRAGIngestor Packages](#import-the-nvidiaragingestor-packages) sections.
+Installing with `uv pip install -e ..[all]` enables live edits to `nvidia_rag` source without reinstalling. After changes, restart the notebook kernel and re-run [Setup the Dependencies](#setup-the-dependencies) and [Import the NvidiaRAGIngestor Packages](#import-the-nvidiaragingestor-packages) sections.
 
 ## Environment Setup
 The following sections describe how to setup your environment.
