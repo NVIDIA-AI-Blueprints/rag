@@ -19,6 +19,10 @@ Looking for a simpler setup without Docker? Check out the [Containerless Deploym
 
 ## Prerequisites
 
+:::{warning}
+**Disk Space Requirement**: This deployment requires at least **200GB of free disk space** to download and cache models, store vector databases, and run all required services. Ensure sufficient storage is available before proceeding.
+:::
+
 1. [Get an API Key](api-key.md).
 
 2. Install Docker Engine. For more information, see [Ubuntu](https://docs.docker.com/engine/install/ubuntu/).
