@@ -36,7 +36,8 @@ watch -n 10 'du -sh ~/.cache/model-cache/'
 docker stats nim-llm-ms nemoretriever-embedding-ms nemoretriever-ranking-ms
 ```
 
-**Expected timeline for Docker (Self-Hosted):**
+The expected timeline for Docker (Self-Hosted) deployment is the following:
+
 - Model downloads: 10-20 minutes (no progress bar visible)
 - Service initialization: 5-10 minutes
 - Total first-time deployment: 15-30 minutes
