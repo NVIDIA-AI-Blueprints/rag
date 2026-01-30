@@ -29,6 +29,7 @@ import numpy as np
 from nvidia_rag.utils.embedding import get_embedding_model
 from nvidia_rag.utils.llm import get_llm, get_prompts
 from nvidia_rag.utils.summarization import (
+    _extract_content_from_element,
     _get_tokenizer,
     _split_text_into_chunks,
     _token_length,
@@ -185,16 +186,16 @@ class RAPTORTreeBuilder:
         """Build RAPTOR tree for a single document with dedicated LLM instance."""
         # Create fresh LLM and chains for this document (like hierarchical strategy)
         llm_params = {
+            "config": self.rag_config,
             "model": self.rag_config.summarizer.model_name,
             "temperature": self.rag_config.summarizer.temperature,
             "top_p": self.rag_config.summarizer.top_p,
-            "max_tokens": self.rag_config.summarizer.max_chunk_length,
             "api_key": self.rag_config.summarizer.get_api_key(),
         }
         if self.rag_config.summarizer.server_url:
             llm_params["llm_endpoint"] = self.rag_config.summarizer.server_url
         
-        doc_llm = get_llm(config=self.rag_config, **llm_params)
+        doc_llm = get_llm(**llm_params)
         doc_initial_chain, doc_iterative_chain = _create_llm_chains(
             doc_llm, self.prompts, is_shallow=False
         )
@@ -209,7 +210,7 @@ class RAPTORTreeBuilder:
             if not chunk_id:
                 chunk_id = f"{document_id}_chunk_{idx}"
 
-            content = chunk.get("metadata", {}).get("content", "")
+            content = _extract_content_from_element(chunk, self.rag_config)
             if not content:
                 continue
 
