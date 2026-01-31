@@ -80,26 +80,26 @@ You can clone the RAG Blueprint GIt repository to create a local working copy yo
    - Total deployment time can extend to 30 minutes or more depending on your network speed and GPU profile
    - Subsequent deployments are much faster (2-5 minutes) because models are already cached
    
-   **Monitoring Download Progress:**
-   To monitor the download and initialization progress, check the container logs by running the following code:
-   
-   ```bash
-   # Watch NIM LLM logs
-   docker logs -f nim-llm-ms
-   
-   # Watch embedding service logs
-   docker logs -f nemoretriever-embedding-ms
-   
-   # Watch ranking service logs
-   docker logs -f nemoretriever-ranking-ms
-   ```
-   Look for messages that indicate model download progress, cache creation, and service initialization.
-   :::
+### Monitoring Download Progress
 
-   :::{tip}
-   The models are downloaded and cached in the path specified by `MODEL_DIRECTORY`.
-   :::
+To monitor the download and initialization progress, check the container logs by running the following code:
 
+```bash
+# Watch NIM LLM logs
+docker logs -f nim-llm-ms
+
+# Watch embedding service logs
+docker logs -f nemoretriever-embedding-ms
+
+# Watch ranking service logs
+docker logs -f nemoretriever-ranking-ms
+```
+
+Look for messages that indicate model download progress, cache creation, and service initialization.
+
+:::{tip}
+The models are downloaded and cached in the path specified by `MODEL_DIRECTORY`.
+:::
 
 ## Start services using self-hosted on-premises models
 
