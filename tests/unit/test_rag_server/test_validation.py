@@ -209,14 +209,14 @@ class TestValidateRerankerTopK:
             validate_reranker_top_k(15, 10, "reranker_top_k")
 
     def test_validate_reranker_top_k_zero_values(self):
-        """Test validating reranker_top_k with zero values"""
-        result = validate_reranker_top_k(0, 0, "reranker_top_k")
-        assert result == 0
+        """Test validating reranker_top_k with zero value raises ValueError"""
+        with pytest.raises(ValueError, match="reranker_top_k must be greater than 0, got 0"):
+            validate_reranker_top_k(0, 10, "reranker_top_k")
 
     def test_validate_reranker_top_k_negative_values(self):
-        """Test validating reranker_top_k with negative values"""
-        with pytest.raises(ValueError, match="reranker_top_k\\(-5\\) must be less than or equal to vdb_top_k \\(-10\\)\\. Please check your settings and try again\\."):
-            validate_reranker_top_k(-5, -10, "reranker_top_k")
+        """Test validating reranker_top_k with negative value raises ValueError"""
+        with pytest.raises(ValueError, match="reranker_top_k must be greater than 0, got -5"):
+            validate_reranker_top_k(-5, 10, "reranker_top_k")
 
 
 class TestValidateUseKnowledgeBase:

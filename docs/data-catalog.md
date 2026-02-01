@@ -52,7 +52,7 @@ The system automatically analyzes ingested content and provides these metrics:
 ```python
 import requests
 
-url = "http://localhost:8081/v1/collection"
+url = "http://localhost:8082/v1/collection"
 
 data = {
     "collection_name": "financial_reports_2024",
@@ -75,11 +75,11 @@ print(response.json())
 ```python
 from nvidia_rag import NvidiaRAGIngestor
 
-ingestor = NvidiaRAGIngestor(mode="client")
+ingestor = NvidiaRAGIngestor()
 
 result = ingestor.create_collection(
     collection_name="financial_reports_2024",
-    vdb_endpoint="http://milvus:19530",
+    vdb_endpoint="http://localhost:19530",
     description="Q4 2024 Financial Reports and Analysis",
     tags=["finance", "reports", "q4-2024"],
     owner="Finance Team",
@@ -100,7 +100,7 @@ You can update collection catalog metadata at any time without re-ingesting docu
 ```python
 import requests
 
-url = "http://localhost:8081/v1/collections/financial_reports_2024/metadata"
+url = "http://localhost:8082/v1/collections/financial_reports_2024/metadata"
 
 updates = {
     "description": "Q4 2024 Financial Reports - Final Version",
@@ -126,7 +126,7 @@ After ingesting documents, you can add descriptive metadata to individual docume
 ```python
 import requests
 
-url = "http://localhost:8081/v1/collections/financial_reports_2024/documents/annual_report.pdf/metadata"
+url = "http://localhost:8082/v1/collections/financial_reports_2024/documents/annual_report.pdf/metadata"
 
 updates = {
     "description": "Annual Financial Report 2024 - Comprehensive Overview",
@@ -144,7 +144,7 @@ print(response.json())
 ```python
 import requests
 
-url = "http://localhost:8081/v1/collections"
+url = "http://localhost:8082/v1/collections"
 response = requests.get(url)
 result = response.json()
 

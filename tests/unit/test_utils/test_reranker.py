@@ -142,24 +142,14 @@ class TestGetRankingModelPrivate:
     @patch("nvidia_rag.utils.reranker.sanitize_nim_url")
     @patch("nvidia_rag.utils.reranker.NVIDIARerank")
     def test_get_ranking_model_zero_top_n(self, mock_nvidia_rerank, mock_sanitize):
-        """Test getting ranking model with zero top_n parameter."""
+        """Test getting ranking model with zero top_n parameter raises ValueError."""
         mock_config = MagicMock()
         mock_config.ranking.model_engine = "nvidia-ai-endpoints"
         mock_config.ranking.get_api_key.return_value = "test-api-key"
         mock_sanitize.return_value = "http://test-url:8000"
-        mock_reranker = Mock()
-        mock_nvidia_rerank.return_value = mock_reranker
 
-        result = _get_ranking_model("test-model", "test-url", 0, config=mock_config)
-
-        mock_nvidia_rerank.assert_called_once_with(
-            base_url="http://test-url:8000",
-            api_key="test-api-key",
-            top_n=4,
-            truncate="END",
-            default_headers={"source": "rag-blueprint"},
-        )
-        assert result == mock_reranker
+        with pytest.raises(ValueError, match="reranker_top_k must be greater than 0, got 0"):
+            _get_ranking_model("test-model", "test-url", 0, config=mock_config)
 
     @patch("nvidia_rag.utils.reranker.sanitize_nim_url")
     @patch("nvidia_rag.utils.reranker.NVIDIARerank")
