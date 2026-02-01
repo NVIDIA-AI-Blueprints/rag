@@ -317,11 +317,19 @@ class RAPTORTreeBuilder:
         self, clusters: List[List[RAPTORNode]], document_id: str, level: int,
         doc_initial_chain, doc_iterative_chain
     ) -> List[RAPTORNode]:
-        """Generate summaries for all clusters in parallel."""
+        """Generate summaries for all clusters with controlled concurrency."""
+        MAX_CONCURRENT_CLUSTERS = 3
+        
+        semaphore = asyncio.Semaphore(MAX_CONCURRENT_CLUSTERS)
+        
+        async def _summarize_with_limit(cluster, cluster_idx):
+            async with semaphore:
+                return await self._generate_single_cluster_summary(
+                    cluster, cluster_idx, document_id, level, doc_initial_chain, doc_iterative_chain
+                )
+        
         tasks = [
-            self._generate_single_cluster_summary(
-                cluster, cluster_idx, document_id, level, doc_initial_chain, doc_iterative_chain
-            )
+            _summarize_with_limit(cluster, cluster_idx)
             for cluster_idx, cluster in enumerate(clusters)
         ]
         
@@ -349,16 +357,14 @@ class RAPTORTreeBuilder:
         tokenizer = _get_tokenizer(self.rag_config)
         texts = [node.content for node in cluster]
         combined_text = "\n\n".join(texts)
-        
-        PROMPT_OVERHEAD = 200
-        max_safe_input_tokens = self.rag_config.summarizer.max_chunk_length - PROMPT_OVERHEAD
+
         current_tokens = _token_length(combined_text, self.rag_config)
         
-        if current_tokens <= max_safe_input_tokens:
+        if current_tokens <= self.rag_config.summarizer.max_chunk_length:
             summary = await self._generate_initial_summary(combined_text, doc_initial_chain)
         else:
             text_chunks = _split_text_into_chunks(
-                combined_text, tokenizer, max_safe_input_tokens,
+                combined_text, tokenizer, self.rag_config.summarizer.max_chunk_length,
                 self.rag_config.summarizer.chunk_overlap
             )
             
