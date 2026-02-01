@@ -156,8 +156,15 @@ class RAPTORTreeBuilder:
         if all_summary_nodes:
             try:
                 records = self._format_as_vdb_records(all_summary_nodes, collection_name)
-                vdb_op.run(records)
-                logger.info(f"RAPTOR: Uploaded {len(records)} summary nodes to VDB")
+                
+                # Batch VDB inserts to avoid rate limiting
+                batch_size = 1000  # Insert 100 records at a time
+                for i in range(0, len(records), batch_size):
+                    batch = records[i : i + batch_size]
+                    vdb_op.run(batch)
+                    logger.debug(f"RAPTOR: Uploaded batch {i//batch_size + 1} ({len(batch)} records)")
+                
+                logger.info(f"RAPTOR: ✓ Uploaded {len(records)} summary nodes to VDB")
             except Exception as e:
                 logger.error(f"RAPTOR: VDB upload failed: {e}")
                 raise
@@ -460,9 +467,36 @@ class RAPTORTreeBuilder:
     def _format_as_vdb_records(
         self, summary_nodes: List[RAPTORNode], collection_name: str
     ) -> List[Dict[str, Any]]:
-        """Format summary nodes as VDB records."""
+        """Format summary nodes as VDB records.
+        
+        Stores chunk indices instead of full chunk_id strings to reduce JSON size.
+        Example: ["doc_chunk_0", ..., "doc_chunk_130"] → [0, ..., 130]
+        """
         records = []
         for node in summary_nodes:
+            # Extract indices from chunk_ids to save space
+            chunk_indices = self._extract_chunk_indices(node.chunk_ids, node.document_id)
+            
+            content_metadata = {
+                "type": "summary",
+                "level": node.level,
+                "document_id": node.document_id,
+                "cluster_id": node.cluster_id,
+                "node_id": node.node_id,
+                "num_children": len(node.chunk_ids),
+                **node.metadata,
+            }
+            
+            # Store indices (much smaller) or fallback to full chunk_ids
+            if chunk_indices is not None:
+                content_metadata["chunk_indices"] = chunk_indices
+            else:
+                content_metadata["chunk_ids"] = node.chunk_ids
+            
+            # Store summary_ids
+            if node.summary_ids:
+                content_metadata["summary_ids"] = node.summary_ids
+            
             record = {
                 "text": node.content,
                 "vector": node.embedding,
@@ -473,20 +507,32 @@ class RAPTORTreeBuilder:
                     "collection_name": collection_name,
                     "source_type": "raptor_summary",
                 },
-                "content_metadata": {
-                    "type": "summary",
-                    "level": node.level,
-                    "document_id": node.document_id,
-                    "cluster_id": node.cluster_id,
-                    "node_id": node.node_id,
-                    "chunk_ids": node.chunk_ids,
-                    "summary_ids": node.summary_ids,
-                    "num_children": len(node.chunk_ids),
-                    **node.metadata,
-                },
+                "content_metadata": content_metadata,
             }
             records.append(record)
         return records
+    
+    def _extract_chunk_indices(
+        self, chunk_ids: List[str], document_id: str
+    ) -> Optional[List[int]]:
+        """Extract indices from chunk_ids following pattern: {document_id}_chunk_{index}"""
+        if not chunk_ids:
+            return []
+        
+        indices = []
+        expected_prefix = f"{document_id}_chunk_"
+        
+        for chunk_id in chunk_ids:
+            if not chunk_id.startswith(expected_prefix):
+                return None  # Non-standard format
+            
+            suffix = chunk_id[len(expected_prefix):]
+            if not suffix.isdigit():
+                return None  # Non-numeric suffix
+            
+            indices.append(int(suffix))
+        
+        return indices
 
 
 class RAPTORRetriever:
@@ -573,8 +619,20 @@ class RAPTORRetriever:
         return False
 
     def _get_chunk_ids(self, doc: Any) -> List[str]:
-        """Extract chunk IDs from summary metadata."""
+        """Extract chunk IDs from summary metadata.
+        
+        Reconstructs full chunk_ids from stored indices.
+        """
         if hasattr(doc, "metadata"):
             content_metadata = doc.metadata.get("content_metadata", {})
+            
+            # Try indices format first (new format)
+            chunk_indices = content_metadata.get("chunk_indices")
+            if chunk_indices is not None:
+                document_id = content_metadata.get("document_id", "")
+                # Reconstruct: [0, 5, 10] → ["doc_chunk_0", "doc_chunk_5", "doc_chunk_10"]
+                return [f"{document_id}_chunk_{idx}" for idx in chunk_indices]
+            
+            # Fallback to direct chunk_ids (legacy or non-standard)
             return content_metadata.get("chunk_ids", [])
         return []
