@@ -185,7 +185,8 @@ os.environ["YOLOX_TABLE_STRUCTURE_INFER_PROTOCOL"] = "http"
 
 
 ### Setup NVIDIA Ingest Runtime and Redis Service
-Us the following command to setup your NVIDIA Ingest Runtime and Redis Service.
+
+Use the following command to setup your NVIDIA Ingest Runtime and Redis Service.
 
 `docker compose -f ../deploy/compose/docker-compose-ingestor-server.yaml up nv-ingest-ms-runtime redis -d`
 
