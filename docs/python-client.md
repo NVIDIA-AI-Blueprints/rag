@@ -64,7 +64,7 @@ You should see a location similar to the following:
 
 ## Setup the Dependencies
 
-Launch dependent services and NIMs. See [Docker prerequisites](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/docs/deploy-docker-self-hosted.md) for more information.
+Launch dependent services and NIMs. For more information, refer to [Docker prerequisites](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/docs/deploy-docker-self-hosted.md).
 
 ### Setup the Default Configurations
 
