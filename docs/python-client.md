@@ -157,7 +157,8 @@ nim-llm-ms                      Up ... (healthy)
 
 #### Option 2: Use NVIDIA Hosted Models
 
-1. Set deployment mode for NVIDIA hosted cloud APIs
+1. Set deployment mode for NVIDIA hosted cloud APIs.
+
 `DEPLOYMENT_MODE = "cloud"`
 
 2.  Configure NV-Ingest to use NVIDIA hosted cloud APIs using the following hosted models.
