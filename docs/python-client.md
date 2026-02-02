@@ -594,4 +594,4 @@ print(response)
 response = ingestor.delete_collections(vdb_endpoint="http://localhost:19530", collection_names=["test_library"])
 print(response)  
 ```
-See [Prompt Customization](prompt-customization.md#prompt-customization-in-python-library-mode) for additional details.
+For more information, refer to [Prompt Customization](prompt-customization.md#prompt-customization-in-python-library-mode).
