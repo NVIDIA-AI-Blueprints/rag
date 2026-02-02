@@ -108,7 +108,7 @@ Choose of of the following options to setup your NIMS
 
 For cloud models, skip to Option 2.
 
-Meet [hardware requirements](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/docs/support-matrix.md). NIMs default to 2xH100.
+Ensure that you meet the [hardware requirements](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/docs/support-matrix.md). NIMs default to 2xH100.
 
 1. Create the model cache directory
 mkdir -p ~/.cache/model-cache
