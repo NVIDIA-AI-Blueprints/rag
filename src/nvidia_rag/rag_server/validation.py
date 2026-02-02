@@ -75,7 +75,7 @@ def normalize_model_info(value: Any, field_name: str) -> str:
 def validate_reranker_top_k(
     reranker_top_k: int, vdb_top_k: int | None, field_name: str
 ) -> int:
-    """Validate that reranker_top_k is less than or equal to vdb_top_k.
+    """Validate that reranker_top_k is a valid integer and less than or equal to vdb_top_k.
 
     Args:
         reranker_top_k: The reranker top k value to validate
@@ -86,8 +86,20 @@ def validate_reranker_top_k(
         int: The validated reranker_top_k value
 
     Raises:
-        ValueError: If reranker_top_k is greater than vdb_top_k
+        TypeError: If reranker_top_k is not an integer
+        ValueError: If reranker_top_k is 0, negative, or greater than vdb_top_k
     """
+    # Validate type
+    if not isinstance(reranker_top_k, int) or isinstance(reranker_top_k, bool):
+        raise TypeError(
+            f"reranker_top_k must be an integer, got {type(reranker_top_k).__name__}"
+        )
+
+    # Validate positive
+    if reranker_top_k <= 0:
+        raise ValueError(f"reranker_top_k must be greater than 0, got {reranker_top_k}")
+
+    # Validate relationship with vdb_top_k
     if vdb_top_k is not None and reranker_top_k > vdb_top_k:
         raise ValueError(
             f"reranker_top_k({reranker_top_k}) must be less than or equal to vdb_top_k ({vdb_top_k}). Please check your settings and try again."
@@ -130,8 +142,11 @@ def validate_vdb_top_k(vdb_top_k: int) -> int:
         int: The validated vdb_top_k value
 
     Raises:
+        TypeError: If vdb_top_k is not an integer
         ValueError: If vdb_top_k is 0 or negative
     """
+    if not isinstance(vdb_top_k, int) or isinstance(vdb_top_k, bool):
+        raise TypeError(f"vdb_top_k must be an integer, got {type(vdb_top_k).__name__}")
     if vdb_top_k <= 0:
         raise ValueError(
             f"vdb_top_k must be greater than 0, got {vdb_top_k}. "

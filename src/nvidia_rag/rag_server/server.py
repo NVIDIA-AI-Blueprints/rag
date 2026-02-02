@@ -907,9 +907,7 @@ class ComparisonFilter(BaseModel):
 
     model_config = {
         "json_schema_extra": {
-            "examples": [
-                {"key": "<KEYNAME>", "type": "eq", "value": "John Doe"}
-            ]
+            "examples": [{"key": "<KEYNAME>", "type": "eq", "value": "John Doe"}]
         }
     }
 
@@ -1164,6 +1162,7 @@ async def default_openapi():
     "/health",
     response_model=RAGHealthResponse,
     tags=["Health APIs"],
+    description="Perform a health check on the RAG server.",
     responses={
         500: {
             "description": "Internal Server Error",
@@ -1176,15 +1175,7 @@ async def default_openapi():
     },
 )
 async def health_check(check_dependencies: bool = False):
-    """
-    Perform a Health Check
-
-    Args:
-        check_dependencies: If True, check health of all dependent services.
-                           If False (default), only report that the API service is up.
-
-    Returns 200 when service is up and includes health status of all dependent services when requested.
-    """
+    """Perform a health check on the RAG server."""
 
     logger.info("Checking service health...")
     response = await NVIDIA_RAG.health(check_dependencies)
@@ -1554,6 +1545,7 @@ async def v1_chat_completions(request: Request, prompt: Prompt) -> StreamingResp
     "/search",
     tags=["Retrieval APIs"],
     response_model=Citations,
+    description="Search for the most relevant documents for the given search parameters.",
     responses={
         499: {
             "description": "Client Closed Request",
@@ -2063,6 +2055,7 @@ async def vector_store_search(
     "/summary",
     tags=["Retrieval APIs"],
     response_model=SummaryResponse,
+    description="Retrieve document summary from the collection. Fetches pre-generated summaries with support for both blocking and non-blocking modes.",
     responses={
         400: {
             "description": "Bad request (invalid timeout value)",
@@ -2125,31 +2118,7 @@ async def get_summary(
     blocking: bool = False,
     timeout: float = 300,
 ) -> JSONResponse:
-    """
-    Retrieve document summary from the collection.
-
-    This endpoint fetches the pre-generated summary of a document. It supports both
-    blocking and non-blocking behavior through the 'wait' parameter.
-
-    Args:
-        request (Request): FastAPI request object
-        collection_name (str): Name of the document collection
-        file_name (str): Name of the file to get summary for
-        blocking (bool, optional): If True, waits for summary generation. Defaults to False
-        timeout (float, optional): Maximum time to wait in seconds. Will be converted to int. Defaults to 300
-
-    Returns:
-        JSONResponse: Contains either:
-            - Summary data: {"summary": str, "file_name": str, "collection_name": str}
-            - Error message: {"message": str, "status": str}
-
-    Status Codes:
-        400: Bad request (invalid timeout value)
-        404: Summary not found (non-blocking mode)
-        408: Timeout waiting for summary (blocking mode)
-        499: Client Closed Request
-        500: Internal server error
-    """
+    "Retrieve document summary from the collection. Fetches pre-generated summaries with support for both blocking and non-blocking modes."
 
     # Convert float timeout to int and validate to avoid negative values
     timeout = int(timeout)

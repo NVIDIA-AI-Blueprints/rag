@@ -106,6 +106,7 @@ class SearchType(StrEnum):
 
 class RankerType(StrEnum):
     """Allowed ranker types for vector store in case of Hybrid Search"""
+
     RRF = "rrf"
     WEIGHTED = "weighted"
 
@@ -181,7 +182,7 @@ class VectorStoreConfig(_ConfigBase):
         default=0.5,
         env="APP_VECTORSTORE_SPARSE_WEIGHT",
         description="Weight for sparse vector search in case of weighted Hybrid Search",
-    )   
+    )
     default_collection_name: str = Field(
         default="multimodal_data",
         env="COLLECTION_NAME",
@@ -743,6 +744,8 @@ class RetrieverConfig(_ConfigBase):
     @field_validator("vdb_top_k")
     @classmethod
     def validate_vdb_top_k(cls, v: int) -> int:
+        if not isinstance(v, int) or isinstance(v, bool):
+            raise TypeError(f"vdb_top_k must be an integer, got {type(v).__name__}")
         if v <= 0:
             raise ValueError(
                 f"vdb_top_k must be greater than 0, got {v}. "
