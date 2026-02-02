@@ -24,7 +24,7 @@ from functools import lru_cache
 from langchain_core.documents.compressor import BaseDocumentCompressor
 from langchain_nvidia_ai_endpoints import NVIDIARerank
 
-from nvidia_rag.utils.common import sanitize_nim_url
+from nvidia_rag.utils.common import NVIDIA_API_DEFAULT_HEADERS, sanitize_nim_url
 from nvidia_rag.utils.configuration import NvidiaRAGConfig
 
 logger = logging.getLogger(__name__)
@@ -54,9 +54,14 @@ def _get_ranking_model(
     url = sanitize_nim_url(url, model, "ranking")
 
     # Validate top_n
-    if top_n is None or top_n <= 0:
-        logger.warning("top_n must be a positive integer, setting to 4")
-        top_n = 4
+    if top_n is None:
+        top_n = 4  # Use default for None
+    elif not isinstance(top_n, int) or isinstance(top_n, bool):
+        raise TypeError(
+            f"reranker_top_k must be an integer, got {type(top_n).__name__}"
+        )
+    elif top_n <= 0:
+        raise ValueError(f"reranker_top_k must be greater than 0, got {top_n}")
 
     if config.ranking.model_engine == "nvidia-ai-endpoints":
         api_key = config.ranking.get_api_key()
@@ -64,13 +69,21 @@ def _get_ranking_model(
         if url:
             logger.info("Using ranking model hosted at %s", url)
             return NVIDIARerank(
-                base_url=url, api_key=api_key, top_n=top_n, truncate="END"
+                base_url=url,
+                api_key=api_key,
+                top_n=top_n,
+                truncate="END",
+                default_headers=NVIDIA_API_DEFAULT_HEADERS,
             )
 
         if model:
             logger.info("Using ranking model %s hosted at api catalog", model)
             return NVIDIARerank(
-                model=model, api_key=api_key, top_n=top_n, truncate="END"
+                model=model,
+                api_key=api_key,
+                top_n=top_n,
+                truncate="END",
+                default_headers=NVIDIA_API_DEFAULT_HEADERS,
             )
 
         # No model or URL provided

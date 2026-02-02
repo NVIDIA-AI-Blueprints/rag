@@ -19,6 +19,14 @@ When using NVIDIA-hosted endpoints, you might encounter rate limiting with large
 
 ## Prerequisites
 
+:::{important}
+While this deployment uses NVIDIA-hosted models (reducing disk space compared to self-hosted), ensure that you have at least 50GB of available disk space for container images, vector database data, and application files.
+:::
+
+:::{note}
+Initial deployment typically takes 5-10 minutes as container images are pulled and services start. This is significantly faster than self-hosted deployments since model downloads are not required.
+:::
+
 1. [Get an API Key](api-key.md).
 
 2. Install Docker Engine. For more information, see [Ubuntu](https://docs.docker.com/engine/install/ubuntu/).
@@ -64,13 +72,7 @@ You can clone the RAG Blueprint GIt repository to create a local working copy yo
 
    ```bash
    git checkout release-<latest-release>
-   ```  
-
-7. Navigate to the `docs` folder within that branch: 
-
-   ```bash
-   cd docs
-   ```  
+   ```   
 
 ## Start services using NVIDIA-hosted models
 

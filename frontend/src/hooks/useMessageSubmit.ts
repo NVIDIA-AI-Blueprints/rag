@@ -203,13 +203,15 @@ export const useMessageSubmit = () => {
     if ((!hasText && !hasImages) || shouldDisableHealthFeatures || isStreaming) return;
 
     // Build multimodal content if images are attached
+    // Trim input to remove any trailing whitespace/newlines that would cause blank lines in the chat bubble
     let content: MessageContent;
+    const trimmedInput = input.trim();
     if (hasImages) {
       const contentParts: (TextContent | ImageContent)[] = [];
       
       // Add text part if there's text
       if (hasText) {
-        contentParts.push({ type: "text" as const, text: input });
+        contentParts.push({ type: "text" as const, text: trimmedInput });
       }
       
       // Add all image parts
@@ -222,7 +224,7 @@ export const useMessageSubmit = () => {
       
       content = contentParts;
     } else {
-      content = input;
+      content = trimmedInput;
     }
 
     const userMessage: ChatMessage = {

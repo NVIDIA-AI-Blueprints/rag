@@ -32,6 +32,16 @@ Retrieval-only deployments are useful for:
 
 ## Prerequisites
 
+:::{important}
+Before you deploy the RAG Blueprint, consider the following:
+
+- For self-hosted NIMs, ensure that you have at least 50-80GB of available disk space for embedding and reranking model caches (significantly less than full deployment).
+- First-time deployment takes 5-10 minutes for self-hosted NIMs, or 2-3 minutes for NVIDIA-hosted models.
+- Model downloads do not show progress bars.
+
+For monitoring deployment progress, refer to [Deploy on Kubernetes with Helm](./deploy-helm.md#verify-a-deployment).
+:::
+
 1. [Get an API Key](api-key.md).
 
 2. Install Docker Engine and Docker Compose. Ensure Docker Compose version is 2.29.1 or later.
@@ -73,14 +83,14 @@ Choose one of the following options based on your deployment preference.
 
 #### Option A: Self-Hosted NIMs
 
-Instead of starting all NIMs, use the `text-embed` profile to start only the embedding service:
+Instead of starting all NIMs, use the `text-embed` profile to start only the embedding and reranking services:
 
 ```bash
 USERID=$(id -u) docker compose -f deploy/compose/nims.yaml up -d nemoretriever-ranking-ms nemoretriever-embedding-ms
 ```
 
 :::{note}
-The `text-embed` profile starts only `nemoretriever-embedding-ms`, which is sufficient for retrieval operations. The LLM NIM (`nim-llm-ms`) is not started, saving significant GPU memory.
+The `text-embed` profile starts only `nemoretriever-embedding-ms` and `nemoretriever-ranking-ms `, which is sufficient for retrieval operations. The LLM NIM (`nim-llm-ms`) is not started, saving significant GPU memory.
 :::
 
 Wait for the services to become healthy:

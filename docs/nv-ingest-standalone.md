@@ -24,7 +24,7 @@ When using NV-Ingest in standalone mode, consider the following limitations:
 ## Prerequisites
 
 1. Ensure you have Docker and Docker Compose installed. For details, refer to [Get Started](deploy-docker-self-hosted.md).
-2. Have Python 3.12 or later installed
+2. Have Python 3.11 or later installed
 
    :::{tip}
    If you're using **Python 3.13**, make sure you've `python3.13-dev` installed.

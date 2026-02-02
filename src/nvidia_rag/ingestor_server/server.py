@@ -294,6 +294,7 @@ class SummaryOptions(BaseModel):
 
         return self
 
+
 class PdfSplitProcessingOptions(BaseModel):
     """Options for PDF split processing."""
 
@@ -301,6 +302,7 @@ class PdfSplitProcessingOptions(BaseModel):
         default=CONFIG.nv_ingest.pages_per_chunk,
         description="Number of pages per chunk for PDF split processing.",
     )
+
 
 class DocumentUploadRequest(BaseModel):
     """Request model for uploading and processing documents."""
@@ -359,6 +361,21 @@ class DocumentUploadRequest(BaseModel):
     pdf_split_processing_options: PdfSplitProcessingOptions = Field(
         default_factory=PdfSplitProcessingOptions,
         description="Options for PDF split processing.",
+    )
+
+    enable_parallel_batch_mode: bool = Field(
+        default=CONFIG.nv_ingest.enable_parallel_batch_mode,
+        description="Enable parallel batch processing.",
+    )
+
+    concurrent_batches: int = Field(
+        default=CONFIG.nv_ingest.concurrent_batches,
+        description="Number of batches to process concurrently.",
+    )
+
+    files_per_batch: int = Field(
+        default=CONFIG.nv_ingest.files_per_batch,
+        description="Number of files to process in each batch.",
     )
 
     # Reserved for future use
@@ -426,7 +443,9 @@ class IngestionTaskResponse(BaseModel):
 class NVIngestStatusResponse(BaseModel):
     """Response model for getting the status of an NV-Ingest task."""
 
-    extraction_completed: int = Field(0, description="Number of documents extraction completed.")
+    extraction_completed: int = Field(
+        0, description="Number of documents extraction completed."
+    )
     document_wise_status: dict[str, Any] = Field(
         {}, description="NV-Ingest document-wise status."
     )
@@ -523,7 +542,7 @@ class FailedCollection(BaseModel):
 
 
 class CollectionsResponse(BaseModel):
-    """Response model for creation or deletion of collections in Milvus."""
+    """Response model for creation or deletion of collections in vector database."""
 
     message: str = Field(..., description="Status message of the process.")
     successful: list[str] = Field(
@@ -544,7 +563,7 @@ class CollectionsResponse(BaseModel):
 
 
 class CreateCollectionResponse(BaseModel):
-    """Response model for creation or deletion of a collection in Milvus."""
+    """Response model for creation or deletion of a collection in vector database."""
 
     message: str = Field(..., description="Status message of the process.")
     collection_name: str = Field(..., description="Name of the collection.")
@@ -594,6 +613,7 @@ async def request_validation_exception_handler(
     "/health",
     response_model=IngestorHealthResponse,
     tags=["Health APIs"],
+    description="Perform a health check on the ingestor server.",
     responses={
         500: {
             "description": "Internal Server Error",
@@ -607,15 +627,7 @@ async def request_validation_exception_handler(
 )
 @trace_function("ingestor.server.health_check", tracer=TRACER)
 async def health_check(check_dependencies: bool = False):
-    """
-    Perform a Health Check
-
-    Args:
-        check_dependencies: If True, check health of all dependent services.
-                           If False (default), only report that the API service is up.
-
-    Returns 200 when service is up and includes health status of all dependent services when requested.
-    """
+    """Perform a health check on the ingestor server."""
 
     logger.info("Checking service health...")
     response = await NV_INGEST_INGESTOR.health(check_dependencies)
@@ -992,7 +1004,7 @@ async def get_collections(
     ),
 ) -> CollectionListResponse:
     """
-    Endpoint to get a list of collection names from the Milvus server.
+    Endpoint to get a list of collection names from the vector database server.
     Returns a list of collection names.
     """
     try:
@@ -1060,7 +1072,7 @@ async def create_collections(
     if collection_names is None:
         collection_names = [os.getenv("COLLECTION_NAME")]
     """
-    Endpoint to create a collection from the Milvus server.
+    Endpoint to create a collection from the vector database server.
     Returns status message.
     """
     logger.warning(
@@ -1296,6 +1308,7 @@ async def update_document_metadata(
     "/collections",
     tags=["Vector DB APIs"],
     response_model=CollectionsResponse,
+    description="Delete collections from the vector database.",
     responses={
         499: {
             "description": "Client Closed Request",
@@ -1323,12 +1336,9 @@ async def delete_collections(
     ),
     collection_names: list[str] | None = None,
 ) -> CollectionsResponse:
+    """Delete collections from the vector database."""
     if collection_names is None:
         collection_names = [os.getenv("COLLECTION_NAME")]
-    """
-    Endpoint to delete a collection from the Milvus server.
-    Returns status message.
-    """
     try:
         # Extract vdb auth token and pass through to backend
         vdb_auth_token = _extract_vdb_auth_token(request)

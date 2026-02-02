@@ -36,6 +36,18 @@ For hardware requirements and other information, refer to the [Support Matrix](s
 You can deploy the RAG Blueprint with Docker, Helm, or NIM Operator, and target dedicated hardware or a Kubernetes cluster. 
 Use the following documentation to deploy the blueprint.
 
+:::{important}
+Before you deploy, consider the following:
+
+- Self-hosted deployments require ~200GB of free disk space for model downloads and caching.
+- First-time deployments take 15-30 minutes (Docker) or 60-70 minutes (Kubernetes) while large models are downloaded.
+- Model downloads do not show progress bars.
+- Subsequent deployments are much faster (2-15 minutes) because models are already cached.
+
+For monitoring deployment progress, refer to [Deploy on Kubernetes with Helm](./deploy-helm.md#verify-a-deployment).
+For detailed requirements, refer to [Support Matrix](support-matrix.md).
+:::
+
 - [Deploy with Docker (Self-Hosted Models)](deploy-docker-self-hosted.md)
 - [Deploy with Docker (NVIDIA-Hosted Models)](deploy-docker-nvidia-hosted.md)
 - [Deploy on Kubernetes with Helm](deploy-helm.md)
