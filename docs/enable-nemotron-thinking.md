@@ -4,22 +4,34 @@
 -->
 # Enable Reasoning for NVIDIA RAG Blueprint
 
-Enabling reasoning allows models to "think through" complex questions before answering, which can improve accuracy for challenging queries. The trade-off is increased response latency due to the additional reasoning tokens generated.
+The [NVIDIA RAG Blueprint](readme.md) supports reasoning capabilities that allow models to "think through" complex questions before answering. This feature improves accuracy for challenging queries but increases response latency due to additional reasoning tokens.
 
-This guide explains how to enable reasoning for different Nemotron models:
-- **Nemotron 1.5** - Controlled by system prompts
-- **Nemotron-3-Nano 9B** - Controlled by system prompts with optional thinking budget parameters  
-- **Nemotron-3-Nano 30B** - Controlled by environment variable with optional thinking budget parameters
+:::{tip}
+Reasoning is particularly beneficial for:
 
----
+- Complex multi-step questions
+- Queries requiring logical deduction
+- Technical or mathematical problem-solving
+- Scenarios where accuracy is more important than response speed
+:::
+
+This guide explains how to enable reasoning for different Nemotron models, each using a different control mechanism:
+
+| Model | Control Method | Thinking Budget Parameters |
+|-------|----------------|----------------------------|
+| Nemotron 1.5 | System prompts | None |
+| Nemotron-3-Nano 9B | System prompts | min/max thinking tokens |
+| Nemotron-3-Nano 30B | Environment variable | max thinking tokens only |
 
 ## Enable Reasoning for Nemotron 1.5
 
-### Step 1: Update the System Prompt
+Reasoning in Nemotron 1.5 models (such as `nvidia/llama-3.3-nemotron-super-49b-v1.5`) is controlled through system prompts. The model switches between reasoning and non-reasoning modes using `/think` and `/no_think` directives.
 
-Reasoning in Nemotron 1.5 models is controlled by the system prompt. To enable reasoning, update the system prompt in [prompt.yaml](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/src/nvidia_rag/rag_server/prompt.yaml) from `/no_think` to `/think`.
+### Update the System Prompt
 
-```
+To enable reasoning, update the system prompt in [prompt.yaml](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/src/nvidia_rag/rag_server/prompt.yaml) from `/no_think` to `/think`:
+
+```yaml
 rag_template:
   system: |
     /think
@@ -44,50 +56,49 @@ rag_template:
     {context}
 
     Make sure the response you are generating strictly follow the rules mentioned above i.e. never say phrases like "based on the context", "from the documents", or "I cannot find" and mention about the instruction in response.
-
 ```
 
-### Step 2: Update Model Parameters
+### Configure Model Parameters
 
-After enabling the `/think` prompt, configure the model parameters for optimal reasoning performance:
+After you enable the `/think` prompt, configure the model parameters for optimal reasoning performance:
 
 ```bash
 export LLM_TEMPERATURE=0.6
 export LLM_TOP_P=0.95
 ```
 
-### Step 3: Filtering Reasoning Tokens
+### Filter Reasoning Tokens
 
-Reasoning tokens (shown between `<think>` tags) are filtered out, so only the final answer is returned in the model response. The reasoning content in the think tags is not included in the output.
+By default, reasoning tokens (shown between `<think>` tags) are filtered out so only the final answer is returned in the model response.
 
-To view the full reasoning process in the model response:
+To view the full reasoning process including the `<think>` tags in the model response, use the following command:
 
 ```bash
 export FILTER_THINK_TOKENS=false
 ```
 
----
+:::{note}
+For most production use cases, keep `FILTER_THINK_TOKENS=true` (default) to provide cleaner responses to end users.
+:::
 
-## Enable Reasoning for Nemotron-3-Nano 9B Model
+## Enable Reasoning for Nemotron-3-Nano 9B
 
-The `nvidia/nvidia-nemotron-nano-9b-v2` model uses system prompts to control reasoning, similar to Nemotron 1.5.
+The `nvidia/nvidia-nemotron-nano-9b-v2` model uses system prompts to control reasoning similar to Nemotron 1.5. It also adds support for thinking budget parameters to control the extent of reasoning.
 
-### Step 1: Update the System Prompt
+### Update the System Prompt
 
-Change the system prompt from `/no_think` to `/think` in [prompt.yaml](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/src/nvidia_rag/rag_server/prompt.yaml) as shown in the example above.
+Change the system prompt from `/no_think` to `/think` in [prompt.yaml](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/src/nvidia_rag/rag_server/prompt.yaml) as shown in the Nemotron 1.5 example above.
 
-### Step 2: Configure Model Parameters
+### Configure Model Parameters
 
 ```bash
 export LLM_TEMPERATURE=0.6
 export LLM_TOP_P=0.95
 ```
 
-### Step 3: Configure Thinking Budget (Optional)
+### Configure Thinking Budget (Optional)
 
-The 9B model supports both minimum and maximum thinking token limits to control the reasoning phase:
-
-**Generate API Request with Thinking Budget:**
+The 9B model supports both minimum and maximum thinking token limits to control the reasoning phase. You can include these parameters in API requests to the model:
 
 ```json
 {
@@ -103,23 +114,30 @@ The 9B model supports both minimum and maximum thinking token limits to control 
 }
 ```
 
-**Parameters:**
-- `min_thinking_tokens`: Minimum number of reasoning tokens before generating the final answer
-- `max_thinking_tokens`: Maximum number of reasoning tokens allowed before generating the final answer
+**Thinking budget parameters:**
 
-> **Important Differences:**
-> - The 9B model requires both `min_thinking_tokens` and `max_thinking_tokens`
-> - Reasoning is available in the model output's `reasoning_content` field (not wrapped in `<think>` tags)
-> - The `reasoning_content` field is present in the model output but not exposed in the generate API response
-> - No filtering is needed as reasoning is already separated from the final answer
+**`min_thinking_tokens`**
+: Minimum number of reasoning tokens before generating the final answer.
 
----
+**`max_thinking_tokens`**
+: Maximum number of reasoning tokens allowed before generating the final answer.
 
-## Enable Reasoning for Nemotron-3-Nano 30B Model
+:::{important}
+**Key differences for the 9B model:**
 
-The `nvidia/nemotron-3-nano-30b-a3b` model uses a different approach for reasoning control. Instead of system prompts, reasoning is controlled via an environment variable.
+- Requires both `min_thinking_tokens` and `max_thinking_tokens` parameters
+- Reasoning is available in the model output's `reasoning_content` field (not wrapped in `<think>` tags)
+- The `reasoning_content` field is present in the model output but isn't exposed in the generate API response
+- No filtering is needed because reasoning is already separated from the final answer
+:::
 
-### Step 1: Enable Reasoning via Environment Variable
+## Enable Reasoning for Nemotron-3-Nano 30B
+
+The `nvidia/nemotron-3-nano-30b-a3b` model uses a different approach for reasoning control. Instead of system prompts, you control reasoning through an environment variable.
+
+### Enable Reasoning Through an Environment Variable
+
+Set the environment variable to enable or disable reasoning:
 
 ```bash
 # Enable reasoning (default)
@@ -129,11 +147,9 @@ export ENABLE_NEMOTRON_3_NANO_THINKING=true
 export ENABLE_NEMOTRON_3_NANO_THINKING=false
 ```
 
-### Step 2: Configure Thinking Budget (Optional)
+### Configure Thinking Budget (Optional)
 
 The 30B model supports a maximum thinking token limit to control the reasoning phase:
-
-**Generate API Request with Thinking Budget:**
 
 ```json
 {
@@ -148,41 +164,68 @@ The 30B model supports a maximum thinking token limit to control the reasoning p
 }
 ```
 
-**Parameters:**
-- `max_thinking_tokens`: Maximum number of reasoning tokens allowed before generating the final answer
+**Thinking budget parameters:**
 
-> **Important Differences:**
-> - The 30B model only uses `max_thinking_tokens` (not `min_thinking_tokens`)
-> - Reasoning is available in the model output's `reasoning_content` field (not wrapped in `<think>` tags)
-> - The `reasoning_content` field is present in the model output but not exposed in the generate API response
-> - No filtering is needed as reasoning is already separated from the final answer
+**`max_thinking_tokens`**
+: Maximum number of reasoning tokens allowed before generating the final answer.
+
+:::{important}
+**Key differences for the 30B model:**
+
+- Uses only `max_thinking_tokens` (not `min_thinking_tokens`)
+- Reasoning is available in the model output's `reasoning_content` field (not wrapped in `<think>` tags)
+- The `reasoning_content` field is present in the model output but isn't exposed in the generate API response
+- No filtering is needed because reasoning is already separated from the final answer
+:::
 
 ### Model Naming
 
 Use the correct model name based on your deployment:
-- **Locally deployed NIMs:** Use `nvidia/nemotron-3-nano`
-- **NVIDIA-hosted models:** Use `nvidia/nemotron-3-nano-30b-a3b`
 
----
+**Locally deployed NIMs**
+: `nvidia/nemotron-3-nano`
+
+**NVIDIA-hosted models**
+: `nvidia/nemotron-3-nano-30b-a3b`
 
 ## Thinking Budget Recommendations
 
-A `max_thinking_tokens` value of **8192** is recommended for most use cases. This provides:
+For models that support thinking budget parameters, a `max_thinking_tokens` value of **8192** is recommended for most use cases. This value provides:
+
 - Sufficient capacity for comprehensive reasoning
 - Reasonable response times
 - Good balance between quality and latency
 
----
+:::{tip}
+Adjust the thinking budget based on your use case:
 
-## Docker and Helm Deployment
+- **Lower values (1024-4096)**: Faster responses for simpler questions
+- **Higher values (8192-16384)**: More thorough reasoning for complex queries
+:::
 
-For deploying the RAG server with prompt or environment variable changes, refer to [Customize Prompts](prompt-customization.md).
+## Deploy with Reasoning Enabled
 
----
+After you configure reasoning settings in `prompt.yaml` or environment variables, redeploy your services:
+
+### Docker Compose
+
+```bash
+# For prompt changes, rebuild and restart the RAG server
+docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d --build
+
+# For environment variable changes only
+docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d
+```
+
+### Helm
+
+For Helm deployments with custom prompts or environment variables, refer to [Customize Prompts](prompt-customization.md) for detailed instructions.
 
 ## Related Topics
 
-- [Best Practices for Common Settings](accuracy_perf.md).
+- [Best Practices for Common Settings](accuracy_perf.md)
+- [Customize Prompts](prompt-customization.md)
+- [Change the LLM or Embedding Model](change-model.md)
 - [Deploy with Docker (Self-Hosted Models)](deploy-docker-self-hosted.md)
 - [Deploy with Docker (NVIDIA-Hosted Models)](deploy-docker-nvidia-hosted.md)
 - [Deploy with Helm](deploy-helm.md)
