@@ -310,7 +310,7 @@ def get_llm(config: NvidiaRAGConfig | None = None, **kwargs) -> LLM | SimpleChat
 
         if url:
             logger.debug(f"Length of llm endpoint url string {url}")
-            logger.info("Using llm model %s hosted at %s", kwargs.get("model"), url)
+            logger.debug("Using llm model %s hosted at %s", kwargs.get("model"), url)
 
             api_key = kwargs.get("api_key") or config.llm.get_api_key()
             # Detect endpoint type using URL patterns only
@@ -353,7 +353,7 @@ def get_llm(config: NvidiaRAGConfig | None = None, **kwargs) -> LLM | SimpleChat
                     logger.info("nemotron-3-nano: Setting enable_thinking=%s (from ENABLE_NEMOTRON_3_NANO_THINKING)", enable_thinking)
             return llm
 
-        logger.info("Using llm model %s from api catalog", kwargs.get("model"))
+        logger.debug("Using llm model %s from api catalog", kwargs.get("model"))
 
         api_key = kwargs.get("api_key") or config.llm.get_api_key()
 
