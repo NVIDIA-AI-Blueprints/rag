@@ -53,7 +53,7 @@ RUN pnpm run build
 
 # Production stage - NVIDIA distroless (pre-approved)
 # Updated to latest version to address CVE-2025-9230 (libssl3)
-FROM nvcr.io/nvidia/distroless/node:24-v3.1.2
+FROM nvcr.io/nvidia/distroless/node:24-v3.1.3
 
 # Copy built application and config for production preview
 WORKDIR /app/frontend
