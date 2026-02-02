@@ -275,7 +275,7 @@ envVars:
   APP_VLM_SERVERURL: "http://nim-vlm:8000/v1"
 
   # VLM embedding settings
-  APP_EMBEDDINGS_SERVERURL: "nemoretriever-vlm-embedding-ms:8000"
+  APP_EMBEDDINGS_SERVERURL: "nemoretriever-vlm-embedding-ms:8000/v1"
   APP_EMBEDDINGS_MODELNAME: "nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1"
 
   # Disable reranker (not supported with multimodal queries)
@@ -290,7 +290,7 @@ ingestor-server:
     APP_NVINGEST_EXTRACTIMAGES: "True"
 
     # VLM embedding settings for ingestor
-    APP_EMBEDDINGS_SERVERURL: "nemoretriever-vlm-embedding-ms:8000"
+    APP_EMBEDDINGS_SERVERURL: "nemoretriever-vlm-embedding-ms:8000/v1"
     APP_EMBEDDINGS_MODELNAME: "nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1"
 
 nv-ingest:
