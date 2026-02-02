@@ -269,7 +269,7 @@ The notebook demonstrates the following:
 
 ### Quick Access to the Notebook
 
-Fetch the notebook directly using:
+You can fetch the notebook directly by using the following code.
 
 ```bash
 # Download the summarization notebook
