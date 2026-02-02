@@ -375,7 +375,7 @@ Cloud deployments: Set `server_url` to `""` for LLM and ranking, use `https://in
 :::
 
 ## Query a Document with RAG
-The following sections describe how to query a document using RAG.
+The following sections describe how to query a document by using RAG.
 
 ### Check Health of All Dependent Services
 
