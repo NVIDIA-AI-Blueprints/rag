@@ -21,7 +21,7 @@ For containerless deployment without Docker, refer to [NVIDIA RAG Python Package
 Installing with `uv pip install -e ..[all]` enables live edits to `nvidia_rag` source without reinstalling. After changes, restart the notebook kernel and re-run [Setup the Dependencies](#setup-the-dependencies) and [Import the NvidiaRAGIngestor Packages](#import-the-nvidiaragingestor-packages) sections.
 
 ## Environment Setup
-The following sections describe how to setup your environment.
+The following sections describe how to set up your environment.
 
 ### Install UV
 
