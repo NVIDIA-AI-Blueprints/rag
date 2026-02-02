@@ -46,7 +46,7 @@ This deployment requires at least 200GB of free disk space to download and cache
 
 ## Clone the RAG Blueprint Git repository
 
-You can clone the RAG Blueprint GIt repository to create a local working copy you can run and modify, with full Git history and an easy way to update from upstream.
+You can clone the RAG Blueprint repository to create a local working copy that you can run and modify, with full git history and an easy way to update from upstream.
 
 1. Confirm that Git is installed on your machine. [git-scm](https://git-scm.com/docs/git-clone)
 2. Open a terminal and navigate to the directory where you want the project. [git-scm](https://git-scm.com/docs/git-clone)
