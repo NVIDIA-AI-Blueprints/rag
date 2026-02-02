@@ -457,6 +457,12 @@ class Prompt(BaseModel):
         description="Endpoint url of the vector database server.",
         default=CONFIG.vector_store.url,
     )
+    collection_name: str | None = Field(
+        default=None,
+        description="Name of a single collection in the vector database. "
+        "If provided, this will be used instead of collection_names. "
+        "This is a convenience field for single collection queries.",
+    )
     collection_names: list[str] = Field(
         default=[CONFIG.vector_store.default_collection_name],
         description="Name of the collections in the vector database.",
@@ -585,6 +591,20 @@ class Prompt(BaseModel):
     def validate_confidence_threshold(cls, values):
         """Custom validator for confidence_threshold to provide better error messages."""
         validate_confidence_threshold_field(values.confidence_threshold)
+        return values
+
+    @model_validator(mode="after")
+    def convert_collection_name_to_names(cls, values):
+        """Convert collection_name to collection_names if provided."""
+        if values.collection_name is not None:
+            # If collection_name is provided, use it to set collection_names
+            # Only override if collection_names is still the default value
+            default_collection = [CONFIG.vector_store.default_collection_name]
+            if values.collection_names == default_collection:
+                values.collection_names = [values.collection_name]
+                logger.debug(
+                    f"Converted collection_name '{values.collection_name}' to collection_names"
+                )
         return values
 
     # Validator to check chat message structure
