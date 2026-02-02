@@ -681,7 +681,7 @@ class DocumentSearch(BaseModel):
     )
 
     filter_expr: str | list[dict[str, Any]] = Field(
-        description="Filter expression to filter the retrieved documents from Milvus collection.",
+        description="Filter expression to filter the retrieved documents from vector database collection.",
         default="",
         # max_length=4096,
         # pattern=r"[\s\S]*",

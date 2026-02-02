@@ -363,6 +363,21 @@ class DocumentUploadRequest(BaseModel):
         description="Options for PDF split processing.",
     )
 
+    enable_parallel_batch_mode: bool = Field(
+        default=CONFIG.nv_ingest.enable_parallel_batch_mode,
+        description="Enable parallel batch processing.",
+    )
+
+    concurrent_batches: int = Field(
+        default=CONFIG.nv_ingest.concurrent_batches,
+        description="Number of batches to process concurrently.",
+    )
+
+    files_per_batch: int = Field(
+        default=CONFIG.nv_ingest.files_per_batch,
+        description="Number of files to process in each batch.",
+    )
+
     # Reserved for future use
     # embedding_model: str = Field(
     #     os.getenv("APP_EMBEDDINGS_MODELNAME", ""),
@@ -527,7 +542,7 @@ class FailedCollection(BaseModel):
 
 
 class CollectionsResponse(BaseModel):
-    """Response model for creation or deletion of collections in Milvus."""
+    """Response model for creation or deletion of collections in vector database."""
 
     message: str = Field(..., description="Status message of the process.")
     successful: list[str] = Field(
@@ -548,7 +563,7 @@ class CollectionsResponse(BaseModel):
 
 
 class CreateCollectionResponse(BaseModel):
-    """Response model for creation or deletion of a collection in Milvus."""
+    """Response model for creation or deletion of a collection in vector database."""
 
     message: str = Field(..., description="Status message of the process.")
     collection_name: str = Field(..., description="Name of the collection.")
@@ -989,7 +1004,7 @@ async def get_collections(
     ),
 ) -> CollectionListResponse:
     """
-    Endpoint to get a list of collection names from the Milvus server.
+    Endpoint to get a list of collection names from the vector database server.
     Returns a list of collection names.
     """
     try:
@@ -1057,7 +1072,7 @@ async def create_collections(
     if collection_names is None:
         collection_names = [os.getenv("COLLECTION_NAME")]
     """
-    Endpoint to create a collection from the Milvus server.
+    Endpoint to create a collection from the vector database server.
     Returns status message.
     """
     logger.warning(

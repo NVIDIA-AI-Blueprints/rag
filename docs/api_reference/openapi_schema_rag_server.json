@@ -12,7 +12,7 @@
           "Health APIs"
         ],
         "summary": "Health Check",
-        "description": "Perform a Health Check\n\nArgs:\n    check_dependencies: If True, check health of all dependent services.\n                       If False (default), only report that the API service is up.\n\nReturns 200 when service is up and includes health status of all dependent services when requested.",
+        "description": "Perform a health check on the RAG server.",
         "operationId": "health_check_v1_health_get",
         "parameters": [
           {
@@ -221,7 +221,7 @@
           "Retrieval APIs"
         ],
         "summary": "Get Summary",
-        "description": "Retrieve document summary from the collection.\n\nThis endpoint fetches the pre-generated summary of a document. It supports both\nblocking and non-blocking behavior through the 'wait' parameter.\n\nArgs:\n    request (Request): FastAPI request object\n    collection_name (str): Name of the document collection\n    file_name (str): Name of the file to get summary for\n    blocking (bool, optional): If True, waits for summary generation. Defaults to False\n    timeout (float, optional): Maximum time to wait in seconds. Will be converted to int. Defaults to 300\n\nReturns:\n    JSONResponse: Contains either:\n        - Summary data: {\"summary\": str, \"file_name\": str, \"collection_name\": str}\n        - Error message: {\"message\": str, \"status\": str}\n\nStatus Codes:\n    400: Bad request (invalid timeout value)\n    404: Summary not found (non-blocking mode)\n    408: Timeout waiting for summary (blocking mode)\n    499: Client Closed Request\n    500: Internal server error",
+        "description": "Retrieve document summary from the collection. Fetches pre-generated summaries with support for both blocking and non-blocking modes.",
         "operationId": "get_summary_v1_summary_get",
         "parameters": [
           {
@@ -624,14 +624,14 @@
             "maxLength": 256,
             "title": "Embedding Model",
             "description": "Name of the embedding model used for vectorization.",
-            "default": "nvidia/llama-3.2-nv-embedqa-1b-v2"
+            "default": "nvdev/nvidia/llama-3.2-nv-embedqa-1b-v2"
           },
           "embedding_endpoint": {
             "type": "string",
             "maxLength": 2048,
             "title": "Embedding Endpoint",
             "description": "Endpoint URL for the embedding model server.",
-            "default": "http://nemoretriever-embedding-ms:8000/v1"
+            "default": "https://integrate.api.nvidia.com/v1"
           },
           "reranker_model": {
             "type": "string",
@@ -652,7 +652,7 @@
             ],
             "title": "Reranker Endpoint",
             "description": "Endpoint URL for the reranker model server.",
-            "default": "http://nemoretriever-ranking-ms:8000"
+            "default": ""
           },
           "filter_expr": {
             "anyOf": [
@@ -668,7 +668,7 @@
               }
             ],
             "title": "Filter Expr",
-            "description": "Filter expression to filter the retrieved documents from Milvus collection.",
+            "description": "Filter expression to filter the retrieved documents from vector database collection.",
             "default": ""
           },
           "confidence_threshold": {
@@ -1252,14 +1252,14 @@
             "maxLength": 2048,
             "title": "Llm Endpoint",
             "description": "Endpoint URL for the llm model server.",
-            "default": "http://nim-llm:8000"
+            "default": ""
           },
           "embedding_model": {
             "type": "string",
             "maxLength": 256,
             "title": "Embedding Model",
             "description": "Name of the embedding model used for vectorization.",
-            "default": "nvidia/llama-3.2-nv-embedqa-1b-v2"
+            "default": "nvdev/nvidia/llama-3.2-nv-embedqa-1b-v2"
           },
           "embedding_endpoint": {
             "anyOf": [
@@ -1273,7 +1273,7 @@
             ],
             "title": "Embedding Endpoint",
             "description": "Endpoint URL for the embedding model server.",
-            "default": "http://nemoretriever-embedding-ms:8000/v1"
+            "default": "https://integrate.api.nvidia.com/v1"
           },
           "reranker_model": {
             "type": "string",
@@ -1294,7 +1294,7 @@
             ],
             "title": "Reranker Endpoint",
             "description": "Endpoint URL for the reranker model server.",
-            "default": "http://nemoretriever-ranking-ms:8000"
+            "default": ""
           },
           "vlm_model": {
             "type": "string",
@@ -1315,7 +1315,7 @@
             ],
             "title": "Vlm Endpoint",
             "description": "Endpoint URL for the VLM model server.",
-            "default": "http://vlm-ms:8000/v1"
+            "default": "https://integrate.api.nvidia.com/v1"
           },
           "vlm_temperature": {
             "type": "number",
