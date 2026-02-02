@@ -316,6 +316,11 @@ After the RAG Blueprint is deployed, you can use the Ingestion API Usage noteboo
     ```
 
 
+## Service Port and GPU Reference
+
+For a complete reference of all services, their port mappings, and GPU assignments, see [Service Port and GPU Reference](service-port-gpu-reference.md)
+
+
 ## Advanced Deployment Considerations
 
 After the first time you deploy the RAG Blueprint successfully, you can consider the following advanced deployment options:
@@ -346,7 +351,7 @@ After the first time you deploy the RAG Blueprint successfully, you can consider
    docker compose -f deploy/compose/docker-compose-*-server.yaml up -d --build
    ```
 
-- By default, GPU accelerated Milvus DB is deployed. You can choose the GPU ID to allocate by using the below env variable.
+- By default, GPU accelerated Milvus DB is deployed. You can choose the GPU ID to allocate by using the below env variable. For all service port mappings and GPU assignments, see [Service Port and GPU Reference](service-port-gpu-reference.md).
 
    ```bash
    VECTORSTORE_GPU_DEVICE_ID=0
@@ -359,7 +364,7 @@ After the first time you deploy the RAG Blueprint successfully, you can consider
 
 - For advanced users who need direct filesystem access to extraction results, refer to [Ingestor Server Volume Mounting](mount-ingestor-volume.md).
 
-- A single NVIDIA A100-80GB or H100-80GB, B200 GPU can be used to start non-LLM NIMs (nemoretriever-embedding-ms, nemoretriever-ranking-ms, and ingestion services like page-elements, ocr, graphic-elements, and table-structure) for ingestion and RAG workflows. You can control which GPU is used for each service by setting these environment variables in `deploy/compose/.env` file before launching:
+- A single NVIDIA A100-80GB or H100-80GB, B200 GPU can be used to start non-LLM NIMs (nemoretriever-embedding-ms, nemoretriever-ranking-ms, and ingestion services like page-elements, ocr, graphic-elements, and table-structure) for ingestion and RAG workflows. You can control which GPU is used for each service by setting these environment variables in `deploy/compose/.env` file before launching. For a complete list of all services and their default GPU assignments, see [Service Port and GPU Reference](service-port-gpu-reference.md).
 
    ```bash
    EMBEDDING_MS_GPU_ID=0
