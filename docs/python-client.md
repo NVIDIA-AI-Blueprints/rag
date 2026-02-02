@@ -191,7 +191,6 @@ Use the following command to setup your NVIDIA Ingest Runtime and Redis Service.
 `docker compose -f ../deploy/compose/docker-compose-ingestor-server.yaml up nv-ingest-ms-runtime redis -d`
 
 
----
 ## API Usage Example
 
 The following sections describe an example usage of the API.
