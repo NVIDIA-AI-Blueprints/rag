@@ -1,6 +1,9 @@
 # Build stage - OSRB approved Ubuntu base (Bug 3840915)
 FROM nvcr.io/nvidia/base/ubuntu:jammy-20251013 AS builder
 
+# Snapshot packages BEFORE installing (to track only what we add)
+RUN apt list --installed 2>/dev/null | tail -n +2 | sed 's|/.*||' | sort -u > /tmp/packages-before.txt
+
 # Install required OS dependencies for building
 # Update all packages to address security vulnerabilities including CVE-2026-0861 (libc6)
 RUN apt-get update && apt-get upgrade -y && apt-get install -y \
@@ -21,6 +24,20 @@ RUN node -v && pnpm -v
 WORKDIR /app
 RUN mkdir -p /legal
 COPY LICENSE-3rd-party.txt /legal/
+
+# Download ONLY sources for packages WE installed (not base container packages)
+RUN sed -i 's/# deb-src/deb-src/g' /etc/apt/sources.list && \
+    apt-get update && mkdir -p /legal/source
+
+WORKDIR /legal/source
+RUN apt list --installed 2>/dev/null | tail -n +2 | sed 's|/.*||' | sort -u > /tmp/packages-after.txt && \
+    comm -13 /tmp/packages-before.txt /tmp/packages-after.txt > /legal/source/packages-manifest.txt && \
+    echo "Downloading sources for $(wc -l < /legal/source/packages-manifest.txt) newly installed packages (out of $(wc -l < /tmp/packages-after.txt) total)" && \
+    cat /legal/source/packages-manifest.txt | \
+    xargs -n 1 bash -c 'apt-get source --download-only "$0" 2>&1 || echo "Warning: Source not available for $0"' > /legal/source/download-log.txt 2>&1 && \
+    echo "APT source download complete: $(du -sh /legal/source | cut -f1)"
+
+WORKDIR /app
 
 # Environment variables for build
 ARG NEXT_PUBLIC_MODEL_NAME
@@ -57,7 +74,7 @@ FROM nvcr.io/nvidia/distroless/node:24-v3.1.3
 
 # Copy built application and config for production preview
 WORKDIR /app/frontend
-COPY --from=builder /legal/LICENSE-3rd-party.txt /legal/LICENSE-3rd-party.txt
+COPY --from=builder /legal /legal
 COPY --from=builder /app/frontend/dist ./dist
 COPY --from=builder /app/frontend/package.json ./package.json
 COPY --from=builder /app/frontend/vite.config.ts ./vite.config.ts
