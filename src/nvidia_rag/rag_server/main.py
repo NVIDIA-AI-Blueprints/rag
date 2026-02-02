@@ -2987,8 +2987,14 @@ class NvidiaRAG:
 
             # RAPTOR: Tree traversal to organize final context hierarchically
             # This happens AFTER all filtering (reranking, confidence) but BEFORE formatting for LLM
+            # OR performs two-stage retrieval from scratch if RAPTOR_TWO_STAGE_RETRIEVAL=true
             context_to_show = await self._expand_documents_with_raptor(
-                context_to_show, vdb_op
+                documents=context_to_show,
+                vdb_op=vdb_op,
+                query=retriever_query,
+                reranker_top_k=reranker_top_k,
+                collection_names=validated_collections,
+                filter_expr=collection_filter_mapping.get(validated_collections[0], "") if validated_collections else "",
             )
 
             docs = [self._format_document_with_source(d) for d in context_to_show]
@@ -3347,49 +3353,104 @@ class NvidiaRAG:
         return documents
 
     async def _expand_documents_with_raptor(
-        self, documents: list[Document], vdb_op: VDBRag
+        self, 
+        documents: list[Document], 
+        vdb_op: VDBRag,
+        query: str = None,
+        reranker_top_k: int = None,
+        collection_names: list[str] = None,
+        filter_expr: str = "",
     ) -> list[Document]:
         """
         Expand retrieved documents using RAPTOR tree traversal.
-
-        If RAPTOR is enabled and documents contain summaries, this method:
-        1. Identifies summary nodes in the retrieved documents
-        2. Fetches their children (chunks) from VDB
-        3. Adds children to the context
-        4. Returns expanded document list
-
+        
+        Supports two modes (controlled by RAPTOR_TWO_STAGE_RETRIEVAL env var):
+        
+        Mode 1 (default, RAPTOR_TWO_STAGE_RETRIEVAL=false):
+        - Post-retrieval expansion: Add children of summary nodes
+        - Happens AFTER initial VDB retrieval and reranking
+        
+        Mode 2 (RAPTOR_TWO_STAGE_RETRIEVAL=true):
+        - Two-stage retrieval from scratch:
+          Stage 1: Retrieve summaries → identify documents
+          Stage 2: Retrieve all content from identified documents
+        - Replaces the initial retrieval entirely
+        - Requires query, reranker_model, and other parameters
+        
         Args:
-            documents: Retrieved documents from VDB
+            documents: Retrieved documents from VDB (used in Mode 1)
             vdb_op: VDB operator
-
+            query: User query (required for Mode 2)
+            reranker_top_k: Final number of chunks (required for Mode 2)
+            collection_names: Collections to search (required for Mode 2)
+            filter_expr: Filter expression (optional for Mode 2)
+        
         Returns:
-            Expanded list of documents (originals + children of summaries)
+            Expanded/retrieved list of documents
         """
         try:
             from nvidia_rag.utils.raptor import RAPTORConfig, RAPTORRetriever
-
+            
+            # Check if two-stage retrieval is enabled
+            use_two_stage = os.getenv("RAPTOR_TWO_STAGE_RETRIEVAL", "false").lower() in ["true", "1", "yes"]
+            
+            if use_two_stage:
+                # MODE 2: Two-stage retrieval from scratch
+                logger.info("RAPTOR: Using two-stage retrieval mode")
+                
+                # Validate required parameters
+                if not query or reranker_top_k is None or not collection_names:
+                    logger.warning(
+                        "Two-stage RAPTOR retrieval requires query, reranker_top_k, and collection_names. "
+                        "Falling back to post-retrieval expansion mode."
+                    )
+                    use_two_stage = False
+                else:
+                    # Get reranker model
+                    ranking_model = get_ranking_model(self.config)
+                    
+                    # Create RAPTOR config and retriever
+                    raptor_config = RAPTORConfig.from_config(self.config)
+                    retriever = RAPTORRetriever(raptor_config)
+                    
+                    # Perform two-stage retrieval
+                    vdb_top_k = self.config.retriever.vdb_top_k
+                    expanded_docs = await retriever.two_stage_retrieval(
+                        query=query,
+                        vdb_op=vdb_op,
+                        reranker_model=ranking_model,
+                        vdb_top_k=vdb_top_k,
+                        reranker_top_k=reranker_top_k,
+                        collection_names=collection_names,
+                        filter_expr=filter_expr,
+                    )
+                    
+                    return expanded_docs
+            
+            # MODE 1: Post-retrieval expansion (default)
             # Check if there are any summaries in documents
             has_summaries = any(
                 doc.metadata.get("content_metadata", {}).get("type") == "summary"
                 for doc in documents
             )
-
+            
             if not has_summaries:
                 logger.debug("No RAPTOR summaries in retrieved documents")
                 return documents
-
+            
+            logger.debug("RAPTOR: Using post-retrieval expansion mode")
+            
             # Create RAPTOR config and retriever
             raptor_config = RAPTORConfig.from_config(self.config)
             retriever = RAPTORRetriever(raptor_config)
-
+            
             # Organize documents hierarchically
             expanded_docs = await retriever.expand_with_tree_traversal(
                 documents, vdb_op
             )
-
-
+            
             return expanded_docs
-
+        
         except Exception as e:
             logger.error(f"Error in RAPTOR tree traversal: {e}", exc_info=True)
             # Return original documents if RAPTOR fails

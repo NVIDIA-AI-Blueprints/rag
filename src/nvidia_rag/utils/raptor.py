@@ -19,6 +19,7 @@ Integration Points:
 import asyncio
 import logging
 import math
+import os
 import time
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -27,6 +28,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.runnables import RunnableAssign
 
 from nvidia_rag.utils.embedding import get_embedding_model
 from nvidia_rag.utils.llm import get_llm, get_prompts
@@ -49,11 +51,14 @@ class RAPTORConfig:
     """Configuration for RAPTOR tree building and retrieval."""
     min_cluster_size: int = 3
     batch_size: int = 50
+    summary_top_k: int = 10  # Number of top summaries for Stage 1 document identification
 
     @classmethod
     def from_config(cls, config: Any) -> "RAPTORConfig":
         """Create RAPTOR config from NvidiaRAGConfig."""
-        return cls()
+        # Load summary_top_k from environment variable with default of 10
+        summary_top_k = int(os.getenv("RAPTOR_SUMMARY_TOP_K", "10"))
+        return cls(summary_top_k=summary_top_k)
 
     @staticmethod
     def calculate_cluster_size(num_chunks: int) -> int:
@@ -586,6 +591,211 @@ class RAPTORRetriever:
             f"added {added_docs} children from tree"
         )
         return final_docs
+    
+    async def two_stage_retrieval(
+        self,
+        query: str,
+        vdb_op: Any,
+        reranker_model: Any,
+        vdb_top_k: int = 100,
+        reranker_top_k: int = 25,
+        collection_names: List[str] = None,
+        filter_expr: str = "",
+    ) -> List[Any]:
+        """
+        Two-stage RAPTOR retrieval for improved accuracy.
+        
+        Stage 1: Summary-level retrieval
+        - Retrieve top summaries (all levels) from VDB
+        - Rerank summaries to get top N (configurable via RAPTOR_SUMMARY_TOP_K)
+        - Identify relevant documents from top summaries
+        
+        Stage 2: Document-focused retrieval
+        - Retrieve all content (summaries + chunks) from identified documents
+        - Rerank to get final top K chunks
+        - Uses existing reranker_top_k parameter
+        
+        Args:
+            query: User query
+            vdb_op: VDB operator for search
+            reranker_model: Reranker model for scoring
+            vdb_top_k: Initial VDB retrieval size (default: 100)
+            reranker_top_k: Final number of chunks to return (default: 25)
+            collection_names: Collections to search
+            filter_expr: Additional filter expression
+        
+        Returns:
+            List of top reranked documents from relevant documents
+        """
+        logger.info("=" * 80)
+        logger.info("RAPTOR Two-Stage Retrieval Started")
+        logger.info("=" * 80)
+        
+        # ============================================================
+        # STAGE 1: Summary-level retrieval to identify documents
+        # ============================================================
+        logger.info("STAGE 1: Summary-Level Document Identification")
+        logger.info(f"  - Retrieving top {vdb_top_k} summaries from VDB")
+        logger.info(f"  - Will select top {self.raptor_config.summary_top_k} after reranking")
+        
+        # Build filter for summaries only
+        summary_filter = 'content_metadata["type"] == "summary"'
+        if filter_expr:
+            summary_filter = f"({summary_filter}) and ({filter_expr})"
+        
+        # Retrieve summaries from VDB (use same pattern as normal flow)
+        collection_name = collection_names[0] if collection_names else ""
+        vectorstore = vdb_op.get_langchain_vectorstore(collection_name)
+        
+        summary_results = vdb_op.retrieval_langchain(
+            query=query,
+            collection_name=collection_name,
+            vectorstore=vectorstore,
+            top_k=vdb_top_k,
+            filter_expr=summary_filter,
+        )
+        
+        logger.info(f"  ✓ Retrieved {len(summary_results)} summaries from VDB")
+        
+        if not summary_results:
+            logger.warning("  ⚠ No summaries found, returning empty results")
+            return []
+        
+        # Rerank summaries using same pattern as normal flow
+        logger.info(f"  - Reranking summaries...")
+        
+        # Set top_n for Stage 1 reranking
+        original_top_n = reranker_model.top_n
+        reranker_model.top_n = self.raptor_config.summary_top_k
+        
+        context_reranker = RunnableAssign(
+            {
+                "context": lambda input: reranker_model.compress_documents(
+                    query=input["question"], documents=input["context"]
+                )
+            }
+        )
+        
+        reranked_result = await context_reranker.ainvoke(
+            {"context": summary_results, "question": query},
+            config={"run_name": "raptor_stage1_reranker"},
+        )
+        reranked_summaries = reranked_result.get("context", [])
+        
+        logger.info(f"  ✓ Reranked to top {len(reranked_summaries)} summaries")
+        
+        # Extract unique document IDs from top summaries
+        document_ids = self._extract_document_ids_from_summaries(reranked_summaries)
+        
+        logger.info(f"  ✓ Identified {len(document_ids)} relevant documents:")
+        for doc_id in document_ids:
+            logger.info(f"    - {doc_id}")
+        
+        if not document_ids:
+            logger.warning("  ⚠ No documents identified from summaries")
+            # Restore original top_n
+            reranker_model.top_n = original_top_n
+            return []
+        
+        # ============================================================
+        # STAGE 2: Document-focused retrieval with all content
+        # ============================================================
+        logger.info("")
+        logger.info("STAGE 2: Document-Focused Content Retrieval")
+        logger.info(f"  - Retrieving top {vdb_top_k} items from identified documents")
+        logger.info(f"  - Will select top {reranker_top_k} after reranking")
+        
+        # Build filter for identified documents (includes all levels + chunks)
+        doc_filter = self._build_document_filter(document_ids)
+        if filter_expr:
+            doc_filter = f"({doc_filter}) and ({filter_expr})"
+        
+        logger.info(f"  - Filter: {doc_filter}")
+        
+        # Retrieve all content from identified documents
+        document_results = vdb_op.retrieval_langchain(
+            query=query,
+            collection_name=collection_name,
+            vectorstore=vectorstore,
+            top_k=vdb_top_k,
+            filter_expr=doc_filter,
+        )
+        
+        logger.info(f"  ✓ Retrieved {len(document_results)} items from documents")
+        
+        if not document_results:
+            logger.warning("  ⚠ No content found from identified documents")
+            # Restore original top_n
+            reranker_model.top_n = original_top_n
+            return []
+        
+        # Count summaries vs chunks
+        num_summaries = sum(1 for d in document_results if self._is_summary_document(d))
+        num_chunks = len(document_results) - num_summaries
+        logger.info(f"    - Summaries: {num_summaries}, Chunks: {num_chunks}")
+        
+        # Rerank all content together using same pattern as normal flow
+        logger.info(f"  - Reranking all content...")
+        
+        # Set top_n for Stage 2 reranking
+        reranker_model.top_n = reranker_top_k
+        
+        final_reranker = RunnableAssign(
+            {
+                "context": lambda input: reranker_model.compress_documents(
+                    query=input["question"], documents=input["context"]
+                )
+            }
+        )
+        
+        final_result = await final_reranker.ainvoke(
+            {"context": document_results, "question": query},
+            config={"run_name": "raptor_stage2_reranker"},
+        )
+        final_results = final_result.get("context", [])
+        
+        # Restore original top_n
+        reranker_model.top_n = original_top_n
+        
+        logger.info(f"  ✓ Final context: {len(final_results)} items")
+        
+        # Count final distribution
+        final_summaries = sum(1 for d in final_results if self._is_summary_document(d))
+        final_chunks = len(final_results) - final_summaries
+        logger.info(f"    - Final Summaries: {final_summaries}, Final Chunks: {final_chunks}")
+        
+        logger.info("=" * 80)
+        logger.info(f"RAPTOR Two-Stage Retrieval Complete: {len(final_results)} items selected")
+        logger.info("=" * 80)
+        
+        return final_results
+    
+    def _extract_document_ids_from_summaries(self, summaries: List[Any]) -> List[str]:
+        """Extract unique document IDs (source_id) from summary nodes."""
+        document_ids = set()
+        
+        for summary in summaries:
+            if hasattr(summary, "metadata"):
+                # Extract source_id from metadata (standard location)
+                source = summary.metadata.get("source", {})
+                if isinstance(source, dict):
+                    source_id = source.get("source_id")
+                    if source_id:
+                        document_ids.add(source_id)
+        
+        return sorted(list(document_ids))
+    
+    def _build_document_filter(self, document_ids: List[str]) -> str:
+        """Build filter expression for multiple documents (Milvus format)."""
+        if not document_ids:
+            return ""
+        
+        # Escape document IDs and format for Milvus 'in' operator
+        escaped_ids = [f'"{doc_id}"' for doc_id in document_ids]
+        ids_list = ", ".join(escaped_ids)
+        
+        # Filter matches source_id in the list
+        return f'source["source_id"] in [{ids_list}]'
 
     def _get_document_id(self, doc: Any) -> str:
         """Extract unique document/chunk ID from LangChain Document."""
