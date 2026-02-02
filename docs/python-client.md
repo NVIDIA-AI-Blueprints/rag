@@ -133,8 +133,8 @@ mkdir -p ~/.cache/model-cache
    os.environ["OCR_MS_GPU_ID"] = "0"
    os.environ["LLM_MS_GPU_ID"] = "1"
 ```
-5 Deploy NIMs - Note that this may take a while as models download. 
-If the notebook kernel times out, rerun this call.
+5. Deploy NIMs. This might take time while the models download. 
+If the notebook kernel times out, rerun this step.
 
 `USERID=$(id -u) docker compose -f ../deploy/compose/nims.yaml up -d` 
 Watch the status of running containers with the following call (run this call repeatedly or in a terminal).
