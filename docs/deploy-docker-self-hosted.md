@@ -66,7 +66,8 @@ You can clone the RAG Blueprint repository to create a local working copy that y
 
    ```bash
    git fetch --all --tags
-   ```  
+   ``` 
+ 
 6. Check out the latest release branch:  
 
    ```bash
