@@ -212,15 +212,26 @@ def _bind_thinking_tokens_if_configured(
         if min_think is not None and min_think > 0:
             logger.warning(
                 "min_thinking_tokens is not supported for nemotron-3-nano variants, "
-                "only max_thinking_tokens (mapped to reasoning_budget) is supported"
+                "only max_thinking_tokens (mapped to reasoning_budget or nvext) is supported"
             )
 
         if max_think is not None and max_think > 0:
-            bind_args["reasoning_budget"] = max_think
-            logger.info(
-                "nemotron-3-nano: Setting reasoning_budget=%d",
-                max_think
-            )
+            # Check if llm_endpoint is provided (locally hosted model)
+            llm_endpoint = kwargs.get("llm_endpoint", None)
+            if llm_endpoint:
+                # For locally hosted models, use nvext syntax
+                bind_args["nvext"] = {"max_thinking_tokens": max_think}
+                logger.info(
+                    "nemotron-3-nano (locally hosted): Setting max_thinking_tokens=%d via nvext",
+                    max_think
+                )
+            else:
+                # For API catalog models, use reasoning_budget
+                bind_args["reasoning_budget"] = max_think
+                logger.info(
+                    "nemotron-3-nano (API catalog): Setting reasoning_budget=%d",
+                    max_think
+                )
         else:
             raise ValueError(
                 f"max_thinking_tokens must be a positive integer, but got {max_think}"
