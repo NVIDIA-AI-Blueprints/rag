@@ -518,7 +518,7 @@ There are two approaches to customize prompts as explained following.
 
 - **Recommended approach** – Use constructor injection to pass prompts during `NvidiaRAG` initialization. This is consistent with server mode and cleaner configuration.
 
-**Legacy:** Modify `rag.prompts` dictionary after initialization.
+- **Legacy appoach** – Modify `rag.prompts` dictionary after initialization.
 
 See [prompt customization documentation](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/docs/prompt-customization.md#default-prompts-overview) for available prompts.
 
