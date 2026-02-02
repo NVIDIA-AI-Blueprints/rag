@@ -58,6 +58,10 @@ Confirm the package location by using the following code.
 
 `uv pip show nvidia_rag | grep Location`
 
+You should see a location similar to the following:
+
+`<workspace_path>/rag/.venv/lib/python3.12/site-packages`
+
 ## Setup the Dependencies
 
 Launch dependent services and NIMs. See [Docker prerequisites](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/docs/deploy-docker-self-hosted.md) for more information.
