@@ -83,14 +83,14 @@ Choose one of the following options based on your deployment preference.
 
 #### Option A: Self-Hosted NIMs
 
-Instead of starting all NIMs, use the `text-embed` profile to start only the embedding service:
+Instead of starting all NIMs, use the `text-embed` profile to start only the embedding and reranking services:
 
 ```bash
 USERID=$(id -u) docker compose -f deploy/compose/nims.yaml up -d nemoretriever-ranking-ms nemoretriever-embedding-ms
 ```
 
 :::{note}
-The `text-embed` profile starts only `nemoretriever-embedding-ms`, which is sufficient for retrieval operations. The LLM NIM (`nim-llm-ms`) is not started, saving significant GPU memory.
+The `text-embed` profile starts only `nemoretriever-embedding-ms` and `nemoretriever-ranking-ms `, which is sufficient for retrieval operations. The LLM NIM (`nim-llm-ms`) is not started, saving significant GPU memory.
 :::
 
 Wait for the services to become healthy:
