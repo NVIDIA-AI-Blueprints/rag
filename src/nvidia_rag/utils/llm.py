@@ -118,7 +118,7 @@ def _is_nvidia_endpoint(url: str | None) -> bool:
     # Non-NVIDIA endpoints
     if any(
         provider in url_lower
-        for provider in ["azure", "openai.com", "anthropic", "claude"]
+        for provider in ["azure", "openai", "anthropic", "claude"]
     ):
         return False
     # NVIDIA URLs
