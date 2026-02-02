@@ -373,7 +373,7 @@ rag = NvidiaRAG(config=config_rag)
 ```
 
 :::{tip}
-Cloud deployments: Set `server_url` to `""` for LLM and ranking, use `https://integrate.api.nvidia.com/v1` for embeddings. On-premises deployments: Use local NIM endpoints (such as `http://localhost:8999` for LLM).
+For cloud deployments, set `server_url` to `""` for LLM and ranking and use `https://integrate.api.nvidia.com/v1` for embeddings. For on-premises deployments, use local NIM endpoints (such as `http://localhost:8999` for LLM).
 :::
 
 ## Query a Document with RAG
