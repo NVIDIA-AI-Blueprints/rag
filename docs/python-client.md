@@ -520,7 +520,7 @@ There are two approaches to customize prompts as explained following.
 
 - **Legacy appoach** – Modify `rag.prompts` dictionary after initialization.
 
-See [prompt customization documentation](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/docs/prompt-customization.md#default-prompts-overview) for available prompts.
+For available prompts, refer to [prompt customization documentation](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/docs/prompt-customization.md#default-prompts-overview).
 
 ### Recommended: Constructor Injection
 
