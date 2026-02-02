@@ -20,7 +20,7 @@ Looking for a simpler setup without Docker? Check out the [Containerless Deploym
 ## Prerequisites
 
 :::{warning}
-**Disk Space Requirement**: This deployment requires at least **200GB of free disk space** to download and cache models, store vector databases, and run all required services. Ensure sufficient storage is available before proceeding.
+This deployment requires at least 200GB of free disk space to download and cache models, store vector databases, and run all required services. Ensure that you have sufficient storage available before you proceed.
 :::
 
 1. [Get an API Key](api-key.md).
