@@ -137,7 +137,8 @@ mkdir -p ~/.cache/model-cache
 If the notebook kernel times out, rerun this step.
 
 `USERID=$(id -u) docker compose -f ../deploy/compose/nims.yaml up -d` 
-Watch the status of running containers with the following call (run this call repeatedly or in a terminal).
+
+Watch the status of containers by using the following code repeatedly until all containers are up.
 
 `docker ps`
 
