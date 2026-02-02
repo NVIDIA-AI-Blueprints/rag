@@ -147,6 +147,11 @@ class NvidiaRAG:
         self._init_errors = {}
 
         # Default embedding model
+        logger.info(
+            "Initializing embedding model: %s at %s",
+            self.config.embeddings.model_name,
+            self.config.embeddings.server_url or "api catalog",
+        )
         try:
             self.document_embedder = get_embedding_model(
                 model=self.config.embeddings.model_name,
@@ -166,6 +171,11 @@ class NvidiaRAG:
             )
 
         # Default ranker
+        logger.info(
+            "Initializing ranking model: %s at %s",
+            self.config.ranking.model_name,
+            self.config.ranking.server_url or "api catalog",
+        )
         try:
             self.ranker = get_ranking_model(
                 model=self.config.ranking.model_name,
@@ -225,6 +235,11 @@ class NvidiaRAG:
             "max_tokens": self.config.filter_expression_generator.max_tokens,
             "api_key": self.config.filter_expression_generator.get_api_key(),
         }
+        logger.info(
+            "Initializing filter expression generator LLM: %s at %s",
+            self.config.filter_expression_generator.model_name,
+            self.config.filter_expression_generator.server_url or "api catalog",
+        )
         try:
             self.filter_generator_llm = get_llm(
                 config=self.config,

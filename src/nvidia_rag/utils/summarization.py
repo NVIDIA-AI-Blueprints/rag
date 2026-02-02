@@ -1018,6 +1018,11 @@ def _get_summary_llm(config: NvidiaRAGConfig):
     if config.summarizer.server_url:
         llm_params["llm_endpoint"] = config.summarizer.server_url
 
+    logger.info(
+        "Initializing summarization LLM: %s at %s",
+        config.summarizer.model_name,
+        config.summarizer.server_url or "api catalog",
+    )
     return get_llm(**llm_params)
 
 
