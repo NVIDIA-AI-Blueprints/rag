@@ -23,6 +23,11 @@ The NVIDIA RAG Blueprint features **intelligent document summarization** with re
 - **Global rate limiting** – Prevent GPU/API overload with Redis-based semaphores
 - **Token-based chunking** – Aligned with nv-ingest using the same tokenizer for consistency
 
+:::{tip}
+**Quick Start with Python**: For complete working code examples and easy deployment, see the [Document Summarization Notebook](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/summarization.ipynb). The notebook provides end-to-end workflows for all summarization features in both library and API modes.
+:::
+
+
 ## 1. Enabling Summarization During Document Ingestion
 
 When uploading documents to the vector store using the ingestion API (`POST /documents`), you can request that a summary be generated for each document. This is controlled by the `generate_summary` flag and optional `summary_options` in the `data` field of the multipart form request.
@@ -248,15 +253,32 @@ When using blocking mode, if the summary is not generated within the specified t
 
 **HTTP Status Code**: 408 (Request Timeout)
 
-## 3. Python Examples and API Reference
+## 3. Python Notebook and Code Examples
 
-For complete working Python code examples using the NVIDIA RAG library, see the [Document Summarization Notebook](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/summarization.ipynb). This notebook demonstrates:
+:::{important}
+**Get the Full Notebook**: Download or run the [Document Summarization Notebook](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/summarization.ipynb) for complete, ready-to-use Python examples.
+:::
+
+The notebook demonstrates:
 
 - Collection creation and document ingestion with summarization
 - All three summarization strategies (single, hierarchical, iterative)
 - Page filtering and shallow summary options
 - Summary retrieval with blocking and non-blocking modes
 - Complete end-to-end workflows in both library mode and API mode
+
+### Quick Access to the Notebook
+
+Fetch the notebook directly using:
+
+```bash
+# Download the summarization notebook
+curl -O https://raw.githubusercontent.com/NVIDIA-AI-Blueprints/rag/main/notebooks/summarization.ipynb
+
+# Or clone the repository for all notebooks
+git clone https://github.com/NVIDIA-AI-Blueprints/rag.git
+cd rag/notebooks
+```
 
 For API schema details, refer to the [OpenAPI schema](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/docs/api_reference/openapi_schema_rag_server.json).
 
