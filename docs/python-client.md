@@ -25,7 +25,7 @@ The following sections describe how to set up your environment.
 
 ### Install UV
 
-Check if UV is installed and install if needed.
+Check if UV is installed and if not, install it.
 
 ```python
 import subprocess
