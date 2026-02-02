@@ -60,7 +60,8 @@ You can clone the RAG Blueprint repository to create a local working copy that y
 
    ```bash
    cd rag
-   ```  
+   ``` 
+ 
 5. Fetch all remote branches and tags (optional but useful): 
 
    ```bash
