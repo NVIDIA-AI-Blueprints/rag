@@ -54,7 +54,7 @@ Choose one of the following installation options:
 
 ### Verify the Installation
 
-Confirm package location using the following command (expected: `<workspace_path>/rag/.venv/lib/python3.12/site-packages`).
+Confirm the package location by using the following code. 
 
 `uv pip show nvidia_rag | grep Location`
 
