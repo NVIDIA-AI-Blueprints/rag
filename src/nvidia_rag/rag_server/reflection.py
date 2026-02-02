@@ -203,6 +203,11 @@ async def check_context_relevance(
     if reflection_llm_endpoint:
         llm_params["llm_endpoint"] = reflection_llm_endpoint
 
+    logger.info(
+        "Initializing reflection LLM for context relevance check: %s at %s",
+        reflection_llm_name,
+        reflection_llm_endpoint or "api catalog",
+    )
     reflection_llm = get_llm(config=config, **llm_params)
 
     relevance_template = ChatPromptTemplate.from_messages(
@@ -372,6 +377,11 @@ async def check_response_groundedness(
     if reflection_llm_endpoint:
         llm_params["llm_endpoint"] = reflection_llm_endpoint
 
+    logger.info(
+        "Initializing reflection LLM for groundedness check: %s at %s",
+        reflection_llm_name,
+        reflection_llm_endpoint or "api catalog",
+    )
     reflection_llm = get_llm(config=config, **llm_params)
 
     # Prepare structured prompt template for groundedness evaluation

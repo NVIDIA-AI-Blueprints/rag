@@ -633,6 +633,11 @@ async def iterative_query_decomposition(
     if llm_settings is None:
         llm_settings = {}
 
+    logger.info(
+        "Initializing LLM for query decomposition: %s at %s",
+        llm_settings.get("model") or config.llm.model_name,
+        llm_settings.get("llm_endpoint") or config.llm.server_url or "api catalog",
+    )
     llm = get_llm(config=config, **llm_settings)
     # Generate initial subqueries
     questions = await generate_subqueries(query, llm, prompts=prompts)
