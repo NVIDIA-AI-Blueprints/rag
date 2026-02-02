@@ -55,6 +55,8 @@ For monitoring deployment progress, refer to [Deploy on Kubernetes with Helm](./
 
 4. Install the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html).
 
+5. [Clone the RAG Blueprint Git repository](deploy-docker-self-hosted.md#clone-the-rag-blueprint-git-repository) to get the necessary deployment files.
+
 
 ## Deploy Retrieval-Only Mode with Docker Compose
 
