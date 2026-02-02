@@ -55,6 +55,7 @@ For monitoring deployment progress, refer to [Deploy on Kubernetes with Helm](./
 
 8. (Optional) You can enable time slicing for sharing GPUs between pods. For details, refer to [Time-Slicing GPUs in Kubernetes](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/gpu-sharing.html).
 
+9. [Clone the RAG Blueprint Git repository](deploy-docker-self-hosted.md#clone-the-rag-blueprint-git-repository) to get access to the MIG configuration files.
 
 
 ## Step 1: Enable MIG with Mixed Strategy
