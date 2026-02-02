@@ -259,7 +259,7 @@ When using blocking mode, if the summary is not generated within the specified t
 For complete, ready-to-use Python examples, download and run the [Document Summarization Notebook](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/summarization.ipynb).
 :::
 
-The notebook demonstrates:
+The notebook demonstrates the following:
 
 - Collection creation and document ingestion with summarization
 - All three summarization strategies (single, hierarchical, iterative)
