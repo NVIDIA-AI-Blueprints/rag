@@ -24,7 +24,7 @@ The NVIDIA RAG Blueprint features **intelligent document summarization** with re
 - **Token-based chunking** – Aligned with nv-ingest using the same tokenizer for consistency
 
 :::{tip}
-**Quick Start with Python**: For complete working code examples and easy deployment, see the [Document Summarization Notebook](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/summarization.ipynb). The notebook provides end-to-end workflows for all summarization features in both library and API modes.
+For complete working code examples and easy deployment, refer to the [Document Summarization Notebook](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/summarization.ipynb). The notebook provides end-to-end workflows for all summarization features in both library and API modes.
 :::
 
 
