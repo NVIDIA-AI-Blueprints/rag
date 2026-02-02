@@ -514,7 +514,7 @@ print(response)
 
 ## Customize Prompts
 
-Two approaches:
+There are two approaches to customize prompts as explained following.
 
 **Recommended (Constructor Injection):** Pass prompts during `NvidiaRAG` initialization—consistent with server mode and cleaner configuration.
 
