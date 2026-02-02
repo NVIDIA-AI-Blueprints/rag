@@ -15,6 +15,8 @@ This guide explains how to enable reasoning for different Nemotron models:
 
 ## Enable Reasoning for Nemotron 1.5
 
+### Step 1: Update the System Prompt
+
 Reasoning in Nemotron 1.5 models is controlled by the system prompt. To enable reasoning, update the system prompt in [prompt.yaml](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/src/nvidia_rag/rag_server/prompt.yaml) from `/no_think` to `/think`.
 
 ```
@@ -45,7 +47,7 @@ rag_template:
 
 ```
 
-### Update Model Parameters
+### Step 2: Update Model Parameters
 
 After enabling the `/think` prompt, configure the model parameters for optimal reasoning performance:
 
@@ -54,7 +56,7 @@ export LLM_TEMPERATURE=0.6
 export LLM_TOP_P=0.95
 ```
 
-### Filtering Reasoning Tokens
+### Step 3: Filtering Reasoning Tokens
 
 Reasoning tokens (shown between `<think>` tags) are filtered out, so only the final answer is returned in the model response. The reasoning content in the think tags is not included in the output.
 
@@ -102,20 +104,20 @@ The 9B model supports both minimum and maximum thinking token limits to control 
 ```
 
 **Parameters:**
-- `min_thinking_tokens` (required for 9B model): Minimum number of reasoning tokens before generating the final answer
-- `max_thinking_tokens` (required for 9B model): Maximum number of reasoning tokens allowed
+- `min_thinking_tokens`: Minimum number of reasoning tokens before generating the final answer
+- `max_thinking_tokens`: Maximum number of reasoning tokens allowed before generating the final answer
 
-> **Note:** Both `min_thinking_tokens` and `max_thinking_tokens` are required when using thinking budget with the 9B model.
-
-### Reasoning Tokens
-
-Reasoning tokens (shown between `<think>` tags) are not present for this model. This is the behavior of the model itself - only the final answer is returned in the response. Even when setting `FILTER_THINK_TOKENS=false`, the reasoning content in the think tags is not included in the output, as the model does not expose intermediate reasoning tokens.
+> **Important Differences:**
+> - The 9B model requires both `min_thinking_tokens` and `max_thinking_tokens`
+> - Reasoning is available in the model output's `reasoning_content` field (not wrapped in `<think>` tags)
+> - The `reasoning_content` field is present in the model output but not exposed in the generate API response
+> - No filtering is needed as reasoning is already separated from the final answer
 
 ---
 
 ## Enable Reasoning for Nemotron-3-Nano 30B Model
 
-The `nvidia/nemotron-3-nano-30b-a3b` model (also accessible as `nvidia/nemotron-3-nano` for locally deployed NIMs) uses a different approach for reasoning control. Instead of system prompts, reasoning is controlled via an environment variable.
+The `nvidia/nemotron-3-nano-30b-a3b` model uses a different approach for reasoning control. Instead of system prompts, reasoning is controlled via an environment variable.
 
 ### Step 1: Enable Reasoning via Environment Variable
 
@@ -147,11 +149,10 @@ The 30B model supports a maximum thinking token limit to control the reasoning p
 ```
 
 **Parameters:**
-- `max_thinking_tokens` (optional): Maximum number of reasoning tokens allowed
+- `max_thinking_tokens`: Maximum number of reasoning tokens allowed before generating the final answer
 
 > **Important Differences:**
 > - The 30B model only uses `max_thinking_tokens` (not `min_thinking_tokens`)
-> - Reasoning is NOT included in the generate API response
 > - Reasoning is available in the model output's `reasoning_content` field (not wrapped in `<think>` tags)
 > - The `reasoning_content` field is present in the model output but not exposed in the generate API response
 > - No filtering is needed as reasoning is already separated from the final answer

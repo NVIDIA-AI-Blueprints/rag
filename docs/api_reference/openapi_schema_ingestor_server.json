@@ -17,7 +17,7 @@
                     "Health APIs"
                 ],
                 "summary": "Health Check",
-                "description": "Perform a Health Check\n\nArgs:\n    check_dependencies: If True, check health of all dependent services.\n                       If False (default), only report that the API service is up.\n\nReturns 200 when service is up and includes health status of all dependent services when requested.",
+                "description": "Perform a health check on the ingestor server.",
                 "operationId": "health_check_health_get",
                 "parameters": [
                     {
@@ -380,7 +380,7 @@
                     "Vector DB APIs"
                 ],
                 "summary": "Get Collections",
-                "description": "Endpoint to get a list of collection names from the Milvus server.\nReturns a list of collection names.",
+                "description": "Endpoint to get a list of collection names from the vector database server.\nReturns a list of collection names.",
                 "operationId": "get_collections_collections_get",
                 "responses": {
                     "200": {
@@ -523,6 +523,7 @@
                     "Vector DB APIs"
                 ],
                 "summary": "Delete Collections",
+                "description": "Delete collections from the vector database.",
                 "operationId": "delete_collections_collections_delete",
                 "requestBody": {
                     "content": {
@@ -823,7 +824,7 @@
                         "title": "Data",
                         "description": "JSON data in string format containing metadata about the documents which needs to be uploaded.",
                         "examples": [
-                            "{\"collection_name\": \"multimodal_data\", \"blocking\": false, \"split_options\": {\"chunk_size\": 512, \"chunk_overlap\": 150}, \"custom_metadata\": [], \"generate_summary\": false, \"documents_catalog_metadata\": [], \"summary_options\": null, \"enable_pdf_split_processing\": false, \"pdf_split_processing_options\": {\"pages_per_chunk\": 16}}"
+                            "{\"collection_name\": \"multimodal_data\", \"blocking\": false, \"split_options\": {\"chunk_size\": 512, \"chunk_overlap\": 150}, \"custom_metadata\": [], \"generate_summary\": false, \"documents_catalog_metadata\": [], \"summary_options\": null, \"enable_pdf_split_processing\": false, \"pdf_split_processing_options\": {\"pages_per_chunk\": 16}, \"enable_parallel_batch_mode\": true, \"concurrent_batches\": 4, \"files_per_batch\": 16}"
                         ]
                     }
                 },
@@ -849,7 +850,7 @@
                         "title": "Data",
                         "description": "JSON data in string format containing metadata about the documents which needs to be uploaded.",
                         "examples": [
-                            "{\"collection_name\": \"multimodal_data\", \"blocking\": false, \"split_options\": {\"chunk_size\": 512, \"chunk_overlap\": 150}, \"custom_metadata\": [], \"generate_summary\": false, \"documents_catalog_metadata\": [], \"summary_options\": null, \"enable_pdf_split_processing\": false, \"pdf_split_processing_options\": {\"pages_per_chunk\": 16}}"
+                            "{\"collection_name\": \"multimodal_data\", \"blocking\": false, \"split_options\": {\"chunk_size\": 512, \"chunk_overlap\": 150}, \"custom_metadata\": [], \"generate_summary\": false, \"documents_catalog_metadata\": [], \"summary_options\": null, \"enable_pdf_split_processing\": false, \"pdf_split_processing_options\": {\"pages_per_chunk\": 16}, \"enable_parallel_batch_mode\": true, \"concurrent_batches\": 4, \"files_per_batch\": 16}"
                         ]
                     }
                 },
@@ -929,7 +930,7 @@
                     "message"
                 ],
                 "title": "CollectionsResponse",
-                "description": "Response model for creation or deletion of collections in Milvus."
+                "description": "Response model for creation or deletion of collections in vector database."
             },
             "CreateCollectionRequest": {
                 "properties": {
@@ -1017,7 +1018,7 @@
                     "collection_name"
                 ],
                 "title": "CreateCollectionResponse",
-                "description": "Response model for creation or deletion of a collection in Milvus."
+                "description": "Response model for creation or deletion of a collection in vector database."
             },
             "DatabaseHealthInfo": {
                 "properties": {

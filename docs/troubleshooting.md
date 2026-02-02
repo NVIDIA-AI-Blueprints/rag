@@ -17,6 +17,144 @@ To navigate this page more easily, click the outline button at the top of the pa
 
 
 
+## Expected Deployment Times
+
+Understanding typical deployment times can help you determine if your deployment is progressing normally or if there's an issue.
+
+### Docker Deployments (Self-Hosted Models)
+
+The expected timeline for a first-time deployment is the following:
+
+- **Total time** – 15-30 minutes (can extend to 45+ minutes on slower networks)
+- **Model download** – 10-20 minutes (largest component, no progress bar visible)
+- **Service initialization** – 5-10 minutes
+
+Factors that can affect the expected timeline include the following:**
+
+  - Internet bandwidth (model downloads are ~100-150GB)
+  - GPU type and availability
+  - System resources (CPU, RAM, disk I/O)
+
+The expected timeline for subsequent deployments is the following:
+
+- 2-5 minutes total time
+- Models are already cached
+- Services start much sooner
+
+### Docker Deployments (NVIDIA-Hosted Models)
+
+The expected timeline for a first-time deployment is the following:
+
+- 5-10 minutes
+- Much faster because no model downloads are required
+
+### Kubernetes/Helm Deployments
+
+**First-time deployment:**
+- **Total time:** 60-70 minutes
+- **NIM cache downloads:** 40-50 minutes
+- **Service initialization:** 10-15 minutes
+- **Pod startup:** 5-10 minutes
+
+**Subsequent deployments:**
+The expected timeline for a first-time deployment is the following:
+
+- 60-70 minutes total time 
+- 40-50 minutes for NIM cache downloads 
+- 10-15 minutes for service initialization 
+- 5-10 minutes for Pod startup 
+
+The expected timeline for a subsequent deployments is the following:
+
+- 10-15 minutes
+- Much faster because no model downloads are required
+
+:::{tip}
+If your deployment exceeds these time ranges significantly, check the monitoring commands in the relevant deployment guide or refer to "Monitoring Model Download Progress" in the following section.
+:::
+
+
+
+## Monitoring Model Download Progress
+
+During first-time deployments, large models are downloaded without visible progress indicators. Here's how to monitor the process:
+
+### Docker Deployments
+
+**Check container logs:**
+```bash
+# Monitor NIM LLM service
+docker logs -f nim-llm-ms
+
+# Monitor embedding service
+docker logs -f nemoretriever-embedding-ms
+
+# Monitor ranking service
+docker logs -f nemoretriever-ranking-ms
+```
+
+**Check disk usage to verify download progress:**
+```bash
+# Check cache directory size (grows as models download)
+du -sh ~/.cache/model-cache/
+
+# Watch disk usage in real-time
+watch -n 10 'du -sh ~/.cache/model-cache/'
+```
+
+**Check container stats:**
+```bash
+# View resource usage and verify containers are active
+docker stats nim-llm-ms nemoretriever-embedding-ms nemoretriever-ranking-ms
+```
+
+### Kubernetes/Helm Deployments
+
+**Check NIMCache status:**
+```bash
+# View cache download status
+kubectl get nimcache -n rag
+
+# Watch cache status in real-time
+kubectl get nimcache -n rag -w
+```
+
+**Check pod logs:**
+```bash
+# List pods
+kubectl get pods -n rag
+
+# View logs of a specific NIM pod
+kubectl logs -f <nim-pod-name> -n rag
+
+# View init container logs (where downloads occur)
+kubectl logs <pod-name> -n rag -c <init-container-name>
+```
+
+**Check PVC usage:**
+```bash
+# View persistent volume claims
+kubectl get pvc -n rag
+
+# Describe a specific PVC to see capacity and usage
+kubectl describe pvc <pvc-name> -n rag
+```
+
+**Check events for download progress:**
+```bash
+# View recent events sorted by time
+kubectl get events -n rag --sort-by='.lastTimestamp'
+
+# Watch events in real-time
+kubectl get events -n rag -w
+```
+
+:::{note}
+During model downloads, pods may appear stuck in "ContainerCreating" or "Init" state. This is normal behavior while large model files are being downloaded in the background. Use the monitoring commands above to verify that progress is being made.
+:::
+
+
+
 ## 429 Rate Limit Issue for NVIDIA-Hosted Models
 
 You may encounter a "429 Client Error: Too Many Requests for url" error during ingestion when using NVIDIA-hosted models. This error indicates that the rate limiting threshold for the API has been exceeded. This is not an application issue, but rather a constraint imposed by the API service.

@@ -54,9 +54,14 @@ def _get_ranking_model(
     url = sanitize_nim_url(url, model, "ranking")
 
     # Validate top_n
-    if top_n is None or top_n <= 0:
-        logger.warning("top_n must be a positive integer, setting to 4")
-        top_n = 4
+    if top_n is None:
+        top_n = 4  # Use default for None
+    elif not isinstance(top_n, int) or isinstance(top_n, bool):
+        raise TypeError(
+            f"reranker_top_k must be an integer, got {type(top_n).__name__}"
+        )
+    elif top_n <= 0:
+        raise ValueError(f"reranker_top_k must be greater than 0, got {top_n}")
 
     if config.ranking.model_engine == "nvidia-ai-endpoints":
         api_key = config.ranking.get_api_key()

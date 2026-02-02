@@ -23,6 +23,15 @@ The following are the core services that you install:
 
 2. [Clone the RAG Blueprint Git repository](deploy-docker-self-hosted.md#clone-the-rag-blueprint-git-repository) to get access to the Helm chart source files.
 
+:::{important}
+Consider the following before you deploy the RAG Blueprint:
+
+- Ensure that you have at least 200GB of available disk space per node for NIM model caches
+- First-time deployment takes 60-70 minutes as models download without visible progress indicators
+
+For monitoring commands, refer to [Deploy on Kubernetes with Helm - Prerequisites](./deploy-helm.md#prerequisites).
+:::
+
 
 ## Deploy the RAG Helm chart from the repository
 

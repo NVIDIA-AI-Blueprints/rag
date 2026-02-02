@@ -676,6 +676,8 @@ class TestNvidiaRAGIngestor:
     @pytest.mark.asyncio
     async def test_csv_deletion_timing_sequential_batches(self, ingestor):
         """Test that CSV file is deleted AFTER all sequential batches complete, not during individual batches."""
+        from nvidia_rag.ingestor_server.ingestion_state_manager import IngestionStateManager
+        
         filepaths = ["test_file1.pdf", "test_file2.pdf", "test_file3.pdf"]
 
         ingestor.vdb_op.csv_file_path = "/tmp/test_metadata.csv"
@@ -696,12 +698,22 @@ class TestNvidiaRAGIngestor:
                 ) as mock_ingestion:
                     mock_ingestion.return_value = ([["result"]], [])
 
+                    state_manager = IngestionStateManager(
+                        filepaths=filepaths,
+                        collection_name="test_collection",
+                        custom_metadata=[],
+                        enable_parallel_batch_mode=False,
+                        concurrent_batches=1,
+                        files_per_batch=1,
+                    )
+
                     await ingestor._NvidiaRAGIngestor__run_nvingest_batched_ingestion(
                         filepaths=filepaths,
                         collection_name="test_collection",
                         vdb_op=ingestor.vdb_op,
                         split_options={"chunk_size": 1024, "chunk_overlap": 200},
                         generate_summary=False,
+                        state_manager=state_manager,
                     )
 
                     mock_remove.assert_called_once_with("/tmp/test_metadata.csv")
@@ -709,6 +721,8 @@ class TestNvidiaRAGIngestor:
     @pytest.mark.asyncio
     async def test_csv_deletion_timing_parallel_batches(self, ingestor):
         """Test that CSV file is deleted AFTER all parallel batches complete, not during individual batches."""
+        from nvidia_rag.ingestor_server.ingestion_state_manager import IngestionStateManager
+        
         # Arrange
         filepaths = [
             "test_file1.pdf",
@@ -736,12 +750,22 @@ class TestNvidiaRAGIngestor:
                 ) as mock_ingestion:
                     mock_ingestion.return_value = ([["result"]], [])
 
+                    state_manager = IngestionStateManager(
+                        filepaths=filepaths,
+                        collection_name="test_collection",
+                        custom_metadata=[],
+                        enable_parallel_batch_mode=True,
+                        concurrent_batches=2,
+                        files_per_batch=1,
+                    )
+
                     await ingestor._NvidiaRAGIngestor__run_nvingest_batched_ingestion(
                         filepaths=filepaths,
                         collection_name="test_collection",
                         vdb_op=ingestor.vdb_op,
                         split_options={"chunk_size": 1024, "chunk_overlap": 200},
                         generate_summary=False,
+                        state_manager=state_manager,
                     )
 
                     mock_remove.assert_called_once_with("/tmp/test_metadata.csv")
@@ -749,6 +773,8 @@ class TestNvidiaRAGIngestor:
     @pytest.mark.asyncio
     async def test_csv_deletion_single_batch_mode(self, ingestor):
         """Test that CSV file is deleted during single batch processing (no batch mode)."""
+        from nvidia_rag.ingestor_server.ingestion_state_manager import IngestionStateManager
+        
         # Arrange
         filepaths = ["test_file1.pdf"]
 
@@ -763,12 +789,22 @@ class TestNvidiaRAGIngestor:
                 ) as mock_ingestion:
                     mock_ingestion.return_value = ([["result"]], [])
 
+                    state_manager = IngestionStateManager(
+                        filepaths=filepaths,
+                        collection_name="test_collection",
+                        custom_metadata=[],
+                        enable_parallel_batch_mode=False,
+                        concurrent_batches=1,
+                        files_per_batch=1,
+                    )
+
                     await ingestor._NvidiaRAGIngestor__run_nvingest_batched_ingestion(
                         filepaths=filepaths,
                         collection_name="test_collection",
                         vdb_op=ingestor.vdb_op,
                         split_options={"chunk_size": 1024, "chunk_overlap": 200},
                         generate_summary=False,
+                        state_manager=state_manager,
                     )
 
                     mock_remove.assert_called_once_with("/tmp/test_metadata.csv")
@@ -776,6 +812,8 @@ class TestNvidiaRAGIngestor:
     @pytest.mark.asyncio
     async def test_csv_deletion_with_no_csv_file(self, ingestor):
         """Test that no error occurs when CSV file path is None."""
+        from nvidia_rag.ingestor_server.ingestion_state_manager import IngestionStateManager
+        
         filepaths = ["test_file1.pdf", "test_file2.pdf"]
 
         ingestor.vdb_op.csv_file_path = None
@@ -796,12 +834,22 @@ class TestNvidiaRAGIngestor:
                 ) as mock_ingestion:
                     mock_ingestion.return_value = ([["result"]], [])
 
+                    state_manager = IngestionStateManager(
+                        filepaths=filepaths,
+                        collection_name="test_collection",
+                        custom_metadata=[],
+                        enable_parallel_batch_mode=False,
+                        concurrent_batches=1,
+                        files_per_batch=1,
+                    )
+
                     await ingestor._NvidiaRAGIngestor__run_nvingest_batched_ingestion(
                         filepaths=filepaths,
                         collection_name="test_collection",
                         vdb_op=ingestor.vdb_op,
                         split_options={"chunk_size": 1024, "chunk_overlap": 200},
                         generate_summary=False,
+                        state_manager=state_manager,
                     )
 
                     mock_remove.assert_not_called()
@@ -809,6 +857,8 @@ class TestNvidiaRAGIngestor:
     @pytest.mark.asyncio
     async def test_csv_deletion_with_missing_csv_file(self, ingestor):
         """Test that FileNotFoundError is raised when CSV file doesn't exist on filesystem."""
+        from nvidia_rag.ingestor_server.ingestion_state_manager import IngestionStateManager
+        
         filepaths = ["test_file1.pdf", "test_file2.pdf"]
 
         ingestor.vdb_op.csv_file_path = "/tmp/non_existent_metadata.csv"
@@ -831,6 +881,15 @@ class TestNvidiaRAGIngestor:
                 ) as mock_ingestion:
                     mock_ingestion.return_value = ([["result"]], [])
 
+                    state_manager = IngestionStateManager(
+                        filepaths=filepaths,
+                        collection_name="test_collection",
+                        custom_metadata=[],
+                        enable_parallel_batch_mode=False,
+                        concurrent_batches=1,
+                        files_per_batch=1,
+                    )
+
                     with pytest.raises(FileNotFoundError, match="File not found"):
                         await ingestor._NvidiaRAGIngestor__run_nvingest_batched_ingestion(
                             filepaths=filepaths,
@@ -838,6 +897,7 @@ class TestNvidiaRAGIngestor:
                             vdb_op=ingestor.vdb_op,
                             split_options={"chunk_size": 1024, "chunk_overlap": 200},
                             generate_summary=False,
+                            state_manager=state_manager,
                         )
 
                     mock_remove.assert_called_once_with(
