@@ -87,7 +87,7 @@ else:
 
 ### Setup Milvus Vector Database Services
 
-Milvus uses GPU indexing by default. Set the correct GPU ID. For CPU-only mode, see [milvus-configuration.md](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/docs/milvus-configuration.md) for more information.
+Milvus uses GPU indexing by default. Set the correct GPU ID. For CPU-only mode, refer to [milvus-configuration.md](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/docs/milvus-configuration.md).
 
 1. Set the GPU device ID:
 
