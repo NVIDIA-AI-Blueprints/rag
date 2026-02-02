@@ -516,7 +516,7 @@ print(response)
 
 There are two approaches to customize prompts as explained following.
 
-**Recommended (Constructor Injection):** Pass prompts during `NvidiaRAG` initialization—consistent with server mode and cleaner configuration.
+- **Recommended approach** – Use constructor injection to pass prompts during `NvidiaRAG` initialization. This is consistent with server mode and cleaner configuration.
 
 **Legacy:** Modify `rag.prompts` dictionary after initialization.
 
