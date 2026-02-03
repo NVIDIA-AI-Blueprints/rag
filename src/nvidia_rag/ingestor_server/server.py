@@ -363,21 +363,6 @@ class DocumentUploadRequest(BaseModel):
         description="Options for PDF split processing.",
     )
 
-    enable_parallel_batch_mode: bool = Field(
-        default=CONFIG.nv_ingest.enable_parallel_batch_mode,
-        description="Enable parallel batch processing.",
-    )
-
-    concurrent_batches: int = Field(
-        default=CONFIG.nv_ingest.concurrent_batches,
-        description="Number of batches to process concurrently.",
-    )
-
-    files_per_batch: int = Field(
-        default=CONFIG.nv_ingest.files_per_batch,
-        description="Number of files to process in each batch.",
-    )
-
     # Reserved for future use
     # embedding_model: str = Field(
     #     os.getenv("APP_EMBEDDINGS_MODELNAME", ""),

@@ -824,7 +824,7 @@
                         "title": "Data",
                         "description": "JSON data in string format containing metadata about the documents which needs to be uploaded.",
                         "examples": [
-                            "{\"collection_name\": \"multimodal_data\", \"blocking\": false, \"split_options\": {\"chunk_size\": 512, \"chunk_overlap\": 150}, \"custom_metadata\": [], \"generate_summary\": false, \"documents_catalog_metadata\": [], \"summary_options\": null, \"enable_pdf_split_processing\": false, \"pdf_split_processing_options\": {\"pages_per_chunk\": 16}, \"enable_parallel_batch_mode\": true, \"concurrent_batches\": 4, \"files_per_batch\": 16}"
+                            "{\"collection_name\": \"multimodal_data\", \"blocking\": false, \"split_options\": {\"chunk_size\": 512, \"chunk_overlap\": 150}, \"custom_metadata\": [], \"generate_summary\": false, \"documents_catalog_metadata\": [], \"summary_options\": null, \"enable_pdf_split_processing\": false, \"pdf_split_processing_options\": {\"pages_per_chunk\": 16}}"
                         ]
                     }
                 },
@@ -850,7 +850,7 @@
                         "title": "Data",
                         "description": "JSON data in string format containing metadata about the documents which needs to be uploaded.",
                         "examples": [
-                            "{\"collection_name\": \"multimodal_data\", \"blocking\": false, \"split_options\": {\"chunk_size\": 512, \"chunk_overlap\": 150}, \"custom_metadata\": [], \"generate_summary\": false, \"documents_catalog_metadata\": [], \"summary_options\": null, \"enable_pdf_split_processing\": false, \"pdf_split_processing_options\": {\"pages_per_chunk\": 16}, \"enable_parallel_batch_mode\": true, \"concurrent_batches\": 4, \"files_per_batch\": 16}"
+                            "{\"collection_name\": \"multimodal_data\", \"blocking\": false, \"split_options\": {\"chunk_size\": 512, \"chunk_overlap\": 150}, \"custom_metadata\": [], \"generate_summary\": false, \"documents_catalog_metadata\": [], \"summary_options\": null, \"enable_pdf_split_processing\": false, \"pdf_split_processing_options\": {\"pages_per_chunk\": 16}}"
                         ]
                     }
                 },

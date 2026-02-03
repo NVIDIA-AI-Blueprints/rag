@@ -34,7 +34,6 @@ class IngestionStateManager:
         documents_catalog_metadata: list[dict[str, Any]] | None = None,
         enable_pdf_split_processing: bool = False,
         pdf_split_processing_options: dict[str, Any] | None = None,
-        enable_parallel_batch_mode: bool = True,
         concurrent_batches: int = 4,
         files_per_batch: int = 16,
     ):
@@ -63,8 +62,6 @@ class IngestionStateManager:
         self.enable_pdf_split_processing = enable_pdf_split_processing
         self.pdf_split_processing_options = pdf_split_processing_options
 
-        # Batch processing configuration
-        self.enable_parallel_batch_mode = enable_parallel_batch_mode
         self.concurrent_batches = concurrent_batches
         self.files_per_batch = files_per_batch
 

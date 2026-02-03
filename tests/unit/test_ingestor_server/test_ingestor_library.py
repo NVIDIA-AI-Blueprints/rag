@@ -702,9 +702,6 @@ class TestNvidiaRAGIngestor:
                         filepaths=filepaths,
                         collection_name="test_collection",
                         custom_metadata=[],
-                        enable_parallel_batch_mode=False,
-                        concurrent_batches=1,
-                        files_per_batch=1,
                     )
 
                     await ingestor._NvidiaRAGIngestor__run_nvingest_batched_ingestion(
@@ -754,9 +751,6 @@ class TestNvidiaRAGIngestor:
                         filepaths=filepaths,
                         collection_name="test_collection",
                         custom_metadata=[],
-                        enable_parallel_batch_mode=True,
-                        concurrent_batches=2,
-                        files_per_batch=1,
                     )
 
                     await ingestor._NvidiaRAGIngestor__run_nvingest_batched_ingestion(
@@ -793,9 +787,6 @@ class TestNvidiaRAGIngestor:
                         filepaths=filepaths,
                         collection_name="test_collection",
                         custom_metadata=[],
-                        enable_parallel_batch_mode=False,
-                        concurrent_batches=1,
-                        files_per_batch=1,
                     )
 
                     await ingestor._NvidiaRAGIngestor__run_nvingest_batched_ingestion(
@@ -838,9 +829,6 @@ class TestNvidiaRAGIngestor:
                         filepaths=filepaths,
                         collection_name="test_collection",
                         custom_metadata=[],
-                        enable_parallel_batch_mode=False,
-                        concurrent_batches=1,
-                        files_per_batch=1,
                     )
 
                     await ingestor._NvidiaRAGIngestor__run_nvingest_batched_ingestion(
@@ -885,9 +873,6 @@ class TestNvidiaRAGIngestor:
                         filepaths=filepaths,
                         collection_name="test_collection",
                         custom_metadata=[],
-                        enable_parallel_batch_mode=False,
-                        concurrent_batches=1,
-                        files_per_batch=1,
                     )
 
                     with pytest.raises(FileNotFoundError, match="File not found"):
