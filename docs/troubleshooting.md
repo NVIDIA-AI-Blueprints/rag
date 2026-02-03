@@ -172,9 +172,6 @@ This error typically occurs on systems where the user ID is not `1000` or `0`. S
 **Solution:** Set `USERID=0` instead of `USERID=$(id -u)` when starting the NIM containers.
 
 ```bash
-# Instead of:
-export USERID=$(id -u)
-
 # Use:
 export USERID=0
 ```
@@ -184,10 +181,6 @@ Then restart your NIM containers:
 ```bash
 docker compose -f deploy/compose/nims.yaml up -d nim-llm
 ```
-
-:::{note}
-This issue is specific to self-hosted NIM deployments when modifying the `nims.yaml` file to use different NIM images (e.g., `nemotron-3-nano`).
-:::
 
 
 
