@@ -382,6 +382,11 @@ class NvIngestConfig(_ConfigBase):
         env="NV_INGEST_CONCURRENT_BATCHES",
         description="Number of batches to process concurrently",
     )
+    enable_dynamic_batching: bool = Field(
+        default=False,
+        env="ENABLE_NV_INGEST_DYNAMIC_BATCHING",
+        description="Enable dynamic calculation of batch parameters based on file characteristics",
+    )
     enable_pdf_split_processing: bool = Field(
         default=False,
         env="APP_NVINGEST_ENABLE_PDF_SPLIT_PROCESSING",
