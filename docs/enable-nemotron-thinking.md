@@ -123,7 +123,8 @@ The 9B model supports both minimum and maximum thinking token limits to control 
 : Maximum number of reasoning tokens allowed before generating the final answer.
 
 :::{important}
-**Key differences for the 9B model:**
+The key differences for the 9B model are the following:
+
 
 - Requires both `min_thinking_tokens` and `max_thinking_tokens` parameters
 - Reasoning is available in the model output's `reasoning_content` field (not wrapped in `<think>` tags)
