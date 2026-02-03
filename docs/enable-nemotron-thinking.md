@@ -189,21 +189,6 @@ Use the correct model name based on your deployment:
 **NVIDIA-hosted models**
 : `nvidia/nemotron-3-nano-30b-a3b`
 
-## Thinking Budget Recommendations
-
-For models that support thinking budget parameters, a `max_thinking_tokens` value of **8192** is recommended for most use cases. This value provides:
-
-- Sufficient capacity for comprehensive reasoning
-- Reasonable response times
-- Good balance between quality and latency
-
-:::{tip}
-Adjust the thinking budget based on your use case:
-
-- **Lower values (1024-4096)**: Faster responses for simpler questions
-- **Higher values (8192-16384)**: More thorough reasoning for complex queries
-:::
-
 ## Deploy with Reasoning Enabled
 
 After you configure reasoning settings in `prompt.yaml` or environment variables, redeploy your services:
@@ -221,6 +206,21 @@ docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d
 ### Helm
 
 For Helm deployments with custom prompts or environment variables, refer to [Customize Prompts](prompt-customization.md) for detailed instructions.
+
+## Thinking Budget Recommendations
+
+For models that support thinking budget parameters, a `max_thinking_tokens` value of **8192** is recommended for most use cases. This value provides:
+
+- Sufficient capacity for comprehensive reasoning
+- Reasonable response times
+- Good balance between quality and latency
+
+:::{tip}
+Adjust the thinking budget based on your use case:
+
+- **Lower values (1024-4096)**: Faster responses for simpler questions
+- **Higher values (8192-16384)**: More thorough reasoning for complex queries
+:::
 
 ## Related Topics
 
