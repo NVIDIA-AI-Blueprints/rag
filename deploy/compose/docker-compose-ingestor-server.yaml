@@ -8,6 +8,8 @@ services:
       # Set context to repo's root directory
       context: ../../
       dockerfile: ./src/nvidia_rag/ingestor_server/Dockerfile
+      args:
+        DOWNLOAD_LEGAL_COMPLIANCE: ${DOWNLOAD_LEGAL_COMPLIANCE:-false}
     # start the server on port 8082 with 4 workers for improved latency on concurrent requests.
     command: --port 8082 --host 0.0.0.0 --workers 1
 

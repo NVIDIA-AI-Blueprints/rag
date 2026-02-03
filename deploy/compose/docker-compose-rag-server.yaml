@@ -8,6 +8,8 @@ services:
       # Set context to repo's root directory
       context: ../../
       dockerfile: src/nvidia_rag/rag_server/Dockerfile
+      args:
+        DOWNLOAD_LEGAL_COMPLIANCE: ${DOWNLOAD_LEGAL_COMPLIANCE:-false}
     # start the server on port 8081 with 8 workers for improved latency on concurrent requests.
     command: --port 8081 --host 0.0.0.0 --workers 8
     volumes:
@@ -219,6 +221,7 @@ services:
         VITE_API_CHAT_URL: ${VITE_API_CHAT_URL:-http://rag-server:8081/v1}
         VITE_API_VDB_URL: ${VITE_API_VDB_URL:-http://ingestor-server:8082/v1}
         VITE_MILVUS_URL: http://milvus:19530
+        DOWNLOAD_LEGAL_COMPLIANCE: ${DOWNLOAD_LEGAL_COMPLIANCE:-false}
     ports:
       - "8090:3000"
     expose:
