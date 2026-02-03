@@ -141,6 +141,7 @@ jobs:
         run: |
           echo "Building rag-server container with tag ${TAG}..."
           export TAG=${TAG}
+          export DOWNLOAD_LEGAL_COMPLIANCE=true
           docker compose -f deploy/compose/docker-compose-rag-server.yaml build rag-server
 
           # Tag and push to NGC Container Registry
@@ -198,6 +199,7 @@ jobs:
         run: |
           echo "Building ingestor-server container with tag ${TAG}..."
           export TAG=${TAG}
+          export DOWNLOAD_LEGAL_COMPLIANCE=true
           docker compose -f deploy/compose/docker-compose-ingestor-server.yaml build ingestor-server
 
           # Tag and push to NGC Container Registry
@@ -255,6 +257,7 @@ jobs:
         run: |
           echo "Building rag-frontend container with tag ${TAG}..."
           export TAG=${TAG}
+          export DOWNLOAD_LEGAL_COMPLIANCE=true
           docker compose -f deploy/compose/docker-compose-rag-server.yaml build rag-frontend
 
           # Tag and push to NGC Container Registry

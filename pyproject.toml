@@ -20,7 +20,7 @@ dependencies = [
     "anyio>=4.12.0",
     "httpx>=0.28.1",
     "httpx-sse>=0.4.3",
-    "langchain>=1.0.0",
+    "langchain>=1.2.7",
     "langchain-community>=0.4",
     "langchain-milvus>=0.3.0",
     "langchain-nvidia-ai-endpoints>=1.0.1",
@@ -34,7 +34,7 @@ dependencies = [
     "uvicorn[standard]>=0.32,<1.0",
     "langchain-core>=1.0.0",
     "redis>=4.3.4",
-    "protobuf>=5.29.5",
+    "protobuf>=6.33.5",
     "lark>=1.2.2",
     "python-dateutil>=2.9.0.post0",
 ]
@@ -76,6 +76,7 @@ ingest = [
     "azure-core>=1.35,<2.0",
     "azure-storage-blob>=12.26,<13.0",
     "pyarrow>=21.0,<22.0",
+    "setuptools>=80.10.2",
 ]
 all = [
     # nv-ingest dependencies (required for ingestion operations)
