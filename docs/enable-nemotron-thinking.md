@@ -7,7 +7,7 @@
 The [NVIDIA RAG Blueprint](readme.md) supports reasoning capabilities that allow models to "think through" complex questions before answering. This feature improves accuracy for challenging queries but increases response latency due to additional reasoning tokens.
 
 :::{tip}
-Reasoning is particularly beneficial for:
+Reasoning is particularly beneficial for the following:
 
 - Complex multi-step questions
 - Queries requiring logical deduction
