@@ -29,7 +29,7 @@ Reasoning in Nemotron 1.5 models (such as `nvidia/llama-3.3-nemotron-super-49b-v
 
 ### Update the System Prompt
 
-To enable reasoning, update the system prompt in [prompt.yaml](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/src/nvidia_rag/rag_server/prompt.yaml) from `/no_think` to `/think`:
+To enable reasoning, update the system prompt from `/no_think` to `/think` in [prompt.yaml](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/src/nvidia_rag/rag_server/prompt.yaml), as shown in the following code.
 
 ```yaml
 rag_template:
