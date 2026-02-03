@@ -15,7 +15,12 @@ You can enable text-only ingestion for the [NVIDIA RAG Blueprint](readme.md). Fo
    export APP_NVINGEST_EXTRACTINFOGRAPHICS=False
    export APP_NVINGEST_EXTRACTTABLES=False
    export APP_NVINGEST_EXTRACTCHARTS=False
+   export COMPONENTS_TO_READY_CHECK=""
    ```
+
+   :::{important}
+   When disabling nv-ingest dependent services, you must set `COMPONENTS_TO_READY_CHECK=""` to ensure the nv-ingest container reaches ready state. Without this setting, nv-ingest will wait indefinitely for the disabled components.
+   :::
 
    Then deploy the ingestor-server:
 
@@ -118,3 +123,18 @@ helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprin
   --set imagePullSecret.password=$NGC_API_KEY \
   --set ngcApiSecret.password=$NGC_API_KEY
 ```
+
+:::{important}
+**Disabling NV-Ingest Components for GPU Resource Management:**
+
+If you disable any nv-ingest dependent services (such as `table_structure`, `graphic_elements`, `nemoretriever_ocr_v1`, etc.) to free up GPU resources for customization, you must set the `COMPONENTS_TO_READY_CHECK` parameter to an empty string in the `nv-ingest.envVars` section of your [values.yaml](../deploy/helm/nvidia-blueprint-rag/values.yaml) file:
+
+```yaml
+nv-ingest:
+  envVars:
+    COMPONENTS_TO_READY_CHECK: ""
+```
+
+This ensures the nv-ingest pod reaches ready state even when some dependent components are disabled. Without this setting, the nv-ingest pod will wait indefinitely for the disabled components to become ready.
+
+:::
