@@ -90,6 +90,39 @@ To deploy End-to-End RAG Server and Ingestor Server, use the following procedure
     --set ngcApiSecret.password=$NGC_API_KEY
     ```
 
+   :::{important}
+   **For NVIDIA RTX6000 Pro Deployments:**
+   
+    If you are deploying on NVIDIA RTX6000 Pro GPUs (instead of H100 GPUs), you need to configure the NIM LLM model profile. The required configuration is already present but commented out in the [values.yaml](../deploy/helm/nvidia-blueprint-rag/values.yaml) file.
+   
+   Download and modify the values.yaml file:
+   ```sh
+   # Download the values.yaml from the chart
+   helm show values https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-rc2.1.tgz > values.yaml
+   ```
+   
+   Uncomment and modify the following section under `nimOperator.nim-llm.model`:
+   ```yaml
+   model:
+     engine: tensorrt_llm
+     precision: "fp8"
+     qosProfile: "throughput"
+     tensorParallelism: "1"
+     gpus:
+       - product: "rtx6000_blackwell_sv"
+   ```
+   
+   Then install using the modified values.yaml:
+   ```sh
+   helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-rc2.1.tgz \
+     --username '$oauthtoken' \
+     --password "${NGC_API_KEY}" \
+     --set imagePullSecret.password=$NGC_API_KEY \
+     --set ngcApiSecret.password=$NGC_API_KEY \
+     -f deploy/helm/nvidia-blueprint-rag/values.yaml
+   ```
+   :::
+
    :::{note}
    Refer to [NIM Model Profile Configuration](model-profiles.md) for using non-default NIM LLM profile.
    :::
@@ -222,7 +255,7 @@ helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprin
 --password "${NGC_API_KEY}" \
 --set imagePullSecret.password=$NGC_API_KEY \
 --set ngcApiSecret.password=$NGC_API_KEY \
--f nvidia-blueprint-rag/values.yaml
+-f deploy/helm/nvidia-blueprint-rag/values.yaml
 ```
 
 
@@ -249,7 +282,7 @@ kubectl delete pvc --all -n rag
 
     - **Nemo Retriever** – To enable persistence for Nemo Retriever embedding, refer to [Nemo Retriever Text Embedding](https://docs.nvidia.com/nim/nemo-retriever/text-embedding/latest/deploying.html#storage). Update the required fields in the `nvidia-nim-llama-32-nv-embedqa-1b-v2` section of the ***values.yaml*** file.
 
-    - **Nemo Retriever reranking** – To enable persistence for Nemo Retriever reranking, refer to [Nemo Retriever Text Reranking](https://docs.nvidia.com/nim/nemo-retriever/text-reranking/latest/deploying.html#storage). Update the required fields in the `text-reranking-nim` section of the ***values.yaml*** file.
+    - **Nemo Retriever reranking** – To enable persistence for Nemo Retriever reranking, refer to [Nemo Retriever Text Reranking](https://docs.nvidia.com/nim/nemo-retriever/text-reranking/latest/deploying.html#storage). Update the required fields in the `nvidia-nim-llama-32-nv-rerankqa-1b-v2` section of the ***values.yaml*** file.
 
 2. Run the code in [Change a Deployment](#change-a-deployment).
 

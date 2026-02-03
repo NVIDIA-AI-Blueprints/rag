@@ -89,6 +89,31 @@ If you are working directly with the source Helm chart, and you want to customiz
     --set ngcApiSecret.password=$NGC_API_KEY
     ```
 
+   :::{important}
+   **For NVIDIA RTX6000 Pro Deployments:**
+   
+    If you are deploying on NVIDIA RTX6000 Pro GPUs (instead of H100 GPUs), you need to configure the NIM LLM model profile. The required configuration is already present but commented out in the [values.yaml](../deploy/helm/nvidia-blueprint-rag/values.yaml) file.
+   
+   Uncomment and modify the following section under `nimOperator.nim-llm.model` in the values.yaml:
+   ```yaml
+   model:
+     engine: tensorrt_llm
+     precision: "fp8"
+     qosProfile: "throughput"
+     tensorParallelism: "1"
+     gpus:
+       - product: "rtx6000_blackwell_sv"
+   ```
+   
+   Then install using the modified values.yaml:
+   ```sh
+   helm upgrade --install rag -n rag nvidia-blueprint-rag/ \
+     --set imagePullSecret.password=$NGC_API_KEY \
+     --set ngcApiSecret.password=$NGC_API_KEY \
+     -f nvidia-blueprint-rag/values.yaml
+   ```
+   :::
+
    :::{note}
    Refer to [NIM Model Profile Configuration](model-profiles.md) for using non-default NIM LLM profile.
    :::

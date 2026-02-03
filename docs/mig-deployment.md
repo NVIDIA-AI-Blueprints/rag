@@ -182,6 +182,34 @@ helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprin
   -f mig-slicing/values-mig.yaml
 ```
 
+:::{important}
+**For NVIDIA RTX6000 Pro Deployments:**
+
+If you are deploying on NVIDIA RTX6000 Pro GPUs (instead of H100 GPUs), you need to configure the NIM LLM model profile. The required configuration is already present but commented out in the [values.yaml](../deploy/helm/nvidia-blueprint-rag/values.yaml) file.
+
+Uncomment and modify the following section under `nimOperator.nim-llm.model`:
+```yaml
+model:
+  engine: tensorrt_llm
+  precision: "fp8"
+  qosProfile: "throughput"
+  tensorParallelism: "1"
+  gpus:
+    - product: "rtx6000_blackwell_sv"
+```
+
+Then install using the modified values.yaml along with MIG values:
+```sh
+helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-rc2.1.tgz \
+  --username '$oauthtoken' \
+  --password "${NGC_API_KEY}" \
+  --set imagePullSecret.password=$NGC_API_KEY \
+  --set ngcApiSecret.password=$NGC_API_KEY \
+  -f values.yaml \
+  -f mig-slicing/values-mig.yaml
+```
+:::
+
 :::{note}
 Refer to [NIM Model Profile Configuration](model-profiles.md) for using non-default NIM LLM profile.
 :::
