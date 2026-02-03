@@ -71,7 +71,7 @@ export LLM_TOP_P=0.95
 
 By default, reasoning tokens (shown between `<think>` tags) are filtered out so only the final answer is returned in the model response.
 
-To view the full reasoning process including the `<think>` tags in the model response, use the following command:
+To view the full reasoning process including the `<think>` tags in the model response, use the following code.
 
 ```bash
 export FILTER_THINK_TOKENS=false
