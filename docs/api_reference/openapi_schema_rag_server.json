@@ -1,9 +1,9 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "APIs for NVIDIA RAG Server (v1)",
-    "description": "This API schema describes all the retriever endpoints exposed for NVIDIA RAG server Blueprint",
-    "version": "1.0.0"
+    "title": "APIs for NVIDIA RAG Server",
+    "description": "This API schema describes all the retriever endpoints exposed for NVIDIA RAG server Blueprint. Includes v1 APIs and v2 OpenAI-compatible APIs.",
+    "version": "2.0.0"
   },
   "paths": {
     "/v1/health": {
@@ -270,6 +270,89 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SummaryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/vector_stores/{vector_store_id}/search": {
+      "post": {
+        "tags": [
+          "Retrieval APIs"
+        ],
+        "summary": "Vector Store Search",
+        "description": "OpenAI-compatible vector store search endpoint (v2 only).\n\nThis is the primary OpenAI-compatible endpoint for vector store search.\nSearch within a vector store using natural language queries with full OpenAI API compatibility.\n\n**Note:** This endpoint is exclusive to the v2 API and is not available in v1.\n\nArgs:\n    request: FastAPI request object\n    vector_store_id: The ID of the vector store (collection name) to search\n    search_request: Search request parameters in OpenAI format\n\nReturns:\n    JSONResponse: Search results in OpenAI-compatible format",
+        "operationId": "vector_store_search_v2_vector_stores__vector_store_id__search_post",
+        "parameters": [
+          {
+            "name": "vector_store_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Vector Store Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VectorStoreSearchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VectorStoreSearchResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "Invalid request parameters"
+                }
+              }
+            }
+          },
+          "499": {
+            "description": "Client Closed Request",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "The client cancelled the request"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "Internal server error occurred"
                 }
               }
             }
@@ -1891,6 +1974,397 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "ComparisonFilter": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key",
+            "description": "The key to compare against the value.",
+            "examples": [
+              "author",
+              "page_number",
+              "category"
+            ]
+          },
+          "type": {
+            "type": "string",
+            "title": "Type",
+            "description": "Specifies the comparison operator: eq (equals), ne (not equal), gt (greater than), gte (greater than or equal), lt (less than), lte (less than or equal), in, nin (not in).",
+            "examples": [
+              "eq",
+              "gt",
+              "in"
+            ]
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "boolean"
+                    }
+                  ]
+                },
+                "type": "array"
+              }
+            ],
+            "title": "Value",
+            "description": "The value to compare against the attribute key; supports string, number, boolean, or array types.",
+            "examples": [
+              "John Doe",
+              5,
+              true,
+              [
+                "tech",
+                "science"
+              ]
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "type",
+          "value"
+        ],
+        "title": "ComparisonFilter",
+        "description": "A filter used to compare a specified attribute key to a given value using a defined comparison operation.",
+        "examples": [
+          {
+            "key": "<KEYNAME>",
+            "type": "eq",
+            "value": "John Doe"
+          }
+        ]
+      },
+      "CompoundFilter": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "title": "Type",
+            "description": "Type of operation: 'and' or 'or'.",
+            "examples": [
+              "and",
+              "or"
+            ]
+          },
+          "filters": {
+            "items": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/ComparisonFilter"
+                },
+                {
+                  "$ref": "#/components/schemas/CompoundFilter"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Filters",
+            "description": "Array of filters to combine. Items can be ComparisonFilter or CompoundFilter."
+          }
+        },
+        "type": "object",
+        "required": [
+          "type",
+          "filters"
+        ],
+        "title": "CompoundFilter",
+        "description": "Combine multiple filters using 'and' or 'or'.",
+        "examples": [
+          {
+            "filters": [
+              {
+                "key": "author",
+                "type": "eq",
+                "value": "John Doe"
+              },
+              {
+                "key": "page_number",
+                "type": "gte",
+                "value": 5
+              }
+            ],
+            "type": "and"
+          }
+        ]
+      },
+      "RankingOptions": {
+        "properties": {
+          "ranker": {
+            "type": "string",
+            "title": "Ranker",
+            "description": "Control re-ranking behavior. To enable: 'auto', 'true', 'on', 'enabled', 'yes', '1'. To disable (reduces latency): 'none', 'false', 'off', 'disabled', 'no', '0'. Case-insensitive.",
+            "default": "auto",
+            "examples": [
+              "auto",
+              "none",
+              "false"
+            ]
+          },
+          "score_threshold": {
+            "type": "number",
+            "maximum": 1,
+            "minimum": 0,
+            "title": "Score Threshold",
+            "description": "Minimum score threshold for filtering results. Only results with scores >= this value will be returned.",
+            "default": 0,
+            "examples": [
+              0,
+              0.5,
+              0.75
+            ]
+          }
+        },
+        "type": "object",
+        "title": "RankingOptions",
+        "description": "Ranking options for vector store search.",
+        "examples": [
+          {
+            "ranker": "auto",
+            "score_threshold": 0.5
+          }
+        ]
+      },
+      "VectorStoreSearchRequest": {
+        "properties": {
+          "query": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "items": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/TextContent"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ImageContent"
+                    }
+                  ]
+                },
+                "type": "array"
+              }
+            ],
+            "title": "Query",
+            "description": "A query string for a search or an array of content objects for multimodal queries.",
+            "examples": [
+              "What is the return policy?",
+              "Tell me about machine learning"
+            ]
+          },
+          "filters": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ComparisonFilter"
+              },
+              {
+                "$ref": "#/components/schemas/CompoundFilter"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Filters",
+            "description": "A filter to apply based on file attributes. Can be a comparison filter or compound filter."
+          },
+          "max_num_results": {
+            "type": "integer",
+            "maximum": 50,
+            "minimum": 1,
+            "title": "Max Num Results",
+            "description": "The maximum number of results to return. This number should be between 1 and 50 inclusive.",
+            "default": 10,
+            "examples": [
+              10,
+              5,
+              20
+            ]
+          },
+          "ranking_options": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RankingOptions"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Ranking options for search."
+          },
+          "rewrite_query": {
+            "type": "boolean",
+            "title": "Rewrite Query",
+            "description": "Whether to rewrite the natural language query for vector search.",
+            "default": false,
+            "examples": [
+              false,
+              true
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "query"
+        ],
+        "title": "VectorStoreSearchRequest",
+        "description": "OpenAI-compatible vector store search request.",
+        "examples": [
+          {
+            "max_num_results": 10,
+            "query": "What is the return policy?",
+            "ranking_options": {
+              "ranker": "auto",
+              "score_threshold": 0.5
+            },
+            "rewrite_query": false
+          },
+          {
+            "max_num_results": 5,
+            "query": "machine learning basics",
+            "ranking_options": {
+              "ranker": "none",
+              "score_threshold": 0
+            },
+            "rewrite_query": true
+          }
+        ]
+      },
+      "VectorStoreSearchResponse": {
+        "properties": {
+          "object": {
+            "type": "string",
+            "title": "Object",
+            "description": "Object type identifier",
+            "default": "vector_store.search_results.page"
+          },
+          "search_query": {
+            "type": "string",
+            "title": "Search Query",
+            "description": "The search query that was executed"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/VectorStoreSearchResultItem"
+            },
+            "type": "array",
+            "title": "Data",
+            "description": "List of search results"
+          },
+          "has_more": {
+            "type": "boolean",
+            "title": "Has More",
+            "description": "Whether there are more results available",
+            "default": false
+          },
+          "next_page": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Page",
+            "description": "Token for retrieving the next page of results"
+          }
+        },
+        "type": "object",
+        "required": [
+          "search_query",
+          "data"
+        ],
+        "title": "VectorStoreSearchResponse",
+        "description": "OpenAI-compatible vector store search response."
+      },
+      "VectorStoreSearchResultContent": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "title": "Type",
+            "description": "Type of content (e.g., 'text')"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text",
+            "description": "Text content"
+          }
+        },
+        "type": "object",
+        "required": [
+          "type",
+          "text"
+        ],
+        "title": "VectorStoreSearchResultContent",
+        "description": "Content object in search result."
+      },
+      "VectorStoreSearchResultItem": {
+        "properties": {
+          "file_id": {
+            "type": "string",
+            "title": "File Id",
+            "description": "Identifier for the file"
+          },
+          "filename": {
+            "type": "string",
+            "title": "Filename",
+            "description": "Name of the file"
+          },
+          "score": {
+            "type": "number",
+            "title": "Score",
+            "description": "Relevance score"
+          },
+          "attributes": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Attributes",
+            "description": "File attributes/metadata"
+          },
+          "content": {
+            "items": {
+              "$ref": "#/components/schemas/VectorStoreSearchResultContent"
+            },
+            "type": "array",
+            "title": "Content",
+            "description": "Content chunks from the file"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file_id",
+          "filename",
+          "score",
+          "attributes",
+          "content"
+        ],
+        "title": "VectorStoreSearchResultItem",
+        "description": "Single search result item in OpenAI format."
       }
     }
   },
