@@ -648,6 +648,8 @@ nimOperator:
         nvidia.com/gpu: 1
       requests:
         nvidia.com/gpu: 1
+    nodeSelector: {}
+    tolerations: []
     model:
       engine: tensorrt_llm
 # -- Uncomment this section to enable FP8 precision and throughput profile for the NIM LLM, change the GPU product according to the GPU you are using
@@ -753,6 +755,8 @@ nimOperator:
         nvidia.com/gpu: 1
       requests:
         nvidia.com/gpu: 1
+    nodeSelector: {}
+    tolerations: []
 #    draResources:
 #      - resourceClaimName: rag-claim
     storage:
@@ -822,6 +826,8 @@ nimOperator:
         nvidia.com/gpu: 1
       requests:
         nvidia.com/gpu: 1
+    nodeSelector: {}
+    tolerations: []
 #    draResources:
 #      - resourceClaimName: rag-claim
     storage:

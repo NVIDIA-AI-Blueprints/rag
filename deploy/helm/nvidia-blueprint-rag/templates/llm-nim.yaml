@@ -55,6 +55,10 @@ spec:
   resources:
 {{ toYaml $nimLlm.resources | nindent 4 }}
 {{- end }}
+  {{- with $nimLlm.tolerations }}
+  tolerations:
+{{ toYaml . | nindent 4 }}
+  {{- end }}
   expose:
 {{ toYaml $nimLlm.expose | nindent 4 }}
 {{- end }}

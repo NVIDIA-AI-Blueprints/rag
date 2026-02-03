@@ -15,8 +15,10 @@ spec:
   storage:
     pvc:
       create: {{ $nimVlm.storage.pvc.create | default true }}
+      {{- if $nimVlm.storage.pvc.storageClass }}
+      storageClass: {{ $nimVlm.storage.pvc.storageClass }}
+      {{- end }}
       size: {{ $nimVlm.storage.pvc.size | default "50Gi" }}
-      storageClass: {{ $nimVlm.storage.pvc.storageClass | default "default" }}
       volumeAccessMode: {{ $nimVlm.storage.pvc.volumeAccessMode | default "ReadWriteMany" }}
   resources: {}
 ---
@@ -50,6 +52,10 @@ spec:
   resources:
 {{ toYaml $nimVlm.resources | nindent 4 }}
 {{- end }}
+  {{- with $nimVlm.tolerations }}
+  tolerations:
+{{ toYaml . | nindent 4 }}
+  {{- end }}
   expose:
 {{ toYaml $nimVlm.expose | nindent 4 }}
 {{- end }}
