@@ -34,6 +34,8 @@ class IngestionStateManager:
         documents_catalog_metadata: list[dict[str, Any]] | None = None,
         enable_pdf_split_processing: bool = False,
         pdf_split_processing_options: dict[str, Any] | None = None,
+        concurrent_batches: int = 4,
+        files_per_batch: int = 16,
     ):
         self.task_id = str(uuid4())
         self._is_background = False  # Whether the ingestion is running in background
@@ -59,6 +61,9 @@ class IngestionStateManager:
         # Add request data
         self.enable_pdf_split_processing = enable_pdf_split_processing
         self.pdf_split_processing_options = pdf_split_processing_options
+
+        self.concurrent_batches = concurrent_batches
+        self.files_per_batch = files_per_batch
 
         self.asyncio_lock = asyncio.Lock()
 

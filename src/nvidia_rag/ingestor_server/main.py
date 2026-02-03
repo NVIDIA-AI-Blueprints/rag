@@ -61,6 +61,7 @@ from nvidia_rag.ingestor_server.nvingest import (
 )
 from nvidia_rag.ingestor_server.task_handler import INGESTION_TASK_HANDLER
 from nvidia_rag.rag_server.main import APIError
+from nvidia_rag.utils.batch_utils import calculate_dynamic_batch_parameters
 from nvidia_rag.utils.common import (
     create_catalog_metadata,
     create_document_metadata,
@@ -286,6 +287,12 @@ class NvidiaRAGIngestor:
         if vdb_endpoint is None:
             vdb_endpoint = self.config.vector_store.url
 
+        # Calculate dynamic batch parameters
+        files_per_batch, concurrent_batches = calculate_dynamic_batch_parameters(
+            filepaths=filepaths,
+            config=self.config,
+        )
+
         state_manager = IngestionStateManager(
             filepaths=filepaths,
             collection_name=collection_name,
@@ -293,6 +300,8 @@ class NvidiaRAGIngestor:
             documents_catalog_metadata=documents_catalog_metadata,
             enable_pdf_split_processing=enable_pdf_split_processing,
             pdf_split_processing_options=pdf_split_processing_options,
+            concurrent_batches=concurrent_batches,
+            files_per_batch=files_per_batch,
         )
         task_id = state_manager.get_task_id()
 
@@ -2066,8 +2075,8 @@ class NvidiaRAGIngestor:
         else:
             # Batch mode
             num_batches = (
-                len(filepaths) + self.config.nv_ingest.files_per_batch - 1
-            ) // self.config.nv_ingest.files_per_batch
+                len(filepaths) + state_manager.files_per_batch - 1
+            ) // state_manager.files_per_batch
 
             logger.info(
                 "Starting shallow extraction for %d files across %d batches",
@@ -2079,12 +2088,12 @@ class NvidiaRAGIngestor:
                 # Sequential batch processing
                 total_failed = 0
                 for i in range(
-                    0, len(filepaths), self.config.nv_ingest.files_per_batch
+                    0, len(filepaths), state_manager.files_per_batch
                 ):
                     sub_filepaths = filepaths[
-                        i : i + self.config.nv_ingest.files_per_batch
+                        i : i + state_manager.files_per_batch
                     ]
-                    batch_num = i // self.config.nv_ingest.files_per_batch + 1
+                    batch_num = i // state_manager.files_per_batch + 1
 
                     failed_files = await self.__process_shallow_batch(
                         filepaths=sub_filepaths,
@@ -2105,7 +2114,7 @@ class NvidiaRAGIngestor:
             else:
                 # Parallel batch processing with worker pool
                 tasks = []
-                semaphore = asyncio.Semaphore(self.config.nv_ingest.concurrent_batches)
+                semaphore = asyncio.Semaphore(state_manager.concurrent_batches)
 
                 async def process_shallow_batch_parallel(sub_filepaths, batch_num):
                     async with semaphore:
@@ -2120,12 +2129,12 @@ class NvidiaRAGIngestor:
                         )
 
                 for i in range(
-                    0, len(filepaths), self.config.nv_ingest.files_per_batch
+                    0, len(filepaths), state_manager.files_per_batch
                 ):
                     sub_filepaths = filepaths[
-                        i : i + self.config.nv_ingest.files_per_batch
+                        i : i + state_manager.files_per_batch
                     ]
-                    batch_num = i // self.config.nv_ingest.files_per_batch + 1
+                    batch_num = i // state_manager.files_per_batch + 1
                     task = process_shallow_batch_parallel(sub_filepaths, batch_num)
                     tasks.append(task)
 
@@ -2227,15 +2236,15 @@ class NvidiaRAGIngestor:
                 all_results = []
                 all_failures = []
                 for i in range(
-                    0, len(filepaths), self.config.nv_ingest.files_per_batch
+                    0, len(filepaths), state_manager.files_per_batch
                 ):
                     sub_filepaths = filepaths[
-                        i : i + self.config.nv_ingest.files_per_batch
+                        i : i + state_manager.files_per_batch
                     ]
-                    batch_num = i // self.config.nv_ingest.files_per_batch + 1
+                    batch_num = i // state_manager.files_per_batch + 1
                     total_batches = (
-                        len(filepaths) + self.config.nv_ingest.files_per_batch - 1
-                    ) // self.config.nv_ingest.files_per_batch
+                        len(filepaths) + state_manager.files_per_batch - 1
+                    ) // state_manager.files_per_batch
                     logger.info(
                         f"=== Batch Processing Status - Collection: {collection_name} - "
                         f"Processing batch {batch_num} of {total_batches} - "
@@ -2269,21 +2278,21 @@ class NvidiaRAGIngestor:
             else:
                 # Process batches in parallel with worker pool
                 logger.info(
-                    f"Processing batches in parallel with concurrency: {self.config.nv_ingest.concurrent_batches}"
+                    f"Processing batches in parallel with concurrency: {state_manager.concurrent_batches}"
                 )
                 all_results = []
                 all_failures = []
                 tasks = []
                 semaphore = asyncio.Semaphore(
-                    self.config.nv_ingest.concurrent_batches
+                    state_manager.concurrent_batches
                 )  # Limit concurrent tasks
 
                 async def process_batch(sub_filepaths, batch_num):
                     async with semaphore:
-                        if len(filepaths) % self.config.nv_ingest.files_per_batch == 0:
-                            total_batches = len(filepaths) // self.config.nv_ingest.files_per_batch
+                        if len(filepaths) % state_manager.files_per_batch == 0:
+                            total_batches = len(filepaths) // state_manager.files_per_batch
                         else:
-                            total_batches = len(filepaths) // self.config.nv_ingest.files_per_batch + 1
+                            total_batches = len(filepaths) // state_manager.files_per_batch + 1
                         logger.info(
                             f"=== Processing Batch - Collection: {collection_name} - "
                             f"Batch {batch_num} of {total_batches} - "
@@ -2301,12 +2310,12 @@ class NvidiaRAGIngestor:
                         )
 
                 for i in range(
-                    0, len(filepaths), self.config.nv_ingest.files_per_batch
+                    0, len(filepaths), state_manager.files_per_batch
                 ):
                     sub_filepaths = filepaths[
-                        i : i + self.config.nv_ingest.files_per_batch
+                        i : i + state_manager.files_per_batch
                     ]
-                    batch_num = i // self.config.nv_ingest.files_per_batch + 1
+                    batch_num = i // state_manager.files_per_batch + 1
                     task = process_batch(sub_filepaths, batch_num)
                     tasks.append(task)
 
