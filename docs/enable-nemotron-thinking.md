@@ -87,7 +87,7 @@ The `nvidia/nvidia-nemotron-nano-9b-v2` model uses system prompts to control rea
 
 ### Update the System Prompt
 
-Change the system prompt from `/no_think` to `/think` in [prompt.yaml](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/src/nvidia_rag/rag_server/prompt.yaml) as shown in the Nemotron 1.5 example above.
+Change the system prompt from `/no_think` to `/think` in [prompt.yaml](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/src/nvidia_rag/rag_server/prompt.yaml) as shown in the previous Nemotron 1.5 example.
 
 ### Configure Model Parameters
 
