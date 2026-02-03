@@ -85,7 +85,7 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
     - [File System Access to Extraction Results](mount-ingestor-volume.md)
     - [Multimodal Embedding Support (Early Access)](vlm-embed.md)
     - [OCR Configuration Guide](nemoretriever-ocr.md)
-    - [Enhanced PDF Extraction](nemoretriever-parse-extraction.md)
+    - [Enhanced PDF Extraction](nemotron-parse-extraction.md)
     - [Text-Only Ingestion](text_only_ingest.md)
     - [Data catalog for collections](data-catalog.md)
     - [MCP Server Usage](mcp.md)
@@ -216,7 +216,7 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
    File System Access to Results <mount-ingestor-volume.md>
    Multimodal Embedding Support (Early Access) <vlm-embed.md>
    OCR Configuration Guide <nemoretriever-ocr.md>
-   Enhanced PDF Extraction <nemoretriever-parse-extraction.md>
+   Enhanced PDF Extraction <nemotron-parse-extraction.md>
    Standalone NV-Ingest <nv-ingest-standalone.md>
    Text-Only Ingestion <text_only_ingest.md>
    MCP Server Usage <mcp.md>
