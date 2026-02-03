@@ -171,7 +171,7 @@ The 30B model supports a maximum thinking token limit to control the reasoning p
 : Maximum number of reasoning tokens allowed before generating the final answer.
 
 :::{important}
-**Key differences for the 30B model:**
+The key differences for the 30B model are the following:
 
 - Uses only `max_thinking_tokens` (not `min_thinking_tokens`)
 - Reasoning is available in the model output's `reasoning_content` field (not wrapped in `<think>` tags)
