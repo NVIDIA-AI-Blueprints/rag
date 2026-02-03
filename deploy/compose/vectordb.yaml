@@ -109,6 +109,29 @@ services:
       retries: 10
     profiles: ["elasticsearch"]
 
+  # Oracle 26ai Vector Database (CPU-based)
+  # Uses Oracle Free tier container for development/testing
+  # For production, connect to your Oracle 26ai instance using ORACLE_DSN
+  oracle-26ai:
+    container_name: oracle-26ai
+    image: container-registry.oracle.com/database/free:latest
+    environment:
+      - ORACLE_PWD=${ORACLE_PASSWORD:-oracle123}
+      - ORACLE_CHARACTERSET=AL32UTF8
+    ports:
+      - "1521:1521"
+      - "5500:5500"
+    volumes:
+      - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/oracle:/opt/oracle/oradata
+    healthcheck:
+      test: ["CMD", "bash", "-c", "echo 'SELECT 1 FROM DUAL;' | sqlplus -s system/${ORACLE_PASSWORD:-oracle123}@localhost:1521/FREEPDB1"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 300s
+    shm_size: 1g
+    profiles: ["oracle"]
+
 networks:
   default:
     name: nvidia-rag
