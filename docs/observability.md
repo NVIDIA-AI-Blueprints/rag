@@ -45,9 +45,9 @@ Use the following procedure to enable observability with Docker.
 
 After tracing is enabled and the system is running, you can **view the traces** in **Zipkin** by opening:
 
-```{image} assets/zipkin_ui.png
-:width: 750px
-```
+<p align="center">
+<img src="./assets/zipkin_ui.png" width="750">
+</p>
 
 Open the Zipkin UI at: **http://localhost:9411**
 
@@ -106,41 +106,40 @@ Use the following procedure to enable observability with Helm.
 
 ### Enable OpenTelemetry Collector, Zipkin and Prometheus stack
 
-1. Modify `values.yaml`:
+1. Modify [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml):
 
-   Update the `values.yaml` file to enable the OpenTelemetry Collector and Zipkin:
+   Update the [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) file to enable tracing and the observability stack:
 
    ```yaml
-   env:
-   # ... existing code ...
-   APP_TRACING_ENABLED: "True"
+   # Environment variables for rag-server
+   envVars:
+     # ... existing configurations ...
+     
+     # === Tracing ===
+     APP_TRACING_ENABLED: "True"
+     # ... other tracing configurations ...
 
-   # ... existing code ...
+   # ... existing configurations ...
+
+   # Observability stack
    serviceMonitor:
-   enabled: true
+     enabled: true
+
    opentelemetry-collector:
-   enabled: true
-   # ... existing code ...
+     enabled: true
 
    zipkin:
-   enabled: true
+     enabled: true
+
    kube-prometheus-stack:
-   enabled: true
+     enabled: true
    ```
 
-### Deploy the Changes
+2. Deploy the changes:
 
-Redeploy the Helm chart to apply these changes:
+   After modifying [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml), apply the changes as described in [Change a Deployment](deploy-helm.md#change-a-deployment).
 
-```sh
-helm uninstall rag -n rag
-helm install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-rc2.1.tgz \
---username '$oauthtoken' \
---password "${NGC_API_KEY}" \
---set imagePullSecret.password=$NGC_API_KEY \
---set ngcApiSecret.password=$NGC_API_KEY \
--f deploy/helm/nvidia-blueprint-rag/values.yaml
-```
+   For detailed HELM deployment instructions, see [Helm Deployment Guide](deploy-helm.md).
 
 ### Port-forwarding Zipkin and Grafana dashboards
 
