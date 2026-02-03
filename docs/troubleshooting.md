@@ -155,6 +155,42 @@ During model downloads, pods may appear stuck in "ContainerCreating" or "Init" s
 
 
 
+## NIM Container Permission Error During Model Download
+
+When deploying self-hosted NIM containers (such as `nemotron-3-nano`), you may encounter a permission denied error during model manifest download, even when your API key is correct:
+
+```
+INFO 2026-02-02 12:52:12.892 nim_sdk.py:376] Downloading manifest profile: 2d9b8aac4a16d01e22e86db6b130e32889dcf73a2b28a996495c0904b9773453
+ERROR 2026-02-02 12:52:13.083 nim_sdk.py:338] Download failed after 1 attempts. Last exception: I/O error Permission denied (os error 13)
+ERROR 2026-02-02 12:52:13.083 nimutils.py:57] Error downloading models, ignoring and continuing startup
+...
+nimlib.exceptions.ManifestDownloadError: Error downloading manifest: I/O error Permission denied (os error 13)
+```
+
+This error typically occurs on systems where the user ID is not `1000` or `0`. Some NIM container expects specific user permissions for writing to the model cache directory.
+
+**Solution:** Set `USERID=0` instead of `USERID=$(id -u)` when starting the NIM containers.
+
+```bash
+# Instead of:
+export USERID=$(id -u)
+
+# Use:
+export USERID=0
+```
+
+Then restart your NIM containers:
+
+```bash
+docker compose -f deploy/compose/nims.yaml up -d nim-llm
+```
+
+:::{note}
+This issue is specific to self-hosted NIM deployments when modifying the `nims.yaml` file to use different NIM images (e.g., `nemotron-3-nano`).
+:::
+
+
+
 ## 429 Rate Limit Issue for NVIDIA-Hosted Models
 
 You may encounter a "429 Client Error: Too Many Requests for url" error during ingestion when using NVIDIA-hosted models. This error indicates that the rate limiting threshold for the API has been exceeded. This is not an application issue, but rather a constraint imposed by the API service.
