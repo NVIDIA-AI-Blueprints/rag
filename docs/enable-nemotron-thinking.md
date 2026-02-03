@@ -15,7 +15,7 @@ Reasoning is particularly beneficial for the following:
 - Scenarios where accuracy is more important than response speed
 :::
 
-This guide explains how to enable reasoning for different Nemotron models, each using a different control mechanism:
+This guide explains how to enable reasoning for different Nemotron models, each using a different control mechanism.
 
 | Model | Control Method | Thinking Budget Parameters |
 |-------|----------------|----------------------------|
