@@ -1,5 +1,5 @@
 apiVersion: v2
-appVersion: v2.4.0-rc2.2
+appVersion: v2.4.0-rc3
 dependencies:
 - condition: nv-ingest.enabled
   name: nv-ingest
@@ -28,4 +28,4 @@ dependencies:
 description: An end to end Helm chart for the NVIDIA RAG Blueprint
 name: nvidia-blueprint-rag
 type: application
-version: v2.4.0-rc2.2
+version: v2.4.0-rc3
