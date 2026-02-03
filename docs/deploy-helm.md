@@ -240,6 +240,10 @@ To verify a deployment, use the following procedure.
   kubectl port-forward -n rag service/rag-frontend 3000:3000 --address 0.0.0.0
   ```
 
+:::{note}
+Port-forwarding is provided as a quick method to try out the UI. However, large file ingestion or bulk ingestion through the UI might not work due to port-forwarding timeout issues.
+::: 
+
 ## Experiment with the Web User Interface
 
 1. Open a web browser and access the RAG UI. You can start experimenting by uploading docs and asking questions. For details, see [User Interface for NVIDIA RAG Blueprint](user-interface.md).
