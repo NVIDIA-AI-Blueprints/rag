@@ -3,11 +3,13 @@ services:
   # Main ingestor server which is responsible for ingestion
   ingestor-server:
     container_name: ingestor-server
-    image: nvcr.io/nvstaging/blueprint/ingestor-server:${TAG:-2.4.0.rc2.2}
+    image: nvcr.io/nvstaging/blueprint/ingestor-server:${TAG:-2.4.0.rc3}
     build:
       # Set context to repo's root directory
       context: ../../
       dockerfile: ./src/nvidia_rag/ingestor_server/Dockerfile
+      args:
+        DOWNLOAD_LEGAL_COMPLIANCE: ${DOWNLOAD_LEGAL_COMPLIANCE:-false}
     # start the server on port 8082 with 4 workers for improved latency on concurrent requests.
     command: --port 8082 --host 0.0.0.0 --workers 1
 
@@ -145,6 +147,7 @@ services:
       # NV-Ingest Batch Mode Configurations
       NV_INGEST_FILES_PER_BATCH: ${NV_INGEST_FILES_PER_BATCH:-16}
       NV_INGEST_CONCURRENT_BATCHES: ${NV_INGEST_CONCURRENT_BATCHES:-4}
+      ENABLE_NV_INGEST_DYNAMIC_BATCHING: ${ENABLE_NV_INGEST_DYNAMIC_BATCHING:-True}
 
       # Tracing
       APP_TRACING_ENABLED: ${APP_TRACING_ENABLED:-"False"}

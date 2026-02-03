@@ -19,7 +19,9 @@ The following are the core services that you install:
 
 ## Prerequisites
 
-Verify that you meet the prerequisites specified in [prerequisites](./deploy-helm.md#prerequisites).
+1. Verify that you meet the prerequisites specified in [prerequisites](./deploy-helm.md#prerequisites).
+
+2. [Clone the RAG Blueprint Git repository](deploy-docker-self-hosted.md#clone-the-rag-blueprint-git-repository) to get access to the Helm chart source files.
 
 :::{important}
 Consider the following before you deploy the RAG Blueprint:

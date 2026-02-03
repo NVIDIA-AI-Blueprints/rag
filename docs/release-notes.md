@@ -84,7 +84,7 @@ The following are the known issues for the NVIDIA RAG Blueprint:
   - Image captioning support for ingested documents
   - NeMo Guardrails for guardrails at input/output
   - VLM-based inferencing in RAG
-  - PDF extraction with Nemoretriever Parse
+  - PDF extraction with Nemotron Parse
 - Sometimes when HTTP cloud NIM endpoints are used from `deploy/compose/.env`, the `nv-ingest-ms-runtime` still logs gRPC environment variables. Following log entries can be ignored.
 - For MIG support, currently the ingestion profile has been scaled down while deploying the chart with MIG slicing This affects the ingestion performance during bulk ingestion, specifically large bulk ingestion jobs might fail.
 - Individual file uploads are limited to a maximum size of 400 MB during ingestion. Files exceeding this limit are rejected and must be split into smaller segments before ingesting.

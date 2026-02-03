@@ -1,3 +1,25 @@
+### Python License Extraction — Docker Build Script
+
+**Purpose**: Extracts license information from all installed Python packages for legal compliance.
+
+**Usage**: This script is automatically executed during Docker image builds. It:
+- Collects LICENSE files from Python package dist-info directories
+- Extracts license metadata from METADATA files
+- Creates individual license files per package in `/legal/python-licenses/`
+- Generates a manifest and summary report
+
+**Output Location**: `/legal/python-licenses/` in container images
+- `PACKAGE_NAME.LICENSE` - Original license files
+- `PACKAGE_NAME.LICENSE_INFO.txt` - License metadata
+- `python-licenses-manifest.txt` - Complete manifest
+- `SUMMARY.txt` - Extraction statistics
+
+**Referenced by**: 
+- `src/nvidia_rag/ingestor_server/Dockerfile`
+- `src/nvidia_rag/rag_server/Dockerfile`
+
+---
+
 ### Bulk Ingestion CLI — Quick Guide
 
 - Purpose: Ease bulk upload of large datasets to the ingestor server in sequential batches with professional logging and task polling.

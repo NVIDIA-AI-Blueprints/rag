@@ -200,7 +200,7 @@ services:
   # Main ingestor server which is responsible for ingestion
   ingestor-server:
     container_name: ingestor-server
-    image: nvcr.io/nvstaging/blueprint/ingestor-server:${TAG:-2.4.0.rc2.2}
+    image: nvcr.io/nvstaging/blueprint/ingestor-server:${TAG:-2.4.0.rc3}
     build:
       # Set context to repo's root directory
       context: ../../
@@ -432,7 +432,7 @@ services:
   # Main orchestrator server which stiches together all calls to different services to fulfill the user request
   rag-server:
     container_name: rag-server
-    image: nvcr.io/nvstaging/blueprint/rag-server:${TAG:-2.4.0.rc2.2}
+    image: nvcr.io/nvstaging/blueprint/rag-server:${TAG:-2.4.0.rc3}
     build:
       # Set context to repo's root directory
       context: ../../
@@ -569,7 +569,7 @@ services:
   # Sample UI container which interacts with APIs exposed by rag-server container
   rag-frontend:
     container_name: rag-frontend
-    image: nvcr.io/nvstaging/blueprint/rag-frontend:${TAG:-2.4.0.rc2.2}
+    image: nvcr.io/nvstaging/blueprint/rag-frontend:${TAG:-2.4.0.rc3}
     build:
       # Set context to repo's root directory
       context: ../../frontend
@@ -603,12 +603,12 @@ services:
       KNOWHERE_GPU_MEM_POOL_SIZE: 2048;4096
     volumes:
       - ${DOCKER_VOLUME_DIRECTORY:-./volumes/milvus}:/var/lib/milvus
-    # healthcheck:
-    #   test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
-    #   interval: 30s
-    #   start_period: 90s
-    #   timeout: 20s
-    #   retries: 3
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
+      interval: 30s
+      start_period: 90s
+      timeout: 20s
+      retries: 3
     ports:
       - "19530:19530"
       - "9091:9091"

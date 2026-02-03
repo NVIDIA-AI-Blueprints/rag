@@ -55,6 +55,8 @@ For monitoring deployment progress, refer to [Deploy on Kubernetes with Helm](./
 
 4. Install the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html).
 
+5. [Clone the RAG Blueprint Git repository](deploy-docker-self-hosted.md#clone-the-rag-blueprint-git-repository) to get the necessary deployment files.
+
 
 ## Deploy Retrieval-Only Mode with Docker Compose
 
@@ -83,14 +85,14 @@ Choose one of the following options based on your deployment preference.
 
 #### Option A: Self-Hosted NIMs
 
-Instead of starting all NIMs, use the `text-embed` profile to start only the embedding service:
+Instead of starting all NIMs, use the `text-embed` profile to start only the embedding and reranking services:
 
 ```bash
 USERID=$(id -u) docker compose -f deploy/compose/nims.yaml up -d nemoretriever-ranking-ms nemoretriever-embedding-ms
 ```
 
 :::{note}
-The `text-embed` profile starts only `nemoretriever-embedding-ms`, which is sufficient for retrieval operations. The LLM NIM (`nim-llm-ms`) is not started, saving significant GPU memory.
+The `text-embed` profile starts only `nemoretriever-embedding-ms` and `nemoretriever-ranking-ms `, which is sufficient for retrieval operations. The LLM NIM (`nim-llm-ms`) is not started, saving significant GPU memory.
 :::
 
 Wait for the services to become healthy:
