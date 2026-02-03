@@ -94,20 +94,26 @@ When you install the Helm chart, enable only the following services that are req
 
 Additionally, ensure that **table extraction**, **chart extraction**, and **image extraction** are disabled.
 
-1. First, modify the environment variables in the `values.yaml` file to enable text-only extraction:
+1. First, modify the environment variables in [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) to enable text-only extraction:
 
    In the `nv-ingest.envVars` section, set the following values:
+   
    ```yaml
-   APP_NVINGEST_EXTRACTTEXT: "True"
-   APP_NVINGEST_EXTRACTINFOGRAPHICS: "False"
-   APP_NVINGEST_EXTRACTTABLES: "False"
-   APP_NVINGEST_EXTRACTCHARTS: "False"
+   nv-ingest:
+     envVars:
+       # ... existing configurations ...
+       
+       # === Text-Only Extraction Mode ===
+       APP_NVINGEST_EXTRACTTEXT: "True"
+       APP_NVINGEST_EXTRACTINFOGRAPHICS: "False"
+       APP_NVINGEST_EXTRACTTABLES: "False"
+       APP_NVINGEST_EXTRACTCHARTS: "False"
    ```
 
-2. Then use the modified `values.yaml` file in your Helm upgrade command:
+2. Then use the modified [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) file in your Helm upgrade command:
 
 ```bash
-helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-rc2.1.tgz \
+helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-rc3.tgz \
   --username '$oauthtoken' \
   --password "${NGC_API_KEY}" \
   --values deploy/helm/nvidia-blueprint-rag/values.yaml \

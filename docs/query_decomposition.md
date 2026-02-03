@@ -71,17 +71,23 @@ You can deploy RAG with query decomposition using Helm for Kubernetes environmen
 
 ### Update RAG Blueprint Deployment with Query Decomposition
 
-Use the Helm upgrade command below to enable query decomposition in RAG Blueprint by setting `ENABLE_QUERY_DECOMPOSITION` and `MAX_RECURSION_DEPTH`:
+To enable query decomposition in RAG Blueprint:
 
-```bash
-helm upgrade rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-rc2.1.tgz \
-  --username '$oauthtoken' \
-  --password "${NGC_API_KEY}" \
-  --set imagePullSecret.password=${NGC_API_KEY} \
-  --set ngcApiSecret.password=${NGC_API_KEY} \
-  --set envVars.ENABLE_QUERY_DECOMPOSITION="true" \
-  --set envVars.MAX_RECURSION_DEPTH="3"
+Modify [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) to enable query decomposition:
+
+```yaml
+# Environment variables for rag-server
+envVars:
+  # ... existing configurations ...
+  
+  # === Query Decomposition ===
+  ENABLE_QUERY_DECOMPOSITION: "true"
+  MAX_RECURSION_DEPTH: "3"
 ```
+
+After modifying [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml), apply the changes as described in [Change a Deployment](deploy-helm.md#change-a-deployment).
+
+For detailed HELM deployment instructions, see [Helm Deployment Guide](deploy-helm.md).
 
 ## When to Use Query Decomposition
 

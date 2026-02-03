@@ -67,17 +67,28 @@ To enable PDF extraction with Nemotron Parse using Helm, you need to enable the 
 ### Prerequisites
 - Ensure you have sufficient GPU resources. Nemotron Parse requires a dedicated GPU.
 
-### Deployment Command
+### Deployment Steps
 
-```bash
-helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-rc2.1.tgz \
-  --username '$oauthtoken' \
-  --password "${NGC_API_KEY}" \
-  --set imagePullSecret.password=$NGC_API_KEY \
-  --set ngcApiSecret.password=$NGC_API_KEY \
-  --set nv-ingest.nimOperator.nemotron_parse.enabled=true \
-  --set ingestor-server.envVars.APP_NVINGEST_PDFEXTRACTMETHOD="nemotron_parse"
+To deploy with Nemotron Parse enabled:
+
+Modify [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) to enable Nemotron Parse:
+
+```yaml
+# Enable Nemotron Parse NIM
+nv-ingest:
+  nimOperator:
+    nemotron_parse:
+      enabled: true
+
+# Configure ingestor-server to use Nemotron Parse
+ingestor-server:
+  envVars:
+    APP_NVINGEST_PDFEXTRACTMETHOD: "nemotron_parse"
 ```
+
+After modifying [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml), apply the changes as described in [Change a Deployment](deploy-helm.md#change-a-deployment).
+
+For detailed HELM deployment instructions, see [Helm Deployment Guide](deploy-helm.md).
 
 :::{note}
 **Key Configuration Changes:**

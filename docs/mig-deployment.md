@@ -174,7 +174,7 @@ You should see output similar to the following.
 Run the following code to install the RAG Blueprint Helm Chart.
 
 ```bash
-helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-rc2.1.tgz \
+helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-rc3.tgz \
   --username '$oauthtoken' \
   --password "${NGC_API_KEY}" \
   --set imagePullSecret.password=$NGC_API_KEY \
@@ -185,9 +185,9 @@ helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprin
 :::{important}
 **For NVIDIA RTX6000 Pro Deployments:**
 
-If you are deploying on NVIDIA RTX6000 Pro GPUs (instead of H100 GPUs), you need to configure the NIM LLM model profile. The required configuration is already present but commented out in the [values.yaml](../deploy/helm/nvidia-blueprint-rag/values.yaml) file.
+If you are deploying on NVIDIA RTX6000 Pro GPUs (instead of H100 GPUs), you need to configure the NIM LLM model profile. The required configuration is already present but commented out in the [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) file.
 
-Uncomment and modify the following section under `nimOperator.nim-llm.model`:
+Uncomment and modify the following section under `nimOperator.nim-llm.model` in [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml):
 ```yaml
 model:
   engine: tensorrt_llm
@@ -200,7 +200,7 @@ model:
 
 Then install using the modified values.yaml along with MIG values:
 ```sh
-helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-rc2.1.tgz \
+helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-rc3.tgz \
   --username '$oauthtoken' \
   --password "${NGC_API_KEY}" \
   --set imagePullSecret.password=$NGC_API_KEY \

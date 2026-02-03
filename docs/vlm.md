@@ -265,16 +265,9 @@ To enable VLM inference in Helm-based deployments, follow these steps:
 
 3. Apply the updated Helm chart
 
-   Run the following command to upgrade or install your deployment:
+   After modifying [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml), apply the changes as described in [Change a Deployment](deploy-helm.md#change-a-deployment).
 
-   ```
-   helm upgrade --install rag -n <namespace> https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-rc2.1.tgz \
-     --username '$oauthtoken' \
-     --password "${NGC_API_KEY}" \
-     --set imagePullSecret.password=$NGC_API_KEY \
-     --set ngcApiSecret.password=$NGC_API_KEY \
-     -f deploy/helm/nvidia-blueprint-rag/values.yaml
-   ```
+   For detailed HELM deployment instructions, see [Helm Deployment Guide](deploy-helm.md).
 
 4. Check if the VLM pod has come up
 

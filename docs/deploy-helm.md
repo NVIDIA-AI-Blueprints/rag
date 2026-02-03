@@ -83,7 +83,7 @@ To deploy End-to-End RAG Server and Ingestor Server, use the following procedure
 2. Install the Helm chart by running the following command.
 
     ```sh
-    helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-rc2.1.tgz \
+    helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-rc3.tgz \
     --username '$oauthtoken' \
     --password "${NGC_API_KEY}" \
     --set imagePullSecret.password=$NGC_API_KEY \
@@ -93,28 +93,22 @@ To deploy End-to-End RAG Server and Ingestor Server, use the following procedure
    :::{important}
    **For NVIDIA RTX6000 Pro Deployments:**
    
-    If you are deploying on NVIDIA RTX6000 Pro GPUs (instead of H100 GPUs), you need to configure the NIM LLM model profile. The required configuration is already present but commented out in the [values.yaml](../deploy/helm/nvidia-blueprint-rag/values.yaml) file.
-   
-   Download and modify the values.yaml file:
-   ```sh
-   # Download the values.yaml from the chart
-   helm show values https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-rc2.1.tgz > values.yaml
-   ```
-   
-   Uncomment and modify the following section under `nimOperator.nim-llm.model`:
-   ```yaml
-   model:
-     engine: tensorrt_llm
-     precision: "fp8"
-     qosProfile: "throughput"
-     tensorParallelism: "1"
-     gpus:
-       - product: "rtx6000_blackwell_sv"
-   ```
+    If you are deploying on NVIDIA RTX6000 Pro GPUs (instead of H100 GPUs), you need to configure the NIM LLM model profile. The required configuration is already present but commented out in the [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) file.
+
+    Uncomment and modify the following section under `nimOperator.nim-llm.model`:
+    ```yaml
+    model:
+      engine: tensorrt_llm
+      precision: "fp8"
+      qosProfile: "throughput"
+      tensorParallelism: "1"
+      gpus:
+        - product: "rtx6000_blackwell_sv"
+    ```
    
    Then install using the modified values.yaml:
    ```sh
-   helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-rc2.1.tgz \
+   helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-rc3.tgz \
      --username '$oauthtoken' \
      --password "${NGC_API_KEY}" \
      --set imagePullSecret.password=$NGC_API_KEY \
@@ -251,10 +245,10 @@ Port-forwarding is provided as a quick method to try out the UI. However, large 
 
 ## Change a Deployment
 
-To Change an existing deployment, after you modify the `values.yaml` file, run the following code.
+To change an existing deployment, after you modify the [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) file, run the following code.
 
 ```sh
-helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-rc2.1.tgz \
+helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-rc3.tgz \
 --username '$oauthtoken' \
 --password "${NGC_API_KEY}" \
 --set imagePullSecret.password=$NGC_API_KEY \
@@ -280,13 +274,13 @@ kubectl delete pvc --all -n rag
 
 ## (Optional) Enable Persistence
 
-1. Update the ***values.yaml*** file for the persistence that you want. Use the following instructions.
+1. Update the [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) file for the persistence that you want. Use the following instructions.
 
-    - **NIM LLM** – To enable persistence for NIM LLM, refer to [NIM LLM](https://docs.nvidia.com/nim/large-language-models/latest/deploy-helm.html#storage). Update the required fields in the `nim-llm` section of the ***values.yaml*** file.
+    - **NIM LLM** – To enable persistence for NIM LLM, refer to [NIM LLM](https://docs.nvidia.com/nim/large-language-models/latest/deploy-helm.html#storage). Update the required fields in the `nim-llm` section of the [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) file.
 
-    - **Nemo Retriever** – To enable persistence for Nemo Retriever embedding, refer to [Nemo Retriever Text Embedding](https://docs.nvidia.com/nim/nemo-retriever/text-embedding/latest/deploying.html#storage). Update the required fields in the `nvidia-nim-llama-32-nv-embedqa-1b-v2` section of the ***values.yaml*** file.
+    - **Nemo Retriever** – To enable persistence for Nemo Retriever embedding, refer to [Nemo Retriever Text Embedding](https://docs.nvidia.com/nim/nemo-retriever/text-embedding/latest/deploying.html#storage). Update the required fields in the `nvidia-nim-llama-32-nv-embedqa-1b-v2` section of the [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) file.
 
-    - **Nemo Retriever reranking** – To enable persistence for Nemo Retriever reranking, refer to [Nemo Retriever Text Reranking](https://docs.nvidia.com/nim/nemo-retriever/text-reranking/latest/deploying.html#storage). Update the required fields in the `nvidia-nim-llama-32-nv-rerankqa-1b-v2` section of the ***values.yaml*** file.
+    - **Nemo Retriever reranking** – To enable persistence for Nemo Retriever reranking, refer to [Nemo Retriever Text Reranking](https://docs.nvidia.com/nim/nemo-retriever/text-reranking/latest/deploying.html#storage). Update the required fields in the `nvidia-nim-llama-32-nv-rerankqa-1b-v2` section of the [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) file.
 
 2. Run the code in [Change a Deployment](#change-a-deployment).
 

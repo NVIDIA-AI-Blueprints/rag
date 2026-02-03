@@ -127,18 +127,11 @@ The chart is configured with `eck-operator.installCRDs: true` by default, which 
        enabled: true
    ```
 
-3. Deploy the Helm chart as described in [Deploy the RAG Pipeline](deploy-helm.md).
+3. Deploy the Helm chart:
 
-   ```bash
-   cd deploy/helm/
-   
-   helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-rc2.tgz \
-   --username '$oauthtoken' \
-   --password "${NGC_API_KEY}" \
-   --set imagePullSecret.password=$NGC_API_KEY \
-   --set ngcApiSecret.password=$NGC_API_KEY \
-   -f nvidia-blueprint-rag/values.yaml
-   ```
+   After modifying [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml), apply the changes as described in [Change a Deployment](deploy-helm.md#change-a-deployment).
+
+   For detailed HELM deployment instructions, see [Deploy the RAG Pipeline](deploy-helm.md).
 
 4. Wait for Elasticsearch to be ready.
 
@@ -163,7 +156,7 @@ The chart is configured with `eck-operator.installCRDs: true` by default, which 
    echo "Elasticsearch password: $ES_PASSWORD"
    ```
 
-   Then update `values.yaml` with the password and xpack security configuration (see authentication section below).
+   Then update [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) with the password and xpack security configuration (see authentication section below).
 
 6. After the Helm deployment, port-forward the RAG UI service:
 
@@ -337,7 +330,7 @@ API key authentication takes precedence over username/password when both are con
 
 #### 1. Configure RAG services to authenticate to Elasticsearch
 
-Edit `deploy/helm/nvidia-blueprint-rag/values.yaml` and set one of:
+Edit [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) and set one of:
 
 ```yaml
 # API Key auth (preferred) - choose one of the two forms:
@@ -360,7 +353,7 @@ To obtain the API key, first deploy the Helm chart (see step 3 below), wait for 
 kubectl port-forward -n rag svc/<elasticsearch-service-name> 9200:9200 
 ```
 
-Once the tunnel is established, follow the instructions in [Generate Elasticsearch API Key](#3-generate-elasticsearch-api-key-optional-but-recommended) to generate the API key using curl. After obtaining the API key, update your `values.yaml` file with the credentials and redeploy.
+Once the tunnel is established, follow the instructions in [Generate Elasticsearch API Key](#3-generate-elasticsearch-api-key-optional-but-recommended) to generate the API key using curl. After obtaining the API key, update your [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) file with the credentials and redeploy.
 
 :::
 
@@ -374,7 +367,7 @@ The chart no longer uses a Kubernetes elastic-secret for these values; set them 
 
 #### 2. Enable Elasticsearch xpack security in values.yaml
 
-Add xpack security configuration under the `eck-stack.eck-elasticsearch` section in `deploy/helm/nvidia-blueprint-rag/values.yaml`:
+Add xpack security configuration under the `eck-stack.eck-elasticsearch` section in [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml):
 
 ```yaml
 eck-stack:
@@ -395,14 +388,8 @@ eck-stack:
 This enables authentication for Elasticsearch.
 
 #### 3. Deploy with Helm:
-```bash
-helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-rc2.tgz \
---username '$oauthtoken' \
---password "${NGC_API_KEY}" \
---set imagePullSecret.password=$NGC_API_KEY \
---set ngcApiSecret.password=$NGC_API_KEY \
--f deploy/helm/nvidia-blueprint-rag/values.yaml
-```
+
+After modifying [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml), apply the changes as described in [Change a Deployment](deploy-helm.md#change-a-deployment).
 
 For detailed HELM deployment instructions, see [Helm Deployment Guide](deploy-helm.md).
 

@@ -242,11 +242,14 @@ This configuration disables the default LLM NIM and text embedding NIM, replacin
 If MIG slicing is enabled on the cluster, ensure to assign a dedicated slice to the VLM. Check [mig-deployment.md](./mig-deployment.md) for more information.
 :::
 
-### 1. Update values.yaml
+### 1. Modify values.yaml
 
-Update `deploy/helm/nvidia-blueprint-rag/values.yaml` with the following configuration:
+Modify [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) to enable multimodal query support:
 
 ```yaml
+# Multimodal Query Configuration
+# This replaces the default LLM and text embedding NIMs with VLM variants
+
 # Enable VLM NIM for multimodal generation
 nim-vlm:
   enabled: true
@@ -301,16 +304,9 @@ nv-ingest:
 
 ### 2. Deploy or Upgrade the Chart
 
-Run the following command to deploy or upgrade the Helm chart:
+After modifying [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml), apply the changes as described in [Change a Deployment](deploy-helm.md#change-a-deployment).
 
-```bash
-helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-rc1.tgz \
-  --username '$oauthtoken' \
-  --password "${NGC_API_KEY}" \
-  --set imagePullSecret.password=$NGC_API_KEY \
-  --set ngcApiSecret.password=$NGC_API_KEY \
-  -f deploy/helm/nvidia-blueprint-rag/values.yaml
-```
+For detailed HELM deployment instructions, see [Helm Deployment Guide](deploy-helm.md).
 
 ### 3. Verify the Deployment
 

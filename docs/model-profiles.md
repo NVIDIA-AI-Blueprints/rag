@@ -70,7 +70,7 @@ docker compose -f deploy/compose/nims.yaml up -d
 
 ### Helm Deployment
 
-To set a specific model profile in Helm, add the `NIM_MODEL_PROFILE` environment variable to the `nim-llm` section in `deploy/helm/nvidia-blueprint-rag/values.yaml`:
+To set a specific model profile in Helm, add the `NIM_MODEL_PROFILE` environment variable to the `nim-llm` section in [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml):
 
 ```yaml
 nim-llm:
@@ -96,16 +96,9 @@ nim-llm:
     hfTokenSecret: ""
 ```
 
-After modifying the `values.yaml` file, deploy or update the Helm chart:
+After modifying the [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) file, apply the changes as described in [Change a Deployment](deploy-helm.md#change-a-deployment).
 
-```sh
-helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-rc2.1.tgz \
---username '$oauthtoken' \
---password "${NGC_API_KEY}" \
---set imagePullSecret.password=$NGC_API_KEY \
---set ngcApiSecret.password=$NGC_API_KEY \
--f nvidia-blueprint-rag/values.yaml
-```
+For detailed HELM deployment instructions, see [Helm Deployment Guide](deploy-helm.md).
 
 
 

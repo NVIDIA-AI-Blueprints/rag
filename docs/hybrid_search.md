@@ -52,46 +52,57 @@ You can adjust the weights based on your use case. For example, if your queries 
 
 To enable hybrid search using Helm deployment:
 
-Modify the following values in your `values.yaml` file:
+### Basic Hybrid Search (RRF)
+
+Modify [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) to enable hybrid search with RRF (Reciprocal Rank Fusion):
 
 ```yaml
+# Environment variables for rag-server
 envVars:
+  # ... existing configurations ...
+  
+  # === Hybrid Search Configuration ===
   APP_VECTORSTORE_SEARCHTYPE: "hybrid"
 
+# Configure ingestor-server for hybrid search
 ingestor-server:
   envVars:
+    # ... existing configurations ...
+    
     APP_VECTORSTORE_SEARCHTYPE: "hybrid"
 ```
 
 ### Weighted Hybrid Search with Helm
 
-To use weighted hybrid search instead of RRF, modify the following values in your `values.yaml` file:
+To use weighted hybrid search instead of RRF, modify [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml):
 
 ```yaml
+# Environment variables for rag-server
 envVars:
+  # ... existing configurations ...
+  
+  # === Weighted Hybrid Search Configuration ===
   APP_VECTORSTORE_SEARCHTYPE: "hybrid"
   APP_VECTORSTORE_RANKER_TYPE: "weighted"
   APP_VECTORSTORE_DENSE_WEIGHT: "0.5"   # Weight for semantic search (default: 0.5)
   APP_VECTORSTORE_SPARSE_WEIGHT: "0.5"  # Weight for keyword search (default: 0.5)
 
+# Configure ingestor-server for weighted hybrid search
 ingestor-server:
   envVars:
+    # ... existing configurations ...
+    
     APP_VECTORSTORE_SEARCHTYPE: "hybrid"
     APP_VECTORSTORE_RANKER_TYPE: "weighted"
     APP_VECTORSTORE_DENSE_WEIGHT: "0.5"
     APP_VECTORSTORE_SPARSE_WEIGHT: "0.5"
 ```
 
-Redeploy the chart with the updated configuration:
+### Apply the Configuration
 
-```sh
-helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-rc2.1.tgz \
-  --username '$oauthtoken' \
-  --password "${NGC_API_KEY}" \
-  --set imagePullSecret.password=$NGC_API_KEY \
-  --set ngcApiSecret.password=$NGC_API_KEY \
-  -f deploy/helm/nvidia-blueprint-rag/values.yaml
-```
+After modifying [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml), apply the changes as described in [Change a Deployment](deploy-helm.md#change-a-deployment).
+
+For detailed HELM deployment instructions, see [Helm Deployment Guide](deploy-helm.md).
 
 :::{note}
 **Elasticsearch RRF Limitation**: RRF (Reciprocal Rank Fusion) is not supported in the open-source version of Elasticsearch. If you're using open-source Elasticsearch with hybrid search, you must use the `weighted` ranker type instead of `rrf`. Attempting to use RRF with open-source Elasticsearch will result in the following error:

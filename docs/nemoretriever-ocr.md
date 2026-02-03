@@ -180,32 +180,32 @@ Follow the standard [NVIDIA-hosted deployment guide](deploy-docker-nvidia-hosted
 
 #### Using NeMo Retriever OCR (Default)
 
-NeMo Retriever OCR is deployed by default with Helm installations:
-
-```bash
-helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/0648981100760671/charts/nvidia-blueprint-rag-v2.4.0-dev.tgz \
-  --username '$oauthtoken' \
-  --password "${NGC_API_KEY}" \
-  --set imagePullSecret.password=$NGC_API_KEY \
-  --set ngcApiSecret.password=$NGC_API_KEY
-```
+NeMo Retriever OCR is deployed by default with Helm installations. Follow the standard [Helm Deployment Guide](deploy-helm.md) - no additional OCR configuration is required.
 
 #### Using Paddle OCR with Helm
 
 To use Paddle OCR instead of the default NeMo Retriever OCR:
 
-```bash
-# Apply to a fresh deployment (recommended to uninstall existing deployments first)
-# helm uninstall rag -n rag
-helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-rc2.1.tgz \
-  --username '$oauthtoken' \
-  --password "${NGC_API_KEY}" \
-  --set nv-ingest.paddleocr-nim.deployed=true \
-  --set nv-ingest.nemoretriever-ocr.deployed=false \
-  --set nv-ingest.envVars.OCR_MODEL_NAME="paddle" \
-  --set imagePullSecret.password=$NGC_API_KEY \
-  --set ngcApiSecret.password=$NGC_API_KEY
+Modify [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) to switch to Paddle OCR:
+
+```yaml
+# Disable NeMo Retriever OCR (default)
+nv-ingest:
+  nemoretriever-ocr:
+    deployed: false
+  
+  # Enable Paddle OCR
+  paddleocr-nim:
+    deployed: true
+  
+  # Configure OCR model
+  envVars:
+    OCR_MODEL_NAME: "paddle"
 ```
+
+After modifying [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml), apply the changes as described in [Change a Deployment](deploy-helm.md#change-a-deployment).
+
+For detailed HELM deployment instructions, see [Helm Deployment Guide](deploy-helm.md).
 
 
 ## OCR Configuration Reference

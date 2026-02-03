@@ -239,11 +239,14 @@ For details on Helm deployment, see [Deploy with Helm](deploy-helm.md).
 Only on-prem deployment of the LLM is supported for Helm. The model must be deployed separately using the NIM LLM Helm chart.
 :::
 
-1. Modify the [values.yaml](../deploy/helm/nvidia-blueprint-rag/values.yaml) file in the `envVars` section:
+1. Modify [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) to enable query rewriting:
 
    ```yaml
+   # Environment variables for rag-server
    envVars:
-     ##===Query Rewriter Model specific configurations===
+     # ... existing configurations ...
+     
+     # === Query Rewriter Model specific configurations ===
      APP_QUERYREWRITER_MODELNAME: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
      APP_QUERYREWRITER_SERVERURL: "nim-llm:8000"  # Fully qualified service name
      ENABLE_QUERYREWRITER: "True"
@@ -252,39 +255,29 @@ Only on-prem deployment of the LLM is supported for Helm. The model must be depl
 
 2. Deploy or upgrade the chart:
 
-   ```bash
-   helm upgrade rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-rc2.1.tgz \
-     --username '$oauthtoken' \
-     --password "${NGC_API_KEY}" \
-     --set imagePullSecret.password=${NGC_API_KEY} \
-     --set ngcApiSecret.password=${NGC_API_KEY} \
-     --set envVars.ENABLE_QUERYREWRITER="True" \
-     --set envVars.CONVERSATION_HISTORY="5" \
-     -f deploy/helm/nvidia-blueprint-rag/values.yaml
-   ```
+   After modifying [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml), apply the changes as described in [Change a Deployment](deploy-helm.md#change-a-deployment).
+
+   For detailed HELM deployment instructions, see [Helm Deployment Guide](deploy-helm.md).
 
 ### Enable Simple History Concatenation
 
-1. Modify the [values.yaml](../deploy/helm/nvidia-blueprint-rag/values.yaml) file:
+1. Modify [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) to enable simple history concatenation:
 
    ```yaml
+   # Environment variables for rag-server
    envVars:
+     # ... existing configurations ...
+     
+     # === Simple Multi-Turn (History Concatenation) ===
      MULTITURN_RETRIEVER_SIMPLE: "True"
      CONVERSATION_HISTORY: "5"
    ```
 
 2. Upgrade the deployment:
 
-   ```bash
-   helm upgrade rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-rc2.1.tgz \
-     --username '$oauthtoken' \
-     --password "${NGC_API_KEY}" \
-     --set imagePullSecret.password=${NGC_API_KEY} \
-     --set ngcApiSecret.password=${NGC_API_KEY} \
-     --set envVars.MULTITURN_RETRIEVER_SIMPLE="True" \
-     --set envVars.CONVERSATION_HISTORY="5" \
-     -f deploy/helm/nvidia-blueprint-rag/values.yaml
-   ```
+   After modifying [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml), apply the changes as described in [Change a Deployment](deploy-helm.md#change-a-deployment).
+
+   For detailed HELM deployment instructions, see [Helm Deployment Guide](deploy-helm.md).
 
 ## Configuration Summary
 
