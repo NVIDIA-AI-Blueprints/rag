@@ -106,15 +106,15 @@ helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprin
   --username '$oauthtoken' \
   --password "${NGC_API_KEY}" \
   --values deploy/helm/nvidia-blueprint-rag/values.yaml \
-  --set nim-llm.enabled=true \
-  --set nvidia-nim-llama-32-nv-embedqa-1b-v2.enabled=true \
-  --set nvidia-nim-llama-32-nv-rerankqa-1b-v2.enabled=true \
+  --set nimOperator.nim-llm.enabled=true \
+  --set nimOperator.nvidia-nim-llama-32-nv-embedqa-1b-v2.enabled=true \
+  --set nimOperator.nvidia-nim-llama-32-nv-rerankqa-1b-v2.enabled=true \
   --set ingestor-server.enabled=true \
   --set nv-ingest.enabled=true \
-  --set nv-ingest.nemoretriever-page-elements-v2.deployed=false \
-  --set nv-ingest.nemoretriever-graphic-elements-v1.deployed=false \
-  --set nv-ingest.nemoretriever-table-structure-v1.deployed=false \
-  --set nv-ingest.nemoretriever-ocr.deployed=false \
+  --set nv-ingest.nimOperator.page_elements.enabled=false \
+  --set nv-ingest.nimOperator.graphic_elements.enabled=false \
+  --set nv-ingest.nimOperator.table_structure.enabled=false \
+  --set nv-ingest.nimOperator.nemoretriever_ocr_v1.enabled=false \
   --set imagePullSecret.password=$NGC_API_KEY \
   --set ngcApiSecret.password=$NGC_API_KEY
 ```
