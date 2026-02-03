@@ -188,7 +188,7 @@ Use the following procedure to start all containers needed for this blueprint.
    compose-redis-1                         Up 5 minutes
    rag-frontend                            Up 9 minutes
    rag-server                              Up 9 minutes
-   milvus-standalone                       Up 36 minutes
+   milvus-standalone                       Up 36 minutes (healthy)
    milvus-minio                            Up 35 minutes (healthy)
    milvus-etcd                             Up 35 minutes (healthy)
    ```
