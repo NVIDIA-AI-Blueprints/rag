@@ -38,6 +38,7 @@ extensions = [
     "sphinx.ext.napoleon",  # For google style docstrings
     "sphinx_copybutton",  # For copy button in code blocks
     "swagger_plugin_for_sphinx", # For parsing and presenting OpenAPI specs
+    "sphinx_reredirects",  # For handling URL redirects
 ]
 
 templates_path = ["_templates"]
@@ -54,6 +55,12 @@ myst_enable_extensions = [
     "tasklist",  # Adds support for GitHub-style task lists with [ ] and [x]
 ]
 myst_heading_anchors = 5  # Generates anchor links for headings up to level 5
+
+# -- Options for Redirects ---------------------------------------------------
+# Configure redirects for renamed files
+redirects = {
+    "nemoretriever-parse-extraction": "nemotron-parse-extraction.html",
+}
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
