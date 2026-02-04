@@ -1,6 +1,6 @@
 mcp>=1.23.1
 aiohttp>=3.13.3
-fastmcp>=2.3.5
+fastmcp>=2.14.4
 anyio>=4.12.0
 httpx>=0.28.1
 httpx-sse>=0.4.3
