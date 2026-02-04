@@ -1075,7 +1075,6 @@ class NvidiaRAGIngestor:
         created_by: str = "",
         business_domain: str = "",
         status: str = "Active",
-        vdb_auth_token: str = "",
     ) -> str:
         """
         Main function called by ingestor server to create a new collection in vector-DB
@@ -1087,8 +1086,7 @@ class NvidiaRAGIngestor:
 
         vdb_op, collection_name = self.__prepare_vdb_op_and_collection_name(
             vdb_endpoint=vdb_endpoint,
-            collection_name=collection_name,
-            vdb_auth_token=vdb_auth_token,
+            collection_name=collection_name
         )
 
         if metadata_schema is None:
@@ -1304,7 +1302,6 @@ class NvidiaRAGIngestor:
         vdb_endpoint: str | None = None,
         embedding_dimension: int | None = None,
         collection_type: str = "text",
-        vdb_auth_token: str = "",
     ) -> dict[str, Any]:
         """
         Main function called by ingestor server to create new collections in vector-DB
@@ -1318,7 +1315,6 @@ class NvidiaRAGIngestor:
         vdb_op, _ = self.__prepare_vdb_op_and_collection_name(
             vdb_endpoint=vdb_endpoint,
             collection_name="",
-            vdb_auth_token=vdb_auth_token,
         )
         try:
             if not len(collection_names):

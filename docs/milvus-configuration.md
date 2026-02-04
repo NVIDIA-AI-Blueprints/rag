@@ -340,7 +340,17 @@ For detailed HELM deployment instructions, see [Helm Deployment Guide](deploy-he
 
 ## Using VDB Auth Token at Runtime via APIs
 
-NVIDIA RAG Blueprint servers accept a Vector DB (VDB) authentication token via the HTTP `Authorization` header at runtime. This header is forwarded to Milvus for auth-protected operations.
+NVIDIA RAG Blueprint servers accept a Vector DB (VDB) authentication token via the HTTP `Authorization` header at runtime. This header is forwarded to Milvus for auth-protected operations. This feature assumes you have prior knowledge of creating Milvus users, creating/granting roles, and granting appropriate privileges. Once you have configured users, roles, and privileges in Milvus, you can use these auth tokens in the `Authorization` header to enforce access control.
+
+Access permissions are enforced based on the privileges assigned to each user:
+- **Read operations**: Users without privileges such as `Load`, `Search`, and `Query` will not be able to read data from collections.
+- **Write operations**: Users without privileges such as `Insert` and `Upsert` will not be able to create collections or write data to collections.
+
+:::{note}
+Ensure you create the reader and writer users in Milvus with appropriate roles and privileges before using this feature. For detailed guidance on enabling authentication, creating users, updating passwords, and related operations in Milvus, refer to the official Milvus documentation:
+- [Authenticate User Access](https://milvus.io/docs/authenticate.md?tab=docker)
+- [Milvus Users and Roles](https://milvus.io/docs/v2.4.x/users_and_roles.md)
+:::
 
 ### Prerequisites
 
@@ -368,10 +378,6 @@ export MILVUS_READER_PASSWORD="reader_password"
 export MILVUS_WRITER_USER="writer_user"
 export MILVUS_WRITER_PASSWORD="writer_password"
 ```
-
-:::{note}
-Ensure you create the reader and writer users in Milvus with appropriate privileges before using them. For instructions, see [Managing Milvus users and authentication](#managing-milvus-users-and-authentication).
-:::
 
 ### Header format
 - Preferred: `Authorization: Bearer <token>`
@@ -438,12 +444,7 @@ curl -N -X POST "$RAG_URL/v1/generate" \
 ### Notes and troubleshooting
 - If a user lacks privileges on the target collection, the API will return an authorization error (non-200 status). Grant the appropriate collection privileges to the user/role in Milvus (e.g., `Query`, `Search`, `DescribeCollection`, `Load`, `DropCollection`).
 - Header precedence: For Milvus, the VDB token provided at runtime via `Authorization` is used for the request. There is no need to configure `APP_VECTORSTORE_USERNAME`/`APP_VECTORSTORE_PASSWORD` for per-request auth when using headers.
-
-### Managing Milvus users and authentication
-
-For detailed guidance on enabling authentication, creating users, updating passwords, and related operations in Milvus, refer to the official Milvus documentation:
-
-- Authenticate User Access: https://milvus.io/docs/authenticate.md?tab=docker
+- POST /collection API limitation: The `POST /collection` API does not support passing auth token via the `Authorization` header.
 
 ## Troubleshooting
 
