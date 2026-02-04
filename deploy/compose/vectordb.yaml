@@ -18,12 +18,12 @@ services:
       - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/milvus:/var/lib/milvus
       # Uncomment below line to mount the configuration file
       # - ${MILVUS_CONFIG_FILE:-./milvus.yaml}:/milvus/configs/milvus.yaml
-    # healthcheck:
-    #   test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
-    #   interval: 30s
-    #   start_period: 90s
-    #   timeout: 20s
-    #   retries: 3
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
+      interval: 30s
+      start_period: 90s
+      timeout: 20s
+      retries: 3
     ports:
       - "19530:19530"
       - "9091:9091"
