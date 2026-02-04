@@ -297,6 +297,7 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
    :hidden:
 
    Milvus Collection Schema <milvus-schema.md>
+   Service Port and GPU Reference <service-port-gpu-reference.md>
    API - Ingestor Server Schema <api-ingestor.md>
    API - RAG Server Schema <api-rag.md>
 ```

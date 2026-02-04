@@ -192,5 +192,3 @@ rag = NvidiaRAG(config=config, prompts="custom_prompts.yaml")
 
 For a complete working example with prompt customization in library mode, refer to the [RAG Library Usage Notebook](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/rag_library_usage.ipynb#9.-Customize-prompts).
 
----
-
