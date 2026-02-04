@@ -1046,7 +1046,6 @@ async def get_collections(
 )
 @trace_function("ingestor.server.create_collections", tracer=TRACER)
 async def create_collections(
-    request: Request,
     vdb_endpoint: str = Query(
         default=os.getenv("APP_VECTORSTORE_URL"), include_in_schema=False
     ),
@@ -1065,10 +1064,8 @@ async def create_collections(
         "Please use POST /collection instead. Custom metadata is not supported in this endpoint."
     )
     try:
-        # Extract vdb auth token and pass through to backend
-        vdb_auth_token = _extract_vdb_auth_token(request)
         response = NV_INGEST_INGESTOR.create_collections(
-            collection_names, vdb_endpoint, embedding_dimension, vdb_auth_token
+            collection_names, vdb_endpoint, embedding_dimension
         )
         return CollectionsResponse(**response)
 
@@ -1118,15 +1115,13 @@ async def create_collections(
 )
 @trace_function("ingestor.server.create_collection", tracer=TRACER)
 async def create_collection(
-    request: Request, data: CreateCollectionRequest
+    data: CreateCollectionRequest
 ) -> CreateCollectionResponse:
     """
     Endpoint to create a collection with catalog metadata.
     Returns status message.
     """
     try:
-        # Extract vdb auth token and pass through to backend
-        vdb_auth_token = _extract_vdb_auth_token(request)
         response = NV_INGEST_INGESTOR.create_collection(
             collection_name=data.collection_name,
             vdb_endpoint=data.vdb_endpoint,
@@ -1137,7 +1132,6 @@ async def create_collection(
             created_by=data.created_by,
             business_domain=data.business_domain,
             status=data.status,
-            vdb_auth_token=vdb_auth_token,
         )
         return CreateCollectionResponse(**response)
 
