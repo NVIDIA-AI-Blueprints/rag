@@ -61,21 +61,31 @@ class DummyPrompt:
 
 
 class DummyVDB:
-    """A minimal VDB stub used via monkeypatch on __prepare_vdb_op."""
+    """A minimal VDB stub used via monkeypatch on prepare_vdb_op."""
 
     last_query = None
 
+    def __init__(self):
+        """Initialize DummyVDB."""
+        self.last_query = None
+
     def check_collection_exists(self, collection_name: str) -> bool:
+        """Always return True to simulate collection exists."""
         return True
 
     def get_langchain_vectorstore(self, collection_name: str):
+        """Return a mock vectorstore object."""
         return object()
 
     def get_metadata_schema(self, collection_name: str):
+        """Return empty schema."""
         return []
 
     def retrieval_langchain(self, query, collection_name, vectorstore=None, top_k=None, filter_expr="", otel_ctx=None):
         """Sync method - called in ThreadPoolExecutor or directly."""
+        # Store query at instance level
+        self.last_query = query
+        # Also store at class level for backward compatibility
         DummyVDB.last_query = query
         return []
 
@@ -131,8 +141,12 @@ async def test_search_uses_query_rewriter_when_enabled(monkeypatch):
 
     fake_vdb = DummyVDB()
     rag = NvidiaRAG()
-    # Force using our stubbed vdb_op inside generate/search path that may call __prepare_vdb_op
-    monkeypatch.setattr(NvidiaRAG, "_prepare_vdb_op", lambda self, **kw: fake_vdb)
+    # Set the vdb_op directly on the instance to bypass prepare_vdb_op
+    rag.vdb_op = fake_vdb
+    # Force using our stubbed vdb_op inside generate/search path that may call prepare_vdb_op
+    monkeypatch.setattr("nvidia_rag.rag_server.vdb_operations.prepare_vdb_op", lambda **kw: fake_vdb)
+    # Also patch validate_collections_exist in main module where it's used
+    monkeypatch.setattr("nvidia_rag.rag_server.main.validate_collections_exist", lambda *args, **kw: None)
 
     messages = [
         {"role": "system", "content": "You are helpful."},
@@ -165,8 +179,12 @@ async def test_search_skips_query_rewriter_when_history_is_zero(monkeypatch, cap
 
     fake_vdb = DummyVDB()
     rag = NvidiaRAG()
-    # Force using our stubbed vdb_op inside generate/search path that may call __prepare_vdb_op
-    monkeypatch.setattr(NvidiaRAG, "_prepare_vdb_op", lambda self, **kw: fake_vdb)
+    # Set the vdb_op directly on the instance to bypass prepare_vdb_op
+    rag.vdb_op = fake_vdb
+    # Force using our stubbed vdb_op inside generate/search path that may call prepare_vdb_op
+    monkeypatch.setattr("nvidia_rag.rag_server.vdb_operations.prepare_vdb_op", lambda **kw: fake_vdb)
+    # Also patch validate_collections_exist in main module where it's used
+    monkeypatch.setattr("nvidia_rag.rag_server.main.validate_collections_exist", lambda *args, **kw: None)
 
     messages = [
         {"role": "system", "content": "You are helpful."},
@@ -201,7 +219,11 @@ async def test_search_uses_only_current_query_when_history_disabled(monkeypatch)
 
     fake_vdb = DummyVDB()
     rag = NvidiaRAG()
-    monkeypatch.setattr(NvidiaRAG, "_prepare_vdb_op", lambda self, **kw: fake_vdb)
+    # Set the vdb_op directly on the instance to bypass prepare_vdb_op
+    rag.vdb_op = fake_vdb
+    monkeypatch.setattr("nvidia_rag.rag_server.vdb_operations.prepare_vdb_op", lambda **kw: fake_vdb)
+    # Also patch validate_collections_exist in main module where it's used
+    monkeypatch.setattr("nvidia_rag.rag_server.main.validate_collections_exist", lambda *args, **kw: None)
 
     messages = [
         {"role": "user", "content": "What is RAG?"},
@@ -232,7 +254,11 @@ async def test_search_combines_history_when_multiturn_enabled(monkeypatch):
     
     fake_vdb = DummyVDB()
     rag = NvidiaRAG()
-    monkeypatch.setattr(NvidiaRAG, "_prepare_vdb_op", lambda self, **kw: fake_vdb)
+    # Set the vdb_op directly on the instance to bypass prepare_vdb_op
+    rag.vdb_op = fake_vdb
+    monkeypatch.setattr("nvidia_rag.rag_server.vdb_operations.prepare_vdb_op", lambda **kw: fake_vdb)
+    # Also patch validate_collections_exist in main module where it's used
+    monkeypatch.setattr("nvidia_rag.rag_server.main.validate_collections_exist", lambda *args, **kw: None)
 
     messages = [
         {"role": "user", "content": "What is RAG?"},
@@ -264,7 +290,11 @@ async def test_generate_uses_query_rewriter_when_enabled(monkeypatch):
     # Ensure multiturn simple retrieval is disabled (test relies on query rewriting)
     monkeypatch.setenv("MULTITURN_RETRIEVER_SIMPLE", "False")
     rag = NvidiaRAG()
-    monkeypatch.setattr(NvidiaRAG, "_prepare_vdb_op", lambda self, **kw: fake_vdb)
+    # Set the vdb_op directly on the instance to bypass prepare_vdb_op
+    rag.vdb_op = fake_vdb
+    monkeypatch.setattr("nvidia_rag.rag_server.vdb_operations.prepare_vdb_op", lambda **kw: fake_vdb)
+    # Also patch validate_collections_exist in main module where it's used
+    monkeypatch.setattr("nvidia_rag.rag_server.main.validate_collections_exist", lambda *args, **kw: None)
 
     messages = [
         {"role": "system", "content": "You are helpful."},
@@ -297,7 +327,11 @@ async def test_generate_uses_only_current_query_when_history_disabled(monkeypatc
     # Explicitly ensure multiturn simple retrieval is disabled
     monkeypatch.setenv("MULTITURN_RETRIEVER_SIMPLE", "False")
     rag = NvidiaRAG()
-    monkeypatch.setattr(NvidiaRAG, "_prepare_vdb_op", lambda self, **kw: fake_vdb)
+    # Set the vdb_op directly on the instance to bypass prepare_vdb_op
+    rag.vdb_op = fake_vdb
+    monkeypatch.setattr("nvidia_rag.rag_server.vdb_operations.prepare_vdb_op", lambda **kw: fake_vdb)
+    # Also patch validate_collections_exist in main module where it's used
+    monkeypatch.setattr("nvidia_rag.rag_server.main.validate_collections_exist", lambda *args, **kw: None)
 
     messages = [
         {"role": "user", "content": "What is RAG?"},
@@ -331,7 +365,11 @@ async def test_generate_combines_history_when_multiturn_enabled(monkeypatch):
     
     fake_vdb = DummyVDB()
     rag = NvidiaRAG()
-    monkeypatch.setattr(NvidiaRAG, "_prepare_vdb_op", lambda self, **kw: fake_vdb)
+    # Set the vdb_op directly on the instance to bypass prepare_vdb_op
+    rag.vdb_op = fake_vdb
+    monkeypatch.setattr("nvidia_rag.rag_server.vdb_operations.prepare_vdb_op", lambda **kw: fake_vdb)
+    # Also patch validate_collections_exist in main module where it's used
+    monkeypatch.setattr("nvidia_rag.rag_server.main.validate_collections_exist", lambda *args, **kw: None)
 
     messages = [
         {"role": "user", "content": "What is RAG?"},

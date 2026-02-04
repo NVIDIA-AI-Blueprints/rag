@@ -22,7 +22,17 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 
 from nvidia_rag.rag_server.main import NvidiaRAG
-from nvidia_rag.rag_server.response_generator import APIError, Citations
+from nvidia_rag.rag_server.response_generator import APIError, Citations, ErrorCodeMapping
+from nvidia_rag.rag_server.content_utils import (
+    _extract_text_from_content,
+    _contains_images,
+    _build_retriever_query_from_content,
+)
+from nvidia_rag.rag_server.document_formatter import (
+    _print_conversation_history,
+    _normalize_relevance_scores,
+    _format_document_with_source,
+)
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
 
 
@@ -76,7 +86,7 @@ class TestNvidiaRAGGenerateWorking:
         with patch(
             "nvidia_rag.rag_server.main.prepare_llm_request"
         ) as mock_prepare_request:
-            with patch.object(rag, "_llm_chain") as mock_llm_chain:
+            with patch("nvidia_rag.rag_server.main.llm_chain") as mock_llm_chain:
                 mock_prepare_request.return_value = ("test query", [])
                 mock_llm_chain.return_value = mock_async_iter()
 
@@ -116,7 +126,7 @@ class TestNvidiaRAGSearchWorking:
         ]
         rag = NvidiaRAG(vdb_op=mock_vdb_op)
 
-        with patch.object(rag, "_prepare_vdb_op") as mock_prepare:
+        with patch("nvidia_rag.rag_server.vdb_operations.prepare_vdb_op") as mock_prepare:
             with patch(
                 "nvidia_rag.rag_server.main.prepare_llm_request"
             ) as mock_prepare_request:
@@ -223,7 +233,7 @@ class TestNvidiaRAGSearchWorking:
 
         messages = [{"role": "user", "content": "Test query"}]
 
-        with patch.object(rag, "_prepare_vdb_op") as mock_prepare:
+        with patch("nvidia_rag.rag_server.vdb_operations.prepare_vdb_op") as mock_prepare:
             with patch(
                 "nvidia_rag.rag_server.main.prepare_llm_request"
             ) as mock_prepare_request:
@@ -325,7 +335,7 @@ class TestNvidiaRAGSearchWorking:
         """Test search with empty collection_names raises APIError."""
         rag = NvidiaRAG()
 
-        with patch.object(rag, "_prepare_vdb_op") as mock_prepare:
+        with patch("nvidia_rag.rag_server.vdb_operations.prepare_vdb_op") as mock_prepare:
             mock_vdb_op = Mock(spec=VDBRag)
             mock_prepare.return_value = mock_vdb_op
 
@@ -337,15 +347,20 @@ class TestNvidiaRAGSearchWorking:
         """Test search with collection validation error."""
         rag = NvidiaRAG()
 
-        with patch.object(rag, "_prepare_vdb_op") as mock_prepare:
-            mock_vdb_op = Mock(spec=VDBRag)
-            mock_vdb_op.check_collection_exists.return_value = False
-            mock_prepare.return_value = mock_vdb_op
+        with patch("nvidia_rag.rag_server.vdb_operations.prepare_vdb_op") as mock_prepare:
+            with patch("nvidia_rag.rag_server.main.validate_collections_exist") as mock_validate:
+                mock_vdb_op = Mock(spec=VDBRag)
+                mock_vdb_op.check_collection_exists.return_value = False
+                mock_prepare.return_value = mock_vdb_op
+                mock_validate.side_effect = APIError(
+                    "Collection test_collection does not exist",
+                    ErrorCodeMapping.BAD_REQUEST
+                )
 
-            with pytest.raises(
-                APIError, match="Collection test_collection does not exist"
-            ):
-                await rag.search("test query", collection_names=["test_collection"])
+                with pytest.raises(
+                    APIError, match="Collection test_collection does not exist"
+                ):
+                    await rag.search("test query", collection_names=["test_collection"])
 
 
 class TestNvidiaRAGGetSummaryWorking:
@@ -392,7 +407,7 @@ class TestNvidiaRAGPrivateMethodsWorking:
         """Test _extract_text_from_content with string input."""
         rag = NvidiaRAG()
 
-        result = rag._extract_text_from_content("Hello world")
+        result = _extract_text_from_content("Hello world")
         assert result == "Hello world"
 
     def test_extract_text_from_content_multimodal(self):
@@ -405,14 +420,14 @@ class TestNvidiaRAGPrivateMethodsWorking:
             {"type": "image_url", "image_url": {"url": "http://example.com/image.jpg"}},
         ]
 
-        result = rag._extract_text_from_content(content)
+        result = _extract_text_from_content(content)
         assert result == "Hello world"
 
     def test_contains_images_string(self):
         """Test _contains_images with string input."""
         rag = NvidiaRAG()
 
-        result = rag._contains_images("Hello world")
+        result = _contains_images("Hello world")
         assert result is False
 
     def test_contains_images_multimodal_with_images(self):
@@ -424,14 +439,14 @@ class TestNvidiaRAGPrivateMethodsWorking:
             {"type": "image_url", "image_url": {"url": "http://example.com/image.jpg"}},
         ]
 
-        result = rag._contains_images(content)
+        result = _contains_images(content)
         assert result is True
 
     def test_build_retriever_query_from_content_string(self):
         """Test _build_retriever_query_from_content with string input."""
         rag = NvidiaRAG()
 
-        result = rag._build_retriever_query_from_content("Hello world")
+        result = _build_retriever_query_from_content("Hello world")
         assert result == ("Hello world", False)
 
     def test_build_retriever_query_from_content_multimodal(self):
@@ -444,7 +459,7 @@ class TestNvidiaRAGPrivateMethodsWorking:
             {"type": "image_url", "image_url": {"url": "http://example.com/image.jpg"}},
         ]
 
-        result = rag._build_retriever_query_from_content(content)
+        result = _build_retriever_query_from_content(content)
         # When image_url is present, the method returns the image URL
         assert result == ("http://example.com/image.jpg", True)
 
@@ -454,8 +469,8 @@ class TestNvidiaRAGPrivateMethodsWorking:
 
         conversation_history = [("user", "Hello"), ("assistant", "Hi there!")]
 
-        with patch("nvidia_rag.rag_server.main.logger") as mock_logger:
-            rag._print_conversation_history(conversation_history)
+        with patch("nvidia_rag.rag_server.document_formatter.logger") as mock_logger:
+            _print_conversation_history(conversation_history)
 
             # Verify debug log was called
             assert mock_logger.debug.call_count > 0
@@ -470,7 +485,7 @@ class TestNvidiaRAGPrivateMethodsWorking:
             Mock(metadata={"relevance_score": 0.4}),
         ]
 
-        result = rag._normalize_relevance_scores(documents)
+        result = _normalize_relevance_scores(documents)
 
         # Should return the same documents
         assert len(result) == 3
@@ -485,7 +500,7 @@ class TestNvidiaRAGPrivateMethodsWorking:
         doc.metadata = {"source": "test.pdf"}
 
         with patch.dict(os.environ, {"ENABLE_SOURCE_METADATA": "True"}):
-            result = rag._format_document_with_source(doc)
+            result = _format_document_with_source(doc)
 
             assert "Test content" in result
             assert "File: test" in result
@@ -499,7 +514,7 @@ class TestNvidiaRAGPrivateMethodsWorking:
         doc.metadata = {}
 
         with patch.dict(os.environ, {"ENABLE_SOURCE_METADATA": "True"}):
-            result = rag._format_document_with_source(doc)
+            result = _format_document_with_source(doc)
 
             assert result == "Test content"
 
@@ -512,7 +527,7 @@ class TestNvidiaRAGPrivateMethodsWorking:
         doc.metadata = {"source": "test.pdf"}
 
         with patch.dict(os.environ, {"ENABLE_SOURCE_METADATA": "False"}):
-            result = rag._format_document_with_source(doc)
+            result = _format_document_with_source(doc)
 
             assert result == "Test content"
 
@@ -532,7 +547,7 @@ class TestNvidiaRAGEdgeCasesWorking:
         with patch(
             "nvidia_rag.rag_server.main.prepare_llm_request"
         ) as mock_prepare_request:
-            with patch.object(rag, "_llm_chain") as mock_llm_chain:
+            with patch("nvidia_rag.rag_server.main.llm_chain") as mock_llm_chain:
                 mock_prepare_request.return_value = ("", [])
                 mock_llm_chain.return_value = mock_async_iter()
 
@@ -545,22 +560,22 @@ class TestNvidiaRAGEdgeCasesWorking:
         rag = NvidiaRAG()
 
         # Test _extract_text_from_content with various edge cases
-        assert rag._extract_text_from_content("") == ""
-        assert rag._extract_text_from_content([]) == ""
-        assert rag._extract_text_from_content(None) == ""
-        assert rag._extract_text_from_content(123) == "123"
+        assert _extract_text_from_content("") == ""
+        assert _extract_text_from_content([]) == ""
+        assert _extract_text_from_content(None) == ""
+        assert _extract_text_from_content(123) == "123"
 
         # Test _contains_images with various edge cases
-        assert rag._contains_images("") is False
-        assert rag._contains_images([]) is False
-        assert rag._contains_images(None) is False
-        assert rag._contains_images(123) is False
+        assert _contains_images("") is False
+        assert _contains_images([]) is False
+        assert _contains_images(None) is False
+        assert _contains_images(123) is False
 
         # Test _build_retriever_query_from_content with various edge cases
-        assert rag._build_retriever_query_from_content("") == ("", False)
-        assert rag._build_retriever_query_from_content([]) == ("", False)
-        assert rag._build_retriever_query_from_content(None) == ("", False)
-        assert rag._build_retriever_query_from_content(123) == ("123", False)
+        assert _build_retriever_query_from_content("") == ("", False)
+        assert _build_retriever_query_from_content([]) == ("", False)
+        assert _build_retriever_query_from_content(None) == ("", False)
+        assert _build_retriever_query_from_content(123) == ("123", False)
 
     def test_format_document_with_source_edge_cases(self):
         """Test __format_document_with_source with edge cases."""
@@ -569,7 +584,7 @@ class TestNvidiaRAGEdgeCasesWorking:
         # Test with None document - should raise AttributeError
         with patch.dict(os.environ, {"ENABLE_SOURCE_METADATA": "True"}):
             with pytest.raises(AttributeError):
-                rag._format_document_with_source(None)
+                _format_document_with_source(None)
 
         # Test with document having None page_content
         doc = Mock()
@@ -577,7 +592,7 @@ class TestNvidiaRAGEdgeCasesWorking:
         doc.metadata = {"source": "test.pdf"}
 
         with patch.dict(os.environ, {"ENABLE_SOURCE_METADATA": "True"}):
-            result = rag._format_document_with_source(doc)
+            result = _format_document_with_source(doc)
             assert result == "File: test\nContent: None"
 
     def test_normalize_relevance_scores_edge_cases(self):
@@ -585,9 +600,9 @@ class TestNvidiaRAGEdgeCasesWorking:
         rag = NvidiaRAG()
 
         # Test with None input
-        result = rag._normalize_relevance_scores(None)
+        result = _normalize_relevance_scores(None)
         assert result is None
 
         # Test with empty list
-        result = rag._normalize_relevance_scores([])
+        result = _normalize_relevance_scores([])
         assert result == []

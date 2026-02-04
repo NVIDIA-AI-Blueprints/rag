@@ -31,6 +31,20 @@ from nvidia_rag.rag_server.reflection import (
     check_response_groundedness,
 )
 from nvidia_rag.rag_server.response_generator import APIError
+from nvidia_rag.rag_server.vdb_operations import (
+    prepare_vdb_op,
+    validate_collections_exist,
+)
+from nvidia_rag.rag_server.content_utils import (
+    _extract_text_from_content,
+    _contains_images,
+    _build_retriever_query_from_content,
+)
+from nvidia_rag.rag_server.document_formatter import (
+    _print_conversation_history,
+    _normalize_relevance_scores,
+    _format_document_with_source,
+)
 from nvidia_rag.utils.health_models import RAGHealthResponse
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
 
@@ -140,7 +154,8 @@ class TestNvidiaRAGHealth:
         """Test basic health check without dependencies."""
         rag = NvidiaRAG()
 
-        with patch.object(rag, "_prepare_vdb_op") as mock_prepare:
+        # Patch prepare_vdb_op where it's used in main.py, not where it's defined
+        with patch("nvidia_rag.rag_server.main.prepare_vdb_op") as mock_prepare:
             mock_prepare.return_value = Mock()
 
             result = await rag.health(check_dependencies=False)
@@ -158,7 +173,9 @@ class TestNvidiaRAGHealth:
         mock_vdb_op = Mock()
         mock_dependencies = RAGHealthResponse(message="Service is up.")
 
-        with patch.object(rag, "_prepare_vdb_op") as mock_prepare:
+        # Patch prepare_vdb_op where it's used in main.py, not where it's defined
+        with patch("nvidia_rag.rag_server.main.prepare_vdb_op") as mock_prepare:
+            # Patch check_all_services_health where it's used in main.py, not where it's defined
             with patch(
                 "nvidia_rag.rag_server.main.check_all_services_health"
             ) as mock_check:
@@ -189,7 +206,7 @@ class TestNvidiaRAGPrepareVDBOp:
         mock_vdb_op = Mock(spec=VDBRag)
         rag = NvidiaRAG(vdb_op=mock_vdb_op)
 
-        result = rag._prepare_vdb_op()
+        result = prepare_vdb_op(config=rag.config, vdb_op=mock_vdb_op)
         assert result == mock_vdb_op
 
     def test_prepare_vdb_op_with_vdb_endpoint_error(self):
@@ -201,7 +218,7 @@ class TestNvidiaRAGPrepareVDBOp:
             ValueError,
             match="vdb_endpoint is not supported when vdb_op is provided during initialization",
         ):
-            rag._prepare_vdb_op(vdb_endpoint="http://test.com")
+            prepare_vdb_op(config=rag.config, vdb_op=mock_vdb_op, vdb_endpoint="http://test.com")
 
     def test_prepare_vdb_op_with_embedding_model_error(self):
         """Test __prepare_vdb_op with embedding_model when vdb_op is set."""
@@ -212,7 +229,7 @@ class TestNvidiaRAGPrepareVDBOp:
             ValueError,
             match="embedding_model is not supported when vdb_op is provided during initialization",
         ):
-            rag._prepare_vdb_op(embedding_model="test-model")
+            prepare_vdb_op(config=rag.config, vdb_op=mock_vdb_op, embedding_model="test-model")
 
     def test_prepare_vdb_op_with_embedding_endpoint_error(self):
         """Test __prepare_vdb_op with embedding_endpoint when vdb_op is set."""
@@ -223,10 +240,10 @@ class TestNvidiaRAGPrepareVDBOp:
             ValueError,
             match="embedding_endpoint is not supported when vdb_op is provided during initialization",
         ):
-            rag._prepare_vdb_op(embedding_endpoint="http://test.com")
+            prepare_vdb_op(config=rag.config, vdb_op=mock_vdb_op, embedding_endpoint="http://test.com")
 
-    @patch("nvidia_rag.rag_server.main.get_embedding_model")
-    @patch("nvidia_rag.rag_server.main._get_vdb_op")
+    @patch("nvidia_rag.rag_server.vdb_operations.get_embedding_model")
+    @patch("nvidia_rag.rag_server.vdb_operations._get_vdb_op")
     def test_prepare_vdb_op_without_existing_vdb_op(
         self, mock_get_vdb, mock_get_embedding
     ):
@@ -240,16 +257,14 @@ class TestNvidiaRAGPrepareVDBOp:
 
         rag = NvidiaRAG()
 
-        result = rag._prepare_vdb_op()
+        result = prepare_vdb_op(config=rag.config, vdb_op=None)
 
         assert result == mock_vdb_op
-        assert (
-            mock_get_embedding.call_count >= 1
-        )  # Called during init and __prepare_vdb_op
-        assert mock_get_vdb.call_count >= 1  # Called during __prepare_vdb_op
+        assert mock_get_embedding.call_count >= 1
+        assert mock_get_vdb.call_count >= 1
 
-    @patch("nvidia_rag.rag_server.main.get_embedding_model")
-    @patch("nvidia_rag.rag_server.main._get_vdb_op")
+    @patch("nvidia_rag.rag_server.vdb_operations.get_embedding_model")
+    @patch("nvidia_rag.rag_server.vdb_operations._get_vdb_op")
     def test_prepare_vdb_op_with_custom_parameters(
         self, mock_get_vdb, mock_get_embedding
     ):
@@ -263,17 +278,17 @@ class TestNvidiaRAGPrepareVDBOp:
 
         rag = NvidiaRAG()
 
-        result = rag._prepare_vdb_op(
+        result = prepare_vdb_op(
+            config=rag.config,
+            vdb_op=None,
             vdb_endpoint="http://custom-vdb.com",
             embedding_model="custom-model",
             embedding_endpoint="http://custom-embedding.com",
         )
 
         assert result == mock_vdb_op
-        assert (
-            mock_get_embedding.call_count >= 1
-        )  # Called during init and __prepare_vdb_op
-        assert mock_get_vdb.call_count >= 1  # Called during __prepare_vdb_op
+        assert mock_get_embedding.call_count >= 1
+        assert mock_get_vdb.call_count >= 1
 
 
 class TestNvidiaRAGValidateCollections:
@@ -287,7 +302,7 @@ class TestNvidiaRAGValidateCollections:
         rag = NvidiaRAG(vdb_op=mock_vdb_op)
 
         # Should not raise any exception
-        rag._validate_collections_exist(["collection1", "collection2"], mock_vdb_op)
+        validate_collections_exist(["collection1", "collection2"], mock_vdb_op)
 
     def test_validate_collections_exist_missing_collection(self):
         """Test collection validation with missing collection."""
@@ -299,7 +314,7 @@ class TestNvidiaRAGValidateCollections:
         rag = NvidiaRAG(vdb_op=mock_vdb_op)
 
         with pytest.raises(APIError, match="Collection collection2 does not exist"):
-            rag._validate_collections_exist(["collection1", "collection2"], mock_vdb_op)
+            validate_collections_exist(["collection1", "collection2"], mock_vdb_op)
 
     def test_validate_collections_exist_empty_collections(self):
         """Test collection validation with empty collections list."""
@@ -308,7 +323,7 @@ class TestNvidiaRAGValidateCollections:
         rag = NvidiaRAG(vdb_op=mock_vdb_op)
 
         # Should not raise any exception for empty list
-        rag._validate_collections_exist([], mock_vdb_op)
+        validate_collections_exist([], mock_vdb_op)
 
 
 class TestNvidiaRAGExtractTextFromContent:
@@ -318,7 +333,7 @@ class TestNvidiaRAGExtractTextFromContent:
         """Test extracting text from string content."""
         rag = NvidiaRAG()
 
-        result = rag._extract_text_from_content("Hello world")
+        result = _extract_text_from_content("Hello world")
         assert result == "Hello world"
 
     def test_extract_text_from_multimodal_list(self):
@@ -331,7 +346,7 @@ class TestNvidiaRAGExtractTextFromContent:
             {"type": "image_url", "image_url": "http://example.com/image.jpg"},
         ]
 
-        result = rag._extract_text_from_content(content)
+        result = _extract_text_from_content(content)
         assert result == "Hello world"
 
     def test_extract_text_from_list_without_text(self):
@@ -340,14 +355,14 @@ class TestNvidiaRAGExtractTextFromContent:
 
         content = [{"type": "image_url", "image_url": "http://example.com/image.jpg"}]
 
-        result = rag._extract_text_from_content(content)
+        result = _extract_text_from_content(content)
         assert result == ""
 
     def test_extract_text_from_other_type(self):
         """Test extracting text from other content types."""
         rag = NvidiaRAG()
 
-        result = rag._extract_text_from_content(123)
+        result = _extract_text_from_content(123)
         assert result == "123"
 
 
@@ -358,7 +373,7 @@ class TestNvidiaRAGContainsImages:
         """Test _contains_images with string content."""
         rag = NvidiaRAG()
 
-        result = rag._contains_images("Hello world")
+        result = _contains_images("Hello world")
         assert result is False
 
     def test_contains_images_multimodal_list_with_images(self):
@@ -370,7 +385,7 @@ class TestNvidiaRAGContainsImages:
             {"type": "image_url", "image_url": "http://example.com/image1.jpg"},
         ]
 
-        result = rag._contains_images(content)
+        result = _contains_images(content)
         assert result is True
 
     def test_contains_images_multimodal_list_without_images(self):
@@ -382,7 +397,7 @@ class TestNvidiaRAGContainsImages:
             {"type": "text", "text": "More text"},
         ]
 
-        result = rag._contains_images(content)
+        result = _contains_images(content)
         assert result is False
 
     def test_contains_images_other_type(self):
@@ -391,7 +406,7 @@ class TestNvidiaRAGContainsImages:
 
         content = {"some": "data"}
 
-        result = rag._contains_images(content)
+        result = _contains_images(content)
         assert result is False
 
 
@@ -402,7 +417,7 @@ class TestNvidiaRAGBuildRetrieverQuery:
         """Test building retriever query from string content."""
         rag = NvidiaRAG()
 
-        result = rag._build_retriever_query_from_content("Hello world")
+        result = _build_retriever_query_from_content("Hello world")
         assert result == ("Hello world", False)
 
     def test_build_retriever_query_from_multimodal_list(self):
@@ -415,7 +430,7 @@ class TestNvidiaRAGBuildRetrieverQuery:
             {"type": "image_url", "image_url": {"url": "http://example.com/image.jpg"}},
         ]
 
-        result = rag._build_retriever_query_from_content(content)
+        result = _build_retriever_query_from_content(content)
         # When image_url is present, the method returns the image URL
         assert result == ("http://example.com/image.jpg", True)
 
@@ -427,14 +442,14 @@ class TestNvidiaRAGBuildRetrieverQuery:
             {"type": "image_url", "image_url": {"url": "http://example.com/image.jpg"}}
         ]
 
-        result = rag._build_retriever_query_from_content(content)
+        result = _build_retriever_query_from_content(content)
         assert result == ("http://example.com/image.jpg", True)
 
     def test_build_retriever_query_from_other_type(self):
         """Test building retriever query from other content types."""
         rag = NvidiaRAG()
 
-        result = rag._build_retriever_query_from_content(123)
+        result = _build_retriever_query_from_content(123)
         assert result == ("123", False)
 
 
@@ -447,8 +462,8 @@ class TestNvidiaRAGPrintConversationHistory:
 
         conversation_history = [("user", "Hello"), ("assistant", "Hi there!")]
 
-        with patch("nvidia_rag.rag_server.main.logger") as mock_logger:
-            rag._print_conversation_history(conversation_history)
+        with patch("nvidia_rag.rag_server.document_formatter.logger") as mock_logger:
+            _print_conversation_history(conversation_history)
 
             # Verify debug log was called
             assert mock_logger.debug.call_count > 0
@@ -457,8 +472,8 @@ class TestNvidiaRAGPrintConversationHistory:
         """Test printing empty conversation history."""
         rag = NvidiaRAG()
 
-        with patch("nvidia_rag.rag_server.main.logger") as mock_logger:
-            rag._print_conversation_history([])
+        with patch("nvidia_rag.rag_server.document_formatter.logger") as mock_logger:
+            _print_conversation_history([])
 
             # Should not call debug log with empty history
             assert mock_logger.debug.call_count == 0
@@ -477,7 +492,7 @@ class TestNvidiaRAGNormalizeRelevanceScores:
             Mock(metadata={"relevance_score": 0.4}),
         ]
 
-        result = rag._normalize_relevance_scores(documents)
+        result = _normalize_relevance_scores(documents)
 
         # Should return the same documents
         assert len(result) == 3
@@ -487,7 +502,7 @@ class TestNvidiaRAGNormalizeRelevanceScores:
         """Test normalizing relevance scores with empty list."""
         rag = NvidiaRAG()
 
-        result = rag._normalize_relevance_scores([])
+        result = _normalize_relevance_scores([])
 
         assert result == []
 
@@ -504,7 +519,7 @@ class TestNvidiaRAGFormatDocumentWithSource:
         doc.metadata = {"source": "test.pdf"}
 
         with patch.dict(os.environ, {"ENABLE_SOURCE_METADATA": "True"}):
-            result = rag._format_document_with_source(doc)
+            result = _format_document_with_source(doc)
 
             assert "Test content" in result
             assert "File: test" in result
@@ -518,7 +533,7 @@ class TestNvidiaRAGFormatDocumentWithSource:
         doc.metadata = {}
 
         with patch.dict(os.environ, {"ENABLE_SOURCE_METADATA": "True"}):
-            result = rag._format_document_with_source(doc)
+            result = _format_document_with_source(doc)
 
             assert result == "Test content"
 
@@ -531,7 +546,7 @@ class TestNvidiaRAGFormatDocumentWithSource:
         doc.metadata = {"source": {"source_name": "test.pdf"}}
 
         with patch.dict(os.environ, {"ENABLE_SOURCE_METADATA": "True"}):
-            result = rag._format_document_with_source(doc)
+            result = _format_document_with_source(doc)
 
             assert "Test content" in result
             assert "File: test" in result

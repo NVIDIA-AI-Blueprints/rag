@@ -23,6 +23,9 @@ import pytest
 
 from nvidia_rag.rag_server.main import NvidiaRAG
 from nvidia_rag.rag_server.response_generator import APIError, Citations
+from nvidia_rag.rag_server.vdb_operations import prepare_vdb_op, validate_collections_exist
+from nvidia_rag.rag_server.message_processor import handle_prompt_processing
+from nvidia_rag.rag_server.llm_chain import llm_chain
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
 
 
@@ -51,7 +54,7 @@ class TestNvidiaRAGSearchCoverage:
         """Test search with multiple collections but reranker disabled."""
         rag = NvidiaRAG()
 
-        with patch.object(rag, "_prepare_vdb_op") as mock_prepare:
+        with patch("nvidia_rag.rag_server.vdb_operations.prepare_vdb_op") as mock_prepare:
             mock_vdb_op = Mock(spec=VDBRag)
             mock_prepare.return_value = mock_vdb_op
 
@@ -70,7 +73,7 @@ class TestNvidiaRAGSearchCoverage:
         """Test search with more than MAX_COLLECTION_NAMES collections."""
         rag = NvidiaRAG()
 
-        with patch.object(rag, "_prepare_vdb_op") as mock_prepare:
+        with patch("nvidia_rag.rag_server.vdb_operations.prepare_vdb_op") as mock_prepare:
             mock_vdb_op = Mock(spec=VDBRag)
             mock_prepare.return_value = mock_vdb_op
 
@@ -90,7 +93,7 @@ class TestNvidiaRAGSearchCoverage:
         mock_vdb_op.get_metadata_schema.return_value = []
         rag = NvidiaRAG(vdb_op=mock_vdb_op)
 
-        with patch.object(rag, "_prepare_vdb_op") as mock_prepare:
+        with patch("nvidia_rag.rag_server.vdb_operations.prepare_vdb_op") as mock_prepare:
             with patch(
                 "nvidia_rag.rag_server.main.validate_filter_expr"
             ) as mock_validate_filter:
@@ -119,7 +122,7 @@ class TestNvidiaRAGSearchCoverage:
         mock_vdb_op.get_metadata_schema.return_value = []
         rag = NvidiaRAG(vdb_op=mock_vdb_op)
 
-        with patch.object(rag, "_prepare_vdb_op") as mock_prepare:
+        with patch("nvidia_rag.rag_server.vdb_operations.prepare_vdb_op") as mock_prepare:
             with patch(
                 "nvidia_rag.rag_server.main.validate_filter_expr"
             ) as mock_validate_filter:
@@ -232,7 +235,7 @@ class TestNvidiaRAGSearchCoverage:
 
         messages = [{"role": "user", "content": "Test query"}]
 
-        with patch.object(rag, "_prepare_vdb_op") as mock_prepare:
+        with patch("nvidia_rag.rag_server.vdb_operations.prepare_vdb_op") as mock_prepare:
             with patch(
                 "nvidia_rag.rag_server.main.prepare_citations"
             ) as mock_prepare_citations:
@@ -357,7 +360,7 @@ class TestNvidiaRAGSearchCoverage:
         ]
         rag = NvidiaRAG(vdb_op=mock_vdb_op)
 
-        with patch.object(rag, "_prepare_vdb_op") as mock_prepare:
+        with patch("nvidia_rag.rag_server.vdb_operations.prepare_vdb_op") as mock_prepare:
             with patch(
                 "nvidia_rag.rag_server.main.prepare_citations"
             ) as mock_prepare_citations:
@@ -471,7 +474,7 @@ class TestNvidiaRAGSearchCoverage:
         with patch.dict(os.environ, {"ENABLE_REFLECTION": "true"}):
             rag = NvidiaRAG(vdb_op=mock_vdb_op)
 
-        with patch.object(rag, "_prepare_vdb_op") as mock_prepare:
+        with patch("nvidia_rag.rag_server.vdb_operations.prepare_vdb_op") as mock_prepare:
             with patch(
                 "nvidia_rag.rag_server.main.prepare_citations"
             ) as mock_prepare_citations:
@@ -598,7 +601,7 @@ class TestNvidiaRAGSearchCoverage:
         ]
         rag = NvidiaRAG(vdb_op=mock_vdb_op)
 
-        with patch.object(rag, "_prepare_vdb_op") as mock_prepare:
+        with patch("nvidia_rag.rag_server.vdb_operations.prepare_vdb_op") as mock_prepare:
             with patch(
                 "nvidia_rag.rag_server.main.prepare_citations"
             ) as mock_prepare_citations:
@@ -713,14 +716,14 @@ class TestNvidiaRAGLLMChainCoverage:
             "stop": [],
         }
 
-        with patch.object(rag, "_handle_prompt_processing") as mock_handle_prompt:
-            with patch("nvidia_rag.rag_server.main.get_llm") as mock_get_llm:
+        with patch("nvidia_rag.rag_server.message_processor.handle_prompt_processing") as mock_handle_prompt:
+            with patch("nvidia_rag.rag_server.llm_chain.get_llm") as mock_get_llm:
                 with patch(
-                    "nvidia_rag.rag_server.main.ChatPromptTemplate"
+                    "nvidia_rag.rag_server.llm_chain.ChatPromptTemplate"
                 ) as mock_prompt_template:
-                    with patch("nvidia_rag.rag_server.main.StrOutputParser"):
+                    with patch("nvidia_rag.rag_server.llm_chain.StrOutputParser"):
                         with patch(
-                            "nvidia_rag.rag_server.main.generate_answer_async"
+                            "nvidia_rag.rag_server.llm_chain.generate_answer_async"
                         ) as mock_generate_answer:
                             with patch.dict(os.environ, {"CONVERSATION_HISTORY": "15"}):
                                 mock_handle_prompt.return_value = (
@@ -756,7 +759,9 @@ class TestNvidiaRAGLLMChainCoverage:
                                     ["test response"]
                                 )
 
-                                result = await rag._llm_chain(
+                                result = await llm_chain(
+                                    config=rag.config,
+                                    prompts=rag.prompts,
                                     llm_settings=llm_settings,
                                     query="test query",
                                     chat_history=[],
@@ -793,14 +798,14 @@ class TestNvidiaRAGLLMChainCoverage:
             {"role": "assistant", "content": "Hi there!"},
         ]
 
-        with patch.object(rag, "_handle_prompt_processing") as mock_handle_prompt:
-            with patch("nvidia_rag.rag_server.main.get_llm") as mock_get_llm:
+        with patch("nvidia_rag.rag_server.message_processor.handle_prompt_processing") as mock_handle_prompt:
+            with patch("nvidia_rag.rag_server.llm_chain.get_llm") as mock_get_llm:
                 with patch(
-                    "nvidia_rag.rag_server.main.ChatPromptTemplate"
+                    "nvidia_rag.rag_server.llm_chain.ChatPromptTemplate"
                 ) as mock_prompt_template:
-                    with patch("nvidia_rag.rag_server.main.StrOutputParser"):
+                    with patch("nvidia_rag.rag_server.llm_chain.StrOutputParser"):
                         with patch(
-                            "nvidia_rag.rag_server.main.generate_answer_async"
+                            "nvidia_rag.rag_server.llm_chain.generate_answer_async"
                         ) as mock_generate_answer:
                             with patch.dict(os.environ, {"CONVERSATION_HISTORY": "15"}):
                                 mock_handle_prompt.return_value = (
@@ -836,7 +841,9 @@ class TestNvidiaRAGLLMChainCoverage:
                                     ["test response"]
                                 )
 
-                                result = await rag._llm_chain(
+                                result = await llm_chain(
+                                    config=rag.config,
+                                    prompts=rag.prompts,
                                     llm_settings=llm_settings,
                                     query="test query",
                                     chat_history=chat_history,
@@ -868,14 +875,14 @@ class TestNvidiaRAGLLMChainCoverage:
             "stop": [],
         }
 
-        with patch.object(rag, "_handle_prompt_processing") as mock_handle_prompt:
-            with patch("nvidia_rag.rag_server.main.get_llm") as mock_get_llm:
+        with patch("nvidia_rag.rag_server.message_processor.handle_prompt_processing") as mock_handle_prompt:
+            with patch("nvidia_rag.rag_server.llm_chain.get_llm") as mock_get_llm:
                 with patch(
-                    "nvidia_rag.rag_server.main.ChatPromptTemplate"
+                    "nvidia_rag.rag_server.llm_chain.ChatPromptTemplate"
                 ) as mock_prompt_template:
-                    with patch("nvidia_rag.rag_server.main.StrOutputParser"):
+                    with patch("nvidia_rag.rag_server.llm_chain.StrOutputParser"):
                         with patch(
-                            "nvidia_rag.rag_server.main.generate_answer_async"
+                            "nvidia_rag.rag_server.llm_chain.generate_answer_async"
                         ) as mock_generate_answer:
                             with patch.dict(os.environ, {"CONVERSATION_HISTORY": "15"}):
                                 from requests import ConnectTimeout
@@ -914,7 +921,9 @@ class TestNvidiaRAGLLMChainCoverage:
                                     ["Connection timed out message"]
                                 )
 
-                                result = await rag._llm_chain(
+                                result = await llm_chain(
+                                    config=rag.config,
+                                    prompts=rag.prompts,
                                     llm_settings=llm_settings,
                                     query="test query",
                                     chat_history=[],
@@ -946,14 +955,14 @@ class TestNvidiaRAGLLMChainCoverage:
             "stop": [],
         }
 
-        with patch.object(rag, "_handle_prompt_processing") as mock_handle_prompt:
-            with patch("nvidia_rag.rag_server.main.get_llm") as mock_get_llm:
+        with patch("nvidia_rag.rag_server.message_processor.handle_prompt_processing") as mock_handle_prompt:
+            with patch("nvidia_rag.rag_server.llm_chain.get_llm") as mock_get_llm:
                 with patch(
-                    "nvidia_rag.rag_server.main.ChatPromptTemplate"
+                    "nvidia_rag.rag_server.llm_chain.ChatPromptTemplate"
                 ) as mock_prompt_template:
-                    with patch("nvidia_rag.rag_server.main.StrOutputParser"):
+                    with patch("nvidia_rag.rag_server.llm_chain.StrOutputParser"):
                         with patch(
-                            "nvidia_rag.rag_server.main.generate_answer_async"
+                            "nvidia_rag.rag_server.llm_chain.generate_answer_async"
                         ) as mock_generate_answer:
                             with patch.dict(os.environ, {"CONVERSATION_HISTORY": "15"}):
                                 mock_handle_prompt.return_value = (
@@ -990,7 +999,9 @@ class TestNvidiaRAGLLMChainCoverage:
                                     ["Authentication error message"]
                                 )
 
-                                result = await rag._llm_chain(
+                                result = await llm_chain(
+                                    config=rag.config,
+                                    prompts=rag.prompts,
                                     llm_settings=llm_settings,
                                     query="test query",
                                     chat_history=[],
@@ -1022,14 +1033,14 @@ class TestNvidiaRAGLLMChainCoverage:
             "stop": [],
         }
 
-        with patch.object(rag, "_handle_prompt_processing") as mock_handle_prompt:
-            with patch("nvidia_rag.rag_server.main.get_llm") as mock_get_llm:
+        with patch("nvidia_rag.rag_server.message_processor.handle_prompt_processing") as mock_handle_prompt:
+            with patch("nvidia_rag.rag_server.llm_chain.get_llm") as mock_get_llm:
                 with patch(
-                    "nvidia_rag.rag_server.main.ChatPromptTemplate"
+                    "nvidia_rag.rag_server.llm_chain.ChatPromptTemplate"
                 ) as mock_prompt_template:
-                    with patch("nvidia_rag.rag_server.main.StrOutputParser"):
+                    with patch("nvidia_rag.rag_server.llm_chain.StrOutputParser"):
                         with patch(
-                            "nvidia_rag.rag_server.main.generate_answer_async"
+                            "nvidia_rag.rag_server.llm_chain.generate_answer_async"
                         ) as mock_generate_answer:
                             with patch.dict(os.environ, {"CONVERSATION_HISTORY": "15"}):
                                 mock_handle_prompt.return_value = (
@@ -1066,7 +1077,9 @@ class TestNvidiaRAGLLMChainCoverage:
                                     ["404 error message"]
                                 )
 
-                                result = await rag._llm_chain(
+                                result = await llm_chain(
+                                    config=rag.config,
+                                    prompts=rag.prompts,
                                     llm_settings=llm_settings,
                                     query="test query",
                                     chat_history=[],
@@ -1100,14 +1113,14 @@ class TestNvidiaRAGLLMChainCoverage:
             "stop": [],
         }
 
-        with patch.object(rag, "_handle_prompt_processing") as mock_handle_prompt:
-            with patch("nvidia_rag.rag_server.main.get_llm") as mock_get_llm:
+        with patch("nvidia_rag.rag_server.message_processor.handle_prompt_processing") as mock_handle_prompt:
+            with patch("nvidia_rag.rag_server.llm_chain.get_llm") as mock_get_llm:
                 with patch(
-                    "nvidia_rag.rag_server.main.ChatPromptTemplate"
+                    "nvidia_rag.rag_server.llm_chain.ChatPromptTemplate"
                 ) as mock_prompt_template:
-                    with patch("nvidia_rag.rag_server.main.StrOutputParser"):
+                    with patch("nvidia_rag.rag_server.llm_chain.StrOutputParser"):
                         with patch(
-                            "nvidia_rag.rag_server.main.generate_answer_async"
+                            "nvidia_rag.rag_server.llm_chain.generate_answer_async"
                         ) as mock_generate_answer:
                             with patch.dict(os.environ, {"CONVERSATION_HISTORY": "15"}):
                                 mock_handle_prompt.return_value = (
@@ -1144,7 +1157,9 @@ class TestNvidiaRAGLLMChainCoverage:
                                     ["General error message"]
                                 )
 
-                                result = await rag._llm_chain(
+                                result = await llm_chain(
+                                    config=rag.config,
+                                    prompts=rag.prompts,
                                     llm_settings=llm_settings,
                                     query="test query",
                                     chat_history=[],
@@ -1159,7 +1174,7 @@ class TestNvidiaRAGLLMChainCoverage:
 
 
 class TestNvidiaRAGPromptProcessingCoverage:
-    """Test cases to improve _handle_prompt_processing method coverage."""
+    """Test cases to improve handle_prompt_processing method coverage."""
 
     def test_handle_prompt_processing_basic(self):
         """Test basic prompt processing functionality."""
@@ -1178,8 +1193,8 @@ class TestNvidiaRAGPromptProcessingCoverage:
         }
         rag.prompts = mock_prompts
 
-        result = rag._handle_prompt_processing(
-            chat_history, "test_model", "chat_template"
+        result = handle_prompt_processing(
+            chat_history, "test_model", rag.prompts, "chat_template"
         )
 
         assert len(result) == 3
@@ -1205,8 +1220,9 @@ class TestNvidiaRAGPromptProcessingCoverage:
                 "human": "Test human prompt",
             }
 
-            result = rag._handle_prompt_processing(
-                chat_history, "llama-3.3-nemotron-super-49b-v1", "chat_template"
+            # Call the standalone function from message_processor module
+            result = handle_prompt_processing(
+                chat_history, "llama-3.3-nemotron-super-49b-v1", mock_prompts, "chat_template"
             )
 
             assert len(result) == 3
@@ -1230,8 +1246,8 @@ class TestNvidiaRAGPromptProcessingCoverage:
         }
         rag.prompts = mock_prompts
 
-        result = rag._handle_prompt_processing(
-            chat_history, "test_model", "chat_template"
+        result = handle_prompt_processing(
+            chat_history, "test_model", rag.prompts, "chat_template"
         )
 
         assert len(result) == 3
@@ -1253,8 +1269,8 @@ class TestNvidiaRAGPromptProcessingCoverage:
         }
         rag.prompts = mock_prompts
 
-        result = rag._handle_prompt_processing(
-            chat_history, "test_model", "chat_template"
+        result = handle_prompt_processing(
+            chat_history, "test_model", rag.prompts, "chat_template"
         )
 
         assert len(result) == 3
@@ -1287,8 +1303,8 @@ class TestNvidiaRAGPromptProcessingCoverage:
         }
         rag.prompts = mock_prompts
 
-        result = rag._handle_prompt_processing(
-            chat_history, "test_model", "chat_template"
+        result = handle_prompt_processing(
+            chat_history, "test_model", rag.prompts, "chat_template"
         )
 
         assert len(result) == 3
@@ -1306,7 +1322,7 @@ class TestNvidiaRAGHealthCoverage:
 
         rag = NvidiaRAG()
 
-        with patch.object(rag, "_prepare_vdb_op") as mock_prepare:
+        with patch("nvidia_rag.rag_server.vdb_operations.prepare_vdb_op") as mock_prepare:
             mock_vdb_op = Mock(spec=VDBRag)
             mock_prepare.return_value = mock_vdb_op
 
@@ -1324,10 +1340,10 @@ class TestNvidiaRAGHealthCoverage:
 
         rag = NvidiaRAG()
 
-        with patch.object(rag, "_prepare_vdb_op") as mock_prepare:
-            with patch(
-                "nvidia_rag.rag_server.main.check_all_services_health"
-            ) as mock_check_health:
+        # Patch check_all_services_health where it's used in main.py, not where it's defined
+        with patch("nvidia_rag.rag_server.main.check_all_services_health") as mock_check_health:
+            # Patch prepare_vdb_op where it's used in main.py, not where it's defined
+            with patch("nvidia_rag.rag_server.main.prepare_vdb_op") as mock_prepare:
                 mock_vdb_op = Mock(spec=VDBRag)
                 mock_prepare.return_value = mock_vdb_op
                 mock_check_health.return_value = RAGHealthResponse(
@@ -1351,39 +1367,39 @@ class TestNvidiaRAGHealthCoverage:
 
 
 class TestNvidiaRAGPrepareVdbOpCoverage:
-    """Test cases to improve __prepare_vdb_op method coverage."""
+    """Test cases to improve prepare_vdb_op function coverage."""
 
     def test_prepare_vdb_op_with_existing_vdb_op(self):
-        """Test __prepare_vdb_op with existing vdb_op."""
+        """Test prepare_vdb_op with existing vdb_op."""
         mock_vdb_op = Mock(spec=VDBRag)
         rag = NvidiaRAG(vdb_op=mock_vdb_op)
 
-        result = rag._prepare_vdb_op()
+        result = prepare_vdb_op(rag.config, vdb_op=mock_vdb_op)
 
         assert result == mock_vdb_op
 
     def test_prepare_vdb_op_with_vdb_endpoint_error(self):
-        """Test __prepare_vdb_op with vdb_endpoint when vdb_op exists."""
+        """Test prepare_vdb_op with vdb_endpoint when vdb_op exists."""
         mock_vdb_op = Mock(spec=VDBRag)
         rag = NvidiaRAG(vdb_op=mock_vdb_op)
 
         with pytest.raises(
             ValueError, match="vdb_endpoint is not supported when vdb_op is provided"
         ):
-            rag._prepare_vdb_op(vdb_endpoint="http://test.com")
+            prepare_vdb_op(rag.config, vdb_op=mock_vdb_op, vdb_endpoint="http://test.com")
 
     def test_prepare_vdb_op_with_embedding_model_error(self):
-        """Test __prepare_vdb_op with embedding_model when vdb_op exists."""
+        """Test prepare_vdb_op with embedding_model when vdb_op exists."""
         mock_vdb_op = Mock(spec=VDBRag)
         rag = NvidiaRAG(vdb_op=mock_vdb_op)
 
         with pytest.raises(
             ValueError, match="embedding_model is not supported when vdb_op is provided"
         ):
-            rag._prepare_vdb_op(embedding_model="test_model")
+            prepare_vdb_op(rag.config, vdb_op=mock_vdb_op, embedding_model="test_model")
 
     def test_prepare_vdb_op_with_embedding_endpoint_error(self):
-        """Test __prepare_vdb_op with embedding_endpoint when vdb_op exists."""
+        """Test prepare_vdb_op with embedding_endpoint when vdb_op exists."""
         mock_vdb_op = Mock(spec=VDBRag)
         rag = NvidiaRAG(vdb_op=mock_vdb_op)
 
@@ -1391,22 +1407,23 @@ class TestNvidiaRAGPrepareVdbOpCoverage:
             ValueError,
             match="embedding_endpoint is not supported when vdb_op is provided",
         ):
-            rag._prepare_vdb_op(embedding_endpoint="http://test.com")
+            prepare_vdb_op(rag.config, vdb_op=mock_vdb_op, embedding_endpoint="http://test.com")
 
     def test_prepare_vdb_op_without_vdb_op(self):
-        """Test __prepare_vdb_op without existing vdb_op."""
+        """Test prepare_vdb_op without existing vdb_op."""
         rag = NvidiaRAG()
 
         with patch(
-            "nvidia_rag.rag_server.main.get_embedding_model"
+            "nvidia_rag.rag_server.vdb_operations.get_embedding_model"
         ) as mock_get_embedding:
-            with patch("nvidia_rag.rag_server.main._get_vdb_op") as mock_get_vdb_op:
+            with patch("nvidia_rag.rag_server.vdb_operations._get_vdb_op") as mock_get_vdb_op:
                 mock_embedding = Mock()
                 mock_get_embedding.return_value = mock_embedding
                 mock_vdb_op = Mock(spec=VDBRag)
                 mock_get_vdb_op.return_value = mock_vdb_op
 
-                result = rag._prepare_vdb_op(
+                result = prepare_vdb_op(
+                    rag.config,
                     vdb_endpoint="http://test.com",
                     embedding_model="test_model",
                     embedding_endpoint="http://embedding.com",
@@ -1414,43 +1431,35 @@ class TestNvidiaRAGPrepareVdbOpCoverage:
 
                 assert result == mock_vdb_op
                 # Check that get_embedding_model was called with the expected parameters
-                # Note: it may also receive a config parameter
-                assert mock_get_embedding.call_count >= 1
-                # Check at least one call matches our expected parameters
-                assert any(
-                    call[1].get("model") == "test_model"
-                    and call[1].get("url") == "http://embedding.com"
-                    for call in mock_get_embedding.call_args_list
-                )
-                # Allow optional presence of vdb_auth_token in kwargs (default empty string)
+                assert mock_get_embedding.call_count == 1
+                _, kwargs = mock_get_embedding.call_args
+                assert kwargs.get("model") == "test_model"
+                assert kwargs.get("url") == "http://embedding.com"
+                # Check _get_vdb_op was called
                 assert mock_get_vdb_op.call_count == 1
                 _, kwargs = mock_get_vdb_op.call_args
                 assert kwargs["vdb_endpoint"] == "http://test.com"
                 assert kwargs["embedding_model"] == mock_embedding
-                if "vdb_auth_token" in kwargs:
-                    assert kwargs["vdb_auth_token"] in ("", None)
 
 
 class TestNvidiaRAGValidationCoverage:
     """Test cases to improve validation method coverage."""
 
     def test_validate_collections_exist_success(self):
-        """Test _validate_collections_exist with existing collections."""
-        rag = NvidiaRAG()
+        """Test validate_collections_exist with existing collections."""
         mock_vdb_op = Mock(spec=VDBRag)
         mock_vdb_op.check_collection_exists.return_value = True
 
         # Should not raise any exception
-        rag._validate_collections_exist(["col1", "col2"], mock_vdb_op)
+        validate_collections_exist(["col1", "col2"], mock_vdb_op)
 
     def test_validate_collections_exist_failure(self):
-        """Test _validate_collections_exist with non-existing collection."""
-        rag = NvidiaRAG()
+        """Test validate_collections_exist with non-existing collection."""
         mock_vdb_op = Mock(spec=VDBRag)
         mock_vdb_op.check_collection_exists.return_value = False
 
         with pytest.raises(APIError, match="Collection col1 does not exist"):
-            rag._validate_collections_exist(["col1"], mock_vdb_op)
+            validate_collections_exist(["col1"], mock_vdb_op)
 
 
 class TestNvidiaRAGInitCoverage:

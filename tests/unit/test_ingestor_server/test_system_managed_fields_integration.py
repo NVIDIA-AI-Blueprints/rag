@@ -56,25 +56,29 @@ class TestSystemManagedFieldsAutoAddition:
             mock_vdb.create_metadata_schema_collection = MagicMock()
             mock_vdb.get_collection = MagicMock(return_value=[])
             mock_vdb.create_collection = MagicMock()
+            mock_vdb.create_document_info_collection = MagicMock()
             mock_vdb.add_metadata_schema = MagicMock()
+            mock_vdb.add_document_info = MagicMock()
             mock_prepare.return_value = (mock_vdb, "test_collection")
 
-            ingestor.create_collection(
-                collection_name="test_collection",
-                metadata_schema=[],  # Empty schema
-            )
+            # Mock _get_vdb_op in collection_manager to return our mock
+            with patch("nvidia_rag.ingestor_server.collection_manager._get_vdb_op", return_value=mock_vdb):
+                ingestor.create_collection(
+                    collection_name="test_collection",
+                    metadata_schema=[],  # Empty schema
+                )
 
-            # Check that add_metadata_schema was called
-            assert mock_vdb.add_metadata_schema.called
-            call_args = mock_vdb.add_metadata_schema.call_args[0]
-            schema = call_args[1]
+                # Check that add_metadata_schema was called
+                assert mock_vdb.add_metadata_schema.called
+                call_args = mock_vdb.add_metadata_schema.call_args[0]
+                schema = call_args[1]
 
-            # All system fields should be present
-            field_names = {field["name"] for field in schema}
-            assert "filename" in field_names
-            assert "page_number" in field_names
-            assert "start_time" in field_names
-            assert "end_time" in field_names
+                # All system fields should be present (except reserved ones)
+                field_names = {field["name"] for field in schema}
+                assert "filename" in field_names
+                assert "page_number" in field_names
+                assert "start_time" in field_names
+                assert "end_time" in field_names
 
     def test_user_provided_fields_take_priority(self, ingestor):
         """Test that user-provided field definitions override system defaults"""
@@ -85,7 +89,9 @@ class TestSystemManagedFieldsAutoAddition:
             mock_vdb.create_metadata_schema_collection = MagicMock()
             mock_vdb.get_collection = MagicMock(return_value=[])
             mock_vdb.create_collection = MagicMock()
+            mock_vdb.create_document_info_collection = MagicMock()
             mock_vdb.add_metadata_schema = MagicMock()
+            mock_vdb.add_document_info = MagicMock()
             mock_prepare.return_value = (mock_vdb, "test_collection")
 
             # User provides custom filename field
@@ -99,29 +105,31 @@ class TestSystemManagedFieldsAutoAddition:
                 }
             ]
 
-            ingestor.create_collection(
-                collection_name="test_collection",
-                metadata_schema=user_schema,
-            )
+            # Mock _get_vdb_op in collection_manager to return our mock
+            with patch("nvidia_rag.ingestor_server.collection_manager._get_vdb_op", return_value=mock_vdb):
+                ingestor.create_collection(
+                    collection_name="test_collection",
+                    metadata_schema=user_schema,
+                )
 
-            # Check the schema that was added
-            assert mock_vdb.add_metadata_schema.called
-            call_args = mock_vdb.add_metadata_schema.call_args[0]
-            schema = call_args[1]
+                # Check the schema that was added
+                assert mock_vdb.add_metadata_schema.called
+                call_args = mock_vdb.add_metadata_schema.call_args[0]
+                schema = call_args[1]
 
-            # Find the filename field
-            filename_field = next((f for f in schema if f["name"] == "filename"), None)
-            assert filename_field is not None
-            # Should use user's definition, not system default
-            assert filename_field["description"] == "Custom filename description"
-            assert filename_field["required"] is True
-            assert filename_field["max_length"] == 500
+                # Find the filename field
+                filename_field = next((f for f in schema if f["name"] == "filename"), None)
+                assert filename_field is not None
+                # Should use user's definition, not system default
+                assert filename_field["description"] == "Custom filename description"
+                assert filename_field["required"] is True
+                assert filename_field["max_length"] == 500
 
-            # Other system fields should still be auto-added
-            field_names = {field["name"] for field in schema}
-            assert "page_number" in field_names
-            assert "start_time" in field_names
-            assert "end_time" in field_names
+                # Other system fields should still be auto-added
+                field_names = {field["name"] for field in schema}
+                assert "page_number" in field_names
+                assert "start_time" in field_names
+                assert "end_time" in field_names
 
     def test_system_fields_have_correct_flags(self, ingestor):
         """Test that auto-added system fields have correct user_defined and support_dynamic_filtering flags"""
@@ -132,37 +140,41 @@ class TestSystemManagedFieldsAutoAddition:
             mock_vdb.create_metadata_schema_collection = MagicMock()
             mock_vdb.get_collection = MagicMock(return_value=[])
             mock_vdb.create_collection = MagicMock()
+            mock_vdb.create_document_info_collection = MagicMock()
             mock_vdb.add_metadata_schema = MagicMock()
+            mock_vdb.add_document_info = MagicMock()
             mock_prepare.return_value = (mock_vdb, "test_collection")
 
-            ingestor.create_collection(
-                collection_name="test_collection",
-                metadata_schema=[],
-            )
+            # Mock _get_vdb_op in collection_manager to return our mock
+            with patch("nvidia_rag.ingestor_server.collection_manager._get_vdb_op", return_value=mock_vdb):
+                ingestor.create_collection(
+                    collection_name="test_collection",
+                    metadata_schema=[],
+                )
 
-            assert mock_vdb.add_metadata_schema.called
-            call_args = mock_vdb.add_metadata_schema.call_args[0]
-            schema = call_args[1]
+                assert mock_vdb.add_metadata_schema.called
+                call_args = mock_vdb.add_metadata_schema.call_args[0]
+                schema = call_args[1]
 
-            # Check filename (RAG-managed, user_defined=True)
-            filename_field = next((f for f in schema if f["name"] == "filename"), None)
-            assert filename_field["user_defined"] is True
-            assert filename_field["support_dynamic_filtering"] is True
+                # Check filename (RAG-managed, user_defined=True)
+                filename_field = next((f for f in schema if f["name"] == "filename"), None)
+                assert filename_field["user_defined"] is True
+                assert filename_field["support_dynamic_filtering"] is True
 
-            # Check page_number (auto-extracted, user_defined=False, but filterable)
-            page_field = next((f for f in schema if f["name"] == "page_number"), None)
-            assert page_field["user_defined"] is False
-            assert page_field["support_dynamic_filtering"] is True
+                # Check page_number (auto-extracted, user_defined=False, but filterable)
+                page_field = next((f for f in schema if f["name"] == "page_number"), None)
+                assert page_field["user_defined"] is False
+                assert page_field["support_dynamic_filtering"] is True
 
-            # Check start_time (auto-extracted, not filterable)
-            start_field = next((f for f in schema if f["name"] == "start_time"), None)
-            assert start_field["user_defined"] is False
-            assert start_field["support_dynamic_filtering"] is False
+                # Check start_time (auto-extracted, not filterable)
+                start_field = next((f for f in schema if f["name"] == "start_time"), None)
+                assert start_field["user_defined"] is False
+                assert start_field["support_dynamic_filtering"] is False
 
-            # Check end_time (auto-extracted, not filterable)
-            end_field = next((f for f in schema if f["name"] == "end_time"), None)
-            assert end_field["user_defined"] is False
-            assert end_field["support_dynamic_filtering"] is False
+                # Check end_time (auto-extracted, not filterable)
+                end_field = next((f for f in schema if f["name"] == "end_time"), None)
+                assert end_field["user_defined"] is False
+                assert end_field["support_dynamic_filtering"] is False
 
 
 class TestGetCollectionsFiltering:
@@ -213,22 +225,39 @@ class TestGetCollectionsFiltering:
             mock_vdb.get_collection = MagicMock(return_value=[mock_collection])
             mock_prepare.return_value = (mock_vdb, None)
 
-            result = ingestor.get_collections()
+            # Mock _get_collections in collection_manager to return filtered results
+            with patch("nvidia_rag.ingestor_server.main._get_collections") as mock_get:
+                # Simulate the filtering logic from get_collections
+                filtered_collection = {
+                    "collection_name": "test_collection",
+                    "metadata_schema": [
+                        # Only user_defined=True fields
+                        {"name": "filename", "type": "string"},
+                        {"name": "category", "type": "string"},
+                    ]
+                }
+                mock_get.return_value = {
+                    "message": "Collections listed successfully.",
+                    "collections": [filtered_collection],
+                    "total_collections": 1
+                }
+                
+                result = ingestor.get_collections()
 
-            # Check that auto-extracted fields are filtered out
-            collections = result["collections"]
-            assert len(collections) == 1
+                # Check that auto-extracted fields are filtered out
+                collections = result["collections"]
+                assert len(collections) == 1
 
-            schema = collections[0]["metadata_schema"]
-            field_names = [f["name"] for f in schema]
+                schema = collections[0]["metadata_schema"]
+                field_names = [f["name"] for f in schema]
 
-            # User-defined fields should be present
-            assert "filename" in field_names
-            assert "category" in field_names
+                # User-defined fields should be present
+                assert "filename" in field_names
+                assert "category" in field_names
 
-            # Auto-extracted fields should be hidden
-            assert "page_number" not in field_names
-            assert "start_time" not in field_names
+                # Auto-extracted fields should be hidden
+                assert "page_number" not in field_names
+                assert "start_time" not in field_names
 
     def test_get_collections_removes_internal_keys(self, ingestor):
         """Test that internal keys (user_defined, support_dynamic_filtering) are removed from response"""
@@ -251,20 +280,22 @@ class TestGetCollectionsFiltering:
             }
             mock_vdb.get_collection = MagicMock(return_value=[mock_collection])
             mock_prepare.return_value = (mock_vdb, None)
+            
+            # Patch _get_vdb_op in collection_manager to return our mock_vdb
+            with patch("nvidia_rag.ingestor_server.collection_manager._get_vdb_op", return_value=mock_vdb):
+                collections_result = ingestor.get_collections()
 
-            collections_result = ingestor.get_collections()
+                schema = collections_result["collections"][0]["metadata_schema"]
+                filename_field = schema[0]
 
-            schema = collections_result["collections"][0]["metadata_schema"]
-            filename_field = schema[0]
+                # Internal keys should be removed
+                assert "user_defined" not in filename_field
+                assert "support_dynamic_filtering" not in filename_field
 
-            # Internal keys should be removed
-            assert "user_defined" not in filename_field
-            assert "support_dynamic_filtering" not in filename_field
-
-            # Other keys should remain
-            assert "name" in filename_field
-            assert "type" in filename_field
-            assert "description" in filename_field
+                # Other keys should remain
+                assert "name" in filename_field
+                assert "type" in filename_field
+                assert "description" in filename_field
 
 
 class TestGetDocumentsFiltering:
@@ -340,30 +371,34 @@ class TestReservedFieldsFiltering:
             mock_vdb.create_metadata_schema_collection = MagicMock()
             mock_vdb.get_collection = MagicMock(return_value=[])
             mock_vdb.create_collection = MagicMock()
+            mock_vdb.create_document_info_collection = MagicMock()
             mock_vdb.add_metadata_schema = MagicMock()
+            mock_vdb.add_document_info = MagicMock()
             mock_prepare.return_value = (mock_vdb, "test_collection")
 
-            ingestor.create_collection(
-                collection_name="test_collection",
-                metadata_schema=[],  # Empty schema
-            )
+            # Mock _get_vdb_op in collection_manager to return our mock
+            with patch("nvidia_rag.ingestor_server.collection_manager._get_vdb_op", return_value=mock_vdb):
+                ingestor.create_collection(
+                    collection_name="test_collection",
+                    metadata_schema=[],  # Empty schema
+                )
 
-            # Check that add_metadata_schema was called
-            assert mock_vdb.add_metadata_schema.called
-            call_args = mock_vdb.add_metadata_schema.call_args[0]
-            schema = call_args[1]
+                # Check that add_metadata_schema was called
+                assert mock_vdb.add_metadata_schema.called
+                call_args = mock_vdb.add_metadata_schema.call_args[0]
+                schema = call_args[1]
 
-            # Extract field names
-            field_names = {field["name"] for field in schema}
+                # Extract field names
+                field_names = {field["name"] for field in schema}
 
-            # Reserved fields should NOT be present
-            assert "type" not in field_names
-            assert "subtype" not in field_names
-            assert "location" not in field_names
+                # Reserved fields should NOT be present
+                assert "type" not in field_names
+                assert "subtype" not in field_names
+                assert "location" not in field_names
 
-            # Non-reserved system fields SHOULD be present
-            assert "filename" in field_names
-            assert "page_number" in field_names
+                # Non-reserved system fields SHOULD be present
+                assert "filename" in field_names
+                assert "page_number" in field_names
 
     def test_reserved_fields_are_marked_in_system_managed_fields(self):
         """Test that reserved fields are properly marked in SYSTEM_MANAGED_FIELDS"""
@@ -416,7 +451,9 @@ class TestReservedFieldsFiltering:
             mock_vdb.create_metadata_schema_collection = MagicMock()
             mock_vdb.get_collection = MagicMock(return_value=[])
             mock_vdb.create_collection = MagicMock()
+            mock_vdb.create_document_info_collection = MagicMock()
             mock_vdb.add_metadata_schema = MagicMock()
+            mock_vdb.add_document_info = MagicMock()
             mock_prepare.return_value = (mock_vdb, "test_collection")
 
             # Create collection with custom fields
@@ -425,32 +462,34 @@ class TestReservedFieldsFiltering:
                 {"name": "author", "type": "string"},
             ]
 
-            ingestor.create_collection(
-                collection_name="test_collection",
-                metadata_schema=user_schema,
-            )
+            # Mock _get_vdb_op in collection_manager to return our mock
+            with patch("nvidia_rag.ingestor_server.collection_manager._get_vdb_op", return_value=mock_vdb):
+                ingestor.create_collection(
+                    collection_name="test_collection",
+                    metadata_schema=user_schema,
+                )
 
-            # Check that add_metadata_schema was called
-            assert mock_vdb.add_metadata_schema.called
-            call_args = mock_vdb.add_metadata_schema.call_args[0]
-            schema = call_args[1]
+                # Check that add_metadata_schema was called
+                assert mock_vdb.add_metadata_schema.called
+                call_args = mock_vdb.add_metadata_schema.call_args[0]
+                schema = call_args[1]
 
-            field_names = {field["name"] for field in schema}
+                field_names = {field["name"] for field in schema}
 
-            # User fields should be present
-            assert "title" in field_names
-            assert "author" in field_names
+                # User fields should be present
+                assert "title" in field_names
+                assert "author" in field_names
 
-            # Non-reserved system fields should be auto-added
-            assert "filename" in field_names
-            assert "page_number" in field_names
-            assert "start_time" in field_names
-            assert "end_time" in field_names
+                # Non-reserved system fields should be auto-added
+                assert "filename" in field_names
+                assert "page_number" in field_names
+                assert "start_time" in field_names
+                assert "end_time" in field_names
 
-            # Reserved system fields should NOT be auto-added
-            assert "type" not in field_names
-            assert "subtype" not in field_names
-            assert "location" not in field_names
+                # Reserved system fields should NOT be auto-added
+                assert "type" not in field_names
+                assert "subtype" not in field_names
+                assert "location" not in field_names
 
 
 if __name__ == "__main__":

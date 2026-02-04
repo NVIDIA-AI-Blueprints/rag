@@ -22,6 +22,8 @@ import pytest
 
 from nvidia_rag.rag_server.main import NvidiaRAG
 from nvidia_rag.rag_server.response_generator import APIError
+from nvidia_rag.rag_server.llm_chain import llm_chain, vlm_direct_chain
+from nvidia_rag.rag_server.content_utils import _contains_images
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
 
 
@@ -65,7 +67,9 @@ class TestLLMChainWithVLMInference:
             APIError,
             match="Visual Q&A is not supported without VLM inference enabled",
         ):
-            await rag._llm_chain(
+            await llm_chain(
+                config=rag.config,
+                prompts=rag.prompts,
                 llm_settings=llm_settings,
                 query=query,
                 chat_history=[],
@@ -94,14 +98,14 @@ class TestLLMChainWithVLMInference:
             "stop": [],
         }
 
-        with patch.object(rag, "_handle_prompt_processing") as mock_handle_prompt:
-            with patch("nvidia_rag.rag_server.main.get_llm") as mock_get_llm:
+        with patch("nvidia_rag.rag_server.message_processor.handle_prompt_processing") as mock_handle_prompt:
+            with patch("nvidia_rag.rag_server.llm_chain.get_llm") as mock_get_llm:
                 with patch(
-                    "nvidia_rag.rag_server.main.ChatPromptTemplate"
+                    "nvidia_rag.rag_server.llm_chain.ChatPromptTemplate"
                 ) as mock_prompt_template:
-                    with patch("nvidia_rag.rag_server.main.StrOutputParser"):
+                    with patch("nvidia_rag.rag_server.llm_chain.StrOutputParser"):
                         with patch(
-                            "nvidia_rag.rag_server.main.generate_answer_async"
+                            "nvidia_rag.rag_server.llm_chain.generate_answer_async"
                         ) as mock_generate_answer:
                             with patch.dict(os.environ, {"CONVERSATION_HISTORY": "0"}):
                                 mock_handle_prompt.return_value = (
@@ -137,7 +141,9 @@ class TestLLMChainWithVLMInference:
                                     async_gen_from_list(["test response"])
                                 )
 
-                                result = await rag._llm_chain(
+                                result = await llm_chain(
+                                    config=rag.config,
+                                    prompts=rag.prompts,
                                     llm_settings=llm_settings,
                                     query="test query",
                                     chat_history=[],
@@ -159,12 +165,14 @@ class TestLLMChainWithVLMInference:
         llm_settings = {}
         vlm_settings = {"vlm_model": "test_vlm"}
 
-        with patch.object(rag, "_vlm_direct_chain") as mock_vlm_chain:
+        with patch("nvidia_rag.rag_server.llm_chain.vlm_direct_chain") as mock_vlm_chain:
             mock_vlm_chain.return_value = Mock(
                 generator=async_gen_from_list(["vlm response"]), status_code=200
             )
 
-            result = await rag._llm_chain(
+            result = await llm_chain(
+                config=rag.config,
+                prompts=rag.prompts,
                 llm_settings=llm_settings,
                 query="test query",
                 chat_history=[],
@@ -201,10 +209,10 @@ class TestVLMDirectChain:
         query = "What is AI?"
         chat_history = []
 
-        with patch("nvidia_rag.rag_server.main.VLM") as mock_vlm_class:
-            with patch.object(rag, "_eager_prefetch_astream") as mock_prefetch:
+        with patch("nvidia_rag.rag_server.llm_chain.VLM") as mock_vlm_class:
+            with patch("nvidia_rag.rag_server.llm_chain._eager_prefetch_astream") as mock_prefetch:
                 with patch(
-                    "nvidia_rag.rag_server.main.generate_answer_async"
+                    "nvidia_rag.rag_server.llm_chain.generate_answer_async"
                 ) as mock_generate_answer:
                     with patch.dict(os.environ, {"CONVERSATION_HISTORY": "0"}):
                         # Mock VLM instance
@@ -223,7 +231,9 @@ class TestVLMDirectChain:
                             ["VLM response"]
                         )
 
-                        result = await rag._vlm_direct_chain(
+                        result = await vlm_direct_chain(
+                            config=rag.config,
+                            prompts=rag.prompts,
                             query=query,
                             chat_history=chat_history,
                             model="test_model",
@@ -257,10 +267,10 @@ class TestVLMDirectChain:
         ]
         chat_history = []
 
-        with patch("nvidia_rag.rag_server.main.VLM") as mock_vlm_class:
-            with patch.object(rag, "_eager_prefetch_astream") as mock_prefetch:
+        with patch("nvidia_rag.rag_server.llm_chain.VLM") as mock_vlm_class:
+            with patch("nvidia_rag.rag_server.llm_chain._eager_prefetch_astream") as mock_prefetch:
                 with patch(
-                    "nvidia_rag.rag_server.main.generate_answer_async"
+                    "nvidia_rag.rag_server.llm_chain.generate_answer_async"
                 ) as mock_generate_answer:
                     with patch.dict(os.environ, {"CONVERSATION_HISTORY": "0"}):
                         # Mock VLM instance
@@ -279,7 +289,9 @@ class TestVLMDirectChain:
                             ["VLM response"]
                         )
 
-                        result = await rag._vlm_direct_chain(
+                        result = await vlm_direct_chain(
+                            config=rag.config,
+                            prompts=rag.prompts,
                             query=query,
                             chat_history=chat_history,
                             model="test_model",
@@ -290,6 +302,10 @@ class TestVLMDirectChain:
 
                         assert hasattr(result, "generator")
                         assert result.status_code == 200
+
+                        # Consume the generator to trigger the VLM calls
+                        chunks = [chunk async for chunk in result.generator]
+                        assert len(chunks) > 0
 
                         # Verify VLM was called with correct messages
                         mock_vlm.stream_with_messages.assert_called_once()
@@ -321,10 +337,10 @@ class TestVLMDirectChain:
         query = "test query"
         chat_history = []
 
-        with patch("nvidia_rag.rag_server.main.VLM") as mock_vlm_class:
-            with patch.object(rag, "_eager_prefetch_astream") as mock_prefetch:
+        with patch("nvidia_rag.rag_server.llm_chain.VLM") as mock_vlm_class:
+            with patch("nvidia_rag.rag_server.llm_chain._eager_prefetch_astream") as mock_prefetch:
                 with patch(
-                    "nvidia_rag.rag_server.main.generate_answer_async"
+                    "nvidia_rag.rag_server.llm_chain.generate_answer_async"
                 ) as mock_generate_answer:
                     with patch.dict(os.environ, {"CONVERSATION_HISTORY": "0"}):
                         # Mock VLM instance
@@ -341,7 +357,9 @@ class TestVLMDirectChain:
                             ["VLM response"]
                         )
 
-                        result = await rag._vlm_direct_chain(
+                        result = await vlm_direct_chain(
+                            config=rag.config,
+                            prompts=rag.prompts,
                             query=query,
                             chat_history=chat_history,
                             model="test_model",
@@ -386,10 +404,10 @@ class TestVLMDirectChain:
             {"role": "assistant", "content": "Second answer"},
         ]
 
-        with patch("nvidia_rag.rag_server.main.VLM") as mock_vlm_class:
-            with patch.object(rag, "_eager_prefetch_astream") as mock_prefetch:
+        with patch("nvidia_rag.rag_server.llm_chain.VLM") as mock_vlm_class:
+            with patch("nvidia_rag.rag_server.llm_chain._eager_prefetch_astream") as mock_prefetch:
                 with patch(
-                    "nvidia_rag.rag_server.main.generate_answer_async"
+                    "nvidia_rag.rag_server.llm_chain.generate_answer_async"
                 ) as mock_generate_answer:
                     with patch.dict(os.environ, {"CONVERSATION_HISTORY": "1"}):
                         # Mock VLM instance
@@ -406,7 +424,9 @@ class TestVLMDirectChain:
                             ["VLM response"]
                         )
 
-                        result = await rag._vlm_direct_chain(
+                        result = await vlm_direct_chain(
+                            config=rag.config,
+                            prompts=rag.prompts,
                             query=query,
                             chat_history=chat_history,
                             model="test_model",
@@ -414,6 +434,10 @@ class TestVLMDirectChain:
                             metrics=None,
                             vlm_settings={},
                         )
+
+                        # Consume the generator to trigger VLM calls
+                        chunks = [chunk async for chunk in result.generator]
+                        assert len(chunks) > 0
 
                         # Verify the messages passed to VLM includes history + query
                         mock_vlm.stream_with_messages.assert_called_once()
@@ -443,10 +467,10 @@ class TestVLMDirectChain:
             {"role": "assistant", "content": "Old answer"},
         ]
 
-        with patch("nvidia_rag.rag_server.main.VLM") as mock_vlm_class:
-            with patch.object(rag, "_eager_prefetch_astream") as mock_prefetch:
+        with patch("nvidia_rag.rag_server.llm_chain.VLM") as mock_vlm_class:
+            with patch("nvidia_rag.rag_server.llm_chain._eager_prefetch_astream") as mock_prefetch:
                 with patch(
-                    "nvidia_rag.rag_server.main.generate_answer_async"
+                    "nvidia_rag.rag_server.llm_chain.generate_answer_async"
                 ) as mock_generate_answer:
                     with patch.dict(os.environ, {"CONVERSATION_HISTORY": "0"}):
                         # Mock VLM instance
@@ -463,7 +487,9 @@ class TestVLMDirectChain:
                             ["VLM response"]
                         )
 
-                        result = await rag._vlm_direct_chain(
+                        result = await vlm_direct_chain(
+                            config=rag.config,
+                            prompts=rag.prompts,
                             query=query,
                             chat_history=chat_history,
                             model="test_model",
@@ -471,6 +497,10 @@ class TestVLMDirectChain:
                             metrics=None,
                             vlm_settings={},
                         )
+
+                        # Consume the generator to trigger VLM calls
+                        chunks = [chunk async for chunk in result.generator]
+                        assert len(chunks) > 0
 
                         # Verify only current query is passed (no history)
                         mock_vlm.stream_with_messages.assert_called_once()
@@ -494,39 +524,38 @@ class TestVLMDirectChain:
 
         query = "test query"
 
-        with patch("nvidia_rag.rag_server.main.VLM") as mock_vlm_class:
-            with patch.object(rag, "_eager_prefetch_astream") as mock_prefetch:
-                with patch(
-                    "nvidia_rag.rag_server.main.generate_answer_async"
-                ) as mock_generate_answer:
-                    with patch.dict(os.environ, {"CONVERSATION_HISTORY": "0"}):
-                        # Mock VLM instance
-                        mock_vlm = Mock()
-                        mock_vlm.stream_with_messages = AsyncMock(
-                            return_value=async_gen_from_list(["VLM response"])
-                        )
-                        mock_vlm_class.return_value = mock_vlm
+        with patch("nvidia_rag.rag_server.llm_chain.VLM") as mock_vlm_class:
+            with patch(
+                "nvidia_rag.rag_server.llm_chain.generate_answer_async"
+            ) as mock_generate_answer:
+                with patch.dict(os.environ, {"CONVERSATION_HISTORY": "0"}):
+                    # Mock VLM to raise APIError during stream_with_messages
+                    mock_vlm = Mock()
+                    async def raise_api_error(*args, **kwargs):
+                        # This is an async generator that raises immediately
+                        raise APIError("VLM service error", 500)
+                        yield  # This line is never reached but makes it an async generator
+                    
+                    mock_vlm.stream_with_messages = Mock(side_effect=raise_api_error)
+                    mock_vlm_class.return_value = mock_vlm
 
-                        # Mock prefetch to raise APIError
-                        mock_prefetch.side_effect = APIError(
-                            "VLM service error", 500
-                        )
+                    mock_generate_answer.return_value = async_gen_from_list(
+                        ["VLM service error"]
+                    )
 
-                        mock_generate_answer.return_value = async_gen_from_list(
-                            ["VLM service error"]
-                        )
+                    result = await vlm_direct_chain(
+                        config=rag.config,
+                        prompts=rag.prompts,
+                        query=query,
+                        chat_history=[],
+                        model="test_model",
+                        enable_citations=True,
+                        metrics=None,
+                        vlm_settings={},
+                    )
 
-                        result = await rag._vlm_direct_chain(
-                            query=query,
-                            chat_history=[],
-                            model="test_model",
-                            enable_citations=True,
-                            metrics=None,
-                            vlm_settings={},
-                        )
-
-                        # Should return error response
-                        assert result.status_code == 500
+                    # Should return error response
+                    assert result.status_code == 500
 
     @pytest.mark.asyncio
     async def test_vlm_direct_chain_connection_error(self):
@@ -544,45 +573,46 @@ class TestVLMDirectChain:
 
         query = "test query"
 
-        with patch("nvidia_rag.rag_server.main.VLM") as mock_vlm_class:
-            with patch.object(rag, "_eager_prefetch_astream") as mock_prefetch:
-                with patch(
-                    "nvidia_rag.rag_server.main.generate_answer_async"
-                ) as mock_generate_answer:
-                    with patch.dict(os.environ, {"CONVERSATION_HISTORY": "0"}):
-                        # Mock VLM instance
-                        mock_vlm = Mock()
-                        mock_vlm_class.return_value = mock_vlm
+        with patch("nvidia_rag.rag_server.llm_chain.VLM") as mock_vlm_class:
+            with patch(
+                "nvidia_rag.rag_server.llm_chain.generate_answer_async"
+            ) as mock_generate_answer:
+                with patch.dict(os.environ, {"CONVERSATION_HISTORY": "0"}):
+                    # Mock VLM to raise ConnectionError during stream_with_messages
+                    mock_vlm = Mock()
+                    async def raise_connection_error(*args, **kwargs):
+                        raise ConnectionError("Connection refused")
+                        yield  # This line is never reached but makes it an async generator
+                    
+                    mock_vlm.stream_with_messages = Mock(side_effect=raise_connection_error)
+                    mock_vlm_class.return_value = mock_vlm
 
-                        # Mock prefetch to raise ConnectionError
-                        mock_prefetch.side_effect = ConnectionError(
-                            "Connection refused"
-                        )
+                    mock_generate_answer.return_value = async_gen_from_list(
+                        ["VLM NIM unavailable"]
+                    )
 
-                        mock_generate_answer.return_value = async_gen_from_list(
-                            ["VLM NIM unavailable"]
-                        )
+                    result = await vlm_direct_chain(
+                        config=rag.config,
+                        prompts=rag.prompts,
+                        query=query,
+                        chat_history=[],
+                        model="test_model",
+                        enable_citations=True,
+                        metrics=None,
+                        vlm_settings={"vlm_endpoint": "http://vlm.com"},
+                    )
 
-                        result = await rag._vlm_direct_chain(
-                            query=query,
-                            chat_history=[],
-                            model="test_model",
-                            enable_citations=True,
-                            metrics=None,
-                            vlm_settings={"vlm_endpoint": "http://vlm.com"},
-                        )
+                    # Should return SERVICE_UNAVAILABLE status
+                    assert result.status_code == 503
 
-                        # Should return SERVICE_UNAVAILABLE status
-                        assert result.status_code == 503
-
-                        # Verify error message contains endpoint info
-                        response_items = []
-                        async for item in result.generator:
-                            response_items.append(item)
-                        assert any(
-                            "VLM NIM unavailable" in str(item)
-                            for item in response_items
-                        )
+                    # Verify error message contains endpoint info
+                    response_items = []
+                    async for item in result.generator:
+                        response_items.append(item)
+                    assert any(
+                        "VLM NIM unavailable" in str(item)
+                        for item in response_items
+                    )
 
     @pytest.mark.asyncio
     async def test_vlm_direct_chain_os_error(self):
@@ -600,34 +630,37 @@ class TestVLMDirectChain:
 
         query = "test query"
 
-        with patch("nvidia_rag.rag_server.main.VLM") as mock_vlm_class:
-            with patch.object(rag, "_eager_prefetch_astream") as mock_prefetch:
-                with patch(
-                    "nvidia_rag.rag_server.main.generate_answer_async"
-                ) as mock_generate_answer:
-                    with patch.dict(os.environ, {"CONVERSATION_HISTORY": "0"}):
-                        # Mock VLM instance
-                        mock_vlm = Mock()
-                        mock_vlm_class.return_value = mock_vlm
+        with patch("nvidia_rag.rag_server.llm_chain.VLM") as mock_vlm_class:
+            with patch(
+                "nvidia_rag.rag_server.llm_chain.generate_answer_async"
+            ) as mock_generate_answer:
+                with patch.dict(os.environ, {"CONVERSATION_HISTORY": "0"}):
+                    # Mock VLM to raise OSError during stream_with_messages
+                    mock_vlm = Mock()
+                    async def raise_os_error(*args, **kwargs):
+                        raise OSError("Network error")
+                        yield  # This line is never reached but makes it an async generator
+                    
+                    mock_vlm.stream_with_messages = Mock(side_effect=raise_os_error)
+                    mock_vlm_class.return_value = mock_vlm
 
-                        # Mock prefetch to raise OSError
-                        mock_prefetch.side_effect = OSError("Network error")
+                    mock_generate_answer.return_value = async_gen_from_list(
+                        ["VLM NIM unavailable"]
+                    )
 
-                        mock_generate_answer.return_value = async_gen_from_list(
-                            ["VLM NIM unavailable"]
-                        )
+                    result = await vlm_direct_chain(
+                        config=rag.config,
+                        prompts=rag.prompts,
+                        query=query,
+                        chat_history=[],
+                        model="test_model",
+                        enable_citations=True,
+                        metrics=None,
+                        vlm_settings={},
+                    )
 
-                        result = await rag._vlm_direct_chain(
-                            query=query,
-                            chat_history=[],
-                            model="test_model",
-                            enable_citations=True,
-                            metrics=None,
-                            vlm_settings={},
-                        )
-
-                        # Should return SERVICE_UNAVAILABLE status
-                        assert result.status_code == 503
+                    # Should return SERVICE_UNAVAILABLE status
+                    assert result.status_code == 503
 
     @pytest.mark.asyncio
     async def test_vlm_direct_chain_value_error(self):
@@ -645,34 +678,37 @@ class TestVLMDirectChain:
 
         query = "test query"
 
-        with patch("nvidia_rag.rag_server.main.VLM") as mock_vlm_class:
-            with patch.object(rag, "_eager_prefetch_astream") as mock_prefetch:
-                with patch(
-                    "nvidia_rag.rag_server.main.generate_answer_async"
-                ) as mock_generate_answer:
-                    with patch.dict(os.environ, {"CONVERSATION_HISTORY": "0"}):
-                        # Mock VLM instance
-                        mock_vlm = Mock()
-                        mock_vlm_class.return_value = mock_vlm
+        with patch("nvidia_rag.rag_server.llm_chain.VLM") as mock_vlm_class:
+            with patch(
+                "nvidia_rag.rag_server.llm_chain.generate_answer_async"
+            ) as mock_generate_answer:
+                with patch.dict(os.environ, {"CONVERSATION_HISTORY": "0"}):
+                    # Mock VLM to raise ValueError during stream_with_messages
+                    mock_vlm = Mock()
+                    async def raise_value_error(*args, **kwargs):
+                        raise ValueError("Invalid parameter")
+                        yield  # This line is never reached but makes it an async generator
+                    
+                    mock_vlm.stream_with_messages = Mock(side_effect=raise_value_error)
+                    mock_vlm_class.return_value = mock_vlm
 
-                        # Mock prefetch to raise ValueError
-                        mock_prefetch.side_effect = ValueError("Invalid parameter")
+                    mock_generate_answer.return_value = async_gen_from_list(
+                        ["VLM NIM unavailable"]
+                    )
 
-                        mock_generate_answer.return_value = async_gen_from_list(
-                            ["VLM NIM unavailable"]
-                        )
+                    result = await vlm_direct_chain(
+                        config=rag.config,
+                        prompts=rag.prompts,
+                        query=query,
+                        chat_history=[],
+                        model="test_model",
+                        enable_citations=True,
+                        metrics=None,
+                        vlm_settings={},
+                    )
 
-                        result = await rag._vlm_direct_chain(
-                            query=query,
-                            chat_history=[],
-                            model="test_model",
-                            enable_citations=True,
-                            metrics=None,
-                            vlm_settings={},
-                        )
-
-                        # Should return SERVICE_UNAVAILABLE status
-                        assert result.status_code == 503
+                    # Should return SERVICE_UNAVAILABLE status
+                    assert result.status_code == 503
 
     @pytest.mark.asyncio
     async def test_vlm_direct_chain_403_forbidden_error(self):
@@ -690,34 +726,37 @@ class TestVLMDirectChain:
 
         query = "test query"
 
-        with patch("nvidia_rag.rag_server.main.VLM") as mock_vlm_class:
-            with patch.object(rag, "_eager_prefetch_astream") as mock_prefetch:
-                with patch(
-                    "nvidia_rag.rag_server.main.generate_answer_async"
-                ) as mock_generate_answer:
-                    with patch.dict(os.environ, {"CONVERSATION_HISTORY": "0"}):
-                        # Mock VLM instance
-                        mock_vlm = Mock()
-                        mock_vlm_class.return_value = mock_vlm
+        with patch("nvidia_rag.rag_server.llm_chain.VLM") as mock_vlm_class:
+            with patch(
+                "nvidia_rag.rag_server.llm_chain.generate_answer_async"
+            ) as mock_generate_answer:
+                with patch.dict(os.environ, {"CONVERSATION_HISTORY": "0"}):
+                    # Mock VLM to raise 403 error during stream_with_messages
+                    mock_vlm = Mock()
+                    async def raise_403_error(*args, **kwargs):
+                        raise Exception("[403] Forbidden")
+                        yield  # This line is never reached but makes it an async generator
+                    
+                    mock_vlm.stream_with_messages = Mock(side_effect=raise_403_error)
+                    mock_vlm_class.return_value = mock_vlm
 
-                        # Mock prefetch to raise 403 error
-                        mock_prefetch.side_effect = Exception("[403] Forbidden")
+                    mock_generate_answer.return_value = async_gen_from_list(
+                        ["Authentication or permission error"]
+                    )
 
-                        mock_generate_answer.return_value = async_gen_from_list(
-                            ["Authentication or permission error"]
-                        )
+                    result = await vlm_direct_chain(
+                        config=rag.config,
+                        prompts=rag.prompts,
+                        query=query,
+                        chat_history=[],
+                        model="test_model",
+                        enable_citations=True,
+                        metrics=None,
+                        vlm_settings={},
+                    )
 
-                        result = await rag._vlm_direct_chain(
-                            query=query,
-                            chat_history=[],
-                            model="test_model",
-                            enable_citations=True,
-                            metrics=None,
-                            vlm_settings={},
-                        )
-
-                        # Should return FORBIDDEN status
-                        assert result.status_code == 403
+                    # Should return FORBIDDEN status
+                    assert result.status_code == 403
 
     @pytest.mark.asyncio
     async def test_vlm_direct_chain_404_not_found_error(self):
@@ -735,40 +774,43 @@ class TestVLMDirectChain:
 
         query = "test query"
 
-        with patch("nvidia_rag.rag_server.main.VLM") as mock_vlm_class:
-            with patch.object(rag, "_eager_prefetch_astream") as mock_prefetch:
-                with patch(
-                    "nvidia_rag.rag_server.main.generate_answer_async"
-                ) as mock_generate_answer:
-                    with patch.dict(os.environ, {"CONVERSATION_HISTORY": "0"}):
-                        # Mock VLM instance
-                        mock_vlm = Mock()
-                        mock_vlm_class.return_value = mock_vlm
+        with patch("nvidia_rag.rag_server.llm_chain.VLM") as mock_vlm_class:
+            with patch(
+                "nvidia_rag.rag_server.llm_chain.generate_answer_async"
+            ) as mock_generate_answer:
+                with patch.dict(os.environ, {"CONVERSATION_HISTORY": "0"}):
+                    # Mock VLM to raise 404 error during stream_with_messages
+                    mock_vlm = Mock()
+                    async def raise_404_error(*args, **kwargs):
+                        raise Exception("[404] Not Found")
+                        yield  # This line is never reached but makes it an async generator
+                    
+                    mock_vlm.stream_with_messages = Mock(side_effect=raise_404_error)
+                    mock_vlm_class.return_value = mock_vlm
 
-                        # Mock prefetch to raise 404 error
-                        mock_prefetch.side_effect = Exception("[404] Not Found")
+                    mock_generate_answer.return_value = async_gen_from_list(
+                        ["VLM model 'test_vlm_model' not found"]
+                    )
 
-                        mock_generate_answer.return_value = async_gen_from_list(
-                            ["VLM model 'test_vlm_model' not found"]
-                        )
+                    result = await vlm_direct_chain(
+                        config=rag.config,
+                        prompts=rag.prompts,
+                        query=query,
+                        chat_history=[],
+                        model="test_model",
+                        enable_citations=True,
+                        metrics=None,
+                        vlm_settings={"vlm_model": "test_vlm_model"},
+                    )
 
-                        result = await rag._vlm_direct_chain(
-                            query=query,
-                            chat_history=[],
-                            model="test_model",
-                            enable_citations=True,
-                            metrics=None,
-                            vlm_settings={"vlm_model": "test_vlm_model"},
-                        )
+                    # Should return NOT_FOUND status
+                    assert result.status_code == 404
 
-                        # Should return NOT_FOUND status
-                        assert result.status_code == 404
-
-                        # Verify error message contains model name
-                        response_items = []
-                        async for item in result.generator:
-                            response_items.append(item)
-                        assert any(
+                    # Verify error message contains model name
+                    response_items = []
+                    async for item in result.generator:
+                        response_items.append(item)
+                    assert any(
                             "test_vlm_model" in str(item) for item in response_items
                         )
 
@@ -788,34 +830,37 @@ class TestVLMDirectChain:
 
         query = "test query"
 
-        with patch("nvidia_rag.rag_server.main.VLM") as mock_vlm_class:
-            with patch.object(rag, "_eager_prefetch_astream") as mock_prefetch:
-                with patch(
-                    "nvidia_rag.rag_server.main.generate_answer_async"
-                ) as mock_generate_answer:
-                    with patch.dict(os.environ, {"CONVERSATION_HISTORY": "0"}):
-                        # Mock VLM instance
-                        mock_vlm = Mock()
-                        mock_vlm_class.return_value = mock_vlm
+        with patch("nvidia_rag.rag_server.llm_chain.VLM") as mock_vlm_class:
+            with patch(
+                "nvidia_rag.rag_server.llm_chain.generate_answer_async"
+            ) as mock_generate_answer:
+                with patch.dict(os.environ, {"CONVERSATION_HISTORY": "0"}):
+                    # Mock VLM to raise general exception during stream_with_messages
+                    mock_vlm = Mock()
+                    async def raise_general_error(*args, **kwargs):
+                        raise Exception("Unexpected error")
+                        yield  # This line is never reached but makes it an async generator
+                    
+                    mock_vlm.stream_with_messages = Mock(side_effect=raise_general_error)
+                    mock_vlm_class.return_value = mock_vlm
 
-                        # Mock prefetch to raise general exception
-                        mock_prefetch.side_effect = Exception("Unexpected error")
+                    mock_generate_answer.return_value = async_gen_from_list(
+                        ["Unexpected error"]
+                    )
 
-                        mock_generate_answer.return_value = async_gen_from_list(
-                            ["Unexpected error"]
-                        )
+                    result = await vlm_direct_chain(
+                        config=rag.config,
+                        prompts=rag.prompts,
+                        query=query,
+                        chat_history=[],
+                        model="test_model",
+                        enable_citations=True,
+                        metrics=None,
+                        vlm_settings={},
+                    )
 
-                        result = await rag._vlm_direct_chain(
-                            query=query,
-                            chat_history=[],
-                            model="test_model",
-                            enable_citations=True,
-                            metrics=None,
-                            vlm_settings={},
-                        )
-
-                        # Should return BAD_REQUEST status
-                        assert result.status_code == 400
+                    # Should return BAD_REQUEST status
+                    assert result.status_code == 400
 
 
 class TestGenerateMethodVLMIntegration:
@@ -835,7 +880,7 @@ class TestGenerateMethodVLMIntegration:
         rag.config.vlm.max_tokens = 100
         rag.config.vlm.max_total_images = 5
 
-        with patch.object(rag, "_vlm_direct_chain") as mock_vlm_chain:
+        with patch("nvidia_rag.rag_server.llm_chain.vlm_direct_chain") as mock_vlm_chain:
             with patch("nvidia_rag.rag_server.main.logger") as mock_logger:
                 mock_vlm_chain.return_value = Mock(
                     generator=async_gen_from_list(["vlm response"]), status_code=200
@@ -865,7 +910,7 @@ class TestGenerateMethodVLMIntegration:
         rag = NvidiaRAG(vdb_op=mock_vdb_op)
         rag.StreamingFilterThinkParser = Mock()
 
-        with patch.object(rag, "_handle_prompt_processing") as mock_handle_prompt:
+        with patch("nvidia_rag.rag_server.message_processor.handle_prompt_processing") as mock_handle_prompt:
             with patch("nvidia_rag.rag_server.main.get_llm"):
                 with patch("nvidia_rag.rag_server.main.ChatPromptTemplate"):
                     with patch("nvidia_rag.rag_server.main.StrOutputParser"):

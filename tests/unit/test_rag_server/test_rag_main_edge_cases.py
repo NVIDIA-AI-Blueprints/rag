@@ -21,6 +21,7 @@ import pytest
 
 from nvidia_rag.rag_server.main import NvidiaRAG
 from nvidia_rag.rag_server.response_generator import APIError, Citations
+from nvidia_rag.rag_server.vdb_operations import prepare_vdb_op, validate_collections_exist
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
 
 
@@ -47,7 +48,7 @@ class TestNvidiaRAGMinimalCoverage:
 
         rag = NvidiaRAG(vdb_op=mock_vdb_op)
 
-        with patch.object(rag, "_prepare_vdb_op", return_value=mock_vdb_op):
+        with patch("nvidia_rag.rag_server.vdb_operations.prepare_vdb_op", return_value=mock_vdb_op):
             with patch(
                 "nvidia_rag.rag_server.main.prepare_citations",
                 return_value=Citations(documents=[], sources=[]),
@@ -143,7 +144,7 @@ class TestNvidiaRAGMinimalCoverage:
 
         rag = NvidiaRAG(vdb_op=mock_vdb_op)
 
-        with patch.object(rag, "_prepare_vdb_op", return_value=mock_vdb_op):
+        with patch("nvidia_rag.rag_server.vdb_operations.prepare_vdb_op", return_value=mock_vdb_op):
             with patch(
                 "nvidia_rag.rag_server.main.prepare_citations",
                 return_value=Citations(documents=[], sources=[]),
@@ -239,7 +240,7 @@ class TestNvidiaRAGMinimalCoverage:
 
         rag = NvidiaRAG(vdb_op=mock_vdb_op)
 
-        with patch.object(rag, "_prepare_vdb_op", return_value=mock_vdb_op):
+        with patch("nvidia_rag.rag_server.vdb_operations.prepare_vdb_op", return_value=mock_vdb_op):
             with patch(
                 "nvidia_rag.rag_server.main.prepare_citations",
                 return_value=Citations(documents=[], sources=[]),

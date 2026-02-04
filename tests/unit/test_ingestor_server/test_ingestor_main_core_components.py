@@ -24,6 +24,9 @@ import pytest
 from fastapi.testclient import TestClient
 
 from nvidia_rag.ingestor_server.main import Mode, NvidiaRAGIngestor
+from nvidia_rag.ingestor_server.validation import validate_directory_traversal_attack
+from nvidia_rag.ingestor_server.document_processor import log_result_info
+from nvidia_rag.ingestor_server.minio_handler import put_content_to_minio
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
 
 
@@ -142,13 +145,13 @@ class TestNvidiaRAGIngestorValidateDirectoryTraversal:
 
         mock_file = "test.pdf"
 
-        with patch("nvidia_rag.ingestor_server.main.Path") as mock_path:
+        with patch("nvidia_rag.ingestor_server.validation.Path") as mock_path:
             mock_path_instance = Mock()
             mock_path_instance.resolve.return_value = Mock()
             mock_path.return_value = mock_path_instance
 
             # Should not raise any exception
-            await ingestor.validate_directory_traversal_attack(mock_file)
+            await validate_directory_traversal_attack(mock_file)
 
     @pytest.mark.asyncio
     async def test_validate_directory_traversal_attack_os_error(self):
@@ -157,7 +160,7 @@ class TestNvidiaRAGIngestorValidateDirectoryTraversal:
 
         mock_file = "test.pdf"
 
-        with patch("nvidia_rag.ingestor_server.main.Path") as mock_path:
+        with patch("nvidia_rag.ingestor_server.validation.Path") as mock_path:
             mock_path_instance = Mock()
             mock_path_instance.resolve.side_effect = OSError("Path error")
             mock_path.return_value = mock_path_instance
@@ -166,7 +169,7 @@ class TestNvidiaRAGIngestorValidateDirectoryTraversal:
                 ValueError,
                 match="File not found or a directory traversal attack detected",
             ):
-                await ingestor.validate_directory_traversal_attack(mock_file)
+                await validate_directory_traversal_attack(mock_file)
 
     @pytest.mark.asyncio
     async def test_validate_directory_traversal_attack_value_error(self):
@@ -175,7 +178,7 @@ class TestNvidiaRAGIngestorValidateDirectoryTraversal:
 
         mock_file = "test.pdf"
 
-        with patch("nvidia_rag.ingestor_server.main.Path") as mock_path:
+        with patch("nvidia_rag.ingestor_server.validation.Path") as mock_path:
             mock_path_instance = Mock()
             mock_path_instance.resolve.side_effect = ValueError("Value error")
             mock_path.return_value = mock_path_instance
@@ -184,7 +187,7 @@ class TestNvidiaRAGIngestorValidateDirectoryTraversal:
                 ValueError,
                 match="File not found or a directory traversal attack detected",
             ):
-                await ingestor.validate_directory_traversal_attack(mock_file)
+                await validate_directory_traversal_attack(mock_file)
 
 
 class TestNvidiaRAGIngestorPrepareVDBOp:
@@ -281,8 +284,8 @@ class TestNvidiaRAGIngestorLogResultInfo:
         failures = []
         total_ingestion_time = 1.5
 
-        with patch("nvidia_rag.ingestor_server.main.logger") as mock_logger:
-            ingestor._log_result_info(
+        with patch("nvidia_rag.ingestor_server.document_processor.logger") as mock_logger:
+            log_result_info(
                 batch_number, results, failures, total_ingestion_time
             )
 
@@ -298,8 +301,8 @@ class TestNvidiaRAGIngestorLogResultInfo:
         failures = [("file2.pdf", "Test error")]
         total_ingestion_time = 2.0
 
-        with patch("nvidia_rag.ingestor_server.main.logger") as mock_logger:
-            ingestor._log_result_info(
+        with patch("nvidia_rag.ingestor_server.document_processor.logger") as mock_logger:
+            log_result_info(
                 batch_number, results, failures, total_ingestion_time
             )
 
@@ -315,8 +318,8 @@ class TestNvidiaRAGIngestorLogResultInfo:
         failures = []
         total_ingestion_time = 0.0
 
-        with patch("nvidia_rag.ingestor_server.main.logger") as mock_logger:
-            ingestor._log_result_info(
+        with patch("nvidia_rag.ingestor_server.document_processor.logger") as mock_logger:
+            log_result_info(
                 batch_number, results, failures, total_ingestion_time
             )
 
@@ -335,13 +338,12 @@ class TestNvidiaRAGIngestorPutContentToMinio:
         collection_name = "test_collection"
 
         # Set config and mock minio_operator on instance
-        ingestor.config.enable_citations = True
+        enable_citations = True
         mock_minio = Mock()
         mock_minio.put_content.return_value = "minio_url"
-        ingestor.minio_operator = mock_minio
 
         # Should not raise any exception
-        ingestor._NvidiaRAGIngestor__put_content_to_minio(results, collection_name)
+        put_content_to_minio(results, collection_name, mock_minio, enable_citations)
 
     def test_put_content_to_minio_citations_disabled(self):
         """Test putting content to MinIO when citations are disabled."""
@@ -351,11 +353,12 @@ class TestNvidiaRAGIngestorPutContentToMinio:
         collection_name = "test_collection"
 
         # Set config on instance
-        ingestor.config.enable_citations = False
+        enable_citations = False
+        mock_minio = Mock()
 
-        with patch("nvidia_rag.ingestor_server.main.logger") as mock_logger:
+        with patch("nvidia_rag.ingestor_server.minio_handler.logger") as mock_logger:
             # Should not raise any exception and should log skip message
-            ingestor._NvidiaRAGIngestor__put_content_to_minio(results, collection_name)
+            put_content_to_minio(results, collection_name, mock_minio, enable_citations)
             mock_logger.info.assert_called()
 
     def test_put_content_to_minio_empty_results(self):
@@ -366,9 +369,8 @@ class TestNvidiaRAGIngestorPutContentToMinio:
         collection_name = "test_collection"
 
         # Set config on instance
-        ingestor.config.enable_citations = True
+        enable_citations = True
         mock_minio = Mock()
-        ingestor.minio_operator = mock_minio
 
         # Should not raise any exception with empty results
-        ingestor._NvidiaRAGIngestor__put_content_to_minio(results, collection_name)
+        put_content_to_minio(results, collection_name, mock_minio, enable_citations)
