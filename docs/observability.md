@@ -104,24 +104,36 @@ After tracing is enabled and running, you can view inputs and outputs of differe
 
 Use the following procedure to enable observability with Helm.
 
+### Prerequisites: Install Prometheus Operator CRDs
+
+Before enabling the observability stack, install the Prometheus Operator CRDs:
+
+```bash
+# Add the Prometheus Helm repository
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo update
+
+# Install Prometheus Operator CRDs
+helm upgrade --install prometheus-crds prometheus-community/prometheus-operator-crds \
+  --version 26.0.1 \
+  --namespace rag \
+  --create-namespace
+```
+
+:::{note}
+The Prometheus Operator CRDs must be installed before deploying the RAG blueprint with observability enabled. These CRDs are required for ServiceMonitor and other Prometheus resources.
+:::
+
 ### Enable OpenTelemetry Collector, Zipkin and Prometheus stack
 
-1. Modify [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml):
+The observability stack is **disabled by default** to minimize resource usage. To enable it:
 
-   Update the [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) file to enable tracing and the observability stack:
+1. **Install Prometheus Operator CRDs** (if not already installed - see Prerequisites above)
+
+2. Modify [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) to enable the observability components:
 
    ```yaml
-   # Environment variables for rag-server
-   envVars:
-     # ... existing configurations ...
-     
-     # === Tracing ===
-     APP_TRACING_ENABLED: "True"
-     # ... other tracing configurations ...
-
-   # ... existing configurations ...
-
-   # Observability stack
+   # Enable observability stack
    serviceMonitor:
      enabled: true
 
@@ -133,9 +145,16 @@ Use the following procedure to enable observability with Helm.
 
    kube-prometheus-stack:
      enabled: true
+
+   # Enable tracing in rag-server
+   envVars:
+     # === Tracing ===
+     APP_TRACING_ENABLED: "True"  # Change from "False" to "True"
+     APP_TRACING_OTLPHTTPENDPOINT: "http://rag-opentelemetry-collector:4318/v1/traces"
+     APP_TRACING_OTLPGRPCENDPOINT: "grpc://rag-opentelemetry-collector:4317"
    ```
 
-2. Deploy the changes:
+3. Deploy the changes:
 
    After modifying [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml), apply the changes as described in [Change a Deployment](deploy-helm.md#change-a-deployment).
 

@@ -615,6 +615,11 @@ zipkin:
 # subsection: kube-prometheus-stack
 kube-prometheus-stack:
   enabled: false
+  prometheus-node-exporter:
+    service:
+      port: 9100
+      targetPort: 9100
+    hostNetwork: false
   prometheus:
     serviceMonitor:
       interval: "1s"
@@ -632,6 +637,9 @@ kube-prometheus-stack:
   grafana:
     adminUser: admin
     adminPassword: "admin"
+  prometheusOperator:
+    crds:
+      enabled: false
 
 # -- NIMs (dependencies) configuration
 # subsection: nim-llm
