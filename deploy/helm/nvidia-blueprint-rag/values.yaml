@@ -905,7 +905,7 @@ nv-ingest:
     INSTALL_AUDIO_EXTRACTION_DEPS: "true"
     COMPONENTS_TO_READY_CHECK: "ALL"
 
-    # OCR routing (defaults to Paddle OCR service)
+    # OCR routing (defaults to NeMo Retriever OCR service)
     OCR_GRPC_ENDPOINT: nemoretriever-ocr-v1:8001
     OCR_HTTP_ENDPOINT: http://nemoretriever-ocr-v1:8000/v1/infer
     OCR_INFER_PROTOCOL: grpc
@@ -990,11 +990,14 @@ nv-ingest:
     embedqa:
       enabled: false
 
-    # NIM OCR (PaddleOCR)
-    paddleocr:
-      enabled: false
-
-    # Nemo Retriever OCR
+    # NeMo Retriever OCR (default)
+    # To use PaddleOCR instead, override the image:
+    # nemoretriever_ocr_v1:
+    #   enabled: true
+    #   image:
+    #     repository: nvcr.io/nim/baidu/paddleocr
+    #     tag: 1.5.0
+    # And set OCR_MODEL_NAME to "paddle" in envVars above
     nemoretriever_ocr_v1:
       enabled: true
       storage:
