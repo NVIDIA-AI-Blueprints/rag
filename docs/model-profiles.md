@@ -70,31 +70,57 @@ docker compose -f deploy/compose/nims.yaml up -d
 
 ### Helm Deployment
 
-To set a specific model profile in Helm, add the `NIM_MODEL_PROFILE` environment variable to the `nim-llm` section in [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml):
+For Helm deployments with NIM operator, configure the model profile declaratively through the `model` section in [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml):
 
 ```yaml
-nim-llm:
-  enabled: true
-  service:
-    name: "nim-llm"
-  image:
-    repository: nvcr.io/nim/nvidia/llama-3.3-nemotron-super-49b-v1.5
-    pullPolicy: IfNotPresent
-    tag: "1.14.0"
-  resources:
-    limits:
-      nvidia.com/gpu: 1
-    requests:
-      nvidia.com/gpu: 1
-
-  env:  # Add this section
-    - name: NIM_MODEL_PROFILE
-      value: "tensorrt_llm-h100-fp8-tp1-pp1-throughput-2330:10de-a5381c1be0b8ee66ad41e7dc7b4e6d2cffaa7a4e37ca05f57898817560b0bd2b-1"
-  model:
-    ngcAPIKey: ""
-    name: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
-    hfTokenSecret: ""
+nimOperator:
+  nim-llm:
+    enabled: true
+    replicas: 1
+    service:
+      name: "nim-llm"
+    image:
+      repository: nvcr.io/nim/nvidia/llama-3.3-nemotron-super-49b-v1.5
+      pullPolicy: IfNotPresent
+      tag: "1.14.0"
+    resources:
+      limits:
+        nvidia.com/gpu: 1
+      requests:
+        nvidia.com/gpu: 1
+    model:
+      engine: tensorrt_llm
+      precision: "fp8"
+      qosProfile: "throughput"
+      tensorParallelism: "1"
+      gpus:
+        - product: "rtx6000_blackwell_sv"  # Change based on your GPU
+    storage:
+      pvc:
+        create: true
+        size: "120Gi"
+        volumeAccessMode: ReadWriteOnce
+        storageClass: ""
+      sharedMemorySizeLimit: "16Gi"
+    env:
+      - name: NIM_HTTP_API_PORT
+        value: "8000"
+      - name: NIM_TRITON_LOG_VERBOSE
+        value: "1"
+      - name: NIM_SERVED_MODEL_NAME
+        value: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
 ```
+
+**Key profile parameters:**
+- **`engine`**: `tensorrt_llm` (recommended) or `vllm`
+- **`precision`**: `fp8` (faster) or `bf16` (better accuracy)
+- **`qosProfile`**: `throughput` (batch processing) or `latency` (interactive)
+- **`tensorParallelism`**: Number of GPUs (e.g., `"1"`, `"2"`)
+- **`gpus.product`**: GPU type (e.g., `h100`, `h100_nvl`, `a100`, `rtx6000_blackwell_sv`)
+
+:::{note}
+The NIM operator automatically selects the optimal profile based on these parameters.
+:::
 
 After modifying the [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) file, apply the changes as described in [Change a Deployment](deploy-helm.md#change-a-deployment).
 
