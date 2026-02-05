@@ -83,6 +83,15 @@ To create a dashboard in [Grafana](https://grafana.com/) use the following proce
 7. View your metrics and traces.
 
 
+## Query-to-Answer Pipeline and Studying Time Spent
+
+For a complete description of the flow from query to answer, and guidance on measuring time spent in each stage of the pipeline, see [Query-to-Answer Pipeline](query-to-answer-pipeline.md). It explains:
+
+- **Pipeline stages** – Describes the sequence of stages (query rewriter → retriever → context reranker → LLM generation) and the role of each one.
+- **Studying time** – Shows how to use Zipkin span durations and Prometheus/Grafana metrics (`retrieval_time_ms`, `context_reranker_time_ms`, `llm_generation_time_ms`, `rag_ttft_ms`, etc.) to identify where latency occurs.
+
+Each request trace in Zipkin includes spans such as `query-rewriter`, `retriever`, `context-reranker`, and `llm-stream`. Each span duration is the time spent in that stage. Metrics are exposed at **http://localhost:8889/metrics** and can be visualized in Grafana.
+
 
 ## Viewing Inputs / Outputs of each stage of the RAG pipeline using Zipkin
 
@@ -164,6 +173,7 @@ For detailed information on tracing, refer to [Viewing Traces in Zipkin](#view-t
 
 ## Related Topics
 
+- [Query-to-Answer Pipeline](query-to-answer-pipeline.md) – What happens from query to answer and how to study time per stage.
 - [NVIDIA RAG Blueprint Documentation](readme.md)
 - [Best Practices for Common Settings](accuracy_perf.md).
 - [RAG Pipeline Debugging Guide](debugging.md)

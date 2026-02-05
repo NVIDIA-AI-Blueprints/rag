@@ -162,7 +162,7 @@ If ingestion is not working refer common debugging steps [here](#what-to-do-when
 
 ## How to Verify Your Retrieval Pipeline is Working
 
-The retrieval pipeline processes user queries and generates responses. Follow these steps to ensure it's functioning correctly.
+The retrieval pipeline processes user queries and generates responses. For a description of the pipeline stages (query rewriter → retriever → context reranker → LLM generation) and how to study time spent in each part, see [Query-to-Answer Pipeline](query-to-answer-pipeline.md). Follow these steps to ensure it's functioning correctly.
 
 ### 1. Check if All Required Retrieval Services are Running
 
@@ -378,6 +378,7 @@ df -h
 
 ## Related Topics
 
+- [Query-to-Answer Pipeline](query-to-answer-pipeline.md)
 - [Troubleshooting](troubleshooting.md)
 - [Best Practices for Common Settings](accuracy_perf.md).
 - [Release Notes](release-notes.md)
