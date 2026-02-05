@@ -120,7 +120,7 @@ envVars:
 
   ##===Vector DB specific configurations===
   # URL on which vectorstore is hosted
-  APP_VECTORSTORE_URL: "http://milvus:19530" # Use "http://elasticsearch:9200" for elasticsearch
+  APP_VECTORSTORE_URL: "http://milvus:19530" # Use "http://rag-eck-elasticsearch-es-http:9200" for elasticsearch
   # Type of vectordb used to store embedding supported type "milvus" or "elasticsearch"
   APP_VECTORSTORE_NAME: "milvus"
   # Index type (e.g., GPU_CAGRA)
@@ -317,7 +317,7 @@ ingestor-server:
     # Absolute path to custom prompt.yaml file
     PROMPT_CONFIG_FILE: "/prompt.yaml"
     # === Vector Store Configurations ===
-    APP_VECTORSTORE_URL: "http://milvus:19530" # Use "http://elasticsearch:9200" for elasticsearch
+    APP_VECTORSTORE_URL: "http://milvus:19530" # Use "http://rag-eck-elasticsearch-es-http:9200" for elasticsearch
     APP_VECTORSTORE_NAME: "milvus" # supported values: "milvus" or "elasticsearch"
     APP_VECTORSTORE_SEARCHTYPE: "dense"
     # Type of ranker to use for vector store in case of Hybrid Search
@@ -481,30 +481,37 @@ frontend:
       value: "http://milvus:19530"
 
 # -- Elasticsearch dependency toggle
-# subsection: elasticsearch
-elasticsearch:
+eck-elasticsearch:
   enabled: false
-
-# -- ECK Stack configuration
-# subsection: eck-stack
-eck-stack:
-  eck-kibana:
-    enabled: false
-  eck-elasticsearch:
-    enabled: false
-    http:
-      tls:
-        selfSignedCertificate:
-          disabled: true
-    nodeSets:
-    - name: default
-      count: 1
-      config:
-        node.store.allow_mmap: false
-
-# -- ECK Operator configuration
-eck-operator:
-  installCRDs: false
+  http:
+    tls:
+      selfSignedCertificate:
+        disabled: true
+  nodeSets:
+  - name: default
+    count: 1
+    config:
+      node.store.allow_mmap: false
+      # Disable X-Pack security completely for development
+      xpack.security.enabled: false
+      xpack.security.http.ssl.enabled: false
+      xpack.security.transport.ssl.enabled: false
+    podTemplate:
+      spec:
+        containers:
+        - name: elasticsearch
+          # Override readiness probe to not require authentication
+          readinessProbe:
+            exec:
+              command:
+              - bash
+              - -c
+              - |
+                curl -s http://localhost:9200/_cluster/health | grep -q '"status":"green"\|"status":"yellow"'
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
 
 # -- Observability
 # subsection: serviceMonitor
@@ -516,7 +523,7 @@ opentelemetry-collector:
   enabled: false
   mode: deployment
   image:
-    repository: otel/opentelemetry-collector-contrib
+    repository: docker.io/otel/opentelemetry-collector-contrib
     tag: "0.140.0"
   command:
     name: otelcol-contrib
@@ -608,6 +615,11 @@ zipkin:
 # subsection: kube-prometheus-stack
 kube-prometheus-stack:
   enabled: false
+  prometheus-node-exporter:
+    service:
+      port: 9100
+      targetPort: 9100
+    hostNetwork: false
   prometheus:
     serviceMonitor:
       interval: "1s"
@@ -625,6 +637,9 @@ kube-prometheus-stack:
   grafana:
     adminUser: admin
     adminPassword: "admin"
+  prometheusOperator:
+    crds:
+      enabled: false
 
 # -- NIMs (dependencies) configuration
 # subsection: nim-llm
@@ -648,6 +663,8 @@ nimOperator:
         nvidia.com/gpu: 1
       requests:
         nvidia.com/gpu: 1
+    nodeSelector: {}
+    tolerations: []
     model:
       engine: tensorrt_llm
 # -- Uncomment this section to enable FP8 precision and throughput profile for the NIM LLM, change the GPU product according to the GPU you are using
@@ -656,7 +673,6 @@ nimOperator:
 #      tensorParallelism: "1"
 #      gpus:
 #        - product: "rtx6000_blackwell_sv"
-#        - product: "h100"
     storage:
       pvc:
         create: true
@@ -753,6 +769,8 @@ nimOperator:
         nvidia.com/gpu: 1
       requests:
         nvidia.com/gpu: 1
+    nodeSelector: {}
+    tolerations: []
 #    draResources:
 #      - resourceClaimName: rag-claim
     storage:
@@ -822,6 +840,8 @@ nimOperator:
         nvidia.com/gpu: 1
       requests:
         nvidia.com/gpu: 1
+    nodeSelector: {}
+    tolerations: []
 #    draResources:
 #      - resourceClaimName: rag-claim
     storage:
@@ -893,7 +913,7 @@ nv-ingest:
     INSTALL_AUDIO_EXTRACTION_DEPS: "true"
     COMPONENTS_TO_READY_CHECK: "ALL"
 
-    # OCR routing (defaults to Paddle OCR service)
+    # OCR routing (defaults to NeMo Retriever OCR service)
     OCR_GRPC_ENDPOINT: nemoretriever-ocr-v1:8001
     OCR_HTTP_ENDPOINT: http://nemoretriever-ocr-v1:8000/v1/infer
     OCR_INFER_PROTOCOL: grpc
@@ -978,18 +998,20 @@ nv-ingest:
     embedqa:
       enabled: false
 
-    # NIM OCR (PaddleOCR)
-    paddleocr:
-      enabled: false
-
-    # Nemo Retriever OCR
+    # NeMo Retriever OCR (default)
+    # To use PaddleOCR instead, override the image:
+    # nemoretriever_ocr_v1:
+    #   enabled: true
+    #   image:
+    #     repository: nvcr.io/nim/baidu/paddleocr
+    #     tag: 1.5.0
+    # And set OCR_MODEL_NAME to "paddle" in envVars above
     nemoretriever_ocr_v1:
       enabled: true
       storage:
         pvc:
-          storageClass: ""
           volumeAccessMode: "ReadWriteOnce"
-      nodeSelector: {}
+          storageClass: ""
       tolerations: []
       replicaCount: 1
       image:
@@ -1023,9 +1045,8 @@ nv-ingest:
       enabled: true
       storage:
         pvc:
-          storageClass: ""
           volumeAccessMode: "ReadWriteOnce"
-      nodeSelector: {}
+          storageClass: ""
       tolerations: []
       replicaCount: 1
       image:
@@ -1057,9 +1078,8 @@ nv-ingest:
       enabled: true
       storage:
         pvc:
-          storageClass: ""
           volumeAccessMode: "ReadWriteOnce"
-      nodeSelector: {}
+          storageClass: ""
       tolerations: []
       replicaCount: 1
       image:
@@ -1111,7 +1131,6 @@ nv-ingest:
         pvc:
           storageClass: ""
           volumeAccessMode: "ReadWriteOnce"
-      nodeSelector: {}
       tolerations: []
       replicaCount: 1
       image:

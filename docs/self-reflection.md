@@ -159,30 +159,29 @@ You can enable self-reflection through Helm when you deploy the RAG Blueprint.
 
 ### Deployment Steps
 
-1. Set the following environment variables in your `values.yaml` under `envVars`:
+1. Modify [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml):
+
+   Update the environment variables for the rag-server to enable reflection:
 
    ```yaml
-   # === Reflection ===
-   ENABLE_REFLECTION: "True"
-   MAX_REFLECTION_LOOP: "3"
-   CONTEXT_RELEVANCE_THRESHOLD: "1"
-   RESPONSE_GROUNDEDNESS_THRESHOLD: "1"
-   REFLECTION_LLM: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
-   REFLECTION_LLM_SERVERURL: "nim-llm:8000"
+   # Environment variables for rag-server
+   envVars:
+     # ... existing configurations ...
+     
+     # === Reflection ===
+     ENABLE_REFLECTION: "True"
+     MAX_REFLECTION_LOOP: "3"
+     CONTEXT_RELEVANCE_THRESHOLD: "1"
+     RESPONSE_GROUNDEDNESS_THRESHOLD: "1"
+     REFLECTION_LLM: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+     REFLECTION_LLM_SERVERURL: "nim-llm:8000"
    ```
 
 2. Deploy the RAG Helm chart:
 
-   Follow the steps from [Deploy with Helm](deploy-helm.md) and run:
+   After modifying [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml), apply the changes as described in [Change a Deployment](deploy-helm.md#change-a-deployment).
 
-   ```bash
-   helm install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-rc2.1.tgz \
-     --username '$oauthtoken' \
-     --password "${NGC_API_KEY}" \
-     --set imagePullSecret.password=$NGC_API_KEY \
-     --set ngcApiSecret.password=$NGC_API_KEY \
-     -f deploy/helm/nvidia-blueprint-rag/values.yaml
-   ```
+   For detailed HELM deployment instructions, see [Helm Deployment Guide](deploy-helm.md).
 
 ## How It Works
 

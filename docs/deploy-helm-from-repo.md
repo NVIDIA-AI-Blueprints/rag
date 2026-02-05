@@ -1,4 +1,4 @@
-<!--
+  <!--
   SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
   SPDX-License-Identifier: Apache-2.0
 -->
@@ -22,6 +22,18 @@ The following are the core services that you install:
 1. Verify that you meet the prerequisites specified in [prerequisites](./deploy-helm.md#prerequisites).
 
 2. [Clone the RAG Blueprint Git repository](deploy-docker-self-hosted.md#clone-the-rag-blueprint-git-repository) to get access to the Helm chart source files.
+
+3. Verify that you have installed the NVIDIA NIM Operator. If not, install it by running the following code:
+
+    ```sh
+    helm repo add nvidia https://helm.ngc.nvidia.com/nvidia \
+      --username='$oauthtoken' \
+      --password=$NGC_API_KEY
+    helm repo update
+    helm install nim-operator nvidia/k8s-nim-operator -n nim-operator --create-namespace
+    ```
+
+    For more details, see instructions [here](https://docs.nvidia.com/nim-operator/latest/install.html).
 
 :::{important}
 Consider the following before you deploy the RAG Blueprint:
@@ -76,6 +88,31 @@ If you are working directly with the source Helm chart, and you want to customiz
     --set imagePullSecret.password=$NGC_API_KEY \
     --set ngcApiSecret.password=$NGC_API_KEY
     ```
+
+   :::{important}
+   **For NVIDIA RTX6000 Pro Deployments:**
+   
+    If you are deploying on NVIDIA RTX6000 Pro GPUs (instead of H100 GPUs), you need to configure the NIM LLM model profile. The required configuration is already present but commented out in the [values.yaml](../deploy/helm/nvidia-blueprint-rag/values.yaml) file.
+   
+   Uncomment and modify the following section under `nimOperator.nim-llm.model` in the values.yaml:
+   ```yaml
+   model:
+     engine: tensorrt_llm
+     precision: "fp8"
+     qosProfile: "throughput"
+     tensorParallelism: "1"
+     gpus:
+       - product: "rtx6000_blackwell_sv"
+   ```
+   
+   Then install using the modified values.yaml:
+   ```sh
+   helm upgrade --install rag -n rag nvidia-blueprint-rag/ \
+     --set imagePullSecret.password=$NGC_API_KEY \
+     --set ngcApiSecret.password=$NGC_API_KEY \
+     -f nvidia-blueprint-rag/values.yaml
+   ```
+   :::
 
    :::{note}
    Refer to [NIM Model Profile Configuration](model-profiles.md) for using non-default NIM LLM profile.

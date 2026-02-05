@@ -45,9 +45,9 @@ Use the following procedure to enable observability with Docker.
 
 After tracing is enabled and the system is running, you can **view the traces** in **Zipkin** by opening:
 
-```{image} assets/zipkin_ui.png
-:width: 750px
-```
+<p align="center">
+<img src="./assets/zipkin_ui.png" width="750">
+</p>
 
 Open the Zipkin UI at: **http://localhost:9411**
 
@@ -115,43 +115,61 @@ After tracing is enabled and running, you can view inputs and outputs of differe
 
 Use the following procedure to enable observability with Helm.
 
+### Prerequisites: Install Prometheus Operator CRDs
+
+Before enabling the observability stack, install the Prometheus Operator CRDs:
+
+```bash
+# Add the Prometheus Helm repository
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo update
+
+# Install Prometheus Operator CRDs
+helm upgrade --install prometheus-crds prometheus-community/prometheus-operator-crds \
+  --version 26.0.1 \
+  --namespace rag \
+  --create-namespace
+```
+
+:::{note}
+The Prometheus Operator CRDs must be installed before deploying the RAG blueprint with observability enabled. These CRDs are required for ServiceMonitor and other Prometheus resources.
+:::
+
 ### Enable OpenTelemetry Collector, Zipkin and Prometheus stack
 
-1. Modify `values.yaml`:
+The observability stack is **disabled by default** to minimize resource usage. To enable it:
 
-   Update the `values.yaml` file to enable the OpenTelemetry Collector and Zipkin:
+1. **Install Prometheus Operator CRDs** (if not already installed - see Prerequisites above)
+
+2. Modify [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) to enable the observability components:
 
    ```yaml
-   env:
-   # ... existing code ...
-   APP_TRACING_ENABLED: "True"
-
-   # ... existing code ...
+   # Enable observability stack
    serviceMonitor:
-   enabled: true
+     enabled: true
+
    opentelemetry-collector:
-   enabled: true
-   # ... existing code ...
+     enabled: true
 
    zipkin:
-   enabled: true
+     enabled: true
+
    kube-prometheus-stack:
-   enabled: true
+     enabled: true
+
+   # Enable tracing in rag-server
+   envVars:
+     # === Tracing ===
+     APP_TRACING_ENABLED: "True"  # Change from "False" to "True"
+     APP_TRACING_OTLPHTTPENDPOINT: "http://rag-opentelemetry-collector:4318/v1/traces"
+     APP_TRACING_OTLPGRPCENDPOINT: "grpc://rag-opentelemetry-collector:4317"
    ```
 
-### Deploy the Changes
+3. Deploy the changes:
 
-Redeploy the Helm chart to apply these changes:
+   After modifying [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml), apply the changes as described in [Change a Deployment](deploy-helm.md#change-a-deployment).
 
-```sh
-helm uninstall rag -n rag
-helm install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-rc2.1.tgz \
---username '$oauthtoken' \
---password "${NGC_API_KEY}" \
---set imagePullSecret.password=$NGC_API_KEY \
---set ngcApiSecret.password=$NGC_API_KEY \
--f deploy/helm/nvidia-blueprint-rag/values.yaml
-```
+   For detailed HELM deployment instructions, see [Helm Deployment Guide](deploy-helm.md).
 
 ### Port-forwarding Zipkin and Grafana dashboards
 
