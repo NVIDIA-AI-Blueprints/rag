@@ -37,7 +37,7 @@ For monitoring deployment progress, refer to [Deploy on Kubernetes with Helm](./
 
 4. Verify that you have Kubernetes v1.34.2 installed and running on Ubuntu 22.04/24.04. For more information, see [Kubernetes documentation](https://kubernetes.io/docs/setup/) and [NVIDIA Cloud Native Stack 17.0](https://github.com/NVIDIA/cloud-native-stack/tree/17.0).
 
-5. Verify that you have installed Helm 4.0.0 or later, see [Helm 4 Installation](https://helm.sh/docs/intro/install).
+5. Verify that you have installed Helm 3 or later (Helm v3.20.0 recommended). For installation instructions, see [Helm Installation](https://helm.sh/docs/intro/install).
 
 6. Verify that you have a default storage class available in the cluster for PVC provisioning. One option is the local path provisioner by Rancher.   Refer to the [installation](https://github.com/rancher/local-path-provisioner?tab=readme-ov-file#installation) section of the README in the GitHub repository.
 
@@ -235,21 +235,21 @@ You should see output similar to the following.
 Resource                                    Requested   Limit    Allocatable  Free
 nvidia.com/mig-1g.10gb                      (86%) 6.0   (86%) 6.0     7.0        1.0
 ├─ milvus-standalone-...                   1.0     1.0
-├─ rag-nvidia-nim-llama-...                1.0     1.0
-├─ nv-ingest-paddle-...                    1.0     1.0
-├─ rag-nemoretriever-graphic-...           1.0     1.0
-├─ rag-nemoretriever-page-...              1.0     1.0
-└─ rag-nemoretriever-table-...             1.0     1.0
+├─ nemoretriever-embedding-ms-...          1.0     1.0
+├─ rag-nv-ingest-...                       1.0     1.0
+├─ nemoretriever-graphic-elements-v1-...   1.0     1.0
+├─ nemoretriever-page-elements-v3-...      1.0     1.0
+└─ nemoretriever-table-structure-v1-...    1.0     1.0
 
 nvidia.com/mig-1g.20gb                      (100%) 2.0  (100%) 2.0     2.0        0.0
-├─ rag-text-reranking-nim-...              1.0     1.0
+├─ nemoretriever-ranking-ms-...            1.0     1.0
 └─ <other-workload>                        1.0     1.0
 
 nvidia.com/mig-3g.40gb                      (100%) 1.0  (100%) 1.0     1.0        0.0
 └─ nemoretriever-ocr-v1-...                1.0     1.0
 
 nvidia.com/mig-7g.80gb                      (100%) 1.0  (100%) 1.0     1.0        0.0
-└─ rag-nim-llm-0                            1.0     1.0
+└─ nim-llm-...                             1.0     1.0
 ```
 
 

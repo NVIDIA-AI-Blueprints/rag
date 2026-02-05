@@ -316,9 +316,11 @@ Verify the VLM pods are running:
 kubectl get pods -n rag | grep -E "(vlm|embedding)"
 ```
 
-Expected pods:
-- `rag-0` (VLM model deployment)
-- `nemoretriever-vlm-embedding-ms` (VLM embedding service)
+Expected output:
+```
+nim-vlm-f4c446cbf-ffzm7                              1/1     Running   0          22m
+nemoretriever-vlm-embedding-ms-...                   1/1     Running   0          22m
+```
 
 :::{note}
 It may take several minutes for the VLM pods to initialize and download the model weights.

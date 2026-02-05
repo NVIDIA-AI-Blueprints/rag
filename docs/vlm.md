@@ -151,10 +151,10 @@ Continue with [Deploy with Docker (NVIDIA-Hosted Models)](deploy-docker-nvidia-h
 
 3. Apply the changes as described in [Change a Deployment](deploy-helm.md#change-a-deployment). For full steps, see [Deploy with Helm](deploy-helm.md).
 
-4. Verify the VLM pod is running. A pod with the name `rag-nim-vlm-0` will start (the `nim-llm` pod will not be created when it is disabled). Example status:
+4. Verify the VLM pod is running. A pod with the name `nim-vlm-*` will start (the `nim-llm` pod will not be created when it is disabled). Example status:
 
    ```text
-   rag       rag-nim-vlm-0       0/1     ContainerCreating   0          6m37s
+   rag       nim-vlm-f4c446cbf-ffzm7       1/1     Running   0          22m
    ```
 
 :::{note}
