@@ -3406,8 +3406,13 @@ class NvidiaRAG:
                     )
                     use_two_stage = False
                 else:
-                    # Get reranker model
-                    ranking_model = get_ranking_model(self.config)
+                    # Get reranker model (same pattern as line 909-914)
+                    ranking_model = get_ranking_model(
+                        model=self.config.ranking.model_name,
+                        url=self.config.ranking.server_url,
+                        top_n=reranker_top_k,
+                        config=self.config,
+                    )
                     
                     # Create RAPTOR config and retriever
                     raptor_config = RAPTORConfig.from_config(self.config)
