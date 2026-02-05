@@ -3364,7 +3364,7 @@ class NvidiaRAG:
         """
         Expand retrieved documents using RAPTOR tree traversal.
         
-        Supports two modes (controlled by RAPTOR_TWO_STAGE_RETRIEVAL env var):
+        Supports three modes (controlled by environment variables):
         
         Mode 1 (default, RAPTOR_TWO_STAGE_RETRIEVAL=false):
         - Post-retrieval expansion: Add children of summary nodes
@@ -3374,16 +3374,22 @@ class NvidiaRAG:
         - Two-stage retrieval from scratch:
           Stage 1: Retrieve summaries → identify documents
           Stage 2: Retrieve all content from identified documents
+          Final context: Mix of summaries + chunks
         - Replaces the initial retrieval entirely
-        - Requires query, reranker_model, and other parameters
+        
+        Mode 3 (RAPTOR_TWO_STAGE_RETRIEVAL=true + RAPTOR_EXCLUDE_SUMMARIES_FROM_CONTEXT=true):
+        - Same as Mode 2, but filters out summaries from final context
+        - Stage 1: Use summaries to identify relevant documents
+        - Stage 2: Retrieve content, rerank, then return ONLY chunks (no summaries)
+        - Final context: Chunks only (most detailed content)
         
         Args:
             documents: Retrieved documents from VDB (used in Mode 1)
             vdb_op: VDB operator
-            query: User query (required for Mode 2)
-            reranker_top_k: Final number of chunks (required for Mode 2)
-            collection_names: Collections to search (required for Mode 2)
-            filter_expr: Filter expression (optional for Mode 2)
+            query: User query (required for Mode 2/3)
+            reranker_top_k: Final number of chunks (required for Mode 2/3)
+            collection_names: Collections to search (required for Mode 2/3)
+            filter_expr: Filter expression (optional for Mode 2/3)
         
         Returns:
             Expanded/retrieved list of documents
@@ -3418,6 +3424,9 @@ class NvidiaRAG:
                     raptor_config = RAPTORConfig.from_config(self.config)
                     retriever = RAPTORRetriever(raptor_config)
                     
+                    # Check if summaries should be excluded from final context
+                    exclude_summaries = os.getenv("RAPTOR_EXCLUDE_SUMMARIES_FROM_CONTEXT", "false").lower() in ["true", "1", "yes"]
+                    
                     # Perform two-stage retrieval
                     vdb_top_k = self.config.retriever.vdb_top_k
                     expanded_docs = await retriever.two_stage_retrieval(
@@ -3428,6 +3437,7 @@ class NvidiaRAG:
                         reranker_top_k=reranker_top_k,
                         collection_names=collection_names,
                         filter_expr=filter_expr,
+                        exclude_summaries_from_context=exclude_summaries,
                     )
                     
                     return expanded_docs

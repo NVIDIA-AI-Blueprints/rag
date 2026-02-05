@@ -601,6 +601,7 @@ class RAPTORRetriever:
         reranker_top_k: int = 25,
         collection_names: List[str] = None,
         filter_expr: str = "",
+        exclude_summaries_from_context: bool = False,
     ) -> List[Any]:
         """
         Two-stage RAPTOR retrieval for improved accuracy.
@@ -611,18 +612,21 @@ class RAPTORRetriever:
         - Identify relevant documents from top summaries
         
         Stage 2: Document-focused retrieval
-        - Retrieve all content (summaries + chunks) from identified documents
-        - Rerank to get final top K chunks
-        - Uses existing reranker_top_k parameter
+        - Retrieve content from identified documents
+        - Option 1: Summaries + Chunks (hierarchical context)
+        - Option 2: Chunks only (exclude summaries via VDB filter)
+        - Rerank to get final top K items
         
         Args:
             query: User query
             vdb_op: VDB operator for search
             reranker_model: Reranker model for scoring
             vdb_top_k: Initial VDB retrieval size (default: 100)
-            reranker_top_k: Final number of chunks to return (default: 25)
+            reranker_top_k: Final number of items to return (default: 25)
             collection_names: Collections to search
             filter_expr: Additional filter expression
+            exclude_summaries_from_context: If True, add VDB filter to exclude summaries 
+                                           from Stage 2, returning only original chunks (default: False)
         
         Returns:
             List of top reranked documents from relevant documents
@@ -705,8 +709,17 @@ class RAPTORRetriever:
         logger.info(f"  - Retrieving top {vdb_top_k} items from identified documents")
         logger.info(f"  - Will select top {reranker_top_k} after reranking")
         
-        # Build filter for identified documents (includes all levels + chunks)
+        # Build filter for identified documents (includes all levels + chunks by default)
         doc_filter = self._build_document_filter(document_ids)
+        
+        # Optionally exclude summaries from Stage 2 retrieval (chunks only)
+        if exclude_summaries_from_context:
+            logger.info(f"  - Mode: Chunks only (excluding summaries)")
+            summary_exclusion = 'content_metadata["type"] != "summary"'
+            doc_filter = f"({doc_filter}) and ({summary_exclusion})"
+        else:
+            logger.info(f"  - Mode: Summaries + Chunks (hierarchical context)")
+        
         if filter_expr:
             doc_filter = f"({doc_filter}) and ({filter_expr})"
         
