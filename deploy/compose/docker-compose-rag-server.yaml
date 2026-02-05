@@ -202,6 +202,10 @@ services:
       REDIS_PORT: ${REDIS_PORT:-6379}
       REDIS_DB: ${REDIS_DB:-0}
 
+      # RAPTOR two-stage retrieval configuration
+      RAPTOR_TWO_STAGE_RETRIEVAL: ${RAPTOR_TWO_STAGE_RETRIEVAL:-false}
+      RAPTOR_SUMMARY_TOP_K: ${RAPTOR_SUMMARY_TOP_K:-10}
+
     ports:
       - "8081:8081"
     expose:
