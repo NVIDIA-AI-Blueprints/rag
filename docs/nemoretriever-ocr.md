@@ -180,32 +180,36 @@ Follow the standard [NVIDIA-hosted deployment guide](deploy-docker-nvidia-hosted
 
 #### Using NeMo Retriever OCR (Default)
 
-NeMo Retriever OCR is deployed by default with Helm installations:
-
-```bash
-helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/0648981100760671/charts/nvidia-blueprint-rag-v2.4.0-dev.tgz \
-  --username '$oauthtoken' \
-  --password "${NGC_API_KEY}" \
-  --set imagePullSecret.password=$NGC_API_KEY \
-  --set ngcApiSecret.password=$NGC_API_KEY
-```
+NeMo Retriever OCR is deployed by default with Helm installations. Follow the standard [Helm Deployment Guide](deploy-helm.md) - no additional OCR configuration is required.
 
 #### Using Paddle OCR with Helm
 
 To use Paddle OCR instead of the default NeMo Retriever OCR:
 
-```bash
-# Apply to a fresh deployment (recommended to uninstall existing deployments first)
-# helm uninstall rag -n rag
-helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-rc2.1.tgz \
-  --username '$oauthtoken' \
-  --password "${NGC_API_KEY}" \
-  --set nv-ingest.paddleocr-nim.deployed=true \
-  --set nv-ingest.nemoretriever-ocr.deployed=false \
-  --set nv-ingest.envVars.OCR_MODEL_NAME="paddle" \
-  --set imagePullSecret.password=$NGC_API_KEY \
-  --set ngcApiSecret.password=$NGC_API_KEY
+Modify [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) to override the OCR service image:
+
+```yaml
+nv-ingest:
+  nimOperator:
+    # Override the OCR service to use PaddleOCR image
+    nemoretriever_ocr_v1:
+      enabled: true
+      image:
+        repository: nvcr.io/nim/baidu/paddleocr
+        tag: 1.5.0
+  
+  # Update OCR model name
+  envVars:
+    OCR_MODEL_NAME: paddle
 ```
+
+:::{note}
+The service endpoints (`OCR_GRPC_ENDPOINT` and `OCR_HTTP_ENDPOINT`) remain the same and do not need to be changed. The service name `nemoretriever-ocr-v1` is retained even when using the PaddleOCR image.
+:::
+
+After modifying [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml), apply the changes as described in [Change a Deployment](deploy-helm.md#change-a-deployment).
+
+For detailed Helm deployment instructions, see [Helm Deployment Guide](deploy-helm.md).
 
 
 ## OCR Configuration Reference

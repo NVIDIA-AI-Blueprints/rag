@@ -88,21 +88,23 @@ To configure Milvus to run in CPU mode when deploying with Helm:
     B. Also, change the image under `milvus.image.all` to remove the `-gpu` tag.
 
         ```yaml
-        milvus:
-        image:
-            all:
-            repository: milvusdb/milvus
-            tag: v2.6.2  # instead of v2.6.2-gpu
+        nv-ingest:
+          milvus:
+            image:
+              all:
+                repository: docker.io/milvusdb/milvus
+                tag: v2.6.5  # instead of v2.6.5-gpu
         ```
 
     C. (Optional) Remove or set GPU resource requests/limits to zero in the `milvus.standalone.resources` block.
 
         ```yaml
-        milvus:
-        standalone:
-            resources:
-            limits:
-                nvidia.com/gpu: 0
+        nv-ingest:
+          milvus:
+            standalone:
+              resources:
+                limits:
+                  nvidia.com/gpu: 0
         ```
 
 2. After you modify values.yaml, apply the changes as described in [Change a Deployment](deploy-helm.md#change-a-deployment).
@@ -151,14 +153,26 @@ Set the environment variables in `values.yaml`:
 
 ```yaml
 envVars:
-  APP_VECTORSTORE_ENABLESEARCH: "True"
+  APP_VECTORSTORE_ENABLEGPUSEARCH: "True"
+
 ingestor-server:
   envVars:
     APP_VECTORSTORE_ENABLEGPUSEARCH: "False"
     APP_VECTORSTORE_ENABLEGPUINDEX: "True"
 ```
 
-If you require GPU index-building, ensure the Milvus image variant supports GPU (for example, keep a `-gpu` tag where applicable). `rag-server` can be deployed with either CPU or GPU images for inference; search will be served on CPU for collections indexed with GPU when `APP_VECTORSTORE_ENABLEGPUSEARCH` is set to `False`.
+If you require GPU index-building, ensure the Milvus image variant supports GPU (for example, keep the `-gpu` tag in the Milvus image). The configuration should look like this:
+
+```yaml
+nv-ingest:
+  milvus:
+    image:
+      all:
+        repository: docker.io/milvusdb/milvus
+        tag: v2.6.5-gpu  # GPU-enabled image for GPU indexing
+```
+
+`rag-server` can be deployed with either CPU or GPU images for inference; search will be served on CPU for collections indexed with GPU when `APP_VECTORSTORE_ENABLEGPUSEARCH` is set to `False`.
 
 :::{note}
 When `adapt_for_cpu` is in effect, your search requests must supply an `ef` parameter.
@@ -201,11 +215,7 @@ To use a custom Milvus endpoint, use the following procedure.
       # ... existing code ...
    ```
 
-3. Redeploy the Helm chart by running the following code.
-
-   ```sh
-   helm upgrade rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-dev-dev.tgz -f nvidia-blueprint-rag/values.yaml -n rag
-   ```
+3. After you modify values.yaml, apply the changes as described in [Change a Deployment](deploy-helm.md#change-a-deployment).
 
 
 ## Milvus Authentication
@@ -274,8 +284,9 @@ docker compose -f deploy/compose/vectordb.yaml up -d
 
 Configure user config:
 
-The `values.yaml` file includes the necessary configuration:
+The [values.yaml](../deploy/helm/nvidia-blueprint-rag/values.yaml) file includes the necessary configuration under `nv-ingest.milvus`:
 ```yaml
+nv-ingest:
   milvus:
     extraConfigFiles:
       user.yaml: |+
@@ -302,7 +313,7 @@ The `values.yaml` file includes the necessary configuration:
    kubectl delete pvc data-rag-etcd-0 -n rag
    ```
 
-3. Redeploy with the new password in `values.yaml`.
+3. Redeploy with the new password in  [values.yaml](../deploy/helm/nvidia-blueprint-rag/values.yaml). Refer to [Change a deployment](./deploy-helm.md#change-a-deployment) for redeploying the chart.
 
 For additional instructions, refer to [Uninstall a Deployment](deploy-helm.md#uninstall-a-deployment).
 :::
@@ -314,10 +325,9 @@ For additional instructions, refer to [Uninstall a Deployment](deploy-helm.md#un
 #### 2. Configure username and password in `deploy/helm/nvidia-blueprint-rag/values.yaml`:
 
 ```yaml
-rag-server:
-  envVars:
-    APP_VECTORSTORE_USERNAME: "root"
-    APP_VECTORSTORE_PASSWORD: "your-secure-password"
+envVars:
+  APP_VECTORSTORE_USERNAME: "root"
+  APP_VECTORSTORE_PASSWORD: "your-secure-password"
 
 ingestor-server:
   envVars:
@@ -326,14 +336,8 @@ ingestor-server:
 ```
 
 #### 3. Deploy with Helm:
-```bash
-helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-dev-dev-rc2.tgz \
---username '$oauthtoken' \
---password "${NGC_API_KEY}" \
---set imagePullSecret.password=$NGC_API_KEY \
---set ngcApiSecret.password=$NGC_API_KEY \
--f deploy/helm/nvidia-blueprint-rag/values.yaml
-```
+
+After you modify values.yaml with the authentication settings, apply the changes as described in [Change a Deployment](deploy-helm.md#change-a-deployment).
 
 For detailed HELM deployment instructions, see [Helm Deployment Guide](deploy-helm.md).
 

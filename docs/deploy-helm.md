@@ -35,9 +35,9 @@ Plan for additional space if you are enabling persistence for multiple services.
 
 3. Verify that you have the NGC CLI available on your client computer. You can download the CLI from <https://ngc.nvidia.com/setup/installers/cli>.
 
-4. Verify that you have Kubernetes v1.33 installed and running on Ubuntu 22.04/24.04. For more information, see [Kubernetes documentation](https://kubernetes.io/docs/setup/) and [NVIDIA Cloud Native Stack repository](https://github.com/NVIDIA/cloud-native-stack/).
+4. Verify that you have Kubernetes v1.34.2 installed and running on Ubuntu 22.04/24.04. For more information, see [Kubernetes documentation](https://kubernetes.io/docs/setup/) and [NVIDIA Cloud Native Stack 17.0](https://github.com/NVIDIA/cloud-native-stack/tree/17.0).
 
-5. Verify that you have installed Helm 3, see [Helm 3 Installation](https://helm.sh/docs/v3/intro/install) 
+5. Verify that you have installed Helm 3 or later (Helm v3.20.0 recommended). For installation instructions, see [Helm Installation](https://helm.sh/docs/intro/install).
 
 6. Verify that you have a default storage class available in the cluster for PVC provisioning. One option is the local path provisioner by Rancher.   Refer to the [installation](https://github.com/rancher/local-path-provisioner?tab=readme-ov-file#installation) section of the README in the GitHub repository.
 
@@ -83,12 +83,39 @@ To deploy End-to-End RAG Server and Ingestor Server, use the following procedure
 2. Install the Helm chart by running the following command.
 
     ```sh
-    helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-rc2.1.tgz \
+    helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-rc3.tgz \
     --username '$oauthtoken' \
     --password "${NGC_API_KEY}" \
     --set imagePullSecret.password=$NGC_API_KEY \
     --set ngcApiSecret.password=$NGC_API_KEY
     ```
+
+   :::{important}
+   **For NVIDIA RTX6000 Pro Deployments:**
+   
+    If you are deploying on NVIDIA RTX6000 Pro GPUs (instead of H100 GPUs), you need to configure the NIM LLM model profile. The required configuration is already present but commented out in the [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) file.
+
+    Uncomment and modify the following section under `nimOperator.nim-llm.model`:
+    ```yaml
+    model:
+      engine: tensorrt_llm
+      precision: "fp8"
+      qosProfile: "throughput"
+      tensorParallelism: "1"
+      gpus:
+        - product: "rtx6000_blackwell_sv"
+    ```
+   
+   Then install using the modified values.yaml:
+   ```sh
+   helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-rc3.tgz \
+     --username '$oauthtoken' \
+     --password "${NGC_API_KEY}" \
+     --set imagePullSecret.password=$NGC_API_KEY \
+     --set ngcApiSecret.password=$NGC_API_KEY \
+     -f deploy/helm/nvidia-blueprint-rag/values.yaml
+   ```
+   :::
 
    :::{note}
    Refer to [NIM Model Profile Configuration](model-profiles.md) for using non-default NIM LLM profile.
@@ -108,25 +135,24 @@ To verify a deployment, use the following procedure.
     You should see output similar to the following.
 
     ```sh
-    NAME                                                        READY   STATUS    RESTARTS      AGE
-    ingestor-server-7bcff75fbb-s655f                            1/1     Running   0             23m
-    nv-ingest-paddle-0                                          1/1     Running   0             23m
-    rag-etcd-0                                                  1/1     Running   0             23m
-    rag-frontend-5d6c6dc4bd-5xpcw                               1/1     Running   0             23m
-    rag-milvus-standalone-5f5699dfb6-dzlhr                      1/1     Running   3 (23m ago)   23m
-    rag-minio-f88fb7fd4-29fxk                                   1/1     Running   0             23m
-    rag-nemoretriever-graphic-elements-v1-b6d465575-rl66q       1/1     Running   0             23m
-    rag-nemoretriever-page-elements-v2-596679ff54-z2kkf         1/1     Running   0             23m
-    rag-nemoretriever-table-structure-v1-748df88f86-z7mwb       1/1     Running   0             23m
-    rag-nim-llm-0                                               1/1     Running   0             23m
-    rag-nv-ingest-75cdb75c48-kbr7r                              1/1     Running   0             23m
-    rag-nvidia-nim-llama-32-nv-embedqa-1b-v2-5b6dc664d8-8flpd   1/1     Running   0             23m
-    rag-opentelemetry-collector-558b89885-c7c8j                 1/1     Running   0             23m
-    rag-redis-master-0                                          1/1     Running   0             23m
-    rag-redis-replicas-0                                        1/1     Running   0             23m
-    rag-server-7758bbf9bd-rw2wh                                 1/1     Running   0             23m
-    rag-text-reranking-nim-74c5f499cd-clcdg                     1/1     Running   0             23m
-    rag-zipkin-5dc8d6d977-nqvvc                                 1/1     Running   0             23m
+    NAME                                                 READY   STATUS      RESTARTS   AGE
+    ingestor-server-6cc886bcdf-6rfwm                     1/1     Running     0          54m
+    milvus-standalone-7dd5db4755-ctqzg                   1/1     Running     0          54m
+    nemoretriever-embedding-ms-86f75c8f65-dfhd2          1/1     Running     0          39m
+    nemoretriever-graphic-elements-v1-67d9d65bdc-ftbkw   1/1     Running     0          33m
+    nemoretriever-ocr-v1-78f56cddb9-f4852                1/1     Running     0          40m
+    nemoretriever-page-elements-v3-56ddcf9b4b-qsg82      1/1     Running     0          49m
+    nemoretriever-ranking-ms-5ff774889f-fwrlm            1/1     Running     0          40m
+    nemoretriever-table-structure-v1-696c9f5665-l9sxn    1/1     Running     0          37m
+    nim-llm-7cb9bdcc89-hwpkq                             1/1     Running     0          11m
+    nim-llm-cache-job-77hpc                              0/1     Completed   0          94s
+    rag-etcd-0                                           1/1     Running     0          54m
+    rag-frontend-5db7874b77-49q8f                        1/1     Running     0          54m
+    rag-minio-649f6476c-n29b8                            1/1     Running     0          54m
+    rag-nv-ingest-6bf4d98866-kbgg7                       1/1     Running     0          54m
+    rag-redis-master-0                                   1/1     Running     0          54m
+    rag-redis-replicas-0                                 1/1     Running     0          54m
+    rag-server-6d9cd4c677-ntzgz                          1/1     Running     0          54m
     ```
 
    :::{note}
@@ -172,30 +198,25 @@ To verify a deployment, use the following procedure.
     You should see output similar to the following.
 
     ```sh
-    NAME                                TYPE            EXTERNAL-IP   PORT(S)                                                   AGE
-    ingestor-server                     ClusterIP      <none>        8082/TCP                                                  26m
-    kubernetes                          ClusterIP      <none>        443/TCP                                                   4d20h
-    nemoretriever-embedding-ms                   ClusterIP      <none>        8000/TCP                                                  26m
-    nemoretriever-ranking-ms                     ClusterIP      <none>        8000/TCP                                                  26m
-    nemoretriever-graphic-elements-v1   ClusterIP      <none>        8000/TCP,8001/TCP                                         26m
-    nemoretriever-page-elements-v2      ClusterIP      <none>        8000/TCP,8001/TCP                                         26m
-    nemoretriever-table-structure-v1    ClusterIP      <none>        8000/TCP,8001/TCP                                         26m
-    nim-llm                             ClusterIP      <none>        8000/TCP                                                  26m
-    nim-llm-sts                         ClusterIP      <none>        8000/TCP                                                  26m
-    nv-ingest-paddle                    ClusterIP      <none>        8000/TCP,8001/TCP                                         26m
-    nv-ingest-paddle-sts                ClusterIP      <none>        8000/TCP,8001/TCP                                         26m
-    rag-etcd                            ClusterIP      <none>        2379/TCP,2380/TCP                                         26m
-    rag-etcd-headless                   ClusterIP      <none>        2379/TCP,2380/TCP                                         26m
-    rag-frontend                        NodePort       <none>        3000:31645/TCP                                            26m
-    rag-milvus                          ClusterIP      <none>        19530/TCP,9091/TCP                                        26m
-    rag-minio                           ClusterIP      <none>        9000/TCP                                                  26m
-    rag-nv-ingest                       ClusterIP      <none>        7670/TCP                                                  26m
-    rag-opentelemetry-collector         ClusterIP      <none>        6831/UDP,14250/TCP,14268/TCP,4317/TCP,4318/TCP,9411/TCP   26m
-    rag-redis-headless                  ClusterIP      <none>        6379/TCP                                                  26m
-    rag-redis-master                    ClusterIP      <none>        6379/TCP                                                  26m
-    rag-redis-replicas                  ClusterIP      <none>        6379/TCP                                                  26m
-    rag-server                          ClusterIP      <none>        8081/TCP                                                  26m
-    rag-zipkin                          ClusterIP      <none>        9411/TCP                                                  26m
+    NAME                                TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)              AGE
+    ingestor-server                     ClusterIP   10.107.12.217    <none>        8082/TCP             54m
+    milvus                              ClusterIP   10.99.110.203    <none>        19530/TCP,9091/TCP   54m
+    nemoretriever-embedding-ms          ClusterIP   10.104.99.15     <none>        8000/TCP,8001/TCP    54m
+    nemoretriever-graphic-elements-v1   ClusterIP   10.96.115.45     <none>        8000/TCP,8001/TCP    54m
+    nemoretriever-ocr-v1                ClusterIP   10.100.107.215   <none>        8000/TCP,8001/TCP    54m
+    nemoretriever-page-elements-v3      ClusterIP   10.102.237.196   <none>        8000/TCP,8001/TCP    54m
+    nemoretriever-ranking-ms            ClusterIP   10.96.114.244    <none>        8000/TCP,8001/TCP    54m
+    nemoretriever-table-structure-v1    ClusterIP   10.107.227.139   <none>        8000/TCP,8001/TCP    54m
+    nim-llm                             ClusterIP   10.104.60.155    <none>        8000/TCP,8001/TCP    54m
+    rag-etcd                            ClusterIP   10.104.74.116    <none>        2379/TCP,2380/TCP    54m
+    rag-etcd-headless                   ClusterIP   None             <none>        2379/TCP,2380/TCP    54m
+    rag-frontend                        NodePort    10.100.190.142   <none>        3000:31473/TCP       54m
+    rag-minio                           ClusterIP   10.101.18.143    <none>        9000/TCP             54m
+    rag-nv-ingest                       ClusterIP   10.107.186.4     <none>        7670/TCP             54m
+    rag-redis-headless                  ClusterIP   None             <none>        6379/TCP             54m
+    rag-redis-master                    ClusterIP   10.105.178.202   <none>        6379/TCP             54m
+    rag-redis-replicas                  ClusterIP   10.97.29.199     <none>        6379/TCP             54m
+    rag-server                          ClusterIP   10.99.216.173    <none>        8081/TCP             54m
     ```
 
 
@@ -207,6 +228,10 @@ To verify a deployment, use the following procedure.
   kubectl port-forward -n rag service/rag-frontend 3000:3000 --address 0.0.0.0
   ```
 
+:::{note}
+Port-forwarding is provided as a quick method to try out the UI. However, large file ingestion or bulk ingestion through the UI might not work due to port-forwarding timeout issues.
+::: 
+
 ## Experiment with the Web User Interface
 
 1. Open a web browser and access the RAG UI. You can start experimenting by uploading docs and asking questions. For details, see [User Interface for NVIDIA RAG Blueprint](user-interface.md).
@@ -214,15 +239,15 @@ To verify a deployment, use the following procedure.
 
 ## Change a Deployment
 
-To Change an existing deployment, after you modify the `values.yaml` file, run the following code.
+To change an existing deployment, after you modify the [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) file, run the following code.
 
 ```sh
-helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-rc2.1.tgz \
+helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-rc3.tgz \
 --username '$oauthtoken' \
 --password "${NGC_API_KEY}" \
 --set imagePullSecret.password=$NGC_API_KEY \
 --set ngcApiSecret.password=$NGC_API_KEY \
--f nvidia-blueprint-rag/values.yaml
+-f deploy/helm/nvidia-blueprint-rag/values.yaml
 ```
 
 
@@ -243,13 +268,13 @@ kubectl delete pvc --all -n rag
 
 ## (Optional) Enable Persistence
 
-1. Update the ***values.yaml*** file for the persistence that you want. Use the following instructions.
+1. Update the [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) file for the persistence that you want. Use the following instructions.
 
-    - **NIM LLM** – To enable persistence for NIM LLM, refer to [NIM LLM](https://docs.nvidia.com/nim/large-language-models/latest/deploy-helm.html#storage). Update the required fields in the `nim-llm` section of the ***values.yaml*** file.
+    - **NIM LLM** – To enable persistence for NIM LLM, refer to [NIM LLM](https://docs.nvidia.com/nim/large-language-models/latest/deploy-helm.html#storage). Update the required fields in the `nim-llm` section of the [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) file.
 
-    - **Nemo Retriever** – To enable persistence for Nemo Retriever embedding, refer to [Nemo Retriever Text Embedding](https://docs.nvidia.com/nim/nemo-retriever/text-embedding/latest/deploying.html#storage). Update the required fields in the `nvidia-nim-llama-32-nv-embedqa-1b-v2` section of the ***values.yaml*** file.
+    - **Nemo Retriever** – To enable persistence for Nemo Retriever embedding, refer to [Nemo Retriever Text Embedding](https://docs.nvidia.com/nim/nemo-retriever/text-embedding/latest/deploying.html#storage). Update the required fields in the `nvidia-nim-llama-32-nv-embedqa-1b-v2` section of the [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) file.
 
-    - **Nemo Retriever reranking** – To enable persistence for Nemo Retriever reranking, refer to [Nemo Retriever Text Reranking](https://docs.nvidia.com/nim/nemo-retriever/text-reranking/latest/deploying.html#storage). Update the required fields in the `text-reranking-nim` section of the ***values.yaml*** file.
+    - **Nemo Retriever reranking** – To enable persistence for Nemo Retriever reranking, refer to [Nemo Retriever Text Reranking](https://docs.nvidia.com/nim/nemo-retriever/text-reranking/latest/deploying.html#storage). Update the required fields in the `nvidia-nim-llama-32-nv-rerankqa-1b-v2` section of the [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) file.
 
 2. Run the code in [Change a Deployment](#change-a-deployment).
 

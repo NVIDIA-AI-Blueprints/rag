@@ -1,4 +1,4 @@
-{{- $nimModel := index .Values.nimOperator "nvidia-nim-llama-32-nv-embedqa-1b-v2" -}}
+{{- $nimModel := index .Values.nimOperator "nvidia-nim-llama-32-nemoretriever-1b-vlm-embed-v1" -}}
 {{- if and (.Capabilities.APIVersions.Has "apps.nvidia.com/v1alpha1") (eq $nimModel.enabled true) }}
 apiVersion: apps.nvidia.com/v1alpha1
 kind: NIMCache
@@ -37,8 +37,10 @@ spec:
     nimCache:
       name: {{ $nimModel.service.name }}-cache
   replicas: {{ $nimModel.replicas | default 1 }}
+  {{- with $nimModel.nodeSelector }}
   nodeSelector:
-{{ toYaml $nimModel.nodeSelector | nindent 4 }}
+{{ toYaml . | nindent 4 }}
+  {{- end }}
 {{- if .Values.nimOperator.draResources.enabled }}
   draResources:
 {{ toYaml $nimModel.draResources | nindent 4 }}
@@ -47,8 +49,10 @@ spec:
   resources:
 {{ toYaml $nimModel.resources | nindent 4 }}
 {{- end }}
+  {{- with $nimModel.tolerations }}
   tolerations:
-{{ toYaml $nimModel.tolerations | nindent 4 }}
+{{ toYaml . | nindent 4 }}
+  {{- end }}
   expose:
 {{ toYaml $nimModel.expose | nindent 4 }}
   env:
