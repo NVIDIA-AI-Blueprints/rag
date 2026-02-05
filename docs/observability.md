@@ -85,7 +85,9 @@ To create a dashboard in [Grafana](https://grafana.com/) use the following proce
 
 ## Query-to-Answer Pipeline and Studying Time Spent
 
-For a complete description of the flow from query to answer, and guidance on measuring time spent in each stage of the pipeline, see [Query-to-Answer Pipeline](query-to-answer-pipeline.md). It explains:
+For a complete description of the flow from query to answer, and guidance on measuring time spent in each stage of the pipeline, refer to [Query-to-Answer Pipeline](query-to-answer-pipeline.md). 
+
+The documentation explains the following:
 
 - **Pipeline stages** – Describes the sequence of stages (query rewriter → retriever → context reranker → LLM generation) and the role of each one.
 - **Studying time** – Shows how to use Zipkin span durations and Prometheus/Grafana metrics (`retrieval_time_ms`, `context_reranker_time_ms`, `llm_generation_time_ms`, `rag_ttft_ms`, etc.) to identify where latency occurs.
