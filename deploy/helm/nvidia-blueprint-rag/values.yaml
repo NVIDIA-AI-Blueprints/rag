@@ -120,7 +120,7 @@ envVars:
 
   ##===Vector DB specific configurations===
   # URL on which vectorstore is hosted
-  APP_VECTORSTORE_URL: "http://milvus:19530" # Use "http://elasticsearch:9200" for elasticsearch
+  APP_VECTORSTORE_URL: "http://milvus:19530" # Use "http://rag-eck-elasticsearch-es-http:9200" for elasticsearch
   # Type of vectordb used to store embedding supported type "milvus" or "elasticsearch"
   APP_VECTORSTORE_NAME: "milvus"
   # Index type (e.g., GPU_CAGRA)
@@ -317,7 +317,7 @@ ingestor-server:
     # Absolute path to custom prompt.yaml file
     PROMPT_CONFIG_FILE: "/prompt.yaml"
     # === Vector Store Configurations ===
-    APP_VECTORSTORE_URL: "http://milvus:19530" # Use "http://elasticsearch:9200" for elasticsearch
+    APP_VECTORSTORE_URL: "http://milvus:19530" # Use "http://rag-eck-elasticsearch-es-http:9200" for elasticsearch
     APP_VECTORSTORE_NAME: "milvus" # supported values: "milvus" or "elasticsearch"
     APP_VECTORSTORE_SEARCHTYPE: "dense"
     # Type of ranker to use for vector store in case of Hybrid Search
@@ -481,30 +481,37 @@ frontend:
       value: "http://milvus:19530"
 
 # -- Elasticsearch dependency toggle
-# subsection: elasticsearch
-elasticsearch:
-  enabled: false
-
-# -- ECK Stack configuration
-# subsection: eck-stack
-eck-stack:
-  eck-kibana:
-    enabled: false
-  eck-elasticsearch:
-    enabled: false
-    http:
-      tls:
-        selfSignedCertificate:
-          disabled: true
-    nodeSets:
-    - name: default
-      count: 1
-      config:
-        node.store.allow_mmap: false
-
-# -- ECK Operator configuration
-eck-operator:
-  installCRDs: false
+eck-elasticsearch:
+  enabled: true
+  http:
+    tls:
+      selfSignedCertificate:
+        disabled: true
+  nodeSets:
+  - name: default
+    count: 1
+    config:
+      node.store.allow_mmap: false
+      # Disable X-Pack security completely for development
+      xpack.security.enabled: false
+      xpack.security.http.ssl.enabled: false
+      xpack.security.transport.ssl.enabled: false
+    podTemplate:
+      spec:
+        containers:
+        - name: elasticsearch
+          # Override readiness probe to not require authentication
+          readinessProbe:
+            exec:
+              command:
+              - bash
+              - -c
+              - |
+                curl -s http://localhost:9200/_cluster/health | grep -q '"status":"green"\|"status":"yellow"'
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
 
 # -- Observability
 # subsection: serviceMonitor
