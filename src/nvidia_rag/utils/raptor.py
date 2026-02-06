@@ -49,6 +49,7 @@ class RAPTORConfig:
     """Configuration for RAPTOR tree building and retrieval."""
     min_cluster_size: int = 3
     batch_size: int = 50
+    use_page_level: bool = True  # If True, L1 = one summary per page (with 1 prev/1 next chunk); L2 = section/doc
 
     @classmethod
     def from_config(cls, config: Any) -> "RAPTORConfig":
@@ -68,6 +69,14 @@ class RAPTORConfig:
             return 1
         levels = int(math.ceil(math.log(num_chunks) / math.log(cluster_size)))
         return max(2, min(5, levels))
+
+    @staticmethod
+    def calculate_page_summary_cluster_size(num_pages: int) -> int:
+        """Cluster size for grouping page summaries into L2 (section/doc). Bounded [3, 10]."""
+        if num_pages <= 1:
+            return 1
+        cluster_size = int(math.ceil(math.sqrt(num_pages)))
+        return max(3, min(10, cluster_size))
 
 
 @dataclass
@@ -189,6 +198,173 @@ class RAPTORTreeBuilder:
 
         return dict(documents_by_id)
 
+    # Sentinel for "no page": nv-ingest uses page_number only for PDF/PPTX (1-based).
+    # For TXT, HTML, DOCX, etc. page_number is -1 or missing (see create_content_metadata).
+    NO_PAGE_SENTINEL = 0
+
+    def _get_page_number(self, chunk: Dict[str, Any]) -> int:
+        """
+        Get page number from chunk metadata (nv-ingest content_metadata).
+
+        nv-ingest sets page_number only for PDF and PPTX (1-based: 1, 2, 3, ...).
+        For other formats (TXT, HTML, DOCX, etc.) it is -1 or missing (default -1 in
+        ContentMetadataSchema / create_content_metadata). We return NO_PAGE_SENTINEL (0)
+        when missing or not a real page so that all such chunks are grouped into one
+        virtual "page" for page-level RAPTOR.
+        """
+        content_meta = chunk.get("metadata", {}).get("content_metadata", {})
+        p = content_meta.get("page_number")
+        if p is None:
+            return self.NO_PAGE_SENTINEL
+        try:
+            p = int(p) if isinstance(p, float) else p
+        except (TypeError, ValueError):
+            return self.NO_PAGE_SENTINEL
+        if not isinstance(p, int):
+            return self.NO_PAGE_SENTINEL
+        # Real pages are 1-based (PDF/PPTX). Treat 0 and negative as "no page"
+        if p < 1:
+            return self.NO_PAGE_SENTINEL
+        return p
+
+    def _has_real_pages(self, pages_to_nodes: Dict[int, List[RAPTORNode]]) -> bool:
+        """True if any key is a real page (>= 1). PDF/PPTX have real pages; TXT/HTML do not."""
+        return any(p >= 1 for p in pages_to_nodes.keys())
+
+    def _group_chunks_by_page_with_boundary(
+        self, document_id: str, chunks: List[Dict[str, Any]]
+    ) -> List[Tuple[int, List[RAPTORNode]]]:
+        """
+        Group chunks by page with optional 1 prev + 1 next chunk overlap.
+
+        - nv-ingest: page_number is set only for PDF and PPTX (1-based). For TXT, HTML,
+          DOCX, etc. it is -1 or missing; we normalize those to NO_PAGE_SENTINEL (0)
+          so all such chunks form a single group (one "virtual page" for the whole doc).
+        - Boundary overlap (1 prev + 1 next) is applied only between real pages (>= 1)
+          to avoid mixing paged and non-paged content. For the single no-page group,
+          no boundary chunks are added.
+        """
+        # Build level-0 nodes with normalized page_number
+        nodes_with_page: List[Tuple[int, int, RAPTORNode]] = []  # (page, orig_idx, node)
+        for idx, chunk in enumerate(chunks):
+            chunk_id = chunk.get("metadata", {}).get("source_metadata", {}).get("chunk_id")
+            if not chunk_id:
+                chunk_id = f"{document_id}_chunk_{idx}"
+            content = _extract_content_from_element(chunk, self.rag_config)
+            if not content:
+                continue
+            page_num = self._get_page_number(chunk)
+            node = RAPTORNode(
+                content=content,
+                level=0,
+                document_id=document_id,
+                node_id=chunk_id,
+                chunk_ids=[chunk_id],
+                metadata={**chunk.get("metadata", {}).get("content_metadata", {}), "page_number": page_num},
+            )
+            nodes_with_page.append((page_num, idx, node))
+
+        if not nodes_with_page:
+            return []
+
+        # Sort by page then original index (0/-1 group first, then 1, 2, 3, ...)
+        nodes_with_page.sort(key=lambda x: (x[0], x[1]))
+
+        # Group by page
+        pages_to_nodes: Dict[int, List[RAPTORNode]] = defaultdict(list)
+        for page_num, _, node in nodes_with_page:
+            pages_to_nodes[page_num].append(node)
+
+        sorted_pages = sorted(pages_to_nodes.keys())
+        has_real = self._has_real_pages(pages_to_nodes)
+
+        # For each page: optionally add last chunk of prev + all of this page + first chunk of next.
+        # Only add boundary chunks when both current and neighbor are real pages (>= 1).
+        result: List[Tuple[int, List[RAPTORNode]]] = []
+        for i, page_num in enumerate(sorted_pages):
+            this_page_nodes = pages_to_nodes[page_num]
+            extended: List[RAPTORNode] = []
+            if has_real and page_num >= 1 and i > 0:
+                prev_page = sorted_pages[i - 1]
+                if prev_page >= 1:
+                    prev_nodes = pages_to_nodes[prev_page]
+                    if prev_nodes:
+                        extended.append(prev_nodes[-1])
+            extended.extend(this_page_nodes)
+            if has_real and page_num >= 1 and i < len(sorted_pages) - 1:
+                next_page = sorted_pages[i + 1]
+                if next_page >= 1:
+                    next_nodes = pages_to_nodes[next_page]
+                    if next_nodes:
+                        extended.append(next_nodes[0])
+            result.append((page_num, extended))
+        return result
+
+    async def _build_tree_for_document_page_level(
+        self,
+        document_id: str,
+        chunks: List[Dict[str, Any]],
+        doc_initial_chain,
+        doc_iterative_chain,
+    ) -> List[RAPTORNode]:
+        """
+        Build tree with page-level L1 and section/doc L2.
+        Level 1 = one summary per page (with 1 prev/1 next chunk).
+        Level 2 = clusters of page summaries summarized (section or full-doc).
+        """
+        page_groups = self._group_chunks_by_page_with_boundary(document_id, chunks)
+        if not page_groups:
+            return []
+
+        level_1_nodes: List[RAPTORNode] = []
+        for page_idx, (page_num, nodes) in enumerate(page_groups):
+            summary_node = await self._generate_single_cluster_summary(
+                cluster=nodes,
+                cluster_idx=page_idx,
+                document_id=document_id,
+                level=1,
+                doc_initial_chain=doc_initial_chain,
+                doc_iterative_chain=doc_iterative_chain,
+            )
+            summary_node.metadata["page_number"] = page_num
+            level_1_nodes.append(summary_node)
+
+        if not level_1_nodes:
+            return []
+
+        self.stats["summaries_created"] += len(level_1_nodes)
+
+        num_pages = len(level_1_nodes)
+        l2_cluster_size = self.raptor_config.calculate_page_summary_cluster_size(num_pages)
+        if num_pages <= l2_cluster_size:
+            # Single L2 node = full document summary
+            l2_node = await self._generate_single_cluster_summary(
+                cluster=level_1_nodes,
+                cluster_idx=0,
+                document_id=document_id,
+                level=2,
+                doc_initial_chain=doc_initial_chain,
+                doc_iterative_chain=doc_iterative_chain,
+            )
+            l2_node.metadata["num_pages_covered"] = num_pages
+            return level_1_nodes + [l2_node]
+        # Multiple L2 clusters = section summaries
+        l2_clusters = self._cluster_nodes(level_1_nodes, l2_cluster_size)
+        l2_nodes: List[RAPTORNode] = []
+        for cidx, cluster in enumerate(l2_clusters):
+            l2_node = await self._generate_single_cluster_summary(
+                cluster=cluster,
+                cluster_idx=cidx,
+                document_id=document_id,
+                level=2,
+                doc_initial_chain=doc_initial_chain,
+                doc_iterative_chain=doc_iterative_chain,
+            )
+            l2_node.metadata["num_pages_covered"] = len(cluster)
+            l2_nodes.append(l2_node)
+        self.stats["summaries_created"] += len(l2_nodes)
+        return level_1_nodes + l2_nodes
+
     async def _build_tree_for_document(
         self, document_id: str, chunks: List[Dict[str, Any]]
     ) -> List[RAPTORNode]:
@@ -222,7 +398,15 @@ class RAPTORTreeBuilder:
         
         doc_initial_chain = cluster_summary_prompt | doc_llm | StrOutputParser()
         doc_iterative_chain = enrichment_prompt | doc_llm | StrOutputParser()
-        
+
+        if self.raptor_config.use_page_level:
+            return await self._build_tree_for_document_page_level(
+                document_id=document_id,
+                chunks=chunks,
+                doc_initial_chain=doc_initial_chain,
+                doc_iterative_chain=doc_iterative_chain,
+            )
+
         num_chunks = len(chunks)
         cluster_size = self.raptor_config.calculate_cluster_size(num_chunks)
         max_levels = self.raptor_config.calculate_max_levels(num_chunks, cluster_size)
