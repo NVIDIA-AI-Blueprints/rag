@@ -595,8 +595,6 @@ jobs:
           docker ps
 
       - name: Run multimodal query integration tests
-        id: multimodal-query-tests
-        continue-on-error: true
         run: |
           source venv/bin/activate
           echo "Running multimodal query integration tests..."
