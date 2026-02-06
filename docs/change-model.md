@@ -184,8 +184,38 @@ Use this procedure to change models when you are running self-hosted NVIDIA NIM 
 
     ```yaml
     # LLM NIM
-    nim-llm:
+    nimOperator:
+      nim-llm:
+        enabled: true
+        replicas: 1
+        service:
+          name: "nim-llm"
+        image:
+          # nvcr.io/nim/<image>:<tag>
+          repository: nvcr.io/nim/<image>
+          tag: "<tag>"
+          pullPolicy: IfNotPresent
+        resources:
+          limits:
+            nvidia.com/gpu: 1
+          requests:
+            nvidia.com/gpu: 1
+        model:
+          engine: tensorrt_llm
+        env:
+          - name: NIM_HTTP_API_PORT
+            value: "8000"
+          - name: NIM_TRITON_LOG_VERBOSE
+            value: "1"
+          - name: NIM_SERVED_MODEL_NAME
+            value: "<llm-model-name>"  # Must match APP_LLM_MODELNAME
+
+    # Embedding NIM
+    nvidia-nim-llama-32-nv-embedqa-1b-v2:
       enabled: true
+      replicas: 1
+      service:
+        name: "nemoretriever-embedding-ms"
       image:
         # nvcr.io/nim/<image>:<tag>
         repository: nvcr.io/nim/<image>
@@ -197,43 +227,51 @@ Use this procedure to change models when you are running self-hosted NVIDIA NIM 
         requests:
           nvidia.com/gpu: 1
       env:
-        - name: NIM_MODEL_PROFILE
-          value: "" # Optional; leave empty for auto profile
-      model:
-        # Optional: provide NGC API key if private artifacts must be pulled
-        ngcAPIKey: ""
-        name: "<llm-model-name>"
-
-    # Embedding NIM
-    nvidia-nim-llama-32-nv-embedqa-1b-v2:
-      enabled: true
-      image:
-        # nvcr.io/nim/<image>:<tag>
-        repository: nvcr.io/nim/<image>
-        tag: "<tag>"
-      resources:
-        limits:
-          nvidia.com/gpu: 1
-        requests:
-          nvidia.com/gpu: 1
-      nim:
-        ngcAPIKey: ""
+        - name: NIM_HTTP_API_PORT
+          value: "8000"
+        - name: NIM_TRITON_LOG_VERBOSE
+          value: "1"
 
     # Reranker NIM
     nvidia-nim-llama-32-nv-rerankqa-1b-v2:
       enabled: true
+      replicas: 1
+      service:
+        name: "nemoretriever-ranking-ms"
       image:
         # nvcr.io/nim/<image>:<tag>
         repository: nvcr.io/nim/<image>
         tag: "<tag>"
+        pullPolicy: IfNotPresent
       resources:
         limits:
           nvidia.com/gpu: 1
         requests:
           nvidia.com/gpu: 1
-      nim:
-        ngcAPIKey: ""
+      env: []
     ```
+
+    :::{note}
+    **For Nemotron Nano Models on RTX 6000 Pro:**
+    
+    When deploying `nvidia/nvidia-nemotron-nano-9b-v2` or `nvidia/nemotron-3-nano` on RTX 6000 Pro hardware, you must use the **vLLM engine** and add these specific configurations:
+    
+    ```yaml
+    nimOperator:
+      nim-llm:
+        image:
+          repository: nvcr.io/nim/nvidia/nvidia-nemotron-nano-9b-v2
+          tag: "latest"
+        model:
+          engine: vllm  # Required: use vLLM instead of tensorrt_llm
+        env:
+          - name: NIM_SERVED_MODEL_NAME
+            value: "nvidia/nvidia-nemotron-nano-9b-v2"  # Must match APP_LLM_MODELNAME
+          # ... other env vars ...
+    ```
+    
+    Ensure `APP_LLM_MODELNAME` in the `rag-server` section matches `NIM_SERVED_MODEL_NAME`.
+    :::
 
 4. After you modify values.yaml, apply the changes as described in [Change a Deployment](deploy-helm.md#change-a-deployment).
 

@@ -15,7 +15,12 @@ You can enable text-only ingestion for the [NVIDIA RAG Blueprint](readme.md). Fo
    export APP_NVINGEST_EXTRACTINFOGRAPHICS=False
    export APP_NVINGEST_EXTRACTTABLES=False
    export APP_NVINGEST_EXTRACTCHARTS=False
+   export COMPONENTS_TO_READY_CHECK=""
    ```
+
+   :::{important}
+   When disabling nv-ingest dependent services, you must set `COMPONENTS_TO_READY_CHECK=""` to ensure the nv-ingest container reaches ready state. Without this setting, nv-ingest will wait indefinitely for the disabled components.
+   :::
 
    Then deploy the ingestor-server:
 
@@ -89,32 +94,53 @@ When you install the Helm chart, enable only the following services that are req
 
 Additionally, ensure that **table extraction**, **chart extraction**, and **image extraction** are disabled.
 
-1. First, modify the environment variables in the `values.yaml` file to enable text-only extraction:
+1. First, modify the environment variables in [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) to enable text-only extraction:
 
    In the `nv-ingest.envVars` section, set the following values:
+   
    ```yaml
-   APP_NVINGEST_EXTRACTTEXT: "True"
-   APP_NVINGEST_EXTRACTINFOGRAPHICS: "False"
-   APP_NVINGEST_EXTRACTTABLES: "False"
-   APP_NVINGEST_EXTRACTCHARTS: "False"
+   nv-ingest:
+     envVars:
+       # ... existing configurations ...
+       
+       # === Text-Only Extraction Mode ===
+       APP_NVINGEST_EXTRACTTEXT: "True"
+       APP_NVINGEST_EXTRACTINFOGRAPHICS: "False"
+       APP_NVINGEST_EXTRACTTABLES: "False"
+       APP_NVINGEST_EXTRACTCHARTS: "False"
    ```
 
-2. Then use the modified `values.yaml` file in your Helm upgrade command:
+2. Then use the modified [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) file in your Helm upgrade command:
 
 ```bash
-helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-rc2.1.tgz \
+helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-rc3.tgz \
   --username '$oauthtoken' \
   --password "${NGC_API_KEY}" \
   --values deploy/helm/nvidia-blueprint-rag/values.yaml \
-  --set nim-llm.enabled=true \
-  --set nvidia-nim-llama-32-nv-embedqa-1b-v2.enabled=true \
-  --set nvidia-nim-llama-32-nv-rerankqa-1b-v2.enabled=true \
+  --set nimOperator.nim-llm.enabled=true \
+  --set nimOperator.nvidia-nim-llama-32-nv-embedqa-1b-v2.enabled=true \
+  --set nimOperator.nvidia-nim-llama-32-nv-rerankqa-1b-v2.enabled=true \
   --set ingestor-server.enabled=true \
   --set nv-ingest.enabled=true \
-  --set nv-ingest.nemoretriever-page-elements-v2.deployed=false \
-  --set nv-ingest.nemoretriever-graphic-elements-v1.deployed=false \
-  --set nv-ingest.nemoretriever-table-structure-v1.deployed=false \
-  --set nv-ingest.nemoretriever-ocr.deployed=false \
+  --set nv-ingest.nimOperator.page_elements.enabled=false \
+  --set nv-ingest.nimOperator.graphic_elements.enabled=false \
+  --set nv-ingest.nimOperator.table_structure.enabled=false \
+  --set nv-ingest.nimOperator.nemoretriever_ocr_v1.enabled=false \
   --set imagePullSecret.password=$NGC_API_KEY \
   --set ngcApiSecret.password=$NGC_API_KEY
 ```
+
+:::{important}
+**Disabling NV-Ingest Components for GPU Resource Management:**
+
+If you disable any nv-ingest dependent services (such as `table_structure`, `graphic_elements`, `nemoretriever_ocr_v1`, etc.) to free up GPU resources for customization, you must set the `COMPONENTS_TO_READY_CHECK` parameter to an empty string in the `nv-ingest.envVars` section of your [values.yaml](../deploy/helm/nvidia-blueprint-rag/values.yaml) file:
+
+```yaml
+nv-ingest:
+  envVars:
+    COMPONENTS_TO_READY_CHECK: ""
+```
+
+This ensures the nv-ingest pod reaches ready state even when some dependent components are disabled. Without this setting, the nv-ingest pod will wait indefinitely for the disabled components to become ready.
+
+:::

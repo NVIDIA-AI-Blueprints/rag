@@ -74,35 +74,29 @@ Ensure the specified GPU is available and has sufficient memory for the audio tr
 
 If you're using Helm for deployment, follow these steps to enable audio ingestion:
 
-1. Enable the audio NIM service by setting `nv-ingest.nimOperator.audio.enabled` to `true` in [values.yaml](../deploy/helm/nvidia-blueprint-rag/values.yaml).
+1. Modify [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) to enable audio ingestion:
 
    ```yaml
+   # Enable audio NIM service
    nv-ingest:
-      nimOperator:
-        audio:
-          enabled: true
+     nimOperator:
+       audio:
+         enabled: true
+     
+     envVars:
+       # ... existing configurations ...
+       
+       # Ensure audio extraction dependencies are installed
+       INSTALL_AUDIO_EXTRACTION_DEPS: "true"
    ```
 
-2. Verify that audio extraction dependencies are installed by checking `nv-ingest.envVars.INSTALL_AUDIO_EXTRACTION_DEPS` is set to `true` in [values.yaml](../deploy/helm/nvidia-blueprint-rag/values.yaml).
+2. Apply the updated Helm chart:
 
-   ```yaml
-   nv-ingest:
-      envVars:
-         INSTALL_AUDIO_EXTRACTION_DEPS: "true"
-   ```
+   After modifying [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml), apply the changes as described in [Change a Deployment](deploy-helm.md#change-a-deployment).
 
-3. Apply the updated Helm chart by running the following command.
+   For detailed HELM deployment instructions, see [Helm Deployment Guide](deploy-helm.md).
 
-   ```bash
-   helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-rc2.1.tgz \
-    --username '$oauthtoken' \
-    --password "${NGC_API_KEY}" \
-    --set imagePullSecret.password=$NGC_API_KEY \
-    --set ngcApiSecret.password=$NGC_API_KEY \
-    --set nv-ingest.nimOperator.audio.enabled=true
-   ```
-
-4. Verify that the audio pod is running:
+3. Verify that the audio pod is running:
    ```bash
    kubectl get pods -n rag | grep audio
    ```

@@ -72,32 +72,29 @@ export APP_NVINGEST_CAPTIONMODELNAME="<model_name>"
 
 To enable image captioning in Helm-based deployments by using an on-prem VLM model, use the following procedure.
 
-
-1. In the `values.yaml` file, in the `ingestor-server.envVars` section, set the following environment variables.
-
-   ```yaml
-   APP_NVINGEST_EXTRACTIMAGES: "True"
-   APP_NVINGEST_CAPTIONENDPOINTURL: "http://nim-vlm:8000/v1/chat/completions"
-   APP_NVINGEST_CAPTIONMODELNAME: "nvidia/nemotron-nano-12b-v2-vl"
-   ```
-
-2. Enable the VLM image captioning model in your `values.yaml` file.
+1. Modify [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) to enable image captioning:
 
    ```yaml
+   # Enable VLM NIM for image captioning
    nim-vlm:
-      enabled: true
+     enabled: true
+
+   # Configure ingestor-server for image captioning
+   ingestor-server:
+     envVars:
+       # ... existing configurations ...
+       
+       # === Image Captioning ===
+       APP_NVINGEST_EXTRACTIMAGES: "True"
+       APP_NVINGEST_CAPTIONENDPOINTURL: "http://nim-vlm:8000/v1/chat/completions"
+       APP_NVINGEST_CAPTIONMODELNAME: "nvidia/nemotron-nano-12b-v2-vl"
    ```
 
-3. Apply the updated Helm chart by running the following code.
+2. Apply the updated Helm chart:
 
-   ```bash
-   helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-rc2.1.tgz \
-   --username '$oauthtoken' \
-   --password "${NGC_API_KEY}" \
-   --set imagePullSecret.password=$NGC_API_KEY \
-   --set ngcApiSecret.password=$NGC_API_KEY \
-   -f deploy/helm/nvidia-blueprint-rag/values.yaml
-   ```
+   After modifying [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml), apply the changes as described in [Change a Deployment](deploy-helm.md#change-a-deployment).
+
+   For detailed HELM deployment instructions, see [Helm Deployment Guide](deploy-helm.md).
 
 :::{note}
 Enabling the on-prem VLM model increases the total GPU requirement to 9xH100 GPUs.

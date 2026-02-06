@@ -35,9 +35,11 @@ For monitoring deployment progress, refer to [Deploy on Kubernetes with Helm](./
 
 3. Verify that you have the NGC CLI available on your client computer. You can download the CLI from <https://ngc.nvidia.com/setup/installers/cli>.
 
-4. Verify that you have Kubernetes v1.33 installed and running on Ubuntu 22.04. For more information, see [Kubernetes documentation](https://kubernetes.io/docs/setup/) and [NVIDIA Cloud Native Stack repository](https://github.com/NVIDIA/cloud-native-stack/).
+4. Verify that you have Kubernetes v1.34.2 installed and running on Ubuntu 22.04/24.04. For more information, see [Kubernetes documentation](https://kubernetes.io/docs/setup/) and [NVIDIA Cloud Native Stack 17.0](https://github.com/NVIDIA/cloud-native-stack/tree/17.0).
 
-5. Verify that you have a default storage class available in the cluster for PVC provisioning. One option is the local path provisioner by Rancher.   Refer to the [installation](https://github.com/rancher/local-path-provisioner?tab=readme-ov-file#installation) section of the README in the GitHub repository.
+5. Verify that you have installed Helm 3 or later (Helm v3.20.0 recommended). For installation instructions, see [Helm Installation](https://helm.sh/docs/intro/install).
+
+6. Verify that you have a default storage class available in the cluster for PVC provisioning. One option is the local path provisioner by Rancher.   Refer to the [installation](https://github.com/rancher/local-path-provisioner?tab=readme-ov-file#installation) section of the README in the GitHub repository.
 
     ```console
     kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/v0.0.26/deploy/local-path-storage.yaml
@@ -56,6 +58,19 @@ For monitoring deployment progress, refer to [Deploy on Kubernetes with Helm](./
 8. (Optional) You can enable time slicing for sharing GPUs between pods. For details, refer to [Time-Slicing GPUs in Kubernetes](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/gpu-sharing.html).
 
 9. [Clone the RAG Blueprint Git repository](deploy-docker-self-hosted.md#clone-the-rag-blueprint-git-repository) to get access to the MIG configuration files.
+
+10. Verify that you have installed the NVIDIA NIM Operator. If not, install it by running the following code:
+
+    ```sh
+    helm repo add nvidia https://helm.ngc.nvidia.com/nvidia \
+      --username='$oauthtoken' \
+      --password=$NGC_API_KEY
+    helm repo update
+    helm install nim-operator nvidia/k8s-nim-operator -n nim-operator --create-namespace
+    ```
+
+    For more details, see instructions [here](https://docs.nvidia.com/nim-operator/latest/install.html).
+
 
 
 ## Step 1: Enable MIG with Mixed Strategy
@@ -85,11 +100,11 @@ For monitoring deployment progress, refer to [Deploy on Kubernetes with Helm](./
 ## Step 2: Apply the MIG configuration
 
 Edit the MIG configuration file [`mig-config.yaml`](../deploy/helm/mig-slicing/mig-config.yaml) to adjust the slicing pattern as needed.
-The following example enables a balanced configuration.
+The following example enables a custom configuration with mixed MIG slice sizes on the same GPU.
 
 
 :::{note}
-This example uses a balanced slicing strategy:  3 slices of 2g.20gb on GPU 0, 3 slices of 2g.20gb on GPU 1, 3 slices of 2g.20gb on GPU 2 and 1 slice of 7g.80gb on GPU 3.
+This example uses a custom slicing strategy: 7 slices of 1g.10gb on GPU 0, mixed slices (2x 1g.20gb + 1x 3g.40gb) on GPU 1, and 1 slice of 7g.80gb on GPU 3. This demonstrates the ability to combine different MIG slice sizes on a single GPU for optimal resource utilization.
 :::
 
 ```yaml
@@ -105,19 +120,16 @@ data:
         - devices: all
           mig-enabled: false
 
-      balanced-3-20gb-3-20gb-3-20gb-1-80gb:
+      custom-7x1g10-2x1g20-1x3g40-1x7g80:
         - devices: [0]
           mig-enabled: true
           mig-devices:
-            "2g.20gb": 3
+            "1g.10gb": 7
         - devices: [1]
           mig-enabled: true
           mig-devices:
-            "2g.20gb": 3
-        - devices: [2]
-          mig-enabled: true
-          mig-devices:
-            "2g.20gb": 3
+            "1g.20gb": 2
+            "3g.40gb": 1
         - devices: [3]
           mig-enabled: true
           mig-devices:
@@ -127,7 +139,7 @@ data:
 Apply the custom MIG configuration configMap to the node and update the ClusterPolicy, by running the following code.
 
 ```bash
-kubectl apply -n gpu-operator -f mig-slicing/mig-config.yaml
+kubectl apply -n nvidia-gpu-operator -f mig-slicing/mig-config.yaml
 kubectl patch clusterpolicies.nvidia.com/cluster-policy \
   --type='json' \
   -p='[{"op":"replace", "path":"/spec/migManager/config/name", "value":"custom-mig-config"}]'
@@ -136,7 +148,7 @@ kubectl patch clusterpolicies.nvidia.com/cluster-policy \
 Label the node with MIG configuration, by running the following code.
 
 ```bash
-kubectl label nodes <node-name> nvidia.com/mig.config=balanced-3-20gb-3-20gb-3-20gb-1-80gb --overwrite
+kubectl label nodes <node-name> nvidia.com/mig.config=custom-7x1g10-2x1g20-1x3g40-1x7g80 --overwrite
 ```
 
 Verify that the MIG configuration is successfully applied, by running the following code.
@@ -149,7 +161,9 @@ You should see output similar to the following.
 
 ```json
 "nvidia.com/mig.config.state": "success"
-"nvidia.com/mig-2g.20gb.count": "9"
+"nvidia.com/mig-1g.10gb.count": "7"
+"nvidia.com/mig-1g.20gb.count": "2"
+"nvidia.com/mig-3g.40gb.count": "1"
 "nvidia.com/mig-7g.80gb.count": "1"
 ```
 
@@ -160,13 +174,41 @@ You should see output similar to the following.
 Run the following code to install the RAG Blueprint Helm Chart.
 
 ```bash
-helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-rc2.1.tgz \
+helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-rc3.tgz \
   --username '$oauthtoken' \
   --password "${NGC_API_KEY}" \
   --set imagePullSecret.password=$NGC_API_KEY \
   --set ngcApiSecret.password=$NGC_API_KEY \
   -f mig-slicing/values-mig.yaml
 ```
+
+:::{important}
+**For NVIDIA RTX6000 Pro Deployments:**
+
+If you are deploying on NVIDIA RTX6000 Pro GPUs (instead of H100 GPUs), you need to configure the NIM LLM model profile. The required configuration is already present but commented out in the [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) file.
+
+Uncomment and modify the following section under `nimOperator.nim-llm.model` in [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml):
+```yaml
+model:
+  engine: tensorrt_llm
+  precision: "fp8"
+  qosProfile: "throughput"
+  tensorParallelism: "1"
+  gpus:
+    - product: "rtx6000_blackwell_sv"
+```
+
+Then install using the modified values.yaml along with MIG values:
+```sh
+helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-rc3.tgz \
+  --username '$oauthtoken' \
+  --password "${NGC_API_KEY}" \
+  --set imagePullSecret.password=$NGC_API_KEY \
+  --set ngcApiSecret.password=$NGC_API_KEY \
+  -f values.yaml \
+  -f mig-slicing/values-mig.yaml
+```
+:::
 
 :::{note}
 Refer to [NIM Model Profile Configuration](model-profiles.md) for using non-default NIM LLM profile.
@@ -191,17 +233,23 @@ You should see output similar to the following.
 
 ```
 Resource                                    Requested   Limit    Allocatable  Free
-nvidia.com/mig-2g.20gb                      (100%) 9.0   (100%) 9.0     3.0        0.0
-├─ rag-nvidia-nim-llama-...                1.0     1.0
-├─ rag-text-reranking-nim-...              1.0     1.0
+nvidia.com/mig-1g.10gb                      (86%) 6.0   (86%) 6.0     7.0        1.0
 ├─ milvus-standalone-...                   1.0     1.0
-├─ nv-ingest-paddle-...                    1.0     1.0
-├─ rag-nemoretriever-graphic-...           1.0     1.0
-├─ rag-nemoretriever-page-...              1.0     1.0
-└─ rag-nemoretriever-table-...             1.0     1.0
+├─ nemoretriever-embedding-ms-...          1.0     1.0
+├─ rag-nv-ingest-...                       1.0     1.0
+├─ nemoretriever-graphic-elements-v1-...   1.0     1.0
+├─ nemoretriever-page-elements-v3-...      1.0     1.0
+└─ nemoretriever-table-structure-v1-...    1.0     1.0
+
+nvidia.com/mig-1g.20gb                      (100%) 2.0  (100%) 2.0     2.0        0.0
+├─ nemoretriever-ranking-ms-...            1.0     1.0
+└─ <other-workload>                        1.0     1.0
+
+nvidia.com/mig-3g.40gb                      (100%) 1.0  (100%) 1.0     1.0        0.0
+└─ nemoretriever-ocr-v1-...                1.0     1.0
 
 nvidia.com/mig-7g.80gb                      (100%) 1.0  (100%) 1.0     1.0        0.0
-└─ rag-nim-llm-0                            1.0     1.0
+└─ nim-llm-...                             1.0     1.0
 ```
 
 
@@ -219,14 +267,17 @@ You should see output similar to the following.
 
 ```
 GPU 0: NVIDIA H100 80GB HBM3 (UUID: ...)
-  MIG 2g.20gb     Device 0: ...
-  ...
+  MIG 1g.10gb     Device 0: ...
+  MIG 1g.10gb     Device 1: ...
+  MIG 1g.10gb     Device 2: ...
+  MIG 1g.10gb     Device 3: ...
+  MIG 1g.10gb     Device 4: ...
+  MIG 1g.10gb     Device 5: ...
+  MIG 1g.10gb     Device 6: ...
 GPU 1: NVIDIA H100 80GB HBM3 (UUID: ...)
-  MIG 2g.20gb     Device 0: ...
-  ...
-GPU 2: NVIDIA H100 80GB HBM3 (UUID: ...)
-  MIG 2g.20gb     Device 0: ...
-  ...
+  MIG 1g.20gb     Device 0: ...
+  MIG 1g.20gb     Device 1: ...
+  MIG 3g.40gb     Device 2: ...
 GPU 3: NVIDIA H100 80GB HBM3 (UUID: ...)
   MIG 7g.80gb     Device 0: ...
 ```

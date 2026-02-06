@@ -144,9 +144,9 @@ If you use a `.env` file, add the variables there instead of exporting them, the
 
 ## Using Helm chart deployment
 
-To deploy the VLM embedding service with Helm, update the image and model settings, set the corresponding environment variables, and then apply the chart with your updated `values.yaml`.
+To deploy the VLM embedding service with Helm, update the image and model settings, set the corresponding environment variables, and then apply the chart with your updated values.yaml.
 
-1. Update `deploy/helm/nvidia-blueprint-rag/values.yaml`:
+1. Modify [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) to enable VLM embedding:
 
 ```yaml
 # Enable VLM embedding NIM and set its image
@@ -178,20 +178,20 @@ nv-ingest:
 
 2. Deploy the chart with the updated values:
 
-```bash
-helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-rc2.1.tgz \
-  --username '$oauthtoken' \
-  --password "${NGC_API_KEY}" \
-  --set imagePullSecret.password=$NGC_API_KEY \
-  --set ngcApiSecret.password=$NGC_API_KEY \
-  -f deploy/helm/nvidia-blueprint-rag/values.yaml
-```
+After modifying [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml), apply the changes as described in [Change a Deployment](deploy-helm.md#change-a-deployment).
+
+For detailed HELM deployment instructions, see [Helm Deployment Guide](deploy-helm.md).
 
 
 
-## Where to update extraction and embedding env vars
+## Additional Configuration: Extraction and Embedding Modalities
 
-Set extraction-related variables under `envVars` and `ingestor-server.envVars`, and set embedding service variables under `nv-ingest.envVars` in [values.yaml](../deploy/helm/nvidia-blueprint-rag/values.yaml).
+To configure how content is extracted and embedded (similar to the Docker configurations shown above), you can add extraction and modality settings to your [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml):
+
+- Set extraction-related variables under `envVars` and `ingestor-server.envVars`
+- Set embedding service variables under `nv-ingest.envVars`
+
+**Example with extraction and modality settings:**
 
 ```yaml
 envVars:
