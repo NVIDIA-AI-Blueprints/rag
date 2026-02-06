@@ -103,40 +103,11 @@ Notes:
 - If `existingClaim` is empty, the chart will create a PVC named `<appName>-data`. With the default `appName` of `ingestor-server`, the PVC name will be `ingestor-server-data`.
 - The container writes results under `/data/` by default. Structure matches the compose example: `/data/nv-ingest-results/<collection>/file.results.jsonl`.
 
-### Install / Upgrade (On-prem only)
+### Deploy the Changes
 
-Ensure your NGC API key is available:
+After modifying [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml), apply the changes as described in [Change a Deployment](deploy-helm.md#change-a-deployment).
 
-```bash
-export NGC_API_KEY="<your-ngc-api-key>"
-```
-
-Using a custom values file:
-
-```bash
-helm upgrade --install rag -n rag \
-  https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-dev-dev.tgz \
-  --username '$oauthtoken' \
-  --password "${NGC_API_KEY}" \
-  --set imagePullSecret.password=$NGC_API_KEY \
-  --set ngcApiSecret.password=$NGC_API_KEY \
-  -f -f deploy/helm/nvidia-blueprint-rag/values.yaml
-```
-
-Or with inline overrides:
-
-```bash
-helm upgrade --install rag -n rag \
-  https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0-rc2.1.tgz \
-  --username '$oauthtoken' \
-  --password "${NGC_API_KEY}" \
-  --set imagePullSecret.password=$NGC_API_KEY \
-  --set ngcApiSecret.password=$NGC_API_KEY \
-  --set ingestor-server.envVars.APP_NVINGEST_SAVETODISK=True \
-  --set ingestor-server.envVars.INGESTOR_SERVER_DATA_DIR=/data/ \
-  --set ingestor-server.persistence.enabled=true \
-  --set ingestor-server.persistence.size=50Gi
-```
+For detailed HELM deployment instructions, see [Helm Deployment Guide](deploy-helm.md).
 
 ### List and Access Files
 

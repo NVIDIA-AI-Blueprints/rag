@@ -80,60 +80,116 @@ If you're using Helm for deployment, use the following steps to configure Elasti
 **Performance Consideration**: Slow VDB upload is observed in Helm deployments for Elasticsearch (ES). For more details, refer to the [troubleshooting documentation](./troubleshooting.md).
 :::
 
-:::{important}
-If you encounter an error "no matches for kind Elasticsearch", it indicates a race condition where the CRDs are not yet established. To resolve this, install the ECK operator CRDs manually before installing the chart:
-```sh
-helm install temp-eck-operator elastic/eck-operator -n rag --create-namespace --set installCRDs=true && helm uninstall temp-eck-operator -n rag
-```
-:::
+### Prerequisites
+
+1. Install the ECK (Elastic Cloud on Kubernetes) operator:
+
+   The ECK operator is required to manage Elasticsearch deployments on Kubernetes.
+
+   ```bash
+   # Add Elastic Helm repository
+   helm repo add elastic https://helm.elastic.co
+   helm repo update
+
+   # Install ECK operator in its own namespace
+   helm install elastic-operator elastic/eck-operator -n elastic-system --create-namespace
+   ```
+
+   :::{tip}
+   The ECK operator manages the Elasticsearch lifecycle, including deployment, upgrades, and configuration management.
+   :::
+
+2. Verify ECK operator installation:
+
+   Ensure the ECK operator is running before proceeding:
+
+   ```bash
+   # Check ECK operator pod status
+   kubectl get pods -n elastic-system
+   # Expected output: elastic-operator-0   1/1   Running
+
+   # Verify ECK operator is ready
+   kubectl wait --for=condition=ready pod -l control-plane=elastic-operator -n elastic-system --timeout=300s
+   ```
+
+### Configuration Steps
 
 1. Configure Elasticsearch as the vector database in [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml).
 
-    ```yaml
-    envVars:
-      APP_VECTORSTORE_URL: "http://elasticsearch:9200"
-      APP_VECTORSTORE_NAME: "elasticsearch"
+   Update both the RAG server and ingestor-server sections:
 
+    ```yaml
+    # RAG Server configuration
+    envVars:
+      APP_VECTORSTORE_URL: "http://rag-eck-elasticsearch-es-http:9200"
+      APP_VECTORSTORE_NAME: "elasticsearch"
+      APP_VECTORSTORE_USERNAME: ""
+      APP_VECTORSTORE_PASSWORD: ""
+
+    # Ingestor Server configuration
     ingestor-server:
       envVars:
-        APP_VECTORSTORE_URL: "http://elasticsearch:9200"
+        APP_VECTORSTORE_URL: "http://rag-eck-elasticsearch-es-http:9200"
         APP_VECTORSTORE_NAME: "elasticsearch"
+        APP_VECTORSTORE_USERNAME: ""
+        APP_VECTORSTORE_PASSWORD: ""
    ```
 
 2. Enable Elasticsearch deployment in [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml).
 
    ```yaml
-   elasticsearch:
+   eck-elasticsearch:
      enabled: true
+     http:
+       tls:
+         selfSignedCertificate:
+           disabled: true
+     nodeSets:
+     - name: default
+       count: 1
+       config:
+         node.store.allow_mmap: false
+         # Disable authentication for easier setup (default)
+         xpack.security.enabled: false
+         xpack.security.http.ssl.enabled: false
+         xpack.security.transport.ssl.enabled: false
    ```
 
-3. After you modify values.yaml, apply the changes as described in [Change a Deployment](deploy-helm.md#change-a-deployment).
+3. Deploy the Helm chart:
 
+   After modifying [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml), apply the changes as described in [Change a Deployment](deploy-helm.md#change-a-deployment).
 
-4. Retrieve the Elasticsearch password from the secret.
+   For detailed Helm deployment instructions, see [Deploy the RAG Pipeline](deploy-helm.md).
 
-   The Elasticsearch operator generates a default password for the `elastic` user. Run the following command to retrieve it:
+4. Verify Elasticsearch deployment:
+
+   Check that the Elasticsearch pod and service are running:
 
    ```bash
-   kubectl get secret elasticsearch-es-elastic-user -n rag -o go-template='{{.data.elastic | base64decode}}'
+   # Check Elasticsearch pod status
+   kubectl get pods -n rag | grep elasticsearch
+   # Expected output: rag-eck-elasticsearch-es-default-0   1/1   Running
+
+   # Check Elasticsearch service
+   kubectl get svc -n rag | grep elasticsearch
+   # Expected services:
+   # - rag-eck-elasticsearch-es-default (ClusterIP, port 9200)
+   # - rag-eck-elasticsearch-es-http (ClusterIP, port 9200)
+   # - rag-eck-elasticsearch-es-transport (ClusterIP, port 9300)
+   
+   # Wait for Elasticsearch to be ready
+   kubectl wait --for=condition=ready pod -l elasticsearch.k8s.elastic.co/cluster-name=rag-eck-elasticsearch -n rag --timeout=300s
    ```
 
-5. Update `values.yaml` with the retrieved password.
+   Test Elasticsearch health:
 
-   Set the `APP_VECTORSTORE_PASSWORD` in [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) to the retrieved password and apply the changes again.
-
-   ```yaml
-   envVars:
-     APP_VECTORSTORE_URL: "http://elasticsearch:9200"
-     APP_VECTORSTORE_NAME: "elasticsearch"
-     APP_VECTORSTORE_PASSWORD: "<retrieved-password>"
-
-   ingestor-server:
-     envVars:
-       APP_VECTORSTORE_URL: "http://elasticsearch:9200"
-       APP_VECTORSTORE_NAME: "elasticsearch"
-       APP_VECTORSTORE_PASSWORD: "<retrieved-password>"
+   ```bash
+   # Test from inside the cluster
+   kubectl exec -n rag rag-eck-elasticsearch-es-default-0 -- curl -s http://localhost:9200/_cluster/health
+   # Expected: {"cluster_name":"rag-eck-elasticsearch","status":"yellow" or "green",...}
    ```
+
+5. (Optional) Enable authentication - see [Elasticsearch Authentication (Helm)](#helm-chart) section below if you need to secure your Elasticsearch instance.
 
 6. After the Helm deployment, port-forward the RAG UI service:
 
@@ -141,7 +197,7 @@ helm install temp-eck-operator elastic/eck-operator -n rag --create-namespace --
    kubectl port-forward -n rag service/rag-frontend 3000:3000 --address 0.0.0.0
    ```
 
-7. Access the UI at `http://<host-ip>:3000` and set Settings > Endpoint Configuration > Vector Database Endpoint to `http://elasticsearch:9200`.
+7. Access the UI at `http://<host-ip>:3000` and set Settings > Endpoint Configuration > Vector Database Endpoint to `http://rag-eck-elasticsearch-es-http:9200`.
 
 
 ## Verify Your Elasticsearch Vector Database Setup
@@ -155,11 +211,16 @@ curl -X GET "localhost:9200/_cluster/health?pretty"
 
 ### For Helm deployments:
 ```bash
-# 1. Get the name of your Elasticsearch pod (usually "elasticsearch-master-0"):
+# 1. Get the name of your Elasticsearch pod:
 kubectl get pods -n rag | grep elasticsearch
 
 # 2. Run the following command, replacing <elasticsearch-pod-name> with the actual pod name:
+# Common pod names: elasticsearch-es-default-0, rag-eck-elasticsearch-es-default-0
 kubectl exec -n rag -it <elasticsearch-pod-name> -- curl -X GET "localhost:9200/_cluster/health?pretty"
+
+# Alternative: Port-forward and test from your machine
+kubectl port-forward -n rag svc/elasticsearch-es-http 9200:9200 &
+curl -X GET "localhost:9200/_cluster/health?pretty"
 ```
 
 You should see a response that indicates the cluster status is green or yellow, confirming that Elasticsearch is operational and ready to store embeddings.
@@ -210,6 +271,26 @@ docker compose -f deploy/compose/vectordb.yaml --profile elasticsearch up -d
 If you prefer to use API key authentication instead of username/password (recommended for production), generate an API key using curl. You need the username and password from the previous step.
 
 ```bash
+# Either provide base64 apikey (base64 of "id:secret")
+export APP_VECTORSTORE_APIKEY="base64-id-colon-secret"
+# Or provide split ID/SECRET
+export APP_VECTORSTORE_APIKEY_ID="your_id"
+export APP_VECTORSTORE_APIKEY_SECRET="your_secret"
+
+docker compose -f deploy/compose/vectordb.yaml --profile elasticsearch up -d
+docker compose -f deploy/compose/docker-compose-ingestor-server.yaml up -d
+docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d
+```
+
+### Get an Elasticsearch API key
+
+If security is enabled, create an API key using either curl. You need a user with permission to create API keys (e.g., the built-in `elastic` superuser in dev).
+
+#### 1. Using curl (replace credentials and URL as appropriate):
+```bash
+# If running inside the cluster, port-forward first:
+# kubectl -n rag port-forward svc/elasticsearch-es-http 9200:9200
+
 curl -u elastic:your-secure-password \
   -X POST "http://127.0.0.1:9200/_security/api_key" \
   -H 'Content-Type: application/json' \
@@ -280,66 +361,220 @@ API key authentication takes precedence over username/password when both are con
 
 ### Helm Chart
 
-#### 1. Configure RAG services to authenticate to Elasticsearch
+Follow these steps to enable authentication for Elasticsearch in your Helm deployment.
 
-Edit `deploy/helm/nvidia-blueprint-rag/values.yaml` and set one of:
+#### 1. Enable Elasticsearch Authentication
+
+Edit [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) to enable X-Pack security:
 
 ```yaml
-# API Key auth (preferred) - choose one of the two forms:
-envVars:
-  APP_VECTORSTORE_APIKEY: "base64-id-colon-secret"           # base64(\"id:secret\")
-  # OR
-  APP_VECTORSTORE_APIKEY_ID: "your_id"
-  APP_VECTORSTORE_APIKEY_SECRET: "your_secret"
+eck-elasticsearch:
+  enabled: true
+  http:
+    tls:
+      selfSignedCertificate:
+        disabled: true  # Keep TLS disabled for easier HTTP access
+  nodeSets:
+  - name: default
+    count: 1
+    config:
+      node.store.allow_mmap: false
+      # Enable X-Pack security for authentication
+      xpack.security.enabled: true
+      # Keep SSL/TLS disabled for HTTP
+      xpack.security.http.ssl.enabled: false
+      xpack.security.transport.ssl.enabled: false
+```
 
-# Basic auth (alternative):
+:::{important}
+**Key Configuration Flags:**
+- `xpack.security.enabled: true` - Enables authentication (default user: `elastic`)
+- `xpack.security.http.ssl.enabled: false` - Disables HTTPS (uses HTTP for simplicity)
+- `xpack.security.transport.ssl.enabled: false` - Disables SSL for node-to-node communication
+- `http.tls.selfSignedCertificate.disabled: true` - Disables ECK's automatic TLS certificate generation
+:::
+
+#### 2. Deploy with Authentication Enabled
+
+After modifying [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml), apply the changes as described in [Change a Deployment](deploy-helm.md#change-a-deployment).
+
+Wait for Elasticsearch to restart:
+
+```bash
+# Monitor pod restart
+kubectl get pods -n rag -w | grep elasticsearch
+
+# Wait for pod to be ready
+kubectl wait --for=condition=ready pod -l elasticsearch.k8s.elastic.co/cluster-name=rag-eck-elasticsearch -n rag --timeout=300s
+```
+
+#### 3. Retrieve Elasticsearch Password from Secret
+
+When authentication is enabled, ECK automatically creates a Kubernetes secret containing the `elastic` user password:
+
+```bash
+# Find the Elasticsearch user secret
+kubectl get secrets -n rag | grep elastic-user
+# Expected: rag-eck-elasticsearch-es-elastic-user
+
+# Retrieve the password
+ES_PASSWORD=$(kubectl get secret rag-eck-elasticsearch-es-elastic-user -n rag -o jsonpath='{.data.elastic}' | base64 -d)
+echo "Elasticsearch password: $ES_PASSWORD"
+```
+
+:::{tip}
+Save this password securely. The password is auto-generated by ECK and persists across pod restarts unless the secret is deleted.
+:::
+
+#### 4. Update Deployment with Credentials
+
+Configure the RAG server and ingestor-server to use the retrieved credentials.
+
+**Option A: Update via Helm Command Line (Quick)**
+
+```bash
+# Retrieve the password
+ES_PASSWORD=$(kubectl get secret rag-eck-elasticsearch-es-elastic-user -n rag -o jsonpath='{.data.elastic}' | base64 -d)
+
+# Upgrade deployment with credentials
+helm upgrade --install rag -n rag nvidia-blueprint-rag/ \
+  --set imagePullSecret.password=$NGC_API_KEY \
+  --set ngcApiSecret.password=$NGC_API_KEY \
+  --set envVars.APP_VECTORSTORE_USERNAME="elastic" \
+  --set envVars.APP_VECTORSTORE_PASSWORD="$ES_PASSWORD" \
+  --set ingestor-server.envVars.APP_VECTORSTORE_USERNAME="elastic" \
+  --set ingestor-server.envVars.APP_VECTORSTORE_PASSWORD="$ES_PASSWORD"
+```
+
+**Option B: Update values.yaml (Recommended for Production)**
+
+Edit [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) with the credentials:
+
+```yaml
+# RAG Server configuration
 envVars:
+  APP_VECTORSTORE_URL: "http://rag-eck-elasticsearch-es-http:9200"
+  APP_VECTORSTORE_NAME: "elasticsearch"
   APP_VECTORSTORE_USERNAME: "elastic"
-  APP_VECTORSTORE_PASSWORD: "your-secure-password"
+  APP_VECTORSTORE_PASSWORD: "your-retrieved-password"
+
+# Ingestor Server configuration
+ingestor-server:
+  envVars:
+    APP_VECTORSTORE_URL: "http://rag-eck-elasticsearch-es-http:9200"
+    APP_VECTORSTORE_NAME: "elasticsearch"
+    APP_VECTORSTORE_USERNAME: "elastic"
+    APP_VECTORSTORE_PASSWORD: "your-retrieved-password"
 ```
 
-To obtain the API key, first deploy the Helm chart (see step 3 below), wait for Elasticsearch to be running, then create a port-forward tunnel to access Elasticsearch. You can complete the deployment first and come back to this section to obtain the API key.
+Then apply the changes as described in [Change a Deployment](deploy-helm.md#change-a-deployment).
+
+#### 5. (Optional) Use API Key Authentication
+
+For advanced use cases or production environments, you can use Elasticsearch API keys instead of username/password authentication.
+
+**Generate an API Key:**
+
+First, port-forward to access Elasticsearch:
 
 ```bash
-# Replace with Elasticsearch svc name, get using `kubectl get svc -n rag`
-kubectl port-forward -n rag svc/<elasticsearch-service-name> 9200:9200 
+kubectl port-forward -n rag svc/rag-eck-elasticsearch-es-http 9200:9200
 ```
 
-Once the tunnel is established, follow the instructions in [Generate Elasticsearch API Key](#3-generate-elasticsearch-api-key-optional-but-recommended) to generate the API key using curl. After obtaining the API key, update your `values.yaml` file with the credentials and redeploy.
+Then generate an API key using the elastic user:
 
-:::
+```bash
+# Get the elastic password
+ES_PASSWORD=$(kubectl get secret rag-eck-elasticsearch-es-elastic-user -n rag -o jsonpath='{.data.elastic}' | base64 -d)
 
-:::{note}
-API key authentication takes precedence over username/password when both are configured.
-:::
+# Create an API key
+curl -u elastic:$ES_PASSWORD \
+  -X POST "http://localhost:9200/_security/api_key" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "name": "rag-api-key",
+    "role_descriptors": {}
+  }'
+```
 
-:::{note}
-The chart no longer uses a Kubernetes elastic-secret for these values; set them directly in envVars or via your own external secrets mechanism if desired.
-:::
+Example response:
+```json
+{
+  "id": "AbCdEfGhIj",
+  "name": "rag-api-key",
+  "api_key": "ZyXwVuTsRq"
+}
+```
 
-#### 2. Enable Elasticsearch xpack security in values.yaml
+**Encode the API Key:**
 
-Uncomment the xpack block in `deploy/helm/nvidia-blueprint-rag/values.yaml`:
+```bash
+# Base64 encode the "id:api_key" format
+echo -n "AbCdEfGhIj:ZyXwVuTsRq" | base64
+# Output example: QWJDZEVmR2hJajpaeVh3VnVUc1Jx
+```
+
+**Configure with API Key:**
+
+Edit [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml):
 
 ```yaml
-xpack:
-  security:
-    enabled: true
+# RAG Server configuration - Option 1: Base64 encoded API key
+envVars:
+  APP_VECTORSTORE_APIKEY: "QWJDZEVmR2hJajpaeVh3VnVUc1Jx"
+  # Leave username/password empty
+  APP_VECTORSTORE_USERNAME: ""
+  APP_VECTORSTORE_PASSWORD: ""
+
+# Ingestor Server configuration - Option 1: Base64 encoded API key
+ingestor-server:
+  envVars:
+    APP_VECTORSTORE_APIKEY: "QWJDZEVmR2hJajpaeVh3VnVUc1Jx"
+    APP_VECTORSTORE_USERNAME: ""
+    APP_VECTORSTORE_PASSWORD: ""
 ```
 
-This corresponds to the commented example in that file; ensure it's uncommented so authentication is enforced.
+Or use split ID/SECRET format:
 
-#### 3. Deploy with Helm:
+```yaml
+# RAG Server configuration - Option 2: Split ID and secret
+envVars:
+  APP_VECTORSTORE_APIKEY_ID: "AbCdEfGhIj"
+  APP_VECTORSTORE_APIKEY_SECRET: "ZyXwVuTsRq"
+  APP_VECTORSTORE_USERNAME: ""
+  APP_VECTORSTORE_PASSWORD: ""
+
+# Ingestor Server configuration - Option 2: Split ID and secret
+ingestor-server:
+  envVars:
+    APP_VECTORSTORE_APIKEY_ID: "AbCdEfGhIj"
+    APP_VECTORSTORE_APIKEY_SECRET: "ZyXwVuTsRq"
+    APP_VECTORSTORE_USERNAME: ""
+    APP_VECTORSTORE_PASSWORD: ""
+```
+
+Then apply the changes as described in [Change a Deployment](deploy-helm.md#change-a-deployment).
+
+:::{note}
+**API Key vs Username/Password:**
+- API keys are recommended for production environments and applications
+- API keys can have specific permissions and expiration dates
+- API keys can be rotated without changing the elastic user password
+- **API key authentication takes precedence** when both username/password and API keys are configured
+:::
+
+#### 6. Verify Authentication
+
+Test that the services can connect to Elasticsearch with authentication:
+
 ```bash
-helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.3.0-rc2.tgz \
---username '$oauthtoken' \
---password "${NGC_API_KEY}" \
---set imagePullSecret.password=$NGC_API_KEY \
---set ngcApiSecret.password=$NGC_API_KEY \
--f deploy/helm/nvidia-blueprint-rag/values.yaml
-```
+# Check ingestor-server logs for successful connection
+kubectl logs -n rag -l app=ingestor-server --tail=20
 
-For detailed HELM deployment instructions, see [Helm Deployment Guide](deploy-helm.md).
+# Test Elasticsearch connection manually
+ES_PASSWORD=$(kubectl get secret rag-eck-elasticsearch-es-elastic-user -n rag -o jsonpath='{.data.elastic}' | base64 -d)
+kubectl exec -n rag rag-eck-elasticsearch-es-default-0 -- curl -s -u elastic:$ES_PASSWORD http://localhost:9200/_cluster/health
+```
 
 
 ## Using VDB Auth Token at Runtime via APIs (Enterprise Feature)
