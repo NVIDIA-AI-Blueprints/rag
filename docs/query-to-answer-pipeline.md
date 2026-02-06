@@ -20,6 +20,7 @@ A single RAG request passes through the following stages in sequence, and option
 
 Additional optional logic (for example, [query decomposition](query_decomposition.md) or [self-reflection](self-reflection.md)) may run around or within these stages, but the core flow is the sequence described above.
 
+
 ## How to Study Time Spent in the Pipeline
 
 You can analyze where time is spent in two ways: **distributed traces** (per-request, per-stage) and **aggregate metrics** (histograms over many requests).
