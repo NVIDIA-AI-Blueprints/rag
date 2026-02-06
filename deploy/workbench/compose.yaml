@@ -333,7 +333,7 @@ services:
     profiles: ["ingest"]
 
   nv-ingest-ms-runtime:
-    image: nvcr.io/nvidia/nemo-microservices/nv-ingest:26.1.1
+    image: nvcr.io/nvidia/nemo-microservices/nv-ingest:26.1.2
     # cpuset: "0-15" # Uncomment to restrict this container to CPU cores 0–15
     shm_size: 40gb # Should be at minimum 30% of assigned memory per Ray documentation
     volumes:

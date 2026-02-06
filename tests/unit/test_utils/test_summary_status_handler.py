@@ -899,7 +899,7 @@ class TestSummarizationTokenization:
 
         # Create a mock config
         mock_config = Mock()
-        mock_config.nv_ingest.tokenizer = "intfloat/e5-large-unsupervised"
+        mock_config.summarizer.tokenizer = "intfloat/e5-large-unsupervised"
 
         with patch("nvidia_rag.utils.summarization._tokenizer_cache", None):
             with patch(
@@ -926,7 +926,7 @@ class TestSummarizationTokenization:
 
         # Create a mock config
         mock_config = Mock()
-        mock_config.nv_ingest.tokenizer = "invalid/model"
+        mock_config.summarizer.tokenizer = "invalid/model"
 
         with patch("nvidia_rag.utils.summarization._tokenizer_cache", None):
             with patch(

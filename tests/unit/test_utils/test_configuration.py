@@ -256,6 +256,7 @@ class TestSummarizerConfig:
         assert config.chunk_overlap == 400
         assert config.temperature == 0.0
         assert config.top_p == 1.0
+        assert config.tokenizer == "intfloat/e5-large-unsupervised"
 
     @patch.dict(os.environ, {}, clear=True)
     def test_environment_variables_custom_names(self):
@@ -267,6 +268,7 @@ class TestSummarizerConfig:
             "SUMMARY_CHUNK_OVERLAP": "300",
             "SUMMARY_LLM_TEMPERATURE": "0.5",
             "SUMMARY_LLM_TOP_P": "0.9",
+            "SUMMARY_TOKENIZER": "custom/tokenizer-model",
         }
 
         with patch.dict(os.environ, env_vars):
@@ -278,6 +280,7 @@ class TestSummarizerConfig:
             assert config.chunk_overlap == 300
             assert config.temperature == 0.5
             assert config.top_p == 0.9
+            assert config.tokenizer == "custom/tokenizer-model"
 
 
 class TestNvIngestConfig:
@@ -296,7 +299,7 @@ class TestNvIngestConfig:
         assert config.extract_images is False
         assert config.pdf_extract_method is None
         assert config.text_depth == "page"
-        assert config.tokenizer == "intfloat/e5-large-unsupervised"
+        assert config.tokenizer == "meta-llama/Llama-3.2-1B"
         assert config.chunk_size == 1024
         assert config.chunk_overlap == 150
         assert config.caption_model_name == "nvidia/nemotron-nano-12b-v2-vl"

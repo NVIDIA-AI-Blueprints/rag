@@ -1,7 +1,7 @@
 dependencies:
 - name: nv-ingest
   repository: https://helm.ngc.nvidia.com/nvidia/nemo-microservices
-  version: 26.1.1
+  version: 26.1.2
 - name: eck-elasticsearch
   repository: https://helm.elastic.co
   version: 0.18.0

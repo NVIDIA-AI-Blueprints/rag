@@ -111,7 +111,7 @@ ingestor = ingestor.extract(
                 table_output_format="markdown"
             )
 ingestor = ingestor.split(
-                tokenizer="intfloat/e5-large-unsupervised",
+                tokenizer="meta-llama/Llama-3.2-1B",
                 chunk_size=51,
                 chunk_overlap=15,
                 params={"split_source_types": ["PDF", "text", "html", "mp3", "docx", "pptx"]},
