@@ -66,7 +66,7 @@ To install the RAG Blueprint on Kubernetes, you need one of the following:
 - 8 x B200
 - 9 x A100-80GB SXM
 - 8 x RTX PRO 6000
-- 3 x H100 (with [Multi-Instance GPU](./mig-deployment.md))
+- 3 x H100 (with [Multi-Instance GPU](./mig-deployment.md)
 
 
 
