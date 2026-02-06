@@ -51,9 +51,9 @@ These metrics are available at **http://localhost:8889/metrics** when you run th
 
 ### Quick checklist for studying latency
 
-- **Slow first token** – Check `rag_ttft_ms` and the trace: compare the time spent in retriever, reranker, and the atart of LLM generation; long retriever or reranker spans often indicate the cause.
+- **Slow first token** – Check `rag_ttft_ms` and the trace: compare the time spent in retriever, reranker, and the start of LLM generation; long retriever or reranker spans often indicate the cause.
 - **Slow full response** – Check `llm_generation_time_ms` and the `llm-stream` span; adjust `max_tokens`, model choice, or generation settings if this stage dominates.
-- **Retrieval heavy latentcy** – Compare `retrieval_time_ms` and `context_reranker_time_ms`; if they are high, consider `vdb_top_k` / `reranker_top_k` or revising your indexing strategy.
+- **Retrieval heavy latency** – Compare `retrieval_time_ms` and `context_reranker_time_ms`; if they are high, consider `vdb_top_k` / `reranker_top_k` or revising your indexing strategy.
 
 ## Related Topics
 
