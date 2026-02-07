@@ -106,6 +106,31 @@ async def _async_iter(items) -> AsyncGenerator[Any, None]:
         yield item
 
 
+def _combine_raptor_stratified_filter(
+    base_filter: str | list[dict[str, Any]],
+    category: str,
+) -> str | list[dict[str, Any]]:
+    """
+    Combine base filter with RAPTOR type/level filter for stratified retrieval.
+    category: "chunks" | "l1" | "other"
+    Returns combined filter; if base_filter is not str (e.g. ES), returns base_filter unchanged.
+    """
+    if not isinstance(base_filter, str):
+        return base_filter
+    base = (base_filter or "").strip()
+    if category == "chunks":
+        expr = 'content_metadata["type"] != "summary"'
+    elif category == "l1":
+        expr = 'content_metadata["type"] == "summary" and content_metadata["level"] == 1'
+    elif category == "other":
+        expr = 'content_metadata["type"] == "summary" and content_metadata["level"] >= 2'
+    else:
+        return base_filter
+    if not base:
+        return expr
+    return f"({base}) and ({expr})"
+
+
 logger = logging.getLogger(__name__)
 
 MAX_COLLECTION_NAMES = 5
@@ -2620,34 +2645,121 @@ class NvidiaRAG:
                         }
                     )
 
-                    # Perform parallel retrieval from all vector stores
+                    # Perform parallel retrieval: single collection → stratified (chunks/L1/other) in parallel; else one per collection
                     docs = []
-                    # Start measuring retrieval latency across collections
                     retrieval_start_time = time.time()
                     vectorstores = []
                     for collection_name in validated_collections:
                         vectorstores.append(
                             vdb_op.get_langchain_vectorstore(collection_name)
                         )
-                    with ThreadPoolExecutor() as executor:
-                        futures = [
-                            executor.submit(
-                                vdb_op.retrieval_langchain,
-                                query=retriever_query,
-                                collection_name=collection_name,
-                                vectorstore=vectorstore,
-                                top_k=top_k,
-                                filter_expr=collection_filter_mapping.get(
-                                    collection_name, ""
-                                ),
-                                otel_ctx=otel_ctx,
+
+                    use_stratified_retrieval = (
+                        len(validated_collections) == 1
+                        and ranker
+                        and enable_reranker
+                        and not is_image_query
+                    )
+                    if use_stratified_retrieval:
+                        logger.info(
+                            "RAPTOR stratified retrieval: single collection, reranker on, non-image query → using 40/30/30 parallel retrieval"
+                        )
+                        # 40% chunks, 30% L1, 30% other; fetch all three in parallel, then rerank once (same latency as 1 retrieval + rerank)
+                        coll_name = validated_collections[0]
+                        vs = vectorstores[0]
+                        base_filter = collection_filter_mapping.get(coll_name, "") or ""
+                        k_chunk = max(1, int(math.ceil(0.4 * top_k)))
+                        k_l1 = max(0, int(math.ceil(0.3 * top_k)))
+                        k_other = max(0, top_k - k_chunk - k_l1)
+                        if isinstance(base_filter, str):
+                            with ThreadPoolExecutor() as executor:
+                                f_chunk = executor.submit(
+                                    vdb_op.retrieval_langchain,
+                                    query=retriever_query,
+                                    collection_name=coll_name,
+                                    vectorstore=vs,
+                                    top_k=k_chunk,
+                                    filter_expr=_combine_raptor_stratified_filter(
+                                        base_filter, "chunks"
+                                    ),
+                                    otel_ctx=otel_ctx,
+                                )
+                                f_l1 = executor.submit(
+                                    vdb_op.retrieval_langchain,
+                                    query=retriever_query,
+                                    collection_name=coll_name,
+                                    vectorstore=vs,
+                                    top_k=k_l1,
+                                    filter_expr=_combine_raptor_stratified_filter(
+                                        base_filter, "l1"
+                                    ),
+                                    otel_ctx=otel_ctx,
+                                )
+                                f_other = executor.submit(
+                                    vdb_op.retrieval_langchain,
+                                    query=retriever_query,
+                                    collection_name=coll_name,
+                                    vectorstore=vs,
+                                    top_k=k_other,
+                                    filter_expr=_combine_raptor_stratified_filter(
+                                        base_filter, "other"
+                                    ),
+                                    otel_ctx=otel_ctx,
+                                )
+                                docs.extend(f_chunk.result())
+                                docs.extend(f_l1.result())
+                                docs.extend(f_other.result())
+                            logger.info(
+                                "Stratified retrieval (parallel): requested k_chunk=%d, k_l1=%d, k_other=%d → %d docs",
+                                k_chunk,
+                                k_l1,
+                                k_other,
+                                len(docs),
                             )
-                            for collection_name, vectorstore in zip(
-                                validated_collections, vectorstores, strict=False
+                        else:
+                            use_stratified_retrieval = False
+                            logger.info(
+                                "Stratified retrieval skipped: filter is not string (e.g. Elasticsearch list filter), using standard retrieval"
                             )
-                        ]
-                        for future in futures:
-                            docs.extend(future.result())
+                    if not use_stratified_retrieval:
+                        if not (
+                            len(validated_collections) == 1
+                            and ranker
+                            and enable_reranker
+                            and not is_image_query
+                        ):
+                            logger.info(
+                                "RAPTOR stratified retrieval skipped: collections=%d, reranker=%s, image_query=%s → standard retrieval",
+                                len(validated_collections),
+                                bool(ranker and enable_reranker),
+                                is_image_query,
+                            )
+                        logger.info(
+                            "Retrieval: fetching top_k=%d from %d collection(s)",
+                            top_k,
+                            len(validated_collections),
+                        )
+                        with ThreadPoolExecutor() as executor:
+                            futures = [
+                                executor.submit(
+                                    vdb_op.retrieval_langchain,
+                                    query=retriever_query,
+                                    collection_name=collection_name,
+                                    vectorstore=vectorstore,
+                                    top_k=top_k,
+                                    filter_expr=collection_filter_mapping.get(
+                                        collection_name, ""
+                                    ),
+                                    otel_ctx=otel_ctx,
+                                )
+                                for collection_name, vectorstore in zip(
+                                    validated_collections,
+                                    vectorstores,
+                                    strict=False,
+                                )
+                            ]
+                            for future in futures:
+                                docs.extend(future.result())
 
                     retrieval_time_ms = (time.time() - retrieval_start_time) * 1000
                     logger.info("Retrieval Output:")
@@ -2989,6 +3101,14 @@ class NvidiaRAG:
             # This happens AFTER all filtering (reranking, confidence) but BEFORE formatting for LLM
             context_to_show = await self._expand_documents_with_raptor(
                 context_to_show, vdb_op
+            )
+
+            # Stratified retrieval: 40% chunks, 30% L1 summaries, 30% other (L2+); order: L2+ then L1 then chunks
+            context_to_show = self._stratify_and_order_context(
+                context_to_show,
+                ratio_chunks=0.4,
+                ratio_l1=0.3,
+                ratio_other=0.3,
             )
 
             docs = [self._format_document_with_source(d) for d in context_to_show]
@@ -3345,6 +3465,68 @@ class NvidiaRAG:
                 doc.metadata["relevance_score"] = normalized_score
 
         return documents
+
+    def _stratify_and_order_context(
+        self,
+        documents: list[Document],
+        ratio_chunks: float = 0.4,
+        ratio_l1: float = 0.3,
+        ratio_other: float = 0.3,
+    ) -> list[Document]:
+        """
+        Stratify context into 40% chunks, 30% L1 summaries, 30% other-level summaries,
+        and order for the prompt: high-level (L2+) first, then L1, then chunks.
+
+        Documents without content_metadata.type "summary" are treated as chunks.
+        Summary level is from content_metadata.level (1 = page/section, 2+ = section/doc).
+        """
+        if not documents:
+            return documents
+
+        chunks: list[Document] = []
+        l1_summaries: list[Document] = []
+        other_summaries: list[Document] = []
+
+        for doc in documents:
+            content_meta = doc.metadata.get("content_metadata") or {}
+            if content_meta.get("type") != "summary":
+                chunks.append(doc)
+                continue
+            level = content_meta.get("level", 1)
+            if level == 1:
+                l1_summaries.append(doc)
+            else:
+                other_summaries.append(doc)
+
+        n = len(documents)
+        n_chunk = max(0, int(ratio_chunks * n))
+        n_l1 = max(0, int(ratio_l1 * n))
+        n_other = max(0, n - n_chunk - n_l1)
+
+        logger.info(
+            "RAPTOR stratify_and_order: input %d docs → chunks=%d, L1=%d, other(L2+)=%d; slots 40/30/30 → n_chunk=%d, n_l1=%d, n_other=%d",
+            n,
+            len(chunks),
+            len(l1_summaries),
+            len(other_summaries),
+            n_chunk,
+            n_l1,
+            n_other,
+        )
+
+        ordered: list[Document] = []
+        ordered.extend(other_summaries[:n_other])
+        ordered.extend(l1_summaries[:n_l1])
+        ordered.extend(chunks[:n_chunk])
+
+        logger.info(
+            "RAPTOR stratify_and_order: output %d docs (order: other→L1→chunks): %d other, %d L1, %d chunks",
+            len(ordered),
+            min(len(other_summaries), n_other),
+            min(len(l1_summaries), n_l1),
+            min(len(chunks), n_chunk),
+        )
+        return ordered
 
     async def _expand_documents_with_raptor(
         self, documents: list[Document], vdb_op: VDBRag
