@@ -33,6 +33,7 @@ Private helper methods:
 
 """
 
+import asyncio
 import json
 import logging
 import math
@@ -2647,6 +2648,9 @@ class NvidiaRAG:
 
                     # Perform parallel retrieval: single collection → stratified (chunks/L1/other) in parallel; else one per collection
                     docs = []
+                    docs_chunk: list = []
+                    docs_l1: list = []
+                    docs_other: list = []
                     retrieval_start_time = time.time()
                     vectorstores = []
                     for collection_name in validated_collections:
@@ -2662,9 +2666,8 @@ class NvidiaRAG:
                     )
                     if use_stratified_retrieval:
                         logger.info(
-                            "RAPTOR stratified retrieval: single collection, reranker on, non-image query → using 40/30/30 parallel retrieval"
+                            "RAPTOR stratified retrieval: single collection, reranker on, non-image query → 3 parallel VDB retrievals (chunks/L1/other)"
                         )
-                        # 40% chunks, 30% L1, 30% other; fetch all three in parallel, then rerank once (same latency as 1 retrieval + rerank)
                         coll_name = validated_collections[0]
                         vs = vectorstores[0]
                         base_filter = collection_filter_mapping.get(coll_name, "") or ""
@@ -2706,14 +2709,18 @@ class NvidiaRAG:
                                     ),
                                     otel_ctx=otel_ctx,
                                 )
-                                docs.extend(f_chunk.result())
-                                docs.extend(f_l1.result())
-                                docs.extend(f_other.result())
+                                docs_chunk = f_chunk.result()
+                                docs_l1 = f_l1.result()
+                                docs_other = f_other.result()
+                                docs = docs_chunk + docs_l1 + docs_other
                             logger.info(
-                                "Stratified retrieval (parallel): requested k_chunk=%d, k_l1=%d, k_other=%d → %d docs",
+                                "Stratified retrieval: k_chunk=%d, k_l1=%d, k_other=%d → chunk=%d, L1=%d, other=%d (total %d)",
                                 k_chunk,
                                 k_l1,
                                 k_other,
+                                len(docs_chunk),
+                                len(docs_l1),
+                                len(docs_other),
                                 len(docs),
                             )
                         else:
@@ -2772,29 +2779,96 @@ class NvidiaRAG:
                         "Starting reranking with query: '%s'",
                         processed_query[:200] if processed_query else "",
                     )
-                    try:
-                        docs = await context_reranker.ainvoke(
-                            {"context": docs, "question": processed_query},
-                            config={"run_name": "context_reranker"},
+                    use_stratified_rerank = use_stratified_retrieval and (
+                        len(docs_chunk) + len(docs_l1) + len(docs_other)
+                    ) > 0
+                    if use_stratified_rerank:
+                        # 3 parallel reranks (one per category); slots 40/30/30 → n_chunk, n_l1, n_other of reranker_top_k; fill unused slots from chunks
+                        n_chunk_r = max(1, int(math.ceil(0.4 * reranker_top_k)))
+                        n_l1_r = max(0, int(math.ceil(0.3 * reranker_top_k)))
+                        n_other_r = max(0, reranker_top_k - n_chunk_r - n_l1_r)
+                        logger.info(
+                            "RAPTOR stratified rerank: 3 parallel reranks, slots n_other=%d, n_l1=%d, n_chunk=%d (fill from chunks if needed)",
+                            n_other_r,
+                            n_l1_r,
+                            n_chunk_r,
                         )
-                    except (
-                        requests.exceptions.ConnectionError,
-                        ConnectionError,
-                        OSError,
-                    ) as e:
-                        reranker_url = (
-                            reranker_endpoint or self.config.ranking.server_url
+                        try:
+
+                            async def _rerank_one(doc_list: list, run_name: str):
+                                if not doc_list:
+                                    return []
+                                out = await context_reranker.ainvoke(
+                                    {"context": doc_list, "question": processed_query},
+                                    config={"run_name": run_name},
+                                )
+                                return out.get("context", [])
+
+                            other_out, l1_out, chunk_out = await asyncio.gather(
+                                _rerank_one(docs_other, "context_reranker_other"),
+                                _rerank_one(docs_l1, "context_reranker_l1"),
+                                _rerank_one(docs_chunk, "context_reranker_chunk"),
+                            )
+                            other_reranked = other_out[:n_other_r]
+                            l1_reranked = l1_out[:n_l1_r]
+                            chunk_reranked_full = chunk_out[: reranker_top_k]
+                            chunk_slot = chunk_reranked_full[:n_chunk_r]
+                            context_to_show = other_reranked + l1_reranked + chunk_slot
+                            need = reranker_top_k - len(context_to_show)
+                            if need > 0 and len(chunk_reranked_full) > n_chunk_r:
+                                fill = chunk_reranked_full[
+                                    n_chunk_r : n_chunk_r + need
+                                ]
+                                context_to_show = context_to_show + fill
+                                logger.info(
+                                    "RAPTOR stratified rerank: filled %d slot(s) from next-best chunks → %d total",
+                                    len(fill),
+                                    len(context_to_show),
+                                )
+                        except (
+                            requests.exceptions.ConnectionError,
+                            ConnectionError,
+                            OSError,
+                        ) as e:
+                            reranker_url = (
+                                reranker_endpoint or self.config.ranking.server_url
+                            )
+                            error_msg = f"Reranker NIM unavailable at {reranker_url}. Please verify the service is running and accessible."
+                            logger.error("Connection error in reranker: %s", e)
+                            raise APIError(
+                                error_msg, ErrorCodeMapping.SERVICE_UNAVAILABLE
+                            ) from e
+                        logger.info(
+                            "RAPTOR stratified rerank result: %d other, %d L1, %d chunks → %d total",
+                            len(other_reranked),
+                            len(l1_reranked),
+                            len(chunk_slot),
+                            len(context_to_show),
                         )
-                        error_msg = f"Reranker NIM unavailable at {reranker_url}. Please verify the service is running and accessible."
-                        logger.error("Connection error in reranker: %s", e)
-                        raise APIError(
-                            error_msg, ErrorCodeMapping.SERVICE_UNAVAILABLE
-                        ) from e
+                    else:
+                        try:
+                            docs = await context_reranker.ainvoke(
+                                {"context": docs, "question": processed_query},
+                                config={"run_name": "context_reranker"},
+                            )
+                        except (
+                            requests.exceptions.ConnectionError,
+                            ConnectionError,
+                            OSError,
+                        ) as e:
+                            reranker_url = (
+                                reranker_endpoint or self.config.ranking.server_url
+                            )
+                            error_msg = f"Reranker NIM unavailable at {reranker_url}. Please verify the service is running and accessible."
+                            logger.error("Connection error in reranker: %s", e)
+                            raise APIError(
+                                error_msg, ErrorCodeMapping.SERVICE_UNAVAILABLE
+                            ) from e
+                        context_to_show = docs.get("context", [])
 
                     context_reranker_time_ms = (
                         time.time() - context_reranker_start_time
                     ) * 1000
-                    context_to_show = docs.get("context", [])
 
                     # Normalize scores to 0-1 range
                     context_to_show = self._normalize_relevance_scores(context_to_show)
