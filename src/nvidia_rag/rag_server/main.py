@@ -33,7 +33,6 @@ Private helper methods:
 
 """
 
-import asyncio
 import json
 import logging
 import math
@@ -107,29 +106,61 @@ async def _async_iter(items) -> AsyncGenerator[Any, None]:
         yield item
 
 
-def _combine_raptor_stratified_filter(
-    base_filter: str | list[dict[str, Any]],
-    category: str,
-) -> str | list[dict[str, Any]]:
+def _build_chunk_filter_from_summaries(
+    summary_docs: list, base_filter: str
+) -> str:
     """
-    Combine base filter with RAPTOR type/level filter for stratified retrieval.
-    category: "chunks" | "l1" | "other"
-    Returns combined filter; if base_filter is not str (e.g. ES), returns base_filter unchanged.
+    Build a Milvus filter for chunk retrieval from top-N summary documents.
+    Used only to scope where to fetch chunks; summaries are never added to answer context.
+    - L1 summaries: filter by document_id + page_number(s).
+    - L2+ (others): filter by document_id only (all pages for that doc).
+    Result is ANDed with type != "summary" so only chunks are retrieved.
     """
-    if not isinstance(base_filter, str):
-        return base_filter
+    doc_pages: dict[str, set[int] | None] = {}
+    for doc in summary_docs:
+        meta = doc.metadata.get("content_metadata") or {}
+        source = doc.metadata.get("source") or {}
+        doc_id = meta.get("document_id") or source.get("source_id") or ""
+        if not doc_id:
+            continue
+        level = meta.get("level", 1)
+        if level == 1:
+            p = meta.get("page_number")
+            if p is not None and isinstance(p, (int, float)):
+                page_num = int(p)
+                if doc_id not in doc_pages:
+                    doc_pages[doc_id] = set()
+                if doc_pages[doc_id] is not None:
+                    doc_pages[doc_id].add(page_num)
+        else:
+            doc_pages[doc_id] = None
+    if not doc_pages:
+        return ""
+    parts = []
+    for doc_id, pages in doc_pages.items():
+        safe_id = doc_id.replace('"', '\\"')
+        if pages is not None and len(pages) > 0:
+            page_list = sorted(pages)
+            if len(page_list) == 1:
+                parts.append(
+                    f'(source["source_id"] == "{safe_id}" and '
+                    f'content_metadata["page_number"] == {page_list[0]})'
+                )
+            else:
+                page_str = ", ".join(str(p) for p in page_list)
+                parts.append(
+                    f'(source["source_id"] == "{safe_id}" and '
+                    f'content_metadata["page_number"] in [{page_str}])'
+                )
+        else:
+            parts.append(f'(source["source_id"] == "{safe_id}")')
+    chunk_cond = " or ".join(parts)
+    type_cond = 'content_metadata["type"] != "summary"'
+    combined = f"({type_cond}) and ({chunk_cond})"
     base = (base_filter or "").strip()
-    if category == "chunks":
-        expr = 'content_metadata["type"] != "summary"'
-    elif category == "l1":
-        expr = 'content_metadata["type"] == "summary" and content_metadata["level"] == 1'
-    elif category == "other":
-        expr = 'content_metadata["type"] == "summary" and content_metadata["level"] >= 2'
-    else:
-        return base_filter
-    if not base:
-        return expr
-    return f"({base}) and ({expr})"
+    if base:
+        return f"({base}) and ({combined})"
+    return combined
 
 
 logger = logging.getLogger(__name__)
@@ -228,9 +259,7 @@ class NvidiaRAG:
             "api_key": self.config.query_rewriter.get_api_key(),
         }
         # Log config without sensitive api_key
-        safe_config = {
-            k: v for k, v in query_rewriter_llm_config.items() if k != "api_key"
-        }
+        safe_config = {k: v for k, v in query_rewriter_llm_config.items() if k != "api_key"}
         logger.info(
             "Query rewriter llm config: model name %s, url %s, config %s",
             self.config.query_rewriter.model_name,
@@ -479,19 +508,12 @@ class NvidiaRAG:
         logger.info("  - enable_filter_generator: %s", enable_filter_generator)
         logger.info("  - enable_query_decomposition: %s", enable_query_decomposition)
         logger.info("  - enable_vlm_inference: %s", enable_vlm_inference)
-        logger.info(
-            "  - enable_reflection: %s", self.config.reflection.enable_reflection
-        )
+        logger.info("  - enable_reflection: %s", self.config.reflection.enable_reflection)
         logger.info("  - vdb_top_k: %s, reranker_top_k: %s", vdb_top_k, reranker_top_k)
-        logger.info(
-            "  - temperature: %s, top_p: %s, max_tokens: %s",
-            temperature,
-            top_p,
-            max_tokens,
-        )
+        logger.info("  - temperature: %s, top_p: %s, max_tokens: %s", temperature, top_p, max_tokens)
         logger.info("  - model: %s", model)
         logger.info("-" * 80)
-
+        
         # Apply defaults from config for None values
         model_params = self.config.llm.get_model_parameters()
         temperature = (
@@ -613,14 +635,12 @@ class NvidiaRAG:
             collection_names = [self.config.vector_store.default_collection_name]
 
         query, chat_history = prepare_llm_request(messages)
-
+        
         # Log extracted query
         query_text = self._extract_text_from_content(query)
         logger.info("Extracted Query: '%s'", query_text[:200] if query_text else "")
-        logger.info(
-            "Chat History: %d message(s)", len(chat_history) if chat_history else 0
-        )
-
+        logger.info("Chat History: %d message(s)", len(chat_history) if chat_history else 0)
+        
         llm_settings = {
             "model": model,
             "llm_endpoint": llm_endpoint,
@@ -1206,9 +1226,7 @@ class NvidiaRAG:
             # Get relevant documents with optional reflection
             otel_ctx = otel_context.get_current()
             if self.config.reflection.enable_reflection:
-                context_reflection_counter = ReflectionCounter(
-                    self.config.reflection.max_loops
-                )
+                context_reflection_counter = ReflectionCounter(self.config.reflection.max_loops)
                 docs, is_relevant = await check_context_relevance(
                     vdb_op=vdb_op,
                     retriever_query=processed_query,
@@ -1231,11 +1249,7 @@ class NvidiaRAG:
                     logger.warning(
                         "Could not find sufficiently relevant context after maximum attempts"
                     )
-                return prepare_citations(
-                    retrieved_documents=docs,
-                    force_citations=True,
-                    enable_citations=enable_citations,
-                )
+                return prepare_citations(retrieved_documents=docs, force_citations=True, enable_citations=enable_citations)
             else:
                 if local_ranker and enable_reranker and not is_image_query:
                     logger.info(
@@ -1317,9 +1331,7 @@ class NvidiaRAG:
                         )
 
                     return prepare_citations(
-                        retrieved_documents=docs,
-                        force_citations=True,
-                        enable_citations=enable_citations,
+                        retrieved_documents=docs, force_citations=True, enable_citations=enable_citations
                     )
                 else:
                     # Handle case where reranker is disabled or image query
@@ -1350,9 +1362,7 @@ class NvidiaRAG:
                             otel_ctx=otel_ctx,
                         )
                     return prepare_citations(
-                        retrieved_documents=docs,
-                        force_citations=True,
-                        enable_citations=enable_citations,
+                        retrieved_documents=docs, force_citations=True, enable_citations=enable_citations
                     )
 
         except APIError:
@@ -1562,12 +1572,10 @@ class NvidiaRAG:
             logger.info("  - Model: %s", model)
             llm_endpoint_display = llm_settings.get("llm_endpoint") or "api catalog"
             logger.info("  - Endpoint: %s", llm_endpoint_display)
-            logger.info(
-                "  - Temperature: %s, Top-P: %s, Max Tokens: %s",
-                llm_settings.get("temperature"),
-                llm_settings.get("top_p"),
-                llm_settings.get("max_tokens"),
-            )
+            logger.info("  - Temperature: %s, Top-P: %s, Max Tokens: %s", 
+                       llm_settings.get("temperature"), 
+                       llm_settings.get("top_p"), 
+                       llm_settings.get("max_tokens"))
             logger.info("Input:")
             logger.info("  - Query: '%s'", query_text[:200] if query_text else "")
             logger.info("Starting LLM stream generation...")
@@ -1585,7 +1593,7 @@ class NvidiaRAG:
             )
             # Eagerly fetch first chunk to trigger any errors before returning response
             prefetched_stream = await self._eager_prefetch_astream(stream_gen)
-
+            
             logger.info("LLM stream initiated successfully (first chunk received)")
             logger.info("-" * 80)
 
@@ -2191,20 +2199,12 @@ class NvidiaRAG:
                     logger.info("=" * 80)
                     logger.info("Configuration:")
                     logger.info("  - Model: %s", self.config.query_rewriter.model_name)
-                    logger.info(
-                        "  - Endpoint: %s", self.config.query_rewriter.server_url
-                    )
+                    logger.info("  - Endpoint: %s", self.config.query_rewriter.server_url)
                     logger.info("Input:")
-                    logger.info(
-                        "  - Query: '%s'",
-                        retriever_query[:200] if retriever_query else "",
-                    )
-                    logger.info(
-                        "  - Chat History Messages: %d",
-                        len(chat_history) if chat_history else 0,
-                    )
+                    logger.info("  - Query: '%s'", retriever_query[:200] if retriever_query else "")
+                    logger.info("  - Chat History Messages: %d", len(chat_history) if chat_history else 0)
                     logger.info("-" * 80)
-
+                    
                     # Skip query rewriting if conversation history is disabled
                     if conversation_history_count == 0:
                         logger.warning(
@@ -2305,18 +2305,9 @@ class NvidiaRAG:
                             ) from e
 
                         logger.info("Query Rewriting Output:")
-                        logger.info(
-                            "  - Original Query: '%s'",
-                            processed_query[:200] if processed_query else "",
-                        )
-                        logger.info(
-                            "  - Rewritten Query: '%s'",
-                            retriever_query[:200] if retriever_query else "",
-                        )
-                        logger.info(
-                            "  - Rewritten Query Length: %d characters",
-                            len(retriever_query),
-                        )
+                        logger.info("  - Original Query: '%s'", processed_query[:200] if processed_query else "")
+                        logger.info("  - Rewritten Query: '%s'", retriever_query[:200] if retriever_query else "")
+                        logger.info("  - Rewritten Query Length: %d characters", len(retriever_query))
                         logger.info("Query rewriting completed successfully")
                         logger.info("-" * 80)
 
@@ -2361,23 +2352,14 @@ class NvidiaRAG:
                     logger.info("STAGE: Filter Expression Generation")
                     logger.info("=" * 80)
                     logger.info("Configuration:")
-                    logger.info(
-                        "  - Model: %s",
-                        self.config.filter_expression_generator.model_name,
-                    )
-                    logger.info(
-                        "  - Endpoint: %s",
-                        self.config.filter_expression_generator.server_url,
-                    )
+                    logger.info("  - Model: %s", self.config.filter_expression_generator.model_name)
+                    logger.info("  - Endpoint: %s", self.config.filter_expression_generator.server_url)
                     logger.info("Input:")
-                    logger.info(
-                        "  - Query: '%s'",
-                        processed_query[:200] if processed_query else "",
-                    )
+                    logger.info("  - Query: '%s'", processed_query[:200] if processed_query else "")
                     logger.info("  - Collections: %s", validated_collections)
                     logger.info("Generating filter expressions for collections...")
                     logger.info("-" * 80)
-
+                    
                     try:
 
                         def generate_filter_for_collection(collection_name):
@@ -2441,25 +2423,13 @@ class NvidiaRAG:
                         )
                         if generated_count > 0:
                             logger.info("Filter Generation Output:")
-                            logger.info(
-                                "  - Successfully generated filters for %d/%d collections",
-                                generated_count,
-                                len(validated_collections),
-                            )
-                            for (
-                                coll_name,
-                                filter_val,
-                            ) in collection_filter_mapping.items():
+                            logger.info("  - Successfully generated filters for %d/%d collections", 
+                                       generated_count, len(validated_collections))
+                            for coll_name, filter_val in collection_filter_mapping.items():
                                 if filter_val:
-                                    logger.info(
-                                        "  - Collection '%s': %s",
-                                        coll_name,
-                                        filter_val[:100],
-                                    )
+                                    logger.info("  - Collection '%s': %s", coll_name, filter_val[:100])
                         else:
-                            logger.info(
-                                "Filter Generation Output: No filter expressions generated"
-                            )
+                            logger.info("Filter Generation Output: No filter expressions generated")
                         logger.info("-" * 80)
 
                     except Exception as e:
@@ -2473,27 +2443,19 @@ class NvidiaRAG:
                 logger.info("  - LLM Model: %s", model)
                 llm_endpoint_display = llm_settings.get("llm_endpoint") or "api catalog"
                 logger.info("  - LLM Endpoint: %s", llm_endpoint_display)
-                logger.info(
-                    "  - Recursion Depth: %d",
-                    self.config.query_decomposition.recursion_depth,
-                )
+                logger.info("  - Recursion Depth: %d", self.config.query_decomposition.recursion_depth)
                 logger.info("  - Enable Reranker: %s", enable_reranker)
                 if enable_reranker:
                     logger.info("  - Reranker Model: %s", reranker_model)
                     logger.info("  - Reranker Top-K: %d", reranker_top_k)
                 logger.info("Input:")
-                logger.info(
-                    "  - Query: '%s'", self._extract_text_from_content(query)[:200]
-                )
-                logger.info(
-                    "  - Collection: %s",
-                    validated_collections[0] if validated_collections else "",
-                )
+                logger.info("  - Query: '%s'", self._extract_text_from_content(query)[:200])
+                logger.info("  - Collection: %s", validated_collections[0] if validated_collections else "")
                 logger.info("  - Retrieval Top-K: %d", top_k)
                 logger.info("  - Confidence Threshold: %.2f", confidence_threshold)
                 logger.info("Starting iterative query decomposition...")
                 logger.info("-" * 80)
-
+                
                 # TODO: Pass processed_query instead of query and check accuracy
                 return await iterative_query_decomposition(
                     query=query,
@@ -2529,16 +2491,11 @@ class NvidiaRAG:
                 logger.info("  - Model: %s", self.config.reflection.model_name)
                 logger.info("  - Endpoint: %s", self.config.reflection.server_url)
                 logger.info("  - Max Loops: %d", self.config.reflection.max_loops)
-                logger.info(
-                    "  - Relevance Threshold: %d",
-                    self.config.reflection.context_relevance_threshold,
-                )
+                logger.info("  - Relevance Threshold: %d", self.config.reflection.context_relevance_threshold)
                 logger.info("Starting context relevance check...")
                 logger.info("-" * 80)
-
-                context_reflection_counter = ReflectionCounter(
-                    self.config.reflection.max_loops
-                )
+                
+                context_reflection_counter = ReflectionCounter(self.config.reflection.max_loops)
 
                 try:
                     context_to_show, is_relevant = await check_context_relevance(
@@ -2579,16 +2536,11 @@ class NvidiaRAG:
 
                 logger.info("Reflection Output:")
                 logger.info("  - Context Relevant: %s", is_relevant)
-                logger.info(
-                    "  - Reflection Iterations: %d",
-                    context_reflection_counter.current_count,
-                )
+                logger.info("  - Reflection Iterations: %d", context_reflection_counter.current_count)
                 logger.info("  - Final Documents: %d", len(context_to_show))
                 if not is_relevant:
-                    logger.warning(
-                        "  - Could not find sufficiently relevant context after %d attempts",
-                        context_reflection_counter.current_count,
-                    )
+                    logger.warning("  - Could not find sufficiently relevant context after %d attempts",
+                                 context_reflection_counter.current_count)
                 logger.info("-" * 80)
             else:
                 otel_ctx = otel_context.get_current()
@@ -2598,46 +2550,26 @@ class NvidiaRAG:
                     logger.info("STAGE: VDB Retrieval + Reranking")
                     logger.info("=" * 80)
                     logger.info("Embedding Configuration:")
-                    if hasattr(vdb_op, "embedding_model") and vdb_op.embedding_model:
-                        logger.info(
-                            "  - Model: %s",
-                            vdb_op.embedding_model._model
-                            if hasattr(vdb_op.embedding_model, "_model")
-                            else "N/A",
-                        )
-                        logger.info(
-                            "  - Endpoint: %s",
-                            getattr(vdb_op.embedding_model, "_client", {}).base_url
-                            if hasattr(vdb_op.embedding_model, "_client")
-                            else "N/A",
-                        )
+                    if hasattr(vdb_op, 'embedding_model') and vdb_op.embedding_model:
+                        logger.info("  - Model: %s", vdb_op.embedding_model._model if hasattr(vdb_op.embedding_model, '_model') else 'N/A')
+                        logger.info("  - Endpoint: %s", getattr(vdb_op.embedding_model, '_client', {}).base_url if hasattr(vdb_op.embedding_model, '_client') else 'N/A')
                     else:
                         logger.info("  - Model: N/A")
                         logger.info("  - Endpoint: N/A")
                     logger.info("Reranker Configuration:")
                     logger.info("  - Model: %s", reranker_model)
-                    logger.info(
-                        "  - Endpoint: %s",
-                        reranker_endpoint or self.config.ranking.server_url,
-                    )
+                    logger.info("  - Endpoint: %s", reranker_endpoint or self.config.ranking.server_url)
                     logger.info("Retrieval Configuration:")
-                    logger.info(
-                        "  - Query: '%s'",
-                        retriever_query[:200] if retriever_query else "",
-                    )
+                    logger.info("  - Query: '%s'", retriever_query[:200] if retriever_query else "")
                     logger.info("  - Collections: %s", validated_collections)
                     logger.info("  - VDB Top-K: %d", top_k)
                     logger.info("  - Reranker Top-K: %d", reranker_top_k)
-                    logger.info(
-                        "  - Filter Expressions: %s",
-                        {
-                            k: v[:50] + "..." if len(v) > 50 else v
-                            for k, v in collection_filter_mapping.items()
-                        },
-                    )
+                    logger.info("  - Filter Expressions: %s", 
+                               {k: v[:50] + "..." if len(v) > 50 else v 
+                                for k, v in collection_filter_mapping.items()})
                     logger.info("Starting parallel retrieval from collections...")
                     logger.info("-" * 80)
-
+                    
                     context_reranker = RunnableAssign(
                         {
                             "context": lambda input: ranker.compress_documents(
@@ -2646,11 +2578,19 @@ class NvidiaRAG:
                         }
                     )
 
-                    # Perform parallel retrieval: single collection → stratified (chunks/L1/other) in parallel; else one per collection
-                    docs = []
-                    docs_chunk: list = []
-                    docs_l1: list = []
-                    docs_other: list = []
+                    use_two_stage = (
+                        len(validated_collections) == 1
+                        and ranker
+                        and enable_reranker
+                        and not is_image_query
+                        and isinstance(
+                            collection_filter_mapping.get(
+                                validated_collections[0], ""
+                            ),
+                            str,
+                        )
+                    )
+                    context_to_show = None
                     retrieval_start_time = time.time()
                     vectorstores = []
                     for collection_name in validated_collections:
@@ -2658,94 +2598,192 @@ class NvidiaRAG:
                             vdb_op.get_langchain_vectorstore(collection_name)
                         )
 
-                    use_stratified_retrieval = (
-                        len(validated_collections) == 1
-                        and ranker
-                        and enable_reranker
-                        and not is_image_query
-                    )
-                    if use_stratified_retrieval:
-                        logger.info(
-                            "RAPTOR stratified retrieval: single collection, reranker on, non-image query → 3 parallel VDB retrievals (chunks/L1/other)"
-                        )
+                    if use_two_stage:
                         coll_name = validated_collections[0]
                         vs = vectorstores[0]
-                        base_filter = collection_filter_mapping.get(coll_name, "") or ""
-                        k_chunk = max(1, int(math.ceil(0.4 * top_k)))
-                        k_l1 = max(0, int(math.ceil(0.3 * top_k)))
-                        k_other = max(0, top_k - k_chunk - k_l1)
-                        if isinstance(base_filter, str):
-                            with ThreadPoolExecutor() as executor:
-                                f_chunk = executor.submit(
-                                    vdb_op.retrieval_langchain,
-                                    query=retriever_query,
-                                    collection_name=coll_name,
-                                    vectorstore=vs,
-                                    top_k=k_chunk,
-                                    filter_expr=_combine_raptor_stratified_filter(
-                                        base_filter, "chunks"
-                                    ),
-                                    otel_ctx=otel_ctx,
-                                )
-                                f_l1 = executor.submit(
-                                    vdb_op.retrieval_langchain,
-                                    query=retriever_query,
-                                    collection_name=coll_name,
-                                    vectorstore=vs,
-                                    top_k=k_l1,
-                                    filter_expr=_combine_raptor_stratified_filter(
-                                        base_filter, "l1"
-                                    ),
-                                    otel_ctx=otel_ctx,
-                                )
-                                f_other = executor.submit(
-                                    vdb_op.retrieval_langchain,
-                                    query=retriever_query,
-                                    collection_name=coll_name,
-                                    vectorstore=vs,
-                                    top_k=k_other,
-                                    filter_expr=_combine_raptor_stratified_filter(
-                                        base_filter, "other"
-                                    ),
-                                    otel_ctx=otel_ctx,
-                                )
-                                docs_chunk = f_chunk.result()
-                                docs_l1 = f_l1.result()
-                                docs_other = f_other.result()
-                                docs = docs_chunk + docs_l1 + docs_other
-                            logger.info(
-                                "Stratified retrieval: k_chunk=%d, k_l1=%d, k_other=%d → chunk=%d, L1=%d, other=%d (total %d)",
-                                k_chunk,
-                                k_l1,
-                                k_other,
-                                len(docs_chunk),
-                                len(docs_l1),
-                                len(docs_other),
-                                len(docs),
-                            )
-                        else:
-                            use_stratified_retrieval = False
-                            logger.info(
-                                "Stratified retrieval skipped: filter is not string (e.g. Elasticsearch list filter), using standard retrieval"
-                            )
-                    if not use_stratified_retrieval:
-                        if not (
-                            len(validated_collections) == 1
-                            and ranker
-                            and enable_reranker
-                            and not is_image_query
-                        ):
-                            logger.info(
-                                "RAPTOR stratified retrieval skipped: collections=%d, reranker=%s, image_query=%s → standard retrieval",
-                                len(validated_collections),
-                                bool(ranker and enable_reranker),
-                                is_image_query,
-                            )
-                        logger.info(
-                            "Retrieval: fetching top_k=%d from %d collection(s)",
-                            top_k,
-                            len(validated_collections),
+                        base_filter = collection_filter_mapping.get(
+                            coll_name, ""
+                        ) or ""
+                        vdb_top_k_summaries = int(
+                            self.config.retriever.vdb_top_k_summaries
                         )
+                        top_n_summaries = int(
+                            self.config.retriever.top_n_summaries
+                        )
+                        logger.info(
+                            "Two-stage retrieval: stage 1 summaries (VDB top_k=%d, rerank top_n=%d), stage 2 chunks (filter from summaries)",
+                            vdb_top_k_summaries,
+                            top_n_summaries,
+                        )
+                        summary_filter_base = (
+                            (base_filter + ' and content_metadata["type"] == "summary"')
+                            if base_filter.strip()
+                            else 'content_metadata["type"] == "summary"'
+                        )
+                        summary_docs = vdb_op.retrieval_langchain(
+                            query=retriever_query,
+                            collection_name=coll_name,
+                            vectorstore=vs,
+                            top_k=vdb_top_k_summaries,
+                            filter_expr=summary_filter_base,
+                            otel_ctx=otel_ctx,
+                        )
+                        logger.info(
+                            "Stage 1: retrieved %d summaries, reranking to top %d",
+                            len(summary_docs),
+                            top_n_summaries,
+                        )
+                        ranker_s1 = get_ranking_model(
+                            model=reranker_model,
+                            url=reranker_endpoint,
+                            top_n=top_n_summaries,
+                            config=self.config,
+                        )
+                        context_reranker_s1 = RunnableAssign(
+                            {
+                                "context": lambda input: (
+                                    ranker_s1.compress_documents(
+                                        query=input["question"],
+                                        documents=input["context"],
+                                    )
+                                )
+                            }
+                        )
+                        context_reranker_start_time = time.time()
+                        try:
+                            out_s1 = await context_reranker_s1.ainvoke(
+                                {
+                                    "context": summary_docs,
+                                    "question": processed_query,
+                                },
+                                config={"run_name": "context_reranker_stage1"},
+                            )
+                        except (
+                            requests.exceptions.ConnectionError,
+                            ConnectionError,
+                            OSError,
+                        ) as e:
+                            reranker_url = (
+                                reranker_endpoint
+                                or self.config.ranking.server_url
+                            )
+                            logger.error(
+                                "Connection error in stage-1 reranker: %s", e
+                            )
+                            raise APIError(
+                                f"Reranker NIM unavailable at {reranker_url}. "
+                                "Please verify the service is running.",
+                                ErrorCodeMapping.SERVICE_UNAVAILABLE,
+                            ) from e
+                        top_summaries = out_s1.get("context", [])[
+                            :top_n_summaries
+                        ]
+                        chunk_filter = _build_chunk_filter_from_summaries(
+                            top_summaries, base_filter
+                        )
+                        if not chunk_filter:
+                            logger.info(
+                                "Two-stage: no doc/page filter from summaries, falling back to single-stage retrieval"
+                            )
+                            use_two_stage = False
+                            docs = []
+                            with ThreadPoolExecutor() as executor:
+                                futures = [
+                                    executor.submit(
+                                        vdb_op.retrieval_langchain,
+                                        query=retriever_query,
+                                        collection_name=collection_name,
+                                        vectorstore=vectorstore,
+                                        top_k=top_k,
+                                        filter_expr=collection_filter_mapping.get(
+                                            collection_name, ""
+                                        ),
+                                        otel_ctx=otel_ctx,
+                                    )
+                                    for collection_name, vectorstore in zip(
+                                        validated_collections,
+                                        vectorstores,
+                                        strict=False,
+                                    )
+                                ]
+                                for future in futures:
+                                    docs.extend(future.result())
+                            try:
+                                docs = await context_reranker.ainvoke(
+                                    {
+                                        "context": docs,
+                                        "question": processed_query,
+                                    },
+                                    config={"run_name": "context_reranker"},
+                                )
+                            except (
+                                requests.exceptions.ConnectionError,
+                                ConnectionError,
+                                OSError,
+                            ) as e:
+                                reranker_url = (
+                                    reranker_endpoint
+                                    or self.config.ranking.server_url
+                                )
+                                raise APIError(
+                                    f"Reranker NIM unavailable at {reranker_url}.",
+                                    ErrorCodeMapping.SERVICE_UNAVAILABLE,
+                                ) from e
+                            context_to_show = docs.get("context", [])
+                            context_reranker_time_ms = (
+                                time.time() - context_reranker_start_time
+                            ) * 1000
+                            retrieval_time_ms = (
+                                time.time() - retrieval_start_time
+                            ) * 1000
+                        else:
+                            logger.info(
+                                "Stage 2: retrieving chunks with filter (VDB top_k=%d, rerank top_k=%d)",
+                                top_k,
+                                reranker_top_k,
+                            )
+                            docs = vdb_op.retrieval_langchain(
+                                query=retriever_query,
+                                collection_name=coll_name,
+                                vectorstore=vs,
+                                top_k=top_k,
+                                filter_expr=chunk_filter,
+                                otel_ctx=otel_ctx,
+                            )
+                            context_reranker_start_time = time.time()
+                            try:
+                                docs = await context_reranker.ainvoke(
+                                    {
+                                        "context": docs,
+                                        "question": processed_query,
+                                    },
+                                    config={"run_name": "context_reranker_stage2"},
+                                )
+                            except (
+                                requests.exceptions.ConnectionError,
+                                ConnectionError,
+                                OSError,
+                            ) as e:
+                                reranker_url = (
+                                    reranker_endpoint
+                                    or self.config.ranking.server_url
+                                )
+                                logger.error(
+                                    "Connection error in stage-2 reranker: %s",
+                                    e,
+                                )
+                                raise APIError(
+                                    f"Reranker NIM unavailable at {reranker_url}. "
+                                    "Please verify the service is running.",
+                                    ErrorCodeMapping.SERVICE_UNAVAILABLE,
+                                ) from e
+                            context_to_show = docs.get("context", [])
+                            logger.info(
+                                "Two-stage: context is chunks only (no summaries added to answer)"
+                            )
+
+                    if context_to_show is None:
+                        docs = []
                         with ThreadPoolExecutor() as executor:
                             futures = [
                                 executor.submit(
@@ -2768,87 +2806,29 @@ class NvidiaRAG:
                             for future in futures:
                                 docs.extend(future.result())
 
-                    retrieval_time_ms = (time.time() - retrieval_start_time) * 1000
-                    logger.info("Retrieval Output:")
-                    logger.info("  - Retrieved Documents: %d", len(docs))
-                    logger.info("  - Retrieval Time: %.2f ms", retrieval_time_ms)
-                    logger.info("-" * 80)
-
-                    context_reranker_start_time = time.time()
-                    logger.info(
-                        "Starting reranking with query: '%s'",
-                        processed_query[:200] if processed_query else "",
-                    )
-                    use_stratified_rerank = use_stratified_retrieval and (
-                        len(docs_chunk) + len(docs_l1) + len(docs_other)
-                    ) > 0
-                    if use_stratified_rerank:
-                        # 3 parallel reranks (one per category); slots 40/30/30 → n_chunk, n_l1, n_other of reranker_top_k; fill unused slots from chunks
-                        n_chunk_r = max(1, int(math.ceil(0.4 * reranker_top_k)))
-                        n_l1_r = max(0, int(math.ceil(0.3 * reranker_top_k)))
-                        n_other_r = max(0, reranker_top_k - n_chunk_r - n_l1_r)
+                        retrieval_time_ms = (
+                            time.time() - retrieval_start_time
+                        ) * 1000
+                        logger.info("Retrieval Output:")
                         logger.info(
-                            "RAPTOR stratified rerank: 3 parallel reranks, slots n_other=%d, n_l1=%d, n_chunk=%d (fill from chunks if needed)",
-                            n_other_r,
-                            n_l1_r,
-                            n_chunk_r,
+                            "  - Retrieved Documents: %d", len(docs)
                         )
-                        try:
-
-                            async def _rerank_one(doc_list: list, run_name: str):
-                                if not doc_list:
-                                    return []
-                                out = await context_reranker.ainvoke(
-                                    {"context": doc_list, "question": processed_query},
-                                    config={"run_name": run_name},
-                                )
-                                return out.get("context", [])
-
-                            other_out, l1_out, chunk_out = await asyncio.gather(
-                                _rerank_one(docs_other, "context_reranker_other"),
-                                _rerank_one(docs_l1, "context_reranker_l1"),
-                                _rerank_one(docs_chunk, "context_reranker_chunk"),
-                            )
-                            other_reranked = other_out[:n_other_r]
-                            l1_reranked = l1_out[:n_l1_r]
-                            chunk_reranked_full = chunk_out[: reranker_top_k]
-                            chunk_slot = chunk_reranked_full[:n_chunk_r]
-                            context_to_show = other_reranked + l1_reranked + chunk_slot
-                            need = reranker_top_k - len(context_to_show)
-                            if need > 0 and len(chunk_reranked_full) > n_chunk_r:
-                                fill = chunk_reranked_full[
-                                    n_chunk_r : n_chunk_r + need
-                                ]
-                                context_to_show = context_to_show + fill
-                                logger.info(
-                                    "RAPTOR stratified rerank: filled %d slot(s) from next-best chunks → %d total",
-                                    len(fill),
-                                    len(context_to_show),
-                                )
-                        except (
-                            requests.exceptions.ConnectionError,
-                            ConnectionError,
-                            OSError,
-                        ) as e:
-                            reranker_url = (
-                                reranker_endpoint or self.config.ranking.server_url
-                            )
-                            error_msg = f"Reranker NIM unavailable at {reranker_url}. Please verify the service is running and accessible."
-                            logger.error("Connection error in reranker: %s", e)
-                            raise APIError(
-                                error_msg, ErrorCodeMapping.SERVICE_UNAVAILABLE
-                            ) from e
                         logger.info(
-                            "RAPTOR stratified rerank result: %d other, %d L1, %d chunks → %d total",
-                            len(other_reranked),
-                            len(l1_reranked),
-                            len(chunk_slot),
-                            len(context_to_show),
+                            "  - Retrieval Time: %.2f ms", retrieval_time_ms
                         )
-                    else:
+                        logger.info("-" * 80)
+
+                        context_reranker_start_time = time.time()
+                        logger.info(
+                            "Starting reranking with query: '%s'",
+                            processed_query[:200] if processed_query else "",
+                        )
                         try:
                             docs = await context_reranker.ainvoke(
-                                {"context": docs, "question": processed_query},
+                                {
+                                    "context": docs,
+                                    "question": processed_query,
+                                },
                                 config={"run_name": "context_reranker"},
                             )
                         except (
@@ -2857,37 +2837,55 @@ class NvidiaRAG:
                             OSError,
                         ) as e:
                             reranker_url = (
-                                reranker_endpoint or self.config.ranking.server_url
+                                reranker_endpoint
+                                or self.config.ranking.server_url
                             )
                             error_msg = f"Reranker NIM unavailable at {reranker_url}. Please verify the service is running and accessible."
-                            logger.error("Connection error in reranker: %s", e)
+                            logger.error(
+                                "Connection error in reranker: %s", e
+                            )
                             raise APIError(
-                                error_msg, ErrorCodeMapping.SERVICE_UNAVAILABLE
+                                error_msg,
+                                ErrorCodeMapping.SERVICE_UNAVAILABLE,
                             ) from e
+
+                        context_reranker_time_ms = (
+                            time.time() - context_reranker_start_time
+                        ) * 1000
                         context_to_show = docs.get("context", [])
 
-                    context_reranker_time_ms = (
-                        time.time() - context_reranker_start_time
-                    ) * 1000
-
+                    if use_two_stage and context_to_show is not None:
+                        context_reranker_time_ms = (
+                            time.time() - context_reranker_start_time
+                        ) * 1000
+                        retrieval_time_ms = (
+                            time.time() - retrieval_start_time
+                        ) * 1000
+                        logger.info("Retrieval Output (two-stage):")
+                        logger.info(
+                            "  - Retrieved Documents: %d",
+                            len(context_to_show),
+                        )
+                        logger.info(
+                            "  - Retrieval + Rerank Time: %.2f ms",
+                            retrieval_time_ms,
+                        )
+                        logger.info("-" * 80)
+                    elif context_to_show is not None and not use_two_stage:
+                        context_reranker_time_ms = (
+                            time.time() - context_reranker_start_time
+                        ) * 1000
+                    
                     # Normalize scores to 0-1 range
                     context_to_show = self._normalize_relevance_scores(context_to_show)
-
+                    
                     logger.info("Reranking Output:")
                     logger.info("  - Reranked Documents: %d", len(context_to_show))
                     logger.info("  - Reranking Time: %.2f ms", context_reranker_time_ms)
                     if context_to_show:
-                        scores = [
-                            doc.metadata.get("relevance_score", "N/A")
-                            for doc in context_to_show[:3]
-                        ]
-                        logger.info(
-                            "  - Top Document Scores (normalized): %s",
-                            [
-                                f"{s:.4f}" if isinstance(s, (int, float)) else s
-                                for s in scores
-                            ],
-                        )
+                        scores = [doc.metadata.get("relevance_score", "N/A") for doc in context_to_show[:3]]
+                        logger.info("  - Top Document Scores (normalized): %s", 
+                                   [f"{s:.4f}" if isinstance(s, (int, float)) else s for s in scores])
                     logger.info("-" * 80)
                 else:
                     # Multiple retrievers are not supported when reranking is disabled
@@ -2895,36 +2893,20 @@ class NvidiaRAG:
                     logger.info("STAGE: VDB Retrieval (without reranking)")
                     logger.info("=" * 80)
                     logger.info("Embedding Configuration:")
-                    if hasattr(vdb_op, "embedding_model") and vdb_op.embedding_model:
-                        logger.info(
-                            "  - Model: %s",
-                            vdb_op.embedding_model._model
-                            if hasattr(vdb_op.embedding_model, "_model")
-                            else "N/A",
-                        )
-                        logger.info(
-                            "  - Endpoint: %s",
-                            getattr(vdb_op.embedding_model, "_client", {}).base_url
-                            if hasattr(vdb_op.embedding_model, "_client")
-                            else "N/A",
-                        )
+                    if hasattr(vdb_op, 'embedding_model') and vdb_op.embedding_model:
+                        logger.info("  - Model: %s", vdb_op.embedding_model._model if hasattr(vdb_op.embedding_model, '_model') else 'N/A')
+                        logger.info("  - Endpoint: %s", getattr(vdb_op.embedding_model, '_client', {}).base_url if hasattr(vdb_op.embedding_model, '_client') else 'N/A')
                     else:
                         logger.info("  - Model: N/A")
                         logger.info("  - Endpoint: N/A")
                     logger.info("Retrieval Configuration:")
-                    logger.info(
-                        "  - Query: '%s'",
-                        retriever_query[:200] if retriever_query else "",
-                    )
-                    logger.info(
-                        "  - Collection: %s",
-                        validated_collections[0] if validated_collections else "",
-                    )
+                    logger.info("  - Query: '%s'", retriever_query[:200] if retriever_query else "")
+                    logger.info("  - Collection: %s", validated_collections[0] if validated_collections else "")
                     logger.info("  - Top-K: %d", top_k)
                     logger.info("  - Is Image Query: %s", is_image_query)
                     logger.info("Starting retrieval...")
                     logger.info("-" * 80)
-
+                    
                     retrieval_start_time = time.time()
                     if is_image_query:
                         docs = vdb_op.retrieval_image_langchain(
@@ -2956,7 +2938,7 @@ class NvidiaRAG:
                         )
                         context_to_show = docs
                     retrieval_time_ms = (time.time() - retrieval_start_time) * 1000
-
+                    
                     logger.info("Retrieval Output:")
                     logger.info("  - Retrieved Documents: %d", len(context_to_show))
                     logger.info("  - Retrieval Time: %.2f ms", retrieval_time_ms)
@@ -2974,7 +2956,7 @@ class NvidiaRAG:
                     documents=context_to_show,
                     confidence_threshold=confidence_threshold,
                 )
-
+                
                 logger.info("Filtering Output:")
                 logger.info("  - Filtered Documents: %d", len(context_to_show))
                 logger.info("-" * 80)
@@ -3038,29 +3020,19 @@ class NvidiaRAG:
                             vlm_settings.get("vlm_max_total_images")
                             or self.config.vlm.max_total_images
                         )
-
+                        
                         logger.info("=" * 80)
                         logger.info("STAGE: VLM Generation (Vision Language Model)")
                         logger.info("=" * 80)
                         logger.info("VLM Configuration:")
                         logger.info("  - Model: %s", vlm_model_cfg)
                         logger.info("  - Endpoint: %s", vlm_endpoint_cfg)
-                        logger.info(
-                            "  - Temperature: %s, Top-P: %s, Max Tokens: %s",
-                            vlm_temperature_cfg,
-                            vlm_top_p_cfg,
-                            vlm_max_tokens_cfg,
-                        )
-                        logger.info(
-                            "  - Max Total Images: %d", vlm_max_total_images_cfg
-                        )
+                        logger.info("  - Temperature: %s, Top-P: %s, Max Tokens: %s", 
+                                   vlm_temperature_cfg, vlm_top_p_cfg, vlm_max_tokens_cfg)
+                        logger.info("  - Max Total Images: %d", vlm_max_total_images_cfg)
                         logger.info("Input:")
-                        logger.info(
-                            "  - Has Images in Messages: %s", has_images_in_messages
-                        )
-                        logger.info(
-                            "  - Has Images in Context: %s", has_images_in_context
-                        )
+                        logger.info("  - Has Images in Messages: %s", has_images_in_messages)
+                        logger.info("  - Has Images in Context: %s", has_images_in_context)
                         logger.info("  - Is Image Query: %s", is_image_query)
                         logger.info("  - Context Documents: %d", len(context_to_show))
                         logger.info("Starting VLM stream generation...")
@@ -3101,10 +3073,8 @@ class NvidiaRAG:
                         prefetched_vlm_stream = await self._eager_prefetch_astream(
                             vlm_generator
                         )
-
-                        logger.info(
-                            "VLM stream initiated successfully (first chunk received)"
-                        )
+                        
+                        logger.info("VLM stream initiated successfully (first chunk received)")
                         logger.info("-" * 80)
 
                         return RAGResponse(
@@ -3112,9 +3082,7 @@ class NvidiaRAG:
                                 prefetched_vlm_stream,
                                 context_to_show,
                                 model=model,
-                                collection_name=validated_collections[0]
-                                if validated_collections
-                                else "",
+                                collection_name=validated_collections[0] if validated_collections else "",
                                 enable_citations=enable_citations,
                             ),
                             status_code=ErrorCodeMapping.SUCCESS,
@@ -3127,9 +3095,7 @@ class NvidiaRAG:
                                 _async_iter([e.message]),
                                 [],
                                 model=model,
-                                collection_name=validated_collections[0]
-                                if validated_collections
-                                else "",
+                                collection_name=validated_collections[0] if validated_collections else "",
                                 enable_citations=enable_citations,
                                 otel_metrics_client=metrics,
                             ),
@@ -3171,20 +3137,6 @@ class NvidiaRAG:
                         "falling back to regular LLM flow."
                     )
 
-            # RAPTOR: Tree traversal to organize final context hierarchically
-            # This happens AFTER all filtering (reranking, confidence) but BEFORE formatting for LLM
-            context_to_show = await self._expand_documents_with_raptor(
-                context_to_show, vdb_op
-            )
-
-            # Stratified retrieval: 40% chunks, 30% L1 summaries, 30% other (L2+); order: L2+ then L1 then chunks
-            context_to_show = self._stratify_and_order_context(
-                context_to_show,
-                ratio_chunks=0.4,
-                ratio_l1=0.3,
-                ratio_other=0.3,
-            )
-
             docs = [self._format_document_with_source(d) for d in context_to_show]
 
             logger.info("=" * 80)
@@ -3194,13 +3146,9 @@ class NvidiaRAG:
             logger.info("  - Final Context Documents: %d", len(context_to_show))
             if context_to_show:
                 total_context_length = sum(len(d.page_content) for d in context_to_show)
-                logger.info(
-                    "  - Total Context Length: %d characters", total_context_length
-                )
-                logger.info(
-                    "  - First Document Preview: %s...",
-                    context_to_show[0].page_content[:100] if context_to_show else "",
-                )
+                logger.info("  - Total Context Length: %d characters", total_context_length)
+                logger.info("  - First Document Preview: %s...", 
+                           context_to_show[0].page_content[:100] if context_to_show else "")
             logger.info("-" * 80)
 
             # Prompt for response generation based on context
@@ -3230,12 +3178,10 @@ class NvidiaRAG:
             logger.info("  - Model: %s", model)
             llm_endpoint_display = llm_settings.get("llm_endpoint") or "api catalog"
             logger.info("  - Endpoint: %s", llm_endpoint_display)
-            logger.info(
-                "  - Temperature: %s, Top-P: %s, Max Tokens: %s",
-                llm_settings.get("temperature"),
-                llm_settings.get("top_p"),
-                llm_settings.get("max_tokens"),
-            )
+            logger.info("  - Temperature: %s, Top-P: %s, Max Tokens: %s",
+                       llm_settings.get("temperature"),
+                       llm_settings.get("top_p"),
+                       llm_settings.get("max_tokens"))
             logger.info("Input:")
             logger.info("  - Query: '%s'", self._extract_text_from_content(query)[:200])
             logger.info("  - Context Documents: %d", len(docs))
@@ -3255,13 +3201,10 @@ class NvidiaRAG:
                 logger.info("  - Model: %s", self.config.reflection.model_name)
                 logger.info("  - Endpoint: %s", self.config.reflection.server_url)
                 logger.info("  - Max Loops: %d", self.config.reflection.max_loops)
-                logger.info(
-                    "  - Groundedness Threshold: %d",
-                    self.config.reflection.response_groundedness_threshold,
-                )
+                logger.info("  - Groundedness Threshold: %d", self.config.reflection.response_groundedness_threshold)
                 logger.info("Starting LLM generation with reflection enabled...")
                 logger.info("-" * 80)
-
+                
                 response_reflection_counter = ReflectionCounter(
                     self.config.reflection.max_loops
                 )
@@ -3299,36 +3242,23 @@ class NvidiaRAG:
                     raise
                 logger.info("Reflection Output:")
                 logger.info("  - Response Grounded: %s", is_grounded)
-                logger.info(
-                    "  - Reflection Iterations: %d",
-                    response_reflection_counter.current_count,
-                )
-                logger.info(
-                    "  - Response Length: %d characters",
-                    len(final_response) if final_response else 0,
-                )
-                logger.info(
-                    "  - Response Preview: %s...",
-                    final_response[:100] if final_response else "",
-                )
+                logger.info("  - Reflection Iterations: %d", response_reflection_counter.current_count)
+                logger.info("  - Response Length: %d characters", len(final_response) if final_response else 0)
+                logger.info("  - Response Preview: %s...", final_response[:100] if final_response else "")
                 if not is_grounded:
-                    logger.warning(
-                        "  - Could not generate sufficiently grounded response after %d attempts",
-                        response_reflection_counter.current_count,
-                    )
+                    logger.warning("  - Could not generate sufficiently grounded response after %d attempts",
+                                 response_reflection_counter.current_count)
                 logger.info("-" * 80)
                 logger.info("=" * 80)
                 logger.info("RAG PIPELINE COMPLETE")
                 logger.info("=" * 80)
-
+                
                 return RAGResponse(
                     generate_answer_async(
                         _async_iter([final_response]),
                         context_to_show,
                         model=model,
-                        collection_name=validated_collections[0]
-                        if validated_collections
-                        else "",
+                        collection_name=validated_collections[0] if validated_collections else "",
                         enable_citations=enable_citations,
                         context_reranker_time_ms=context_reranker_time_ms,
                         retrieval_time_ms=retrieval_time_ms,
@@ -3346,7 +3276,7 @@ class NvidiaRAG:
                 )
                 # Eagerly fetch first chunk to trigger any errors before returning response
                 prefetched_stream = await self._eager_prefetch_astream(stream_gen)
-
+                
                 logger.info("LLM stream initiated successfully (first chunk received)")
                 logger.info("-" * 80)
                 logger.info("=" * 80)
@@ -3358,9 +3288,7 @@ class NvidiaRAG:
                         prefetched_stream,
                         context_to_show,
                         model=model,
-                        collection_name=validated_collections[0]
-                        if validated_collections
-                        else "",
+                        collection_name=validated_collections[0] if validated_collections else "",
                         enable_citations=enable_citations,
                         context_reranker_time_ms=context_reranker_time_ms,
                         retrieval_time_ms=retrieval_time_ms,
@@ -3501,158 +3429,7 @@ class NvidiaRAG:
                 logger.debug("Role: %s", role)
                 logger.debug("Content: %s\n", content)
 
-    def _normalize_relevance_scores(self, documents: list[Document]) -> list[Document]:
-        """
-        Normalize relevance scores to 0-1 range.
-        Uses min-max normalization if a valid range exists, otherwise returns documents unchanged.
-        Also handles edge cases such as all equal scores or single document.
-        """
-        if not documents or len(documents) == 0:
-            return documents
-
-        # Extract scores - handle missing or non-numeric scores
-        scores = []
-        for doc in documents:
-            score = doc.metadata.get("relevance_score")
-            if isinstance(score, (int, float)):
-                scores.append(float(score))
-            else:
-                # Non-numeric or missing score - mark with None
-                scores.append(None)
-
-        # Check if we have at least 2 valid scores
-        valid_scores = [s for s in scores if s is not None]
-        if len(valid_scores) < 2:
-            return documents
-
-        min_score = min(valid_scores)
-        max_score = max(valid_scores)
-
-        # If all scores are the same (or very close), return documents unchanged
-        if abs(max_score - min_score) < 1e-6:
-            return documents
-
-        # Normalize scores
-        for doc, score in zip(documents, scores, strict=False):
-            if score is not None:
-                normalized_score = (score - min_score) / (max_score - min_score)
-                doc.metadata["relevance_score"] = normalized_score
-
-        return documents
-
-    def _stratify_and_order_context(
-        self,
-        documents: list[Document],
-        ratio_chunks: float = 0.4,
-        ratio_l1: float = 0.3,
-        ratio_other: float = 0.3,
-    ) -> list[Document]:
-        """
-        Stratify context into 40% chunks, 30% L1 summaries, 30% other-level summaries,
-        and order for the prompt: high-level (L2+) first, then L1, then chunks.
-
-        Documents without content_metadata.type "summary" are treated as chunks.
-        Summary level is from content_metadata.level (1 = page/section, 2+ = section/doc).
-        """
-        if not documents:
-            return documents
-
-        chunks: list[Document] = []
-        l1_summaries: list[Document] = []
-        other_summaries: list[Document] = []
-
-        for doc in documents:
-            content_meta = doc.metadata.get("content_metadata") or {}
-            if content_meta.get("type") != "summary":
-                chunks.append(doc)
-                continue
-            level = content_meta.get("level", 1)
-            if level == 1:
-                l1_summaries.append(doc)
-            else:
-                other_summaries.append(doc)
-
-        n = len(documents)
-        n_chunk = max(0, int(ratio_chunks * n))
-        n_l1 = max(0, int(ratio_l1 * n))
-        n_other = max(0, n - n_chunk - n_l1)
-
-        logger.info(
-            "RAPTOR stratify_and_order: input %d docs → chunks=%d, L1=%d, other(L2+)=%d; slots 40/30/30 → n_chunk=%d, n_l1=%d, n_other=%d",
-            n,
-            len(chunks),
-            len(l1_summaries),
-            len(other_summaries),
-            n_chunk,
-            n_l1,
-            n_other,
-        )
-
-        ordered: list[Document] = []
-        ordered.extend(other_summaries[:n_other])
-        ordered.extend(l1_summaries[:n_l1])
-        ordered.extend(chunks[:n_chunk])
-
-        logger.info(
-            "RAPTOR stratify_and_order: output %d docs (order: other→L1→chunks): %d other, %d L1, %d chunks",
-            len(ordered),
-            min(len(other_summaries), n_other),
-            min(len(l1_summaries), n_l1),
-            min(len(chunks), n_chunk),
-        )
-        return ordered
-
-    async def _expand_documents_with_raptor(
-        self, documents: list[Document], vdb_op: VDBRag
-    ) -> list[Document]:
-        """
-        Expand retrieved documents using RAPTOR tree traversal.
-
-        If RAPTOR is enabled and documents contain summaries, this method:
-        1. Identifies summary nodes in the retrieved documents
-        2. Fetches their children (chunks) from VDB
-        3. Adds children to the context
-        4. Returns expanded document list
-
-        Args:
-            documents: Retrieved documents from VDB
-            vdb_op: VDB operator
-
-        Returns:
-            Expanded list of documents (originals + children of summaries)
-        """
-        try:
-            from nvidia_rag.utils.raptor import RAPTORConfig, RAPTORRetriever
-
-            # Check if there are any summaries in documents
-            has_summaries = any(
-                doc.metadata.get("content_metadata", {}).get("type") == "summary"
-                for doc in documents
-            )
-
-            if not has_summaries:
-                logger.debug("No RAPTOR summaries in retrieved documents")
-                return documents
-
-            # Create RAPTOR config and retriever
-            raptor_config = RAPTORConfig.from_config(self.config)
-            retriever = RAPTORRetriever(raptor_config)
-
-            # Organize documents hierarchically
-            expanded_docs = await retriever.expand_with_tree_traversal(
-                documents, vdb_op
-            )
-
-
-            return expanded_docs
-
-        except Exception as e:
-            logger.error(f"Error in RAPTOR tree traversal: {e}", exc_info=True)
-            # Return original documents if RAPTOR fails
-            return documents
-
-    @staticmethod
-    def _format_document_with_source(
+    def _normalize_relevance_scores(
         self, documents: list["Document"]
     ) -> list["Document"]:
         """

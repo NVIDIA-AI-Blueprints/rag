@@ -720,6 +720,16 @@ class RetrieverConfig(_ConfigBase):
         env="VECTOR_DB_TOPK",
         description="Number of documents to retrieve from vector database before reranking",
     )
+    vdb_top_k_summaries: int = Field(
+        default=50,
+        env="VDB_TOP_K_SUMMARIES",
+        description="Stage 1: number of summaries to retrieve from VDB before reranking (two-stage retrieval)",
+    )
+    top_n_summaries: int = Field(
+        default=10,
+        env="TOP_N_SUMMARIES",
+        description="Stage 1: number of top summaries to keep after reranking; used to build chunk filter for stage 2 (two-stage retrieval)",
+    )
     score_threshold: float = Field(
         default=0.25,
         env="APP_RETRIEVER_SCORETHRESHOLD",
