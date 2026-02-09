@@ -26,7 +26,7 @@ For hardware requirements and other information, refer to the [Support Matrix](s
 
 - Use the procedures in [Get Started](deploy-docker-self-hosted.md) to get started quickly with the NVIDIA RAG Blueprint.
 - Experiment and test in the [Web User Interface](user-interface.md).
-- [Use the Python Package](python-client.md) to interact with the RAG system directly from Python code.
+- [Use the Python Package](python-client.md) to interact with the RAG.
 - Explore the notebooks that demonstrate how to use the APIs. For details refer to [Notebooks](notebooks.md).
 - Explore agentic use cases by following [example integrations](https://github.com/NVIDIA-AI-Blueprints/rag/tree/main/examples/) with NeMo Agent Toolkit and MCP server.
 
