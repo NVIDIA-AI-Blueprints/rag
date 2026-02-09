@@ -58,7 +58,7 @@ For detailed requirements, refer to [Support Matrix](support-matrix.md).
 
 **Alternative Deployment Options:**
 - [Use the Python Package (Library Mode)](python-client.md) — Use the NVIDIA RAG Python package directly for programmatic access to the RAG system.
-- [Containerless Deployment (Lite Mode)](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/rag_library_lite_usage.ipynb) — Simplified Python-only setup using Milvus Lite and NVIDIA cloud APIs, without Docker containers.
+- [Containerless Deployment (Lite Mode)](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/rag_library_lite_usage.ipynb) — A Python-only setup using Milvus Lite and NVIDIA cloud APIs without Docker containers.
 
 
 
