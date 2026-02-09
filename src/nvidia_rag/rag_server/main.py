@@ -33,6 +33,7 @@ Private helper methods:
 
 """
 
+import asyncio
 import json
 import logging
 import math
@@ -259,6 +260,44 @@ class NvidiaRAG:
                 e,
             )
 
+        # HyDE (Hypothetical Document Embeddings) LLM - reuse main LLM if no dedicated config
+        self.hyde_llm = None
+        if self.config.hyde.enable_hyde:
+            hyde_model = self.config.hyde.model_name or self.config.llm.model_name
+            hyde_url = self.config.hyde.server_url or self.config.llm.server_url
+            hyde_llm_config = {
+                "temperature": self.config.hyde.temperature,
+                "top_p": 0.95,
+                "max_tokens": self.config.hyde.max_tokens,
+                "api_key": self.config.hyde.get_api_key()
+                or self.config.llm.get_api_key(),
+            }
+            logger.info(
+                "Initializing HyDE LLM: %s at %s (temperature=%.2f, max_tokens=%d)",
+                hyde_model,
+                hyde_url or "LLM endpoint",
+                self.config.hyde.temperature,
+                self.config.hyde.max_tokens,
+            )
+            try:
+                self.hyde_llm = get_llm(
+                    config=self.config,
+                    model=hyde_model,
+                    llm_endpoint=hyde_url,
+                    **hyde_llm_config,
+                )
+            except (
+                requests.exceptions.ConnectionError,
+                requests.exceptions.RequestException,
+            ) as e:
+                self.hyde_llm = None
+                self._init_errors["hyde"] = str(e)
+                logger.warning(
+                    "HyDE LLM unavailable at %s - HyDE will be disabled at request time: %s",
+                    hyde_url,
+                    e,
+                )
+
         # Load prompts and other utilities
         self.prompts = get_prompts(prompts)
         self.vdb_top_k = int(self.config.retriever.vdb_top_k)
@@ -372,6 +411,84 @@ class NvidiaRAG:
                     ErrorCodeMapping.BAD_REQUEST,
                 )
 
+    async def _generate_hyde_document(self, query: str) -> str:
+        """Generate a hypothetical document that would answer the query (HyDE).
+
+        The generated text is used as the retrieval query so that document-document
+        similarity is used instead of query-document, improving zero-shot retrieval.
+        See: Precise Zero-Shot Dense Retrieval without Relevance Labels (Gao et al., ACL 2023).
+
+        Args:
+            query: User question or search query.
+
+        Returns:
+            Hypothetical document text (may contain plausible but incorrect details).
+        """
+        if not query or not self.hyde_llm:
+            return query
+        hyde_prompt_config = self.prompts.get("hyde_prompt", {})
+        system_prompt = hyde_prompt_config.get("system", "")
+        human_prompt = hyde_prompt_config.get("human", "Question: {query}\n\nPassage:")
+        if not system_prompt or not human_prompt:
+            logger.warning(
+                "hyde_prompt missing 'system' or 'human' in prompt config; using minimal default"
+            )
+            system_prompt = system_prompt or (
+                "Write a short passage that would answer the question. "
+                "Be specific and factual in style. Do not say you don't know; write 1-3 sentences."
+            )
+            human_prompt = human_prompt or "Question: {query}\n\nPassage:"
+        prompt = ChatPromptTemplate.from_messages(
+            [("system", system_prompt), ("human", human_prompt)]
+        )
+        chain = prompt | self.hyde_llm | self.StreamingFilterThinkParser | StrOutputParser()
+        try:
+            doc = await chain.ainvoke({"query": query}, config={"run_name": "hyde"})
+            doc = (doc or "").strip()
+            if doc:
+                logger.info("HyDE: generated hypothetical document (length=%d)", len(doc))
+                return doc
+        except (ConnectionError, OSError, Exception) as e:
+            if isinstance(e, APIError):
+                raise
+            logger.warning("HyDE generation failed, falling back to original query: %s", e)
+        return query
+
+    async def _generate_hyde_documents(self, query: str) -> list[str]:
+        """Generate one or more hypothetical documents for retrieval.
+
+        Uses config.hyde.num_hypothetical_docs (default 1). Returns a list of strings:
+        - When N=1: one string (used as query text for retrieval).
+        - When N>1: N strings; caller should embed each, average embeddings, and
+          use that vector for retrieval (paper-correct HyDE per Gao et al. ACL 2023).
+        """
+        n = getattr(
+            self.config.hyde,
+            "num_hypothetical_docs",
+            1,
+        )
+        n = max(1, min(10, int(n)))
+        if n == 1:
+            doc = await self._generate_hyde_document(query)
+            return [doc] if doc else [query]
+        tasks = [self._generate_hyde_document(query) for _ in range(n)]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        parts = []
+        for i, r in enumerate(results):
+            if isinstance(r, Exception):
+                logger.warning("HyDE doc %d failed: %s", i + 1, r)
+                continue
+            if r and (s := (r or "").strip()):
+                parts.append(s)
+        if not parts:
+            return [query]
+        logger.info(
+            "HyDE: generated %d hypothetical document(s) (total length=%d)",
+            len(parts),
+            sum(len(p) for p in parts),
+        )
+        return parts
+
     async def generate(
         self,
         messages: list[dict[str, Any]],
@@ -412,6 +529,7 @@ class NvidiaRAG:
         confidence_threshold: float | None = None,
         rag_start_time_sec: float | None = None,
         metrics: OtelMetrics | None = None,
+        enable_hyde: bool | None = None,
     ) -> AsyncGenerator[str, None]:
         """Execute a Retrieval Augmented Generation chain using the components defined above.
         It's called when the `/generate` API is invoked with `use_knowledge_base` set to `True` or `False`.
@@ -432,6 +550,7 @@ class NvidiaRAG:
             enable_reranker: Whether to enable reranking
             enable_guardrails: Whether to enable guardrails
             enable_citations: Whether to enable citations
+            enable_hyde: Whether to enable HyDE (hypothetical document embeddings) for retrieval
             model: Name of the LLM model
             llm_endpoint: LLM server endpoint URL
             reranker_model: Name of the reranker model
@@ -449,6 +568,7 @@ class NvidiaRAG:
         logger.info("  - enable_query_rewriting: %s", enable_query_rewriting)
         logger.info("  - enable_reranker: %s", enable_reranker)
         logger.info("  - enable_filter_generator: %s", enable_filter_generator)
+        logger.info("  - enable_hyde: %s", enable_hyde)
         logger.info("  - enable_query_decomposition: %s", enable_query_decomposition)
         logger.info("  - enable_vlm_inference: %s", enable_vlm_inference)
         logger.info("  - enable_reflection: %s", self.config.reflection.enable_reflection)
@@ -644,6 +764,7 @@ class NvidiaRAG:
                 enable_citations=enable_citations,
                 filter_expr=filter_expr,
                 enable_filter_generator=enable_filter_generator,
+                enable_hyde=enable_hyde,
                 vdb_op=vdb_op,
                 enable_query_decomposition=enable_query_decomposition,
                 confidence_threshold=confidence_threshold,
@@ -687,6 +808,7 @@ class NvidiaRAG:
         filter_expr: str | list[dict[str, Any]] = "",
         confidence_threshold: float | None = None,
         enable_citations: bool | None = None,
+        enable_hyde: bool | None = None,
     ) -> Citations:
         """Search for the most relevant documents for the given search parameters.
         It's called when the `/search` API is invoked.
@@ -720,6 +842,7 @@ class NvidiaRAG:
         logger.info("  - Enable Query Rewriting: %s", enable_query_rewriting)
         logger.info("  - Enable Reranker: %s", enable_reranker)
         logger.info("  - Enable Filter Generator: %s", enable_filter_generator)
+        logger.info("  - Enable HyDE: %s", enable_hyde)
         logger.info("-" * 80)
 
         # Apply defaults from config for None values
@@ -765,6 +888,9 @@ class NvidiaRAG:
             enable_citations
             if enable_citations is not None
             else self.config.enable_citations
+        )
+        enable_hyde = (
+            enable_hyde if enable_hyde is not None else self.config.hyde.enable_hyde
         )
 
         vdb_op = self._prepare_vdb_op(
@@ -1159,6 +1285,27 @@ class NvidiaRAG:
                     except Exception as e:
                         logger.error(f"Error generating filter expression: {str(e)}")
 
+            # HyDE: use hypothetical document(s) for retrieval when enabled (improves zero-shot recall)
+            query_embedding_for_retrieval = None
+            if enable_hyde and not is_image_query and self.hyde_llm:
+                hyde_docs = await self._generate_hyde_documents(retriever_query)
+                if len(hyde_docs) == 1:
+                    query_for_retrieval = hyde_docs[0]
+                else:
+                    query_for_retrieval = "\n\n".join(hyde_docs)  # for reflection/logging
+                    if hasattr(vdb_op, "get_hyde_query_embedding"):
+                        try:
+                            query_embedding_for_retrieval = vdb_op.get_hyde_query_embedding(
+                                hyde_docs
+                            )
+                        except (ValueError, Exception) as e:
+                            logger.warning(
+                                "HyDE averaged embedding failed, using concatenated query: %s",
+                                e,
+                            )
+            else:
+                query_for_retrieval = retriever_query
+
             if confidence_threshold > 0.0 and not enable_reranker:
                 logger.warning(
                     f"confidence_threshold is set to {confidence_threshold} but enable_reranker is explicitly set to False. "
@@ -1172,7 +1319,7 @@ class NvidiaRAG:
                 context_reflection_counter = ReflectionCounter(self.config.reflection.max_loops)
                 docs, is_relevant = await check_context_relevance(
                     vdb_op=vdb_op,
-                    retriever_query=processed_query,
+                    retriever_query=query_for_retrieval,
                     collection_names=validated_collections,
                     ranker=local_ranker,
                     reflection_counter=context_reflection_counter,
@@ -1224,7 +1371,8 @@ class NvidiaRAG:
                         futures = [
                             executor.submit(
                                 vdb_op.retrieval_langchain,
-                                query=retriever_query,
+                                query=query_for_retrieval if query_embedding_for_retrieval is None else None,
+                                query_embedding=query_embedding_for_retrieval,
                                 collection_name=collection_name,
                                 vectorstore=vectorstore,
                                 top_k=top_k,
@@ -1293,7 +1441,8 @@ class NvidiaRAG:
                         )
                     else:
                         docs = vdb_op.retrieval_langchain(
-                            query=retriever_query,
+                            query=query_for_retrieval if query_embedding_for_retrieval is None else None,
+                            query_embedding=query_embedding_for_retrieval,
                             collection_name=validated_collections[0],
                             vectorstore=vdb_op.get_langchain_vectorstore(
                                 validated_collections[0]
@@ -1923,6 +2072,7 @@ class NvidiaRAG:
         enable_citations: bool = True,
         filter_expr: str | list[dict[str, Any]] | None = "",
         enable_filter_generator: bool = False,
+        enable_hyde: bool = False,
         vdb_op: VDBRag | None = None,
         enable_query_decomposition: bool = False,
         confidence_threshold: float | None = None,
@@ -1950,6 +2100,7 @@ class NvidiaRAG:
             enable_citations: Whether to enable citations
             filter_expr: Filter expression to filter document from vector DB
             enable_filter_generator: Whether to enable automatic filter generation
+            enable_hyde: Whether to enable HyDE (hypothetical document embeddings) for retrieval
             enable_query_decomposition: Whether to use iterative query decomposition for complex queries
         """
         # TODO: Remove image whille printing logs and add image as place holder to not pollute logs
@@ -2425,6 +2576,27 @@ class NvidiaRAG:
                     f"Consider setting enable_reranker=True for effective filtering."
                 )
 
+            # HyDE: use hypothetical document(s) for retrieval when enabled
+            query_embedding_for_retrieval = None
+            if enable_hyde and not is_image_query and self.hyde_llm:
+                hyde_docs = await self._generate_hyde_documents(retriever_query)
+                if len(hyde_docs) == 1:
+                    query_for_retrieval = hyde_docs[0]
+                else:
+                    query_for_retrieval = "\n\n".join(hyde_docs)  # for reflection/logging
+                    if hasattr(vdb_op, "get_hyde_query_embedding"):
+                        try:
+                            query_embedding_for_retrieval = vdb_op.get_hyde_query_embedding(
+                                hyde_docs
+                            )
+                        except (ValueError, Exception) as e:
+                            logger.warning(
+                                "HyDE averaged embedding failed, using concatenated query: %s",
+                                e,
+                            )
+            else:
+                query_for_retrieval = retriever_query
+
             # Get relevant documents with optional reflection
             if self.config.reflection.enable_reflection:
                 logger.info("=" * 80)
@@ -2443,7 +2615,7 @@ class NvidiaRAG:
                 try:
                     context_to_show, is_relevant = await check_context_relevance(
                         vdb_op=vdb_op,
-                        retriever_query=processed_query,
+                        retriever_query=query_for_retrieval,
                         collection_names=validated_collections,
                         ranker=ranker,
                         reflection_counter=context_reflection_counter,
@@ -2503,7 +2675,7 @@ class NvidiaRAG:
                     logger.info("  - Model: %s", reranker_model)
                     logger.info("  - Endpoint: %s", reranker_endpoint or self.config.ranking.server_url)
                     logger.info("Retrieval Configuration:")
-                    logger.info("  - Query: '%s'", retriever_query[:200] if retriever_query else "")
+                    logger.info("  - Query: '%s'", query_for_retrieval[:200] if query_for_retrieval else "")
                     logger.info("  - Collections: %s", validated_collections)
                     logger.info("  - VDB Top-K: %d", top_k)
                     logger.info("  - Reranker Top-K: %d", reranker_top_k)
@@ -2534,7 +2706,8 @@ class NvidiaRAG:
                         futures = [
                             executor.submit(
                                 vdb_op.retrieval_langchain,
-                                query=retriever_query,
+                                query=query_for_retrieval if query_embedding_for_retrieval is None else None,
+                                query_embedding=query_embedding_for_retrieval,
                                 collection_name=collection_name,
                                 vectorstore=vectorstore,
                                 top_k=top_k,
@@ -2606,7 +2779,7 @@ class NvidiaRAG:
                         logger.info("  - Model: N/A")
                         logger.info("  - Endpoint: N/A")
                     logger.info("Retrieval Configuration:")
-                    logger.info("  - Query: '%s'", retriever_query[:200] if retriever_query else "")
+                    logger.info("  - Query: '%s'", query_for_retrieval[:200] if query_for_retrieval else "")
                     logger.info("  - Collection: %s", validated_collections[0] if validated_collections else "")
                     logger.info("  - Top-K: %d", top_k)
                     logger.info("  - Is Image Query: %s", is_image_query)
@@ -2631,7 +2804,8 @@ class NvidiaRAG:
                         context_to_show = docs
                     else:
                         docs = vdb_op.retrieval_langchain(
-                            query=retriever_query,
+                            query=query_for_retrieval if query_embedding_for_retrieval is None else None,
+                            query_embedding=query_embedding_for_retrieval,
                             collection_name=validated_collections[0],
                             vectorstore=vdb_op.get_langchain_vectorstore(
                                 validated_collections[0]

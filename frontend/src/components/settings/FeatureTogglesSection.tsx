@@ -64,6 +64,7 @@ export const FeatureTogglesSection = ({ onShowWarning }: FeatureTogglesSectionPr
     enableQueryRewriting,
     enableVlmInference,
     enableFilterGenerator,
+    enableHyde,
   } = useSettingsStore();
 
   // Get server defaults for accurate fallback values
@@ -77,6 +78,7 @@ export const FeatureTogglesSection = ({ onShowWarning }: FeatureTogglesSectionPr
     { key: 'enableQueryRewriting', label: 'Query Rewriting', desc: 'Rewrite user queries for better retrieval', value: enableQueryRewriting ?? defaults?.enable_query_rewriting ?? false },
     { key: 'enableVlmInference', label: 'VLM Inference', desc: 'Enable vision-language model inference', value: enableVlmInference ?? defaults?.enable_vlm_inference ?? false },
     { key: 'enableFilterGenerator', label: 'Filter Generator', desc: 'Auto-generate filters from queries', value: enableFilterGenerator ?? defaults?.enable_filter_generator ?? false },
+    { key: 'enableHyde', label: 'HyDE', desc: 'Use hypothetical document embeddings for better retrieval (adds latency)', value: enableHyde ?? defaults?.enable_hyde ?? false },
   ];
 
   return (

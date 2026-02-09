@@ -869,14 +869,22 @@ class ElasticVDB(VDBRagIngest):
     # Implementations of the abstract methods specific to VDBRag class for retrieval
     def retrieval_langchain(
         self,
-        query: str,
-        collection_name: str,
+        query: str | None = None,
+        collection_name: str = "",
         vectorstore: ElasticsearchStore | None = None,
         top_k: int = 10,
         filter_expr: list[dict[str, Any]] | None = None,
         otel_ctx: Any | None = None,
+        query_embedding: list[float] | None = None,
     ) -> list[dict[str, Any]]:
         """Retrieve documents from a collection using langchain."""
+        if query_embedding is not None:
+            raise NotImplementedError(
+                "HyDE averaged-embedding retrieval (num_hypothetical_docs > 1) is not implemented "
+                "for Elasticsearch. Use num_hypothetical_docs=1 or Milvus for multi-doc HyDE."
+            )
+        if not query:
+            raise ValueError("query is required for Elasticsearch retrieval")
         logger.info(
             "Elasticsearch Retrieval: Retrieving documents from index: %s, search type: '%s'",
             collection_name,

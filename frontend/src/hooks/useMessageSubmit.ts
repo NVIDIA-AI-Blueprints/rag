@@ -50,7 +50,8 @@ function cleanRequestObject(obj: Partial<GenerateRequest>): GenerateRequest {
         'enable_query_rewriting',
         'enable_guardrails',
         'enable_vlm_inference',
-        'enable_filter_generator'
+        'enable_filter_generator',
+        'enable_hyde'
       ];
       if (value === true || alwaysInclude.includes(key)) {
         (cleaned as Record<string, unknown>)[key] = value;
@@ -110,6 +111,7 @@ export const useMessageSubmit = () => {
       enable_citations: settings.includeCitations,
       enable_vlm_inference: settings.enableVlmInference,
       enable_filter_generator: settings.enableFilterGenerator,
+      enable_hyde: settings.enableHyde,
       model: settings.model,
       llm_endpoint: settings.llmEndpoint,
       embedding_model: settings.embeddingModel,

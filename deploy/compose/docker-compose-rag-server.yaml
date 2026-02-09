@@ -136,6 +136,8 @@ services:
       APP_RANKING_APIKEY: ${APP_RANKING_APIKEY:-""}
       APP_QUERYREWRITER_APIKEY: ${APP_QUERYREWRITER_APIKEY:-""}
       APP_FILTEREXPRESSIONGENERATOR_APIKEY: ${APP_FILTEREXPRESSIONGENERATOR_APIKEY:-""}
+      # HyDE: if not set or empty, uses LLM API key (APP_LLM_APIKEY or NVIDIA_API_KEY), same as SUMMARY_LLM_APIKEY in ingestor
+      APP_HYDE_APIKEY: ${APP_HYDE_APIKEY:-""}
       APP_VLM_APIKEY: ${APP_VLM_APIKEY:-""}
       SUMMARY_LLM_APIKEY: ${SUMMARY_LLM_APIKEY:-""}
       REFLECTION_LLM_APIKEY: ${REFLECTION_LLM_APIKEY:-""}
@@ -149,6 +151,17 @@ services:
       # enable query rewriting for multiturn conversation in the rag chain.
       # This will improve accuracy of the retrieiver pipeline but increase latency due to an additional LLM call
       ENABLE_QUERYREWRITER: ${ENABLE_QUERYREWRITER:-False}
+
+      ##===HyDE (Hypothetical Document Embeddings) for retrieval===
+      # When true, generates a hypothetical answer passage per query and uses it for retrieval (improves zero-shot recall; adds latency)
+      ENABLE_HYDE: ${ENABLE_HYDE:-false}
+      # Optional: dedicated HyDE LLM; if not set, defaults to main LLM (APP_LLM_MODELNAME / APP_LLM_SERVERURL)
+      APP_HYDE_MODELNAME: ${APP_HYDE_MODELNAME:-${APP_LLM_MODELNAME:-"nvidia/llama-3.3-nemotron-super-49b-v1.5"}}
+      # Pass through empty APP_LLM_SERVERURL (use API catalog); default nim-llm only when APP_LLM_SERVERURL is unset
+      APP_HYDE_SERVERURL: ${APP_HYDE_SERVERURL:-${APP_LLM_SERVERURL-nim-llm:8000}}
+      APP_HYDE_TEMPERATURE: ${APP_HYDE_TEMPERATURE:-0.7}
+      APP_HYDE_MAX_TOKENS: ${APP_HYDE_MAX_TOKENS:-256}
+      APP_HYDE_NUM_DOCS: ${APP_HYDE_NUM_DOCS:-1}
 
       # enable concatenating conversation history with current query for retrieval (when query rewriter is disabled)
       MULTITURN_RETRIEVER_SIMPLE: ${MULTITURN_RETRIEVER_SIMPLE:-False}

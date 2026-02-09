@@ -57,7 +57,7 @@ spec:
                   name: {{ .Values.ngcApiSecret.name }}
                   key: NVIDIA_API_KEY
           {{- $apiKeysSecretName := include "apiKeysSecretName" . }}
-          {{- $hasAnyKey := or .Values.apiKeysSecret.llmApiKey .Values.apiKeysSecret.embeddingsApiKey .Values.apiKeysSecret.rankingApiKey .Values.apiKeysSecret.queryRewriterApiKey .Values.apiKeysSecret.filterExpressionGeneratorApiKey .Values.apiKeysSecret.vlmApiKey .Values.apiKeysSecret.summaryLlmApiKey .Values.apiKeysSecret.reflectionLlmApiKey }}
+          {{- $hasAnyKey := or .Values.apiKeysSecret.llmApiKey .Values.apiKeysSecret.embeddingsApiKey .Values.apiKeysSecret.rankingApiKey .Values.apiKeysSecret.queryRewriterApiKey .Values.apiKeysSecret.filterExpressionGeneratorApiKey .Values.apiKeysSecret.hydeApiKey .Values.apiKeysSecret.vlmApiKey .Values.apiKeysSecret.summaryLlmApiKey .Values.apiKeysSecret.reflectionLlmApiKey }}
           {{- $shouldCreateSecret := and .Values.apiKeysSecret.create (not .Values.apiKeysSecret.existingSecret) $hasAnyKey }}
           {{- $useExistingSecret := .Values.apiKeysSecret.existingSecret }}
           {{- if or $shouldCreateSecret $useExistingSecret }}
@@ -95,6 +95,13 @@ spec:
                 secretKeyRef:
                   name: {{ $apiKeysSecretName }}
                   key: APP_FILTEREXPRESSIONGENERATOR_APIKEY
+          {{- end }}
+          {{- if or $useExistingSecret .Values.apiKeysSecret.hydeApiKey }}
+            - name: APP_HYDE_APIKEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $apiKeysSecretName }}
+                  key: APP_HYDE_APIKEY
           {{- end }}
           {{- if or $useExistingSecret .Values.apiKeysSecret.vlmApiKey }}
             - name: APP_VLM_APIKEY

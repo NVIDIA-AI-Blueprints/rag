@@ -485,6 +485,10 @@ class Prompt(BaseModel):
         description="Enable or disable automatic filter expression generation from natural language.",
         default=CONFIG.filter_expression_generator.enable_filter_generator,
     )
+    enable_hyde: bool = Field(
+        description="Enable Hypothetical Document Embeddings (HyDE) for retrieval.",
+        default=CONFIG.hyde.enable_hyde,
+    )
     model: str = Field(
         description="Name of NIM LLM model to be used for inference.",
         default=CONFIG.llm.model_name.strip('"'),
@@ -659,6 +663,10 @@ class DocumentSearch(BaseModel):
         description="Enable or disable automatic filter expression generation from natural language.",
         default=CONFIG.filter_expression_generator.enable_filter_generator,
     )
+    enable_hyde: bool = Field(
+        description="Enable Hypothetical Document Embeddings (HyDE) for retrieval. Improves zero-shot recall by generating a hypothetical answer passage and using it for retrieval; adds latency.",
+        default=CONFIG.hyde.enable_hyde,
+    )
     embedding_model: str = Field(
         description="Name of the embedding model used for vectorization.",
         default=CONFIG.embeddings.model_name.strip('"'),
@@ -813,6 +821,9 @@ class FeatureTogglesDefaults(BaseModel):
     )
     enable_filter_generator: bool = Field(
         description="Whether filter generator is enabled by default"
+    )
+    enable_hyde: bool = Field(
+        description="Whether HyDE (Hypothetical Document Embeddings) is enabled by default"
     )
 
 
@@ -1259,6 +1270,7 @@ async def get_configuration():
                 enable_query_rewriting=CONFIG.query_rewriter.enable_query_rewriter,
                 enable_vlm_inference=CONFIG.enable_vlm_inference,
                 enable_filter_generator=CONFIG.filter_expression_generator.enable_filter_generator,
+                enable_hyde=CONFIG.hyde.enable_hyde,
             ),
             models=ModelsDefaults(
                 llm_model=CONFIG.llm.model_name.strip('"'),
@@ -1365,6 +1377,7 @@ async def generate_answer(request: Request, prompt: Prompt) -> StreamingResponse
         "enable_citations": prompt.enable_citations,
         "enable_vlm_inference": prompt.enable_vlm_inference,
         "enable_filter_generator": prompt.enable_filter_generator,
+        "enable_hyde": prompt.enable_hyde,
         "model": prompt.model,
         "llm_endpoint": prompt.llm_endpoint,
         "embedding_model": prompt.embedding_model,
@@ -1447,6 +1460,7 @@ async def generate_answer(request: Request, prompt: Prompt) -> StreamingResponse
             enable_citations=prompt.enable_citations,
             enable_vlm_inference=prompt.enable_vlm_inference,
             enable_filter_generator=prompt.enable_filter_generator,
+            enable_hyde=prompt.enable_hyde,
             model=prompt.model,
             llm_endpoint=prompt.llm_endpoint,
             embedding_model=prompt.embedding_model,
@@ -1602,6 +1616,7 @@ async def document_search(
         "enable_reranker": data.enable_reranker,
         "enable_query_rewriting": data.enable_query_rewriting,
         "enable_filter_generator": data.enable_filter_generator,
+        "enable_hyde": data.enable_hyde,
         "confidence_threshold": data.confidence_threshold,
         "enable_citations": data.enable_citations,
     }
@@ -1654,6 +1669,7 @@ async def document_search(
             enable_query_rewriting=data.enable_query_rewriting,
             enable_reranker=data.enable_reranker,
             enable_filter_generator=data.enable_filter_generator,
+            enable_hyde=data.enable_hyde,
             embedding_model=data.embedding_model,
             embedding_endpoint=data.embedding_endpoint,
             reranker_model=data.reranker_model,
@@ -1881,6 +1897,7 @@ async def _vector_store_search_impl(
             enable_query_rewriting=search_request.rewrite_query,
             enable_reranker=enable_reranker,
             enable_filter_generator=False,  # OpenAI format uses explicit filters
+            enable_hyde=CONFIG.hyde.enable_hyde,  # Use server default for OpenAI-compatible path
             embedding_model=CONFIG.embeddings.model_name.strip('"'),
             embedding_endpoint=CONFIG.embeddings.server_url.strip('"'),
             reranker_model=reranker_model,

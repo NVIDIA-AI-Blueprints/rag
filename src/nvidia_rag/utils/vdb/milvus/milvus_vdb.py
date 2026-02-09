@@ -57,6 +57,8 @@ import logging
 import os
 import time
 from typing import Any
+
+import numpy as np
 from urllib.parse import urlparse
 from uuid import uuid4
 
@@ -936,16 +938,37 @@ class MilvusVDB(VDBRagIngest):
 
     # ----------------------------------------------------------------------------------------------
     # Implementations of the abstract methods specific to VDBRag class for retrieval
+    def get_hyde_query_embedding(self, hyde_doc_strings: list[str]) -> list[float]:
+        """Embed multiple HyDE documents and return their averaged vector (paper-correct HyDE).
+
+        Per Gao et al. ACL 2023: embed each hypothetical doc, then average the embeddings
+        for a single query vector. Caller uses this for retrieval when num_hypothetical_docs > 1.
+        """
+        if not hyde_doc_strings:
+            raise ValueError("hyde_doc_strings must be non-empty")
+        vectors = self.embedding_model.embed_documents(hyde_doc_strings)
+        if not vectors:
+            raise ValueError("embed_documents returned no vectors")
+        avg = np.array(vectors, dtype=np.float64).mean(axis=0)
+        return avg.tolist()
+
     def retrieval_langchain(
         self,
-        query: str,
-        collection_name: str,
+        query: str | None = None,
+        collection_name: str = "",
         vectorstore: LangchainMilvus | None = None,
         top_k: int = 10,
         filter_expr: str = "",
         otel_ctx: Any | None = None,
+        query_embedding: list[float] | None = None,
     ) -> list[dict[str, Any]]:
-        """Retrieve documents from a collection using langchain."""
+        """Retrieve documents from a collection using langchain.
+
+        Either query (text) or query_embedding (precomputed vector) must be provided.
+        When query_embedding is provided (e.g. HyDE averaged embedding), search uses that vector.
+        """
+        if query_embedding is None and not query:
+            raise ValueError("Either query or query_embedding must be provided")
         logger.info(
             "Milvus Retrieval: Retrieving documents from collection: %s, search type: '%s'",
             collection_name,
@@ -960,8 +983,26 @@ class MilvusVDB(VDBRagIngest):
         token = otel_context.attach(otel_ctx) if otel_ctx is not None else None
 
         try:
+            if query_embedding is not None:
+                logger.info("  [Embedding] Using precomputed HyDE averaged query embedding")
+                docs_with_scores = vectorstore.similarity_search_with_score_by_vector(
+                    embedding=query_embedding,
+                    k=top_k,
+                    expr=filter_expr if filter_expr else None,
+                )
+                docs = [doc for doc, _ in docs_with_scores]
+                collection_name = vectorstore.collection_name
+                end_time = time.time()
+                logger.info(
+                    "  [VDB Search] Retrieved %d documents from collection '%s'",
+                    len(docs),
+                    collection_name,
+                )
+                logger.info("  [VDB Search] Total VDB operation latency: %.4f seconds", end_time - start_time)
+                return self._add_collection_name_to_retreived_docs(docs, collection_name)
+
             logger.info("  [Embedding] Generating query embedding for retrieval...")
-            logger.info("  [Embedding] Query: '%s'", query[:100] if query else "")
+            logger.info("  [Embedding] Query: '%s'", (query or "")[:100])
             retriever = vectorstore.as_retriever(search_kwargs={"k": top_k})
             logger.info("  [Embedding] Query embedding generated successfully")
 

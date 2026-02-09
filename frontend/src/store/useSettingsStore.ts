@@ -41,6 +41,7 @@ interface SettingsState {
   includeCitations: boolean;
   enableVlmInference?: boolean;
   enableFilterGenerator?: boolean;
+  enableHyde?: boolean;
   
   // Models - All optional, populated from health endpoint or user input
   model?: string;
@@ -97,6 +98,7 @@ export const useSettingsStore = create<SettingsState>()(
       includeCitations: true,
       enableVlmInference: undefined,
       enableFilterGenerator: undefined,
+      enableHyde: undefined,
       
       // Models - All start undefined, will be populated from health endpoint
       model: undefined,

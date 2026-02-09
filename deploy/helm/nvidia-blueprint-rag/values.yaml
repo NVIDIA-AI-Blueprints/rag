@@ -50,6 +50,7 @@ apiKeysSecret:
   rankingApiKey: ""
   queryRewriterApiKey: ""
   filterExpressionGeneratorApiKey: ""
+  hydeApiKey: ""
   vlmApiKey: ""
   summaryLlmApiKey: ""
   reflectionLlmApiKey: ""
@@ -228,6 +229,13 @@ envVars:
   # enable query rewriting for multiturn conversation in the rag chain.
   # This will improve accuracy of the retrieiver pipeline but increase latency due to an additional LLM call
   ENABLE_QUERYREWRITER: "False"
+  # HyDE: generate hypothetical answer passage per query for retrieval (improves zero-shot recall; adds latency). If not set, model/URL default to main LLM.
+  ENABLE_HYDE: "false"
+  APP_HYDE_MODELNAME: ""
+  APP_HYDE_SERVERURL: ""
+  APP_HYDE_TEMPERATURE: "0.7"
+  APP_HYDE_MAX_TOKENS: "256"
+  APP_HYDE_NUM_DOCS: "1"
   # enable concatenating conversation history with current query for retrieval (when query rewriter is disabled)
   MULTITURN_RETRIEVER_SIMPLE: "False"
   # number of last n chat messages to consider from the provided conversation history (0 = no history)

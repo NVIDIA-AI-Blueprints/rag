@@ -287,6 +287,20 @@ vlm_template:
 # Reasoning templates deprecated and removed
 
 
+hyde_prompt:
+  system: |
+    /no_think
+
+  human: |
+    You are a helpful assistant. Write a short passage that would answer the following question.
+    Write as if you are a relevant document excerpt: be specific and factual in style, but you may invent plausible details.
+    Do not say you don't know; write 1-3 sentences.
+
+    Question: {query}
+
+    Passage:
+
+
 filter_expression_generator_prompt:
   system: |
     /no_think

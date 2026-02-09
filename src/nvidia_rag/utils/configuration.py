@@ -948,6 +948,74 @@ class MetadataConfig(_ConfigBase):
     )
 
 
+class HyDEConfig(_ConfigBase):
+    """HyDE (Hypothetical Document Embeddings) configuration for improved retrieval.
+
+    When enabled, the system generates a hypothetical document that would answer
+    the user's query and uses it for retrieval instead of the raw query, improving
+    semantic match in document-document embedding space (zero-shot, no relevance labels).
+    """
+
+    enable_hyde: bool = Field(
+        default=False,
+        env="ENABLE_HYDE",
+        description="Enable Hypothetical Document Embeddings for retrieval (improves recall, adds latency)",
+    )
+    model_name: str = Field(
+        default="",
+        env="APP_HYDE_MODELNAME",
+        description="LLM for generating hypothetical documents. If empty, uses main LLM (APP_LLM_MODELNAME).",
+    )
+    server_url: str = Field(
+        default="",
+        env="APP_HYDE_SERVERURL",
+        description="URL for HyDE LLM. If empty, uses main LLM endpoint (APP_LLM_SERVERURL).",
+    )
+    temperature: float = Field(
+        default=0.7,
+        env="APP_HYDE_TEMPERATURE",
+        description="Sampling temperature for hypothetical document generation (paper uses ~0.7)",
+    )
+    max_tokens: int = Field(
+        default=256,
+        env="APP_HYDE_MAX_TOKENS",
+        description="Maximum tokens for each hypothetical document (paper uses short passages)",
+    )
+    num_hypothetical_docs: int = Field(
+        default=1,
+        env="APP_HYDE_NUM_DOCS",
+        description="Number of hypothetical documents to generate (1 = use doc text as retrieval query; >1 = embed each and average embeddings for retrieval, paper-correct HyDE; Milvus only)",
+    )
+    api_key: SecretStr | None = Field(
+        default=None,
+        env="APP_HYDE_APIKEY",
+        description="API key for HyDE LLM (overrides global NVIDIA_API_KEY)",
+    )
+
+    @field_validator("server_url", "model_name", mode="before")
+    @classmethod
+    def normalize_string(cls, v: Any) -> Any:
+        if isinstance(v, str):
+            return v.strip().strip('"').strip("'")
+        return v
+
+    @field_validator("server_url", mode="before")
+    @classmethod
+    def normalize_url(cls, v: Any) -> Any:
+        if isinstance(v, str):
+            v = v.strip().strip('"').strip("'")
+            if v and not v.startswith(("http://", "https://")):
+                return f"http://{v}"
+        return v
+
+    @field_validator("num_hypothetical_docs")
+    @classmethod
+    def validate_num_docs(cls, v: int) -> int:
+        if v < 1 or v > 10:
+            raise ValueError("num_hypothetical_docs must be between 1 and 10")
+        return v
+
+
 class QueryDecompositionConfig(_ConfigBase):
     """Query Decomposition configuration."""
 
@@ -1044,6 +1112,7 @@ class NvidiaRAGConfig(_ConfigBase):
     minio: MinioConfig = PydanticField(default_factory=MinioConfig)
     summarizer: SummarizerConfig = PydanticField(default_factory=SummarizerConfig)
     metadata: MetadataConfig = PydanticField(default_factory=MetadataConfig)
+    hyde: HyDEConfig = PydanticField(default_factory=HyDEConfig)
     query_decomposition: QueryDecompositionConfig = PydanticField(
         default_factory=QueryDecompositionConfig
     )

@@ -201,6 +201,7 @@ export interface FeatureTogglesDefaults {
   enable_query_rewriting: boolean;
   enable_vlm_inference: boolean;
   enable_filter_generator: boolean;
+  enable_hyde: boolean;
 }
 
 /**
