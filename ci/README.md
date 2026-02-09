@@ -39,7 +39,7 @@ This script is automatically run in the GitHub Actions CI pipeline as the `check
 
 The job runs:
 - On pull requests (targeting `develop`)
-- When you push  to `develop`
+- When you push to `develop`
 - When you trigger it manually from the workflow dispatch
 - On scheduled pipeline runs (e.g., nightly)
 
