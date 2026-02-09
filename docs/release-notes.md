@@ -55,7 +55,7 @@ The following are the known issues that are fixed in this version:
 
 ### Known limitations
 The following are the known limitations in this version:
-- MIG support using NIM operator based helm chart is not available in this release.
+- DRA support using NIM operator based helm chart is not available in this release.
 
 For the full list of known issues, refer to [Known Issues](#all-known-issues).
 
@@ -73,7 +73,7 @@ This release is a hotfix for RAG v2.3.0, and includes the following changes:
 
 The following are the known issues for the NVIDIA RAG Blueprint:
 
-- MIG support
+- DRA support
 - Optional features reflection and image captioning are not available in Helm-based deployment.
 - Currently, Helm-based deployment is not supported for [NeMo Guardrails](nemo-guardrails.md).
 - The Blueprint responses can have significant latency when using [NVIDIA API Catalog cloud hosted models](deploy-docker-nvidia-hosted.md).

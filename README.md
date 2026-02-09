@@ -87,7 +87,7 @@ it serves as a flexible starting point that developers can adapt and extend to t
 The RAG blueprint is built from the following complementary categories of software:
 
 
-- **NVIDIA NIM microservices** – Deliver the core AI functionality. Large-scale inference (e.g., for example, Nemotron LLM models for response generation), retrieval and reranking models, and specialized extractors for text, tables, charts, and graphics. Optional NIMs extend these capabilities with OCR, content safety, topic control, and multimodal embeddings.
+- **NVIDIA NIM microservices** – Deliver the core AI functionality. Large-scale inference (e.g. for example, Nemotron LLM models for response generation), retrieval and reranking models, and specialized extractors for text, tables, charts, and graphics. Optional NIMs extend these capabilities with OCR, content safety, topic control, and multimodal embeddings.
 
 - **The integration and orchestration layer** – Acts as the glue that binds the system into a complete solution.
 
