@@ -73,7 +73,7 @@ Plan for additional space if you are enabling persistence for multiple services.
 ## Deploy the RAG Helm chart
 
 :::{important}
-With the latest Helm NIM Operator deployment, around 60 to 70 minutes is required for the whole pipeline to come up into a running state.
+When you use the Helm NIM Operator deployment, it takes approximately 60 to 70 minutes for the entire pipeline to reach a running state.
 :::
 
 To deploy End-to-End RAG Server and Ingestor Server, use the following procedure.
