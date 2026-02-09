@@ -68,20 +68,29 @@ Launch dependent services and NIMs. For more information, refer to [Docker prere
 
 ### Setup the Default Configurations
 
-1. Run the following command: `uv pip install python-dotenv import os from getpass import getpass`
-2. Enter your NGC_API_KEY ([obtain key](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/docs/api-key.md))
+1. Install the dependency:
 
-```python
-# del os.environ['NVIDIA_API_KEY']  ## delete key and reset if needed
-if os.environ.get("NGC_API_KEY", "").startswith("nvapi-"):
-    print("Valid NGC_API_KEY already in environment. Delete to reset")
-else:
-    candidate_api_key = getpass("NVAPI Key (starts with nvapi-): ")
-    assert candidate_api_key.startswith("nvapi-"), (
-        f"{candidate_api_key[:5]}... is not a valid key"
-    )
-    os.environ["NGC_API_KEY"] = candidate_api_key
-```
+   ```bash
+   uv pip install python-dotenv
+   ```
+   (Or use `pip install python-dotenv` if not using `uv`.)
+
+2. In your Python session or script, import and set your NGC API key. Obtain a key from [obtain key](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/docs/api-key.md) if needed:
+
+   ```python
+   import os
+   from getpass import getpass
+
+   # del os.environ['NVIDIA_API_KEY']  ## delete key and reset if needed
+   if os.environ.get("NGC_API_KEY", "").startswith("nvapi-"):
+       print("Valid NGC_API_KEY already in environment. Delete to reset")
+   else:
+       candidate_api_key = getpass("NVAPI Key (starts with nvapi-): ")
+       assert candidate_api_key.startswith("nvapi-"), (
+           f"{candidate_api_key[:5]}... is not a valid key"
+       )
+       os.environ["NGC_API_KEY"] = candidate_api_key
+   ```
 
 3. Login to `nvcr.io` to pull dependency containers: `echo "${NGC_API_KEY}" | docker login nvcr.io -u '$oauthtoken' --password-stdin`
 

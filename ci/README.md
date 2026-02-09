@@ -35,13 +35,13 @@ python ci/check_markdown_links.py --root . --fail-fast
 
 ### CI Integration
 
-This script is automatically run in the GitLab CI pipeline as the `check-markdown-links` job in the test stage.
+This script is automatically run in the GitHub Actions CI pipeline as the `check-markdown-links` job in the test stage.
 
 The job runs:
-- On merge requests
-- On the default branch
-- When triggered manually via web
-- On scheduled pipelines
+- On pull requests (targeting `develop`)
+- When you push  to `develop`
+- When you trigger it manually from the workflow dispatch
+- On scheduled pipeline runs (e.g., nightly)
 
 ### Exit Codes
 
