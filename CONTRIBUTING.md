@@ -9,7 +9,7 @@ Use the following guidelines to contribute to this project.
 ## Pull Requests
 Developer workflow for code contributions is as follows:
 
-1. Developers must first [fork](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/working-with-forks/fork-a-repo) the upstream this repository.
+1.[Fork](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/working-with-forks/fork-a-repo) the subject repository.
 2. Git clone the forked repository and push changes to the personal fork.
 3. Once the code changes are staged on the fork and ready for review, a Pull Request (PR) can be requested to merge the changes from a branch of the fork into the `develop` branch of the upstream repository.
    - **Important**: All PRs must target the `develop` branch, not `main` or `master`.

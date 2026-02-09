@@ -19,7 +19,7 @@ This blueprint serves as a reference solution for a foundational Retrieval Augme
 
 ## Get Started
 
-Ensure you have satisfied the prerequisites for this Blueprint ([details](../../README.md#hardware-requirements)).
+Ensure you have satisfied the prerequisites for this Blueprint ([details](../../docs/support-matrix.md)).
 
 ### Local Hosting
 
