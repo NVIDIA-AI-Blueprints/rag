@@ -75,7 +75,7 @@ Launch dependent services and NIMs. For more information, refer to [Docker prere
    ```
    (Or use `pip install python-dotenv` if not using `uv`.)
 
-2. In your Python session or script, import and set your NGC API key. Obtain a key from [obtain key](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/docs/api-key.md) if needed:
+2. In your Python session or script, import and set your NGC API key.Obtain a key by following the instructions shown [here](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/docs/api-key.md) if needed:
 
    ```python
    import os
