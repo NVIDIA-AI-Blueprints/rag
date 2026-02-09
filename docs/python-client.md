@@ -47,7 +47,7 @@ else:
 Choose one of the following installation options:
 
 - Install from PyPI (recommended): `uv pip install nvidia-rag[all]`
-- Install from source in development mode (contributors): `uv pip install -e "..[all]`
+- Install from source in development mode (contributors): `uv pip install -e "..[all]"`
 - Build and install from source wheel: 
   - `cd .. && uv build`
   - `uv pip install ../dist/nvidia_rag-*-py3-none-any.whl[all]`

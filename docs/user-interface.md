@@ -46,7 +46,7 @@ The RAG UI is provided as a sample and for experimentation only. It is not inten
 6. In **Ask a question about your documents**, submit a query related (or not) to the documents that you uploaded to the collections. You can query a minimum of 1 and a maximum of 5 collections. You should see results similar to the following.
    
    ```{image} assets/ui-query-response.png
-   :width: 750 px
+   :width: 750px
    ```
 
 7. (Optional) Click **Sources** to view the documents that were used to generate the answer.

@@ -16,7 +16,7 @@ This release adds new features to the RAG pipeline for supporting agent workflow
 
 This release contains the following key changes:
 
-- Updated NIMs and code to support  [Nvidia Ingest 26.01 release](https://docs.nvidia.com/nemo/retriever/latest/extraction/releasenotes-nv-ingest/).
+- Updated NIMs and code to support  [NVIDIA Ingest 26.01 release](https://docs.nvidia.com/nemo/retriever/latest/extraction/releasenotes-nv-ingest/).
 - Added support for non-NIM models including OpenAI, models hosted on AWS and Azure, OSS models, and others. Supported through service-specific API keys. For details, refer to [Get an API Key](api-key.md).
 - The RAG Blueprint now uses [nemoretriever-ocr-v1](https://build.nvidia.com/nvidia/nemoretriever-ocr-v1/modelcard) as the default OCR model. For details, refer to [NeMo Retriever OCR Configuration Guide](nemoretriever-ocr.md).
 - The Vision-Language Model (VLM) inference feature now uses the model [nemotron-nano-12b-v2-vl](https://build.nvidia.com/nvidia/nemotron-nano-12b-v2-vl/modelcard). For details, refer to [VLM for Generation](vlm.md).
@@ -36,13 +36,13 @@ This release contains the following key changes:
   - Configuration support through function arguments
   - Async interface for RAG methods
   - Compatibility with the [NVIDIA NeMo Agent Toolkit (NAT)](https://github.com/NVIDIA/NeMo-Agent-Toolkit)
-- Summarization enhancements including the following. For details, refer to [Documentation Summarization Customization Guide](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/summarization.ipynb).
+- Summarization enhancements including the following. For details, refer to [Document Summarization Customization Guide](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/summarization.ipynb).
   - Shallow summarization support
   - Easy model switches and dedicated configurations
   - Ease of prompt changes
 - Reserved field names `type`, `subtype`, and `location` for NV-Ingest exclusive use in metadata schemas.
 - Added support for [rag_library_lite_usage.ipynb](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/rag_library_lite_usage.ipynb) which demonstrates containerless deployment of the NVIDIA RAG Python package in lite mode.
-- Added example showcasing [NeMo Agent Toolkit integration](https://github.com/NVIDIA/NeMo-Agent-Toolkit) with Nvidia RAG.
+- Added example showcasing [NeMo Agent Toolkit integration](https://github.com/NVIDIA/NeMo-Agent-Toolkit) with NVIDIA RAG.
 - Added [weighted hybrid search](hybrid_search.md#weighted-hybrid-search) support with configurable weights.
 - RAG server logging improvements
 
@@ -73,7 +73,7 @@ This release is a hotfix for RAG v2.3.0, and includes the following changes:
 
 The following are the known issues for the NVIDIA RAG Blueprint:
 
-- DRA support 
+- DRA support
 - Optional features reflection and image captioning are not available in Helm-based deployment.
 - Currently, Helm-based deployment is not supported for [NeMo Guardrails](nemo-guardrails.md).
 - The Blueprint responses can have significant latency when using [NVIDIA API Catalog cloud hosted models](deploy-docker-nvidia-hosted.md).
@@ -86,9 +86,9 @@ The following are the known issues for the NVIDIA RAG Blueprint:
   - VLM-based inferencing in RAG
   - PDF extraction with Nemotron Parse
 - Sometimes when HTTP cloud NIM endpoints are used from `deploy/compose/.env`, the `nv-ingest-ms-runtime` still logs gRPC environment variables. Following log entries can be ignored.
-- For MIG support, currently the ingestion profile has been scaled down while deploying the chart with MIG slicing This affects the ingestion performance during bulk ingestion, specifically large bulk ingestion jobs might fail.
+- For MIG support, currently the ingestion profile has been scaled down while deploying the chart with MIG slicing. This affects the ingestion performance during bulk ingestion, specifically large bulk ingestion jobs might fail.
 - Individual file uploads are limited to a maximum size of 400 MB during ingestion. Files exceeding this limit are rejected and must be split into smaller segments before ingesting.
-- `llama-3.3-nemotron-super-49b-v1.5` model provides more verbose responses in non-reasoning mode compared to v1.0. For some queries the LLM model may respond with information not available in given context. Also for out of domain queries the model may provide responses based on it's own knowledge. Developers are strongly advised to [tune the prompt](prompt-customization.md) for their use cases to avoid these scenarios.
+- `llama-3.3-nemotron-super-49b-v1.5` model provides more verbose responses in non-reasoning mode compared to v1.0. For some queries the LLM model may respond with information not available in given context. Also for out of domain queries the model may provide responses based on its own knowledge. Developers are strongly advised to [tune the prompt](prompt-customization.md) for their use cases to avoid these scenarios.
 - Slow VDB upload is observed in Helm deployments for Elasticsearch.
 
 

@@ -29,7 +29,7 @@ The expected timeline for a first-time deployment is the following:
 - **Model download** – 10-20 minutes (largest component, no progress bar visible)
 - **Service initialization** – 5-10 minutes
 
-Factors that can affect the expected timeline include the following:**
+Factors that can affect the expected timeline include the following:
 
   - Internet bandwidth (model downloads are ~100-150GB)
   - GPU type and availability
@@ -64,7 +64,7 @@ The expected timeline for a first-time deployment is the following:
 - 10-15 minutes for service initialization 
 - 5-10 minutes for Pod startup 
 
-The expected timeline for a subsequent deployments is the following:
+The expected timeline for subsequent deployments is the following:
 
 - 10-15 minutes
 - Much faster because no model downloads are required

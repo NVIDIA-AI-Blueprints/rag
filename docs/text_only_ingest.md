@@ -50,7 +50,7 @@ You can enable text-only ingestion for the [NVIDIA RAG Blueprint](readme.md). Fo
 
 4. Continue following the rest of steps in deployment guide to deploy the rag-server containers.
 
-5. Once the ingestion and rag servers are deployed, open the [ingestion notebook](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/ingestion_api_usage.ipynb) and follow the steps. While trying out the the `Upload Document Endpoint` set the payload to below.
+5. Once the ingestion and rag servers are deployed, open the [ingestion notebook](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/ingestion_api_usage.ipynb) and follow the steps. While trying out the `Upload Document Endpoint` set the payload to below.
    ```bash
        data = {
         "vdb_endpoint": "http://milvus:19530",
