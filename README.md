@@ -25,7 +25,7 @@ it serves as a flexible starting point that developers can adapt and extend to t
 <details>
     <summary>Data Ingestion</summary>
     <ul>
-        <li>Multimodal content extraction - Documents with with text, tables, charts, infographics, and audio. For the full list of supported file types, see [NeMo Retriever Extraction Overview](https://docs.nvidia.com/nemo/retriever/latest/extraction/overview/).</li>
+        <li>Multimodal content extraction - Documents with text, tables, charts, infographics, and audio. For the full list of supported file types, see [NeMo Retriever Extraction Overview](https://docs.nvidia.com/nemo/retriever/latest/extraction/overview/).</li>
         <li>Custom metadata support</li>
     </ul>
 </details>
@@ -87,7 +87,7 @@ it serves as a flexible starting point that developers can adapt and extend to t
 The RAG blueprint is built from the following complementary categories of software:
 
 
-- **NVIDIA NIM microservices** – Deliver the core AI functionality. Large-scale inference (e.g.for example, Nemotron LLM models for response generation), retrieval and reranking models, and specialized extractors for text, tables, charts, and graphics. Optional NIMs extend these capabilities with OCR, content safety, topic control, and multimodal embeddings.
+- **NVIDIA NIM microservices** – Deliver the core AI functionality. Large-scale inference (e.g., for example, Nemotron LLM models for response generation), retrieval and reranking models, and specialized extractors for text, tables, charts, and graphics. Optional NIMs extend these capabilities with OCR, content safety, topic control, and multimodal embeddings.
 
 - **The integration and orchestration layer** – Acts as the glue that binds the system into a complete solution.
 
@@ -103,7 +103,7 @@ This modular design ensures efficient query processing, accurate retrieval of in
 
 - Retriever and Extraction Models
 
-    - [NVIDIA NIM llama-3_2-nv-embedqa-1b-v2]( https://build.nvidia.com/nvidia/llama-3_2-nv-embedqa-1b-v2)
+    - [NVIDIA NIM llama-3_2-nv-embedqa-1b-v2](https://build.nvidia.com/nvidia/llama-3_2-nv-embedqa-1b-v2)
     - [NVIDIA NIM llama-3_2-nv-rerankqa-1b-v2](https://build.nvidia.com/nvidia/llama-3_2-nv-rerankqa-1b-v2)
     - [NeMo Retriever Page Elements NIM](https://build.nvidia.com/nvidia/nemoretriever-page-elements-v3)
     - [NeMo Retriever Table Structure NIM](https://build.nvidia.com/nvidia/nemoretriever-table-structure-v1)

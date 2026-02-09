@@ -33,7 +33,7 @@ Query: I am thinking of a Ancient Roman City. The city was destroyed by volcanic
 
 Reference Answer: Naples
 
-The response with no query decomposition is:
+The response with no query decomposition is (incorrectly gives year 1997 and omits the location):
 
     "The session where it was decided that the city would be named a UNESCO World Heritage Site was held in 1997. However, the specific location of this session is not mentioned in the provided context."
 

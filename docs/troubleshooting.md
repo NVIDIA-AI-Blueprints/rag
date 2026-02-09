@@ -29,7 +29,7 @@ The expected timeline for a first-time deployment is the following:
 - **Model download** – 10-20 minutes (largest component, no progress bar visible)
 - **Service initialization** – 5-10 minutes
 
-Factors that can affect the expected timeline include the following:**
+Factors that can affect the expected timeline include the following:
 
   - Internet bandwidth (model downloads are ~100-150GB)
   - GPU type and availability
@@ -57,17 +57,12 @@ The expected timeline for a first-time deployment is the following:
 - **Pod startup:** 5-10 minutes
 
 **Subsequent deployments:**
-The expected timeline for a first-time deployment is the following:
+The expected timeline for subsequent deployments is the following:
 
-- 60-70 minutes total time 
-- 40-50 minutes for NIM cache downloads 
-- 10-15 minutes for service initialization 
-- 5-10 minutes for Pod startup 
-
-The expected timeline for a subsequent deployments is the following:
-
-- 10-15 minutes
-- Much faster because no model downloads are required
+- 10-15 minutes total time
+- NIM cache already present
+- 5-10 minutes for service initialization
+- 5-10 minutes for Pod startup
 
 :::{tip}
 If your deployment exceeds these time ranges significantly, check the monitoring commands in the relevant deployment guide or refer to "Monitoring Model Download Progress" in the following section.
