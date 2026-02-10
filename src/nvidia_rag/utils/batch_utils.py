@@ -19,6 +19,7 @@ This module provides utilities for calculating optimal batch parameters
 based on file characteristics and system resources.
 """
 
+import os
 import logging
 from pathlib import Path
 
@@ -39,11 +40,12 @@ TEXT_LIKE_EXTENSIONS = frozenset({
 
 # Optimal batch parameters for text-like files
 # Text files process quickly, so we use larger batches with sequential processing
-TEXT_FILE_BATCH_SIZE = 200
-TEXT_FILE_CONCURRENT_BATCHES = 1
+TEXT_FILE_CONCURRENT_BATCHES = 4 # Fixed number of concurrent batches for text-like files
+TEXT_FILE_MEMORY_OVERHEAD_FACTOR = 2.0 # Factor to account for memory overhead of other file types
+TEXT_ALLOWED_BATCH_SIZES = [16, 32, 64, 128, 250] # Allowed batch sizes for text-like files
 
 # Threshold percentage to determine if workload is text-heavy
-TEXT_FILE_PERCENTAGE_THRESHOLD = 50.0
+TEXT_FILE_PERCENTAGE_THRESHOLD = 50.0 # Threshold percentage to determine if workload is text file heavy
 
 
 def calculate_dynamic_batch_parameters(
@@ -116,8 +118,7 @@ def calculate_dynamic_batch_parameters(
 
     # Decision logic: If majority (>TEXT_FILE_PERCENTAGE_THRESHOLD%) are text-like files, optimize for them
     if text_file_percentage > TEXT_FILE_PERCENTAGE_THRESHOLD:
-        files_per_batch = TEXT_FILE_BATCH_SIZE
-        concurrent_batches = TEXT_FILE_CONCURRENT_BATCHES
+        files_per_batch, concurrent_batches = calculate_text_like_batch_params(filepaths, config)
         logger.info(
             f"Dynamic batching: Detected {text_file_percentage:.1f}% text-like files. "
             f"Using optimized parameters for text processing: "
@@ -134,3 +135,69 @@ def calculate_dynamic_batch_parameters(
         )
 
     return files_per_batch, concurrent_batches
+
+
+def calculate_text_like_batch_params(
+    filepaths: list[str],
+    config: NvidiaRAGConfig,
+) -> tuple[int, int]:
+    """
+    Calculate batch size and concurrent batches for text-like files.
+    """
+    # Calculate average file size
+    avg_file_size_bytes = calculate_average_file_size(filepaths)
+
+    # Calculate average embedding size
+    avg_embedding_size_bytes = calculate_average_embedding_size(
+        avg_file_size_bytes=avg_file_size_bytes,
+        num_files=len(filepaths),
+        chunk_size=config.nv_ingest.chunk_size,
+        chunk_overlap=config.nv_ingest.chunk_overlap,
+        embedding_dimensions=config.embeddings.dimensions,
+    )
+
+    # Calculate memory required per file
+    memory_per_file_bytes = (avg_file_size_bytes + avg_embedding_size_bytes) * TEXT_FILE_MEMORY_OVERHEAD_FACTOR
+
+    # Calculate max concurrent files in a single ingestion job (i.e batch size x concurrent batches)
+    max_concurrent_files = config.nv_ingest.max_memory_budget_mb * 1024 * 1024 // memory_per_file_bytes
+    
+    logger.debug(
+        f"Text-like file batching parameters: "
+        f"avg_file_size_bytes={avg_file_size_bytes}, "
+        f"avg_embedding_size_bytes={avg_embedding_size_bytes}, "
+        f"memory_per_file_bytes={memory_per_file_bytes}, "
+        f"max_concurrent_files={max_concurrent_files}"
+    )
+
+    for batch_size in sorted(TEXT_ALLOWED_BATCH_SIZES, reverse=True):
+        if batch_size * TEXT_FILE_CONCURRENT_BATCHES <= len(filepaths):
+            if batch_size * TEXT_FILE_CONCURRENT_BATCHES <= max_concurrent_files:
+                return batch_size, TEXT_FILE_CONCURRENT_BATCHES
+
+    return min(TEXT_ALLOWED_BATCH_SIZES), TEXT_FILE_CONCURRENT_BATCHES
+
+
+def calculate_average_file_size(filepaths: list[str]) -> int:
+    """
+    Calculate average file size in bytes.
+    """
+    total_size = 0
+    for filepath in filepaths:
+        total_size += os.path.getsize(filepath)
+    return total_size // len(filepaths)
+
+def calculate_average_embedding_size(
+    avg_file_size_bytes: int,
+    num_files: int,
+    chunk_size: int,
+    chunk_overlap: int,
+    embedding_dimensions: int,
+) -> int:
+    """
+    Calculate average embedding size in bytes.
+    """
+    total_token_count = avg_file_size_bytes * num_files // 4
+    total_chunk_count = total_token_count // (chunk_size - chunk_overlap) + 1
+    total_embedding_size_bytes = total_chunk_count * embedding_dimensions * 4
+    return total_embedding_size_bytes // num_files

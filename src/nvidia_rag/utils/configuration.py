@@ -397,6 +397,11 @@ class NvIngestConfig(_ConfigBase):
         env="APP_NVINGEST_PAGES_PER_CHUNK",
         description="Number of pages per chunk for PDF split processing",
     )
+    max_memory_budget_mb: int = Field(
+        default=2048,
+        env="INGESTION_MAX_MEMORY_BUDGET_MB",
+        description="Max memory budget (MB) for a single ingestion job; used for dynamic batch sizing",
+    )
 
 
 class ModelParametersConfig(_ConfigBase):

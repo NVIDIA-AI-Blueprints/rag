@@ -318,6 +318,8 @@ services:
       # NV-Ingest Batch Mode Configurations
       NV_INGEST_FILES_PER_BATCH: ${NV_INGEST_FILES_PER_BATCH:-16}
       NV_INGEST_CONCURRENT_BATCHES: ${NV_INGEST_CONCURRENT_BATCHES:-4}
+      # Max memory budget (MB) for a single ingestion job; used for dynamic batch sizing
+      INGESTION_MAX_MEMORY_BUDGET_MB: ${INGESTION_MAX_MEMORY_BUDGET_MB:-1024}
 
     ports:
       - "8082:8082"
