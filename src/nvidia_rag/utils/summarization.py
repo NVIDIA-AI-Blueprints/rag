@@ -87,7 +87,7 @@ _reset_global_summary_counter()
 def _get_tokenizer(config: NvidiaRAGConfig):
     """Get or create cached tokenizer instance.
 
-    Uses the same tokenizer as configured in nv-ingest for consistency.
+    Uses the tokenizer configured in summarizer config (SUMMARY_TOKENIZER).
     The tokenizer is cached to avoid reloading on subsequent calls.
 
     Args:
@@ -101,7 +101,7 @@ def _get_tokenizer(config: NvidiaRAGConfig):
     """
     global _tokenizer_cache
     if _tokenizer_cache is None:
-        tokenizer_name = config.nv_ingest.tokenizer
+        tokenizer_name = config.summarizer.tokenizer
         model_predownload_path = os.environ.get("MODEL_PREDOWNLOAD_PATH")
 
         tokenizer_identifier = tokenizer_name
@@ -136,7 +136,7 @@ def _get_tokenizer(config: NvidiaRAGConfig):
 def _token_length(text: str, config: NvidiaRAGConfig) -> int:
     """Calculate text length in tokens.
 
-    Uses the same tokenizer as nv-ingest for consistent token counting.
+    Uses the summarizer tokenizer (SUMMARY_TOKENIZER) for consistent token counting.
 
     Args:
         text: Input text to measure

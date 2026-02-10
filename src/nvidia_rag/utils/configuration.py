@@ -303,7 +303,7 @@ class NvIngestConfig(_ConfigBase):
         description="Granularity level for text extraction (page, document)",
     )
     tokenizer: str = Field(
-        default="intfloat/e5-large-unsupervised",
+        default="meta-llama/Llama-3.2-1B",
         env="APP_NVINGEST_TOKENIZER",
         description="Tokenizer model for text chunking",
     )
@@ -915,6 +915,11 @@ class SummarizerConfig(_ConfigBase):
         default=None,
         env="SUMMARY_LLM_APIKEY",
         description="API key for summarization service (overrides global NVIDIA_API_KEY)",
+    )
+    tokenizer: str = Field(
+        default="intfloat/e5-large-unsupervised",
+        env="SUMMARY_TOKENIZER",
+        description="Tokenizer model for summarization (e.g., intfloat/e5-large-unsupervised)",
     )
 
     @field_validator("server_url", mode="before")
