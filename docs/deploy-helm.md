@@ -139,7 +139,8 @@ To verify a deployment, use the following procedure.
     You should see output similar to the following.
 
    :::{note}
-   If some pods remain in `Pending` state after deployment, refer to [PVCs in Pending state (StorageClass issues)](troubleshooting.md#pvcs-in-pending-state-storageclass-issues) in the troubleshooting guide.
+
+  If some pods remain in `Pending` state after deployment, refer to [PVCs in Pending state (StorageClass issues)](troubleshooting.md#pvcs-in-pending-state-storageclass-issues) in the troubleshooting guide.
    :::
 
     ```sh
