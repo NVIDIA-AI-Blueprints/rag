@@ -46,7 +46,7 @@ For details, see [NVIDIA NIM for LLMs Software](https://docs.nvidia.com/nim/larg
 By default, the RAG Blueprint deploys the NIM microservices locally ([self-hosted](deploy-docker-self-hosted.md)). You need one of the following:
 
  - 2 x H100
- - 3 x B200
+ - 2 x B200
  - 3 x A100 SXM
  - 2 x RTX PRO 6000
 
@@ -63,10 +63,10 @@ You can also modify the RAG Blueprint to use [NVIDIA-hosted](deploy-docker-nvidi
 To install the RAG Blueprint on Kubernetes, you need one of the following:
 
 - 8 x H100-80GB
-- 9 x B200
+- 8 x B200
 - 9 x A100-80GB SXM
 - 8 x RTX PRO 6000
-- 4 x H100 (with [Multi-Instance GPU](./mig-deployment.md)
+- 3 x H100 (with [Multi-Instance GPU](./mig-deployment.md)
 
 
 

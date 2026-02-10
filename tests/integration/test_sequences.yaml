@@ -70,6 +70,13 @@ sequences:
     pre_sequence: [65]  # Cleanup collection before VLM generation tests
     post_sequence: [65]  # Cleanup tests after sequence
 
+  multimodal_query:
+    name: "Multimodal Query Tests"
+    description: "Multimodal RAG tests with image+text queries. Verifies retrieval and generation using VLM embedding and VLM model. Requires product_catalog.pdf and Creme_clutch_purse1-small.jpg."
+    test_numbers: [150, 151, 152, 153, 154, 155]
+    pre_sequence: []
+    post_sequence: []
+
   query_rewriter:
     name: "Query Rewriter Tests"
     description: "Query rewriting functionality tests"

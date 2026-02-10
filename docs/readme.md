@@ -26,6 +26,7 @@ For hardware requirements and other information, refer to the [Support Matrix](s
 
 - Use the procedures in [Get Started](deploy-docker-self-hosted.md) to get started quickly with the NVIDIA RAG Blueprint.
 - Experiment and test in the [Web User Interface](user-interface.md).
+- [Use the Python Package](python-client.md) to interact with the RAG.
 - Explore the notebooks that demonstrate how to use the APIs. For details refer to [Notebooks](notebooks.md).
 - Explore agentic use cases by following [example integrations](https://github.com/NVIDIA-AI-Blueprints/rag/tree/main/examples/) with NeMo Agent Toolkit and MCP server.
 
@@ -54,6 +55,10 @@ For detailed requirements, refer to [Support Matrix](support-matrix.md).
 - [Deploy on Kubernetes with Helm from the repository](deploy-helm-from-repo.md)
 - [Deploy on Kubernetes with Helm and MIG Support](mig-deployment.md)
 - [Deploy Retrieval-Only Mode](retrieval-only-deployment.md)
+
+**Alternative Deployment Options:**
+- [Use the Python Package (Library Mode)](python-client.md) — Use the NVIDIA RAG Python package directly for programmatic access to the RAG system.
+- [Containerless Deployment (Lite Mode)](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/rag_library_lite_usage.ipynb) — A Python-only setup using Milvus Lite and NVIDIA cloud APIs without Docker containers.
 
 
 
@@ -118,6 +123,7 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
 - Observability and Telemetry
 
     - [Observability](observability.md)
+    - [Query-to-Answer Pipeline](query-to-answer-pipeline.md)
 
 
 
@@ -133,6 +139,7 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
 
 - [Use the Python Package](python-client.md)
 - [Milvus Collection Schema Requirements](milvus-schema.md)
+- [Service Port and GPU Reference](service-port-gpu-reference.md)
 - [API - Ingestor Server Schema](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/docs/api_reference/openapi_schema_ingestor_server.json)
 - [API - RAG Server Schema](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/docs/api_reference/openapi_schema_rag_server.json)
 

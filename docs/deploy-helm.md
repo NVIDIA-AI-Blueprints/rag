@@ -72,6 +72,10 @@ Plan for additional space if you are enabling persistence for multiple services.
 
 ## Deploy the RAG Helm chart
 
+:::{important}
+When you use the Helm NIM Operator deployment, it takes approximately 60 to 70 minutes for the entire pipeline to reach a running state.
+:::
+
 To deploy End-to-End RAG Server and Ingestor Server, use the following procedure.
 
 1. Create a namespace for the deployment by running the following code.
@@ -133,6 +137,10 @@ To verify a deployment, use the following procedure.
     ```
 
     You should see output similar to the following.
+
+   :::{note}
+   If some pods remain in `Pending` state after deployment, refer to [PVCs in Pending state (StorageClass issues)](troubleshooting.md#pvcs-in-pending-state-storageclass-issues) in the troubleshooting guide.
+   :::
 
     ```sh
     NAME                                                 READY   STATUS      RESTARTS   AGE

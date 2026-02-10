@@ -119,6 +119,7 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
 - Observability and Telemetry
 
     - [Observability](observability.md)
+    - [Query-to-Answer Pipeline](query-to-answer-pipeline.md)
 
 
 
@@ -275,6 +276,7 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
    :hidden:
 
    Observability <observability.md>
+   Query-to-Answer Pipeline <query-to-answer-pipeline.md>
 ```
 
 
@@ -297,6 +299,7 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
    :hidden:
 
    Milvus Collection Schema <milvus-schema.md>
+   Service Port and GPU Reference <service-port-gpu-reference.md>
    API - Ingestor Server Schema <api-ingestor.md>
    API - RAG Server Schema <api-rag.md>
 ```
