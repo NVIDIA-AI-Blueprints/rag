@@ -140,10 +140,14 @@ To verify a deployment, use the following procedure.
 
    :::{note}
 <<<<<<< HEAD
+<<<<<<< HEAD
    If some pods remain in `Pending` state after deployment, refer to [PVCs in Pending state (StorageClass issues)](troubleshooting.md#pvcs-in-pending-state-storageclass-issues) in the troubleshooting guide.
 =======
   If some pods remain in `Pending` state after deployment, refer to [PVCs in Pending state (StorageClass issues)](troubleshooting.md#pvcs-in-pending-state-storageclass-issues) in the troubleshooting guide..
 >>>>>>> 644d317... updated helm instructions (#333)
+=======
+  If some pods remain in `Pending` state after deployment, refer to [PVCs in Pending state (StorageClass issues)](troubleshooting.md#pvcs-in-pending-state-storageclass-issues) in the troubleshooting guide..
+>>>>>>> 644d317 (updated helm instructions (#333))
    :::
 
     ```sh
