@@ -4,12 +4,8 @@ name: CI Pipeline
 on:
   # Run on PRs (including forks) - safe jobs without secrets run for all, secret jobs only for same-repo PRs
   pull_request:
-    branches:
-      - develop
-  # Run full pipeline after merge to develop
+  # Run full pipeline on push to any branch
   push:
-    branches:
-      - develop
   workflow_dispatch:
   schedule:
     # Run nightly at 7.30 PM UTC or 1 AM IST
