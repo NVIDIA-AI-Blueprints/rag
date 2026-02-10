@@ -25,6 +25,7 @@ dependencies = [
   "nvidia-nat>=1.5.0a0,<2.0",  # Allow pre-release versions
   "nvidia-nat-langchain>=1.5.0a0,<2.0",  # Allow pre-release versions
   "nvidia-rag[rag]~=2.4",
+  "transformers>=5.1.0",
 ]
 requires-python = ">=3.11,<3.14"
 description = "RAG React Agent example using NVIDIA RAG with NeMo Agent Toolkit"
