@@ -93,7 +93,6 @@ The following are the known issues for the NVIDIA RAG Blueprint:
 - Audio model deployment on Kubernetes on RTX‑6000 Pro is not supported in this release.
 
 
-
 ## Release Notes for Previous Versions
 
 | [2.3.0](https://docs.nvidia.com/rag/2.3.0/release-notes.html) | [2.2.1](https://docs.nvidia.com/rag/2.3.0/release-notes.html#release-2-2-1-2025-07-22) | [2.2.0](https://docs.nvidia.com/rag/2.3.0/release-notes.html#release-2-2-0-2025-07-08) | [2.1.0](https://docs.nvidia.com/rag/2.3.0/release-notes.html#release-2-1-0-2025-05-13) | [2.0.0](https://docs.nvidia.com/rag/2.3.0/release-notes.html#release-2-0-0-2025-03-18) | [1.0.0](https://docs.nvidia.com/rag/2.3.0/release-notes.html#release-1-0-0-2025-01-15) |
