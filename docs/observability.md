@@ -46,7 +46,7 @@ Use the following procedure to enable observability with Docker.
 After tracing is enabled and the system is running, you can **view the traces** in **Zipkin** by opening:
 
 <p align="center">
-<img src="./assets/zipkin_ui.png" width="750">
+<img src="assets/zipkin_ui.png" width="750">
 </p>
 
 Open the Zipkin UI at: **http://localhost:9411**
