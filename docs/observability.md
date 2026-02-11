@@ -106,7 +106,7 @@ After tracing is enabled and running, you can view inputs and outputs of differe
 3. Similarly, you can view inputs and outputs for sub stages within the workflows by clicking on a substage and finding the `traceloop.entity.input` and `traceloop.entity.ouput` rows.
 
   <p align="center">
-  <img src="./assets/zipkin_ui_labelled.png" width="750">
+  <img src="assets/zipkin_ui_labelled.png" width="750">
   </p>
 
 
