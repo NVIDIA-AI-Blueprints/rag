@@ -252,9 +252,16 @@ Use this procedure to change models when you are running self-hosted NVIDIA NIM 
     ```
 
     :::{note}
-    **For Nemotron Nano Models VLLM profile**
+    **For Nemotron Nano Models (Thinking budget LLMs) – vLLM profile**
     
-    When deploying `nvidia/nvidia-nemotron-nano-9b-v2` or `nvidia/nemotron-3-nano`, check if `tensorrt_llm` profile is available using below command for your required model. 
+    For the following Thinking budget specific LLMs, only the **vLLM** profile is supported on **H100** and **RTX** GPUs (e.g., RTX 6000 Pro):
+    
+    | GPU | Model | Supported profile |
+    |-----|-------|--------------------|
+    | H100, RTX 6000 Pro | `nvidia/nvidia-nemotron-nano-9b-v2` | vllm |
+    | H100, RTX 6000 Pro | `nvidia/nemotron-3-nano` | vllm |
+    
+    When deploying `nvidia/nvidia-nemotron-nano-9b-v2` or `nvidia/nemotron-3-nano`, check if `tensorrt_llm` profile is available using the command below for your required model.
     
     ```bash
     # Change model name as needed
@@ -263,7 +270,7 @@ Use this procedure to change models when you are running self-hosted NVIDIA NIM 
       list-model-profiles
     ```
     
-    If only `vllm` profile is available, you must use the **vLLM engine** and add these specific configurations:
+    If only `vllm` profile is available (as on H100 and RTX GPUs for these models), you must use the **vLLM engine** and add these specific configurations:
     
     ```yaml
     nimOperator:
