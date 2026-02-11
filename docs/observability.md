@@ -52,7 +52,6 @@ After tracing is enabled and the system is running, you can **view the traces** 
 Open the Zipkin UI at: **http://localhost:9411**
 
 
-
 ## View Metrics in Grafana
 
 As part of the tracing, the RAG service also exports metrics like API request counts, LLM prompt and completion token count and words per chunk.
