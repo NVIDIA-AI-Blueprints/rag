@@ -282,7 +282,7 @@ Use this procedure to change models when you are running self-hosted NVIDIA NIM 
     Ensure `APP_LLM_MODELNAME` in the `rag-server` section matches `NIM_SERVED_MODEL_NAME`.
     :::
 
-5. After you modify values.yaml, apply the changes as described in [Change a Deployment](deploy-helm.md#change-a-deployment).
+5. After you modify the `values.yaml` file, apply the changes described in [Change a Deployment](deploy-helm.md#change-a-deployment).
 
 
 
