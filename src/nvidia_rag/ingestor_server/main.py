@@ -619,7 +619,9 @@ class NvidiaRAGIngestor:
             if len(failed_validation_documents):
                 logger.error(f"Validation errors: {failed_validation_documents}")
 
-            logger.info("Number of filepaths for ingestion after validation: %s", len(filepaths))
+            logger.info(
+                "Number of filepaths for ingestion after validation: %s", len(filepaths)
+            )
             logger.debug("Filepaths for ingestion after validation: %s", filepaths)
 
             # Peform ingestion using nvingest for all files that have not failed
@@ -687,7 +689,7 @@ class NvidiaRAGIngestor:
             logger.info(
                 f"== Clean up files is complete! Time taken: {time.time() - clean_up_files_start_time} seconds =="
             )
-            
+
             logger.info(
                 "== Overall Ingestion completed successfully in %s seconds ==",
                 time.time() - start_time,
@@ -1004,8 +1006,8 @@ class NvidiaRAGIngestor:
             logger.error(f"Task {task_id} not found with error: {e}")
             return {
                 "state": "UNKNOWN",
-                "result": {"message": "Unknown task state"},
-                "nv_ingest_status": nv_ingest_status,
+                "result": {"message": f"Task '{task_id}' not found"},
+                "nv_ingest_status": {},
             }
 
     @trace_function("ingestor.main.apply_documents_catalog_metadata", tracer=TRACER)
@@ -1085,8 +1087,7 @@ class NvidiaRAGIngestor:
         embedding_dimension = self.config.embeddings.dimensions
 
         vdb_op, collection_name = self.__prepare_vdb_op_and_collection_name(
-            vdb_endpoint=vdb_endpoint,
-            collection_name=collection_name
+            vdb_endpoint=vdb_endpoint, collection_name=collection_name
         )
 
         if metadata_schema is None:
@@ -2083,12 +2084,8 @@ class NvidiaRAGIngestor:
             if not self.config.nv_ingest.enable_parallel_batch_mode:
                 # Sequential batch processing
                 total_failed = 0
-                for i in range(
-                    0, len(filepaths), state_manager.files_per_batch
-                ):
-                    sub_filepaths = filepaths[
-                        i : i + state_manager.files_per_batch
-                    ]
+                for i in range(0, len(filepaths), state_manager.files_per_batch):
+                    sub_filepaths = filepaths[i : i + state_manager.files_per_batch]
                     batch_num = i // state_manager.files_per_batch + 1
 
                     failed_files = await self.__process_shallow_batch(
@@ -2124,12 +2121,8 @@ class NvidiaRAGIngestor:
                             state_manager=state_manager,
                         )
 
-                for i in range(
-                    0, len(filepaths), state_manager.files_per_batch
-                ):
-                    sub_filepaths = filepaths[
-                        i : i + state_manager.files_per_batch
-                    ]
+                for i in range(0, len(filepaths), state_manager.files_per_batch):
+                    sub_filepaths = filepaths[i : i + state_manager.files_per_batch]
                     batch_num = i // state_manager.files_per_batch + 1
                     task = process_shallow_batch_parallel(sub_filepaths, batch_num)
                     tasks.append(task)
@@ -2231,12 +2224,8 @@ class NvidiaRAGIngestor:
                 logger.info("Processing batches sequentially")
                 all_results = []
                 all_failures = []
-                for i in range(
-                    0, len(filepaths), state_manager.files_per_batch
-                ):
-                    sub_filepaths = filepaths[
-                        i : i + state_manager.files_per_batch
-                    ]
+                for i in range(0, len(filepaths), state_manager.files_per_batch):
+                    sub_filepaths = filepaths[i : i + state_manager.files_per_batch]
                     batch_num = i // state_manager.files_per_batch + 1
                     total_batches = (
                         len(filepaths) + state_manager.files_per_batch - 1
@@ -2286,9 +2275,13 @@ class NvidiaRAGIngestor:
                 async def process_batch(sub_filepaths, batch_num):
                     async with semaphore:
                         if len(filepaths) % state_manager.files_per_batch == 0:
-                            total_batches = len(filepaths) // state_manager.files_per_batch
+                            total_batches = (
+                                len(filepaths) // state_manager.files_per_batch
+                            )
                         else:
-                            total_batches = len(filepaths) // state_manager.files_per_batch + 1
+                            total_batches = (
+                                len(filepaths) // state_manager.files_per_batch + 1
+                            )
                         logger.info(
                             f"=== Processing Batch - Collection: {collection_name} - "
                             f"Batch {batch_num} of {total_batches} - "
@@ -2305,12 +2298,8 @@ class NvidiaRAGIngestor:
                             state_manager=state_manager,
                         )
 
-                for i in range(
-                    0, len(filepaths), state_manager.files_per_batch
-                ):
-                    sub_filepaths = filepaths[
-                        i : i + state_manager.files_per_batch
-                    ]
+                for i in range(0, len(filepaths), state_manager.files_per_batch):
+                    sub_filepaths = filepaths[i : i + state_manager.files_per_batch]
                     batch_num = i // state_manager.files_per_batch + 1
                     task = process_batch(sub_filepaths, batch_num)
                     tasks.append(task)
@@ -2805,7 +2794,7 @@ class NvidiaRAGIngestor:
     ) -> dict[str, int]:
         """
         Get document type counts from the results.
-        
+
         Note: Document types are normalized to standard keys (table, chart, image, text)
         to ensure consistency with frontend expectations and derive_boolean_flags().
         """
@@ -2813,7 +2802,7 @@ class NvidiaRAGIngestor:
         type_normalization = {
             "structured": "table",  # Structured data defaults to table
         }
-        
+
         doc_type_counts = defaultdict(int)
         total_documents = 0
         total_elements = 0
@@ -2834,10 +2823,10 @@ class NvidiaRAGIngestor:
                     doc_type_key = document_subtype
                 else:
                     doc_type_key = document_type
-                
+
                 # Normalize the key to standard names (table, chart, image, text)
                 doc_type_key = type_normalization.get(doc_type_key, doc_type_key)
-                
+
                 doc_type_counts[doc_type_key] += 1
                 if document_type == "text":
                     content = result_element.get("metadata", {}).get("content", "")
