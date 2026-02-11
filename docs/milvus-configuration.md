@@ -117,7 +117,7 @@ For general GPU↔CPU switching instructions, see the [GPU to CPU Mode Switch](#
 
 ### Environment Variables
 
-Set the following before starting the ingestor server:
+Set the following before starting the ingestor and rag server:
 
 ```bash
 export APP_VECTORSTORE_ENABLEGPUSEARCH=False
@@ -153,7 +153,7 @@ Set the environment variables in `values.yaml`:
 
 ```yaml
 envVars:
-  APP_VECTORSTORE_ENABLEGPUSEARCH: "True"
+  APP_VECTORSTORE_ENABLEGPUSEARCH: "False"
 
 ingestor-server:
   envVars:
