@@ -261,7 +261,7 @@ Use this procedure to change models when you are running self-hosted NVIDIA NIM 
     | H100, RTX 6000 Pro | `nvidia/nvidia-nemotron-nano-9b-v2` | vllm |
     | H100, RTX 6000 Pro | `nvidia/nemotron-3-nano` | vllm |
     
-    When deploying `nvidia/nvidia-nemotron-nano-9b-v2` or `nvidia/nemotron-3-nano`, check if `tensorrt_llm` profile is available using the command below for your required model.
+    When deploying `nvidia/nvidia-nemotron-nano-9b-v2` or `nvidia/nemotron-3-nano`, check if the `tensorrt_llm` profile is available using the command below for your required model.
     
     ```bash
     # Change model name as needed
