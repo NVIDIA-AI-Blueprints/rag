@@ -53,8 +53,8 @@ ngcApiKeyPresenceExemptions:
   perService:
     nims.yaml:
       nim-llm: true
-      nemoretriever-embedding-ms: true
-      nemoretriever-ranking-ms: true
+      nemotron-embedding-ms: true
+      nemotron-ranking-ms: true
       vlm-ms: true
 
 

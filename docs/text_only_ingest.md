@@ -43,8 +43,8 @@ You can enable text-only ingestion for the [NVIDIA RAG Blueprint](readme.md). Fo
    ```output
       NAMES                                   STATUS
 
-      nemoretriever-ranking-ms                Up 14 minutes (healthy)
-      nemoretriever-embedding-ms              Up 14 minutes (healthy)
+      nemotron-ranking-ms                Up 14 minutes (healthy)
+      nemotron-embedding-ms              Up 14 minutes (healthy)
       nim-llm-ms                              Up 14 minutes (healthy)
    ```
 

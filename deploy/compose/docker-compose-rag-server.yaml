@@ -94,17 +94,17 @@ services:
 
       ##===Embedding Model specific configurations===
       # url on which embedding model is hosted. If "", Nvidia hosted API is used
-      APP_EMBEDDINGS_SERVERURL: ${APP_EMBEDDINGS_SERVERURL-"nemoretriever-embedding-ms:8000/v1"}
-      APP_EMBEDDINGS_MODELNAME: ${APP_EMBEDDINGS_MODELNAME:-nvidia/llama-3.2-nv-embedqa-1b-v2}
+      APP_EMBEDDINGS_SERVERURL: ${APP_EMBEDDINGS_SERVERURL-"nemotron-embedding-ms:8000/v1"}
+      APP_EMBEDDINGS_MODELNAME: ${APP_EMBEDDINGS_MODELNAME:-nvidia/llama-nemotron-embed-1b-v2}
       APP_EMBEDDINGS_DIMENSIONS: ${APP_EMBEDDINGS_DIMENSIONS:-2048}
       # For VLM Embedding Model (Nemoretriever-1b-vlm-embed-v1)
-      # APP_EMBEDDINGS_SERVERURL: ${APP_EMBEDDINGS_SERVERURL-"nemoretriever-vlm-embedding-ms:8000/v1"}
-      # APP_EMBEDDINGS_MODELNAME: ${APP_EMBEDDINGS_MODELNAME:-nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1}
+      # APP_EMBEDDINGS_SERVERURL: ${APP_EMBEDDINGS_SERVERURL-"nemotron-vlm-embedding-ms:8000/v1"}
+      # APP_EMBEDDINGS_MODELNAME: ${APP_EMBEDDINGS_MODELNAME:-nvidia/llama-nemotron-embed-vl-1b-v2}
 
       ##===Reranking Model specific configurations===
       # url on which ranking model is hosted. If "", Nvidia hosted API is used
-      APP_RANKING_SERVERURL: ${APP_RANKING_SERVERURL-"nemoretriever-ranking-ms:8000"}
-      APP_RANKING_MODELNAME: ${APP_RANKING_MODELNAME:-"nvidia/llama-3.2-nv-rerankqa-1b-v2"}
+      APP_RANKING_SERVERURL: ${APP_RANKING_SERVERURL-"nemotron-ranking-ms:8000"}
+      APP_RANKING_MODELNAME: ${APP_RANKING_MODELNAME:-"nvidia/llama-nemotron-rerank-1b-v2"}
       ENABLE_RERANKER: ${ENABLE_RERANKER:-True}
       # Default confidence threshold for filtering documents by reranker relevance scores (0.0 to 1.0)
       RERANKER_CONFIDENCE_THRESHOLD: ${RERANKER_CONFIDENCE_THRESHOLD:-0.0}

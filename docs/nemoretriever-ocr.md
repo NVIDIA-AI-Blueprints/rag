@@ -42,8 +42,8 @@ By default, the NVIDIA RAG Blueprint is configured to use NeMo Retriever OCR wit
 
 | Variable | Default Value | Description |
 |----------|---------------|-------------|
-| `OCR_GRPC_ENDPOINT` | `nemoretriever-ocr:8001` | gRPC endpoint for OCR service |
-| `OCR_HTTP_ENDPOINT` | `http://nemoretriever-ocr:8000/v1/infer` | HTTP endpoint for OCR service |
+| `OCR_GRPC_ENDPOINT` | `nemotron-ocr:8001` | gRPC endpoint for OCR service |
+| `OCR_HTTP_ENDPOINT` | `http://nemotron-ocr:8000/v1/infer` | HTTP endpoint for OCR service |
 | `OCR_INFER_PROTOCOL` | `grpc` | Communication protocol (grpc or http) |
 | `OCR_MODEL_NAME` | `scene_text_ensemble` | OCR model to use |
 
@@ -55,7 +55,7 @@ For detailed hardware requirements and GPU support, refer to the [NeMo Retriever
 
 The NeMo Retriever OCR service is configured in the Docker Compose file with the following key settings:
 
-- **Image**: `nvcr.io/nim/nvidia/nemoretriever-ocr-v1:1.2.0`
+- **Image**: `nvcr.io/nim/nvidia/nemotron-ocr-v1:1.2.0`
 - **GPU Memory**: 8192 MB (default)
 - **Max Batch Size**: 32 (default)
 - **Ports**: 8012 (HTTP), 8013 (gRPC), 8014 (Metrics)
@@ -138,7 +138,7 @@ If you need to use Paddle OCR instead:
 
 3. **Stop NeMo Retriever OCR if running**:
    ```bash
-   USERID=$(id -u) docker compose -f deploy/compose/nims.yaml down nemoretriever-ocr
+   USERID=$(id -u) docker compose -f deploy/compose/nims.yaml down nemotron-ocr
    ```
 
 4. **Deploy Paddle OCR Service**:
@@ -204,7 +204,7 @@ nv-ingest:
 ```
 
 :::{note}
-The service endpoints (`OCR_GRPC_ENDPOINT` and `OCR_HTTP_ENDPOINT`) remain the same and do not need to be changed. The service name `nemoretriever-ocr-v1` is retained even when using the PaddleOCR image.
+The service endpoints (`OCR_GRPC_ENDPOINT` and `OCR_HTTP_ENDPOINT`) remain the same and do not need to be changed. The service name `nemotron-ocr-v1` is retained even when using the PaddleOCR image.
 :::
 
 After modifying [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml), apply the changes as described in [Change a Deployment](deploy-helm.md#change-a-deployment).
@@ -218,8 +218,8 @@ For detailed Helm deployment instructions, see [Helm Deployment Guide](deploy-he
 
 | Variable | Description | NeMo Retriever Default | Paddle Default | Required |
 |----------|-------------|------------------------|----------------|----------|
-| `OCR_GRPC_ENDPOINT` | gRPC endpoint for OCR service | `nemoretriever-ocr:8001` | `paddle:8001` | Yes (on-premises) |
-| `OCR_HTTP_ENDPOINT` | HTTP endpoint for OCR service | `http://nemoretriever-ocr:8000/v1/infer` | `http://paddle:8000/v1/infer` | Yes |
+| `OCR_GRPC_ENDPOINT` | gRPC endpoint for OCR service | `nemotron-ocr:8001` | `paddle:8001` | Yes (on-premises) |
+| `OCR_HTTP_ENDPOINT` | HTTP endpoint for OCR service | `http://nemotron-ocr:8000/v1/infer` | `http://paddle:8000/v1/infer` | Yes |
 | `OCR_INFER_PROTOCOL` | Communication protocol | `grpc` | `grpc` | Yes |
 | `OCR_MODEL_NAME` | OCR model to use | `scene_text_ensemble` | `paddle` | Yes |
 | `OCR_MS_GPU_ID` | GPU device ID to use | `0` | `0` | No |
@@ -251,15 +251,15 @@ To switch to the default NeMo Retriever OCR service:
 
 2. **Configure NeMo Retriever OCR environment variables**:
    ```bash
-   export OCR_GRPC_ENDPOINT=nemoretriever-ocr:8001
-   export OCR_HTTP_ENDPOINT=http://nemoretriever-ocr:8000/v1/infer
+   export OCR_GRPC_ENDPOINT=nemotron-ocr:8001
+   export OCR_HTTP_ENDPOINT=http://nemotron-ocr:8000/v1/infer
    export OCR_INFER_PROTOCOL=grpc
    export OCR_MODEL_NAME=scene_text_ensemble
    ```
 
 3. **Start NeMo Retriever OCR**:
    ```bash
-   USERID=$(id -u) docker compose -f deploy/compose/nims.yaml up -d nemoretriever-ocr
+   USERID=$(id -u) docker compose -f deploy/compose/nims.yaml up -d nemotron-ocr
    ```
 
 4. **Restart Ingestor Server**:
@@ -306,7 +306,7 @@ Follow the steps in [Switching to Paddle OCR](#switching-to-paddle-ocr) above.
 
 ```bash
 # NeMo Retriever OCR logs
-docker logs nemoretriever-ocr
+docker logs nemotron-ocr
 
 # Paddle OCR logs
 docker logs paddle

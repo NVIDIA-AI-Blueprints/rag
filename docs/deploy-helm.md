@@ -147,11 +147,11 @@ To verify a deployment, use the following procedure.
     NAME                                                 READY   STATUS      RESTARTS   AGE
     ingestor-server-6cc886bcdf-6rfwm                     1/1     Running     0          54m
     milvus-standalone-7dd5db4755-ctqzg                   1/1     Running     0          54m
-    nemoretriever-embedding-ms-86f75c8f65-dfhd2          1/1     Running     0          39m
+    nemotron-embedding-ms-86f75c8f65-dfhd2          1/1     Running     0          39m
     nemoretriever-graphic-elements-v1-67d9d65bdc-ftbkw   1/1     Running     0          33m
-    nemoretriever-ocr-v1-78f56cddb9-f4852                1/1     Running     0          40m
+    nemotron-ocr-v1-78f56cddb9-f4852                1/1     Running     0          40m
     nemoretriever-page-elements-v3-56ddcf9b4b-qsg82      1/1     Running     0          49m
-    nemoretriever-ranking-ms-5ff774889f-fwrlm            1/1     Running     0          40m
+    nemotron-ranking-ms-5ff774889f-fwrlm            1/1     Running     0          40m
     nemoretriever-table-structure-v1-696c9f5665-l9sxn    1/1     Running     0          37m
     nim-llm-7cb9bdcc89-hwpkq                             1/1     Running     0          11m
     nim-llm-cache-job-77hpc                              0/1     Completed   0          94s
@@ -210,11 +210,11 @@ To verify a deployment, use the following procedure.
     NAME                                TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)              AGE
     ingestor-server                     ClusterIP   10.107.12.217    <none>        8082/TCP             54m
     milvus                              ClusterIP   10.99.110.203    <none>        19530/TCP,9091/TCP   54m
-    nemoretriever-embedding-ms          ClusterIP   10.104.99.15     <none>        8000/TCP,8001/TCP    54m
+    nemotron-embedding-ms          ClusterIP   10.104.99.15     <none>        8000/TCP,8001/TCP    54m
     nemoretriever-graphic-elements-v1   ClusterIP   10.96.115.45     <none>        8000/TCP,8001/TCP    54m
-    nemoretriever-ocr-v1                ClusterIP   10.100.107.215   <none>        8000/TCP,8001/TCP    54m
+    nemotron-ocr-v1                ClusterIP   10.100.107.215   <none>        8000/TCP,8001/TCP    54m
     nemoretriever-page-elements-v3      ClusterIP   10.102.237.196   <none>        8000/TCP,8001/TCP    54m
-    nemoretriever-ranking-ms            ClusterIP   10.96.114.244    <none>        8000/TCP,8001/TCP    54m
+    nemotron-ranking-ms            ClusterIP   10.96.114.244    <none>        8000/TCP,8001/TCP    54m
     nemoretriever-table-structure-v1    ClusterIP   10.107.227.139   <none>        8000/TCP,8001/TCP    54m
     nim-llm                             ClusterIP   10.104.60.155    <none>        8000/TCP,8001/TCP    54m
     rag-etcd                            ClusterIP   10.104.74.116    <none>        2379/TCP,2380/TCP    54m

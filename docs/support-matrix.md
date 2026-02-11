@@ -86,7 +86,7 @@ The following are requirements and recommendations for the individual components
   - NeMo Retriever Table Structure v1 [Support Matrix](https://docs.nvidia.com/nim/ingestion/object-detection/latest/support-matrix.html#nemo-retriever-table-structure-v1)
 
 :::{tip}
-NeMo Retriever OCR is now the default OCR service. To use the legacy Paddle OCR instead, see [OCR Configuration Guide](nemoretriever-ocr.md).
+NeMo Retriever OCR is now the default OCR service. To use the legacy Paddle OCR instead, see [OCR Configuration Guide](nemotron-ocr.md).
 :::
 
 

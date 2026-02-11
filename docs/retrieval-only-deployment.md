@@ -88,11 +88,11 @@ Choose one of the following options based on your deployment preference.
 Instead of starting all NIMs, use the `text-embed` profile to start only the embedding and reranking services:
 
 ```bash
-USERID=$(id -u) docker compose -f deploy/compose/nims.yaml up -d nemoretriever-ranking-ms nemoretriever-embedding-ms
+USERID=$(id -u) docker compose -f deploy/compose/nims.yaml up -d nemotron-ranking-ms nemotron-embedding-ms
 ```
 
 :::{note}
-The `text-embed` profile starts only `nemoretriever-embedding-ms` and `nemoretriever-ranking-ms `, which is sufficient for retrieval operations. The LLM NIM (`nim-llm-ms`) is not started, saving significant GPU memory.
+The `text-embed` profile starts only `nemotron-embedding-ms` and `nemotron-ranking-ms `, which is sufficient for retrieval operations. The LLM NIM (`nim-llm-ms`) is not started, saving significant GPU memory.
 :::
 
 Wait for the services to become healthy:
@@ -105,8 +105,8 @@ Expected output:
 
 ```output
 NAMES                          STATUS
-nemoretriever-ranking-ms       Up 5 minutes (healthy)
-nemoretriever-embedding-ms     Up 5 minutes (healthy)
+nemotron-ranking-ms       Up 5 minutes (healthy)
+nemotron-embedding-ms     Up 5 minutes (healthy)
 ```
 
 #### Option B: NVIDIA-Hosted NIMs
@@ -308,7 +308,7 @@ This is expected behavior in retrieval-only mode. The `/generate` endpoint requi
 Check the embedding NIM logs:
 
 ```bash
-docker logs nemoretriever-embedding-ms
+docker logs nemotron-embedding-ms
 ```
 
 Ensure the model cache directory has proper permissions:

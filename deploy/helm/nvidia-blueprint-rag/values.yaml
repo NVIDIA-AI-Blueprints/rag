@@ -183,14 +183,14 @@ envVars:
 
   ##===Embedding Model specific configurations===
   # URL on which embedding model is hosted. If "", Nvidia hosted API is used
-  APP_EMBEDDINGS_SERVERURL: "nemoretriever-embedding-ms:8000/v1"
-  APP_EMBEDDINGS_MODELNAME: "nvidia/llama-3.2-nv-embedqa-1b-v2"
+  APP_EMBEDDINGS_SERVERURL: "nemotron-embedding-ms:8000/v1"
+  APP_EMBEDDINGS_MODELNAME: "nvidia/llama-nemotron-embed-1b-v2"
   APP_EMBEDDINGS_DIMENSIONS: "2048"
 
   ##===Reranking Model specific configurations===
   # URL on which ranking model is hosted. If "", Nvidia hosted API is used
-  APP_RANKING_SERVERURL: "nemoretriever-ranking-ms:8000"
-  APP_RANKING_MODELNAME: "nvidia/llama-3.2-nv-rerankqa-1b-v2"
+  APP_RANKING_SERVERURL: "nemotron-ranking-ms:8000"
+  APP_RANKING_MODELNAME: "nvidia/llama-nemotron-rerank-1b-v2"
   ENABLE_RERANKER: "True"
   # Default confidence threshold for filtering documents by reranker relevance scores (0.0 to 1.0)
   RERANKER_CONFIDENCE_THRESHOLD: "0.0"
@@ -349,8 +349,8 @@ ingestor-server:
     ## APP_EMBEDDINGS_APIKEY and SUMMARY_LLM_APIKEY are loaded from secrets automatically.
 
     # === Embeddings Configurations ===
-    APP_EMBEDDINGS_SERVERURL: "nemoretriever-embedding-ms:8000/v1"
-    APP_EMBEDDINGS_MODELNAME: "nvidia/llama-3.2-nv-embedqa-1b-v2"
+    APP_EMBEDDINGS_SERVERURL: "nemotron-embedding-ms:8000/v1"
+    APP_EMBEDDINGS_MODELNAME: "nvidia/llama-nemotron-embed-1b-v2"
     APP_EMBEDDINGS_DIMENSIONS: "2048"
 
     # === NV-Ingest Configurations ===
@@ -717,9 +717,9 @@ nimOperator:
     enabled: true
     replicas: 1
     service:
-      name: "nemoretriever-embedding-ms"
+      name: "nemotron-embedding-ms"
     image:
-      repository: nvcr.io/nim/nvidia/llama-3.2-nv-embedqa-1b-v2
+      repository: nvcr.io/nim/nvidia/llama-nemotron-embed-1b-v2
       tag: "1.10.1"
       pullPolicy: IfNotPresent
     resources:
@@ -758,7 +758,7 @@ nimOperator:
   nvidia-nim-llama-32-nemoretriever-1b-vlm-embed-v1:
     enabled: false
     service:
-      name: "nemoretriever-vlm-embedding-ms"
+      name: "nemotron-vlm-embedding-ms"
     image:
       repository: nvcr.io/nvidia/nemo-microservices/llama-3.2-nemoretriever-1b-vlm-embed-v1
       tag: "1.7.0"
@@ -796,9 +796,9 @@ nimOperator:
     enabled: true
     replicas: 1
     service:
-      name: "nemoretriever-ranking-ms"
+      name: "nemotron-ranking-ms"
     image:
-      repository: nvcr.io/nim/nvidia/llama-3.2-nv-rerankqa-1b-v2
+      repository: nvcr.io/nim/nvidia/llama-nemotron-rerank-1b-v2
       tag: "1.8.0"
       pullPolicy: IfNotPresent
     resources:
@@ -897,8 +897,8 @@ nv-ingest:
     RAY_num_server_call_thread: "1"
     RAY_worker_num_grpc_internal_threads: "1"
     
-    EMBEDDING_NIM_ENDPOINT: "http://nemoretriever-embedding-ms:8000/v1"
-    EMBEDDING_NIM_MODEL_NAME: "nvidia/llama-3.2-nv-embedqa-1b-v2"
+    EMBEDDING_NIM_ENDPOINT: "http://nemotron-embedding-ms:8000/v1"
+    EMBEDDING_NIM_MODEL_NAME: "nvidia/llama-nemotron-embed-1b-v2"
     MESSAGE_CLIENT_HOST: "rag-redis-master"
     MESSAGE_CLIENT_PORT: 6379
     MESSAGE_CLIENT_TYPE: "redis"
@@ -914,8 +914,8 @@ nv-ingest:
     COMPONENTS_TO_READY_CHECK: "ALL"
 
     # OCR routing (defaults to NeMo Retriever OCR service)
-    OCR_GRPC_ENDPOINT: nemoretriever-ocr-v1:8001
-    OCR_HTTP_ENDPOINT: http://nemoretriever-ocr-v1:8000/v1/infer
+    OCR_GRPC_ENDPOINT: nemotron-ocr-v1:8001
+    OCR_HTTP_ENDPOINT: http://nemotron-ocr-v1:8000/v1/infer
     OCR_INFER_PROTOCOL: grpc
     OCR_MODEL_NAME: scene_text_ensemble
 
@@ -1015,7 +1015,7 @@ nv-ingest:
       tolerations: []
       replicaCount: 1
       image:
-        repository: nvcr.io/nim/nvidia/nemoretriever-ocr-v1
+        repository: nvcr.io/nim/nvidia/nemotron-ocr-v1
         tag: "1.2.0"
       imagePullSecrets:
         - name: ngc-secret

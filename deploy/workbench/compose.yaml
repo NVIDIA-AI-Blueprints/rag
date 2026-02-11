@@ -28,9 +28,9 @@ services:
       retries: 100
     profiles: ["local"]
 
-  nemoretriever-embedding-ms:
-    container_name: nemoretriever-embedding-ms
-    image: nvcr.io/nim/nvidia/llama-3.2-nv-embedqa-1b-v2:1.10.1
+  nemotron-embedding-ms:
+    container_name: nemotron-embedding-ms
+    image: nvcr.io/nim/nvidia/llama-nemotron-embed-1b-v2:1.10.1
     volumes:
     - ${MODEL_DIRECTORY:-/tmp}:/opt/nim/.cache
     ports:
@@ -58,9 +58,9 @@ services:
       start_period: 10m
     profiles: ["local"]
 
-  nemoretriever-ranking-ms:
-    container_name: nemoretriever-ranking-ms
-    image: nvcr.io/nim/nvidia/llama-3.2-nv-rerankqa-1b-v2:1.8.0
+  nemotron-ranking-ms:
+    container_name: nemotron-ranking-ms
+    image: nvcr.io/nim/nvidia/llama-nemotron-rerank-1b-v2:1.8.0
     volumes:
     - ${MODEL_DIRECTORY:-/tmp}:/opt/nim/.cache
     ports:
@@ -171,8 +171,8 @@ services:
               capabilities: [gpu]
     profiles: ["local"]
 
-  nemoretriever-ocr:
-    image: ${NEMORETRIEVER_OCR_IMAGE:-nvcr.io/nim/nvidia/nemoretriever-ocr-v1}:${NEMORETRIEVER_OCR_TAG:-1.2.1}
+  nemotron-ocr:
+    image: ${NEMOTRON_OCR_IMAGE:-nvcr.io/nim/nvidia/nemotron-ocr-v1}:${NEMORETRIEVER_OCR_TAG:-1.2.1}
     shm_size: 16gb
     ports:
       - "8012:8000"
@@ -256,8 +256,8 @@ services:
 
       ##===Embedding Model specific configurations===
       # url on which embedding model is hosted. If "", Nvidia hosted API is used
-      APP_EMBEDDINGS_SERVERURL: ${APP_EMBEDDINGS_SERVERURL-"nemoretriever-embedding-ms:8000/v1"}
-      APP_EMBEDDINGS_MODELNAME: ${APP_EMBEDDINGS_MODELNAME:-nvidia/llama-3.2-nv-embedqa-1b-v2}
+      APP_EMBEDDINGS_SERVERURL: ${APP_EMBEDDINGS_SERVERURL-"nemotron-embedding-ms:8000/v1"}
+      APP_EMBEDDINGS_MODELNAME: ${APP_EMBEDDINGS_MODELNAME:-nvidia/llama-nemotron-embed-1b-v2}
       APP_EMBEDDINGS_DIMENSIONS: ${APP_EMBEDDINGS_DIMENSIONS:-2048}
 
       ##===NV-Ingest Connection Configurations=======
@@ -386,12 +386,12 @@ services:
       - NV_INGEST_MAX_UTIL=${NV_INGEST_MAX_UTIL:-48}
       - OTEL_EXPORTER_OTLP_ENDPOINT=otel-collector:4317
       # Self-hosted ocr endpoints.
-      - OCR_GRPC_ENDPOINT=${OCR_GRPC_ENDPOINT:-nemoretriever-ocr:8001}
-      - OCR_HTTP_ENDPOINT=${OCR_HTTP_ENDPOINT:-http://nemoretriever-ocr:8000/v1/infer}
+      - OCR_GRPC_ENDPOINT=${OCR_GRPC_ENDPOINT:-nemotron-ocr:8001}
+      - OCR_HTTP_ENDPOINT=${OCR_HTTP_ENDPOINT:-http://nemotron-ocr:8000/v1/infer}
       - OCR_INFER_PROTOCOL=${OCR_INFER_PROTOCOL:-grpc}
       - OCR_MODEL_NAME=${OCR_MODEL_NAME:-scene_text_ensemble}
       # build.nvidia.com hosted ocr endpoints.
-      # - OCR_HTTP_ENDPOINT=https://ai.api.nvidia.com/v1/cv/nvidia/nemoretriever-ocr
+      # - OCR_HTTP_ENDPOINT=https://ai.api.nvidia.com/v1/cv/nvidia/nemotron-ocr
       # - OCR_INFER_PROTOCOL=http
       - PDF_SPLIT_PAGE_COUNT=${PDF_SPLIT_PAGE_COUNT:-32}
       - REDIS_INGEST_TASK_QUEUE=ingest_task_queue
@@ -495,13 +495,13 @@ services:
 
       ##===Embedding Model specific configurations===
       # url on which embedding model is hosted. If "", Nvidia hosted API is used
-      APP_EMBEDDINGS_SERVERURL: ${APP_EMBEDDINGS_SERVERURL-"nemoretriever-embedding-ms:8000/v1"}
-      APP_EMBEDDINGS_MODELNAME: ${APP_EMBEDDINGS_MODELNAME:-nvidia/llama-3.2-nv-embedqa-1b-v2}
+      APP_EMBEDDINGS_SERVERURL: ${APP_EMBEDDINGS_SERVERURL-"nemotron-embedding-ms:8000/v1"}
+      APP_EMBEDDINGS_MODELNAME: ${APP_EMBEDDINGS_MODELNAME:-nvidia/llama-nemotron-embed-1b-v2}
 
       ##===Reranking Model specific configurations===
       # url on which ranking model is hosted. If "", Nvidia hosted API is used
-      APP_RANKING_SERVERURL: ${APP_RANKING_SERVERURL-"nemoretriever-ranking-ms:8000"}
-      APP_RANKING_MODELNAME: ${APP_RANKING_MODELNAME:-"nvidia/llama-3.2-nv-rerankqa-1b-v2"}
+      APP_RANKING_SERVERURL: ${APP_RANKING_SERVERURL-"nemotron-ranking-ms:8000"}
+      APP_RANKING_MODELNAME: ${APP_RANKING_MODELNAME:-"nvidia/llama-nemotron-rerank-1b-v2"}
       ENABLE_RERANKER: ${ENABLE_RERANKER:-True}
 
       ##===VLM Model specific configurations===

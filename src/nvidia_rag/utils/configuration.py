@@ -631,7 +631,7 @@ class EmbeddingConfig(_ConfigBase):
     """Embedding configuration."""
 
     model_name: str = Field(
-        default="nvidia/llama-3.2-nv-embedqa-1b-v2",
+        default="nvidia/llama-nemotron-embed-1b-v2",
         env="APP_EMBEDDINGS_MODELNAME",
         description="Model for generating text embeddings",
     )
@@ -671,7 +671,7 @@ class RankingConfig(_ConfigBase):
     """Ranking configuration."""
 
     model_name: str = Field(
-        default="nvidia/llama-3.2-nv-rerankqa-1b-v2",
+        default="nvidia/llama-nemotron-rerank-1b-v2",
         env="APP_RANKING_MODELNAME",
         description="Model for reranking retrieved documents",
     )

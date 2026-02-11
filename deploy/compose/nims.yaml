@@ -31,9 +31,9 @@ services:
       retries: 100
     profiles: ["", "rag"]
 
-  nemoretriever-embedding-ms:
-    container_name: nemoretriever-embedding-ms
-    image: nvcr.io/nim/nvidia/llama-3.2-nv-embedqa-1b-v2:1.10.1
+  nemotron-embedding-ms:
+    container_name: nemotron-embedding-ms
+    image: nvcr.io/nvstaging/nim/llama-nemotron-embed-1b-v2:1.13.0-rc.20260210062207-605e535b92096e76
     volumes:
     - ${MODEL_DIRECTORY:-./}:/opt/nim/.cache
     ports:
@@ -61,9 +61,9 @@ services:
       start_period: 10m
     profiles: ["", "rag", "ingest", "text-embed", "vlm-generation"]
 
-  nemoretriever-vlm-embedding-ms:
-    container_name: nemoretriever-vlm-embedding-ms
-    image: nvcr.io/nvidia/nemo-microservices/llama-3.2-nemoretriever-1b-vlm-embed-v1:1.7.0
+  nemotron-vlm-embedding-ms:
+    container_name: nemotron-vlm-embedding-ms
+    image: nvcr.io/nim/nvidia/llama-nemotron-embed-vl-1b-v2:1.12.0
     volumes:
     - ${MODEL_DIRECTORY:-./}:/opt/nim/.cache
     ports:
@@ -91,9 +91,9 @@ services:
       start_period: 10m
     profiles: ["vlm-embed", "vlm-ingest"]
 
-  nemoretriever-ranking-ms:
-    container_name: nemoretriever-ranking-ms
-    image: nvcr.io/nim/nvidia/llama-3.2-nv-rerankqa-1b-v2:1.8.0
+  nemotron-ranking-ms:
+    container_name: nemotron-ranking-ms
+    image: nvcr.io/nvstaging/nim/llama-nemotron-rerank-1b-v2:1.10.0-rc.20260210192950-42d9ff4ed88c5d9d
     volumes:
     - ${MODEL_DIRECTORY:-./}:/opt/nim/.cache
     ports:
@@ -119,7 +119,7 @@ services:
     profiles: ["", "rag", "vlm-generation"]
 
   page-elements:
-    image: ${YOLOX_IMAGE:-nvcr.io/nim/nvidia/nemoretriever-page-elements-v3}:${YOLOX_TAG:-1.7.0}
+    image: ${YOLOX_IMAGE:-nvcr.io/nvstaging/nim/nemotron-page-elements-v3}:${YOLOX_TAG:-1.8.0-rc.20260211034836-fd67bcc824ad5ff0}
     shm_size: 16gb
     ports:
       - "8000:8000"
@@ -157,7 +157,7 @@ services:
     profiles: ["", "ingest", "vlm-ingest"]
 
   graphic-elements:
-    image: ${YOLOX_GRAPHIC_ELEMENTS_IMAGE:-nvcr.io/nim/nvidia/nemoretriever-graphic-elements-v1}:${YOLOX_GRAPHIC_ELEMENTS_TAG:-1.6.0}
+    image: ${YOLOX_GRAPHIC_ELEMENTS_IMAGE:-nvcr.io/nvstaging/nim/nemotron-graphic-elements-v1}:${YOLOX_GRAPHIC_ELEMENTS_TAG:-1.8.0-rc.20260209040124-9bcb7fd01266c5e1}
     shm_size: 16gb
     ports:
       - "8003:8000"
@@ -183,7 +183,7 @@ services:
     profiles: ["", "ingest", "vlm-ingest"]
 
   table-structure:
-    image: ${YOLOX_TABLE_STRUCTURE_IMAGE:-nvcr.io/nim/nvidia/nemoretriever-table-structure-v1}:${YOLOX_TABLE_STRUCTURE_TAG:-1.6.0}
+    image: ${YOLOX_TABLE_STRUCTURE_IMAGE:-nvcr.io/nvstaging/nim/nemotron-table-structure-v1}:${YOLOX_TABLE_STRUCTURE_TAG:-1.8.0-rc.20260206083851-6652c73e0f586480}
     shm_size: 16gb
     ports:
       - "8006:8000"
@@ -233,8 +233,8 @@ services:
               capabilities: [gpu]
     profiles: ["paddle"]
 
-  nemoretriever-ocr:
-    image: ${NEMORETRIEVER_OCR_IMAGE:-nvcr.io/nim/nvidia/nemoretriever-ocr-v1}:${NEMORETRIEVER_OCR_TAG:-1.2.1}
+  nemotron-ocr:
+    image: ${NEMOTRON_OCR_IMAGE:-nvcr.io/nvstaging/nim/nemotron-ocr-v1}:${NEMOTRON_OCR_IMAGE:-1.2.0-rc2-latest-release-37458697}
     shm_size: 16gb
     ports:
       - "8012:8000"
@@ -256,7 +256,7 @@ services:
             - driver: nvidia
               device_ids: ["${OCR_MS_GPU_ID:-${PADDLE_MS_GPU_ID:-0}}"]
               capabilities: [gpu]
-    profiles: ["", "ingest", "vlm-ingest", "nemoretriever-ocr"]
+    profiles: ["", "ingest", "vlm-ingest", "nemotron-ocr"]
 
   # Optional NIM microservices
   nemotron-parse:

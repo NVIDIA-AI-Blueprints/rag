@@ -12,7 +12,7 @@ See docs/multimodal-query.md for full deployment instructions.
 
 Required Environment Variables:
     # VLM Embedding Model (for multimodal embeddings)
-    APP_EMBEDDINGS_MODELNAME=nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1
+    APP_EMBEDDINGS_MODELNAME=nvidia/llama-nemotron-embed-vl-1b-v2
     APP_EMBEDDINGS_SERVERURL=https://integrate.api.nvidia.com/v1  # or on-prem URL
 
     # VLM Model (for multimodal generation)
@@ -70,8 +70,8 @@ Helm Deployment:
           APP_VLM_SERVERURL: "http://nim-vlm:8000/v1"
 
           # VLM embedding settings
-          APP_EMBEDDINGS_SERVERURL: "nemoretriever-vlm-embedding-ms:8000"
-          APP_EMBEDDINGS_MODELNAME: "nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1"
+          APP_EMBEDDINGS_SERVERURL: "nemotron-vlm-embedding-ms:8000"
+          APP_EMBEDDINGS_MODELNAME: "nvidia/llama-nemotron-embed-vl-1b-v2"
 
           # Disable reranker (not supported with multimodal queries)
           ENABLE_RERANKER: "False"
@@ -85,13 +85,13 @@ Helm Deployment:
             APP_NVINGEST_EXTRACTIMAGES: "True"
 
             # VLM embedding settings for ingestor
-            APP_EMBEDDINGS_SERVERURL: "nemoretriever-vlm-embedding-ms:8000"
-            APP_EMBEDDINGS_MODELNAME: "nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1"
+            APP_EMBEDDINGS_SERVERURL: "nemotron-vlm-embedding-ms:8000"
+            APP_EMBEDDINGS_MODELNAME: "nvidia/llama-nemotron-embed-vl-1b-v2"
 
         nv-ingest:
           envVars:
-            EMBEDDING_NIM_ENDPOINT: "http://nemoretriever-vlm-embedding-ms:8000/v1"
-            EMBEDDING_NIM_MODEL_NAME: "nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1"
+            EMBEDDING_NIM_ENDPOINT: "http://nemotron-vlm-embedding-ms:8000/v1"
+            EMBEDDING_NIM_MODEL_NAME: "nvidia/llama-nemotron-embed-vl-1b-v2"
 
     2. Deploy or upgrade the chart:
 
@@ -108,7 +108,7 @@ Helm Deployment:
 
         Expected pods:
         - rag-0 (VLM model deployment)
-        - nemoretriever-vlm-embedding-ms (VLM embedding service)
+        - nemotron-vlm-embedding-ms (VLM embedding service)
 """
 
 import asyncio
