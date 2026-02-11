@@ -38,6 +38,7 @@ import logging
 import math
 import os
 import time
+from collections.abc import Callable
 from collections.abc import AsyncGenerator, Generator
 from concurrent.futures import ThreadPoolExecutor
 from traceback import print_exc
@@ -410,6 +411,8 @@ class NvidiaRAG:
         filter_expr: str | list[dict[str, Any]] = "",
         enable_query_decomposition: bool | None = None,
         confidence_threshold: float | None = None,
+        fetch_full_page_context: bool | None = None,
+        fetch_neighboring_pages: int | None = None,
         rag_start_time_sec: float | None = None,
         metrics: OtelMetrics | None = None,
     ) -> AsyncGenerator[str, None]:
@@ -538,6 +541,16 @@ class NvidiaRAG:
             if confidence_threshold is not None
             else self.config.default_confidence_threshold
         )
+        fetch_full_page_context = (
+            fetch_full_page_context
+            if fetch_full_page_context is not None
+            else self.config.retriever.fetch_full_page_context
+        )
+        fetch_neighboring_pages = (
+            fetch_neighboring_pages
+            if fetch_neighboring_pages is not None
+            else self.config.retriever.fetch_neighboring_pages
+        )
 
         vdb_op = self._prepare_vdb_op(
             vdb_endpoint=vdb_endpoint,
@@ -647,6 +660,8 @@ class NvidiaRAG:
                 vdb_op=vdb_op,
                 enable_query_decomposition=enable_query_decomposition,
                 confidence_threshold=confidence_threshold,
+                fetch_full_page_context=fetch_full_page_context,
+                fetch_neighboring_pages=fetch_neighboring_pages,
                 rag_start_time_sec=rag_start_time_sec,
                 metrics=metrics,
             )
@@ -1926,6 +1941,8 @@ class NvidiaRAG:
         vdb_op: VDBRag | None = None,
         enable_query_decomposition: bool = False,
         confidence_threshold: float | None = None,
+        fetch_full_page_context: bool = False,
+        fetch_neighboring_pages: int = 0,
         rag_start_time_sec: float | None = None,
         metrics: OtelMetrics | None = None,
     ) -> tuple[AsyncGenerator[str, None], list[dict[str, Any]]]:
@@ -2588,6 +2605,7 @@ class NvidiaRAG:
                     logger.info("Reranking Output:")
                     logger.info("  - Reranked Documents: %d", len(context_to_show))
                     logger.info("  - Reranking Time: %.2f ms", context_reranker_time_ms)
+                    self._log_retrieved_pages(context_to_show, "Initially retrieved pages")
                     if context_to_show:
                         scores = [doc.metadata.get("relevance_score", "N/A") for doc in context_to_show[:3]]
                         logger.info("  - Top Document Scores (normalized): %s", 
@@ -2648,6 +2666,7 @@ class NvidiaRAG:
                     logger.info("Retrieval Output:")
                     logger.info("  - Retrieved Documents: %d", len(context_to_show))
                     logger.info("  - Retrieval Time: %.2f ms", retrieval_time_ms)
+                    self._log_retrieved_pages(context_to_show, "Initially retrieved pages")
                     logger.info("-" * 80)
 
             if ranker and enable_reranker and confidence_threshold > 0.0:
@@ -2665,6 +2684,22 @@ class NvidiaRAG:
                 
                 logger.info("Filtering Output:")
                 logger.info("  - Filtered Documents: %d", len(context_to_show))
+                self._log_retrieved_pages(context_to_show, "Pages after confidence filter")
+                logger.info("-" * 80)
+
+            if fetch_full_page_context and context_to_show:
+                logger.info("=" * 80)
+                logger.info("STAGE: Page Context Expansion")
+                logger.info("=" * 80)
+                context_to_show = self._expand_and_organize_context(
+                    docs=context_to_show,
+                    vdb_op=vdb_op,
+                    collection_names=validated_collections,
+                    fetch_full_page_context=fetch_full_page_context,
+                    fetch_neighboring_pages=fetch_neighboring_pages,
+                )
+                logger.info("  - Final Documents: %d", len(context_to_show))
+                self._log_expanded_context_layout(context_to_show, "After expansion (chunks per page)")
                 logger.info("-" * 80)
 
             if enable_vlm_inference or is_image_query:
@@ -2755,12 +2790,21 @@ class NvidiaRAG:
                             *(chat_history or []),
                             {"role": "user", "content": query},
                         ]
-                        # Build textual context identical to LLM "context" (before mutation below)
-                        vlm_text_context = "\n\n".join(
-                            [
-                                self._format_document_with_source(d)
-                                for d in context_to_show
-                            ]
+                        # Build textual context: when organize_by_page, VLM builds interleaved
+                        if fetch_full_page_context:
+                            vlm_text_context = self._format_context_by_page(
+                                context_to_show,
+                                self._format_document_with_source,
+                            )
+                        else:
+                            vlm_text_context = "\n\n".join(
+                                [
+                                    self._format_document_with_source(d)
+                                    for d in context_to_show
+                                ]
+                            )
+                        self._log_context_structure(
+                            vlm_text_context, "VLM text context structure"
                         )
                         # Always stream VLM response directly using async streaming (reasoning gate deprecated)
                         logger.info("Streaming VLM response directly (async).")
@@ -2769,6 +2813,7 @@ class NvidiaRAG:
                             messages=vlm_messages,
                             context_text=vlm_text_context,
                             question_text=self._extract_text_from_content(query),
+                            organize_by_page=fetch_full_page_context,
                             temperature=vlm_temperature_cfg,
                             top_p=vlm_top_p_cfg,
                             max_tokens=vlm_max_tokens_cfg,
@@ -2843,13 +2888,22 @@ class NvidiaRAG:
                         "falling back to regular LLM flow."
                     )
 
-            docs = [self._format_document_with_source(d) for d in context_to_show]
+            if fetch_full_page_context:
+                docs = self._format_context_by_page(
+                    context_to_show,
+                    self._format_document_with_source,
+                )
+            else:
+                docs = "\n\n".join(
+                    self._format_document_with_source(d) for d in context_to_show
+                )
 
             logger.info("=" * 80)
             logger.info("STAGE: Context Preparation for LLM")
             logger.info("=" * 80)
             logger.info("Context Configuration:")
             logger.info("  - Final Context Documents: %d", len(context_to_show))
+            self._log_context_structure(docs, "Prompt context structure (to LLM/VLM)")
             if context_to_show:
                 total_context_length = sum(len(d.page_content) for d in context_to_show)
                 logger.info("  - Total Context Length: %d characters", total_context_length)
@@ -2890,7 +2944,7 @@ class NvidiaRAG:
                        llm_settings.get("max_tokens"))
             logger.info("Input:")
             logger.info("  - Query: '%s'", self._extract_text_from_content(query)[:200])
-            logger.info("  - Context Documents: %d", len(docs))
+            logger.info("  - Context Documents: %d", len(context_to_show))
             logger.info("-" * 80)
 
             chain = prompt | llm | self.StreamingFilterThinkParser | StrOutputParser()
@@ -3159,6 +3213,283 @@ class NvidiaRAG:
                 doc.metadata["relevance_score"] = normalized_score
 
         return documents
+
+    def _log_retrieved_pages(
+        self, docs: list[Document], prefix: str = "Retrieved pages"
+    ) -> None:
+        """Log page number for every retrieved doc (no dedup), so redundant pages are visible."""
+        if not docs:
+            logger.info("  [%s] (none)", prefix)
+            return
+        by_source: dict[str, list[int]] = {}
+        no_page_count = 0
+        for doc in docs:
+            meta = getattr(doc, "metadata", {}) or {}
+            content_md = meta.get("content_metadata", {}) or {}
+            page_num = content_md.get("page_number")
+            source = meta.get("source", {})
+            source_path = (
+                source.get("source_name", "")
+                if isinstance(source, dict)
+                else source
+            )
+            name = (
+                os.path.basename(str(source_path))
+                if source_path
+                else "unknown"
+            )
+            if page_num is not None:
+                if name not in by_source:
+                    by_source[name] = []
+                by_source[name].append(int(page_num))
+            else:
+                no_page_count += 1
+        # Keep full list in doc order (no set/sort) so user can confirm each chunk's page
+        parts = [
+            f"{name} -> {len(pages)} chunks: {','.join(map(str, pages))}"
+            for name, pages in sorted(by_source.items())
+        ]
+        if no_page_count:
+            parts.append(f"(no page: {no_page_count} chunks)")
+        logger.info("  [%s] %s", prefix, "; ".join(parts))
+
+    def _log_expanded_context_layout(
+        self, docs: list[Document], prefix: str = "Context layout"
+    ) -> None:
+        """Log how context is arranged after expansion: chunks per (source, page)."""
+        if not docs:
+            logger.info("  [%s] (none)", prefix)
+            return
+        grouped: dict[tuple[str, int], int] = {}
+        no_page_count = 0
+        for doc in docs:
+            meta = getattr(doc, "metadata", {}) or {}
+            content_md = meta.get("content_metadata", {}) or {}
+            page_num = content_md.get("page_number")
+            source = meta.get("source", {})
+            source_path = (
+                source.get("source_name", "")
+                if isinstance(source, dict)
+                else source
+            )
+            name = (
+                os.path.basename(str(source_path))
+                if source_path
+                else "unknown"
+            )
+            if page_num is not None:
+                key = (name, int(page_num))
+                grouped[key] = grouped.get(key, 0) + 1
+            else:
+                no_page_count += 1
+        parts = [
+            f"{name} p{p} -> {c} chunk(s)"
+            for (name, p), c in sorted(grouped.items())
+        ]
+        if no_page_count:
+            parts.append(f"(no page: {no_page_count} chunks)")
+        logger.info("  [%s] %s", prefix, "; ".join(parts))
+
+    def _log_context_structure(
+        self,
+        context_str: str,
+        prefix: str = "Context structure",
+        max_chars: int = 60,
+    ) -> None:
+        """Log a short summary of context passed to LLM/VLM (sections + length, no full text)."""
+        if not (context_str or "").strip():
+            logger.info("  [%s] (empty)", prefix)
+            return
+        parts_log: list[str] = []
+        current_header: str | None = None
+        current_len = 0
+        for line in (context_str or "").splitlines():
+            if line.strip().startswith("==="):
+                if current_header is not None:
+                    parts_log.append(f"{current_header} ({current_len} chars)")
+                current_header = line.strip()[:50]
+                current_len = 0
+            else:
+                current_len += len(line) + 1
+        if current_header is not None:
+            parts_log.append(f"{current_header} ({current_len} chars)")
+        elif current_len:
+            parts_log.append(f"<context> ({current_len} chars)")
+        if parts_log:
+            logger.info("  [%s] %s", prefix, " | ".join(parts_log[:15]))
+
+    def _extract_page_set_from_docs(
+        self, docs: list[Document]
+    ) -> set[tuple[str, str, int]]:
+        """Extract (collection_name, source_name, page_number) from docs with page metadata."""
+        page_set: set[tuple[str, str, int]] = set()
+        for doc in docs:
+            meta = getattr(doc, "metadata", {}) or {}
+            content_md = meta.get("content_metadata", {}) or {}
+            page_num = content_md.get("page_number")
+            if page_num is None:
+                continue
+            source = meta.get("source", {})
+            source_path = (
+                source.get("source_name", "") if isinstance(source, dict) else source
+            )
+            if not source_path:
+                continue
+            source_name = str(source_path)
+            collection_name = meta.get("collection_name", "")
+            if collection_name:
+                page_set.add((collection_name, source_name, int(page_num)))
+        return page_set
+
+    def _expand_page_set_with_neighbors(
+        self,
+        page_set: set[tuple[str, str, int]],
+        n: int,
+    ) -> set[tuple[str, str, int]]:
+        """Expand page set with n pages before and after each page.
+
+        Safely ignores page 0 (first page - 1) and non-existent pages beyond the last:
+        - page 0: filtered out via new_page >= 1
+        - page N+1: included in fetch; VDB returns empty for non-existent pages
+        """
+        expanded: set[tuple[str, str, int]] = set(page_set)
+        for coll, source, page in page_set:
+            for delta in range(-n, n + 1):
+                if delta == 0:
+                    continue
+                new_page = page + delta
+                if new_page >= 1:
+                    expanded.add((coll, source, new_page))
+        return expanded
+
+    def _expand_and_organize_context(
+        self,
+        docs: list[Document],
+        vdb_op: VDBRag,
+        collection_names: list[str],
+        fetch_full_page_context: bool,
+        fetch_neighboring_pages: int,
+    ) -> list[Document]:
+        """Expand context with full page chunks and/or neighboring pages, then return merged docs.
+
+        When no docs have page_number (e.g., text files), returns reranker top-k unchanged.
+        """
+        page_set = self._extract_page_set_from_docs(docs)
+        if not page_set:
+            return docs  # Text files, no page metadata: return reranker top-k as-is
+
+        if fetch_neighboring_pages > 0:
+            page_set = self._expand_page_set_with_neighbors(
+                page_set, fetch_neighboring_pages
+            )
+
+        if not fetch_full_page_context:
+            return docs
+
+        seen: set[tuple[str, str, int, str]] = set()
+
+        def doc_key(d: Document) -> tuple[str, str, int, str]:
+            meta = getattr(d, "metadata", {}) or {}
+            content_md = meta.get("content_metadata", {}) or {}
+            source = meta.get("source", {})
+            source_path = (
+                source.get("source_name", "") if isinstance(source, dict) else source
+            )
+            coll = meta.get("collection_name", "")
+            page_num = content_md.get("page_number", 0)
+            content_preview = (getattr(d, "page_content", "") or "")[:300]
+            return (str(coll), str(source_path), int(page_num), content_preview)
+
+        merged: list[Document] = []
+        for d in docs:
+            k = doc_key(d)
+            if k not in seen:
+                seen.add(k)
+                merged.append(d)
+
+        pages_by_coll_source: dict[tuple[str, str], set[int]] = {}
+        for coll, source, page in page_set:
+            key = (coll, source)
+            if key not in pages_by_coll_source:
+                pages_by_coll_source[key] = set()
+            pages_by_coll_source[key].add(page)
+
+        for (coll, source), pages in pages_by_coll_source.items():
+            if not hasattr(vdb_op, "retrieve_chunks_by_filter"):
+                continue
+            try:
+                fetched = vdb_op.retrieve_chunks_by_filter(
+                    collection_name=coll,
+                    source_name=source,
+                    page_numbers=sorted(pages),
+                    limit=1000,
+                )
+                for d in fetched:
+                    k = doc_key(d)
+                    if k not in seen:
+                        seen.add(k)
+                        merged.append(d)
+            except Exception as e:
+                logger.warning(
+                    "Failed to fetch chunks for source=%s pages=%s: %s",
+                    source,
+                    list(pages),
+                    e,
+                )
+
+        return merged
+
+    def _format_context_by_page(
+        self,
+        docs: list[Document],
+        format_fn: Callable[[Document], str],
+    ) -> str:
+        """Group documents by (source, page_number), sort by page, format with markers."""
+        has_page: list[tuple[str, str, int, Document]] = []
+        no_page: list[Document] = []
+        for doc in docs:
+            meta = getattr(doc, "metadata", {}) or {}
+            content_md = meta.get("content_metadata", {}) or {}
+            page_num = content_md.get("page_number")
+            source = meta.get("source", {})
+            source_path = (
+                source.get("source_name", "") if isinstance(source, dict) else source
+            )
+            filename = (
+                os.path.splitext(os.path.basename(str(source_path)))[0]
+                if source_path
+                else "unknown"
+            )
+            if page_num is not None:
+                has_page.append((filename, str(source_path), int(page_num), doc))
+            else:
+                no_page.append(doc)
+
+        parts: list[str] = []
+        grouped: dict[tuple[str, int], list[Document]] = {}
+        for filename, source_path, page_num, doc in has_page:
+            key = (source_path, page_num)
+            if key not in grouped:
+                grouped[key] = []
+            grouped[key].append(doc)
+
+        keys_sorted = sorted(grouped.keys(), key=lambda k: (k[0], k[1]))
+        for (source_path, page_num) in keys_sorted:
+            doc_list = grouped[(source_path, page_num)]
+            filename = (
+                os.path.splitext(os.path.basename(source_path))[0]
+                if source_path
+                else "unknown"
+            )
+            marker = f"=== Page {page_num} ({filename}) ===\n"
+            content = "\n\n".join(format_fn(d) for d in doc_list)
+            parts.append(marker + content)
+
+        if no_page:
+            parts.append("=== Additional context ===\n")
+            parts.append("\n\n".join(format_fn(d) for d in no_page))
+
+        return "\n\n".join(parts)
 
     def _format_document_with_source(self, doc: "Document") -> str:
         """Format document content with its source filename.

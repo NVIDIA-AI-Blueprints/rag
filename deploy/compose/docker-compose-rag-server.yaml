@@ -66,6 +66,12 @@ services:
       # Top K from vector DB, which goes as input to reranker model if enabled, else goes to LLM prompt
       VECTOR_DB_TOPK: ${VECTOR_DB_TOPK:-100}
 
+      # Fetch full page context: when True, fetches ALL chunks for retrieved pages and organizes by page
+      # Useful for PDFs where we have page numbers in file
+      APP_FETCH_FULL_PAGE_CONTEXT: ${APP_FETCH_FULL_PAGE_CONTEXT:-false}
+      # N pages before/after each retrieved page (0=disabled, 1=+/-1 page). Requires APP_FETCH_FULL_PAGE_CONTEXT=true
+      APP_FETCH_NEIGHBORING_PAGES: ${APP_FETCH_NEIGHBORING_PAGES:-0}
+
       ##===LLM Model specific configurations===
       APP_LLM_MODELNAME: ${APP_LLM_MODELNAME:-"nvidia/llama-3.3-nemotron-super-49b-v1.5"}
       # url on which llm model is hosted. If "", Nvidia hosted API is used
