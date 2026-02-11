@@ -251,11 +251,20 @@ Use this procedure to change models when you are running self-hosted NVIDIA NIM 
       env: []
     ```
 
+    **Nemotron Nano Models (Thinking budget LLMs) – vLLM profile**
+
+    For these Thinking budget LLMs, only the vLLM profile is supported on H100 and RTX GPUs (e.g., RTX 6000 Pro).
+
+    | GPU | Model | Supported profile |
+    |-----|-------|-------------------|
+    | H100, RTX 6000 Pro | nvidia/nvidia-nemotron-nano-9b-v2 | vllm |
+    | H100, RTX 6000 Pro | nvidia/nemotron-3-nano | vllm |
+
     :::{note}
-    **For Nemotron Nano Models on RTX 6000 Pro:**
-    
-    When deploying `nvidia/nvidia-nemotron-nano-9b-v2` or `nvidia/nemotron-3-nano` on RTX 6000 Pro hardware, you must use the **vLLM engine** and add these specific configurations:
-    
+    **When only the vLLM profile is available:**
+
+    When only the vLLM profile is available—including on H100 and RTX GPUs (e.g., RTX 6000 Pro) for these models—you must use the **vLLM engine**. Run the `list-model-profiles` command (see [Model Profiles](model-profiles.md#list-available-profiles)) to verify available profiles, then add these configurations:
+
     ```yaml
     nimOperator:
       nim-llm:
@@ -269,7 +278,7 @@ Use this procedure to change models when you are running self-hosted NVIDIA NIM 
             value: "nvidia/nvidia-nemotron-nano-9b-v2"  # Must match APP_LLM_MODELNAME
           # ... other env vars ...
     ```
-    
+
     Ensure `APP_LLM_MODELNAME` in the `rag-server` section matches `NIM_SERVED_MODEL_NAME`.
     :::
 
