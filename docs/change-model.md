@@ -270,7 +270,7 @@ Use this procedure to change models when you are running self-hosted NVIDIA NIM 
       list-model-profiles
     ```
     
-    If only `vllm` profile is available (as on H100 and RTX GPUs for these models), you must use the **vLLM engine** and add these specific configurations:
+    If only the `vllm` profile is available (as on H100 and RTX GPUs for these models), you must use the **vLLM engine** and add the following configurations.
     
     ```yaml
     nimOperator:
