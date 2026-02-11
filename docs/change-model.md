@@ -252,9 +252,18 @@ Use this procedure to change models when you are running self-hosted NVIDIA NIM 
     ```
 
     :::{note}
-    **For Nemotron Nano Models on RTX 6000 Pro:**
+    **For Nemotron Nano Models VLLM profile**
     
-    When deploying `nvidia/nvidia-nemotron-nano-9b-v2` or `nvidia/nemotron-3-nano` on RTX 6000 Pro hardware, you must use the **vLLM engine** and add these specific configurations:
+    When deploying `nvidia/nvidia-nemotron-nano-9b-v2` or `nvidia/nemotron-3-nano`, check if `tensorrt_llm` profile is available using below command for your required model. 
+    
+    ```bash
+    # Change model name as needed
+    USERID=$(id -u) docker run --rm --gpus all \
+      nvcr.io/nim/nvidia/nvidia-nemotron-nano-9b-v2:latest \ 
+      list-model-profiles
+    ```
+    
+    If only `vllm` profile is available, you must use the **vLLM engine** and add these specific configurations:
     
     ```yaml
     nimOperator:
