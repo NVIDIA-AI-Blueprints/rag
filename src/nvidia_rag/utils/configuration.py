@@ -398,6 +398,19 @@ class NvIngestConfig(_ConfigBase):
         description="Number of pages per chunk for PDF split processing",
     )
 
+class NemotronParseConfig(_ConfigBase):
+    """Nemotron Parse configuration."""
+
+    pipeline_mode: str = Field(
+        default="page_as_image",
+        env="NEMOTRON_PARSE_PIPELINE_MODE",
+        description="Pipeline mode for Nemotron Parse (page_as_image, page_as_text)",
+    )
+    embed_images: bool = Field(
+        default=False,
+        env="NEMOTRON_PARSE_EMBED_IMAGES",
+        description="Embed images in the Nemotron Parse pipeline (True, False), if False, corresponding text will be embedded instead",
+    )
 
 class ModelParametersConfig(_ConfigBase):
     """Model parameters configuration."""
@@ -1039,6 +1052,7 @@ class NvidiaRAGConfig(_ConfigBase):
     ranking: RankingConfig = PydanticField(default_factory=RankingConfig)
     retriever: RetrieverConfig = PydanticField(default_factory=RetrieverConfig)
     nv_ingest: NvIngestConfig = PydanticField(default_factory=NvIngestConfig)
+    nemotron_parse: NemotronParseConfig = PydanticField(default_factory=NemotronParseConfig)
     tracing: TracingConfig = PydanticField(default_factory=TracingConfig)
     vlm: VLMConfig = PydanticField(default_factory=VLMConfig)
     minio: MinioConfig = PydanticField(default_factory=MinioConfig)
@@ -1083,6 +1097,11 @@ class NvidiaRAGConfig(_ConfigBase):
         default="./tmp-data",
         env="TEMP_DIR",
         description="Temporary directory for file processing and storage",
+    )
+    ingestion_pipeline: str = Field(
+        default="nv_ingest", # "nv_ingest" or "nemotron_parse"
+        env="INGESTION_PIPELINE",
+        description="Ingestion pipeline to use for ingesting documents",
     )
 
     @field_validator("default_confidence_threshold")
