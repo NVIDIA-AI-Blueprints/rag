@@ -232,7 +232,7 @@ The system automatically manages certain metadata fields that are added to all c
 
 | Field Name | Type | Description | Auto-Populated | User Override |
 |------------|------|-------------|----------------|---------------|
-| **`filename`** | `string` | Name of the uploaded file | ✅ RAG system | ✅ Yes - define in schema |
+| **`filename`** | `string` | Name of the uploaded file (case-sensitive when filtering) | ✅ RAG system | ✅ Yes - define in schema |
 | **`page_number`** | `integer` | Page number where content appears (1-indexed) | ✅ nv-ingest | ✅ Yes - define in schema |
 | **`start_time`** | `integer` | Start timestamp in milliseconds for audio/video segments | ✅ nv-ingest | ✅ Yes - define in schema |
 | **`end_time`** | `integer` | End timestamp in milliseconds for audio/video segments | ✅ nv-ingest | ✅ Yes - define in schema |

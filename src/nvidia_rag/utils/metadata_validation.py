@@ -2164,7 +2164,10 @@ class MilvusQueryTransformer(Transformer):
                         logger.debug(f"[comparison] Failed to normalize datetime: {e}")
                         value_val = str(value_token)
                 elif field_info and is_string_type(field_info.type):
-                    value_val = str(value_token).lower()
+                    if field_name == "filename":
+                        value_val = str(value_token)
+                    else:
+                        value_val = str(value_token).lower()
                 else:
                     value_val = str(value_token)
             else:
@@ -2677,15 +2680,15 @@ class FilterExpressionParser:
             error_msg = (
                 f"Syntax error at line {line_num}, column {col_num}: '{snippet}'"
             )
-            error_msg += "\n\nExamples of valid filter expressions:"
-            error_msg += "\n• content_metadata[\"title\"] == 'value'"
-            error_msg += "\n• content_metadata[\"title\"] = 'value'"
+            error_msg += "\n\nExamples of valid filter expressions (use double quotes for string values):"
+            error_msg += '\n• content_metadata["title"] == "value"'
+            error_msg += '\n• content_metadata["title"] = "value"'
             error_msg += '\n• content_metadata["rating"] > 5'
-            error_msg += "\n• content_metadata[\"category\"] like '%tech%'"
-            error_msg += "\n• content_metadata[\"tags\"] in ['important', 'urgent']"
-            error_msg += "\n• content_metadata[\"created_date\"] between '2024-01-01' and '2024-12-31'"
+            error_msg += '\n• content_metadata["category"] like "%tech%"'
+            error_msg += '\n• content_metadata["tags"] in ["important", "urgent"]'
+            error_msg += '\n• content_metadata["created_date"] between "2024-01-01" and "2024-12-31"'
             error_msg += '\n• content_metadata["is_public"] == true'
-            error_msg += '\n• content_metadata["file_size"] > 1000 and content_metadata["type"] == \'pdf\''
+            error_msg += '\n• content_metadata["file_size"] > 1000 and content_metadata["type"] == "pdf"'
 
             return error_msg
 
