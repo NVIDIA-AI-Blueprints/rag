@@ -35,9 +35,9 @@ Plan for additional space if you are enabling persistence for multiple services.
 
 3. Verify that you have the NGC CLI available on your client computer. You can download the CLI from <https://ngc.nvidia.com/setup/installers/cli>.
 
-4. Verify that you have Kubernetes v1.34.2 installed and running on Ubuntu 22.04/24.04. For more information, see [Kubernetes documentation](https://kubernetes.io/docs/setup/) and [NVIDIA Cloud Native Stack 17.0](https://github.com/NVIDIA/cloud-native-stack/tree/17.0).
+4. Verify that you have Kubernetes v1.34.2 installed and running on Ubuntu 22.04/24.04. For more information, see [Kubernetes documentation](https://kubernetes.io/docs/setup/) and [NVIDIA Cloud Native Stack](https://github.com/NVIDIA/cloud-native-stack).
 
-5. Verify that you have installed Helm 3 or later (Helm v3.20.0 recommended). For installation instructions, see [Helm Installation](https://helm.sh/docs/intro/install).
+5. Verify that you have installed Helm 3.  To install Helm 3 (and avoid Helm 4), follow the official Helm v3 installation instructions for your platform, for example by using the `get-helm-3` script described in the [Helm documentation](https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3For).
 
 6. Verify that you have a default storage class available in the cluster for PVC provisioning. One option is the local path provisioner by Rancher.   Refer to the [installation](https://github.com/rancher/local-path-provisioner?tab=readme-ov-file#installation) section of the README in the GitHub repository.
 
@@ -139,6 +139,7 @@ To verify a deployment, use the following procedure.
     You should see output similar to the following.
 
    :::{note}
+
    If some pods remain in `Pending` state after deployment, refer to [PVCs in Pending state (StorageClass issues)](troubleshooting.md#pvcs-in-pending-state-storageclass-issues) in the troubleshooting guide.
    :::
 

@@ -90,7 +90,7 @@ The following are the known issues for the NVIDIA RAG Blueprint:
 - Individual file uploads are limited to a maximum size of 400 MB during ingestion. Files exceeding this limit are rejected and must be split into smaller segments before ingesting.
 - `llama-3.3-nemotron-super-49b-v1.5` model provides more verbose responses in non-reasoning mode compared to v1.0. For some queries the LLM model may respond with information not available in given context. Also for out of domain queries the model may provide responses based on its own knowledge. Developers are strongly advised to [tune the prompt](prompt-customization.md) for their use cases to avoid these scenarios.
 - Slow VDB upload is observed in Helm deployments for Elasticsearch.
-
+- Audio model deployment on Kubernetes on RTX‑6000 Pro is not supported in this release.
 
 
 ## Release Notes for Previous Versions
