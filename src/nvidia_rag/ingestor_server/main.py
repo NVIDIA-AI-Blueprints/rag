@@ -94,6 +94,7 @@ from nvidia_rag.utils.summarization import generate_document_summaries
 from nvidia_rag.utils.summary_status_handler import SUMMARY_STATUS_HANDLER
 from nvidia_rag.utils.vdb import DEFAULT_DOCUMENT_INFO_COLLECTION, _get_vdb_op
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
+from nvidia_rag.ingestor_server.pipelines.nv_ingest.pipeline import NVIngestIngestionPipeline
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -626,15 +627,21 @@ class NvidiaRAGIngestor:
             # Check if the provided collection_name exists in vector-DB
 
             start_time = time.time()
-            results, failures = await self.__run_nvingest_batched_ingestion(
+
+            ingestion_pipeline = NVIngestIngestionPipeline(
+                config=self.config,
+                vdb_op=vdb_op,
+                state_manager=state_manager,
+                mode=self.mode,
+                minio_operator=self.minio_operator,
+                prompts=self.prompts,
                 filepaths=filepaths,
                 collection_name=collection_name,
-                vdb_op=vdb_op,
                 split_options=split_options,
                 generate_summary=generate_summary,
                 summary_options=summary_options,
-                state_manager=state_manager,
             )
+            results, failures = await ingestion_pipeline.run()
 
             build_ingestion_response_start_time = time.time()
             response_data = await self.__build_ingestion_response(
