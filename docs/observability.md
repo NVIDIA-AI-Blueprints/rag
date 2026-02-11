@@ -52,7 +52,6 @@ After tracing is enabled and the system is running, you can **view the traces** 
 Open the Zipkin UI at: **http://localhost:9411**
 
 
-
 ## View Metrics in Grafana
 
 As part of the tracing, the RAG service also exports metrics like API request counts, LLM prompt and completion token count and words per chunk.
@@ -106,7 +105,7 @@ After tracing is enabled and running, you can view inputs and outputs of differe
 3. Similarly, you can view inputs and outputs for sub stages within the workflows by clicking on a substage and finding the `traceloop.entity.input` and `traceloop.entity.ouput` rows.
 
   <p align="center">
-  <img src="./assets/zipkin_ui_labelled.png" width="750">
+  <img src="assets/zipkin_ui_labelled.png" width="750">
   </p>
 
 

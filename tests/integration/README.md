@@ -76,7 +76,7 @@ Sequences are defined in `test_sequences.yaml` file.
 
 Each sequence can define:
 - **`pre_sequence`**: Tests to run before the main sequence (e.g., setup, cleanup)
-- ** `test_cases` **: Main test cases to run in sequence.
+- **`test_cases`**: Main test cases to run in sequence.
 - **`post_sequence`**: Tests to run after the main sequence (e.g., cleanup, verification)
 
 **Execution Flow:**

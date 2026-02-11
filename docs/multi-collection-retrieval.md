@@ -31,7 +31,7 @@ Multi-collection retrieval requires reranking to be enabled. The reranker servic
 The reranker settings are configured in `deploy/compose/docker-compose-rag-server.yaml`. Ensure the following environment variables are set before deploying (these are enabled by default):
 
 ```bash
-# Note: These export statements are only needed if reranking is disabled (its enabled by default)
+# Note: These export statements are only needed if reranking is disabled (it's enabled by default)
 # and you want to enable it for multi-collection retrieval.
 
 # Enable reranker (default: True)

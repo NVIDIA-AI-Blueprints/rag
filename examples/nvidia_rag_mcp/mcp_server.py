@@ -151,7 +151,7 @@ async def tool_generate(
         payload["use_knowledge_base"] = use_knowledge_base
     if stop is not None:
         payload["stop"] = stop
-    if filter_expr is not None:
+    if filter_expr:
         payload["filter_expr"] = filter_expr
     if temperature is not None:
         payload["temperature"] = temperature
@@ -167,7 +167,7 @@ async def tool_generate(
         payload["reranker_top_k"] = reranker_top_k
     if vdb_top_k is not None:
         payload["vdb_top_k"] = vdb_top_k
-    if vdb_endpoint is not None:
+    if vdb_endpoint:
         payload["vdb_endpoint"] = vdb_endpoint
     if collection_names is not None:
         payload["collection_names"] = collection_names
@@ -183,21 +183,21 @@ async def tool_generate(
         payload["enable_vlm_inference"] = enable_vlm_inference
     if enable_filter_generator is not None:
         payload["enable_filter_generator"] = enable_filter_generator
-    if model is not None:
+    if model:
         payload["model"] = model
-    if llm_endpoint is not None:
+    if llm_endpoint:
         payload["llm_endpoint"] = llm_endpoint
-    if embedding_model is not None:
+    if embedding_model:
         payload["embedding_model"] = embedding_model
-    if embedding_endpoint is not None:
+    if embedding_endpoint:
         payload["embedding_endpoint"] = embedding_endpoint
-    if reranker_model is not None:
+    if reranker_model:
         payload["reranker_model"] = reranker_model
-    if reranker_endpoint is not None:
+    if reranker_endpoint:
         payload["reranker_endpoint"] = reranker_endpoint
-    if vlm_model is not None:
+    if vlm_model:
         payload["vlm_model"] = vlm_model
-    if vlm_endpoint is not None:
+    if vlm_endpoint:
         payload["vlm_endpoint"] = vlm_endpoint
     if confidence_threshold is not None:
         payload["confidence_threshold"] = confidence_threshold
@@ -308,7 +308,7 @@ async def tool_search(
 
     if messages is not None:
         payload["messages"] = messages
-    if filter_expr is not None:
+    if filter_expr:
         payload["filter_expr"] = filter_expr
     if reranker_top_k is not None:
         payload["reranker_top_k"] = reranker_top_k
@@ -316,7 +316,7 @@ async def tool_search(
         payload["vdb_top_k"] = vdb_top_k
     if collection_names is not None:
         payload["collection_names"] = collection_names
-    if vdb_endpoint is not None:
+    if vdb_endpoint:
         payload["vdb_endpoint"] = vdb_endpoint
     if enable_query_rewriting is not None:
         payload["enable_query_rewriting"] = enable_query_rewriting
@@ -324,13 +324,13 @@ async def tool_search(
         payload["enable_reranker"] = enable_reranker
     if enable_filter_generator is not None:
         payload["enable_filter_generator"] = enable_filter_generator
-    if embedding_model is not None:
+    if embedding_model:
         payload["embedding_model"] = embedding_model
-    if embedding_endpoint is not None:
+    if embedding_endpoint:
         payload["embedding_endpoint"] = embedding_endpoint
-    if reranker_model is not None:
+    if reranker_model:
         payload["reranker_model"] = reranker_model
-    if reranker_endpoint is not None:
+    if reranker_endpoint:
         payload["reranker_endpoint"] = reranker_endpoint
     if confidence_threshold is not None:
         payload["confidence_threshold"] = confidence_threshold
@@ -409,7 +409,7 @@ async def tool_get_documents(
     base_url = _ingestor_base_url()
     url = f"{base_url}/v1/documents"
     params: dict[str, Any] = {"collection_name": collection_name}
-    if vdb_endpoint is not None:
+    if vdb_endpoint:
         params["vdb_endpoint"] = vdb_endpoint
 
     timeout_cfg = aiohttp.ClientTimeout(total=120)
@@ -452,7 +452,7 @@ async def tool_delete_documents(
     #   - JSON body: list of document_names
     names = document_names or []
     params: dict[str, Any] = {"collection_name": collection_name}
-    if vdb_endpoint is not None:
+    if vdb_endpoint:
         params["vdb_endpoint"] = vdb_endpoint
 
     timeout_cfg = aiohttp.ClientTimeout(total=120)
@@ -560,7 +560,7 @@ async def tool_list_collections(
     base_url = _ingestor_base_url()
     url = f"{base_url}/v1/collections"
     params: dict[str, Any] = {}
-    if vdb_endpoint is not None:
+    if vdb_endpoint:
         params["vdb_endpoint"] = vdb_endpoint
 
     timeout_cfg = aiohttp.ClientTimeout(total=60)
@@ -606,15 +606,15 @@ async def tool_update_collection_metadata(
     url = f"{base_url}/v1/collections/{collection_name}/metadata"
 
     body: dict[str, Any] = {}
-    if description is not None:
+    if description:
         body["description"] = description
     if tags is not None:
         body["tags"] = tags
-    if owner is not None:
+    if owner:
         body["owner"] = owner
-    if business_domain is not None:
+    if business_domain:
         body["business_domain"] = business_domain
-    if status is not None:
+    if status:
         body["status"] = status
 
     timeout_cfg = aiohttp.ClientTimeout(total=60)
@@ -656,7 +656,7 @@ async def tool_update_document_metadata(
     url = f"{base_url}/v1/collections/{collection_name}/documents/{document_name}/metadata"
 
     body: dict[str, Any] = {}
-    if description is not None:
+    if description:
         body["description"] = description
     if tags is not None:
         body["tags"] = tags
@@ -715,7 +715,7 @@ async def tool_create_collection(
     body: dict[str, Any] = {
         "collection_name": collection_name,
     }
-    if vdb_endpoint is not None:
+    if vdb_endpoint:
         body["vdb_endpoint"] = vdb_endpoint
     if metadata_schema is not None:
         body["metadata_schema"] = metadata_schema
