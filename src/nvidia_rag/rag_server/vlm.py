@@ -252,13 +252,14 @@ class VLM:
         context_text: str | None,
         question_text: str | None,
         max_total_images: int | None = None,
+        organize_by_page: bool = False,
     ) -> tuple[
         SystemMessage, HumanMessage, list[HumanMessage | AIMessage | SystemMessage]
     ]:
         """
         Build system and user messages from template, normalize chat history, and
         extract any query/context images to be attached to the last human message.
-        Returns: (system_message, chat_history_messages, user_message, last_human_idx, query_images, context_images)
+        When organize_by_page=True, interleaves text and images per page.
         """
         textual_context = (
             context_text if context_text is not None else self._format_docs_text(docs)
@@ -273,18 +274,7 @@ class VLM:
         system_text = (vlm_template.get("system") or "").strip()
         if incoming_system_text:
             system_text = (system_text + " " + incoming_system_text).strip()
-        human_template = vlm_template.get("human") or "{context}\n\n{question}"
-        formatted_human = human_template.format(
-            context=textual_context or "",
-            question=(question_text or "").strip(),
-        )
-        # System must be plain string, not list content
         system_message = SystemMessage(content=system_text)
-
-        # Build citations_instruct_user_message as multimodal: text + citation images from MinIO (if any)
-        content_parts: list[dict[str, Any]] = [
-            {"type": "text", "text": formatted_human}
-        ]
 
         # Count images already present in chat history to respect overall image budget
         existing_image_count = 0
@@ -301,70 +291,186 @@ class VLM:
         if isinstance(max_total_images, int) and max_total_images >= 0:
             remaining_image_budget = max(0, max_total_images - existing_image_count)
 
-        try:
-            for doc in docs or []:
-                metadata = getattr(doc, "metadata", {}) or {}
-                content_md = metadata.get("content_metadata", {}) or {}
-                doc_type = content_md.get("type")
-                if doc_type not in ["image", "structured"]:
-                    continue
-
-                if remaining_image_budget is not None and remaining_image_budget <= 0:
-                    break
-
-                # Inputs for unique thumbnail id
-                collection_name = metadata.get("collection_name") or ""
-                source_meta = metadata.get("source", {}) or {}
-                source_id = (
-                    source_meta.get("source_id", "")
-                    if isinstance(source_meta, dict)
-                    else ""
-                )
-                file_name = os.path.basename(source_id) if source_id else ""
-                page_number = content_md.get("page_number")
-                location = content_md.get("location")
-
-                if not (
-                    collection_name
-                    and file_name
-                    and page_number is not None
-                    and location is not None
-                ):
-                    continue
-
-                try:
-                    unique_thumbnail_id = get_unique_thumbnail_id(
-                        collection_name=collection_name,
-                        file_name=file_name,
-                        page_number=page_number,
-                        location=location,
-                    )
-                    payload = get_minio_operator().get_payload(
-                        object_name=unique_thumbnail_id
-                    )
-                    content_b64 = (payload or {}).get("content", "")
-                    if not content_b64:
-                        continue
-                    png_b64 = VLM._convert_image_url_to_png_b64(content_b64)
-                    content_parts.append(
-                        {
-                            "type": "image_url",
-                            "image_url": {"url": f"data:image/png;base64,{png_b64}"},
-                        }
-                    )
-                    if remaining_image_budget is not None:
-                        remaining_image_budget -= 1
-                except Exception:
-                    # best-effort: skip if anything fails per document
-                    continue
-        except Exception:
-            # best-effort overall
-            pass
+        if organize_by_page and docs:
+            content_parts = self._build_content_parts_by_page(
+                vlm_template,
+                textual_context,
+                question_text,
+                docs,
+                remaining_image_budget,
+            )
+        else:
+            human_template = vlm_template.get("human") or "{context}\n\n{question}"
+            formatted_human = human_template.format(
+                context=textual_context or "",
+                question=(question_text or "").strip(),
+            )
+            content_parts = [{"type": "text", "text": formatted_human}]
+            content_parts.extend(
+                self._extract_images_from_docs(docs, remaining_image_budget)
+            )
 
         citations_instruct_user_message = HumanMessage(content=content_parts)
-
-        # Return citations_instruct_user_message as second element by contract
         return (system_message, citations_instruct_user_message, chat_history_messages)
+
+    @staticmethod
+    def _log_content_parts_structure(
+        content_parts: list[dict[str, Any]],
+        snippet_chars: int = 50,
+    ) -> None:
+        """Log VLM content_parts with text lengths, [img], and a short snippet per text block."""
+        if not content_parts:
+            logger.info("  [VLM prompt structure] (empty)")
+            return
+        for i, p in enumerate(content_parts[:15]):  # cap parts to avoid flood
+            if not isinstance(p, dict):
+                continue
+            t = p.get("type")
+            if t == "text":
+                text = p.get("text", "")
+                n = len(text)
+                # First line or first N chars, single line, for comparison
+                one_line = " ".join(text.split())[:snippet_chars]
+                if len(" ".join(text.split())) > snippet_chars:
+                    one_line += "…"
+                snippet = one_line.replace('"', "'") if one_line else "(empty)"
+                logger.info(
+                    "  [VLM prompt structure] part %d: text(%d chars) \"%s\"",
+                    i + 1,
+                    n,
+                    snippet,
+                )
+            elif t == "image_url":
+                logger.info("  [VLM prompt structure] part %d: [img]", i + 1)
+            else:
+                logger.info("  [VLM prompt structure] part %d: ?", i + 1)
+
+    def _extract_images_from_docs(
+        self,
+        docs: list[Any],
+        remaining_image_budget: int | None,
+    ) -> list[dict[str, Any]]:
+        """Extract image parts from docs for MinIO thumbnails."""
+        parts: list[dict[str, Any]] = []
+        for doc in docs or []:
+            if remaining_image_budget is not None and remaining_image_budget <= 0:
+                break
+            metadata = getattr(doc, "metadata", {}) or {}
+            content_md = metadata.get("content_metadata", {}) or {}
+            doc_type = content_md.get("type")
+            if doc_type not in ["image", "structured"]:
+                continue
+            collection_name = metadata.get("collection_name") or ""
+            source_meta = metadata.get("source", {}) or {}
+            source_id = (
+                source_meta.get("source_id", "")
+                or (source_meta.get("source_name", "") if isinstance(source_meta, dict) else "")
+                if isinstance(source_meta, dict)
+                else ""
+            )
+            file_name = os.path.basename(str(source_id)) if source_id else ""
+            page_number = content_md.get("page_number")
+            location = content_md.get("location")
+            if not (collection_name and file_name and page_number is not None and location is not None):
+                continue
+            try:
+                unique_thumbnail_id = get_unique_thumbnail_id(
+                    collection_name=collection_name,
+                    file_name=file_name,
+                    page_number=page_number,
+                    location=location,
+                )
+                payload = get_minio_operator().get_payload(
+                    object_name=unique_thumbnail_id
+                )
+                content_b64 = (payload or {}).get("content", "")
+                if not content_b64:
+                    continue
+                png_b64 = VLM._convert_image_url_to_png_b64(content_b64)
+                parts.append({
+                    "type": "image_url",
+                    "image_url": {"url": f"data:image/png;base64,{png_b64}"},
+                })
+                if remaining_image_budget is not None:
+                    remaining_image_budget -= 1
+            except Exception:
+                continue
+        return parts
+
+    def _build_content_parts_by_page(
+        self,
+        vlm_template: dict[str, Any],
+        textual_context: str,
+        question_text: str | None,
+        docs: list[Any],
+        remaining_image_budget: int | None,
+    ) -> list[dict[str, Any]]:
+        """Build content_parts with text and images interleaved per page."""
+        human_template = vlm_template.get("human") or "{context}\n\n{question}"
+        q = (question_text or "").strip()
+        intro = human_template.format(context="", question="").rstrip()
+        if intro.endswith("Context:"):
+            intro = intro + "\n"
+        content_parts: list[dict[str, Any]] = [{"type": "text", "text": intro}]
+
+        has_page: list[tuple[str, int, Any]] = []
+        no_page: list[Any] = []
+        for doc in docs or []:
+            meta = getattr(doc, "metadata", {}) or {}
+            content_md = meta.get("content_metadata", {}) or {}
+            page_num = content_md.get("page_number")
+            source = meta.get("source", {})
+            source_path = (
+                source.get("source_name", "") if isinstance(source, dict) else source
+            )
+            source_key = str(source_path) if source_path else ""
+            if page_num is not None:
+                has_page.append((source_key, int(page_num), doc))
+            else:
+                no_page.append(doc)
+
+        grouped: dict[tuple[str, int], list[Any]] = {}
+        for source_key, page_num, doc in has_page:
+            k = (source_key, page_num)
+            if k not in grouped:
+                grouped[k] = []
+            grouped[k].append(doc)
+
+        for (source_key, page_num) in sorted(grouped.keys(), key=lambda x: (x[0], x[1])):
+            doc_list = grouped[(source_key, page_num)]
+            text_parts: list[str] = []
+            image_docs: list[Any] = []
+            for d in doc_list:
+                content_md = (getattr(d, "metadata", {}) or {}).get("content_metadata", {}) or {}
+                if content_md.get("type") in ["image", "structured"]:
+                    image_docs.append(d)
+                else:
+                    text_parts.append(getattr(d, "page_content", "") or "")
+            filename = os.path.splitext(os.path.basename(source_key))[0] if source_key else "unknown"
+            page_text = f"=== Page {page_num} ({filename}) ===\n" + "\n\n".join(p for p in text_parts if p)
+            if page_text.strip():
+                content_parts.append({"type": "text", "text": page_text})
+            for img_doc in image_docs:
+                if remaining_image_budget is not None and remaining_image_budget <= 0:
+                    break
+                img_parts = self._extract_images_from_docs([img_doc], remaining_image_budget)
+                content_parts.extend(img_parts)
+                if remaining_image_budget is not None and img_parts:
+                    remaining_image_budget -= len(img_parts)
+
+        if no_page:
+            add_text = self._format_docs_text(no_page)
+            if add_text.strip():
+                content_parts.append({
+                    "type": "text",
+                    "text": "=== Additional context ===\n" + add_text,
+                })
+
+        content_parts.append({
+            "type": "text",
+            "text": "\n\nUser Question:\n" + (question_text or "").strip(),
+        })
+        return content_parts
 
     @staticmethod
     def assemble_messages(
@@ -655,6 +761,7 @@ class VLM:
         top_p: float | None = None,
         max_tokens: int | None = None,
         max_total_images: int | None = None,
+        organize_by_page: bool = False,
         **_: Any,
     ) -> AsyncGenerator[str, None]:
         """
@@ -693,12 +800,17 @@ class VLM:
                 context_text,
                 question_text,
                 max_total_images=eff_max_total_images,
+                organize_by_page=organize_by_page,
             )
 
             lc_messages = self.assemble_messages(
                 system_message, citations_instruct_user_message, chat_history_messages
             )
 
+            # Log compact structure of what we send to VLM (no full text/images)
+            user_content = getattr(citations_instruct_user_message, "content", None)
+            if isinstance(user_content, list):
+                self._log_content_parts_structure(user_content)
             # Log final prompt with images redacted
             safe_prompt = self._redact_messages_for_logging(lc_messages)
             logger.info("VLM final streaming prompt (images redacted): %s", safe_prompt)
