@@ -1188,6 +1188,52 @@ class MilvusVDB(VDBRagIngest):
 
         return self._add_collection_name_to_retreived_docs(docs, collection_name)
 
+    def retrieve_chunks_by_filter(
+        self,
+        collection_name: str,
+        source_name: str,
+        page_numbers: list[int],
+        limit: int = 1000,
+    ) -> list[Document]:
+        """Retrieve ALL chunks matching (source, page_numbers) via filter-only query.
+
+        No semantic search - used for page context expansion when
+        fetch_full_page_context is enabled.
+        """
+        if not page_numbers:
+            return []
+
+        try:
+            # Build filter: page_number in [x,y,z] and source matches
+            page_list_str = ", ".join(str(p) for p in page_numbers)
+            filter_expr = (
+                f'content_metadata["page_number"] in [{page_list_str}] and '
+                f'source["source_name"] like "%{source_name}%"'
+            )
+            milvus_client = MilvusClient(
+                self.vdb_endpoint,
+                token=self._get_milvus_token(),
+            )
+            entities = milvus_client.query(
+                collection_name=collection_name,
+                filter=filter_expr,
+                limit=limit,
+            )
+        except Exception as e:
+            logger.error("Error in retrieve_chunks_by_filter: %s", e)
+            return []
+
+        docs: list[Document] = []
+        for item in entities:
+            page_content = item.get("text") or item.get("chunk") or ""
+            metadata = {
+                "source": item.get("source"),
+                "content_metadata": item.get("content_metadata", {}),
+            }
+            docs.append(Document(page_content=page_content, metadata=metadata))
+
+        return self._add_collection_name_to_retreived_docs(docs, collection_name)
+
     @staticmethod
     def _add_collection_name_to_retreived_docs(
         docs: list[Document], collection_name: str
