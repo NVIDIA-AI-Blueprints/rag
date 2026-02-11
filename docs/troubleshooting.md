@@ -261,12 +261,13 @@ If you encounter Elasticsearch connection timeout errors during ingestion, you c
 
 To resolve this issue on Helm deployments, do the following:
 
-Add the `ES_REQUEST_TIMEOUT` environment variable to the `envVars` section in your `values.yaml` file:
+Add the `ES_REQUEST_TIMEOUT` environment variable to the `envVars` section in your `values.yaml` file for `ingestor-server`:
 
 ```yaml
-envVars:
-  # ... existing environment variables ...
-  ES_REQUEST_TIMEOUT: "1200"  # Timeout in seconds (default is typically 600)
+ingestor-server:
+  envVars:
+    # ... existing environment variables ...
+    ES_REQUEST_TIMEOUT: "1200"  # Timeout in seconds (default is typically 600)
 ```
 
 To resolve this issue on Docker deployments, do the following:
@@ -274,9 +275,11 @@ To resolve this issue on Docker deployments, do the following:
 Add the `ES_REQUEST_TIMEOUT` environment variable to the `environment` section in your `docker-compose-ingestor-server.yaml` file:
 
 ```yaml
-environment:
-  # ... existing environment variables ...
-  ES_REQUEST_TIMEOUT: "1200"  # Timeout in seconds (default is typically 600)
+services:
+  ingestor-server:
+    environment:
+      # ... existing environment variables ...
+      ES_REQUEST_TIMEOUT: "1200"  # Timeout in seconds (default is typically 600)
 ```
 
 After updating the configuration, restart the ingestor server and try the ingestion again. You can increase the timeout value if you continue to experience connection issues, but be aware that very high timeout values may indicate underlying performance issues with your Elasticsearch cluster.
