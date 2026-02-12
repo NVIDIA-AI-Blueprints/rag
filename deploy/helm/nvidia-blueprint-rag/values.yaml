@@ -492,7 +492,6 @@ eck-elasticsearch:
     count: 1
     config:
       node.store.allow_mmap: false
-      # Disable X-Pack security completely for development
       xpack.security.enabled: false
       xpack.security.http.ssl.enabled: false
       xpack.security.transport.ssl.enabled: false
