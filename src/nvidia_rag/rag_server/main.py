@@ -1166,6 +1166,90 @@ class NvidiaRAG:
                     f"Consider setting enable_reranker=True for effective filtering."
                 )
 
+            # Two-stage retrieval: query summary collection, get unique doc names, restrict main retrieval
+            if (
+                getattr(self.config.retriever, "enable_two_stage_retrieval", False)
+                and not is_image_query
+                and validated_collections
+            ):
+                summary_collection_name = self.config.retriever.summary_collection_name
+                try:
+                    if vdb_op.check_collection_exists(summary_collection_name):
+                        otel_ctx = otel_context.get_current()
+                        summary_vectorstore = vdb_op.get_langchain_vectorstore(
+                            summary_collection_name
+                        )
+                        if len(validated_collections) == 1:
+                            c0 = validated_collections[0]
+                            summary_filter = (
+                                f'content_metadata["collection_name"] == "{str(c0).replace(chr(92), chr(92)*2).replace(chr(34), chr(92) + chr(34))}"'
+                            )
+                        else:
+                            escaped = [
+                                f'"{str(c).replace(chr(92), chr(92)*2).replace(chr(34), chr(92) + chr(34))}"'
+                                for c in validated_collections
+                            ]
+                            summary_filter = (
+                                f'content_metadata["collection_name"] in [{", ".join(escaped)}]'
+                            )
+                        vdb_top_k_s = self.config.retriever.vdb_top_k_summaries
+                        summary_docs = vdb_op.retrieval_langchain(
+                            query=retriever_query,
+                            collection_name=summary_collection_name,
+                            vectorstore=summary_vectorstore,
+                            top_k=vdb_top_k_s,
+                            filter_expr=summary_filter,
+                            otel_ctx=otel_ctx,
+                        )
+                        if getattr(
+                            self.config.retriever, "enable_reranker_summaries", False
+                        ) and local_ranker:
+                            ranker_top_k_s = (
+                                self.config.retriever.reranker_top_k_summaries
+                            )
+                            prev_top_n = getattr(local_ranker, "top_n", None)
+                            try:
+                                local_ranker.top_n = ranker_top_k_s
+                                summary_docs = local_ranker.compress_documents(
+                                    query=retriever_query, documents=summary_docs
+                                )
+                            finally:
+                                if prev_top_n is not None:
+                                    local_ranker.top_n = prev_top_n
+                        doc_names = set()
+                        for d in (summary_docs or []):
+                            fn = (d.metadata.get("content_metadata") or {}).get(
+                                "filename"
+                            )
+                            if fn:
+                                doc_names.add(fn)
+                        if doc_names:
+                            # Escape backslash then double-quote for Milvus string literals
+                            escaped_fnames = [
+                                f'"{str(f).replace(chr(92), chr(92)*2).replace(chr(34), chr(92) + chr(34))}"'
+                                for f in doc_names
+                            ]
+                            doc_filter = (
+                                f'content_metadata["filename"] in [{", ".join(escaped_fnames)}]'
+                            )
+                            for coll in validated_collections:
+                                existing = collection_filter_mapping.get(coll, "")
+                                if existing and existing.strip():
+                                    collection_filter_mapping[coll] = (
+                                        f"({existing}) and ({doc_filter})"
+                                    )
+                                else:
+                                    collection_filter_mapping[coll] = doc_filter
+                            logger.info(
+                                "Two-stage retrieval: restricting main retrieval to %d document(s)",
+                                len(doc_names),
+                            )
+                except Exception as e:
+                    logger.warning(
+                        "Two-stage retrieval failed, continuing with main retrieval: %s",
+                        e,
+                    )
+
             # Get relevant documents with optional reflection
             otel_ctx = otel_context.get_current()
             if self.config.reflection.enable_reflection:
@@ -2424,6 +2508,90 @@ class NvidiaRAG:
                     f"Confidence threshold filtering requires reranker to be enabled to generate relevance scores. "
                     f"Consider setting enable_reranker=True for effective filtering."
                 )
+
+            # Two-stage retrieval: query summary collection, get unique doc names, restrict main retrieval
+            if (
+                getattr(self.config.retriever, "enable_two_stage_retrieval", False)
+                and not is_image_query
+                and validated_collections
+            ):
+                summary_collection_name = self.config.retriever.summary_collection_name
+                try:
+                    if vdb_op.check_collection_exists(summary_collection_name):
+                        otel_ctx = otel_context.get_current()
+                        summary_vectorstore = vdb_op.get_langchain_vectorstore(
+                            summary_collection_name
+                        )
+                        if len(validated_collections) == 1:
+                            c0 = validated_collections[0]
+                            summary_filter = (
+                                f'content_metadata["collection_name"] == "{str(c0).replace(chr(92), chr(92)*2).replace(chr(34), chr(92) + chr(34))}"'
+                            )
+                        else:
+                            escaped = [
+                                f'"{str(c).replace(chr(92), chr(92)*2).replace(chr(34), chr(92) + chr(34))}"'
+                                for c in validated_collections
+                            ]
+                            summary_filter = (
+                                f'content_metadata["collection_name"] in [{", ".join(escaped)}]'
+                            )
+                        vdb_top_k_s = self.config.retriever.vdb_top_k_summaries
+                        summary_docs = vdb_op.retrieval_langchain(
+                            query=retriever_query,
+                            collection_name=summary_collection_name,
+                            vectorstore=summary_vectorstore,
+                            top_k=vdb_top_k_s,
+                            filter_expr=summary_filter,
+                            otel_ctx=otel_ctx,
+                        )
+                        if getattr(
+                            self.config.retriever, "enable_reranker_summaries", False
+                        ) and ranker:
+                            ranker_top_k_s = (
+                                self.config.retriever.reranker_top_k_summaries
+                            )
+                            prev_top_n = getattr(ranker, "top_n", None)
+                            try:
+                                ranker.top_n = ranker_top_k_s
+                                summary_docs = ranker.compress_documents(
+                                    query=retriever_query, documents=summary_docs
+                                )
+                            finally:
+                                if prev_top_n is not None:
+                                    ranker.top_n = prev_top_n
+                        doc_names = set()
+                        for d in (summary_docs or []):
+                            fn = (d.metadata.get("content_metadata") or {}).get(
+                                "filename"
+                            )
+                            if fn:
+                                doc_names.add(fn)
+                        if doc_names:
+                            # Escape backslash then double-quote for Milvus string literals
+                            escaped_fnames = [
+                                f'"{str(f).replace(chr(92), chr(92)*2).replace(chr(34), chr(92) + chr(34))}"'
+                                for f in doc_names
+                            ]
+                            doc_filter = (
+                                f'content_metadata["filename"] in [{", ".join(escaped_fnames)}]'
+                            )
+                            for coll in validated_collections:
+                                existing = collection_filter_mapping.get(coll, "")
+                                if existing and existing.strip():
+                                    collection_filter_mapping[coll] = (
+                                        f"({existing}) and ({doc_filter})"
+                                    )
+                                else:
+                                    collection_filter_mapping[coll] = doc_filter
+                            logger.info(
+                                "Two-stage retrieval: restricting main retrieval to %d document(s)",
+                                len(doc_names),
+                            )
+                except Exception as e:
+                    logger.warning(
+                        "Two-stage retrieval failed, continuing with main retrieval: %s",
+                        e,
+                    )
 
             # Get relevant documents with optional reflection
             if self.config.reflection.enable_reflection:

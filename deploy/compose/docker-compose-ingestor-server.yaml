@@ -59,6 +59,9 @@ services:
       # vectorstore collection name to store embeddings
       COLLECTION_NAME: ${COLLECTION_NAME:-multimodal_data}
 
+      # Two-stage retrieval: VDB collection for document summaries (used when generate_summary=True)
+      APP_RETRIEVER_SUMMARY_COLLECTION_NAME: ${APP_RETRIEVER_SUMMARY_COLLECTION_NAME:-document_summaries}
+
       ##===MINIO specific configurations===
       MINIO_ENDPOINT: "minio:9010"
       MINIO_ACCESSKEY: "minioadmin"

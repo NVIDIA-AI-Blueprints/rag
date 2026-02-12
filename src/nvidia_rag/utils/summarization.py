@@ -27,6 +27,7 @@ import asyncio
 import logging
 import os
 import time
+from concurrent.futures import ThreadPoolExecutor
 from collections.abc import Callable
 from datetime import UTC, datetime
 from functools import partial
@@ -374,6 +375,7 @@ async def generate_document_summaries(
     config: NvidiaRAGConfig | None = None,
     is_shallow: bool = False,
     prompts: dict | None = None,
+    summary_vdb_op: Any = None,
 ) -> dict[str, Any]:
     """
     Generate summaries for multiple documents in parallel with global rate limiting.
@@ -386,6 +388,7 @@ async def generate_document_summaries(
         config: NvidiaRAGConfig instance. If None, creates a new one from environment.
         is_shallow: Whether this is shallow extraction (text-only, uses simplified prompt)
         prompts: Optional prompts dictionary.
+        summary_vdb_op: Optional VDB operator for summaries-only collection; when set, each summary is also stored there with collection_name metadata.
 
     Returns:
         dict: Statistics with total_files, successful, failed, duration_seconds, files
@@ -450,6 +453,7 @@ async def generate_document_summaries(
             summarization_strategy=summarization_strategy,
             is_shallow=is_shallow,
             prompts=prompts,
+            summary_vdb_op=summary_vdb_op,
         )
         for file_data in file_results
     ]
@@ -495,6 +499,7 @@ async def _process_single_file_summary(
     summarization_strategy: str | None = None,
     is_shallow: bool = False,
     prompts: dict | None = None,
+    summary_vdb_op: Any = None,
 ) -> dict[str, Any]:
     """
     Process summary for a single file with global rate limiting.
@@ -559,6 +564,8 @@ async def _process_single_file_summary(
             )
 
             await _store_summary_in_minio(summary_doc)
+            if summary_vdb_op is not None:
+                await _store_summary_in_vdb(summary_doc, summary_vdb_op, config)
 
             SUMMARY_STATUS_HANDLER.update_progress(
                 collection_name=collection_name,
@@ -685,6 +692,7 @@ async def _prepare_single_document(
         metadata={
             "filename": file_name,
             "collection_name": collection_name,
+            "source_id": source_id,
         },
     )
 
@@ -1096,3 +1104,82 @@ async def _store_summary_in_minio(document: Document):
     )
 
     logger.debug(f"Stored summary for {file_name} in MinIO")
+
+
+async def _store_summary_in_vdb(
+    document: Document,
+    summary_vdb_op: Any,
+    config: NvidiaRAGConfig,
+) -> None:
+    """
+    Embed the document summary and insert it into the summaries-only VDB collection.
+    Each chunk has content_metadata.collection_name and content_metadata.filename
+    so retrieval can filter by collection and we can extract document names for 2-stage.
+    """
+    if summary_vdb_op is None:
+        return
+    summary = document.metadata.get("summary") or ""
+    file_name = document.metadata.get("filename") or "unknown"
+    collection_name = document.metadata.get("collection_name") or ""
+    source_id = document.metadata.get("source_id") or file_name
+    if not summary or not summary.strip():
+        logger.warning("Skipping VDB summary insert: empty summary for %s", file_name)
+        return
+    try:
+        from nvidia_rag.utils.embedding import get_embedding_model
+
+        embedding_model = get_embedding_model(
+            model=config.embeddings.model_name,
+            url=config.embeddings.server_url,
+            config=config,
+        )
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = asyncio.get_event_loop()
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            embeddings = await loop.run_in_executor(
+                pool,
+                lambda: embedding_model.embed_documents([summary]),
+            )
+        if not embeddings:
+            logger.warning(
+                "Empty embedding for summary of %s, skipping VDB insert",
+                file_name,
+            )
+            return
+        embedding = embeddings[0]
+    except Exception as e:
+        logger.warning(
+            "Failed to embed summary for %s, skipping VDB insert: %s",
+            file_name,
+            e,
+        )
+        return
+    # nv_ingest cleanup_records expects embedding inside metadata (see _record_dict).
+    element = {
+        "document_type": "text",
+        "metadata": {
+            "content": summary,
+            "source_metadata": {
+                "source_id": source_id,
+                "source_name": file_name,
+                "source_type": "summary",
+            },
+            "content_metadata": {
+                "type": "summary",
+                "collection_name": collection_name,
+                "filename": file_name,
+            },
+            "embedding": embedding,
+        },
+    }
+    try:
+        summary_vdb_op.run([[element]])
+        logger.debug("Stored summary for %s in VDB summary collection", file_name)
+    except Exception as e:
+        logger.warning(
+            "Failed to insert summary into VDB for %s: %s",
+            file_name,
+            e,
+        )

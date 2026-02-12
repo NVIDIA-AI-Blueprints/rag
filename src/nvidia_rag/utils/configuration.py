@@ -735,6 +735,32 @@ class RetrieverConfig(_ConfigBase):
         env="APP_RETRIEVER_NRPIPELINE",
         description="Retrieval pipeline to use (e.g., ranked_hybrid, dense, sparse)",
     )
+    # Two-stage retrieval (summary-first, then filter main retrieval by matching docs)
+    summary_collection_name: str = Field(
+        default="document_summaries",
+        env="APP_RETRIEVER_SUMMARY_COLLECTION_NAME",
+        description="VDB collection name for document summaries (used when generate_summary=True and for 2-stage retrieval)",
+    )
+    enable_two_stage_retrieval: bool = Field(
+        default=False,
+        env="APP_RETRIEVER_ENABLE_TWO_STAGE_RETRIEVAL",
+        description="When True, first retrieve from summary collection, then restrict main retrieval to matching documents",
+    )
+    vdb_top_k_summaries: int = Field(
+        default=20,
+        env="APP_RETRIEVER_VDB_TOP_K_SUMMARIES",
+        description="Number of summary chunks to retrieve from VDB in stage 1 of two-stage retrieval",
+    )
+    reranker_top_k_summaries: int = Field(
+        default=10,
+        env="APP_RETRIEVER_RERANKER_TOP_K_SUMMARIES",
+        description="Number of summary chunks to return after reranking in stage 1 (when enable_reranker_summaries=True)",
+    )
+    enable_reranker_summaries: bool = Field(
+        default=False,
+        env="APP_RETRIEVER_ENABLE_RERANKER_SUMMARIES",
+        description="When True, run reranker on summary retrieval results in two-stage retrieval",
+    )
 
     @field_validator("nr_url", mode="before")
     @classmethod
@@ -746,15 +772,31 @@ class RetrieverConfig(_ConfigBase):
                 return f"http://{v}"
         return v
 
-    @field_validator("vdb_top_k")
+    @field_validator("vdb_top_k", "vdb_top_k_summaries")
     @classmethod
-    def validate_vdb_top_k(cls, v: int) -> int:
+    def validate_vdb_top_k(cls, v: int, info: Any) -> int:
+        field_name = info.field_name if hasattr(info, "field_name") else "vdb_top_k"
         if not isinstance(v, int) or isinstance(v, bool):
-            raise TypeError(f"vdb_top_k must be an integer, got {type(v).__name__}")
+            raise TypeError(
+                f"{field_name} must be an integer, got {type(v).__name__}"
+            )
         if v <= 0:
             raise ValueError(
-                f"vdb_top_k must be greater than 0, got {v}. "
+                f"{field_name} must be greater than 0, got {v}. "
                 "Please provide a positive integer for the number of documents to retrieve from the vector database."
+            )
+        return v
+
+    @field_validator("reranker_top_k_summaries", mode="after")
+    @classmethod
+    def validate_reranker_top_k_summaries(cls, v: int, info: Any) -> int:
+        if not isinstance(v, int) or isinstance(v, bool):
+            raise TypeError(
+                f"reranker_top_k_summaries must be an integer, got {type(v).__name__}"
+            )
+        if v <= 0:
+            raise ValueError(
+                f"reranker_top_k_summaries must be greater than 0, got {v}."
             )
         return v
 
@@ -764,6 +806,11 @@ class RetrieverConfig(_ConfigBase):
             raise ValueError(
                 f"reranker_top_k ({self.top_k}) must be less than or equal to vdb_top_k ({self.vdb_top_k}). "
                 "Please check your settings and try again."
+            )
+        if self.enable_two_stage_retrieval and self.reranker_top_k_summaries > self.vdb_top_k_summaries:
+            raise ValueError(
+                f"reranker_top_k_summaries ({self.reranker_top_k_summaries}) must be less than or equal to "
+                f"vdb_top_k_summaries ({self.vdb_top_k_summaries}) when two-stage retrieval is enabled."
             )
         return self
 

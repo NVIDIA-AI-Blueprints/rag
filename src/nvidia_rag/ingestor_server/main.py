@@ -824,6 +824,16 @@ class NvidiaRAGIngestor:
             is_shallow: Whether this is shallow extraction (text-only, uses simplified prompt)
         """
         try:
+            # Always create a dedicated VDB op for the summary collection (never use
+            # self.vdb_op, which may point at the main collection).
+            summary_vdb_op = _get_vdb_op(
+                vdb_endpoint=self.config.vector_store.url,
+                collection_name=self.config.retriever.summary_collection_name,
+                custom_metadata=None,
+                all_file_paths=None,
+                metadata_schema=None,
+                config=self.config,
+            )
             stats = await generate_document_summaries(
                 results=results,
                 collection_name=collection_name,
@@ -832,6 +842,7 @@ class NvidiaRAGIngestor:
                 config=self.config,
                 is_shallow=is_shallow,
                 prompts=self.prompts,
+                summary_vdb_op=summary_vdb_op,
             )
 
             if stats["failed"] > 0:
