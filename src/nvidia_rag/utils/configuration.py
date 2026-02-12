@@ -1076,8 +1076,8 @@ class NvidiaRAGConfig(_ConfigBase):
     )
     default_confidence_threshold: float = Field(
         default=0.0,
-        env="RERANKER_CONFIDENCE_THRESHOLD",
-        description="Default confidence threshold for reranker scores",
+        env="RERANKER_SCORE_THRESHOLD",
+        description="Default confidence threshold for reranker chunk filtering (0.0-1.0).",
     )
     temp_dir: str = Field(
         default="./tmp-data",
