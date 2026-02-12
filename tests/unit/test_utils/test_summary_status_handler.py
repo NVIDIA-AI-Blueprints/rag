@@ -25,6 +25,7 @@ This module tests Redis-based status tracking for document summarization:
 """
 
 import asyncio
+import json
 import os
 from datetime import UTC, datetime
 from unittest.mock import MagicMock, Mock, patch
@@ -145,8 +146,6 @@ class TestSummaryStatusHandlerSetStatus:
         with patch("nvidia_rag.utils.summary_status_handler.Redis") as mock_redis:
             mock_client = MagicMock()
             mock_client.ping.return_value = True
-            mock_json = MagicMock()
-            mock_client.json.return_value = mock_json
             mock_redis.return_value = mock_client
 
             handler = SummaryStatusHandler()
@@ -159,8 +158,8 @@ class TestSummaryStatusHandlerSetStatus:
             result = handler.set_status("test_col", "test.pdf", status_data)
 
             assert result is True
-            mock_json.set.assert_called_once_with(
-                "summary_status:test_col:test.pdf", "$", status_data
+            mock_client.set.assert_called_once_with(
+                "summary_status:test_col:test.pdf", json.dumps(status_data)
             )
             mock_client.expire.assert_called_once_with(
                 "summary_status:test_col:test.pdf", REDIS_STATUS_TTL_SECONDS
@@ -183,9 +182,7 @@ class TestSummaryStatusHandlerSetStatus:
         with patch("nvidia_rag.utils.summary_status_handler.Redis") as mock_redis:
             mock_client = MagicMock()
             mock_client.ping.return_value = True
-            mock_json = MagicMock()
-            mock_json.set.side_effect = RedisError("Set failed")
-            mock_client.json.return_value = mock_json
+            mock_client.set.side_effect = RedisError("Set failed")
             mock_redis.return_value = mock_client
 
             handler = SummaryStatusHandler()
@@ -201,8 +198,6 @@ class TestSummaryStatusHandlerSetStatus:
         with patch("nvidia_rag.utils.summary_status_handler.Redis") as mock_redis:
             mock_client = MagicMock()
             mock_client.ping.return_value = True
-            mock_json = MagicMock()
-            mock_client.json.return_value = mock_json
             mock_redis.return_value = mock_client
 
             handler = SummaryStatusHandler()
@@ -220,7 +215,10 @@ class TestSummaryStatusHandlerSetStatus:
             result = handler.set_status("test_col", "test.pdf", status_data)
 
             assert result is True
-            mock_json.set.assert_called_once()
+            mock_client.set.assert_called_once()
+            call_args = mock_client.set.call_args[0]
+            assert call_args[0] == "summary_status:test_col:test.pdf"
+            assert json.loads(call_args[1]) == status_data
 
 
 class TestSummaryStatusHandlerGetStatus:
@@ -231,13 +229,11 @@ class TestSummaryStatusHandlerGetStatus:
         with patch("nvidia_rag.utils.summary_status_handler.Redis") as mock_redis:
             mock_client = MagicMock()
             mock_client.ping.return_value = True
-            mock_json = MagicMock()
             status_data = {
                 "status": "SUCCESS",
                 "completed_at": "2025-01-24T10:35:00.000Z",
             }
-            mock_json.get.return_value = status_data
-            mock_client.json.return_value = mock_json
+            mock_client.get.return_value = json.dumps(status_data).encode("utf-8")
             mock_redis.return_value = mock_client
 
             handler = SummaryStatusHandler()
@@ -245,16 +241,14 @@ class TestSummaryStatusHandlerGetStatus:
             result = handler.get_status("test_col", "test.pdf")
 
             assert result == status_data
-            mock_json.get.assert_called_once_with("summary_status:test_col:test.pdf")
+            mock_client.get.assert_called_once_with("summary_status:test_col:test.pdf")
 
     def test_get_status_not_found(self):
         """Test get_status returns None when key not found"""
         with patch("nvidia_rag.utils.summary_status_handler.Redis") as mock_redis:
             mock_client = MagicMock()
             mock_client.ping.return_value = True
-            mock_json = MagicMock()
-            mock_json.get.return_value = None
-            mock_client.json.return_value = mock_json
+            mock_client.get.return_value = None
             mock_redis.return_value = mock_client
 
             handler = SummaryStatusHandler()
@@ -279,9 +273,7 @@ class TestSummaryStatusHandlerGetStatus:
         with patch("nvidia_rag.utils.summary_status_handler.Redis") as mock_redis:
             mock_client = MagicMock()
             mock_client.ping.return_value = True
-            mock_json = MagicMock()
-            mock_json.get.side_effect = RedisError("Get failed")
-            mock_client.json.return_value = mock_json
+            mock_client.get.side_effect = RedisError("Get failed")
             mock_redis.return_value = mock_client
 
             handler = SummaryStatusHandler()
@@ -300,9 +292,7 @@ class TestSummaryStatusHandlerUpdateProgress:
         with patch("nvidia_rag.utils.summary_status_handler.Redis") as mock_redis:
             mock_client = MagicMock()
             mock_client.ping.return_value = True
-            mock_json = MagicMock()
-            mock_json.get.return_value = None  # No existing status
-            mock_client.json.return_value = mock_json
+            mock_client.get.return_value = None  # No existing status
             mock_redis.return_value = mock_client
 
             handler = SummaryStatusHandler()
@@ -315,10 +305,9 @@ class TestSummaryStatusHandlerUpdateProgress:
             )
 
             assert result is True
-            # Verify set was called with new status data
-            call_args = mock_json.set.call_args
-            assert call_args[0][0] == "summary_status:test_col:test.pdf"
-            status_data = call_args[0][2]
+            call_args = mock_client.set.call_args[0]
+            assert call_args[0] == "summary_status:test_col:test.pdf"
+            status_data = json.loads(call_args[1])
             assert status_data["status"] == "IN_PROGRESS"
             assert status_data["progress"] == {"current": 1, "total": 5}
             assert "updated_at" in status_data
@@ -328,14 +317,12 @@ class TestSummaryStatusHandlerUpdateProgress:
         with patch("nvidia_rag.utils.summary_status_handler.Redis") as mock_redis:
             mock_client = MagicMock()
             mock_client.ping.return_value = True
-            mock_json = MagicMock()
             existing_status = {
                 "status": "IN_PROGRESS",
                 "started_at": "2025-01-24T10:30:00.000Z",
                 "progress": {"current": 1, "total": 5},
             }
-            mock_json.get.return_value = existing_status
-            mock_client.json.return_value = mock_json
+            mock_client.get.return_value = json.dumps(existing_status).encode("utf-8")
             mock_redis.return_value = mock_client
 
             handler = SummaryStatusHandler()
@@ -348,8 +335,8 @@ class TestSummaryStatusHandlerUpdateProgress:
             )
 
             assert result is True
-            call_args = mock_json.set.call_args
-            status_data = call_args[0][2]
+            call_args = mock_client.set.call_args[0]
+            status_data = json.loads(call_args[1])
             assert status_data["progress"]["current"] == 2
             assert status_data["started_at"] == "2025-01-24T10:30:00.000Z"  # Preserved
 
@@ -361,12 +348,11 @@ class TestSummaryStatusHandlerUpdateProgress:
         ):
             mock_client = MagicMock()
             mock_client.ping.return_value = True
-            mock_json = MagicMock()
-            mock_json.get.return_value = {"status": "PENDING"}
-            mock_client.json.return_value = mock_json
+            mock_client.get.return_value = json.dumps({"status": "PENDING"}).encode(
+                "utf-8"
+            )
             mock_redis.return_value = mock_client
 
-            # Mock datetime
             mock_now = Mock()
             mock_now.isoformat.return_value = "2025-01-24T10:30:00.000Z"
             mock_datetime.now.return_value = mock_now
@@ -380,8 +366,8 @@ class TestSummaryStatusHandlerUpdateProgress:
             )
 
             assert result is True
-            call_args = mock_json.set.call_args
-            status_data = call_args[0][2]
+            call_args = mock_client.set.call_args[0]
+            status_data = json.loads(call_args[1])
             assert "started_at" in status_data
 
     def test_update_progress_adds_completed_at_for_success(self):
@@ -392,12 +378,11 @@ class TestSummaryStatusHandlerUpdateProgress:
         ):
             mock_client = MagicMock()
             mock_client.ping.return_value = True
-            mock_json = MagicMock()
-            mock_json.get.return_value = {"status": "IN_PROGRESS"}
-            mock_client.json.return_value = mock_json
+            mock_client.get.return_value = json.dumps({"status": "IN_PROGRESS"}).encode(
+                "utf-8"
+            )
             mock_redis.return_value = mock_client
 
-            # Mock datetime
             mock_now = Mock()
             mock_now.isoformat.return_value = "2025-01-24T10:35:00.000Z"
             mock_datetime.now.return_value = mock_now
@@ -411,8 +396,8 @@ class TestSummaryStatusHandlerUpdateProgress:
             )
 
             assert result is True
-            call_args = mock_json.set.call_args
-            status_data = call_args[0][2]
+            call_args = mock_client.set.call_args[0]
+            status_data = json.loads(call_args[1])
             assert "completed_at" in status_data
 
     def test_update_progress_adds_completed_at_for_failed(self):
@@ -423,12 +408,11 @@ class TestSummaryStatusHandlerUpdateProgress:
         ):
             mock_client = MagicMock()
             mock_client.ping.return_value = True
-            mock_json = MagicMock()
-            mock_json.get.return_value = {"status": "IN_PROGRESS"}
-            mock_client.json.return_value = mock_json
+            mock_client.get.return_value = json.dumps({"status": "IN_PROGRESS"}).encode(
+                "utf-8"
+            )
             mock_redis.return_value = mock_client
 
-            # Mock datetime
             mock_now = Mock()
             mock_now.isoformat.return_value = "2025-01-24T10:35:00.000Z"
             mock_datetime.now.return_value = mock_now
@@ -443,8 +427,8 @@ class TestSummaryStatusHandlerUpdateProgress:
             )
 
             assert result is True
-            call_args = mock_json.set.call_args
-            status_data = call_args[0][2]
+            call_args = mock_client.set.call_args[0]
+            status_data = json.loads(call_args[1])
             assert "completed_at" in status_data
             assert status_data["error"] == "LLM connection timeout"
 
@@ -507,8 +491,6 @@ class TestSummaryStatusHandlerEdgeCases:
         with patch("nvidia_rag.utils.summary_status_handler.Redis") as mock_redis:
             mock_client = MagicMock()
             mock_client.ping.return_value = True
-            mock_json = MagicMock()
-            mock_client.json.return_value = mock_json
             mock_redis.return_value = mock_client
 
             handler = SummaryStatusHandler()
@@ -521,8 +503,6 @@ class TestSummaryStatusHandlerEdgeCases:
         with patch("nvidia_rag.utils.summary_status_handler.Redis") as mock_redis:
             mock_client = MagicMock()
             mock_client.ping.return_value = True
-            mock_json = MagicMock()
-            mock_client.json.return_value = mock_json
             mock_redis.return_value = mock_client
 
             handler = SummaryStatusHandler()
@@ -535,8 +515,6 @@ class TestSummaryStatusHandlerEdgeCases:
         with patch("nvidia_rag.utils.summary_status_handler.Redis") as mock_redis:
             mock_client = MagicMock()
             mock_client.ping.return_value = True
-            mock_json = MagicMock()
-            mock_client.json.return_value = mock_json
             mock_redis.return_value = mock_client
 
             handler = SummaryStatusHandler()
@@ -555,9 +533,7 @@ class TestSummaryStatusHandlerEdgeCases:
         with patch("nvidia_rag.utils.summary_status_handler.Redis") as mock_redis:
             mock_client = MagicMock()
             mock_client.ping.return_value = True
-            mock_json = MagicMock()
-            mock_json.get.return_value = None
-            mock_client.json.return_value = mock_json
+            mock_client.get.return_value = None
             mock_redis.return_value = mock_client
 
             handler = SummaryStatusHandler()

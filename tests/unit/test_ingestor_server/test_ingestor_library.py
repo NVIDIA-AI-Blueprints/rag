@@ -109,11 +109,14 @@ class TestNvidiaRAGIngestor:
                 mock_task_handler,
             ),
         ):
-            return NvidiaRAGIngestor(vdb_op=mock_vdb_op, mode=Mode.LIBRARY, config=mock_config)
+            return NvidiaRAGIngestor(
+                vdb_op=mock_vdb_op, mode=Mode.LIBRARY, config=mock_config
+            )
 
     @pytest.fixture
     def mock_nvingest_upload_doc(self, ingestor):
         """Mock the __run_nvingest_batched_ingestion method."""
+
         async def mock_nvingest(*args, **kwargs):
             # Get filepaths from kwargs
             filepaths = kwargs.get("filepaths", [])
@@ -135,7 +138,9 @@ class TestNvidiaRAGIngestor:
             return results, []
 
         with patch.object(
-            ingestor, "_NvidiaRAGIngestor__run_nvingest_batched_ingestion", side_effect=mock_nvingest
+            ingestor,
+            "_NvidiaRAGIngestor__run_nvingest_batched_ingestion",
+            side_effect=mock_nvingest,
         ):
             yield
 
@@ -189,19 +194,21 @@ class TestNvidiaRAGIngestor:
         custom_prompts = {
             "document_summary_prompt": {
                 "system": "Custom system",
-                "human": "Custom human"
+                "human": "Custom human",
             }
         }
 
         with patch("nvidia_rag.ingestor_server.main.get_nv_ingest_client"):
             ingestor = NvidiaRAGIngestor(
-                vdb_op=mock_vdb,
-                mode=Mode.LIBRARY,
-                prompts=custom_prompts
+                vdb_op=mock_vdb, mode=Mode.LIBRARY, prompts=custom_prompts
             )
             # Verify custom prompts are merged with defaults
-            assert ingestor.prompts["document_summary_prompt"]["system"] == "Custom system"
-            assert ingestor.prompts["document_summary_prompt"]["human"] == "Custom human"
+            assert (
+                ingestor.prompts["document_summary_prompt"]["system"] == "Custom system"
+            )
+            assert (
+                ingestor.prompts["document_summary_prompt"]["human"] == "Custom human"
+            )
             # Verify other prompts are still available (from defaults)
             assert "iterative_summary_prompt" in ingestor.prompts
 
@@ -214,9 +221,7 @@ class TestNvidiaRAGIngestor:
 
         with patch("nvidia_rag.ingestor_server.main.get_nv_ingest_client"):
             ingestor = NvidiaRAGIngestor(
-                vdb_op=mock_vdb,
-                mode=Mode.LIBRARY,
-                prompts=None
+                vdb_op=mock_vdb, mode=Mode.LIBRARY, prompts=None
             )
             # Verify default prompts are loaded
             assert "document_summary_prompt" in ingestor.prompts
@@ -294,6 +299,7 @@ class TestNvidiaRAGIngestor:
         result = await ingestor.health(check_dependencies=False)
 
         from nvidia_rag.utils.health_models import IngestorHealthResponse
+
         assert isinstance(result, IngestorHealthResponse)
         assert result.message == "Service is up."
 
@@ -315,9 +321,7 @@ class TestNvidiaRAGIngestor:
             }
         ]
 
-        result = ingestor.create_collection(
-            metadata_schema=metadata_schema
-        )
+        result = ingestor.create_collection(metadata_schema=metadata_schema)
 
         assert result["message"] == "Collection test_collection created successfully."
         assert result["collection_name"] == "test_collection"
@@ -628,7 +632,7 @@ class TestNvidiaRAGIngestor:
             result = await NvidiaRAGIngestor.status("unknown-task-id")
 
             assert result["state"] == "UNKNOWN"
-            assert result["result"]["message"] == "Unknown task state"
+            assert result["result"]["message"] == "Task 'unknown-task-id' not found"
 
     def test_create_collections_success(self, ingestor):
         """Test successful creation of multiple collections."""
@@ -676,8 +680,10 @@ class TestNvidiaRAGIngestor:
     @pytest.mark.asyncio
     async def test_csv_deletion_timing_sequential_batches(self, ingestor):
         """Test that CSV file is deleted AFTER all sequential batches complete, not during individual batches."""
-        from nvidia_rag.ingestor_server.ingestion_state_manager import IngestionStateManager
-        
+        from nvidia_rag.ingestor_server.ingestion_state_manager import (
+            IngestionStateManager,
+        )
+
         filepaths = ["test_file1.pdf", "test_file2.pdf", "test_file3.pdf"]
 
         ingestor.vdb_op.csv_file_path = "/tmp/test_metadata.csv"
@@ -718,8 +724,10 @@ class TestNvidiaRAGIngestor:
     @pytest.mark.asyncio
     async def test_csv_deletion_timing_parallel_batches(self, ingestor):
         """Test that CSV file is deleted AFTER all parallel batches complete, not during individual batches."""
-        from nvidia_rag.ingestor_server.ingestion_state_manager import IngestionStateManager
-        
+        from nvidia_rag.ingestor_server.ingestion_state_manager import (
+            IngestionStateManager,
+        )
+
         # Arrange
         filepaths = [
             "test_file1.pdf",
@@ -767,8 +775,10 @@ class TestNvidiaRAGIngestor:
     @pytest.mark.asyncio
     async def test_csv_deletion_single_batch_mode(self, ingestor):
         """Test that CSV file is deleted during single batch processing (no batch mode)."""
-        from nvidia_rag.ingestor_server.ingestion_state_manager import IngestionStateManager
-        
+        from nvidia_rag.ingestor_server.ingestion_state_manager import (
+            IngestionStateManager,
+        )
+
         # Arrange
         filepaths = ["test_file1.pdf"]
 
@@ -803,8 +813,10 @@ class TestNvidiaRAGIngestor:
     @pytest.mark.asyncio
     async def test_csv_deletion_with_no_csv_file(self, ingestor):
         """Test that no error occurs when CSV file path is None."""
-        from nvidia_rag.ingestor_server.ingestion_state_manager import IngestionStateManager
-        
+        from nvidia_rag.ingestor_server.ingestion_state_manager import (
+            IngestionStateManager,
+        )
+
         filepaths = ["test_file1.pdf", "test_file2.pdf"]
 
         ingestor.vdb_op.csv_file_path = None
@@ -845,8 +857,10 @@ class TestNvidiaRAGIngestor:
     @pytest.mark.asyncio
     async def test_csv_deletion_with_missing_csv_file(self, ingestor):
         """Test that FileNotFoundError is raised when CSV file doesn't exist on filesystem."""
-        from nvidia_rag.ingestor_server.ingestion_state_manager import IngestionStateManager
-        
+        from nvidia_rag.ingestor_server.ingestion_state_manager import (
+            IngestionStateManager,
+        )
+
         filepaths = ["test_file1.pdf", "test_file2.pdf"]
 
         ingestor.vdb_op.csv_file_path = "/tmp/non_existent_metadata.csv"
@@ -876,13 +890,18 @@ class TestNvidiaRAGIngestor:
                     )
 
                     with pytest.raises(FileNotFoundError, match="File not found"):
-                        await ingestor._NvidiaRAGIngestor__run_nvingest_batched_ingestion(
-                            filepaths=filepaths,
-                            collection_name="test_collection",
-                            vdb_op=ingestor.vdb_op,
-                            split_options={"chunk_size": 1024, "chunk_overlap": 200},
-                            generate_summary=False,
-                            state_manager=state_manager,
+                        await (
+                            ingestor._NvidiaRAGIngestor__run_nvingest_batched_ingestion(
+                                filepaths=filepaths,
+                                collection_name="test_collection",
+                                vdb_op=ingestor.vdb_op,
+                                split_options={
+                                    "chunk_size": 1024,
+                                    "chunk_overlap": 200,
+                                },
+                                generate_summary=False,
+                                state_manager=state_manager,
+                            )
                         )
 
                     mock_remove.assert_called_once_with(
