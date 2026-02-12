@@ -8,10 +8,7 @@ resolution-markers = [
 ]
 
 [manifest]
-overrides = [
-    { name = "cryptography", specifier = ">=46.0.5" },
-    { name = "pillow", specifier = ">=12.1.0" },
-]
+overrides = [{ name = "pillow", specifier = ">=12.1.0" }]
 
 [[package]]
 name = "accessible-pygments"
@@ -1804,7 +1801,6 @@ source = { virtual = "." }
 dependencies = [
     { name = "anyio" },
     { name = "bleach" },
-    { name = "cryptography" },
     { name = "dataclass-wizard" },
     { name = "fastapi" },
     { name = "httpx" },
@@ -1912,7 +1908,6 @@ requires-dist = [
     { name = "azure-storage-blob", marker = "extra == 'ingest'", specifier = ">=12.26,<13.0" },
     { name = "azure-storage-blob", marker = "extra == 'rag'", specifier = ">=12.26,<13.0" },
     { name = "bleach", specifier = ">=6.2,<7.0" },
-    { name = "cryptography", specifier = ">=46.0.5" },
     { name = "dataclass-wizard", specifier = ">=0.27,<1.0" },
     { name = "fastapi", specifier = ">=0.115.5,<1.0" },
     { name = "httpx", specifier = ">=0.28.1" },

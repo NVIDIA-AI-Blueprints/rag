@@ -37,7 +37,6 @@ dependencies = [
     "protobuf>=6.33.5",
     "lark>=1.2.2",
     "python-dateutil>=2.9.0.post0",
-    "cryptography>=46.0.5",
 ]
 
 [project.optional-dependencies]
@@ -110,7 +109,8 @@ elasticsearch = [
 nvidia-rag = { workspace = true }
 
 [tool.uv]
-override-dependencies = ["pillow>=12.1.0", "cryptography>=46.0.5"]
+# Pillow 12.x required for containers; moviepy pins pillow<12 so override needed for resolution
+override-dependencies = ["pillow>=12.1.0"]
 
 [tool.setuptools]
 package-dir = {"" = "src"}
