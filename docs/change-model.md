@@ -251,20 +251,20 @@ Use this procedure to change models when you are running self-hosted NVIDIA NIM 
       env: []
     ```
 
+    **Nemotron Nano Models (Thinking budget LLMs) – vLLM profile**
+
+    For these Thinking budget LLMs, only the vLLM profile is supported on H100 and RTX GPUs (for example, RTX 6000 Pro).
+
+    | GPU | Model | Supported profile |
+    |-----|-------|-------------------|
+    | H100, RTX 6000 Pro | nvidia/nvidia-nemotron-nano-9b-v2 | vllm |
+    | H100, RTX 6000 Pro | nvidia/nemotron-3-nano | vllm |
+
     :::{note}
-    **For Nemotron Nano Models VLLM profile**
-    
-    When deploying `nvidia/nvidia-nemotron-nano-9b-v2` or `nvidia/nemotron-3-nano`, check if `tensorrt_llm` profile is available using below command for your required model. 
-    
-    ```bash
-    # Change model name as needed
-    USERID=$(id -u) docker run --rm --gpus all \
-      nvcr.io/nim/nvidia/nvidia-nemotron-nano-9b-v2:latest \ 
-      list-model-profiles
-    ```
-    
-    If only `vllm` profile is available, you must use the **vLLM engine** and add these specific configurations:
-    
+    **If only the vLLM profile is available**
+
+   When only a vLLM profile is available for a model, such as on H100 and RTX GPUs, you must use the vLLM engine. First [run the list-model-profiles command](model-profiles.md#list-available-profiles) to confirm which profiles are available and then apply the following configurations.
+
     ```yaml
     nimOperator:
       nim-llm:
@@ -278,11 +278,11 @@ Use this procedure to change models when you are running self-hosted NVIDIA NIM 
             value: "nvidia/nvidia-nemotron-nano-9b-v2"  # Must match APP_LLM_MODELNAME
           # ... other env vars ...
     ```
-    
+
     Ensure `APP_LLM_MODELNAME` in the `rag-server` section matches `NIM_SERVED_MODEL_NAME`.
     :::
 
-4. After you modify values.yaml, apply the changes as described in [Change a Deployment](deploy-helm.md#change-a-deployment).
+5. After you modify the `values.yaml` file, apply the changes described in [Change a Deployment](deploy-helm.md#change-a-deployment).
 
 
 
