@@ -11,7 +11,7 @@ The multimodal query feature in the [NVIDIA RAG Blueprint](readme.md) enables yo
 - **Visual Q&A**: "What material is this made of?" + product image
 
 This feature combines:
-- **VLM Embeddings**: `nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1` for creating multimodal embeddings that understand both text and images
+- **VLM Embeddings**: `nvidia/llama-nemotron-embed-vl-1b-v2` for creating multimodal embeddings that understand both text and images
 - **Vision-Language Model**: `nvidia/nemotron-nano-12b-v2-vl` for generating intelligent responses based on visual and textual context
 
 
@@ -86,8 +86,8 @@ export APP_VLM_SERVERURL="http://vlm-ms:8000/v1"
 export APP_LLM_SERVERURL=""
 
 # Multimodal embedding model configuration
-export APP_EMBEDDINGS_MODELNAME="nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1"
-export APP_EMBEDDINGS_SERVERURL="nemoretriever-vlm-embedding-ms:8000/v1"
+export APP_EMBEDDINGS_MODELNAME="nvidia/llama-nemotron-embed-vl-1b-v2"
+export APP_EMBEDDINGS_SERVERURL="nemotron-vlm-embedding-ms:8000/v1"
 export ENABLE_VLM_INFERENCE="true"
 export VLM_TO_LLM_FALLBACK="false"
 ```
@@ -174,7 +174,7 @@ export APP_VLM_SERVERURL="https://integrate.api.nvidia.com"
 export APP_LLM_SERVERURL=""
 
 # Multimodal embedding model configuration - cloud hosted
-export APP_EMBEDDINGS_MODELNAME="nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1"
+export APP_EMBEDDINGS_MODELNAME="nvidia/llama-nemotron-embed-vl-1b-v2"
 export APP_EMBEDDINGS_SERVERURL="https://integrate.api.nvidia.com/v1"
 export ENABLE_VLM_INFERENCE="true"
 export VLM_TO_LLM_FALLBACK="false"
@@ -255,11 +255,11 @@ nim-vlm:
   enabled: true
 
 # Enable VLM embedding NIM for multimodal embeddings
-nvidia-nim-llama-32-nemoretriever-1b-vlm-embed-v1:
+nvidia-nim-llama-nemotron-embed-vl-1b-v2:
   enabled: true
   image:
-    repository: nvcr.io/nvidia/nemo-microservices/llama-3.2-nemoretriever-1b-vlm-embed-v1
-    tag: "1.7.0"
+    repository: nvcr.io/nim/nvidia/llama-nemotron-embed-vl-1b-v2
+    tag: "1.12.0"
 
 # Optional: disable the default text embedding NIM
 nvidia-nim-llama-32-nv-embedqa-1b-v2:
@@ -278,8 +278,8 @@ envVars:
   APP_VLM_SERVERURL: "http://nim-vlm:8000/v1"
 
   # VLM embedding settings
-  APP_EMBEDDINGS_SERVERURL: "nemoretriever-vlm-embedding-ms:8000/v1"
-  APP_EMBEDDINGS_MODELNAME: "nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1"
+  APP_EMBEDDINGS_SERVERURL: "nemotron-vlm-embedding-ms:8000/v1"
+  APP_EMBEDDINGS_MODELNAME: "nvidia/llama-nemotron-embed-vl-1b-v2"
 
   # Disable reranker (not supported with multimodal queries)
   ENABLE_RERANKER: "False"
@@ -293,13 +293,13 @@ ingestor-server:
     APP_NVINGEST_EXTRACTIMAGES: "True"
 
     # VLM embedding settings for ingestor
-    APP_EMBEDDINGS_SERVERURL: "nemoretriever-vlm-embedding-ms:8000/v1"
-    APP_EMBEDDINGS_MODELNAME: "nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1"
+    APP_EMBEDDINGS_SERVERURL: "nemotron-vlm-embedding-ms:8000/v1"
+    APP_EMBEDDINGS_MODELNAME: "nvidia/llama-nemotron-embed-vl-1b-v2"
 
 nv-ingest:
   envVars:
-    EMBEDDING_NIM_ENDPOINT: "http://nemoretriever-vlm-embedding-ms:8000/v1"
-    EMBEDDING_NIM_MODEL_NAME: "nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1"
+    EMBEDDING_NIM_ENDPOINT: "http://nemotron-vlm-embedding-ms:8000/v1"
+    EMBEDDING_NIM_MODEL_NAME: "nvidia/llama-nemotron-embed-vl-1b-v2"
 ```
 
 ### 2. Deploy or Upgrade the Chart
@@ -319,7 +319,7 @@ kubectl get pods -n rag | grep -E "(vlm|embedding)"
 Expected output:
 ```
 nim-vlm-f4c446cbf-ffzm7                              1/1     Running   0          22m
-nemoretriever-vlm-embedding-ms-...                   1/1     Running   0          22m
+nemotron-vlm-embedding-ms-...                   1/1     Running   0          22m
 ```
 
 :::{note}

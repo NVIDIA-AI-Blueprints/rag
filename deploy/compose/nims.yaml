@@ -61,9 +61,9 @@ services:
       start_period: 10m
     profiles: ["", "rag", "ingest", "text-embed", "vlm-generation"]
 
-  nemoretriever-vlm-embedding-ms:
-    container_name: nemoretriever-vlm-embedding-ms
-    image: nvcr.io/nvidia/nemo-microservices/llama-3.2-nemoretriever-1b-vlm-embed-v1:1.7.0
+  nemotron-vlm-embedding-ms:
+    container_name: nemotron-vlm-embedding-ms
+    image: nvcr.io/nim/nvidia/llama-nemotron-embed-vl-1b-v2:1.12.0
     volumes:
     - ${MODEL_DIRECTORY:-./}:/opt/nim/.cache
     ports:
