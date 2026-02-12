@@ -263,7 +263,7 @@ Use this procedure to change models when you are running self-hosted NVIDIA NIM 
     :::{note}
     **If only the vLLM profile is available**
 
-   When only a vLLM profile is available for a model—including on H100 and RTX GPUs such as the RTX 6000 Pro—you must use the **vLLM engine**. First, run the list-model-profiles command (see [Model Profiles](model-profiles.md#list-available-profiles)) to confirm which profiles are available, then apply the following configurations.
+   When only a vLLM profile is available for a model, such as on H100 and RTX GPUs, you must use the vLLM engine. First [run the list-model-profiles command](model-profiles.md#list-available-profiles) to confirm which profiles are available and then apply the following configurations.
 
     ```yaml
     nimOperator:
