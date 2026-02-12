@@ -388,7 +388,19 @@ kubectl patch nimcache nemoretriever-page-elements-v3 -n rag --type='merge' -p '
 kubectl delete pvc nemoretriever-page-elements-v3-pvc -n rag --wait=false # Delete pending PVC to trigger recreation
 ```
 
+### Ingestor-server out of memory (OOM) with large documents
+With large files or many files at once, ingestor-server memory use can exceed its limit and the pod may be killed (OOM).
+**Fix:** Increase the memory limit by adding the following to your `values.yaml` (adjust values for your workload and cluster). Optionally, when summarization is enabled, set `SUMMARY_MAX_PARALLELIZATION=1` to reduce peak memory.
+```yaml
+ingestor-server:
+  resources:
+    limits:
+      memory: "200Gi"   # example; set based on your peak usage
+    requests:
+      memory: "25Gi"    # adjust as needed for your cluster
+```
 
+Then upgrade the chart. For more details, see [Change a Deployment](deploy-helm.md#change-a-deployment).
 
 ## Ingestion failures
 
