@@ -8,7 +8,7 @@ Use this documentation to deploy the [NVIDIA RAG Blueprint](readme.md) Helm char
 For other deployment options, refer to [Deployment Options](readme.md#deployment-options-for-rag-blueprint).
 
 To ensure that your GPUs are compatible with MIG,
-refer to the [MIG Supported Hardware List](https://docs.nvidia.com/datacenter/tesla/mig-user-guide/#mig-supported-gpus).
+refer to the [MIG Supported Hardware List](https://docs.nvidia.com/datacenter/tesla/mig-user-guide/#mig-user-guide).
 
 
 ## Prerequisites
