@@ -137,14 +137,14 @@ services:
       - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY:-minioadmin}
       - MINIO_SECRET_KEY=${MINIO_SECRET_KEY:-minioadmin}
       - MINIO_SECURE=false
-      - VSS_SERVER_URL=${VSS_SERVER_URL:-http://host.docker.internal:8110}
+      - VSS_SERVER_URL=${VSS_SERVER_URL:-http://local_deployment_single_gpu-via-server-1:8110}
       - VSS_TIMEOUT=${VSS_TIMEOUT:-1800}
       - VSS_CHUNK_DURATION=${VSS_CHUNK_DURATION:-30}
       - VSS_CHUNK_OVERLAP=${VSS_CHUNK_OVERLAP:-10}
       - VSS_NUM_FRAMES_PER_CHUNK=${VSS_NUM_FRAMES_PER_CHUNK:-16}
       - VSS_MAX_TOKENS=${VSS_MAX_TOKENS:-8192}
       # RAG Ingestor
-      - INGESTOR_SERVER_URL=${INGESTOR_SERVER_URL:-http://host.docker.internal:8082}
+      - INGESTOR_SERVER_URL=${INGESTOR_SERVER_URL:-http://ingestor-server:8082}
       - COLLECTION_NAME=${COLLECTION_NAME:-aidp_bucket}
       # Video Analysis Prompts (customizable via environment variables)
       - "VSS_PROMPT=${VSS_PROMPT:-Analyze this sports video. TIMESTAMP FORMAT: Convert seconds to MM:SS (40s=00:40, 80s=01:20, 150s=02:30, 200s=03:20). Describe: key plays, scoring, turnovers, big gains, defensive stops, celebrations.}"
