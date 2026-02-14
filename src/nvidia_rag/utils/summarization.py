@@ -39,6 +39,7 @@ from transformers import AutoTokenizer
 
 from nvidia_rag.rag_server.response_generator import get_minio_operator_instance
 from nvidia_rag.utils.configuration import NvidiaRAGConfig
+from nvidia_rag.utils.ingestion_llm_counter import increment_summary_llm_count
 from nvidia_rag.utils.llm import get_llm, get_prompts
 from nvidia_rag.utils.minio_operator import get_unique_thumbnail_id
 from nvidia_rag.utils.summary_status_handler import SUMMARY_STATUS_HANDLER
@@ -842,6 +843,7 @@ async def _summarize_single_pass(
     if progress_callback:
         await progress_callback(current=0, total=1)
 
+    increment_summary_llm_count()
     summary = await initial_chain.ainvoke(
         {"document_text": document_text},
         config={"run_name": f"summary-{file_name}"},
@@ -885,6 +887,7 @@ async def _summarize_iterative(
         if progress_callback:
             await progress_callback(current=0, total=1)
 
+        increment_summary_llm_count()
         summary = await initial_chain.ainvoke(
             {"document_text": document_text},
             config={"run_name": f"summary-{file_name}"},
@@ -907,6 +910,7 @@ async def _summarize_iterative(
         if progress_callback:
             await progress_callback(current=0, total=total_chunks)
 
+        increment_summary_llm_count()
         summary = await initial_chain.ainvoke(
             {"document_text": text_chunks[0]},
             config={"run_name": f"summary-{file_name}-chunk-1"},
@@ -918,6 +922,7 @@ async def _summarize_iterative(
         for i, chunk in enumerate(text_chunks[1:], start=1):
             logger.debug(f"Processing chunk {i + 1}/{total_chunks} for {file_name}")
 
+            increment_summary_llm_count()
             summary = await iterative_chain.ainvoke(
                 {"previous_summary": summary, "new_chunk": chunk},
                 config={"run_name": f"summary-{file_name}-chunk-{i + 1}"},
@@ -967,14 +972,15 @@ async def _summarize_hierarchical(
     prompts = prompts or get_prompts()
     initial_chain, iterative_chain = _create_llm_chains(llm, prompts, is_shallow)
 
+    async def _invoke_initial(chunk: str, i: int):
+        increment_summary_llm_count()
+        return await initial_chain.ainvoke(
+            {"document_text": chunk},
+            config={"run_name": f"summary-{file_name}-chunk-{i}"},
+        )
+
     chunk_summaries = await asyncio.gather(
-        *[
-            initial_chain.ainvoke(
-                {"document_text": chunk},
-                config={"run_name": f"summary-{file_name}-chunk-{i}"},
-            )
-            for i, chunk in enumerate(text_chunks, 1)
-        ]
+        *[_invoke_initial(chunk, i) for i, chunk in enumerate(text_chunks, 1)]
     )
 
     if progress_callback:
@@ -1204,6 +1210,7 @@ async def _combine_summaries_batch(
 
     combined = summaries[0]
     for i, summary in enumerate(summaries[1:], 1):
+        increment_summary_llm_count()
         combined = await iterative_chain.ainvoke(
             {"previous_summary": combined, "new_chunk": summary},
             config={"run_name": f"summary-{file_name}-L{level}-B{batch_idx}-{i}"},

@@ -90,6 +90,7 @@ from nvidia_rag.utils.observability.tracing import (
     process_nv_ingest_traces,
     trace_function,
 )
+from nvidia_rag.utils.ingestion_llm_counter import get_summary_llm_count, reset_summary_llm_count
 from nvidia_rag.utils.summarization import generate_document_summaries
 from nvidia_rag.utils.summary_status_handler import SUMMARY_STATUS_HANDLER
 from nvidia_rag.utils.vdb import DEFAULT_DOCUMENT_INFO_COLLECTION, _get_vdb_op
@@ -463,6 +464,9 @@ class NvidiaRAGIngestor:
         logger.info("Performing ingestion in collection_name: %s", collection_name)
         logger.debug("Filepaths for ingestion: %s", filepaths)
 
+        # Reset summary LLM counter so this run reports only summary LLM calls for this ingestion
+        reset_summary_llm_count()
+
         failed_validation_documents = []
         validation_errors = (
             []
@@ -802,6 +806,8 @@ class NvidiaRAGIngestor:
             + state_manager.failed_validation_documents,
             "validation_errors": state_manager.validation_errors,
         }
+        if is_final_batch:
+            response_data["summary_llm_calls"] = get_summary_llm_count()
         return response_data
 
     @trace_function("ingestor.main.ingest_document_summary", tracer=TRACER)

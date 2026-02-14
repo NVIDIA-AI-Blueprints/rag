@@ -30,6 +30,7 @@ from langchain_core.prompts import ChatPromptTemplate
 
 from nvidia_rag.utils.embedding import get_embedding_model
 from nvidia_rag.utils.llm import get_llm, get_prompts
+from nvidia_rag.utils.ingestion_llm_counter import increment_summary_llm_count
 from nvidia_rag.utils.summarization import (
     _extract_content_from_element,
     _get_tokenizer,
@@ -592,6 +593,7 @@ class RAPTORTreeBuilder:
     async def _generate_initial_summary(self, text: str, chain) -> str:
         """Generate initial summary using document_summary_prompt."""
         try:
+            increment_summary_llm_count()
             summary = await chain.ainvoke(
                 {"document_text": text},
                 config={"run_name": "raptor-initial-summary"}
@@ -609,6 +611,7 @@ class RAPTORTreeBuilder:
     async def _generate_enriched_summary(self, previous_summary: str, new_chunk: str, chain) -> str:
         """Generate enriched summary using iterative_summary_prompt."""
         try:
+            increment_summary_llm_count()
             summary = await chain.ainvoke(
                 {"previous_summary": previous_summary, "new_chunk": new_chunk},
                 config={"run_name": "raptor-enriched-summary"}
