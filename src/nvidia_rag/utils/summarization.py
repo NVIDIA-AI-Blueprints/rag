@@ -181,7 +181,7 @@ def _split_text_into_chunks(
     if chunk_overlap >= chunk_size:
         chunk_overlap = max(0, chunk_size - 1)
 
-    encoding = tokenizer.encode_plus(
+    encoding = tokenizer(
         text, add_special_tokens=False, return_offsets_mapping=True
     )
     offsets = encoding["offset_mapping"]
