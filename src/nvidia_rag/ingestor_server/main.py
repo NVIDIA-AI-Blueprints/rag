@@ -810,6 +810,15 @@ class NvidiaRAGIngestor:
             response_data["summary_llm_calls"] = get_summary_llm_count()
         return response_data
 
+    def _on_summary_task_done(self, task: asyncio.Task) -> None:
+        """Callback when a background summary task completes. Logs total summary_llm_calls when all are done."""
+        self._background_tasks.discard(task)
+        if not self._background_tasks:
+            logger.info(
+                "All summary generation completed; total summary_llm_calls=%s",
+                get_summary_llm_count(),
+            )
+
     @trace_function("ingestor.main.ingest_document_summary", tracer=TRACER)
     async def __ingest_document_summary(
         self,
@@ -2027,7 +2036,7 @@ class NvidiaRAGIngestor:
                 )
             )
             self._background_tasks.add(task)
-            task.add_done_callback(self._background_tasks.discard)
+            task.add_done_callback(self._on_summary_task_done)
         else:
             # No shallow results at all: mark every file in the batch as failed (if not already marked)
             for filepath in filepaths:
@@ -2427,7 +2436,7 @@ class NvidiaRAGIngestor:
                 )
             )
             self._background_tasks.add(task)
-            task.add_done_callback(self._background_tasks.discard)
+            task.add_done_callback(self._on_summary_task_done)
             logger.info(
                 "Started summary generation (strategy: %s) for batch %d",
                 summarization_strategy or "iterative",
