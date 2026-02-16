@@ -564,7 +564,7 @@ jobs:
       - name: Configure environment for multimodal query tests
         run: |
           # VLM embedding (required for multimodal queries)
-          echo "APP_EMBEDDINGS_MODELNAME=nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1" >> $GITHUB_ENV
+          echo "APP_EMBEDDINGS_MODELNAME=nvidia/llama-nemotron-embed-vl-1b-v2" >> $GITHUB_ENV
           echo "APP_EMBEDDINGS_SERVERURL=https://integrate.api.nvidia.com/v1" >> $GITHUB_ENV
           # VLM model for generation
           echo "ENABLE_VLM_INFERENCE=True" >> $GITHUB_ENV

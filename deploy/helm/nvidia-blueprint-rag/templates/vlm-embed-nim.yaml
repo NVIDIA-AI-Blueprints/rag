@@ -1,4 +1,4 @@
-{{- $nimModel := index .Values.nimOperator "nvidia-nim-llama-32-nemoretriever-1b-vlm-embed-v1" -}}
+{{- $nimModel := index .Values.nimOperator "nvidia-nim-llama-nemotron-embed-vl-1b-v2" -}}
 {{- if and (.Capabilities.APIVersions.Has "apps.nvidia.com/v1alpha1") (eq $nimModel.enabled true) }}
 apiVersion: apps.nvidia.com/v1alpha1
 kind: NIMCache

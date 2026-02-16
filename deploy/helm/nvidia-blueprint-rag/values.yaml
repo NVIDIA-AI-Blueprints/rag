@@ -752,15 +752,15 @@ nimOperator:
         port: 8000
         grpcPort: 8001
 
-# subsection: nvidia-nim-llama-32-nemoretriever-1b-vlm-embed-v1
+# subsection: nvidia-nim-llama-nemotron-embed-vl-1b-v2
 # NIM VLM Embedding
-  nvidia-nim-llama-32-nemoretriever-1b-vlm-embed-v1:
+  nvidia-nim-llama-nemotron-embed-vl-1b-v2:
     enabled: false
     service:
-      name: "nemoretriever-vlm-embedding-ms"
+      name: "nemotron-vlm-embedding-ms"
     image:
-      repository: nvcr.io/nvidia/nemo-microservices/llama-3.2-nemoretriever-1b-vlm-embed-v1
-      tag: "1.7.0"
+      repository: nvcr.io/nim/nvidia/llama-nemotron-embed-vl-1b-v2
+      tag: "1.12.0"
       pullPolicy: IfNotPresent
     replicas: 1
     resources:
