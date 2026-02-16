@@ -206,7 +206,7 @@ This can reduce the page-per-second performance for the ingestion. For maximum p
 
 ## Confidence threshold filtering issues
 
-If no documents are returned when using confidence threshold filtering, the threshold may be set too high. Try lowering the `confidence_threshold` value or ensure the reranker is enabled to provide relevance scores. Confidence threshold filtering works best when reranker is enabled. Without reranker, documents may not have meaningful relevance scores. For optimal results, use confidence threshold values between 0.3-0.7. Values above 0.7 may be too restrictive.
+If no documents are returned when using confidence threshold filtering, the threshold may be set too high. Try lowering the `confidence_threshold` value (request body) or the server default via `RERANKER_SCORE_THRESHOLD` (env), or ensure the reranker is enabled to provide relevance scores. Confidence threshold filtering works best when reranker is enabled. Without reranker, documents may not have meaningful relevance scores. For optimal results, use confidence threshold values between 0.3-0.7. Values above 0.7 may be too restrictive.
 
 
 

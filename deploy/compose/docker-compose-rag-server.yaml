@@ -106,8 +106,8 @@ services:
       APP_RANKING_SERVERURL: ${APP_RANKING_SERVERURL-"nemoretriever-ranking-ms:8000"}
       APP_RANKING_MODELNAME: ${APP_RANKING_MODELNAME:-"nvidia/llama-3.2-nv-rerankqa-1b-v2"}
       ENABLE_RERANKER: ${ENABLE_RERANKER:-True}
-      # Default confidence threshold for filtering documents by reranker relevance scores (0.0 to 1.0)
-      RERANKER_CONFIDENCE_THRESHOLD: ${RERANKER_CONFIDENCE_THRESHOLD:-0.0}
+      # Default score threshold for filtering documents by reranker relevance (0.0 to 1.0)
+      RERANKER_SCORE_THRESHOLD: ${RERANKER_SCORE_THRESHOLD:-${RERANKER_CONFIDENCE_THRESHOLD:-0.0}}
 
       ##===VLM Model specific configurations===
       ENABLE_VLM_INFERENCE: ${ENABLE_VLM_INFERENCE:-false}
