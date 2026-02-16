@@ -177,7 +177,6 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
    :maxdepth: 1
    :hidden:
 
-   Deploy with Docker (Self-Hosted Models) <deploy-docker-self-hosted.md>
    Deploy with Docker (NVIDIA-Hosted Models) <deploy-docker-nvidia-hosted.md>
    Deploy on Kubernetes with Helm <deploy-helm.md>
    Deploy on Kubernetes with Helm from the repository <deploy-helm-from-repo.md>

@@ -310,6 +310,8 @@ jobs:
           uv pip install -r tests/integration/requirements.txt
 
       - name: Run basic integration tests
+        id: basic-tests
+        continue-on-error: true
         run: |
           source venv/bin/activate
           echo "Running basic integration tests..."
@@ -349,6 +351,8 @@ jobs:
           docker ps
 
       - name: Run query rewriter integration tests
+        id: query-rewriter-tests
+        continue-on-error: true
         run: |
           source venv/bin/activate
           echo "Running query rewriter integration tests..."
@@ -390,6 +394,8 @@ jobs:
           docker ps
 
       - name: Run reflection integration tests
+        id: reflection-tests
+        continue-on-error: true
         run: |
           source venv/bin/activate
           echo "Running reflection integration tests..."
@@ -437,6 +443,7 @@ jobs:
           sleep 30
 
       - name: Run NemoGuardrails integration tests
+        id: guardrails-tests
         continue-on-error: true
         run: |
           source venv/bin/activate
@@ -484,6 +491,8 @@ jobs:
           docker ps
 
       - name: Run image captioning integration tests
+        id: image-captioning-tests
+        continue-on-error: true
         run: |
           source venv/bin/activate
           echo "Running image captioning integration tests..."
@@ -524,6 +533,8 @@ jobs:
           docker ps
 
       - name: Run VLM generation integration tests
+        id: vlm-generation-tests
+        continue-on-error: true
         run: |
           source venv/bin/activate
           echo "Running VLM generation integration tests..."
@@ -584,6 +595,8 @@ jobs:
           docker ps
 
       - name: Run multimodal query integration tests
+        id: multimodal-query-tests
+        continue-on-error: true
         run: |
           source venv/bin/activate
           echo "Running multimodal query integration tests..."
@@ -624,6 +637,8 @@ jobs:
           docker ps
 
       - name: Run custom prompt integration tests
+        id: custom-prompt-tests
+        continue-on-error: true
         run: |
           source venv/bin/activate
           echo "Running custom prompt integration tests..."
@@ -660,6 +675,8 @@ jobs:
           echo "CONVERSATION_HISTORY=0" >> $GITHUB_ENV
 
       - name: Run library usage integration tests
+        id: library-usage-tests
+        continue-on-error: true
         run: |
           source venv/bin/activate
           echo "Running library usage integration tests..."
@@ -678,6 +695,8 @@ jobs:
       # ========================================================================
       
       - name: Run library summarization integration tests
+        id: library-summarization-tests
+        continue-on-error: true
         run: |
           source venv/bin/activate
           echo "Running library summarization integration tests..."
@@ -726,6 +745,8 @@ jobs:
           sleep 30
 
       - name: Run observability integration tests
+        id: observability-tests
+        continue-on-error: true
         run: |
           source venv/bin/activate
           echo "Running observability integration tests..."
@@ -828,6 +849,8 @@ jobs:
           docker ps
       
       - name: Run Milvus VDB Auth tests
+        id: milvus-vdb-auth-tests
+        continue-on-error: true
         env:
           APP_VECTORSTORE_URL: http://localhost:19530
         run: |
@@ -877,6 +900,30 @@ jobs:
           echo "VDB_AUTH_TOKEN=" >> $GITHUB_ENV
           echo "MILVUS_ROOT_TOKEN=" >> $GITHUB_ENV
       
+      # ========================================================================
+      # FAIL JOB IF ANY INTEGRATION TEST FAILED
+      # ========================================================================
+      # All test steps use continue-on-error so every suite runs; this step
+      # marks the job as failed if any of them failed.
+      - name: Fail job if any integration test failed
+        if: always() && (steps.basic-tests.outcome == 'failure' || steps.query-rewriter-tests.outcome == 'failure' || steps.reflection-tests.outcome == 'failure' || steps.guardrails-tests.outcome == 'failure' || steps.image-captioning-tests.outcome == 'failure' || steps.vlm-generation-tests.outcome == 'failure' || steps.multimodal-query-tests.outcome == 'failure' || steps.custom-prompt-tests.outcome == 'failure' || steps.library-usage-tests.outcome == 'failure' || steps.library-summarization-tests.outcome == 'failure' || steps.observability-tests.outcome == 'failure' || steps.milvus-vdb-auth-tests.outcome == 'failure')
+        run: |
+          echo "=== Failed integration test suites ==="
+          [ "${{ steps.basic-tests.outcome }}" = "failure" ] && echo "  - basic-tests"
+          [ "${{ steps.query-rewriter-tests.outcome }}" = "failure" ] && echo "  - query-rewriter-tests"
+          [ "${{ steps.reflection-tests.outcome }}" = "failure" ] && echo "  - reflection-tests"
+          [ "${{ steps.guardrails-tests.outcome }}" = "failure" ] && echo "  - guardrails-tests"
+          [ "${{ steps.image-captioning-tests.outcome }}" = "failure" ] && echo "  - image-captioning-tests"
+          [ "${{ steps.vlm-generation-tests.outcome }}" = "failure" ] && echo "  - vlm-generation-tests"
+          [ "${{ steps.multimodal-query-tests.outcome }}" = "failure" ] && echo "  - multimodal-query-tests"
+          [ "${{ steps.custom-prompt-tests.outcome }}" = "failure" ] && echo "  - custom-prompt-tests"
+          [ "${{ steps.library-usage-tests.outcome }}" = "failure" ] && echo "  - library-usage-tests"
+          [ "${{ steps.library-summarization-tests.outcome }}" = "failure" ] && echo "  - library-summarization-tests"
+          [ "${{ steps.observability-tests.outcome }}" = "failure" ] && echo "  - observability-tests"
+          [ "${{ steps.milvus-vdb-auth-tests.outcome }}" = "failure" ] && echo "  - milvus-vdb-auth-tests"
+          echo "One or more integration test suites failed. Failing job."
+          exit 1
+
       # ========================================================================
       # UPLOAD ALL LOGS
       # ========================================================================

@@ -24,6 +24,7 @@ Classes:
     SummaryStatusHandler: Manages summary generation status using Redis.
 """
 
+import json
 import logging
 import os
 from datetime import UTC, datetime
@@ -151,14 +152,15 @@ class SummaryStatusHandler:
 
         try:
             key = self._get_key(collection_name, file_name)
-            self._redis_client.json().set(key, "$", status_data)
+            value = json.dumps(status_data)
+            self._redis_client.set(key, value)
             # Set expiration for auto-cleanup of old status entries
             self._redis_client.expire(key, REDIS_STATUS_TTL_SECONDS)
             logger.debug(
                 f"Set summary status for {file_name}: {status_data.get('status')}"
             )
             return True
-        except (ConnectionError, RedisError, AttributeError) as e:
+        except (ConnectionError, RedisError, AttributeError, TypeError) as e:
             logger.error(
                 f"Failed to set summary status for {file_name}: {e}",
                 exc_info=logger.getEffectiveLevel() <= logging.DEBUG,
@@ -186,14 +188,24 @@ class SummaryStatusHandler:
 
         try:
             key = self._get_key(collection_name, file_name)
-            status = self._redis_client.json().get(key)
+            raw = self._redis_client.get(key)
+            if not raw:
+                return None
+            s = raw.decode("utf-8") if isinstance(raw, bytes) else raw
+            status = json.loads(s)
             if status:
                 logger.debug(
                     f"Retrieved summary status for {file_name}: "
                     f"{status.get('status') if isinstance(status, dict) else status}"
                 )
             return status
-        except (ConnectionError, RedisError, AttributeError) as e:
+        except (
+            ConnectionError,
+            RedisError,
+            AttributeError,
+            TypeError,
+            json.JSONDecodeError,
+        ) as e:
             logger.error(
                 f"Failed to get summary status for {file_name}: {e}",
                 exc_info=logger.getEffectiveLevel() <= logging.DEBUG,
