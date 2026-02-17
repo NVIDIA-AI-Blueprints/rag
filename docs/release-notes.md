@@ -19,7 +19,7 @@ This release contains the following key changes:
 - Updated NIMs and code to support  [NVIDIA Ingest 26.01 release](https://docs.nvidia.com/nemo/retriever/latest/extraction/releasenotes-nv-ingest/).
 - Added support for non-NIM models including OpenAI, models hosted on AWS and Azure, OSS models, and others. Supported through service-specific API keys. For details, refer to [Get an API Key](api-key.md).
 - The RAG Blueprint now uses [nemoretriever-ocr-v1](https://build.nvidia.com/nvidia/nemoretriever-ocr-v1/modelcard) as the default OCR model. For details, refer to [NeMo Retriever OCR Configuration Guide](nemoretriever-ocr.md).
-- The Vision-Language Model (VLM) inference feature now uses the model [nemotron-nano-12b-v2-vl](https://build.nvidia.com/nvidia/nemotron-nano-12b-v2-vl/modelcard). For details, refer to [VLM for Generation](vlm.md).
+- Improved VLM based generation support. The Vision-Language Model (VLM) inference feature now uses the model [nemotron-nano-12b-v2-vl](https://build.nvidia.com/nvidia/nemotron-nano-12b-v2-vl/modelcard). For details, refer to [VLM for Generation](vlm.md).
 - User interface improvements including catalog display, image and text query, and others. For details, refer to [User Interface](user-interface.md).
 - Added ingestion metrics endpoint support with OpenTelemetry (OTEL) for monitoring document uploads, elements ingested, and pages processed. For details, refer to [Observability](observability.md).
 - Support image and text as input query. For details, refer to [Multimodal Query Support](multimodal-query.md).
@@ -44,6 +44,7 @@ This release contains the following key changes:
 - Added support for [rag_library_lite_usage.ipynb](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/rag_library_lite_usage.ipynb) which demonstrates containerless deployment of the NVIDIA RAG Python package in lite mode.
 - Added example showcasing [NeMo Agent Toolkit integration](https://github.com/NVIDIA/NeMo-Agent-Toolkit) with NVIDIA RAG.
 - Added [weighted hybrid search](hybrid_search.md#weighted-hybrid-search) support with configurable weights.
+- Improved [VLM based generation support.
 - RAG server logging improvements
 
 
