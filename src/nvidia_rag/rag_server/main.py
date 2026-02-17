@@ -1938,27 +1938,46 @@ class NvidiaRAG:
             tuple[str, bool]: Query string that may include base64 image data for VLM embeddings
             bool: True if image URL is provided, False otherwise
         """
+        is_image_query = False
         if isinstance(content, str):
-            return content, False
+            return content, is_image_query
         elif isinstance(content, list):
-            # Build multimodal query with both text and base64 images
-            query_parts = []
-            for item in content:
-                if isinstance(item, dict):
-                    if item.get("type") == "text":
-                        text_content = item.get("text", "").strip()
-                        if text_content:
-                            query_parts.append(text_content)
-                    elif item.get("type") == "image_url":
-                        image_url = item.get("image_url", {}).get("url", "")
-                        if image_url:
-                            # If image URL is provided, return it as is
-                            return image_url, True
-            # If no image URL is provided, return the text content
-            return "\n\n".join(query_parts), False
+            # Build multimodal query with both text and base64 images.
+            
+            # Process text types first, then image_url types.
+            text_items = [
+                item for item in content
+                if isinstance(item, dict) and item.get("type") == "text"
+            ]
+            image_items = [
+                item for item in content
+                if isinstance(item, dict) and item.get("type") == "image_url"
+            ]
+            
+            # Extract text and image parts in separate lists
+            text_parts = []
+            image_parts = []
+            for item in text_items:
+                text_content = item.get("text", "").strip()
+                if text_content:
+                    text_parts.append(text_content)
+            for item in image_items:
+                image_url = item.get("image_url", {}).get("url", "")
+                if image_url:
+                    image_parts.append(image_url)
+                    is_image_query = True
+                    break # only one image is supported
+            
+            text_query = "\n\n".join(text_parts)
+            if image_parts:
+                image_str = " ".join(image_parts)
+                final_query = (text_query + " " + image_str) if text_query else image_str
+            else:
+                final_query = text_query
+            return final_query, is_image_query
         else:
             # Fallback for any other content type
-            return (str(content) if content is not None else ""), False
+            return (str(content) if content is not None else ""), is_image_query
 
     async def _rag_chain(
         self,
