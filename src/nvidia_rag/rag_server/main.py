@@ -33,6 +33,7 @@ Private helper methods:
 
 """
 
+import asyncio
 import json
 import logging
 import math
@@ -41,6 +42,7 @@ import time
 from collections.abc import AsyncGenerator, Generator
 from concurrent.futures import ThreadPoolExecutor
 from traceback import print_exc
+from types import SimpleNamespace
 from typing import Any
 
 import requests
@@ -64,6 +66,7 @@ from nvidia_rag.rag_server.response_generator import (
     Citations,
     ErrorCodeMapping,
     RAGResponse,
+    Usage,
     generate_answer_async,
     prepare_citations,
     prepare_llm_request,
@@ -93,6 +96,7 @@ from nvidia_rag.utils.llm import (
     get_llm,
     get_prompts,
     get_streaming_filter_think_parser_async,
+    streaming_filter_think,
 )
 from nvidia_rag.utils.observability.otel_metrics import OtelMetrics
 from nvidia_rag.utils.reranker import get_ranking_model
@@ -104,6 +108,43 @@ async def _async_iter(items) -> AsyncGenerator[Any, None]:
     """Helper to convert a list to an async generator."""
     for item in items:
         yield item
+
+
+def _extract_token_usage_from_llm_message(message) -> Usage | None:
+    """Extract token_usage from an LLM invoke response (AIMessage).
+
+    Supports usage_metadata (NVIDIA), response_metadata.token_usage / usage, and
+    prompt_tokens_details is ignored; only prompt_tokens, completion_tokens, total_tokens are used.
+    """
+    prompt_tokens = None
+    completion_tokens = None
+    total_tokens = None
+
+    # Prefer usage_metadata (e.g. NVIDIA AIMessage)
+    um = getattr(message, "usage_metadata", None) or {}
+    if um:
+        prompt_tokens = um.get("prompt_tokens") or um.get("input_tokens")
+        completion_tokens = um.get("completion_tokens") or um.get("output_tokens")
+        total_tokens = um.get("total_tokens")
+
+    # Fallback: response_metadata (token_usage or usage)
+    if prompt_tokens is None or completion_tokens is None:
+        meta = getattr(message, "response_metadata", None) or {}
+        tu = meta.get("token_usage") or meta.get("usage") or {}
+        if tu:
+            prompt_tokens = prompt_tokens or tu.get("prompt_tokens") or tu.get("input_tokens")
+            completion_tokens = completion_tokens or tu.get("completion_tokens") or tu.get("output_tokens")
+            total_tokens = total_tokens or tu.get("total_tokens")
+
+    if prompt_tokens is None and completion_tokens is None:
+        return None
+    if total_tokens is None and (prompt_tokens is not None or completion_tokens is not None):
+        total_tokens = (prompt_tokens or 0) + (completion_tokens or 0)
+    return Usage(
+        prompt_tokens=prompt_tokens or 0,
+        completion_tokens=completion_tokens or 0,
+        total_tokens=total_tokens or 0,
+    )
 
 
 logger = logging.getLogger(__name__)
@@ -1534,9 +1575,22 @@ class NvidiaRAG:
             stream_gen = chain.astream(
                 {"question": query_text}, config={"run_name": "llm-stream"}
             )
-            # Eagerly fetch first chunk to trigger any errors before returning response
-            prefetched_stream = await self._eager_prefetch_astream(stream_gen)
-            
+            chain_for_usage = prompt_template | llm
+            loop = asyncio.get_event_loop()
+
+            prefetched_stream, usage_message = await asyncio.gather(
+                # Eagerly fetch first chunk to trigger any errors before returning response
+                self._eager_prefetch_astream(stream_gen),
+                loop.run_in_executor(
+                    None,
+                    lambda: chain_for_usage.invoke(
+                        {"question": query_text},
+                        config={"run_name": "llm-invoke-usage"},
+                    ),
+                ),
+            )
+            token_usage = _extract_token_usage_from_llm_message(usage_message)
+
             logger.info("LLM stream initiated successfully (first chunk received)")
             logger.info("-" * 80)
 
@@ -1548,6 +1602,7 @@ class NvidiaRAG:
                     collection_name="",
                     enable_citations=enable_citations,
                     otel_metrics_client=metrics,
+                    token_usage=token_usage,
                 ),
                 status_code=ErrorCodeMapping.SUCCESS,
             )
@@ -2914,8 +2969,25 @@ class NvidiaRAG:
                 response_reflection_counter = ReflectionCounter(
                     self.config.reflection.max_loops
                 )
-                initial_response = await chain.ainvoke(
-                    {"question": query, "context": docs}
+                chain_invoke = prompt | llm
+                response_message = await chain_invoke.ainvoke(
+                    {"question": query, "context": docs},
+                    config={"run_name": "llm-invoke-reflection"},
+                )
+                token_usage = _extract_token_usage_from_llm_message(response_message)
+                raw_content = response_message.content
+                if isinstance(raw_content, str):
+                    content_str = raw_content
+                elif isinstance(raw_content, list) and raw_content:
+                    content_str = (
+                        raw_content[0].get("text", "")
+                        if isinstance(raw_content[0], dict)
+                        else str(raw_content[0])
+                    )
+                else:
+                    content_str = ""
+                initial_response = "".join(
+                    streaming_filter_think(iter([SimpleNamespace(content=content_str)]))
                 )
                 logger.info("Initial LLM response generated, checking groundedness...")
                 try:
@@ -2970,6 +3042,7 @@ class NvidiaRAG:
                         retrieval_time_ms=retrieval_time_ms,
                         rag_start_time_sec=rag_start_time_sec,
                         otel_metrics_client=metrics,
+                        token_usage=token_usage,
                     ),
                     status_code=ErrorCodeMapping.SUCCESS,
                 )
@@ -2980,9 +3053,22 @@ class NvidiaRAG:
                     {"question": query, "context": docs},
                     config={"run_name": "llm-stream"},
                 )
-                # Eagerly fetch first chunk to trigger any errors before returning response
-                prefetched_stream = await self._eager_prefetch_astream(stream_gen)
-                
+                chain_for_usage = prompt | llm
+                loop = asyncio.get_event_loop()
+
+                prefetched_stream, usage_message = await asyncio.gather(
+                    # Eagerly fetch first chunk to trigger any errors before returning response
+                    self._eager_prefetch_astream(stream_gen),
+                    loop.run_in_executor(
+                        None,
+                        lambda: chain_for_usage.invoke(
+                            {"question": query, "context": docs},
+                            config={"run_name": "llm-invoke-usage-rag"},
+                        ),
+                    ),
+                )
+                token_usage = _extract_token_usage_from_llm_message(usage_message)
+
                 logger.info("LLM stream initiated successfully (first chunk received)")
                 logger.info("-" * 80)
                 logger.info("=" * 80)
@@ -3000,6 +3086,7 @@ class NvidiaRAG:
                         retrieval_time_ms=retrieval_time_ms,
                         rag_start_time_sec=rag_start_time_sec,
                         otel_metrics_client=metrics,
+                        token_usage=token_usage,
                     ),
                     status_code=ErrorCodeMapping.SUCCESS,
                 )
