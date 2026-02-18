@@ -444,10 +444,12 @@ def generate_answer(
             rag_ttft_ms: float | None = None
             llm_generation_time_ms: float | None = None
             accumulated_response = ""  # Track complete response for logging
+            completion_chunks = 0
             for chunk in generator:
                 # Accumulate chunks for final logging
                 accumulated_response += chunk
-                
+                completion_chunks += 1
+
                 # TODO: This is a hack to clear contexts if we get an error
                 # response from nemoguardrails
                 if chunk == "I'm sorry, I can't respond to that.":
@@ -534,9 +536,18 @@ def generate_answer(
             except Exception as e:
                 logger.debug("Failed to update OpenTelemetry latency metrics: %s", e)
 
-            # Create response first, then attach metrics for clarity
+            # Create response first, then attach metrics and token usage
             chain_response = ChainResponse()
             chain_response.metrics = final_metrics
+            chain_response.usage = Usage(
+                completion_tokens=completion_chunks,
+                prompt_tokens=0,
+                total_tokens=completion_chunks,
+            )
+            logger.info(
+                "Token usage: completion_tokens=%d (chunk-based estimate)",
+                completion_chunks,
+            )
 
             # [DONE] indicate end of response from server
             response_choice = ChainResponseChoices(
@@ -610,10 +621,12 @@ async def generate_answer_async(
             rag_ttft_ms: float | None = None
             llm_generation_time_ms: float | None = None
             accumulated_response = ""  # Track complete response for logging
+            completion_chunks = 0
             async for chunk in generator:
                 # Accumulate chunks for final logging
                 accumulated_response += chunk
-                
+                completion_chunks += 1
+
                 # TODO: This is a hack to clear contexts if we get an error
                 # response from nemoguardrails
                 if chunk == "I'm sorry, I can't respond to that.":
@@ -700,9 +713,18 @@ async def generate_answer_async(
             except Exception as e:
                 logger.debug("Failed to update OpenTelemetry latency metrics: %s", e)
 
-            # Create response first, then attach metrics for clarity
+            # Create response first, then attach metrics and token usage
             chain_response = ChainResponse()
             chain_response.metrics = final_metrics
+            chain_response.usage = Usage(
+                completion_tokens=completion_chunks,
+                prompt_tokens=0,
+                total_tokens=completion_chunks,
+            )
+            logger.info(
+                "Token usage: completion_tokens=%d (chunk-based estimate)",
+                completion_chunks,
+            )
 
             # [DONE] indicate end of response from server
             response_choice = ChainResponseChoices(
