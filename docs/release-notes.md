@@ -44,7 +44,6 @@ This release contains the following key changes:
 - Added support for [rag_library_lite_usage.ipynb](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/rag_library_lite_usage.ipynb) which demonstrates containerless deployment of the NVIDIA RAG Python package in lite mode.
 - Added example showcasing [NeMo Agent Toolkit integration](https://github.com/NVIDIA/NeMo-Agent-Toolkit) with NVIDIA RAG.
 - Added [weighted hybrid search](hybrid_search.md#weighted-hybrid-search) support with configurable weights.
-- Improved [VLM based generation support.
 - RAG server logging improvements
 
 
