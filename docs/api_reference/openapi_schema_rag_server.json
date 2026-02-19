@@ -707,7 +707,7 @@
             "maxLength": 256,
             "title": "Embedding Model",
             "description": "Name of the embedding model used for vectorization.",
-            "default": "nvdev/nvidia/llama-3.2-nv-embedqa-1b-v2"
+            "default": "nvdev/nvidia/llama-nemotron-embed-1b-v2"
           },
           "embedding_endpoint": {
             "type": "string",
@@ -721,7 +721,7 @@
             "maxLength": 256,
             "title": "Reranker Model",
             "description": "Name of the reranker model used for ranking results.",
-            "default": "nvidia/llama-3.2-nv-rerankqa-1b-v2"
+            "default": "nvidia/llama-nemotron-rerank-1b-v2"
           },
           "reranker_endpoint": {
             "anyOf": [
@@ -1342,7 +1342,7 @@
             "maxLength": 256,
             "title": "Embedding Model",
             "description": "Name of the embedding model used for vectorization.",
-            "default": "nvdev/nvidia/llama-3.2-nv-embedqa-1b-v2"
+            "default": "nvdev/nvidia/llama-nemotron-embed-1b-v2"
           },
           "embedding_endpoint": {
             "anyOf": [
@@ -1363,7 +1363,7 @@
             "maxLength": 256,
             "title": "Reranker Model",
             "description": "Name of the reranker model used for ranking results.",
-            "default": "nvidia/llama-3.2-nv-rerankqa-1b-v2"
+            "default": "nvidia/llama-nemotron-rerank-1b-v2"
           },
           "reranker_endpoint": {
             "anyOf": [

@@ -155,12 +155,12 @@ Verify all containers are running and healthy.
 
 ```output
 NAMES                           STATUS
-nemoretriever-ranking-ms        Up ... (healthy)
+nemotron-ranking-ms        Up ... (healthy)
 compose-page-elements-1         Up ...
 compose-nemoretriever-ocr-1     Up ...
 compose-graphic-elements-1      Up ...
 compose-table-structure-1       Up ...
-nemoretriever-embedding-ms      Up ... (healthy)
+nemotron-embedding-ms      Up ... (healthy)
 nim-llm-ms                      Up ... (healthy)
 ```
 
@@ -176,19 +176,19 @@ nim-llm-ms                      Up ... (healthy)
 
 - os.environ["OCR_INFER_PROTOCOL"] = "http"
 os.environ["YOLOX_HTTP_ENDPOINT"] = (
-    "https://ai.api.nvidia.com/v1/cv/nvidia/nemoretriever-page-elements-v3"
+    "https://ai.api.nvidia.com/v1/cv/nvidia/nemotron-page-elements-v3"
 )
 
 - os.environ["YOLOX_INFER_PROTOCOL"] = "http"
 
 - os.environ["YOLOX_GRAPHIC_ELEMENTS_HTTP_ENDPOINT"] = (
-    "https://ai.api.nvidia.com/v1/cv/nvidia/nemoretriever-graphic-elements-v1"
+    "https://ai.api.nvidia.com/v1/cv/nvidia/nemotron-graphic-elements-v1"
 )
 
 - os.environ["YOLOX_GRAPHIC_ELEMENTS_INFER_PROTOCOL"] = "http"
 
 - os.environ["YOLOX_TABLE_STRUCTURE_HTTP_ENDPOINT"] = (
-    "https://ai.api.nvidia.com/v1/cv/nvidia/nemoretriever-table-structure-v1"
+    "https://ai.api.nvidia.com/v1/cv/nvidia/nemotron-table-structure-v1"
 )
 os.environ["YOLOX_TABLE_STRUCTURE_INFER_PROTOCOL"] = "http"
 
@@ -247,7 +247,7 @@ if DEPLOYMENT_MODE == "cloud":
     config_ingestor.llm.server_url = ""  # Empty uses NVIDIA API catalog
     config_ingestor.summarizer.server_url = ""  # Empty uses NVIDIA API catalog
 else:
-    config_ingestor.embeddings.server_url = "http://nemoretriever-embedding-ms:8000/v1"
+    config_ingestor.embeddings.server_url = "http://nemotron-embedding-ms:8000/v1"
 
 ingestor = NvidiaRAGIngestor(config=config_ingestor)
 ```
@@ -357,11 +357,11 @@ from nvidia_rag.utils.configuration import NvidiaRAGConfig
 #         "server_url": "",
 #     },
 #     "embeddings": {
-#         "model_name": "nvidia/llama-3.2-nv-embedqa-1b-v2",
+#         "model_name": "nvidia/llama-nemotron-embed-1b-v2",
 #         "server_url": "https://integrate.api.nvidia.com/v1",
 #     },
 #     "ranking": {
-#         "model_name": "nvidia/llama-3.2-nv-rerankqa-1b-v2",
+#         "model_name": "nvidia/llama-nemotron-rerank-1b-v2",
 #         "server_url": "",
 #     },
 # })
