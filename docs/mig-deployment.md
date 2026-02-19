@@ -4,14 +4,16 @@
 -->
 # Deploy NVIDIA RAG Blueprint on Kubernetes with Helm and MIG Support
 
-Use this guide to deploy the [NVIDIA RAG Blueprint](readme.md) Helm chart with NVIDIA MIG (Multi-Instance GPU) slices for fine-grained GPU allocation. For other options, see [Deployment Options](readme.md#deployment-options-for-rag-blueprint).
+Use this documentation to deploy the [NVIDIA RAG Blueprint](readme.md) Helm chart with NVIDIA MIG (Multi-Instance GPU) slices for fine-grained GPU allocation.
+For other deployment options, refer to [Deployment Options](readme.md#deployment-options-for-rag-blueprint).
 
-To confirm GPU compatibility with MIG, see the [MIG Supported Hardware List](https://docs.nvidia.com/datacenter/tesla/mig-user-guide/#mig-user-guide).
+To ensure that your GPUs are compatible with MIG,
+refer to the [MIG Supported Hardware List](https://docs.nvidia.com/datacenter/tesla/mig-user-guide/#mig-user-guide).
 
 
 ## Prerequisites
 
-Before deploying, ensure you have:
+Before you deploy, verify that you have the following:
 
 * A Kubernetes cluster with NVIDIA H100 or RTX PRO 6000 GPUs
 
@@ -21,23 +23,23 @@ Before deploying, ensure you have:
    :::
 
 :::{important}
-- At least 200GB free disk space per node for NIM model caches and application data
-- First-time deployment takes 60–70 minutes; model downloads do not show progress indicators
+- Ensure that you have at least 200GB of available disk space per node for NIM model caches and application data
+- First-time deployment takes 60-70 minutes while large models download without visible progress indicators
 
-To monitor progress, see [Deploy on Kubernetes with Helm](deploy-helm.md#verify-the-deployment).
+For monitoring deployment progress, refer to [Deploy on Kubernetes with Helm](./deploy-helm.md#verify-a-deployment).
 :::
 
 1. [Get an API Key](api-key.md).
 
-2. Ensure you meet the [hardware requirements](support-matrix.md).
+2. Verify that you meet the [hardware requirements](support-matrix.md).
 
-3. Ensure the NGC CLI is available on your client. Download it from [NGC CLI installers](https://ngc.nvidia.com/setup/installers/cli).
+3. Verify that you have the NGC CLI available on your client computer. You can download the CLI from <https://ngc.nvidia.com/setup/installers/cli>.
 
-4. Ensure a supported Kubernetes version (for example, v1.28 or later) is installed and running on Ubuntu 22.04 or 24.04. See [Kubernetes documentation](https://kubernetes.io/docs/setup/) and [NVIDIA Cloud Native Stack 17.0](https://github.com/NVIDIA/cloud-native-stack/tree/25.12.0).
+4. Verify that you have Kubernetes v1.34.2 installed and running on Ubuntu 22.04/24.04. For more information, see [Kubernetes documentation](https://kubernetes.io/docs/setup/) and [NVIDIA Cloud Native Stack 17.0](https://github.com/NVIDIA/cloud-native-stack/tree/25.12.0).
 
-5. Install Helm 3 (not Helm 4). Follow the [Helm v3 installation](https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3) instructions for your platform (for example, the `get-helm-3` script).
+5. Verify that you have installed Helm 3. To install Helm 3 (and avoid Helm 4), follow the official Helm v3 installation instructions for your platform, for example by using the `get-helm-3` script described in the [Helm documentation](https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3).
 
-6. Ensure a default storage class exists for PVC provisioning. One option is the [Rancher local path provisioner](https://github.com/rancher/local-path-provisioner?tab=readme-ov-file#installation).
+6. Verify that you have a default storage class available in the cluster for PVC provisioning. One option is the local path provisioner by Rancher.   Refer to the [installation](https://github.com/rancher/local-path-provisioner?tab=readme-ov-file#installation) section of the README in the GitHub repository.
 
     ```console
     kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/v0.0.26/deploy/local-path-storage.yaml
@@ -45,19 +47,19 @@ To monitor progress, see [Deploy on Kubernetes with Helm](deploy-helm.md#verify-
     kubectl get storageclass
     ```
 
-7. If the local path storage class is not the default, set it with:
+6. If the local path storage class is not set as default, you can make it default by running the following code.
 
-    ```sh
+    ```
     kubectl patch storageclass local-path -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
     ```
 
-8. Install the [NVIDIA GPU Operator](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/getting-started.html) if you have not already.
+7. Verify that you have installed the NVIDIA GPU Operator by using the instructions [here](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/getting-started.html).
 
-9. (Optional) Enable [time slicing](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/gpu-sharing.html) to share GPUs between pods.
+8. (Optional) You can enable time slicing for sharing GPUs between pods. For details, refer to [Time-Slicing GPUs in Kubernetes](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/gpu-sharing.html).
 
-10. [Clone the RAG Blueprint Git repository](deploy-docker-self-hosted.md#clone-the-rag-blueprint-git-repository) to get the MIG configuration files.
+9. [Clone the RAG Blueprint Git repository](deploy-docker-self-hosted.md#clone-the-rag-blueprint-git-repository) to get access to the MIG configuration files.
 
-11. Install the NVIDIA NIM Operator if needed. Run:
+10. Verify that you have installed the NVIDIA NIM Operator. If not, install it by running the following code:
 
     ```sh
     helm repo add nvidia https://helm.ngc.nvidia.com/nvidia \
@@ -67,25 +69,25 @@ To monitor progress, see [Deploy on Kubernetes with Helm](deploy-helm.md#verify-
     helm install nim-operator nvidia/k8s-nim-operator -n nim-operator --create-namespace
     ```
 
-    For details, see [NIM Operator installation](https://docs.nvidia.com/nim-operator/latest/install.html).
+    For more details, see instructions [here](https://docs.nvidia.com/nim-operator/latest/install.html).
 
 
 
 ## Step 1: Enable MIG with Mixed Strategy
 
-1. Change to the `deploy/helm/` directory:
+1. Change your directory to ***deploy/helm/*** by running the following code.
 
    ```sh
    cd deploy/helm/
    ```
 
-2. Create the deployment namespace:
+2. Create a namespace for the deployment by running the following code.
 
-   ```sh
-   kubectl create namespace rag
-   ```
+    ```sh
+    kubectl create namespace rag
+    ```
 
-3. Set the GPU Operator ClusterPolicy to use the mixed MIG strategy:
+3. Update the GPU Operator's ClusterPolicy to use the mixed MIG strategy by running the following code.
 
     ```bash
     kubectl patch clusterpolicies.nvidia.com/cluster-policy \
@@ -95,14 +97,14 @@ To monitor progress, see [Deploy on Kubernetes with Helm](deploy-helm.md#verify-
 
 
 
-## Step 2: Apply the MIG Configuration
+## Step 2: Apply the MIG configuration
 
 Edit the MIG configuration file [`mig-config-h100.yaml`](../deploy/helm/mig-slicing/mig-config-h100.yaml) to adjust the slicing pattern as needed.
 The following example enables a custom configuration with mixed MIG slice sizes on the same GPU.
 
 
 :::{note}
-This example uses 7× 1g.10gb on GPU 0, 2× 1g.20gb + 1× 3g.40gb on GPU 1, and 1× 7g.80gb on GPU 3. You can combine different MIG slice sizes on a single GPU for better utilization.
+This example uses a custom slicing strategy: 7 slices of 1g.10gb on GPU 0, mixed slices (2x 1g.20gb + 1x 3g.40gb) on GPU 1, and 1 slice of 7g.80gb on GPU 3. This demonstrates the ability to combine different MIG slice sizes on a single GPU for optimal resource utilization.
 :::
 
 ```yaml
@@ -134,7 +136,7 @@ data:
             "7g.80gb": 1
 ```
 
-Apply the MIG ConfigMap and update the ClusterPolicy:
+Apply the custom MIG configuration configMap to the node and update the ClusterPolicy, by running the following code.
 
 ```bash
 kubectl apply -n nvidia-gpu-operator -f mig-slicing/mig-config-h100.yaml
@@ -143,7 +145,7 @@ kubectl patch clusterpolicies.nvidia.com/cluster-policy \
   -p='[{"op":"replace", "path":"/spec/migManager/config/name", "value":"custom-mig-config"}]'
 ```
 
-Label the node with the MIG configuration:
+Label the node with MIG configuration, by running the following code.
 
 ```bash
 kubectl label nodes <node-name> nvidia.com/mig.config=custom-7x1g10-2x1g20-1x3g40-1x7g80 --overwrite
@@ -166,7 +168,7 @@ Verify that the MIG configuration is successfully applied, by running the follow
 kubectl get node <node-name> -o=jsonpath='{.metadata.labels}' | jq . | grep mig
 ```
 
-Expected output:
+You should see output similar to the following.
 
 ```json
 "nvidia.com/mig.config.state": "success"
@@ -180,9 +182,7 @@ Expected output:
 
 ## Step 3: Install RAG Blueprint Helm Chart with MIG Values
 
-Ensure your NGC API key is set in the environment (for example, `export NGC_API_KEY="<your-key>"`). See [Get an API Key](api-key.md).
-
-Install the RAG Blueprint Helm chart:
+Run the following code to install the RAG Blueprint Helm Chart.
 
 ```bash
 helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.4.0.tgz \
@@ -194,7 +194,7 @@ helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvidia/blueprint/c
 ```
 
 :::{important}
-**NVIDIA RTX 6000 Pro deployments**
+**For NVIDIA RTX6000 Pro Deployments:**
 
 If you are deploying on NVIDIA RTX6000 Pro GPUs (instead of H100 GPUs), use [`values-mig-rtx6000.yaml`](../deploy/helm/mig-slicing/values-mig-rtx6000.yaml) and [`mig-config-rtx6000.yaml`](../deploy/helm/mig-slicing/mig-config-rtx6000.yaml) which include the RTX6000-specific MIG profiles and NIM LLM model configuration.
 
@@ -209,24 +209,25 @@ helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvidia/blueprint/c
 :::
 
 :::{note}
-For non-default NIM LLM profiles, see [NIM Model Profile Configuration](model-profiles.md).
+Refer to [NIM Model Profile Configuration](model-profiles.md) for using non-default NIM LLM profile.
 :::
 
 :::{note}
-Because of a known MIG limitation, the ingestion profile is scaled down when using MIG slicing. Bulk ingestion, especially large jobs, may be slower or fail.
+Due to a known issue with MIG support, currently the ingestion profile has been scaled down while deploying the chart with MIG slicing.
+This is expected to affect the ingestion performance during bulk ingestion, specifically large bulk ingestion jobs might fail.
 :::
 
 
 
 ## Step 4: Verify MIG Resource Allocation
 
-To view pod GPU assignments, run [kubectl-view-allocations](https://github.com/davidB/kubectl-view-allocations):
+To view pod GPU assignments, run [`kubectl-view-allocations`](https://github.com/davidB/kubectl-view-allocations) as shown following.
 
 ```bash
 kubectl-view-allocations
 ```
 
-Expected output:
+You should see output similar to the following.
 
 ```
 Resource                                    Requested   Limit    Allocatable  Free
@@ -253,13 +254,14 @@ nvidia.com/mig-7g.80gb                      (100%) 1.0  (100%) 1.0     1.0      
 
 ## Step 5: Check the MIG Slices
 
-From the GPU Operator driver pod, run `nvidia-smi` to inspect MIG slices:
+To check the MIG slices, run the following code from the GPU Operator driver pod.
+This runs `nvidia-smi` within the pod to check GPU MIG slices.
 
 ```bash
 kubectl exec -n gpu-operator -it <driver-daemonset-pod> -- nvidia-smi -L
 ```
 
-Expected output:
+You should see output similar to the following.
 
 ```
 GPU 0: NVIDIA H100 80GB HBM3 (UUID: ...)
@@ -282,15 +284,16 @@ GPU 3: NVIDIA H100 80GB HBM3 (UUID: ...)
 
 ## Step 6: Follow the Remaining Instructions
 
-Complete the deployment using [Deploy on Kubernetes with Helm](deploy-helm.md):
 
-- [Verify the Deployment](deploy-helm.md#verify-the-deployment)
-- [Port-Forward to Access the Web UI](deploy-helm.md#port-forward-to-access-the-web-ui)
-- [Experiment with the Web UI](deploy-helm.md#experiment-with-the-web-ui)
-- [Change a Deployment](deploy-helm.md#change-a-deployment)
-- [Uninstall a Deployment](deploy-helm.md#uninstall-a-deployment)
-- [(Optional) Enable Persistence](deploy-helm.md#optional-enable-persistence)
-- [Troubleshooting Helm Issues](deploy-helm.md#troubleshooting-helm-issues)
+6. Follow the remaining instructions in [Deploy on Kubernetes with Helm](./deploy-helm.md):
+
+    - [Verify a Deployment](deploy-helm.md#verify-a-deployment)
+    - [Port-Forwarding to Access Web User Interface](deploy-helm.md#port-forwarding-to-access-web-user-interface)
+    - [Experiment with the Web User Interface](deploy-helm.md#experiment-with-the-web-user-interface)
+    - [Change a deployment](deploy-helm.md#change-a-deployment)
+    - [Uninstall a deployment](deploy-helm.md#uninstall-a-deployment)
+    - [(Optional) Enable Persistence](deploy-helm.md#optional-enable-persistence)
+    - [Troubleshooting Helm Issues](deploy-helm.md#troubleshooting-helm-issues)
 
 
 
@@ -306,8 +309,8 @@ Complete the deployment using [Deploy on Kubernetes with Helm](deploy-helm.md):
 
 - [NVIDIA RAG Blueprint Documentation](readme.md)
 - [RAG Pipeline Debugging Guide](debugging.md)
-- [Troubleshooting](troubleshooting.md)
+- [Troubleshoot](troubleshooting.md)
 - [Notebooks](notebooks.md)
-- [NVIDIA GPU Operator](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/)
+- [NVIDIA GPU Operator Docs](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/)
 - [MIG User Guide](https://docs.nvidia.com/datacenter/tesla/mig-user-guide/)
-- [Best Practices for Common Settings](accuracy_perf.md)
+- [Best Practices for Common Settings](accuracy_perf.md).
