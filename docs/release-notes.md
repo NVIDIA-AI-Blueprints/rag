@@ -8,7 +8,7 @@ This documentation contains the release notes for [NVIDIA RAG Blueprint](readme.
 
 
 
-## Release 2.4.0 (26-02-TBD)
+## Release 2.4.0 (2026-02-20)
 
 This release adds new features to the RAG pipeline for supporting agent workflows and enhances generations with VLMs augmenting multimodal input.
 
