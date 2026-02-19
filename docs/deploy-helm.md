@@ -4,13 +4,13 @@
 -->
 # Deploy NVIDIA RAG Blueprint on Kubernetes with Helm
 
-Use the following documentation to deploy the [NVIDIA RAG Blueprint](readme.md) on a Kubernetes cluster by using Helm.
+Use this guide to deploy the [NVIDIA RAG Blueprint](readme.md) on a Kubernetes cluster with Helm.
 
-- To deploy the Helm chart with MIG support, refer to [RAG Deployment with MIG Support](./mig-deployment.md).
-- To deploy with Helm from the repository, refer to [Deploy Helm from the repository](deploy-helm-from-repo.md).
-- For other deployment options, refer to [Deployment Options](readme.md#deployment-options-for-rag-blueprint).
+- For MIG support, see [RAG Deployment with MIG Support](mig-deployment.md).
+- To deploy from the repository, see [Deploy Helm from the Repository](deploy-helm-from-repo.md).
+- For other options, see [Deployment Options](readme.md#deployment-options-for-rag-blueprint).
 
-The following are the core services that you install:
+The deployment installs these core services:
 
 - RAG server
 - Ingestor server
@@ -26,20 +26,20 @@ Ensure you have at least 200GB of available disk space per node where NIMs will 
 - Persistent volumes for vector database and application data
 - Logs and temporary files
 
-Plan for additional space if you are enabling persistence for multiple services.
+Plan for more space if you enable persistence for multiple services.
 :::
 
 1. [Get an API Key](api-key.md).
 
-2. Verify that you meet the [hardware requirements](support-matrix.md).
+2. Ensure you meet the [hardware requirements](support-matrix.md).
 
-3. Verify that you have the NGC CLI available on your client computer. You can download the CLI from <https://ngc.nvidia.com/setup/installers/cli>.
+3. Ensure the NGC CLI is available on your client. Download it from [NGC CLI installers](https://ngc.nvidia.com/setup/installers/cli).
 
-4. Verify that you have Kubernetes v1.34.2 installed and running on Ubuntu 22.04/24.04. For more information, see [Kubernetes documentation](https://kubernetes.io/docs/setup/) and [NVIDIA Cloud Native Stack](https://github.com/NVIDIA/cloud-native-stack).
+4. Ensure a supported Kubernetes version (for example, v1.28 or later) is installed and running on Ubuntu 22.04 or 24.04. See [Kubernetes documentation](https://kubernetes.io/docs/setup/) and [NVIDIA Cloud Native Stack](https://github.com/NVIDIA/cloud-native-stack).
 
-5. Verify that you have installed Helm 3.  To install Helm 3 (and avoid Helm 4), follow the official Helm v3 installation instructions for your platform, for example by using the `get-helm-3` script described in the [Helm documentation](https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3).
+5. Install Helm 3 (not Helm 4). Follow the [Helm v3 installation](https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3) instructions for your platform (for example, the `get-helm-3` script).
 
-6. Verify that you have a default storage class available in the cluster for PVC provisioning. One option is the local path provisioner by Rancher.   Refer to the [installation](https://github.com/rancher/local-path-provisioner?tab=readme-ov-file#installation) section of the README in the GitHub repository.
+6. Ensure a default storage class exists for PVC provisioning. One option is the [Rancher local path provisioner](https://github.com/rancher/local-path-provisioner?tab=readme-ov-file#installation).
 
     ```console
     kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/v0.0.26/deploy/local-path-storage.yaml
@@ -47,17 +47,17 @@ Plan for additional space if you are enabling persistence for multiple services.
     kubectl get storageclass
     ```
 
-7. If the local path storage class is not set as default, you can make it default by running the following code.
+7. If the local path storage class is not the default, set it with the following command.
 
-    ```
+    ```sh
     kubectl patch storageclass local-path -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
     ```
 
-8. Verify that you have installed the NVIDIA GPU Operator by using the instructions [here](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/getting-started.html).
+8. Install the [NVIDIA GPU Operator](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/getting-started.html) if you have not already.
 
-9. (Optional) You can enable time slicing for sharing GPUs between pods. For details, refer to [Time-Slicing GPUs in Kubernetes](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/gpu-sharing.html).
+9. (Optional) Enable [time slicing](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/gpu-sharing.html) to share GPUs between pods.
 
-10. Verify that you have installed the NVIDIA NIM Operator. If not, install it by running the following code:
+10. Install the NVIDIA NIM Operator if needed. Run the following commands:
 
     ```sh
     helm repo add nvidia https://helm.ngc.nvidia.com/nvidia \
@@ -67,24 +67,26 @@ Plan for additional space if you are enabling persistence for multiple services.
     helm install nim-operator nvidia/k8s-nim-operator -n nim-operator --create-namespace
     ```
 
-    For more details, see instructions [here](https://docs.nvidia.com/nim-operator/latest/install.html).
+    For details, see [NIM Operator installation](https://docs.nvidia.com/nim-operator/latest/install.html).
 
 
-## Deploy the RAG Helm chart
+## Deploy the RAG Helm Chart
 
 :::{important}
-When you use the Helm NIM Operator deployment, it takes approximately 60 to 70 minutes for the entire pipeline to reach a running state.
+With the Helm NIM Operator deployment, the full pipeline takes about 60–70 minutes to reach a running state.
 :::
 
-To deploy End-to-End RAG Server and Ingestor Server, use the following procedure.
+Use the following procedure to deploy the RAG server and Ingestor server.
 
-1. Create a namespace for the deployment by running the following code.
+Ensure your NGC API key is set in the environment (for example, `export NGC_API_KEY="<your-key>"`). See [Get an API Key](api-key.md).
+
+1. Create the deployment namespace:
 
     ```sh
     kubectl create namespace rag
     ```
 
-2. Install the Helm chart by running the following command.
+2. Install the Helm chart:
 
     ```sh
     helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.4.0.tgz \
@@ -95,11 +97,11 @@ To deploy End-to-End RAG Server and Ingestor Server, use the following procedure
     ```
 
    :::{important}
-   **For NVIDIA RTX6000 Pro Deployments:**
+   **NVIDIA RTX 6000 Pro deployments**
    
-    If you are deploying on NVIDIA RTX6000 Pro GPUs (instead of H100 GPUs), you need to configure the NIM LLM model profile. The required configuration is already present but commented out in the [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) file.
+    For NVIDIA RTX 6000 Pro GPUs (instead of H100), configure the NIM LLM model profile. The required configuration is in the [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) file but commented out.
 
-    Uncomment and modify the following section under `nimOperator.nim-llm.model`:
+    Uncomment and adjust the following under `nimOperator.nim-llm.model`:
     ```yaml
     model:
       engine: tensorrt_llm
@@ -110,7 +112,7 @@ To deploy End-to-End RAG Server and Ingestor Server, use the following procedure
         - product: "rtx6000_blackwell_sv"
     ```
    
-   Then install using the modified values.yaml:
+   Then install with the modified values file:
    ```sh
    helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.4.0.tgz \
      --username '$oauthtoken' \
@@ -122,15 +124,15 @@ To deploy End-to-End RAG Server and Ingestor Server, use the following procedure
    :::
 
    :::{note}
-   Refer to [NIM Model Profile Configuration](model-profiles.md) for using non-default NIM LLM profile.
+   For non-default NIM LLM profiles, see [NIM Model Profile Configuration](model-profiles.md).
    :::
 
 
-## Verify a Deployment
+## Verify the Deployment
 
-To verify a deployment, use the following procedure.
+Use the following procedure to verify the deployment.
 
-1. List the pods by running the following code.
+1. List the pods:
 
     ```sh
     kubectl get pods -n rag
@@ -139,7 +141,7 @@ To verify a deployment, use the following procedure.
     You should see output similar to the following.
 
    :::{note}
-   If some pods remain in `Pending` state after deployment, refer to [PVCs in Pending state (StorageClass issues)](troubleshooting.md#pvcs-in-pending-state-storageclass-issues) in the troubleshooting guide.
+   If some pods stay in `Pending`, see [PVCs in Pending state (StorageClass issues)](troubleshooting.md#pvcs-in-pending-state-storageclass-issues).
    :::
 
     ```sh
@@ -164,15 +166,15 @@ To verify a deployment, use the following procedure.
     ```
 
    :::{note}
-   With the latest Helm NIM Operator deployment, approximately 60 to 70 minutes is required for the entire pipeline to come up into a running state. This includes time for the following:
-   
-   - Downloading NIM model caches (largest time component, ~40-50 minutes)
-   - NIMService initialization (~10-15 minutes)
-   - Pod startup and readiness checks (~5-10 minutes)
+   The full pipeline takes about 60–70 minutes to reach a running state. Time is spent on:
 
-   Model downloads do not show detailed progress indicators in pod status. Pods may appear in "ContainerCreating" or "Init" state for extended periods while models download in the background.
+   - NIM model cache downloads (~40–50 minutes)
+   - NIMService initialization (~10–15 minutes)
+   - Pod startup and readiness (~5–10 minutes)
 
-   You can monitor the deployment progress by running the following code.
+   Model downloads do not show progress in pod status. Pods can stay in `ContainerCreating` or `Init` while models download.
+
+   To monitor progress, run:
 
    ```sh
    # Check pod status
@@ -194,10 +196,10 @@ To verify a deployment, use the following procedure.
    kubectl get pvc -n rag
    ```
    
-   Subsequent deployments are significantly faster (~10-15 minutes) because model caches are already populated.
+   Later deployments are faster (~10–15 minutes) because caches are already populated.
    :::
 
-2.  List services by running the following code.
+2. List the services:
 
     ```sh
     kubectl get svc -n rag
@@ -228,26 +230,28 @@ To verify a deployment, use the following procedure.
     ```
 
 
-## Port-Forwarding to Access Web User Interface
+## Port-Forward to Access the Web UI
 
-- [RAG UI](user-interface.md) – Run the following code to port-forward the RAG UI service to your local machine. Then access the RAG UI at `http://localhost:3000`.
+To reach the [RAG UI](user-interface.md) from your machine, run:
 
   ```sh
   kubectl port-forward -n rag service/rag-frontend 3000:3000 --address 0.0.0.0
   ```
 
+Then open `http://localhost:3000` in a browser.
+
 :::{note}
-Port-forwarding is provided as a quick method to try out the UI. However, large file ingestion or bulk ingestion through the UI might not work due to port-forwarding timeout issues.
+Port-forwarding is a quick way to try the UI. Large or bulk ingestion through the UI may hit timeouts.
 ::: 
 
-## Experiment with the Web User Interface
+## Experiment with the Web UI
 
-1. Open a web browser and access the RAG UI. You can start experimenting by uploading docs and asking questions. For details, see [User Interface for NVIDIA RAG Blueprint](user-interface.md).
+Open the RAG UI in a browser. Upload documents and ask questions to try it out. For details, see [User Interface for NVIDIA RAG Blueprint](user-interface.md).
 
 
 ## Change a Deployment
 
-To change an existing deployment, after you modify the [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) file, run the following code.
+After modifying [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml), run the following from the repository root:
 
 ```sh
 helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.4.0.tgz \
@@ -261,13 +265,13 @@ helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvidia/blueprint/c
 
 ## Uninstall a Deployment
 
-To uninstall a deployment, run the following code.
+To uninstall, run:
 
 ```sh
 helm uninstall rag -n rag
 ```
 
-Run the following code to remove the NIMCache and Persistent Volume Claims (PVCs) created by the chart which are not removed by default.
+The chart does not remove NIMCache or PVCs by default. To remove them, run:
 
 ```sh
 kubectl delete nimcache --all -n rag
@@ -276,33 +280,31 @@ kubectl delete pvc --all -n rag
 
 ## (Optional) Enable Persistence
 
-1. Update the [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) file for the persistence that you want. Use the following instructions.
+1. Edit [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) for the persistence you want:
 
-    - **NIM LLM** – To enable persistence for NIM LLM, refer to [NIM LLM](https://docs.nvidia.com/nim/large-language-models/latest/deploy-helm.html#storage). Update the required fields in the `nim-llm` section of the [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) file.
+    - **NIM LLM** – See [NIM LLM storage](https://docs.nvidia.com/nim/large-language-models/latest/deploy-helm.html#storage). Update the `nim-llm` section in `values.yaml` as required.
 
-    - **Nemo Retriever** – To enable persistence for Nemo Retriever embedding, refer to [Nemo Retriever Text Embedding](https://docs.nvidia.com/nim/nemo-retriever/text-embedding/latest/deploying.html#storage). Update the required fields in the `nvidia-nim-llama-32-nv-embedqa-1b-v2` section of the [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) file.
+    - **NeMo Retriever embedding** – See [NeMo Retriever Text Embedding storage](https://docs.nvidia.com/nim/nemo-retriever/text-embedding/latest/deploying.html#storage). Update the `nvidia-nim-llama-32-nv-embedqa-1b-v2` section as required.
 
-    - **Nemo Retriever reranking** – To enable persistence for Nemo Retriever reranking, refer to [Nemo Retriever Text Reranking](https://docs.nvidia.com/nim/nemo-retriever/text-reranking/latest/deploying.html#storage). Update the required fields in the `nvidia-nim-llama-32-nv-rerankqa-1b-v2` section of the [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) file.
+    - **NeMo Retriever reranking** – See [NeMo Retriever Text Reranking storage](https://docs.nvidia.com/nim/nemo-retriever/text-reranking/latest/deploying.html#storage). Update the `nvidia-nim-llama-32-nv-rerankqa-1b-v2` section as required.
 
-2. Run the code in [Change a Deployment](#change-a-deployment).
+2. Run the command in [Change a Deployment](#change-a-deployment).
 
 
 
 ## Troubleshooting Helm Issues
 
-For troubleshooting issues with Helm deployment, refer to [Troubleshooting](troubleshooting.md).
+For Helm deployment issues, see [Troubleshooting](troubleshooting.md).
 
 :::{note}
-Refer to [NIM Model Profile Configuration](model-profiles.md) for using non-default NIM LLM profile.
+For non-default NIM LLM profiles, see [NIM Model Profile Configuration](model-profiles.md).
 :::
-
-
 
 ## Related Topics
 
 - [NVIDIA RAG Blueprint Documentation](readme.md)
-- [Best Practices for Common Settings](accuracy_perf.md).
+- [Best Practices for Common Settings](accuracy_perf.md)
 - [Multi-Turn Conversation Support](multiturn.md)
 - [RAG Pipeline Debugging Guide](debugging.md)
-- [Troubleshoot](troubleshooting.md)
+- [Troubleshooting](troubleshooting.md)
 - [Notebooks](notebooks.md)
