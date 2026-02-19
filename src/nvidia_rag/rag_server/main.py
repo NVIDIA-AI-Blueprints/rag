@@ -2550,9 +2550,13 @@ class NvidiaRAG:
                         for future in futures:
                             docs.extend(future.result())
 
+                    # When both original table/chart and its summary are in top-k, keep only summary for reranker
+                    docs = self._dedupe_keep_summary_for_table_chart(docs)
+
                     retrieval_time_ms = (time.time() - retrieval_start_time) * 1000
                     logger.info("Retrieval Output:")
                     logger.info("  - Retrieved Documents: %d", len(docs))
+                    logger.info("  - Table/chart summary chunks in top-k: %d", self._count_table_chart_summary_docs(docs))
                     logger.info("  - Retrieval Time: %.2f ms", retrieval_time_ms)
                     logger.info("-" * 80)
 
@@ -2587,6 +2591,7 @@ class NvidiaRAG:
                     
                     logger.info("Reranking Output:")
                     logger.info("  - Reranked Documents: %d", len(context_to_show))
+                    logger.info("  - Table/chart summary chunks in reranked: %d", self._count_table_chart_summary_docs(context_to_show))
                     logger.info("  - Reranking Time: %.2f ms", context_reranker_time_ms)
                     if context_to_show:
                         scores = [doc.metadata.get("relevance_score", "N/A") for doc in context_to_show[:3]]
@@ -2628,7 +2633,6 @@ class NvidiaRAG:
                             # ),
                             # otel_ctx=otel_ctx,
                         )
-                        context_to_show = docs
                     else:
                         docs = vdb_op.retrieval_langchain(
                             query=retriever_query,
@@ -2642,11 +2646,14 @@ class NvidiaRAG:
                             ),
                             otel_ctx=otel_ctx,
                         )
-                        context_to_show = docs
+                    # When both original table/chart and its summary are in top-k, keep only summary
+                    docs = self._dedupe_keep_summary_for_table_chart(docs)
+                    context_to_show = docs
                     retrieval_time_ms = (time.time() - retrieval_start_time) * 1000
-                    
+
                     logger.info("Retrieval Output:")
                     logger.info("  - Retrieved Documents: %d", len(context_to_show))
+                    logger.info("  - Table/chart summary chunks in top-k: %d", self._count_table_chart_summary_docs(context_to_show))
                     logger.info("  - Retrieval Time: %.2f ms", retrieval_time_ms)
                     logger.info("-" * 80)
 
@@ -2666,6 +2673,9 @@ class NvidiaRAG:
                 logger.info("Filtering Output:")
                 logger.info("  - Filtered Documents: %d", len(context_to_show))
                 logger.info("-" * 80)
+
+            # Morph table_chart_summary chunks to table/chart (full content, type) so LLM and citations see originals
+            self._morph_table_chart_summary_docs_to_table(context_to_show)
 
             if enable_vlm_inference or is_image_query:
                 # Initialize vlm_settings if not provided
@@ -3160,6 +3170,92 @@ class NvidiaRAG:
 
         return documents
 
+    @staticmethod
+    def _table_chart_key(doc: "Document") -> tuple | None:
+        """Return a key (source_id, page_number, location) for table/chart identity, or None if not table/chart."""
+        meta = getattr(doc, "metadata", None) or {}
+        cm = meta.get("content_metadata") or {}
+        t = cm.get("type")
+        if t == "table_chart_summary":
+            subtype = cm.get("subtype", "table")
+            if subtype not in ("table", "chart"):
+                return None
+        elif t == "structured" and cm.get("subtype") in ("table", "chart"):
+            pass
+        else:
+            return None
+        source = meta.get("source")
+        if isinstance(source, dict):
+            source_id = source.get("source_id") or source.get("source_name") or ""
+        else:
+            source_id = str(source) if source else ""
+        page_number = cm.get("page_number")
+        location = cm.get("location")
+        loc_tuple = tuple(location) if location and isinstance(location, (list, tuple)) else None
+        return (source_id, page_number, loc_tuple)
+
+    @staticmethod
+    def _dedupe_keep_summary_for_table_chart(docs: list) -> list:
+        """
+        When both the original table/chart chunk and its summary chunk are in top-k,
+        keep only the summary so reranker runs on summary text; drop the original.
+        """
+        keys_with_summary = set()
+        for doc in docs:
+            key = NvidiaRAG._table_chart_key(doc)
+            if key is None:
+                continue
+            meta = getattr(doc, "metadata", None) or {}
+            cm = meta.get("content_metadata") or {}
+            if cm.get("type") == "table_chart_summary":
+                keys_with_summary.add(key)
+        if not keys_with_summary:
+            return docs
+        out = []
+        dropped = 0
+        for doc in docs:
+            key = NvidiaRAG._table_chart_key(doc)
+            if key is not None and key in keys_with_summary:
+                cm = (getattr(doc, "metadata", None) or {}).get("content_metadata") or {}
+                if cm.get("type") == "structured":
+                    dropped += 1
+                    continue
+            out.append(doc)
+        if dropped:
+            logger.info(
+                "Deduped %d original table/chart chunk(s) in top-k (keeping summary chunk(s) for reranker)",
+                dropped,
+            )
+        return out
+
+    @staticmethod
+    def _morph_table_chart_summary_docs_to_table(docs: list) -> None:
+        """
+        In-place: turn table_chart_summary chunks into table/chart chunks so LLM and citations
+        see full table content. Morph to type "structured" + subtype "table"/"chart" to match
+        original nv_ingest table/chart chunks in Milvus.
+        """
+        for doc in docs:
+            meta = getattr(doc, "metadata", None) or {}
+            content_metadata = meta.get("content_metadata") or {}
+            if content_metadata.get("type") != "table_chart_summary":
+                continue
+            original = content_metadata.get("original_table_content")
+            if not original or not isinstance(original, str) or not original.strip():
+                continue
+            doc.page_content = original.strip()
+            content_metadata["type"] = "structured"
+
+    @staticmethod
+    def _count_table_chart_summary_docs(docs: list) -> int:
+        """Return number of docs that are table/chart summary chunks."""
+        return sum(
+            1
+            for d in docs
+            if (getattr(d, "metadata", None) or {}).get("content_metadata", {}).get("type")
+            == "table_chart_summary"
+        )
+
     def _format_document_with_source(self, doc: "Document") -> str:
         """Format document content with its source filename.
 
@@ -3190,19 +3286,21 @@ class NvidiaRAG:
             source.get("source_name", "") if isinstance(source, dict) else source
         )
 
-        # If no source path is found, return just the content
+        # Build base result with or without source path
         if not source_path:
             result = doc.page_content
-            logger.debug(
-                f"After format_document_with_source (no source path) - Result: {result}"
-            )
-            return result
+            logger.debug("Format: no source path, using page_content only")
+        else:
+            filename = os.path.splitext(os.path.basename(source_path))[0]
+            logger.debug(f"Before format_document_with_source - Filename: {filename}")
+            result = f"File: {filename}\nContent: {doc.page_content}"
 
-        filename = os.path.splitext(os.path.basename(source_path))[0]
-        logger.debug(f"Before format_document_with_source - Filename: {filename}")
-        result = f"File: {filename}\nContent: {doc.page_content}"
+        # If this is a table/chart summary chunk, append full table/chart content so the LLM sees it (no truncation)
+        content_metadata = doc.metadata.get("content_metadata")
+        if isinstance(content_metadata, dict) and content_metadata.get("type") == "table_chart_summary":
+            original = content_metadata.get("original_table_content")
+            if original and isinstance(original, str) and original.strip():
+                result = f"{result}\n\nFull table/chart content:\n{original.strip()}"
 
-        # Debug log after formatting
-        logger.debug(f"After format_document_with_source - Result: {result}")
-
+        logger.debug(f"After format_document_with_source - Result length: {len(result)}")
         return result

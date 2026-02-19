@@ -262,6 +262,16 @@ iterative_summary_prompt:
 
     Please create a new summary that incorporates information from both the previous summary and the new chunk.
 
+table_chart_summary_prompt:
+  system: |
+    /no_think
+
+  human: |
+    Summarize the following table or chart content for semantic search. Preserve key facts, numbers, row/column meanings, and trends. Keep the summary concise (a few sentences) but information-dense so that retrieval can match user questions to this content. Do not add preamble like "This table shows" or "Summary:". Output only the summary text.
+
+    Content:
+    {table_chart_content}
+
 
 vlm_template:
   system: |

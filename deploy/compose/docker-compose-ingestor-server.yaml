@@ -114,6 +114,12 @@ services:
       APP_NVINGEST_SAVETODISK: ${APP_NVINGEST_SAVETODISK:-False}
       NVINGEST_MINIO_BUCKET: ${NVINGEST_MINIO_BUCKET:-nv-ingest}
 
+      ##===NV-Ingest Table/Chart Summary Configurations====
+      # Generate LLM summaries for table/chart elements and insert as extra chunks for better retrieval
+      APP_NVINGEST_GENERATETABLECHARTSUMMARIES: ${APP_NVINGEST_GENERATETABLECHARTSUMMARIES:-False}
+      # Max concurrent LLM/embedding calls for table/chart summaries across all batches (global cap)
+      APP_NVINGEST_TABLECHARTSUMMARYMAXCONCURRENCY: ${APP_NVINGEST_TABLECHARTSUMMARYMAXCONCURRENCY:-20}
+
       ##===NV-Ingest Performance Configurations========
       # If enabled, splits a single PDF's pages into parallel chunks for processing (smaller chunks = more parallelism but more overhead)
       APP_NVINGEST_ENABLE_PDF_SPLIT_PROCESSING: ${APP_NVINGEST_ENABLE_PDF_SPLIT_PROCESSING:-False}

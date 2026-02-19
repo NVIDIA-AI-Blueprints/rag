@@ -2424,6 +2424,49 @@ class NvidiaRAGIngestor:
                 return results, failures
             raise Exception(error_message)
 
+        # Generate table/chart summaries and insert into same collection if enabled
+        if (
+            self.config.nv_ingest.generate_table_chart_summaries
+            and vdb_op is not None
+        ):
+            try:
+                from nvidia_rag.ingestor_server.table_chart_summary import (
+                    generate_and_ingest_table_chart_summaries,
+                )
+
+                def _table_chart_done(t: asyncio.Task) -> None:
+                    self._background_tasks.discard(t)
+                    try:
+                        t.result()
+                    except Exception as e:
+                        logger.warning(
+                            "Table/chart summary background task failed: %s",
+                            e,
+                            exc_info=logger.isEnabledFor(logging.DEBUG),
+                        )
+
+                task = asyncio.create_task(
+                    generate_and_ingest_table_chart_summaries(
+                        results=results,
+                        collection_name=collection_name,
+                        vdb_op=vdb_op,
+                        config=self.config,
+                    )
+                )
+                self._background_tasks.add(task)
+                task.add_done_callback(_table_chart_done)
+                logger.info(
+                    "Started table/chart summary generation in background for batch %d (collection=%s)",
+                    batch_number,
+                    collection_name,
+                )
+            except Exception as e:
+                logger.warning(
+                    "Failed to start table/chart summary task (continuing): %s",
+                    e,
+                    exc_info=logger.isEnabledFor(logging.DEBUG),
+                )
+
         try:
             if self.mode != Mode.LITE:
                 start_time = time.time()

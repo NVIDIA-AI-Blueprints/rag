@@ -361,6 +361,16 @@ class NvIngestConfig(_ConfigBase):
         env="APP_NVINGEST_SAVETODISK",
         description="Save extracted content to disk for debugging",
     )
+    generate_table_chart_summaries: bool = Field(
+        default=False,
+        env="APP_NVINGEST_GENERATETABLECHARTSUMMARIES",
+        description="Generate LLM summaries for table/chart elements and insert as extra chunks for better retrieval",
+    )
+    table_chart_summary_max_concurrency: int = Field(
+        default=20,
+        env="APP_NVINGEST_TABLECHARTSUMMARYMAXCONCURRENCY",
+        description="Max concurrent LLM/embedding calls for table/chart summaries across all batches (global cap)",
+    )
     # Batch processing configuration
     enable_batch_mode: bool = Field(
         default=True,
