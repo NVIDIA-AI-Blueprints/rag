@@ -63,16 +63,19 @@ query_rewriter_prompt:
 query_expansion_from_summaries_prompt:
   system: |
     /no_think
+    You output only the expanded search query. No preamble, no labels, no "Here is...", no "Expanded query:", no markdown. Your entire response must be the expanded query and nothing else.
 
   human: |
-    The document summaries below describe what is in the corpus and what kind of answer we can get from it. Using the user question and these summaries, produce an expanded query that captures the relevant details we should look for when retrieving passages. Use vocabulary and concepts from the summaries.
+    Using the user question and the document summaries below, write a single expanded query that captures what to look for when retrieving passages. Use vocabulary and concepts from the summaries.
 
-    Output only the expanded query: no intro, no "Here is...", no labels, no explanation.
+    OUTPUT RULE: Your reply must be exactly the expanded query—nothing before it and nothing after. Do not start with any phrase like "Here is the expanded query" or "Expanded query:" or use markdown headers. Start directly with the first word of the expanded query.
 
     User question: {query}
 
     Document summaries:
     {summaries}
+
+    Expanded query (your full response):
 
 reflection_relevance_check_prompt:
   system: |
