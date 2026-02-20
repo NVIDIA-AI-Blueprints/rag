@@ -2550,8 +2550,14 @@ class NvidiaRAG:
                         for future in futures:
                             docs.extend(future.result())
 
-                    # When both original table/chart and its summary are in top-k, keep only summary for reranker
-                    docs = self._dedupe_keep_summary_for_table_chart(docs)
+                    # Optional: keep only summary when both original table/chart and summary in top-k (default False to avoid accuracy drop on table-heavy benchmarks)
+                    if getattr(self.config.retriever, "dedupe_table_chart_before_rerank", False):
+                        docs = self._dedupe_keep_summary_for_table_chart(docs)
+
+                    # Rerank with full table: keep original when both present; for summary-only, morph to full table so reranker sees table text
+                    if getattr(self.config.retriever, "rerank_table_chart_with_full_content", True):
+                        docs = self._dedupe_keep_original_for_table_chart(docs)
+                        self._morph_summary_to_full_table_before_rerank(docs)
 
                     retrieval_time_ms = (time.time() - retrieval_start_time) * 1000
                     logger.info("Retrieval Output:")
@@ -2646,8 +2652,8 @@ class NvidiaRAG:
                             ),
                             otel_ctx=otel_ctx,
                         )
-                    # When both original table/chart and its summary are in top-k, keep only summary
-                    docs = self._dedupe_keep_summary_for_table_chart(docs)
+                    if getattr(self.config.retriever, "dedupe_table_chart_before_rerank", False):
+                        docs = self._dedupe_keep_summary_for_table_chart(docs)
                     context_to_show = docs
                     retrieval_time_ms = (time.time() - retrieval_start_time) * 1000
 
@@ -2656,6 +2662,9 @@ class NvidiaRAG:
                     logger.info("  - Table/chart summary chunks in top-k: %d", self._count_table_chart_summary_docs(context_to_show))
                     logger.info("  - Retrieval Time: %.2f ms", retrieval_time_ms)
                     logger.info("-" * 80)
+
+            # So LLM and citations see full table and structured type (MinIO) for summary chunks
+            self._morph_table_chart_summary_docs_to_table(context_to_show)
 
             if ranker and enable_reranker and confidence_threshold > 0.0:
                 logger.info("=" * 80)
@@ -2673,9 +2682,6 @@ class NvidiaRAG:
                 logger.info("Filtering Output:")
                 logger.info("  - Filtered Documents: %d", len(context_to_show))
                 logger.info("-" * 80)
-
-            # Morph table_chart_summary chunks to table/chart (full content, type) so LLM and citations see originals
-            self._morph_table_chart_summary_docs_to_table(context_to_show)
 
             if enable_vlm_inference or is_image_query:
                 # Initialize vlm_settings if not provided
@@ -3229,22 +3235,76 @@ class NvidiaRAG:
         return out
 
     @staticmethod
-    def _morph_table_chart_summary_docs_to_table(docs: list) -> None:
+    def _dedupe_keep_original_for_table_chart(docs: list) -> list:
         """
-        In-place: turn table_chart_summary chunks into table/chart chunks so LLM and citations
-        see full table content. Morph to type "structured" + subtype "table"/"chart" to match
-        original nv_ingest table/chart chunks in Milvus.
+        When both the original table/chart chunk and its summary are in top-k,
+        keep the original and drop the summary (so reranker sees full table text).
+        """
+        keys_with_original = set()
+        for doc in docs:
+            key = NvidiaRAG._table_chart_key(doc)
+            if key is None:
+                continue
+            meta = getattr(doc, "metadata", None) or {}
+            cm = meta.get("content_metadata") or {}
+            if cm.get("type") == "structured":
+                keys_with_original.add(key)
+        if not keys_with_original:
+            return docs
+        out = []
+        dropped = 0
+        for doc in docs:
+            key = NvidiaRAG._table_chart_key(doc)
+            if key is not None and key in keys_with_original:
+                cm = (getattr(doc, "metadata", None) or {}).get("content_metadata") or {}
+                if cm.get("type") == "table_chart_summary":
+                    dropped += 1
+                    continue
+            out.append(doc)
+        if dropped:
+            logger.info(
+                "Deduped %d table/chart summary chunk(s) in top-k (keeping original chunk(s) for reranker)",
+                dropped,
+            )
+        return out
+
+    @staticmethod
+    def _morph_summary_to_full_table_before_rerank(docs: list) -> None:
+        """
+        In-place: for each table_chart_summary doc, set page_content = original_table_content
+        so the reranker sees full table text instead of short summary (better ranking).
         """
         for doc in docs:
             meta = getattr(doc, "metadata", None) or {}
-            content_metadata = meta.get("content_metadata") or {}
-            if content_metadata.get("type") != "table_chart_summary":
+            cm = meta.get("content_metadata") or {}
+            if cm.get("type") != "table_chart_summary":
                 continue
-            original = content_metadata.get("original_table_content")
+            original = cm.get("original_table_content")
             if not original or not isinstance(original, str) or not original.strip():
                 continue
             doc.page_content = original.strip()
-            content_metadata["type"] = "structured"
+
+    @staticmethod
+    def _morph_table_chart_summary_docs_to_table(context_to_show: list) -> None:
+        """
+        In-place: for each table_chart_summary doc in context (after rerank), set
+        page_content to full table and content_metadata.type to 'structured' so the
+        LLM and citations see full table and MinIO key is used (same metadata as original).
+        """
+        for doc in context_to_show:
+            meta = getattr(doc, "metadata", None) or {}
+            cm = meta.get("content_metadata") or {}
+            if cm.get("type") != "table_chart_summary":
+                continue
+            original = cm.get("original_table_content")
+            if original and isinstance(original, str) and original.strip():
+                doc.page_content = original.strip()
+            if "content_metadata" not in doc.metadata:
+                doc.metadata["content_metadata"] = {}
+            doc.metadata["content_metadata"]["type"] = "structured"
+            doc.metadata["content_metadata"]["subtype"] = (
+                doc.metadata["content_metadata"].get("subtype") or "table"
+            )
 
     @staticmethod
     def _count_table_chart_summary_docs(docs: list) -> int:

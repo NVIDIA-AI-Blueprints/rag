@@ -65,6 +65,10 @@ services:
       APP_RETRIEVER_SCORETHRESHOLD: 0.25
       # Top K from vector DB, which goes as input to reranker model if enabled, else goes to LLM prompt
       VECTOR_DB_TOPK: ${VECTOR_DB_TOPK:-100}
+      # When true, keep only summary chunk when both original table/chart and summary are in top-k (default False to avoid accuracy drop on table-heavy benchmarks)
+      APP_RETRIEVER_DEDUPE_TABLE_CHART_BEFORE_RERANK: ${APP_RETRIEVER_DEDUPE_TABLE_CHART_BEFORE_RERANK:-False}
+      # When true, before rerank: drop summary when original is present; morph remaining summary chunks to full table text for reranker (default True)
+      APP_RETRIEVER_RERANK_TABLE_CHART_WITH_FULL_CONTENT: ${APP_RETRIEVER_RERANK_TABLE_CHART_WITH_FULL_CONTENT:-True}
 
       ##===LLM Model specific configurations===
       APP_LLM_MODELNAME: ${APP_LLM_MODELNAME:-"nvidia/llama-3.3-nemotron-super-49b-v1.5"}

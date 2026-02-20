@@ -730,6 +730,16 @@ class RetrieverConfig(_ConfigBase):
         env="VECTOR_DB_TOPK",
         description="Number of documents to retrieve from vector database before reranking",
     )
+    dedupe_table_chart_before_rerank: bool = Field(
+        default=False,
+        env="APP_RETRIEVER_DEDUPE_TABLE_CHART_BEFORE_RERANK",
+        description="If True, when both original table/chart and its summary are in top-k, keep only summary before reranker. Default False to avoid losing table content when reranker ranks summary below top-k (can hurt accuracy on table-heavy benchmarks).",
+    )
+    rerank_table_chart_with_full_content: bool = Field(
+        default=True,
+        env="APP_RETRIEVER_RERANK_TABLE_CHART_WITH_FULL_CONTENT",
+        description="If True, before rerank: (1) drop summary when original table/chart chunk is also in top-k; (2) for remaining summary chunks, set page_content to full table so reranker sees original table text. Helps reranker rank table content higher.",
+    )
     score_threshold: float = Field(
         default=0.25,
         env="APP_RETRIEVER_SCORETHRESHOLD",
