@@ -2378,6 +2378,114 @@ class NvidiaRAG:
                     except Exception as e:
                         logger.warning(f"Error generating filter expression: {str(e)}")
 
+            # Query expansion from summaries (two-stage retrieval; Milvus only)
+            qe_config = self.config.query_expansion_from_summaries
+            if qe_config.enable_query_expansion_from_summaries and not is_image_query:
+                if self.config.vector_store.name != "milvus":
+                    logger.debug(
+                        "Query expansion from summaries is enabled but only supported for Milvus (current: %s); skipping.",
+                        self.config.vector_store.name,
+                    )
+            if (
+                qe_config.enable_query_expansion_from_summaries
+                and not is_image_query
+                and validated_collections
+                and self.config.vector_store.name == "milvus"
+            ):
+                summaries_collection_name = qe_config.summaries_collection_name
+                summary_top_n = max(1, qe_config.summary_retrieval_top_n)
+                if vdb_op.check_collection_exists(summaries_collection_name):
+                    try:
+                        query_for_expansion = (processed_query or "").strip()
+                        if not query_for_expansion:
+                            logger.debug(
+                                "Skipping query expansion from summaries: query is empty"
+                            )
+                        else:
+                            # Escape backslash and double-quote for Milvus filter string
+                            def _escape_filter_string(s: str) -> str:
+                                return s.replace("\\", "\\\\").replace('"', '\\"')
+
+                            parts = [
+                                f'content_metadata["collection_name"] == "{_escape_filter_string(c)}"'
+                                for c in validated_collections
+                            ]
+                            summaries_filter = " || ".join(parts)
+                            if len(validated_collections) > 1:
+                                summaries_filter = f"({summaries_filter})"
+                            logger.info("=" * 80)
+                            logger.info("STAGE: Query Expansion from Summaries")
+                            logger.info("=" * 80)
+                            logger.info("  - Summaries collection: %s", summaries_collection_name)
+                            logger.info("  - Summary top-N: %d", summary_top_n)
+                            logger.info("  - Query: '%s'", query_for_expansion[:200])
+                            otel_ctx = otel_context.get_current()
+                            summary_docs = vdb_op.retrieval_langchain(
+                                query=query_for_expansion,
+                                collection_name=summaries_collection_name,
+                                vectorstore=vdb_op.get_langchain_vectorstore(
+                                    summaries_collection_name
+                                ),
+                                top_k=summary_top_n,
+                                filter_expr=summaries_filter,
+                                otel_ctx=otel_ctx,
+                            )
+                            summaries_text = ""
+                            if summary_docs:
+                                summaries_text = "\n\n".join(
+                                    (doc.page_content or "") for doc in summary_docs
+                                )
+                            if summaries_text.strip():
+                                expansion_prompt_config = self.prompts.get(
+                                    "query_expansion_from_summaries_prompt", {}
+                                )
+                                system_msg = expansion_prompt_config.get(
+                                    "system", ""
+                                )
+                                human_msg = expansion_prompt_config.get(
+                                    "human",
+                                    "User question: {query}\n\nDocument summaries:\n{summaries}",
+                                )
+                                expansion_prompt = ChatPromptTemplate.from_messages(
+                                    [
+                                        ("system", system_msg),
+                                        ("human", human_msg),
+                                    ]
+                                )
+                                expansion_llm = get_llm(
+                                    config=self.config,
+                                    model=self.config.llm.model_name,
+                                    llm_endpoint=self.config.llm.server_url,
+                                    temperature=qe_config.expansion_temperature,
+                                    max_tokens=max(1, qe_config.expansion_max_tokens),
+                                    api_key=self.config.llm.get_api_key(),
+                                )
+                                chain = (
+                                    expansion_prompt
+                                    | expansion_llm
+                                    | StrOutputParser()
+                                )
+                                expanded = await chain.ainvoke(
+                                    {
+                                        "query": query_for_expansion,
+                                        "summaries": summaries_text,
+                                    },
+                                    config={"run_name": "query_expansion_from_summaries"},
+                                )
+                                if expanded and expanded.strip():
+                                    retriever_query = expanded.strip()
+                                    logger.info(
+                                        "  - Expanded query: '%s'",
+                                        retriever_query[:200] if retriever_query else "",
+                                    )
+                            logger.info("-" * 80)
+                    except Exception as e:
+                        logger.warning(
+                            "Query expansion from summaries failed: %s",
+                            e,
+                            exc_info=logger.getEffectiveLevel() <= logging.DEBUG,
+                        )
+
             if enable_query_decomposition and not is_image_query:
                 logger.info("=" * 80)
                 logger.info("STAGE: Query Decomposition (Iterative)")

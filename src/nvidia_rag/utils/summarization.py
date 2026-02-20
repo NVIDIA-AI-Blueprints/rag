@@ -374,6 +374,7 @@ async def generate_document_summaries(
     config: NvidiaRAGConfig | None = None,
     is_shallow: bool = False,
     prompts: dict | None = None,
+    store_summary_in_vdb_callback: Any = None,
 ) -> dict[str, Any]:
     """
     Generate summaries for multiple documents in parallel with global rate limiting.
@@ -386,6 +387,8 @@ async def generate_document_summaries(
         config: NvidiaRAGConfig instance. If None, creates a new one from environment.
         is_shallow: Whether this is shallow extraction (text-only, uses simplified prompt)
         prompts: Optional prompts dictionary.
+        store_summary_in_vdb_callback: Optional callable(Document), sync or async, called after storing summary in MinIO,
+            used to write the summary into the summaries vector collection (for two-stage retrieval).
 
     Returns:
         dict: Statistics with total_files, successful, failed, duration_seconds, files
@@ -450,6 +453,7 @@ async def generate_document_summaries(
             summarization_strategy=summarization_strategy,
             is_shallow=is_shallow,
             prompts=prompts,
+            store_summary_in_vdb_callback=store_summary_in_vdb_callback,
         )
         for file_data in file_results
     ]
@@ -495,6 +499,7 @@ async def _process_single_file_summary(
     summarization_strategy: str | None = None,
     is_shallow: bool = False,
     prompts: dict | None = None,
+    store_summary_in_vdb_callback: Any = None,
 ) -> dict[str, Any]:
     """
     Process summary for a single file with global rate limiting.
@@ -509,6 +514,7 @@ async def _process_single_file_summary(
         summarization_strategy: Strategy for summarization ('single', 'hierarchical') or None for default iterative
         is_shallow: Whether this is shallow extraction (text-only, uses simplified prompt)
         prompts: Optional prompts dictionary.
+        store_summary_in_vdb_callback: Optional callable(Document), sync or async, to write summary to summaries VDB.
 
     Returns:
         dict: Result with status, duration, and optional error
@@ -559,6 +565,23 @@ async def _process_single_file_summary(
             )
 
             await _store_summary_in_minio(summary_doc)
+
+            # VDB write runs in same background summary task; never blocks ingestion.
+            if store_summary_in_vdb_callback is not None:
+                try:
+                    if asyncio.iscoroutinefunction(store_summary_in_vdb_callback):
+                        await store_summary_in_vdb_callback(summary_doc)
+                    else:
+                        await asyncio.to_thread(
+                            store_summary_in_vdb_callback, summary_doc
+                        )
+                except Exception as e:
+                    logger.warning(
+                        "Failed to store summary in VDB for %s: %s",
+                        file_name,
+                        e,
+                        exc_info=logger.getEffectiveLevel() <= logging.DEBUG,
+                    )
 
             SUMMARY_STATUS_HANDLER.update_progress(
                 collection_name=collection_name,

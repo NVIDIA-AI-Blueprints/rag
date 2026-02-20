@@ -197,6 +197,13 @@ services:
       # maximum recursion depth for iterative query decomposition
       MAX_RECURSION_DEPTH: ${MAX_RECURSION_DEPTH:-3}
 
+      # Query expansion from summaries (two-stage retrieval: top-N summaries -> LLM expanded query -> main retrieval)
+      ENABLE_QUERY_EXPANSION_FROM_SUMMARIES: ${ENABLE_QUERY_EXPANSION_FROM_SUMMARIES:-false}
+      SUMMARIES_COLLECTION_NAME: ${SUMMARIES_COLLECTION_NAME:-rag_summaries}
+      SUMMARY_RETRIEVAL_TOP_N: ${SUMMARY_RETRIEVAL_TOP_N:-5}
+      QUERY_EXPANSION_MAX_TOKENS: ${QUERY_EXPANSION_MAX_TOKENS:-256}
+      QUERY_EXPANSION_TEMPERATURE: ${QUERY_EXPANSION_TEMPERATURE:-0.2}
+
       # Redis configuration for summary status tracking
       REDIS_HOST: ${REDIS_HOST:-redis}
       REDIS_PORT: ${REDIS_PORT:-6379}

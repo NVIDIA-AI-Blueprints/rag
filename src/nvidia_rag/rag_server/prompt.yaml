@@ -60,6 +60,20 @@ query_rewriter_prompt:
 
     Latest Question: {input}
 
+query_expansion_from_summaries_prompt:
+  system: |
+    /no_think
+
+  human: |
+    The document summaries below describe what is in the corpus and what kind of answer we can get from it. Using the user question and these summaries, produce an expanded query that captures the relevant details we should look for when retrieving passages. Use vocabulary and concepts from the summaries.
+
+    Output only the expanded query: no intro, no "Here is...", no labels, no explanation.
+
+    User question: {query}
+
+    Document summaries:
+    {summaries}
+
 reflection_relevance_check_prompt:
   system: |
     /no_think

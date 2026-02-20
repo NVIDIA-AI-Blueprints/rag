@@ -1013,6 +1013,50 @@ class ReflectionConfig(_ConfigBase):
         return v
 
 
+class QueryExpansionFromSummariesConfig(_ConfigBase):
+    """Two-stage retrieval: top-N summaries -> LLM expansion -> use expanded text as retrieval query."""
+
+    enable_query_expansion_from_summaries: bool = Field(
+        default=False,
+        env="ENABLE_QUERY_EXPANSION_FROM_SUMMARIES",
+        description="Enable query expansion from document summaries before main retrieval",
+    )
+    summaries_collection_name: str = Field(
+        default="rag_summaries",
+        env="SUMMARIES_COLLECTION_NAME",
+        description="Single global Milvus collection name for all document summaries",
+    )
+    summary_retrieval_top_n: int = Field(
+        default=5,
+        env="SUMMARY_RETRIEVAL_TOP_N",
+        description="Number of top summaries to retrieve for query expansion",
+    )
+    expansion_max_tokens: int = Field(
+        default=256,
+        env="QUERY_EXPANSION_MAX_TOKENS",
+        description="Max tokens for the expanded query/context generated from summaries (same LLM as answer gen)",
+    )
+    expansion_temperature: float = Field(
+        default=0.2,
+        env="QUERY_EXPANSION_TEMPERATURE",
+        description="Temperature for expansion LLM (same LLM as answer generation)",
+    )
+
+    @field_validator("summary_retrieval_top_n")
+    @classmethod
+    def validate_summary_retrieval_top_n(cls, v: int) -> int:
+        if v < 1:
+            raise ValueError("summary_retrieval_top_n must be at least 1")
+        return v
+
+    @field_validator("expansion_max_tokens")
+    @classmethod
+    def validate_expansion_max_tokens(cls, v: int) -> int:
+        if v < 1:
+            raise ValueError("expansion_max_tokens must be at least 1")
+        return v
+
+
 class NvidiaRAGConfig(_ConfigBase):
     """Main NVIDIA RAG configuration.
 
@@ -1048,6 +1092,9 @@ class NvidiaRAGConfig(_ConfigBase):
         default_factory=QueryDecompositionConfig
     )
     reflection: ReflectionConfig = PydanticField(default_factory=ReflectionConfig)
+    query_expansion_from_summaries: QueryExpansionFromSummariesConfig = PydanticField(
+        default_factory=QueryExpansionFromSummariesConfig
+    )
 
     # Top-level flags
     enable_guardrails: bool = Field(

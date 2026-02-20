@@ -70,6 +70,7 @@ from nvidia_rag.utils.common import (
     perform_document_info_aggregation,
 )
 from nvidia_rag.utils.configuration import NvidiaRAGConfig
+from nvidia_rag.utils.embedding import get_embedding_model
 from nvidia_rag.utils.health_models import IngestorHealthResponse
 from nvidia_rag.utils.llm import get_prompts
 from nvidia_rag.utils.metadata_validation import (
@@ -804,6 +805,93 @@ class NvidiaRAGIngestor:
         }
         return response_data
 
+    def _make_store_summary_in_vdb_callback(self):
+        """
+        Build a sync callback (Document) -> None that writes the summary to the summaries
+        vector collection (for two-stage retrieval). Returns None if summaries collection
+        or embedding is unavailable.
+        """
+        try:
+            summaries_collection_name = (
+                self.config.query_expansion_from_summaries.summaries_collection_name
+            )
+            vdb_endpoint = (
+                self.config.vector_store.url or os.getenv("VDB_ENDPOINT", "")
+            )
+            if not vdb_endpoint:
+                return None
+            summaries_vdb_op = _get_vdb_op(
+                vdb_endpoint,
+                collection_name=summaries_collection_name,
+                config=self.config,
+            )
+            embedding_model = get_embedding_model(
+                self.config.embeddings.model_name,
+                self.config.embeddings.server_url,
+                self.config,
+            )
+        except Exception as e:
+            logger.warning(
+                "Could not create summary VDB callback: %s",
+                e,
+                exc_info=logger.getEffectiveLevel() <= logging.DEBUG,
+            )
+            return None
+
+        # Milvus text field max length (nv_ingest schema)
+        _MAX_SUMMARY_TEXT_LENGTH = 65535
+
+        def _store_summary_in_vdb(summary_doc) -> None:
+            metadata = getattr(summary_doc, "metadata", None) or {}
+            summary = metadata.get("summary")
+            if not summary:
+                return
+            if not isinstance(summary, str):
+                summary = str(summary)
+            if len(summary) > _MAX_SUMMARY_TEXT_LENGTH:
+                summary = summary[:_MAX_SUMMARY_TEXT_LENGTH]
+                logger.debug(
+                    "Truncated summary to %d chars for VDB text field",
+                    _MAX_SUMMARY_TEXT_LENGTH,
+                )
+            file_name = metadata.get("filename", "unknown")
+            col = metadata.get("collection_name", "")
+            try:
+                emb_list = embedding_model.embed_documents([summary])
+                if not emb_list:
+                    return
+                emb = emb_list[0]
+            except Exception as e:
+                logger.warning("Failed to embed summary for %s: %s", file_name, e)
+                return
+            source_id = f"{col}/{file_name}" if col else file_name
+            element = {
+                "document_type": "text",
+                "metadata": {
+                    "content": summary,
+                    "source_metadata": {
+                        "source_id": source_id,
+                        "collection_name": col,
+                    },
+                    "content_metadata": {
+                        "file_name": file_name,
+                        "collection_name": col,
+                    },
+                    "embedding": emb,
+                },
+            }
+            try:
+                summaries_vdb_op.run([element])
+                logger.debug("Stored summary in VDB for %s", file_name)
+            except Exception as e:
+                logger.warning(
+                    "Failed to write summary to VDB for %s: %s",
+                    file_name,
+                    e,
+                )
+
+        return _store_summary_in_vdb
+
     @trace_function("ingestor.main.ingest_document_summary", tracer=TRACER)
     async def __ingest_document_summary(
         self,
@@ -815,6 +903,9 @@ class NvidiaRAGIngestor:
     ) -> None:
         """
         Trigger parallel summary generation for documents with optional page filtering.
+        When configured, also writes each summary to the summaries vector collection.
+        Always invoked as a background task (never awaited by the ingestion pipeline),
+        so it does not affect ingestion response time.
 
         Args:
             results: List of document extraction results from nv-ingest
@@ -823,6 +914,7 @@ class NvidiaRAGIngestor:
             summarization_strategy: Strategy for summarization ('single', 'hierarchical') or None for default
             is_shallow: Whether this is shallow extraction (text-only, uses simplified prompt)
         """
+        store_summary_in_vdb_callback = self._make_store_summary_in_vdb_callback()
         try:
             stats = await generate_document_summaries(
                 results=results,
@@ -832,6 +924,7 @@ class NvidiaRAGIngestor:
                 config=self.config,
                 is_shallow=is_shallow,
                 prompts=self.prompts,
+                store_summary_in_vdb_callback=store_summary_in_vdb_callback,
             )
 
             if stats["failed"] > 0:
@@ -2383,7 +2476,8 @@ class NvidiaRAGIngestor:
             state_manager=state_manager,
         )
 
-        # Start summary task only if not shallow_summary (already started in batch wrapper)
+        # Summary generation (including MinIO + summaries VDB write) runs in background only;
+        # we do not await it, so ingestion response time is unaffected.
         if generate_summary and not shallow_summary:
             task = asyncio.create_task(
                 self.__ingest_document_summary(
