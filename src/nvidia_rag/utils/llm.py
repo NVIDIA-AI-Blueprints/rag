@@ -450,7 +450,7 @@ def streaming_filter_think(chunks: Iterable[str]) -> Iterable[str]:
     This generator filters content between think tags in streaming LLM responses.
     It handles both complete tags in a single chunk and tags split across multiple tokens.
 
-    When VERBOSE (DEBUG) logging is enabled (e.g. LOGLEVEL=DEBUG), reasoning tokens are
+    When DEBUG logging is enabled (i.e. LOGLEVEL=DEBUG), reasoning tokens are
     logged from <think> block content or reasoning_content field.
 
     Args:
@@ -485,7 +485,7 @@ def streaming_filter_think(chunks: Iterable[str]) -> Iterable[str]:
         content = chunk.content
         chunk_count += 1
 
-        # Accumulate reasoning tokens when VERBOSE (DEBUG) is enabled (e.g. reasoning_content from nemotron-3-nano)
+        # Accumulate reasoning tokens when DEBUG logging is enabled (e.g. reasoning_content from nemotron-3-nano)
         reasoning, _ = extract_reasoning_and_content(chunk)
         if reasoning and logger.isEnabledFor(logging.DEBUG):
             reasoning_content_accumulator += reasoning
@@ -644,7 +644,7 @@ async def streaming_filter_think_async(chunks):
     This async generator filters content between think tags in streaming LLM responses.
     It handles both complete tags in a single chunk and tags split across multiple tokens.
 
-    When VERBOSE (DEBUG) logging is enabled (e.g. LOGLEVEL=DEBUG), reasoning tokens are
+    When DEBUG logging is enabled (i.e. LOGLEVEL=DEBUG), reasoning tokens are
     logged from <think> block content or reasoning_content field.
 
     Args:
@@ -679,7 +679,7 @@ async def streaming_filter_think_async(chunks):
         content = chunk.content
         chunk_count += 1
 
-        # Accumulate reasoning when VERBOSE (DEBUG) is enabled (e.g. reasoning_content from nemotron-3-nano)
+        # Accumulate reasoning when DEBUG logging is enabled (e.g. reasoning_content from nemotron-3-nano)
         reasoning, _ = extract_reasoning_and_content(chunk)
         if reasoning and logger.isEnabledFor(logging.DEBUG):
             reasoning_content_accumulator += reasoning

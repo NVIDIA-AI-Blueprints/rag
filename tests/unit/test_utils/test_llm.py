@@ -429,9 +429,10 @@ class TestStreamingFilterThink:
     """Test cases for streaming_filter_think function."""
 
     def create_mock_chunk(self, content):
-        """Helper to create mock chunk with content attribute."""
+        """Helper to create mock chunk with content and additional_kwargs (so 'in' works)."""
         chunk = Mock()
         chunk.content = content
+        chunk.additional_kwargs = {}
         return chunk
 
     def test_streaming_filter_think_no_tags(self):
@@ -826,9 +827,10 @@ class TestLLMIntegration:
         assert result == expected
 
     def create_mock_chunk(self, content):
-        """Helper to create mock chunk with content attribute."""
+        """Helper to create mock chunk with content and additional_kwargs (so 'in' works)."""
         chunk = Mock()
         chunk.content = content
+        chunk.additional_kwargs = {}
         return chunk
 
 
