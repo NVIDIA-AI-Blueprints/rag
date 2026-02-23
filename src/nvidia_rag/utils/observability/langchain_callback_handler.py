@@ -65,6 +65,17 @@ LLM_REQUEST_TEMPERATURE = "llm.request.temperature"
 LLM_REQUEST_TOP_P = "llm.request.top_p"
 LLM_SYSTEM = "llm.system"
 
+# Hardcoded attribute keys (replacing deprecated SpanAttributes constants)
+GEN_AI_PROMPTS = "gen_ai.prompt"
+GEN_AI_COMPLETIONS = "gen_ai.completion"
+LLM_REQUEST_MODEL = "gen_ai.request.model"
+LLM_RESPONSE_MODEL = "gen_ai.response.model"
+# Missing in opentelemetry.semconv_ai SpanAttributes (use llm.* to match existing semconv)
+LLM_REQUEST_MAX_TOKENS = "llm.request.max_tokens"
+LLM_REQUEST_TEMPERATURE = "llm.request.temperature"
+LLM_REQUEST_TOP_P = "llm.request.top_p"
+LLM_SYSTEM = "llm.system"
+
 
 class Config:
     exception_logger = None
