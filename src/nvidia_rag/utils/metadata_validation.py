@@ -2164,7 +2164,11 @@ class MilvusQueryTransformer(Transformer):
                         logger.debug(f"[comparison] Failed to normalize datetime: {e}")
                         value_val = str(value_token)
                 elif field_info and is_string_type(field_info.type):
-                    value_val = str(value_token).lower()
+                    # Preserve case for filename/document identifiers (stored as-is in VDB)
+                    if field_name in ("filename", "file_name", "document_name"):
+                        value_val = str(value_token)
+                    else:
+                        value_val = str(value_token).lower()
                 else:
                     value_val = str(value_token)
             else:
@@ -2396,10 +2400,13 @@ class MilvusQueryTransformer(Transformer):
         return str(args[0])
 
     def ESCAPED_STRING(self, token) -> str:
-        """Convert single quotes to double quotes for Milvus compatibility."""
+        """Convert single quotes to double quotes for Milvus compatibility.
+        Preserve case so comparison() can apply case-insensitivity only where appropriate
+        (e.g. skip lowercasing for filename/file_name/document_name).
+        """
         value = token.value
         if value.startswith("'") and value.endswith("'"):
-            return f'"{value[1:-1].lower()}"'
+            return f'"{value[1:-1]}"'
         if value == '""':
             raise FilterSemanticError(
                 "Empty string values are not supported in filter expressions. "

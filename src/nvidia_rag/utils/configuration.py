@@ -1041,6 +1041,11 @@ class QueryExpansionFromSummariesConfig(_ConfigBase):
         env="QUERY_EXPANSION_TEMPERATURE",
         description="Temperature for expansion LLM (same LLM as answer generation)",
     )
+    filter_retrieval_by_summary_docs: bool = Field(
+        default=False,
+        env="FILTER_RETRIEVAL_BY_SUMMARY_DOCS",
+        description="When enabled with query expansion, restrict main retrieval to chunks whose doc (file_name) appears in top-N summary docs",
+    )
 
     @field_validator("summary_retrieval_top_n")
     @classmethod

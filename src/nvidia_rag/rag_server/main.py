@@ -2380,6 +2380,7 @@ class NvidiaRAG:
 
             # Query expansion from summaries (two-stage retrieval; Milvus only)
             qe_config = self.config.query_expansion_from_summaries
+            summary_doc_file_names_by_collection: dict[str, set[str]] = {}
             if qe_config.enable_query_expansion_from_summaries and not is_image_query:
                 if self.config.vector_store.name != "milvus":
                     logger.debug(
@@ -2430,6 +2431,20 @@ class NvidiaRAG:
                                 filter_expr=summaries_filter,
                                 otel_ctx=otel_ctx,
                             )
+                            if summary_docs and qe_config.filter_retrieval_by_summary_docs:
+                                for doc in summary_docs:
+                                    meta = getattr(doc, "metadata", {}) or {}
+                                    content_md = meta.get("content_metadata")
+                                    if isinstance(content_md, dict):
+                                        file_name = content_md.get("file_name") or meta.get("file_name")
+                                        coll = content_md.get("collection_name") or meta.get("collection_name")
+                                    else:
+                                        file_name = meta.get("file_name")
+                                        coll = meta.get("collection_name")
+                                    if file_name and coll and coll in validated_collections:
+                                        summary_doc_file_names_by_collection.setdefault(coll, set()).add(
+                                            file_name if isinstance(file_name, str) else str(file_name)
+                                        )
                             summaries_text = ""
                             if summary_docs:
                                 summaries_text = "\n\n".join(
@@ -2485,6 +2500,28 @@ class NvidiaRAG:
                             e,
                             exc_info=logger.getEffectiveLevel() <= logging.DEBUG,
                         )
+
+            if summary_doc_file_names_by_collection:
+                def _escape_filter(s: str) -> str:
+                    return s.replace("\\", "\\\\").replace('"', '\\"')
+                for coll in list(collection_filter_mapping.keys()):
+                    names = summary_doc_file_names_by_collection.get(coll)
+                    if not names:
+                        continue
+                    # Main (chunk) collection uses content_metadata["filename"] per schema
+                    parts = [
+                        f'content_metadata["filename"] == "{_escape_filter(f)}"'
+                        for f in sorted(names)
+                    ]
+                    file_filter = "(" + " || ".join(parts) + ")"
+                    existing = collection_filter_mapping.get(coll) or ""
+                    collection_filter_mapping[coll] = (
+                        (existing + " && " + file_filter) if existing else file_filter
+                    )
+                logger.info(
+                    "Two-stage document filter: restricting retrieval to docs from top-N summaries: %s",
+                    {k: sorted(v) for k, v in summary_doc_file_names_by_collection.items()},
+                )
 
             if enable_query_decomposition and not is_image_query:
                 logger.info("=" * 80)

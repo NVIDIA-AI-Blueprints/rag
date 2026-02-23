@@ -203,6 +203,8 @@ services:
       SUMMARY_RETRIEVAL_TOP_N: ${SUMMARY_RETRIEVAL_TOP_N:-5}
       QUERY_EXPANSION_MAX_TOKENS: ${QUERY_EXPANSION_MAX_TOKENS:-256}
       QUERY_EXPANSION_TEMPERATURE: ${QUERY_EXPANSION_TEMPERATURE:-0.2}
+      # Restrict main retrieval to docs that appear in top-N summaries (only when query expansion is enabled)
+      FILTER_RETRIEVAL_BY_SUMMARY_DOCS: ${FILTER_RETRIEVAL_BY_SUMMARY_DOCS:-false}
 
       # Redis configuration for summary status tracking
       REDIS_HOST: ${REDIS_HOST:-redis}
