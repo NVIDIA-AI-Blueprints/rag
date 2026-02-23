@@ -1192,7 +1192,7 @@ class NvidiaRAG:
                     logger.warning(
                         "Could not find sufficiently relevant context after maximum attempts"
                     )
-                return prepare_citations(retrieved_documents=docs, force_citations=True, enable_citations=enable_citations)
+                return prepare_citations(retrieved_documents=docs, force_citations=True, enable_citations=enable_citations, enable_image_citation_content=self.config.enable_image_citation_content)
             else:
                 if local_ranker and enable_reranker and not is_image_query:
                     logger.info(
@@ -1274,7 +1274,7 @@ class NvidiaRAG:
                         )
 
                     return prepare_citations(
-                        retrieved_documents=docs, force_citations=True, enable_citations=enable_citations
+                        retrieved_documents=docs, force_citations=True, enable_citations=enable_citations, enable_image_citation_content=self.config.enable_image_citation_content
                     )
                 else:
                     # Handle case where reranker is disabled or image query
@@ -1305,7 +1305,7 @@ class NvidiaRAG:
                             otel_ctx=otel_ctx,
                         )
                     return prepare_citations(
-                        retrieved_documents=docs, force_citations=True, enable_citations=enable_citations
+                        retrieved_documents=docs, force_citations=True, enable_citations=enable_citations, enable_image_citation_content=self.config.enable_image_citation_content
                     )
 
         except APIError:
@@ -1547,6 +1547,7 @@ class NvidiaRAG:
                     model=model,
                     collection_name="",
                     enable_citations=enable_citations,
+                    enable_image_citation_content=self.config.enable_image_citation_content,
                     otel_metrics_client=metrics,
                 ),
                 status_code=ErrorCodeMapping.SUCCESS,
@@ -1566,6 +1567,7 @@ class NvidiaRAG:
                     model=model,
                     collection_name="",
                     enable_citations=enable_citations,
+                    enable_image_citation_content=self.config.enable_image_citation_content,
                     otel_metrics_client=metrics,
                 ),
                 status_code=ErrorCodeMapping.REQUEST_TIMEOUT,
@@ -1583,6 +1585,7 @@ class NvidiaRAG:
                     model=model,
                     collection_name="",
                     enable_citations=enable_citations,
+                    enable_image_citation_content=self.config.enable_image_citation_content,
                     otel_metrics_client=metrics,
                 ),
                 status_code=ErrorCodeMapping.SERVICE_UNAVAILABLE,
@@ -1614,6 +1617,7 @@ class NvidiaRAG:
                         model=model,
                         collection_name="",
                         enable_citations=enable_citations,
+                        enable_image_citation_content=self.config.enable_image_citation_content,
                         otel_metrics_client=metrics,
                     ),
                     status_code=ErrorCodeMapping.FORBIDDEN,
@@ -1630,6 +1634,7 @@ class NvidiaRAG:
                         model=model,
                         collection_name="",
                         enable_citations=enable_citations,
+                        enable_image_citation_content=self.config.enable_image_citation_content,
                         otel_metrics_client=metrics,
                     ),
                     status_code=ErrorCodeMapping.NOT_FOUND,
@@ -1642,6 +1647,7 @@ class NvidiaRAG:
                         model=model,
                         collection_name="",
                         enable_citations=enable_citations,
+                        enable_image_citation_content=self.config.enable_image_citation_content,
                         otel_metrics_client=metrics,
                     ),
                     status_code=ErrorCodeMapping.BAD_REQUEST,
@@ -1750,6 +1756,7 @@ class NvidiaRAG:
                     model=vlm_model_cfg,
                     collection_name="",
                     enable_citations=enable_citations,
+                    enable_image_citation_content=self.config.enable_image_citation_content,
                     otel_metrics_client=metrics,
                 ),
                 status_code=ErrorCodeMapping.SUCCESS,
@@ -1765,6 +1772,7 @@ class NvidiaRAG:
                     model=model,
                     collection_name="",
                     enable_citations=enable_citations,
+                    enable_image_citation_content=self.config.enable_image_citation_content,
                     otel_metrics_client=metrics,
                 ),
                 status_code=e.status_code,
@@ -1782,6 +1790,7 @@ class NvidiaRAG:
                     model=model,
                     collection_name="",
                     enable_citations=enable_citations,
+                    enable_image_citation_content=self.config.enable_image_citation_content,
                     otel_metrics_client=metrics,
                 ),
                 status_code=ErrorCodeMapping.SERVICE_UNAVAILABLE,
@@ -1801,6 +1810,7 @@ class NvidiaRAG:
                         model=model,
                         collection_name="",
                         enable_citations=enable_citations,
+                        enable_image_citation_content=self.config.enable_image_citation_content,
                         otel_metrics_client=metrics,
                     ),
                     status_code=ErrorCodeMapping.FORBIDDEN,
@@ -1817,6 +1827,7 @@ class NvidiaRAG:
                         model=model,
                         collection_name="",
                         enable_citations=enable_citations,
+                        enable_image_citation_content=self.config.enable_image_citation_content,
                         otel_metrics_client=metrics,
                     ),
                     status_code=ErrorCodeMapping.NOT_FOUND,
@@ -1829,6 +1840,7 @@ class NvidiaRAG:
                         model=model,
                         collection_name="",
                         enable_citations=enable_citations,
+                        enable_image_citation_content=self.config.enable_image_citation_content,
                         otel_metrics_client=metrics,
                     ),
                     status_code=ErrorCodeMapping.BAD_REQUEST,
@@ -2408,6 +2420,7 @@ class NvidiaRAG:
                     ranker=ranker if enable_reranker else None,
                     recursion_depth=self.config.query_decomposition.recursion_depth,
                     enable_citations=enable_citations,
+                    enable_image_citation_content=self.config.enable_image_citation_content,
                     collection_name=validated_collections[0]
                     if validated_collections
                     else "",
@@ -2790,6 +2803,7 @@ class NvidiaRAG:
                                 model=model,
                                 collection_name=validated_collections[0] if validated_collections else "",
                                 enable_citations=enable_citations,
+                                enable_image_citation_content=self.config.enable_image_citation_content,
                             ),
                             status_code=ErrorCodeMapping.SUCCESS,
                         )
@@ -2966,6 +2980,7 @@ class NvidiaRAG:
                         model=model,
                         collection_name=validated_collections[0] if validated_collections else "",
                         enable_citations=enable_citations,
+                        enable_image_citation_content=self.config.enable_image_citation_content,
                         context_reranker_time_ms=context_reranker_time_ms,
                         retrieval_time_ms=retrieval_time_ms,
                         rag_start_time_sec=rag_start_time_sec,
@@ -2996,6 +3011,7 @@ class NvidiaRAG:
                         model=model,
                         collection_name=validated_collections[0] if validated_collections else "",
                         enable_citations=enable_citations,
+                        enable_image_citation_content=self.config.enable_image_citation_content,
                         context_reranker_time_ms=context_reranker_time_ms,
                         retrieval_time_ms=retrieval_time_ms,
                         rag_start_time_sec=rag_start_time_sec,
@@ -3019,6 +3035,7 @@ class NvidiaRAG:
                     model=model,
                     collection_name=collection_names[0] if collection_names else "",
                     enable_citations=enable_citations,
+                    enable_image_citation_content=self.config.enable_image_citation_content,
                     otel_metrics_client=metrics,
                 ),
                 status_code=ErrorCodeMapping.REQUEST_TIMEOUT,
@@ -3034,6 +3051,7 @@ class NvidiaRAG:
                     model=model,
                     collection_name=collection_names[0] if collection_names else "",
                     enable_citations=enable_citations,
+                    enable_image_citation_content=self.config.enable_image_citation_content,
                     otel_metrics_client=metrics,
                 ),
                 status_code=e.status_code,
@@ -3051,6 +3069,7 @@ class NvidiaRAG:
                     model=model,
                     collection_name=collection_names[0] if collection_names else "",
                     enable_citations=enable_citations,
+                    enable_image_citation_content=self.config.enable_image_citation_content,
                     otel_metrics_client=metrics,
                 ),
                 status_code=ErrorCodeMapping.SERVICE_UNAVAILABLE,
@@ -3082,6 +3101,7 @@ class NvidiaRAG:
                         model=model,
                         collection_name=collection_names[0] if collection_names else "",
                         enable_citations=enable_citations,
+                        enable_image_citation_content=self.config.enable_image_citation_content,
                         otel_metrics_client=metrics,
                     ),
                     status_code=ErrorCodeMapping.FORBIDDEN,
@@ -3110,6 +3130,7 @@ class NvidiaRAG:
                         model=model,
                         collection_name=collection_names[0] if collection_names else "",
                         enable_citations=enable_citations,
+                        enable_image_citation_content=self.config.enable_image_citation_content,
                         otel_metrics_client=metrics,
                     ),
                     status_code=ErrorCodeMapping.NOT_FOUND,
@@ -3122,6 +3143,7 @@ class NvidiaRAG:
                         model=model,
                         collection_name=collection_names[0] if collection_names else "",
                         enable_citations=enable_citations,
+                        enable_image_citation_content=self.config.enable_image_citation_content,
                         otel_metrics_client=metrics,
                     ),
                     status_code=ErrorCodeMapping.BAD_REQUEST,

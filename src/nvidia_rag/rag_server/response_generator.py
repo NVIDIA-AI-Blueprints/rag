@@ -415,6 +415,7 @@ def generate_answer(
     model: str = "",
     collection_name: str = "",
     enable_citations: bool = True,
+    enable_image_citation_content: bool = True,
     context_reranker_time_ms: float | None = None,
     retrieval_time_ms: float | None = None,
     rag_start_time_sec: float | None = None,
@@ -428,6 +429,7 @@ def generate_answer(
         model: Name of the model used for generation
         collection_name: Name of the collection used for retrieval
         enable_citations: Whether to enable citations in the response
+        enable_image_citation_content: Whether to pull image/table/chart content from MinIO for citations
         otel_metrics_client: Optional OpenTelemetry metrics client for updating latency histograms
     """
 
@@ -481,6 +483,7 @@ def generate_answer(
                     chain_response.citations = prepare_citations(
                         retrieved_documents=contexts,
                         enable_citations=enable_citations,
+                        enable_image_citation_content=enable_image_citation_content,
                     )
                     first_chunk = False
                 logger.debug(response_choice)
@@ -581,6 +584,7 @@ async def generate_answer_async(
     model: str = "",
     collection_name: str = "",
     enable_citations: bool = True,
+    enable_image_citation_content: bool = True,
     context_reranker_time_ms: float | None = None,
     retrieval_time_ms: float | None = None,
     rag_start_time_sec: float | None = None,
@@ -594,6 +598,7 @@ async def generate_answer_async(
         model: Name of the model used for generation
         collection_name: Name of the collection used for retrieval
         enable_citations: Whether to enable citations in the response
+        enable_image_citation_content: Whether to pull image/table/chart content from MinIO for citations
         otel_metrics_client: Optional OpenTelemetry metrics client for updating latency histograms
     """
 
@@ -647,6 +652,7 @@ async def generate_answer_async(
                     chain_response.citations = prepare_citations(
                         retrieved_documents=contexts,
                         enable_citations=enable_citations,
+                        enable_image_citation_content=enable_image_citation_content,
                     )
                     first_chunk = False
                 logger.debug(response_choice)
@@ -755,13 +761,15 @@ def prepare_citations(
     retrieved_documents: list[Document],
     force_citations: bool = False,  # True in-case of doc search api
     enable_citations: bool = True,
+    enable_image_citation_content: bool = True,
 ) -> Citations:
     """
     Prepare citation information based on retrieved_documents
     Arguments:
-        - collection_name: str - Milvus Collection Name
         - retrieved_documents: List of retrieved langchain documents
         - force_citations: This flag would give citations even if config enable_citations is unset
+        - enable_citations: Whether to include citations at all
+        - enable_image_citation_content: When True, pull image/table/chart content from MinIO for citations; when False, citation content for those types is left empty.
     Returns:
         - source_results: Citations
     """
@@ -815,7 +823,7 @@ def prepare_citations(
                         "subtype"
                     )
                 try:
-                    if enable_citations:
+                    if enable_citations and enable_image_citation_content:
                         logger.debug(
                             "Pulling content from minio for image/table/chart for citations ..."
                         )
@@ -837,8 +845,11 @@ def prepare_citations(
                             content_metadata=doc.metadata.get("content_metadata"),
                         )
                     else:
+                        # Citations enabled but image content disabled: still return metadata and description
                         content = ""
                         source_metadata = SourceMetadata(
+                            page_number=page_number or 0,
+                            location=location if location is not None else [],
                             description=doc.page_content,
                             content_metadata=doc.metadata.get("content_metadata"),
                         )
@@ -848,18 +859,21 @@ def prepare_citations(
                     )
                     content = ""
                     source_metadata = SourceMetadata(
+                        page_number=page_number or 0,
+                        location=location if location is not None else [],
                         description=doc.page_content,
                         content_metadata=doc.metadata.get("content_metadata", {}),
                     )
 
-            if content and document_type in [
+            # Include citation when we have a valid type; content may be empty for image/table/chart when enable_image_citation_content is False
+            if document_type in [
                 "image",
                 "text",
                 "table",
                 "chart",
                 "audio",
             ]:
-                # Prepare citations basemodel
+                # Prepare citations basemodel (metadata and description always included; content may be empty)
                 source_result = SourceResult(
                     content=content,
                     document_type=document_type,

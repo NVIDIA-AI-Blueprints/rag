@@ -94,12 +94,12 @@ services:
 
       ##===Embedding Model specific configurations===
       # url on which embedding model is hosted. If "", Nvidia hosted API is used
-      APP_EMBEDDINGS_SERVERURL: ${APP_EMBEDDINGS_SERVERURL-"nemoretriever-embedding-ms:8000/v1"}
-      APP_EMBEDDINGS_MODELNAME: ${APP_EMBEDDINGS_MODELNAME:-nvidia/llama-3.2-nv-embedqa-1b-v2}
+      # APP_EMBEDDINGS_SERVERURL: ${APP_EMBEDDINGS_SERVERURL-"nemoretriever-embedding-ms:8000/v1"}
+      # APP_EMBEDDINGS_MODELNAME: ${APP_EMBEDDINGS_MODELNAME:-nvidia/llama-3.2-nv-embedqa-1b-v2}
       APP_EMBEDDINGS_DIMENSIONS: ${APP_EMBEDDINGS_DIMENSIONS:-2048}
       # For VLM Embedding Model (Nemoretriever-1b-vlm-embed-v1)
-      # APP_EMBEDDINGS_SERVERURL: ${APP_EMBEDDINGS_SERVERURL-"nemotron-vlm-embedding-ms:8000/v1"}
-      # APP_EMBEDDINGS_MODELNAME: ${APP_EMBEDDINGS_MODELNAME:-nvidia/llama-nemotron-embed-vl-1b-v2}
+      APP_EMBEDDINGS_SERVERURL: ${APP_EMBEDDINGS_SERVERURL-"nemotron-vlm-embedding-ms:8000/v1"}
+      APP_EMBEDDINGS_MODELNAME: ${APP_EMBEDDINGS_MODELNAME:-nvidia/llama-nemotron-embed-vl-1b-v2}
 
       ##===Reranking Model specific configurations===
       # url on which ranking model is hosted. If "", Nvidia hosted API is used
@@ -110,14 +110,14 @@ services:
       RERANKER_SCORE_THRESHOLD: ${RERANKER_SCORE_THRESHOLD:-${RERANKER_CONFIDENCE_THRESHOLD:-0.0}}
 
       ##===VLM Model specific configurations===
-      ENABLE_VLM_INFERENCE: ${ENABLE_VLM_INFERENCE:-false}
+      ENABLE_VLM_INFERENCE: ${ENABLE_VLM_INFERENCE:-true}
       # When true, allow falling back to LLM flow if no images are present in query/messages/context
       # When false, always route generation through VLM when ENABLE_VLM_INFERENCE is true
-      VLM_TO_LLM_FALLBACK: ${VLM_TO_LLM_FALLBACK:-true}
+      VLM_TO_LLM_FALLBACK: ${VLM_TO_LLM_FALLBACK:-false}
       # Max images sent to VLM per request (query + context)
-      APP_VLM_MAX_TOTAL_IMAGES: ${APP_VLM_MAX_TOTAL_IMAGES:-5}
+      APP_VLM_MAX_TOTAL_IMAGES: ${APP_VLM_MAX_TOTAL_IMAGES:-2}
       # VLM generation parameters
-      APP_VLM_MAX_TOKENS: ${APP_VLM_MAX_TOKENS:-8192}
+      APP_VLM_MAX_TOKENS: ${APP_VLM_MAX_TOKENS:-2048}
       APP_VLM_TEMPERATURE: ${APP_VLM_TEMPERATURE:-0.1}
       APP_VLM_TOP_P: ${APP_VLM_TOP_P:-1.0}
       # VLM server URL
@@ -155,6 +155,8 @@ services:
 
       # Choose whether to enable citations in the response
       ENABLE_CITATIONS: ${ENABLE_CITATIONS:-True}
+      # When True, pull image/table/chart content from MinIO for citations; when False, citation content for those types is empty
+      ENABLE_IMAGE_CITATION_CONTENT: ${ENABLE_IMAGE_CITATION_CONTENT:-False}
 
       # Choose whether to enable/disable guardrails
       ENABLE_GUARDRAILS: ${ENABLE_GUARDRAILS:-False}

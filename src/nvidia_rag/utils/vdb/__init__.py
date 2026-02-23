@@ -79,10 +79,14 @@ def _get_vdb_op(
             bucket_name=os.getenv("NVINGEST_MINIO_BUCKET", "nv-ingest"),
             # Hybrid search configurations
             sparse=(config.vector_store.search_type == SearchType.HYBRID),
-            # Additional configurations
+            # Additional configurations: use pipeline-specific enable_images (no NV-Ingest flags for nemotron_parse)
             enable_images=(
-                config.nv_ingest.extract_images
-                or config.nv_ingest.extract_page_as_image
+                config.nemotron_parse.enable_images
+                if config.ingestion_pipeline == "nemotron_parse"
+                else (
+                    config.nv_ingest.extract_images
+                    or config.nv_ingest.extract_page_as_image
+                )
             ),
             recreate=False,  # Don't re-create milvus collection
             dense_dim=config.embeddings.dimensions,

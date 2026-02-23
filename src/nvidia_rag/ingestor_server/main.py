@@ -29,7 +29,7 @@ Private methods:
 2. __run_background_ingest_task: Ingest documents to the vector store.
 3. __build_ingestion_response: Build the ingestion response from results and failures.
 4. __ingest_document_summary: Drives summary generation and ingestion if enabled.
-5. __put_content_to_minio: Put NV-Ingest image/table/chart content to MinIO.
+5. __put_content_to_minio: Upload image/table/chart content to MinIO and set content_url/source_location on result elements for citation resolution.
 6. __perform_shallow_extraction_workflow: Perform shallow extraction workflow for fast summary generation.
 7. __run_nvingest_batched_ingestion: Upload documents to the vector store using NV-Ingest.
 8. __nv_ingest_ingestion_pipeline: Run the NV-Ingest ingestion pipeline.
@@ -1880,14 +1880,21 @@ class NvidiaRAGIngestor:
         collection_name: str,
     ) -> None:
         """
-        Put nv-ingest image/table/chart content to minio
+        Upload image/table/chart content to MinIO and set location fields on each result.
+
+        Only runs when enable_citations is True. For each image/structured element we:
+        1) Upload payload to MinIO under a unique object name,
+        2) Set metadata content_url, source_metadata.source_location, and
+           content_metadata.minio_object_key on the same result element so that
+           records written to the VDB (via vdb_op.run) carry the MinIO key for
+           citation and location resolution.
         """
         if not self.config.enable_citations:
             logger.info(f"Skipping minio insertion for collection: {collection_name}")
             return  # Don't perform minio insertion if captioning is disabled
 
-        payloads = []
-        object_names = []
+        # Collect (result_element, payload, object_name) so we can set content_url after upload
+        upload_items: list[tuple[dict, dict, str]] = []
 
         for result in results:
             for result_element in result:
@@ -1913,7 +1920,6 @@ class NvidiaRAGIngestor:
                     )
 
                     # Get unique_thumbnail_id using the centralized function
-                    # Try with extracted location first, fallback to content_metadata if None
                     unique_thumbnail_id = get_unique_thumbnail_id_from_result(
                         collection_name=collection_name,
                         file_name=file_name,
@@ -1923,11 +1929,15 @@ class NvidiaRAGIngestor:
                     )
 
                     if unique_thumbnail_id is not None:
-                        # Pull content from result_element
-                        payloads.append({"content": content})
-                        object_names.append(unique_thumbnail_id)
-                    # If unique_thumbnail_id is None, the item is skipped
-                    # (warning already logged in get_unique_thumbnail_id_from_result)
+                        upload_items.append(
+                            (result_element, {"content": content}, unique_thumbnail_id)
+                        )
+
+        if not upload_items:
+            return
+
+        payloads = [item[1] for item in upload_items]
+        object_names = [item[2] for item in upload_items]
 
         if self.minio_operator is not None:
             if os.getenv("ENABLE_MINIO_BULK_UPLOAD", "True") in ["True", "true"]:
@@ -1940,13 +1950,26 @@ class NvidiaRAGIngestor:
                     logger.warning(f"Failed to bulk upload to MinIO: {e}")
             else:
                 logger.info(f"Sequentially uploading {len(payloads)} payloads to MinIO")
-                for payload, object_name in zip(payloads, object_names, strict=False):
+                for (result_element, payload, object_name) in upload_items:
                     try:
                         self.minio_operator.put_payload(
                             payload=payload, object_name=object_name
                         )
                     except Exception as e:
                         logger.warning(f"Failed to upload {object_name} to MinIO: {e}")
+
+            # Set content_url / source_location / minio_object_key on each result element
+            # so citations and UI can resolve the MinIO object (same elements go to vdb_op.run).
+            for (result_element, _payload, object_name) in upload_items:
+                meta = result_element.get("metadata", {})
+                if meta:
+                    meta["content_url"] = object_name
+                    source_meta = meta.get("source_metadata") or {}
+                    source_meta["source_location"] = object_name
+                    meta["source_metadata"] = source_meta
+                    content_meta = meta.get("content_metadata") or {}
+                    content_meta["minio_object_key"] = object_name
+                    meta["content_metadata"] = content_meta
         else:
             logger.warning(
                 f"MinIO unavailable - skipping upload of {len(payloads)} payloads"
@@ -2442,8 +2465,28 @@ class NvidiaRAGIngestor:
                 return results, failures
             raise Exception(error_message)
 
-        try:
+        # Nemotron Parse: upload image/structured content to MinIO, set content_url/
+        # source_location on each record, then run VDB insert. Requires ENABLE_CITATIONS=true
+        # for MinIO upload; NEMOTRON_PARSE_ENABLE_IMAGES=true (default) so VDB is created with
+        # enable_images and the nv_ingest client reads image_metadata.image_location (bbox).
+        if self.config.ingestion_pipeline == "nemotron_parse" and results:
             if self.mode != Mode.LITE:
+                start_time = time.time()
+                self.__put_content_to_minio(
+                    results=results, collection_name=collection_name
+                )
+                end_time = time.time()
+                logger.info(
+                    f"== MinIO upload for collection_name: {collection_name} "
+                    f"for batch {batch_number} is complete! Time taken: {end_time - start_time} seconds =="
+                )
+            flattened = [el for file_list in results for el in file_list]
+            if flattened:
+                vdb_op.run(flattened)
+
+        try:
+            # MinIO upload for nv_ingest pipeline only; nemotron_parse already did it above.
+            if self.mode != Mode.LITE and self.config.ingestion_pipeline != "nemotron_parse":
                 start_time = time.time()
                 self.__put_content_to_minio(
                     results=results, collection_name=collection_name

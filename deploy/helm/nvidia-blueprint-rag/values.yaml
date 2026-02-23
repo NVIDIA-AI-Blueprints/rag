@@ -218,6 +218,8 @@ envVars:
   # === General ===
   # Choose whether to enable citations in the response
   ENABLE_CITATIONS: "True"
+  # When True, pull image/table/chart content from MinIO for citations; when False, citation content for those types is empty
+  ENABLE_IMAGE_CITATION_CONTENT: "True"
   # Choose whether to enable/disable guardrails
   ENABLE_GUARDRAILS: "False"
   # Log level for server, supported level NOTSET, DEBUG, INFO, WARN, ERROR, CRITICAL
@@ -387,6 +389,9 @@ ingestor-server:
     # === Nemotron Parse configurations (used when INGESTION_PIPELINE is "nemotron_parse") ===
     NEMOTRON_PARSE_PIPELINE_MODE: "page_as_image"
     NEMOTRON_PARSE_EMBED_IMAGES: "False"
+    NEMOTRON_PARSE_HTTP_ENDPOINT: "http://nemotron-parse:8000/v1/chat/completions"
+    NEMOTRON_PARSE_MODEL_NAME: "nvidia/nemotron-parse"
+    NEMOTRON_PARSE_INFER_PROTOCOL: "http"
 
     # === General ===
     # Summary Model Configurations

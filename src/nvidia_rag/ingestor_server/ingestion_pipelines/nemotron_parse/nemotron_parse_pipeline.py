@@ -90,9 +90,8 @@ class NemotronParse:
 
         Performs following steps:
         - Perform extraction using Nemotron Parse
-        - Split documents into chunks based on the split options
-        - Embed and add documents to Vectorstore collection
-        - Put content to MinIO
+        - Embed result elements
+        - Return results (main uploads to MinIO then calls vdb_op.run())
 
         Returns:
         - results: list[dict[str, Any]] - List of results
@@ -106,51 +105,35 @@ class NemotronParse:
         # Perform extraction using Nemotron Parse and add embedding to the results
         results, failures = await self.__perform_extraction_using_nemotron_parse()
 
-        # Add documents to Vectorstore collection
-        results = self.__add_results_to_vectorstore(results)
-
+        # Vectorstore insert is done in main after MinIO upload so nv_ingest can find image locations
         return results, failures
 
     @trace_function("ingestor.ingestion_pipelines.nemotron_parse.nemotron_parse_pipeline.__perform_extraction_using_nemotron_parse", tracer=TRACER)
     async def __perform_extraction_using_nemotron_parse(self):
         """
-        Perform extraction using Nemotron Parse.
+        Perform extraction using Nemotron Parse (extraction pipeline + adapter).
+        Returns (results, failures) with results in ingestor schema; embeddings applied.
         """
         logger.info("Performing extraction using Nemotron Parse")
 
-        # ------------------------------------------------------------------------------------------
-        #               START: Nemotron Parse placeholder implementation
-        # ------------------------------------------------------------------------------------------
-        # TODO(nemotron-parse): Replace with Nemotron Parse integration.
-        # - Implement extraction in this package: add modules under
-        #   ingestion_pipelines/nemotron_parse/ and call them from here.
-        # - Expected return: (results, failures). results must be list[list[dict]];
-        #   each inner list = one file; each dict has "document_type", "metadata"
-        #   (e.g. content, source_metadata, content_metadata). See
-        #   results_placeholder.py for the exact schema.
-        # - Embedding must be applied to each result element (e.g. via
-        #   NemotronParseEmbedding) before returning.
-        # - Remove results_placeholder.py and this branch once integration is done.
-        from nvidia_rag.ingestor_server.ingestion_pipelines.nemotron_parse.results_placeholder import (  # noqa: PLC0415
-            results as placeholder_results,
+        from nvidia_rag.ingestor_server.ingestion_pipelines.nemotron_parse.extraction_adapter import (
+            run_extraction,
         )
-        from nvidia_rag.ingestor_server.ingestion_pipelines.nemotron_parse.nemotron_parse_embedding import NemotronParseEmbedding
+        from nvidia_rag.ingestor_server.ingestion_pipelines.nemotron_parse.nemotron_parse_embedding import (
+            NemotronParseEmbedding,
+        )
+
+        results, failures = run_extraction(
+            filepaths=self.filepaths,
+            rag_config=self.config,
+            collection_name=self.collection_name,
+            max_pages_per_pdf=None,
+        )
 
         nemotron_parse_embedding = NemotronParseEmbedding(self.config)
-        for result in placeholder_results:
+        for result in results:
             for el in result:
-                el = nemotron_parse_embedding.embed_result_element(el)
+                nemotron_parse_embedding.embed_result_element(el)
 
-        return placeholder_results, []
-        # ------------------------------------------------------------------------------------------
-        #                END: Nemotron Parse placeholder implementation
-        # ------------------------------------------------------------------------------------------
+        return results, failures
     
-    @trace_function("ingestor.ingestion_pipelines.nemotron_parse.nemotron_parse_pipeline.__add_results_to_vectorstore", tracer=TRACER)
-    def __add_results_to_vectorstore(self, results: list[dict[str, Any]]):
-        """
-        Add results to Vectorstore collection.
-        """
-        logger.info("Adding results to Vectorstore collection for nemotron parse pipeline")
-        results = self.vdb_op.run(results)
-        return results
