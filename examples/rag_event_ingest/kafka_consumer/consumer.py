@@ -8,6 +8,7 @@ from typing import Dict, Optional
 from kafka import KafkaConsumer
 
 import config.settings as cfg
+from pathlib import Path
 from config.constants import DEST_RAG, DEST_SKIP, STATUS_FAILED, KEY_DESTINATION, KEY_FILE_TYPE, KEY_REASON
 from router import FileRouter
 from models.events import S3Event, HandlerResult, IngestionRecord
@@ -97,11 +98,22 @@ class KafkaEventConsumer:
         logger.info(f"🗑️  DELETE event for {event.key}")
         
         doc_handler = self.handlers.get(DEST_RAG)
-        if doc_handler and hasattr(doc_handler, 'indexer'):
-            success = doc_handler.indexer.delete(event.key, event.collection)
-            if success:
-                logger.info(f"✓ Deleted {event.key} from Milvus")
-                return HandlerResult(success=True, status='DELETED')
+        if not doc_handler or not hasattr(doc_handler, 'indexer'):
+            return HandlerResult.failed_result("Delete failed - no indexer available")
+
+        indexer = doc_handler.indexer
+        success = indexer.delete(event.key, event.collection)
+
+        if self.router.is_video(event.key):
+            desc_filename = f"{event.key}_description.json"
+            desc_ok = indexer.delete(desc_filename, event.collection)
+            if desc_ok:
+                logger.info(f"✓ Deleted video description {desc_filename} from Milvus")
+            success = success or desc_ok
+
+        if success:
+            logger.info(f"✓ Deleted {event.key} from Milvus")
+            return HandlerResult(success=True, status='DELETED')
         
         return HandlerResult.failed_result("Delete failed")
     

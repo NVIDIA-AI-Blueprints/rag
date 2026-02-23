@@ -2,7 +2,7 @@
 # Event-driven document ingestion with Kafka + MinIO sources
 #
 # Usage:
-#   docker compose -f docker-compose-aidp.yaml up -d
+#   docker compose -f docker-compose.yaml up -d
 #
 # Prerequisites:
 #   - RAG stack running (from launchable.ipynb)
@@ -23,7 +23,7 @@ services:
       - KAFKA_NODE_ID=1
       - KAFKA_PROCESS_ROLES=broker,controller
       - KAFKA_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:9094
-      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092,EXTERNAL://10.86.1.245:9094
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092,EXTERNAL://${HOST_IP:-localhost}:9094
       - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
       - KAFKA_CONTROLLER_QUORUM_VOTERS=1@kafka:9093
       - KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER
@@ -137,7 +137,7 @@ services:
       - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY:-minioadmin}
       - MINIO_SECRET_KEY=${MINIO_SECRET_KEY:-minioadmin}
       - MINIO_SECURE=false
-      - VSS_SERVER_URL=${VSS_SERVER_URL:-http://local_deployment_single_gpu-via-server-1:8110}
+      - VSS_SERVER_URL=${VSS_SERVER_URL:-http://host.docker.internal:8110}
       - VSS_TIMEOUT=${VSS_TIMEOUT:-1800}
       - VSS_CHUNK_DURATION=${VSS_CHUNK_DURATION:-30}
       - VSS_CHUNK_OVERLAP=${VSS_CHUNK_OVERLAP:-10}
