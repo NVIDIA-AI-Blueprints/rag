@@ -2395,6 +2395,13 @@ class NvidiaRAG:
             ):
                 summaries_collection_name = qe_config.summaries_collection_name
                 summary_top_n = max(1, qe_config.summary_retrieval_top_n)
+                summary_top_k = max(0, qe_config.summary_retrieval_top_k)
+                # When top_k >= top_n and reranker available: retrieve top_k, rerank, take top_n
+                retrieval_k = (
+                    max(summary_top_n, summary_top_k)
+                    if summary_top_k >= summary_top_n
+                    else summary_top_n
+                )
                 if vdb_op.check_collection_exists(summaries_collection_name):
                     try:
                         query_for_expansion = (processed_query or "").strip()
@@ -2418,7 +2425,9 @@ class NvidiaRAG:
                             logger.info("STAGE: Query Expansion from Summaries")
                             logger.info("=" * 80)
                             logger.info("  - Summaries collection: %s", summaries_collection_name)
-                            logger.info("  - Summary top-N: %d", summary_top_n)
+                            logger.info("  - Summary top-N (after rerank): %d", summary_top_n)
+                            if retrieval_k > summary_top_n:
+                                logger.info("  - Summary top-K (vector retrieval): %d", retrieval_k)
                             logger.info("  - Query: '%s'", query_for_expansion[:200])
                             otel_ctx = otel_context.get_current()
                             summary_docs = vdb_op.retrieval_langchain(
@@ -2427,10 +2436,46 @@ class NvidiaRAG:
                                 vectorstore=vdb_op.get_langchain_vectorstore(
                                     summaries_collection_name
                                 ),
-                                top_k=summary_top_n,
+                                top_k=retrieval_k,
                                 filter_expr=summaries_filter,
                                 otel_ctx=otel_ctx,
                             )
+                            # Rerank summaries when we retrieved more than top_n and reranker is available
+                            if (
+                                summary_docs
+                                and ranker
+                                and enable_reranker
+                                and not is_image_query
+                                and retrieval_k > summary_top_n
+                            ):
+                                logger.info("  - Reranking %d summaries to top %d by relevance", len(summary_docs), summary_top_n)
+                                try:
+                                    summary_reranker = RunnableAssign(
+                                        {
+                                            "context": lambda input: ranker.compress_documents(
+                                                query=input["question"],
+                                                documents=input["context"],
+                                            )
+                                        }
+                                    )
+                                    reranked_result = await summary_reranker.ainvoke(
+                                        {"context": summary_docs, "question": query_for_expansion},
+                                        config={"run_name": "summary_reranker"},
+                                    )
+                                    reranked_docs = reranked_result.get("context", [])
+                                    summary_docs = reranked_docs[:summary_top_n]
+                                    logger.info("  - Reranked to %d summaries", len(summary_docs))
+                                except (
+                                    requests.exceptions.ConnectionError,
+                                    ConnectionError,
+                                    OSError,
+                                ) as e:
+                                    logger.warning(
+                                        "Summary rerank failed, using vector order: %s", e
+                                    )
+                                    summary_docs = summary_docs[:summary_top_n]
+                            elif retrieval_k > summary_top_n and (not ranker or not enable_reranker):
+                                summary_docs = summary_docs[:summary_top_n] if summary_docs else []
                             if summary_docs and qe_config.filter_retrieval_by_summary_docs:
                                 for doc in summary_docs:
                                     meta = getattr(doc, "metadata", {}) or {}

@@ -201,6 +201,8 @@ services:
       ENABLE_QUERY_EXPANSION_FROM_SUMMARIES: ${ENABLE_QUERY_EXPANSION_FROM_SUMMARIES:-false}
       SUMMARIES_COLLECTION_NAME: ${SUMMARIES_COLLECTION_NAME:-rag_summaries}
       SUMMARY_RETRIEVAL_TOP_N: ${SUMMARY_RETRIEVAL_TOP_N:-5}
+      # When > 0 and >= SUMMARY_RETRIEVAL_TOP_N: retrieve this many summaries by vector search, then rerank to top N
+      SUMMARY_RETRIEVAL_TOP_K: ${SUMMARY_RETRIEVAL_TOP_K:-100}
       QUERY_EXPANSION_MAX_TOKENS: ${QUERY_EXPANSION_MAX_TOKENS:-256}
       QUERY_EXPANSION_TEMPERATURE: ${QUERY_EXPANSION_TEMPERATURE:-0.2}
       # Restrict main retrieval to docs that appear in top-N summaries (only when query expansion is enabled)

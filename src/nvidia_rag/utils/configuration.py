@@ -1029,7 +1029,12 @@ class QueryExpansionFromSummariesConfig(_ConfigBase):
     summary_retrieval_top_n: int = Field(
         default=5,
         env="SUMMARY_RETRIEVAL_TOP_N",
-        description="Number of top summaries to retrieve for query expansion",
+        description="Number of top summaries used for query expansion (after rerank when summary_retrieval_top_k is set)",
+    )
+    summary_retrieval_top_k: int = Field(
+        default=100,
+        env="SUMMARY_RETRIEVAL_TOP_K",
+        description="When > 0 and >= summary_retrieval_top_n: retrieve this many summaries by vector search, then rerank to get top N. Use 0 to skip rerank (vector top-N only).",
     )
     expansion_max_tokens: int = Field(
         default=256,
@@ -1052,6 +1057,13 @@ class QueryExpansionFromSummariesConfig(_ConfigBase):
     def validate_summary_retrieval_top_n(cls, v: int) -> int:
         if v < 1:
             raise ValueError("summary_retrieval_top_n must be at least 1")
+        return v
+
+    @field_validator("summary_retrieval_top_k")
+    @classmethod
+    def validate_summary_retrieval_top_k(cls, v: int) -> int:
+        if v < 0:
+            raise ValueError("summary_retrieval_top_k must be >= 0")
         return v
 
     @field_validator("expansion_max_tokens")
