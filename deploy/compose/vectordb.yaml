@@ -78,7 +78,7 @@ services:
       interval: 30s
       timeout: 20s
       retries: 3
-    profiles: ["", "milvus", "elasticsearch", "minio"]
+    profiles: ["", "milvus", "elasticsearch", "minio", "oracle"]
 
   elasticsearch:
     container_name: elasticsearch
