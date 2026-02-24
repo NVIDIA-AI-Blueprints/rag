@@ -450,6 +450,9 @@ def streaming_filter_think(chunks: Iterable[str]) -> Iterable[str]:
     This generator filters content between think tags in streaming LLM responses.
     It handles both complete tags in a single chunk and tags split across multiple tokens.
 
+    When VERBOSE (DEBUG) logging is enabled (e.g. LOGLEVEL=DEBUG), reasoning tokens are
+    logged from <think> block content or reasoning_content field.
+
     Args:
         chunks (Iterable[str]): Chunks from a streaming LLM response
 
@@ -474,11 +477,18 @@ def streaming_filter_think(chunks: Iterable[str]) -> Iterable[str]:
     match_position = 0
     buffer = ""
     output_buffer = ""
+    think_accumulator = ""
+    reasoning_content_accumulator = ""
     chunk_count = 0
 
     for chunk in chunks:
         content = chunk.content
         chunk_count += 1
+
+        # Accumulate reasoning tokens when VERBOSE (DEBUG) is enabled (e.g. reasoning_content from nemotron-3-nano)
+        reasoning, _ = extract_reasoning_and_content(chunk)
+        if reasoning and logger.isEnabledFor(logging.DEBUG):
+            reasoning_content_accumulator += reasoning
 
         # Let's first check for full tags - this is the most reliable approach
         buffer += content
@@ -496,6 +506,10 @@ def streaming_filter_think(chunks: Iterable[str]) -> Iterable[str]:
 
         while state == IN_THINK and FULL_END_TAG in buffer:
             end_idx = buffer.find(FULL_END_TAG)
+            if logger.isEnabledFor(logging.DEBUG):
+                think_content = buffer[:end_idx]
+                if think_content:
+                    think_accumulator += think_content + "\n"
             # Discard everything up to and including end tag
             buffer = buffer[end_idx + len(FULL_END_TAG) :]
             content = buffer
@@ -543,10 +557,14 @@ def streaming_filter_think(chunks: Iterable[str]) -> Iterable[str]:
 
         elif state == IN_THINK:
             if content_stripped == END_TAG_PARTS[0].strip():
+                # Accumulate think content before the end tag start
+                think_accumulator += buffer[: -len(content)] if content else buffer
                 state = MATCHING_END
                 match_position = 1
                 buffer = content  # Keep this token in buffer
             else:
+                if logger.isEnabledFor(logging.DEBUG):
+                    think_accumulator += buffer
                 buffer = ""  # Discard content inside think block
 
         elif state == MATCHING_END:
@@ -555,11 +573,15 @@ def streaming_filter_think(chunks: Iterable[str]) -> Iterable[str]:
                 match_position += 1
                 if match_position >= len(END_TAG_PARTS):
                     # Complete end tag matched
+                    if think_accumulator and logger.isEnabledFor(logging.DEBUG):
+                        think_accumulator += "\n"
                     state = NORMAL
                     match_position = 0
                     buffer = ""  # Clear buffer
             else:
                 # False match, revert to IN_THINK
+                if logger.isEnabledFor(logging.DEBUG):
+                    think_accumulator += buffer
                 state = IN_THINK
                 buffer = ""  # Discard content
 
@@ -580,6 +602,11 @@ def streaming_filter_think(chunks: Iterable[str]) -> Iterable[str]:
             yield buffer
         if output_buffer:
             yield output_buffer
+
+    if think_accumulator and logger.isEnabledFor(logging.DEBUG):
+        logger.debug("Reasoning tokens (think): %s", think_accumulator.rstrip())
+    if reasoning_content_accumulator and logger.isEnabledFor(logging.DEBUG):
+        logger.debug("Reasoning tokens: %s", reasoning_content_accumulator)
 
     logger.info(
         "Finished streaming_filter_think processing after %d chunks", chunk_count
@@ -617,6 +644,9 @@ async def streaming_filter_think_async(chunks):
     This async generator filters content between think tags in streaming LLM responses.
     It handles both complete tags in a single chunk and tags split across multiple tokens.
 
+    When VERBOSE (DEBUG) logging is enabled (e.g. LOGLEVEL=DEBUG), reasoning tokens are
+    logged from <think> block content or reasoning_content field.
+
     Args:
         chunks: Async iterable of chunks from a streaming LLM response
 
@@ -641,11 +671,18 @@ async def streaming_filter_think_async(chunks):
     match_position = 0
     buffer = ""
     output_buffer = ""
+    think_accumulator = ""
+    reasoning_content_accumulator = ""
     chunk_count = 0
 
     async for chunk in chunks:
         content = chunk.content
         chunk_count += 1
+
+        # Accumulate reasoning when VERBOSE (DEBUG) is enabled (e.g. reasoning_content from nemotron-3-nano)
+        reasoning, _ = extract_reasoning_and_content(chunk)
+        if reasoning and logger.isEnabledFor(logging.DEBUG):
+            reasoning_content_accumulator += reasoning
 
         # Let's first check for full tags - this is the most reliable approach
         buffer += content
@@ -663,6 +700,10 @@ async def streaming_filter_think_async(chunks):
 
         while state == IN_THINK and FULL_END_TAG in buffer:
             end_idx = buffer.find(FULL_END_TAG)
+            if logger.isEnabledFor(logging.DEBUG):
+                think_content = buffer[:end_idx]
+                if think_content:
+                    think_accumulator += think_content + "\n"
             # Discard everything up to and including end tag
             buffer = buffer[end_idx + len(FULL_END_TAG) :]
             content = buffer
@@ -710,10 +751,14 @@ async def streaming_filter_think_async(chunks):
 
         elif state == IN_THINK:
             if content_stripped == END_TAG_PARTS[0].strip():
+                # Accumulate think content before the end tag start
+                think_accumulator += buffer[: -len(content)] if content else buffer
                 state = MATCHING_END
                 match_position = 1
                 buffer = content  # Keep this token in buffer
             else:
+                if logger.isEnabledFor(logging.DEBUG):
+                    think_accumulator += buffer
                 buffer = ""  # Discard content inside think block
 
         elif state == MATCHING_END:
@@ -722,11 +767,15 @@ async def streaming_filter_think_async(chunks):
                 match_position += 1
                 if match_position >= len(END_TAG_PARTS):
                     # Complete end tag matched
+                    if think_accumulator and logger.isEnabledFor(logging.DEBUG):
+                        think_accumulator += "\n"
                     state = NORMAL
                     match_position = 0
                     buffer = ""  # Clear buffer
             else:
                 # False match, revert to IN_THINK
+                if logger.isEnabledFor(logging.DEBUG):
+                    think_accumulator += buffer
                 state = IN_THINK
                 buffer = ""  # Discard content
 
@@ -747,6 +796,11 @@ async def streaming_filter_think_async(chunks):
             yield buffer
         if output_buffer:
             yield output_buffer
+
+    if think_accumulator and logger.isEnabledFor(logging.DEBUG):
+        logger.debug("Reasoning tokens (think): %s", think_accumulator.rstrip())
+    if reasoning_content_accumulator and logger.isEnabledFor(logging.DEBUG):
+        logger.debug("Reasoning tokens: %s", reasoning_content_accumulator)
 
     logger.info(
         "Finished streaming_filter_think_async processing after %d chunks", chunk_count
