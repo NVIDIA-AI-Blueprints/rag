@@ -2,13 +2,12 @@
 name: Build and Push on PR
 
 on:
-  pull_request_review:
-    types: [submitted]
+  pull_request:
+    types: [synchronize]
 
 jobs:
   build-and-push-rag:
-    runs-on: ubuntu-latest
-    if: github.event.review.state == 'approved'
+    runs-on: ubuntu-latesta
     env:
       # OCI AUTH
       OCI_CLI_USER: ${{ secrets.OCI_CLI_USER }}
@@ -50,7 +49,6 @@ jobs:
 
   build-and-push-ingestion:
     runs-on: ubuntu-latest
-    if: github.event.review.state == 'approved'
     env:
       # OCI AUTH
       OCI_CLI_USER: ${{ secrets.OCI_CLI_USER }}
