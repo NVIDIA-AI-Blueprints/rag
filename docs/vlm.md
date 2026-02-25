@@ -124,7 +124,7 @@ Continue with [Deploy with Docker (NVIDIA-Hosted Models)](deploy-docker-nvidia-h
 ## Enable VLM with Helm
 
 :::{note}
-**GPU requirements for Helm**: VLM uses the same GPU normally assigned to LLM (GPU 1). With MIG slicing, assign a dedicated MIG slice to the VLM—see [mig-deployment.md](mig-deployment.md) and [values-mig.yaml](../deploy/helm/mig-slicing/values-mig.yaml). To run both VLM and LLM simultaneously, an additional GPU is required.
+**GPU requirements for Helm**: VLM uses the same GPU normally assigned to LLM (GPU 1). With MIG slicing, assign a dedicated MIG slice to the VLM—see [mig-deployment.md](mig-deployment.md) and [values-mig-h100.yaml](../deploy/helm/mig-slicing/values-mig-h100.yaml) or [values-mig-rtx6000.yaml](../deploy/helm/mig-slicing/values-mig-rtx6000.yaml). To run both VLM and LLM simultaneously, an additional GPU is required.
 :::
 
 1. In [values.yaml](../deploy/helm/nvidia-blueprint-rag/values.yaml), under the `rag-server` `envVars` section, set:

@@ -1,0 +1,124 @@
+# MIG-optimized resource configuration for RAG Blueprint
+# This file only overrides GPU resource requirements to use MIG slices
+
+# Ingestor Server - reduce concurrency for MIG
+ingestor-server:
+  envVars:
+    NV_INGEST_FILES_PER_BATCH: "4"
+    NV_INGEST_CONCURRENT_BATCHES: "1"
+
+# NV-Ingest configuration
+nv-ingest:
+  envVars:
+    NV_INGEST_MAX_UTIL: 8
+    MAX_INGEST_PROCESS_WORKERS: 2
+
+  # Milvus - uses 1g.24gb MIG slice
+  milvus:
+    standalone:
+      resources:
+        limits:
+          nvidia.com/gpu: "0"
+          nvidia.com/mig-1g.24gb: 1
+        requests:
+          nvidia.com/gpu: "0"
+          nvidia.com/mig-1g.24gb: 1
+
+  # NV-Ingest NIM Operator overrides
+  nimOperator:
+    # Page Elements - uses 1g.24gb
+    page_elements:
+      resources:
+        limits:
+          nvidia.com/gpu: "0"
+          nvidia.com/mig-1g.24gb: 1
+        requests:
+          nvidia.com/gpu: "0"
+          nvidia.com/mig-1g.24gb: 1
+      storage:
+        pvc:
+          storageClass: ""
+
+    # Graphic Elements - uses 1g.24gb
+    graphic_elements:
+      resources:
+        limits:
+          nvidia.com/gpu: "0"
+          nvidia.com/mig-1g.24gb: 1
+        requests:
+          nvidia.com/gpu: "0"
+          nvidia.com/mig-1g.24gb: 1
+      storage:
+        pvc:
+          storageClass: ""
+
+    # Table Structure - uses 1g.24gb
+    table_structure:
+      resources:
+        limits:
+          nvidia.com/gpu: "0"
+          nvidia.com/mig-1g.24gb: 1
+        requests:
+          nvidia.com/gpu: "0"
+          nvidia.com/mig-1g.24gb: 1
+      storage:
+        pvc:
+          storageClass: ""
+
+    # OCR - uses 2g.48gb (larger slice)
+    nemoretriever_ocr_v1:
+      resources:
+        limits:
+          nvidia.com/gpu: "0"
+          nvidia.com/mig-2g.48gb: 1
+        requests:
+          nvidia.com/gpu: "0"
+          nvidia.com/mig-2g.48gb: 1
+      storage:
+        pvc:
+          storageClass: ""
+# Main NIM Operator overrides for MIG
+nimOperator:
+  # LLM - uses 4g.96gb
+  nim-llm:
+    resources:
+      limits:
+        nvidia.com/gpu: "0"
+        nvidia.com/mig-4g.96gb: 1
+      requests:
+        nvidia.com/gpu: "0"
+        nvidia.com/mig-4g.96gb: 1
+      storage:
+        pvc:
+          storageClass: ""
+    model:
+      engine: tensorrt_llm
+      precision: "fp8"
+      qosProfile: "throughput"
+      tensorParallelism: "1"
+      gpus:
+        - product: "rtx6000_blackwell_sv"
+  # Embedding - uses 1g.24gb
+  nvidia-nim-llama-32-nv-embedqa-1b-v2:
+    resources:
+      limits:
+        nvidia.com/gpu: "0"
+        nvidia.com/mig-1g.24gb: 1
+      requests:
+        nvidia.com/gpu: "0"
+        nvidia.com/mig-1g.24gb: 1
+      storage:
+        pvc:
+          storageClass: ""
+  # Reranking - uses 1g.24gb
+  nvidia-nim-llama-32-nv-rerankqa-1b-v2:
+    resources:
+      limits:
+        nvidia.com/gpu: "0"
+        nvidia.com/mig-1g.24gb: 1
+      requests:
+        nvidia.com/gpu: "0"
+        nvidia.com/mig-1g.24gb: 1
+      storage:
+        pvc:
+          storageClass: ""

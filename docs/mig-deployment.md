@@ -15,10 +15,10 @@ refer to the [MIG Supported Hardware List](https://docs.nvidia.com/datacenter/te
 
 Before you deploy, verify that you have the following:
 
-* A Kubernetes cluster with NVIDIA H100 GPUs
+* A Kubernetes cluster with NVIDIA H100 or RTX PRO 6000 GPUs
 
    :::{note}
-   This section showcases MIG support for `NVIDIA H100 80GB HBM3` GPU. The MIG profiles used in the `mig-config.yaml` are specific to this GPU.
+   This section showcases MIG support for `NVIDIA H100 80GB HBM3` GPU. The MIG profiles used in the `mig-config-h100.yaml` are specific to this GPU.
    Refer to the [MIG User Guide](https://docs.nvidia.com/datacenter/tesla/mig-user-guide/) for MIG profiles of other GPU types.
    :::
 
@@ -99,7 +99,7 @@ For monitoring deployment progress, refer to [Deploy on Kubernetes with Helm](./
 
 ## Step 2: Apply the MIG configuration
 
-Edit the MIG configuration file [`mig-config.yaml`](../deploy/helm/mig-slicing/mig-config.yaml) to adjust the slicing pattern as needed.
+Edit the MIG configuration file [`mig-config-h100.yaml`](../deploy/helm/mig-slicing/mig-config-h100.yaml) to adjust the slicing pattern as needed.
 The following example enables a custom configuration with mixed MIG slice sizes on the same GPU.
 
 
@@ -139,7 +139,7 @@ data:
 Apply the custom MIG configuration configMap to the node and update the ClusterPolicy, by running the following code.
 
 ```bash
-kubectl apply -n nvidia-gpu-operator -f mig-slicing/mig-config.yaml
+kubectl apply -n nvidia-gpu-operator -f mig-slicing/mig-config-h100.yaml
 kubectl patch clusterpolicies.nvidia.com/cluster-policy \
   --type='json' \
   -p='[{"op":"replace", "path":"/spec/migManager/config/name", "value":"custom-mig-config"}]'
@@ -150,6 +150,17 @@ Label the node with MIG configuration, by running the following code.
 ```bash
 kubectl label nodes <node-name> nvidia.com/mig.config=custom-7x1g10-2x1g20-1x3g40-1x7g80 --overwrite
 ```
+
+:::{important}
+**For NVIDIA RTX6000 Pro Deployments:**
+
+Use [`mig-config-rtx6000.yaml`](../deploy/helm/mig-slicing/mig-config-rtx6000.yaml) instead:
+
+```bash
+kubectl apply -n nvidia-gpu-operator -f mig-slicing/mig-config-rtx6000.yaml
+kubectl label nodes <node-name> nvidia.com/mig.config=custom-rtx6000-4x1g24-2x1g24-1x2g48-1x4g96 --overwrite
+```
+:::
 
 Verify that the MIG configuration is successfully applied, by running the following code.
 
@@ -179,34 +190,21 @@ helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprin
   --password "${NGC_API_KEY}" \
   --set imagePullSecret.password=$NGC_API_KEY \
   --set ngcApiSecret.password=$NGC_API_KEY \
-  -f mig-slicing/values-mig.yaml
+  -f mig-slicing/values-mig-h100.yaml
 ```
 
 :::{important}
 **For NVIDIA RTX6000 Pro Deployments:**
 
-If you are deploying on NVIDIA RTX6000 Pro GPUs (instead of H100 GPUs), you need to configure the NIM LLM model profile. The required configuration is already present but commented out in the [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) file.
+If you are deploying on NVIDIA RTX6000 Pro GPUs (instead of H100 GPUs), use [`values-mig-rtx6000.yaml`](../deploy/helm/mig-slicing/values-mig-rtx6000.yaml) and [`mig-config-rtx6000.yaml`](../deploy/helm/mig-slicing/mig-config-rtx6000.yaml) which include the RTX6000-specific MIG profiles and NIM LLM model configuration.
 
-Uncomment and modify the following section under `nimOperator.nim-llm.model` in [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml):
-```yaml
-model:
-  engine: tensorrt_llm
-  precision: "fp8"
-  qosProfile: "throughput"
-  tensorParallelism: "1"
-  gpus:
-    - product: "rtx6000_blackwell_sv"
-```
-
-Then install using the modified values.yaml along with MIG values:
 ```sh
 helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0.tgz \
   --username '$oauthtoken' \
   --password "${NGC_API_KEY}" \
   --set imagePullSecret.password=$NGC_API_KEY \
   --set ngcApiSecret.password=$NGC_API_KEY \
-  -f values.yaml \
-  -f mig-slicing/values-mig.yaml
+  -f mig-slicing/values-mig-rtx6000.yaml
 ```
 :::
 
@@ -303,7 +301,7 @@ GPU 3: NVIDIA H100 80GB HBM3 (UUID: ...)
 
 * Ensure you have the correct MIG strategy (`mixed`) configured.
 * Verify that `nvidia.com/mig.config.state` is `success` before deploying.
-* Customize `values-mig.yaml` to specify the correct MIG GPU resource requests for each pod.
+* Customize `values-mig-h100.yaml` or `values-mig-rtx6000.yaml` to specify the correct MIG GPU resource requests for each pod.
 
 
 
