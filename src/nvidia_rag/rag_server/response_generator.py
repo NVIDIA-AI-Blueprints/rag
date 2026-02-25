@@ -419,6 +419,7 @@ def generate_answer(
     retrieval_time_ms: float | None = None,
     rag_start_time_sec: float | None = None,
     otel_metrics_client: OtelMetrics | None = None,
+    token_usage: Usage | None = None,
 ):
     """Generate and stream the response to the provided prompt.
 
@@ -429,6 +430,7 @@ def generate_answer(
         collection_name: Name of the collection used for retrieval
         enable_citations: Whether to enable citations in the response
         otel_metrics_client: Optional OpenTelemetry metrics client for updating latency histograms
+        token_usage: Optional token usage metrics (prompt_tokens, completion_tokens, total_tokens)
     """
 
     try:
@@ -537,6 +539,8 @@ def generate_answer(
             # Create response first, then attach metrics for clarity
             chain_response = ChainResponse()
             chain_response.metrics = final_metrics
+            if token_usage is not None and token_usage.total_tokens > 0:
+                chain_response.usage = token_usage
 
             # [DONE] indicate end of response from server
             response_choice = ChainResponseChoices(
@@ -585,6 +589,7 @@ async def generate_answer_async(
     retrieval_time_ms: float | None = None,
     rag_start_time_sec: float | None = None,
     otel_metrics_client: OtelMetrics | None = None,
+    token_usage: Usage | None = None,
 ):
     """Generate and stream the response to the provided prompt asynchronously.
 
@@ -595,6 +600,7 @@ async def generate_answer_async(
         collection_name: Name of the collection used for retrieval
         enable_citations: Whether to enable citations in the response
         otel_metrics_client: Optional OpenTelemetry metrics client for updating latency histograms
+        token_usage: Optional token usage (prompt_tokens, completion_tokens, total_tokens)
     """
 
     try:
@@ -703,6 +709,8 @@ async def generate_answer_async(
             # Create response first, then attach metrics for clarity
             chain_response = ChainResponse()
             chain_response.metrics = final_metrics
+            if token_usage is not None and token_usage.total_tokens > 0:
+                chain_response.usage = token_usage
 
             # [DONE] indicate end of response from server
             response_choice = ChainResponseChoices(
