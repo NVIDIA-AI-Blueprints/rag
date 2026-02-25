@@ -63,15 +63,17 @@ def _get_vdb_op(
     )
 
     # Get VDBRag class object based on the configuration
-        # Oracle 26ai is the default vector store
+    # Oracle 26ai is the default vector store
     if config.vector_store.name == "oracle":
         from nvidia_rag.utils.vdb.oracle.oracle_vdb import OracleVDB
-
         return OracleVDB(
             collection_name=collection_name,
             oracle_user=os.getenv("ORACLE_USER"),
             oracle_password=os.getenv("ORACLE_PASSWORD"),
-            oracle_dsn=os.getenv("ORACLE_DSN"),
+            oracle_cs=os.getenv("ORACLE_CS"),
+            tnsnames_loc=os.getenv("ORACLE_TNSNAMES_LOC"),
+            ewallet_pem_loc=os.getenv("ORACLE_EWALLET_PEM_LOC"),
+            ewallet_password=os.getenv("ORACLE_EWALLET_PASSWORD"),
             embedding_model=embedding_model,
             config=config,
             meta_dataframe=csv_file_path,

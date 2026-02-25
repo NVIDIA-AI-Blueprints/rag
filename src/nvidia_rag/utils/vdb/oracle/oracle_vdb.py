@@ -92,7 +92,10 @@ class OracleVDB(VDBRagIngest):
         collection_name: str,
         oracle_user: str | None = None,
         oracle_password: str | None = None,
-        oracle_dsn: str | None = None,
+        oracle_cs: str | None = None,
+        tnsnames_loc: str | None = None,
+        ewallet_pem_loc: str | None = None,
+        ewallet_password: str | None = None,
         embedding_model: Any | None = None,
         config: NvidiaRAGConfig | None = None,
         meta_dataframe: Any | None = None,
@@ -128,11 +131,21 @@ class OracleVDB(VDBRagIngest):
         # Connection parameters from args or environment
         self._oracle_user = oracle_user or os.getenv("ORACLE_USER")
         self._oracle_password = oracle_password or os.getenv("ORACLE_PASSWORD")
-        self._oracle_dsn = oracle_dsn or os.getenv("ORACLE_DSN")
+        self._oracle_cs = oracle_cs or os.getenv("ORACLE_CS")
+        self._tnsnames_loc = tnsnames_loc or os.getenv("ORACLE_TNSNAMES_LOC")
+        self._ewallet_pem_loc = ewallet_pem_loc or os.getenv("ORACLE_EWALLET_PEM_LOC")
+        self._ewallet_password = ewallet_password or os.getenv("ORACLE_EWALLET_PASSWORD")
 
-        if not all([self._oracle_user, self._oracle_password, self._oracle_dsn]):
+        if not all([
+            self._oracle_user, 
+            self._oracle_password, 
+            self._oracle_cs,
+            self._tnsnames_loc,
+            self._ewallet_pem_loc,
+            self._ewallet_password
+            ]):
             raise ValueError(
-                "Oracle connection requires ORACLE_USER, ORACLE_PASSWORD, and ORACLE_DSN. "
+                "Oracle connection requires ORACLE_USER, ORACLE_PASSWORD, ORACLE_CS, ORACLE_TNSNAMES_LOC, ORACLE_EWALLET_PEM_LOC and ORACLE_EWALLET_PASSWORD variables."
                 "Set via parameters or environment variables."
             )
 
@@ -156,7 +169,10 @@ class OracleVDB(VDBRagIngest):
             self._pool = oracledb.create_pool(
                 user=self._oracle_user,
                 password=self._oracle_password,
-                dsn=self._oracle_dsn,
+                dsn=self._oracle_cs,
+                config_dir=self._tnsnames_loc,
+                wallet_location=self._ewallet_pem_loc,
+                wallet_password=self._ewallet_password,
                 min=2,
                 max=10,
                 increment=1,
@@ -165,11 +181,11 @@ class OracleVDB(VDBRagIngest):
             with self._pool.acquire() as conn:
                 with conn.cursor() as cursor:
                     cursor.execute("SELECT 1 FROM DUAL")
-            logger.info(f"Connected to Oracle at {self._oracle_dsn}")
+            logger.info(f"Connected to Oracle at {self._oracle_cs}")
         except oracledb.Error as e:
-            logger.exception("Failed to connect to Oracle at %s: %s", self._oracle_dsn, e)
+            logger.exception("Failed to connect to Oracle at %s: %s", self._oracle_cs, e)
             raise APIError(
-                f"Oracle database is unavailable at {self._oracle_dsn}. "
+                f"Oracle database is unavailable at {self._oracle_cs}. "
                 "Please verify Oracle is running and credentials are correct.",
                 ErrorCodeMapping.SERVICE_UNAVAILABLE,
             ) from e
