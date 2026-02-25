@@ -1,18 +1,8 @@
 # MIG-optimized resource configuration for RAG Blueprint
 # This file only overrides GPU resource requirements to use MIG slices
 
-# Ingestor Server - reduce concurrency for MIG
-ingestor-server:
-  envVars:
-    NV_INGEST_FILES_PER_BATCH: "4"
-    NV_INGEST_CONCURRENT_BATCHES: "1"
-
 # NV-Ingest configuration
 nv-ingest:
-  envVars:
-    NV_INGEST_MAX_UTIL: 8
-    MAX_INGEST_PROCESS_WORKERS: 2
-
   # Milvus - uses 1g.24gb MIG slice
   milvus:
     standalone:
