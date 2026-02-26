@@ -104,6 +104,11 @@ all = [
 elasticsearch = [
     "langchain-elasticsearch>=0.3",
 ]
+retriever = [
+    # Minimal dependency set for the LangChain retriever client.
+    # Core deps (langchain-core, httpx, pydantic) are already in base.
+    "pytest-asyncio>=0.24",
+]
 
 [tool.uv.sources]
 nvidia-rag = { workspace = true }

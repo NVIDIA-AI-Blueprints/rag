@@ -31,3 +31,8 @@ try:
     from .ingestor_server.main import NvidiaRAGIngestor
 except ModuleNotFoundError as e:
     logger.debug(f"Error importing NvidiaRAGIngestor: {e}")
+
+try:
+    from .retriever import NvidiaRAGRetriever
+except ModuleNotFoundError as e:
+    logger.debug(f"Error importing NvidiaRAGRetriever: {e}")
