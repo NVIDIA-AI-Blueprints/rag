@@ -33,6 +33,7 @@ import requests
 import yaml
 from langchain_core.language_models.llms import LLM
 from langchain_core.language_models.chat_models import SimpleChatModel
+from langchain_core.messages import AIMessageChunk
 from langchain_nvidia_ai_endpoints import ChatNVIDIA
 
 from nvidia_rag.rag_server.response_generator import APIError, ErrorCodeMapping
@@ -224,10 +225,10 @@ def _bind_reasoning_config(
         template_kwargs: dict = {"enable_thinking": enable_thinking}
         if enable_thinking and low_effort:
             template_kwargs["low_effort"] = True
-        llm = llm.bind(chat_template_kwargs=template_kwargs)
         budget = reasoning_budget if reasoning_budget > 0 else max_think
         if enable_thinking and budget > 0:
-            llm = llm.bind(reasoning_budget=budget)
+            template_kwargs["reasoning_budget"] = budget
+        llm = llm.bind(chat_template_kwargs=template_kwargs)
         logger.info(
             "nemotron-3: enable_thinking=%s, reasoning_budget=%d, low_effort=%s",
             enable_thinking, budget, low_effort,
@@ -466,7 +467,8 @@ def streaming_filter_think(chunks: Iterable[str]) -> Iterable[str]:
     chunk_count = 0
 
     for chunk in chunks:
-        content = chunk.content
+        reasoning, content = extract_reasoning_and_content(chunk)
+        content = content or reasoning
         chunk_count += 1
 
         # Let's first check for full tags - this is the most reliable approach
@@ -600,14 +602,20 @@ def get_streaming_filter_think_parser():
         return RunnablePassthrough()
 
 
-async def streaming_filter_think_async(chunks):
+async def streaming_filter_think_async(chunks, enable_thinking: bool = False):
     """
     Async version of streaming_filter_think.
     This async generator filters content between think tags in streaming LLM responses.
     It handles both complete tags in a single chunk and tags split across multiple tokens.
 
+    When enable_thinking is True and the model uses a separate reasoning_content field
+    (e.g. Nemotron 3), reasoning tokens are dropped and only content is forwarded.
+    The <think> tag filter still runs to handle models that embed reasoning in content.
+
     Args:
         chunks: Async iterable of chunks from a streaming LLM response
+        enable_thinking: When True, drop reasoning_content (genuine chain-of-thought).
+            When False, fall back to reasoning_content if content is empty (model quirk).
 
     Yields:
         str: Filtered content with think blocks removed
@@ -633,7 +641,8 @@ async def streaming_filter_think_async(chunks):
     chunk_count = 0
 
     async for chunk in chunks:
-        content = chunk.content
+        reasoning, content = extract_reasoning_and_content(chunk)
+        content = content if enable_thinking else (content or reasoning)
         chunk_count += 1
 
         # Let's first check for full tags - this is the most reliable approach
@@ -742,27 +751,61 @@ async def streaming_filter_think_async(chunks):
     )
 
 
-def get_streaming_filter_think_parser_async():
+async def _content_fallback_async(chunks, enable_thinking: bool = False):
+    """
+    Pass through LLM chunks WITHOUT filtering thinking tokens.
+    Used when FILTER_THINK_TOKENS=false - the user wants to see everything.
+
+    - When enable_thinking=true: forwards both reasoning_content and content so
+      the user can see the chain-of-thought followed by the answer.
+    - When enable_thinking=false: falls back to reasoning_content if content is
+      empty (NIM quirk where the answer lands in reasoning_content).
+
+    Args:
+        chunks: Async iterable of LLM response chunks
+        enable_thinking: Whether the model is producing genuine reasoning tokens.
+    """
+    async for chunk in chunks:
+        reasoning, content = extract_reasoning_and_content(chunk)
+
+        if enable_thinking:
+            if reasoning:
+                yield AIMessageChunk(content=reasoning)
+            if content:
+                yield AIMessageChunk(content=content)
+        else:
+            text = content or reasoning
+            if text:
+                yield AIMessageChunk(content=text)
+
+
+def get_streaming_filter_think_parser_async(enable_thinking: bool = False):
     """
     Creates and returns an async RunnableGenerator for filtering think tokens.
 
     If FILTER_THINK_TOKENS environment variable is set to "true" (case-insensitive),
     returns a parser that filters out content between <think> and </think> tags.
-    Otherwise, returns a pass-through parser that doesn't modify the content.
+    Otherwise, returns a parser that normalizes content (content or reasoning_content)
+    so models like Nemotron 3 that put reply in reasoning_content still yield text.
+
+    Args:
+        enable_thinking: When True, reasoning_content is genuine chain-of-thought and
+            will be dropped. When False, reasoning_content is used as a fallback if
+            content is empty (workaround for model quirk).
 
     Returns:
-        RunnableGenerator: An async parser for filtering (or not filtering) think tokens
+        RunnableGenerator: An async parser for filtering or content normalization
     """
+    from functools import partial
     from langchain_core.runnables import RunnableGenerator, RunnablePassthrough
 
     # Check environment variable
     filter_enabled = os.getenv("FILTER_THINK_TOKENS", "true").lower() == "true"
 
     if filter_enabled:
-        logger.info("Think token filtering is enabled (async)")
-        return RunnableGenerator(streaming_filter_think_async)
+        logger.info("Think token filtering is enabled (async), enable_thinking=%s", enable_thinking)
+        return RunnableGenerator(partial(streaming_filter_think_async, enable_thinking=enable_thinking))
     else:
-        logger.info("Think token filtering is disabled (async)")
-        # If filtering is disabled, use a passthrough that passes content as-is
-        return RunnablePassthrough()
+        logger.info("Think token filtering is disabled (async), enable_thinking=%s", enable_thinking)
+        return RunnableGenerator(partial(_content_fallback_async, enable_thinking=enable_thinking))
         

@@ -262,7 +262,9 @@ class NvidiaRAG:
         # Load prompts and other utilities
         self.prompts = get_prompts(prompts)
         self.vdb_top_k = int(self.config.retriever.vdb_top_k)
-        self.StreamingFilterThinkParser = get_streaming_filter_think_parser_async()
+        self.StreamingFilterThinkParser = get_streaming_filter_think_parser_async(
+            enable_thinking=self.config.llm.parameters.enable_thinking
+        )
 
         if self._init_errors:
             logger.warning(
