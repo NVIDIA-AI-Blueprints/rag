@@ -35,9 +35,9 @@ For monitoring deployment progress, refer to [Deploy on Kubernetes with Helm](./
 
 3. Verify that you have the NGC CLI available on your client computer. You can download the CLI from <https://ngc.nvidia.com/setup/installers/cli>.
 
-4. Verify that you have Kubernetes v1.34.2 installed and running on Ubuntu 22.04/24.04. For more information, see [Kubernetes documentation](https://kubernetes.io/docs/setup/) and [NVIDIA Cloud Native Stack 17.0](https://github.com/NVIDIA/cloud-native-stack/tree/17.0).
+4. Verify that you have Kubernetes v1.34.2 installed and running on Ubuntu 22.04/24.04. For more information, see [Kubernetes documentation](https://kubernetes.io/docs/setup/) and [NVIDIA Cloud Native Stack 17.0](https://github.com/NVIDIA/cloud-native-stack/tree/25.12.0).
 
-5. Verify that you have installed Helm 3 or later (Helm v3.20.0 recommended). For installation instructions, see [Helm Installation](https://helm.sh/docs/intro/install).
+5. Verify that you have installed Helm 3. To install Helm 3 (and avoid Helm 4), follow the official Helm v3 installation instructions for your platform, for example by using the `get-helm-3` script described in the [Helm documentation](https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3).
 
 6. Verify that you have a default storage class available in the cluster for PVC provisioning. One option is the local path provisioner by Rancher.   Refer to the [installation](https://github.com/rancher/local-path-provisioner?tab=readme-ov-file#installation) section of the README in the GitHub repository.
 
@@ -185,7 +185,7 @@ You should see output similar to the following.
 Run the following code to install the RAG Blueprint Helm Chart.
 
 ```bash
-helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0.tgz \
+helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.5.0.tgz \
   --username '$oauthtoken' \
   --password "${NGC_API_KEY}" \
   --set imagePullSecret.password=$NGC_API_KEY \
@@ -199,7 +199,7 @@ helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprin
 If you are deploying on NVIDIA RTX6000 Pro GPUs (instead of H100 GPUs), use [`values-mig-rtx6000.yaml`](../deploy/helm/mig-slicing/values-mig-rtx6000.yaml) and [`mig-config-rtx6000.yaml`](../deploy/helm/mig-slicing/mig-config-rtx6000.yaml) which include the RTX6000-specific MIG profiles and NIM LLM model configuration.
 
 ```sh
-helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0.tgz \
+helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.5.0.tgz \
   --username '$oauthtoken' \
   --password "${NGC_API_KEY}" \
   --set imagePullSecret.password=$NGC_API_KEY \
