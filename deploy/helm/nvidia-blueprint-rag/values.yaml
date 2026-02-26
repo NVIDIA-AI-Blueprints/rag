@@ -416,6 +416,8 @@ ingestor-server:
     NV_INGEST_FILES_PER_BATCH: "16"
     NV_INGEST_CONCURRENT_BATCHES: "4"
     ENABLE_NV_INGEST_DYNAMIC_BATCHING: "True"
+    # Max memory budget (MB) for a single ingestion job; used for dynamic batch sizing
+    INGESTION_MAX_MEMORY_BUDGET_MB: "1024"
 
     # === Tracing ===
     APP_TRACING_ENABLED: "False"
