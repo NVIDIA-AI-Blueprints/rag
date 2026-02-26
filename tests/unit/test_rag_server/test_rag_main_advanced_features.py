@@ -24,6 +24,7 @@ import pytest
 from nvidia_rag.rag_server.main import NvidiaRAG
 from nvidia_rag.rag_server.response_generator import APIError, Citations
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
+from nvidia_rag.utils.vdb.milvus.milvus_vdb import MilvusVDB
 
 
 @pytest.fixture(autouse=True)
@@ -344,6 +345,58 @@ class TestNvidiaRAGSearchCoverage:
                                                 )
 
                                                 assert isinstance(result, Citations)
+
+    @pytest.mark.asyncio
+    async def test_search_uses_retrieval_image_langchain_for_image_query(self):
+        """When query is multimodal with image, retrieval_image_langchain is used not retrieval_langchain."""
+        mock_vdb_op = Mock(spec=MilvusVDB)
+        mock_vdb_op.check_collection_exists.return_value = True
+        mock_vdb_op.get_metadata_schema.return_value = []
+        mock_vdb_op.get_langchain_vectorstore.return_value = Mock()
+        mock_vdb_op.retrieval_langchain.return_value = [
+            Mock(page_content="test content", metadata={})
+        ]
+        mock_vdb_op.retrieval_image_langchain.return_value = [
+            Mock(page_content="image content", metadata={})
+        ]
+        rag = NvidiaRAG(vdb_op=mock_vdb_op)
+
+        multimodal_query = [
+            {"type": "text", "text": "What is in this image?"},
+            {"type": "image_url", "image_url": {"url": "data:image/png;base64,x"}},
+        ]
+
+        with patch.object(rag, "_prepare_vdb_op") as mock_prepare:
+            with patch(
+                "nvidia_rag.rag_server.main.prepare_citations"
+            ) as mock_prepare_citations:
+                with patch(
+                    "nvidia_rag.rag_server.main.validate_filter_expr"
+                ) as mock_validate_filter:
+                    with patch(
+                        "nvidia_rag.rag_server.main.process_filter_expr"
+                    ) as mock_process_filter:
+                        mock_prepare.return_value = mock_vdb_op
+                        mock_prepare_citations.return_value = Citations(
+                            documents=[], sources=[]
+                        )
+                        mock_validate_filter.return_value = {
+                            "status": True,
+                            "validated_collections": ["test_collection"],
+                        }
+                        mock_process_filter.return_value = ""
+
+                        result = await rag.search(
+                            query=multimodal_query,
+                            messages=[],
+                            collection_names=["test_collection"],
+                            enable_reranker=False,
+                            filter_expr="",
+                        )
+
+                        assert isinstance(result, Citations)
+                        mock_vdb_op.retrieval_image_langchain.assert_called_once()
+                        mock_vdb_op.retrieval_langchain.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_search_with_filter_generator_enabled(self):

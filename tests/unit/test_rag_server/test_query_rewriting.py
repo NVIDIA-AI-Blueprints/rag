@@ -17,6 +17,8 @@
 Test suite for query rewriting functionality in the RAG server.
 """
 
+from unittest.mock import AsyncMock, patch
+
 import pytest
 
 
@@ -64,6 +66,7 @@ class DummyVDB:
     """A minimal VDB stub used via monkeypatch on __prepare_vdb_op."""
 
     last_query = None
+    last_retrieval_method = None
 
     def check_collection_exists(self, collection_name: str) -> bool:
         return True
@@ -77,6 +80,15 @@ class DummyVDB:
     def retrieval_langchain(self, query, collection_name, vectorstore=None, top_k=None, filter_expr="", otel_ctx=None):
         """Sync method - called in ThreadPoolExecutor or directly."""
         DummyVDB.last_query = query
+        DummyVDB.last_retrieval_method = "langchain"
+        return []
+
+    def retrieval_image_langchain(
+        self, query, collection_name, vectorstore=None, top_k=None, reranker_top_k=None
+    ):
+        """Called when query contains images (multimodal)."""
+        DummyVDB.last_query = query
+        DummyVDB.last_retrieval_method = "image"
         return []
 
 
@@ -254,6 +266,43 @@ async def test_search_combines_history_when_multiturn_enabled(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_search_skips_query_rewriter_for_image_query(monkeypatch):
+    """When query is multimodal with image, query rewriting is skipped and retrieval_image_langchain is used."""
+    from nvidia_rag.rag_server.main import NvidiaRAG
+
+    monkeypatch.setenv("CONVERSATION_HISTORY", "5")
+    monkeypatch.setenv("ENABLE_REFLECTION", "false")
+
+    fake_vdb = DummyVDB()
+    rag = NvidiaRAG()
+    monkeypatch.setattr(NvidiaRAG, "_prepare_vdb_op", lambda self, **kw: fake_vdb)
+
+    multimodal_query = [
+        {"type": "text", "text": "What is in this image?"},
+        {"type": "image_url", "image_url": {"url": "data:image/png;base64,x"}},
+    ]
+    messages = [
+        {"role": "user", "content": "Previous question"},
+        {"role": "assistant", "content": "Previous answer"},
+    ]
+
+    await rag.search(
+        query=multimodal_query,
+        messages=messages,
+        collection_names=["test"],
+        enable_query_rewriting=True,
+        enable_reranker=False,
+        filter_expr="",
+    )
+
+    # Assert: query rewriting skipped - last_query is the image URL, NOT "REWRITTEN(...)"
+    assert fake_vdb.last_query == "data:image/png;base64,x"
+    assert "REWRITTEN" not in str(fake_vdb.last_query)
+    # Assert: retrieval_image_langchain was used (not retrieval_langchain)
+    assert fake_vdb.last_retrieval_method == "image"
+
+
+@pytest.mark.asyncio
 async def test_generate_uses_query_rewriter_when_enabled(monkeypatch):
     """Test that query rewriting is used in generate when enabled with conversation history."""
     from nvidia_rag.rag_server.main import NvidiaRAG
@@ -317,6 +366,55 @@ async def test_generate_uses_only_current_query_when_history_disabled(monkeypatc
 
     # Assert: only current query is used (no history concatenation)
     assert fake_vdb.last_query == "How does it work?"
+
+
+@pytest.mark.asyncio
+async def test_generate_skips_query_rewriter_for_image_query(monkeypatch):
+    """When messages contain multimodal content with image, query rewriting is skipped."""
+    from nvidia_rag.rag_server.main import NvidiaRAG
+
+    monkeypatch.setenv("CONVERSATION_HISTORY", "5")
+    monkeypatch.setenv("ENABLE_REFLECTION", "false")
+    monkeypatch.setenv("MULTITURN_RETRIEVER_SIMPLE", "False")
+
+    fake_vdb = DummyVDB()
+    rag = NvidiaRAG()
+    monkeypatch.setattr(NvidiaRAG, "_prepare_vdb_op", lambda self, **kw: fake_vdb)
+
+    messages = [
+        {"role": "user", "content": "What is RAG?"},
+        {"role": "assistant", "content": "A retrieval-augmented framework."},
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "What is in this image?"},
+                {"type": "image_url", "image_url": {"url": "data:image/png;base64,x"}},
+            ],
+        },
+    ]
+
+    async def _stream(*a, **k):
+        yield "ok"
+
+    with patch("nvidia_rag.rag_server.main.VLM") as mock_vlm_class:
+        mock_vlm_instance = mock_vlm_class.return_value
+        mock_vlm_instance.stream_with_messages = _stream
+
+        stream = await rag.generate(
+            messages=messages,
+            use_knowledge_base=True,
+            collection_names=["test"],
+            enable_query_rewriting=True,
+            enable_reranker=False,
+            enable_vlm_inference=True,
+            filter_expr="",
+        )
+
+    # Assert: query rewriting skipped - last_query is the image URL, NOT "REWRITTEN(...)"
+    assert fake_vdb.last_query == "data:image/png;base64,x"
+    assert "REWRITTEN" not in str(fake_vdb.last_query)
+    # Assert: retrieval_image_langchain was used
+    assert fake_vdb.last_retrieval_method == "image"
 
 
 @pytest.mark.asyncio

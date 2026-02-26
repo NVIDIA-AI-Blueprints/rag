@@ -437,6 +437,51 @@ class TestNvidiaRAGBuildRetrieverQuery:
         result = rag._build_retriever_query_from_content(123)
         assert result == ("123", False)
 
+    def test_build_retriever_query_from_multimodal_text_only(self):
+        """Multimodal with text only (no image) returns joined text."""
+        rag = NvidiaRAG()
+
+        content = [
+            {"type": "text", "text": "Hello"},
+            {"type": "text", "text": "world"},
+        ]
+        result = rag._build_retriever_query_from_content(content)
+        assert result == ("Hello\n\nworld", False)
+
+    def test_build_retriever_query_from_multimodal_data_url(self):
+        """Image URL with data:image/png;base64 format."""
+        rag = NvidiaRAG()
+
+        content = [
+            {"type": "image_url", "image_url": {"url": "data:image/png;base64,abc123"}}
+        ]
+        result = rag._build_retriever_query_from_content(content)
+        assert result == ("data:image/png;base64,abc123", True)
+
+    def test_build_retriever_query_from_multimodal_image_url_empty(self):
+        """image_url with empty url returns text parts only."""
+        rag = NvidiaRAG()
+
+        content = [
+            {"type": "text", "text": "Hello"},
+            {"type": "image_url", "image_url": {"url": ""}},
+        ]
+        result = rag._build_retriever_query_from_content(content)
+        assert result == ("Hello", False)
+
+    def test_build_retriever_query_from_multimodal_image_url_with_detail(self):
+        """image_url with url and detail field."""
+        rag = NvidiaRAG()
+
+        content = [
+            {
+                "type": "image_url",
+                "image_url": {"url": "http://x.com/img.jpg", "detail": "auto"},
+            }
+        ]
+        result = rag._build_retriever_query_from_content(content)
+        assert result == ("http://x.com/img.jpg", True)
+
 
 class TestNvidiaRAGPrintConversationHistory:
     """Test cases for NvidiaRAG __print_conversation_history method."""
