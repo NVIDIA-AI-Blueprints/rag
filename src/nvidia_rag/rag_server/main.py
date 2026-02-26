@@ -1368,18 +1368,6 @@ class NvidiaRAG:
         conversation_history = []
         user_message = []
 
-        is_nemotron_v1 = str(model).endswith("llama-3.3-nemotron-super-49b-v1")
-
-        # Nemotron controls thinking using system prompt, if nemotron v1 model is used update system prompt to enable/disable think
-        if is_nemotron_v1:
-            logger.info("Nemotron v1 model detected, updating system prompt")
-            if os.environ.get("ENABLE_NEMOTRON_THINKING", "false").lower() == "true":
-                logger.info("Setting system prompt as detailed thinking on")
-                system_prompt = "detailed thinking on"
-            else:
-                logger.info("Setting system prompt as detailed thinking off")
-                system_prompt = "detailed thinking off"
-
         # Process chat history
         for message in chat_history:
             # Overwrite system message if provided in conversation history

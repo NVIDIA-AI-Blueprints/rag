@@ -74,11 +74,11 @@ services:
       LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-32768}
       LLM_TEMPERATURE: ${LLM_TEMPERATURE:-0}
       LLM_TOP_P: ${LLM_TOP_P:-1.0}
-      
-      # Enable/disable thinking/reasoning for nemotron-3-nano models (30b variant)
-      # Set to "true" to enable reasoning mode with reasoning_budget
-      # Set to "false" to disable reasoning and get direct answers
-      ENABLE_NEMOTRON_3_NANO_THINKING: ${ENABLE_NEMOTRON_3_NANO_THINKING:-true}
+
+      # Reasoning configuration (supported by Nemotron 3 and other reasoning models)
+      LLM_ENABLE_THINKING: ${LLM_ENABLE_THINKING:-false}
+      LLM_REASONING_BUDGET: ${LLM_REASONING_BUDGET:-0}
+      LLM_LOW_EFFORT: ${LLM_LOW_EFFORT:-false}
 
       ##===Query Rewriter Model specific configurations===
       APP_QUERYREWRITER_MODELNAME: ${APP_QUERYREWRITER_MODELNAME:-"nvidia/llama-3.3-nemotron-super-49b-v1.5"}
