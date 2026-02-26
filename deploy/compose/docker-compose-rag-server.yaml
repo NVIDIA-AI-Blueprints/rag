@@ -3,7 +3,7 @@ services:
   # Main orchestrator server which stiches together all calls to different services to fulfill the user request
   rag-server:
     container_name: rag-server
-    image: nvcr.io/nvidia/blueprint/rag-server:${TAG:-2.4.0}
+    image: nvcr.io/nvstaging/blueprint/rag-server:${TAG:-2.5.0}
     build:
       # Set context to repo's root directory
       context: ../../
@@ -211,7 +211,7 @@ services:
   # Sample UI container which interacts with APIs exposed by rag-server container
   rag-frontend:
     container_name: rag-frontend
-    image: nvcr.io/nvidia/blueprint/rag-frontend:${TAG:-2.4.0}
+    image: nvcr.io/nvstaging/blueprint/rag-frontend:${TAG:-2.5.0}
     build:
       # Set context to repo's root directory
       context: ../../frontend
