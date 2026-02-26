@@ -341,5 +341,6 @@ def get_all_collections_query() -> str:
     WHERE table_name NOT IN ('METADATA_SCHEMA', 'DOCUMENT_INFO')
     AND table_name NOT LIKE 'SYS%'
     AND table_name NOT LIKE 'DR$%'
+    AND table_name NOT LIKE 'DBTOOLS%'
     ORDER BY table_name
     """

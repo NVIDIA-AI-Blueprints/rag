@@ -322,7 +322,7 @@ class OracleVDB(VDBRagIngest):
         """Check Oracle database health."""
         status = {
             "service": "Oracle 26ai",
-            "url": self._oracle_dsn,
+            "url": self._oracle_cs,
             "status": ServiceStatus.UNKNOWN.value,
             "error": None,
         }
@@ -824,7 +824,10 @@ class OracleVDB(VDBRagIngest):
         conn = oracledb.connect(
             user=self._oracle_user,
             password=self._oracle_password,
-            dsn=self._oracle_dsn,
+            dsn=self._oracle_cs,
+            config_dir=self._tnsnames_loc,
+            wallet_location=self._ewallet_pem_loc,
+            wallet_password=self._ewallet_password
         )
 
         return OracleVS(
