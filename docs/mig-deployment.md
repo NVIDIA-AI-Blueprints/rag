@@ -233,14 +233,14 @@ You should see output similar to the following.
 Resource                                    Requested   Limit    Allocatable  Free
 nvidia.com/mig-1g.10gb                      (86%) 6.0   (86%) 6.0     7.0        1.0
 ├─ milvus-standalone-...                   1.0     1.0
-├─ nemoretriever-embedding-ms-...          1.0     1.0
+├─ nemotron-embedding-ms-...          1.0     1.0
 ├─ rag-nv-ingest-...                       1.0     1.0
 ├─ nemoretriever-graphic-elements-v1-...   1.0     1.0
 ├─ nemoretriever-page-elements-v3-...      1.0     1.0
 └─ nemoretriever-table-structure-v1-...    1.0     1.0
 
 nvidia.com/mig-1g.20gb                      (100%) 2.0  (100%) 2.0     2.0        0.0
-├─ nemoretriever-ranking-ms-...            1.0     1.0
+├─ nemotron-ranking-ms-...            1.0     1.0
 └─ <other-workload>                        1.0     1.0
 
 nvidia.com/mig-3g.40gb                      (100%) 1.0  (100%) 1.0     1.0        0.0

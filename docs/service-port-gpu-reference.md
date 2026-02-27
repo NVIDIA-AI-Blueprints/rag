@@ -20,9 +20,9 @@ The following table provides a comprehensive reference of all services, their po
 | Service | Container Name | Host Port(s) | Container Port(s) | Default GPU ID | Environment Variable | Notes |
 |---------|---------------|--------------|-------------------|----------------|---------------------|-------|
 | LLM | `nim-llm-ms` | 8999 | 8000 | 1 | `LLM_MS_GPU_ID` | Main language model |
-| Embedding | `nemoretriever-embedding-ms` | 9080 | 8000 | 0 | `EMBEDDING_MS_GPU_ID` | Text embeddings |
+| Embedding | `nemotron-embedding-ms` | 9080 | 8000 | 0 | `EMBEDDING_MS_GPU_ID` | Text embeddings |
 | VLM Embedding | `nemotron-vlm-embedding-ms` | 9081 | 8000 | 0 | `VLM_EMBEDDING_MS_GPU_ID` | Vision-language embeddings (opt-in, profile: vlm-embed) |
-| Ranking | `nemoretriever-ranking-ms` | 1976 | 8000 | 0 | `RANKING_MS_GPU_ID` | Reranking model |
+| Ranking | `nemotron-ranking-ms` | 1976 | 8000 | 0 | `RANKING_MS_GPU_ID` | Reranking model |
 | VLM | `nemo-vlm-microservice` | 1977 | 8000 | 5 | `VLM_MS_GPU_ID` | Vision-language model (opt-in, profile: vlm-only, vlm-generation) |
 | Nemotron Parse | `compose-nemotron-parse-1` | 8015, 8016, 8017 | 8000, 8001, 8002 | 1 | `NEMOTRON_PARSE_MS_GPU_ID` | PDF parsing (opt-in, profile: nemotron-parse) |
 | RIVA ASR | `compose-audio-1` | 8021, 8022 | 50051, 9000 | 0 | `AUDIO_MS_GPU_ID` | Audio speech recognition (opt-in, profile: audio) |

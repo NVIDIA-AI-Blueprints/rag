@@ -196,7 +196,7 @@ class TestEmbeddingConfig:
         """Test default configuration values."""
         config = EmbeddingConfig()
 
-        assert config.model_name == "nvidia/llama-3.2-nv-embedqa-1b-v2"
+        assert config.model_name == "nvidia/llama-nemotron-embed-1b-v2"
         assert config.model_engine == "nvidia-ai-endpoints"
         assert config.dimensions == 2048
         assert config.server_url == ""
@@ -209,7 +209,7 @@ class TestRankingConfig:
         """Test default configuration values."""
         config = RankingConfig()
 
-        assert config.model_name == "nvidia/llama-3.2-nv-rerankqa-1b-v2"
+        assert config.model_name == "nvidia/llama-nemotron-rerank-1b-v2"
         assert config.model_engine == "nvidia-ai-endpoints"
         assert config.server_url == ""
         assert config.enable_reranker is True

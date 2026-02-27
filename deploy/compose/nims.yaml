@@ -31,9 +31,9 @@ services:
       retries: 100
     profiles: ["", "rag"]
 
-  nemoretriever-embedding-ms:
-    container_name: nemoretriever-embedding-ms
-    image: nvcr.io/nim/nvidia/llama-3.2-nv-embedqa-1b-v2:1.10.1
+  nemotron-embedding-ms:
+    container_name: nemotron-embedding-ms
+    image: nvcr.io/nvstaging/nim/llama-nemotron-embed-1b-v2:1.12.0-rc.20260216115852-6fba925dcb63c190
     volumes:
     - ${MODEL_DIRECTORY:-./}:/opt/nim/.cache
     ports:
@@ -91,9 +91,9 @@ services:
       start_period: 10m
     profiles: ["vlm-embed", "vlm-ingest"]
 
-  nemoretriever-ranking-ms:
-    container_name: nemoretriever-ranking-ms
-    image: nvcr.io/nim/nvidia/llama-3.2-nv-rerankqa-1b-v2:1.8.0
+  nemotron-ranking-ms:
+    container_name: nemotron-ranking-ms
+    image: nvcr.io/nvstaging/nim/llama-nemotron-rerank-1b-v2:1.10.0-rc.20260219005237-7e2370934c6f9b9c
     volumes:
     - ${MODEL_DIRECTORY:-./}:/opt/nim/.cache
     ports:
@@ -119,7 +119,7 @@ services:
     profiles: ["", "rag", "vlm-generation"]
 
   page-elements:
-    image: ${YOLOX_IMAGE:-nvcr.io/nim/nvidia/nemoretriever-page-elements-v3}:${YOLOX_TAG:-1.7.0}
+    image: ${YOLOX_IMAGE:-nvcr.io/nvstaging/nim/nemotron-page-elements-v3}:${YOLOX_TAG:-1.8.0-rc.20260218170155-6b1b2aa9dfefc9c3}
     shm_size: 16gb
     ports:
       - "8000:8000"
@@ -157,7 +157,7 @@ services:
     profiles: ["", "ingest", "vlm-ingest"]
 
   graphic-elements:
-    image: ${YOLOX_GRAPHIC_ELEMENTS_IMAGE:-nvcr.io/nim/nvidia/nemoretriever-graphic-elements-v1}:${YOLOX_GRAPHIC_ELEMENTS_TAG:-1.6.0}
+    image: ${YOLOX_GRAPHIC_ELEMENTS_IMAGE:-nvcr.io/nvstaging/nim/nemotron-graphic-elements-v1}:${YOLOX_GRAPHIC_ELEMENTS_TAG:-1.8.0-rc.20260218170144-35d5a3f270662864}
     shm_size: 16gb
     ports:
       - "8003:8000"
@@ -183,7 +183,7 @@ services:
     profiles: ["", "ingest", "vlm-ingest"]
 
   table-structure:
-    image: ${YOLOX_TABLE_STRUCTURE_IMAGE:-nvcr.io/nim/nvidia/nemoretriever-table-structure-v1}:${YOLOX_TABLE_STRUCTURE_TAG:-1.6.0}
+    image: ${YOLOX_TABLE_STRUCTURE_IMAGE:-nvcr.io/nvstaging/nim/nemotron-table-structure-v1}:${YOLOX_TABLE_STRUCTURE_TAG:-1.8.0-rc.20260218170204-cca5cb850146dbbc}
     shm_size: 16gb
     ports:
       - "8006:8000"
