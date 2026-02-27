@@ -14,7 +14,8 @@
 # limitations under the License.
 
 """
-This module provides VDBRagIngest, a VDBRag subclass with nv_ingest support.
+This module provides VDBRagIngest, a VDBRag subclass with nv_ingest support,
+and SerializedVDBWrapper for serializing concurrent VDB write operations.
 
 VDBRagIngest combines VDBRag (pure abstract base) with VDB from nv_ingest_client,
 providing full ingestion capabilities. This class should be used by ingestor_server
@@ -25,6 +26,7 @@ from vdb_base.py instead to avoid the nv_ingest dependency.
 """
 
 import logging
+import threading
 
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
 
@@ -52,6 +54,40 @@ try:
 
         pass
 
+    class SerializedVDBWrapper:
+        """Wraps a VDB op to serialize write operations while keeping reads parallel.
+
+        When multiple batches run extraction concurrently, their VDB writes can
+        overlap and cause indexing timeouts (e.g., GPU_CAGRA JIT compilation takes
+        longer than the client's patience window). This wrapper uses a threading
+        lock to ensure only one batch writes to the VDB at a time.
+        """
+
+        def __init__(self, vdb_op):
+            self._vdb_op = vdb_op
+            self._write_lock = threading.Lock()
+
+        def run_async(self, records):
+            with self._write_lock:
+                return self._vdb_op.run_async(records)
+
+        def run(self, records):
+            with self._write_lock:
+                return self._vdb_op.run(records)
+
+        def write_to_index(self, records, **kwargs):
+            with self._write_lock:
+                return self._vdb_op.write_to_index(records, **kwargs)
+
+        def create_index(self, **kwargs):
+            with self._write_lock:
+                return self._vdb_op.create_index(**kwargs)
+
+        def __getattr__(self, name):
+            return getattr(self._vdb_op, name)
+
+    VDB.register(SerializedVDBWrapper)
+
 except ImportError:
     logger.warning(
         "Optional nv_ingest_client module not installed. "
@@ -59,4 +95,4 @@ except ImportError:
     )
     # Fallback: VDBRagIngest is just VDBRag without nv_ingest support
     VDBRagIngest = VDBRag
-
+    SerializedVDBWrapper = None
