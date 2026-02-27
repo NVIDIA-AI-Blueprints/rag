@@ -49,8 +49,7 @@ class LibraryUsageModule(BaseTestModule):
         """Get or create shared config object with common settings"""
         if self._config is None:
             from nvidia_rag.utils.configuration import NvidiaRAGConfig
-            
-            config_path = Path(__file__).parent.parent.parent.parent / "notebooks" / "config.yaml"
+            config_path = Path(__file__).parent.parent.parent.parent / "tests" / "integration" / "notebook_test_config.yaml"
             self._config = NvidiaRAGConfig.from_yaml(str(config_path))
             
             # Common configuration for all library tests

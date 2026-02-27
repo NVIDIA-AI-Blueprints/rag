@@ -75,8 +75,8 @@ services:
 
       ##===Embedding Model specific configurations===
       # url on which embedding model is hosted. If "", Nvidia hosted API is used
-      APP_EMBEDDINGS_SERVERURL: ${APP_EMBEDDINGS_SERVERURL-"nemoretriever-embedding-ms:8000/v1"}
-      APP_EMBEDDINGS_MODELNAME: ${APP_EMBEDDINGS_MODELNAME:-nvidia/llama-3.2-nv-embedqa-1b-v2}
+      APP_EMBEDDINGS_SERVERURL: ${APP_EMBEDDINGS_SERVERURL-"nemotron-embedding-ms:8000/v1"}
+      APP_EMBEDDINGS_MODELNAME: ${APP_EMBEDDINGS_MODELNAME:-nvidia/llama-nemotron-embed-1b-v2}
       # For VLM Embedding Model (Nemoretriever-1b-vlm-embed-v1)
       # APP_EMBEDDINGS_SERVERURL: ${APP_EMBEDDINGS_SERVERURL-"nemotron-vlm-embedding-ms:8000/v1"}
       # APP_EMBEDDINGS_MODELNAME: ${APP_EMBEDDINGS_MODELNAME:-nvidia/llama-nemotron-embed-vl-1b-v2}
@@ -168,7 +168,7 @@ services:
       - "6379:6379"
 
   nv-ingest-ms-runtime:
-    image: nvcr.io/nvidia/nemo-microservices/nv-ingest:26.1.1
+    image: nvcr.io/nvidia/nemo-microservices/nv-ingest:26.1.2
     # cpuset: "0-15" # Uncomment to restrict this container to CPU cores 0–15
     shm_size: 40gb # Should be at minimum 30% of assigned memory per Ray documentation
     volumes:
@@ -234,13 +234,13 @@ services:
       - YOLOX_HTTP_ENDPOINT=${YOLOX_HTTP_ENDPOINT:-http://page-elements:8000/v1/infer}
       - YOLOX_INFER_PROTOCOL=${YOLOX_INFER_PROTOCOL:-grpc}
       # build.nvidia.com hosted yolox-graphics-elements endpoints.
-      #- YOLOX_GRAPHIC_ELEMENTS_HTTP_ENDPOINT=https://ai.api.nvidia.com/v1/cv/nvidia/nemoretriever-graphic-elements-v1
+      #- YOLOX_GRAPHIC_ELEMENTS_HTTP_ENDPOINT=https://ai.api.nvidia.com/v1/cv/nvidia/nemotron-graphic-elements-v1
       #- YOLOX_GRAPHIC_ELEMENTS_INFER_PROTOCOL=http
       - YOLOX_GRAPHIC_ELEMENTS_GRPC_ENDPOINT=${YOLOX_GRAPHIC_ELEMENTS_GRPC_ENDPOINT:-graphic-elements:8001}
       - YOLOX_GRAPHIC_ELEMENTS_HTTP_ENDPOINT=${YOLOX_GRAPHIC_ELEMENTS_HTTP_ENDPOINT:-http://graphic-elements:8000/v1/infer}
       - YOLOX_GRAPHIC_ELEMENTS_INFER_PROTOCOL=${YOLOX_GRAPHIC_ELEMENTS_INFER_PROTOCOL:-grpc}
       # build.nvidia.com hosted  yolox-table-elements endpoints.
-      #- YOLOX_TABLE_STRUCTURE_HTTP_ENDPOINT=https://ai.api.nvidia.com/v1/cv/nvidia/nemoretriever-table-structure-v1
+      #- YOLOX_TABLE_STRUCTURE_HTTP_ENDPOINT=https://ai.api.nvidia.com/v1/cv/nvidia/nemotron-table-structure-v1
       #- YOLOX_TABLE_STRUCTURE_INFER_PROTOCOL=http
       - YOLOX_TABLE_STRUCTURE_GRPC_ENDPOINT=${YOLOX_TABLE_STRUCTURE_GRPC_ENDPOINT:-table-structure:8001}
       - YOLOX_TABLE_STRUCTURE_HTTP_ENDPOINT=${YOLOX_TABLE_STRUCTURE_HTTP_ENDPOINT:-http://table-structure:8000/v1/infer}

@@ -55,14 +55,14 @@ filter_expression_generator:
 
 # Embedding Configuration
 embeddings:
-  model_name: "nvidia/llama-nemotron-embed-1b-v2"  # Model for generating text embeddings
+  model_name: "nvidia/llama-3.2-nv-embedqa-1b-v2"  # Model for generating text embeddings
   dimensions: 2048  # Dimensionality of the embedding vectors
   server_url: "http://localhost:9080/v1"  # URL endpoint for embedding service (on-prem NIM default)
   # api_key: ""  # Optional: API key for embeddings (overrides NVIDIA_API_KEY environment variable)
 
 # Ranking Configuration
 ranking:
-  model_name: "nvidia/llama-nemotron-rerank-1b-v2"  # Model for reranking retrieved documents
+  model_name: "nvidia/llama-3.2-nv-rerankqa-1b-v2"  # Model for reranking retrieved documents
   server_url: "http://localhost:1976"  # URL endpoint for reranking service (on-prem NIM default)
   enable_reranker: true  # Enable reranking of retrieved documents before generation
   # api_key: ""  # Optional: API key for reranking (overrides NVIDIA_API_KEY environment variable)

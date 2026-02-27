@@ -142,7 +142,7 @@ async def test_check_context_relevance(mocker):
         and structured prompts for consistent, reproducible reflection results.
     """
     # Set up a local ranker for reranking documents
-    local_ranker = get_ranking_model(model="nvidia/llama-3.2-nv-rerankqa-1b-v2", url="")
+    local_ranker = get_ranking_model(model="nvidia/llama-nemotron-rerank-1b-v2", url="")
 
     # Create a mock VDBRag object
     mock_vdb_op = mocker.MagicMock(spec=VDBRag)

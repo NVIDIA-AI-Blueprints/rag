@@ -183,14 +183,14 @@ envVars:
 
   ##===Embedding Model specific configurations===
   # URL on which embedding model is hosted. If "", Nvidia hosted API is used
-  APP_EMBEDDINGS_SERVERURL: "nemoretriever-embedding-ms:8000/v1"
-  APP_EMBEDDINGS_MODELNAME: "nvidia/llama-3.2-nv-embedqa-1b-v2"
+  APP_EMBEDDINGS_SERVERURL: "nemotron-embedding-ms:8000/v1"
+  APP_EMBEDDINGS_MODELNAME: "nvidia/llama-nemotron-embed-1b-v2"
   APP_EMBEDDINGS_DIMENSIONS: "2048"
 
   ##===Reranking Model specific configurations===
   # URL on which ranking model is hosted. If "", Nvidia hosted API is used
-  APP_RANKING_SERVERURL: "nemoretriever-ranking-ms:8000"
-  APP_RANKING_MODELNAME: "nvidia/llama-3.2-nv-rerankqa-1b-v2"
+  APP_RANKING_SERVERURL: "nemotron-ranking-ms:8000"
+  APP_RANKING_MODELNAME: "nvidia/llama-nemotron-rerank-1b-v2"
   ENABLE_RERANKER: "True"
   # Default score threshold for filtering documents by reranker relevance (0.0 to 1.0)
   RERANKER_SCORE_THRESHOLD: "0.0"
@@ -349,8 +349,8 @@ ingestor-server:
     ## APP_EMBEDDINGS_APIKEY and SUMMARY_LLM_APIKEY are loaded from secrets automatically.
 
     # === Embeddings Configurations ===
-    APP_EMBEDDINGS_SERVERURL: "nemoretriever-embedding-ms:8000/v1"
-    APP_EMBEDDINGS_MODELNAME: "nvidia/llama-3.2-nv-embedqa-1b-v2"
+    APP_EMBEDDINGS_SERVERURL: "nemotron-embedding-ms:8000/v1"
+    APP_EMBEDDINGS_MODELNAME: "nvidia/llama-nemotron-embed-1b-v2"
     APP_EMBEDDINGS_DIMENSIONS: "2048"
 
     # === NV-Ingest Configurations ===
@@ -716,10 +716,10 @@ nimOperator:
     enabled: true
     replicas: 1
     service:
-      name: "nemoretriever-embedding-ms"
+      name: "nemotron-embedding-ms"
     image:
-      repository: nvcr.io/nim/nvidia/llama-3.2-nv-embedqa-1b-v2
-      tag: "1.10.1"
+      repository: nvcr.io/nvstaging/nim/llama-nemotron-embed-1b-v2
+      tag: "1.12.0-rc.20260216115852-6fba925dcb63c190"
       pullPolicy: IfNotPresent
     resources:
       limits:
@@ -795,10 +795,10 @@ nimOperator:
     enabled: true
     replicas: 1
     service:
-      name: "nemoretriever-ranking-ms"
+      name: "nemotron-ranking-ms"
     image:
-      repository: nvcr.io/nim/nvidia/llama-3.2-nv-rerankqa-1b-v2
-      tag: "1.8.0"
+      repository: nvcr.io/nvstaging/nim/llama-nemotron-rerank-1b-v2
+      tag: "1.10.0-rc.20260219005237-7e2370934c6f9b9c"
       pullPolicy: IfNotPresent
     resources:
       limits:
@@ -870,7 +870,7 @@ nv-ingest:
     create: false
   image:
     repository: "nvcr.io/nvidia/nemo-microservices/nv-ingest"
-    tag: "26.1.1"
+    tag: "26.1.2"
   resources:
     limits:
       nvidia.com/gpu: 0
@@ -896,8 +896,8 @@ nv-ingest:
     RAY_num_server_call_thread: "1"
     RAY_worker_num_grpc_internal_threads: "1"
     
-    EMBEDDING_NIM_ENDPOINT: "http://nemoretriever-embedding-ms:8000/v1"
-    EMBEDDING_NIM_MODEL_NAME: "nvidia/llama-3.2-nv-embedqa-1b-v2"
+    EMBEDDING_NIM_ENDPOINT: "http://nemotron-embedding-ms:8000/v1"
+    EMBEDDING_NIM_MODEL_NAME: "nvidia/llama-nemotron-embed-1b-v2"
     MESSAGE_CLIENT_HOST: "rag-redis-master"
     MESSAGE_CLIENT_PORT: 6379
     MESSAGE_CLIENT_TYPE: "redis"
@@ -1049,8 +1049,8 @@ nv-ingest:
       tolerations: []
       replicaCount: 1
       image:
-        repository: nvcr.io/nim/nvidia/nemoretriever-graphic-elements-v1
-        tag: "1.6.0"
+        repository: nvcr.io/nvstaging/nim/nemotron-graphic-elements-v1
+        tag: "1.8.0-rc.20260218170144-35d5a3f270662864"
       env:
         - name: NIM_HTTP_API_PORT
           value: "8000"
@@ -1082,8 +1082,8 @@ nv-ingest:
       tolerations: []
       replicaCount: 1
       image:
-        repository: nvcr.io/nim/nvidia/nemoretriever-page-elements-v3
-        tag: "1.7.0"
+        repository: nvcr.io/nvstaging/nim/nemotron-page-elements-v3
+        tag: "1.8.0-rc.20260218170155-6b1b2aa9dfefc9c3"
       env:
         - name: NIM_HTTP_API_PORT
           value: "8000"
@@ -1133,8 +1133,8 @@ nv-ingest:
       tolerations: []
       replicaCount: 1
       image:
-        repository: nvcr.io/nim/nvidia/nemoretriever-table-structure-v1
-        tag: "1.6.0"
+        repository: nvcr.io/nvstaging/nim/nemotron-table-structure-v1
+        tag: "1.8.0-rc.20260218170204-cca5cb850146dbbc"
       env:
         - name: NIM_HTTP_API_PORT
           value: "8000"
