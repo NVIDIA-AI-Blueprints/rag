@@ -21,6 +21,7 @@
 5. get_streaming_filter_think_parser: Get the parser for filtering the think tokens (sync).
 6. streaming_filter_think_async: Filter the think tokens from the LLM response (async).
 7. get_streaming_filter_think_parser_async: Get the parser for filtering the think tokens (async).
+8. TokenUsageCaptureHandler: Callback that captures token usage from an LLM call into a dict.
 """
 
 import logging
@@ -28,14 +29,17 @@ import os
 from collections.abc import Iterable
 from functools import lru_cache
 from pathlib import Path
+from typing import Any
 
 import requests
 import yaml
+from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.language_models.llms import LLM
 from langchain_core.language_models.chat_models import SimpleChatModel
+from langchain_core.outputs import LLMResult
 from langchain_nvidia_ai_endpoints import ChatNVIDIA
 
-from nvidia_rag.rag_server.response_generator import APIError, ErrorCodeMapping
+from nvidia_rag.rag_server.response_generator import APIError, ErrorCodeMapping, Usage
 from nvidia_rag.utils.common import (
     NVIDIA_API_DEFAULT_HEADERS,
     combine_dicts,
@@ -51,6 +55,64 @@ try:
 except ImportError:
     logger.info("Langchain OpenAI is not installed.")
     pass
+
+
+def _extract_token_usage_from_llm_result(response: LLMResult) -> Usage | None:
+    """Extract token usage from ChatNVIDIA/LLM response (LLMResult)."""
+    prompt_tokens = 0
+    completion_tokens = 0
+    total_tokens = 0
+    # Prefer llm_output (e.g. token_usage / usage)
+    llm_out = response.llm_output or {}
+    token_usage = llm_out.get("token_usage") or llm_out.get("usage")
+    if token_usage:
+        prompt_tokens = (
+            token_usage.get("prompt_tokens")
+            or token_usage.get("input_tokens")
+            or token_usage.get("input_token_count")
+            or 0
+        )
+        completion_tokens = (
+            token_usage.get("completion_tokens")
+            or token_usage.get("output_tokens")
+            or token_usage.get("generated_token_count")
+            or 0
+        )
+        total_tokens = token_usage.get("total_tokens") or (prompt_tokens + completion_tokens)
+    else:
+        # Fallback: usage_metadata on generation.message (ChatNVIDIA streaming)
+        for generations in response.generations:
+            for gen in generations:
+                if (
+                    hasattr(gen, "message")
+                    and hasattr(gen.message, "usage_metadata")
+                    and gen.message.usage_metadata
+                ):
+                    meta = gen.message.usage_metadata
+                    prompt_tokens += meta.get("input_tokens") or meta.get("prompt_tokens") or 0
+                    completion_tokens += meta.get("output_tokens") or meta.get("completion_tokens") or 0
+        total_tokens = prompt_tokens + completion_tokens
+    if total_tokens <= 0:
+        return None
+    return Usage(
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        total_tokens=total_tokens,
+    )
+
+
+class TokenUsageCaptureHandler(BaseCallbackHandler):
+    """Callback that captures token usage from the single LLM call (ChatNVIDIA) into a holder dict."""
+
+    def __init__(self, token_usage: dict):
+        self.token_usage = token_usage
+
+    def on_llm_end(self, response: LLMResult, **kwargs: Any) -> None:
+        usage = _extract_token_usage_from_llm_result(response)
+        if usage is not None:
+            self.token_usage["prompt_tokens"] = usage.prompt_tokens
+            self.token_usage["completion_tokens"] = usage.completion_tokens
+            self.token_usage["total_tokens"] = usage.total_tokens
 
 
 def get_prompts(source: str | dict | None = None) -> dict:
