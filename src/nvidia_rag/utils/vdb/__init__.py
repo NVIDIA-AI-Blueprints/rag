@@ -63,7 +63,25 @@ def _get_vdb_op(
     )
 
     # Get VDBRag class object based on the configuration
-    if config.vector_store.name == "milvus":
+    # Oracle 26ai is the default vector store
+    if config.vector_store.name == "oracle":
+        from nvidia_rag.utils.vdb.oracle.oracle_vdb import OracleVDB
+
+        return OracleVDB(
+            collection_name=collection_name,
+            oracle_user=os.getenv("ORACLE_USER"),
+            oracle_password=os.getenv("ORACLE_PASSWORD"),
+            oracle_dsn=os.getenv("ORACLE_DSN"),
+            embedding_model=embedding_model,
+            config=config,
+            meta_dataframe=csv_file_path,
+            meta_source_field=meta_source_field,
+            meta_fields=meta_fields,
+            csv_file_path=csv_file_path,
+            hybrid=(config.vector_store.search_type == SearchType.HYBRID),
+        )
+
+    elif config.vector_store.name == "milvus":
         from nvidia_rag.utils.vdb.milvus.milvus_vdb import MilvusVDB
 
         return MilvusVDB(
