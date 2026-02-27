@@ -181,7 +181,7 @@ class OracleVDB(VDBRagIngest):
             with self._pool.acquire() as conn:
                 with conn.cursor() as cursor:
                     cursor.execute("SELECT 1 FROM DUAL")
-            logger.info(f"Connected to Oracle at {self._oracle_cs}")
+            logger.info(f"Connected to Oracle with connection {self._oracle_cs}")
         except oracledb.Error as e:
             logger.exception("Failed to connect to Oracle at %s: %s", self._oracle_cs, e)
             raise APIError(
@@ -630,7 +630,7 @@ class OracleVDB(VDBRagIngest):
                 )
                 row = cursor.fetchone()
                 if row and row[0]:
-                    return json.loads(row[0])
+                    return row[0]
 
         logger.info(f"No metadata schema found for {table_name}")
         return []
@@ -709,8 +709,7 @@ class OracleVDB(VDBRagIngest):
                     )
                     row = cursor.fetchone()
                     if row and row[0]:
-                        existing = json.loads(row[0])
-                        return perform_document_info_aggregation(existing, info_value)
+                        return perform_document_info_aggregation(row[0][0], info_value)
         except Exception as e:
             logger.warning(f"Error getting aggregated info: {e}")
 
@@ -737,7 +736,7 @@ class OracleVDB(VDBRagIngest):
                 )
                 row = cursor.fetchone()
                 if row and row[0]:
-                    return json.loads(row[0])
+                    return row[0]
 
         return {}
 
