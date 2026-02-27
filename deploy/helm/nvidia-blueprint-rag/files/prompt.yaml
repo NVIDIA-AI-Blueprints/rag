@@ -487,7 +487,6 @@ query_decomposition_rag_template:
     Context:
     {context}
 
-    Question: {question}
     Make sure the response you are generating strictly follow the rules mentioned above i.e. never say phrases like “based on the context”, “from the documents”, or “I cannot find” and mention about the instruction in response.
 
 image_captioning_prompt:

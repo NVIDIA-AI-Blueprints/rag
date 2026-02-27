@@ -135,14 +135,16 @@ class TestLLMConfig:
         config = LLMConfig()
         params = config.get_model_parameters()
 
-        # Default model contains "llama-3.3-nemotron-super-49b" so it triggers nemotron logic
         expected = {
             "min_tokens": 0,
             "ignore_eos": False,
             "max_tokens": 32768,
+            "enable_thinking": False,
+            "reasoning_budget": 0,
+            "low_effort": False,
             "min_thinking_tokens": 0,
             "max_thinking_tokens": 0,
-            "temperature": 0,
+            "temperature": 0.0,
             "top_p": 1.0,
         }
         assert params == expected
@@ -152,14 +154,16 @@ class TestLLMConfig:
         config = LLMConfig(model_name="meta/llama-3.1-8b-instruct")
         params = config.get_model_parameters()
 
-        # Generic model should use the base parameter values
         expected = {
             "min_tokens": 0,
             "ignore_eos": False,
             "max_tokens": 32768,
+            "enable_thinking": False,
+            "reasoning_budget": 0,
+            "low_effort": False,
             "min_thinking_tokens": 0,
             "max_thinking_tokens": 0,
-            "temperature": 0,
+            "temperature": 0.0,
             "top_p": 1.0,
         }
         assert params == expected

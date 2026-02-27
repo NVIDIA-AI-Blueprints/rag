@@ -260,6 +260,11 @@ envVars:
   # Whether to filter content within <think></think> tags in model responses
   FILTER_THINK_TOKENS: "true"
 
+  # Reasoning configuration (supported by Nemotron 3 and other reasoning models)
+  LLM_ENABLE_THINKING: "false"
+  LLM_REASONING_BUDGET: "0"
+  LLM_LOW_EFFORT: "false"
+
   NEMO_GUARDRAILS_URL: "nemo-guardrails:7331"
 
   # enable iterative query decomposition
