@@ -87,6 +87,7 @@ html_theme_options = {
     },
 }
 
+
 # Add any paths that contain custom static files (such as style sheets) here,
 html_css_files = ["swagger-nvidia.css"]
 
