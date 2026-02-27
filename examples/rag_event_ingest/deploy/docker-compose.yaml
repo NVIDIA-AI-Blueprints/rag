@@ -1,0 +1,177 @@
+# AIDP - AI Data Pipeline Docker Compose
+# Event-driven document ingestion with Kafka + MinIO sources
+#
+# Usage:
+#   docker compose -f docker-compose.yaml up -d
+#
+# Prerequisites:
+#   - RAG stack running (from launchable.ipynb)
+#   - nvidia-rag network exists
+
+services:
+  # =============================================================================
+  # KAFKA STACK (KRaft - no Zookeeper needed)
+  # =============================================================================
+  kafka:
+    image: apache/kafka:latest
+    container_name: kafka
+    restart: unless-stopped
+    ports:
+      - "9092:9092"
+      - "9094:9094"
+    environment:
+      - KAFKA_NODE_ID=1
+      - KAFKA_PROCESS_ROLES=broker,controller
+      - KAFKA_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:9094
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092,EXTERNAL://${HOST_IP:-localhost}:9094
+      - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
+      - KAFKA_CONTROLLER_QUORUM_VOTERS=1@kafka:9093
+      - KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      - KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT
+      - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1
+      - KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=1
+      - KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=1
+      - KAFKA_AUTO_CREATE_TOPICS_ENABLE=true
+      - KAFKA_LOG_RETENTION_HOURS=168
+      - CLUSTER_ID=MkU3OEVBNTcwNTJENDM2Qk
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    networks:
+      - nvidia-rag
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: aidp-kafka-ui
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      KAFKA_CLUSTERS_0_NAME: aidp-cluster
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+    ports:
+      - "8080:8080"
+    networks:
+      - nvidia-rag
+
+  # =============================================================================
+  # MINIO (Data Source)
+  # =============================================================================
+  minio-source-1:
+    image: minio/minio:RELEASE.2024-01-18T22-51-28Z
+    container_name: aidp-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+      # Kafka notification configuration
+      MINIO_NOTIFY_KAFKA_ENABLE_AIDP: "on"
+      MINIO_NOTIFY_KAFKA_BROKERS_AIDP: "kafka:9092"
+      MINIO_NOTIFY_KAFKA_TOPIC_AIDP: "aidp-topic"
+    volumes:
+      - minio-data:/data
+    ports:
+      - "9201:9000"  
+      - "9211:9001"
+    networks:
+      - nvidia-rag
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # MinIO MC for bucket setup
+  minio-mc:
+    image: minio/mc:latest
+    container_name: aidp-minio-mc
+    depends_on:
+      minio-source-1:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      echo 'Waiting for MinIO...';
+      sleep 5;
+      
+      echo 'Setting up MinIO...';
+      mc alias set minio http://minio-source-1:9000 minioadmin minioadmin;
+      mc mb --ignore-existing minio/aidp-bucket;
+      mc event add minio/aidp-bucket arn:minio:sqs::AIDP:kafka --event put,delete || true;
+      
+      echo 'MinIO setup complete!';
+      echo 'Bucket: aidp-bucket on minio-source-1';
+      
+      echo 'Keeping container alive for mc commands...';
+      tail -f /dev/null
+      "
+    networks:
+      - nvidia-rag
+
+  # =============================================================================
+  # KAFKA CONSUMER (Event-driven Ingestion)
+  # =============================================================================
+  kafka-consumer:
+    build:
+      context: ../kafka_consumer
+      dockerfile: Dockerfile
+    image: kafka-consumer:local
+    container_name: kafka-consumer
+    depends_on:
+      kafka:
+        condition: service_healthy
+      minio-source-1:
+        condition: service_healthy
+    environment:
+      # Kafka
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - KAFKA_TOPIC=${KAFKA_TOPIC:-aidp-topic}
+      - CONSUMER_GROUP=${CONSUMER_GROUP:-nvingest-consumer-group}
+      # MinIO
+      - MINIO_ENDPOINT=minio-source-1:9000
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY:-minioadmin}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY:-minioadmin}
+      - MINIO_SECURE=false
+      - VSS_SERVER_URL=${VSS_SERVER_URL:-http://host.docker.internal:8110}
+      - VSS_TIMEOUT=${VSS_TIMEOUT:-1800}
+      - VSS_CHUNK_DURATION=${VSS_CHUNK_DURATION:-30}
+      - VSS_CHUNK_OVERLAP=${VSS_CHUNK_OVERLAP:-10}
+      - VSS_NUM_FRAMES_PER_CHUNK=${VSS_NUM_FRAMES_PER_CHUNK:-16}
+      - VSS_MAX_TOKENS=${VSS_MAX_TOKENS:-8192}
+      # RAG Ingestor
+      - INGESTOR_SERVER_URL=${INGESTOR_SERVER_URL:-http://ingestor-server:8082}
+      - COLLECTION_NAME=${COLLECTION_NAME:-aidp_bucket}
+      # Video Analysis Prompts (customizable via environment variables)
+      - "VSS_PROMPT=${VSS_PROMPT:-Analyze this sports video. TIMESTAMP FORMAT: Convert seconds to MM:SS (40s=00:40, 80s=01:20, 150s=02:30, 200s=03:20). Describe: key plays, scoring, turnovers, big gains, defensive stops, celebrations.}"
+      - "VSS_SYSTEM_PROMPT=${VSS_SYSTEM_PROMPT:-You are a sports broadcaster. CRITICAL: Convert all timestamps from seconds to MM:SS format. Examples: 40 seconds = 00:40, 90 seconds = 01:30, 200 seconds = 03:20, 350 seconds = 05:50. Focus on action, field position, execution, and game momentum.}"
+      - "VSS_CAPTION_SUMMARIZATION_PROMPT=${VSS_CAPTION_SUMMARIZATION_PROMPT:-Format: [MM:SS] Play description. CONVERT seconds to MM:SS (40s=00:40, 80s=01:20, 150s=02:30). Describe: what happened, how it was executed, the result. Be vivid like a TV broadcast.}"
+      - "VSS_SUMMARY_AGGREGATION_PROMPT=${VSS_SUMMARY_AGGREGATION_PROMPT:-Create game summary with MM:SS timestamps. CONVERT all times: 40s=00:40, 80s=01:20, 200s=03:20, 350s=05:50. Highlight scoring plays, turnovers, momentum shifts, spectacular plays. Write like a highlight reel narrator - vivid and exciting.}"
+      # Logging
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    restart: unless-stopped
+    networks:
+      - nvidia-rag
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+# =============================================================================
+# VOLUMES
+# =============================================================================
+volumes:
+  kafka-data:
+    driver: local
+  minio-data:
+    driver: local
+
+# =============================================================================
+# NETWORKS
+# =============================================================================
+networks:
+  nvidia-rag:
+    external: true
+    name: nvidia-rag
