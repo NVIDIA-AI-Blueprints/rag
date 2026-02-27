@@ -23,8 +23,6 @@ from unittest.mock import patch
 
 import pytest
 import yaml
-from pydantic import SecretStr, ValidationError
-
 from nvidia_rag.utils.configuration import (
     EmbeddingConfig,
     FilterExpressionGeneratorConfig,
@@ -44,6 +42,7 @@ from nvidia_rag.utils.configuration import (
     VectorStoreConfig,
     VLMConfig,
 )
+from pydantic import SecretStr, ValidationError
 
 
 class TestVectorStoreConfig:
