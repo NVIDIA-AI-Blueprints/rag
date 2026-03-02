@@ -95,7 +95,8 @@ services:
       APP_NVINGEST_EXTRACTPAGEASIMAGE: ${APP_NVINGEST_EXTRACTPAGEASIMAGE:-False}
       APP_NVINGEST_STRUCTURED_ELEMENTS_MODALITY: ${APP_NVINGEST_STRUCTURED_ELEMENTS_MODALITY:-""} # Select from "image", "text_image"
       APP_NVINGEST_IMAGE_ELEMENTS_MODALITY: ${APP_NVINGEST_IMAGE_ELEMENTS_MODALITY:-""} # Select from "image"
-      APP_NVINGEST_PDFEXTRACTMETHOD: ${APP_NVINGEST_PDFEXTRACTMETHOD:-None} # Select from pdfium, nemoretron_parse, None
+      APP_NVINGEST_PDFEXTRACTMETHOD: ${APP_NVINGEST_PDFEXTRACTMETHOD:-None} # Select from pdfium, nemotron_parse, None
+      APP_NVINGEST_EXTRACTTABLESMETHOD: ${APP_NVINGEST_EXTRACTTABLESMETHOD:-yolox} # yolox, nemotron_parse, or None
       # Extract text by "page" only recommended for documents with pages like .pdf, .docx, etc.
       APP_NVINGEST_TEXTDEPTH: ${APP_NVINGEST_TEXTDEPTH:-page} # extract by "page" or "document"
 
