@@ -262,7 +262,9 @@ class NvidiaRAG:
         # Load prompts and other utilities
         self.prompts = get_prompts(prompts)
         self.vdb_top_k = int(self.config.retriever.vdb_top_k)
-        self.StreamingFilterThinkParser = get_streaming_filter_think_parser_async()
+        self.StreamingFilterThinkParser = get_streaming_filter_think_parser_async(
+            enable_thinking=self.config.llm.parameters.enable_thinking
+        )
 
         if self._init_errors:
             logger.warning(
@@ -1367,18 +1369,6 @@ class NvidiaRAG:
         user_prompt = template_dict.get("human", template_dict.get("user", ""))
         conversation_history = []
         user_message = []
-
-        is_nemotron_v1 = str(model).endswith("llama-3.3-nemotron-super-49b-v1")
-
-        # Nemotron controls thinking using system prompt, if nemotron v1 model is used update system prompt to enable/disable think
-        if is_nemotron_v1:
-            logger.info("Nemotron v1 model detected, updating system prompt")
-            if os.environ.get("ENABLE_NEMOTRON_THINKING", "false").lower() == "true":
-                logger.info("Setting system prompt as detailed thinking on")
-                system_prompt = "detailed thinking on"
-            else:
-                logger.info("Setting system prompt as detailed thinking off")
-                system_prompt = "detailed thinking off"
 
         # Process chat history
         for message in chat_history:

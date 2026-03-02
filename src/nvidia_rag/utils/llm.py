@@ -33,6 +33,7 @@ import requests
 import yaml
 from langchain_core.language_models.llms import LLM
 from langchain_core.language_models.chat_models import SimpleChatModel
+from langchain_core.messages import AIMessageChunk
 from langchain_nvidia_ai_endpoints import ChatNVIDIA
 
 from nvidia_rag.rag_server.response_generator import APIError, ErrorCodeMapping
@@ -128,117 +129,112 @@ def _is_nvidia_endpoint(url: str | None) -> bool:
     return True
 
 
-def _bind_thinking_tokens_if_configured(
-    llm: LLM | SimpleChatModel, **kwargs
+def _is_nemotron_3(model: str | None) -> bool:
+    """Detect Nemotron 3 model variants by checking for 'nemotron-3' in the model name."""
+    if not model:
+        return False
+    return "nemotron-3" in model.lower()
+
+
+def _is_nemotron_3_nano(model: str | None) -> bool:
+    """Detect Nemotron 3 Nano models (30b-a3b and locally hosted variants)."""
+    if not model:
+        return False
+    m = model.lower()
+    return "nemotron-3-nano" in m
+
+
+def _is_nemotron_nano_9b_v2(model: str | None) -> bool:
+    """Detect legacy Nemotron Nano 9B v2."""
+    if not model:
+        return False
+    return "nvidia/nvidia-nemotron-nano-9b-v2" in model
+
+
+def _resolve_enable_thinking(config: NvidiaRAGConfig | None = None, **kwargs) -> bool:
+    """Resolve enable_thinking from config, kwargs, or deprecated env var fallback."""
+    if config is not None:
+        enable = config.llm.parameters.enable_thinking
+        if enable:
+            return True
+    enable = kwargs.get("enable_thinking", False)
+    if enable:
+        return True
+    deprecated = os.getenv("ENABLE_NEMOTRON_3_NANO_THINKING")
+    if deprecated is not None:
+        logger.warning(
+            "ENABLE_NEMOTRON_3_NANO_THINKING is deprecated, use LLM_ENABLE_THINKING instead"
+        )
+        return deprecated.lower() == "true"
+    return False
+
+
+def _bind_reasoning_config(
+    llm: LLM | SimpleChatModel, config: NvidiaRAGConfig | None = None, **kwargs
 ) -> LLM | SimpleChatModel:
     """
-    If min_thinking_tokens or max_thinking_tokens are > 0 in kwargs, bind them to the LLM.
-    
-    Supports multiple reasoning/thinking model variants:
-    
-    1. nvidia/nvidia-nemotron-nano-9b-v2:
-       - Uses min_thinking_tokens and max_thinking_tokens parameters
-       - Reasoning content is not available for this model
-    
-    2. nemotron-3-nano variants (nemotron-3-nano-30b-a3b, nvidia/nemotron-3-nano):
-       - Uses reasoning_budget parameter (mapped from max_thinking_tokens)
-       - reasoning_budget is ONLY set when enable_thinking is true
-       - Outputs reasoning in a separate 'reasoning_content' field (not in content)
-       - Does NOT use <think> tags
-       - Can be controlled via ENABLE_NEMOTRON_3_NANO_THINKING env var
+    Bind reasoning parameters to the LLM based on model type and configuration.
 
-    Raises:
-        ValueError: If min_thinking_tokens or max_thinking_tokens is passed but model
-                    is not a supported Nemotron thinking model, or if any of these
-                    parameters have invalid values (0 or negative).
+    Reads enable_thinking, reasoning_budget, and low_effort from the config
+    object (LLM_ENABLE_THINKING, LLM_REASONING_BUDGET, LLM_LOW_EFFORT env vars).
+    kwargs can still override these for backward compatibility.
+
+    Supports:
+    - Nemotron 3 variants: enable_thinking, reasoning_budget, low_effort via chat_template_kwargs
+    - Nemotron 3 Nano: enable_thinking + reasoning_budget (or nvext for local NIM)
+    - Nemotron Nano 9B v2: legacy min_thinking_tokens / max_thinking_tokens
+    - Other models: no reasoning features bound
     """
-    min_think = kwargs.get("min_thinking_tokens", None)
-    max_think = kwargs.get("max_thinking_tokens", None)
-    model = kwargs.get("model", None)
+    model = kwargs.get("model", "")
+    enable_thinking = _resolve_enable_thinking(config=config, **kwargs)
+    params = config.llm.parameters if config is not None else None
+    reasoning_budget = kwargs.get("reasoning_budget") or (params.reasoning_budget if params else 0)
+    low_effort = kwargs.get("low_effort") or (params.low_effort if params else False)
+    min_think = kwargs.get("min_thinking_tokens") or (params.min_thinking_tokens if params else 0) or 0
+    max_think = kwargs.get("max_thinking_tokens") or (params.max_thinking_tokens if params else 0) or 0
 
-    # Validate model compatibility for thinking tokens
-    has_thinking_tokens = (min_think is not None and min_think > 0) or (
-        max_think is not None and max_think > 0
-    )
+    # Check specific variants first, then fall through to the general nemotron-3 check
 
-    if not has_thinking_tokens:
+    if _is_nemotron_3_nano(model):
+        llm = llm.bind(chat_template_kwargs={"enable_thinking": enable_thinking})
+        if enable_thinking and (reasoning_budget > 0 or max_think > 0):
+            budget = reasoning_budget if reasoning_budget > 0 else max_think
+            llm_endpoint = kwargs.get("llm_endpoint", "")
+            if llm_endpoint:
+                llm = llm.bind(nvext={"max_thinking_tokens": budget})
+                logger.info("nemotron-3-nano (local): enable_thinking=%s, nvext.max_thinking_tokens=%d", enable_thinking, budget)
+            else:
+                llm = llm.bind(reasoning_budget=budget)
+                logger.info("nemotron-3-nano (API): enable_thinking=%s, reasoning_budget=%d", enable_thinking, budget)
+        else:
+            logger.info("nemotron-3-nano: enable_thinking=%s", enable_thinking)
         return llm
 
-    # Check if model is a supported reasoning model (various name formats)
-    # Note: For locally hosted models, use "nvidia/nemotron-3-nano"
-    # For NVIDIA-hosted models, use "nvidia/nemotron-3-nano-30b-a3b"
-    is_nano_9b_v2 = model and "nvidia/nvidia-nemotron-nano-9b-v2" in model
-    is_nemotron_3_nano = model and (
-        "nemotron-3-nano" in model.lower() or 
-        "nvidia/nemotron-3-nano" in model or
-        "nemotron-3-nano-30b-a3b" in model
-    )
-    
-    if has_thinking_tokens and not (is_nano_9b_v2 or is_nemotron_3_nano):
-        raise ValueError(
-            "min_thinking_tokens and max_thinking_tokens are only supported for models "
-            "'nvidia/nvidia-nemotron-nano-9b-v2' and nemotron-3-nano variants "
-            "(e.g., 'nemotron-3-nano-30b-a3b', 'nvidia/nemotron-3-nano'), "
-            f"but got model '{model}'"
-        )
+    if _is_nemotron_nano_9b_v2(model):
+        if min_think > 0 and max_think > 0:
+            llm = llm.bind(min_thinking_tokens=min_think, max_thinking_tokens=max_think)
+            logger.info("nemotron-nano-9b-v2: min_thinking_tokens=%d, max_thinking_tokens=%d", min_think, max_think)
+        elif min_think > 0 or max_think > 0:
+            raise ValueError(
+                "nemotron-nano-9b-v2 requires both min_thinking_tokens and max_thinking_tokens "
+                f"to be positive, got min={min_think}, max={max_think}"
+            )
+        return llm
 
-    bind_args = {}
-    if is_nano_9b_v2:
-        # nvidia/nvidia-nemotron-nano-9b-v2: Uses thinking token parameters directly
-        if min_think is not None and min_think > 0:
-            bind_args["min_thinking_tokens"] = min_think
-        else:
-            raise ValueError(
-                f"min_thinking_tokens must be a positive integer, but got {min_think}"
-            )
-        if max_think is not None and max_think > 0:
-            bind_args["max_thinking_tokens"] = max_think
-        else:
-            raise ValueError(
-                f"max_thinking_tokens must be a positive integer, but got {max_think}"
-            )
+    if _is_nemotron_3(model):
+        template_kwargs: dict = {"enable_thinking": enable_thinking}
+        if enable_thinking and low_effort:
+            template_kwargs["low_effort"] = True
+        budget = reasoning_budget if reasoning_budget > 0 else max_think
+        if enable_thinking and budget > 0:
+            template_kwargs["reasoning_budget"] = budget
+        llm = llm.bind(chat_template_kwargs=template_kwargs)
         logger.info(
-            "nvidia-nemotron-nano-9b-v2: Setting min_thinking_tokens=%d, max_thinking_tokens=%d",
-            min_think, max_think
+            "nemotron-3: enable_thinking=%s, reasoning_budget=%d, low_effort=%s",
+            enable_thinking, budget, low_effort,
         )
-    elif is_nemotron_3_nano:
-        enable_thinking = os.getenv("ENABLE_NEMOTRON_3_NANO_THINKING", "true").lower() == "true"
-        if not enable_thinking:
-            raise ValueError(
-                "ENABLE_NEMOTRON_3_NANO_THINKING must be set to 'true' to use reasoning budget"
-            )
+        return llm
 
-        # For nemotron-3-nano variants, min_thinking_tokens is not supported
-        if min_think is not None and min_think > 0:
-            logger.warning(
-                "min_thinking_tokens is not supported for nemotron-3-nano variants, "
-                "only max_thinking_tokens (mapped to reasoning_budget or nvext) is supported"
-            )
-
-        if max_think is not None and max_think > 0:
-            # Check if llm_endpoint is provided (locally hosted model)
-            llm_endpoint = kwargs.get("llm_endpoint", None)
-            if llm_endpoint:
-                # For locally hosted models, use nvext syntax
-                bind_args["nvext"] = {"max_thinking_tokens": max_think}
-                logger.info(
-                    "nemotron-3-nano (locally hosted): Setting max_thinking_tokens=%d via nvext",
-                    max_think
-                )
-            else:
-                # For API catalog models, use reasoning_budget
-                bind_args["reasoning_budget"] = max_think
-                logger.info(
-                    "nemotron-3-nano (API catalog): Setting reasoning_budget=%d",
-                    max_think
-                )
-        else:
-            raise ValueError(
-                f"max_thinking_tokens must be a positive integer, but got {max_think}"
-            )
-
-    if bind_args:
-        return llm.bind(**bind_args)
     return llm
 
 
@@ -289,16 +285,18 @@ def get_llm(config: NvidiaRAGConfig | None = None, **kwargs) -> LLM | SimpleChat
                     default_headers = {**NVIDIA_API_DEFAULT_HEADERS}
                     if api_key:
                         default_headers["X-Model-Authorization"] = api_key
-                    return ChatOpenAI(
-                        model_name=kwargs.get("model"),
-                        openai_api_base=f"{guardrails_url}/v1/guardrail",
-                        openai_api_key="dummy-value",
-                        default_headers=default_headers,
-                        temperature=kwargs.get("temperature", None),
-                        top_p=kwargs.get("top_p", None),
-                        max_tokens=kwargs.get("max_tokens", None),
-                        stop=kwargs.get("stop", []),
-                    )
+                    openai_kwargs = {
+                        "model_name": kwargs.get("model"),
+                        "openai_api_base": f"{guardrails_url}/v1/guardrail",
+                        "openai_api_key": "dummy-value",
+                        "default_headers": default_headers,
+                        "temperature": kwargs.get("temperature", None),
+                        "top_p": kwargs.get("top_p", None),
+                        "max_tokens": kwargs.get("max_tokens", None),
+                    }
+                    if kwargs.get("stop"):
+                        openai_kwargs["stop"] = kwargs["stop"]
+                    return ChatOpenAI(**openai_kwargs)
                 except (requests.RequestException, requests.ConnectionError) as e:
                     error_msg = f"Guardrails NIM unavailable at {guardrails_url}. Please verify the service is running and accessible."
                     logger.exception(
@@ -318,13 +316,15 @@ def get_llm(config: NvidiaRAGConfig | None = None, **kwargs) -> LLM | SimpleChat
 
             # Build kwargs dict, only including parameters that are set
             # For non-NVIDIA endpoints, exclude NVIDIA-specific parameters
+            # Do not pass stop=[] - some Nemotron 3 APIs reject empty stop arrays
             chat_nvidia_kwargs = {
                 "base_url": url,
                 "model": kwargs.get("model"),
                 "api_key": api_key,
-                "stop": kwargs.get("stop", []),
                 "default_headers": NVIDIA_API_DEFAULT_HEADERS,
             }
+            if kwargs.get("stop"):
+                chat_nvidia_kwargs["stop"] = kwargs["stop"]
             if kwargs.get("temperature") is not None:
                 chat_nvidia_kwargs["temperature"] = kwargs["temperature"]
             if kwargs.get("top_p") is not None:
@@ -342,15 +342,8 @@ def get_llm(config: NvidiaRAGConfig | None = None, **kwargs) -> LLM | SimpleChat
                     chat_nvidia_kwargs["model_kwargs"] = model_kwargs
 
             llm = ChatNVIDIA(**chat_nvidia_kwargs)
-            # Only bind thinking tokens for NVIDIA endpoints
             if is_nvidia:
-                llm = _bind_thinking_tokens_if_configured(llm, **kwargs)
-                # For nemotron-3-nano models, set enable_thinking from env var
-                model = kwargs.get("model")
-                if model and ("nemotron-3-nano" in model.lower() or "nvidia/nemotron-3-nano" in model or "nemotron-3-nano-30b-a3b" in model):
-                    enable_thinking = os.getenv("ENABLE_NEMOTRON_3_NANO_THINKING", "true").lower() == "true"
-                    llm = llm.bind(chat_template_kwargs={"enable_thinking": enable_thinking})
-                    logger.info("nemotron-3-nano: Setting enable_thinking=%s (from ENABLE_NEMOTRON_3_NANO_THINKING)", enable_thinking)
+                llm = _bind_reasoning_config(llm, config=config, **kwargs)
             return llm
 
         logger.debug("Using llm model %s from api catalog", kwargs.get("model"))
@@ -363,23 +356,20 @@ def get_llm(config: NvidiaRAGConfig | None = None, **kwargs) -> LLM | SimpleChat
         if kwargs.get("ignore_eos") is not None:
             model_kwargs["ignore_eos"] = kwargs["ignore_eos"]
 
-        llm = ChatNVIDIA(
-            model=kwargs.get("model"),
-            api_key=api_key,
-            temperature=kwargs.get("temperature", None),
-            top_p=kwargs.get("top_p", None),
-            max_completion_tokens=kwargs.get("max_tokens", None),
-            stop=kwargs.get("stop", []),
-            default_headers=NVIDIA_API_DEFAULT_HEADERS,
+        # Do not pass stop=[] - some Nemotron 3 APIs reject empty stop arrays
+        chat_nvidia_kwargs = {
+            "model": kwargs.get("model"),
+            "api_key": api_key,
+            "temperature": kwargs.get("temperature", None),
+            "top_p": kwargs.get("top_p", None),
+            "max_completion_tokens": kwargs.get("max_tokens", None),
+            "default_headers": NVIDIA_API_DEFAULT_HEADERS,
             **({"model_kwargs": model_kwargs} if model_kwargs else {}),
-        )
-        llm = _bind_thinking_tokens_if_configured(llm, **kwargs)
-        # For nemotron-3-nano models, set enable_thinking from env var
-        model = kwargs.get("model")
-        if model and ("nemotron-3-nano" in model.lower() or "nvidia/nemotron-3-nano" in model or "nemotron-3-nano-30b-a3b" in model):
-            enable_thinking = os.getenv("ENABLE_NEMOTRON_3_NANO_THINKING", "true").lower() == "true"
-            llm = llm.bind(chat_template_kwargs={"enable_thinking": enable_thinking})
-            logger.info("nemotron-3-nano: Setting enable_thinking=%s (from ENABLE_NEMOTRON_3_NANO_THINKING)", enable_thinking)
+        }
+        if kwargs.get("stop"):
+            chat_nvidia_kwargs["stop"] = kwargs["stop"]
+        llm = ChatNVIDIA(**chat_nvidia_kwargs)
+        llm = _bind_reasoning_config(llm, config=config, **kwargs)
         return llm
 
     raise RuntimeError(
@@ -477,7 +467,8 @@ def streaming_filter_think(chunks: Iterable[str]) -> Iterable[str]:
     chunk_count = 0
 
     for chunk in chunks:
-        content = chunk.content
+        reasoning, content = extract_reasoning_and_content(chunk)
+        content = content or reasoning
         chunk_count += 1
 
         # Let's first check for full tags - this is the most reliable approach
@@ -611,14 +602,20 @@ def get_streaming_filter_think_parser():
         return RunnablePassthrough()
 
 
-async def streaming_filter_think_async(chunks):
+async def streaming_filter_think_async(chunks, enable_thinking: bool = False):
     """
     Async version of streaming_filter_think.
     This async generator filters content between think tags in streaming LLM responses.
     It handles both complete tags in a single chunk and tags split across multiple tokens.
 
+    When enable_thinking is True and the model uses a separate reasoning_content field
+    (e.g. Nemotron 3), reasoning tokens are dropped and only content is forwarded.
+    The <think> tag filter still runs to handle models that embed reasoning in content.
+
     Args:
         chunks: Async iterable of chunks from a streaming LLM response
+        enable_thinking: When True, drop reasoning_content (genuine chain-of-thought).
+            When False, fall back to reasoning_content if content is empty (model quirk).
 
     Yields:
         str: Filtered content with think blocks removed
@@ -644,7 +641,8 @@ async def streaming_filter_think_async(chunks):
     chunk_count = 0
 
     async for chunk in chunks:
-        content = chunk.content
+        reasoning, content = extract_reasoning_and_content(chunk)
+        content = content if enable_thinking else (content or reasoning)
         chunk_count += 1
 
         # Let's first check for full tags - this is the most reliable approach
@@ -753,27 +751,61 @@ async def streaming_filter_think_async(chunks):
     )
 
 
-def get_streaming_filter_think_parser_async():
+async def _content_fallback_async(chunks, enable_thinking: bool = False):
+    """
+    Pass through LLM chunks WITHOUT filtering thinking tokens.
+    Used when FILTER_THINK_TOKENS=false - the user wants to see everything.
+
+    - When enable_thinking=true: forwards both reasoning_content and content so
+      the user can see the chain-of-thought followed by the answer.
+    - When enable_thinking=false: falls back to reasoning_content if content is
+      empty (NIM quirk where the answer lands in reasoning_content).
+
+    Args:
+        chunks: Async iterable of LLM response chunks
+        enable_thinking: Whether the model is producing genuine reasoning tokens.
+    """
+    async for chunk in chunks:
+        reasoning, content = extract_reasoning_and_content(chunk)
+
+        if enable_thinking:
+            if reasoning:
+                yield AIMessageChunk(content=reasoning)
+            if content:
+                yield AIMessageChunk(content=content)
+        else:
+            text = content or reasoning
+            if text:
+                yield AIMessageChunk(content=text)
+
+
+def get_streaming_filter_think_parser_async(enable_thinking: bool = False):
     """
     Creates and returns an async RunnableGenerator for filtering think tokens.
 
     If FILTER_THINK_TOKENS environment variable is set to "true" (case-insensitive),
     returns a parser that filters out content between <think> and </think> tags.
-    Otherwise, returns a pass-through parser that doesn't modify the content.
+    Otherwise, returns a parser that normalizes content (content or reasoning_content)
+    so models like Nemotron 3 that put reply in reasoning_content still yield text.
+
+    Args:
+        enable_thinking: When True, reasoning_content is genuine chain-of-thought and
+            will be dropped. When False, reasoning_content is used as a fallback if
+            content is empty (workaround for model quirk).
 
     Returns:
-        RunnableGenerator: An async parser for filtering (or not filtering) think tokens
+        RunnableGenerator: An async parser for filtering or content normalization
     """
+    from functools import partial
     from langchain_core.runnables import RunnableGenerator, RunnablePassthrough
 
     # Check environment variable
     filter_enabled = os.getenv("FILTER_THINK_TOKENS", "true").lower() == "true"
 
     if filter_enabled:
-        logger.info("Think token filtering is enabled (async)")
-        return RunnableGenerator(streaming_filter_think_async)
+        logger.info("Think token filtering is enabled (async), enable_thinking=%s", enable_thinking)
+        return RunnableGenerator(partial(streaming_filter_think_async, enable_thinking=enable_thinking))
     else:
-        logger.info("Think token filtering is disabled (async)")
-        # If filtering is disabled, use a passthrough that passes content as-is
-        return RunnablePassthrough()
+        logger.info("Think token filtering is disabled (async), enable_thinking=%s", enable_thinking)
+        return RunnableGenerator(partial(_content_fallback_async, enable_thinking=enable_thinking))
         
