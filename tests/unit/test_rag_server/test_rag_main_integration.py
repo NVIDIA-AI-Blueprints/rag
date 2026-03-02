@@ -445,8 +445,8 @@ class TestNvidiaRAGPrivateMethodsWorking:
         ]
 
         result = rag._build_retriever_query_from_content(content)
-        # When image_url is present, the method returns the image URL
-        assert result == ("http://example.com/image.jpg", True)
+        # Text parts joined with \n\n first, then image URL with space separator
+        assert result == ("Hello\n\nworld http://example.com/image.jpg", True)
 
     def test_print_conversation_history(self):
         """Test __print_conversation_history method."""

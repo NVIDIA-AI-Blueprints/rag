@@ -295,8 +295,8 @@ async def test_search_skips_query_rewriter_for_image_query(monkeypatch):
         filter_expr="",
     )
 
-    # Assert: query rewriting skipped - last_query is the image URL, NOT "REWRITTEN(...)"
-    assert fake_vdb.last_query == "data:image/png;base64,x"
+    # Assert: query rewriting skipped - last_query is text + image URL (no "REWRITTEN(...)")
+    assert fake_vdb.last_query == "What is in this image? data:image/png;base64,x"
     assert "REWRITTEN" not in str(fake_vdb.last_query)
     # Assert: retrieval_image_langchain was used (not retrieval_langchain)
     assert fake_vdb.last_retrieval_method == "image"
@@ -410,8 +410,8 @@ async def test_generate_skips_query_rewriter_for_image_query(monkeypatch):
             filter_expr="",
         )
 
-    # Assert: query rewriting skipped - last_query is the image URL, NOT "REWRITTEN(...)"
-    assert fake_vdb.last_query == "data:image/png;base64,x"
+    # Assert: query rewriting skipped - last_query is text + image URL (no "REWRITTEN(...)")
+    assert fake_vdb.last_query == "What is in this image? data:image/png;base64,x"
     assert "REWRITTEN" not in str(fake_vdb.last_query)
     # Assert: retrieval_image_langchain was used
     assert fake_vdb.last_retrieval_method == "image"
