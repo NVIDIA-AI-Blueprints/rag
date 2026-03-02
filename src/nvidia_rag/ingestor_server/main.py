@@ -94,6 +94,7 @@ from nvidia_rag.utils.summarization import generate_document_summaries
 from nvidia_rag.utils.summary_status_handler import SUMMARY_STATUS_HANDLER
 from nvidia_rag.utils.vdb import DEFAULT_DOCUMENT_INFO_COLLECTION, _get_vdb_op
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
+from nvidia_rag.utils.vdb.vdb_ingest_base import SerializedVDBWrapper
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -752,10 +753,13 @@ class NvidiaRAGIngestor:
         uploaded_documents = []
         for filepath in filepaths:
             if os.path.basename(filepath) not in failures_filepaths:
-                doc_type_counts, _, total_elements, raw_text_elements_size = (
-                    self._get_document_type_counts(
-                        [filename_to_result_map.get(os.path.basename(filepath), [])]
-                    )
+                (
+                    doc_type_counts,
+                    _,
+                    total_elements,
+                    raw_text_elements_size,
+                ) = self._get_document_type_counts(
+                    [filename_to_result_map.get(os.path.basename(filepath), [])]
                 )
 
                 document_info = create_document_metadata(
@@ -2265,6 +2269,13 @@ class NvidiaRAGIngestor:
                 logger.info(
                     f"Processing batches in parallel with concurrency: {state_manager.concurrent_batches}"
                 )
+
+                if vdb_op is not None and SerializedVDBWrapper is not None:
+                    vdb_op = SerializedVDBWrapper(vdb_op)
+                    logger.info(
+                        "VDB write serialization enabled — extraction runs in parallel, VDB writes are sequential"
+                    )
+
                 all_results = []
                 all_failures = []
                 tasks = []
@@ -2850,9 +2861,12 @@ class NvidiaRAGIngestor:
         Returns:
             dict[str, Any]: Document info with metrics
         """
-        doc_type_counts, total_documents, total_elements, raw_text_elements_size = (
-            self._get_document_type_counts(results)
-        )
+        (
+            doc_type_counts,
+            total_documents,
+            total_elements,
+            raw_text_elements_size,
+        ) = self._get_document_type_counts(results)
 
         document_info = {
             "doc_type_counts": doc_type_counts,
