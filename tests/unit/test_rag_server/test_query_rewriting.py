@@ -451,4 +451,3 @@ async def test_generate_combines_history_when_multiturn_enabled(monkeypatch):
     # last previous user query is combined with current retriever_query
     # Expected concatenation: "What is RAG?. How does it work?"
     assert fake_vdb.last_query == "What is RAG?. How does it work?"
-
