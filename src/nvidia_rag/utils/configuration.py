@@ -403,6 +403,59 @@ class NvIngestConfig(_ConfigBase):
         description="Max memory budget (MB) for a single ingestion job; used for dynamic batch sizing",
     )
 
+class NemotronParseConfig(_ConfigBase):
+    """Nemotron Parse configuration."""
+
+    enable_images: bool = Field(
+        default=True,
+        env="NEMOTRON_PARSE_ENABLE_IMAGES",
+        description="Enable image/structured storage in VDB for Nemotron Parse pipeline; when True, VDB is created with enable_images so the nv_ingest client reads image_location for citations.",
+    )
+    pipeline_mode: str = Field(
+        default="page_as_image",
+        env="NEMOTRON_PARSE_PIPELINE_MODE",
+        description="Pipeline mode for Nemotron Parse (page_as_image, page_as_text)",
+    )
+    embed_images: bool = Field(
+        default=False,
+        env="NEMOTRON_PARSE_EMBED_IMAGES",
+        description="Embed images in the Nemotron Parse pipeline (True, False), if False, corresponding text will be embedded instead",
+    )
+    server_url: str = Field(
+        default="",
+        env="NEMOTRON_PARSE_HTTP_ENDPOINT",
+        description="Nemotron Parse HTTP endpoint (e.g. http://nemotron-parse:8000/v1/chat/completions)",
+    )
+    model_name: str = Field(
+        default="nvidia/nemotron-parse",
+        env="NEMOTRON_PARSE_MODEL_NAME",
+        description="Nemotron Parse model name",
+    )
+    infer_protocol: str = Field(
+        default="http",
+        env="NEMOTRON_PARSE_INFER_PROTOCOL",
+        description="Nemotron Parse inference protocol (http or grpc)",
+    )
+    vlm_server_url: str = Field(
+        default="",
+        env="NEMOTRON_PARSE_VLM_SERVER_URL",
+        description="VLM endpoint for captioning Picture/Table/Formula/Caption when text is empty",
+    )
+    use_vlm_caption: bool = Field(
+        default=False,
+        env="NEMOTRON_PARSE_USE_VLM_CAPTION",
+        description="Enable VLM captioning for elements with empty text",
+    )
+    use_ray: bool = Field(
+        default=False,
+        env="NEMOTRON_PARSE_USE_RAY",
+        description="Use Ray for parallel page render+parse",
+    )
+    ray_max_in_flight_pages: int = Field(
+        default=8,
+        env="NEMOTRON_PARSE_RAY_MAX_IN_FLIGHT_PAGES",
+        description="Max pages in flight when using Ray",
+    )
 
 class ModelParametersConfig(_ConfigBase):
     """Model parameters configuration."""
@@ -1044,6 +1097,7 @@ class NvidiaRAGConfig(_ConfigBase):
     ranking: RankingConfig = PydanticField(default_factory=RankingConfig)
     retriever: RetrieverConfig = PydanticField(default_factory=RetrieverConfig)
     nv_ingest: NvIngestConfig = PydanticField(default_factory=NvIngestConfig)
+    nemotron_parse: NemotronParseConfig = PydanticField(default_factory=NemotronParseConfig)
     tracing: TracingConfig = PydanticField(default_factory=TracingConfig)
     vlm: VLMConfig = PydanticField(default_factory=VLMConfig)
     minio: MinioConfig = PydanticField(default_factory=MinioConfig)
@@ -1064,6 +1118,11 @@ class NvidiaRAGConfig(_ConfigBase):
         default=True,
         env="ENABLE_CITATIONS",
         description="Include source citations in generated responses",
+    )
+    enable_image_citation_content: bool = Field(
+        default=True,
+        env="ENABLE_IMAGE_CITATION_CONTENT",
+        description="When True, pull image/table/chart content from MinIO for citations; when False, citation entries for images/tables/charts have empty content.",
     )
     enable_vlm_inference: bool = Field(
         default=False,
@@ -1088,6 +1147,11 @@ class NvidiaRAGConfig(_ConfigBase):
         default="./tmp-data",
         env="TEMP_DIR",
         description="Temporary directory for file processing and storage",
+    )
+    ingestion_pipeline: str = Field(
+        default="nv_ingest", # "nv_ingest" or "nemotron_parse"
+        env="INGESTION_PIPELINE",
+        description="Ingestion pipeline to use for ingesting documents",
     )
 
     @field_validator("default_confidence_threshold")

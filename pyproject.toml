@@ -61,6 +61,11 @@ ingest = [
     "nv-ingest-api==26.1.1",
     "nv-ingest-client==26.1.1",
     "tritonclient==2.57.0",
+    # Nemotron Parse extraction (PDF render + parse API)
+    "pypdfium2>=4.0",
+    "tenacity>=8.0,<9.0",
+    # Optional: Ray for parallel page processing (NEMOTRON_PARSE_USE_RAY=true)
+    "ray[default]>=2.9,<3.0",
     # Other ingest dependencies
     "langchain-openai>=0.2",
     "overrides>=7.7,<8.0",

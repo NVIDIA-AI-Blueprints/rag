@@ -220,6 +220,9 @@ services:
       # Absolute path to custom prompt.yaml file
       PROMPT_CONFIG_FILE: ${PROMPT_CONFIG_FILE:-/prompt.yaml}
 
+      # ==== Ingestion Pipeline Configuration ====
+      INGESTION_PIPELINE: ${INGESTION_PIPELINE:-"nv_ingest"}
+
       ##===Vector DB specific configurations===
       # URL on which vectorstore is hosted
       APP_VECTORSTORE_URL: "http://milvus:19530"
@@ -292,6 +295,11 @@ services:
       ##===NV-Ingest Performance Configurations========
       APP_NVINGEST_ENABLE_PDF_SPLIT_PROCESSING: ${APP_NVINGEST_ENABLE_PDF_SPLIT_PROCESSING:-False}
       APP_NVINGEST_PAGES_PER_CHUNK: ${APP_NVINGEST_PAGES_PER_CHUNK:-16}
+
+      ##===Nemotron Parse Configurations========
+      # Used when INGESTION_PIPELINE is set to "nemotron_parse"
+      NEMOTRON_PARSE_PIPELINE_MODE: ${NEMOTRON_PARSE_PIPELINE_MODE:-"page_as_image"}
+      NEMOTRON_PARSE_EMBED_IMAGES: ${NEMOTRON_PARSE_EMBED_IMAGES:-False}
 
       # Choose whether to store the extracted content in the vector store for citation support
       ENABLE_CITATIONS: ${ENABLE_CITATIONS:-True}

@@ -73,13 +73,16 @@ services:
       APP_EMBEDDINGS_APIKEY: ${APP_EMBEDDINGS_APIKEY:-""}
       SUMMARY_LLM_APIKEY: ${SUMMARY_LLM_APIKEY:-""}
 
+      # ==== Ingestion Pipeline Configuration ====
+      INGESTION_PIPELINE: ${INGESTION_PIPELINE:-"nemotron_parse"}
+
       ##===Embedding Model specific configurations===
       # url on which embedding model is hosted. If "", Nvidia hosted API is used
-      APP_EMBEDDINGS_SERVERURL: ${APP_EMBEDDINGS_SERVERURL-"nemoretriever-embedding-ms:8000/v1"}
-      APP_EMBEDDINGS_MODELNAME: ${APP_EMBEDDINGS_MODELNAME:-nvidia/llama-3.2-nv-embedqa-1b-v2}
+      # APP_EMBEDDINGS_SERVERURL: ${APP_EMBEDDINGS_SERVERURL-"nemoretriever-embedding-ms:8000/v1"}
+      # APP_EMBEDDINGS_MODELNAME: ${APP_EMBEDDINGS_MODELNAME:-nvidia/llama-3.2-nv-embedqa-1b-v2}
       # For VLM Embedding Model (Nemoretriever-1b-vlm-embed-v1)
-      # APP_EMBEDDINGS_SERVERURL: ${APP_EMBEDDINGS_SERVERURL-"nemotron-vlm-embedding-ms:8000/v1"}
-      # APP_EMBEDDINGS_MODELNAME: ${APP_EMBEDDINGS_MODELNAME:-nvidia/llama-nemotron-embed-vl-1b-v2}
+      APP_EMBEDDINGS_SERVERURL: ${APP_EMBEDDINGS_SERVERURL-"nemotron-vlm-embedding-ms:8000/v1"}
+      APP_EMBEDDINGS_MODELNAME: ${APP_EMBEDDINGS_MODELNAME:-nvidia/llama-nemotron-embed-vl-1b-v2}
       APP_EMBEDDINGS_DIMENSIONS: ${APP_EMBEDDINGS_DIMENSIONS:-2048}
 
       ##===NV-Ingest Connection Configurations=======
@@ -118,6 +121,20 @@ services:
       # If enabled, splits a single PDF's pages into parallel chunks for processing (smaller chunks = more parallelism but more overhead)
       APP_NVINGEST_ENABLE_PDF_SPLIT_PROCESSING: ${APP_NVINGEST_ENABLE_PDF_SPLIT_PROCESSING:-False}
       APP_NVINGEST_PAGES_PER_CHUNK: ${APP_NVINGEST_PAGES_PER_CHUNK:-16}
+
+      ##===Nemotron Parse Configurations========
+      # This configuration is used when INGESTION_PIPELINE is set to "nemotron_parse"
+      NEMOTRON_PARSE_PIPELINE_MODE: ${NEMOTRON_PARSE_PIPELINE_MODE:-"page_as_image"}
+      NEMOTRON_PARSE_EMBED_IMAGES: ${NEMOTRON_PARSE_EMBED_IMAGES:-True}
+      NEMOTRON_PARSE_HTTP_ENDPOINT: ${NEMOTRON_PARSE_HTTP_ENDPOINT:-http://nemotron-parse:8000/v1/chat/completions}
+      NEMOTRON_PARSE_MODEL_NAME: ${NEMOTRON_PARSE_MODEL_NAME:-nvidia/nemotron-parse}
+      NEMOTRON_PARSE_INFER_PROTOCOL: ${NEMOTRON_PARSE_INFER_PROTOCOL:-http}
+      # VLM captioning for Picture/Table/Formula/Caption when text is empty
+      NEMOTRON_PARSE_VLM_SERVER_URL: ${NEMOTRON_PARSE_VLM_SERVER_URL:-http://vlm-ms:8000/v1/chat/completions}
+      NEMOTRON_PARSE_USE_VLM_CAPTION: ${NEMOTRON_PARSE_USE_VLM_CAPTION:-True}
+      # Ray-based parallel page processing
+      NEMOTRON_PARSE_USE_RAY: ${NEMOTRON_PARSE_USE_RAY:-True}
+      NEMOTRON_PARSE_RAY_MAX_IN_FLIGHT_PAGES: ${NEMOTRON_PARSE_RAY_MAX_IN_FLIGHT_PAGES:-128}
 
       # Choose whether to store the extracted content in the vector store for citation support
       ENABLE_CITATIONS: ${ENABLE_CITATIONS:-True}
