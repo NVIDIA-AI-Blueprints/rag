@@ -141,6 +141,8 @@ def get_nv_ingest_ingestor(
             "extract_audio_params": {"segment_audio": config.nv_ingest.segment_audio},
             "extract_page_as_image": config.nv_ingest.extract_page_as_image,
         }
+        if config.nv_ingest.extract_tables_method is not None:
+            extract_kwargs["extract_tables_method"] = config.nv_ingest.extract_tables_method
 
     if remove_extract_method or config.nv_ingest.pdf_extract_method is None:
         extract_kwargs.pop("extract_method", None)

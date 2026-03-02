@@ -302,6 +302,20 @@ class NvIngestConfig(_ConfigBase):
         env="APP_NVINGEST_TEXTDEPTH",
         description="Granularity level for text extraction (page, document)",
     )
+    extract_tables_method: str | None = Field(
+        default=None,
+        env="APP_NVINGEST_EXTRACTTABLESMETHOD",
+        description="Method for table/chart extraction in PDFs (e.g. yolox, nemotron_parse). If None, client default is used.",
+    )
+
+    @field_validator("extract_tables_method", mode="before")
+    @classmethod
+    def normalize_extract_tables_method(cls, v: Any) -> Any:
+        """Normalize string 'None'/'none' to Python None."""
+        if isinstance(v, str) and v.lower() in ("none", "null", ""):
+            return None
+        return v
+
     tokenizer: str = Field(
         default="intfloat/e5-large-unsupervised",
         env="APP_NVINGEST_TOKENIZER",
