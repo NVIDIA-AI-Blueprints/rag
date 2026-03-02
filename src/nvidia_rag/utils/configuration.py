@@ -740,6 +740,18 @@ class RetrieverConfig(_ConfigBase):
         env="APP_RETRIEVER_NRPIPELINE",
         description="Retrieval pipeline to use (e.g., ranked_hybrid, dense, sparse)",
     )
+    fetch_full_page_context: bool = Field(
+        default=False,
+        env="APP_FETCH_FULL_PAGE_CONTEXT",
+        description="Fetch ALL chunks for retrieved pages and organize context by page. "
+        "When True, enables page-based grouping for LLM/VLM.",
+    )
+    fetch_neighboring_pages: int = Field(
+        default=0,
+        env="APP_FETCH_NEIGHBORING_PAGES",
+        description="N pages before/after each retrieved page (0=disabled, 1=+/-1 page). "
+        "Requires fetch_full_page_context=True.",
+    )
 
     @field_validator("nr_url", mode="before")
     @classmethod
@@ -763,12 +775,33 @@ class RetrieverConfig(_ConfigBase):
             )
         return v
 
+    @field_validator("fetch_neighboring_pages")
+    @classmethod
+    def validate_fetch_neighboring_pages(cls, v: int) -> int:
+        if not isinstance(v, int) or isinstance(v, bool):
+            raise TypeError(
+                f"fetch_neighboring_pages must be an integer, got {type(v).__name__}"
+            )
+        if v < 0:
+            raise ValueError(
+                f"fetch_neighboring_pages must be >= 0, got {v}"
+            )
+        return v
+
     @model_validator(mode="after")
     def validate_reranker_top_k(self) -> "RetrieverConfig":
         if self.vdb_top_k is not None and self.top_k > self.vdb_top_k:
             raise ValueError(
                 f"reranker_top_k ({self.top_k}) must be less than or equal to vdb_top_k ({self.vdb_top_k}). "
                 "Please check your settings and try again."
+            )
+        return self
+
+    @model_validator(mode="after")
+    def validate_page_context_options(self) -> "RetrieverConfig":
+        if self.fetch_neighboring_pages > 0 and not self.fetch_full_page_context:
+            raise ValueError(
+                "fetch_full_page_context must be True when fetch_neighboring_pages > 0."
             )
         return self
 

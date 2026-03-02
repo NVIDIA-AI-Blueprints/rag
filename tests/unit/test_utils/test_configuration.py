@@ -228,6 +228,8 @@ class TestRetrieverConfig:
         assert config.score_threshold == 0.25
         assert config.nr_url == "http://retrieval-ms:8000"
         assert config.nr_pipeline == "ranked_hybrid"
+        assert config.fetch_full_page_context is False
+        assert config.fetch_neighboring_pages == 0
 
 
 class TestMinioConfig:
@@ -841,6 +843,23 @@ class TestRetrieverConfigValidation:
             "reranker_top_k (50) must be less than or equal to vdb_top_k (20)"
             in str(exc_info.value)
         )
+
+    def test_fetch_neighboring_pages_requires_fetch_full_page_context(self):
+        """Test that fetch_neighboring_pages > 0 requires fetch_full_page_context."""
+        with pytest.raises(ValidationError) as exc_info:
+            RetrieverConfig(
+                fetch_full_page_context=False,
+                fetch_neighboring_pages=1,
+            )
+
+        assert "fetch_full_page_context must be True" in str(exc_info.value)
+
+    def test_fetch_neighboring_pages_negative_raises_error(self):
+        """Test that negative fetch_neighboring_pages raises ValueError."""
+        with pytest.raises(ValidationError) as exc_info:
+            RetrieverConfig(fetch_neighboring_pages=-1)
+
+        assert "fetch_neighboring_pages must be >= 0" in str(exc_info.value)
 
 
 class TestTracingConfigNormalize:
