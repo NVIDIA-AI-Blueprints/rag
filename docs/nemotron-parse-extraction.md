@@ -30,11 +30,6 @@ For this feature, use H100 or A100 GPUs instead.
    export APP_NVINGEST_PDFEXTRACTMETHOD=nemotron_parse
    ```
 
-   :::{note}
-   **Nemotron-parse-only:** To use only Nemotron Parse for PDF and table extraction (no OCR, page-elements, graphic-elements, or table-structure NIMs), additionally set **`APP_NVINGEST_EXTRACTTABLESMETHOD: "nemotron_parse"`** in ingestor-server environment variables.
-   In addition, set **`COMPONENTS_TO_READY_CHECK`** to an empty value in the **nv-ingest** service environment (e.g. in the compose file where nv-ingest runs) so that nv-ingest readiness passes when other NIMs are not running.
-   :::
-
 4. Deploy the ingestion-server and rag-server containers following the remaining steps in the deployment guide.
 
 5. You can now ingest PDF files using the [ingestion API usage notebook](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/ingestion_api_usage.ipynb).
@@ -57,11 +52,6 @@ For this feature, use H100 or A100 GPUs instead.
    export APP_NVINGEST_PDFEXTRACTMETHOD=nemotron_parse
    ```
 
-   :::{note}
-   **Nemotron-parse-only:** To use only Nemotron Parse for PDF and table extraction (no other ingest NIMs required), additionally set **`APP_NVINGEST_EXTRACTTABLESMETHOD: "nemotron_parse"`** in ingestor-server environment variables.
-   If you run only the Nemotron Parse NIM, also set **`COMPONENTS_TO_READY_CHECK`** to an empty value in the **nv-ingest** service environment so nv-ingest readiness passes without other NIMs.
-   :::
-
 4. Deploy the ingestion-server and rag-server containers following the remaining steps in the deployment guide.
 
 5. You can now ingest PDF files using the [ingestion API usage notebook](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/ingestion_api_usage.ipynb).
@@ -81,7 +71,7 @@ To enable PDF extraction with Nemotron Parse using Helm, enable the Nemotron Par
 
 To deploy with Nemotron Parse enabled:
 
-Modify [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) to enable Nemotron Parse and, for nemotron-parse-only, configure nv-ingest readiness:
+Modify [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) to enable Nemotron Parse and configure the ingestor-server:
 
 ```yaml
 # Enable Nemotron Parse NIM
@@ -96,42 +86,6 @@ ingestor-server:
     APP_NVINGEST_PDFEXTRACTMETHOD: "nemotron_parse"
 ```
 
-:::{note}
-**Nemotron-parse-only:** To use only Nemotron Parse for PDF and table extraction (no other ingest NIMs), additionally set **`APP_NVINGEST_EXTRACTTABLESMETHOD: "nemotron_parse"`** in ingestor-server environment variables.
-If you want only the Nemotron Parse NIM to run, also set **`COMPONENTS_TO_READY_CHECK`** to an empty string in **nv-ingest** env vars (`nv-ingest.envVars.COMPONENTS_TO_READY_CHECK: ""`), and optionally disable the other ingest NIMs as in step 2 below.
-:::
-
-**(Optional) Nemotron-parse-only pipeline** — If you want only the Nemotron Parse NIM to run (no OCR, page-elements, graphic-elements, or table-structure NIMs), do the following:
-
-   - **Disable the other ingest NIMs** under `nv-ingest.nimOperator` in `values.yaml` by setting `enabled: false` for each. The NIM keys and structure are defined in [`deploy/helm/nvidia-blueprint-rag/values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) (see the `nv-ingest.nimOperator` section). For example:
-
-   ```yaml
-   nv-ingest:
-     nimOperator:
-       nemotron_parse:
-         enabled: true
-       nemoretriever_ocr_v1:
-         enabled: false
-       graphic_elements:
-         enabled: false
-       page_elements:
-         enabled: false
-       table_structure:
-         enabled: false
-   ```
-
-   - **Set nv-ingest readiness so it does not wait for other NIMs** — add or set `COMPONENTS_TO_READY_CHECK` to an empty string for nv-ingest so the readiness probe passes when other NIMs are disabled:
-
-   ```yaml
-   nv-ingest:
-     nimOperator:
-       nemotron_parse:
-         enabled: true
-       # ... other NIMs set to enabled: false as above ...
-     envVars:
-       COMPONENTS_TO_READY_CHECK: ""
-   ```
-
 After modifying [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml), apply the changes as described in [Change a Deployment](deploy-helm.md#change-a-deployment).
 
 For detailed HELM deployment instructions, see [Helm Deployment Guide](deploy-helm.md).
@@ -139,15 +93,13 @@ For detailed HELM deployment instructions, see [Helm Deployment Guide](deploy-he
 :::{note}
 **Key Configuration Changes:**
 - `nv-ingest.nimOperator.nemotron_parse.enabled=true` - Enables Nemotron Parse NIM
-- `nv-ingest.envVars.COMPONENTS_TO_READY_CHECK=""` - For nemotron-parse-only: nv-ingest readiness passes without other NIMs
 - `ingestor-server.envVars.APP_NVINGEST_PDFEXTRACTMETHOD="nemotron_parse"` - Configures ingestor to use Nemotron Parse for PDF extraction
-- `ingestor-server.envVars.APP_NVINGEST_EXTRACTTABLESMETHOD="nemotron_parse"` - Configures ingestor to use Nemotron Parse for table extraction (nemotron-parse-only pipeline)
 :::
 
 ## Experimental: Nemotron-parse-only extraction
 
 :::{note}
-**Experimental.** The steps in this section describe a nemotron-parse-only pipeline. For production use, the default pipeline (Nemotron Parse with page-elements and table-structure NIMs) is recommended for better accuracy.
+The steps in this section describe a nemotron-parse-only pipeline. For production use, the default pipeline (Nemotron Parse with page-elements and table-structure NIMs) is recommended for better accuracy.
 :::
 
 The **default** Nemotron Parse pipeline uses the **page-elements** and **table-structure** NIMs together with the Nemotron Parse NIM in the extraction pipeline. This combination provides better accuracy for PDF and table extraction. 
