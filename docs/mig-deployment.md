@@ -158,6 +158,9 @@ Use [`mig-config-rtx6000.yaml`](../deploy/helm/mig-slicing/mig-config-rtx6000.ya
 
 ```bash
 kubectl apply -n nvidia-gpu-operator -f mig-slicing/mig-config-rtx6000.yaml
+kubectl patch clusterpolicies.nvidia.com/cluster-policy \
+  --type='json' \
+  -p='[{"op":"replace", "path":"/spec/migManager/config/name", "value":"custom-mig-config"}]'
 kubectl label nodes <node-name> nvidia.com/mig.config=custom-rtx6000-4x1g24-2x1g24-1x2g48-1x4g96 --overwrite
 ```
 :::
