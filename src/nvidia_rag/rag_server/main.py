@@ -96,6 +96,12 @@ from nvidia_rag.utils.llm import (
     get_streaming_filter_think_parser_async,
 )
 from nvidia_rag.utils.observability.otel_metrics import OtelMetrics
+from nvidia_rag.utils.observability.tracing import (
+    get_tracer,
+    set_span_llm_usage,
+    traced_span,
+    usage_collector_scope,
+)
 from nvidia_rag.utils.reranker import get_ranking_model
 from nvidia_rag.utils.vdb import _get_vdb_op
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
@@ -1839,6 +1845,56 @@ class NvidiaRAG:
                     status_code=ErrorCodeMapping.BAD_REQUEST,
                 )
 
+    def _record_aggregate_llm_token_usage(
+        self, aggregate_llm_token_usage: dict[str, Any]
+    ) -> None:
+        """Record aggregate LLM token usage per feature to OpenTelemetry span and logs."""
+        if not aggregate_llm_token_usage:
+            return
+        tracer = get_tracer()
+        with tracer.start_as_current_span("rag.aggregate_llm_token_usage") as span:
+            total_in = 0
+            total_out = 0
+            for feature, u in aggregate_llm_token_usage.items():
+                inp = u.get("input_tokens", 0) or 0
+                out = u.get("output_tokens", 0) or 0
+                total = u.get("total_tokens", 0) or (inp + out)
+                if inp > 0 or out > 0:
+                    span.set_attribute(
+                        f"rag.aggregate_llm_token_usage.{feature}.input_tokens", inp
+                    )
+                    span.set_attribute(
+                        f"rag.aggregate_llm_token_usage.{feature}.output_tokens", out
+                    )
+                    span.set_attribute(
+                        f"rag.aggregate_llm_token_usage.{feature}.total_tokens", total
+                    )
+                    logger.info(
+                        "Aggregate LLM token usage [%s]: input_tokens=%d, output_tokens=%d, total_tokens=%d",
+                        feature,
+                        inp,
+                        out,
+                        total,
+                    )
+                total_in += inp
+                total_out += out
+            if total_in > 0 or total_out > 0:
+                span.set_attribute(
+                    "rag.aggregate_llm_token_usage.total_input_tokens", total_in
+                )
+                span.set_attribute(
+                    "rag.aggregate_llm_token_usage.total_output_tokens", total_out
+                )
+                span.set_attribute(
+                    "rag.aggregate_llm_token_usage.total_tokens", total_in + total_out
+                )
+                logger.info(
+                    "Aggregate LLM token usage [TOTAL]: input_tokens=%d, output_tokens=%d, total_tokens=%d",
+                    total_in,
+                    total_out,
+                    total_in + total_out,
+                )
+
     def _extract_text_from_content(self, content: Any) -> str:
         """Extract text content from either string or multimodal content.
 
@@ -2156,6 +2212,8 @@ class NvidiaRAG:
             # Query used for specific tasks (filter generation, reflection) - stays clean without history concatenation
             processed_query = retriever_query
 
+            aggregate_llm_token_usage: dict[str, Any] = {}
+
             # Handle multi-turn conversations with two different strategies:
             # 1. Query rewriting: Creates a standalone, context-aware query (good for both retrieval and tasks)
             # 2. Query combination: Concatenates history for retrieval, keeps original for specific tasks
@@ -2249,13 +2307,23 @@ class NvidiaRAG:
                             logger.warning("Could not format prompt for logging: %s", e)
 
                         try:
-                            retriever_query = await q_prompt.ainvoke(
-                                {
-                                    "input": retriever_query,
-                                    "chat_history": formatted_history,
-                                },
-                                config={"run_name": "query-rewriter"},
-                            )
+                            with traced_span("rag.Query Rewriting.token_usage") as qr_span:
+                                with usage_collector_scope(
+                                    aggregate_llm_token_usage, "Query Rewriting"
+                                ):
+                                    retriever_query = await q_prompt.ainvoke(
+                                        {
+                                            "input": retriever_query,
+                                            "chat_history": formatted_history,
+                                        },
+                                        config={"run_name": "query-rewriter"},
+                                    )
+                                u = aggregate_llm_token_usage.get("Query Rewriting") or {}
+                                set_span_llm_usage(
+                                    qr_span,
+                                    u.get("input_tokens", 0),
+                                    u.get("output_tokens", 0),
+                                )
                         except (ConnectionError, OSError, Exception) as e:
                             # Wrap connection errors from query rewriter LLM
                             if isinstance(e, APIError):
@@ -2326,50 +2394,56 @@ class NvidiaRAG:
                     logger.info("  - Collections: %s", validated_collections)
                     logger.info("Generating filter expressions for collections...")
                     logger.info("-" * 80)
-                    
+
+                    run_config_mf = {
+                        "usage_collector": aggregate_llm_token_usage,
+                        "usage_feature": "Custom Metadata",
+                    }
                     try:
+                        with traced_span("rag.Custom Metadata.token_usage") as mf_span:
 
-                        def generate_filter_for_collection(collection_name):
-                            try:
-                                metadata_schema_data = metadata_schemas.get(
-                                    collection_name
-                                )
+                            def generate_filter_for_collection(collection_name):
+                                try:
+                                    metadata_schema_data = metadata_schemas.get(
+                                        collection_name
+                                    )
 
-                                generated_filter = (
-                                    generate_filter_from_natural_language(
-                                        user_request=processed_query,
-                                        collection_name=collection_name,
-                                        metadata_schema=metadata_schema_data,
-                                        prompt_template=self.prompts.get(
-                                            "filter_expression_generator_prompt"
-                                        ),
-                                        llm=self.filter_generator_llm,
-                                        existing_filter_expr=filter_expr,
+                                    generated_filter = (
+                                        generate_filter_from_natural_language(
+                                            user_request=processed_query,
+                                            collection_name=collection_name,
+                                            metadata_schema=metadata_schema_data,
+                                            prompt_template=self.prompts.get(
+                                                "filter_expression_generator_prompt"
+                                            ),
+                                            llm=self.filter_generator_llm,
+                                            existing_filter_expr=filter_expr,
+                                            run_config=run_config_mf,
+                                        )
                                     )
-                                )
 
-                                if generated_filter:
-                                    logger.info(
-                                        f"Generated filter expression for collection '{collection_name}': {generated_filter}"
-                                    )
-                                    processed_filter_expr = process_filter_expr(
-                                        generated_filter,
-                                        collection_name,
-                                        metadata_schema_data,
-                                        is_generated_filter=True,
-                                        config=self.config,
-                                    )
-                                    return collection_name, processed_filter_expr
-                                else:
-                                    logger.info(
-                                        f"No filter expression generated for collection '{collection_name}'"
+                                    if generated_filter:
+                                        logger.info(
+                                            f"Generated filter expression for collection '{collection_name}': {generated_filter}"
+                                        )
+                                        processed_filter_expr = process_filter_expr(
+                                            generated_filter,
+                                            collection_name,
+                                            metadata_schema_data,
+                                            is_generated_filter=True,
+                                            config=self.config,
+                                        )
+                                        return collection_name, processed_filter_expr
+                                    else:
+                                        logger.info(
+                                            f"No filter expression generated for collection '{collection_name}'"
+                                        )
+                                        return collection_name, ""
+                                except Exception as e:
+                                    logger.warning(
+                                        f"Error generating filter for collection '{collection_name}': {str(e)}"
                                     )
                                     return collection_name, ""
-                            except Exception as e:
-                                logger.warning(
-                                    f"Error generating filter for collection '{collection_name}': {str(e)}"
-                                )
-                                return collection_name, ""
 
                         with ThreadPoolExecutor() as executor:
                             futures = [
@@ -2384,6 +2458,13 @@ class NvidiaRAG:
                                 collection_filter_mapping[collection_name] = (
                                     processed_filter_expr
                                 )
+
+                            u = aggregate_llm_token_usage.get("Custom Metadata") or {}
+                            set_span_llm_usage(
+                                mf_span,
+                                u.get("input_tokens", 0),
+                                u.get("output_tokens", 0),
+                            )
 
                         generated_count = len(
                             [f for f in collection_filter_mapping.values() if f]
@@ -2422,25 +2503,36 @@ class NvidiaRAG:
                 logger.info("  - Confidence Threshold: %.2f", confidence_threshold)
                 logger.info("Starting iterative query decomposition...")
                 logger.info("-" * 80)
-                
-                # TODO: Pass processed_query instead of query and check accuracy
-                return await iterative_query_decomposition(
-                    query=query,
-                    history=conversation_history,
-                    llm=llm,
-                    vdb_op=vdb_op,
-                    ranker=ranker if enable_reranker else None,
-                    recursion_depth=self.config.query_decomposition.recursion_depth,
-                    enable_citations=enable_citations,
-                    collection_name=validated_collections[0]
-                    if validated_collections
-                    else "",
-                    top_k=top_k,
-                    ranker_top_k=reranker_top_k,
-                    confidence_threshold=confidence_threshold,
-                    llm_settings=llm_settings,
-                    prompts=self.prompts,
-                )
+
+                with traced_span("rag.Query Decomposition.token_usage") as qd_span:
+                    with usage_collector_scope(
+                        aggregate_llm_token_usage, "Query Decomposition"
+                    ):
+                        result = await iterative_query_decomposition(
+                            query=query,
+                            history=conversation_history,
+                            llm=llm,
+                            vdb_op=vdb_op,
+                            ranker=ranker if enable_reranker else None,
+                            recursion_depth=self.config.query_decomposition.recursion_depth,
+                            enable_citations=enable_citations,
+                            collection_name=validated_collections[0]
+                            if validated_collections
+                            else "",
+                            top_k=top_k,
+                            ranker_top_k=reranker_top_k,
+                            confidence_threshold=confidence_threshold,
+                            llm_settings=llm_settings,
+                            prompts=self.prompts,
+                        )
+                    u = aggregate_llm_token_usage.get("Query Decomposition") or {}
+                    set_span_llm_usage(
+                        qd_span,
+                        u.get("input_tokens", 0),
+                        u.get("output_tokens", 0),
+                    )
+                self._record_aggregate_llm_token_usage(aggregate_llm_token_usage)
+                return result
 
             if confidence_threshold > 0.0 and not enable_reranker:
                 logger.warning(
@@ -2464,38 +2556,50 @@ class NvidiaRAG:
                 
                 context_reflection_counter = ReflectionCounter(self.config.reflection.max_loops)
 
-                try:
-                    context_to_show, is_relevant = await check_context_relevance(
-                        vdb_op=vdb_op,
-                        retriever_query=processed_query,
-                        collection_names=validated_collections,
-                        ranker=ranker,
-                        reflection_counter=context_reflection_counter,
-                        top_k=top_k,
-                        enable_reranker=enable_reranker,
-                        collection_filter_mapping=collection_filter_mapping,
-                        config=self.config,
-                        prompts=self.prompts,
+                with traced_span(
+                    "rag.Self Reflection.context_relevance.token_usage"
+                ) as ref_span:
+                    with usage_collector_scope(
+                        aggregate_llm_token_usage, "Self Reflection"
+                    ):
+                        try:
+                            context_to_show, is_relevant = await check_context_relevance(
+                                vdb_op=vdb_op,
+                                retriever_query=processed_query,
+                                collection_names=validated_collections,
+                                ranker=ranker,
+                                reflection_counter=context_reflection_counter,
+                                top_k=top_k,
+                                enable_reranker=enable_reranker,
+                                collection_filter_mapping=collection_filter_mapping,
+                                config=self.config,
+                                prompts=self.prompts,
+                            )
+                        except (
+                            ConnectionError,
+                            OSError,
+                            requests.exceptions.ConnectionError,
+                        ) as e:
+                            # Wrap connection errors from reflection LLM with proper message
+                            reflection_llm_endpoint = self.config.reflection.server_url
+                            endpoint_msg = (
+                                f" at {reflection_llm_endpoint}"
+                                if reflection_llm_endpoint
+                                else ""
+                            )
+                            raise APIError(
+                                f"Reflection LLM NIM unavailable{endpoint_msg}. Please verify the service is running and accessible or disable reflection.",
+                                ErrorCodeMapping.SERVICE_UNAVAILABLE,
+                            ) from e
+                        except APIError:
+                            # Re-raise APIError as-is
+                            raise
+                    u = aggregate_llm_token_usage.get("Self Reflection") or {}
+                    set_span_llm_usage(
+                        ref_span,
+                        u.get("input_tokens", 0),
+                        u.get("output_tokens", 0),
                     )
-                except (
-                    ConnectionError,
-                    OSError,
-                    requests.exceptions.ConnectionError,
-                ) as e:
-                    # Wrap connection errors from reflection LLM with proper message
-                    reflection_llm_endpoint = self.config.reflection.server_url
-                    endpoint_msg = (
-                        f" at {reflection_llm_endpoint}"
-                        if reflection_llm_endpoint
-                        else ""
-                    )
-                    raise APIError(
-                        f"Reflection LLM NIM unavailable{endpoint_msg}. Please verify the service is running and accessible or disable reflection.",
-                        ErrorCodeMapping.SERVICE_UNAVAILABLE,
-                    ) from e
-                except APIError:
-                    # Re-raise APIError as-is
-                    raise
 
                 # Normalize scores to 0-1 range
                 if ranker and enable_reranker:
@@ -2938,41 +3042,58 @@ class NvidiaRAG:
                 response_reflection_counter = ReflectionCounter(
                     self.config.reflection.max_loops
                 )
-                token_usage_reflection: dict[str, Any] = {}
-                usage_callback_reflection = TokenUsageCaptureHandler(token_usage_reflection)
-                initial_response = await chain.ainvoke(
-                    {"question": query, "context": docs},
-                    config={"callbacks": [usage_callback_reflection]},
-                )
-                logger.info("Initial LLM response generated, checking groundedness...")
-                try:
-                    final_response, is_grounded = await check_response_groundedness(
-                        query,
-                        initial_response,
-                        docs,
-                        response_reflection_counter,
-                        config=self.config,
-                        prompts=self.prompts,
-                    )
-                except (
-                    ConnectionError,
-                    OSError,
-                    requests.exceptions.ConnectionError,
-                ) as e:
-                    # Wrap connection errors from reflection LLM with proper message
-                    reflection_llm_endpoint = self.config.reflection.server_url
-                    endpoint_msg = (
-                        f" at {reflection_llm_endpoint}"
-                        if reflection_llm_endpoint
-                        else ""
-                    )
-                    raise APIError(
-                        f"Reflection LLM NIM unavailable{endpoint_msg}. Please verify the service is running and accessible or disable reflection.",
-                        ErrorCodeMapping.SERVICE_UNAVAILABLE,
-                    ) from e
-                except APIError:
-                    # Re-raise APIError as-is
-                    raise
+                reflection_usage_before = {
+                    k: v
+                    for k, v in (aggregate_llm_token_usage.get("Self Reflection") or {}).items()
+                }
+                with traced_span(
+                    "rag.Self Reflection.response_groundedness.token_usage"
+                ) as ref_rg_span:
+                    with usage_collector_scope(
+                        aggregate_llm_token_usage, "Self Reflection"
+                    ):
+                        token_usage_reflection: dict[str, Any] = {}
+                        usage_callback_reflection = TokenUsageCaptureHandler(
+                            token_usage_reflection
+                        )
+                        initial_response = await chain.ainvoke(
+                            {"question": query, "context": docs},
+                            config={"callbacks": [usage_callback_reflection]},
+                        )
+                        logger.info("Initial LLM response generated, checking groundedness...")
+                        try:
+                            final_response, is_grounded = await check_response_groundedness(
+                                query,
+                                initial_response,
+                                docs,
+                                response_reflection_counter,
+                                config=self.config,
+                                prompts=self.prompts,
+                            )
+                        except (
+                            ConnectionError,
+                            OSError,
+                            requests.exceptions.ConnectionError,
+                        ) as e:
+                            # Wrap connection errors from reflection LLM with proper message
+                            reflection_llm_endpoint = self.config.reflection.server_url
+                            endpoint_msg = (
+                                f" at {reflection_llm_endpoint}"
+                                if reflection_llm_endpoint
+                                else ""
+                            )
+                            raise APIError(
+                                f"Reflection LLM NIM unavailable{endpoint_msg}. Please verify the service is running and accessible or disable reflection.",
+                                ErrorCodeMapping.SERVICE_UNAVAILABLE,
+                            ) from e
+                        except APIError:
+                            # Re-raise APIError as-is
+                            raise
+                    u_after = aggregate_llm_token_usage.get("Self Reflection") or {}
+                    delta_in = u_after.get("input_tokens", 0) - reflection_usage_before.get("input_tokens", 0)
+                    delta_out = u_after.get("output_tokens", 0) - reflection_usage_before.get("output_tokens", 0)
+                    if delta_in > 0 or delta_out > 0:
+                        set_span_llm_usage(ref_rg_span, delta_in, delta_out)
                 logger.info("Reflection Output:")
                 logger.info("  - Response Grounded: %s", is_grounded)
                 logger.info("  - Reflection Iterations: %d", response_reflection_counter.current_count)
@@ -2985,7 +3106,8 @@ class NvidiaRAG:
                 logger.info("=" * 80)
                 logger.info("RAG PIPELINE COMPLETE")
                 logger.info("=" * 80)
-                
+
+                self._record_aggregate_llm_token_usage(aggregate_llm_token_usage)
                 return RAGResponse(
                     generate_answer_async(
                         _async_iter([final_response]),
@@ -3019,6 +3141,7 @@ class NvidiaRAG:
                 logger.info("RAG PIPELINE COMPLETE - Starting response streaming")
                 logger.info("=" * 80)
 
+                self._record_aggregate_llm_token_usage(aggregate_llm_token_usage)
                 return RAGResponse(
                     generate_answer_async(
                         prefetched_stream,

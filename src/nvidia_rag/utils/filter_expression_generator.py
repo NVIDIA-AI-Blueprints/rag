@@ -101,6 +101,7 @@ def generate_filter_from_natural_language(
     prompt_template: dict,
     llm: Any | None = None,
     existing_filter_expr: str | None = None,
+    run_config: dict[str, Any] | None = None,
 ) -> str | None:
     """Generate a filter expression from natural language request.
 
@@ -111,6 +112,7 @@ def generate_filter_from_natural_language(
         prompt_template: Prompt template for filter generation
         llm: LLM instance to use (if None, will create one with default settings)
         existing_filter_expr: Existing filter expression to validate/improve (optional)
+        run_config: Optional LangChain run config (e.g. for usage collection in tracing)
 
     Returns:
         Generated filter expression or None if no filter needed/possible
@@ -147,7 +149,11 @@ def generate_filter_from_natural_language(
             )
             return ""
 
-        response = llm.invoke(filter_prompt.format_messages(**chain_input))
+        messages = filter_prompt.format_messages(**chain_input)
+        if run_config:
+            response = llm.invoke(messages, config=run_config)
+        else:
+            response = llm.invoke(messages)
 
         filter_expr = _extract_filter_expression_from_response(response)
 
