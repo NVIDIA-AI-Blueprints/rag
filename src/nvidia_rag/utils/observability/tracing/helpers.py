@@ -19,7 +19,10 @@ This module provides:
 
 1. get_tracer: Obtain or create a tracer with a default namespace.
 2. traced_span: Context manager to wrap arbitrary blocks with a span.
-3. trace_function: Decorator to automatically trace sync/async functions.
+3. set_span_llm_usage: Set LLM token usage attributes on a span.
+4. usage_collector_scope / get_current_usage_scope: Context for collecting
+   LLM token usage per feature in RAG tracing.
+5. trace_function: Decorator to automatically trace sync/async functions.
 """
 
 from __future__ import annotations
@@ -27,6 +30,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Awaitable, Callable, Iterable, Mapping
 from contextlib import contextmanager
+from contextvars import ContextVar
 from functools import wraps
 from typing import Any, TypeVar
 
@@ -50,6 +54,57 @@ def get_tracer(name: str = DEFAULT_TRACER_NAME) -> Tracer:
     """Return an OpenTelemetry tracer."""
 
     return trace.get_tracer(name)
+
+
+# Standard attribute names for LLM token usage on spans (OpenTelemetry semconv)
+GEN_AI_USAGE_INPUT_TOKENS = "gen_ai.usage.input_tokens"
+GEN_AI_USAGE_OUTPUT_TOKENS = "gen_ai.usage.output_tokens"
+LLM_USAGE_TOTAL_TOKENS = "llm.token_count.total"
+
+
+def set_span_llm_usage(
+    span: Span,
+    input_tokens: int,
+    output_tokens: int,
+) -> None:
+    """Set LLM token usage attributes on a span for tracing."""
+    if input_tokens > 0 or output_tokens > 0:
+        span.set_attribute(GEN_AI_USAGE_INPUT_TOKENS, input_tokens)
+        span.set_attribute(GEN_AI_USAGE_OUTPUT_TOKENS, output_tokens)
+        span.set_attribute(LLM_USAGE_TOTAL_TOKENS, input_tokens + output_tokens)
+
+
+# -------- Usage collector for aggregate LLM token usage per feature --------
+_usage_collector_context: ContextVar[list[tuple[dict[str, Any], str]]] = ContextVar(
+    "usage_collector_context",
+    default=[],
+)
+
+
+@contextmanager
+def usage_collector_scope(collector: dict[str, Any], feature: str):
+    """Context manager to associate LLM runs with a feature for usage aggregation.
+
+    Use around ainvoke() so that token usage from that run is added to
+    collector[feature] (input_tokens, output_tokens, total_tokens).
+
+    Args:
+        collector: Mutable dict to update; will set collector[feature] with token counts.
+        feature: Feature name (e.g. 'Query Rewriting', 'Query Decomposition', 'Custom Metadata', 'Self Reflection').
+    """
+    token = _usage_collector_context.get()
+    new_stack = token + [(collector, feature)]
+    t = _usage_collector_context.set(new_stack)
+    try:
+        yield
+    finally:
+        _usage_collector_context.reset(t)
+
+
+def get_current_usage_scope() -> tuple[dict[str, Any], str] | None:
+    """Return the current (collector, feature) if inside a usage_collector_scope."""
+    stack = _usage_collector_context.get()
+    return stack[-1] if stack else None
 
 
 @contextmanager

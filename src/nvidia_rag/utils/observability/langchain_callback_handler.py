@@ -38,7 +38,10 @@ from opentelemetry.trace import SpanKind, Tracer, set_span_in_context
 from opentelemetry.trace.span import Span
 from pydantic import BaseModel
 
+from nvidia_rag.utils.llm import _extract_token_usage_from_llm_result
+
 from .otel_metrics import OtelMetrics
+from .tracing.helpers import get_current_usage_scope
 
 # Hardcoded attribute keys (replacing deprecated SpanAttributes constants)
 GEN_AI_PROMPTS = "gen_ai.prompt"
@@ -348,6 +351,22 @@ class LangchainCallbackHandler(BaseCallbackHandler):
         self.total_output_words = 0
         self.spans: dict[UUID, SpanHolder] = {}
         self.run_inline = True
+        self._run_id_usage_context: dict[UUID, tuple[dict[str, Any], str]] = {}
+
+    def _get_usage_scope_for_run(self, run_id: UUID, kwargs: Any) -> tuple[dict[str, Any], str] | None:
+        """Return (collector, feature) for this run from usage_collector_scope or run config."""
+        scope = get_current_usage_scope()
+        if scope is not None:
+            return scope
+        run = kwargs.get("run")
+        if run is not None:
+            config = getattr(run, "config", None) or getattr(run, "run_config", None)
+            if isinstance(config, dict):
+                collector = config.get("usage_collector")
+                feature = config.get("usage_feature")
+                if collector is not None and feature is not None:
+                    return (collector, feature)
+        return None
 
     @staticmethod
     def _get_name_from_callback(
@@ -598,6 +617,10 @@ class LangchainCallbackHandler(BaseCallbackHandler):
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return
 
+        scope = self._get_usage_scope_for_run(run_id, kwargs)
+        if scope is not None:
+            self._run_id_usage_context[run_id] = scope
+
         self.total_input_words = 0
         for message in messages:
             for msg in message:
@@ -632,6 +655,10 @@ class LangchainCallbackHandler(BaseCallbackHandler):
         """Run when Chat Model starts running."""
         if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
             return
+
+        scope = self._get_usage_scope_for_run(run_id, kwargs)
+        if scope is not None:
+            self._run_id_usage_context[run_id] = scope
 
         name = self._get_name_from_callback(serialized, kwargs=kwargs)
         span = self._create_llm_span(
@@ -687,6 +714,23 @@ class LangchainCallbackHandler(BaseCallbackHandler):
             _set_span_attribute(
                 span, SpanAttributes.LLM_USAGE_TOTAL_TOKENS, total_tokens
             )
+
+        # Aggregate token usage per feature for RAG tracing
+        if run_id in self._run_id_usage_context:
+            collector, feature = self._run_id_usage_context.pop(run_id)
+            usage = _extract_token_usage_from_llm_result(response)
+            inp = usage.prompt_tokens if usage else 0
+            out = usage.completion_tokens if usage else 0
+            total = inp + out
+            if feature not in collector:
+                collector[feature] = {
+                    "input_tokens": 0,
+                    "output_tokens": 0,
+                    "total_tokens": 0,
+                }
+            collector[feature]["input_tokens"] += inp
+            collector[feature]["output_tokens"] += out
+            collector[feature]["total_tokens"] += total
 
         _set_chat_response(span, response)
         self._end_span(span, run_id)
