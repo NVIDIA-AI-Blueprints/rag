@@ -712,6 +712,13 @@ class RankingConfig(_ConfigBase):
         return v
 
 
+class RetrievalStrategy(StrEnum):
+    """Retrieval strategy: default (single path) or dual_path (semantic→rerank + BM25 then merge)."""
+
+    DEFAULT = "default"
+    DUAL_PATH = "dual_path"
+
+
 class RetrieverConfig(_ConfigBase):
     """Retriever configuration."""
 
@@ -724,6 +731,16 @@ class RetrieverConfig(_ConfigBase):
         default=100,
         env="VECTOR_DB_TOPK",
         description="Number of documents to retrieve from vector database before reranking",
+    )
+    retrieval_strategy: RetrievalStrategy = Field(
+        default=RetrievalStrategy.DEFAULT,
+        env="APP_RETRIEVER_STRATEGY",
+        description="Retrieval strategy: 'default' (single path) or 'dual_path' (semantic→rerank + BM25 side-by-side, then merge)",
+    )
+    dual_path_bm25_top_k: int = Field(
+        default=10,
+        env="APP_RETRIEVER_DUAL_PATH_BM25_TOPK",
+        description="Number of chunks to retrieve via BM25 path when retrieval_strategy is dual_path",
     )
     score_threshold: float = Field(
         default=0.25,

@@ -30,6 +30,7 @@ from nvidia_rag.utils.common import (
     filter_documents_by_confidence,
     get_current_timestamp,
     get_metadata_configuration,
+    merge_dual_path_documents,
     perform_document_info_aggregation,
     prepare_custom_metadata_dataframe,
     process_filter_expr,
@@ -37,6 +38,87 @@ from nvidia_rag.utils.common import (
     utils_cache,
     validate_filter_expr,
 )
+
+
+class TestMergeDualPathDocuments:
+    """Test merge_dual_path_documents (dual-path retrieval: semantic + BM25 merge)."""
+
+    def test_merge_semantic_first_then_bm25_only(self):
+        """Semantic (reranked) docs come first, then BM25-only; order preserved."""
+        dense = [
+            Document(page_content="chunk A", metadata={"source": "dense"}),
+            Document(page_content="chunk B", metadata={"source": "dense"}),
+        ]
+        bm25 = [
+            Document(page_content="chunk C", metadata={"source": "bm25"}),
+            Document(page_content="chunk D", metadata={"source": "bm25"}),
+        ]
+        result = merge_dual_path_documents(dense, bm25)
+        assert len(result) == 4
+        assert result[0].page_content == "chunk A"
+        assert result[1].page_content == "chunk B"
+        assert result[2].page_content == "chunk C"
+        assert result[3].page_content == "chunk D"
+
+    def test_merge_deduplicates_by_content(self):
+        """Same page_content from both paths appears only once (semantic wins)."""
+        dense = [
+            Document(page_content="same chunk", metadata={"source": "dense"}),
+        ]
+        bm25 = [
+            Document(page_content="same chunk", metadata={"source": "bm25"}),
+            Document(page_content="bm25 only", metadata={"source": "bm25"}),
+        ]
+        result = merge_dual_path_documents(dense, bm25)
+        assert len(result) == 2
+        assert result[0].page_content == "same chunk"
+        assert result[0].metadata["source"] == "dense"
+        assert result[1].page_content == "bm25 only"
+
+    def test_merge_respects_max_total(self):
+        """max_total caps the merged list."""
+        dense = [
+            Document(page_content=f"dense {i}", metadata={}) for i in range(5)
+        ]
+        bm25 = [
+            Document(page_content=f"bm25 {i}", metadata={}) for i in range(5)
+        ]
+        result = merge_dual_path_documents(dense, bm25, max_total=4)
+        assert len(result) == 4
+        assert result[0].page_content == "dense 0"
+        assert result[3].page_content == "dense 3"
+
+    def test_merge_empty_dense_returns_bm25(self):
+        """When dense path is empty, only BM25 docs are returned."""
+        bm25 = [
+            Document(page_content="bm25 chunk", metadata={}),
+        ]
+        result = merge_dual_path_documents([], bm25, max_total=10)
+        assert len(result) == 1
+        assert result[0].page_content == "bm25 chunk"
+
+    def test_merge_empty_bm25_returns_dense(self):
+        """When BM25 path is empty, only dense (reranked) docs are returned."""
+        dense = [
+            Document(page_content="dense chunk", metadata={}),
+        ]
+        result = merge_dual_path_documents(dense, [], max_total=10)
+        assert len(result) == 1
+        assert result[0].page_content == "dense chunk"
+
+    def test_merge_skips_empty_content(self):
+        """Documents with empty or whitespace-only page_content are skipped for dedupe key."""
+        dense = [
+            Document(page_content="  ", metadata={"source": "dense"}),
+            Document(page_content="valid", metadata={"source": "dense"}),
+        ]
+        bm25 = [Document(page_content="valid", metadata={"source": "bm25"})]
+        result = merge_dual_path_documents(dense, bm25)
+        # "  " is used as key and is falsy after strip, so both empty and valid are appended
+        # Actually in the implementation: if key and key not in seen - so empty key skips add to seen but we still don't append (we only append when key and key not in seen). So we don't append doc with empty key. So dense has "  " -> key="" -> not appended. "valid" -> appended. bm25 "valid" -> already in seen -> not appended. So result is [valid from dense]. Let me re-read the code.
+        # for doc in dense: key = strip(content). if key and key not in seen: seen.add(key); out.append(doc). So empty content -> key "" -> we don't append. So the doc with "  " is skipped. Then "valid" is appended. For bm25 "valid" is in seen so not appended. So we get 1 doc. Good.
+        assert len(result) == 1
+        assert result[0].page_content == "valid"
 
 
 class TestUtilsCache:

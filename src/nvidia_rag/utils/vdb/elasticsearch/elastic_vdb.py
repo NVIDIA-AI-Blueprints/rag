@@ -61,7 +61,7 @@ from typing import Any
 import pandas as pd
 import requests
 from elastic_transport import ConnectionError as ESConnectionError
-from elasticsearch import Elasticsearch, ConflictError
+from elasticsearch import ConflictError, Elasticsearch
 from elasticsearch.helpers.vectorstore import DenseVectorStrategy, VectorStore
 from langchain_core.documents import Document
 from langchain_core.runnables import RunnableAssign, RunnableLambda
@@ -73,7 +73,7 @@ from nvidia_rag.utils.common import (
     get_current_timestamp,
     perform_document_info_aggregation,
 )
-from nvidia_rag.utils.configuration import NvidiaRAGConfig, SearchType, RankerType
+from nvidia_rag.utils.configuration import NvidiaRAGConfig, RankerType, SearchType
 from nvidia_rag.utils.health_models import ServiceStatus
 from nvidia_rag.utils.vdb import (
     DEFAULT_DOCUMENT_INFO_COLLECTION,
@@ -83,11 +83,13 @@ from nvidia_rag.utils.vdb import (
 from nvidia_rag.utils.vdb.elasticsearch.es_queries import (
     create_document_info_collection_mapping,
     create_metadata_collection_mapping,
+    get_bm25_only_custom_query,
     get_collection_document_info_query,
     get_delete_docs_query,
     get_delete_document_info_query,
     get_delete_document_info_query_by_collection_name,
     get_delete_metadata_schema_query,
+    get_dense_only_custom_query,
     get_document_info_query,
     get_metadata_schema_query,
     get_unique_sources_query,
@@ -768,8 +770,10 @@ class ElasticVDB(VDBRagIngest):
                     info_type=info_type,
                 ),
             )
-        except ConflictError as e:
-            logger.info(f"Document info not found for collection: {collection_name}, document: {document_name}, info type: {info_type}")
+        except ConflictError:
+            logger.info(
+                f"Document info not found for collection: {collection_name}, document: {document_name}, info type: {info_type}"
+            )
         # Add the document info to the index
         data = {
             "collection_name": collection_name,
@@ -875,12 +879,18 @@ class ElasticVDB(VDBRagIngest):
         top_k: int = 10,
         filter_expr: list[dict[str, Any]] | None = None,
         otel_ctx: Any | None = None,
+        search_mode: str | None = None,
     ) -> list[dict[str, Any]]:
-        """Retrieve documents from a collection using langchain."""
+        """Retrieve documents from a collection using langchain.
+
+        search_mode: If 'dense', use semantic (vector) search only. If 'sparse', use BM25
+            (keyword) search only. If None, use config (hybrid or dense).
+        """
         logger.info(
-            "Elasticsearch Retrieval: Retrieving documents from index: %s, search type: '%s'",
+            "Elasticsearch Retrieval: Retrieving documents from index: %s, search type: '%s', search_mode: %s",
             collection_name,
             self.config.vector_store.search_type,
+            search_mode or "default",
         )
         if vectorstore is None:
             vectorstore = self.get_langchain_vectorstore(collection_name)
@@ -897,13 +907,40 @@ class ElasticVDB(VDBRagIngest):
                 search_kwargs={"k": top_k, "fetch_k": top_k}
             )
             logger.info("  [Embedding] Query embedding generated successfully")
-            if self.config.vector_store.search_type == SearchType.HYBRID:
+
+            if search_mode == "dense":
+                logger.info(
+                    "  [Elasticsearch] Using dense-only (semantic) retrieval for dual_path."
+                )
+                retriever_lambda = RunnableLambda(
+                    lambda x: retriever.invoke(
+                        x,
+                        filter=filter_expr,
+                        custom_query=get_dense_only_custom_query(
+                            self._embedding_model,
+                            k=top_k,
+                        ),
+                    )
+                )
+            elif search_mode == "sparse":
+                logger.info(
+                    "  [Elasticsearch] Using sparse-only (BM25) retrieval for dual_path."
+                )
+                retriever_lambda = RunnableLambda(
+                    lambda x: retriever.invoke(
+                        x,
+                        filter=filter_expr,
+                        custom_query=get_bm25_only_custom_query(k=top_k),
+                    )
+                )
+            elif (
+                self.config.vector_store.search_type == SearchType.HYBRID
+                and self.config.vector_store.ranker_type == RankerType.WEIGHTED
+            ):
                 logger.info(
                     "Elasticsearch Retrieval: Using hybrid search with ranker type: '%s'",
                     self.config.vector_store.ranker_type,
                 )
-            if self.config.vector_store.search_type == SearchType.HYBRID and \
-               self.config.vector_store.ranker_type == RankerType.WEIGHTED:
                 retriever_lambda = RunnableLambda(
                     lambda x: retriever.invoke(
                         x,
@@ -923,7 +960,9 @@ class ElasticVDB(VDBRagIngest):
             retriever_chain = {"context": retriever_lambda} | RunnableAssign(
                 {"context": lambda input: input["context"]}
             )
-            logger.info("  [VDB Search] Performing vector similarity search in collection...")
+            logger.info(
+                "  [VDB Search] Performing vector similarity search in collection..."
+            )
             retriever_docs = retriever_chain.invoke(
                 query, config={"run_name": "retriever"}
             )
@@ -931,8 +970,14 @@ class ElasticVDB(VDBRagIngest):
 
             end_time = time.time()
             latency = end_time - start_time
-            logger.info("  [VDB Search] Retrieved %d documents from collection '%s'", len(docs), collection_name)
-            logger.info("  [VDB Search] Total VDB operation latency: %.4f seconds", latency)
+            logger.info(
+                "  [VDB Search] Retrieved %d documents from collection '%s'",
+                len(docs),
+                collection_name,
+            )
+            logger.info(
+                "  [VDB Search] Total VDB operation latency: %.4f seconds", latency
+            )
 
             return self._add_collection_name_to_retreived_docs(docs, collection_name)
         except (requests.exceptions.ConnectionError, ConnectionError, OSError) as e:

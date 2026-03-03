@@ -190,20 +190,20 @@ def get_delete_document_info_query_by_collection_name(collection_name: str):
     }
     return query_delete_document_info
 
+
 def get_weighted_hybrid_custom_query(
     embedding_model,
     dense_weight,
     sparse_weight,
     k: int,
     num_candidates: int = 100,
-):  
-    
+):
     def weighted_hybrid_query_builder(query_body: dict, query_text: str):
         """
         Overrides the default query to perform Weighted Hybrid Search.
-        """        
+        """
         query_vector = embedding_model.embed_query(query_text)
-        
+
         # Construct the Hybrid Query (KNN + Match)
         new_query = {
             "knn": {
@@ -211,21 +211,56 @@ def get_weighted_hybrid_custom_query(
                 "query_vector": query_vector,
                 "k": k,
                 "num_candidates": num_candidates,
-                "boost": dense_weight
+                "boost": dense_weight,
             },
             "query": {
                 "match": {
                     "text": {  # Ensure this matches your text field
                         "query": query_text,
-                        "boost": sparse_weight
+                        "boost": sparse_weight,
                     }
                 }
             },
-            # Optional: Use RRF if you prefer rank fusion over boosting
-            # "rank": { "rrf": {} }, 
-            "_source": ["text", "metadata"] # Fields to retrieve
+            "_source": ["text", "metadata"],
         }
-        
+
         return new_query
 
     return weighted_hybrid_query_builder
+
+
+def get_dense_only_custom_query(embedding_model, k: int, num_candidates: int = 100):
+    """Build a custom query for dense (semantic) retrieval only (no BM25)."""
+
+    def dense_only_query_builder(query_body: dict, query_text: str):
+        query_vector = embedding_model.embed_query(query_text)
+        return {
+            "knn": {
+                "field": "vector",
+                "query_vector": query_vector,
+                "k": k,
+                "num_candidates": num_candidates,
+            },
+            "_source": ["text", "metadata"],
+        }
+
+    return dense_only_query_builder
+
+
+def get_bm25_only_custom_query(k: int):
+    """Build a custom query for BM25 (sparse / keyword) retrieval only (no vector)."""
+
+    def bm25_only_query_builder(query_body: dict, query_text: str):
+        return {
+            "query": {
+                "match": {
+                    "text": {
+                        "query": query_text,
+                    }
+                }
+            },
+            "size": k,
+            "_source": ["text", "metadata"],
+        }
+
+    return bm25_only_query_builder

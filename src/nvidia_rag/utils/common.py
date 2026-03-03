@@ -14,13 +14,14 @@
 # limitations under the License.
 """Utility functions used across different modules of the RAG.
 1. filter_documents_by_confidence: Filter documents by confidence threshold.
-2. utils_cache: Use this to convert unhashable args to hashable ones.
-3. combine_dicts: Combines two dictionaries recursively, prioritizing values from dict_b.
-4. sanitize_nim_url: Sanitize the NIM URL by adding http(s):// if missing and checking if the URL is hosted on NVIDIA's known endpoints.
-5. get_metadata_configuration: Get the metadata configuration for a document.
-6. prepare_custom_metadata_dataframe: Prepare custom metadata for a document and write it to a dataframe in csv format.
-7. validate_filter_expr: Validate the filter expression for metadata filtering against multiple collections.
-8. process_filter_expr: Process the filter expression by transforming it to the appropriate syntax for the configured vector store.
+2. merge_dual_path_documents: Merge and dedupe semantic+rerank and BM25 retrieval results.
+3. utils_cache: Use this to convert unhashable args to hashable ones.
+4. combine_dicts: Combines two dictionaries recursively, prioritizing values from dict_b.
+5. sanitize_nim_url: Sanitize the NIM URL by adding http(s):// if missing and checking if the URL is hosted on NVIDIA's known endpoints.
+6. get_metadata_configuration: Get the metadata configuration for a document.
+7. prepare_custom_metadata_dataframe: Prepare custom metadata for a document and write it to a dataframe in csv format.
+8. validate_filter_expr: Validate the filter expression for metadata filtering against multiple collections.
+9. process_filter_expr: Process the filter expression by transforming it to the appropriate syntax for the configured vector store.
 """
 
 import ast
@@ -95,6 +96,41 @@ def filter_documents_by_confidence(
     )
 
     return filtered_documents
+
+
+def merge_dual_path_documents(
+    dense_reranked_docs: list[Document],
+    bm25_docs: list[Document],
+    max_total: int | None = None,
+) -> list[Document]:
+    """Merge documents from semantic (dense→rerank) and BM25 paths with deduplication.
+
+    Keeps order: reranked semantic first, then BM25-only chunks. Dedupes by
+    document page_content so the same chunk is not included twice.
+
+    Args:
+        dense_reranked_docs: Documents from semantic retrieval after reranking.
+        bm25_docs: Documents from BM25 (sparse) retrieval.
+        max_total: Optional cap on total merged documents (e.g. top_k for context).
+
+    Returns:
+        Merged, deduplicated list (semantic first, then BM25-only).
+    """
+    seen: set[str] = set()
+    out: list[Document] = []
+    for doc in dense_reranked_docs:
+        key = (doc.page_content or "").strip()
+        if key and key not in seen:
+            seen.add(key)
+            out.append(doc)
+    for doc in bm25_docs:
+        key = (doc.page_content or "").strip()
+        if key and key not in seen:
+            seen.add(key)
+            out.append(doc)
+    if max_total is not None and len(out) > max_total:
+        out = out[:max_total]
+    return out
 
 
 def utils_cache(func: Callable) -> Callable:

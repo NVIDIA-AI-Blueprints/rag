@@ -1526,6 +1526,122 @@ class TestElasticVDB(unittest.TestCase):
         call_kwargs = mock_retriever.invoke.call_args[1]
         self.assertNotIn("custom_query", call_kwargs)
 
+    @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.Elasticsearch")
+    @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.VectorStore")
+    @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.ElasticsearchStore")
+    @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.time")
+    @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.otel_context")
+    @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.get_dense_only_custom_query")
+    def test_retrieval_langchain_search_mode_dense(
+        self,
+        mock_dense_query,
+        mock_otel_context,
+        mock_time,
+        mock_es_store_class,
+        mock_vector_store,
+        mock_elasticsearch,
+    ):
+        """Test retrieval_langchain with search_mode='dense' (dual-path semantic path)."""
+        from nvidia_rag.utils.configuration import SearchType
+
+        mock_config = Mock()
+        mock_config.embeddings.dimensions = 768
+        mock_config.vector_store.search_type = SearchType.HYBRID
+
+        mock_elasticsearch.return_value = Mock()
+        mock_time.time.side_effect = [1000.0, 1001.0]
+        mock_otel_context.attach.return_value = Mock()
+
+        mock_vectorstore = Mock()
+        mock_es_store_class.return_value = mock_vectorstore
+        mock_retriever = Mock()
+        mock_vectorstore.as_retriever.return_value = mock_retriever
+        mock_retriever.invoke.return_value = [
+            Document(page_content="dense doc", metadata={}),
+        ]
+
+        mock_query_builder = Mock()
+        mock_dense_query.return_value = mock_query_builder
+
+        elastic_vdb = ElasticVDB(
+            self.index_name,
+            self.es_url,
+            embedding_model=Mock(),
+            config=mock_config,
+        )
+
+        result = elastic_vdb.retrieval_langchain(
+            query="test",
+            collection_name="test_collection",
+            top_k=5,
+            search_mode="dense",
+        )
+
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0].metadata["collection_name"], "test_collection")
+        mock_dense_query.assert_called_once()
+        call_kwargs = mock_dense_query.call_args[1]
+        self.assertEqual(call_kwargs["k"], 5)
+        mock_retriever.invoke.assert_called_once()
+        self.assertIn("custom_query", mock_retriever.invoke.call_args[1])
+
+    @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.Elasticsearch")
+    @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.VectorStore")
+    @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.ElasticsearchStore")
+    @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.time")
+    @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.otel_context")
+    @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.get_bm25_only_custom_query")
+    def test_retrieval_langchain_search_mode_sparse(
+        self,
+        mock_bm25_query,
+        mock_otel_context,
+        mock_time,
+        mock_es_store_class,
+        mock_vector_store,
+        mock_elasticsearch,
+    ):
+        """Test retrieval_langchain with search_mode='sparse' (dual-path BM25 path)."""
+        from nvidia_rag.utils.configuration import SearchType
+
+        mock_config = Mock()
+        mock_config.embeddings.dimensions = 768
+        mock_config.vector_store.search_type = SearchType.HYBRID
+
+        mock_elasticsearch.return_value = Mock()
+        mock_time.time.side_effect = [1000.0, 1001.0]
+        mock_otel_context.attach.return_value = Mock()
+
+        mock_vectorstore = Mock()
+        mock_es_store_class.return_value = mock_vectorstore
+        mock_retriever = Mock()
+        mock_vectorstore.as_retriever.return_value = mock_retriever
+        mock_retriever.invoke.return_value = [
+            Document(page_content="bm25 doc", metadata={}),
+        ]
+
+        mock_query_builder = Mock()
+        mock_bm25_query.return_value = mock_query_builder
+
+        elastic_vdb = ElasticVDB(
+            self.index_name,
+            self.es_url,
+            embedding_model=Mock(),
+            config=mock_config,
+        )
+
+        result = elastic_vdb.retrieval_langchain(
+            query="test",
+            collection_name="test_collection",
+            top_k=10,
+            search_mode="sparse",
+        )
+
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0].metadata["collection_name"], "test_collection")
+        mock_bm25_query.assert_called_once_with(k=10)
+        mock_retriever.invoke.assert_called_once()
+        self.assertIn("custom_query", mock_retriever.invoke.call_args[1])
+
 
 class TestEsQueries(unittest.TestCase):
     """Test cases for es_queries module functions."""

@@ -65,6 +65,10 @@ services:
       APP_RETRIEVER_SCORETHRESHOLD: 0.25
       # Top K from vector DB, which goes as input to reranker model if enabled, else goes to LLM prompt
       VECTOR_DB_TOPK: ${VECTOR_DB_TOPK:-100}
+      # Retrieval strategy: "default" (single path) or "dual_path" (semantic→rerank + BM25, then merge)
+      APP_RETRIEVER_STRATEGY: ${APP_RETRIEVER_STRATEGY:-default}
+      # Number of chunks from BM25 path when APP_RETRIEVER_STRATEGY=dual_path
+      APP_RETRIEVER_DUAL_PATH_BM25_TOPK: ${APP_RETRIEVER_DUAL_PATH_BM25_TOPK:-10}
 
       ##===LLM Model specific configurations===
       APP_LLM_MODELNAME: ${APP_LLM_MODELNAME:-"nvidia/llama-3.3-nemotron-super-49b-v1.5"}

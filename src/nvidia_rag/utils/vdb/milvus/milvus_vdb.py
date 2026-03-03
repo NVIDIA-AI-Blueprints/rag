@@ -944,12 +944,19 @@ class MilvusVDB(VDBRagIngest):
         top_k: int = 10,
         filter_expr: str = "",
         otel_ctx: Any | None = None,
+        search_mode: str | None = None,
     ) -> list[dict[str, Any]]:
-        """Retrieve documents from a collection using langchain."""
+        """Retrieve documents from a collection using langchain.
+
+        search_mode: If 'dense', use semantic (vector) search only. If 'sparse', use BM25
+            (keyword) search only. If None, use config (hybrid or dense).
+            For sparse-only, collection must be created with hybrid (sparse) support.
+        """
         logger.info(
-            "Milvus Retrieval: Retrieving documents from collection: %s, search type: '%s'",
+            "Milvus Retrieval: Retrieving documents from collection: %s, search type: '%s', search_mode: %s",
             collection_name,
             self.config.vector_store.search_type,
+            search_mode or "default",
         )
         if vectorstore is None:
             vectorstore = self.get_langchain_vectorstore(collection_name)
@@ -965,7 +972,45 @@ class MilvusVDB(VDBRagIngest):
             retriever = vectorstore.as_retriever(search_kwargs={"k": top_k})
             logger.info("  [Embedding] Query embedding generated successfully")
 
-            if self.config.vector_store.search_type == SearchType.HYBRID:
+            use_hybrid = self.config.vector_store.search_type == SearchType.HYBRID
+            if search_mode == "dense":
+                logger.info(
+                    "  [Milvus] Using dense-only (semantic) retrieval for dual_path."
+                )
+                if use_hybrid:
+                    retriever_lambda = RunnableLambda(
+                        lambda x: retriever.invoke(
+                            x,
+                            expr=filter_expr,
+                            ranker_type=self.config.vector_store.ranker_type,
+                            ranker_params={"weights": [1.0, 0.0]},
+                        )
+                    )
+                else:
+                    retriever_lambda = RunnableLambda(
+                        lambda x: retriever.invoke(x, expr=filter_expr)
+                    )
+            elif search_mode == "sparse":
+                if not use_hybrid:
+                    logger.warning(
+                        "Milvus search_mode='sparse' requires hybrid collection; falling back to dense retrieval."
+                    )
+                    retriever_lambda = RunnableLambda(
+                        lambda x: retriever.invoke(x, expr=filter_expr)
+                    )
+                else:
+                    logger.info(
+                        "  [Milvus] Using sparse-only (BM25) retrieval for dual_path."
+                    )
+                    retriever_lambda = RunnableLambda(
+                        lambda x: retriever.invoke(
+                            x,
+                            expr=filter_expr,
+                            ranker_type=self.config.vector_store.ranker_type,
+                            ranker_params={"weights": [0.0, 1.0]},
+                        )
+                    )
+            elif use_hybrid:
                 logger.info(
                     "Milvus Retrieval: Using hybrid search with ranker type: '%s'",
                     self.config.vector_store.ranker_type,
@@ -976,11 +1021,11 @@ class MilvusVDB(VDBRagIngest):
                         expr=filter_expr,
                         ranker_type=self.config.vector_store.ranker_type,
                         ranker_params={
-                            "weights": [  # Used for "weighted" ranker type
+                            "weights": [
                                 self.config.vector_store.dense_weight,
                                 self.config.vector_store.sparse_weight,
                             ],
-                        }
+                        },
                     )
                 )
             else:
@@ -993,7 +1038,9 @@ class MilvusVDB(VDBRagIngest):
             retriever_chain = {"context": retriever_lambda} | RunnableAssign(
                 {"context": lambda input: input["context"]}
             )
-            logger.info("  [VDB Search] Performing vector similarity search in collection...")
+            logger.info(
+                "  [VDB Search] Performing vector similarity search in collection..."
+            )
             retriever_docs = retriever_chain.invoke(
                 query, config={"run_name": "retriever"}
             )
@@ -1002,8 +1049,14 @@ class MilvusVDB(VDBRagIngest):
 
             end_time = time.time()
             latency = end_time - start_time
-            logger.info("  [VDB Search] Retrieved %d documents from collection '%s'", len(docs), collection_name)
-            logger.info("  [VDB Search] Total VDB operation latency: %.4f seconds", latency)
+            logger.info(
+                "  [VDB Search] Retrieved %d documents from collection '%s'",
+                len(docs),
+                collection_name,
+            )
+            logger.info(
+                "  [VDB Search] Total VDB operation latency: %.4f seconds", latency
+            )
 
             return self._add_collection_name_to_retreived_docs(docs, collection_name)
         except (requests.exceptions.ConnectionError, ConnectionError, OSError) as e:
