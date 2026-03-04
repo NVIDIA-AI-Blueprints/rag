@@ -33,9 +33,14 @@ import os
 import time
 from concurrent.futures import Future
 from typing import Any
+from array import array
 
 import oracledb
-from langchain_community.vectorstores.oraclevs import OracleVS
+from langchain_community.vectorstores.oraclevs import (
+    OracleVS,
+    _get_connection,
+    _get_distance_function,
+)
 from langchain_community.vectorstores.utils import DistanceStrategy
 from langchain_core.documents import Document
 from langchain_core.runnables import RunnableAssign, RunnableLambda
@@ -77,6 +82,84 @@ from nvidia_rag.utils.vdb.oracle.oracle_queries import (
 from nvidia_rag.utils.vdb.vdb_ingest_base import VDBRagIngest
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
+
+class OracleVSCompat(OracleVS):
+    """Compatibility shim to align LangChain OracleVS with our schema and vector bind needs."""
+
+    def __init__(
+        self,
+        *args,
+        **kwargs,
+    ):
+        super().__init__(*args, **kwargs)
+        # Cache embedding dimension to avoid re-embedding per query
+        self._embedding_dim = self.get_embedding_dimension()
+
+    def similarity_search_by_vector_with_relevance_scores(
+        self,
+        embedding,
+        k: int = 4,
+        filter=None,
+        **kwargs,
+    ):
+        # Bind embedding as CLOB or array, then cast via TO_VECTOR to avoid ORA-00904 on bind name
+        if self.insert_mode == "clob":
+            embedding_arr = json.dumps(embedding)
+        else:
+            embedding_arr = array("f", embedding)
+
+        distance_fn = _get_distance_function(self.distance_strategy)
+        query = f"""
+            SELECT id,
+                   text,
+                   source,
+                   content_metadata,
+                   VECTOR_DISTANCE(
+                       vector,
+                       TO_VECTOR(:embedding, {self._embedding_dim}, FLOAT32),
+                       {distance_fn}
+                   ) AS distance
+            FROM {self.table_name}
+            ORDER BY distance
+            FETCH APPROX FIRST {k} ROWS ONLY
+        """
+
+        docs_and_scores = []
+        connection = _get_connection(self.client)
+        if connection is None:
+            raise ValueError("Failed to acquire a connection.")
+
+        with connection.cursor() as cursor:
+            cursor.execute(query, embedding=embedding_arr)
+            results = cursor.fetchall()
+
+            for result in results:
+                source = json.loads(result[2]) if result[2] else {}
+                metadata = {}
+                if isinstance(result[3], oracledb.LOB) and result[3]:
+                    metadata = json.loads(self._get_clob_value(result[3]))
+                elif isinstance(result[3], dict) and result[3]:
+                    metadata = result[3]
+
+                # combining source data and metadata
+                metadata.update(source)
+
+                # Apply filter if provided
+                if filter:
+                    logger.info(f'Filtering on :{filter}')
+                    if not all(metadata.get(key) in value for key, value in filter.items()):
+                        continue
+
+                doc = Document(
+                    page_content=(self._get_clob_value(result[1]) if result[1] is not None else ""),
+                    metadata=metadata,
+                )
+                distance = result[4]
+                docs_and_scores.append((doc, distance))
+
+        return docs_and_scores
 
 
 class OracleVDB(VDBRagIngest):
@@ -244,6 +327,8 @@ class OracleVDB(VDBRagIngest):
         meta_dataframe = self.meta_dataframe
         if meta_dataframe is None and self.csv_file_path is not None:
             meta_dataframe = pandas_file_reader(self.csv_file_path)
+        elif isinstance(meta_dataframe, str):
+            meta_dataframe = pandas_file_reader(meta_dataframe)
 
         # Clean records
         cleaned_records = cleanup_records(
@@ -263,7 +348,7 @@ class OracleVDB(VDBRagIngest):
             with conn.cursor() as cursor:
                 insert_sql = f"""
                 INSERT INTO {self._collection_name} (text, vector, source, content_metadata)
-                VALUES (:text, :vector, :source, :content_metadata)
+                VALUES (:text, TO_VECTOR(:vector, {self.config.embeddings.dimensions}, FLOAT32), :source, :content_metadata)
                 """
 
                 for i in range(0, total_records, batch_size):
@@ -272,14 +357,22 @@ class OracleVDB(VDBRagIngest):
 
                     for record in batch:
                         vector = record.get("vector", [])
-                        # Convert vector to Oracle VECTOR format
-                        vector_str = "[" + ",".join(str(v) for v in vector) + "]"
+
+                        source_val = record.get("source", "")
+                        if isinstance(source_val, dict):
+                            source_val = json.dumps(source_val)
+
+                        content_metadata_val = record.get("content_metadata", {})
+                        if not isinstance(content_metadata_val, str):
+                            content_metadata_val = json.dumps(content_metadata_val)
+                        # Bind vector using TO_VECTOR with dense float32 format
+                        vector_array = array("f", vector)
 
                         batch_data.append({
                             "text": record.get("text", ""),
-                            "vector": vector_str,
-                            "source": record.get("source", ""),
-                            "content_metadata": json.dumps(record.get("content_metadata", {})),
+                            "vector": vector_array,
+                            "source": source_val,
+                            "content_metadata": content_metadata_val,
                         })
 
                     cursor.executemany(insert_sql, batch_data)
@@ -503,8 +596,8 @@ class OracleVDB(VDBRagIngest):
             with conn.cursor() as cursor:
                 cursor.execute(get_unique_sources_query(table_name))
                 for row in cursor:
-                    source_name = row[0]
-                    content_metadata = json.loads(row[1]) if row[1] else {}
+                    source_name = json.loads(row[0]).get('source_name')
+                    content_metadata = row[1] if row[1] else {}
 
                     metadata_dict = {}
                     for item in metadata_schema:
@@ -829,7 +922,7 @@ class OracleVDB(VDBRagIngest):
             wallet_password=self._ewallet_password
         )
 
-        return OracleVS(
+        return OracleVSCompat(
             client=conn,
             embedding_function=self._embedding_model,
             table_name=table_name,
@@ -840,9 +933,9 @@ class OracleVDB(VDBRagIngest):
         self,
         query: str,
         collection_name: str,
-        vectorstore: OracleVS | None = None,
         top_k: int = 10,
         filter_expr: str | list[dict[str, Any]] = "",
+        vectorstore: OracleVS | None = None,
         otel_ctx: Any | None = None,
     ) -> list[Document]:
         """Perform semantic search and return documents."""

@@ -167,12 +167,17 @@ def get_unique_sources_query(table_name: str) -> str:
         SQL query string
     """
     return f"""
-    SELECT DISTINCT source,
-           MAX(content_metadata) KEEP (DENSE_RANK FIRST ORDER BY created_at DESC) as content_metadata
-    FROM {table_name}
-    WHERE source IS NOT NULL
-    GROUP BY source
-    ORDER BY source
+    WITH unique_sources AS (
+        SELECT source,
+               ROW_NUMBER() OVER (PARTITION BY source ORDER BY created_at DESC) as rn
+        FROM {table_name}
+        WHERE source IS NOT NULL
+    )
+    SELECT us.source, t.content_metadata
+    FROM unique_sources us
+    JOIN {table_name} t ON us.source = t.source
+    WHERE us.rn = 1
+    ORDER BY us.source
     """
 
 

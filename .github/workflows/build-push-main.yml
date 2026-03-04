@@ -6,7 +6,7 @@ on:
       - oracle/dev
 
 jobs:
-  build-and-push:
+  build-and-push-rag:
     runs-on: ubuntu-latest
     env:
       # OCI AUTH
@@ -38,7 +38,7 @@ jobs:
 
       - name: Build Docker Image
         run: |
-          docker build -t "${{ env.RAG_IMAGE_NAME }}":latest -f ./Dockerfile .
+          docker build -t "${{ env.RAG_IMAGE_NAME }}":latest -f src/nvidia_rag/rag_server/Dockerfile .
 
       - name: Tag and Push Docker Image
         env:
@@ -79,7 +79,7 @@ jobs:
 
       - name: Build Docker Image
         run: |
-          docker build -t "${{ env.INGEST_IMAGE_NAME }}":latest -f ./Dockerfile .
+          docker build -t "${{ env.INGEST_IMAGE_NAME }}":latest -f src/nvidia_rag/rag_server/Dockerfile .
 
       - name: Tag and Push Docker Image
         env:
