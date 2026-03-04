@@ -719,8 +719,8 @@ nimOperator:
     service:
       name: "nemotron-embedding-ms"
     image:
-      repository: nvcr.io/nvstaging/nim/llama-nemotron-embed-1b-v2
-      tag: "1.12.0-rc.20260216115852-6fba925dcb63c190"
+      repository: nvcr.io/nim/nvidia/llama-nemotron-embed-1b-v2
+      tag: "1.13.0"
       pullPolicy: IfNotPresent
     resources:
       limits:
@@ -798,8 +798,8 @@ nimOperator:
     service:
       name: "nemotron-ranking-ms"
     image:
-      repository: nvcr.io/nvstaging/nim/llama-nemotron-rerank-1b-v2
-      tag: "1.10.0-rc.20260219005237-7e2370934c6f9b9c"
+      repository: nvcr.io/nim/nvidia/llama-nemotron-rerank-1b-v2
+      tag: "1.10.0"
       pullPolicy: IfNotPresent
     resources:
       limits:
