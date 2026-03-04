@@ -33,7 +33,7 @@ services:
 
   nemotron-embedding-ms:
     container_name: nemotron-embedding-ms
-    image: nvcr.io/nvstaging/nim/llama-nemotron-embed-1b-v2:1.12.0-rc.20260216115852-6fba925dcb63c190
+    image: nvcr.io/nim/nvidia/llama-nemotron-embed-1b-v2:1.13.0
     volumes:
     - ${MODEL_DIRECTORY:-./}:/opt/nim/.cache
     ports:
@@ -93,7 +93,7 @@ services:
 
   nemotron-ranking-ms:
     container_name: nemotron-ranking-ms
-    image: nvcr.io/nvstaging/nim/llama-nemotron-rerank-1b-v2:1.10.0-rc.20260219005237-7e2370934c6f9b9c
+    image: nvcr.io/nim/nvidia/llama-nemotron-rerank-1b-v2:1.10.0
     volumes:
     - ${MODEL_DIRECTORY:-./}:/opt/nim/.cache
     ports:
