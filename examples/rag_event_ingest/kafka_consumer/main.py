@@ -27,7 +27,7 @@ def main():
     logger.info("Initializing services...")
     storage = ObjectStorage()
     indexer = DocumentIndexer(cfg.INGESTOR_SERVER_URL)
-    analyzer = VideoAnalyzer(cfg.VSS_SERVER_URL)
+    analyzer = VideoAnalyzer(cfg.VSS_SERVER_URL, storage_url=cfg.VST_STORAGE_URL)
     
     # Initialize handlers
     logger.info("Initializing handlers...")

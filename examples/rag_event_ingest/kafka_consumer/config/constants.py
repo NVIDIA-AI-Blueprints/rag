@@ -214,6 +214,19 @@ FIELD_SUMMARY_AGGREGATION_PROMPT = 'summary_aggregation_prompt'
 FIELD_PURPOSE = 'purpose'
 FIELD_MEDIA_TYPE = 'media_type'
 
+# VSS 3.0 LVS request fields
+FIELD_URL = 'url'
+FIELD_SCENARIO = 'scenario'
+FIELD_EVENTS = 'events'
+FIELD_OBJECTS_OF_INTEREST = 'objects_of_interest'
+
+# VSS 3.0 LVS response fields
+RESP_EVENTS = 'events'
+RESP_START_TIME = 'start_time'
+RESP_END_TIME = 'end_time'
+RESP_TYPE = 'type'
+RESP_DESCRIPTION = 'description'
+
 # VSS request values
 VALUE_VISION = 'vision'
 VALUE_VIDEO = 'video'
@@ -344,6 +357,19 @@ ENV_VSS_MAX_TOKENS = 'VSS_MAX_TOKENS'
 ENV_VSS_MODEL = 'VSS_MODEL'
 ENV_VSS_STREAM_ENABLED = 'VSS_STREAM_ENABLED'
 
+# VSS 3.0 LVS
+ENV_VSS_SCENARIO = 'VSS_SCENARIO'
+ENV_VSS_EVENTS = 'VSS_EVENTS'
+ENV_VSS_OBJECTS_OF_INTEREST = 'VSS_OBJECTS_OF_INTEREST'
+
+# VST Storage
+ENV_VST_STORAGE_URL = 'VST_STORAGE_URL'
+API_VST_STORAGE_UPLOAD = '/v1/storage/file'
+
+# Transcoding
+ENV_TRANSCODE_CONTAINER = 'TRANSCODE_CONTAINER'
+ENV_TRANSCODE_FFMPEG_OPTS = 'TRANSCODE_FFMPEG_OPTS'
+
 
 # ==================== API Endpoint Defaults ====================
 
@@ -373,7 +399,11 @@ DEFAULT_COLLECTION_NAME = 'multimodal_data'
 
 # ==================== VSS Defaults ====================
 
-DEFAULT_VSS_MODEL = 'Cosmos-Reason2-8B'
+DEFAULT_VSS_MODEL = 'nvidia/cosmos-reason2-8b'
+
+# Transcoding defaults
+DEFAULT_TRANSCODE_CONTAINER = '.mp4'
+DEFAULT_TRANSCODE_FFMPEG_OPTS = '-c:v libx265 -preset fast -crf 28 -c:a aac -tag:v hvc1 -y'
 DEFAULT_VSS_CHUNK_DURATION = 60      # seconds per chunk
 DEFAULT_VSS_CHUNK_OVERLAP = 5        # overlap between chunks
 DEFAULT_VSS_NUM_FRAMES_PER_CHUNK = 8 # frames per chunk for VLM

@@ -1,6 +1,7 @@
 # config/settings.py
 """Runtime settings loaded from environment variables."""
 
+import json
 import os
 
 from .constants import (
@@ -89,6 +90,17 @@ from .constants import (
     ENV_VSS_MAX_TOKENS,
     ENV_VSS_MODEL,
     ENV_VSS_STREAM_ENABLED,
+    # VSS 3.0 LVS
+    ENV_VSS_SCENARIO,
+    ENV_VSS_EVENTS,
+    ENV_VSS_OBJECTS_OF_INTEREST,
+    # VST Storage
+    ENV_VST_STORAGE_URL,
+    # Transcoding
+    ENV_TRANSCODE_CONTAINER,
+    ENV_TRANSCODE_FFMPEG_OPTS,
+    DEFAULT_TRANSCODE_CONTAINER,
+    DEFAULT_TRANSCODE_FFMPEG_OPTS,
 )
 
 
@@ -197,3 +209,14 @@ VSS_MAX_TOKENS = _get_int(ENV_VSS_MAX_TOKENS, DEFAULT_VSS_MAX_TOKENS)
 VSS_MODEL = os.getenv(ENV_VSS_MODEL, DEFAULT_VSS_MODEL)
 VSS_STREAM_ENABLED = _get_bool(ENV_VSS_STREAM_ENABLED, True)
 
+# VSS 3.0 LVS fields (JSON lists from env)
+VSS_SCENARIO = os.getenv(ENV_VSS_SCENARIO, '')
+VSS_EVENTS = json.loads(os.getenv(ENV_VSS_EVENTS, '[]'))
+VSS_OBJECTS_OF_INTEREST = json.loads(os.getenv(ENV_VSS_OBJECTS_OF_INTEREST, '[]'))
+
+# VST Storage
+VST_STORAGE_URL = os.getenv(ENV_VST_STORAGE_URL, '')
+
+# Transcoding
+TRANSCODE_CONTAINER = os.getenv(ENV_TRANSCODE_CONTAINER, DEFAULT_TRANSCODE_CONTAINER)
+TRANSCODE_FFMPEG_OPTS = os.getenv(ENV_TRANSCODE_FFMPEG_OPTS, DEFAULT_TRANSCODE_FFMPEG_OPTS)
