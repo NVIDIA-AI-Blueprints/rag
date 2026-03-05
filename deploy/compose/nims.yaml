@@ -233,8 +233,8 @@ services:
               capabilities: [gpu]
     profiles: ["paddle"]
 
-  nemoretriever-ocr:
-    image: ${NEMORETRIEVER_OCR_IMAGE:-nvcr.io/nim/nvidia/nemoretriever-ocr-v1}:${NEMORETRIEVER_OCR_TAG:-1.2.1}
+  nemotron-ocr:
+    image: ${NEMOTRON_OCR_IMAGE:-nvcr.io/nvstaging/nim/nemotron-ocr-v1}:${NEMORETRIEVER_OCR_TAG:-1.3.0-rc.20260227181016-1ed2694d45e2fe94}
     shm_size: 16gb
     ports:
       - "8012:8000"
@@ -256,7 +256,7 @@ services:
             - driver: nvidia
               device_ids: ["${OCR_MS_GPU_ID:-${PADDLE_MS_GPU_ID:-0}}"]
               capabilities: [gpu]
-    profiles: ["", "ingest", "vlm-ingest", "nemoretriever-ocr"]
+    profiles: ["", "ingest", "vlm-ingest", "nemotron-ocr"]
 
   # Optional NIM microservices
   nemotron-parse:

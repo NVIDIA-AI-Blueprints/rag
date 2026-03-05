@@ -126,7 +126,7 @@ docker ps | grep -E "(ingestor-server|nv-ingest|nemoretriever-embedding|milvus|r
    milvus-etcd                             Up 35 minutes (healthy)
    nemotron-ranking-ms                Up 38 minutes (healthy)
    compose-page-elements-1                 Up 38 minutes
-   compose-nemoretriever-ocr-1             Up 38 minutes
+   compose-nemotron-ocr-1             Up 38 minutes
    compose-graphic-elements-1              Up 38 minutes
    compose-table-structure-1               Up 38 minutes
    nemotron-embedding-ms              Up 38 minutes (healthy)

@@ -1015,8 +1015,8 @@ nv-ingest:
       tolerations: []
       replicaCount: 1
       image:
-        repository: nvcr.io/nim/nvidia/nemoretriever-ocr-v1
-        tag: "1.2.0"
+        repository: nvcr.io/nvstaging/nim/nemotron-ocr-v1
+        tag: "1.3.0-rc.20260227181016-1ed2694d45e2fe94"
       imagePullSecrets:
         - name: ngc-secret
       env:

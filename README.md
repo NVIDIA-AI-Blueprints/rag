@@ -108,7 +108,7 @@ This modular design ensures efficient query processing, accurate retrieval of in
     - [NeMo Retriever Page Elements NIM](https://build.nvidia.com/nvidia/nemotron-page-elements-v3)
     - [NeMo Retriever Table Structure NIM](https://build.nvidia.com/nvidia/nemotron-table-structure-v1)
     - [NeMo Retriever Graphic Elements NIM](https://build.nvidia.com/nvidia/nemotron-graphic-elements-v1)
-    - [NeMo Retriever OCR NIM](https://build.nvidia.com/nvidia/nemoretriever-ocr)
+    - [NeMo Retriever OCR NIM](https://build.nvidia.com/nvidia/nemotron-ocr)
 
 - Optional NIMs
 
@@ -206,5 +206,5 @@ The following models that are built with Llama are governed by the Llama 3.2 Com
 
 ## Additional Information
 
-The [Llama 3.1 Community License Agreement](https://www.llama.com/llama3_1/license/) for the llama-3.1-nemotron-nano-vl-8b-v1, llama-3.1-nemoguard-8b-content-safety and llama-3.1-nemoguard-8b-topic-control models. The [Llama 3.2 Community License Agreement](https://www.llama.com/llama3_2/license/) for the nvidia/llama-nemotron-embed-1b-v2, nvidia/llama-nemotron-rerank-1b-v2 and llama-3.2-nemoretriever-1b-vlm-embed-v1 models. The [Llama 3.3 Community License Agreement](https://github.com/meta-llama/llama-models/blob/main/models/llama3_3/LICENSE) for the llama-3.3-nemotron-super-49b-v1.5 models. Built with Llama. Apache 2.0 for NVIDIA Ingest and for the nemoretriever-page-elements-v2, nemotron-table-structure-v1, nemotron-graphic-elements-v1, paddleocr and nemoretriever-ocr-v1 models.
+The [Llama 3.1 Community License Agreement](https://www.llama.com/llama3_1/license/) for the llama-3.1-nemotron-nano-vl-8b-v1, llama-3.1-nemoguard-8b-content-safety and llama-3.1-nemoguard-8b-topic-control models. The [Llama 3.2 Community License Agreement](https://www.llama.com/llama3_2/license/) for the nvidia/llama-nemotron-embed-1b-v2, nvidia/llama-nemotron-rerank-1b-v2 and llama-3.2-nemoretriever-1b-vlm-embed-v1 models. The [Llama 3.3 Community License Agreement](https://github.com/meta-llama/llama-models/blob/main/models/llama3_3/LICENSE) for the llama-3.3-nemotron-super-49b-v1.5 models. Built with Llama. Apache 2.0 for NVIDIA Ingest and for the nemoretriever-page-elements-v2, nemotron-table-structure-v1, nemotron-graphic-elements-v1, paddleocr and nemotron-ocr-v1 models.
 

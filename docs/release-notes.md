@@ -25,7 +25,7 @@ This release includes the following key updates:
   - `nemoretriever-graphic-elements-v1` → `nemotron-graphic-elements-v1`
   - `nemoretriever-table-structure-v1` → `nemotron-table-structure-v1`
   - `nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1` → `nvidia/llama-nemotron-embed-vl-1b-v2`
-  - `nemoretriever-ocr-v1` to `nemotron-ocr-v1`
+  - `nemotron-ocr-v1` to `nemotron-ocr-v1`
 - Updated NVIngest to [version 26.1.2](https://github.com/NVIDIA/NeMo-Retriever/releases/tag/26.1.2).
 - Added an example demonstrating the continuous ingestion pipeline. For more information, see [rag_event_ingest.ipynb](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/rag_event_ingest.ipynb).
 - **Added MIG support for RTX 6000.** For details, refer to [MIG Deployment](mig-deployment.md) and use `values-mig-rtx6000.yaml` and `mig-config-rtx6000.yaml`.
@@ -50,7 +50,7 @@ This release contains the following key changes:
 
 - Updated NIMs and code to support  [NVIDIA Ingest 26.01 release](https://docs.nvidia.com/nemo/retriever/latest/extraction/releasenotes-nv-ingest/).
 - Added support for non-NIM models including OpenAI, models hosted on AWS and Azure, OSS models, and others. Supported through service-specific API keys. For details, refer to [Get an API Key](api-key.md).
-- The RAG Blueprint now uses [nemoretriever-ocr-v1](https://build.nvidia.com/nvidia/nemoretriever-ocr-v1/modelcard) as the default OCR model. For details, refer to [NeMo Retriever OCR Configuration Guide](nemoretriever-ocr.md).
+- The RAG Blueprint now uses [nemotron-ocr-v1](https://build.nvidia.com/nvidia/nemotron-ocr-v1/modelcard) as the default OCR model. For details, refer to [NeMo Retriever OCR Configuration Guide](nemotron-ocr.md).
 - Improved VLM based generation support. The Vision-Language Model (VLM) inference feature now uses the model [nemotron-nano-12b-v2-vl](https://build.nvidia.com/nvidia/nemotron-nano-12b-v2-vl/modelcard). For details, refer to [VLM for Generation](vlm.md).
 - User interface improvements including catalog display, image and text query, and others. For details, refer to [User Interface](user-interface.md).
 - Added ingestion metrics endpoint support with OpenTelemetry (OTEL) for monitoring document uploads, elements ingested, and pages processed. For details, refer to [Observability](observability.md).

@@ -157,7 +157,7 @@ Verify all containers are running and healthy.
 NAMES                           STATUS
 nemotron-ranking-ms        Up ... (healthy)
 compose-page-elements-1         Up ...
-compose-nemoretriever-ocr-1     Up ...
+compose-nemotron-ocr-1     Up ...
 compose-graphic-elements-1      Up ...
 compose-table-structure-1       Up ...
 nemotron-embedding-ms      Up ... (healthy)
@@ -172,7 +172,7 @@ nim-llm-ms                      Up ... (healthy)
 
 2.  Configure NV-Ingest to use NVIDIA hosted cloud APIs using the following hosted models.
 
-- os.environ["OCR_HTTP_ENDPOINT"] = "https://ai.api.nvidia.com/v1/cv/nvidia/nemoretriever-ocr"
+- os.environ["OCR_HTTP_ENDPOINT"] = "https://ai.api.nvidia.com/v1/cv/nvidia/nemotron-ocr"
 
 - os.environ["OCR_INFER_PROTOCOL"] = "http"
 os.environ["YOLOX_HTTP_ENDPOINT"] = (

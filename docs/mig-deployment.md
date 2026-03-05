@@ -247,7 +247,7 @@ nvidia.com/mig-1g.20gb                      (100%) 2.0  (100%) 2.0     2.0      
 └─ <other-workload>                        1.0     1.0
 
 nvidia.com/mig-3g.40gb                      (100%) 1.0  (100%) 1.0     1.0        0.0
-└─ nemoretriever-ocr-v1-...                1.0     1.0
+└─ nemotron-ocr-v1-...                1.0     1.0
 
 nvidia.com/mig-7g.80gb                      (100%) 1.0  (100%) 1.0     1.0        0.0
 └─ nim-llm-...                             1.0     1.0
