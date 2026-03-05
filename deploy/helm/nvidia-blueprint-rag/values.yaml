@@ -1050,8 +1050,8 @@ nv-ingest:
       tolerations: []
       replicaCount: 1
       image:
-        repository: nvcr.io/nvstaging/nim/nemotron-graphic-elements-v1
-        tag: "1.8.0-rc.20260218170144-35d5a3f270662864"
+        repository: nvcr.io/nim/nvidia/nemotron-graphic-elements-v1
+        tag: "1.8.0"
       env:
         - name: NIM_HTTP_API_PORT
           value: "8000"
@@ -1083,8 +1083,8 @@ nv-ingest:
       tolerations: []
       replicaCount: 1
       image:
-        repository: nvcr.io/nvstaging/nim/nemotron-page-elements-v3
-        tag: "1.8.0-rc.20260218170155-6b1b2aa9dfefc9c3"
+        repository: nvcr.io/nim/nvidia/nemotron-page-elements-v3
+        tag: "1.8.0"
       env:
         - name: NIM_HTTP_API_PORT
           value: "8000"
@@ -1134,8 +1134,8 @@ nv-ingest:
       tolerations: []
       replicaCount: 1
       image:
-        repository: nvcr.io/nvstaging/nim/nemotron-table-structure-v1
-        tag: "1.8.0-rc.20260218170204-cca5cb850146dbbc"
+        repository: nvcr.io/nim/nvidia/nemotron-table-structure-v1
+        tag: "1.8.0"
       env:
         - name: NIM_HTTP_API_PORT
           value: "8000"
