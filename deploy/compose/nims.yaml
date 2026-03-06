@@ -108,6 +108,7 @@ services:
       interval: 10s
       timeout: 20s
       retries: 100
+    shm_size: 16GB
     deploy:
       resources:
         reservations:
@@ -323,6 +324,7 @@ services:
       interval: 10s
       timeout: 20s
       retries: 100
+    shm_size: 16GB
     deploy:
       resources:
         reservations:
