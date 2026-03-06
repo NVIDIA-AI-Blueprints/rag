@@ -741,6 +741,26 @@ class DocumentSearch(BaseModel):
             raise ValueError("The last message must have role='user'")
         return values
 
+    @model_validator(mode="before")
+    @classmethod
+    def derive_query_from_messages(cls, data):
+        """When query is not explicitly provided but messages are, derive query from the last user message."""
+        if isinstance(data, dict) and "query" not in data:
+            messages = data.get("messages", [])
+            for msg in reversed(messages):
+                if (
+                    isinstance(msg, dict)
+                    and msg.get("role") == "user"
+                    and msg.get("content")
+                ):
+                    data["query"] = msg["content"]
+                    break
+            else:
+                raise ValueError(
+                    "Either 'query' must be provided or 'messages' must contain at least one user message with content."
+                )
+        return data
+
 
 # Define the summary response model
 class SummaryResponse(BaseModel):
@@ -1596,6 +1616,11 @@ async def document_search(
 
     request_data = {
         "query": sanitize_query_for_logging(data.query),
+        "messages": [
+            {"role": msg.role, "content": msg.content} for msg in data.messages
+        ]
+        if data.messages
+        else [],
         "reranker_top_k": data.reranker_top_k,
         "vdb_top_k": data.vdb_top_k,
         "collection_names": data.collection_names,
