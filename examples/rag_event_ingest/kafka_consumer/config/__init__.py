@@ -65,9 +65,6 @@ from .settings import (
     VSS_OBJECTS_OF_INTEREST,
     # VST Storage
     VST_STORAGE_URL,
-    # Transcoding
-    TRANSCODE_CONTAINER,
-    TRANSCODE_FFMPEG_OPTS,
     # API Endpoints (configurable via env)
     API_INGESTOR_DOCUMENTS,
     API_INGESTOR_COLLECTIONS,

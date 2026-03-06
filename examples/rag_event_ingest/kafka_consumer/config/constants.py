@@ -366,9 +366,6 @@ ENV_VSS_OBJECTS_OF_INTEREST = 'VSS_OBJECTS_OF_INTEREST'
 ENV_VST_STORAGE_URL = 'VST_STORAGE_URL'
 API_VST_STORAGE_UPLOAD = '/v1/storage/file'
 
-# Transcoding
-ENV_TRANSCODE_CONTAINER = 'TRANSCODE_CONTAINER'
-ENV_TRANSCODE_FFMPEG_OPTS = 'TRANSCODE_FFMPEG_OPTS'
 
 
 # ==================== API Endpoint Defaults ====================
@@ -401,9 +398,6 @@ DEFAULT_COLLECTION_NAME = 'multimodal_data'
 
 DEFAULT_VSS_MODEL = 'nvidia/cosmos-reason2-8b'
 
-# Transcoding defaults
-DEFAULT_TRANSCODE_CONTAINER = '.mp4'
-DEFAULT_TRANSCODE_FFMPEG_OPTS = '-c:v libx265 -preset fast -crf 28 -c:a aac -tag:v hvc1 -y'
 DEFAULT_VSS_CHUNK_DURATION = 60      # seconds per chunk
 DEFAULT_VSS_CHUNK_OVERLAP = 5        # overlap between chunks
 DEFAULT_VSS_NUM_FRAMES_PER_CHUNK = 8 # frames per chunk for VLM

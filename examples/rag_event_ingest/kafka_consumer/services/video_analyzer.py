@@ -10,19 +10,15 @@ accuracy for time-range queries.
 
 import json
 import logging
-import tempfile
-from pathlib import Path, PurePosixPath
-from typing import Optional, List, Tuple
+from pathlib import PurePosixPath
+from typing import Optional, List
 from urllib.parse import urlencode
 
-import ffmpy
 import requests
 
 from config import (
     API_VSS_SUMMARIZE,
     API_VST_STORAGE_UPLOAD,
-    TRANSCODE_CONTAINER,
-    TRANSCODE_FFMPEG_OPTS,
     VSS_CHUNK_DURATION,
     VSS_CHUNK_OVERLAP,
     VSS_NUM_FRAMES_PER_CHUNK,
@@ -75,9 +71,6 @@ class VideoAnalyzer:
     def upload_video(self, video_data: bytes, filename: str) -> Optional[str]:
         """Upload video to media storage and return a download URL.
 
-        If storage rejects the codec (HTTP 422), the video is automatically
-        transcoded and the upload is retried once.
-
         Returns:
             Download URL for the uploaded file, or *None* on failure.
         """
@@ -85,18 +78,18 @@ class VideoAnalyzer:
             logger.error("storage_url not configured")
             return None
 
-        safe_name = PurePosixPath(filename).name
-        resp = self._put_to_storage(video_data, safe_name)
-        if resp is None:
+        safe_name = PurePosixPath(filename).name.replace(' ', '_')
+        url = f"{self.storage_url}{API_VST_STORAGE_UPLOAD}/{safe_name}"
+        try:
+            resp = requests.put(
+                url,
+                data=video_data,
+                headers={'Content-Type': 'application/octet-stream'},
+                timeout=self.timeout,
+            )
+        except requests.RequestException as e:
+            logger.error(f"Storage upload failed: {e}")
             return None
-
-        if resp.status_code == 422:
-            logger.warning(f"Storage rejected format, transcoding: {resp.text}")
-            video_data, safe_name = self._transcode(video_data, safe_name)
-            resp = self._put_to_storage(video_data, safe_name)
-            if resp is None or resp.status_code != 200:
-                logger.error("Upload failed after transcode")
-                return None
 
         if resp.status_code != 200:
             logger.error(f"Storage upload failed: {resp.status_code} — {resp.text}")
@@ -113,40 +106,6 @@ class VideoAnalyzer:
         )
         logger.info(f"Uploaded to storage: {safe_name} -> {file_id}")
         return download_url
-
-    def _put_to_storage(self, video_data: bytes, filename: str) -> Optional[requests.Response]:
-        """PUT raw bytes to media storage. Returns the response or None."""
-        url = f"{self.storage_url}{API_VST_STORAGE_UPLOAD}/{filename}"
-        try:
-            return requests.put(
-                url,
-                data=video_data,
-                headers={'Content-Type': 'application/octet-stream'},
-                timeout=self.timeout,
-            )
-        except requests.RequestException as e:
-            logger.error(f"Storage upload failed: {e}")
-            return None
-
-    def _transcode(self, video_data: bytes, filename: str) -> Tuple[bytes, str]:
-        """Transcode video to a compatible codec via a temp file pair."""
-        out_name = Path(filename).stem + TRANSCODE_CONTAINER
-        with tempfile.TemporaryDirectory() as tmp:
-            in_path = Path(tmp) / filename
-            out_path = Path(tmp) / ('out_' + out_name)
-            in_path.write_bytes(video_data)
-
-            ff = ffmpy.FFmpeg(
-                inputs={str(in_path): None},
-                outputs={str(out_path): TRANSCODE_FFMPEG_OPTS},
-            )
-            logger.info(f"Transcoding: {ff.cmd}")
-            ff.run()
-
-            transcoded = out_path.read_bytes()
-            logger.info(f"Transcoded {filename} -> {out_name} "
-                        f"({len(video_data)} -> {len(transcoded)} bytes)")
-            return transcoded, out_name
 
     # ------------------------------------------------------------------
     # LVS Summarization
