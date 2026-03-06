@@ -83,6 +83,7 @@ from nvidia_rag.utils.vdb import (
 from nvidia_rag.utils.vdb.elasticsearch.es_queries import (
     create_document_info_collection_mapping,
     create_metadata_collection_mapping,
+    get_chunks_by_source_and_pages_query,
     get_collection_document_info_query,
     get_delete_docs_query,
     get_delete_document_info_query,
@@ -947,6 +948,52 @@ class ElasticVDB(VDBRagIngest):
         finally:
             if token is not None:
                 otel_context.detach(token)
+
+    def retrieve_chunks_by_filter(
+        self,
+        collection_name: str,
+        source_name: str,
+        page_numbers: list[int],
+        limit: int = 1000,
+    ) -> list[Document]:
+        """Retrieve ALL chunks matching (source, page_numbers) via filter-only query.
+
+        No semantic search - used for page context expansion when
+        fetch_full_page_context is enabled.
+        """
+        if not page_numbers:
+            return []
+
+        try:
+            query = get_chunks_by_source_and_pages_query(source_name, page_numbers)
+            query["size"] = min(limit, 10000)  # Elasticsearch default max
+            response = self._es_connection.search(
+                index=collection_name,
+                body=query,
+            )
+        except Exception as e:
+            logger.error("Error in retrieve_chunks_by_filter: %s", e)
+            return []
+
+        docs: list[Document] = []
+        for hit in response.get("hits", {}).get("hits", []):
+            source_data = hit.get("_source", {})
+            text = source_data.get("text", "")
+            metadata = source_data.get("metadata", {})
+            if metadata:
+                docs.append(
+                    Document(
+                        page_content=text,
+                        metadata={
+                            "source": metadata.get("source"),
+                            "content_metadata": metadata.get("content_metadata", {}),
+                        },
+                    )
+                )
+            elif text:
+                docs.append(Document(page_content=text, metadata={}))
+
+        return self._add_collection_name_to_retreived_docs(docs, collection_name)
 
     def get_langchain_vectorstore(
         self,
