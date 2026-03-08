@@ -27,14 +27,20 @@ def main():
     logger.info("Initializing services...")
     storage = ObjectStorage()
     indexer = DocumentIndexer(cfg.INGESTOR_SERVER_URL)
-    analyzer = VideoAnalyzer(cfg.VSS_SERVER_URL)
-    
+
     # Initialize handlers
     logger.info("Initializing handlers...")
     handlers = {
         DEST_RAG: DocumentHandler(storage, indexer),
-        DEST_VSS: VideoHandler(storage, analyzer, indexer, enable_multimodal_rag=cfg.ENABLE_MULTIMODAL_RAG),
     }
+
+    # Only register video handler if VSS is configured
+    if cfg.VSS_SERVER_URL:
+        analyzer = VideoAnalyzer(cfg.VSS_SERVER_URL)
+        handlers[DEST_VSS] = VideoHandler(storage, analyzer, indexer, enable_multimodal_rag=cfg.ENABLE_MULTIMODAL_RAG)
+        logger.info("VSS enabled: video handler registered")
+    else:
+        logger.info("VSS not configured: video handler disabled")
     
     # Initialize consumer
     logger.info("Initializing Kafka consumer...")
