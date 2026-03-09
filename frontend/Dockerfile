@@ -94,7 +94,7 @@ RUN if [ "$DOWNLOAD_LEGAL_COMPLIANCE" = "true" ] && [ -d /legal ]; then \
 
 # Production stage - NVIDIA distroless (pre-approved)
 # Updated to latest version to address CVE-2025-9230 (libssl3)
-FROM nvcr.io/nvidia/distroless/node:24-v3.1.3
+FROM nvcr.io/nvidia/distroless/node:24-v4.0.2
 
 # Copy built application and config for production preview
 WORKDIR /app/frontend

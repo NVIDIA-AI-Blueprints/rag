@@ -134,14 +134,16 @@ class TestLLMConfig:
         config = LLMConfig()
         params = config.get_model_parameters()
 
-        # Default model contains "llama-3.3-nemotron-super-49b" so it triggers nemotron logic
         expected = {
             "min_tokens": 0,
             "ignore_eos": False,
             "max_tokens": 32768,
+            "enable_thinking": False,
+            "reasoning_budget": 0,
+            "low_effort": False,
             "min_thinking_tokens": 0,
             "max_thinking_tokens": 0,
-            "temperature": 0,
+            "temperature": 0.0,
             "top_p": 1.0,
         }
         assert params == expected
@@ -151,14 +153,16 @@ class TestLLMConfig:
         config = LLMConfig(model_name="meta/llama-3.1-8b-instruct")
         params = config.get_model_parameters()
 
-        # Generic model should use the base parameter values
         expected = {
             "min_tokens": 0,
             "ignore_eos": False,
             "max_tokens": 32768,
+            "enable_thinking": False,
+            "reasoning_budget": 0,
+            "low_effort": False,
             "min_thinking_tokens": 0,
             "max_thinking_tokens": 0,
-            "temperature": 0,
+            "temperature": 0.0,
             "top_p": 1.0,
         }
         assert params == expected
@@ -196,7 +200,7 @@ class TestEmbeddingConfig:
         """Test default configuration values."""
         config = EmbeddingConfig()
 
-        assert config.model_name == "nvidia/llama-3.2-nv-embedqa-1b-v2"
+        assert config.model_name == "nvidia/llama-nemotron-embed-1b-v2"
         assert config.model_engine == "nvidia-ai-endpoints"
         assert config.dimensions == 2048
         assert config.server_url == ""
@@ -209,7 +213,7 @@ class TestRankingConfig:
         """Test default configuration values."""
         config = RankingConfig()
 
-        assert config.model_name == "nvidia/llama-3.2-nv-rerankqa-1b-v2"
+        assert config.model_name == "nvidia/llama-nemotron-rerank-1b-v2"
         assert config.model_engine == "nvidia-ai-endpoints"
         assert config.server_url == ""
         assert config.enable_reranker is True

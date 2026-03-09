@@ -56,8 +56,8 @@ apiKeysSecret:
 
 # -- RAG server container image
 image:
-  repository: nvcr.io/nvidia/blueprint/rag-server
-  tag: "2.4.0"
+  repository: nvcr.io/nvstaging/blueprint/rag-server
+  tag: "2.5.0"
   pullPolicy: Always
 
 # -- RAG server service configuration
@@ -164,11 +164,6 @@ envVars:
   LLM_TEMPERATURE: "0"
   LLM_TOP_P: "1.0"
 
-  # Enable/disable thinking/reasoning for nemotron-3-nano models (30b variant)
-  # Set to "true" to enable reasoning mode with reasoning_budget
-  # Set to "false" to disable reasoning and get direct answers
-  ENABLE_NEMOTRON_3_NANO_THINKING: "true"
-
   ##===Query Rewriter Model specific configurations===
   APP_QUERYREWRITER_MODELNAME: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
   # URL on which query rewriter model is hosted. If "", Nvidia hosted API is used
@@ -183,14 +178,14 @@ envVars:
 
   ##===Embedding Model specific configurations===
   # URL on which embedding model is hosted. If "", Nvidia hosted API is used
-  APP_EMBEDDINGS_SERVERURL: "nemoretriever-embedding-ms:8000/v1"
-  APP_EMBEDDINGS_MODELNAME: "nvidia/llama-3.2-nv-embedqa-1b-v2"
+  APP_EMBEDDINGS_SERVERURL: "nemotron-embedding-ms:8000/v1"
+  APP_EMBEDDINGS_MODELNAME: "nvidia/llama-nemotron-embed-1b-v2"
   APP_EMBEDDINGS_DIMENSIONS: "2048"
 
   ##===Reranking Model specific configurations===
   # URL on which ranking model is hosted. If "", Nvidia hosted API is used
-  APP_RANKING_SERVERURL: "nemoretriever-ranking-ms:8000"
-  APP_RANKING_MODELNAME: "nvidia/llama-3.2-nv-rerankqa-1b-v2"
+  APP_RANKING_SERVERURL: "nemotron-ranking-ms:8000"
+  APP_RANKING_MODELNAME: "nvidia/llama-nemotron-rerank-1b-v2"
   ENABLE_RERANKER: "True"
   # Default score threshold for filtering documents by reranker relevance (0.0 to 1.0)
   RERANKER_SCORE_THRESHOLD: "0.0"
@@ -260,6 +255,11 @@ envVars:
   # Whether to filter content within <think></think> tags in model responses
   FILTER_THINK_TOKENS: "true"
 
+  # Reasoning configuration (supported by Nemotron 3 and other reasoning models)
+  LLM_ENABLE_THINKING: "false"
+  LLM_REASONING_BUDGET: "0"
+  LLM_LOW_EFFORT: "false"
+
   NEMO_GUARDRAILS_URL: "nemo-guardrails:7331"
 
   # enable iterative query decomposition
@@ -289,8 +289,8 @@ ingestor-server:
     password: ""
 
   image:
-    repository: nvcr.io/nvidia/blueprint/ingestor-server
-    tag: "2.4.0"
+    repository: nvcr.io/nvstaging/blueprint/ingestor-server
+    tag: "2.5.0"
     pullPolicy: Always
 
   # -- Service config for ingestor-server
@@ -349,8 +349,8 @@ ingestor-server:
     ## APP_EMBEDDINGS_APIKEY and SUMMARY_LLM_APIKEY are loaded from secrets automatically.
 
     # === Embeddings Configurations ===
-    APP_EMBEDDINGS_SERVERURL: "nemoretriever-embedding-ms:8000/v1"
-    APP_EMBEDDINGS_MODELNAME: "nvidia/llama-3.2-nv-embedqa-1b-v2"
+    APP_EMBEDDINGS_SERVERURL: "nemotron-embedding-ms:8000/v1"
+    APP_EMBEDDINGS_MODELNAME: "nvidia/llama-nemotron-embed-1b-v2"
     APP_EMBEDDINGS_DIMENSIONS: "2048"
 
     # === NV-Ingest Configurations ===
@@ -359,6 +359,7 @@ ingestor-server:
 
     # === NV-Ingest extraction configurations ===
     APP_NVINGEST_PDFEXTRACTMETHOD: "None"  # Method used for text extraction from "None", "pdfium", "nemotron_parse"
+    APP_NVINGEST_EXTRACTTABLESMETHOD: "yolox"  # Method for table extraction: "yolox", "nemotron_parse", or None
     APP_NVINGEST_EXTRACTTEXT: "True"  # Enable text extraction
     APP_NVINGEST_EXTRACTINFOGRAPHICS: "False"  # Enable infographic extraction
     APP_NVINGEST_EXTRACTTABLES: "True"  # Enable table extraction
@@ -454,9 +455,9 @@ frontend:
   replicaCount: 1
 
   image:
-    repository: nvcr.io/nvidia/blueprint/rag-frontend
+    repository: nvcr.io/nvstaging/blueprint/rag-frontend
     pullPolicy: IfNotPresent
-    tag: "2.4.0"
+    tag: "2.5.0"
 
   imagePullSecret:
     name: "ngc-secret"
@@ -718,10 +719,10 @@ nimOperator:
     enabled: true
     replicas: 1
     service:
-      name: "nemoretriever-embedding-ms"
+      name: "nemotron-embedding-ms"
     image:
-      repository: nvcr.io/nim/nvidia/llama-3.2-nv-embedqa-1b-v2
-      tag: "1.10.1"
+      repository: nvcr.io/nim/nvidia/llama-nemotron-embed-1b-v2
+      tag: "1.13.0"
       pullPolicy: IfNotPresent
     resources:
       limits:
@@ -797,10 +798,10 @@ nimOperator:
     enabled: true
     replicas: 1
     service:
-      name: "nemoretriever-ranking-ms"
+      name: "nemotron-ranking-ms"
     image:
-      repository: nvcr.io/nim/nvidia/llama-3.2-nv-rerankqa-1b-v2
-      tag: "1.8.0"
+      repository: nvcr.io/nim/nvidia/llama-nemotron-rerank-1b-v2
+      tag: "1.10.0"
       pullPolicy: IfNotPresent
     resources:
       limits:
@@ -872,7 +873,7 @@ nv-ingest:
     create: false
   image:
     repository: "nvcr.io/nvidia/nemo-microservices/nv-ingest"
-    tag: "26.1.1"
+    tag: "26.1.2"
   resources:
     limits:
       nvidia.com/gpu: 0
@@ -898,8 +899,8 @@ nv-ingest:
     RAY_num_server_call_thread: "1"
     RAY_worker_num_grpc_internal_threads: "1"
     
-    EMBEDDING_NIM_ENDPOINT: "http://nemoretriever-embedding-ms:8000/v1"
-    EMBEDDING_NIM_MODEL_NAME: "nvidia/llama-3.2-nv-embedqa-1b-v2"
+    EMBEDDING_NIM_ENDPOINT: "http://nemotron-embedding-ms:8000/v1"
+    EMBEDDING_NIM_MODEL_NAME: "nvidia/llama-nemotron-embed-1b-v2"
     MESSAGE_CLIENT_HOST: "rag-redis-master"
     MESSAGE_CLIENT_PORT: 6379
     MESSAGE_CLIENT_TYPE: "redis"
@@ -1051,8 +1052,8 @@ nv-ingest:
       tolerations: []
       replicaCount: 1
       image:
-        repository: nvcr.io/nim/nvidia/nemoretriever-graphic-elements-v1
-        tag: "1.6.0"
+        repository: nvcr.io/nim/nvidia/nemotron-graphic-elements-v1
+        tag: "1.8.0"
       env:
         - name: NIM_HTTP_API_PORT
           value: "8000"
@@ -1084,8 +1085,8 @@ nv-ingest:
       tolerations: []
       replicaCount: 1
       image:
-        repository: nvcr.io/nim/nvidia/nemoretriever-page-elements-v3
-        tag: "1.7.0"
+        repository: nvcr.io/nim/nvidia/nemotron-page-elements-v3
+        tag: "1.8.0"
       env:
         - name: NIM_HTTP_API_PORT
           value: "8000"
@@ -1135,8 +1136,8 @@ nv-ingest:
       tolerations: []
       replicaCount: 1
       image:
-        repository: nvcr.io/nim/nvidia/nemoretriever-table-structure-v1
-        tag: "1.6.0"
+        repository: nvcr.io/nim/nvidia/nemotron-table-structure-v1
+        tag: "1.8.0"
       env:
         - name: NIM_HTTP_API_PORT
           value: "8000"

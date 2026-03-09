@@ -3222,6 +3222,30 @@ class TestFilterValidator:
         assert result["status"] is True
         assert "error_message" not in result
 
+    def test_filename_preserves_case_other_string_lowercased(self, mock_config):
+        """Filename filter preserves case; other string fields are lowercased for matching."""
+        schema = MetadataSchema(
+            schema=[
+                MetadataField(name="filename", type="string", required=False),
+                MetadataField(name="title", type="string", required=False),
+            ]
+        )
+        parser = FilterExpressionParser(schema, mock_config)
+
+        # Filename must preserve case (ingestion stores original case).
+        result = parser.process_filter_expression(
+            'content_metadata["filename"] == "Report.PDF"'
+        )
+        assert result["status"] is True
+        assert '"Report.PDF"' in result["processed_expression"]
+
+        # Other string fields are normalized to lowercase.
+        result = parser.process_filter_expression(
+            'content_metadata["title"] == "Technical"'
+        )
+        assert result["status"] is True
+        assert '"technical"' in result["processed_expression"]
+
     def test_string_like_operations(self, mock_config, string_schema):
         """Test string LIKE operations."""
         parser = FilterExpressionParser(string_schema, mock_config)

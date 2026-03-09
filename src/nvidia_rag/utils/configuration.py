@@ -302,6 +302,20 @@ class NvIngestConfig(_ConfigBase):
         env="APP_NVINGEST_TEXTDEPTH",
         description="Granularity level for text extraction (page, document)",
     )
+    extract_tables_method: str | None = Field(
+        default=None,
+        env="APP_NVINGEST_EXTRACTTABLESMETHOD",
+        description="Method for table/chart extraction in PDFs (e.g. yolox, nemotron_parse). If None, client default is used.",
+    )
+
+    @field_validator("extract_tables_method", mode="before")
+    @classmethod
+    def normalize_extract_tables_method(cls, v: Any) -> Any:
+        """Normalize string 'None'/'none' to Python None."""
+        if isinstance(v, str) and v.lower() in ("none", "null", ""):
+            return None
+        return v
+
     tokenizer: str = Field(
         default="intfloat/e5-large-unsupervised",
         env="APP_NVINGEST_TOKENIZER",
@@ -417,15 +431,30 @@ class ModelParametersConfig(_ConfigBase):
         env="LLM_MIN_TOKENS",
         description="Minimum number of tokens to generate in response",
     )
+    enable_thinking: bool = Field(
+        default=False,
+        env="LLM_ENABLE_THINKING",
+        description="Enable reasoning/thinking mode. Model emits reasoning tokens before the final answer.",
+    )
+    reasoning_budget: int = Field(
+        default=0,
+        env="LLM_REASONING_BUDGET",
+        description="Token budget for reasoning (0 = no budget, model decides depth). Only used when enable_thinking is true.",
+    )
+    low_effort: bool = Field(
+        default=False,
+        env="LLM_LOW_EFFORT",
+        description="Low-effort reasoning mode for faster, cheaper responses with shorter reasoning. Only used when enable_thinking is true.",
+    )
     max_thinking_tokens: int = Field(
         default=0,
         env="LLM_MAX_THINKING_TOKENS",
-        description="Maximum thinking tokens to allocate for reasoning models (0 = disabled by default)",
+        description="Maximum thinking tokens for reasoning models. Used directly by nemotron-nano-9b-v2; for other models acts as an alternative to reasoning_budget (0 = disabled).",
     )
     min_thinking_tokens: int = Field(
         default=0,
         env="LLM_MIN_THINKING_TOKENS",
-        description="Minimum thinking tokens to allocate for reasoning models (0 = disabled by default)",
+        description="Minimum thinking tokens for reasoning models. Only used by nemotron-nano-9b-v2 (0 = disabled).",
     )
     ignore_eos: bool = Field(
         default=False,
@@ -507,6 +536,9 @@ class LLMConfig(_ConfigBase):
             "min_tokens": self.parameters.min_tokens,
             "ignore_eos": self.parameters.ignore_eos,
             "max_tokens": self.parameters.max_tokens,
+            "enable_thinking": self.parameters.enable_thinking,
+            "reasoning_budget": self.parameters.reasoning_budget,
+            "low_effort": self.parameters.low_effort,
             "min_thinking_tokens": self.parameters.min_thinking_tokens,
             "max_thinking_tokens": self.parameters.max_thinking_tokens,
             "temperature": self.parameters.temperature,
@@ -636,7 +668,7 @@ class EmbeddingConfig(_ConfigBase):
     """Embedding configuration."""
 
     model_name: str = Field(
-        default="nvidia/llama-3.2-nv-embedqa-1b-v2",
+        default="nvidia/llama-nemotron-embed-1b-v2",
         env="APP_EMBEDDINGS_MODELNAME",
         description="Model for generating text embeddings",
     )
@@ -676,7 +708,7 @@ class RankingConfig(_ConfigBase):
     """Ranking configuration."""
 
     model_name: str = Field(
-        default="nvidia/llama-3.2-nv-rerankqa-1b-v2",
+        default="nvidia/llama-nemotron-rerank-1b-v2",
         env="APP_RANKING_MODELNAME",
         description="Model for reranking retrieved documents",
     )

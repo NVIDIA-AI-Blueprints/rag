@@ -1,10 +1,10 @@
 apiVersion: v2
-appVersion: v2.4.0
+appVersion: v2.5.0
 dependencies:
 - condition: nv-ingest.enabled
   name: nv-ingest
   repository: https://helm.ngc.nvidia.com/nvidia/nemo-microservices
-  version: 26.1.1
+  version: 26.1.2
 - condition: eck-elasticsearch.enabled
   name: eck-elasticsearch
   repository: https://helm.elastic.co
@@ -24,4 +24,4 @@ dependencies:
 description: An end to end Helm chart for the NVIDIA RAG Blueprint
 name: nvidia-blueprint-rag
 type: application
-version: v2.4.0
+version: v2.5.0

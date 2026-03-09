@@ -43,8 +43,8 @@ You can enable text-only ingestion for the [NVIDIA RAG Blueprint](readme.md). Fo
    ```output
       NAMES                                   STATUS
 
-      nemoretriever-ranking-ms                Up 14 minutes (healthy)
-      nemoretriever-embedding-ms              Up 14 minutes (healthy)
+      nemotron-ranking-ms                Up 14 minutes (healthy)
+      nemotron-embedding-ms              Up 14 minutes (healthy)
       nim-llm-ms                              Up 14 minutes (healthy)
    ```
 
@@ -70,7 +70,7 @@ In case you are [interacting with cloud hosted models](deploy-docker-nvidia-host
    export APP_EMBEDDINGS_SERVERURL=""
    export APP_LLM_SERVERURL=""
    export APP_RANKING_SERVERURL=""
-   export YOLOX_HTTP_ENDPOINT="https://ai.api.nvidia.com/v1/cv/nvidia/nemoretriever-page-elements-v3"
+   export YOLOX_HTTP_ENDPOINT="https://ai.api.nvidia.com/v1/cv/nvidia/nemotron-page-elements-v3"
    export YOLOX_INFER_PROTOCOL="http"
    ```
 :::
@@ -113,7 +113,7 @@ Additionally, ensure that **table extraction**, **chart extraction**, and **imag
 2. Then use the modified [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) file in your Helm upgrade command:
 
 ```bash
-helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.4.0.tgz \
+helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.5.0.tgz \
   --username '$oauthtoken' \
   --password "${NGC_API_KEY}" \
   --values deploy/helm/nvidia-blueprint-rag/values.yaml \

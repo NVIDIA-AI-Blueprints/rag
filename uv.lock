@@ -1309,16 +1309,16 @@ wheels = [
 
 [[package]]
 name = "langchain-nvidia-ai-endpoints"
-version = "1.0.3"
+version = "1.1.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp" },
     { name = "filetype" },
     { name = "langchain-core" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/5a/9e/30814da280f7a79b168f83180f6a0396c166f86a566e56bb9877bf562611/langchain_nvidia_ai_endpoints-1.0.3.tar.gz", hash = "sha256:11c48fd24e4a9d4c86c65bcef943400f4e709497c93254c7dc97c43f68c2be89", size = 46526, upload-time = "2026-01-28T22:04:33.93Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/4e/d1/f72ec11097694e24d93268ab031c7ec56ab4bec1c43ef7814c659f3e2493/langchain_nvidia_ai_endpoints-1.1.0.tar.gz", hash = "sha256:048a3e6d7231365fdb9fff7bcff18ce6a516b25500681f51dcb69c39e82512a0", size = 47433, upload-time = "2026-02-25T21:48:16.87Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/67/04/c83f61106a245b74de11c1e075c1cc1e70462ece1dd9fc0584ad992a776d/langchain_nvidia_ai_endpoints-1.0.3-py3-none-any.whl", hash = "sha256:e5f170ad0a335637298bb90fb3df119793821e316355f61ab82f0106913eebbf", size = 50130, upload-time = "2026-01-28T22:04:33.065Z" },
+    { url = "https://files.pythonhosted.org/packages/0b/22/5f07957028f7fa8c3d695934af8e7309bfd5ab43f2a7a756d3c3d6ce44f3/langchain_nvidia_ai_endpoints-1.1.0-py3-none-any.whl", hash = "sha256:eb04251b2b21facf9d6f2e6e7fa593b89e4f5023ebe3af1e02813512d1cd9687", size = 51514, upload-time = "2026-02-25T21:48:15.695Z" },
 ]
 
 [[package]]
@@ -1349,7 +1349,7 @@ wheels = [
 
 [[package]]
 name = "langgraph"
-version = "1.0.7"
+version = "1.0.10"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "langchain-core" },
@@ -1359,9 +1359,9 @@ dependencies = [
     { name = "pydantic" },
     { name = "xxhash" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/72/5b/f72655717c04e33d3b62f21b166dc063d192b53980e9e3be0e2a117f1c9f/langgraph-1.0.7.tar.gz", hash = "sha256:0cfdfee51e6e8cfe503ecc7367c73933437c505b03fa10a85c710975c8182d9a", size = 497098, upload-time = "2026-01-22T16:57:47.303Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/55/92/14df6fefba28c10caf1cb05aa5b8c7bf005838fe32a86d903b6c7cc4018d/langgraph-1.0.10.tar.gz", hash = "sha256:73bd10ee14a8020f31ef07e9cd4c1a70c35cc07b9c2b9cd637509a10d9d51e29", size = 511644, upload-time = "2026-02-27T21:04:38.743Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/7e/0e/fe80144e3e4048e5d19ccdb91ac547c1a7dc3da8dbd1443e210048194c14/langgraph-1.0.7-py3-none-any.whl", hash = "sha256:9d68e8f8dd8f3de2fec45f9a06de05766d9b075b78fb03171779893b7a52c4d2", size = 157353, upload-time = "2026-01-22T16:57:45.997Z" },
+    { url = "https://files.pythonhosted.org/packages/5d/60/260e0c04620a37ba8916b712766c341cc5fc685dabc6948c899494bbc2ae/langgraph-1.0.10-py3-none-any.whl", hash = "sha256:7c298bef4f6ea292fcf9824d6088fe41a6727e2904ad6066f240c4095af12247", size = 160920, upload-time = "2026-02-27T21:04:35.932Z" },
 ]
 
 [[package]]
@@ -1379,15 +1379,15 @@ wheels = [
 
 [[package]]
 name = "langgraph-prebuilt"
-version = "1.0.7"
+version = "1.0.8"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "langchain-core" },
     { name = "langgraph-checkpoint" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a7/59/711aecd1a50999456850dc328f3cad72b4372d8218838d8d5326f80cb76f/langgraph_prebuilt-1.0.7.tar.gz", hash = "sha256:38e097e06de810de4d0e028ffc0e432bb56d1fb417620fb1dfdc76c5e03e4bf9", size = 163692, upload-time = "2026-01-22T16:45:22.801Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/0d/06/dd61a5c2dce009d1b03b1d56f2a85b3127659fdddf5b3be5d8f1d60820fb/langgraph_prebuilt-1.0.8.tar.gz", hash = "sha256:0cd3cf5473ced8a6cd687cc5294e08d3de57529d8dd14fdc6ae4899549efcf69", size = 164442, upload-time = "2026-02-19T18:14:39.083Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/47/49/5e37abb3f38a17a3487634abc2a5da87c208cc1d14577eb8d7184b25c886/langgraph_prebuilt-1.0.7-py3-none-any.whl", hash = "sha256:e14923516504405bb5edc3977085bc9622c35476b50c1808544490e13871fe7c", size = 35324, upload-time = "2026-01-22T16:45:21.784Z" },
+    { url = "https://files.pythonhosted.org/packages/dc/41/ec966424ad3f2ed3996d24079d3342c8cd6c0bd0653c12b2a917a685ec6c/langgraph_prebuilt-1.0.8-py3-none-any.whl", hash = "sha256:d16a731e591ba4470f3e313a319c7eee7dbc40895bcf15c821f985a3522a7ce0", size = 35648, upload-time = "2026-02-19T18:14:37.611Z" },
 ]
 
 [[package]]
@@ -1753,7 +1753,7 @@ wheels = [
 
 [[package]]
 name = "nv-ingest-api"
-version = "26.1.1"
+version = "26.1.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "backoff" },
@@ -1767,14 +1767,14 @@ dependencies = [
     { name = "tritonclient" },
     { name = "universal-pathlib" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/41/eb/e0469e918d617175e1d3bcf952f0ca8e9b7756fce7817d5386ac4ddca154/nv_ingest_api-26.1.1.tar.gz", hash = "sha256:063d51f1d560bf03d7a595ff3ecebac1bffae45607cf6bd01e4fa8ca2265a884", size = 259532, upload-time = "2026-01-13T23:44:11.112Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f3/bd/e6e885cca94b89723468d4c32d52d30ccc0235ebe2f1db33b0605402d6b8/nv_ingest_api-26.1.2.tar.gz", hash = "sha256:fea08f9bda064938a5876f1610ef0b92c6a1e4943130c564f329b0c87efa3daf", size = 259604, upload-time = "2026-01-21T14:06:27.092Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/42/51/cd93750a1c5797d8d12e843bb13645b0930e4490f96ca49f458aeb641018/nv_ingest_api-26.1.1-py3-none-any.whl", hash = "sha256:e4f8b860765cedba72622782692e2ffc69a100fd61956e8b8a81a47e6c852d66", size = 357481, upload-time = "2026-01-13T23:44:07.943Z" },
+    { url = "https://files.pythonhosted.org/packages/78/66/21e30e658578b7e5ab30857b99e9a0a5c91728ffdca13dadc3d3dba58b98/nv_ingest_api-26.1.2-py3-none-any.whl", hash = "sha256:8e7539a6b7d52afd821c0030e3197cfffddc011d26a8b093cf7b5ffa8addf02d", size = 357537, upload-time = "2026-01-21T14:06:24.321Z" },
 ]
 
 [[package]]
 name = "nv-ingest-client"
-version = "26.1.1"
+version = "26.1.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "build" },
@@ -1789,14 +1789,14 @@ dependencies = [
     { name = "setuptools" },
     { name = "tqdm" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/cb/c4/ae5e2b00a8ffdfc1a3cf660ded68c188140ca433b22446adbb72ccfc455d/nv_ingest_client-26.1.1.tar.gz", hash = "sha256:26d6844eac946b4fdb8da2f5f1e77feb22b52ac21e6d772cf6b1c8c21cef4bb8", size = 126865, upload-time = "2026-01-13T23:44:15.615Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/b3/62/386bc4a336b91df9c65afc18d905bb1fe3dd44ef1ce038895a701cba6035/nv_ingest_client-26.1.2.tar.gz", hash = "sha256:7ea4a35d4e7051031c273eb2b15170a0555462b702602e5c4fdce947bd39d446", size = 126061, upload-time = "2026-01-21T14:06:31.836Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/64/ea/042ad6d8ddfa887667159af8b473835bfcc5b9f51ba6e82ff14078e59a3e/nv_ingest_client-26.1.1-py3-none-any.whl", hash = "sha256:df9906c7021e6a1ae64140fbe7a345679b1cfad7dfa486442e38ca75d64f2b39", size = 147197, upload-time = "2026-01-13T23:44:12.761Z" },
+    { url = "https://files.pythonhosted.org/packages/5f/a0/6f082f42ba1ba4e3de751deee98099114405489389d82b840024fa26512e/nv_ingest_client-26.1.2-py3-none-any.whl", hash = "sha256:49ec81c2e2470509fc527d778d886caebe05a7f3012918eef2fd67922ea9b8b4", size = 146091, upload-time = "2026-01-21T14:06:28.586Z" },
 ]
 
 [[package]]
 name = "nvidia-rag"
-version = "2.4.0.dev0"
+version = "2.5.0.dev0"
 source = { virtual = "." }
 dependencies = [
     { name = "anyio" },
@@ -1918,16 +1918,16 @@ requires-dist = [
     { name = "langchain-elasticsearch", marker = "extra == 'all'", specifier = ">=0.3" },
     { name = "langchain-elasticsearch", marker = "extra == 'elasticsearch'", specifier = ">=0.3" },
     { name = "langchain-milvus", specifier = ">=0.3.0" },
-    { name = "langchain-nvidia-ai-endpoints", specifier = ">=1.0.3" },
+    { name = "langchain-nvidia-ai-endpoints", specifier = ">=1.1.0" },
     { name = "langchain-openai", marker = "extra == 'all'", specifier = ">=0.2" },
     { name = "langchain-openai", marker = "extra == 'ingest'", specifier = ">=0.2" },
     { name = "langchain-openai", marker = "extra == 'rag'", specifier = ">=0.2" },
     { name = "lark", specifier = ">=1.2.2" },
     { name = "minio", specifier = ">=7.2,<8.0" },
-    { name = "nv-ingest-api", marker = "extra == 'all'", specifier = "==26.1.1" },
-    { name = "nv-ingest-api", marker = "extra == 'ingest'", specifier = "==26.1.1" },
-    { name = "nv-ingest-client", marker = "extra == 'all'", specifier = "==26.1.1" },
-    { name = "nv-ingest-client", marker = "extra == 'ingest'", specifier = "==26.1.1" },
+    { name = "nv-ingest-api", marker = "extra == 'all'", specifier = "==26.1.2" },
+    { name = "nv-ingest-api", marker = "extra == 'ingest'", specifier = "==26.1.2" },
+    { name = "nv-ingest-client", marker = "extra == 'all'", specifier = "==26.1.2" },
+    { name = "nv-ingest-client", marker = "extra == 'ingest'", specifier = "==26.1.2" },
     { name = "opentelemetry-api", marker = "extra == 'all'", specifier = ">=1.29,<2.0" },
     { name = "opentelemetry-api", marker = "extra == 'ingest'", specifier = ">=1.29,<2.0" },
     { name = "opentelemetry-api", marker = "extra == 'rag'", specifier = ">=1.29,<2.0" },

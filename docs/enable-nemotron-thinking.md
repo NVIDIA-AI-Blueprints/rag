@@ -19,9 +19,102 @@ This guide explains how to enable reasoning for different Nemotron models, each 
 
 | Model | Control Method | Thinking Budget Parameters |
 |-------|----------------|----------------------------|
+| Nemotron 3 (Nano 30B, and others) | Environment variables | `LLM_ENABLE_THINKING`, `LLM_REASONING_BUDGET`, `LLM_LOW_EFFORT` |
 | Nemotron 1.5 | System prompts | None |
 | Nemotron-3-Nano 9B | System prompts | min/max thinking tokens |
-| Nemotron-3-Nano 30B | Environment variable | max thinking tokens only |
+
+## Enable Reasoning for Nemotron 3 Models
+
+Nemotron 3 models (such as `nvidia/nemotron-3-nano-30b-a3b`) use environment variables to control reasoning.
+
+Set the following environment variables on the RAG server container (via Docker Compose, Helm values, or shell export):
+
+**`LLM_ENABLE_THINKING`**
+: Enable or disable the reasoning phase. When `true`, the model emits reasoning tokens before the final answer. Default: `false`.
+
+**`LLM_REASONING_BUDGET`**
+: Maximum number of tokens allocated for reasoning. Only used when `LLM_ENABLE_THINKING` is `true`. Default: `0`.
+
+**`LLM_LOW_EFFORT`**
+: Low-effort reasoning mode for faster, cheaper responses with shorter reasoning. Only used when `LLM_ENABLE_THINKING` is `true`. Default: `false`.
+
+**`FILTER_THINK_TOKENS`**
+: Filter content between `<think>` and `</think>` tags in model responses. Keep `true` for production to return only the final answer. Set `false` to see the full reasoning process. Default: `true`.
+
+## Enable Reasoning for Nemotron 3 Models
+
+Nemotron 3 models (such as `nvidia/nemotron-3-super-120b-a12b` and `nvidia/nemotron-3-nano-30b-a3b`) use environment variables to control reasoning.
+
+### Basic Configuration
+
+```bash
+export LLM_ENABLE_THINKING=true
+```
+
+### Configure Reasoning Budget (Optional)
+
+Limit the number of reasoning tokens to control latency and cost:
+
+```bash
+export LLM_ENABLE_THINKING=true
+export LLM_REASONING_BUDGET=8192
+```
+
+### Low-Effort Mode (Optional)
+
+For faster responses where deep reasoning is unnecessary:
+
+```bash
+export LLM_ENABLE_THINKING=true
+export LLM_LOW_EFFORT=true
+```
+
+### Configure Model Parameters
+
+After you enable reasoning, configure the model parameters for optimal reasoning performance:
+
+```bash
+export LLM_TEMPERATURE=0.6
+export LLM_TOP_P=0.95
+```
+
+### Nemotron-3-Nano 30B
+
+For `nvidia/nemotron-3-nano-30b-a3b`, reasoning is controlled with the same `LLM_ENABLE_THINKING` variable. The reasoning budget can be set with either `LLM_REASONING_BUDGET` or `LLM_MAX_THINKING_TOKENS`:
+
+```bash
+export LLM_ENABLE_THINKING=true
+export LLM_REASONING_BUDGET=8192
+```
+
+The 30B model also supports a maximum thinking token limit directly in API requests:
+
+```json
+{
+  "model": "nvidia/nemotron-3-nano-30b-a3b",
+  "messages": [
+    {
+      "role": "user",
+      "content": "What is the capital of France?"
+    }
+  ],
+  "max_thinking_tokens": 8192
+}
+```
+
+**Thinking budget parameters:**
+
+**`max_thinking_tokens`**
+: Maximum number of reasoning tokens allowed before generating the final answer.
+
+:::{important}
+The key differences for the 30B model are the following:
+
+- Uses only `max_thinking_tokens` (not `min_thinking_tokens`)
+- Reasoning is available in the model output's `reasoning_content` field (not wrapped in `<think>` tags)
+- The `reasoning_content` field is present in the model output but isn't exposed in the generate API response
+- No filtering is needed because reasoning is already separated from the final answer
+:::
 
 ## Enable Reasoning for Nemotron 1.5
 
@@ -81,7 +174,7 @@ export FILTER_THINK_TOKENS=false
 For most production use cases, keep `FILTER_THINK_TOKENS=true` (default) to provide cleaner responses to end users.
 :::
 
-## Enable Reasoning for Nemotron-3-Nano 9B
+## Enable Reasoning for Nemotron Nano 9B
 
 The `nvidia/nvidia-nemotron-nano-9b-v2` model uses system prompts to control reasoning similar to Nemotron 1.5. It also adds support for thinking budget parameters to control the extent of reasoning.
 
@@ -132,63 +225,6 @@ The key differences for the 9B model are the following:
 - No filtering is needed because reasoning is already separated from the final answer
 :::
 
-## Enable Reasoning for Nemotron-3-Nano 30B
-
-The `nvidia/nemotron-3-nano-30b-a3b` model uses a different approach for reasoning control. Instead of system prompts, you control reasoning through an environment variable.
-
-### Enable Reasoning Through an Environment Variable
-
-Set the environment variable to enable or disable reasoning:
-
-```bash
-# Enable reasoning (default)
-export ENABLE_NEMOTRON_3_NANO_THINKING=true
-
-# Disable reasoning
-export ENABLE_NEMOTRON_3_NANO_THINKING=false
-```
-
-### Configure Thinking Budget (Optional)
-
-The 30B model supports a maximum thinking token limit to control the reasoning phase:
-
-```json
-{
-  "model": "nvidia/nemotron-3-nano-30b-a3b",
-  "messages": [
-    {
-      "role": "user",
-      "content": "What is the capital of France?"
-    }
-  ],
-  "max_thinking_tokens": 8192
-}
-```
-
-**Thinking budget parameters:**
-
-**`max_thinking_tokens`**
-: Maximum number of reasoning tokens allowed before generating the final answer.
-
-:::{important}
-The key differences for the 30B model are the following:
-
-- Uses only `max_thinking_tokens` (not `min_thinking_tokens`)
-- Reasoning is available in the model output's `reasoning_content` field (not wrapped in `<think>` tags)
-- The `reasoning_content` field is present in the model output but isn't exposed in the generate API response
-- No filtering is needed because reasoning is already separated from the final answer
-:::
-
-### Model Naming
-
-Use the correct model name based on your deployment:
-
-**Locally deployed NIMs**
-: `nvidia/nemotron-3-nano`
-
-**NVIDIA-hosted models**
-: `nvidia/nemotron-3-nano-30b-a3b`
-
 ## Deploy with Reasoning Enabled
 
 After you configure reasoning settings in `prompt.yaml` or environment variables, redeploy your services:
@@ -220,6 +256,7 @@ Adjust the thinking budget based on your use case:
 
 - **Lower values (1024-4096)**: Faster responses for simpler questions
 - **Higher values (8192-16384)**: More thorough reasoning for complex queries
+- **Low-effort mode**: Use `LLM_LOW_EFFORT=true` for fast, low-cost reasoning when deep thought is not required
 :::
 
 ## Related Topics
