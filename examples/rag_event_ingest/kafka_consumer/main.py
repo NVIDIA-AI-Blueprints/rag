@@ -5,9 +5,9 @@
 import logging
 
 import config.settings as cfg
-from config.constants import DEST_RAG, DEST_VSS
-from services import ObjectStorage, DocumentIndexer, VideoAnalyzer
-from handlers import DocumentHandler, VideoHandler
+from config.constants import DEST_RAG
+from services import ObjectStorage, DocumentIndexer
+from handlers import DocumentHandler
 from consumer import KafkaEventConsumer
 
 logging.basicConfig(
@@ -33,14 +33,6 @@ def main():
     handlers = {
         DEST_RAG: DocumentHandler(storage, indexer),
     }
-
-    # Only register video handler if VSS is configured
-    if cfg.VSS_SERVER_URL:
-        analyzer = VideoAnalyzer(cfg.VSS_SERVER_URL)
-        handlers[DEST_VSS] = VideoHandler(storage, analyzer, indexer, enable_multimodal_rag=cfg.ENABLE_MULTIMODAL_RAG)
-        logger.info("VSS enabled: video handler registered")
-    else:
-        logger.info("VSS not configured: video handler disabled")
     
     # Initialize consumer
     logger.info("Initializing Kafka consumer...")

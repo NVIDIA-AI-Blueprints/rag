@@ -19,12 +19,9 @@ from config import (
     STATUS_FAILED,
     TIMEOUT_DEFAULT,
     TIMEOUT_MAX_TASK_WAIT,
-    VIDEO_INDEX_TIMEOUT,
     COLLECTION_EMBEDDING_DIMENSION,
     COLLECTION_CHUNK_SIZE,
     COLLECTION_CHUNK_OVERLAP,
-    COLLECTION_VIDEO_CHUNK_SIZE,
-    COLLECTION_VIDEO_CHUNK_OVERLAP,
     CONTENT_TYPE_MAP,
     DEFAULT_CONTENT_TYPE,
     FIELD_COLLECTION_NAME,
@@ -223,74 +220,6 @@ class DocumentIndexer:
         
         logger.error(f"Delete failed: {response.status_code}")
         return False
-    
-    def index_video_description(
-        self,
-        collection: str,
-        video_id: str,
-        video_name: str,
-        description: str
-    ) -> bool:
-        """Index video description in Milvus."""
-        try:
-            # Ensure collection exists first
-            if not self.ensure_collection_exists(collection):
-                logger.error(f"Failed to ensure collection '{collection}' exists")
-                return False
-            
-            doc_filename = f"{video_name}_description.json"
-            
-            # Delete existing document first to allow re-indexing
-            self.delete(doc_filename, collection)
-            
-            content = f"""Video Name: {video_name}
-Video ID: {video_id}
-Source: VSS Analysis
-
-Description:
-{description}"""
-            
-            doc_data = {
-                'content': content,
-                'metadata': {
-                    'content_type': 'video',
-                    'video_id': video_id,
-                    'video_name': video_name,
-                    'source': 'vss_analysis'
-                }
-            }
-            
-            files = {
-                'documents': (doc_filename, json.dumps(doc_data).encode(), 'application/json')
-            }
-            
-            data_config = {
-                FIELD_COLLECTION_NAME: collection,
-                FIELD_BLOCKING: True,
-                FIELD_SPLIT_OPTIONS: {
-                    FIELD_CHUNK_SIZE: COLLECTION_VIDEO_CHUNK_SIZE,
-                    FIELD_CHUNK_OVERLAP: COLLECTION_VIDEO_CHUNK_OVERLAP
-                },
-                FIELD_GENERATE_SUMMARY: False
-            }
-            
-            response = requests.post(
-                f'{self.base_url}{API_INGESTOR_DOCUMENTS}',
-                files=files,
-                data={'data': json.dumps(data_config)},
-                timeout=VIDEO_INDEX_TIMEOUT
-            )
-            
-            if response.status_code in [200, 201, 202]:
-                logger.info(f"✓ Video description indexed to '{collection}'")
-                return True
-            else:
-                logger.error(f"Failed to index video description: {response.status_code} - {response.text}")
-                return False
-            
-        except requests.RequestException as e:
-            logger.error(f"Error indexing video description: {e}")
-            return False
     
     def _get_content_type(self, filename: str) -> str:
         """Get content type from filename."""
