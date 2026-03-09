@@ -415,7 +415,7 @@ class TestCheckAllServicesHealth:
         mock_config.query_rewriter.server_url = "https://ai.api.nvidia.com/v1"
         mock_config.embeddings.server_url = "https://api.nvcf.nvidia.com/v2"
         mock_config.ranking.server_url = (
-            ""  # Empty URL should be treated as API catalog
+            "https://ai.api.nvidia.com/v1/retrieval/nvidia/llama-nemotron-rerank-1b-v2/reranking"  # Empty URL should be treated as API catalog
         )
 
         mock_vdb_op = MagicMock()
