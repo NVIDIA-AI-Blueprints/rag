@@ -200,26 +200,26 @@ def get_nv_ingest_ingestor(
         logger.info(
             f"Enabling embedding task. Embedding Endpoint URL: {embedding_url}, Embedding Model Name: {config.embeddings.model_name}"
         )
-        if config.nv_ingest.structured_elements_modality:
-            ingestor = ingestor.embed(
-                structured_elements_modality=config.nv_ingest.structured_elements_modality,
-                endpoint_url=embedding_url,
-                model_name=config.embeddings.model_name,
-                dimensions=config.embeddings.dimensions,
-            )
-        elif config.nv_ingest.image_elements_modality:
-            ingestor = ingestor.embed(
-                image_elements_modality=config.nv_ingest.image_elements_modality,
-                endpoint_url=embedding_url,
-                model_name=config.embeddings.model_name,
-                dimensions=config.embeddings.dimensions,
-            )
-        else:
-            ingestor = ingestor.embed(
-                endpoint_url=embedding_url,
-                model_name=config.embeddings.model_name,
-                dimensions=config.embeddings.dimensions,
-            )
+        # if config.nv_ingest.structured_elements_modality:
+        #     ingestor = ingestor.embed(
+        #         structured_elements_modality=config.nv_ingest.structured_elements_modality,
+        #         endpoint_url=embedding_url,
+        #         model_name=config.embeddings.model_name,
+        #         dimensions=config.embeddings.dimensions,
+        #     )
+        # elif config.nv_ingest.image_elements_modality:
+        #     ingestor = ingestor.embed(
+        #         image_elements_modality=config.nv_ingest.image_elements_modality,
+        #         endpoint_url=embedding_url,
+        #         model_name=config.embeddings.model_name,
+        #         dimensions=config.embeddings.dimensions,
+        #     )
+        # else:
+        #     ingestor = ingestor.embed(
+        #         endpoint_url=embedding_url,
+        #         model_name=config.embeddings.model_name,
+        #         dimensions=config.embeddings.dimensions,
+        #     )
 
     # Add save to disk task (only when VDB operations are enabled)
     if config.nv_ingest.save_to_disk and vdb_op is not None:
@@ -235,10 +235,10 @@ def get_nv_ingest_ingestor(
         )
 
     # Add Vector-DB upload task (only when VDB operations are enabled)
-    if enable_nv_ingest_vdb_upload and vdb_op is not None:
-        ingestor = ingestor.vdb_upload(
-            vdb_op=vdb_op,
-            purge_results_after_upload=not config.nv_ingest.save_to_disk,
-        )
+    # if enable_nv_ingest_vdb_upload and vdb_op is not None:
+    #     ingestor = ingestor.vdb_upload(
+    #         vdb_op=vdb_op,
+    #         purge_results_after_upload=not config.nv_ingest.save_to_disk,
+    #     )
 
     return ingestor

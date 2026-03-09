@@ -95,6 +95,7 @@ from nvidia_rag.utils.summary_status_handler import SUMMARY_STATUS_HANDLER
 from nvidia_rag.utils.vdb import DEFAULT_DOCUMENT_INFO_COLLECTION, _get_vdb_op
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
 from nvidia_rag.utils.vdb.vdb_ingest_base import SerializedVDBWrapper
+from nvidia_rag.ingestor_server.embedding import NvIngestEmbedding
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -157,6 +158,8 @@ class NvidiaRAGIngestor:
         self.nv_ingest_client = get_nv_ingest_client(
             config=self.config, get_lite_client=self.mode == Mode.LITE
         )
+
+        self.embedding_runner = NvIngestEmbedding(config=self.config)
 
         # Initialize MinIO operator - handle failures gracefully
         try:
@@ -702,7 +705,7 @@ class NvidiaRAGIngestor:
             logger.exception(
                 "Ingestion failed due to error: %s",
                 e,
-                exc_info=logger.getEffectiveLevel() <= logging.DEBUG,
+                # exc_info=logger.getEffectiveLevel() <= logging.DEBUG,
             )
             raise e
 
@@ -2478,13 +2481,14 @@ class NvidiaRAGIngestor:
 
         return results, failures
 
-    @staticmethod
     @trace_function("ingestor.main.perform_async_nv_ingest_ingestion", tracer=TRACER)
     async def __perform_async_nv_ingest_ingestion(
+        self,
         nv_ingest_ingestor,
         state_manager,
         nv_ingest_traces: bool = False,
         trace_context: dict[str, Any] | None = None,
+        vdb_op: VDBRag | None = None,
     ):
         """
         Perform NV-Ingest ingestion asynchronously using .ingest_async() method
@@ -2539,10 +2543,18 @@ class NvidiaRAGIngestor:
                         "reference_time_ns", ingest_start_ns
                     ),
                 )
+        
+        else:
+            results, failures = await async_future
 
-            return results, failures
+        # Perform embedding on the results
+        logger.info(f"Performing embedding on the results: {len(results)}")
+        embedding_results = await self.embedding_runner.embed_results(results)
 
-        results, failures = await async_future
+        # Upload results to the vector database
+        logger.info(f"Uploading results to the vector database: {len(embedding_results)}")
+        vdb_op.run(embedding_results)
+
         return results, failures
 
     @trace_function("ingestor.main.perform_shallow_extraction", tracer=TRACER)
@@ -2605,6 +2617,7 @@ class NvidiaRAGIngestor:
                     span_namespace=f"nv_ingest.shallow_batch_{batch_number}",
                     batch_number=batch_number,
                 ),
+                vdb_op=None, # TODO: Add vdb_op for shallow extraction
             )
             total_time = time.time() - start_time
 
@@ -2687,6 +2700,7 @@ class NvidiaRAGIngestor:
                     collection_name=vdb_op.collection_name,
                     batch_number=batch_number,
                 ),
+                vdb_op=vdb_op,
             )
             total_ingestion_time = time.time() - start_time
             document_info = self._log_result_info(
@@ -2737,6 +2751,7 @@ class NvidiaRAGIngestor:
                         collection_name=vdb_op.collection_name,
                         batch_number=batch_number,
                     ),
+                    vdb_op=vdb_op,
                 )
                 total_ingestion_time = time.time() - start_time
                 document_info = self._log_result_info(
@@ -2778,6 +2793,7 @@ class NvidiaRAGIngestor:
                         collection_name=vdb_op.collection_name,
                         batch_number=batch_number,
                     ),
+                    vdb_op=vdb_op,
                 )
                 total_ingestion_time = time.time() - start_time
                 document_info = self._log_result_info(
