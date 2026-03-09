@@ -116,7 +116,7 @@ For an even lighter deployment, use [NVIDIA-hosted NIMs](deploy-docker-nvidia-ho
 ```bash
 # Configure to use NVIDIA-hosted endpoints
 export APP_EMBEDDINGS_SERVERURL=""
-export APP_RANKING_SERVERURL=""
+export APP_RANKING_SERVERURL="https://ai.api.nvidia.com/v1/retrieval/nvidia/llama-nemotron-rerank-1b-v2/reranking"
 ```
 
 :::{note}

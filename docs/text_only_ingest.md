@@ -69,7 +69,7 @@ In case you are [interacting with cloud hosted models](deploy-docker-nvidia-host
    ```bash
    export APP_EMBEDDINGS_SERVERURL=""
    export APP_LLM_SERVERURL=""
-   export APP_RANKING_SERVERURL=""
+   export APP_RANKING_SERVERURL="https://ai.api.nvidia.com/v1/retrieval/nvidia/llama-nemotron-rerank-1b-v2/reranking"
    export YOLOX_HTTP_ENDPOINT="https://ai.api.nvidia.com/v1/cv/nvidia/nemotron-page-elements-v3"
    export YOLOX_INFER_PROTOCOL="http"
    ```
