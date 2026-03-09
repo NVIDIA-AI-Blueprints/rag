@@ -61,4 +61,8 @@ spec:
   {{- end }}
   expose:
 {{ toYaml $nimLlm.expose | nindent 4 }}
+  {{- with $nimLlm.startupProbe }}
+  startupProbe:
+{{ toYaml . | nindent 4 }}
+  {{- end }}
 {{- end }}
