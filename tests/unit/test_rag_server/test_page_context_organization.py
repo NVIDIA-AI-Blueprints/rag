@@ -225,3 +225,73 @@ class TestExpandAndOrganizeContext:
         assert call_kw["source_name"] == "/path/to/a.pdf"
         assert 3 in call_kw["page_numbers"]
         assert len(result) >= 1
+
+    def test_deduplication_uses_location_for_multimodal_chunks(self):
+        """Multimodal chunks with same page but different location stay distinct."""
+        rag = NvidiaRAG()
+        docs = [
+            Document(
+                page_content="caption A",
+                metadata={
+                    "source": {"source_name": "/path/to/a.pdf"},
+                    "content_metadata": {"page_number": 1, "location": "loc1"},
+                    "collection_name": "col1",
+                },
+            ),
+            Document(
+                page_content="caption B",
+                metadata={
+                    "source": {"source_name": "/path/to/a.pdf"},
+                    "content_metadata": {"page_number": 1, "location": "loc2"},
+                    "collection_name": "col1",
+                },
+            ),
+        ]
+        mock_vdb = MagicMock()
+        mock_vdb.retrieve_chunks_by_filter.return_value = []
+
+        result = rag._expand_and_organize_context(
+            docs=docs,
+            vdb_op=mock_vdb,
+            collection_names=["col1"],
+            fetch_full_page_context=True,
+            fetch_neighboring_pages=0,
+        )
+
+        assert len(result) == 2
+
+    def test_deduplication_skips_duplicate_chunks(self):
+        """Chunks with same (coll, source, page, key) are deduplicated."""
+        rag = NvidiaRAG()
+        docs = [
+            Document(
+                page_content="same content",
+                metadata={
+                    "source": {"source_name": "/path/to/a.pdf"},
+                    "content_metadata": {"page_number": 1},
+                    "collection_name": "col1",
+                },
+            ),
+        ]
+        duplicate_from_vdb = [
+            Document(
+                page_content="same content",
+                metadata={
+                    "source": {"source_name": "/path/to/a.pdf"},
+                    "content_metadata": {"page_number": 1},
+                    "collection_name": "col1",
+                },
+            ),
+        ]
+        mock_vdb = MagicMock()
+        mock_vdb.retrieve_chunks_by_filter.return_value = duplicate_from_vdb
+
+        result = rag._expand_and_organize_context(
+            docs=docs,
+            vdb_op=mock_vdb,
+            collection_names=["col1"],
+            fetch_full_page_context=True,
+            fetch_neighboring_pages=0,
+        )
+
+        assert len(result) == 1

@@ -2805,6 +2805,9 @@ class NvidiaRAG:
                 self._log_retrieved_pages(context_to_show, "Pages after confidence filter")
                 logger.info("-" * 80)
 
+            # Snapshot for citations: only retrieved (and filtered) chunks, not expanded context.
+            docs_for_citations = list(context_to_show)
+
             if fetch_full_page_context and context_to_show:
                 logger.info("=" * 80)
                 logger.info("STAGE: Page Context Expansion")
@@ -2949,7 +2952,7 @@ class NvidiaRAG:
                         return RAGResponse(
                             generate_answer_async(
                                 prefetched_vlm_stream,
-                                context_to_show,
+                                docs_for_citations,
                                 model=model,
                                 collection_name=validated_collections[0] if validated_collections else "",
                                 enable_citations=enable_citations,
@@ -3155,7 +3158,7 @@ class NvidiaRAG:
                 return RAGResponse(
                     generate_answer_async(
                         _async_iter([final_response]),
-                        context_to_show,
+                        docs_for_citations,
                         model=model,
                         collection_name=validated_collections[0] if validated_collections else "",
                         enable_citations=enable_citations,
@@ -3189,7 +3192,7 @@ class NvidiaRAG:
                 return RAGResponse(
                     generate_answer_async(
                         prefetched_stream,
-                        context_to_show,
+                        docs_for_citations,
                         model=model,
                         collection_name=validated_collections[0] if validated_collections else "",
                         enable_citations=enable_citations,
@@ -3533,6 +3536,7 @@ class NvidiaRAG:
         seen: set[tuple[str, str, int, str]] = set()
 
         def doc_key(d: Document) -> tuple[str, str, int, str]:
+            """Stable key for deduplication: use location for image/table/chart, else content preview."""
             meta = getattr(d, "metadata", {}) or {}
             content_md = meta.get("content_metadata", {}) or {}
             source = meta.get("source", {})
@@ -3541,15 +3545,23 @@ class NvidiaRAG:
             )
             coll = meta.get("collection_name", "")
             page_num = content_md.get("page_number", 0)
-            content_preview = (getattr(d, "page_content", "") or "")[:300]
-            return (str(coll), str(source_path), int(page_num), content_preview)
+            # Prefer location for multimodal chunks (image/table/chart) to avoid false merges
+            location = content_md.get("location") or content_md.get("image_location")
+            if location is not None:
+                unique_part = str(location)
+            else:
+                unique_part = (getattr(d, "page_content", "") or "")[:300]
+            return (str(coll), str(source_path), int(page_num), unique_part)
 
         merged: list[Document] = []
+        skipped = 0
         for d in docs:
             k = doc_key(d)
             if k not in seen:
                 seen.add(k)
                 merged.append(d)
+            else:
+                skipped += 1
 
         pages_by_coll_source: dict[tuple[str, str], set[int]] = {}
         for coll, source, page in page_set:
@@ -3573,6 +3585,8 @@ class NvidiaRAG:
                     if k not in seen:
                         seen.add(k)
                         merged.append(d)
+                    else:
+                        skipped += 1
             except Exception as e:
                 logger.warning(
                     "Failed to fetch chunks for source=%s pages=%s: %s",
@@ -3581,6 +3595,12 @@ class NvidiaRAG:
                     e,
                 )
 
+        if skipped > 0:
+            logger.info(
+                "Page context expansion: %d unique chunks after deduplication (skipped %d duplicate(s))",
+                len(merged),
+                skipped,
+            )
         return merged
 
     def _format_context_by_page(
