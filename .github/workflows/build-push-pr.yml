@@ -79,7 +79,7 @@ jobs:
 
       - name: Build Ingest Docker Image
         run: |
-          docker build -t "${{ env.INGEST_IMAGE_NAME }}":pr-${{ steps.short-sha.outputs.value }} -f src/nvidia_rag/ingest_server/Dockerfile  .
+          docker build -t "${{ env.INGEST_IMAGE_NAME }}":pr-${{ steps.short-sha.outputs.value }} -f src/nvidia_rag/ingestor_server/Dockerfile  .
 
       - name: Tag and Push Ingest Docker Image
         env:
