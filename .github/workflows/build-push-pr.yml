@@ -74,6 +74,8 @@ jobs:
         id: login-ocir
         with:
           auth_token: ${{ secrets.OCI_AUTH_TOKEN }}
+          username: ${{ secrets.OCI_CLI_USER }}
+          tenancy_namespace: ${{ secrets.OCI_TENANCY_NAMESPACE }}
       
       - name: Compute short SHA
         id: short-sha
