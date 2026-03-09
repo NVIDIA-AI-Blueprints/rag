@@ -18,6 +18,8 @@ services:
       - ${PROMPT_CONFIG_FILE}:${PROMPT_CONFIG_FILE}
       # Please mount the volume to the container to the path specified here
       - ${INGESTOR_SERVER_EXTERNAL_VOLUME_MOUNT:-./volumes/ingestor-server}:${INGESTOR_SERVER_DATA_DIR:-/data/}
+      # GraphRAG: persist NetworkX graph data across restarts
+      - ./volumes/graph-data:/graph-data
 
     # Common customizations to the pipeline can be controlled using env variables
     environment:
@@ -130,6 +132,22 @@ services:
       SUMMARY_LLM_TEMPERATURE: ${SUMMARY_LLM_TEMPERATURE:-0.0}
       SUMMARY_LLM_TOP_P: ${SUMMARY_LLM_TOP_P:-1.0}
       SUMMARY_MAX_PARALLELIZATION: ${SUMMARY_MAX_PARALLELIZATION:-20}
+      ##===GraphRAG Configurations===
+      ENABLE_GRAPH_RAG: ${ENABLE_GRAPH_RAG:-False}
+      GRAPH_STORE_TYPE: ${GRAPH_STORE_TYPE:-networkx}
+      GRAPH_STORE_URL: ${GRAPH_STORE_URL:-bolt://neo4j:7687}
+      GRAPH_STORE_USERNAME: ${GRAPH_STORE_USERNAME:-neo4j}
+      GRAPH_STORE_PASSWORD: ${GRAPH_STORE_PASSWORD:-""}
+      GRAPH_ENTITY_EXTRACTION_MODEL: ${GRAPH_ENTITY_EXTRACTION_MODEL:-""}
+      GRAPH_ENTITY_EXTRACTION_SERVERURL: ${GRAPH_ENTITY_EXTRACTION_SERVERURL:-""}
+      GRAPH_RAG_APIKEY: ${GRAPH_RAG_APIKEY:-""}
+      GRAPH_MAX_ENTITIES_PER_CHUNK: ${GRAPH_MAX_ENTITIES_PER_CHUNK:-20}
+      GRAPH_MAX_RELATIONSHIPS_PER_CHUNK: ${GRAPH_MAX_RELATIONSHIPS_PER_CHUNK:-30}
+      GRAPH_COMMUNITY_DETECTION: ${GRAPH_COMMUNITY_DETECTION:-True}
+      GRAPH_COMMUNITY_RESOLUTION: ${GRAPH_COMMUNITY_RESOLUTION:-1.0}
+      GRAPH_DATA_DIR: ${GRAPH_DATA_DIR:-/graph-data}
+      GRAPH_MAX_PARALLELIZATION: ${GRAPH_MAX_PARALLELIZATION:-20}
+
       # Log level for server, supported level NOTSET, DEBUG, INFO, WARN, ERROR, CRITICAL
       LOGLEVEL: ${LOGLEVEL:-INFO}
 

@@ -93,6 +93,7 @@ from nvidia_rag.utils.observability.tracing import (
 from nvidia_rag.utils.summarization import generate_document_summaries
 from nvidia_rag.utils.summary_status_handler import SUMMARY_STATUS_HANDLER
 from nvidia_rag.utils.vdb import DEFAULT_DOCUMENT_INFO_COLLECTION, _get_vdb_op
+from nvidia_rag.utils.graph.factory import get_graph_store
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
 from nvidia_rag.utils.vdb.vdb_ingest_base import SerializedVDBWrapper
 
@@ -185,6 +186,96 @@ class NvidiaRAGIngestor:
                     "or nv_ingest_client.util.vdb.adt_vdb.VDB. "
                     "Please make sure all the required methods are implemented."
                 )
+
+        self.graph_store = None
+        if self.config.graph_rag.enable_graph_rag:
+            try:
+                self.graph_store = get_graph_store(config=self.config)
+                logger.info("GraphRAG enabled: initialized %s graph store", self.config.graph_rag.graph_store_type)
+            except Exception:
+                logger.warning("Failed to initialize graph store, GraphRAG will be disabled", exc_info=True)
+
+    async def _run_graph_extraction(
+        self,
+        results: list[list[dict[str, str | dict]]],
+        collection_name: str,
+    ) -> None:
+        """Run GraphRAG entity extraction and community detection on ingestion results.
+
+        This runs as a background task after the main ingestion pipeline completes.
+        It converts nv-ingest results into LangChain Documents for the entity extractor.
+        """
+        from langchain_core.documents import Document
+        from nvidia_rag.utils.graph.entity_extractor import extract_entities_from_chunks
+        from nvidia_rag.utils.graph.community_detector import detect_communities_and_summarize
+
+        try:
+            chunks = []
+            for batch_results in results:
+                for item in batch_results:
+                    if not isinstance(item, dict):
+                        continue
+                    doc_type = item.get("document_type", "")
+                    metadata = item.get("metadata", {})
+                    if not isinstance(metadata, dict):
+                        continue
+
+                    content = None
+                    if doc_type == "text":
+                        content = metadata.get("content")
+                    elif doc_type == "structured":
+                        content = (
+                            metadata.get("table_metadata", {}).get("table_content")
+                        )
+
+                    if content:
+                        chunks.append(Document(
+                            page_content=str(content),
+                            metadata={
+                                "source_id": metadata.get("source_metadata", {}).get("source_id", ""),
+                                "page_number": metadata.get("content_metadata", {}).get("page_number", 0),
+                                "document_type": doc_type,
+                            },
+                        ))
+
+            if not chunks:
+                logger.info("No text chunks found for graph extraction in '%s'", collection_name)
+                return
+
+            logger.info(
+                "Starting GraphRAG extraction for '%s' with %d chunks",
+                collection_name,
+                len(chunks),
+            )
+
+            extraction_stats = await extract_entities_from_chunks(
+                chunks=chunks,
+                graph_store=self.graph_store,
+                collection_name=collection_name,
+                config=self.config,
+                prompts=self.prompts,
+            )
+            logger.info("GraphRAG extraction stats for '%s': %s", collection_name, extraction_stats)
+
+            if self.config.graph_rag.community_detection_enabled:
+                communities = await detect_communities_and_summarize(
+                    graph_store=self.graph_store,
+                    collection_name=collection_name,
+                    config=self.config,
+                    prompts=self.prompts,
+                )
+                logger.info(
+                    "GraphRAG community detection complete for '%s': %d communities",
+                    collection_name,
+                    len(communities),
+                )
+
+        except Exception:
+            logger.warning(
+                "GraphRAG extraction failed for '%s', vector RAG still functional",
+                collection_name,
+                exc_info=True,
+            )
 
     async def health(self, check_dependencies: bool = False) -> IngestorHealthResponse:
         """Check the health of the Ingestion server."""
@@ -638,6 +729,14 @@ class NvidiaRAGIngestor:
                 summary_options=summary_options,
                 state_manager=state_manager,
             )
+
+            if self.graph_store is not None and self.config.graph_rag.enable_graph_rag and results:
+                task = asyncio.create_task(
+                    self._run_graph_extraction(results, collection_name)
+                )
+                self._background_tasks.add(task)
+                task.add_done_callback(self._background_tasks.discard)
+                logger.info("Started background GraphRAG entity extraction for collection '%s'", collection_name)
 
             build_ingestion_response_start_time = time.time()
             response_data = await self.__build_ingestion_response(

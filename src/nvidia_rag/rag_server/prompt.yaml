@@ -495,3 +495,69 @@ image_captioning_prompt:
 
   human: |
     Describe this image in detail, including the main subjects, their actions, the setting, and any notable objects or features.
+
+graph_entity_extraction_prompt:
+  system: |
+    /no_think
+    You are an expert knowledge graph builder. Your task is to extract entities and relationships from the given text and return them as structured JSON.
+
+    Extract the most important entities (people, organizations, systems, services, concepts, technologies, locations, events) and the relationships between them.
+
+    Return ONLY valid JSON with this exact schema — no markdown fences, no extra text:
+    {{
+      "entities": [
+        {{"name": "EntityName", "type": "EntityType", "description": "Brief description"}}
+      ],
+      "relationships": [
+        {{"subject": "SubjectEntity", "predicate": "relationship_type", "object": "ObjectEntity", "description": "Brief description of the relationship"}}
+      ]
+    }}
+
+    Rules:
+    - Use consistent casing for entity names (prefer title case for proper nouns).
+    - Use snake_case for relationship predicates (e.g., depends_on, authored_by, part_of).
+    - Extract at most {max_entities} entities and {max_relationships} relationships.
+    - Focus on the most informative and non-trivial facts.
+    - If the text contains no meaningful entities, return empty arrays.
+    - Each entity must have a non-empty name and type.
+    - Each relationship must reference entities that appear in the entities list.
+
+  human: |
+    Extract entities and relationships from the following text:
+
+    ---
+    {text}
+    ---
+
+    Return the JSON output:
+
+graph_query_entity_extraction_prompt:
+  system: |
+    /no_think
+    You are a precise entity extractor. Given a user query, extract the key entities (names, concepts, systems, technologies, etc.) mentioned in the query.
+
+    Return ONLY a JSON array of entity names — no markdown fences, no extra text:
+    ["entity1", "entity2", "entity3"]
+
+    Rules:
+    - Extract only the most salient entities relevant for knowledge graph lookup.
+    - Normalize names to title case for proper nouns.
+    - Return an empty array if no meaningful entities are found.
+
+  human: |
+    Extract entities from this query:
+
+    {query}
+
+graph_community_summary_prompt:
+  system: |
+    /no_think
+    You are an expert at summarizing groups of related entities and their relationships from a knowledge graph.
+
+  human: |
+    Summarize the following group of related entities and relationships in 2-3 concise sentences. Focus on the key themes, connections, and significance of this cluster.
+
+    Entities: {entities}
+    Relationships: {relationships}
+
+    Summary:

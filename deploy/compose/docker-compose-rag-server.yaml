@@ -15,6 +15,8 @@ services:
     volumes:
       # Mount the prompt.yaml file to the container, path should be absolute
       - ${PROMPT_CONFIG_FILE}:${PROMPT_CONFIG_FILE}
+      # GraphRAG: share NetworkX graph data with ingestor
+      - ./volumes/graph-data:/graph-data
     # Common customizations to the pipeline can be controlled using env variables
     environment:
       # Path to example directory relative to root
@@ -142,6 +144,20 @@ services:
 
       # Number of document chunks to insert in LLM prompt, used only when ENABLE_RERANKER is set to True
       APP_RETRIEVER_TOPK: ${APP_RETRIEVER_TOPK:-10}
+
+      ##===GraphRAG Configurations===
+      ENABLE_GRAPH_RAG: ${ENABLE_GRAPH_RAG:-False}
+      GRAPH_STORE_TYPE: ${GRAPH_STORE_TYPE:-networkx}
+      GRAPH_STORE_URL: ${GRAPH_STORE_URL:-bolt://neo4j:7687}
+      GRAPH_STORE_USERNAME: ${GRAPH_STORE_USERNAME:-neo4j}
+      GRAPH_STORE_PASSWORD: ${GRAPH_STORE_PASSWORD:-""}
+      GRAPH_ENTITY_EXTRACTION_MODEL: ${GRAPH_ENTITY_EXTRACTION_MODEL:-""}
+      GRAPH_ENTITY_EXTRACTION_SERVERURL: ${GRAPH_ENTITY_EXTRACTION_SERVERURL:-""}
+      GRAPH_RAG_APIKEY: ${GRAPH_RAG_APIKEY:-""}
+      GRAPH_TRAVERSAL_DEPTH: ${GRAPH_TRAVERSAL_DEPTH:-2}
+      GRAPH_FUSION_WEIGHT: ${GRAPH_FUSION_WEIGHT:-0.4}
+      GRAPH_TOP_K: ${GRAPH_TOP_K:-10}
+      GRAPH_DATA_DIR: ${GRAPH_DATA_DIR:-/graph-data}
 
       # Log level for server, supported level NOTSET, DEBUG, INFO, WARN, ERROR, CRITICAL
       LOGLEVEL: ${LOGLEVEL:-INFO}

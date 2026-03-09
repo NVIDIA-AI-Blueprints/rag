@@ -1018,6 +1018,117 @@ class ReflectionConfig(_ConfigBase):
         return v
 
 
+class GraphRAGConfig(_ConfigBase):
+    """GraphRAG configuration for knowledge graph construction and retrieval."""
+
+    enable_graph_rag: bool = Field(
+        default=False,
+        env="ENABLE_GRAPH_RAG",
+        description="Enable knowledge graph construction and graph-augmented retrieval",
+    )
+    graph_store_type: str = Field(
+        default="networkx",
+        env="GRAPH_STORE_TYPE",
+        description="Graph store backend: 'networkx' (in-memory) or 'neo4j'",
+    )
+    graph_store_url: str = Field(
+        default="bolt://localhost:7687",
+        env="GRAPH_STORE_URL",
+        description="Connection URL for the graph database (used with neo4j)",
+    )
+    graph_store_username: str = Field(
+        default="neo4j",
+        env="GRAPH_STORE_USERNAME",
+        description="Username for graph database authentication",
+    )
+    graph_store_password: SecretStr | None = Field(
+        default=None,
+        env="GRAPH_STORE_PASSWORD",
+        description="Password for graph database authentication",
+    )
+    entity_extraction_model: str = Field(
+        default="",
+        env="GRAPH_ENTITY_EXTRACTION_MODEL",
+        description="LLM model for entity/relationship extraction (empty = use main LLM)",
+    )
+    entity_extraction_server_url: str = Field(
+        default="",
+        env="GRAPH_ENTITY_EXTRACTION_SERVERURL",
+        description="LLM endpoint for entity extraction (empty = use main LLM endpoint)",
+    )
+    api_key: SecretStr | None = Field(
+        default=None,
+        env="GRAPH_RAG_APIKEY",
+        description="API key for GraphRAG LLM calls (overrides global NVIDIA_API_KEY)",
+    )
+    max_entities_per_chunk: int = Field(
+        default=20,
+        env="GRAPH_MAX_ENTITIES_PER_CHUNK",
+        description="Maximum entities to extract per text chunk",
+    )
+    max_relationships_per_chunk: int = Field(
+        default=30,
+        env="GRAPH_MAX_RELATIONSHIPS_PER_CHUNK",
+        description="Maximum relationships to extract per text chunk",
+    )
+    community_detection_enabled: bool = Field(
+        default=True,
+        env="GRAPH_COMMUNITY_DETECTION",
+        description="Enable Leiden community detection and summarization",
+    )
+    community_resolution: float = Field(
+        default=1.0,
+        env="GRAPH_COMMUNITY_RESOLUTION",
+        description="Resolution parameter for Leiden algorithm (higher = more communities)",
+    )
+    traversal_depth: int = Field(
+        default=2,
+        env="GRAPH_TRAVERSAL_DEPTH",
+        description="Number of hops for graph traversal during retrieval",
+    )
+    graph_weight_in_fusion: float = Field(
+        default=0.4,
+        env="GRAPH_FUSION_WEIGHT",
+        description="Weight of graph results in RRF fusion (0.0-1.0)",
+    )
+    graph_top_k: int = Field(
+        default=10,
+        env="GRAPH_TOP_K",
+        description="Number of graph-retrieved context chunks to return",
+    )
+    graph_data_dir: str = Field(
+        default="./graph-data",
+        env="GRAPH_DATA_DIR",
+        description="Directory for persisting NetworkX graph data",
+    )
+    max_parallelization: int = Field(
+        default=20,
+        env="GRAPH_MAX_PARALLELIZATION",
+        description="Maximum concurrent LLM calls for entity extraction",
+    )
+
+    @field_validator("graph_store_url", "entity_extraction_server_url", mode="before")
+    @classmethod
+    def normalize_url(cls, v: Any) -> Any:
+        if isinstance(v, str):
+            v = v.strip().strip('"').strip("'")
+        return v
+
+    @field_validator("graph_weight_in_fusion")
+    @classmethod
+    def validate_fusion_weight(cls, v: float) -> float:
+        if not (0.0 <= v <= 1.0):
+            raise ValueError(f"graph_weight_in_fusion must be between 0.0 and 1.0, got {v}")
+        return v
+
+    @field_validator("traversal_depth")
+    @classmethod
+    def validate_traversal_depth(cls, v: int) -> int:
+        if v < 1 or v > 5:
+            raise ValueError(f"traversal_depth must be between 1 and 5, got {v}")
+        return v
+
+
 class NvidiaRAGConfig(_ConfigBase):
     """Main NVIDIA RAG configuration.
 
@@ -1053,6 +1164,7 @@ class NvidiaRAGConfig(_ConfigBase):
         default_factory=QueryDecompositionConfig
     )
     reflection: ReflectionConfig = PydanticField(default_factory=ReflectionConfig)
+    graph_rag: GraphRAGConfig = PydanticField(default_factory=GraphRAGConfig)
 
     # Top-level flags
     enable_guardrails: bool = Field(

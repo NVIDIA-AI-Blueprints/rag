@@ -36,6 +36,7 @@ dependencies = [
     "redis>=4.3.4",
     "protobuf>=6.33.5",
     "lark>=1.2.2",
+    "networkx>=3.2",
     "python-dateutil>=2.9.0.post0",
 ]
 
@@ -103,6 +104,13 @@ all = [
 ]
 elasticsearch = [
     "langchain-elasticsearch>=0.3",
+]
+graphrag = [
+    "networkx>=3.2",
+]
+graphrag-neo4j = [
+    "networkx>=3.2",
+    "neo4j>=5.20",
 ]
 
 [tool.uv.sources]

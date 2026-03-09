@@ -103,6 +103,12 @@ from nvidia_rag.utils.observability.tracing import (
     usage_collector_scope,
 )
 from nvidia_rag.utils.reranker import get_ranking_model
+from nvidia_rag.utils.graph.factory import get_graph_store
+from nvidia_rag.rag_server.graph_retriever import (
+    classify_query_complexity,
+    graph_retrieval,
+    hybrid_rank_fusion,
+)
 from nvidia_rag.utils.vdb import _get_vdb_op
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
 
@@ -270,6 +276,21 @@ class NvidiaRAG:
         self.prompts = get_prompts(prompts)
         self.vdb_top_k = int(self.config.retriever.vdb_top_k)
         self.StreamingFilterThinkParser = get_streaming_filter_think_parser_async()
+
+        # Initialize GraphRAG store
+        self.graph_store = None
+        if self.config.graph_rag.enable_graph_rag:
+            try:
+                self.graph_store = get_graph_store(config=self.config)
+                logger.info(
+                    "GraphRAG enabled: initialized %s graph store",
+                    self.config.graph_rag.graph_store_type,
+                )
+            except Exception as e:
+                self._init_errors["graph_rag"] = str(e)
+                logger.warning(
+                    "Graph store initialization failed, GraphRAG will be disabled: %s", e
+                )
 
         if self._init_errors:
             logger.warning(
@@ -2777,6 +2798,47 @@ class NvidiaRAG:
                     logger.info("  - Retrieved Documents: %d", len(context_to_show))
                     logger.info("  - Retrieval Time: %.2f ms", retrieval_time_ms)
                     logger.info("-" * 80)
+
+            if (
+                self.graph_store is not None
+                and self.config.graph_rag.enable_graph_rag
+                and not is_image_query
+            ):
+                logger.info("=" * 80)
+                logger.info("STAGE: GraphRAG Hybrid Retrieval")
+                logger.info("=" * 80)
+                query_complexity = classify_query_complexity(retriever_query)
+                logger.info("  - Query Complexity: %s", query_complexity)
+                logger.info("  - Traversal Depth: %d", self.config.graph_rag.traversal_depth)
+                logger.info("  - Graph Weight: %.2f", self.config.graph_rag.graph_weight_in_fusion)
+                logger.info("-" * 80)
+
+                try:
+                    graph_docs = await graph_retrieval(
+                        query=retriever_query,
+                        graph_store=self.graph_store,
+                        collection_name=validated_collections[0] if validated_collections else "",
+                        config=self.config,
+                        prompts=self.prompts,
+                    )
+                    if graph_docs:
+                        context_to_show = hybrid_rank_fusion(
+                            vector_docs=context_to_show,
+                            graph_docs=graph_docs,
+                            graph_weight=self.config.graph_rag.graph_weight_in_fusion,
+                            top_k=reranker_top_k,
+                        )
+                        logger.info("GraphRAG Output:")
+                        logger.info("  - Graph Documents: %d", len(graph_docs))
+                        logger.info("  - Fused Documents: %d", len(context_to_show))
+                    else:
+                        logger.info("  - No graph results, using vector-only retrieval")
+                except Exception:
+                    logger.warning(
+                        "GraphRAG retrieval failed, falling back to vector-only",
+                        exc_info=True,
+                    )
+                logger.info("-" * 80)
 
             if ranker and enable_reranker and confidence_threshold > 0.0:
                 logger.info("=" * 80)
