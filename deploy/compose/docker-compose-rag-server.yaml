@@ -15,8 +15,8 @@ services:
     volumes:
       # Mount the prompt.yaml file to the container, path should be absolute
       - ${PROMPT_CONFIG_FILE}:${PROMPT_CONFIG_FILE}
-      # GraphRAG: share NetworkX graph data with ingestor
-      - ./volumes/graph-data:/graph-data
+      # GraphRAG: share NetworkX graph data with ingestor (named volume)
+      - graph-data:/graph-data
     # Common customizations to the pipeline can be controlled using env variables
     environment:
       # Path to example directory relative to root
@@ -249,6 +249,9 @@ services:
       VITE_MILVUS_URL: http://milvus:19530
     depends_on:
       - rag-server
+
+volumes:
+  graph-data:
 
 networks:
   default:

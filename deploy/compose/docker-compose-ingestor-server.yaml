@@ -18,8 +18,8 @@ services:
       - ${PROMPT_CONFIG_FILE}:${PROMPT_CONFIG_FILE}
       # Please mount the volume to the container to the path specified here
       - ${INGESTOR_SERVER_EXTERNAL_VOLUME_MOUNT:-./volumes/ingestor-server}:${INGESTOR_SERVER_DATA_DIR:-/data/}
-      # GraphRAG: persist NetworkX graph data across restarts
-      - ./volumes/graph-data:/graph-data
+      # GraphRAG: persist NetworkX graph data across restarts (named volume shared with rag-server)
+      - graph-data:/graph-data
 
     # Common customizations to the pipeline can be controlled using env variables
     environment:
@@ -275,6 +275,9 @@ services:
       interval: 10s
       timeout: 5s
       retries: 20
+
+volumes:
+  graph-data:
 
 networks:
   default:

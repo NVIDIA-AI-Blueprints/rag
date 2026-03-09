@@ -45,9 +45,25 @@ class NetworkXGraphStore(GraphStore):
     def __init__(self, data_dir: str = "./graph-data"):
         self._data_dir = data_dir
         os.makedirs(data_dir, exist_ok=True)
+        self._verify_writable(data_dir)
         self._graphs: dict[str, nx.DiGraph] = {}
         self._communities: dict[str, list[CommunityInfo]] = {}
         self._load_all()
+
+    @staticmethod
+    def _verify_writable(data_dir: str) -> None:
+        """Verify directory is writable at startup so we fail fast, not after hours of extraction."""
+        probe = os.path.join(data_dir, ".write_probe")
+        try:
+            with open(probe, "w") as f:
+                f.write("ok")
+            os.remove(probe)
+        except OSError as e:
+            raise RuntimeError(
+                f"Graph data directory '{data_dir}' is not writable: {e}. "
+                f"Ensure the volume mount exists and has write permissions. "
+                f"Run: mkdir -p <host-path> && chmod 777 <host-path>"
+            ) from e
 
     def _graph_path(self, collection_name: str) -> str:
         return os.path.join(self._data_dir, f"{collection_name}_graph.pkl")
