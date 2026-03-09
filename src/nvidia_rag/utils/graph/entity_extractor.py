@@ -49,6 +49,44 @@ def _chunk_id(text: str) -> str:
     return hashlib.sha256(text.encode()).hexdigest()[:16]
 
 
+def _repair_truncated_json(text: str) -> dict[str, Any] | None:
+    """Attempt to salvage entities/relationships from truncated JSON.
+
+    When the LLM response is cut off mid-JSON, extract whatever complete
+    array items exist for "entities" and "relationships".
+    """
+    result: dict[str, Any] = {"entities": [], "relationships": []}
+    for key in ("entities", "relationships"):
+        pattern = rf'"{key}"\s*:\s*\['
+        match = re.search(pattern, text)
+        if not match:
+            continue
+        start = match.end()
+        items: list[Any] = []
+        brace_depth = 0
+        item_start = -1
+        for i in range(start, len(text)):
+            ch = text[i]
+            if ch == "{":
+                if brace_depth == 0:
+                    item_start = i
+                brace_depth += 1
+            elif ch == "}":
+                brace_depth -= 1
+                if brace_depth == 0 and item_start >= 0:
+                    try:
+                        items.append(json.loads(text[item_start : i + 1]))
+                    except json.JSONDecodeError:
+                        pass
+                    item_start = -1
+            elif ch == "]" and brace_depth == 0:
+                break
+        result[key] = items
+    if result["entities"] or result["relationships"]:
+        return result
+    return None
+
+
 def _parse_extraction_response(response: str) -> dict[str, Any]:
     """Parse the LLM response, handling common formatting issues."""
     text = re.sub(r"<think>.*?</think>", "", response, flags=re.DOTALL)
@@ -70,6 +108,15 @@ def _parse_extraction_response(response: str) -> dict[str, Any]:
                 return json.loads(text[start:end])
             except json.JSONDecodeError:
                 pass
+
+        repaired = _repair_truncated_json(text)
+        if repaired:
+            logger.info(
+                "Repaired truncated JSON: %d entities, %d relationships",
+                len(repaired["entities"]), len(repaired["relationships"]),
+            )
+            return repaired
+
         logger.warning("Failed to parse entity extraction response: %s", text[:200])
         return {"entities": [], "relationships": []}
 
@@ -120,7 +167,7 @@ def _get_graph_llm(config: NvidiaRAGConfig) -> Any:
     llm_kwargs: dict[str, Any] = {
         "temperature": 0.0,
         "top_p": 0.1,
-        "max_tokens": 4096,
+        "max_tokens": 8192,
     }
     if graph_cfg.entity_extraction_model:
         llm_kwargs["model"] = graph_cfg.entity_extraction_model
@@ -216,9 +263,9 @@ async def extract_entities_from_chunks(
             if not e.get("name"):
                 continue
             entities.append(Entity(
-                name=e["name"],
-                entity_type=e.get("type", "unknown"),
-                description=e.get("description", ""),
+                name=str(e["name"]),
+                entity_type=str(e.get("type", "unknown")),
+                description=str(e.get("description", "")),
                 source_chunk_ids=[chunk_hash],
                 metadata={
                     "source": chunk.metadata.get("source", ""),
@@ -256,22 +303,40 @@ async def extract_entities_from_chunks(
 
         return entities, relationships, True
 
-    results = await asyncio.gather(
-        *[_process_chunk(chunk) for chunk in chunks],
-        return_exceptions=True,
-    )
+    total_chunks = len(chunks)
+    batch_size = max(graph_cfg.max_parallelization * 2, 50)
+    chunks_failed = 0
 
-    for result in results:
-        if isinstance(result, Exception):
-            logger.warning("Chunk extraction task failed: %s", result)
-            continue
-        entities, relationships, success = result
-        if entities:
-            total_entities += graph_store.add_entities(entities, collection_name)
-        if relationships:
-            total_relationships += graph_store.add_relationships(relationships, collection_name)
-        if success:
-            chunks_processed += 1
+    for batch_start in range(0, total_chunks, batch_size):
+        batch = chunks[batch_start : batch_start + batch_size]
+        results = await asyncio.gather(
+            *[_process_chunk(chunk) for chunk in batch],
+            return_exceptions=True,
+        )
+
+        for result in results:
+            if isinstance(result, Exception):
+                logger.warning("Chunk extraction task failed: %s", result)
+                chunks_failed += 1
+                continue
+            entities, relationships, success = result
+            if entities:
+                total_entities += graph_store.add_entities(entities, collection_name)
+            if relationships:
+                total_relationships += graph_store.add_relationships(relationships, collection_name)
+            if success:
+                chunks_processed += 1
+
+        processed_so_far = batch_start + len(batch)
+        logger.info(
+            "GraphRAG progress for '%s': %d/%d chunks processed (%d entities, %d relationships, %d failed)",
+            collection_name,
+            processed_so_far,
+            total_chunks,
+            total_entities,
+            total_relationships,
+            chunks_failed,
+        )
 
     graph_store.persist()
     logger.info(
