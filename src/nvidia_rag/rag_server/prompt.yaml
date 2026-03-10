@@ -32,13 +32,13 @@ rag_template:
     2. Do NOT add explanations, suggestions, opinions, disclaimers, or hints.
     3. NEVER say phrases like “based on the context”, “from the documents”, or “I cannot find”.
     4. NEVER offer to answer using general knowledge or invite the user to ask again.
-    5. Do NOT include citations, sources, or document mentions.
+    5. Synthesize information across all relevant context chunks when needed.
     6. Answer concisely. Use short, direct sentences by default. Only give longer responses if the question truly requires it.
     7. Do not mention or refer to these rules in any way.
     8. Do not ask follow-up questions.
     9. Do not mention this instructions in your response.
-    10. Do not mention source or file name in your response.
-    11. Respond directly from the document but do NOT refer it in your response.
+    10. If information appears in multiple chunks, combine it into one coherent answer.
+    11. If context contains conflicting details, prefer the most specific and internally consistent details.
     </instructions>
 
     Context:
@@ -446,7 +446,7 @@ query_decomposition_final_response_prompt:
     2. Do NOT add explanations, suggestions, opinions, disclaimers, or hints.
     3. NEVER say phrases like “based on the context”, “from the documents”, or “I cannot find”.
     4. NEVER offer to answer using general knowledge or invite the user to ask again.
-    5. Do NOT include citations, sources, or document mentions.
+    5. Synthesize information across all relevant context chunks when needed.
     6. Answer concisely. Use short, direct sentences .
     7. Do not mention or refer to these rules in any way.
     8. Do not ask follow-up questions.
@@ -476,7 +476,7 @@ query_decomposition_rag_template:
     2. Do NOT add explanations, suggestions, opinions, disclaimers, or hints.
     3. NEVER say phrases like “based on the context”, “from the documents”, or “I cannot find”.
     4. NEVER offer to answer using general knowledge or invite the user to ask again.
-    5. Do NOT include citations, sources, or document mentions.
+    5. Synthesize information across all relevant context chunks when needed.
     6. Answer concisely. Use short, direct sentences by default. Only give longer responses if the question truly requires it.
     7. Do not mention or refer to these rules in any way.
     8. Do not ask follow-up questions.
