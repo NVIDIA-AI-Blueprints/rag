@@ -66,7 +66,7 @@ def get_nv_ingest_client(
             message_client_hostname=config.nv_ingest.message_client_hostname,
             # REST port, defaults to 7670
             message_client_port=config.nv_ingest.message_client_port,
-            message_client_kwargs={"api_version": "v2"},
+            message_client_kwargs={"api_version": "v1"},
         )
     return client
 
