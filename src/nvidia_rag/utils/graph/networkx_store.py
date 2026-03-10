@@ -261,7 +261,9 @@ class NetworkXGraphStore(GraphStore):
             if current in visited_nodes:
                 continue
             visited_nodes.add(current)
-            entities.append(self._node_to_entity(current, g.nodes[current]))
+            entity = self._node_to_entity(current, g.nodes[current])
+            entity.metadata["hop_distance"] = current_depth
+            entities.append(entity)
 
             if current_depth >= depth:
                 continue

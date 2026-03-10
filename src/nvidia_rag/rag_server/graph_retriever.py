@@ -18,14 +18,15 @@
 Provides:
 1. Query complexity classification to route simple queries to vector-only search
 2. Graph traversal retrieval using extracted entities and their neighborhoods
-3. Embedding-based relevance ranking of entities, relationships, and communities
+3. Structural relevance ranking of entities, relationships, and communities
 4. Reciprocal Rank Fusion (RRF) to merge vector and graph retrieval results
 """
 
 from __future__ import annotations
 
 import logging
-from typing import Any
+import math
+from collections import defaultdict
 
 import numpy as np
 from langchain_core.documents import Document
@@ -118,19 +119,53 @@ def _format_relationship_context(rel: Relationship) -> str:
     return line
 
 
-def _format_community_context(community: CommunityInfo) -> str:
-    """Format a community summary into a context string."""
-    return community.summary
+def _structural_entity_score(
+    entity: Entity,
+    query_connection_count: int,
+) -> float:
+    """Score an entity by graph-structural relevance signals.
+
+    Combines hop distance (from BFS metadata), how many query entities
+    lead to this entity, source chunk frequency, and description richness.
+    All data comes from the graph — no external API calls.
+    """
+    hop = entity.metadata.get("hop_distance", 2)
+    chunk_count = len(entity.source_chunk_ids)
+    desc_len = len(entity.description)
+
+    hop_score = 1.0 / (1 + hop)
+    multi_query_boost = 1.0 + 0.5 * max(0, query_connection_count - 1)
+    chunk_boost = 1.0 + math.log1p(chunk_count) * 0.3
+    desc_boost = 1.0 + min(desc_len / 200, 1.0) * 0.2
+
+    return hop_score * multi_query_boost * chunk_boost * desc_boost
 
 
-async def _rank_by_query_similarity(
+def _structural_rel_score(
+    rel: Relationship,
+    entity_scores: dict[str, float],
+) -> float:
+    """Score a relationship by its endpoint entity scores and edge strength."""
+    src_score = entity_scores.get(rel.source.strip().lower(), 0.1)
+    tgt_score = entity_scores.get(rel.target.strip().lower(), 0.1)
+
+    base = (src_score + tgt_score) / 2
+    weight_boost = 1.0 + math.log1p(max(0, rel.weight - 1)) * 0.3
+    desc_boost = 1.0 + min(len(rel.description) / 200, 1.0) * 0.2
+
+    return base * weight_boost * desc_boost
+
+
+async def _rerank_by_query_embedding(
     query: str,
     texts: list[str],
     embedder: Embeddings,
 ) -> list[int]:
-    """Rank texts by cosine similarity to the query embedding.
+    """Re-rank texts by cosine similarity to the query embedding.
 
+    Used as a second-stage ranker on a small, pre-filtered candidate set.
     Returns indices sorted by descending relevance.
+    Falls back to original order on any error.
     """
     try:
         query_vec = await embedder.aembed_query(query)
@@ -151,7 +186,7 @@ async def _rank_by_query_similarity(
         similarities = t @ q
         return list(np.argsort(-similarities))
     except Exception:
-        logger.warning("Embedding-based ranking failed, using original order", exc_info=True)
+        logger.warning("Embedding re-ranking failed, keeping structural order", exc_info=True)
         return list(range(len(texts)))
 
 
@@ -165,14 +200,13 @@ async def graph_retrieval(
 ) -> list[Document]:
     """Retrieve context from the knowledge graph for a given query.
 
-    Steps:
-    1. Extract entities from the query using an LLM.
-    2. Look up those entities in the graph.
-    3. Traverse N-hop neighborhoods to gather related entities and relationships.
-    4. Fetch community summaries for matched entities.
-    5. **Rank** entities, relationships, and communities by embedding similarity
-       to the query (if embedder is available).
-    6. Assemble the most relevant items into LangChain Document objects.
+    Two-stage ranking:
+    1. **Structural** (always): score all traversed entities by hop distance,
+       query-entity connections, source chunk count, and description richness.
+       This narrows thousands of entities to a manageable candidate set.
+    2. **Embedding** (optional): if ``embedder`` is provided, re-rank the top
+       structural candidates by cosine similarity to the query. This picks the
+       most query-relevant entities from the structurally important set.
 
     Args:
         query: User's natural language query.
@@ -180,8 +214,7 @@ async def graph_retrieval(
         collection_name: Collection to search.
         config: NvidiaRAGConfig instance.
         prompts: Prompts dict loaded from prompt.yaml via get_prompts().
-        embedder: Embedding model for relevance ranking. If None, uses
-            arbitrary order (legacy behavior).
+        embedder: Optional embedding model for second-stage re-ranking.
 
     Returns:
         List of Documents with graph-derived context.
@@ -229,13 +262,22 @@ async def graph_retrieval(
     all_entities: dict[str, Entity] = {}
     all_relationships: list[Relationship] = []
     matched_communities: dict[int, CommunityInfo] = {}
+    entity_query_sources: dict[str, set[str]] = defaultdict(set)
 
     for entity_name in traverse_entities:
         entities, relationships = graph_store.get_neighbors(
             entity_name, collection_name, depth=depth
         )
         for e in entities:
-            all_entities[e.key] = e
+            key = e.key
+            entity_query_sources[key].add(entity_name)
+            if key not in all_entities:
+                all_entities[key] = e
+            else:
+                existing_hop = all_entities[key].metadata.get("hop_distance", 99)
+                new_hop = e.metadata.get("hop_distance", 99)
+                if new_hop < existing_hop:
+                    all_entities[key] = e
         all_relationships.extend(relationships)
 
     for entity_name in traverse_entities + hub_entities:
@@ -260,41 +302,86 @@ async def graph_retrieval(
             seen_rels.add(key)
             unique_relationships.append(rel)
 
-    # --- Rank by relevance to query ---
-    # Pre-filter: only keep entities with descriptions, communities with summaries
+    # --- Rank by structural relevance ---
     entity_list = [e for e in all_entities.values() if e.description]
     community_list = [c for c in matched_communities.values() if c.summary]
 
-    # Cap candidates before embedding to limit API calls and latency.
-    # 100 entities + 150 relationships is enough to pick the best 20+30 from.
-    MAX_ENTITY_CANDIDATES = 100
-    MAX_REL_CANDIDATES = 150
+    # Score entities by graph-structural signals
+    entity_scores: dict[str, float] = {}
+    for e in entity_list:
+        score = _structural_entity_score(e, len(entity_query_sources.get(e.key, set())))
+        entity_scores[e.key] = score
 
-    if embedder and (entity_list or unique_relationships or community_list):
-        entity_candidates = entity_list[:MAX_ENTITY_CANDIDATES]
-        rel_candidates = unique_relationships[:MAX_REL_CANDIDATES]
+    entity_list.sort(key=lambda e: entity_scores.get(e.key, 0), reverse=True)
 
-        logger.info(
-            "Ranking %d/%d entities, %d/%d relationships, %d communities by query relevance",
-            len(entity_candidates), len(entity_list),
-            len(rel_candidates), len(unique_relationships),
-            len(community_list),
-        )
+    # Score relationships by endpoint relevance and edge strength
+    for rel in unique_relationships:
+        rel.metadata["_score"] = _structural_rel_score(rel, entity_scores)
+    unique_relationships.sort(key=lambda r: r.metadata.get("_score", 0), reverse=True)
 
-        if entity_candidates:
-            entity_texts = [_format_entity_context(e) for e in entity_candidates]
-            entity_order = await _rank_by_query_similarity(query, entity_texts, embedder)
-            entity_list = [entity_candidates[i] for i in entity_order]
+    # Rank communities by how many query entities they contain
+    query_entity_keys = {name.strip().lower() for name in traverse_entities + hub_entities}
+    community_list.sort(
+        key=lambda c: sum(1 for n in c.entity_names if n.strip().lower() in query_entity_keys),
+        reverse=True,
+    )
 
-        if rel_candidates:
-            rel_texts = [_format_relationship_context(r) for r in rel_candidates]
-            rel_order = await _rank_by_query_similarity(query, rel_texts, embedder)
-            unique_relationships = [rel_candidates[i] for i in rel_order]
+    logger.info(
+        "Structural ranking: %d entities (top score=%.3f), %d relationships, %d communities",
+        len(entity_list),
+        entity_scores[entity_list[0].key] if entity_list else 0,
+        len(unique_relationships),
+        len(community_list),
+    )
 
-        if len(community_list) > 1:
-            comm_texts = [c.summary for c in community_list]
-            comm_order = await _rank_by_query_similarity(query, comm_texts, embedder)
-            community_list = [community_list[i] for i in comm_order]
+    # --- Stage 2: Embedding tiebreak — only when structural scores are ambiguous ---
+    ENTITY_FINAL = 20
+    REL_FINAL = 30
+    RERANK_POOL_MULTIPLIER = 4
+    SCORE_TIE_RATIO = 0.85
+
+    if embedder and len(entity_list) > ENTITY_FINAL:
+        cutoff_score = entity_scores.get(entity_list[ENTITY_FINAL - 1].key, 0)
+        boundary_idx = min(ENTITY_FINAL + 10, len(entity_list) - 1)
+        boundary_score = entity_scores.get(entity_list[boundary_idx].key, 0)
+
+        if cutoff_score > 0 and boundary_score / cutoff_score > SCORE_TIE_RATIO:
+            pool_size = min(ENTITY_FINAL * RERANK_POOL_MULTIPLIER, len(entity_list))
+            pool = entity_list[:pool_size]
+            pool_texts = [_format_entity_context(e) for e in pool]
+            rerank_order = await _rerank_by_query_embedding(query, pool_texts, embedder)
+            entity_list = [pool[i] for i in rerank_order]
+            logger.info(
+                "Embedding tiebreak: re-ranked %d entities (score ratio=%.3f at cutoff=%d)",
+                pool_size, boundary_score / cutoff_score, ENTITY_FINAL,
+            )
+        else:
+            logger.info(
+                "Structural ranking sufficient for entities (score ratio=%.3f)",
+                boundary_score / cutoff_score if cutoff_score > 0 else 0,
+            )
+
+    if embedder and len(unique_relationships) > REL_FINAL:
+        rel_scores_list = [r.metadata.get("_score", 0) for r in unique_relationships]
+        cutoff_score = rel_scores_list[REL_FINAL - 1] if len(rel_scores_list) > REL_FINAL - 1 else 0
+        boundary_idx = min(REL_FINAL + 10, len(rel_scores_list) - 1)
+        boundary_score = rel_scores_list[boundary_idx]
+
+        if cutoff_score > 0 and boundary_score / cutoff_score > SCORE_TIE_RATIO:
+            pool_size = min(REL_FINAL * RERANK_POOL_MULTIPLIER, len(unique_relationships))
+            pool = unique_relationships[:pool_size]
+            pool_texts = [_format_relationship_context(r) for r in pool]
+            rerank_order = await _rerank_by_query_embedding(query, pool_texts, embedder)
+            unique_relationships = [pool[i] for i in rerank_order]
+            logger.info(
+                "Embedding tiebreak: re-ranked %d relationships (score ratio=%.3f)",
+                pool_size, boundary_score / cutoff_score,
+            )
+
+    if embedder and len(community_list) > 1:
+        comm_texts = [c.summary for c in community_list]
+        rerank_order = await _rerank_by_query_embedding(query, comm_texts, embedder)
+        community_list = [community_list[i] for i in rerank_order]
 
     # --- Build documents from ranked results ---
     documents: list[Document] = []
@@ -329,13 +416,12 @@ async def graph_retrieval(
     documents = documents[:top_k]
 
     logger.info(
-        "Graph retrieval for '%s': %d entities, %d relationships, %d communities -> %d documents (ranked=%s)",
+        "Graph retrieval for '%s': %d entities, %d relationships, %d communities -> %d documents",
         query[:50],
         len(all_entities),
         len(unique_relationships),
         len(matched_communities),
         len(documents),
-        embedder is not None,
     )
 
     return documents
