@@ -42,7 +42,7 @@ jobs:
 
       - name: Tag and Push RAG Docker Image
         env:
-          IMAGE_REMOTE: "iad.ocir.io/iduyx1qnmway/${{ env.RAG_IMAGE_NAME }}"
+          IMAGE_REMOTE: "ord.ocir.io/iduyx1qnmway/${{ env.RAG_IMAGE_NAME }}"
         run: |
           docker tag "${{ env.RAG_IMAGE_NAME }}:pr-${{ steps.short-sha.outputs.value }}" "${{ env.IMAGE_REMOTE }}:pr-${{ steps.short-sha.outputs.value }}"
           docker push "${{ env.IMAGE_REMOTE }}:pr-${{ steps.short-sha.outputs.value }}"
@@ -83,7 +83,7 @@ jobs:
 
       - name: Tag and Push Ingest Docker Image
         env:
-          IMAGE_REMOTE: "iad.ocir.io/iduyx1qnmway/${{ env.INGEST_IMAGE_NAME }}"
+          IMAGE_REMOTE: "ord.ocir.io/iduyx1qnmway/${{ env.INGEST_IMAGE_NAME }}"
         run: |
           docker tag "${{ env.INGEST_IMAGE_NAME }}:pr-${{ steps.short-sha.outputs.value }}" "${{ env.IMAGE_REMOTE }}:pr-${{ steps.short-sha.outputs.value }}"
           docker push "${{ env.IMAGE_REMOTE }}:pr-${{ steps.short-sha.outputs.value }}"
