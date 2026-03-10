@@ -38,6 +38,7 @@ from langchain_core.documents import Document
 from pydantic import BaseModel, Field, validator
 from pymilvus.exceptions import MilvusException, MilvusUnavailableException
 
+from nvidia_rag.utils.common import fetch_minio_payloads_for_documents
 from nvidia_rag.utils.minio_operator import (
     get_minio_operator,
     get_unique_thumbnail_id,
@@ -794,7 +795,13 @@ def prepare_citations(
     citations = []
 
     if force_citations or enable_citations:
-        for doc in retrieved_documents:
+        payload_by_index = fetch_minio_payloads_for_documents(
+            documents=retrieved_documents,
+            fetch_payloads=enable_citations,
+            minio_operator=get_minio_operator_instance(),
+        )
+
+        for idx, doc in enumerate(retrieved_documents):
             content = ""
             document_type = ""
             if isinstance(doc.metadata.get("source"), str):
@@ -840,21 +847,19 @@ def prepare_citations(
                     document_type = doc.metadata.get("content_metadata", {}).get(
                         "subtype"
                     )
-                try:
-                    if enable_citations:
-                        logger.debug(
-                            "Pulling content from minio for image/table/chart for citations ..."
+                if enable_citations and idx in payload_by_index:
+                    payload, fetch_error = payload_by_index[idx]
+                    if fetch_error:
+                        logger.error(
+                            "Error pulling content from minio for image/table/chart for citations: %s",
+                            fetch_error,
                         )
-                        unique_thumbnail_id = get_unique_thumbnail_id_from_result(
-                            collection_name=doc.metadata.get("collection_name"),
-                            file_name=file_name,
-                            page_number=page_number,
-                            location=location,
-                            metadata=doc.metadata,
+                        content = ""
+                        source_metadata = SourceMetadata(
+                            description=doc.page_content,
+                            content_metadata=doc.metadata.get("content_metadata", {}),
                         )
-                        payload = get_minio_operator_instance().get_payload(
-                            object_name=unique_thumbnail_id
-                        )
+                    elif payload is not None:
                         content = payload.get("content", "")
                         source_metadata = SourceMetadata(
                             page_number=page_number,
@@ -866,12 +871,9 @@ def prepare_citations(
                         content = ""
                         source_metadata = SourceMetadata(
                             description=doc.page_content,
-                            content_metadata=doc.metadata.get("content_metadata"),
+                            content_metadata=doc.metadata.get("content_metadata", {}),
                         )
-                except Exception as e:
-                    logger.error(
-                        f"Error pulling content from minio for image/table/chart for citations: {e}"
-                    )
+                else:
                     content = ""
                     source_metadata = SourceMetadata(
                         description=doc.page_content,
