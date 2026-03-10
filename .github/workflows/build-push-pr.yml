@@ -6,7 +6,7 @@ on:
     types: [synchronize]
 
 jobs:
-  build-and-push-rag:
+  build-and-push-images:
     runs-on: ubuntu-latesta
     env:
       # OCI AUTH
@@ -17,6 +17,7 @@ jobs:
       OCI_CLI_REGION: ${{ secrets.OCI_CLI_REGION }}
       # IMAGE VARS
       RAG_IMAGE_NAME: corrino-devops-repository/nvidia-rag-retrieval-oci
+      INGEST_IMAGE_NAME: corrino-devops-repository/nvidia-rag-ingestion-oci
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -46,36 +47,6 @@ jobs:
         run: |
           docker tag "${{ env.RAG_IMAGE_NAME }}:pr-${{ steps.short-sha.outputs.value }}" "${{ env.IMAGE_REMOTE }}:pr-${{ steps.short-sha.outputs.value }}"
           docker push "${{ env.IMAGE_REMOTE }}:pr-${{ steps.short-sha.outputs.value }}"
-
-  build-and-push-ingestion:
-    runs-on: ubuntu-latest
-    env:
-      # OCI AUTH
-      OCI_CLI_USER: ${{ secrets.OCI_CLI_USER }}
-      OCI_CLI_TENANCY: ${{ secrets.OCI_CLI_TENANCY }}
-      OCI_CLI_FINGERPRINT: ${{ secrets.OCI_CLI_FINGERPRINT }}
-      OCI_CLI_KEY_CONTENT: ${{ secrets.OCI_CLI_KEY_CONTENT }}
-      OCI_CLI_REGION: ${{ secrets.OCI_CLI_REGION }}
-      # IMAGE VARS
-      INGEST_IMAGE_NAME: corrino-devops-repository/nvidia-rag-ingestion-oci
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-        with:
-          fetch-depth: 1
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-
-      - name: Log into OCIR
-        uses: oracle-actions/login-ocir@v1.3.0
-        id: login-ocir
-        with:
-          auth_token: ${{ secrets.OCI_AUTH_TOKEN }}
-      
-      - name: Compute short SHA
-        id: short-sha
-        run: echo "value=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
 
       - name: Build Ingest Docker Image
         run: |

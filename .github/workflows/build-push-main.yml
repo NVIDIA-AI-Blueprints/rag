@@ -16,8 +16,9 @@ jobs:
       OCI_CLI_KEY_CONTENT: ${{ secrets.OCI_CLI_KEY_CONTENT }}
       OCI_CLI_REGION: ${{ secrets.OCI_CLI_REGION }}
       # IMAGE VARS
+      INGEST_IMAGE_NAME: corrino-devops-repository/nvidia-rag-ingestion-oci
       RAG_IMAGE_NAME: corrino-devops-repository/nvidia-rag-retrieval-oci
-      RAG_IMAGE_VERSION: 0.0.3
+      IMAGE_VERSION: 0.0.3
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -37,55 +38,24 @@ jobs:
         id: short-sha
         run: echo "value=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
 
-      - name: Build Docker Image
+      - name: Build RAG Docker Image
         run: |
           docker build -t "${{ env.RAG_IMAGE_NAME }}":latest -f src/nvidia_rag/rag_server/Dockerfile .
 
-      - name: Tag and Push Docker Image
+      - name: Tag and Push RAG Docker Image
         env:
-          IMAGE_REMOTE: "iad.ocir.io/${{ secrets.OCI_TENANCY_NAMESPACE }}/${{ env.RAG_IMAGE_NAME }}"
+          IMAGE_REMOTE: "ord.ocir.io/${{ secrets.OCI_TENANCY_NAMESPACE }}/${{ env.RAG_IMAGE_NAME }}"
         run: |
-          docker tag "${{ env.RAG_IMAGE_NAME }}":"${{ env.RAG_IMAGE_VERSION }}" "${{ env.IMAGE_REMOTE }}":"${{ env.RAG_IMAGE_VERSION }}"
-          docker push "${{ env.IMAGE_REMOTE }}":"${{ env.RAG_IMAGE_VERSION }}"
-  
-  build-and-push-ingest:
-    runs-on: ubuntu-latest
-    env:
-      # OCI AUTH
-      OCI_CLI_USER: ${{ secrets.OCI_CLI_USER }}
-      OCI_CLI_TENANCY: ${{ secrets.OCI_CLI_TENANCY }}
-      OCI_CLI_FINGERPRINT: ${{ secrets.OCI_CLI_FINGERPRINT }}
-      OCI_CLI_KEY_CONTENT: ${{ secrets.OCI_CLI_KEY_CONTENT }}
-      OCI_CLI_REGION: ${{ secrets.OCI_CLI_REGION }}
-      # IMAGE VARS
-      INGEST_IMAGE_NAME: corrino-devops-repository/nvidia-rag-ingestion-oci
-      INGEST_IMAGE_VERSION: 0.0.3
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-        with:
-          fetch-depth: 1
+          docker tag "${{ env.RAG_IMAGE_NAME }}":"${{ env.IMAGE_VERSION }}" "${{ env.IMAGE_REMOTE }}":"${{ env.IMAGE_VERSION }}"
+          docker push "${{ env.IMAGE_REMOTE }}":"${{ env.IMAGE_VERSION }}"
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-
-      - name: Log into OCIR
-        uses: oracle-actions/login-ocir@v1.3.0
-        id: login-ocir
-        with:
-          auth_token: ${{ secrets.OCI_AUTH_TOKEN }}
-
-      - name: Compute short SHA
-        id: short-sha
-        run: echo "value=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
-
-      - name: Build Docker Image
+      - name: Build Ingest Docker Image
         run: |
-          docker build -t "${{ env.INGEST_IMAGE_NAME }}":latest -f src/nvidia_rag/rag_server/Dockerfile .
+          docker build -t "${{ env.INGEST_IMAGE_NAME }}":latest -f src/nvidia_rag/ingestor_server/Dockerfile .
 
-      - name: Tag and Push Docker Image
+      - name: Tag and Push Ingest Docker Image
         env:
-          IMAGE_REMOTE: "iad.ocir.io/${{ secrets.OCI_TENANCY_NAMESPACE }}/${{ env.INGEST_IMAGE_NAME }}"
+          IMAGE_REMOTE: "ord.ocir.io/${{ secrets.OCI_TENANCY_NAMESPACE }}/${{ env.INGEST_IMAGE_NAME }}"
         run: |
-          docker tag "${{ env.INGEST_IMAGE_NAME }}":"${{ env.INGEST_IMAGE_VERSION }}" "${{ env.IMAGE_REMOTE }}:"${{ env.INGEST_IMAGE_VERSION }}"
-          docker push "${{ env.IMAGE_REMOTE }}:"${{ env.INGEST_IMAGE_VERSION }}"
+          docker tag "${{ env.INGEST_IMAGE_NAME }}":"${{ env.IMAGE_VERSION }}" "${{ env.IMAGE_REMOTE }}:"${{ env.IMAGE_VERSION }}"
+          docker push "${{ env.IMAGE_REMOTE }}:"${{ env.IMAGE_VERSION }}"
