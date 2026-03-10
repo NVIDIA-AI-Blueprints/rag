@@ -16,9 +16,15 @@ A single RAG request passes through the following stages in sequence, and option
 
 3. **Context reranker** (optional) – When [reranking](accuracy_perf.md) is enabled, a reranker model scores the retrieved chunks for relevance to the query and returns the top‑k chunks (configurable via `reranker_top_k`) to use as context.
 
-4. **LLM generation (llm-stream)** – The query and selected context are sent to the LLM, which generates the answer and streams it back to the client. [Guardrails](nemo-guardrails.md), [citations](user-interface.md), and [VLM inference](vlm.md) are applied during this stage when enabled.
+4. **Page context expansion** (optional) – When full-page context is enabled (`APP_FETCH_FULL_PAGE_CONTEXT=true` or `fetch_full_page_context: true` in the request), the pipeline fetches **all** chunks for each retrieved page (and optionally neighboring pages). This expanded set is used only to build the prompt sent to the LLM or VLM, so the model sees full-page context. **Citations are not expanded**: the response citations always reflect only the top‑k retrieved (and reranked) chunks, not the extra chunks added for generation. See [Citations vs. expanded context](#citations-with-page-context-expansion) below.
+
+5. **LLM generation (llm-stream)** – The query and selected context are sent to the LLM, which generates the answer and streams it back to the client. [Guardrails](nemo-guardrails.md), [citations](user-interface.md), and [VLM inference](vlm.md) are applied during this stage when enabled.
 
 Additional optional logic (for example, [query decomposition](query_decomposition.md) or [self-reflection](self-reflection.md)) may run around or within these stages, but the core flow is the sequence described above.
+
+### Citations with page context expansion
+
+When **page context expansion** is enabled, the model receives an expanded set of chunks (all chunks from the retrieved pages, and optionally neighboring pages) to improve answer quality. **Citations in the API response are not expanded**: they always correspond to the **top‑k chunks** returned by retrieval and reranking (for example, 10 when `reranker_top_k=10`). So even if the prompt is built from dozens of chunks after expansion, the client sees only those top‑k entries in the citations list. This keeps citations aligned with what was actually retrieved as relevant, rather than every chunk on the expanded pages.
 
 
 ## How to Study Time Spent in the Pipeline
