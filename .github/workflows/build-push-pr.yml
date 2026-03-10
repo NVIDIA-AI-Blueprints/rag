@@ -7,7 +7,7 @@ on:
 
 jobs:
   build-and-push-images:
-    runs-on: ubuntu-latesta
+    runs-on: ubuntu-latest
     env:
       # OCI AUTH
       OCI_CLI_USER: ${{ secrets.OCI_CLI_USER }}
