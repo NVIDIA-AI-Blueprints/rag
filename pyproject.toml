@@ -37,6 +37,7 @@ dependencies = [
     "protobuf>=6.33.5",
     "lark>=1.2.2",
     "python-dateutil>=2.9.0.post0",
+    "oracledb>=3.4.2",
 ]
 
 [project.optional-dependencies]
@@ -58,8 +59,8 @@ rag = [
 ]
 ingest = [
     # nv-ingest dependencies (required for ingestion operations)
-    "nv-ingest-api==26.1.1",
-    "nv-ingest-client==26.1.1",
+    "nv-ingest-api==25.9.0",
+    "nv-ingest-client==25.9.0",
     "tritonclient==2.57.0",
     # Other ingest dependencies
     "langchain-openai>=0.2",
@@ -80,8 +81,8 @@ ingest = [
 ]
 all = [
     # nv-ingest dependencies (required for ingestion operations)
-    "nv-ingest-api==26.1.1",
-    "nv-ingest-client==26.1.1",
+    "nv-ingest-api==25.9.0",
+    "nv-ingest-client==25.9.0",
     "tritonclient==2.57.0",
     # RAG + Ingest dependencies
     "langchain-openai>=0.2",
@@ -100,9 +101,15 @@ all = [
     "pyarrow>=21.0,<22.0",
     # Elasticsearch support
     "langchain-elasticsearch>=0.3",
+    # Oracle 26ai support
+    "oracledb>=2.0.0",
 ]
 elasticsearch = [
     "langchain-elasticsearch>=0.3",
+]
+oracle = [
+    "oracledb>=2.0.0",
+    "langchain-community>=0.4",
 ]
 
 [tool.uv.sources]

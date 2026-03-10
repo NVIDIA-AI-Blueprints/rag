@@ -782,7 +782,7 @@ def prepare_citations(
                 document_type = "text"
             else:
                 file_name = os.path.basename(
-                    doc.metadata.get("source").get("source_id")
+                    doc.metadata.get("source_id")
                 )
 
             if doc.metadata.get("content_metadata", {}).get("type") in [
