@@ -17,6 +17,7 @@ jobs:
       OCI_CLI_REGION: ${{ secrets.OCI_CLI_REGION }}
       # IMAGE VARS
       RAG_IMAGE_NAME: corrino-devops-repository/nvidia-rag-retrieval-oci
+      RAG_IMAGE_VERSION: 0.0.3
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -44,8 +45,8 @@ jobs:
         env:
           IMAGE_REMOTE: "iad.ocir.io/${{ secrets.OCI_TENANCY_NAMESPACE }}/${{ env.RAG_IMAGE_NAME }}"
         run: |
-          docker tag "${{ env.RAG_IMAGE_NAME }}":latest "${{ env.IMAGE_REMOTE }}:latest"
-          docker push "${{ env.IMAGE_REMOTE }}:latest"
+          docker tag "${{ env.RAG_IMAGE_NAME }}":"${{ env.RAG_IMAGE_VERSION }}" "${{ env.IMAGE_REMOTE }}":"${{ env.RAG_IMAGE_VERSION }}"
+          docker push "${{ env.IMAGE_REMOTE }}":"${{ env.RAG_IMAGE_VERSION }}"
   
   build-and-push-ingest:
     runs-on: ubuntu-latest
@@ -58,6 +59,7 @@ jobs:
       OCI_CLI_REGION: ${{ secrets.OCI_CLI_REGION }}
       # IMAGE VARS
       INGEST_IMAGE_NAME: corrino-devops-repository/nvidia-rag-ingestion-oci
+      INGEST_IMAGE_VERSION: 0.0.3
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -85,5 +87,5 @@ jobs:
         env:
           IMAGE_REMOTE: "iad.ocir.io/${{ secrets.OCI_TENANCY_NAMESPACE }}/${{ env.INGEST_IMAGE_NAME }}"
         run: |
-          docker tag "${{ env.INGEST_IMAGE_NAME }}":latest "${{ env.IMAGE_REMOTE }}:latest"
-          docker push "${{ env.IMAGE_REMOTE }}:latest"
+          docker tag "${{ env.INGEST_IMAGE_NAME }}":"${{ env.INGEST_IMAGE_VERSION }}" "${{ env.IMAGE_REMOTE }}:"${{ env.INGEST_IMAGE_VERSION }}"
+          docker push "${{ env.IMAGE_REMOTE }}:"${{ env.INGEST_IMAGE_VERSION }}"
