@@ -1,16 +1,25 @@
 #!/usr/bin/env python3
 """CLI script to run entity resolution on existing knowledge graph pickle files.
 
-Loads the NetworkX graph pickle, runs entity resolution (via the reusable
-entity_resolver module), re-runs community detection, and saves back.
-No LLM calls needed — takes minutes, not hours.
+Two modes:
+  1. Embedding-based (recommended): pass --embedding-url to use the deployed
+     embedding NIM for semantic dedup and smart generic detection.
+  2. Rule-based (fallback): runs without an embedding service, uses token
+     overlap and known-generics set.
 
 Usage:
-    python scripts/resolve_graph_entities.py --data-dir /path/to/graph-data [--collection kg_rag]
+    # With embeddings (production quality)
+    python scripts/resolve_graph_entities.py \\
+        --data-dir ./graph-data-backup \\
+        --embedding-url http://localhost:9080 \\
+        --embedding-model nvidia/llama-3.2-nv-embedqa-1b-v2
+
+    # Without embeddings (quick fallback)
+    python scripts/resolve_graph_entities.py --data-dir ./graph-data-backup
 
 For Docker volume data:
     docker cp <container>:/graph-data ./graph-data-backup
-    python scripts/resolve_graph_entities.py --data-dir ./graph-data-backup
+    python scripts/resolve_graph_entities.py --data-dir ./graph-data-backup --embedding-url http://localhost:19080
     docker cp ./graph-data-backup/. <container>:/graph-data/
 """
 
@@ -24,10 +33,36 @@ from collections import defaultdict
 
 import networkx as nx
 
-from nvidia_rag.utils.graph.entity_resolver import resolve_entities
+from nvidia_rag.utils.graph.entity_resolver import (
+    compute_entity_embeddings,
+    resolve_entities,
+)
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
+
+
+def _make_http_embed_fn(
+    url: str,
+    model: str,
+) -> callable:
+    """Create a synchronous embedding function that calls the NIM HTTP API."""
+    import requests
+
+    endpoint = url.rstrip("/") + "/v1/embeddings"
+
+    def embed_fn(texts: list[str]) -> list[list[float]]:
+        resp = requests.post(
+            endpoint,
+            json={"input": texts, "model": model},
+            timeout=120,
+        )
+        resp.raise_for_status()
+        data = resp.json()["data"]
+        data.sort(key=lambda d: d["index"])
+        return [d["embedding"] for d in data]
+
+    return embed_fn
 
 
 def run_community_detection(g: nx.DiGraph, resolution: float = 1.0) -> list:
@@ -97,7 +132,13 @@ def run_community_detection(g: nx.DiGraph, resolution: float = 1.0) -> list:
     return results
 
 
-def resolve(data_dir: str, collection: str | None = None, resolution: float = 1.0) -> None:
+def resolve(
+    data_dir: str,
+    collection: str | None = None,
+    resolution: float = 1.0,
+    embedding_url: str | None = None,
+    embedding_model: str = "nvidia/llama-3.2-nv-embedqa-1b-v2",
+) -> None:
     """Run entity resolution + community re-detection on persisted graph data."""
 
     graph_files = [f for f in os.listdir(data_dir) if f.endswith("_graph.pkl")]
@@ -120,7 +161,14 @@ def resolve(data_dir: str, collection: str | None = None, resolution: float = 1.
         with open(graph_path, "rb") as f:
             g: nx.DiGraph = pickle.load(f)  # noqa: S301
 
-        stats = resolve_entities(g)
+        # Compute embeddings if endpoint is provided
+        embeddings = None
+        if embedding_url:
+            logger.info("Computing embeddings via %s ...", embedding_url)
+            embed_fn = _make_http_embed_fn(embedding_url, embedding_model)
+            embeddings = compute_entity_embeddings(g, embed_fn, batch_size=64)
+
+        stats = resolve_entities(g, embeddings=embeddings)
 
         logger.info("Running community detection...")
         communities = run_community_detection(g, resolution=resolution)
@@ -156,17 +204,46 @@ def resolve(data_dir: str, collection: str | None = None, resolution: float = 1.
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Resolve (deduplicate) entities in a knowledge graph pickle")
+    parser = argparse.ArgumentParser(
+        description="Resolve (deduplicate) entities in a knowledge graph pickle",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            "Examples:\n"
+            "  # Embedding mode (recommended):\n"
+            "  python scripts/resolve_graph_entities.py \\\n"
+            "      --data-dir ./graph-data-backup \\\n"
+            "      --embedding-url http://localhost:19080\n\n"
+            "  # Rule-based mode (no embedding service needed):\n"
+            "  python scripts/resolve_graph_entities.py --data-dir ./graph-data-backup\n"
+        ),
+    )
     parser.add_argument("--data-dir", required=True, help="Directory containing *_graph.pkl files")
     parser.add_argument("--collection", default=None, help="Process only this collection (default: all)")
     parser.add_argument("--resolution", type=float, default=1.0, help="Community detection resolution (default: 1.0)")
+    parser.add_argument(
+        "--embedding-url",
+        default=None,
+        help="Embedding NIM endpoint URL (e.g. http://localhost:19080). "
+             "Enables embedding-based dedup and smart generic detection.",
+    )
+    parser.add_argument(
+        "--embedding-model",
+        default="nvidia/llama-3.2-nv-embedqa-1b-v2",
+        help="Embedding model name (default: nvidia/llama-3.2-nv-embedqa-1b-v2)",
+    )
     args = parser.parse_args()
 
     if not os.path.isdir(args.data_dir):
         logger.error("Directory not found: %s", args.data_dir)
         return
 
-    resolve(args.data_dir, collection=args.collection, resolution=args.resolution)
+    resolve(
+        args.data_dir,
+        collection=args.collection,
+        resolution=args.resolution,
+        embedding_url=args.embedding_url,
+        embedding_model=args.embedding_model,
+    )
 
 
 if __name__ == "__main__":

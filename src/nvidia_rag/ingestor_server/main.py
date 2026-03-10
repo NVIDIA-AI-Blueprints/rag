@@ -258,10 +258,30 @@ class NvidiaRAGIngestor:
             logger.info("GraphRAG extraction stats for '%s': %s", collection_name, extraction_stats)
 
             if self.config.graph_rag.entity_resolution_enabled:
-                from nvidia_rag.utils.graph.entity_resolver import resolve_entities as resolve_graph_entities
+                from nvidia_rag.utils.graph.entity_resolver import (
+                    compute_entity_embeddings_async,
+                    resolve_entities as resolve_graph_entities,
+                )
                 graph = self.graph_store.get_networkx_graph(collection_name)
                 if graph.number_of_nodes() > 0:
-                    er_stats = resolve_graph_entities(graph)
+                    embeddings = None
+                    try:
+                        from nvidia_rag.utils.embedding import get_embedding_model
+                        embed_model = get_embedding_model(
+                            model=self.config.embeddings.model_name,
+                            url=self.config.embeddings.server_url,
+                            config=self.config,
+                        )
+                        embeddings = await compute_entity_embeddings_async(
+                            graph, embed_model.aembed_documents, batch_size=64,
+                        )
+                        logger.info("Computed embeddings for %d entities", len(embeddings))
+                    except Exception:
+                        logger.warning(
+                            "Could not compute entity embeddings, falling back to rule-based resolution",
+                            exc_info=True,
+                        )
+                    er_stats = resolve_graph_entities(graph, embeddings=embeddings)
                     self.graph_store.persist()
                     logger.info("Entity resolution for '%s': %s", collection_name, er_stats)
 
