@@ -407,7 +407,6 @@ class VLM:
     ) -> list[dict[str, Any]]:
         """Build content_parts with text and images interleaved per page."""
         human_template = vlm_template.get("human") or "{context}\n\n{question}"
-        q = (question_text or "").strip()
         intro = human_template.format(context="", question="").rstrip()
         if intro.endswith("Context:"):
             intro = intro + "\n"
