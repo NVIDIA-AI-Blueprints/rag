@@ -39,13 +39,13 @@ from langchain_openai import ChatOpenAI
 from PIL import Image as PILImage
 
 from nvidia_rag.rag_server.response_generator import APIError, ErrorCodeMapping
-from nvidia_rag.utils.common import NVIDIA_API_DEFAULT_HEADERS
+from nvidia_rag.utils.common import (
+    NVIDIA_API_DEFAULT_HEADERS,
+    fetch_minio_payloads_for_documents,
+)
 from nvidia_rag.utils.configuration import NvidiaRAGConfig
 from nvidia_rag.utils.llm import get_prompts
-from nvidia_rag.utils.minio_operator import (
-    get_minio_operator,
-    get_unique_thumbnail_id,
-)
+from nvidia_rag.utils.minio_operator import get_minio_operator
 
 logger = getLogger(__name__)
 
@@ -302,7 +302,14 @@ class VLM:
             remaining_image_budget = max(0, max_total_images - existing_image_count)
 
         try:
-            for doc in docs or []:
+            doc_list = docs or []
+            payload_by_index = fetch_minio_payloads_for_documents(
+                documents=doc_list,
+                fetch_payloads=True,
+                minio_operator=get_minio_operator(),
+            )
+
+            for idx, doc in enumerate(doc_list):
                 metadata = getattr(doc, "metadata", {}) or {}
                 content_md = metadata.get("content_metadata", {}) or {}
                 doc_type = content_md.get("type")
@@ -332,19 +339,18 @@ class VLM:
                 ):
                     continue
 
+                if idx not in payload_by_index:
+                    continue
+
+                payload, fetch_error = payload_by_index[idx]
+                if fetch_error or not payload:
+                    continue
+
+                content_b64 = (payload or {}).get("content", "")
+                if not content_b64:
+                    continue
+
                 try:
-                    unique_thumbnail_id = get_unique_thumbnail_id(
-                        collection_name=collection_name,
-                        file_name=file_name,
-                        page_number=page_number,
-                        location=location,
-                    )
-                    payload = get_minio_operator().get_payload(
-                        object_name=unique_thumbnail_id
-                    )
-                    content_b64 = (payload or {}).get("content", "")
-                    if not content_b64:
-                        continue
                     png_b64 = VLM._convert_image_url_to_png_b64(content_b64)
                     content_parts.append(
                         {

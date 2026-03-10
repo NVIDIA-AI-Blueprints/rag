@@ -95,8 +95,6 @@ class TestVLM:
         assert image_part["image_url"]["url"] == "data:image/png;base64,converted"
 
     def test_extract_and_process_messages_attaches_doc_images(self):
-        mock_minio = MagicMock()
-        mock_minio.get_payload.return_value = {"content": self.create_test_image_b64()}
         doc = SimpleNamespace(
             metadata={
                 "content_metadata": {
@@ -109,12 +107,11 @@ class TestVLM:
             },
             page_content="ignored",
         )
-        with (
-            patch("nvidia_rag.rag_server.vlm.get_minio_operator", return_value=mock_minio),
-            patch(
-                "nvidia_rag.rag_server.vlm.get_unique_thumbnail_id",
-                return_value="thumb-id",
-            ),
+        # VLM uses fetch_minio_payloads_for_documents; return payload for doc index 0
+        mock_payload_by_index = {0: ({"content": self.create_test_image_b64()}, None)}
+        with patch(
+            "nvidia_rag.rag_server.vlm.fetch_minio_payloads_for_documents",
+            return_value=mock_payload_by_index,
         ):
             system_msg, user_msg, history = self.vlm.extract_and_process_messages(
                 self.vlm.vlm_template,
