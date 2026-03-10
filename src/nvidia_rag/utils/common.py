@@ -14,8 +14,9 @@
 # limitations under the License.
 """Utility functions used across different modules of the RAG.
 1. filter_documents_by_confidence: Filter documents by confidence threshold.
-2. utils_cache: Use this to convert unhashable args to hashable ones.
-3. combine_dicts: Combines two dictionaries recursively, prioritizing values from dict_b.
+2. fetch_minio_payloads_for_documents: Fetch MinIO payloads in parallel for documents (image/structured content).
+3. utils_cache: Use this to convert unhashable args to hashable ones.
+4. combine_dicts: Combines two dictionaries recursively, prioritizing values from dict_b.
 4. sanitize_nim_url: Sanitize the NIM URL by adding http(s):// if missing and checking if the URL is hosted on NVIDIA's known endpoints.
 5. get_metadata_configuration: Get the metadata configuration for a document.
 6. prepare_custom_metadata_dataframe: Prepare custom metadata for a document and write it to a dataframe in csv format.
@@ -28,7 +29,7 @@ import json
 import logging
 import os
 from collections.abc import Callable
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, datetime
 from functools import wraps
 from typing import Any
@@ -39,6 +40,11 @@ from langchain_core.documents import Document
 from langchain_nvidia_ai_endpoints import Model, register_model
 
 from nvidia_rag.utils import configuration
+from nvidia_rag.utils.minio_operator import (
+    MinioOperator,
+    get_minio_operator,
+    get_unique_thumbnail_id_from_result,
+)
 from nvidia_rag.utils.metadata_validation import (
     FilterExpressionParser,
     MetadataField,
@@ -49,6 +55,9 @@ logger = logging.getLogger(__name__)
 
 # Header for tracking blueprint API usage in NVIDIA API endpoints
 NVIDIA_API_DEFAULT_HEADERS = {"source": "rag-blueprint"}
+
+# Max concurrent workers for parallel MinIO payload fetches (fetch_minio_payloads_for_documents)
+MINIO_FETCH_MAX_WORKERS = 10
 
 
 def filter_documents_by_confidence(
@@ -95,6 +104,107 @@ def filter_documents_by_confidence(
     )
 
     return filtered_documents
+
+
+def fetch_minio_payloads_for_documents(
+    documents: list[Document],
+    fetch_payloads: bool,
+    *,
+    minio_operator: MinioOperator | None = None,
+) -> dict[int, tuple[dict | None, BaseException | None]]:
+    """
+    Fetch MinIO payloads in parallel for documents that have thumbnail/content
+    (image, table, chart, or other structured content).
+
+    Scans documents for those with content_metadata type \"image\" or
+    \"structured\", resolves each to a unique thumbnail object name, and performs
+    all MinIO get_payload calls in parallel via a thread pool.
+
+    Args:
+        documents: List of LangChain documents (e.g. from retrieval).
+        fetch_payloads: If False, no fetches are performed and an empty dict
+            is returned.
+        minio_operator: Optional MinioOperator instance. If None, a new instance
+            is created via get_minio_operator() for this call. Pass a shared
+            instance (e.g. singleton) when calling from multiple code paths to
+            reuse the same client.
+
+    Returns:
+        A mapping from document index (int) to a pair (payload, error):
+        - On success: (payload_dict, None). Use payload_dict.get(\"content\", \"\").
+        - On failure: (None, exception). Caller should treat as missing content
+          and optionally log the exception.
+
+    Example:
+        payload_by_index = fetch_minio_payloads_for_documents(
+            documents=docs,
+            fetch_payloads=True,
+            minio_operator=get_minio_operator(),
+        )
+        for idx, doc in enumerate(docs):
+            if idx in payload_by_index:
+                payload, err = payload_by_index[idx]
+                content = payload.get(\"content\", \"\") if payload else \"\"
+    """
+    payload_by_index: dict[int, tuple[dict | None, BaseException | None]] = {}
+    if not fetch_payloads:
+        return payload_by_index
+
+    # Collect (doc_index, object_name) for documents that need MinIO (image/structured).
+    minio_fetches: list[tuple[int, str]] = []
+    for idx, doc in enumerate(documents):
+        content_type = doc.metadata.get("content_metadata", {}).get("type")
+        if content_type not in ("image", "structured"):
+            continue
+        if isinstance(doc.metadata.get("source"), str):
+            file_name = os.path.basename(doc.metadata.get("source"))
+        else:
+            source = doc.metadata.get("source")
+            if source is None:
+                continue
+            file_name = os.path.basename(source.get("source_id", ""))
+        page_number = doc.metadata.get("content_metadata", {}).get("page_number")
+        location = doc.metadata.get("content_metadata", {}).get("location")
+        unique_thumbnail_id = get_unique_thumbnail_id_from_result(
+            collection_name=doc.metadata.get("collection_name"),
+            file_name=file_name,
+            page_number=page_number,
+            location=location,
+            metadata=doc.metadata,
+        )
+        if unique_thumbnail_id is not None:
+            minio_fetches.append((idx, unique_thumbnail_id))
+
+    if not minio_fetches:
+        return payload_by_index
+
+    operator = minio_operator if minio_operator is not None else get_minio_operator()
+
+    def _fetch_one(object_name: str) -> tuple[dict | None, BaseException | None]:
+        try:
+            payload = operator.get_payload(object_name=object_name)
+            return (payload, None)
+        except Exception as e:
+            return (None, e)
+
+    logger.debug(
+        "Pulling content from MinIO for image/structured documents (parallel): %d objects",
+        len(minio_fetches),
+    )
+    max_workers = min(MINIO_FETCH_MAX_WORKERS, len(minio_fetches))
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_to_idx = {
+            executor.submit(_fetch_one, object_name): idx
+            for idx, object_name in minio_fetches
+        }
+        for future in as_completed(future_to_idx):
+            idx = future_to_idx[future]
+            try:
+                payload_by_index[idx] = future.result()
+            except Exception as e:
+                payload_by_index[idx] = (None, e)
+
+    return payload_by_index
 
 
 def utils_cache(func: Callable) -> Callable:
