@@ -376,6 +376,17 @@ class NetworkXGraphStore(GraphStore):
             "communities": len(communities),
         }
 
+    def get_entity_degree(self, name: str, collection_name: str) -> int:
+        g = self._get_graph(collection_name)
+        key = name.strip().lower()
+        if not g.has_node(key):
+            matches = self._fuzzy_match(name, collection_name, max_matches=1)
+            if matches:
+                key = matches[0]
+            else:
+                return 0
+        return g.in_degree(key) + g.out_degree(key)
+
     def persist(self) -> None:
         os.makedirs(self._data_dir, exist_ok=True)
         for collection_name, graph in self._graphs.items():

@@ -1111,6 +1111,16 @@ class GraphRAGConfig(_ConfigBase):
         env="GRAPH_SUPPLEMENT_TOP_K",
         description="Number of graph docs to add on top of vector results in supplement mode",
     )
+    hub_entity_threshold: int = Field(
+        default=100,
+        env="GRAPH_HUB_ENTITY_THRESHOLD",
+        description=(
+            "Max degree (number of connections) an entity can have before it is "
+            "considered a hub and skipped during graph traversal. Entities like "
+            "'NVIDIA' that connect to everything produce unfocused context. "
+            "Set to 0 to disable hub filtering."
+        ),
+    )
     graph_data_dir: str = Field(
         default="./graph-data",
         env="GRAPH_DATA_DIR",

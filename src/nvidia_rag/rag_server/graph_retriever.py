@@ -152,6 +152,7 @@ async def graph_retrieval(
     graph_cfg = config.graph_rag
     top_k = graph_cfg.graph_top_k
     depth = graph_cfg.traversal_depth
+    hub_threshold = graph_cfg.hub_entity_threshold
 
     query_entities = await extract_entities_from_query(query, config=config, prompts=prompts)
 
@@ -159,11 +160,37 @@ async def graph_retrieval(
         logger.info("No entities extracted from query, returning empty graph results")
         return []
 
+    traverse_entities: list[str] = []
+    hub_entities: list[str] = []
+
+    if hub_threshold > 0:
+        for entity_name in query_entities:
+            degree = graph_store.get_entity_degree(entity_name, collection_name)
+            if degree > hub_threshold:
+                hub_entities.append(entity_name)
+                logger.info(
+                    "Hub entity skipped for traversal: '%s' (degree=%d, threshold=%d)",
+                    entity_name, degree, hub_threshold,
+                )
+            else:
+                traverse_entities.append(entity_name)
+        if not traverse_entities and hub_entities:
+            logger.info(
+                "All query entities are hubs (%s), using least-connected hub as fallback",
+                hub_entities,
+            )
+            degrees = [(e, graph_store.get_entity_degree(e, collection_name)) for e in hub_entities]
+            degrees.sort(key=lambda x: x[1])
+            traverse_entities.append(degrees[0][0])
+            hub_entities.remove(degrees[0][0])
+    else:
+        traverse_entities = list(query_entities)
+
     all_entities: dict[str, Entity] = {}
     all_relationships: list[Relationship] = []
     matched_communities: dict[int, CommunityInfo] = {}
 
-    for entity_name in query_entities:
+    for entity_name in traverse_entities:
         entities, relationships = graph_store.get_neighbors(
             entity_name, collection_name, depth=depth
         )
@@ -171,6 +198,7 @@ async def graph_retrieval(
             all_entities[e.key] = e
         all_relationships.extend(relationships)
 
+    for entity_name in traverse_entities + hub_entities:
         community = graph_store.get_community_for_entity(entity_name, collection_name)
         if community and community.community_id not in matched_communities:
             matched_communities[community.community_id] = community
@@ -178,6 +206,11 @@ async def graph_retrieval(
     if not all_entities and not matched_communities:
         logger.info("No graph matches found for query entities: %s", query_entities)
         return []
+
+    logger.info(
+        "Hub filtering: %d query entities -> %d traversed, %d hubs skipped",
+        len(query_entities), len(traverse_entities), len(hub_entities),
+    )
 
     seen_rels: set[tuple[str, str, str]] = set()
     unique_relationships = []

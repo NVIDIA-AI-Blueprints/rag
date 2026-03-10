@@ -140,5 +140,9 @@ class GraphStore(ABC):
         """Return entity/relationship/community counts."""
 
     @abstractmethod
+    def get_entity_degree(self, name: str, collection_name: str) -> int:
+        """Return the total number of edges (in + out) for an entity. 0 if not found."""
+
+    @abstractmethod
     def persist(self) -> None:
         """Persist graph data to durable storage (no-op for server-backed stores)."""
