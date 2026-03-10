@@ -136,15 +136,17 @@ class OracleVSCompat(OracleVS):
             results = cursor.fetchall()
 
             for result in results:
-                source = json.loads(result[2]) if result[2] else {}
-                metadata = {}
+                # parse source data
+                metadata = json.loads(result[2]) if result[2] else {}
+                # parse content_metadata
+                content_metadata = {}
                 if isinstance(result[3], oracledb.LOB) and result[3]:
-                    metadata = json.loads(self._get_clob_value(result[3]))
+                    content_metadata = json.loads(self._get_clob_value(result[3]))
                 elif isinstance(result[3], dict) and result[3]:
-                    metadata = result[3]
+                    content_metadata = result[3]
 
                 # combining source data and metadata
-                metadata.update(source)
+                metadata['content_metadata'] = content_metadata
 
                 # Apply filter if provided
                 if filter:
