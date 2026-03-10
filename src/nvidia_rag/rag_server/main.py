@@ -2799,45 +2799,64 @@ class NvidiaRAG:
                     logger.info("  - Retrieval Time: %.2f ms", retrieval_time_ms)
                     logger.info("-" * 80)
 
+            _graph_supplement_docs: list[Document] = []
+
             if (
                 self.graph_store is not None
                 and self.config.graph_rag.enable_graph_rag
                 and not is_image_query
             ):
+                graph_cfg = self.config.graph_rag
+                retrieval_mode = graph_cfg.graph_retrieval_mode
+                query_complexity = classify_query_complexity(retriever_query)
+
+                skip_graph = (
+                    retrieval_mode == "complex_only" and query_complexity == "simple"
+                )
+
                 logger.info("=" * 80)
                 logger.info("STAGE: GraphRAG Hybrid Retrieval")
                 logger.info("=" * 80)
-                query_complexity = classify_query_complexity(retriever_query)
                 logger.info("  - Query Complexity: %s", query_complexity)
-                logger.info("  - Traversal Depth: %d", self.config.graph_rag.traversal_depth)
-                logger.info("  - Graph Weight: %.2f", self.config.graph_rag.graph_weight_in_fusion)
+                logger.info("  - Retrieval Mode: %s", retrieval_mode)
+                logger.info("  - Traversal Depth: %d", graph_cfg.traversal_depth)
+                logger.info("  - Graph Weight: %.2f", graph_cfg.graph_weight_in_fusion)
+                if skip_graph:
+                    logger.info("  - Skipping graph retrieval (simple query in complex_only mode)")
                 logger.info("-" * 80)
 
-                try:
-                    graph_docs = await graph_retrieval(
-                        query=retriever_query,
-                        graph_store=self.graph_store,
-                        collection_name=validated_collections[0] if validated_collections else "",
-                        config=self.config,
-                        prompts=self.prompts,
-                    )
-                    if graph_docs:
-                        context_to_show = hybrid_rank_fusion(
-                            vector_docs=context_to_show,
-                            graph_docs=graph_docs,
-                            graph_weight=self.config.graph_rag.graph_weight_in_fusion,
-                            top_k=reranker_top_k,
+                if not skip_graph:
+                    try:
+                        graph_docs = await graph_retrieval(
+                            query=retriever_query,
+                            graph_store=self.graph_store,
+                            collection_name=validated_collections[0] if validated_collections else "",
+                            config=self.config,
+                            prompts=self.prompts,
                         )
-                        logger.info("GraphRAG Output:")
-                        logger.info("  - Graph Documents: %d", len(graph_docs))
-                        logger.info("  - Fused Documents: %d", len(context_to_show))
-                    else:
-                        logger.info("  - No graph results, using vector-only retrieval")
-                except Exception:
-                    logger.warning(
-                        "GraphRAG retrieval failed, falling back to vector-only",
-                        exc_info=True,
-                    )
+                        if graph_docs:
+                            if retrieval_mode in ("supplement", "complex_only"):
+                                supplement_k = graph_cfg.graph_supplement_top_k
+                                _graph_supplement_docs = graph_docs[:supplement_k]
+                                logger.info("GraphRAG Output (supplement mode):")
+                                logger.info("  - Graph Documents held for append: %d", len(_graph_supplement_docs))
+                            else:
+                                context_to_show = hybrid_rank_fusion(
+                                    vector_docs=context_to_show,
+                                    graph_docs=graph_docs,
+                                    graph_weight=graph_cfg.graph_weight_in_fusion,
+                                    top_k=reranker_top_k,
+                                )
+                                logger.info("GraphRAG Output (replace mode):")
+                                logger.info("  - Graph Documents: %d", len(graph_docs))
+                                logger.info("  - Fused Documents: %d", len(context_to_show))
+                        else:
+                            logger.info("  - No graph results, using vector-only retrieval")
+                    except Exception:
+                        logger.warning(
+                            "GraphRAG retrieval failed, falling back to vector-only",
+                            exc_info=True,
+                        )
                 logger.info("-" * 80)
 
             if ranker and enable_reranker and confidence_threshold > 0.0:
@@ -2856,6 +2875,13 @@ class NvidiaRAG:
                 logger.info("Filtering Output:")
                 logger.info("  - Filtered Documents: %d", len(context_to_show))
                 logger.info("-" * 80)
+
+            if _graph_supplement_docs:
+                context_to_show = context_to_show + _graph_supplement_docs
+                logger.info(
+                    "GraphRAG: appended %d graph docs after confidence filtering -> %d total",
+                    len(_graph_supplement_docs), len(context_to_show),
+                )
 
             if enable_vlm_inference or is_image_query:
                 # Initialize vlm_settings if not provided
@@ -3397,6 +3423,13 @@ class NvidiaRAG:
             result = doc.page_content
             logger.debug(
                 f"After format_document_with_source (metadata disabled) - Result: {result}"
+            )
+            return result
+
+        if doc.metadata.get("retrieval_type") == "graph":
+            result = f"[Knowledge Graph Context]\n{doc.page_content}"
+            logger.debug(
+                f"After format_document_with_source (graph doc) - Result: {result[:100]}"
             )
             return result
 

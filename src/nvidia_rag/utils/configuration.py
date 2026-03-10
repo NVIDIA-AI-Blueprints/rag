@@ -1096,6 +1096,21 @@ class GraphRAGConfig(_ConfigBase):
         env="GRAPH_TOP_K",
         description="Number of graph-retrieved context chunks to return",
     )
+    graph_retrieval_mode: str = Field(
+        default="supplement",
+        env="GRAPH_RETRIEVAL_MODE",
+        description=(
+            "How graph results are combined with vector results. "
+            "'supplement': keep all vector docs, add graph docs on top (preserves recall). "
+            "'replace': RRF merge into top_k (original behavior). "
+            "'complex_only': only use graph for complex queries, vector-only for simple."
+        ),
+    )
+    graph_supplement_top_k: int = Field(
+        default=3,
+        env="GRAPH_SUPPLEMENT_TOP_K",
+        description="Number of graph docs to add on top of vector results in supplement mode",
+    )
     graph_data_dir: str = Field(
         default="./graph-data",
         env="GRAPH_DATA_DIR",
@@ -1126,6 +1141,14 @@ class GraphRAGConfig(_ConfigBase):
     def validate_traversal_depth(cls, v: int) -> int:
         if v < 1 or v > 5:
             raise ValueError(f"traversal_depth must be between 1 and 5, got {v}")
+        return v
+
+    @field_validator("graph_retrieval_mode")
+    @classmethod
+    def validate_retrieval_mode(cls, v: str) -> str:
+        valid = {"supplement", "replace", "complex_only"}
+        if v not in valid:
+            raise ValueError(f"graph_retrieval_mode must be one of {valid}, got '{v}'")
         return v
 
 

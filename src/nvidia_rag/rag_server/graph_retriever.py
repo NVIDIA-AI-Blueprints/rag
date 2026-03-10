@@ -192,7 +192,7 @@ async def graph_retrieval(
     for community in matched_communities.values():
         if community.summary:
             documents.append(Document(
-                page_content=_format_community_context(community),
+                page_content=community.summary,
                 metadata={
                     "source": "graph_community",
                     "community_id": community.community_id,
@@ -200,42 +200,24 @@ async def graph_retrieval(
                 },
             ))
 
-    if unique_relationships:
-        rel_chunks = []
-        for rel in unique_relationships:
-            rel_chunks.append(_format_relationship_context(rel))
+    entity_lines = [
+        _format_entity_context(e) for e in all_entities.values() if e.description
+    ][:20]
+    rel_lines = [_format_relationship_context(rel) for rel in unique_relationships[:30]]
 
-        chunk_size = max(1, len(rel_chunks) // max(1, top_k - len(documents)))
-        for i in range(0, len(rel_chunks), max(1, chunk_size)):
-            batch = rel_chunks[i : i + chunk_size]
-            documents.append(Document(
-                page_content="Knowledge graph relationships:\n" + "\n".join(batch),
-                metadata={
-                    "source": "graph_relationships",
-                    "retrieval_type": "graph",
-                },
-            ))
-
-    entity_descriptions = []
-    for entity in all_entities.values():
-        if entity.description:
-            entity_descriptions.append(_format_entity_context(entity))
-
-    if entity_descriptions:
-        desc_chunks = []
-        chunk_size = max(1, len(entity_descriptions) // max(1, top_k - len(documents)))
-        for i in range(0, len(entity_descriptions), max(1, chunk_size)):
-            batch = entity_descriptions[i : i + chunk_size]
-            desc_chunks.append("\n".join(batch))
-
-        for chunk in desc_chunks:
-            documents.append(Document(
-                page_content="Knowledge graph entities:\n" + chunk,
-                metadata={
-                    "source": "graph_entities",
-                    "retrieval_type": "graph",
-                },
-            ))
+    parts = []
+    if entity_lines:
+        parts.append("Entities: " + "; ".join(entity_lines))
+    if rel_lines:
+        parts.append("Relationships: " + "; ".join(rel_lines))
+    if parts:
+        documents.append(Document(
+            page_content="\n".join(parts),
+            metadata={
+                "source": "graph_context",
+                "retrieval_type": "graph",
+            },
+        ))
 
     documents = documents[:top_k]
 

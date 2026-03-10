@@ -173,11 +173,12 @@ class NetworkXGraphStore(GraphStore):
             metadata=data.get("metadata", {}),
         )
 
-    def _fuzzy_match(self, name: str, collection_name: str, max_matches: int = 3) -> list[str]:
+    def _fuzzy_match(self, name: str, collection_name: str, max_matches: int = 2) -> list[str]:
         """Find graph nodes that fuzzy-match the given name.
 
         Tries, in order: exact match, substring containment, and token overlap.
         Returns up to ``max_matches`` node keys, best matches first.
+        Uses strict thresholds to avoid pulling in irrelevant entity neighborhoods.
         """
         g = self._get_graph(collection_name)
         key = name.strip().lower()
@@ -185,18 +186,26 @@ class NetworkXGraphStore(GraphStore):
         if g.has_node(key):
             return [key]
 
+        if len(key) < 3:
+            return []
+
         candidates: list[tuple[float, str]] = []
         key_tokens = set(key.split())
 
         for node in g.nodes():
-            if key in node or node in key:
+            if key == node:
+                return [node]
+            if len(key) >= 4 and key in node:
+                candidates.append((0.95, node))
+                continue
+            if len(node) >= 4 and node in key:
                 candidates.append((0.9, node))
                 continue
             node_tokens = set(node.split())
             overlap = key_tokens & node_tokens
             if overlap:
                 score = len(overlap) / max(len(key_tokens), len(node_tokens))
-                if score >= 0.4:
+                if score >= 0.6:
                     candidates.append((score, node))
 
         candidates.sort(key=lambda x: x[0], reverse=True)
