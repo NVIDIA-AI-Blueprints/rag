@@ -18,7 +18,8 @@
 Provides:
 1. Query complexity classification to route simple queries to vector-only search
 2. Graph traversal retrieval using extracted entities and their neighborhoods
-3. Reciprocal Rank Fusion (RRF) to merge vector and graph retrieval results
+3. Embedding-based relevance ranking of entities, relationships, and communities
+4. Reciprocal Rank Fusion (RRF) to merge vector and graph retrieval results
 """
 
 from __future__ import annotations
@@ -26,7 +27,9 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+import numpy as np
 from langchain_core.documents import Document
+from langchain_core.embeddings import Embeddings
 
 from nvidia_rag.utils.configuration import NvidiaRAGConfig
 from nvidia_rag.utils.graph.entity_extractor import extract_entities_from_query
@@ -120,12 +123,45 @@ def _format_community_context(community: CommunityInfo) -> str:
     return community.summary
 
 
+async def _rank_by_query_similarity(
+    query: str,
+    texts: list[str],
+    embedder: Embeddings,
+) -> list[int]:
+    """Rank texts by cosine similarity to the query embedding.
+
+    Returns indices sorted by descending relevance.
+    """
+    try:
+        query_vec = await embedder.aembed_query(query)
+        text_vecs = await embedder.aembed_documents(texts)
+
+        q = np.array(query_vec, dtype=np.float32)
+        t = np.array(text_vecs, dtype=np.float32)
+
+        q_norm = np.linalg.norm(q)
+        if q_norm == 0:
+            return list(range(len(texts)))
+        q = q / q_norm
+
+        t_norms = np.linalg.norm(t, axis=1, keepdims=True)
+        t_norms[t_norms == 0] = 1.0
+        t = t / t_norms
+
+        similarities = t @ q
+        return list(np.argsort(-similarities))
+    except Exception:
+        logger.warning("Embedding-based ranking failed, using original order", exc_info=True)
+        return list(range(len(texts)))
+
+
 async def graph_retrieval(
     query: str,
     graph_store: GraphStore,
     collection_name: str,
     config: NvidiaRAGConfig | None = None,
     prompts: dict | None = None,
+    embedder: Embeddings | None = None,
 ) -> list[Document]:
     """Retrieve context from the knowledge graph for a given query.
 
@@ -134,7 +170,9 @@ async def graph_retrieval(
     2. Look up those entities in the graph.
     3. Traverse N-hop neighborhoods to gather related entities and relationships.
     4. Fetch community summaries for matched entities.
-    5. Assemble everything into LangChain Document objects.
+    5. **Rank** entities, relationships, and communities by embedding similarity
+       to the query (if embedder is available).
+    6. Assemble the most relevant items into LangChain Document objects.
 
     Args:
         query: User's natural language query.
@@ -142,6 +180,8 @@ async def graph_retrieval(
         collection_name: Collection to search.
         config: NvidiaRAGConfig instance.
         prompts: Prompts dict loaded from prompt.yaml via get_prompts().
+        embedder: Embedding model for relevance ranking. If None, uses
+            arbitrary order (legacy behavior).
 
     Returns:
         List of Documents with graph-derived context.
@@ -220,22 +260,56 @@ async def graph_retrieval(
             seen_rels.add(key)
             unique_relationships.append(rel)
 
+    # --- Rank by relevance to query ---
+    # Pre-filter: only keep entities with descriptions, communities with summaries
+    entity_list = [e for e in all_entities.values() if e.description]
+    community_list = [c for c in matched_communities.values() if c.summary]
+
+    # Cap candidates before embedding to limit API calls and latency.
+    # 100 entities + 150 relationships is enough to pick the best 20+30 from.
+    MAX_ENTITY_CANDIDATES = 100
+    MAX_REL_CANDIDATES = 150
+
+    if embedder and (entity_list or unique_relationships or community_list):
+        entity_candidates = entity_list[:MAX_ENTITY_CANDIDATES]
+        rel_candidates = unique_relationships[:MAX_REL_CANDIDATES]
+
+        logger.info(
+            "Ranking %d/%d entities, %d/%d relationships, %d communities by query relevance",
+            len(entity_candidates), len(entity_list),
+            len(rel_candidates), len(unique_relationships),
+            len(community_list),
+        )
+
+        if entity_candidates:
+            entity_texts = [_format_entity_context(e) for e in entity_candidates]
+            entity_order = await _rank_by_query_similarity(query, entity_texts, embedder)
+            entity_list = [entity_candidates[i] for i in entity_order]
+
+        if rel_candidates:
+            rel_texts = [_format_relationship_context(r) for r in rel_candidates]
+            rel_order = await _rank_by_query_similarity(query, rel_texts, embedder)
+            unique_relationships = [rel_candidates[i] for i in rel_order]
+
+        if len(community_list) > 1:
+            comm_texts = [c.summary for c in community_list]
+            comm_order = await _rank_by_query_similarity(query, comm_texts, embedder)
+            community_list = [community_list[i] for i in comm_order]
+
+    # --- Build documents from ranked results ---
     documents: list[Document] = []
 
-    for community in matched_communities.values():
-        if community.summary:
-            documents.append(Document(
-                page_content=community.summary,
-                metadata={
-                    "source": "graph_community",
-                    "community_id": community.community_id,
-                    "retrieval_type": "graph",
-                },
-            ))
+    for community in community_list:
+        documents.append(Document(
+            page_content=community.summary,
+            metadata={
+                "source": "graph_community",
+                "community_id": community.community_id,
+                "retrieval_type": "graph",
+            },
+        ))
 
-    entity_lines = [
-        _format_entity_context(e) for e in all_entities.values() if e.description
-    ][:20]
+    entity_lines = [_format_entity_context(e) for e in entity_list][:20]
     rel_lines = [_format_relationship_context(rel) for rel in unique_relationships[:30]]
 
     parts = []
@@ -255,12 +329,13 @@ async def graph_retrieval(
     documents = documents[:top_k]
 
     logger.info(
-        "Graph retrieval for '%s': %d entities, %d relationships, %d communities -> %d documents",
+        "Graph retrieval for '%s': %d entities, %d relationships, %d communities -> %d documents (ranked=%s)",
         query[:50],
         len(all_entities),
         len(unique_relationships),
         len(matched_communities),
         len(documents),
+        embedder is not None,
     )
 
     return documents

@@ -2833,6 +2833,7 @@ class NvidiaRAG:
                             collection_name=validated_collections[0] if validated_collections else "",
                             config=self.config,
                             prompts=self.prompts,
+                            embedder=self.document_embedder,
                         )
                         if graph_docs:
                             if retrieval_mode in ("supplement", "complex_only"):

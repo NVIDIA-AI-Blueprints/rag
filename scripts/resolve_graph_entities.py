@@ -45,6 +45,7 @@ logger = logging.getLogger(__name__)
 def _make_http_embed_fn(
     url: str,
     model: str,
+    max_text_len: int = 512,
 ) -> callable:
     """Create a synchronous embedding function that calls the NIM HTTP API."""
     import requests
@@ -52,12 +53,16 @@ def _make_http_embed_fn(
     endpoint = url.rstrip("/") + "/v1/embeddings"
 
     def embed_fn(texts: list[str]) -> list[list[float]]:
-        resp = requests.post(
-            endpoint,
-            json={"input": texts, "model": model},
-            timeout=120,
-        )
-        resp.raise_for_status()
+        truncated = [t[:max_text_len] if len(t) > max_text_len else t for t in texts]
+        payload = {
+            "input": truncated,
+            "model": model,
+            "input_type": "passage",
+        }
+        resp = requests.post(endpoint, json=payload, timeout=120)
+        if resp.status_code != 200:
+            logger.error("Embedding API error %d: %s", resp.status_code, resp.text[:500])
+            resp.raise_for_status()
         data = resp.json()["data"]
         data.sort(key=lambda d: d["index"])
         return [d["embedding"] for d in data]
@@ -138,6 +143,7 @@ def resolve(
     resolution: float = 1.0,
     embedding_url: str | None = None,
     embedding_model: str = "nvidia/llama-3.2-nv-embedqa-1b-v2",
+    skip_community_redetection: bool = False,
 ) -> None:
     """Run entity resolution + community re-detection on persisted graph data."""
 
@@ -170,9 +176,12 @@ def resolve(
 
         stats = resolve_entities(g, embeddings=embeddings)
 
-        logger.info("Running community detection...")
-        communities = run_community_detection(g, resolution=resolution)
-        logger.info("Detected %d communities", len(communities))
+        if not skip_community_redetection:
+            logger.info("Running community detection...")
+            communities = run_community_detection(g, resolution=resolution)
+            logger.info("Detected %d communities", len(communities))
+        else:
+            logger.info("Skipping community re-detection, keeping original summaries")
 
         # Backup originals (only on first run)
         backup_graph = graph_path + ".bak"
@@ -188,9 +197,12 @@ def resolve(
             pickle.dump(g, f)
         logger.info("Saved resolved graph to %s", graph_path)
 
-        with open(communities_path, "wb") as f:
-            pickle.dump(communities, f)
-        logger.info("Saved communities to %s", communities_path)
+        if not skip_community_redetection:
+            with open(communities_path, "wb") as f:
+                pickle.dump(communities, f)
+            logger.info("Saved communities to %s", communities_path)
+        else:
+            logger.info("Communities file unchanged (original LLM summaries preserved)")
 
         # Print top entities by degree for verification
         degrees = [(n, g.in_degree(n) + g.out_degree(n)) for n in g.nodes()]
@@ -231,6 +243,11 @@ def main() -> None:
         default="nvidia/llama-3.2-nv-embedqa-1b-v2",
         help="Embedding model name (default: nvidia/llama-3.2-nv-embedqa-1b-v2)",
     )
+    parser.add_argument(
+        "--keep-communities",
+        action="store_true",
+        help="Skip community re-detection, keep original LLM-generated summaries.",
+    )
     args = parser.parse_args()
 
     if not os.path.isdir(args.data_dir):
@@ -243,6 +260,7 @@ def main() -> None:
         resolution=args.resolution,
         embedding_url=args.embedding_url,
         embedding_model=args.embedding_model,
+        skip_community_redetection=args.keep_communities,
     )
 
 

@@ -44,20 +44,32 @@ logger = logging.getLogger(__name__)
 # Dynamic helpers — everything computed from the graph, nothing hardcoded
 # ---------------------------------------------------------------------------
 
-def _discover_common_suffixes(g: nx.DiGraph, min_frequency: int = 5) -> set[str]:
+def _discover_common_suffixes(g: nx.DiGraph, min_ratio: float = 0.005) -> set[str]:
     """Auto-detect common trailing words from entity names in the graph.
 
-    If "corporation" appears as the last word in >=5 entity names, it's a
-    suffix worth stripping during normalization.  This adapts to any domain:
-    financial ("corp", "inc"), medical ("hospital", "syndrome"), etc.
+    A word qualifies as a strippable suffix only if it:
+    - Appears as the trailing word in >= ``min_ratio`` of all multi-word entities
+    - Is at least 4 characters (filters out "a", "ai", "1", "gpu", etc.)
+    - Is purely alphabetic (filters out numbers, abbreviations with digits)
+    - Appears in at least 3 different entity names (absolute minimum)
+
+    This keeps real suffixes like "corporation", "hospital", "syndrome"
+    while rejecting domain-meaningful words like "ai", "gpu", "edge".
     """
     trailing_counts: dict[str, int] = defaultdict(int)
+    multi_word_count = 0
     for node in g.nodes():
         words = node.strip().lower().split()
         if len(words) >= 2:
+            multi_word_count += 1
             trailing_counts[words[-1]] += 1
 
-    return {word for word, count in trailing_counts.items() if count >= min_frequency}
+    min_count = max(3, int(multi_word_count * min_ratio))
+
+    return {
+        word for word, count in trailing_counts.items()
+        if count >= min_count and len(word) >= 4 and word.isalpha()
+    }
 
 
 def _normalize_key(name: str, suffixes_to_strip: set[str] | None = None) -> str:
@@ -216,11 +228,13 @@ def pass_remove_generic_statistical(
 ) -> int:
     """Dynamically detect and remove generic hub entities using graph statistics.
 
-    An entity is flagged as generic when ALL conditions are met:
+    An entity is flagged as generic when:
     1. Degree in the top ``degree_percentile`` (high connectivity)
-    2. Appears in >= ``doc_freq_ratio`` of all source chunks (ubiquitous)
-    3. Name does NOT look like a named entity (no digits, not a multi-word
-       proper noun, not an all-caps acronym)
+    2. If this specific entity HAS source_chunk_ids and the graph has chunk data:
+       must appear in >= ``doc_freq_ratio`` of chunks.
+       If entity has NO chunk data: degree alone is used (no free pass).
+    3. Name does NOT look like a named entity (no digits, not 3+ words,
+       not an all-caps acronym)
 
     Works on any domain without any hardcoded lists.
     """
@@ -243,8 +257,14 @@ def pass_remove_generic_statistical(
     for node in g.nodes():
         if degrees[node] < degree_cutoff:
             continue
-        if len(entity_chunks[node]) / total_chunks < doc_freq_ratio:
-            continue
+
+        node_chunks = entity_chunks[node]
+        if node_chunks:
+            # Entity HAS chunk data — only flag if it's ubiquitous
+            if len(node_chunks) / total_chunks < doc_freq_ratio:
+                continue
+        # Entity has NO chunk data — proceed on degree + name alone
+
         words = node.strip().split()
         has_digits = any(c.isdigit() for c in node)
         is_acronym = node == node.upper() and len(node) <= 8
@@ -261,14 +281,16 @@ def pass_remove_generic_by_embedding(
     embeddings: dict[str, list[float]],
     degree_percentile: float = 90,
 ) -> int:
-    """Remove generic hubs using embedding similarity variance.
+    """Remove generic hubs using embedding centroid proximity.
 
-    A generic entity like "company" is vaguely similar to everything (low
-    variance in cosine similarities).  A specific entity like "Intel" is very
-    similar to some things and very different from others (high variance).
+    Generic entities like "company" are semantically close to the average
+    of all entities in the corpus (they're the "center" of the topic space).
+    Specific entities like "Intel" are further from the center because they
+    represent distinct, specialized topics.
 
-    Only considers entities with degree above ``degree_percentile`` to avoid
-    touching low-degree nodes.
+    Combines centroid proximity with low similarity variance for robustness.
+    Only considers entities above ``degree_percentile`` to avoid touching
+    low-degree nodes.
     """
     if g.number_of_nodes() < 10:
         return 0
@@ -287,8 +309,17 @@ def pass_remove_generic_by_embedding(
     norms[norms == 0] = 1.0
     all_normed = all_matrix / norms
 
+    # Compute centroid of all entity embeddings
+    centroid = np.mean(all_normed, axis=0)
+    centroid_norm = np.linalg.norm(centroid)
+    if centroid_norm == 0:
+        return 0
+    centroid_normed = centroid / centroid_norm
+
+    centroid_sims = []
     variances = []
     candidate_names = []
+
     for node in candidates:
         if node not in embeddings:
             continue
@@ -296,23 +327,70 @@ def pass_remove_generic_by_embedding(
         vec_norm = np.linalg.norm(vec)
         if vec_norm == 0:
             continue
-        sims = all_normed @ (vec / vec_norm)
-        variances.append(np.var(sims).item())
+        vec_normed = vec / vec_norm
+
+        # How close is this entity to the "average" entity?
+        sim_to_centroid = float(np.dot(vec_normed, centroid_normed))
+        # How uniform are its similarities to all other entities?
+        sims = all_normed @ vec_normed
+        var = float(np.var(sims))
+
+        centroid_sims.append(sim_to_centroid)
+        variances.append(var)
         candidate_names.append(node)
 
-    if not variances:
+    if not centroid_sims:
         return 0
 
-    mean_var = float(np.mean(variances))
-    std_var = float(np.std(variances))
-    # Low variance = uniformly similar to everything = generic
-    var_threshold = mean_var - std_var
+    # Score each candidate: higher score = more generic
+    # Combine centroid proximity (high = generic) and inverse variance (low var = generic)
+    csim_arr = np.array(centroid_sims, dtype=np.float32)
+    var_arr = np.array(variances, dtype=np.float32)
+
+    # Normalize both signals to 0-1 range
+    csim_min, csim_max = csim_arr.min(), csim_arr.max()
+    var_min, var_max = var_arr.min(), var_arr.max()
+
+    if csim_max - csim_min > 1e-6:
+        csim_norm = (csim_arr - csim_min) / (csim_max - csim_min)
+    else:
+        csim_norm = np.zeros_like(csim_arr)
+
+    if var_max - var_min > 1e-6:
+        # Invert: low variance → high score
+        var_norm = 1.0 - (var_arr - var_min) / (var_max - var_min)
+    else:
+        var_norm = np.zeros_like(var_arr)
+
+    # Combined generic score: average of centroid proximity and inverse variance
+    generic_scores = 0.5 * csim_norm + 0.5 * var_norm
+
+    mean_score = float(np.mean(generic_scores))
+    std_score = float(np.std(generic_scores))
+    score_threshold = mean_score + 0.5 * std_score
+
+    # Log top candidates for debugging
+    scored = sorted(
+        zip(candidate_names, generic_scores, centroid_sims, variances),
+        key=lambda x: x[1], reverse=True,
+    )
+    logger.info(
+        "Embedding generic detection: threshold=%.4f (mean=%.4f + 0.5*std=%.4f)",
+        score_threshold, mean_score, std_score,
+    )
+    for name, score, csim, var in scored[:20]:
+        flag = "REMOVE" if score >= score_threshold else "keep"
+        logger.info(
+            "  [%s] %.4f  centroid_sim=%.4f  var=%.6f  deg=%d  %s",
+            flag, score, csim, var, degrees.get(name, 0), name,
+        )
 
     to_remove = [
         candidate_names[i]
-        for i, v in enumerate(variances)
-        if v <= var_threshold
+        for i in range(len(candidate_names))
+        if generic_scores[i] >= score_threshold
     ]
+
     g.remove_nodes_from(to_remove)
     return len(to_remove)
 
@@ -535,6 +613,8 @@ def resolve_entities(
 
     # --- Phase 1: Remove generic hubs ---
     if embeddings:
+        # Embedding mode: use centroid proximity + variance analysis.
+        # Distinguishes "Company" (close to corpus average) from "Intel" (specific topic).
         stats["embedding_generic_removed"] = pass_remove_generic_by_embedding(
             g, embeddings, degree_percentile=embedding_generic_degree_percentile,
         )
@@ -543,6 +623,7 @@ def resolve_entities(
             stats["embedding_generic_removed"], g.number_of_nodes(),
         )
     else:
+        # Rule-based fallback: degree + doc-frequency + name heuristics.
         stats["statistical_generic_removed"] = pass_remove_generic_statistical(
             g,
             degree_percentile=statistical_degree_percentile,
