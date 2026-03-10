@@ -8,8 +8,7 @@
 This documentation contains the OpenAPI reference for the RAG server.
 
 :::{tip}
-To view this documentation on docs.nvidia.com, go to https://docs.nvidia.com/rag/latest/api-rag.html.
-:::
+To view this documentation on docs.nvidia.com, browse to [https://docs.nvidia.com/rag/latest/api-rag](https://docs.nvidia.com/rag/latest/api-rag.html).
 
 
 :::{swagger-plugin} ../docs/api_reference/openapi_schema_rag_server.json
