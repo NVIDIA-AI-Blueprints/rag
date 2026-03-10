@@ -37,11 +37,13 @@ Metadata Schema Management:
 
 Retrieval Operations:
 10. retrieval_langchain: Perform semantic search and return top-k relevant documents
+11. retrieve_chunks_by_filter: Retrieve chunks by metadata filter (source, page_numbers)
 """
 
 from abc import ABC, abstractmethod
 from typing import Any
 
+from langchain_core.documents import Document
 from langchain_core.vectorstores import VectorStore
 
 
@@ -256,3 +258,28 @@ class VDBRag(ABC):
     ) -> list[dict[str, Any]]:
         """Perform semantic search and return top-k relevant documents."""
         pass
+
+    def retrieve_chunks_by_filter(
+        self,
+        collection_name: str,
+        source_name: str,
+        page_numbers: list[int],
+        limit: int = 1000,
+    ) -> list[Document]:
+        """Retrieve ALL chunks matching (source, page_numbers) via filter-only query.
+
+        No semantic search - used for page context expansion when
+        fetch_full_page_context is enabled.
+
+        Args:
+            collection_name: Name of the collection to query
+            source_name: Source identifier (e.g., file path) to match
+            page_numbers: List of page numbers to fetch
+            limit: Maximum number of chunks to return (default 1000)
+
+        Returns:
+            List of LangChain Document objects with page_content and metadata
+        """
+        raise NotImplementedError(
+            "retrieve_chunks_by_filter is not implemented for this vector store"
+        )

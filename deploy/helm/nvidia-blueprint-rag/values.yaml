@@ -155,6 +155,12 @@ envVars:
   # Number of document chunks to insert in LLM prompt
   APP_RETRIEVER_TOPK: "10"
 
+  # Fetch full page context: when True, fetches ALL chunks for retrieved pages and organizes by page
+  # Useful for PDFs where we have page numbers in file
+  APP_FETCH_FULL_PAGE_CONTEXT: "false"
+  # N pages before/after each retrieved page (0=disabled, 1=+/-1 page). Requires APP_FETCH_FULL_PAGE_CONTEXT=true
+  APP_FETCH_NEIGHBORING_PAGES: "0"
+
   ##===LLM Model specific configurations===
   APP_LLM_MODELNAME: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
   # URL on which LLM model is hosted. If "", Nvidia hosted API is used
