@@ -1071,6 +1071,11 @@ class GraphRAGConfig(_ConfigBase):
         env="GRAPH_MAX_RELATIONSHIPS_PER_CHUNK",
         description="Maximum relationships to extract per text chunk",
     )
+    entity_resolution_enabled: bool = Field(
+        default=True,
+        env="GRAPH_ENTITY_RESOLUTION",
+        description="Run entity resolution (dedup, prune) after extraction and before community detection",
+    )
     community_detection_enabled: bool = Field(
         default=True,
         env="GRAPH_COMMUNITY_DETECTION",

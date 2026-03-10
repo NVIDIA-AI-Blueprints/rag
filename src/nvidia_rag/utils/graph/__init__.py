@@ -15,6 +15,7 @@
 
 """GraphRAG utilities for knowledge graph construction and retrieval."""
 
+from nvidia_rag.utils.graph.entity_resolver import resolve_entities
 from nvidia_rag.utils.graph.graph_store import (
     Entity,
     GraphStore,
@@ -27,4 +28,5 @@ __all__ = [
     "GraphStore",
     "Relationship",
     "Triple",
+    "resolve_entities",
 ]

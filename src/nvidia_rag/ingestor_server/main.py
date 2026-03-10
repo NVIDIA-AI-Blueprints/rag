@@ -257,6 +257,14 @@ class NvidiaRAGIngestor:
             )
             logger.info("GraphRAG extraction stats for '%s': %s", collection_name, extraction_stats)
 
+            if self.config.graph_rag.entity_resolution_enabled:
+                from nvidia_rag.utils.graph.entity_resolver import resolve_entities as resolve_graph_entities
+                graph = self.graph_store.get_networkx_graph(collection_name)
+                if graph.number_of_nodes() > 0:
+                    er_stats = resolve_graph_entities(graph)
+                    self.graph_store.persist()
+                    logger.info("Entity resolution for '%s': %s", collection_name, er_stats)
+
             if self.config.graph_rag.community_detection_enabled:
                 communities = await detect_communities_and_summarize(
                     graph_store=self.graph_store,
