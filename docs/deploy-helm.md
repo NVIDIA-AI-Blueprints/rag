@@ -251,11 +251,7 @@ Port-forwarding is provided as a quick method to try out the UI. However, large 
 To change an existing deployment, after you modify the [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) file, run the following code.
 
 ```sh
-<<<<<<< HEAD
 helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.5.0.tgz \
-=======
-helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.4.0.tgz \
->>>>>>> upstream/main
 --username '$oauthtoken' \
 --password "${NGC_API_KEY}" \
 --set imagePullSecret.password=$NGC_API_KEY \
