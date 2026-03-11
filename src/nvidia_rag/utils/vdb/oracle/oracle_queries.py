@@ -168,22 +168,26 @@ def get_unique_sources_query(table_name: str) -> str:
     """
     return f"""
     WITH unique_sources AS (
-        SELECT source,
+        SELECT source, content_metadata,
                ROW_NUMBER() OVER (PARTITION BY source ORDER BY created_at DESC) as rn
         FROM {table_name}
         WHERE source IS NOT NULL
     )
-    SELECT us.source, t.content_metadata
-    FROM unique_sources us
-    JOIN {table_name} t ON us.source = t.source
-    WHERE us.rn = 1
-    ORDER BY us.source
+    SELECT source, content_metadata
+    FROM unique_sources
+    WHERE rn = 1
+    ORDER BY source
     """
 
 
 def get_delete_docs_query(table_name: str) -> str:
     """
     Generate parameterized delete query for documents by source.
+
+    The source column stores a JSON object with a source_name field
+    (e.g. {"source_name": "/tmp/.../file.pdf"}).  We match against the
+    extracted source_name value; the fallback OR clause handles any rows
+    where source was stored as a plain string.
 
     Args:
         table_name: Name of the collection table
@@ -193,7 +197,8 @@ def get_delete_docs_query(table_name: str) -> str:
     """
     return f"""
     DELETE FROM {table_name}
-    WHERE source = :source_value
+    WHERE JSON_VALUE(source, '$.source_name') = :source_value
+       OR source = :source_value
     """
 
 

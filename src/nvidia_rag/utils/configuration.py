@@ -856,6 +856,11 @@ class VLMConfig(_ConfigBase):
 class MinioConfig(_ConfigBase):
     """Minio configuration."""
 
+    enabled: bool = Field(
+        default=True,
+        env="ENABLE_MINIO",
+        description="Enable MinIO object storage for multimodal citations. Set to False for deployments without Milvus (e.g. Oracle 26ai).",
+    )
     endpoint: str = Field(
         default="localhost:9010",
         env="MINIO_ENDPOINT",

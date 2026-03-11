@@ -97,6 +97,13 @@ class OracleVSCompat(OracleVS):
         # Cache embedding dimension to avoid re-embedding per query
         self._embedding_dim = self.get_embedding_dimension()
 
+    @staticmethod
+    def _get_clob_value(lob_or_str) -> str:
+        """Read a CLOB/LOB column value to a plain string."""
+        if hasattr(lob_or_str, "read"):
+            return lob_or_str.read()
+        return lob_or_str or ""
+
     def similarity_search_by_vector_with_relevance_scores(
         self,
         embedding,
@@ -599,7 +606,15 @@ class OracleVDB(VDBRagIngest):
                 cursor.execute(get_unique_sources_query(table_name))
                 for row in cursor:
                     source_name = json.loads(row[0]).get('source_name')
-                    content_metadata = row[1] if row[1] else {}
+                    raw_cm = row[1]
+                    if raw_cm is None:
+                        content_metadata = {}
+                    elif hasattr(raw_cm, 'read'):
+                        content_metadata = json.loads(raw_cm.read()) or {}
+                    elif isinstance(raw_cm, str):
+                        content_metadata = json.loads(raw_cm) or {}
+                    else:
+                        content_metadata = raw_cm or {}
 
                     metadata_dict = {}
                     for item in metadata_schema:
@@ -789,6 +804,59 @@ class OracleVDB(VDBRagIngest):
 
         logger.info(f"Added document info for {table_name}/{document_name}")
 
+    def set_collection_info(
+        self,
+        collection_name: str,
+        info_value: dict[str, Any],
+    ) -> None:
+        """Directly replace the collection-level document_info entry without aggregation.
+
+        Unlike add_document_info, this bypasses _get_aggregated_document_info so the
+        caller's pre-computed value is stored as-is.  Use this after document deletion
+        when the caller has already recalculated the correct aggregated state.
+        """
+        table_name = collection_name.upper()
+
+        with self._get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    get_delete_document_info_query(),
+                    {
+                        "collection_name": table_name,
+                        "document_name": "NA",
+                        "info_type": "collection",
+                    },
+                )
+                cursor.execute(
+                    """
+                    INSERT INTO document_info (collection_name, info_type, document_name, info_value)
+                    VALUES (:collection_name, :info_type, :document_name, :info_value)
+                    """,
+                    {
+                        "collection_name": table_name,
+                        "info_type": "collection",
+                        "document_name": "NA",
+                        "info_value": json.dumps(info_value),
+                    },
+                )
+                conn.commit()
+
+        logger.info(f"Set collection info for {table_name}")
+
+    @staticmethod
+    def _read_clob_json(value) -> dict[str, Any]:
+        """Normalise a CLOB column value to a dict.
+
+        oracledb returns CLOB columns as LOB objects; read() converts them to
+        str, then json.loads converts to dict.  If the value is already a dict
+        (e.g. when Oracle returns native JSON), it is returned as-is.
+        """
+        if hasattr(value, "read"):
+            value = value.read()
+        if isinstance(value, str):
+            return json.loads(value)
+        return value or {}
+
     def _get_aggregated_document_info(
         self,
         collection_name: str,
@@ -804,7 +872,8 @@ class OracleVDB(VDBRagIngest):
                     )
                     row = cursor.fetchone()
                     if row and row[0]:
-                        return perform_document_info_aggregation(row[0][0], info_value)
+                        existing = self._read_clob_json(row[0])
+                        return perform_document_info_aggregation(existing, info_value)
         except Exception as e:
             logger.warning(f"Error getting aggregated info: {e}")
 
@@ -831,7 +900,7 @@ class OracleVDB(VDBRagIngest):
                 )
                 row = cursor.fetchone()
                 if row and row[0]:
-                    return row[0]
+                    return self._read_clob_json(row[0])
 
         return {}
 
