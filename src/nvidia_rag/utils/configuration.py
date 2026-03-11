@@ -1091,30 +1091,36 @@ class GraphRAGConfig(_ConfigBase):
         env="GRAPH_TRAVERSAL_DEPTH",
         description="Number of hops for graph traversal during retrieval",
     )
-    graph_weight_in_fusion: float = Field(
-        default=0.4,
-        env="GRAPH_FUSION_WEIGHT",
-        description="Weight of graph results in RRF fusion (0.0-1.0)",
-    )
-    graph_top_k: int = Field(
-        default=10,
-        env="GRAPH_TOP_K",
-        description="Number of graph-retrieved context chunks to return",
-    )
-    graph_retrieval_mode: str = Field(
-        default="supplement",
-        env="GRAPH_RETRIEVAL_MODE",
+    graph_boost_weight: float = Field(
+        default=0.1,
+        env="GRAPH_BOOST_WEIGHT",
         description=(
-            "How graph results are combined with vector results. "
-            "'supplement': keep all vector docs, add graph docs on top (preserves recall). "
-            "'replace': RRF merge into top_k (original behavior). "
-            "'complex_only': only use graph for complex queries, vector-only for simple."
+            "Score boost added to vector docs whose chunk hash matches a graph "
+            "entity's source_chunk_ids. Set to 0 to disable boosting."
         ),
     )
-    graph_supplement_top_k: int = Field(
-        default=3,
-        env="GRAPH_SUPPLEMENT_TOP_K",
-        description="Number of graph docs to add on top of vector results in supplement mode",
+    graph_boost_top_entities: int = Field(
+        default=20,
+        env="GRAPH_BOOST_TOP_ENTITIES",
+        description="Number of top-ranked graph entities whose source_chunk_ids are collected for boosting",
+    )
+    graph_chunk_replacement: bool = Field(
+        default=False,
+        env="GRAPH_CHUNK_REPLACEMENT",
+        description=(
+            "When True, replace weak vector docs (below replacement_score_threshold) "
+            "with graph-discovered chunks fetched from Milvus by chunk_hash."
+        ),
+    )
+    graph_replacement_max: int = Field(
+        default=2,
+        env="GRAPH_REPLACEMENT_MAX",
+        description="Maximum number of weak vector docs to replace with graph-discovered chunks",
+    )
+    graph_replacement_score_threshold: float = Field(
+        default=0.35,
+        env="GRAPH_REPLACEMENT_SCORE_THRESHOLD",
+        description="Only replace vector docs with normalized relevance_score below this value",
     )
     hub_entity_threshold: int = Field(
         default=100,
@@ -1144,26 +1150,11 @@ class GraphRAGConfig(_ConfigBase):
             v = v.strip().strip('"').strip("'")
         return v
 
-    @field_validator("graph_weight_in_fusion")
-    @classmethod
-    def validate_fusion_weight(cls, v: float) -> float:
-        if not (0.0 <= v <= 1.0):
-            raise ValueError(f"graph_weight_in_fusion must be between 0.0 and 1.0, got {v}")
-        return v
-
     @field_validator("traversal_depth")
     @classmethod
     def validate_traversal_depth(cls, v: int) -> int:
         if v < 1 or v > 5:
             raise ValueError(f"traversal_depth must be between 1 and 5, got {v}")
-        return v
-
-    @field_validator("graph_retrieval_mode")
-    @classmethod
-    def validate_retrieval_mode(cls, v: str) -> str:
-        valid = {"supplement", "replace", "complex_only"}
-        if v not in valid:
-            raise ValueError(f"graph_retrieval_mode must be one of {valid}, got '{v}'")
         return v
 
 

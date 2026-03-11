@@ -1201,6 +1201,51 @@ class MilvusVDB(VDBRagIngest):
         return docs
 
     # ----------------------------------------------------------------------------------------------
+    # GraphRAG chunk-hash retrieval
+    def retrieve_by_chunk_hashes(
+        self,
+        collection_name: str,
+        chunk_hashes: list[str],
+        limit: int = 10,
+    ) -> list[Document]:
+        """Retrieve documents whose ``content_metadata["chunk_hash"]`` matches.
+
+        Used by GraphRAG replacement mode to fetch graph-discovered source
+        chunks that vector search missed.
+        """
+        if not chunk_hashes:
+            return []
+        parts = [
+            f'content_metadata["chunk_hash"] == "{h}"'
+            for h in chunk_hashes[:limit]
+        ]
+        filter_expr = " or ".join(parts)
+        try:
+            client = MilvusClient(
+                self.vdb_endpoint,
+                token=self._get_milvus_token(),
+            )
+            entities = client.query(
+                collection_name=collection_name,
+                filter=filter_expr,
+                output_fields=["text", "source", "content_metadata"],
+                limit=limit,
+            )
+        except Exception as e:
+            logger.warning("Failed to retrieve by chunk_hash: %s", e)
+            return []
+        docs = []
+        for item in entities:
+            page_content = item.get("text") or item.get("chunk") or ""
+            metadata = {
+                "source": item.get("source", ""),
+                "content_metadata": item.get("content_metadata", {}),
+                "retrieval_type": "graph_replacement",
+            }
+            docs.append(Document(page_content=page_content, metadata=metadata))
+        return self._add_collection_name_to_retreived_docs(docs, collection_name)
+
+    # ----------------------------------------------------------------------------------------------
     # NV-Ingest VDB Interface Methods (required by VDB abstract class for ingestion)
     # These methods delegate to the nv_ingest Milvus instance created during __init__
 

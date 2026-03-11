@@ -256,3 +256,16 @@ class VDBRag(ABC):
     ) -> list[dict[str, Any]]:
         """Perform semantic search and return top-k relevant documents."""
         pass
+
+    def retrieve_by_chunk_hashes(
+        self,
+        collection_name: str,
+        chunk_hashes: list[str],
+        limit: int = 10,
+    ) -> list:
+        """Retrieve documents whose ``content_metadata.chunk_hash`` matches.
+
+        Optional — returns an empty list if the concrete VDB backend does not
+        implement this.  Used by GraphRAG chunk-replacement mode.
+        """
+        return []

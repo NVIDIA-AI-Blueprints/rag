@@ -16,10 +16,10 @@
 """Graph-augmented retrieval for GraphRAG.
 
 Provides:
-1. Query complexity classification to route simple queries to vector-only search
-2. Graph traversal retrieval using extracted entities and their neighborhoods
-3. Structural relevance ranking of entities, relationships, and communities
-4. Reciprocal Rank Fusion (RRF) to merge vector and graph retrieval results
+1. Graph traversal retrieval using extracted entities and their neighborhoods
+2. Structural relevance ranking of entities, relationships, and communities
+3. GraphRetrievalResult with boost_chunk_ids and community_summary for
+   score boosting and prompt preamble injection (no graph documents appended)
 """
 
 from __future__ import annotations
@@ -27,9 +27,9 @@ from __future__ import annotations
 import logging
 import math
 from collections import defaultdict
+from dataclasses import dataclass, field
 
 import numpy as np
-from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
 
 from nvidia_rag.utils.configuration import NvidiaRAGConfig
@@ -38,69 +38,24 @@ from nvidia_rag.utils.graph.graph_store import CommunityInfo, Entity, GraphStore
 
 logger = logging.getLogger(__name__)
 
-COMPLEXITY_KEYWORDS = {
-    "compare",
-    "relationship",
-    "between",
-    "depend",
-    "connect",
-    "relate",
-    "interact",
-    "collaborate",
-    "impact",
-    "affect",
-    "influence",
-    "cause",
-    "lead to",
-    "result in",
-    "across",
-    "multiple",
-    "all",
-    "every",
-    "summarize",
-    "overview",
-    "how does",
-    "what are the",
-    "who are",
-    "which",
-    "trace",
-    "flow",
-    "chain",
-    "sequence",
-    "path",
-    "history",
-    "evolution",
-    "timeline",
-}
 
+@dataclass
+class GraphRetrievalResult:
+    """Structured output from graph retrieval — no LangChain Documents.
 
-def classify_query_complexity(query: str) -> str:
-    """Classify query as 'simple' or 'complex' using heuristics.
+    ``boost_chunk_ids`` contains SHA-256[:16] hashes of source chunks linked
+    to the top-ranked entities.  At query time these are compared against
+    hashes computed from vector-retrieved doc text to boost or replace docs.
 
-    Complex queries involve relationships, comparisons, multi-hop reasoning,
-    or global/thematic questions. Simple queries are direct factual lookups.
-
-    Returns:
-        'simple' or 'complex'
+    ``community_summary`` is the best-matching community's LLM-generated
+    summary, injected as a prompt preamble ("Background Knowledge").
     """
-    query_lower = query.lower().strip()
 
-    complexity_score = 0
-
-    for keyword in COMPLEXITY_KEYWORDS:
-        if keyword in query_lower:
-            complexity_score += 1
-
-    if query_lower.count(" and ") >= 2:
-        complexity_score += 1
-    if "?" in query and len(query.split()) > 12:
-        complexity_score += 1
-    if any(w in query_lower for w in ("vs", "versus", "difference", "differ")):
-        complexity_score += 2
-
-    result = "complex" if complexity_score >= 2 else "simple"
-    logger.debug("Query complexity for '%s...': %s (score=%d)", query[:50], result, complexity_score)
-    return result
+    community_summary: str = ""
+    boost_chunk_ids: set[str] = field(default_factory=set)
+    entity_count: int = 0
+    relationship_count: int = 0
+    community_count: int = 0
 
 
 def _format_entity_context(entity: Entity) -> str:
@@ -197,33 +152,24 @@ async def graph_retrieval(
     config: NvidiaRAGConfig | None = None,
     prompts: dict | None = None,
     embedder: Embeddings | None = None,
-) -> list[Document]:
-    """Retrieve context from the knowledge graph for a given query.
+) -> GraphRetrievalResult | None:
+    """Retrieve graph signals for boosting / replacing vector search results.
 
     Two-stage ranking:
     1. **Structural** (always): score all traversed entities by hop distance,
        query-entity connections, source chunk count, and description richness.
-       This narrows thousands of entities to a manageable candidate set.
     2. **Embedding** (optional): if ``embedder`` is provided, re-rank the top
-       structural candidates by cosine similarity to the query. This picks the
-       most query-relevant entities from the structurally important set.
+       structural candidates by cosine similarity to the query.
 
-    Args:
-        query: User's natural language query.
-        graph_store: GraphStore instance.
-        collection_name: Collection to search.
-        config: NvidiaRAGConfig instance.
-        prompts: Prompts dict loaded from prompt.yaml via get_prompts().
-        embedder: Optional embedding model for second-stage re-ranking.
-
-    Returns:
-        List of Documents with graph-derived context.
+    Returns a :class:`GraphRetrievalResult` with:
+    - ``boost_chunk_ids``: source chunk hashes from top entities for score boosting
+    - ``community_summary``: best community summary for prompt preamble
     """
     if config is None:
         config = NvidiaRAGConfig()
 
     graph_cfg = config.graph_rag
-    top_k = graph_cfg.graph_top_k
+    boost_top_entities = graph_cfg.graph_boost_top_entities
     depth = graph_cfg.traversal_depth
     hub_threshold = graph_cfg.hub_entity_threshold
 
@@ -231,7 +177,7 @@ async def graph_retrieval(
 
     if not query_entities:
         logger.info("No entities extracted from query, returning empty graph results")
-        return []
+        return None
 
     traverse_entities: list[str] = []
     hub_entities: list[str] = []
@@ -287,7 +233,7 @@ async def graph_retrieval(
 
     if not all_entities and not matched_communities:
         logger.info("No graph matches found for query entities: %s", query_entities)
-        return []
+        return None
 
     logger.info(
         "Hub filtering: %d query entities -> %d traversed, %d hubs skipped",
@@ -383,112 +329,29 @@ async def graph_retrieval(
         rerank_order = await _rerank_by_query_embedding(query, comm_texts, embedder)
         community_list = [community_list[i] for i in rerank_order]
 
-    # --- Build documents from ranked results ---
-    documents: list[Document] = []
+    # --- Collect boost chunk IDs from top entities ---
+    boost_chunk_ids: set[str] = set()
+    for entity in entity_list[:boost_top_entities]:
+        boost_chunk_ids.update(entity.source_chunk_ids)
 
-    for community in community_list:
-        documents.append(Document(
-            page_content=community.summary,
-            metadata={
-                "source": "graph_community",
-                "community_id": community.community_id,
-                "retrieval_type": "graph",
-            },
-        ))
+    community_summary = community_list[0].summary if community_list else ""
 
-    entity_lines = [_format_entity_context(e) for e in entity_list][:20]
-    rel_lines = [_format_relationship_context(rel) for rel in unique_relationships[:30]]
-
-    parts = []
-    if entity_lines:
-        parts.append("Entities: " + "; ".join(entity_lines))
-    if rel_lines:
-        parts.append("Relationships: " + "; ".join(rel_lines))
-    if parts:
-        documents.append(Document(
-            page_content="\n".join(parts),
-            metadata={
-                "source": "graph_context",
-                "retrieval_type": "graph",
-            },
-        ))
-
-    documents = documents[:top_k]
+    result = GraphRetrievalResult(
+        community_summary=community_summary,
+        boost_chunk_ids=boost_chunk_ids,
+        entity_count=len(all_entities),
+        relationship_count=len(unique_relationships),
+        community_count=len(matched_communities),
+    )
 
     logger.info(
-        "Graph retrieval for '%s': %d entities, %d relationships, %d communities -> %d documents",
+        "Graph retrieval for '%s': %d entities, %d relationships, %d communities -> %d boost chunk IDs, summary=%d chars",
         query[:50],
-        len(all_entities),
-        len(unique_relationships),
-        len(matched_communities),
-        len(documents),
+        result.entity_count,
+        result.relationship_count,
+        result.community_count,
+        len(boost_chunk_ids),
+        len(community_summary),
     )
 
-    return documents
-
-
-def hybrid_rank_fusion(
-    vector_docs: list[Document],
-    graph_docs: list[Document],
-    graph_weight: float = 0.4,
-    top_k: int = 10,
-) -> list[Document]:
-    """Merge vector and graph retrieval results using Reciprocal Rank Fusion (RRF).
-
-    RRF score for each document: sum(1 / (k + rank_i)) across all result lists where
-    it appears. Graph results are weighted by ``graph_weight``.
-
-    Args:
-        vector_docs: Documents from vector similarity search.
-        graph_docs: Documents from graph traversal.
-        graph_weight: Weight multiplier for graph results (0.0-1.0).
-        top_k: Maximum number of documents to return.
-
-    Returns:
-        Merged and re-ranked list of Documents.
-    """
-    k = 60  # RRF constant
-
-    doc_scores: dict[str, float] = {}
-    doc_map: dict[str, Document] = {}
-
-    vector_weight = 1.0 - graph_weight
-
-    for rank, doc in enumerate(vector_docs):
-        doc_key = _doc_key(doc)
-        score = vector_weight * (1.0 / (k + rank + 1))
-        doc_scores[doc_key] = doc_scores.get(doc_key, 0.0) + score
-        if doc_key not in doc_map:
-            doc_map[doc_key] = doc
-
-    for rank, doc in enumerate(graph_docs):
-        doc_key = _doc_key(doc)
-        score = graph_weight * (1.0 / (k + rank + 1))
-        doc_scores[doc_key] = doc_scores.get(doc_key, 0.0) + score
-        if doc_key not in doc_map:
-            doc_map[doc_key] = doc
-
-    sorted_keys = sorted(doc_scores.keys(), key=lambda x: doc_scores[x], reverse=True)
-
-    results = []
-    for doc_key in sorted_keys[:top_k]:
-        doc = doc_map[doc_key]
-        doc.metadata["rrf_score"] = doc_scores[doc_key]
-        results.append(doc)
-
-    logger.info(
-        "RRF fusion: %d vector + %d graph -> %d merged (weight=%.2f)",
-        len(vector_docs),
-        len(graph_docs),
-        len(results),
-        graph_weight,
-    )
-
-    return results
-
-
-def _doc_key(doc: Document) -> str:
-    """Generate a deduplication key for a document."""
-    content = doc.page_content[:200] if doc.page_content else ""
-    source = doc.metadata.get("source", "")
-    return f"{source}:{hash(content)}"
+    return result

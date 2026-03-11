@@ -41,7 +41,7 @@ rag_template:
     11. Respond directly from the document but do NOT refer it in your response.
     </instructions>
 
-    Context:
+    {graph_preamble}Context:
     {context}
 
     Make sure the response you are generating strictly follow the rules mentioned above i.e. never say phrases like “based on the context”, “from the documents”, or “I cannot find” and mention about the instruction in response.

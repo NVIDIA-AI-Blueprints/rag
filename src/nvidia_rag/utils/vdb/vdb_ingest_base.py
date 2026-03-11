@@ -25,6 +25,7 @@ For components that only need retrieval operations (like rag_server), use VDBRag
 from vdb_base.py instead to avoid the nv_ingest dependency.
 """
 
+import hashlib
 import logging
 import threading
 
@@ -54,6 +55,15 @@ try:
 
         pass
 
+    class _ResolvedFuture:
+        """Thin wrapper so a pre-resolved value satisfies the .result() protocol."""
+
+        def __init__(self, value):
+            self._value = value
+
+        def result(self):
+            return self._value
+
     class SerializedVDBWrapper:
         """Wraps a VDB op to serialize write operations while keeping reads parallel.
 
@@ -61,18 +71,58 @@ try:
         overlap and cause indexing timeouts (e.g., GPU_CAGRA JIT compilation takes
         longer than the client's patience window). This wrapper uses a threading
         lock to ensure only one batch writes to the VDB at a time.
+
+        Additionally injects a deterministic ``chunk_hash`` into each record's
+        ``content_metadata`` before the VDB write.  The hash uses the same
+        algorithm as ``entity_extractor._chunk_id`` (SHA-256, first 16 hex chars)
+        so that graph entity ``source_chunk_ids`` can be matched to Milvus
+        documents at query time.
         """
 
         def __init__(self, vdb_op):
             self._vdb_op = vdb_op
             self._write_lock = threading.Lock()
 
+        @staticmethod
+        def _inject_chunk_hashes(records):
+            """Add ``chunk_hash`` to ``content_metadata`` for every text/structured record.
+
+            Uses the same hash as ``entity_extractor._chunk_id``:
+            ``hashlib.sha256(text.encode()).hexdigest()[:16]``
+            """
+            for result in records:
+                if result is None:
+                    continue
+                items = [result] if isinstance(result, dict) else result
+                for element in items:
+                    if not isinstance(element, dict):
+                        continue
+                    metadata = element.get("metadata", {})
+                    doc_type = element.get("document_type", "")
+                    content = None
+                    if doc_type == "text":
+                        content = metadata.get("content")
+                    elif doc_type == "structured":
+                        content = (metadata.get("table_metadata") or {}).get(
+                            "table_content"
+                        )
+                    if content:
+                        h = hashlib.sha256(str(content).encode()).hexdigest()[:16]
+                        cm = metadata.setdefault("content_metadata", {})
+                        cm["chunk_hash"] = h
+
         def run_async(self, records):
             with self._write_lock:
+                if hasattr(records, "result"):
+                    resolved = records.result()
+                    self._inject_chunk_hashes(resolved)
+                    return self._vdb_op.run_async(_ResolvedFuture(resolved))
+                self._inject_chunk_hashes(records)
                 return self._vdb_op.run_async(records)
 
         def run(self, records):
             with self._write_lock:
+                self._inject_chunk_hashes(records)
                 return self._vdb_op.run(records)
 
         def write_to_index(self, records, **kwargs):

@@ -36,6 +36,7 @@ Private helper methods:
 import json
 import logging
 import math
+import hashlib
 import os
 import time
 from collections.abc import AsyncGenerator, Generator
@@ -105,9 +106,8 @@ from nvidia_rag.utils.observability.tracing import (
 from nvidia_rag.utils.reranker import get_ranking_model
 from nvidia_rag.utils.graph.factory import get_graph_store
 from nvidia_rag.rag_server.graph_retriever import (
-    classify_query_complexity,
+    GraphRetrievalResult,
     graph_retrieval,
-    hybrid_rank_fusion,
 )
 from nvidia_rag.utils.vdb import _get_vdb_op
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
@@ -2799,7 +2799,7 @@ class NvidiaRAG:
                     logger.info("  - Retrieval Time: %.2f ms", retrieval_time_ms)
                     logger.info("-" * 80)
 
-            _graph_supplement_docs: list[Document] = []
+            graph_result: GraphRetrievalResult | None = None
 
             if (
                 self.graph_store is not None
@@ -2807,57 +2807,39 @@ class NvidiaRAG:
                 and not is_image_query
             ):
                 graph_cfg = self.config.graph_rag
-                retrieval_mode = graph_cfg.graph_retrieval_mode
-                query_complexity = classify_query_complexity(retriever_query)
-
-                skip_graph = (
-                    retrieval_mode == "complex_only" and query_complexity == "simple"
-                )
 
                 logger.info("=" * 80)
-                logger.info("STAGE: GraphRAG Hybrid Retrieval")
+                logger.info("STAGE: GraphRAG Retrieval")
                 logger.info("=" * 80)
-                logger.info("  - Query Complexity: %s", query_complexity)
-                logger.info("  - Retrieval Mode: %s", retrieval_mode)
                 logger.info("  - Traversal Depth: %d", graph_cfg.traversal_depth)
-                logger.info("  - Graph Weight: %.2f", graph_cfg.graph_weight_in_fusion)
-                if skip_graph:
-                    logger.info("  - Skipping graph retrieval (simple query in complex_only mode)")
+                logger.info("  - Boost Weight: %.3f", graph_cfg.graph_boost_weight)
+                logger.info("  - Boost Top Entities: %d", graph_cfg.graph_boost_top_entities)
+                logger.info("  - Chunk Replacement: %s", graph_cfg.graph_chunk_replacement)
                 logger.info("-" * 80)
 
-                if not skip_graph:
-                    try:
-                        graph_docs = await graph_retrieval(
-                            query=retriever_query,
-                            graph_store=self.graph_store,
-                            collection_name=validated_collections[0] if validated_collections else "",
-                            config=self.config,
-                            prompts=self.prompts,
-                            embedder=self.document_embedder,
-                        )
-                        if graph_docs:
-                            if retrieval_mode in ("supplement", "complex_only"):
-                                supplement_k = graph_cfg.graph_supplement_top_k
-                                _graph_supplement_docs = graph_docs[:supplement_k]
-                                logger.info("GraphRAG Output (supplement mode):")
-                                logger.info("  - Graph Documents held for append: %d", len(_graph_supplement_docs))
-                            else:
-                                context_to_show = hybrid_rank_fusion(
-                                    vector_docs=context_to_show,
-                                    graph_docs=graph_docs,
-                                    graph_weight=graph_cfg.graph_weight_in_fusion,
-                                    top_k=reranker_top_k,
-                                )
-                                logger.info("GraphRAG Output (replace mode):")
-                                logger.info("  - Graph Documents: %d", len(graph_docs))
-                                logger.info("  - Fused Documents: %d", len(context_to_show))
-                        else:
-                            logger.info("  - No graph results, using vector-only retrieval")
-                    except Exception:
-                        logger.warning(
-                            "GraphRAG retrieval failed, falling back to vector-only",
-                            exc_info=True,
-                        )
+                try:
+                    graph_result = await graph_retrieval(
+                        query=retriever_query,
+                        graph_store=self.graph_store,
+                        collection_name=validated_collections[0] if validated_collections else "",
+                        config=self.config,
+                        prompts=self.prompts,
+                        embedder=self.document_embedder,
+                    )
+                    if graph_result:
+                        logger.info("GraphRAG Output:")
+                        logger.info("  - Entities: %d", graph_result.entity_count)
+                        logger.info("  - Relationships: %d", graph_result.relationship_count)
+                        logger.info("  - Communities: %d", graph_result.community_count)
+                        logger.info("  - Boost Chunk IDs: %d", len(graph_result.boost_chunk_ids))
+                        logger.info("  - Community Summary: %d chars", len(graph_result.community_summary))
+                    else:
+                        logger.info("  - No graph results, using vector-only retrieval")
+                except Exception:
+                    logger.warning(
+                        "GraphRAG retrieval failed, falling back to vector-only",
+                        exc_info=True,
+                    )
                 logger.info("-" * 80)
 
             if ranker and enable_reranker and confidence_threshold > 0.0:
@@ -2872,17 +2854,92 @@ class NvidiaRAG:
                     documents=context_to_show,
                     confidence_threshold=confidence_threshold,
                 )
-                
+
                 logger.info("Filtering Output:")
                 logger.info("  - Filtered Documents: %d", len(context_to_show))
                 logger.info("-" * 80)
 
-            if _graph_supplement_docs:
-                context_to_show = context_to_show + _graph_supplement_docs
-                logger.info(
-                    "GraphRAG: appended %d graph docs after confidence filtering -> %d total",
-                    len(_graph_supplement_docs), len(context_to_show),
-                )
+            # --- GraphRAG Boost & Replace (after reranker + confidence filter) ---
+            if graph_result and graph_result.boost_chunk_ids:
+                graph_cfg = self.config.graph_rag
+                boost_weight = graph_cfg.graph_boost_weight
+
+                if boost_weight > 0 and context_to_show:
+                    boosted_count = 0
+                    for doc in context_to_show:
+                        content = doc.page_content or ""
+                        if content:
+                            chunk_hash = hashlib.sha256(content.encode()).hexdigest()[:16]
+                            if chunk_hash in graph_result.boost_chunk_ids:
+                                old_score = doc.metadata.get("relevance_score", 0.0)
+                                doc.metadata["relevance_score"] = old_score + boost_weight
+                                doc.metadata["graph_boosted"] = True
+                                boosted_count += 1
+                    if boosted_count:
+                        context_to_show.sort(
+                            key=lambda d: d.metadata.get("relevance_score", 0.0),
+                            reverse=True,
+                        )
+                    logger.info(
+                        "GraphRAG boost: %d/%d docs boosted by %.3f, %d graph chunk IDs available",
+                        boosted_count, len(context_to_show), boost_weight,
+                        len(graph_result.boost_chunk_ids),
+                    )
+
+                # --- Graph Chunk Replacement (optional) ---
+                if graph_cfg.graph_chunk_replacement and context_to_show:
+                    existing_hashes = set()
+                    for doc in context_to_show:
+                        content = doc.page_content or ""
+                        if content:
+                            existing_hashes.add(
+                                hashlib.sha256(content.encode()).hexdigest()[:16]
+                            )
+                    missing_hashes = list(graph_result.boost_chunk_ids - existing_hashes)
+
+                    if missing_hashes:
+                        threshold = graph_cfg.graph_replacement_score_threshold
+                        max_replace = graph_cfg.graph_replacement_max
+                        weak_indices = [
+                            i for i, doc in enumerate(context_to_show)
+                            if doc.metadata.get("relevance_score", 1.0) < threshold
+                        ]
+                        weak_indices.sort(
+                            key=lambda i: context_to_show[i].metadata.get("relevance_score", 0.0)
+                        )
+                        replace_count = min(len(weak_indices), max_replace, len(missing_hashes))
+
+                        if replace_count > 0:
+                            try:
+                                replacement_docs = vdb_op.retrieve_by_chunk_hashes(
+                                    collection_name=validated_collections[0] if validated_collections else "",
+                                    chunk_hashes=missing_hashes[:replace_count],
+                                    limit=replace_count,
+                                )
+                                replaced = 0
+                                for rep_doc in replacement_docs:
+                                    if replaced >= replace_count or not weak_indices:
+                                        break
+                                    idx = weak_indices.pop(0)
+                                    old_score = context_to_show[idx].metadata.get("relevance_score", 0.0)
+                                    old_source = context_to_show[idx].metadata.get("source", "?")
+                                    context_to_show[idx] = rep_doc
+                                    rep_doc.metadata["relevance_score"] = max(old_score, threshold)
+                                    rep_doc.metadata["graph_replaced"] = True
+                                    replaced += 1
+                                    logger.info(
+                                        "GraphRAG replace: slot %d (was %s) -> graph chunk",
+                                        idx, old_source,
+                                    )
+                                logger.info(
+                                    "GraphRAG replacement: %d docs replaced (%d weak, %d missing hashes)",
+                                    replaced, len(weak_indices) + replaced, len(missing_hashes),
+                                )
+                            except Exception:
+                                logger.warning(
+                                    "GraphRAG chunk replacement failed",
+                                    exc_info=True,
+                                )
 
             if enable_vlm_inference or is_image_query:
                 # Initialize vlm_settings if not provided
@@ -3062,6 +3119,18 @@ class NvidiaRAG:
 
             docs = [self._format_document_with_source(d) for d in context_to_show]
 
+            graph_preamble = ""
+            if graph_result and graph_result.community_summary:
+                graph_preamble = (
+                    "Background Knowledge (use only as thematic context, "
+                    "answer from the documents below):\n"
+                    f"{graph_result.community_summary}\n\n"
+                )
+                logger.info(
+                    "GraphRAG preamble injected: %d chars",
+                    len(graph_preamble),
+                )
+
             logger.info("=" * 80)
             logger.info("STAGE: Context Preparation for LLM")
             logger.info("=" * 80)
@@ -3146,7 +3215,7 @@ class NvidiaRAG:
                             token_usage_reflection
                         )
                         initial_response = await chain.ainvoke(
-                            {"question": query, "context": docs},
+                            {"question": query, "context": docs, "graph_preamble": graph_preamble},
                             config={"callbacks": [usage_callback_reflection]},
                         )
                         logger.info("Initial LLM response generated, checking groundedness...")
@@ -3218,7 +3287,7 @@ class NvidiaRAG:
                 usage_callback_rag = TokenUsageCaptureHandler(token_usage_rag)
                 # Create async stream generator (callback captures token usage)
                 stream_gen = chain.astream(
-                    {"question": query, "context": docs},
+                    {"question": query, "context": docs, "graph_preamble": graph_preamble},
                     config={"run_name": "llm-stream", "callbacks": [usage_callback_rag]},
                 )
                 # Eagerly fetch first chunk to trigger any errors before returning response
@@ -3424,13 +3493,6 @@ class NvidiaRAG:
             result = doc.page_content
             logger.debug(
                 f"After format_document_with_source (metadata disabled) - Result: {result}"
-            )
-            return result
-
-        if doc.metadata.get("retrieval_type") == "graph":
-            result = f"[Knowledge Graph Context]\n{doc.page_content}"
-            logger.debug(
-                f"After format_document_with_source (graph doc) - Result: {result[:100]}"
             )
             return result
 
