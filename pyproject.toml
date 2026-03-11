@@ -100,9 +100,15 @@ all = [
     "pyarrow>=21.0,<22.0",
     # Elasticsearch support
     "langchain-elasticsearch>=0.3",
+    # Oracle 26ai support
+    "oracledb>=2.0.0",
 ]
 elasticsearch = [
     "langchain-elasticsearch>=0.3",
+]
+oracle = [
+    "oracledb>=2.0.0",
+    "langchain-community>=0.4",
 ]
 
 [tool.uv.sources]
