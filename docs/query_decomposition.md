@@ -26,7 +26,7 @@ Each subquery is processed independently to gather comprehensive context, which 
 
 ## Accuracy Improvement Example
 
-The following example that uses the [HotpotQA](https://hotpotqa.github.io/) dataset demonstrates the accuracy improvement from enabling query decomposition.
+The following example that uses the [Google Frame](https://huggingface.co/datasets/google/frames-benchmark) benchmark demonstrates the accuracy improvement from enabling query decomposition.
 
 ```text
 Query: I am thinking of a Ancient Roman City. The city was destroyed by volcanic eruption. The eruption occurred in the year 79 AD. The volcano was a stratovolcano. Where was the session held where it was decided that the city would be named a UNESCO world heritage site?

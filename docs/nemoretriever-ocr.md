@@ -83,8 +83,6 @@ Consider using Paddle OCR if you:
 
 ### Hardware Requirements
 
-For detailed hardware requirements, refer to the [Paddle OCR Support Matrix](https://docs.nvidia.com/nim/ingestion/table-extraction/latest/support-matrix.html#supported-hardware).
-
 ### Docker Configuration
 
 The Paddle OCR service configuration:

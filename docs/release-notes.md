@@ -8,6 +8,38 @@ This documentation contains the release notes for [NVIDIA RAG Blueprint](readme.
 
 
 
+## Release 2.5.0 (2026-03-12)
+
+This release introduces support for the Nemotron-super-3 model, updates NIMs to the latest versions, upgrades NV-Ingest, and adds continuous ingestion along with RTX 6000 MIG support.
+
+### Highlights
+
+This release includes the following key updates:
+
+- **Nemotron-super-3 model support.** You can now integrate the Nemotron-super-3 model by following the steps outlined in [Change the Inference or Embedding Model](change-model.md).
+- **NIMs updated to latest versions.** 
+  The following model updates are included:
+  - `nvidia/llama-3.2-nv-embedqa-1b-v2` → `nvidia/llama-nemotron-embed-1b-v2`
+  - `nvidia/llama-3.2-nv-rerankqa-1b-v2` → `nvidia/llama-nemotron-rerank-1b-v2`
+  - `nemoretriever-page-elements-v3` → `nemotron-page-elements-v3`
+  - `nemoretriever-graphic-elements-v1` → `nemotron-graphic-elements-v1`
+  - `nemoretriever-table-structure-v1` → `nemotron-table-structure-v1`
+  - `nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1` → `nvidia/llama-nemotron-embed-vl-1b-v2`
+  - `nemoretriever-ocr-v1` to `nemotron-ocr-v1`
+- Updated NVIngest to [version 26.1.2](https://github.com/NVIDIA/NeMo-Retriever/releases/tag/26.1.2).
+- Added an example demonstrating the continuous ingestion pipeline. For more information, see [rag_event_ingest.ipynb](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/rag_event_ingest.ipynb).
+- **Added MIG support for RTX 6000.** For details, refer to [MIG Deployment](mig-deployment.md) and use `values-mig-rtx6000.yaml` and `mig-config-rtx6000.yaml`.
+- Added documentation for the experimental Nemotron-parse-only ingestion pipeline. This configuration allows you to perform extraction using only Nemotron Parse through NV-Ingest, without relying on OCR, page-elements, graphic-elements, or table-structure NIMs. For more information, refer to [nemotron-parse-extraction.md](nemotron-parse-extraction.md#experimental-nemotron-parse-only-extraction).
+- Several bug fixes, including frontend CVE resolutions, improved multimodal content concatenation for VLM embeddings, enhanced VDB serialization for high-concurrency parallel ingestion, and updates to observability and NeMo Guardrails configurations.
+
+### Fixed Known Issues
+
+The following known issues have been resolved in this release:
+
+- Addressed frontend CVEs.
+
+- Resolved VDB indexing issues during high-concurrency batch parallel ingestion by implementing VDB serialization.
+
 ## Release 2.4.0 (2026-02-20)
 
 This release adds new features to the RAG pipeline for supporting agent workflows and enhances generations with VLMs augmenting multimodal input.

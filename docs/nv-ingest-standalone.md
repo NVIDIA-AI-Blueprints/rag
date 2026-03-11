@@ -118,10 +118,10 @@ ingestor = ingestor.split(
             )
 
 ingestor = ingestor.embed(
-    # For self-hosted: "http://nemoretriever-embedding-ms:8000/v1"
+    # For self-hosted: "http://nemotron-embedding-ms:8000/v1"
     # For cloud (NVIDIA-hosted): "https://integrate.api.nvidia.com/v1"
-    endpoint_url="http://nemoretriever-embedding-ms:8000/v1",
-    model_name="nvidia/llama-3.2-nv-embedqa-1b-v2"
+    endpoint_url="http://nemotron-embedding-ms:8000/v1",
+    model_name="nvidia/llama-nemotron-embed-1b-v2"
 )
 
 ingestor = ingestor.vdb_upload(

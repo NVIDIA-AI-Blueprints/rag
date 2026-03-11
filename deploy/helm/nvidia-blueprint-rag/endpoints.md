@@ -24,11 +24,11 @@ This document describes the configurable endpoints used by the RAG server and it
 
 ### Embedding Model
 - **APP_EMBEDDINGS_SERVERURL**: URL for the embedding model service (default: "nemo-retriever-embedding-ms:8000")
-- **APP_EMBEDDINGS_MODELNAME**: Name of the embedding model (default: "nvidia/llama-3.2-nv-embedqa-1b-v2")
+- **APP_EMBEDDINGS_MODELNAME**: Name of the embedding model (default: "nvidia/llama-nemotron-embed-1b-v2")
 
 ### Reranking Model
 - **APP_RANKING_SERVERURL**: URL for the ranking model service (default: "nemo-retriever-reranking-ms:8000")
-- **APP_RANKING_MODELNAME**: Name of the ranking model (default: "nvidia/llama-3.2-nv-rerankqa-1b-v2")
+- **APP_RANKING_MODELNAME**: Name of the ranking model (default: "nvidia/llama-nemotron-rerank-1b-v2")
 
 ### Reflection Model
 - **REFLECTION_LLM_SERVERURL**: URL for the reflection LLM service (default: "nim-llm:8000")
@@ -42,8 +42,8 @@ This document describes the configurable endpoints used by the RAG server and it
 
 ### Model Configuration
 - **NEXT_PUBLIC_MODEL_NAME**: Name of the LLM model used in the frontend (default: "nvidia/llama-3.3-nemotron-super-49b-v1.5")
-- **VITE_EMBEDDING_MODEL**: Name of the embedding model used in the frontend (default: "nvidia/llama-3.2-nv-embedqa-1b-v2")
-- **VITE_RERANKER_MODEL**: Name of the reranker model used in the frontend (default: "nvidia/llama-3.2-nv-rerankqa-1b-v2")
+- **VITE_EMBEDDING_MODEL**: Name of the embedding model used in the frontend (default: "nvidia/llama-nemotron-embed-1b-v2")
+- **VITE_RERANKER_MODEL**: Name of the reranker model used in the frontend (default: "nvidia/llama-nemotron-rerank-1b-v2")
 
 ## Monitoring and Tracing Endpoints
 

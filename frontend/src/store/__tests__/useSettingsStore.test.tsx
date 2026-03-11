@@ -52,7 +52,7 @@ const mockHealthResponse: HealthResponse = {
       status: 'healthy',
       latency_ms: 40,
       error: null,
-      model: 'nvidia/llama-3.2-nv-rerankqa-1b-v2',
+      model: 'nvidia/llama-nemotron-rerank-1b-v2',
       message: null,
       http_status: 200
     }
@@ -121,7 +121,7 @@ describe('useHealthInitialization', () => {
       const state = useSettingsStore.getState();
       expect(state.model).toBe('meta/llama-3.1-8b-instruct');
       expect(state.embeddingModel).toBe('nvidia/nv-embedqa-e5-v5');
-      expect(state.rerankerModel).toBe('nvidia/llama-3.2-nv-rerankqa-1b-v2');
+      expect(state.rerankerModel).toBe('nvidia/llama-nemotron-rerank-1b-v2');
     });
 
     // Verify endpoints are also set
@@ -140,7 +140,7 @@ describe('useHealthInitialization', () => {
         llmEndpoint: 'http://llm:8000',
         embeddingModel: 'nvidia/nv-embedqa-e5-v5',
         embeddingEndpoint: 'http://embeddings:8001',
-        rerankerModel: 'nvidia/llama-3.2-nv-rerankqa-1b-v2',
+        rerankerModel: 'nvidia/llama-nemotron-rerank-1b-v2',
         rerankerEndpoint: 'http://reranker:8002'
       })
     );
@@ -167,7 +167,7 @@ describe('useHealthInitialization', () => {
       expect(state.model).toBe('user-selected-llm-model');
       expect(state.embeddingModel).toBe('user-selected-embedding-model');
       // Should still populate undefined fields
-      expect(state.rerankerModel).toBe('nvidia/llama-3.2-nv-rerankqa-1b-v2');
+      expect(state.rerankerModel).toBe('nvidia/llama-nemotron-rerank-1b-v2');
     });
   });
 

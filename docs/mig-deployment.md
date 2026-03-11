@@ -158,6 +158,9 @@ Use [`mig-config-rtx6000.yaml`](../deploy/helm/mig-slicing/mig-config-rtx6000.ya
 
 ```bash
 kubectl apply -n nvidia-gpu-operator -f mig-slicing/mig-config-rtx6000.yaml
+kubectl patch clusterpolicies.nvidia.com/cluster-policy \
+  --type='json' \
+  -p='[{"op":"replace", "path":"/spec/migManager/config/name", "value":"custom-mig-config"}]'
 kubectl label nodes <node-name> nvidia.com/mig.config=custom-rtx6000-4x1g24-2x1g24-1x2g48-1x4g96 --overwrite
 ```
 :::
@@ -233,14 +236,14 @@ You should see output similar to the following.
 Resource                                    Requested   Limit    Allocatable  Free
 nvidia.com/mig-1g.10gb                      (86%) 6.0   (86%) 6.0     7.0        1.0
 ├─ milvus-standalone-...                   1.0     1.0
-├─ nemoretriever-embedding-ms-...          1.0     1.0
+├─ nemotron-embedding-ms-...          1.0     1.0
 ├─ rag-nv-ingest-...                       1.0     1.0
 ├─ nemoretriever-graphic-elements-v1-...   1.0     1.0
 ├─ nemoretriever-page-elements-v3-...      1.0     1.0
 └─ nemoretriever-table-structure-v1-...    1.0     1.0
 
 nvidia.com/mig-1g.20gb                      (100%) 2.0  (100%) 2.0     2.0        0.0
-├─ nemoretriever-ranking-ms-...            1.0     1.0
+├─ nemotron-ranking-ms-...            1.0     1.0
 └─ <other-workload>                        1.0     1.0
 
 nvidia.com/mig-3g.40gb                      (100%) 1.0  (100%) 1.0     1.0        0.0

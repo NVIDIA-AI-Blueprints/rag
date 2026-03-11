@@ -300,7 +300,7 @@ def test_compose_helm_image_and_env_parity():
                     "ngcAPIKey",
                 ],
             },
-            "nemoretriever-embedding-ms": {
+            "nemotron-embedding-ms": {
                 "values_image_repo_path": [
                     "nimOperator",
                     "nvidia-nim-llama-32-nv-embedqa-1b-v2",
@@ -320,7 +320,7 @@ def test_compose_helm_image_and_env_parity():
                     "ngcAPIKey",
                 ],
             },
-            "nemoretriever-ranking-ms": {
+            "nemotron-ranking-ms": {
                 "values_image_repo_path": [
                     "nimOperator",
                     "nvidia-nim-llama-32-nv-rerankqa-1b-v2",
