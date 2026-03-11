@@ -49,7 +49,7 @@ By default, the NVIDIA RAG Blueprint is configured to use NeMo Retriever OCR wit
 
 ### Hardware Requirements
 
-For detailed hardware requirements and GPU support, refer to the [NeMo Retriever OCR Support Matrix](https://docs.nvidia.com/nim/ingestion/image-ocr/1.2.0/support-matrix.html).
+For detailed hardware requirements and GPU support, refer to the [NeMo Retriever OCR Support Matrix](https://docs.nvidia.com/nim/ingestion/image-ocr/1.2.1/support-matrix.html).
 
 ### Docker Configuration
 
@@ -82,8 +82,6 @@ Consider using Paddle OCR if you:
 - Are migrating from an older deployment
 
 ### Hardware Requirements
-
-For detailed hardware requirements, refer to the [Paddle OCR Support Matrix](https://docs.nvidia.com/nim/ingestion/table-extraction/latest/support-matrix.html#supported-hardware).
 
 ### Docker Configuration
 
