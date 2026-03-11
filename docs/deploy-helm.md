@@ -87,7 +87,6 @@ To deploy End-to-End RAG Server and Ingestor Server, use the following procedure
 2. Install the Helm chart by running the following command.
 
     ```sh
-
     helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.5.0.tgz \
     --username '$oauthtoken' \
     --password "${NGC_API_KEY}" \
