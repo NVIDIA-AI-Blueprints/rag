@@ -794,7 +794,7 @@ async def streaming_filter_think_async(chunks, enable_thinking: bool = False):
             yield output_buffer
 
     if think_accumulator and logger.isEnabledFor(logging.DEBUG):
-        logger.debug("Reasoning tokens (think): %s", think_accumulator.rstrip())
+        logger.debug("Reasoning tokens: %s", think_accumulator.rstrip())
     if reasoning_content_accumulator and logger.isEnabledFor(logging.DEBUG):
         logger.debug("Reasoning tokens: %s", reasoning_content_accumulator)
 
