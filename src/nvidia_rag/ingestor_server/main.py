@@ -158,24 +158,28 @@ class NvidiaRAGIngestor:
         )
 
         # Initialize MinIO operator - handle failures gracefully
-        try:
-            if self.mode == Mode.LITE:
-                raise ValueError("MinIO operations are not supported in RAG Lite mode")
-            self.minio_operator = get_minio_operator(config=self.config)
-            # Ensure default bucket exists (idempotent operation)
-            try:
-                self.minio_operator._make_bucket(bucket_name="a-bucket")
-                logger.debug("Ensured 'a-bucket' exists in MinIO")
-            except Exception as bucket_err:
-                # Log specific exception for debugging bucket creation issues
-                logger.debug("Could not ensure bucket exists: %s", bucket_err)
-        except Exception as e:
+        if not self.config.minio.enabled:
             self.minio_operator = None
-            # Error already logged in MinioOperator.__init__, just note it here
-            logger.debug(
-                "MinIO operator set to None due to initialization failure, reason: %s",
-                e,
-            )
+        else:
+            try:
+                if self.mode == Mode.LITE:
+                    raise ValueError("MinIO operations are not supported in RAG Lite mode")
+                self.minio_operator = get_minio_operator(config=self.config)
+                # Ensure default bucket exists (idempotent operation)
+                if self.minio_operator is not None:
+                    try:
+                        self.minio_operator._make_bucket(bucket_name="a-bucket")
+                        logger.debug("Ensured 'a-bucket' exists in MinIO")
+                    except Exception as bucket_err:
+                        # Log specific exception for debugging bucket creation issues
+                        logger.debug("Could not ensure bucket exists: %s", bucket_err)
+            except Exception as e:
+                self.minio_operator = None
+                # Error already logged in MinioOperator.__init__, just note it here
+                logger.debug(
+                    "MinIO operator set to None due to initialization failure, reason: %s",
+                    e,
+                )
 
         if self.vdb_op is not None:
             if not (isinstance(self.vdb_op, VDBRag) or isinstance(self.vdb_op, VDB)):
@@ -1767,6 +1771,8 @@ class NvidiaRAGIngestor:
                     logger.info(
                         f"Recalculated collection info for {collection_name} after document deletion"
                     )
+                    # Delete MinIO metadata for successfully deleted documents
+                    delete_minio_metadata(deleted_docs)
                 elif hasattr(vdb_op, "_es_connection"):
                     # Elasticsearch: Delete first, then add without aggregation
                     # Lazy import to avoid requiring elasticsearch when not used
@@ -1798,6 +1804,14 @@ class NvidiaRAGIngestor:
                     logger.info(
                         f"Recalculated collection info for {collection_name} after document deletion"
                     )
+                    # Delete MinIO metadata for successfully deleted documents
+                    delete_minio_metadata(deleted_docs)
+                elif hasattr(vdb_op, "_oracle_cs"):
+                    # Oracle 26ai: Replace collection info directly without aggregation
+                    vdb_op.set_collection_info(collection_name, updated_collection_info)
+                    logger.info(
+                        f"Recalculated collection info for {collection_name} after document deletion"
+                    )
                 else:
                     # Fallback: Use add_document_info (may cause double-aggregation, but better than nothing)
                     logger.warning(
@@ -1818,9 +1832,6 @@ class NvidiaRAGIngestor:
                     "total_documents": 0,
                     "documents": [],
                 }
-
-            # Delete MinIO metadata for successfully deleted documents
-            delete_minio_metadata(deleted_docs)
 
             # Build documents response with metadata and document_info from fetched data
             documents = []

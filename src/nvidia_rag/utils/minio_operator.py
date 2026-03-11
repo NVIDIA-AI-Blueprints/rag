@@ -27,8 +27,15 @@ import json
 import logging
 from io import BytesIO
 
-from minio import Minio
-from minio.commonconfig import SnowballObject
+try:
+    from minio import Minio
+    from minio.commonconfig import SnowballObject
+
+    _MINIO_AVAILABLE = True
+except ImportError:
+    Minio = None  # type: ignore[assignment,misc]
+    SnowballObject = None  # type: ignore[assignment,misc]
+    _MINIO_AVAILABLE = False
 
 from nvidia_rag.utils.configuration import NvidiaRAGConfig
 
@@ -47,6 +54,11 @@ class MinioOperator:
         secret_key: str,
         default_bucket_name: str = DEFAULT_BUCKET_NAME,
     ):
+        if not _MINIO_AVAILABLE:
+            raise ImportError(
+                "minio package is not installed. Install with: pip install 'nvidia_rag[minio]'"
+            )
+        assert Minio is not None  # noqa: S101 — narrowing for type checker
         self.client = Minio(
             endpoint, access_key=access_key, secret_key=secret_key, secure=False
         )
@@ -88,6 +100,7 @@ class MinioOperator:
         """Put list of dictionaries to S3 storage using minio client"""
         json_datas = [json.dumps(payload).encode("utf-8") for payload in payloads]
 
+        assert SnowballObject is not None  # noqa: S101 — narrowing for type checker
         snowball_objects = []
         for object_name, json_data in zip(object_names, json_datas, strict=False):
             snowball_objects.append(
@@ -134,19 +147,30 @@ class MinioOperator:
 def get_minio_operator(
     default_bucket_name: str = DEFAULT_BUCKET_NAME,
     config: NvidiaRAGConfig | None = None,
-) -> MinioOperator:
+) -> MinioOperator | None:
     """
-    Prepares and return MinioOperator object
+    Prepares and return MinioOperator object, or None when MinIO is disabled.
 
     Args:
         default_bucket_name: Default bucket name
         config: NvidiaRAGConfig instance. If None, creates a new one.
 
     Returns:
-        - minio_operator: MinioOperator
+        - minio_operator: MinioOperator, or None if ENABLE_MINIO=false or package not installed
     """
     if config is None:
         config = NvidiaRAGConfig()
+
+    if not config.minio.enabled:
+        logger.info("MinIO is disabled (ENABLE_MINIO=false). Multimodal citations will be unavailable.")
+        return None
+
+    if not _MINIO_AVAILABLE:
+        logger.warning(
+            "minio package is not installed. Multimodal citations will be unavailable. "
+            "Install with: pip install 'nvidia_rag[minio]', or set ENABLE_MINIO=false to suppress this warning."
+        )
+        return None
 
     minio_operator = MinioOperator(
         endpoint=config.minio.endpoint,

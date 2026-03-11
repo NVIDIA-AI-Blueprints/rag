@@ -24,7 +24,6 @@ dependencies = [
     "langchain-community>=0.4",
     "langchain-milvus>=0.3.0",
     "langchain-nvidia-ai-endpoints>=1.0.3",
-    "minio>=7.2,<8.0",
     "pdfplumber>=0.11.9",
     "pydantic>=2.11,<3.0",
     "pymilvus[milvus_lite]>=2.6.7,<3.0",
@@ -59,8 +58,8 @@ rag = [
 ]
 ingest = [
     # nv-ingest dependencies (required for ingestion operations)
-    "nv-ingest-api==25.9.0",
-    "nv-ingest-client==25.9.0",
+    "nv-ingest-api==26.1.2",
+    "nv-ingest-client==26.1.2",
     "tritonclient==2.57.0",
     # Other ingest dependencies
     "langchain-openai>=0.2",
@@ -81,8 +80,8 @@ ingest = [
 ]
 all = [
     # nv-ingest dependencies (required for ingestion operations)
-    "nv-ingest-api==25.9.0",
-    "nv-ingest-client==25.9.0",
+    "nv-ingest-api==26.1.2",
+    "nv-ingest-client==26.1.2",
     "tritonclient==2.57.0",
     # RAG + Ingest dependencies
     "langchain-openai>=0.2",
@@ -110,6 +109,9 @@ elasticsearch = [
 oracle = [
     "oracledb>=2.0.0",
     "langchain-community>=0.4",
+]
+minio = [
+    "minio>=7.2,<8.0",
 ]
 
 [tool.uv.sources]

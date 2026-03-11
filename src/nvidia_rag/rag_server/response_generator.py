@@ -92,14 +92,26 @@ FALLBACK_EXCEPTION_MSG = (
 )
 
 MINIO_OPERATOR = None
+_MINIO_OPERATOR_INITIALIZED = False
 
 
 def get_minio_operator_instance():
-    """Lazy initialize the MinioOperator instance"""
-    global MINIO_OPERATOR
-    if MINIO_OPERATOR is None:
+    """Lazy initialize the MinioOperator instance. Returns None when MinIO is disabled."""
+    global MINIO_OPERATOR, _MINIO_OPERATOR_INITIALIZED
+    if not _MINIO_OPERATOR_INITIALIZED:
         MINIO_OPERATOR = get_minio_operator()
+        _MINIO_OPERATOR_INITIALIZED = True
     return MINIO_OPERATOR
+
+
+def _get_minio_payload(object_name: str | None) -> dict:
+    """Fetch a payload from MinIO, returning empty dict when MinIO is unavailable or disabled."""
+    if not object_name:
+        return {}
+    operator = get_minio_operator_instance()
+    if operator is None:
+        return {}
+    return operator.get_payload(object_name=object_name)
 
 
 class Usage(BaseModel):
@@ -826,9 +838,7 @@ def prepare_citations(
                             location=location,
                             metadata=doc.metadata,
                         )
-                        payload = get_minio_operator_instance().get_payload(
-                            object_name=unique_thumbnail_id
-                        )
+                        payload = _get_minio_payload(unique_thumbnail_id)
                         content = payload.get("content", "")
                         source_metadata = SourceMetadata(
                             page_number=page_number,
@@ -1018,9 +1028,7 @@ async def retrieve_summary(
             location=[],
         )
 
-        payload = get_minio_operator_instance().get_payload(
-            object_name=unique_thumbnail_id
-        )
+        payload = _get_minio_payload(unique_thumbnail_id)
 
         if payload:
             return {
@@ -1091,9 +1099,7 @@ async def _wait_for_summary_completion(
                 page_number=0,
                 location=[],
             )
-            payload = get_minio_operator_instance().get_payload(
-                object_name=unique_thumbnail_id
-            )
+            payload = _get_minio_payload(unique_thumbnail_id)
             if payload:
                 return {
                     "message": "Summary retrieved successfully.",
@@ -1117,9 +1123,7 @@ async def _wait_for_summary_completion(
                         page_number=0,
                         location=[],
                     )
-                    payload = get_minio_operator_instance().get_payload(
-                        object_name=unique_thumbnail_id
-                    )
+                    payload = _get_minio_payload(unique_thumbnail_id)
                     if payload:
                         return {
                             "message": "Summary retrieved successfully.",
