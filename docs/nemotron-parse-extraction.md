@@ -105,7 +105,7 @@ When using Nemotron Parse for PDF extraction, consider the following:
 - The extraction quality may vary depending on the PDF structure and content.
 - Nemotron Parse is not supported on NVIDIA B200 GPUs or RTX Pro 6000 GPUs.
 
-For detailed information about hardware requirements and supported GPUs for all NeMo Retriever extraction NIMs, refer to the [Nemotron Parse Support Matrix](https://docs.nvidia.com/nim/vision-language-models/latest/support-matrix.html#nemotron-parse).
+For detailed information about hardware requirements and supported GPUs for extraction NIMs used by NeMo Retriever Library, refer to the [Nemotron Parse Support Matrix](https://docs.nvidia.com/nim/vision-language-models/latest/support-matrix.html#nemotron-parse).
 
 ## Available PDF Extraction Methods
 

@@ -13,7 +13,7 @@ The following table provides a comprehensive reference of all services, their po
 | RAG Server | `rag-server` | 8081 | 8081 | N/A (CPU) | Main RAG API endpoint |
 | Ingestor Server | `ingestor-server` | 8082 | 8082 | N/A (CPU) | Document ingestion API |
 | RAG Frontend | `rag-frontend` | 8090 | 3000 | N/A (CPU) | Web UI |
-| NV-Ingest Runtime | `nv-ingest-ms-runtime` | 7670, 7671, 8265 | 7670, 7671, 8265 | N/A (CPU) | Main orchestrator (Ray dashboard: 8265) |
+| NeMo Retriever Library Runtime | `nv-ingest-ms-runtime` | 7670, 7671, 8265 | 7670, 7671, 8265 | N/A (CPU) | Main orchestrator (Ray dashboard: 8265) |
 
 ## NIM Microservices
 
@@ -29,7 +29,7 @@ The following table provides a comprehensive reference of all services, their po
 | Page Elements | `compose-page-elements-1` | 8000, 8001, 8002 | 8000, 8001, 8002 | 0 | `YOLOX_MS_GPU_ID` | Object detection for pages |
 | Graphic Elements | `compose-graphic-elements-1` | 8003, 8004, 8005 | 8000, 8001, 8002 | 0 | `YOLOX_GRAPHICS_MS_GPU_ID` | Graphics detection |
 | Table Structure | `compose-table-structure-1` | 8006, 8007, 8008 | 8000, 8001, 8002 | 0 | `YOLOX_TABLE_MS_GPU_ID` | Table structure detection |
-| NeMo Retriever OCR | `compose-nemoretriever-ocr-1` | 8012, 8013, 8014 | 8000, 8001, 8002 | 0 | `OCR_MS_GPU_ID` | OCR service (default) |
+| NeMo Retriever Library OCR | `compose-nemoretriever-ocr-1` | 8012, 8013, 8014 | 8000, 8001, 8002 | 0 | `OCR_MS_GPU_ID` | OCR service (default) |
 
 ## Vector Database and Infrastructure
 

@@ -170,7 +170,7 @@ nim-llm-ms                      Up ... (healthy)
 
 `DEPLOYMENT_MODE = "cloud"`
 
-2.  Configure NV-Ingest to use NVIDIA hosted cloud APIs using the following hosted models.
+2.  Configure NeMo Retriever Library to use NVIDIA hosted cloud APIs using the following hosted models.
 
 - os.environ["OCR_HTTP_ENDPOINT"] = "https://ai.api.nvidia.com/v1/cv/nvidia/nemoretriever-ocr"
 
@@ -193,9 +193,9 @@ os.environ["YOLOX_HTTP_ENDPOINT"] = (
 os.environ["YOLOX_TABLE_STRUCTURE_INFER_PROTOCOL"] = "http"
 
 
-### Setup NVIDIA Ingest Runtime and Redis Service
+### Setup NeMo Retriever Library Runtime and Redis Service
 
-Use the following command to setup your NVIDIA Ingest Runtime and Redis Service.
+Use the following command to setup your NeMo Retriever Library Runtime and Redis Service.
 
 `docker compose -f ../deploy/compose/docker-compose-ingestor-server.yaml up nv-ingest-ms-runtime redis -d`
 
