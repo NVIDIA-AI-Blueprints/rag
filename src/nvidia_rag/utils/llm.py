@@ -699,6 +699,10 @@ async def streaming_filter_think_async(chunks, enable_thinking: bool = False):
 
     When DEBUG logging is enabled (i.e. LOGLEVEL=DEBUG), reasoning tokens are
     logged from <think> block content or reasoning_content field.
+<<<<<<< HEAD
+=======
+
+>>>>>>> Print reasoning tokens if DEBUG logging is enabled (#424)
     When enable_thinking is True and the model uses a separate reasoning_content field
     (e.g. Nemotron 3), reasoning tokens are dropped and only content is forwarded.
     The <think> tag filter still runs to handle models that embed reasoning in content.
