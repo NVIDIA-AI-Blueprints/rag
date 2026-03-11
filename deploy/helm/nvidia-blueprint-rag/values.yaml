@@ -703,6 +703,8 @@ nimOperator:
         value: "1"
       - name: NIM_SERVED_MODEL_NAME
         value: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+      - name: NIM_MAX_MODEL_LEN
+        value: "131072"
 #      - name: CUDA_VISIBLE_DEVICES
 #        value: "0"
     expose:
@@ -711,6 +713,17 @@ nimOperator:
         type: ClusterIP
         port: 8000
         grpcPort: 8001
+    startupProbe:
+      enabled: true
+      probe:
+        httpGet:
+          path: /v1/health/ready
+          port: 8000
+        initialDelaySeconds: 60
+        periodSeconds: 10
+        failureThreshold: 750
+        timeoutSeconds: 5
+
 # subsection: nvidia-nim-llama-32-nv-embedqa-1b-v2
 # NIM Text Embedding
   nvidia-nim-llama-32-nv-embedqa-1b-v2:
@@ -1016,7 +1029,7 @@ nv-ingest:
       replicaCount: 1
       image:
         repository: nvcr.io/nim/nvidia/nemoretriever-ocr-v1
-        tag: "1.2.0"
+        tag: "1.2.1"
       imagePullSecrets:
         - name: ngc-secret
       env:
