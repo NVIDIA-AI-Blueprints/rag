@@ -162,6 +162,29 @@ The following is a step-by-step explanation of the workflow from the end-user pe
 
 
 
+## AI Agent Skill
+
+An agent skill is included that enables AI coding assistants (Claude Code, Cursor, etc.) to deploy, configure, troubleshoot, and manage the RAG Blueprint autonomously.
+
+### Install
+
+```bash
+npx skills add .
+```
+
+This installs the `rag-blueprint` skill from `skill-source/`. After installation, the agent handles requests like:
+
+- *"Deploy RAG on Docker with NVIDIA-hosted models"*
+- *"Enable VLM image captioning and restart the ingestor"*
+- *"Ingestion failed for 3 files, can you check why?"*
+- *"Switch from Docker to library mode"*
+- *"Shut down all RAG services"*
+
+> **Note:** If the agent doesn't pick up the skill automatically (e.g., for short or ambiguous queries), invoke it explicitly with `/rag-blueprint <your request>`.
+
+For skill architecture details, see [`skill-source/README.md`](skill-source/README.md).
+
+
 ## Get Started With NVIDIA RAG Blueprint
 
 The recommended way to get started is to deploy the NVIDIA RAG Blueprint
