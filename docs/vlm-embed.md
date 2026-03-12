@@ -214,7 +214,7 @@ ingestor-server:
 
 nv-ingest:
   envVars:
-    # NV-Ingest runtime embedding target
+    # NeMo Retriever Library runtime embedding target
     EMBEDDING_NIM_ENDPOINT: "http://nemotron-vlm-embedding-ms:8000/v1"
     EMBEDDING_NIM_MODEL_NAME: "nvidia/llama-nemotron-embed-vl-1b-v2"
 ```
