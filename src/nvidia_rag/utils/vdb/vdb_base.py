@@ -269,3 +269,21 @@ class VDBRag(ABC):
         implement this.  Used by GraphRAG chunk-replacement mode.
         """
         return []
+
+    def search_by_chunk_hashes(
+        self,
+        collection_name: str,
+        query_embedding: list[float],
+        chunk_hashes: list[str],
+        limit: int = 20,
+    ) -> list:
+        """Vector similarity search restricted to specific chunk hashes.
+
+        Performs a standard embedding search but filters results to only
+        chunks whose ``content_metadata.chunk_hash`` is in the provided set.
+        Returns documents ranked by embedding similarity to the query.
+
+        Optional — returns an empty list if the concrete VDB backend does not
+        implement this.  Used by GraphRAG pool expansion.
+        """
+        return []

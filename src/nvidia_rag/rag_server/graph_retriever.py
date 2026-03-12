@@ -17,9 +17,9 @@
 
 Provides:
 1. Graph traversal retrieval using extracted entities and their neighborhoods
-2. Structural relevance ranking of entities, relationships, and communities
-3. GraphRetrievalResult with boost_chunk_ids and community_summary for
-   score boosting and prompt preamble injection (no graph documents appended)
+2. Structural relevance ranking of entities and relationships
+3. GraphRetrievalResult with intersection-ranked chunk hashes for pool
+   expansion and guaranteed-slot injection into the reranker pipeline
 """
 
 from __future__ import annotations
@@ -34,7 +34,7 @@ from langchain_core.embeddings import Embeddings
 
 from nvidia_rag.utils.configuration import NvidiaRAGConfig
 from nvidia_rag.utils.graph.entity_extractor import extract_entities_from_query
-from nvidia_rag.utils.graph.graph_store import CommunityInfo, Entity, GraphStore, Relationship
+from nvidia_rag.utils.graph.graph_store import Entity, GraphStore, Relationship
 
 logger = logging.getLogger(__name__)
 
@@ -43,19 +43,16 @@ logger = logging.getLogger(__name__)
 class GraphRetrievalResult:
     """Structured output from graph retrieval — no LangChain Documents.
 
-    ``boost_chunk_ids`` contains SHA-256[:16] hashes of source chunks linked
-    to the top-ranked entities.  At query time these are compared against
-    hashes computed from vector-retrieved doc text to boost or replace docs.
-
-    ``community_summary`` is the best-matching community's LLM-generated
-    summary, injected as a prompt preamble ("Background Knowledge").
+    ``intersection_chunk_hashes`` contains SHA-256[:16] hashes ranked by an
+    aggregate structural score.  Chunks referenced by multiple query-related
+    entities score highest (multi-hop bridging chunks).  These are used at
+    query time for pool expansion (injected into the reranker input) and
+    guaranteed-slot replacement.
     """
 
-    community_summary: str = ""
-    boost_chunk_ids: set[str] = field(default_factory=set)
+    intersection_chunk_hashes: list[str] = field(default_factory=list)
     entity_count: int = 0
     relationship_count: int = 0
-    community_count: int = 0
 
 
 def _format_entity_context(entity: Entity) -> str:
@@ -81,19 +78,17 @@ def _structural_entity_score(
     """Score an entity by graph-structural relevance signals.
 
     Combines hop distance (from BFS metadata), how many query entities
-    lead to this entity, source chunk frequency, and description richness.
+    lead to this entity, and source chunk frequency.
     All data comes from the graph — no external API calls.
     """
     hop = entity.metadata.get("hop_distance", 2)
     chunk_count = len(entity.source_chunk_ids)
-    desc_len = len(entity.description)
 
     hop_score = 1.0 / (1 + hop)
     multi_query_boost = 1.0 + 0.5 * max(0, query_connection_count - 1)
     chunk_boost = 1.0 + math.log1p(chunk_count) * 0.3
-    desc_boost = 1.0 + min(desc_len / 200, 1.0) * 0.2
 
-    return hop_score * multi_query_boost * chunk_boost * desc_boost
+    return hop_score * multi_query_boost * chunk_boost
 
 
 def _structural_rel_score(
@@ -106,9 +101,8 @@ def _structural_rel_score(
 
     base = (src_score + tgt_score) / 2
     weight_boost = 1.0 + math.log1p(max(0, rel.weight - 1)) * 0.3
-    desc_boost = 1.0 + min(len(rel.description) / 200, 1.0) * 0.2
 
-    return base * weight_boost * desc_boost
+    return base * weight_boost
 
 
 async def _rerank_by_query_embedding(
@@ -153,7 +147,7 @@ async def graph_retrieval(
     prompts: dict | None = None,
     embedder: Embeddings | None = None,
 ) -> GraphRetrievalResult | None:
-    """Retrieve graph signals for boosting / replacing vector search results.
+    """Retrieve graph signals for parallel retrieval (pool expansion + guaranteed slots).
 
     Two-stage ranking:
     1. **Structural** (always): score all traversed entities by hop distance,
@@ -162,14 +156,14 @@ async def graph_retrieval(
        structural candidates by cosine similarity to the query.
 
     Returns a :class:`GraphRetrievalResult` with:
-    - ``boost_chunk_ids``: source chunk hashes from top entities for score boosting
-    - ``community_summary``: best community summary for prompt preamble
+    - ``intersection_chunk_hashes``: chunk hashes ranked by aggregate entity
+      score — chunks referenced by more/higher-scored entities rank first.
     """
     if config is None:
         config = NvidiaRAGConfig()
 
     graph_cfg = config.graph_rag
-    boost_top_entities = graph_cfg.graph_boost_top_entities
+    top_entities_for_chunks = graph_cfg.graph_boost_top_entities
     depth = graph_cfg.traversal_depth
     hub_threshold = graph_cfg.hub_entity_threshold
 
@@ -207,7 +201,6 @@ async def graph_retrieval(
 
     all_entities: dict[str, Entity] = {}
     all_relationships: list[Relationship] = []
-    matched_communities: dict[int, CommunityInfo] = {}
     entity_query_sources: dict[str, set[str]] = defaultdict(set)
 
     for entity_name in traverse_entities:
@@ -226,12 +219,7 @@ async def graph_retrieval(
                     all_entities[key] = e
         all_relationships.extend(relationships)
 
-    for entity_name in traverse_entities + hub_entities:
-        community = graph_store.get_community_for_entity(entity_name, collection_name)
-        if community and community.community_id not in matched_communities:
-            matched_communities[community.community_id] = community
-
-    if not all_entities and not matched_communities:
+    if not all_entities:
         logger.info("No graph matches found for query entities: %s", query_entities)
         return None
 
@@ -250,7 +238,6 @@ async def graph_retrieval(
 
     # --- Rank by structural relevance ---
     entity_list = [e for e in all_entities.values() if e.description]
-    community_list = [c for c in matched_communities.values() if c.summary]
 
     # Score entities by graph-structural signals
     entity_scores: dict[str, float] = {}
@@ -265,19 +252,11 @@ async def graph_retrieval(
         rel.metadata["_score"] = _structural_rel_score(rel, entity_scores)
     unique_relationships.sort(key=lambda r: r.metadata.get("_score", 0), reverse=True)
 
-    # Rank communities by how many query entities they contain
-    query_entity_keys = {name.strip().lower() for name in traverse_entities + hub_entities}
-    community_list.sort(
-        key=lambda c: sum(1 for n in c.entity_names if n.strip().lower() in query_entity_keys),
-        reverse=True,
-    )
-
     logger.info(
-        "Structural ranking: %d entities (top score=%.3f), %d relationships, %d communities",
+        "Structural ranking: %d entities (top score=%.3f), %d relationships",
         len(entity_list),
         entity_scores[entity_list[0].key] if entity_list else 0,
         len(unique_relationships),
-        len(community_list),
     )
 
     # --- Stage 2: Embedding tiebreak — only when structural scores are ambiguous ---
@@ -324,34 +303,43 @@ async def graph_retrieval(
                 pool_size, boundary_score / cutoff_score,
             )
 
-    if embedder and len(community_list) > 1:
-        comm_texts = [c.summary for c in community_list]
-        rerank_order = await _rerank_by_query_embedding(query, comm_texts, embedder)
-        community_list = [community_list[i] for i in rerank_order]
+    # --- Collect intersection-ranked chunk hashes from top entities ---
+    # For each chunk hash, accumulate the structural scores of all entities
+    # that reference it.  Chunks referenced by multiple high-scoring entities
+    # (multi-hop bridging chunks) naturally rank highest.
+    chunk_agg_score: dict[str, float] = defaultdict(float)
+    chunk_entity_count: dict[str, int] = defaultdict(int)
+    for entity in entity_list[:top_entities_for_chunks]:
+        e_score = entity_scores.get(entity.key, 0)
+        for chunk_id in entity.source_chunk_ids:
+            chunk_agg_score[chunk_id] += e_score
+            chunk_entity_count[chunk_id] += 1
 
-    # --- Collect boost chunk IDs from top entities ---
-    boost_chunk_ids: set[str] = set()
-    for entity in entity_list[:boost_top_entities]:
-        boost_chunk_ids.update(entity.source_chunk_ids)
-
-    community_summary = community_list[0].summary if community_list else ""
+    min_refs = graph_cfg.graph_min_entity_refs
+    ranked_hashes = sorted(
+        chunk_agg_score.keys(),
+        key=lambda h: chunk_agg_score[h],
+        reverse=True,
+    )
+    intersection_hashes = [h for h in ranked_hashes if chunk_entity_count[h] >= min_refs]
+    if not intersection_hashes:
+        intersection_hashes = ranked_hashes
 
     result = GraphRetrievalResult(
-        community_summary=community_summary,
-        boost_chunk_ids=boost_chunk_ids,
+        intersection_chunk_hashes=intersection_hashes,
         entity_count=len(all_entities),
         relationship_count=len(unique_relationships),
-        community_count=len(matched_communities),
     )
 
+    multi_ref = sum(1 for h in intersection_hashes if chunk_entity_count.get(h, 0) >= 2)
     logger.info(
-        "Graph retrieval for '%s': %d entities, %d relationships, %d communities -> %d boost chunk IDs, summary=%d chars",
+        "Graph retrieval for '%s': %d entities, %d relationships "
+        "-> %d intersection hashes (%d with 2+ entity refs)",
         query[:50],
         result.entity_count,
         result.relationship_count,
-        result.community_count,
-        len(boost_chunk_ids),
-        len(community_summary),
+        len(intersection_hashes),
+        multi_ref,
     )
 
     return result

@@ -27,20 +27,23 @@ from nvidia_rag.utils.graph.graph_store import Entity
 class TestGraphRetrievalResult:
     def test_defaults(self):
         r = GraphRetrievalResult()
-        assert r.community_summary == ""
-        assert r.boost_chunk_ids == set()
+        assert r.intersection_chunk_hashes == []
         assert r.entity_count == 0
 
     def test_with_values(self):
         r = GraphRetrievalResult(
-            community_summary="summary",
-            boost_chunk_ids={"abc123", "def456"},
+            intersection_chunk_hashes=["abc123", "def456", "ghi789"],
             entity_count=5,
             relationship_count=10,
-            community_count=2,
         )
-        assert len(r.boost_chunk_ids) == 2
-        assert r.community_summary == "summary"
+        assert len(r.intersection_chunk_hashes) == 3
+        assert r.entity_count == 5
+
+    def test_intersection_hashes_are_ordered(self):
+        hashes = ["first", "second", "third"]
+        r = GraphRetrievalResult(intersection_chunk_hashes=hashes)
+        assert r.intersection_chunk_hashes[0] == "first"
+        assert r.intersection_chunk_hashes[-1] == "third"
 
 
 class TestStructuralEntityScore:
@@ -78,11 +81,10 @@ class TestConfigurationIntegration:
         assert cfg.enable_graph_rag is False
         assert cfg.graph_store_type == "networkx"
         assert cfg.traversal_depth == 2
-        assert cfg.graph_boost_weight == 0.1
         assert cfg.graph_boost_top_entities == 20
-        assert cfg.graph_chunk_replacement is False
-        assert cfg.graph_replacement_max == 2
-        assert cfg.graph_replacement_score_threshold == 0.35
+        assert cfg.graph_pool_chunks == 20
+        assert cfg.graph_guaranteed_slots == 2
+        assert cfg.graph_min_entity_refs == 2
 
     def test_graphrag_config_validation(self):
         from nvidia_rag.utils.configuration import GraphRAGConfig

@@ -1245,6 +1245,57 @@ class MilvusVDB(VDBRagIngest):
             docs.append(Document(page_content=page_content, metadata=metadata))
         return self._add_collection_name_to_retreived_docs(docs, collection_name)
 
+    def search_by_chunk_hashes(
+        self,
+        collection_name: str,
+        query_embedding: list[float],
+        chunk_hashes: list[str],
+        limit: int = 20,
+    ) -> list[Document]:
+        """Vector similarity search restricted to specific chunk hashes.
+
+        Uses Milvus ``search()`` with a filter on ``content_metadata["chunk_hash"]``
+        so that existing indexed embeddings are used for ranking — no extra
+        embedding API calls needed.
+        """
+        if not chunk_hashes or not query_embedding:
+            return []
+        parts = [
+            f'content_metadata["chunk_hash"] == "{h}"'
+            for h in chunk_hashes[:limit * 2]
+        ]
+        filter_expr = " or ".join(parts)
+        try:
+            client = MilvusClient(
+                self.vdb_endpoint,
+                token=self._get_milvus_token(),
+            )
+            results = client.search(
+                collection_name=collection_name,
+                data=[query_embedding],
+                filter=filter_expr,
+                limit=limit,
+                output_fields=["text", "source", "content_metadata"],
+                anns_field="vector",
+            )
+        except Exception as e:
+            logger.warning("search_by_chunk_hashes failed: %s", e)
+            return []
+        docs = []
+        for hits in results:
+            for hit in hits:
+                entity = hit.get("entity", {})
+                page_content = entity.get("text") or entity.get("chunk") or ""
+                metadata = {
+                    "source": entity.get("source", ""),
+                    "content_metadata": entity.get("content_metadata", {}),
+                    "retrieval_type": "graph_parallel",
+                    "graph_retrieved": True,
+                    "relevance_score": hit.get("distance", 0.0),
+                }
+                docs.append(Document(page_content=page_content, metadata=metadata))
+        return self._add_collection_name_to_retreived_docs(docs, collection_name)
+
     # ----------------------------------------------------------------------------------------------
     # NV-Ingest VDB Interface Methods (required by VDB abstract class for ingestion)
     # These methods delegate to the nv_ingest Milvus instance created during __init__

@@ -1091,36 +1091,33 @@ class GraphRAGConfig(_ConfigBase):
         env="GRAPH_TRAVERSAL_DEPTH",
         description="Number of hops for graph traversal during retrieval",
     )
-    graph_boost_weight: float = Field(
-        default=0.1,
-        env="GRAPH_BOOST_WEIGHT",
-        description=(
-            "Score boost added to vector docs whose chunk hash matches a graph "
-            "entity's source_chunk_ids. Set to 0 to disable boosting."
-        ),
-    )
     graph_boost_top_entities: int = Field(
         default=20,
         env="GRAPH_BOOST_TOP_ENTITIES",
-        description="Number of top-ranked graph entities whose source_chunk_ids are collected for boosting",
+        description="Number of top-ranked graph entities whose source_chunk_ids are used for intersection scoring",
     )
-    graph_chunk_replacement: bool = Field(
-        default=False,
-        env="GRAPH_CHUNK_REPLACEMENT",
+    graph_pool_chunks: int = Field(
+        default=20,
+        env="GRAPH_POOL_CHUNKS",
+        description="Number of graph-discovered intersection chunks to add to the reranker pool before reranking",
+    )
+    graph_guaranteed_slots: int = Field(
+        default=2,
+        env="GRAPH_GUARANTEED_SLOTS",
         description=(
-            "When True, replace weak vector docs (below replacement_score_threshold) "
-            "with graph-discovered chunks fetched from Milvus by chunk_hash."
+            "Minimum number of graph-retrieved chunks guaranteed in the final "
+            "context. If fewer survive reranking, weakest vector docs are replaced. "
+            "Set to 0 to disable guaranteed slots."
         ),
     )
-    graph_replacement_max: int = Field(
+    graph_min_entity_refs: int = Field(
         default=2,
-        env="GRAPH_REPLACEMENT_MAX",
-        description="Maximum number of weak vector docs to replace with graph-discovered chunks",
-    )
-    graph_replacement_score_threshold: float = Field(
-        default=0.35,
-        env="GRAPH_REPLACEMENT_SCORE_THRESHOLD",
-        description="Only replace vector docs with normalized relevance_score below this value",
+        env="GRAPH_MIN_ENTITY_REFS",
+        description=(
+            "Minimum number of top entities that must reference a chunk for it to "
+            "qualify as an intersection chunk. Chunks below this fall back to "
+            "aggregate-score ordering."
+        ),
     )
     hub_entity_threshold: int = Field(
         default=100,

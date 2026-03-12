@@ -2563,6 +2563,7 @@ class NvidiaRAG:
                 )
 
             # Get relevant documents with optional reflection
+            graph_docs_for_guarantee: list = []
             if self.config.reflection.enable_reflection:
                 logger.info("=" * 80)
                 logger.info("STAGE: Context Relevance Reflection")
@@ -2636,6 +2637,7 @@ class NvidiaRAG:
                 logger.info("-" * 80)
             else:
                 otel_ctx = otel_context.get_current()
+                graph_result = None
                 # Current reranker is not supported for image query
                 if ranker and enable_reranker and not is_image_query:
                     logger.info("=" * 80)
@@ -2704,6 +2706,85 @@ class NvidiaRAG:
                     logger.info("  - Retrieved Documents: %d", len(docs))
                     logger.info("  - Retrieval Time: %.2f ms", retrieval_time_ms)
                     logger.info("-" * 80)
+
+                    # --- GraphRAG Pool Expansion (inject graph chunks before reranker) ---
+                    if (
+                        self.graph_store is not None
+                        and self.config.graph_rag.enable_graph_rag
+                        and not is_image_query
+                    ):
+                        graph_cfg = self.config.graph_rag
+                        logger.info("=" * 80)
+                        logger.info("STAGE: GraphRAG Parallel Retrieval")
+                        logger.info("=" * 80)
+                        logger.info("  - Traversal Depth: %d", graph_cfg.traversal_depth)
+                        logger.info("  - Pool Chunks: %d", graph_cfg.graph_pool_chunks)
+                        logger.info("  - Guaranteed Slots: %d", graph_cfg.graph_guaranteed_slots)
+                        logger.info("  - Min Entity Refs: %d", graph_cfg.graph_min_entity_refs)
+                        if len(validated_collections) > 1:
+                            logger.warning(
+                                "GraphRAG pool expansion uses only the first collection (%s); "
+                                "%d additional collections are vector-only",
+                                validated_collections[0], len(validated_collections) - 1,
+                            )
+                        logger.info("-" * 80)
+                        try:
+                            graph_result = await graph_retrieval(
+                                query=retriever_query,
+                                graph_store=self.graph_store,
+                                collection_name=validated_collections[0] if validated_collections else "",
+                                config=self.config,
+                                prompts=self.prompts,
+                                embedder=self.document_embedder,
+                            )
+                            if graph_result and graph_result.intersection_chunk_hashes:
+                                logger.info("GraphRAG Output:")
+                                logger.info("  - Entities: %d", graph_result.entity_count)
+                                logger.info("  - Relationships: %d", graph_result.relationship_count)
+                                logger.info("  - Intersection Hashes: %d", len(graph_result.intersection_chunk_hashes))
+
+                                pool_chunks = graph_cfg.graph_pool_chunks
+                                if self.document_embedder is None:
+                                    raise RuntimeError("Embedding model unavailable for graph pool expansion")
+                                query_embedding = await self.document_embedder.aembed_query(retriever_query)
+                                graph_fetched = vdb_op.search_by_chunk_hashes(
+                                    collection_name=validated_collections[0] if validated_collections else "",
+                                    query_embedding=query_embedding,
+                                    chunk_hashes=graph_result.intersection_chunk_hashes[:pool_chunks],
+                                    limit=pool_chunks,
+                                )
+                                existing_hashes = set()
+                                for doc in docs:
+                                    content = doc.page_content or ""
+                                    if content:
+                                        existing_hashes.add(
+                                            hashlib.sha256(content.encode()).hexdigest()[:16]
+                                        )
+                                new_graph_docs = []
+                                for gd in graph_fetched:
+                                    content = gd.page_content or ""
+                                    if content:
+                                        gh = hashlib.sha256(content.encode()).hexdigest()[:16]
+                                        if gh not in existing_hashes:
+                                            existing_hashes.add(gh)
+                                            gd.metadata["graph_retrieved"] = True
+                                            new_graph_docs.append(gd)
+                                docs.extend(new_graph_docs)
+                                graph_docs_for_guarantee = list(new_graph_docs)
+                                logger.info(
+                                    "GraphRAG pool expansion: %d graph chunks fetched, %d new (deduplicated), pool now %d",
+                                    len(graph_fetched), len(new_graph_docs), len(docs),
+                                )
+                            elif graph_result:
+                                logger.info("  - No intersection hashes, using vector-only retrieval")
+                            else:
+                                logger.info("  - No graph results, using vector-only retrieval")
+                        except Exception:
+                            logger.warning(
+                                "GraphRAG parallel retrieval failed, falling back to vector-only",
+                                exc_info=True,
+                            )
+                        logger.info("-" * 80)
 
                     context_reranker_start_time = time.time()
                     logger.info("Starting reranking with query: '%s'", processed_query[:200] if processed_query else "")
@@ -2799,49 +2880,6 @@ class NvidiaRAG:
                     logger.info("  - Retrieval Time: %.2f ms", retrieval_time_ms)
                     logger.info("-" * 80)
 
-            graph_result: GraphRetrievalResult | None = None
-
-            if (
-                self.graph_store is not None
-                and self.config.graph_rag.enable_graph_rag
-                and not is_image_query
-            ):
-                graph_cfg = self.config.graph_rag
-
-                logger.info("=" * 80)
-                logger.info("STAGE: GraphRAG Retrieval")
-                logger.info("=" * 80)
-                logger.info("  - Traversal Depth: %d", graph_cfg.traversal_depth)
-                logger.info("  - Boost Weight: %.3f", graph_cfg.graph_boost_weight)
-                logger.info("  - Boost Top Entities: %d", graph_cfg.graph_boost_top_entities)
-                logger.info("  - Chunk Replacement: %s", graph_cfg.graph_chunk_replacement)
-                logger.info("-" * 80)
-
-                try:
-                    graph_result = await graph_retrieval(
-                        query=retriever_query,
-                        graph_store=self.graph_store,
-                        collection_name=validated_collections[0] if validated_collections else "",
-                        config=self.config,
-                        prompts=self.prompts,
-                        embedder=self.document_embedder,
-                    )
-                    if graph_result:
-                        logger.info("GraphRAG Output:")
-                        logger.info("  - Entities: %d", graph_result.entity_count)
-                        logger.info("  - Relationships: %d", graph_result.relationship_count)
-                        logger.info("  - Communities: %d", graph_result.community_count)
-                        logger.info("  - Boost Chunk IDs: %d", len(graph_result.boost_chunk_ids))
-                        logger.info("  - Community Summary: %d chars", len(graph_result.community_summary))
-                    else:
-                        logger.info("  - No graph results, using vector-only retrieval")
-                except Exception:
-                    logger.warning(
-                        "GraphRAG retrieval failed, falling back to vector-only",
-                        exc_info=True,
-                    )
-                logger.info("-" * 80)
-
             if ranker and enable_reranker and confidence_threshold > 0.0:
                 logger.info("=" * 80)
                 logger.info("STAGE: Confidence Threshold Filtering")
@@ -2859,87 +2897,53 @@ class NvidiaRAG:
                 logger.info("  - Filtered Documents: %d", len(context_to_show))
                 logger.info("-" * 80)
 
-            # --- GraphRAG Boost & Replace (after reranker + confidence filter) ---
-            if graph_result and graph_result.boost_chunk_ids:
-                graph_cfg = self.config.graph_rag
-                boost_weight = graph_cfg.graph_boost_weight
+            # --- GraphRAG Guaranteed Slots (after reranker) ---
+            if graph_docs_for_guarantee and context_to_show:
+                guaranteed_slots = self.config.graph_rag.graph_guaranteed_slots
+                graph_in_context = sum(
+                    1 for d in context_to_show if d.metadata.get("graph_retrieved")
+                )
+                slots_needed = guaranteed_slots - graph_in_context
 
-                if boost_weight > 0 and context_to_show:
-                    boosted_count = 0
-                    for doc in context_to_show:
-                        content = doc.page_content or ""
+                if slots_needed > 0:
+                    context_hashes = set()
+                    for d in context_to_show:
+                        content = d.page_content or ""
                         if content:
-                            chunk_hash = hashlib.sha256(content.encode()).hexdigest()[:16]
-                            if chunk_hash in graph_result.boost_chunk_ids:
-                                old_score = doc.metadata.get("relevance_score", 0.0)
-                                doc.metadata["relevance_score"] = old_score + boost_weight
-                                doc.metadata["graph_boosted"] = True
-                                boosted_count += 1
-                    if boosted_count:
-                        context_to_show.sort(
-                            key=lambda d: d.metadata.get("relevance_score", 0.0),
-                            reverse=True,
-                        )
-                    logger.info(
-                        "GraphRAG boost: %d/%d docs boosted by %.3f, %d graph chunk IDs available",
-                        boosted_count, len(context_to_show), boost_weight,
-                        len(graph_result.boost_chunk_ids),
-                    )
-
-                # --- Graph Chunk Replacement (optional) ---
-                if graph_cfg.graph_chunk_replacement and context_to_show:
-                    existing_hashes = set()
-                    for doc in context_to_show:
-                        content = doc.page_content or ""
-                        if content:
-                            existing_hashes.add(
+                            context_hashes.add(
                                 hashlib.sha256(content.encode()).hexdigest()[:16]
                             )
-                    missing_hashes = list(graph_result.boost_chunk_ids - existing_hashes)
+                    candidates = []
+                    for gd in graph_docs_for_guarantee:
+                        content = gd.page_content or ""
+                        if content:
+                            gh = hashlib.sha256(content.encode()).hexdigest()[:16]
+                            if gh not in context_hashes:
+                                candidates.append(gd)
 
-                    if missing_hashes:
-                        threshold = graph_cfg.graph_replacement_score_threshold
-                        max_replace = graph_cfg.graph_replacement_max
-                        weak_indices = [
-                            i for i, doc in enumerate(context_to_show)
-                            if doc.metadata.get("relevance_score", 1.0) < threshold
-                        ]
-                        weak_indices.sort(
-                            key=lambda i: context_to_show[i].metadata.get("relevance_score", 0.0)
+                    replace_count = min(slots_needed, len(candidates))
+                    if replace_count > 0:
+                        for i in range(replace_count):
+                            weakest_idx = len(context_to_show) - 1 - i
+                            if weakest_idx < 0:
+                                break
+                            old_source = context_to_show[weakest_idx].metadata.get("source", "?")
+                            weak_score = context_to_show[weakest_idx].metadata.get("relevance_score", 0.0)
+                            candidates[i].metadata["relevance_score"] = weak_score
+                            context_to_show[weakest_idx] = candidates[i]
+                            logger.info(
+                                "GraphRAG guaranteed slot %d: replaced weakest doc (was %s) with graph chunk",
+                                weakest_idx, old_source,
+                            )
+                        logger.info(
+                            "GraphRAG guaranteed slots: %d/%d graph docs in context (%d forced)",
+                            graph_in_context + replace_count, len(context_to_show), replace_count,
                         )
-                        replace_count = min(len(weak_indices), max_replace, len(missing_hashes))
-
-                        if replace_count > 0:
-                            try:
-                                replacement_docs = vdb_op.retrieve_by_chunk_hashes(
-                                    collection_name=validated_collections[0] if validated_collections else "",
-                                    chunk_hashes=missing_hashes[:replace_count],
-                                    limit=replace_count,
-                                )
-                                replaced = 0
-                                for rep_doc in replacement_docs:
-                                    if replaced >= replace_count or not weak_indices:
-                                        break
-                                    idx = weak_indices.pop(0)
-                                    old_score = context_to_show[idx].metadata.get("relevance_score", 0.0)
-                                    old_source = context_to_show[idx].metadata.get("source", "?")
-                                    context_to_show[idx] = rep_doc
-                                    rep_doc.metadata["relevance_score"] = max(old_score, threshold)
-                                    rep_doc.metadata["graph_replaced"] = True
-                                    replaced += 1
-                                    logger.info(
-                                        "GraphRAG replace: slot %d (was %s) -> graph chunk",
-                                        idx, old_source,
-                                    )
-                                logger.info(
-                                    "GraphRAG replacement: %d docs replaced (%d weak, %d missing hashes)",
-                                    replaced, len(weak_indices) + replaced, len(missing_hashes),
-                                )
-                            except Exception:
-                                logger.warning(
-                                    "GraphRAG chunk replacement failed",
-                                    exc_info=True,
-                                )
+                else:
+                    logger.info(
+                        "GraphRAG guaranteed slots: %d/%d graph docs already in context (no replacement needed)",
+                        graph_in_context, len(context_to_show),
+                    )
 
             if enable_vlm_inference or is_image_query:
                 # Initialize vlm_settings if not provided
@@ -3119,18 +3123,6 @@ class NvidiaRAG:
 
             docs = [self._format_document_with_source(d) for d in context_to_show]
 
-            graph_preamble = ""
-            if graph_result and graph_result.community_summary:
-                graph_preamble = (
-                    "Background Knowledge (use only as thematic context, "
-                    "answer from the documents below):\n"
-                    f"{graph_result.community_summary}\n\n"
-                )
-                logger.info(
-                    "GraphRAG preamble injected: %d chars",
-                    len(graph_preamble),
-                )
-
             logger.info("=" * 80)
             logger.info("STAGE: Context Preparation for LLM")
             logger.info("=" * 80)
@@ -3215,7 +3207,7 @@ class NvidiaRAG:
                             token_usage_reflection
                         )
                         initial_response = await chain.ainvoke(
-                            {"question": query, "context": docs, "graph_preamble": graph_preamble},
+                            {"question": query, "context": docs},
                             config={"callbacks": [usage_callback_reflection]},
                         )
                         logger.info("Initial LLM response generated, checking groundedness...")
@@ -3287,7 +3279,7 @@ class NvidiaRAG:
                 usage_callback_rag = TokenUsageCaptureHandler(token_usage_rag)
                 # Create async stream generator (callback captures token usage)
                 stream_gen = chain.astream(
-                    {"question": query, "context": docs, "graph_preamble": graph_preamble},
+                    {"question": query, "context": docs},
                     config={"run_name": "llm-stream", "callbacks": [usage_callback_rag]},
                 )
                 # Eagerly fetch first chunk to trigger any errors before returning response
