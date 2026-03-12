@@ -48,9 +48,9 @@ This release adds new features to the RAG pipeline for supporting agent workflow
 
 This release contains the following key changes:
 
-- Updated NIMs and code to support  [NVIDIA Ingest 26.01 release](https://docs.nvidia.com/nemo/retriever/latest/extraction/releasenotes-nv-ingest/).
+- Updated NIMs and code to support  [NeMo Retriever Library 26.01 release](https://docs.nvidia.com/nemo/retriever/latest/extraction/releasenotes-nv-ingest/).
 - Added support for non-NIM models including OpenAI, models hosted on AWS and Azure, OSS models, and others. Supported through service-specific API keys. For details, refer to [Get an API Key](api-key.md).
-- The RAG Blueprint now uses [nemoretriever-ocr-v1](https://build.nvidia.com/nvidia/nemoretriever-ocr-v1/modelcard) as the default OCR model. For details, refer to [NeMo Retriever OCR Configuration Guide](nemoretriever-ocr.md).
+- The RAG Blueprint now uses [nemoretriever-ocr-v1](https://build.nvidia.com/nvidia/nemoretriever-ocr-v1/modelcard) as the default OCR model. For details, refer to [NeMo Retriever Library OCR Configuration Guide](nemoretriever-ocr.md).
 - Improved VLM based generation support. The Vision-Language Model (VLM) inference feature now uses the model [nemotron-nano-12b-v2-vl](https://build.nvidia.com/nvidia/nemotron-nano-12b-v2-vl/modelcard). For details, refer to [VLM for Generation](vlm.md).
 - User interface improvements including catalog display, image and text query, and others. For details, refer to [User Interface](user-interface.md).
 - Added ingestion metrics endpoint support with OpenTelemetry (OTEL) for monitoring document uploads, elements ingested, and pages processed. For details, refer to [Observability](observability.md).
@@ -72,7 +72,7 @@ This release contains the following key changes:
   - Shallow summarization support
   - Easy model switches and dedicated configurations
   - Ease of prompt changes
-- Reserved field names `type`, `subtype`, and `location` for NV-Ingest exclusive use in metadata schemas.
+- Reserved field names `type`, `subtype`, and `location` for NeMo Retriever Library exclusive use in metadata schemas.
 - Added support for [rag_library_lite_usage.ipynb](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/rag_library_lite_usage.ipynb) which demonstrates containerless deployment of the NVIDIA RAG Python package in lite mode.
 - Added example showcasing [NeMo Agent Toolkit integration](https://github.com/NVIDIA/NeMo-Agent-Toolkit) with NVIDIA RAG.
 - Added [weighted hybrid search](hybrid_search.md#weighted-hybrid-search) support with configurable weights.
@@ -109,7 +109,7 @@ The following are the known issues for the NVIDIA RAG Blueprint:
 - Optional features reflection and image captioning are not available in Helm-based deployment.
 - Currently, Helm-based deployment is not supported for [NeMo Guardrails](nemo-guardrails.md).
 - The Blueprint responses can have significant latency when using [NVIDIA API Catalog cloud hosted models](deploy-docker-nvidia-hosted.md).
-- The accuracy of the pipeline is optimized for certain file types like `.pdf`, `.txt`, `.docx`. The accuracy may be poor for other file types supported by NV-Ingest, since image captioning is disabled by default.
+- The accuracy of the pipeline is optimized for certain file types like `.pdf`, `.txt`, `.docx`. The accuracy may be poor for other file types supported by NeMo Retriever Library, since image captioning is disabled by default.
 - When updating model configurations in Kubernetes `values.yaml` (for example, changing from 70B to 8B models), the RAG UI automatically detects and displays the new model configuration from the backend. No container rebuilds are required - simply redeploy the Helm chart with updated values and refresh the UI to see the new model settings in the Settings panel.
 - The NeMo LLM microservice can take 5-6 minutes to start for every deployment.
 - B200 GPUs are not supported for the following advanced features. For these features, use H100 or A100 GPUs instead.

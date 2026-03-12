@@ -1001,7 +1001,7 @@ Update your [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) fil
 
 ### Disable Default Vector Database and Add Custom Helm Chart
 
-1. **Disable Milvus in the NV-Ingest configuration:**
+1. **Disable Milvus in the NeMo Retriever Library configuration:**
    ```yaml
    nv-ingest:
      enabled: true

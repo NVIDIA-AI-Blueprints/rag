@@ -141,7 +141,7 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
 
 ## Blog Posts
 
-- [NVIDIA NeMo Retriever Delivers Accurate Multimodal PDF Data Extraction 15x Faster](https://developer.nvidia.com/blog/nvidia-nemo-retriever-delivers-accurate-multimodal-pdf-data-extraction-15x-faster/)
+- [NVIDIA NeMo Retriever Library Delivers Accurate Multimodal PDF Data Extraction 15x Faster](https://developer.nvidia.com/blog/nvidia-nemo-retriever-delivers-accurate-multimodal-pdf-data-extraction-15x-faster/)
 - [Finding the Best Chunking Strategy for Accurate AI Responses](https://developer.nvidia.com/blog/finding-the-best-chunking-strategy-for-accurate-ai-responses/)
 
 
@@ -217,7 +217,7 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
    Multimodal Embedding Support (Early Access) <vlm-embed.md>
    OCR Configuration Guide <nemoretriever-ocr.md>
    Enhanced PDF Extraction <nemotron-parse-extraction.md>
-   Standalone NV-Ingest <nv-ingest-standalone.md>
+   Standalone NeMo Retriever Library <nv-ingest-standalone.md>
    Text-Only Ingestion <text_only_ingest.md>
    MCP Server Usage <mcp.md>
 ```

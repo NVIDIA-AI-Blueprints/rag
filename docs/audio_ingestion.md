@@ -132,7 +132,7 @@ When using Helm deployment, the Audio NIM service requires an additional GPU.
 
 The `APP_NVINGEST_SEGMENTAUDIO` environment variable controls whether audio segmentation is enabled during the ingestion process.
 
-When set to `True`, NV-Ingest will segment audio files based on commas and other punctuation marks, resulting in more granular audio chunks. This can improve downstream processing and retrieval accuracy for audio content. Note that splitting on captions will occur regardless of this setting; enabling `APP_NVINGEST_SEGMENTAUDIO` simply adds additional segmentation based on punctuation.
+When set to `True`, NeMo Retriever Library will segment audio files based on commas and other punctuation marks, resulting in more granular audio chunks. This can improve downstream processing and retrieval accuracy for audio content. Note that splitting on captions will occur regardless of this setting; enabling `APP_NVINGEST_SEGMENTAUDIO` simply adds additional segmentation based on punctuation.
 
 To enable audio segmentation, add the following export command to your environment configuration:
 
