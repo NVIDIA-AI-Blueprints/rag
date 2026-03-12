@@ -33,10 +33,6 @@ jobs:
         with:
           auth_token: ${{ secrets.OCI_AUTH_TOKEN }}
 
-      - name: Compute short SHA
-        id: short-sha
-        run: echo "value=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
-
       - name: Read version
         id: version
         run: echo "value=$(cat VERSION)" >> $GITHUB_OUTPUT
