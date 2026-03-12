@@ -2,7 +2,7 @@
   SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
   SPDX-License-Identifier: Apache-2.0
 -->
-# Continuous Ingestion from Object Storage
+# Continuous Ingestion from Object Storage RAG Blueprint
 
 Continuous ingestion from object storage enables an event-driven pipeline that automatically indexes documents and, optionally, video files as soon as they are uploaded. When you add files to a storage bucket, the system detects new uploads, routes them for processing, and indexes their content—making all data immediately searchable and available for analysis through the [RAG Frontend](user-interface.md).
 
