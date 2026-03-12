@@ -17,26 +17,21 @@ Nemotron 3 Super requires **at least 2 GPUs** for the LLM NIM (e.g. FP8 TP2)—*
 
 ## Start services using NVIDIA-hosted models
 
-No local GPU needed for the LLM. Use the same approach as the main deployment guides: source `deploy/compose/.env` first, then the Nemotron 3 Super overrides for NVIDIA-hosted (cloud) endpoints.
+No local GPU needed for the LLM. The file `deploy/compose/nemotron3-super-cloud.env` sets all NVIDIA-hosted (cloud) endpoints and the Nemotron 3 Super model.
 
-1. Open `deploy/compose/.env` and **uncomment** the section **`Endpoints for using cloud NIMs`** (the block that sets cloud API URLs and model names). Leave the on-prem endpoints commented when using cloud. See [Start services using NVIDIA-hosted models](deploy-docker-nvidia-hosted.md#start-services-using-nvidia-hosted-models) for the same step.
-
-2. Source the environment and set the Nemotron 3 Super model and API key:
+1. Set your API key and prompt config, then source the env files:
 
 ```bash
 export NGC_API_KEY=<ngc-api-key>
+export APP_LLM_APIKEY=<llm-api-key>   # from https://build.nvidia.com/
 source deploy/compose/.env
 source deploy/compose/nemotron3-super-cloud.env
 export PROMPT_CONFIG_FILE=$(pwd)/deploy/compose/nemotron3-super-prompt.yaml
 ```
 
-Generate an API key at [build.nvidia.com](https://build.nvidia.com/). For model details and documentation, see the [Nemotron 3 Super 120B model page](https://build.nvidia.com/nvidia/nemotron-3-super-120b-a12b).
+2. Follow [Start services using NVIDIA-hosted models](deploy-docker-nvidia-hosted.md#start-services-using-nvidia-hosted-models) to start the vectorstore, rag-server, and ingestor-server.
 
-Use the path above from the repo root, or set `PROMPT_CONFIG_FILE` to the absolute path to `nemotron3-super-prompt.yaml` in your clone.
-
-Default is low-effort reasoning. To use non-reasoning mode, see [Reasoning and non-reasoning mode](#reasoning-and-non-reasoning-mode).
-
-Then follow the instructions in [Start services using NVIDIA-hosted models](deploy-docker-nvidia-hosted.md#start-services-using-nvidia-hosted-models) to start the vectorstore, rag-server, and ingestor-server.
+Generate an API key at [build.nvidia.com](https://build.nvidia.com/). For model details, see the [Nemotron 3 Super 120B model page](https://build.nvidia.com/nvidia/nemotron-3-super-120b-a12b). Default is low-effort reasoning; to use non-reasoning mode, see [Reasoning and non-reasoning mode](#reasoning-and-non-reasoning-mode).
 
 ---
 
