@@ -23,7 +23,6 @@ No local GPU needed for the LLM. The file `deploy/compose/nemotron3-super-cloud.
 
 ```bash
 export NGC_API_KEY=<ngc-api-key>
-export APP_LLM_APIKEY=<llm-api-key>   # from https://build.nvidia.com/
 source deploy/compose/.env
 source deploy/compose/nemotron3-super-cloud.env
 export PROMPT_CONFIG_FILE=$(pwd)/deploy/compose/nemotron3-super-prompt.yaml
