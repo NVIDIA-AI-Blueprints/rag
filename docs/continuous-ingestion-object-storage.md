@@ -115,8 +115,6 @@ Consumer environment variables
 
 ## Reference
 
-The following resources provide additional information:
-
 - [RAG Blueprint deployment (Docker self-hosted)](deploy-docker-self-hosted.md)
 - [Ingestor API](api-ingestor.md)
 - [Notebook: Document continuous ingestion from object storage](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/rag_event_ingest.ipynb)
