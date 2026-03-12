@@ -4,7 +4,7 @@
 -->
 # Continuous Ingestion from Object Storage RAG Blueprint
 
-Continuous ingestion from object storage enables an event-driven pipeline. This pipeline automatically indexes documents and, optionally, video files as soon as they are uploaded. When you add files to a storage bucket, the system detects new uploads, routes them for processing, and indexes their content—making all data immediately searchable and available for analysis through the [RAG Frontend](user-interface.md).
+Continuous ingestion from object storage connects the [RAG blueprint](README.md0 to continuous integration. This enables an event-driven pipeline that automatically indexes documents and, optionally, video files. Continuous integration means that when you add files to a storage bucket, the system detects new uploads, routes them for processing, and indexes their content—making all data immediately searchable and available for analysis through the [RAG Frontend](user-interface.md).
 
 ## Overview
 
