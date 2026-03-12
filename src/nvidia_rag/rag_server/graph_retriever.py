@@ -303,16 +303,25 @@ async def graph_retrieval(
                 pool_size, boundary_score / cutoff_score,
             )
 
-    # --- Collect intersection-ranked chunk hashes from top entities ---
+    # --- Collect intersection-ranked chunk hashes from top entities + relationships ---
     # For each chunk hash, accumulate the structural scores of all entities
     # that reference it.  Chunks referenced by multiple high-scoring entities
     # (multi-hop bridging chunks) naturally rank highest.
+    # Relationship source_chunk_ids are also included — these point to text
+    # where two entities are explicitly discussed together, making them
+    # high-value bridging chunks for cross-document queries.
     chunk_agg_score: dict[str, float] = defaultdict(float)
     chunk_entity_count: dict[str, int] = defaultdict(int)
     for entity in entity_list[:top_entities_for_chunks]:
         e_score = entity_scores.get(entity.key, 0)
         for chunk_id in entity.source_chunk_ids:
             chunk_agg_score[chunk_id] += e_score
+            chunk_entity_count[chunk_id] += 1
+
+    for rel in unique_relationships[:REL_FINAL]:
+        r_score = rel.metadata.get("_score", 0)
+        for chunk_id in rel.source_chunk_ids:
+            chunk_agg_score[chunk_id] += r_score
             chunk_entity_count[chunk_id] += 1
 
     min_refs = graph_cfg.graph_min_entity_refs
