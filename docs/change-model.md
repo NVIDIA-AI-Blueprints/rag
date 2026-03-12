@@ -48,7 +48,7 @@ Both names refer to the same underlying model. Use the appropriate name based on
 
 ##### Nemotron 3 Super
 
-Nemotron 3 Super is a larger model with different GPU and environment requirements: local NIM deployment requires at least 2 GPUs (FP8 TP2), and you may need a dedicated prompt config and reasoning settings. For full deployment steps (Docker and Helm), see the [Nemotron 3 Super deployment guide](../deploy/compose/nemotron3-super-deployment.md).
+Nemotron 3 Super is a larger model with different GPU and environment requirements: local NIM deployment requires at least 2 GPUs (FP8 TP2), and you may need a dedicated prompt config and reasoning settings. For full deployment steps (Docker and Helm), see the [Nemotron 3 Super deployment guide](nemotron3-super-deployment.md).
 
 
 ### Change the Embedding Model
@@ -296,5 +296,5 @@ Use this procedure to change models when you are running self-hosted NVIDIA NIM 
 - [Deploy with Docker (Self-Hosted Models)](deploy-docker-self-hosted.md)
 - [Deploy with Docker (NVIDIA-Hosted Models)](deploy-docker-nvidia-hosted.md)
 - [Deploy with Helm](deploy-helm.md)
-- [Nemotron 3 Super deployment (Docker and Helm)](../deploy/compose/nemotron3-super-deployment.md)
+- [Nemotron 3 Super deployment (Docker and Helm)](nemotron3-super-deployment.md)
 - [Service-Specific API Keys](api-key.md#service-specific-api-keys)

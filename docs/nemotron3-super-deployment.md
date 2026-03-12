@@ -1,6 +1,19 @@
-# Nemotron 3 Super - Deployment Guide
+# Using Nemotron-3-Super LLM NIM
 
-Nemotron 3 Super is a larger model with different deployment requirements. For **local NIM deployment**, the LLM requires **at least 2 GPUs** (FP8 TP2)—one more than the default single-GPU LLM. **Total GPU requirement: 3 GPUs** for the Docker flow (local NIM) and **9 GPUs** for the Helm flow. The guide uses **low-effort reasoning as the default** for better accuracy; you can switch to non-reasoning for maximum speed.
+[Nemotron-3-Super-120B-A12B](https://build.nvidia.com/nvidia/nemotron-3-super-120b-a12b/modelcard) is a large language model (LLM) trained by NVIDIA, designed to deliver strong agentic, reasoning, and conversational capabilities. It is optimized for collaborative agents and high-volume workloads such as IT ticket automation. This LLM can considerably improve the accuracy of the RAG pipeline, especially with reasoning enabled. ([Model card](https://build.nvidia.com/nvidia/nemotron-3-super-120b-a12b/modelcard))
+
+Nemotron 3 Super is a larger model with different deployment requirements. The guide uses **low-effort reasoning as the default** for better accuracy; you can switch to non-reasoning for maximum speed.
+
+## GPU requirements
+
+| Deployment | LLM NIM (minimum) | Total GPUs |
+|------------|-------------------|------------|
+| Docker (local NIM) | 2 GPUs (FP8 TP2) | **3 GPUs** |
+| Helm | 2 GPUs | **9 GPUs** |
+
+For local NIM deployment, the LLM requires **at least 2 GPUs** (e.g. FP8 TP2)—one more than the default single-GPU LLM. Ensure your host or cluster has the total GPU count above before proceeding.
+
+## Required files
 
 Required files are in the repository: `deploy/compose/.env`, `deploy/compose/nemotron3-super.env` (local), `deploy/compose/nemotron3-super-cloud.env` (cloud), and `deploy/compose/nemotron3-super-prompt.yaml`.
 
@@ -10,7 +23,7 @@ Required files are in the repository: `deploy/compose/.env`, `deploy/compose/nem
 
 No local GPU needed for the LLM. Uses NVIDIA-hosted endpoint. Use the same approach as the main deployment guides: source `deploy/compose/.env` first, then the Nemotron 3 Super overrides for cloud.
 
-1. Open `deploy/compose/.env` and **uncomment** the section **`Endpoints for using cloud NIMs`** (the block that sets cloud API URLs and model names). Leave the on-prem endpoints commented when using cloud. See [Deploy with Docker (NVIDIA-Hosted Models)](../../docs/deploy-docker-nvidia-hosted.md) for the same step.
+1. Open `deploy/compose/.env` and **uncomment** the section **`Endpoints for using cloud NIMs`** (the block that sets cloud API URLs and model names). Leave the on-prem endpoints commented when using cloud. See [Deploy with Docker (NVIDIA-Hosted Models)](deploy-docker-nvidia-hosted.md) for the same step.
 
 2. Source the environment and set the Nemotron 3 Super model and API key:
 
@@ -27,7 +40,7 @@ Use the path above from the repo root, or set `PROMPT_CONFIG_FILE` to the absolu
 
 Default is low-effort reasoning. To use non-reasoning mode, see [Reasoning and non-reasoning mode](#reasoning-and-non-reasoning-mode).
 
-Then follow the instructions to start the vectorstore, rag-server, and ingestor-server from [Deploy with Docker (NVIDIA-Hosted Models)](../../docs/deploy-docker-nvidia-hosted.md).
+Then follow the instructions to start the vectorstore, rag-server, and ingestor-server from [Deploy with Docker (NVIDIA-Hosted Models)](deploy-docker-nvidia-hosted.md).
 
 ---
 
@@ -71,7 +84,7 @@ Only if you use **RTX 6000 Pro** or encounter **OOM** do you need to add `NIM_MA
 
 ### 3. Source env and deploy
 
-Ensure the section **`Endpoints for using cloud NIMs`** in `deploy/compose/.env` is **commented** (so on-prem endpoints are used). See [Deploy with Docker (Self-Hosted Models)](../../docs/deploy-docker-self-hosted.md) for the same step.
+Ensure the section **`Endpoints for using cloud NIMs`** in `deploy/compose/.env` is **commented** (so on-prem endpoints are used). See [Deploy with Docker (Self-Hosted Models)](deploy-docker-self-hosted.md) for the same step.
 
 ```bash
 source deploy/compose/.env
@@ -80,7 +93,7 @@ export PROMPT_CONFIG_FILE=$(pwd)/deploy/compose/nemotron3-super-prompt.yaml
 # then start compose as usual
 ```
 
-Follow the instructions in [Deploy with Docker (Self-Hosted Models)](../../docs/deploy-docker-self-hosted.md) to start the vectorstore, rag-server, NIMs, and ingestor-server.
+Follow the instructions in [Deploy with Docker (Self-Hosted Models)](deploy-docker-self-hosted.md) to start the vectorstore, rag-server, NIMs, and ingestor-server.
 
 Default is low-effort reasoning. To use non-reasoning mode, see [Reasoning and non-reasoning mode](#reasoning-and-non-reasoning-mode).
 
@@ -95,7 +108,7 @@ Default is low-effort reasoning. To use non-reasoning mode, see [Reasoning and n
   For Docker, you can set this in `deploy/compose/nemotron3-super.env`: the file includes a commented `LLM_MAX_TOKENS` line—uncomment and set the value when using reduced max model length. For Helm, set `envVars.LLM_MAX_TOKENS` in `values.yaml`.
 - **BF16** requires minimum TP4 (4 GPUs). **FP8** can run on TP2 (2 GPUs).
 - **NIM_MODEL_PROFILE** must be specified; use `list-model-profiles` inside the container to find available profiles for your hardware. If that does not work, try setting `NIM_KVCACHE_PERCENT: 0.9`.
-- **Reasoning**: Default is low-effort reasoning. For non-reasoning mode, see [Reasoning and non-reasoning mode](#reasoning-and-non-reasoning-mode). For other options (e.g. full reasoning budget), see [Enable reasoning for Nemotron 3 models](../../docs/enable-nemotron-thinking.md).
+- **Reasoning**: Default is low-effort reasoning. For non-reasoning mode, see [Reasoning and non-reasoning mode](#reasoning-and-non-reasoning-mode). For other options (e.g. full reasoning budget), see [Enable reasoning for Nemotron 3 models](enable-nemotron-thinking.md).
 
 ---
 
@@ -130,7 +143,7 @@ When using this reduced max model length, set **LLM_MAX_TOKENS** appropriately: 
 
 ## Helm deployment (Nemotron 3 Super)
 
-For Helm-based deployment of Nemotron 3 Super, follow the general flow in [Change the LLM or Embedding Model – For Helm Deployments](../../docs/change-model.md#for-helm-deployments), then apply the model-specific steps below. After editing `values.yaml`, apply changes as described in [Change a Deployment](../../docs/deploy-helm.md#change-a-deployment).
+For Helm-based deployment of Nemotron 3 Super, follow the general flow in [Change the LLM or Embedding Model – For Helm Deployments](change-model.md#for-helm-deployments), then apply the model-specific steps below. After editing `values.yaml`, apply changes as described in [Change a Deployment](deploy-helm.md#change-a-deployment).
 
 **NIM LLM image**: Set the Nemotron 3 Super image in `values.yaml` under `nimOperator.nim-llm.image`:
 
@@ -180,7 +193,7 @@ In addition to the [model and resource settings](#model-and-resource-settings-al
 
 ### Deploy with updated values
 
-After you have made all the changes above, deploy or upgrade using your updated `values.yaml`. Follow [Change a Deployment](../../docs/deploy-helm.md#change-a-deployment) in the Helm deployment guide for the exact commands. For a new installation, see [Deploy on Kubernetes with Helm](../../docs/deploy-helm.md).
+After you have made all the changes above, deploy or upgrade using your updated `values.yaml`. Follow [Change a Deployment](deploy-helm.md#change-a-deployment) in the Helm deployment guide for the exact commands. For a new installation, see [Deploy on Kubernetes with Helm](deploy-helm.md).
 
 ---
 
@@ -195,4 +208,4 @@ export LLM_ENABLE_THINKING=false
 export LLM_REASONING_BUDGET=0
 ```
 
-For other options (e.g. full reasoning budget), see [Enable reasoning for Nemotron 3 models](../../docs/enable-nemotron-thinking.md).
+For other options (e.g. full reasoning budget), see [Enable reasoning for Nemotron 3 models](enable-nemotron-thinking.md).
