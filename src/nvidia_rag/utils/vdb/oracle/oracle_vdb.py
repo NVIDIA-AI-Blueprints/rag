@@ -252,7 +252,7 @@ class OracleVDB(VDBRagIngest):
             self._pool = oracledb.create_pool(
                 user=self._oracle_user,
                 password=self._oracle_password,
-                dsn=self._oracle_cs
+                dsn=self._oracle_cs,
                 min=2,
                 max=10,
                 increment=1,
