@@ -4,7 +4,7 @@
 -->
 # Ingestor Server Volume Mounting for NVIDIA RAG Blueprint
 
-You can mount a host directory to access NV-Ingest extraction results directly from the filesystem when you use the [NVIDIA RAG Blueprint](readme.md). Designed for advanced developers who need programmatic access to raw extraction results for custom processing pipelines or external vector database integration.
+You can mount a host directory to access extraction results from NeMo Retriever Library directly from the filesystem when you use the [NVIDIA RAG Blueprint](readme.md). Designed for advanced developers who need programmatic access to raw extraction results for custom processing pipelines or external vector database integration.
 
 ## Configuration
 

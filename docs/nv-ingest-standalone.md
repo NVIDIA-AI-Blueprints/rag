@@ -3,19 +3,19 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-# Deploy NV-Ingest Standalone for NVIDIA RAG Blueprint
+# Deploy NeMo Retriever Library Standalone for NVIDIA RAG Blueprint
 
-This guide explains how to deploy and use NV-Ingest as a standalone service for [NVIDIA RAG Blueprint](readme.md) without deploying the full ingestor server. This is useful when you want to ingest documents directly using Python scripts.
+This guide explains how to deploy and use NeMo Retriever Library as a standalone service for [NVIDIA RAG Blueprint](readme.md) without deploying the full ingestor server. This is useful when you want to ingest documents directly using Python scripts.
 
 For more details and advanced usage, refer to:
-- [NVIDIA/nv-ingest repository](https://github.com/NVIDIA/nv-ingest)
-- [Official NV-Ingest Quickstart Guide](https://github.com/NVIDIA/nv-ingest/blob/main/docs/docs/extraction/quickstart-guide.md)
+- [NVIDIA/NeMo-Retriever Library repository](https://github.com/NVIDIA/NeMo-Retriever)
+- [Official NeMo Retriever Library Quickstart Guide](https://docs.nvidia.com/nemo/retriever/)
 
 ## Limitations
 
-When using NV-Ingest in standalone mode, consider the following limitations:
+When using NeMo Retriever Library in standalone mode, consider the following limitations:
 
-1. **Citations Disabled**: The RAG server's citation feature will be disabled for documents ingested through standalone NV-Ingest. This is because the citation metadata requires additional processing that is handled by the full ingestor server.
+1. **Citations Disabled**: The RAG server's citation feature will be disabled for documents ingested through standalone NeMo Retriever Library. This is because the citation metadata requires additional processing that is handled by the full ingestor server.
 
 2. **No Web UI**: The standalone deployment does not include the web-based upload interface. All document ingestion must be done through Python scripts.
 
@@ -92,7 +92,7 @@ COLLECTION_NAME = "multimodal_data_nvingest"
 MILVUS_URI = "http://localhost:19530"
 MINIO_ENDPOINT = "localhost:9010"
 
-# Server Mode (Create NV-Ingest client)
+# Server Mode (Create NeMo Retriever Library client)
 client = NvIngestClient(
     message_client_hostname="localhost",
     message_client_port=7670
@@ -118,10 +118,10 @@ ingestor = ingestor.split(
             )
 
 ingestor = ingestor.embed(
-    # For self-hosted: "http://nemoretriever-embedding-ms:8000/v1"
+    # For self-hosted: "http://nemotron-embedding-ms:8000/v1"
     # For cloud (NVIDIA-hosted): "https://integrate.api.nvidia.com/v1"
-    endpoint_url="http://nemoretriever-embedding-ms:8000/v1",
-    model_name="nvidia/llama-3.2-nv-embedqa-1b-v2"
+    endpoint_url="http://nemotron-embedding-ms:8000/v1",
+    model_name="nvidia/llama-nemotron-embed-1b-v2"
 )
 
 ingestor = ingestor.vdb_upload(

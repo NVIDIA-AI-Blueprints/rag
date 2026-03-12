@@ -38,10 +38,10 @@ The reranker settings are configured in `deploy/compose/docker-compose-rag-serve
 export ENABLE_RERANKER=True
 
 # Set reranker model (default is already configured)
-export APP_RANKING_MODELNAME="nvidia/llama-3.2-nv-rerankqa-1b-v2"
+export APP_RANKING_MODELNAME="nvidia/llama-nemotron-rerank-1b-v2"
 
 # Reranker service URL (default is already configured)
-export APP_RANKING_SERVERURL="nemoretriever-ranking-ms:8000"
+export APP_RANKING_SERVERURL="nemotron-ranking-ms:8000"
 ```
 
 ### For Helm Deployment
@@ -54,7 +54,7 @@ envVars:
   ENABLE_RERANKER: "True"
   
   # Reranker model name (default is already configured)
-  APP_RANKING_MODELNAME: "nvidia/llama-3.2-nv-rerankqa-1b-v2"
+  APP_RANKING_MODELNAME: "nvidia/llama-nemotron-rerank-1b-v2"
   
   # Reranker service URL (default is already configured)
   APP_RANKING_SERVERURL: "nemoretriever-reranking-ms:8000"

@@ -111,7 +111,7 @@ Use the following procedure to start all containers needed for this blueprint.
         ],
         "processing": [
             {
-                "service": "NV-Ingest",
+                "service": "NeMo Retriever Library",
                 "status": "healthy",
                 ...
             }
@@ -238,7 +238,7 @@ After the first time you deploy the RAG Blueprint successfully, you can consider
 
 - If you don't have a GPU available, you can switch to CPU-only Milvus by following the instructions in [milvus-configuration.md](./milvus-configuration.md).
 
-- If you have a requirement to build the NVIDIA Ingest runtime container from source, you can do it by following instructions [here](https://github.com/NVIDIA/nv-ingest).
+- If you have a requirement to build the NeMo Retriever Library runtime container from source, you can do it by following instructions [here](https://github.com/NVIDIA/NeMo-Retriever).
 
 
 

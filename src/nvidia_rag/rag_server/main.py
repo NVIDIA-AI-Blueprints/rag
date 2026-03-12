@@ -262,7 +262,9 @@ class NvidiaRAG:
         # Load prompts and other utilities
         self.prompts = get_prompts(prompts)
         self.vdb_top_k = int(self.config.retriever.vdb_top_k)
-        self.StreamingFilterThinkParser = get_streaming_filter_think_parser_async()
+        self.StreamingFilterThinkParser = get_streaming_filter_think_parser_async(
+            enable_thinking=self.config.llm.parameters.enable_thinking
+        )
 
         if self._init_errors:
             logger.warning(
@@ -1368,18 +1370,6 @@ class NvidiaRAG:
         conversation_history = []
         user_message = []
 
-        is_nemotron_v1 = str(model).endswith("llama-3.3-nemotron-super-49b-v1")
-
-        # Nemotron controls thinking using system prompt, if nemotron v1 model is used update system prompt to enable/disable think
-        if is_nemotron_v1:
-            logger.info("Nemotron v1 model detected, updating system prompt")
-            if os.environ.get("ENABLE_NEMOTRON_THINKING", "false").lower() == "true":
-                logger.info("Setting system prompt as detailed thinking on")
-                system_prompt = "detailed thinking on"
-            else:
-                logger.info("Setting system prompt as detailed thinking off")
-                system_prompt = "detailed thinking off"
-
         # Process chat history
         for message in chat_history:
             # Overwrite system message if provided in conversation history
@@ -1883,27 +1873,46 @@ class NvidiaRAG:
             tuple[str, bool]: Query string that may include base64 image data for VLM embeddings
             bool: True if image URL is provided, False otherwise
         """
+        is_image_query = False
         if isinstance(content, str):
-            return content, False
+            return content, is_image_query
         elif isinstance(content, list):
-            # Build multimodal query with both text and base64 images
-            query_parts = []
-            for item in content:
-                if isinstance(item, dict):
-                    if item.get("type") == "text":
-                        text_content = item.get("text", "").strip()
-                        if text_content:
-                            query_parts.append(text_content)
-                    elif item.get("type") == "image_url":
-                        image_url = item.get("image_url", {}).get("url", "")
-                        if image_url:
-                            # If image URL is provided, return it as is
-                            return image_url, True
-            # If no image URL is provided, return the text content
-            return "\n\n".join(query_parts), False
+            # Build multimodal query with both text and base64 images.
+            
+            # Process text types first, then image_url types.
+            text_items = [
+                item for item in content
+                if isinstance(item, dict) and item.get("type") == "text"
+            ]
+            image_items = [
+                item for item in content
+                if isinstance(item, dict) and item.get("type") == "image_url"
+            ]
+            
+            # Extract text and image parts in separate lists
+            text_parts = []
+            image_parts = []
+            for item in text_items:
+                text_content = item.get("text", "").strip()
+                if text_content:
+                    text_parts.append(text_content)
+            for item in image_items:
+                image_url = item.get("image_url", {}).get("url", "")
+                if image_url:
+                    image_parts.append(image_url)
+                    is_image_query = True
+                    break # only one image is supported
+            
+            text_query = "\n\n".join(text_parts)
+            if image_parts:
+                image_str = " ".join(image_parts)
+                final_query = (text_query + " " + image_str) if text_query else image_str
+            else:
+                final_query = text_query
+            return final_query, is_image_query
         else:
             # Fallback for any other content type
-            return (str(content) if content is not None else ""), False
+            return (str(content) if content is not None else ""), is_image_query
 
     async def _rag_chain(
         self,
