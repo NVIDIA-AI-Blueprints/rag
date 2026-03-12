@@ -2095,8 +2095,13 @@ class NvidiaRAG:
                         ErrorCodeMapping.SERVICE_UNAVAILABLE,
                     ) from e
 
-            top_k = vdb_top_k if ranker and enable_reranker else reranker_top_k
-            logger.info("Setting retriever top k as: %s.", top_k)
+            # Always retrieve from the larger VDB candidate pool first.
+            # Down-selection happens later via reranker (if enabled) and/or
+            # final context handling before generation.
+            top_k = vdb_top_k
+            logger.info(
+                "Setting retriever top k (vdb_top_k candidate pool) as: %s.", top_k
+            )
 
             # conversation is tuple so it should be multiple of two
             # -1 is to keep last k conversation

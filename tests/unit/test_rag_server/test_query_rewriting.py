@@ -64,6 +64,7 @@ class DummyVDB:
     """A minimal VDB stub used via monkeypatch on __prepare_vdb_op."""
 
     last_query = None
+    last_top_k = None
 
     def check_collection_exists(self, collection_name: str) -> bool:
         return True
@@ -77,6 +78,7 @@ class DummyVDB:
     def retrieval_langchain(self, query, collection_name, vectorstore=None, top_k=None, filter_expr="", otel_ctx=None):
         """Sync method - called in ThreadPoolExecutor or directly."""
         DummyVDB.last_query = query
+        DummyVDB.last_top_k = top_k
         return []
 
 
@@ -353,4 +355,51 @@ async def test_generate_combines_history_when_multiturn_enabled(monkeypatch):
     # last previous user query is combined with current retriever_query
     # Expected concatenation: "What is RAG?. How does it work?"
     assert fake_vdb.last_query == "What is RAG?. How does it work?"
+
+
+@pytest.mark.asyncio
+async def test_search_uses_vdb_top_k_when_reranker_disabled(monkeypatch):
+    """Regression test: retrieval candidate pool should use vdb_top_k even without reranker."""
+    from nvidia_rag.rag_server.main import NvidiaRAG
+
+    fake_vdb = DummyVDB()
+    rag = NvidiaRAG()
+    monkeypatch.setattr(NvidiaRAG, "_prepare_vdb_op", lambda self, **kw: fake_vdb)
+
+    await rag.search(
+        query="How does it work?",
+        messages=[],
+        collection_names=["test"],
+        enable_query_rewriting=False,
+        enable_reranker=False,
+        vdb_top_k=23,
+        reranker_top_k=3,
+        filter_expr="",
+    )
+
+    assert fake_vdb.last_top_k == 23
+
+
+@pytest.mark.asyncio
+async def test_generate_uses_vdb_top_k_when_reranker_disabled(monkeypatch):
+    """Regression test: /generate RAG retrieval should use vdb_top_k when reranker is disabled."""
+    from nvidia_rag.rag_server.main import NvidiaRAG
+
+    fake_vdb = DummyVDB()
+    rag = NvidiaRAG()
+    monkeypatch.setattr(NvidiaRAG, "_prepare_vdb_op", lambda self, **kw: fake_vdb)
+
+    await rag.generate(
+        messages=[{"role": "user", "content": "How does it work?"}],
+        use_knowledge_base=True,
+        collection_names=["test"],
+        enable_query_rewriting=False,
+        enable_reranker=False,
+        enable_vlm_inference=False,
+        vdb_top_k=31,
+        reranker_top_k=4,
+        filter_expr="",
+    )
+
+    assert fake_vdb.last_top_k == 31
 

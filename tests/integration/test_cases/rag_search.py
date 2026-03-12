@@ -222,7 +222,7 @@ class RAGSearchModule(BaseTestModule):
                                 logger.warning(
                                     f"❌ Search result count mismatch: got {len(results)}, expected {expected_count}"
                                 )
-                                # TODO: return False
+                                return False
 
                             # Log some details about the first result for verification
                             if results:
