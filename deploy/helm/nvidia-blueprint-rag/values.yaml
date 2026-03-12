@@ -160,7 +160,7 @@ envVars:
   # URL on which LLM model is hosted. If "", Nvidia hosted API is used
   APP_LLM_SERVERURL: "nim-llm:8000"
   # LLM model parameters
-  # For Nemotron 3 Super with reduced context (e.g. RTX 6000 Pro, NIM_MAX_MODEL_LEN=32768) change it to 16256
+  # For Nemotron 3 Super on RTX 6000 Pro: uncomment and set to 16256 (reasoning) or 1024 (non-reasoning); comment LLM_MAX_TOKENS above
   LLM_MAX_TOKENS: "32768" # "16256"
   LLM_TEMPERATURE: "0"
   LLM_TOP_P: "1.0"
@@ -721,7 +721,7 @@ nimOperator:
         value: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
       - name: NIM_MAX_MODEL_LEN
         value: "131072"
-# -- For Nemotron 3 Super on RTX 6000 Pro or OOM: comment the NIM_MAX_MODEL_LEN entry above and uncomment the block below
+# -- For Nemotron 3 Super on RTX 6000 Pro: comment the NIM_MAX_MODEL_LEN entry above and uncomment the block below
 #      - name: NIM_MAX_MODEL_LEN
 #        value: "32768"
 #      - name: NCCL_P2P_DISABLE

@@ -71,7 +71,7 @@ environment:
   NGC_API_KEY: ${NGC_API_KEY}
 ```
 
-Only if you use **RTX 6000 Pro** or encounter **OOM** do you need to add `NIM_MAX_MODEL_LEN` and related variables—see [RTX 6000 Pro (Docker / local)](#rtx-6000-pro-docker--local) and [Notes](#notes).
+Only if you use **RTX 6000 Pro** you need to add `NIM_MAX_MODEL_LEN` and related variables—see [RTX 6000 Pro (Docker / local)](#rtx-6000-pro-docker--local) and [Notes](#notes).
 
 ### 3. Source env and deploy
 
@@ -94,9 +94,8 @@ Default is low-effort reasoning. To use non-reasoning mode, see [Reasoning and n
 
 ## Notes
 
-- **NIM_MAX_MODEL_LEN** is needed mainly for **RTX 6000 Pro** or when **OOM** occurs. In those cases, add it to the NIM environment (see [RTX 6000 Pro (Docker / local)](#rtx-6000-pro-docker--local)) and set the RAG server **LLM_MAX_TOKENS** as below. The default flow does not require it.
-- **LLM_MAX_TOKENS**: When using a reduced NIM max context (e.g. `NIM_MAX_MODEL_LEN: 32768` for RTX 6000 Pro or OOM), set the RAG server **LLM_MAX_TOKENS** lower value such as **16256** to avoid issues:
-  For Docker, you can set this in `deploy/compose/nemotron3-super.env`: the file includes a commented `LLM_MAX_TOKENS` line—uncomment and set the value when using reduced max model length. For Helm, set `envVars.LLM_MAX_TOKENS` in `values.yaml`.
+- **NIM_MAX_MODEL_LEN** is required for **RTX 6000 Pro**. Add it to the NIM environment (see [RTX 6000 Pro (Docker / local)](#rtx-6000-pro-docker--local)) and set the RAG server **LLM_MAX_TOKENS** as below. The default flow does not require it.
+- **LLM_MAX_TOKENS**: When using reduced NIM max context on RTX 6000 Pro (e.g. `NIM_MAX_MODEL_LEN: 32768`), set the RAG server **LLM_MAX_TOKENS** to a lower value such as **16256** to avoid issues. For Docker, export before starting: `export LLM_MAX_TOKENS=16256` (or `1024` for non-reasoning). You can also uncomment and set the value in `deploy/compose/nemotron3-super.env`. For Helm, set `envVars.LLM_MAX_TOKENS` in `values.yaml`.
 - **BF16** requires minimum TP4 (4 GPUs). **FP8** can run on TP2 (2 GPUs).
 - **NIM_MODEL_PROFILE** must be specified; use `list-model-profiles` inside the container to find available profiles for your hardware. If that does not work, try setting `NIM_KVCACHE_PERCENT: 0.9`.
 - **Reasoning**: Default is low-effort reasoning. For non-reasoning mode, see [Reasoning and non-reasoning mode](#reasoning-and-non-reasoning-mode). For other options (e.g. full reasoning budget), see [Enable reasoning for Nemotron 3 models](enable-nemotron-thinking.md).
@@ -128,7 +127,13 @@ environment:
 ```
 
 **RAG server**  
-When using this reduced max model length, set **LLM_MAX_TOKENS** appropriately: **16256**. For Docker, uncomment and set `LLM_MAX_TOKENS` in `deploy/compose/nemotron3-super.env`.
+When using this reduced max model length, set **LLM_MAX_TOKENS** appropriately. For Docker, export before starting the rag-server:
+
+```bash
+export LLM_MAX_TOKENS=16256   # for reasoning; use 1024 for non-reasoning
+```
+
+Alternatively, uncomment and set `LLM_MAX_TOKENS` in `deploy/compose/nemotron3-super.env`.
 
 ---
 
@@ -155,7 +160,7 @@ In `values.yaml`, for **all hardware** (e.g. RTX 6000 Pro, B200):
 In addition to the [model and resource settings](#model-and-resource-settings-all-hardware) above:
 
 - **Host**: Same as Docker: set `GRUB_CMDLINE_LINUX_DEFAULT="quiet splash iommu=pt"` in `/etc/default/grub`, then `sudo update-grub2` and `sudo reboot`.
-- **values.yaml**: Under `nimOperator.nim-llm.env`, uncomment the "For Nemotron 3 Super on RTX 6000 Pro or OOM" block (`NIM_MAX_MODEL_LEN: "32768"`, `NCCL_P2P_DISABLE`, `NIM_KVCACHE_PERCENT`). If the default `NIM_MAX_MODEL_LEN` is present, comment it and use the values from the uncommented block.
+- **values.yaml**: Under `nimOperator.nim-llm.env`, uncomment the "For Nemotron 3 Super on RTX 6000 Pro" block (`NIM_MAX_MODEL_LEN: "32768"`, `NCCL_P2P_DISABLE`, `NIM_KVCACHE_PERCENT`). If the default `NIM_MAX_MODEL_LEN` is present, comment it and use the values from the uncommented block.
 
 - **RAG server (LLM_MAX_TOKENS)**: When using this reduced max model length on RTX 6000 Pro, uncomment the `LLM_MAX_TOKENS` line in the rag-server `envVars` section (the one with the "For Nemotron 3 Super with reduced context" comment) and set it to **16256** for reasoning or **1024** for non-reasoning; comment the default `LLM_MAX_TOKENS` line above it.
 
