@@ -74,33 +74,19 @@ To confirm that a TP2 profile is available for your hardware, run:
 docker run -ti --rm --gpus all nvcr.io/nim/nvidia/nemotron-3-super-120b-a12b:1.8.0 list-model-profiles
 ```
 
-### 2. Set NIM environment
+### 2. Source env and deploy
 
-No changes to the NIM environment are required for the default flow. The default `nims.yaml` already sets `NGC_API_KEY` for the `nim-llm` service in the same format:
-
-```yaml
-environment:
-  NGC_API_KEY: ${NGC_API_KEY}
-```
-
-Only if you use **RTX 6000 Pro** you need to add `NIM_MAX_MODEL_LEN` and related variables—see [RTX 6000 Pro (Docker / local)](#rtx-6000-pro-docker--local) and [Notes](#notes).
-
-### 3. Source env and deploy
-
-Ensure the section **`Endpoints for using cloud NIMs`** in `deploy/compose/.env` is **commented** (so on-prem endpoints are used). See [Start services using self-hosted on-premises models](deploy-docker-self-hosted.md#start-services-using-self-hosted-on-premises-models) for the same step.
+Ensure the section **`Endpoints for using cloud NIMs`** in `deploy/compose/.env` is **commented** (so on-prem endpoints are used).
 
 ```bash
 source deploy/compose/.env
 source deploy/compose/nemotron3-super.env
 export PROMPT_CONFIG_FILE=$(pwd)/deploy/compose/nemotron3-super-prompt.yaml
-# then start compose as usual
 ```
 
-Follow the instructions in [Start services using self-hosted on-premises models](deploy-docker-self-hosted.md#start-services-using-self-hosted-on-premises-models) to start the vectorstore, rag-server, NIMs, and ingestor-server.
+Follow [Start services using self-hosted on-premises models](deploy-docker-self-hosted.md#start-services-using-self-hosted-on-premises-models) to start the vectorstore, rag-server, NIMs, and ingestor-server.
 
-Default is low-effort reasoning. To use non-reasoning mode, see [Reasoning and non-reasoning mode](#reasoning-and-non-reasoning-mode).
-
-- **Model**: `nvidia/nemotron-3-super-120b-a12b` — see the [model page](https://build.nvidia.com/nvidia/nemotron-3-super-120b-a12b) for documentation.
+> **RTX 6000 Pro**: Additional host and NIM environment setup is required before the above steps — see [RTX 6000 Pro (Docker / local)](#rtx-6000-pro-docker--local).
 
 ---
 
