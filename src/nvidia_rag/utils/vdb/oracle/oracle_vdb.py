@@ -185,9 +185,6 @@ class OracleVDB(VDBRagIngest):
         oracle_user: str | None = None,
         oracle_password: str | None = None,
         oracle_cs: str | None = None,
-        tnsnames_loc: str | None = None,
-        ewallet_pem_loc: str | None = None,
-        ewallet_password: str | None = None,
         embedding_model: Any | None = None,
         config: NvidiaRAGConfig | None = None,
         meta_dataframe: Any | None = None,
@@ -224,20 +221,14 @@ class OracleVDB(VDBRagIngest):
         self._oracle_user = oracle_user or os.getenv("ORACLE_USER")
         self._oracle_password = oracle_password or os.getenv("ORACLE_PASSWORD")
         self._oracle_cs = oracle_cs or os.getenv("ORACLE_CS")
-        self._tnsnames_loc = tnsnames_loc or os.getenv("ORACLE_TNSNAMES_LOC")
-        self._ewallet_pem_loc = ewallet_pem_loc or os.getenv("ORACLE_EWALLET_PEM_LOC")
-        self._ewallet_password = ewallet_password or os.getenv("ORACLE_EWALLET_PASSWORD")
 
         if not all([
             self._oracle_user, 
             self._oracle_password, 
-            self._oracle_cs,
-            self._tnsnames_loc,
-            self._ewallet_pem_loc,
-            self._ewallet_password
+            self._oracle_cs
             ]):
             raise ValueError(
-                "Oracle connection requires ORACLE_USER, ORACLE_PASSWORD, ORACLE_CS, ORACLE_TNSNAMES_LOC, ORACLE_EWALLET_PEM_LOC and ORACLE_EWALLET_PASSWORD variables."
+                "Oracle connection requires ORACLE_USER, ORACLE_PASSWORD, ORACLE_CS variables."
                 "Set via parameters or environment variables."
             )
 
@@ -262,9 +253,6 @@ class OracleVDB(VDBRagIngest):
                 user=self._oracle_user,
                 password=self._oracle_password,
                 dsn=self._oracle_cs,
-                config_dir=self._tnsnames_loc,
-                wallet_location=self._ewallet_pem_loc,
-                wallet_password=self._ewallet_password,
                 min=2,
                 max=10,
                 increment=1,
@@ -987,10 +975,7 @@ class OracleVDB(VDBRagIngest):
         conn = oracledb.connect(
             user=self._oracle_user,
             password=self._oracle_password,
-            dsn=self._oracle_cs,
-            config_dir=self._tnsnames_loc,
-            wallet_location=self._ewallet_pem_loc,
-            wallet_password=self._ewallet_password
+            dsn=self._oracle_cs
         )
 
         return OracleVSCompat(
