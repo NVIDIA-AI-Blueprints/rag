@@ -41,6 +41,10 @@ Set the following environment variables on the RAG server container (via Docker 
 **`FILTER_THINK_TOKENS`**
 : Filter content between `<think>` and `</think>` tags in model responses. Keep `true` for production to return only the final answer. Set `false` to see the full reasoning process. Default: `true`.
 
+:::{important}
+**Disabling reasoning:** To disable reasoning, set **`LLM_ENABLE_THINKING=false`**. Setting `LLM_REASONING_BUDGET=0` alone does not disable reasoning: when the budget is `0`, the RAG pipeline does not pass it to the LLM, and the model uses its default reasoning behavior. Always set `LLM_ENABLE_THINKING=false` to turn reasoning off.
+:::
+
 ## Enable Reasoning for Nemotron 3 Models
 
 Nemotron 3 models (such as `nvidia/nemotron-3-super-120b-a12b` and `nvidia/nemotron-3-nano-30b-a3b`) use environment variables to control reasoning.

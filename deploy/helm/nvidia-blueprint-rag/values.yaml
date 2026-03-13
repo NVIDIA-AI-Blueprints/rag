@@ -160,7 +160,8 @@ envVars:
   # URL on which LLM model is hosted. If "", Nvidia hosted API is used
   APP_LLM_SERVERURL: "nim-llm:8000"
   # LLM model parameters
-  LLM_MAX_TOKENS: "32768"
+  # For Nemotron 3 Super on RTX 6000 Pro: uncomment and set to 16256 (reasoning) or 1024 (non-reasoning); comment LLM_MAX_TOKENS above
+  LLM_MAX_TOKENS: "32768" # "16256"
   LLM_TEMPERATURE: "0"
   LLM_TOP_P: "1.0"
 
@@ -658,11 +659,22 @@ nimOperator:
       repository: nvcr.io/nim/nvidia/llama-3.3-nemotron-super-49b-v1.5
       pullPolicy: IfNotPresent
       tag: "1.14.0"
+# -- For Nemotron 3 Super: uncomment the block below and comment the image block above
+#    image:
+#      repository: nvcr.io/nim/nvidia/nemotron-3-super-120b-a12b
+#      pullPolicy: IfNotPresent
+#      tag: "1.8.0"
     resources:
       limits:
         nvidia.com/gpu: 1
       requests:
         nvidia.com/gpu: 1
+# -- For Nemotron 3 Super (all hardware): uncomment the block below and comment the resources block above
+#    resources:
+#      limits:
+#        nvidia.com/gpu: 2
+#      requests:
+#        nvidia.com/gpu: 2
     nodeSelector: {}
     tolerations: []
     model:
@@ -673,6 +685,10 @@ nimOperator:
 #      tensorParallelism: "1"
 #      gpus:
 #        - product: "rtx6000_blackwell_sv"
+# -- For Nemotron 3 Super (all hardware): comment "engine: tensorrt_llm" above and uncomment the three lines below
+#      engine: vllm
+#      precision: "fp8"
+#      tensorParallelism: "2"
     storage:
       pvc:
         create: true
@@ -705,6 +721,13 @@ nimOperator:
         value: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
       - name: NIM_MAX_MODEL_LEN
         value: "131072"
+# -- For Nemotron 3 Super on RTX 6000 Pro: comment the NIM_MAX_MODEL_LEN entry above and uncomment the block below
+#      - name: NIM_MAX_MODEL_LEN
+#        value: "32768"
+#      - name: NCCL_P2P_DISABLE
+#        value: "1"
+#      - name: NIM_KVCACHE_PERCENT
+#        value: "0.9"
 #      - name: CUDA_VISIBLE_DEVICES
 #        value: "0"
     expose:
