@@ -23,5 +23,3 @@ nimOperator:
         value: "1"
       - name: NIM_KVCACHE_PERCENT
         value: "0.9"
-      - name: CUDA_VISIBLE_DEVICES
-        value: "0"
