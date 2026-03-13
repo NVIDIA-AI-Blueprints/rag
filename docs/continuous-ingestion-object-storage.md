@@ -4,13 +4,24 @@
 -->
 # Continuous Ingestion from Object Storage RAG Blueprint
 
-Continuous ingestion from object storage connects the [RAG blueprint](readme.md) to continuous integration. This enables an event-driven pipeline that automatically indexes documents and, optionally, video files. Continuous integration means that when you add files to a storage bucket, the system detects new uploads, routes them for processing, and indexes their content—making all data immediately searchable and available for analysis through the [RAG Frontend](user-interface.md).
+Continuous ingestion from object storage connects the [RAG blueprint](readme.md) to continuous integration. This enables an event-driven pipeline that automatically indexes documents. Continuous integration means that when you add documents to a storage bucket, the system detects new uploads, routes them for processing, and indexes their content—making all data immediately searchable and available for analysis through the [RAG Frontend](user-interface.md).
+
+## Hardware Requirements
+
+| Requirement | Details |
+|-------------|---------|
+| **GPU** | 2x RTX PRO 6000 Blackwell or 2x H100 |
+| **OS** | Ubuntu 22.04 or later |
+| **Docker** | Docker 24.0+ with Docker Compose v2 |
+| **NVIDIA Driver** | 570+ |
+| **NVIDIA Container Toolkit** | Required |
+
 
 ## Overview
 
 You can create an event-driven continuous ingestion pipeline that works as follows:
 
-1. Upload files (documents or, optionally, videos) to object storage.
+1. Upload documents to object storage.
 
 2. The system detects new uploads via storage events and routes them for processing.
 
@@ -18,10 +29,7 @@ You can create an event-driven continuous ingestion pipeline that works as follo
 
 4. You can then query the ingested content through the RAG UI or API.
 
-Continuous ingestion supports the following content types:
-
-- **Documents:** PDF, DOCX (and other formats supported by the [ingestor](api-ingestor.md)).
-- **Video (optional/future):** MP4, MKV, AVI — typically processed by a Video Summary Service (VSS) and then ingested as documents.
+Continuous ingestion supports documents such as PDF, DOCX, and other formats supported by the [ingestor](api-ingestor.md).
 
 ## Architecture
 
@@ -35,14 +43,9 @@ The continuous ingestion architecture features the following high-level flow:
 
 4. Document path: Files are passed to a file-based processing pipeline (such as the NeMo Retriever Library or ingestor-server) and then indexed in the vector database.
 
-5. Video path (optional): For video files, the consumer submits a processing request to the Video Search Service (VSS), polls for results, uploads the processed outputs to RAG as documents, and continues through the standard file-based ingestion flow.
-
-
 The continuous ingestion architecture follows the end-to-end sequence described above and can be summarized as:
 
 - Document ingestion flow: (1) → (2) → (3) → file-based processing → VectorDB → RAG Agent.
-
-- Video ingestion flow: (1) → (2) → (3) → VSS request → poll for results → upload to RAG as a document → file-based processing → VectorDB → RAG Agent.
 
 ## Implementation Components
 
@@ -56,11 +59,9 @@ The reference implementation includes the following components:
 
 -- Subscribes to the Kafka topic and consumes storage events.
 
--- Downloads new objects from MinIO and routes them based on type (document or video).
+-- Downloads new objects from MinIO.
 
--- For documents: Sends files to the RAG ingestor for indexing.
-
--- For videos (optional): Submits files to the Video Search Service (VSS), then ingests VSS outputs as documents.
+-- Sends files to the RAG ingestor for indexing.
 
 The deployment is defined in `examples/rag_event_ingest/deploy/docker-compose.yaml`, which runs MinIO, Kafka, and the Kafka consumer on the same Docker network as the RAG stack (`nvidia-rag`).
 
@@ -76,9 +77,8 @@ The notebook provides a guided walkthrough of the following steps:
 
 - Environment setup
 - NVIDIA RAG deployment
-- (Optional) NVIDIA VSS deployment for video processing
 - Continuous ingestion pipeline deployment (Kafka, MinIO, and consumer)
-- Testing document and optional video uploads with RAG queries
+- Testing document uploads with RAG queries
 - Cleanup
 
 To follow along, open and run: [rag_event_ingest.ipynb](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/rag_event_ingest.ipynb).
@@ -97,7 +97,13 @@ This command launches the following components:
 - MinIO (object storage and console using ports 9201 and 9211 in the example)
 - Kafka consumer — connects to the ingestor at `INGESTOR_SERVER_URL` (default: `http://ingestor-server:8082`) and uses `COLLECTION_NAME` (default: `aidp_bucket`)
 
-After deployment, upload files to the MinIO bucket (for example, `aidp-bucket`). The system publishes upload events to Kafka, the consumer retrieves the corresponding files, and documents are sent to the ingestor for indexing. You can then query the same collection using the RAG UI or API.
+After deployment, upload documents and query ingested content as follows:
+
+1. Open the MinIO Console UI at `http://<host-ip>:9211/login`.
+2. Log in with the default credentials (`minioadmin` / `minioadmin`).
+3. Navigate to the `aidp-bucket` bucket and upload your documents (PDF, DOCX, etc.).
+4. The system automatically publishes upload events to Kafka, the consumer retrieves the files, and documents are sent to the ingestor for indexing into the `aidp_bucket` collection.
+5. Query the ingested content through the RAG Frontend UI at `http://<host-ip>:8090` (select the `aidp_bucket` collection) or via the RAG API at `http://<host-ip>:8081/generate`.
 
 ### Key Environment Variables
 
