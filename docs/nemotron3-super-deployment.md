@@ -19,7 +19,7 @@ For [self-hosted local NIM](deploy-docker-self-hosted.md) deployment with `nemot
 
 ### Hardware Requirements (Kubernetes)
 
-To deploy with [Helm](deploy-helm.md) using `nemotron-3-super-120b-a12b`, you need one of the following (9 GPUs total):
+To deploy with [Helm](deploy-helm.md) using `nemotron-3-super-120b-a12b`, you need one of the following:
 
 - 9 x H100-80GB
 - 9 x B200
@@ -72,9 +72,9 @@ export PROMPT_CONFIG_FILE=$(pwd)/deploy/compose/nemotron3-super-prompt.yaml
 
    Check the [model page](https://build.nvidia.com/nvidia/nemotron-3-super-120b-a12b/modelcard) for more details.
 
-   > Note: For RTX 6000 Pro GPUs, additional NIM environment variables are required — see [RTX 6000 Pro (Docker / local)](#rtx-6000-pro-docker--local).
+   > Note: For RTX 6000 Pro GPUs, additional NIM environment variables are required — see [RTX 6000 Pro](#rtx-6000-pro) below.
 
-2. Source env and deploy
+2. Set nemotron-3-super specific environment variables.
 
    Ensure the section **`Endpoints for using cloud NIMs`** in `deploy/compose/.env` is **commented** (so on-prem endpoints are used).
 
@@ -86,9 +86,9 @@ export PROMPT_CONFIG_FILE=$(pwd)/deploy/compose/nemotron3-super-prompt.yaml
 
    Follow [Start services using self-hosted on-premises models](deploy-docker-self-hosted.md#start-services-using-self-hosted-on-premises-models) to start the vectorstore, rag-server, NIMs, and ingestor-server.
 
----
+**RTX 6000 Pro**
 
-## RTX 6000 Pro (Docker / local)
+> Note: To deploy TP2 profiles on RTX PRO 6000 Blackwell Server Edition, run the following commands. You don't need to go through these steps if you are using TP4 or TP8 profile.
 
 1. Edit `/etc/default/grub` and set:
 
@@ -137,7 +137,9 @@ helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprin
 
 The prompt file `deploy/compose/nemotron3-super-prompt.yaml` is tuned for `nemotron-3-super-120b-a12b`. To customize it, see [Prompt customization in Helm chart](prompt-customization.md#prompt-customization-in-helm-chart).
 
-### RTX 6000 Pro (Helm)
+**RTX 6000 Pro**
+
+> Note: To deploy TP2 profiles on RTX PRO 6000 Blackwell Server Edition, run the following commands. You don't need to go through these steps if you are using TP4 or TP8 profile.
 
 1. Edit `/etc/default/grub` and set:
 
