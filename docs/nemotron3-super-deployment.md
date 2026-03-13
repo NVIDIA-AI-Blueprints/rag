@@ -55,6 +55,10 @@ export PROMPT_CONFIG_FILE=$(pwd)/deploy/compose/nemotron3-super-prompt.yaml
      image: nvcr.io/nim/nvidia/nemotron-3-super-120b-a12b:1.8.0
      ...
      user: "0"
+     environment:
+       NGC_API_KEY: ${NGC_API_KEY}
+       NIM_MAX_MODEL_LEN: "32768"  # required for TP2 profile
+       NIM_KVCACHE_PERCENT: "0.9"
      deploy:
        resources:
          reservations:
@@ -63,6 +67,8 @@ export PROMPT_CONFIG_FILE=$(pwd)/deploy/compose/nemotron3-super-prompt.yaml
                device_ids: ['1','2']  # 2 GPUs for FP8 TP2
                capabilities: [gpu]
    ```
+
+   > Note: To deploy TP2 profiles you need to limit NIM_MAX_MODEL_LEN to 32768
 
    To confirm that a TP2 profile is available for your hardware, run:
 
@@ -82,6 +88,7 @@ export PROMPT_CONFIG_FILE=$(pwd)/deploy/compose/nemotron3-super-prompt.yaml
    source deploy/compose/.env
    source deploy/compose/nemotron3-super.env
    export PROMPT_CONFIG_FILE=$(pwd)/deploy/compose/nemotron3-super-prompt.yaml
+   export LLM_MAX_TOKENS=16256
    ```
 
    Follow [Start services using self-hosted on-premises models](deploy-docker-self-hosted.md#start-services-using-self-hosted-on-premises-models) to start the vectorstore, rag-server, NIMs, and ingestor-server.
@@ -107,16 +114,8 @@ export PROMPT_CONFIG_FILE=$(pwd)/deploy/compose/nemotron3-super-prompt.yaml
 
    ```yaml
    environment:
-     NGC_API_KEY: ${NGC_API_KEY}
+     # In addition to variable already set in step 1
      NCCL_P2P_DISABLE: "1"
-     NIM_MAX_MODEL_LEN: "32768"
-     NIM_KVCACHE_PERCENT: "0.9"
-   ```
-
-4. Export before starting the rag-server:
-
-   ```bash
-   export LLM_MAX_TOKENS=16256   # for reasoning; use 1024 for non-reasoning
    ```
 
 ---
