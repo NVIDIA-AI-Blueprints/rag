@@ -135,6 +135,8 @@ helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprin
   -f deploy/helm/nvidia-blueprint-rag/nemotron3-super-values.yaml
 ```
 
+To customize the prompt, see [Prompt customization in Helm chart](prompt-customization.md#prompt-customization-in-helm-chart). A pre-configured prompt file is available at `deploy/compose/nemotron3-super-prompt.yaml`.
+
 ### RTX 6000 Pro (Helm)
 
 1. Edit `/etc/default/grub` and set:
