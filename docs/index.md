@@ -81,6 +81,7 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
 - Data Ingestion & Processing
 
     - [Audio Ingestion Support](audio_ingestion.md)
+    - [Continuous Ingestion from Object Storage](continuous-ingestion-object-storage.md)
     - [Custom Metadata Support](custom-metadata.md)
     - [File System Access to Extraction Results](mount-ingestor-volume.md)
     - [Multimodal Embedding Support (Early Access)](vlm-embed.md)
@@ -211,6 +212,7 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
    :hidden:
 
    Audio Ingestion Support <audio_ingestion.md>
+   Continuous Ingestion from Object Storage <continuous-ingestion-object-storage.md>
    Custom metadata Support <custom-metadata.md>
    Data Catalog for Collections and Documents <data-catalog.md>
    File System Access to Results <mount-ingestor-volume.md>
