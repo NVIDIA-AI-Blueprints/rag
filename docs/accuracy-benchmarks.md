@@ -12,14 +12,14 @@ We focused our analysis on seven key public datasets that represent diverse chal
 
 | Dataset | Domain | Corpus Language | Main Modalities | # Pages | # Queries |
 |---|---|---|---|---|---|
-| RagBattlepacket | Finance, Tax & Consulting | English | Text, Tables, Charts, Infographics | 1,141 | 92 |
-| KG-RAG | Finance (SEC 10-Q) | English | Text, Tables | 1,037 | 195 |
-| Financebench | Finance (Public Equity) | English | Text, Tables | 54,057 | 150 |
-| DC767 | General (Gov, NGO, Health) | English | Text, Tables | 54,730 | 488 |
-| HotPotQA | Wikipedia-based question-answer pairs | English | Text | 2,673 (txt files) | 979 |
-| Google Frames | History, Sports, Science, Animals, Health | English | Text | 31,708 | 824 |
+| [RagBattlepacket](https://www.eyelevel.ai/post/most-accurate-rag) | Finance, Tax & Consulting | English | Text, Tables, Charts, Infographics | 1,141 | 92 |
+| [KG-RAG](https://github.com/docugami/KG-RAG-datasets/tree/main/sec-10-q/data/v1) | Finance (SEC 10-Q) | English | Text, Tables | 1,037 | 195 |
+| [Financebench](https://github.com/patronus-ai/financebench) | Finance (Public Equity) | English | Text, Tables | 54,057 | 150 |
+| [DC767](https://digitalcorpora.org/) | General (Gov, NGO, Health) | English | Text, Tables | 54,730 | 488 |
+| [HotPotQA](https://huggingface.co/datasets/hotpotqa/hotpot_qa) | Wikipedia-based question-answer pairs | English | Text | 2,673 (txt files) | 979 |
+| [Google Frames](https://huggingface.co/datasets/google/frames-benchmark) | History, Sports, Science, Animals, Health | English | Text | 31,708 | 824 |
 
-### Vidore Dataset
+### [Vidore Dataset](https://huggingface.co/blog/QuentinJG/introducing-vidore-v3#public-datasets)
 
 | Dataset | Domain | Corpus Language | Main Modalities | # Pages | # Queries (with translations) |
 |---|---|---|---|---|---|
@@ -35,25 +35,20 @@ We focused our analysis on seven key public datasets that represent diverse chal
 
 ## Evaluation Methodology
 
-We use end-to-end RAG answer accuracy as the primary metric via the [NVIDIA Answer Accuracy metric from RAGAS](https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/nvidia_metrics/). Each response is scored on a 0–4 scale using a LLM as Judge. Scores are normalized to [0, 1] for reporting. We have selected `mistralai/Mixtral-8x22B-Instruct-v0.1` as the LLM judge based on the Judge's verdict benchmark results.
+We use end-to-end RAG answer accuracy as the primary metric via the [NVIDIA Answer Accuracy metric from RAGAS](https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/nvidia_metrics/). Each response is scored on a 0–4 scale using a LLM as Judge. Scores are normalized to [0, 1] for reporting. We have selected [`mistralai/Mixtral-8x22B-Instruct-v0.1`](https://build.nvidia.com/mistralai/mixtral-8x22b-instruct) as the LLM judge based on the [Judge's verdict](https://huggingface.co/spaces/nvidia/judges-verdict) benchmark results.
 
 > Full evaluation pipeline: [evaluation_01_ragas.ipynb](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/evaluation_01_ragas.ipynb)
 
-**Metric:** We use accuracy, specifically measuring the correctness of response with respect to ground truth answer.
-
-**Pipeline configuration:** All experiments have been conducted with default configuration.
-
-**Generation models:**
-
-| Role | Model |
-|---|---|
-| LLM | `nvidia/llama-3.3-nemotron-super-49b-v1.5` |
-| VLM | `nvidia/nemotron-nano-vl-12b-v2` |
-| Judge | `mistralai/Mixtral-8x22B-Instruct-v0.1` |
+- **Metric:** We use accuracy, specifically measuring the correctness of response with respect to ground truth answer.
+- **Pipeline configuration:** All experiments have been conducted with default configuration.
+- **Generation models:**
+  - LLM: [`nvidia/llama-3.3-nemotron-super-49b-v1.5`](https://build.nvidia.com/nvidia/llama-3_3-nemotron-super-49b-v1_5)
+  - VLM: [`nvidia/nemotron-nano-vl-12b-v2`](https://build.nvidia.com/nvidia/nemotron-nano-12b-v2-vl)
+- **Judge Model:** [`mistralai/Mixtral-8x22B-Instruct-v0.1`](https://build.nvidia.com/mistralai/mixtral-8x22b-instruct)
 
 ## Configuration & Accuracy Results
 
-We experimented with four primary configurations to see how "Reasoning" (Think On) and "Vision Language Model" (VLM) capabilities moved the needle on accuracy. For VLM based generation pipeline, we have also enabled VLM based image captioning during ingestion. Also for text only datasets we have not evaluated the VLM based generation configuration.
+We experimented with four primary configurations to see how ["Reasoning" (Think On)](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/docs/enable-nemotron-thinking.md) and ["Vision Language Model" (VLM)](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/docs/vlm.md) capabilities moved the needle on accuracy. For VLM based generation pipeline, we have also enabled VLM based image captioning during ingestion. Also for text only datasets we have not evaluated the VLM based generation configuration.
 
 | Dataset | LLM (Reasoning Off) | LLM (Reasoning On) | VLM (Reasoning Off) | VLM (Reasoning On) |
 |---|---|---|---|---|
@@ -90,9 +85,9 @@ For FinanceBench and KG-RAG datasets we have observed improved accuracy with rea
 
 **Why it makes sense**
 
-FinanceBench is dominated by tables (75% of queries) that often require mathematical operations or data extraction from multiple line items. Simple retrieval isn't enough; the model needs the reasoning step to perform the arithmetic and cross-referencing required by the human-annotated ground truth.
+- **FinanceBench** is dominated by tables (75% of queries) that often require mathematical operations or data extraction from multiple line items. Simple retrieval isn't enough; the model needs the reasoning step to perform the arithmetic and cross-referencing required by the human-annotated ground truth.
 
-KG-RAG requires temporal reasoning (comparing Q3 2022 vs. Q1 2023). Without reasoning enabled, a model might retrieve the correct company but the wrong fiscal quarter. The "Reasoning On" mode allows the LLM to verify dates and periods before finalizing the answer.
+- **KG-RAG** requires **temporal reasoning** (comparing Q3 2022 vs. Q1 2023). Without reasoning enabled, a model might retrieve the correct company but the wrong fiscal quarter. The "Reasoning On" mode allows the LLM to verify dates and periods before finalizing the answer.
 
 ### The Multimodal Unlock: Decoding Visual Complexity (ViDoRe & RAGBattlePacket)
 
