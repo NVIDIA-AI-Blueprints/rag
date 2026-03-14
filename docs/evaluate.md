@@ -36,3 +36,4 @@ For more information, refer to the notebook [Evaluate Your RAG Pipeline with Rag
 - [NVIDIA RAG Blueprint Documentation](readme.md)
 - [Get Started](deploy-docker-self-hosted.md)
 - [Notebooks](notebooks.md)
+- [RAG Accuracy Benchmarks](accuracy-benchmarks.md)
