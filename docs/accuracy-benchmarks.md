@@ -6,7 +6,7 @@ In the fast-moving world of Retrieval-Augmented Generation (RAG), the gap betwee
 
 ## Benchmarked Datasets
 
-We focused our analysis on seven key public datasets that represent diverse challenges, from financial analysis to complex structural document parsing.
+Our analysis centered on seven major public datasets encompassing a broad range of challenges, from financial reasoning to intricate structural document parsing.
 
 | Dataset | Domain | Corpus Language | Main Modalities | # Pages | # Queries |
 |---|---|---|---|---|---|
