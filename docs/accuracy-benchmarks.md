@@ -33,7 +33,7 @@ Our analysis centered on seven major public datasets encompassing a broad range 
 
 ## Evaluation Methodology
 
-We use end-to-end RAG answer accuracy as the primary metric via the [NVIDIA Answer Accuracy metric from RAGAS](https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/nvidia_metrics/). Each response is scored on a 0–4 scale using a LLM as Judge. Scores are normalized to [0, 1] for reporting. We have selected [`mistralai/Mixtral-8x22B-Instruct-v0.1`](https://build.nvidia.com/mistralai/mixtral-8x22b-instruct) as the LLM judge based on the [Judge's verdict](https://huggingface.co/spaces/nvidia/judges-verdict) benchmark results.
+Our primary evaluation metric is end-to-end RAG answer accuracy, measured using the [NVIDIA Answer Accuracy metric from RAGAS](https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/nvidia_metrics/). Each response is rated on a 0–4 scale by an LLM judge, with scores normalized to a range for reporting. We chose [mistralai/Mixtral-8x22B-Instruct-v0.1](https://build.nvidia.com/mistralai/mixtral-8x22b-instruct) as the LLM judge, guided by performance on the [Judge’s Verdict](https://huggingface.co/spaces/nvidia/judges-verdict) benchmark.
 
 > Full evaluation pipeline: [evaluation_01_ragas.ipynb](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/evaluation_01_ragas.ipynb)
 
