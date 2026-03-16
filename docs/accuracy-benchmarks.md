@@ -37,16 +37,16 @@ Our primary evaluation metric is end-to-end RAG answer accuracy, measured using 
 
 > Full evaluation pipeline: [evaluation_01_ragas.ipynb](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/evaluation_01_ragas.ipynb)
 
-- **Metric:** We use accuracy, specifically measuring the correctness of response with respect to ground truth answer.
-- **Pipeline configuration:** All experiments have been conducted with default configuration.
-- **Generation models:**
-  - LLM: [`nvidia/llama-3.3-nemotron-super-49b-v1.5`](https://build.nvidia.com/nvidia/llama-3_3-nemotron-super-49b-v1_5)
-  - VLM: [`nvidia/nemotron-nano-vl-12b-v2`](https://build.nvidia.com/nvidia/nemotron-nano-12b-v2-vl)
-- **Judge Model:** [`mistralai/Mixtral-8x22B-Instruct-v0.1`](https://build.nvidia.com/mistralai/mixtral-8x22b-instruct)
+- Metric: Accuracy, defined as the degree to which generated responses align with the ground truth answers.
+- Pipeline configuration: All experiments were run using the default configuration.
+- Generation models:
+  - LLM: nvidia/llama-3.3-nemotron-super-49b-v1.5
+  - VLM: nvidia/nemotron-nano-vl-12b-v2
+- Judge model: mistralai/Mixtral-8x22B-Instruct-v0.1
 
-## Configuration & Accuracy Results
+## Configuration and Accuracy Results
 
-We experimented with four primary configurations to see how ["Reasoning" (Think On)](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/docs/enable-nemotron-thinking.md) and ["Vision Language Model" (VLM)](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/docs/vlm.md) capabilities moved the needle on accuracy. For VLM based generation pipeline, we have also enabled VLM based image captioning during ingestion. Also for text only datasets we have not evaluated the VLM based generation configuration.
+We tested four main configurations to evaluate how ["Reasoning" (Think On)](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/docs/enable-nemotron-thinking.md) and ["Vision Language Model" (VLM)](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/docs/vlm.md) features influence accuracy. In the VLM-based generation pipeline, image captioning was enabled during data ingestion. For text-only datasets, we excluded the VLM-based generation setup from evaluation.
 
 | Dataset | LLM (Reasoning Off) | LLM (Reasoning On) | VLM (Reasoning Off) | VLM (Reasoning On) |
 |---|---|---|---|---|
@@ -57,11 +57,11 @@ We experimented with four primary configurations to see how ["Reasoning" (Think 
 | Hotpotqa | 0.672 | 0.676 | n/a | n/a |
 | Google Frames | 0.486 | 0.597 | n/a | n/a |
 
-The table below summarizes the accuracy scores for each dataset across our experimental configurations.
+The table in the following section summarizes the accuracy scores for each dataset across our experimental configurations.
 
 ### Vidore-V3 Results
 
-For Vidore-v3 evaluation we have ingested the full corpus consisting of all the domains in a single collection and then carried out the domain specific evaluations.
+For the Vidore-v3 evaluation, we combined all domains into a single collection and then performed domain-specific evaluations.
 
 | Dataset subsets | LLM (Reasoning Off) | LLM (Reasoning On) | VLM (Reasoning Off) | VLM (Reasoning On) |
 |---|---|---|---|---|
@@ -75,43 +75,44 @@ For Vidore-v3 evaluation we have ingested the full corpus consisting of all the 
 | Finance FR | 0.639 | 0.647 | 0.683 | 0.687 |
 
 
-## Key Takeaways
+## Key Results
 
-### The "Reasoning Dividend" in FinanceBench & KG-RAG
+The following sections describe the key results from our analysis.
+
+### The "Reasoning Dividend" in FinanceBench and KG-RAG
 
 For FinanceBench and KG-RAG datasets we have observed improved accuracy with reasoning on.
 
-**Why it makes sense**
+Why it makes sense
 
-- **FinanceBench** is dominated by tables (75% of queries) that often require mathematical operations or data extraction from multiple line items. Simple retrieval isn't enough; the model needs the reasoning step to perform the arithmetic and cross-referencing required by the human-annotated ground truth.
+- FinanceBench is heavily table-centric—about 75% of queries involve tables—and many of these require mathematical operations or extracting data across multiple line items. Simple retrieval is not sufficient; the model must perform an explicit reasoning step to carry out the necessary arithmetic and cross-referencing to match the human-annotated ground truth.
 
-- **KG-RAG** requires **temporal reasoning** (comparing Q3 2022 vs. Q1 2023). Without reasoning enabled, a model might retrieve the correct company but the wrong fiscal quarter. The "Reasoning On" mode allows the LLM to verify dates and periods before finalizing the answer.
+- KG-RAG requires temporal reasoning (for example, comparing Q3 2022 with Q1 2023). Without reasoning enabled, the model may retrieve the correct company but the wrong fiscal quarter. Turning Reasoning On lets the LLM check dates and periods before finalizing its answer.
 
-### The Multimodal Unlock: Decoding Visual Complexity (ViDoRe & RAGBattlePacket)
+### The Multimodal Unlock: Decoding Visual Complexity in ViDoRe and RAGBattlePacket
 
-Across both ViDoRe benchmark and RAGBattlePacket, peak performance was consistently achieved when shifting from a text-only LLM to a VLM. RAGBattlePacket hit its highest baseline accuracy (0.867) purely by engaging the VLM, while ViDoRe saw sweeping improvements across almost all of its diverse sub-domains.
+Across both the ViDoRe benchmark and RAGBattlePacket, we saw best results when moving from a text-only LLM to a VLM. RAGBattlePacket reached its highest baseline accuracy (0.867) simply by enabling the VLM, and ViDoRe showed broad gains across nearly all of its diverse sub-domains.
 
-**Why it makes sense**
+Why it makes sense
 
-- **Preserving Spatial Layouts (ViDoRe):** Sub-domains like Finance and Pharmaceuticals rely on rigid tables and charts that text based pipeline misses. The VLM natively "sees" and preserves these structures, overall improving accuracy in this dataset.
-- **Targeting Visual Queries (RAGBattlePacket):** With 10% of RAGBattlePacket queries specifically targeting charts, bar graphs, and customer journey diagrams, standard pipelines often "hallucinate" or skip the data entirely. The VLM explicitly reads these infographics, providing precise percentage readouts and structural context.
+- Preserving Spatial Layouts (ViDoRe): Sub-domains like Finance and Pharmaceuticals depend on rigid tables and charts that text-only pipelines often fail to capture. A VLM can directly “see” and preserve these structures, leading to higher accuracy on this benchmark.
+- Targeting Visual Queries (RAGBattlePacket): About 10% of RAGBattlePacket queries focus on charts, bar graphs, and customer journey diagrams, which standard pipelines often hallucinate on or ignore. A VLM can directly interpret these visuals, returning precise percentages and preserving the underlying structure.
 
 ### Semantic Robustness in DC767
 
-This dataset showed the highest overall stability, maintaining ~0.90+ accuracy across almost all configurations.
+This dataset showed the highest overall stability, maintaining roughly 0.90 or higher accuracy across almost all configurations.
 
-**Why it makes sense**
+Why it makes sense
 
-The dataset is 70% text-based prose, it relies heavily on high-quality embeddings and semantic search. Our core retriever is clearly highly optimized for dense text retrieval, as the addition of Vision or Reasoning provided only marginal gains (1.1% change). It proves our "base" RAG engine is exceptionally strong for standard retriever tasks.
+Because the dataset is about 70% text-based prose, it relies heavily on high-quality embeddings and semantic search. Our core retriever is clearly optimized for dense text retrieval, as adding Vision or Reasoning produced only a marginal gain (about a 1.1% change). This suggests that our base RAG engine is already very strong for standard retriever-focused tasks.
 
 ### Reasoning as the Catalyst in Google Frames
 
 This dataset demonstrated the true impact of active reasoning on complex, multi-hop queries. By turning reasoning on, the model achieved a massive leap in overall performance. This gain represents our most significant improvement driven purely by logical processing.
 
-**Why it makes sense**
+Why it makes sense
 
-Google Frames focuses on complex queries that require synthesizing facts across multiple documents and tracking overlapping constraints. A standard LLM struggles to hold all these parameters in a single pass. Activating reasoning allows the model to systematically break down multi-step logic and verify dependencies, which is critical for rigorous factual extraction.
-
+Google Frames targets complex queries that require synthesizing facts across multiple documents while tracking overlapping constraints. A standard LLM often struggles to keep all these parameters in mind in a single pass. Turning on reasoning enables the model to systematically decompose multi-step logic and verify dependencies, which is essential for accurate factual extraction.
 
 ## Related Topics
 
