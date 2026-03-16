@@ -2,7 +2,7 @@
 SPDX-License-Identifier: Apache-2.0
 # Benchmarking RAG Accuracy: Evaluating LLM Reasoning and VLM Integration
 
-In the rapidly evolving landscape of Retrieval-Augmented Generation (RAG), the difference between a "good" and a "production-ready" system often lies in how the pipeline handles complex reasoning and multimodal data. To quantify these improvements, our team performed extensive benchmarking across various configurations, focusing on the impact of LLM reasoning ("Think" mode) and Vision-Language Models (VLM).
+In the fast-moving world of Retrieval-Augmented Generation (RAG), the gap between a “good” system and one that’s truly production-ready often depends on how effectively the pipeline manages complex reasoning and multimodal data. To measure these advancements, our team conducted extensive benchmarks across multiple configurations, examining the influence of LLM reasoning (“Think” mode) and Vision-Language Models (VLM).
 
 ## Benchmarked Datasets
 
