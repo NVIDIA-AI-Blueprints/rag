@@ -8,7 +8,7 @@ This documentation contains the release notes for [NVIDIA RAG Blueprint](readme.
 
 
 
-## Release 2.5.0 (2026-03-12)
+## Release 2.5.0 (2026-03-17)
 
 This release introduces support for the Nemotron-super-3 model, updates NIMs to the latest versions, upgrades NV-Ingest, and adds continuous ingestion along with RTX 6000 MIG support.
 
