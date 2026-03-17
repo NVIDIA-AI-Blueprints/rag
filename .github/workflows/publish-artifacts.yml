@@ -179,7 +179,7 @@ jobs:
           # Tag and push to NGC Container Registry
           echo "Pushing rag-server to NGC Container Registry..."
           docker push nvcr.io/nvstaging/blueprint/rag-server:$TAG
-          docker tag nvcr.io/nvstaging/blueprint/rag-server:$TAG nvcr.io/nvstaging/blueprint/rag-server:latest
+          docker tag nvcr.io/nvidia/blueprint/rag-server:$TAG nvcr.io/nvstaging/blueprint/rag-server:latest
           docker push nvcr.io/nvstaging/blueprint/rag-server:latest
           echo "RAG server container publishing completed successfully"
 
@@ -238,7 +238,7 @@ jobs:
           # Tag and push to NGC Container Registry
           echo "Pushing ingestor-server to NGC Container Registry..."
           docker push nvcr.io/nvstaging/blueprint/ingestor-server:$TAG
-          docker tag nvcr.io/nvstaging/blueprint/ingestor-server:$TAG nvcr.io/nvstaging/blueprint/ingestor-server:latest
+          docker tag nvcr.io/nvidia/blueprint/ingestor-server:$TAG nvcr.io/nvstaging/blueprint/ingestor-server:latest
           docker push nvcr.io/nvstaging/blueprint/ingestor-server:latest
           echo "Ingestor server container publishing completed successfully"
 
@@ -297,7 +297,7 @@ jobs:
           # Tag and push to NGC Container Registry
           echo "Pushing rag-frontend to NGC Container Registry..."
           docker push nvcr.io/nvstaging/blueprint/rag-frontend:$TAG
-          docker tag nvcr.io/nvstaging/blueprint/rag-frontend:$TAG nvcr.io/nvstaging/blueprint/rag-frontend:latest
+          docker tag nvcr.io/nvidia/blueprint/rag-frontend:$TAG nvcr.io/nvstaging/blueprint/rag-frontend:latest
           docker push nvcr.io/nvstaging/blueprint/rag-frontend:latest
           echo "RAG frontend container publishing completed successfully"
 
