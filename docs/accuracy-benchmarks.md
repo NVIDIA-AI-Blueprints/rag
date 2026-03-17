@@ -1,5 +1,8 @@
-<!-- SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+<!--
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 SPDX-License-Identifier: Apache-2.0
+-->
+
 # Benchmarking RAG Accuracy: Evaluating LLM Reasoning and VLM Integration
 
 In the fast-moving world of Retrieval-Augmented Generation (RAG), the gap between a “good” system and one that’s truly production-ready often depends on how effectively the pipeline manages complex reasoning and multimodal data. To measure these advancements, our team conducted extensive benchmarks across multiple configurations, examining the influence of LLM reasoning (“Think” mode) and Vision-Language Models (VLM).
@@ -35,7 +38,7 @@ Our analysis centered on seven major public datasets encompassing a broad range 
 
 Our primary evaluation metric is end-to-end RAG answer accuracy, measured using the [NVIDIA Answer Accuracy metric from RAGAS](https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/nvidia_metrics/). Each response is rated on a 0–4 scale by an LLM judge, with scores normalized to a range for reporting. We chose [mistralai/Mixtral-8x22B-Instruct-v0.1](https://build.nvidia.com/mistralai/mixtral-8x22b-instruct) as the LLM judge, guided by performance on the [Judge’s Verdict](https://huggingface.co/spaces/nvidia/judges-verdict) benchmark.
 
-> Full evaluation pipeline: [evaluation_01_ragas.ipynb](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/evaluation_01_ragas.ipynb)
+Full evaluation pipeline: [evaluation_01_ragas.ipynb](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/evaluation_01_ragas.ipynb)
 
 - Metric: Accuracy, defined as the degree to which generated responses align with the ground truth answers.
 - Pipeline configuration: All experiments were run using the default configuration.
