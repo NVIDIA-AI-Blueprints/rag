@@ -25,12 +25,13 @@ This release includes the following key updates:
   - `nemoretriever-graphic-elements-v1` → `nemotron-graphic-elements-v1`
   - `nemoretriever-table-structure-v1` → `nemotron-table-structure-v1`
   - `nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1` → `nvidia/llama-nemotron-embed-vl-1b-v2`
-  - `nemoretriever-ocr-v1` to `nemotron-ocr-v1`
 - Updated NVIngest to [version 26.1.2](https://github.com/NVIDIA/NeMo-Retriever/releases/tag/26.1.2).
 - Added an example demonstrating the continuous ingestion pipeline. For more information, see [rag_event_ingest.ipynb](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/rag_event_ingest.ipynb).
 - **Added MIG support for RTX 6000.** For details, refer to [MIG Deployment](mig-deployment.md) and use `values-mig-rtx6000.yaml` and `mig-config-rtx6000.yaml`.
 - Added documentation for the experimental Nemotron-parse-only ingestion pipeline. This configuration allows you to perform extraction using only Nemotron Parse through NV-Ingest, without relying on OCR, page-elements, graphic-elements, or table-structure NIMs. For more information, refer to [nemotron-parse-extraction.md](nemotron-parse-extraction.md#experimental-nemotron-parse-only-extraction).
 - Several bug fixes, including frontend CVE resolutions, improved multimodal content concatenation for VLM embeddings, enhanced VDB serialization for high-concurrency parallel ingestion, and updates to observability and NeMo Guardrails configurations.
+- Added agentic skills support: the `rag-blueprint` skill enables AI coding assistants (Claude Code, Cursor, Codex, etc.) to deploy, configure, troubleshoot, and manage the RAG Blueprint autonomously. For details, refer to [RAG Blueprint Agent Skill](../skill-source/README.md).
+- Added [accuracy benchmark results](accuracy-benchmarks.md) across seven public datasets (RagBattlepacket, KG-RAG, Financebench, DC767, HotPotQA, Google Frames, and Vidore), comparing LLM and VLM configurations with reasoning on/off. Benchmarks use the NVIDIA Answer Accuracy metric from RAGAS.
 
 ### Fixed Known Issues
 
