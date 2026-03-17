@@ -166,7 +166,7 @@ class MilvusVDB(VDBRagIngest):
         # Get the connection alias from the url
         self.url = urlparse(self.vdb_endpoint)
         self.connection_alias = (
-            f"milvus_{self.url.hostname}_{self.url.port}_{str(uuid4())[:8]}"
+            f"milvus_{self.url.hostname}_{self.url.port}"
         )
 
         # Get credentials from parameters or fall back to environment variables
@@ -247,6 +247,15 @@ class MilvusVDB(VDBRagIngest):
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Exit the runtime context."""
         self.close()
+    
+    def __del__(self):
+        """Disconnect when the instance is garbage-collected (safety net if close() not used)."""
+        if getattr(self, "_connected", False):
+            try:
+                connections.disconnect(self.connection_alias)
+                self._connected = False
+            except Exception:
+                pass  # Avoid raising in __del__; module/logger may be gone at shutdown
 
     @property
     def collection_name(self) -> str:
