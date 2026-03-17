@@ -153,8 +153,8 @@ To deploy the VLM embedding service with Helm, update the image and model settin
 nvidia-nim-llama-nemotron-embed-vl-1b-v2:
   enabled: true
   image:
-    repository: nvcr.io/nvidia/nemo-microservices/llama-3.2-nemoretriever-1b-vlm-embed-v1
-    tag: "1.7.0"
+    repository: nvcr.io/nim/nvidia/llama-nemotron-embed-vl-1b-v2
+    tag: "1.12.0"
 
 # Optional: disable the default text embedding NIM
 nvidia-nim-llama-32-nv-embedqa-1b-v2:
