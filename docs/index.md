@@ -111,6 +111,7 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
 - Evaluation
 
     - [Evaluate Your NVIDIA RAG Blueprint System](evaluate.md)
+    - [RAG Accuracy Benchmarks](accuracy-benchmarks.md)
 
 - Governance
 
@@ -257,6 +258,7 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
    :hidden:
 
    Evaluate Your RAG System <evaluate.md>
+   RAG Accuracy Benchmarks <accuracy-benchmarks.md>
 ```
 
 
