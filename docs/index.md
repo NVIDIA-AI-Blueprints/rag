@@ -1,5 +1,6 @@
 <!--
-  SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+  SPDX-FileCopyrightText: Copyright (c) 2025, 2026
+   NVIDIA CORPORATION & AFFILIATES. All rights reserved.
   SPDX-License-Identifier: Apache-2.0
 -->
 # NVIDIA RAG Blueprint Documentation
@@ -179,6 +180,7 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
    :maxdepth: 1
    :hidden:
 
+   Deploy with Docker (Self-Hosted Models) <deploy-docker-self-hosted.md>
    Deploy with Docker (NVIDIA-Hosted Models) <deploy-docker-nvidia-hosted.md>
    Deploy on Kubernetes with Helm <deploy-helm.md>
    Deploy on Kubernetes with Helm from the repository <deploy-helm-from-repo.md>
