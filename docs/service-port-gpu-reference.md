@@ -29,7 +29,7 @@ The following table provides a comprehensive reference of all services, their po
 | Page Elements | `compose-page-elements-1` | 8000, 8001, 8002 | 8000, 8001, 8002 | 0 | `YOLOX_MS_GPU_ID` | Object detection for pages |
 | Graphic Elements | `compose-graphic-elements-1` | 8003, 8004, 8005 | 8000, 8001, 8002 | 0 | `YOLOX_GRAPHICS_MS_GPU_ID` | Graphics detection |
 | Table Structure | `compose-table-structure-1` | 8006, 8007, 8008 | 8000, 8001, 8002 | 0 | `YOLOX_TABLE_MS_GPU_ID` | Table structure detection |
-| NeMo Retriever Library OCR | `compose-nemoretriever-ocr-1` | 8012, 8013, 8014 | 8000, 8001, 8002 | 0 | `OCR_MS_GPU_ID` | OCR service (default) |
+| Nemotron OCR | `compose-nemotron-ocr-1` | 8012, 8013, 8014 | 8000, 8001, 8002 | 0 | `OCR_MS_GPU_ID` | OCR service (default) |
 
 ## Vector Database and Infrastructure
 

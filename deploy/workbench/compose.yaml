@@ -95,15 +95,13 @@ services:
     environment:
       - NIM_HTTP_API_PORT=8000
       - NIM_TRITON_LOG_VERBOSE=1
-      - NIM_TRITON_RATE_LIMIT=3
       - NGC_API_KEY=${NIM_NGC_API_KEY:-${NGC_API_KEY:-ngcapikey}}
-      - CUDA_VISIBLE_DEVICES=0
       - NIM_TRITON_MAX_BATCH_SIZE=${PAGE_ELEMENTS_BATCH_SIZE:-32}
-      - NIM_TRITON_CUDA_MEMORY_POOL_MB=${PAGE_ELEMENTS_CUDA_MEMORY_POOL_MB:-2048}
       - NIM_TRITON_CPU_THREADS_PRE_PROCESSOR=${PAGE_ELEMENTS_CPU_THREADS_PRE_PROCESSOR:-2}
       - NIM_TRITON_CPU_THREADS_POST_PROCESSOR=${PAGE_ELEMENTS_CPU_THREADS_POST_PROCESSOR:-1}
       - OMP_NUM_THREADS=2
       # NIM OpenTelemetry Settings
+      - NIM_ENABLE_OTEL=0
       - NIM_OTEL_SERVICE_NAME=page-elements
       - NIM_OTEL_TRACES_EXPORTER=otlp
       - NIM_OTEL_METRICS_EXPORTER=console
@@ -133,7 +131,6 @@ services:
       - NIM_TRITON_LOG_VERBOSE=1
       - NIM_TRITON_RATE_LIMIT=3
       - NGC_API_KEY=${NIM_NGC_API_KEY:-${NGC_API_KEY:-ngcapikey}}
-      - CUDA_VISIBLE_DEVICES=0
       - NIM_TRITON_MAX_BATCH_SIZE=${GRAPHIC_ELEMENTS_BATCH_SIZE:-32}
       - NIM_TRITON_CUDA_MEMORY_POOL_MB=${GRAPHIC_ELEMENTS_CUDA_MEMORY_POOL_MB:-2048}
       - OMP_NUM_THREADS=1
@@ -158,7 +155,6 @@ services:
       - NIM_TRITON_LOG_VERBOSE=1
       - NIM_TRITON_RATE_LIMIT=3
       - NGC_API_KEY=${NIM_NGC_API_KEY:-${NGC_API_KEY:-ngcapikey}}
-      - CUDA_VISIBLE_DEVICES=0
       - NIM_TRITON_MAX_BATCH_SIZE=${TABLE_STRUCTURE_BATCH_SIZE:-32}
       - NIM_TRITON_CUDA_MEMORY_POOL_MB=${TABLE_STRUCTURE_CUDA_MEMORY_POOL_MB:-2048}
       - OMP_NUM_THREADS=1
@@ -171,8 +167,8 @@ services:
               capabilities: [gpu]
     profiles: ["local"]
 
-  nemoretriever-ocr:
-    image: ${NEMORETRIEVER_OCR_IMAGE:-nvcr.io/nim/nvidia/nemoretriever-ocr-v1}:${NEMORETRIEVER_OCR_TAG:-1.2.1}
+  nemotron-ocr:
+    image: ${NEMOTRON_OCR_IMAGE:-nvcr.io/nim/nvidia/nemotron-ocr-v1}:${NEMOTRON_OCR_TAG:-1.3.0}
     shm_size: 16gb
     ports:
       - "8012:8000"
@@ -184,10 +180,7 @@ services:
       - NIM_HTTP_API_PORT=8000
       - NIM_TRITON_LOG_VERBOSE=1
       - NGC_API_KEY=${NIM_NGC_API_KEY:-${NGC_API_KEY:-ngcapikey}}
-      - CUDA_VISIBLE_DEVICES=0
-      - NIM_TRITON_CUDA_MEMORY_POOL_MB=${OCR_CUDA_MEMORY_POOL_MB:-8192}
       - NIM_TRITON_MAX_BATCH_SIZE=${OCR_BATCH_SIZE:-32}
-      - NIM_TRITON_ENABLE_MODEL_CONTROL=1
     deploy:
       resources:
         reservations:
@@ -335,7 +328,7 @@ services:
     profiles: ["ingest"]
 
   nv-ingest-ms-runtime:
-    image: nvcr.io/nvidia/nemo-microservices/nv-ingest:26.1.2
+    image: nvcr.io/nvstaging/nim/nv-ingest:26.3.0-RC4
     # cpuset: "0-15" # Uncomment to restrict this container to CPU cores 0–15
     shm_size: 40gb # Should be at minimum 30% of assigned memory per Ray documentation
     volumes:
@@ -388,12 +381,12 @@ services:
       - NV_INGEST_MAX_UTIL=${NV_INGEST_MAX_UTIL:-48}
       - OTEL_EXPORTER_OTLP_ENDPOINT=otel-collector:4317
       # Self-hosted ocr endpoints.
-      - OCR_GRPC_ENDPOINT=${OCR_GRPC_ENDPOINT:-nemoretriever-ocr:8001}
-      - OCR_HTTP_ENDPOINT=${OCR_HTTP_ENDPOINT:-http://nemoretriever-ocr:8000/v1/infer}
+      - OCR_GRPC_ENDPOINT=${OCR_GRPC_ENDPOINT:-nemotron-ocr:8001}
+      - OCR_HTTP_ENDPOINT=${OCR_HTTP_ENDPOINT:-http://nemotron-ocr:8000/v1/infer}
       - OCR_INFER_PROTOCOL=${OCR_INFER_PROTOCOL:-grpc}
-      - OCR_MODEL_NAME=${OCR_MODEL_NAME:-scene_text_ensemble}
+      - OCR_MODEL_NAME=${OCR_MODEL_NAME:-pipeline}
       # build.nvidia.com hosted ocr endpoints.
-      # - OCR_HTTP_ENDPOINT=https://ai.api.nvidia.com/v1/cv/nvidia/nemoretriever-ocr
+      # - OCR_HTTP_ENDPOINT=https://ai.api.nvidia.com/v1/cv/nvidia/nemotron-ocr-v1
       # - OCR_INFER_PROTOCOL=http
       - PDF_SPLIT_PAGE_COUNT=${PDF_SPLIT_PAGE_COUNT:-32}
       - REDIS_INGEST_TASK_QUEUE=ingest_task_queue

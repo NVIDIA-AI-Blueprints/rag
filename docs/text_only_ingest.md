@@ -125,7 +125,7 @@ helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvidia/blueprint/c
   --set nv-ingest.nimOperator.page_elements.enabled=false \
   --set nv-ingest.nimOperator.graphic_elements.enabled=false \
   --set nv-ingest.nimOperator.table_structure.enabled=false \
-  --set nv-ingest.nimOperator.nemoretriever_ocr_v1.enabled=false \
+  --set nv-ingest.nimOperator.ocr.enabled=false \
   --set imagePullSecret.password=$NGC_API_KEY \
   --set ngcApiSecret.password=$NGC_API_KEY
 ```
@@ -133,7 +133,7 @@ helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvidia/blueprint/c
 :::{important}
 **Disabling NeMo Retriever Library Components for GPU Resource Management:**
 
-If you disable any NeMo Retriever Library dependent services (such as `table_structure`, `graphic_elements`, `nemoretriever_ocr_v1`, etc.) to free up GPU resources for customization, you must set the `COMPONENTS_TO_READY_CHECK` parameter to an empty string in the `nv-ingest.envVars` section of your [values.yaml](../deploy/helm/nvidia-blueprint-rag/values.yaml) file:
+If you disable any nv-ingest dependent services (such as `table_structure`, `graphic_elements`, `ocr`, etc.) to free up GPU resources for customization, you must set the `COMPONENTS_TO_READY_CHECK` parameter to an empty string in the `nv-ingest.envVars` section of your [values.yaml](../deploy/helm/nvidia-blueprint-rag/values.yaml) file:
 
 ```yaml
 nv-ingest:

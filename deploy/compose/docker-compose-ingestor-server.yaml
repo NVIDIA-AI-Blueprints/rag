@@ -171,7 +171,7 @@ services:
       - "6379:6379"
 
   nv-ingest-ms-runtime:
-    image: nvcr.io/nvidia/nemo-microservices/nv-ingest:26.1.2
+    image: nvcr.io/nvstaging/nim/nv-ingest:26.3.0-RC4
     # cpuset: "0-15" # Uncomment to restrict this container to CPU cores 0–15
     shm_size: 40gb # Should be at minimum 30% of assigned memory per Ray documentation
     volumes:
@@ -222,12 +222,12 @@ services:
       - NV_INGEST_MAX_UTIL=${NV_INGEST_MAX_UTIL:-48}
       - OTEL_EXPORTER_OTLP_ENDPOINT=otel-collector:4317
       # Self-hosted ocr endpoints.
-      - OCR_GRPC_ENDPOINT=${OCR_GRPC_ENDPOINT:-nemoretriever-ocr:8001}
-      - OCR_HTTP_ENDPOINT=${OCR_HTTP_ENDPOINT:-http://nemoretriever-ocr:8000/v1/infer}
+      - OCR_GRPC_ENDPOINT=${OCR_GRPC_ENDPOINT:-nemotron-ocr:8001}
+      - OCR_HTTP_ENDPOINT=${OCR_HTTP_ENDPOINT:-http://nemotron-ocr:8000/v1/infer}
       - OCR_INFER_PROTOCOL=${OCR_INFER_PROTOCOL:-grpc}
-      - OCR_MODEL_NAME=${OCR_MODEL_NAME:-scene_text_ensemble}
+      - OCR_MODEL_NAME=${OCR_MODEL_NAME:-pipeline}
       # build.nvidia.com hosted ocr endpoints.
-      #- OCR_HTTP_ENDPOINT=https://ai.api.nvidia.com/v1/cv/nvidia/nemoretriever-ocr
+      #- OCR_HTTP_ENDPOINT=https://ai.api.nvidia.com/v1/cv/nvidia/nemotron-ocr-v1
       #- OCR_INFER_PROTOCOL=http
       - PDF_SPLIT_PAGE_COUNT=${PDF_SPLIT_PAGE_COUNT:-32}
       - REDIS_INGEST_TASK_QUEUE=ingest_task_queue
