@@ -33,6 +33,19 @@ from nvidia_rag.utils.vdb import (
 from nvidia_rag.utils.vdb.milvus.milvus_vdb import MilvusVDB
 
 
+def _make_dummy_milvus_vdb_for_delete():
+    """Build a MilvusVDB instance without running __init__ (no real connections).
+
+    Only sets attributes needed by delete_documents so we can test that method
+    without touching Milvus. Safe for CI where no Milvus is running.
+    """
+    vdb = object.__new__(MilvusVDB)
+    vdb.connection_alias = "milvus_dummy_test"
+    vdb.vdb_endpoint = "http://localhost:19530"
+    vdb._delete_entities = Mock()
+    return vdb
+
+
 class TestMilvusVDB:
     """Test the MilvusVDB class."""
 
@@ -749,81 +762,48 @@ class TestMilvusVDB:
                 )
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Collection")
-    @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    def test_delete_documents_success(self, mock_connections, mock_collection):
-        """Test delete_documents method with successful deletion."""
+    def test_delete_documents_success(self, mock_collection):
+        """Test delete_documents method with successful deletion (no real Milvus)."""
         mock_collection_obj = Mock()
         mock_resp = Mock()
         mock_resp.delete_count = 5
         mock_collection_obj.delete.return_value = mock_resp
         mock_collection.return_value = mock_collection_obj
 
-        with (
-            patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"),
-        ):
-            vdb = MilvusVDB(
-                embedding_model=Mock(),
-                milvus_uri="http://localhost:19530",
-                collection_name="test_collection",
-                config=Mock(),
-            )
+        vdb = _make_dummy_milvus_vdb_for_delete()
+        result = vdb.delete_documents("test_collection", ["file1.txt", "file2.txt"])
 
-            result = vdb.delete_documents("test_collection", ["file1.txt", "file2.txt"])
-
-            assert result is True
-            mock_collection_obj.flush.assert_called_once()
+        assert result is True
+        mock_collection_obj.flush.assert_called_once()
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Collection")
-    @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    def test_delete_documents_not_found(self, mock_connections, mock_collection):
-        """Test delete_documents method when document not found."""
+    def test_delete_documents_not_found(self, mock_collection):
+        """Test delete_documents method when document not found (no real Milvus)."""
         mock_collection_obj = Mock()
         mock_resp = Mock()
         mock_resp.delete_count = 0
         mock_collection_obj.delete.return_value = mock_resp
         mock_collection.return_value = mock_collection_obj
 
-        with (
-            patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"),
-        ):
-            vdb = MilvusVDB(
-                embedding_model=Mock(),
-                milvus_uri="http://localhost:19530",
-                collection_name="test_collection",
-                config=Mock(),
-            )
+        vdb = _make_dummy_milvus_vdb_for_delete()
+        result = vdb.delete_documents("test_collection", ["file1.txt"])
 
-            result = vdb.delete_documents("test_collection", ["file1.txt"])
-
-            assert result is True
+        assert result is True
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Collection")
-    @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    def test_delete_documents_milvus_exception(self, mock_connections, mock_collection):
-        """Test delete_documents method with MilvusException fallback."""
-
+    def test_delete_documents_milvus_exception(self, mock_collection):
+        """Test delete_documents method with MilvusException fallback (no real Milvus)."""
         mock_collection_obj = Mock()
         mock_resp = Mock()
         mock_resp.delete_count = 1
-
-        # First call raises MilvusException, second call succeeds
         mock_collection_obj.delete.side_effect = [MilvusException("Error"), mock_resp]
         mock_collection.return_value = mock_collection_obj
 
-        with (
-            patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"),
-        ):
-            vdb = MilvusVDB(
-                embedding_model=Mock(),
-                milvus_uri="http://localhost:19530",
-                collection_name="test_collection",
-                config=Mock(),
-            )
+        vdb = _make_dummy_milvus_vdb_for_delete()
+        result = vdb.delete_documents("test_collection", ["file1.txt"])
 
-            result = vdb.delete_documents("test_collection", ["file1.txt"])
-
-            assert result is True
-            assert mock_collection_obj.delete.call_count == 2
+        assert result is True
+        assert mock_collection_obj.delete.call_count == 2
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.MilvusClient")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
