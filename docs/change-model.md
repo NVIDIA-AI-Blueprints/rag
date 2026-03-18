@@ -46,6 +46,10 @@ The `nemotron-3-nano-30b` model has different naming conventions depending on th
 
 Both names refer to the same underlying model. Use the appropriate name based on your deployment type.
 
+##### Nemotron 3 Super
+
+Nemotron 3 Super is a larger model with different GPU and environment requirements: local NIM deployment requires at least 2 GPUs (FP8 TP2), and you may need a dedicated prompt config and reasoning settings. For full deployment steps (Docker and Helm), see the [Nemotron 3 Super deployment guide](nemotron3-super-deployment.md).
+
 
 ### Change the Embedding Model
 
@@ -264,7 +268,19 @@ Use this procedure to change models when you are running self-hosted NVIDIA NIM 
     **If only the vLLM profile is available**
 
    When only a vLLM profile is available for a model, such as on H100 and RTX GPUs, you must use the vLLM engine. First [run the list-model-profiles command](model-profiles.md#list-available-profiles) to confirm which profiles are available and then apply the following configurations.
-
+    **For Nemotron Nano Models VLLM profile**
+    
+    When deploying `nvidia/nvidia-nemotron-nano-9b-v2` or `nvidia/nemotron-3-nano`, check if `tensorrt_llm` profile is available using below command for your required model. 
+    
+    ```bash
+    # Change model name as needed
+    USERID=$(id -u) docker run --rm --gpus all \
+      nvcr.io/nim/nvidia/nvidia-nemotron-nano-9b-v2:latest \ 
+      list-model-profiles
+    ```
+    
+    If only `vllm` profile is available, you must use the **vLLM engine** and add these specific configurations:
+    
     ```yaml
     nimOperator:
       nim-llm:
@@ -292,4 +308,5 @@ Use this procedure to change models when you are running self-hosted NVIDIA NIM 
 - [Deploy with Docker (Self-Hosted Models)](deploy-docker-self-hosted.md)
 - [Deploy with Docker (NVIDIA-Hosted Models)](deploy-docker-nvidia-hosted.md)
 - [Deploy with Helm](deploy-helm.md)
+- [Nemotron 3 Super deployment (Docker and Helm)](nemotron3-super-deployment.md)
 - [Service-Specific API Keys](api-key.md#service-specific-api-keys)

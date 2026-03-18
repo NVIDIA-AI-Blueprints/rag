@@ -7,6 +7,16 @@ on:
     - cron: '30 18 * * *'
   workflow_dispatch:
     inputs:
+      JOBS_TO_RUN:
+        description: 'Jobs to run (manual trigger only)'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - wheel-only
+          - containers-only
+          - helm-chart-only
       CONTAINER_TAG:
         description: 'Custom tag for containers (optional)'
         required: false
@@ -15,6 +25,26 @@ on:
         description: 'Artifactory version (optional, defaults to auto-generated from get_version.sh)'
         required: false
         default: ''
+      HELM_CHART_VERSION:
+        description: 'Helm chart version for NGC (optional, defaults to auto-generated from get_version.sh)'
+        required: false
+        default: ''
+      # Container-level selection (applies when JOBS_TO_RUN is 'all' or 'containers-only')
+      PUBLISH_RAG_SERVER:
+        description: 'Publish rag-server container'
+        required: false
+        default: true
+        type: boolean
+      PUBLISH_INGESTOR_SERVER:
+        description: 'Publish ingestor-server container'
+        required: false
+        default: true
+        type: boolean
+      PUBLISH_RAG_FRONTEND:
+        description: 'Publish rag-frontend container'
+        required: false
+        default: true
+        type: boolean
 
 env:
   RELEASE_TYPE: dev
@@ -26,6 +56,7 @@ jobs:
   publish-wheel:
     name: Build and Publish Python Wheel
     runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_dispatch' || github.event.inputs.JOBS_TO_RUN == 'all' || github.event.inputs.JOBS_TO_RUN == 'wheel-only'
     container:
       image: python:3.10
     steps:
@@ -106,6 +137,7 @@ jobs:
   publish-rag-server:
     name: Build and Publish RAG Server Container
     runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_dispatch' || ((github.event.inputs.JOBS_TO_RUN == 'all' || github.event.inputs.JOBS_TO_RUN == 'containers-only') && github.event.inputs.PUBLISH_RAG_SERVER != 'false')
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -147,7 +179,7 @@ jobs:
           # Tag and push to NGC Container Registry
           echo "Pushing rag-server to NGC Container Registry..."
           docker push nvcr.io/nvstaging/blueprint/rag-server:$TAG
-          docker tag nvcr.io/nvstaging/blueprint/rag-server:$TAG nvcr.io/nvstaging/blueprint/rag-server:latest
+          docker tag nvcr.io/nvidia/blueprint/rag-server:$TAG nvcr.io/nvstaging/blueprint/rag-server:latest
           docker push nvcr.io/nvstaging/blueprint/rag-server:latest
           echo "RAG server container publishing completed successfully"
 
@@ -164,6 +196,7 @@ jobs:
   publish-ingestor-server:
     name: Build and Publish Ingestor Server Container
     runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_dispatch' || ((github.event.inputs.JOBS_TO_RUN == 'all' || github.event.inputs.JOBS_TO_RUN == 'containers-only') && github.event.inputs.PUBLISH_INGESTOR_SERVER != 'false')
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -205,7 +238,7 @@ jobs:
           # Tag and push to NGC Container Registry
           echo "Pushing ingestor-server to NGC Container Registry..."
           docker push nvcr.io/nvstaging/blueprint/ingestor-server:$TAG
-          docker tag nvcr.io/nvstaging/blueprint/ingestor-server:$TAG nvcr.io/nvstaging/blueprint/ingestor-server:latest
+          docker tag nvcr.io/nvidia/blueprint/ingestor-server:$TAG nvcr.io/nvstaging/blueprint/ingestor-server:latest
           docker push nvcr.io/nvstaging/blueprint/ingestor-server:latest
           echo "Ingestor server container publishing completed successfully"
 
@@ -222,6 +255,7 @@ jobs:
   publish-rag-frontend:
     name: Build and Publish RAG Frontend Container
     runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_dispatch' || ((github.event.inputs.JOBS_TO_RUN == 'all' || github.event.inputs.JOBS_TO_RUN == 'containers-only') && github.event.inputs.PUBLISH_RAG_FRONTEND != 'false')
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -263,7 +297,7 @@ jobs:
           # Tag and push to NGC Container Registry
           echo "Pushing rag-frontend to NGC Container Registry..."
           docker push nvcr.io/nvstaging/blueprint/rag-frontend:$TAG
-          docker tag nvcr.io/nvstaging/blueprint/rag-frontend:$TAG nvcr.io/nvstaging/blueprint/rag-frontend:latest
+          docker tag nvcr.io/nvidia/blueprint/rag-frontend:$TAG nvcr.io/nvstaging/blueprint/rag-frontend:latest
           docker push nvcr.io/nvstaging/blueprint/rag-frontend:latest
           echo "RAG frontend container publishing completed successfully"
 
@@ -273,4 +307,84 @@ jobs:
           echo "Cleaning up rag-frontend Docker images..."
           docker images | grep "rag-frontend" | awk '{print $3}' | xargs -r docker rmi -f || echo "No rag-frontend images to delete"
           docker system prune -f || true
+
+  # ============================================================================
+  # PUBLISH HELM CHART TO NGC
+  # ============================================================================
+  publish-helm-chart:
+    name: Build and Publish Helm Chart to NGC
+    runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_dispatch' || github.event.inputs.JOBS_TO_RUN == 'all' || github.event.inputs.JOBS_TO_RUN == 'helm-chart-only'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: 'v3.17.0'
+
+      - name: Install NGC CLI
+        env:
+          NGC_API_KEY: ${{ secrets.CI_NVSTAGING_BLUEPRINT_KEY }}
+        run: |
+          echo "Installing NGC CLI..."
+          wget --content-disposition https://api.ngc.nvidia.com/v2/resources/nvidia/ngc-apps/ngc_cli/versions/4.9.10/files/ngccli_linux.zip -O ngccli_linux.zip
+          unzip -o ngccli_linux.zip
+          chmod u+x ngc-cli/ngc
+          echo "$(pwd)/ngc-cli" >> $GITHUB_PATH
+          echo "NGC CLI installed successfully"
+
+      - name: Determine Helm chart version
+        id: helm_version
+        run: |
+          if [ -n "${{ github.event.inputs.HELM_CHART_VERSION }}" ]; then
+            echo "Using custom Helm chart version: ${{ github.event.inputs.HELM_CHART_VERSION }}"
+            VERSION="${{ github.event.inputs.HELM_CHART_VERSION }}"
+          else
+            echo "Using auto-generated version from get_version.sh"
+            chmod +x ./ci/get_version.sh
+            VERSION=$(./ci/get_version.sh)
+            echo "Generated version: $VERSION"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "HELM_CHART_VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Add Helm repositories
+        env:
+          NGC_API_KEY: ${{ secrets.CI_NVSTAGING_BLUEPRINT_KEY }}
+        run: |
+          cd deploy/helm
+          helm repo add nvidia-nim https://helm.ngc.nvidia.com/nim/nvidia/ --username='$oauthtoken' --password="$NGC_API_KEY"
+          helm repo add nim https://helm.ngc.nvidia.com/nim/ --username='$oauthtoken' --password="$NGC_API_KEY"
+          helm repo add nemo-microservices https://helm.ngc.nvidia.com/nvidia/nemo-microservices --username='$oauthtoken' --password="$NGC_API_KEY"
+          helm repo add baidu-nim https://helm.ngc.nvidia.com/nim/baidu --username='$oauthtoken' --password="$NGC_API_KEY"
+          helm repo add bitnami https://charts.bitnami.com/bitnami
+          helm repo add elastic https://helm.elastic.co
+          helm repo add otel https://open-telemetry.github.io/opentelemetry-helm-charts
+          helm repo add zipkin https://zipkin.io/zipkin-helm
+          helm repo add prometheus https://prometheus-community.github.io/helm-charts
+          helm repo update
+
+      - name: Package Helm chart
+        env:
+          NGC_API_KEY: ${{ secrets.CI_NVSTAGING_BLUEPRINT_KEY }}
+        run: |
+          cd deploy/helm
+          helm dependency update nvidia-blueprint-rag
+          helm package nvidia-blueprint-rag/ --version "${{ env.HELM_CHART_VERSION }}"
+          CHART_TGZ=$(ls nvidia-blueprint-rag-*.tgz)
+          echo "Created: $CHART_TGZ"
+
+      - name: Push Helm chart to NGC
+        env:
+          NGC_API_KEY: ${{ secrets.CI_NVSTAGING_BLUEPRINT_KEY }}
+        run: |
+          cd deploy/helm
+          CHART_TGZ="nvidia-blueprint-rag-${{ env.HELM_CHART_VERSION }}.tgz"
+          TARGET="nvstaging/blueprint/nvidia-blueprint-rag:${{ env.HELM_CHART_VERSION }}"
+          # Remove existing version to overwrite (ignore error if version does not exist)
+          ngc registry chart remove "$TARGET" --org nvstaging -y 2>/dev/null || true
+          ngc registry chart push "$TARGET" --source "$CHART_TGZ" --org nvstaging
+          echo "Helm chart published to NGC: $TARGET"
 

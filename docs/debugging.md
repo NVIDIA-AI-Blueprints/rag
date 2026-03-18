@@ -141,7 +141,7 @@ docker ps | grep -E "(ingestor-server|nv-ingest|nemoretriever-embedding|milvus|r
 # Check ingestor server health with all dependencies
 curl -X GET "http://localhost:8082/v1/health?check_dependencies=true" | jq
 
-# Verify NV-Ingest runtime is ready for processing
+# Verify NeMo Retriever Library runtime is ready for processing
 curl -X GET "http://localhost:7670/v1/health/ready"
 
 # Check embedding service is responding
@@ -219,7 +219,7 @@ Start by examining the logs of key ingestion services to identify the specific e
 # Check ingestor server logs for API errors
 docker logs ingestor-server --tail 100
 
-# Check NV-Ingest runtime logs for processing errors
+# Check NeMo Retriever Library runtime logs for processing errors
 docker logs nv-ingest-ms-runtime --tail 100
 
 # Check embedding service logs for model issues
@@ -251,9 +251,9 @@ docker logs nemotron-embedding-ms --tail 100
 nvidia-smi
 ```
 
-**NV-Ingest Processing Errors:**
+**NeMo Retriever Library Processing Errors:**
 ```bash
-# Check NV-Ingest logs for processing errors
+# Check NeMo Retriever Library logs for processing errors
 docker logs nv-ingest-ms-runtime --tail 200 | grep -i error
 
 # Check Redis connectivity for task queue

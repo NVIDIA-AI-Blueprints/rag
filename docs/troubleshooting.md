@@ -340,7 +340,7 @@ If the above error related to dependency conflicts are seen while building conta
 We've integrated VDB and embedding creation directly into the pipeline with caching included for expediency.
 However, in a production environment, it's better to use a separately managed VDB service.
 
-NVIDIA offers optimized models and tools like NVIDIA NeMo Retriever ([build.nvidia.com/explore/retrieval](https://build.nvidia.com/explore/retrieval))
+NVIDIA offers optimized models and tools like NVIDIA NeMo Retriever Library ([build.nvidia.com/explore/retrieval](https://build.nvidia.com/explore/retrieval))
 and cuVS ([github.com/rapidsai/cuvs](https://github.com/rapidsai/cuvs)).
 
 

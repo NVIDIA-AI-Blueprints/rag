@@ -7,6 +7,8 @@
 After you [deploy your NVIDIA RAG Blueprint system](readme.md#deployment-options-for-rag-blueprint),
 you can evaluate it by using [Ragas](https://docs.ragas.io/en/stable/) metrics specifically designed for Large Language Model (LLM) Applications.
 
+For published benchmark results across multiple datasets and configurations, refer to [RAG Accuracy Benchmarks](accuracy-benchmarks.md).
+
 
 ## Ragas Metrics
 
@@ -36,3 +38,4 @@ For more information, refer to the notebook [Evaluate Your RAG Pipeline with Rag
 - [NVIDIA RAG Blueprint Documentation](readme.md)
 - [Get Started](deploy-docker-self-hosted.md)
 - [Notebooks](notebooks.md)
+- [RAG Accuracy Benchmarks](accuracy-benchmarks.md)

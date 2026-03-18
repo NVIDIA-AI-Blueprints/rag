@@ -104,13 +104,6 @@ class KafkaEventConsumer:
         indexer = doc_handler.indexer
         success = indexer.delete(event.key, event.collection)
 
-        if self.router.is_video(event.key):
-            desc_filename = f"{event.key}_description.json"
-            desc_ok = indexer.delete(desc_filename, event.collection)
-            if desc_ok:
-                logger.info(f"✓ Deleted video description {desc_filename} from Milvus")
-            success = success or desc_ok
-
         if success:
             logger.info(f"✓ Deleted {event.key} from Milvus")
             return HandlerResult(success=True, status='DELETED')

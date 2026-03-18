@@ -8,7 +8,7 @@
 This documentation contains the OpenAPI reference for the ingestor server.
 
 :::{tip}
-To view this documentation on docs.nvidia.com, go to https://docs.nvidia.com/rag/latest/api-ingestor.html.
+To view this documentation on docs.nvidia.com, browse to [https://docs.nvidia.com/rag/latest/api-ingestor](https://docs.nvidia.com/rag/latest/api-ingestor.html).
 :::
 
 
@@ -41,7 +41,7 @@ The status response includes progress metrics updated after each batch completes
 For more granular progress updates during batch processing, use the `nv_ingest_status` object described below, which tracks individual document extraction progress and updates more frequently than the batch-level metrics.
 :::
 
-### NV-Ingest Extraction Status
+### Extraction status
 
 The `/status` endpoint response includes an `nv_ingest_status` object that provides real-time document extraction progress, updating more frequently than batch-level metrics. This is useful for monitoring individual document processing when polling the status endpoint:
 
@@ -53,7 +53,7 @@ The `/status` endpoint response includes an `nv_ingest_status` object that provi
 | Status | Description |
 |--------|-------------|
 | `not_started` | Document queued, extraction not yet initiated |
-| `submitted` | Document submitted to NV-Ingest for processing |
+| `submitted` | Document submitted to NeMo Retriever Library for processing |
 | `processing` | Document extraction is in progress |
 | `completed` | Document extraction completed successfully |
 | `failed` | Document extraction failed |

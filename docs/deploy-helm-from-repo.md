@@ -14,7 +14,7 @@ The following are the core services that you install:
 
 - RAG server
 - Ingestor server
-- NV-Ingest
+- NeMo Retriever Library
 
 
 ## Prerequisites
