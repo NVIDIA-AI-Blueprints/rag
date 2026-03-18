@@ -72,6 +72,30 @@ jobs:
       - uses: actions/setup-python@v3
       - uses: pre-commit/action@v3.0.1
 
+  skills-validation:
+    name: NV-BASE Skills Validation
+    runs-on: arc-runners-org-nvidia-ai-bp-2-gpu
+    # Requires self-hosted runner for access to urm.nvidia.com (NVIDIA Artifactory)
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' || github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install nv-base and run validation
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq python3-venv > /dev/null 2>&1
+          python3 -m venv .nv-base-venv
+          .nv-base-venv/bin/pip install -q nv-base -i https://urm.nvidia.com/artifactory/api/pypi/nv-shared-pypi/simple
+          .nv-base-venv/bin/nv-base validate skill-source/.agents --no-llm -r cli json html -o skills-report/
+
+      - name: Upload skills validation report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: skills-validation-report-${{ github.sha }}
+          path: skills-report/
+          retention-days: 30
+
   unit-tests:
     name: Unit Tests
     runs-on: ubuntu-latest
