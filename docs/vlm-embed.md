@@ -2,7 +2,7 @@
   SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
   SPDX-License-Identifier: Apache-2.0
 -->
-# Use Multimodal (VLM) Embedding for Ingestion for NVIDIA RAG Blueprint (Early Access)
+# Use Multimodal (VLM) Embedding for Ingestion for NVIDIA RAG Blueprint
 
 This guide shows how to enable and use the multimodal embedding model `nvidia/llama-nemotron-embed-vl-1b-v2` with the [NVIDIA RAG Blueprint](readme.md) ingestion pipeline.
 
