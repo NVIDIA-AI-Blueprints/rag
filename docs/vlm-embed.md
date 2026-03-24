@@ -182,8 +182,6 @@ After modifying [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml)
 
 For detailed HELM deployment instructions, see [Helm Deployment Guide](deploy-helm.md).
 
-
-
 ## Additional Configuration: Extraction and Embedding Modalities
 
 To configure how content is extracted and embedded (similar to the Docker configurations shown above), you can add extraction and modality settings to your [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml):
