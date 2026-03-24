@@ -56,7 +56,7 @@ nv-ingest:
           storageClass: ""
 
     # OCR - uses 2g.48gb (larger slice)
-    nemoretriever_ocr_v1:
+    ocr:
       resources:
         limits:
           nvidia.com/gpu: "0"
