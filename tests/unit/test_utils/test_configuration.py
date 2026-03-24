@@ -864,6 +864,18 @@ class TestRetrieverConfigValidation:
 
         assert "fetch_neighboring_pages must be >= 0" in str(exc_info.value)
 
+    def test_fetch_neighboring_pages_exceeds_max_raises_error(self):
+        """Test that fetch_neighboring_pages > 10 raises ValueError."""
+        with pytest.raises(ValidationError) as exc_info:
+            RetrieverConfig(fetch_neighboring_pages=11)
+
+        assert "fetch_neighboring_pages must be <= 10" in str(exc_info.value)
+
+    def test_fetch_neighboring_pages_max_boundary_accepted(self):
+        """Test that fetch_neighboring_pages == 10 is valid."""
+        config = RetrieverConfig(fetch_full_page_context=True, fetch_neighboring_pages=10)
+        assert config.fetch_neighboring_pages == 10
+
 
 class TestTracingConfigNormalize:
     """Test cases for TracingConfig normalize_url method."""

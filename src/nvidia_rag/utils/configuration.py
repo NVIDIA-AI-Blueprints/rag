@@ -818,6 +818,10 @@ class RetrieverConfig(_ConfigBase):
             raise ValueError(
                 f"fetch_neighboring_pages must be >= 0, got {v}"
             )
+        if v > 10:
+            raise ValueError(
+                f"fetch_neighboring_pages must be <= 10, got {v}"
+            )
         return v
 
     @model_validator(mode="after")
