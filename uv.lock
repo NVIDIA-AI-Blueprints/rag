@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = ">=3.11, <3.14"
 resolution-markers = [
     "python_full_version >= '3.13'",
@@ -1867,9 +1867,9 @@ requires-dist = [
     { name = "langchain-elasticsearch", marker = "extra == 'elasticsearch'", specifier = ">=0.3" },
     { name = "langchain-milvus", specifier = ">=0.3.0" },
     { name = "langchain-nvidia-ai-endpoints", specifier = ">=1.2.0" },
-    { name = "langchain-openai", marker = "extra == 'all'", specifier = ">=0.2" },
-    { name = "langchain-openai", marker = "extra == 'ingest'", specifier = ">=0.2" },
-    { name = "langchain-openai", marker = "extra == 'rag'", specifier = ">=0.2" },
+    { name = "langchain-openai", marker = "extra == 'all'", specifier = ">=0.2,<1.1.9" },
+    { name = "langchain-openai", marker = "extra == 'ingest'", specifier = ">=0.2,<1.1.9" },
+    { name = "langchain-openai", marker = "extra == 'rag'", specifier = ">=0.2,<1.1.9" },
     { name = "lark", specifier = ">=1.2.2" },
     { name = "minio", specifier = ">=7.2,<8.0" },
     { name = "nv-ingest-api", marker = "extra == 'all'", specifier = "==26.3.0rc4" },
