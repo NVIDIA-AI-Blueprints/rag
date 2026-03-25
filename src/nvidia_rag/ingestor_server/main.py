@@ -29,12 +29,11 @@ Private methods:
 2. __run_background_ingest_task: Ingest documents to the vector store.
 3. __build_ingestion_response: Build the ingestion response from results and failures.
 4. __ingest_document_summary: Drives summary generation and ingestion if enabled.
-5. __put_content_to_minio: Put NV-Ingest image/table/chart content to MinIO.
-6. __perform_shallow_extraction_workflow: Perform shallow extraction workflow for fast summary generation.
-7. __run_nvingest_batched_ingestion: Upload documents to the vector store using NV-Ingest.
-8. __nv_ingest_ingestion_pipeline: Run the NV-Ingest ingestion pipeline.
-9. __get_failed_documents: Get failed documents from the vector store.
-10. __get_non_supported_files: Get non-supported files from the vector store.
+5. __perform_shallow_extraction_workflow: Perform shallow extraction workflow for fast summary generation.
+6. __run_nvingest_batched_ingestion: Upload documents to the vector store using NV-Ingest.
+7. __nv_ingest_ingestion_pipeline: Run the NV-Ingest ingestion pipeline (object storage is configured in nvingest).
+8. __get_failed_documents: Get failed documents from the vector store.
+9. __get_non_supported_files: Get non-supported files from the vector store.
 """
 
 import asyncio
@@ -83,7 +82,6 @@ from nvidia_rag.utils.minio_operator import (
     get_minio_operator,
     get_unique_thumbnail_id_collection_prefix,
     get_unique_thumbnail_id_file_name_prefix,
-    get_unique_thumbnail_id_from_result,
 )
 from nvidia_rag.utils.observability.tracing import (
     create_nv_ingest_trace_context,
@@ -1981,85 +1979,6 @@ class NvidiaRAGIngestor:
             "documents": [],
         }
 
-    @trace_function("ingestor.main.put_content_to_minio", tracer=TRACER)
-    def __put_content_to_minio(
-        self,
-        results: list[list[dict[str, str | dict]]],
-        collection_name: str,
-    ) -> None:
-        """
-        Put nv-ingest image/table/chart content to minio
-        """
-        if not self.config.enable_citations:
-            logger.info(f"Skipping minio insertion for collection: {collection_name}")
-            return  # Don't perform minio insertion if captioning is disabled
-
-        payloads = []
-        object_names = []
-
-        for result in results:
-            for result_element in result:
-                if result_element.get("document_type") in ["image", "structured"]:
-                    # Extract required fields
-                    metadata = result_element.get("metadata", {})
-                    content = result_element.get("metadata").get("content")
-
-                    file_name = os.path.basename(
-                        result_element.get("metadata")
-                        .get("source_metadata")
-                        .get("source_id")
-                    )
-                    page_number = (
-                        result_element.get("metadata")
-                        .get("content_metadata")
-                        .get("page_number")
-                    )
-                    location = (
-                        result_element.get("metadata")
-                        .get("content_metadata")
-                        .get("location")
-                    )
-
-                    # Get unique_thumbnail_id using the centralized function
-                    # Try with extracted location first, fallback to content_metadata if None
-                    unique_thumbnail_id = get_unique_thumbnail_id_from_result(
-                        collection_name=collection_name,
-                        file_name=file_name,
-                        page_number=page_number,
-                        location=location,
-                        metadata=metadata,
-                    )
-
-                    if unique_thumbnail_id is not None:
-                        # Pull content from result_element
-                        payloads.append({"content": content})
-                        object_names.append(unique_thumbnail_id)
-                    # If unique_thumbnail_id is None, the item is skipped
-                    # (warning already logged in get_unique_thumbnail_id_from_result)
-
-        if self.minio_operator is not None:
-            if os.getenv("ENABLE_MINIO_BULK_UPLOAD", "True") in ["True", "true"]:
-                logger.info(f"Bulk uploading {len(payloads)} payloads to MinIO")
-                try:
-                    self.minio_operator.put_payloads_bulk(
-                        payloads=payloads, object_names=object_names
-                    )
-                except Exception as e:
-                    logger.warning(f"Failed to bulk upload to MinIO: {e}")
-            else:
-                logger.info(f"Sequentially uploading {len(payloads)} payloads to MinIO")
-                for payload, object_name in zip(payloads, object_names, strict=False):
-                    try:
-                        self.minio_operator.put_payload(
-                            payload=payload, object_name=object_name
-                        )
-                    except Exception as e:
-                        logger.warning(f"Failed to upload {object_name} to MinIO: {e}")
-        else:
-            logger.warning(
-                f"MinIO unavailable - skipping upload of {len(payloads)} payloads"
-            )
-
     @trace_function("ingestor.main.process_shallow_batch", tracer=TRACER)
     async def __process_shallow_batch(
         self,
@@ -2457,7 +2376,7 @@ class NvidiaRAGIngestor:
         This methods performs following steps:
         - Perform extraction and splitting using NV-ingest ingestor (NV-Ingest)
         - Embeds and add documents to Vectorstore collection (NV-Ingest)
-        - Put content to MinIO (Ingestor Server)
+        - Persist structured content and images to object storage (NV-Ingest `.store()`, see nvingest)
         - Update batch progress with the ingestion response (Ingestor Server)
 
         Arguments:
@@ -2542,16 +2461,6 @@ class NvidiaRAGIngestor:
             raise Exception(error_message)
 
         try:
-            if self.mode != Mode.LITE:
-                start_time = time.time()
-                self.__put_content_to_minio(
-                    results=results, collection_name=collection_name
-                )
-                end_time = time.time()
-                logger.info(
-                    f"== MinIO upload for collection_name: {collection_name} "
-                    f"for batch {batch_number} is complete! Time taken: {end_time - start_time} seconds =="
-                )
             start_time = time.time()
             batch_progress_response = await self.__build_ingestion_response(
                 results=results,
@@ -2576,7 +2485,7 @@ class NvidiaRAGIngestor:
             )
         except Exception as e:
             logger.error(
-                "Failed to put content to minio: %s, citations would be disabled for collection: %s",
+                "Failed to build ingestion response or update batch progress: %s, collection: %s",
                 str(e),
                 collection_name,
                 exc_info=logger.getEffectiveLevel() <= logging.DEBUG,
@@ -2700,6 +2609,7 @@ class NvidiaRAGIngestor:
                 enable_pdf_split_processing=state_manager.enable_pdf_split_processing,
                 pdf_split_processing_options=state_manager.pdf_split_processing_options,
                 prompts=self.prompts,
+                store_images=self.mode != Mode.LITE,
             )
 
             start_time = time.time()
@@ -2779,6 +2689,7 @@ class NvidiaRAGIngestor:
                 enable_pdf_split_processing=state_manager.enable_pdf_split_processing,
                 pdf_split_processing_options=state_manager.pdf_split_processing_options,
                 prompts=self.prompts,
+                store_images=self.mode != Mode.LITE,
             )
             start_time = time.time()
             logger.info(
@@ -2826,6 +2737,7 @@ class NvidiaRAGIngestor:
                     enable_pdf_split_processing=state_manager.enable_pdf_split_processing,
                     pdf_split_processing_options=state_manager.pdf_split_processing_options,
                     prompts=self.prompts,
+                    store_images=self.mode != Mode.LITE,
                 )
                 start_time = time.time()
                 logger.info(
@@ -2867,6 +2779,7 @@ class NvidiaRAGIngestor:
                     enable_pdf_split_processing=state_manager.enable_pdf_split_processing,
                     pdf_split_processing_options=state_manager.pdf_split_processing_options,
                     prompts=self.prompts,
+                    store_images=self.mode != Mode.LITE,
                 )
                 start_time = time.time()
                 logger.info(

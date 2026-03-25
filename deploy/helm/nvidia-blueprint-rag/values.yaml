@@ -415,8 +415,6 @@ ingestor-server:
     REDIS_DB: "0"
     ENABLE_REDIS_BACKEND: "False"
 
-    # === Bulk upload to MinIO ===
-    ENABLE_MINIO_BULK_UPLOAD: "True"
     TEMP_DIR: "/tmp-data"
     INGESTOR_SERVER_DATA_DIR: "/data/"
 

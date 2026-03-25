@@ -380,30 +380,31 @@ class TestPrepareCitations:
         mock_doc1 = Mock()
         mock_doc1.page_content = "Test content 1"
         mock_doc1.metadata = {
-            "source": "test1.pdf",  # Use string source to trigger first if block
+            "source": {
+                "source_id": "test1.pdf",
+                "source_location": "s3://bucket/artifacts/img1.png",
+            },
             "content_metadata": {"page_number": 1, "type": "image", "location": []},
             "relevance_score": 0.8,
         }
         mock_doc2 = Mock()
         mock_doc2.page_content = "Test content 2"
         mock_doc2.metadata = {
-            "source": "test2.pdf",  # Use string source to trigger first if block
+            "source": {
+                "source_id": "test2.pdf",
+                "source_location": "s3://bucket/artifacts/img2.png",
+            },
             "content_metadata": {"page_number": 2, "type": "image", "location": []},
             "relevance_score": 0.9,
         }
         contexts = [mock_doc1, mock_doc2]
 
-        with (
-            patch(
-                "nvidia_rag.rag_server.response_generator.MINIO_OPERATOR"
-            ) as mock_minio,
-            patch(
-                "nvidia_rag.rag_server.response_generator.get_unique_thumbnail_id_from_result"
-            ) as mock_get_thumbnail,
-        ):
-            # Mock the MinIO operator methods to handle collection_name parameter
-            mock_minio.get_payload.return_value = {"content": "base64_thumbnail"}
-            mock_get_thumbnail.return_value = "test_thumbnail_id"
+        with patch(
+            "nvidia_rag.rag_server.response_generator.get_minio_operator_instance"
+        ) as mock_get_minio:
+            mock_op = Mock()
+            mock_op.get_object.return_value = b"thumbnail-bytes"
+            mock_get_minio.return_value = mock_op
 
             result = prepare_citations(contexts, enable_citations=True)
 
@@ -420,23 +421,22 @@ class TestPrepareCitations:
         mock_doc = Mock()
         mock_doc.page_content = "Test content"
         mock_doc.metadata = {
-            "source": {"source_id": "test.pdf"},
+            "source": {
+                "source_id": "test.pdf",
+                "source_location": "s3://bucket/artifacts/page.png",
+            },
             "content_metadata": {"page_number": 1, "type": "image", "location": []},
             "collection_name": "test_collection",
             "relevance_score": 0.8,
         }
         contexts = [mock_doc]
 
-        with (
-            patch(
-                "nvidia_rag.rag_server.response_generator.MINIO_OPERATOR"
-            ) as mock_minio,
-            patch(
-                "nvidia_rag.rag_server.response_generator.get_unique_thumbnail_id_from_result"
-            ) as mock_get_thumbnail,
-        ):
-            mock_minio.get_payload.return_value = {"content": "base64_thumbnail"}
-            mock_get_thumbnail.return_value = "test_thumbnail_id"
+        with patch(
+            "nvidia_rag.rag_server.response_generator.get_minio_operator_instance"
+        ) as mock_get_minio:
+            mock_op = Mock()
+            mock_op.get_object.return_value = b"base64_thumbnail"
+            mock_get_minio.return_value = mock_op
 
             result = prepare_citations(contexts, enable_citations=True)
 
@@ -1016,7 +1016,10 @@ class TestPrepareCitationsErrorHandling:
         mock_doc = Mock()
         mock_doc.page_content = "Test content"
         mock_doc.metadata = {
-            "source": {"source_id": "test.pdf"},
+            "source": {
+                "source_id": "test.pdf",
+                "source_location": "s3://bucket/artifacts/page.png",
+            },
             "content_metadata": {
                 "type": "image",
                 "subtype": "image",
@@ -1026,17 +1029,11 @@ class TestPrepareCitationsErrorHandling:
             "collection_name": "test_collection",
         }
 
-        with (
-            patch(
-                "nvidia_rag.rag_server.response_generator.get_unique_thumbnail_id_from_result"
-            ) as mock_get_thumbnail,
-            patch(
-                "nvidia_rag.rag_server.response_generator.get_minio_operator_instance"
-            ) as mock_minio_getter,
-        ):
-            mock_get_thumbnail.return_value = "test_thumbnail_id"
+        with patch(
+            "nvidia_rag.rag_server.response_generator.get_minio_operator_instance"
+        ) as mock_minio_getter:
             mock_minio = Mock()
-            mock_minio.get_payload.side_effect = Exception("MinIO error")
+            mock_minio.get_object.side_effect = Exception("MinIO error")
             mock_minio_getter.return_value = mock_minio
 
             result = prepare_citations([mock_doc], enable_citations=True)

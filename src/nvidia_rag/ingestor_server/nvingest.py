@@ -32,6 +32,7 @@ from nvidia_rag.utils.observability.tracing import get_tracer, trace_function
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
 
 from nvidia_rag.utils.llm import get_prompts
+from nvidia_rag.utils.minio_operator import DEFAULT_BUCKET_NAME
 
 logger = logging.getLogger(__name__)
 TRACER = get_tracer("nvidia_rag.ingestor.nvingest")
@@ -83,23 +84,29 @@ def get_nv_ingest_ingestor(
     enable_pdf_split_processing: bool = False,
     pdf_split_processing_options: dict[str, Any] | None = None,
     prompts: dict | None = None,
+    store_images: bool = True,
 ):
     """
     Prepare NV-Ingest ingestor instance based on nv-ingest configuration
 
     Args:
-        nv_ingest_client_instance: NvIngestClient instance
-        filepaths: List of file paths to ingest
-        split_options: Options for splitting documents
-        vdb_op: VDB operator instance (None for shallow extraction without VDB operations)
-        remove_extract_method: Whether to remove extract_method from kwargs
-        extract_override: Optional dict to override extraction parameters.
+        - nv_ingest_client_instance: NvIngestClient instance
+        - filepaths: List of file paths to ingest
+        - split_options: Options for splitting documents
+        - vdb_op: VDB operator instance (None for shallow extraction without VDB operations)
+        - remove_extract_method: Whether to remove extract_method from kwargs
+        - extract_override: Optional dict to override extraction parameters.
                          If provided, these settings override config values.
                          Useful for text-only extraction for shallow summaries.
-        config: NvidiaRAGConfig instance. If None, creates a new one.
-
+        - config: NvidiaRAGConfig instance. If None, creates a new one.
+        - enable_pdf_split_processing: Whether PDF split processing is enabled
+        - pdf_split_processing_options: Options for PDF split processing
+        - prompts: Prompts dict for captioning (optional)
+        - store_images: When True and vdb_op is set, append NV-Ingest ``.store()`` for MinIO storage
+            (citation assets). Set False for RAG Lite.
+    
     Returns:
-        ingestor: Ingestor - NV-Ingest ingestor instance with configured tasks
+        - ingestor: Ingestor - NV-Ingest ingestor instance with configured tasks
     """
     if config is None:
         config = NvidiaRAGConfig()
@@ -232,6 +239,25 @@ def get_nv_ingest_ingestor(
         ingestor = ingestor.save_to_disk(
             output_directory=output_directory,
             cleanup=not config.nv_ingest.save_to_disk,
+        )
+
+    # Add store task (object storage for citations / multimodal). Requires a collection
+    # prefix from vdb_op; skipped for shallow extraction (vdb_op=None) and RAG Lite.
+    if vdb_op is not None and store_images:
+        storage_uri = f"s3://{DEFAULT_BUCKET_NAME}/{vdb_op.collection_name}"
+        public_base_url = f"s3://{DEFAULT_BUCKET_NAME}/{vdb_op.collection_name}"
+        storage_options = {
+            "key": config.minio.access_key.get_secret_value(),
+            "secret": config.minio.secret_key.get_secret_value(),
+            "client_kwargs": {"endpoint_url": "http://" + config.minio.endpoint},
+        }
+        logger.info("Storing to MinIO at storage URI: %s", storage_uri)
+        ingestor = ingestor.store(
+            structured=True,
+            images=True,
+            storage_uri=storage_uri,
+            storage_options=storage_options,
+            public_base_url=public_base_url,
         )
 
     # Add Vector-DB upload task (only when VDB operations are enabled)

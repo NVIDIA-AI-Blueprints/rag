@@ -39,6 +39,7 @@ except ImportError:
 # Prepare import for minio operator to avoid actual Minio connection
 # during testing
 fake_minio_operator = types.ModuleType("minio_operator")
+fake_minio_operator.DEFAULT_BUCKET_NAME = "default-bucket"
 
 
 def mock_minio_operator_methods(*args, **kwargs):

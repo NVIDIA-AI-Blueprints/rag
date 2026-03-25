@@ -98,6 +98,11 @@ class MinioOperator:
 
         # Bulk upload objects to MinIO
         self.client.upload_snowball_objects(self.default_bucket_name, snowball_objects)
+    
+    def get_object(self, object_name: str) -> bytes:
+        """Get object from S3 storage using minio client"""
+        response = self.client.get_object(self.default_bucket_name, object_name)
+        return response.read()
 
     def get_payload(self, object_name: str) -> dict:
         """Get dictionary from S3 storage using minio client"""
