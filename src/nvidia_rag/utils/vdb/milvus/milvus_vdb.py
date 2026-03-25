@@ -247,7 +247,7 @@ class MilvusVDB(VDBRagIngest):
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Exit the runtime context."""
         self.close()
-    
+
     def __del__(self):
         """Disconnect when the instance is garbage-collected (safety net if close() not used)."""
         if getattr(self, "_connected", False):
@@ -1217,7 +1217,7 @@ class MilvusVDB(VDBRagIngest):
             page_list_str = ", ".join(str(p) for p in page_numbers)
             filter_expr = (
                 f'content_metadata["page_number"] in [{page_list_str}] and '
-                f'source["source_name"] like "%{source_name}%"'
+                f'source["source_name"] == "{source_name}"'
             )
             milvus_client = MilvusClient(
                 self.vdb_endpoint,

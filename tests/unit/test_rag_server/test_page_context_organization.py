@@ -165,7 +165,6 @@ class TestExpandAndOrganizeContext:
         result = rag._expand_and_organize_context(
             docs=docs,
             vdb_op=mock_vdb,
-            collection_names=["col1"],
             fetch_full_page_context=False,
             fetch_neighboring_pages=0,
         )
@@ -187,7 +186,6 @@ class TestExpandAndOrganizeContext:
         result = rag._expand_and_organize_context(
             docs=docs,
             vdb_op=mock_vdb,
-            collection_names=["col1"],
             fetch_full_page_context=True,
             fetch_neighboring_pages=1,
         )
@@ -214,7 +212,6 @@ class TestExpandAndOrganizeContext:
         result = rag._expand_and_organize_context(
             docs=docs,
             vdb_op=mock_vdb,
-            collection_names=["col1"],
             fetch_full_page_context=True,
             fetch_neighboring_pages=0,
         )
@@ -253,7 +250,6 @@ class TestExpandAndOrganizeContext:
         result = rag._expand_and_organize_context(
             docs=docs,
             vdb_op=mock_vdb,
-            collection_names=["col1"],
             fetch_full_page_context=True,
             fetch_neighboring_pages=0,
         )
@@ -289,7 +285,6 @@ class TestExpandAndOrganizeContext:
         result = rag._expand_and_organize_context(
             docs=docs,
             vdb_op=mock_vdb,
-            collection_names=["col1"],
             fetch_full_page_context=True,
             fetch_neighboring_pages=0,
         )
