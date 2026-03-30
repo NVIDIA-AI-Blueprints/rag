@@ -36,13 +36,16 @@ from nvidia_rag.utils.vdb.milvus.milvus_vdb import MilvusVDB
 def _make_dummy_milvus_vdb_for_delete():
     """Build a MilvusVDB instance without running __init__ (no real connections).
 
-    Only sets attributes needed by delete_documents so we can test that method
-    without touching Milvus. Safe for CI where no Milvus is running.
+    Only sets attributes needed by delete_documents / _compact_and_wait so we
+    can test those methods without touching Milvus. Safe for CI where no Milvus
+    is running.
     """
     vdb = object.__new__(MilvusVDB)
     vdb.connection_alias = "milvus_dummy_test"
     vdb.vdb_endpoint = "http://localhost:19530"
     vdb._client = Mock()
+    vdb._client.compact.return_value = 12345
+    vdb._client.get_compaction_state.return_value = "Completed"
     vdb._delete_entities = Mock()
     return vdb
 
@@ -779,6 +782,9 @@ class TestMilvusVDB:
 
         assert result is True
         vdb._client.flush.assert_called_once_with(collection_name="test_collection")
+        # compaction is NOT called from delete_documents; it is triggered by the
+        # async update_documents flow via compact_and_wait_async
+        vdb._client.compact.assert_not_called()
 
     def test_delete_documents_not_found(self):
         """Test delete_documents method when document not found (no real Milvus)."""
@@ -799,6 +805,49 @@ class TestMilvusVDB:
 
         assert result is True
         assert vdb._client.delete.call_count == 2
+
+    def test_compact_and_wait_retries_until_completed(self):
+        """_compact_and_wait should poll until the job reaches Completed."""
+        vdb = _make_dummy_milvus_vdb_for_delete()
+        vdb._client.compact.return_value = 99
+        # First call returns Executing, second returns Completed
+        vdb._client.get_compaction_state.side_effect = ["Executing", "Completed"]
+
+        vdb._compact_and_wait("test_collection", timeout=5.0)
+
+        assert vdb._client.get_compaction_state.call_count == 2
+
+    def test_compact_and_wait_timeout_does_not_raise(self):
+        """_compact_and_wait should log a warning and return on timeout, not raise."""
+        vdb = _make_dummy_milvus_vdb_for_delete()
+        vdb._client.compact.return_value = 99
+        vdb._client.get_compaction_state.return_value = "Executing"  # never completes
+
+        # Use a very short timeout so the test is fast
+        vdb._compact_and_wait("test_collection", timeout=0.1)
+        # Should return without raising
+
+    def test_compact_and_wait_exception_does_not_raise(self):
+        """Compaction errors (e.g. collection gone) should be swallowed."""
+        vdb = _make_dummy_milvus_vdb_for_delete()
+        vdb._client.compact.side_effect = Exception("compact failed")
+
+        vdb._compact_and_wait("test_collection")
+        # Should return without raising
+
+    def test_compact_and_wait_initial_sleep_before_first_poll(self):
+        """_compact_and_wait does an initial sleep so the first poll is not wasted."""
+        vdb = _make_dummy_milvus_vdb_for_delete()
+        vdb._client.compact.return_value = 42
+        vdb._client.get_compaction_state.return_value = "Completed"
+
+        with patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.time") as mock_time:
+            mock_time.monotonic.side_effect = [0.0, 0.6, 30.0]  # start, after sleep, deadline
+            mock_time.sleep = Mock()
+            vdb._compact_and_wait("test_collection", timeout=30.0)
+
+        # First sleep is the initial one before any poll
+        mock_time.sleep.assert_called_with(0.5)
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.MilvusClient")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")

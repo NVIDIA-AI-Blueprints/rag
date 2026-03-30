@@ -704,6 +704,25 @@ class NvidiaRAGIngestor:
                 e,
                 exc_info=logger.getEffectiveLevel() <= logging.DEBUG,
             )
+            # When ingestion fails, mark pending summaries as FAILED so that
+            # blocking GET /v1/summary callers get an error response immediately
+            # instead of waiting for the full timeout.
+            if generate_summary and collection_name:
+                for filepath in filepaths:
+                    file_name = os.path.basename(filepath)
+                    try:
+                        SUMMARY_STATUS_HANDLER.update_progress(
+                            collection_name=collection_name,
+                            file_name=file_name,
+                            status="FAILED",
+                            error=f"Ingestion failed: {str(e)}",
+                        )
+                    except Exception as status_err:
+                        logger.warning(
+                            "Failed to update summary status for %s: %s",
+                            file_name,
+                            status_err,
+                        )
             raise e
 
     @trace_function("ingestor.main.build_ingestion_response", tracer=TRACER)
@@ -925,6 +944,19 @@ class NvidiaRAGIngestor:
                     file_name,
                     collection_name,
                 )
+
+        # Compact the collection after all deletions so that Milvus physically
+        # removes soft-deleted rows before nvingest samples indexed_rows.
+        # Without this, nvingest calculates expected_rows using a stale (inflated)
+        # count and wait_for_index can never be satisfied.
+        vdb_op, resolved_collection_name = self.__prepare_vdb_op_and_collection_name(
+            vdb_endpoint=vdb_endpoint,
+            collection_name=collection_name,
+            vdb_auth_token=vdb_auth_token,
+            bypass_validation=True,
+        )
+        if hasattr(vdb_op, "compact_and_wait_async"):
+            await vdb_op.compact_and_wait_async(resolved_collection_name)
 
         response = await self.upload_documents(
             filepaths=filepaths,

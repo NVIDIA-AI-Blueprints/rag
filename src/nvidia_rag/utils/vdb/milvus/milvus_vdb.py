@@ -516,6 +516,57 @@ class MilvusVDB(VDBRagIngest):
         logger.info(f"Collections deleted: {deleted_collections}")
         return deleted_collections, failed_collections
 
+    def _compact_and_wait(self, collection_name: str, timeout: float = 30.0) -> None:
+        """Trigger Milvus compaction and block until it completes.
+
+        After soft-deleting rows, Milvus's indexed_rows count still includes the
+        deleted rows until compaction physically removes them. Without compaction,
+        nvingest's wait_for_index calculates expected_rows using the stale (inflated)
+        count and the new rows can never reach that count, causing ingestion to fail.
+
+        This is a blocking (non-async) method. Callers in an async context must
+        dispatch it via asyncio.to_thread to avoid blocking the event loop.
+        """
+        try:
+            job_id = self._client.compact(collection_name)
+            logger.debug(
+                "Started compaction job %s for collection %s", job_id, collection_name
+            )
+            time.sleep(0.5)  # compaction never completes instantly; avoid a wasted poll
+            deadline = time.monotonic() + timeout
+            while time.monotonic() < deadline:
+                state = self._client.get_compaction_state(job_id)
+                if state == "Completed":
+                    logger.debug(
+                        "Compaction job %s completed for collection %s",
+                        job_id,
+                        collection_name,
+                    )
+                    return
+                time.sleep(0.5)
+            logger.warning(
+                "Compaction job %s for collection %s did not complete within %ss",
+                job_id,
+                collection_name,
+                timeout,
+            )
+        except Exception as e:
+            logger.warning(
+                "Compaction failed for collection %s: %s", collection_name, e
+            )
+
+    async def compact_and_wait_async(
+        self, collection_name: str, timeout: float = 30.0
+    ) -> None:
+        """Async wrapper for _compact_and_wait — safe to call from async contexts.
+
+        Dispatches the blocking compaction poll to a thread so the asyncio event
+        loop is not stalled while waiting.
+        """
+        import asyncio
+
+        await asyncio.to_thread(self._compact_and_wait, collection_name, timeout)
+
     def _delete_entities(self, collection_name: str, filter: str = ""):
         """
         Delete the metadata schema from the collection.
