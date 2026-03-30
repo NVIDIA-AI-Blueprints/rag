@@ -2777,7 +2777,7 @@ wheels = [
 
 [[package]]
 name = "pymilvus"
-version = "2.6.7"
+version = "2.6.11"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cachetools" },
@@ -2786,11 +2786,12 @@ dependencies = [
     { name = "pandas" },
     { name = "protobuf" },
     { name = "python-dotenv" },
+    { name = "requests" },
     { name = "setuptools" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b7/d9/860127fcbad19648799b9b36fa38dabae9315ae363871287ec61ce55d3d2/pymilvus-2.6.7.tar.gz", hash = "sha256:d534804af29390d48ae7d6edf66611d6d67963ab5c06ad0b136012e4248cd422", size = 1413085, upload-time = "2026-01-26T13:20:32.603Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c9/e6/0adc3b374f5c5d1eebd4f551b455c6865c449b170b17545001b208e2b153/pymilvus-2.6.11.tar.gz", hash = "sha256:a40c10322cde25184a8c3d84993a14dfb67ad2bdcfc5dff7e68b11a79ff8f6d8", size = 1583634, upload-time = "2026-03-27T06:25:46.023Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/b7/0c/777cf174b8f4f12d458857ad5ede981be0a4b5dc160a98da2654832e34e5/pymilvus-2.6.7-py3-none-any.whl", hash = "sha256:a9fe5f8ea4191c35b53fd99820f802dca3a6efc336c894c59b19e5472545383a", size = 298693, upload-time = "2026-01-26T13:20:30.308Z" },
+    { url = "https://files.pythonhosted.org/packages/9c/1c/bccb331d71f824738f80f11e9b8b4da47973c903826355526ae4fa2b762f/pymilvus-2.6.11-py3-none-any.whl", hash = "sha256:a11e1718b15045361c71ca671b959900cb7e2faae863c896f6b7e87bf2e4d10a", size = 315252, upload-time = "2026-03-27T06:25:44.215Z" },
 ]
 
 [package.optional-dependencies]

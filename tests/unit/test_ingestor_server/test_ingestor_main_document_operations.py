@@ -623,11 +623,19 @@ class TestNvidiaRAGIngestorCoverageImprovement:
     @pytest.mark.asyncio
     async def test_upload_documents_async_path(self):
         """Test upload_documents async path (lines 239-240)."""
+        from unittest.mock import AsyncMock
+
         mock_vdb_op = Mock(spec=VDBRag)
         mock_vdb_op.check_collection_exists.return_value = True
         mock_vdb_op.get_metadata_schema.return_value = []
 
         ingestor = NvidiaRAGIngestor(mode=Mode.LIBRARY)
+
+        # Mock INGESTION_TASK_HANDLER.submit_task so it returns a task_id
+        # immediately without ever calling asyncio.create_task().  This
+        # prevents any real background coroutine from being scheduled and
+        # reaching the NV-Ingest HTTP client (unavailable in CI).
+        mock_task_id = "test-task-id-async-path"
 
         with patch.object(
             ingestor,
@@ -637,25 +645,32 @@ class TestNvidiaRAGIngestorCoverageImprovement:
             with patch.object(
                 ingestor, "_validate_custom_metadata", return_value=(True, [])
             ):
-                with tempfile.NamedTemporaryFile(
-                    mode="w", suffix=".txt", delete=False
-                ) as temp_file:
-                    temp_file.write("Test content")
-                    temp_file_path = temp_file.name
+                with patch(
+                    "nvidia_rag.ingestor_server.main.INGESTION_TASK_HANDLER"
+                ) as mock_handler:
+                    mock_handler.submit_task = AsyncMock(return_value=mock_task_id)
+                    mock_handler.set_task_state_dict = AsyncMock()
+                    mock_handler.set_task_status_and_result = AsyncMock()
 
-                try:
-                    result = await ingestor.upload_documents(
-                        filepaths=[temp_file_path],
-                        collection_name="test_collection",
-                        blocking=False,
-                    )
+                    with tempfile.NamedTemporaryFile(
+                        mode="w", suffix=".txt", delete=False
+                    ) as temp_file:
+                        temp_file.write("Test content")
+                        temp_file_path = temp_file.name
 
-                    # Verify async response
-                    assert "task_id" in result
-                    assert result["message"] == "Ingestion started in background"
+                    try:
+                        result = await ingestor.upload_documents(
+                            filepaths=[temp_file_path],
+                            collection_name="test_collection",
+                            blocking=False,
+                        )
 
-                finally:
-                    os.unlink(temp_file_path)
+                        # Verify async response
+                        assert "task_id" in result
+                        assert result["message"] == "Ingestion started in background"
+
+                    finally:
+                        os.unlink(temp_file_path)
 
     def test_error_handling_in_collection_operations(self):
         """Test error handling in collection operations."""
