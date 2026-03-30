@@ -998,12 +998,185 @@ class TestGetDocumentTypeCounts:
     def test_empty_results(self):
         """Test handling of empty results."""
         ingestor = NvidiaRAGIngestor(mode=Mode.LIBRARY)
-        
+
         results = []
-        
+
         doc_type_counts, total_docs, total_elements, raw_text_size = ingestor._get_document_type_counts(results)
-        
+
         assert len(doc_type_counts) == 0
         assert total_docs == 0
         assert total_elements == 0
         assert raw_text_size == 0
+
+
+class TestUpdateDocumentsFileRestore:
+    """Tests for the file snapshot/restore protection in update_documents.
+
+    compact_and_wait_async releases the asyncio event loop (via asyncio.to_thread)
+    for up to 30 seconds.  A concurrent PATCH for the same file can save its own
+    copy to the same path during that window, and when that prior task's cleanup
+    runs it deletes the path — leaving the current task's file missing when
+    upload_documents tries to validate it.  update_documents guards against this
+    by snapshotting the bytes before compaction and restoring them afterwards if
+    the file is gone.
+    """
+
+    @pytest.mark.asyncio
+    async def test_file_restored_after_concurrent_cleanup(self):
+        """File deleted during compact_and_wait is restored from the temp copy."""
+        ingestor = NvidiaRAGIngestor(mode=Mode.SERVER)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            filepath = os.path.join(tmpdir, "test.pdf")
+            content = b"PDF content for test"
+            with open(filepath, "wb") as f:
+                f.write(content)
+
+            mock_vdb_op = Mock()
+            mock_vdb_op.check_collection_exists.return_value = True
+
+            async def fake_compact_and_wait(collection_name, timeout=30.0):
+                # Simulate concurrent cleanup deleting the file during compaction.
+                os.remove(filepath)
+
+            mock_vdb_op.compact_and_wait_async = fake_compact_and_wait
+
+            upload_called_with = {}
+
+            async def fake_upload_documents(**kwargs):
+                upload_called_with["filepaths"] = kwargs.get("filepaths", [])
+                for fp in upload_called_with["filepaths"]:
+                    upload_called_with["file_existed"] = os.path.exists(fp)
+                return {"task_id": "t1", "message": "ok"}
+
+            with patch.object(
+                ingestor,
+                "_NvidiaRAGIngestor__prepare_vdb_op_and_collection_name",
+                return_value=(mock_vdb_op, "col"),
+            ):
+                with patch.object(ingestor, "delete_documents") as mock_del:
+                    mock_del.return_value = {"total_documents": 1}
+                    with patch.object(ingestor, "upload_documents", side_effect=fake_upload_documents):
+                        await ingestor.update_documents(
+                            filepaths=[filepath],
+                            collection_name="col",
+                            blocking=False,
+                        )
+
+            # upload_documents was called with the file present (restored from temp copy).
+            assert upload_called_with.get("file_existed") is True
+            # Restored file has the original content.
+            assert os.path.exists(filepath)
+            with open(filepath, "rb") as f:
+                assert f.read() == content
+            # Temp copy was cleaned up (no hidden files left).
+            hidden = [f for f in os.listdir(tmpdir) if f.startswith(".")]
+            assert hidden == []
+
+    @pytest.mark.asyncio
+    async def test_no_restore_needed_when_file_still_present(self):
+        """Temp copy is removed and original remains untouched when not deleted."""
+        from unittest.mock import AsyncMock
+
+        ingestor = NvidiaRAGIngestor(mode=Mode.SERVER)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            filepath = os.path.join(tmpdir, "test.pdf")
+            content = b"Original content"
+            with open(filepath, "wb") as f:
+                f.write(content)
+
+            mock_vdb_op = Mock()
+            mock_vdb_op.check_collection_exists.return_value = True
+            mock_vdb_op.compact_and_wait_async = AsyncMock()  # file untouched
+
+            async def fake_upload_documents(**kwargs):
+                return {"task_id": "t1", "message": "ok"}
+
+            with patch.object(
+                ingestor,
+                "_NvidiaRAGIngestor__prepare_vdb_op_and_collection_name",
+                return_value=(mock_vdb_op, "col"),
+            ):
+                with patch.object(ingestor, "delete_documents") as mock_del:
+                    mock_del.return_value = {"total_documents": 1}
+                    with patch.object(ingestor, "upload_documents", side_effect=fake_upload_documents):
+                        await ingestor.update_documents(
+                            filepaths=[filepath],
+                            collection_name="col",
+                            blocking=False,
+                        )
+
+            # Original still present with original content.
+            assert os.path.exists(filepath)
+            with open(filepath, "rb") as f:
+                assert f.read() == content
+            # Temp copy was cleaned up.
+            hidden = [f for f in os.listdir(tmpdir) if f.startswith(".")]
+            assert hidden == []
+
+    @pytest.mark.asyncio
+    async def test_library_mode_skips_temp_copy(self):
+        """In LIBRARY mode no temp copy is made — caller owns its files."""
+        ingestor = NvidiaRAGIngestor(mode=Mode.LIBRARY)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            filepath = os.path.join(tmpdir, "doc.pdf")
+            with open(filepath, "wb") as f:
+                f.write(b"lib content")
+
+            mock_vdb_op = Mock()
+            mock_vdb_op.check_collection_exists.return_value = True
+
+            async def fake_compact_and_wait(collection_name, timeout=30.0):
+                os.remove(filepath)
+
+            mock_vdb_op.compact_and_wait_async = fake_compact_and_wait
+
+            async def fake_upload_documents(**kwargs):
+                return {"task_id": "t1", "message": "ok"}
+
+            with patch.object(
+                ingestor,
+                "_NvidiaRAGIngestor__prepare_vdb_op_and_collection_name",
+                return_value=(mock_vdb_op, "col"),
+            ):
+                with patch.object(ingestor, "delete_documents") as mock_del:
+                    mock_del.return_value = {"total_documents": 1}
+                    with patch.object(ingestor, "upload_documents", side_effect=fake_upload_documents):
+                        await ingestor.update_documents(
+                            filepaths=[filepath],
+                            collection_name="col",
+                            blocking=False,
+                        )
+
+            # In LIBRARY mode the file is NOT restored — it stays deleted.
+            assert not os.path.exists(filepath)
+
+    @pytest.mark.asyncio
+    async def test_temp_copy_deleted_even_when_exception_raised(self):
+        """Temp copy is always cleaned up even if delete_documents or compaction raises."""
+        ingestor = NvidiaRAGIngestor(mode=Mode.SERVER)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            filepath = os.path.join(tmpdir, "test.pdf")
+            with open(filepath, "wb") as f:
+                f.write(b"some content")
+
+            with patch.object(
+                ingestor,
+                "_NvidiaRAGIngestor__prepare_vdb_op_and_collection_name",
+            ):
+                with patch.object(
+                    ingestor, "delete_documents", side_effect=RuntimeError("db error")
+                ):
+                    with pytest.raises(RuntimeError):
+                        await ingestor.update_documents(
+                            filepaths=[filepath],
+                            collection_name="col",
+                            blocking=False,
+                        )
+
+            # No hidden temp files left on disk despite the exception.
+            hidden = [f for f in os.listdir(tmpdir) if f.startswith(".")]
+            assert hidden == []
