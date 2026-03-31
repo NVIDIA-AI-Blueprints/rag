@@ -41,6 +41,7 @@ import asyncio
 import json
 import logging
 import os
+import shutil
 import time
 from collections import defaultdict
 from datetime import UTC, datetime
@@ -704,6 +705,25 @@ class NvidiaRAGIngestor:
                 e,
                 exc_info=logger.getEffectiveLevel() <= logging.DEBUG,
             )
+            # When ingestion fails, mark pending summaries as FAILED so that
+            # blocking GET /v1/summary callers get an error response immediately
+            # instead of waiting for the full timeout.
+            if generate_summary and collection_name:
+                for filepath in filepaths:
+                    file_name = os.path.basename(filepath)
+                    try:
+                        SUMMARY_STATUS_HANDLER.update_progress(
+                            collection_name=collection_name,
+                            file_name=file_name,
+                            status="FAILED",
+                            error=f"Ingestion failed: {str(e)}",
+                        )
+                    except Exception as status_err:
+                        logger.warning(
+                            "Failed to update summary status for %s: %s",
+                            file_name,
+                            status_err,
+                        )
             raise e
 
     @trace_function("ingestor.main.build_ingestion_response", tracer=TRACER)
@@ -895,6 +915,7 @@ class NvidiaRAGIngestor:
         if custom_metadata is None:
             custom_metadata = []
 
+        any_deleted = False
         for file in filepaths:
             file_name = os.path.basename(file)
 
@@ -925,6 +946,77 @@ class NvidiaRAGIngestor:
                     file_name,
                     collection_name,
                 )
+                any_deleted = True
+
+        # Compact only when rows were actually soft-deleted. Without compaction,
+        # Milvus's indexed_rows count remains inflated by the deleted rows, causing
+        # nvingest's wait_for_index to compute an expected count that can never be
+        # reached (expected = stale_count + new_rows, actual = live_rows + new_rows).
+        if any_deleted:
+            # Guard uploaded files against concurrent cleanup during compaction.
+            #
+            # compact_and_wait_async releases the asyncio event loop (via
+            # asyncio.to_thread) for up to 30 seconds. During that window a
+            # concurrent PATCH for the same file can finish its own background
+            # ingest task, whose cleanup deletes the shared upload path — leaving
+            # this task's file missing when upload_documents validates it.
+            #
+            # We snapshot each file to a hidden temp path on the same filesystem
+            # (no extra RAM, same mount so the copy is fast) right before compaction
+            # starts. At this point no await has been issued since delete_documents,
+            # so no concurrent cleanup could have run yet. The finally block
+            # guarantees the temp files are removed regardless of what happens next.
+            #
+            # (SERVER mode only: in LIBRARY mode the caller owns its files.)
+            file_temp_copies: dict[str, str] = {}
+            if self.mode == Mode.SERVER:
+                for filepath in filepaths:
+                    try:
+                        dir_path = os.path.dirname(filepath)
+                        name, ext = os.path.splitext(os.path.basename(filepath))
+                        temp_path = os.path.join(
+                            dir_path, f".{name}_{uuid4().hex}{ext}"
+                        )
+                        shutil.copy2(filepath, temp_path)
+                        file_temp_copies[filepath] = temp_path
+                    except OSError:
+                        pass
+
+            try:
+                vdb_op, resolved_collection_name = (
+                    self.__prepare_vdb_op_and_collection_name(
+                        vdb_endpoint=vdb_endpoint,
+                        collection_name=collection_name,
+                        vdb_auth_token=vdb_auth_token,
+                        bypass_validation=True,
+                    )
+                )
+                if hasattr(vdb_op, "compact_and_wait_async"):
+                    await vdb_op.compact_and_wait_async(resolved_collection_name)
+
+                # Restore any files deleted by a concurrent task's cleanup
+                # while compaction held the event loop.
+                for filepath, temp_path in file_temp_copies.items():
+                    if not os.path.exists(filepath):
+                        logger.debug(
+                            "Restoring %s after concurrent cleanup removed it during compaction",
+                            filepath,
+                        )
+                        try:
+                            os.makedirs(os.path.dirname(filepath), exist_ok=True)
+                            shutil.copy2(temp_path, filepath)
+                        except OSError as e:
+                            logger.warning(
+                                "Failed to restore %s from temp copy: %s", filepath, e
+                            )
+
+            finally:
+                # Always remove temp copies — success, exception, or cancellation.
+                for temp_path in file_temp_copies.values():
+                    try:
+                        os.remove(temp_path)
+                    except OSError:
+                        pass
 
         response = await self.upload_documents(
             filepaths=filepaths,

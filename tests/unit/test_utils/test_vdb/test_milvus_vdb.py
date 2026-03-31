@@ -36,12 +36,16 @@ from nvidia_rag.utils.vdb.milvus.milvus_vdb import MilvusVDB
 def _make_dummy_milvus_vdb_for_delete():
     """Build a MilvusVDB instance without running __init__ (no real connections).
 
-    Only sets attributes needed by delete_documents so we can test that method
-    without touching Milvus. Safe for CI where no Milvus is running.
+    Only sets attributes needed by delete_documents / _compact_and_wait so we
+    can test those methods without touching Milvus. Safe for CI where no Milvus
+    is running.
     """
     vdb = object.__new__(MilvusVDB)
     vdb.connection_alias = "milvus_dummy_test"
     vdb.vdb_endpoint = "http://localhost:19530"
+    vdb._client = Mock()
+    vdb._client.compact.return_value = 12345
+    vdb._client.get_compaction_state.return_value = "Completed"
     vdb._delete_entities = Mock()
     return vdb
 
@@ -49,8 +53,22 @@ def _make_dummy_milvus_vdb_for_delete():
 class TestMilvusVDB:
     """Test the MilvusVDB class."""
 
+    @pytest.fixture(autouse=True)
+    def _patch_milvus_client(self):
+        """Prevent real MilvusClient TCP/gRPC connections in every test.
+
+        Tests that already carry their own @patch("...MilvusClient") decorator
+        will shadow this fixture's mock with their own, so their behaviour is
+        unchanged.  Tests that do NOT patch MilvusClient individually will use
+        this mock, which stops MilvusVDB.__init__ from attempting a real
+        connection to localhost:19530 (unavailable in CI).
+        """
+        with patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.MilvusClient"):
+            yield
+
+    @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.MilvusClient")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    def test_init(self, mock_connections):
+    def test_init(self, mock_connections, mock_milvus_client):
         """Test MilvusVDB initialization."""
         mock_config = Mock()
         mock_config.vector_store.username = ""
@@ -72,9 +90,8 @@ class TestMilvusVDB:
         assert vdb.connection_alias == "milvus_localhost_19530"
         assert vdb.csv_file_path == "/path/to/csv"
 
-        mock_connections.connect.assert_called_once_with(
-            vdb.connection_alias, uri="http://localhost:19530", token=""
-        )
+        # MilvusClient should be instantiated with the endpoint
+        mock_milvus_client.assert_called_once_with("http://localhost:19530", token="")
 
     @patch("nv_ingest_client.util.milvus.create_nvingest_collection")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
@@ -113,11 +130,11 @@ class TestMilvusVDB:
                 password="test_password",
             )
 
-    @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.utility")
+    @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.MilvusClient")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    def test_check_collection_exists_true(self, mock_connections, mock_utility):
+    def test_check_collection_exists_true(self, mock_connections, mock_milvus_client):
         """Test check_collection_exists when collection exists."""
-        mock_utility.has_collection.return_value = True
+        mock_milvus_client.return_value.has_collection.return_value = True
 
         with (
             patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"),
@@ -132,15 +149,13 @@ class TestMilvusVDB:
             result = vdb.check_collection_exists("test_collection")
 
             assert result is True
-            mock_utility.has_collection.assert_called_once_with(
-                "test_collection", using=vdb.connection_alias
-            )
+            mock_milvus_client.return_value.has_collection.assert_called_with("test_collection")
 
-    @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.utility")
+    @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.MilvusClient")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    def test_check_collection_exists_false(self, mock_connections, mock_utility):
+    def test_check_collection_exists_false(self, mock_connections, mock_milvus_client):
         """Test check_collection_exists when collection doesn't exist."""
-        mock_utility.has_collection.return_value = False
+        mock_milvus_client.return_value.has_collection.return_value = False
 
         with (
             patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"),
@@ -204,19 +219,16 @@ class TestMilvusVDB:
 
             assert result == []
 
-    @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Collection")
-    @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.utility")
+    @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.MilvusClient")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    def test_get_collection_info(self, mock_connections, mock_utility, mock_collection):
+    def test_get_collection_info(self, mock_connections, mock_milvus_client):
         """Test _get_collection_info method."""
-        mock_utility.list_collections.return_value = ["collection1", "collection2"]
-
-        mock_collection_obj1 = Mock()
-        mock_collection_obj1.num_entities = 100
-        mock_collection_obj2 = Mock()
-        mock_collection_obj2.num_entities = 200
-
-        mock_collection.side_effect = [mock_collection_obj1, mock_collection_obj2]
+        mock_client = mock_milvus_client.return_value
+        mock_client.list_collections.return_value = ["collection1", "collection2"]
+        mock_client.get_collection_stats.side_effect = [
+            {"row_count": 100},
+            {"row_count": 200},
+        ]
 
         with (
             patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"),
@@ -338,11 +350,11 @@ class TestMilvusVDB:
                     mock_get_entities.call_count == 2
                 )  # metadata + combined info query
 
-    @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.utility")
+    @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.MilvusClient")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    def test_delete_collections_success(self, mock_connections, mock_utility):
+    def test_delete_collections_success(self, mock_connections, mock_milvus_client):
         """Test _delete_collections method with successful deletion."""
-        mock_utility.has_collection.return_value = True
+        mock_milvus_client.return_value.has_collection.return_value = True
 
         with (
             patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"),
@@ -358,13 +370,13 @@ class TestMilvusVDB:
 
             assert deleted == ["collection1", "collection2"]
             assert failed == []
-            assert mock_utility.drop_collection.call_count == 2
+            assert mock_milvus_client.return_value.drop_collection.call_count == 2
 
-    @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.utility")
+    @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.MilvusClient")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    def test_delete_collections_not_found(self, mock_connections, mock_utility):
+    def test_delete_collections_not_found(self, mock_connections, mock_milvus_client):
         """Test _delete_collections method with collection not found."""
-        mock_utility.has_collection.return_value = False
+        mock_milvus_client.return_value.has_collection.return_value = False
 
         with (
             patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"),
@@ -383,12 +395,12 @@ class TestMilvusVDB:
             assert failed[0]["collection_name"] == "collection1"
             assert "not found" in failed[0]["error_message"]
 
-    @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.utility")
+    @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.MilvusClient")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    def test_delete_collections_exception(self, mock_connections, mock_utility):
+    def test_delete_collections_exception(self, mock_connections, mock_milvus_client):
         """Test _delete_collections method with exception."""
-        mock_utility.has_collection.return_value = True
-        mock_utility.drop_collection.side_effect = Exception("Drop error")
+        mock_milvus_client.return_value.has_collection.return_value = True
+        mock_milvus_client.return_value.drop_collection.side_effect = Exception("Drop error")
 
         with (
             patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"),
@@ -512,11 +524,12 @@ class TestMilvusVDB:
         result = MilvusVDB._extract_filename(metadata)
         assert result is None
 
-    @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Collection")
+    @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.MilvusClient")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    def test_get_documents_list(self, mock_connections, mock_collection):
+    def test_get_documents_list(self, mock_connections, mock_milvus_client):
         """Test _get_documents_list method."""
-        mock_collection_obj = Mock()
+        mock_client = mock_milvus_client.return_value
+        mock_client.has_collection.return_value = True
         mock_query_iterator = Mock()
 
         # Mock iterator behavior
@@ -542,8 +555,7 @@ class TestMilvusVDB:
             mock_data_batch2,
             StopIteration(),
         ]
-        mock_collection_obj.query_iterator.return_value = mock_query_iterator
-        mock_collection.return_value = mock_collection_obj
+        mock_client.query_iterator.return_value = mock_query_iterator
 
         metadata_schema = [{"name": "field1"}, {"name": "field2"}]
         document_name_to_document_info_map = {
@@ -579,11 +591,11 @@ class TestMilvusVDB:
             ]
             assert result == expected
 
-    @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Collection")
+    @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.MilvusClient")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    def test_get_documents_list_no_collection(self, mock_connections, mock_collection):
+    def test_get_documents_list_no_collection(self, mock_connections, mock_milvus_client):
         """Test _get_documents_list method when collection doesn't exist."""
-        mock_collection.return_value = None
+        mock_milvus_client.return_value.has_collection.return_value = False
 
         with (
             patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"),
@@ -599,15 +611,15 @@ class TestMilvusVDB:
 
             assert result == []
 
-    @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Collection")
+    @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.MilvusClient")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    def test_get_documents_list_exception(self, mock_connections, mock_collection):
+    def test_get_documents_list_exception(self, mock_connections, mock_milvus_client):
         """Test _get_documents_list method with exception."""
-        mock_collection_obj = Mock()
+        mock_client = mock_milvus_client.return_value
+        mock_client.has_collection.return_value = True
         mock_query_iterator = Mock()
         mock_query_iterator.next.side_effect = Exception("Query error")
-        mock_collection_obj.query_iterator.return_value = mock_query_iterator
-        mock_collection.return_value = mock_collection_obj
+        mock_client.query_iterator.return_value = mock_query_iterator
 
         with (
             patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"),
@@ -623,11 +635,12 @@ class TestMilvusVDB:
 
             assert result == []
 
-    @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Collection")
+    @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.MilvusClient")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
-    def test_get_documents_list_iterator_none(self, mock_connections, mock_collection):
+    def test_get_documents_list_iterator_none(self, mock_connections, mock_milvus_client):
         """Test _get_documents_list method when iterator returns None."""
-        mock_collection_obj = Mock()
+        mock_client = mock_milvus_client.return_value
+        mock_client.has_collection.return_value = True
         mock_query_iterator = Mock()
 
         # Mock iterator behavior - first call returns data, second returns None
@@ -636,8 +649,7 @@ class TestMilvusVDB:
         ]
 
         mock_query_iterator.next.side_effect = [mock_data_batch, None]
-        mock_collection_obj.query_iterator.return_value = mock_query_iterator
-        mock_collection.return_value = mock_collection_obj
+        mock_client.query_iterator.return_value = mock_query_iterator
 
         metadata_schema = [{"name": "field1"}]
         document_name_to_document_info_map = {"file1.txt": {"pages": 3}}
@@ -665,13 +677,14 @@ class TestMilvusVDB:
             ]
             assert result == expected
 
-    @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Collection")
+    @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.MilvusClient")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
     def test_get_documents_list_iterator_attribute_error(
-        self, mock_connections, mock_collection
+        self, mock_connections, mock_milvus_client
     ):
         """Test _get_documents_list method when iterator raises AttributeError."""
-        mock_collection_obj = Mock()
+        mock_client = mock_milvus_client.return_value
+        mock_client.has_collection.return_value = True
         mock_query_iterator = Mock()
 
         # Mock iterator behavior - first call returns data, second raises AttributeError
@@ -683,8 +696,7 @@ class TestMilvusVDB:
             mock_data_batch,
             AttributeError("No next method"),
         ]
-        mock_collection_obj.query_iterator.return_value = mock_query_iterator
-        mock_collection.return_value = mock_collection_obj
+        mock_client.query_iterator.return_value = mock_query_iterator
 
         metadata_schema = [{"name": "field1"}]
         document_name_to_document_info_map = {"file1.txt": {"pages": 2}}
@@ -761,49 +773,81 @@ class TestMilvusVDB:
                     document_name_to_document_info_map={"file1.txt": {"pages": 5}},
                 )
 
-    @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Collection")
-    def test_delete_documents_success(self, mock_collection):
+    def test_delete_documents_success(self):
         """Test delete_documents method with successful deletion (no real Milvus)."""
-        mock_collection_obj = Mock()
-        mock_resp = Mock()
-        mock_resp.delete_count = 5
-        mock_collection_obj.delete.return_value = mock_resp
-        mock_collection.return_value = mock_collection_obj
-
         vdb = _make_dummy_milvus_vdb_for_delete()
+        vdb._client.delete.return_value = {"delete_count": 5}
+
         result = vdb.delete_documents("test_collection", ["file1.txt", "file2.txt"])
 
         assert result is True
-        mock_collection_obj.flush.assert_called_once()
+        vdb._client.flush.assert_called_once_with(collection_name="test_collection")
+        # compaction is NOT called from delete_documents; it is triggered by the
+        # async update_documents flow via compact_and_wait_async
+        vdb._client.compact.assert_not_called()
 
-    @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Collection")
-    def test_delete_documents_not_found(self, mock_collection):
+    def test_delete_documents_not_found(self):
         """Test delete_documents method when document not found (no real Milvus)."""
-        mock_collection_obj = Mock()
-        mock_resp = Mock()
-        mock_resp.delete_count = 0
-        mock_collection_obj.delete.return_value = mock_resp
-        mock_collection.return_value = mock_collection_obj
-
         vdb = _make_dummy_milvus_vdb_for_delete()
+        vdb._client.delete.return_value = {"delete_count": 0}
+
         result = vdb.delete_documents("test_collection", ["file1.txt"])
 
         assert result is True
 
-    @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Collection")
-    def test_delete_documents_milvus_exception(self, mock_collection):
+    def test_delete_documents_milvus_exception(self):
         """Test delete_documents method with MilvusException fallback (no real Milvus)."""
-        mock_collection_obj = Mock()
-        mock_resp = Mock()
-        mock_resp.delete_count = 1
-        mock_collection_obj.delete.side_effect = [MilvusException("Error"), mock_resp]
-        mock_collection.return_value = mock_collection_obj
-
         vdb = _make_dummy_milvus_vdb_for_delete()
+        mock_resp = {"delete_count": 1}
+        vdb._client.delete.side_effect = [MilvusException("Error"), mock_resp]
+
         result = vdb.delete_documents("test_collection", ["file1.txt"])
 
         assert result is True
-        assert mock_collection_obj.delete.call_count == 2
+        assert vdb._client.delete.call_count == 2
+
+    def test_compact_and_wait_retries_until_completed(self):
+        """_compact_and_wait should poll until the job reaches Completed."""
+        vdb = _make_dummy_milvus_vdb_for_delete()
+        vdb._client.compact.return_value = 99
+        # First call returns Executing, second returns Completed
+        vdb._client.get_compaction_state.side_effect = ["Executing", "Completed"]
+
+        vdb._compact_and_wait("test_collection", timeout=5.0)
+
+        assert vdb._client.get_compaction_state.call_count == 2
+
+    def test_compact_and_wait_timeout_does_not_raise(self):
+        """_compact_and_wait should log a warning and return on timeout, not raise."""
+        vdb = _make_dummy_milvus_vdb_for_delete()
+        vdb._client.compact.return_value = 99
+        vdb._client.get_compaction_state.return_value = "Executing"  # never completes
+
+        # Use a very short timeout so the test is fast
+        vdb._compact_and_wait("test_collection", timeout=0.1)
+        # Should return without raising
+
+    def test_compact_and_wait_exception_does_not_raise(self):
+        """Compaction errors (e.g. collection gone) should be swallowed."""
+        vdb = _make_dummy_milvus_vdb_for_delete()
+        vdb._client.compact.side_effect = Exception("compact failed")
+
+        vdb._compact_and_wait("test_collection")
+        # Should return without raising
+
+    def test_compact_and_wait_initial_sleep_before_first_poll(self):
+        """_compact_and_wait does an initial sleep so the first poll is not wasted."""
+        vdb = _make_dummy_milvus_vdb_for_delete()
+        vdb._client.compact.return_value = 42
+        vdb._client.get_compaction_state.return_value = "Completed"
+
+        with patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.time") as mock_time:
+            mock_time.monotonic.side_effect = [0.0, 0.6, 30.0]  # start, after sleep, deadline
+            mock_time.sleep = Mock()
+            vdb._compact_and_wait("test_collection", timeout=30.0)
+
+        # First sleep is the initial one before any poll
+        mock_time.sleep.assert_called_with(0.5)
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.MilvusClient")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
