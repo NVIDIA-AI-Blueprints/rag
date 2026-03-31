@@ -99,7 +99,7 @@ This modular design ensures efficient query processing, accurate retrieval of in
 
 - Response Generation (Inference)
 
-    - [NVIDIA NIM llama-3.3-nemotron-super-49b-v1.5](https://build.nvidia.com/nvidia/llama-3_3-nemotron-super-49b-v1_5)
+    - [NVIDIA NIM nemotron-3-super-120b-a12b](https://build.nvidia.com/nvidia/nemotron-3-super-120b-a12b)
 
 - Retriever and Extraction Models
 

@@ -1328,7 +1328,7 @@
             "pattern": "[\\s\\S]*",
             "title": "Model",
             "description": "Name of NIM LLM model to be used for inference.",
-            "default": "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+            "default": "nvidia/nemotron-3-super-120b-a12b"
           },
           "llm_endpoint": {
             "type": "string",

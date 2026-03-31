@@ -353,7 +353,7 @@ from nvidia_rag.utils.configuration import NvidiaRAGConfig
 
 # config_rag = NvidiaRAGConfig.from_dict({
 #     "llm": {
-#         "model_name": "nvidia/llama-3.3-nemotron-super-49b-v1.5",
+#         "model_name": "nvidia/nemotron-3-super-120b-a12b",
 #         "server_url": "",
 #     },
 #     "embeddings": {

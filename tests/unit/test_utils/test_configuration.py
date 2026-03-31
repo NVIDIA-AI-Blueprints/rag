@@ -122,7 +122,7 @@ class TestLLMConfig:
         config = LLMConfig()
 
         assert config.server_url == ""
-        assert config.model_name == "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+        assert config.model_name == "nvidia/nemotron-3-super-120b-a12b"
         assert config.model_engine == "nvidia-ai-endpoints"
         assert isinstance(config.parameters, ModelParametersConfig)
         assert config.parameters.max_tokens == 32768
@@ -175,7 +175,7 @@ class TestQueryRewriterConfig:
         """Test default configuration values."""
         config = QueryRewriterConfig()
 
-        assert config.model_name == "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+        assert config.model_name == "nvidia/nemotron-3-super-120b-a12b"
         assert config.server_url == ""
         assert config.enable_query_rewriter is False
 
@@ -255,7 +255,7 @@ class TestSummarizerConfig:
         """Test default configuration values."""
         config = SummarizerConfig()
 
-        assert config.model_name == "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+        assert config.model_name == "nvidia/nemotron-3-super-120b-a12b"
         assert config.server_url == ""
         assert config.max_chunk_length == 9000
         assert config.chunk_overlap == 400
@@ -531,7 +531,7 @@ class TestConfigurationIntegration:
         env_vars = {
             "APP_VECTORSTORE_NAME": '"milvus"',  # Docker Compose style with quotes
             "APP_VECTORSTORE_URL": '"http://milvus:19530"',
-            "APP_LLM_MODELNAME": '"nvidia/llama-3.3-nemotron-super-49b-v1.5"',
+            "APP_LLM_MODELNAME": '"nvidia/nemotron-3-super-120b-a12b"',
             "COLLECTION_NAME": '"test_collection"',
         }
 
@@ -541,7 +541,7 @@ class TestConfigurationIntegration:
             # Verify that quoted strings are correctly stripped
             assert config.vector_store.name == "milvus"
             assert config.vector_store.url == "http://milvus:19530"
-            assert config.llm.model_name == "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+            assert config.llm.model_name == "nvidia/nemotron-3-super-120b-a12b"
             assert config.vector_store.default_collection_name == "test_collection"
 
     @patch.dict(os.environ, {}, clear=True)

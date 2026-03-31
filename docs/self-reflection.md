@@ -23,7 +23,7 @@ ENABLE_REFLECTION=true
 MAX_REFLECTION_LOOP=3                    # Maximum number of refinement attempts (default: 3)
 CONTEXT_RELEVANCE_THRESHOLD=1            # Minimum relevance score 0-2 (default: 1)
 RESPONSE_GROUNDEDNESS_THRESHOLD=1        # Minimum groundedness score 0-2 (default: 1)
-REFLECTION_LLM="nvidia/llama-3.3-nemotron-super-49b-v1.5"  # Model for reflection (default)
+REFLECTION_LLM="nvidia/nemotron-3-super-120b-a12b"  # Model for reflection (default)
 REFLECTION_LLM_SERVERURL="nim-llm:8000"  # Default on-premises endpoint for reflection LLM
 ```
 
@@ -125,7 +125,7 @@ If you don't have sufficient GPU resources for on-premises deployment, you can u
    export REFLECTION_LLM_SERVERURL=""
 
    # Choose the reflection model (options below)
-   export REFLECTION_LLM="nvidia/llama-3.3-nemotron-super-49b-v1.5"  # Default option
+   export REFLECTION_LLM="nvidia/nemotron-3-super-120b-a12b"  # Default option
    # export REFLECTION_LLM="meta/llama-3.1-405b-instruct"  # Alternative option
    ```
 
@@ -155,7 +155,7 @@ You can enable self-reflection through Helm when you deploy the RAG Blueprint.
 ### Prerequisites
 
 - Only on-premises reflection deployment is supported in Helm
-- The model used is: `nvidia/llama-3.3-nemotron-super-49b-v1.5`.
+- The model used is: `nvidia/nemotron-3-super-120b-a12b`.
 
 ### Deployment Steps
 
@@ -173,7 +173,7 @@ You can enable self-reflection through Helm when you deploy the RAG Blueprint.
      MAX_REFLECTION_LOOP: "3"
      CONTEXT_RELEVANCE_THRESHOLD: "1"
      RESPONSE_GROUNDEDNESS_THRESHOLD: "1"
-     REFLECTION_LLM: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+     REFLECTION_LLM: "nvidia/nemotron-3-super-120b-a12b"
      REFLECTION_LLM_SERVERURL: "nim-llm:8000"
    ```
 
