@@ -9,7 +9,7 @@ This documentation contains the OpenAPI reference for the ingestor server.
 
 :::{tip}
 
-To view this documentation on docs.nvidia.com, browse to [https://docs.nvidia.com/rag/latest/api-ingestor](https://docs.nvidia.com/rag/latest/api-ingestor.html).
+To view this documentation on docs.nvidia.com, browse to [https://docs.nvidia.com/rag/2.4.0/api-ingestor](https://docs.nvidia.com/rag/2.4.0/api-ingestor.html).
 
 :::
 
