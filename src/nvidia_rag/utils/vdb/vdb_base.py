@@ -104,8 +104,17 @@ class VDBRag(ABC):
     def get_documents(
         self,
         collection_name: str,
+        *,
+        force_get_metadata: bool = False,
     ) -> list[dict[str, Any]]:
-        """Retrieve all unique documents from the specified collection."""
+        """Retrieve all unique documents from the specified collection.
+
+        Args:
+            collection_name: Name of the collection.
+            force_get_metadata: When True, run the full metadata scan even when
+                the document count is above the fast-path threshold (otherwise
+                per-document metadata may be omitted for large collections).
+        """
         pass
 
     @abstractmethod

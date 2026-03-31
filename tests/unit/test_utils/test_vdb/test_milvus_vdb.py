@@ -30,7 +30,7 @@ from nvidia_rag.utils.vdb import (
     DEFAULT_DOCUMENT_INFO_COLLECTION,
     DEFAULT_METADATA_SCHEMA_COLLECTION,
 )
-from nvidia_rag.utils.vdb.milvus.milvus_vdb import MilvusVDB
+from nvidia_rag.utils.vdb.milvus.milvus_vdb import BYPASS_METADATA_THRESHOLD, MilvusVDB
 
 
 def _make_dummy_milvus_vdb_for_delete():
@@ -194,7 +194,7 @@ class TestMilvusVDB:
 
             assert result == mock_entities
             mock_client.query.assert_called_once_with(
-                collection_name="test_collection", filter="filter_expr", limit=1000
+                collection_name="test_collection", filter="filter_expr", limit=16384
             )
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.MilvusClient")
@@ -593,6 +593,41 @@ class TestMilvusVDB:
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.MilvusClient")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
+    def test_get_documents_list_bypass_large_document_info_map(
+        self, mock_connections, mock_milvus_client
+    ):
+        """Above threshold, skip Milvus iterator and omit metadata in each row."""
+        mock_client = mock_milvus_client.return_value
+        mock_client.has_collection.return_value = True
+
+        large_map = {
+            f"doc{i}.txt": {"pages": i}
+            for i in range(BYPASS_METADATA_THRESHOLD + 1)
+        }
+
+        with patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"):
+            vdb = MilvusVDB(
+                embedding_model=Mock(),
+                milvus_uri="http://localhost:19530",
+                collection_name="test_collection",
+                config=Mock(),
+            )
+            result = vdb._get_documents_list(
+                "test_collection",
+                [{"name": "field1"}],
+                large_map,
+            )
+
+        mock_client.query_iterator.assert_not_called()
+        assert len(result) == BYPASS_METADATA_THRESHOLD + 1
+        assert result[0] == {
+            "document_name": "doc0.txt",
+            "metadata": {},
+            "document_info": {"pages": 0},
+        }
+
+    @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.MilvusClient")
+    @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
     def test_get_documents_list_no_collection(self, mock_connections, mock_milvus_client):
         """Test _get_documents_list method when collection doesn't exist."""
         mock_milvus_client.return_value.has_collection.return_value = False
@@ -753,6 +788,7 @@ class TestMilvusVDB:
                 patch.object(
                     vdb, "get_metadata_schema", return_value=mock_metadata_schema
                 ) as mock_get_metadata,
+                patch.object(vdb, "check_collection_exists", return_value=True),
                 patch.object(
                     vdb,
                     "_get_milvus_entities",
@@ -771,6 +807,7 @@ class TestMilvusVDB:
                     collection_name="test_collection",
                     metadata_schema=mock_metadata_schema,
                     document_name_to_document_info_map={"file1.txt": {"pages": 5}},
+                    force_get_metadata=False,
                 )
 
     def test_delete_documents_success(self):

@@ -157,7 +157,12 @@ class MockNvidiaRAGIngestor:
         }
 
     def get_documents(
-        self, collection_name: str, vdb_endpoint: str, vdb_auth_token: str = ""
+        self,
+        collection_name: str,
+        vdb_endpoint: str,
+        vdb_auth_token: str = "",
+        force_get_metadata: bool = False,
+        max_results: int | None = None,
     ):
         """Mock get_documents method"""
         if self._get_documents_side_effect:
@@ -892,6 +897,27 @@ class TestGetDocumentsEndpoint:
         response_data = response.json()
         assert response_data["total_documents"] == 0
 
+    def test_get_documents_passes_max_results_query(self, client):
+        """GET /documents forwards max_results to the ingestor."""
+        with patch(
+            "nvidia_rag.ingestor_server.server.NV_INGEST_INGESTOR"
+        ) as mock_ingestor:
+            mock_ingestor.get_documents = Mock(
+                return_value={
+                    "message": "Success",
+                    "total_documents": 0,
+                    "documents": [],
+                }
+            )
+
+            response = client.get(
+                "/v1/documents?collection_name=test_collection&max_results=50"
+            )
+
+            assert response.status_code == 200
+            mock_ingestor.get_documents.assert_called_once()
+            assert mock_ingestor.get_documents.call_args[1]["max_results"] == 50
+
 
 class TestGetCollectionsEndpoint:
     """Tests for the /collections GET endpoint"""
@@ -1356,3 +1382,4 @@ class TestVdbAuthTokenParameter:
             call_args = mock_ingestor.get_documents.call_args
             assert call_args[1]["collection_name"] == "test_collection"
             assert call_args[1]["vdb_auth_token"] == "test_vdb_token"
+            assert call_args[1]["max_results"] == 1000

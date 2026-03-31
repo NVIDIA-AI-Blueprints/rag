@@ -90,6 +90,10 @@ from nvidia_rag.utils.vdb.vdb_ingest_base import VDBRagIngest
 
 logger = logging.getLogger(__name__)
 
+# Above this many document-info entries, get_documents skips Milvus query iteration
+# and omits per-document metadata in the response.
+BYPASS_METADATA_THRESHOLD = 1000
+
 
 class MilvusVDB(VDBRagIngest):
     """
@@ -409,7 +413,7 @@ class MilvusVDB(VDBRagIngest):
         Get the metadata schema for a collection in the Milvus index.
         """
         entities = self._client.query(
-            collection_name=collection_name, filter=filter, limit=1000
+            collection_name=collection_name, filter=filter, limit=16384
         )
 
         if len(entities) == 0:
@@ -621,11 +625,26 @@ class MilvusVDB(VDBRagIngest):
             return os.path.basename(metadata["source"]["source_name"])
         return None
 
+    @staticmethod
+    def _get_documents_list_bypass_from_document_info_map(
+        document_name_to_document_info_map: dict[str, dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """Return document list from document info only (no metadata, no Milvus scan)."""
+        return [
+            {
+                "document_name": name,
+                "metadata": {},
+                "document_info": info,
+            }
+            for name, info in document_name_to_document_info_map.items()
+        ]
+
     def _get_documents_list(
         self,
         collection_name: str,
         metadata_schema: list[dict[str, Any]],
         document_name_to_document_info_map: dict[str, dict[str, Any]],
+        force_get_metadata: bool = False,
     ) -> list[dict[str, Any]]:
         """
         Get the list of documents in a collection.
@@ -633,6 +652,21 @@ class MilvusVDB(VDBRagIngest):
         if not self._client.has_collection(collection_name):
             logger.warning(f"Collection {collection_name} not found.")
             return []
+        
+        if (len(document_name_to_document_info_map) > BYPASS_METADATA_THRESHOLD) and (not force_get_metadata):
+            logger.warning(
+                "Document info entry count (%d) exceeds BYPASS_METADATA_THRESHOLD "
+                "(%d); skipping Milvus query iteration and returning documents from "
+                "the document info map only for collection %s. "
+                "Set force_get_metadata=True to run the Milvus iterator and "
+                "populate per-document metadata.",
+                len(document_name_to_document_info_map),
+                BYPASS_METADATA_THRESHOLD,
+                collection_name,
+            )
+            return self._get_documents_list_bypass_from_document_info_map(
+                document_name_to_document_info_map
+            )
 
         query_iterator = self._client.query_iterator(
             collection_name, batch_size=1000, output_fields=["source", "content_metadata"], filter=""
@@ -682,16 +716,32 @@ class MilvusVDB(VDBRagIngest):
 
         return documents_list
 
-    def get_documents(self, collection_name: str) -> list[dict[str, Any]]:
+    def get_documents(
+        self,
+        collection_name: str,
+        *,
+        force_get_metadata: bool = False,
+    ) -> list[dict[str, Any]]:
         """
         Get the list of documents in a collection.
         """
         metadata_schema = self.get_metadata_schema(collection_name)
         # Get document info for each document in the collection
-        entities = self._get_milvus_entities(
-            DEFAULT_DOCUMENT_INFO_COLLECTION,
-            filter=f"info_type == 'document' and collection_name == '{collection_name}'",
-        )
+        try:
+            if not self.check_collection_exists(DEFAULT_DOCUMENT_INFO_COLLECTION):
+                logger.warning(
+                    f"Document info collection {DEFAULT_DOCUMENT_INFO_COLLECTION} does not exist." \
+                    "Skipping document info retrieval."
+                )
+                entities = []
+            else:
+                entities = self._get_milvus_entities(
+                    DEFAULT_DOCUMENT_INFO_COLLECTION,
+                    filter=f"info_type == 'document' and collection_name == '{collection_name}'",
+                )
+        except Exception as e:
+            logger.error(f"Error getting document info for collection {collection_name}: {e}")
+            entities = []
         document_name_to_document_info_map = {}
         for entity in entities:
             document_name_to_document_info_map[entity["document_name"]] = entity[
@@ -701,6 +751,7 @@ class MilvusVDB(VDBRagIngest):
             collection_name=collection_name,
             metadata_schema=metadata_schema,
             document_name_to_document_info_map=document_name_to_document_info_map,
+            force_get_metadata=force_get_metadata,
         )
         return documents_list
 
@@ -935,14 +986,18 @@ class MilvusVDB(VDBRagIngest):
         document_name: str,
     ) -> dict[str, Any]:
         """Get document info from a collection."""
-        filter = f"info_type == '{info_type}' and collection_name == '{collection_name}' and document_name == '{document_name}'"
-        entities = self._get_milvus_entities(DEFAULT_DOCUMENT_INFO_COLLECTION, filter)
-        if len(entities) > 0:
-            return entities[0]["info_value"]
-        else:
-            logger.debug(
-                f"No document info found for: {info_type}, {collection_name}, {document_name}"
-            )
+        try:
+            filter = f"info_type == '{info_type}' and collection_name == '{collection_name}' and document_name == '{document_name}'"
+            entities = self._get_milvus_entities(DEFAULT_DOCUMENT_INFO_COLLECTION, filter)
+            if len(entities) > 0:
+                return entities[0]["info_value"]
+            else:
+                logger.debug(
+                    f"No document info found for: {info_type}, {collection_name}, {document_name}"
+                )
+                return {}
+        except Exception as e:
+            logger.error(f"Error getting document info for {info_type}, {collection_name}, {document_name}: {e}")
             return {}
 
     def get_catalog_metadata(self, collection_name: str) -> dict[str, Any]:
