@@ -26,7 +26,7 @@ import sys
 project = " NVIDIA RAG blueprint"
 copyright = "2025-%Y, NVIDIA Corporation"
 author = "NVIDIA Corporation"
-release = "2.3.0"
+release = "2.5.0"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
@@ -38,6 +38,7 @@ extensions = [
     "sphinx.ext.napoleon",  # For google style docstrings
     "sphinx_copybutton",  # For copy button in code blocks
     "swagger_plugin_for_sphinx", # For parsing and presenting OpenAPI specs
+    "sphinx_reredirects",  # For handling URL redirects
 ]
 
 templates_path = ["_templates"]
@@ -55,6 +56,12 @@ myst_enable_extensions = [
 ]
 myst_heading_anchors = 5  # Generates anchor links for headings up to level 5
 
+# -- Options for Redirects ---------------------------------------------------
+# Configure redirects for renamed files
+redirects = {
+    "nemoretriever-parse-extraction": "nemotron-parse-extraction.html",
+}
+
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
@@ -67,10 +74,7 @@ html_theme_options = {
             "icon": "fa-brands fa-github",
         }
     ],
-    "switcher": {
-        "json_url": "../versions1.json",
-        "version_match": release,
-    },
+    "switcher": {"json_url": "../versions1.json", "version_match": release},
     "extra_head": {
         """
     <script src="https://assets.adobedtm.com/5d4962a43b79/c1061d2c5e7b/launch-191c2462b890.min.js" ></script>
@@ -82,6 +86,7 @@ html_theme_options = {
     """
     },
 }
+
 
 # Add any paths that contain custom static files (such as style sheets) here,
 html_css_files = ["swagger-nvidia.css"]
