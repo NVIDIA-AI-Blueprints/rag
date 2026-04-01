@@ -162,22 +162,22 @@ envVars:
   APP_FETCH_NEIGHBORING_PAGES: "0"
 
   ##===LLM Model specific configurations===
-  APP_LLM_MODELNAME: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+  APP_LLM_MODELNAME: "nvidia/nemotron-3-super-120b-a12b"
   # URL on which LLM model is hosted. If "", Nvidia hosted API is used
   APP_LLM_SERVERURL: "nim-llm:8000"
   # LLM model parameters
   # For Nemotron 3 Super on RTX 6000 Pro: uncomment and set to 16256 (reasoning) or 1024 (non-reasoning); comment LLM_MAX_TOKENS above
-  LLM_MAX_TOKENS: "32768" # "16256"
+  LLM_MAX_TOKENS: "131072" # "16256" for RTX 6000 Pro
   LLM_TEMPERATURE: "0"
   LLM_TOP_P: "1.0"
 
   ##===Query Rewriter Model specific configurations===
-  APP_QUERYREWRITER_MODELNAME: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+  APP_QUERYREWRITER_MODELNAME: "nvidia/nemotron-3-super-120b-a12b"
   # URL on which query rewriter model is hosted. If "", Nvidia hosted API is used
   APP_QUERYREWRITER_SERVERURL: "nim-llm:8000"
 
   ##===Filter Expression Generator Model specific configurations===
-  APP_FILTEREXPRESSIONGENERATOR_MODELNAME: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+  APP_FILTEREXPRESSIONGENERATOR_MODELNAME: "nvidia/nemotron-3-super-120b-a12b"
   # URL on which filter expression generator model is hosted. If "", Nvidia hosted API is used
   APP_FILTEREXPRESSIONGENERATOR_SERVERURL: "nim-llm:8000"
   # enable filter expression generator for natural language to filter expression conversion
@@ -252,7 +252,7 @@ envVars:
   # Minimum groundedness score threshold (0-2)
   RESPONSE_GROUNDEDNESS_THRESHOLD: "1"
   # reflection llm
-  REFLECTION_LLM: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+  REFLECTION_LLM: "nvidia/nemotron-3-super-120b-a12b"
   # reflection llm server url. If "", Nvidia hosted API is used
   REFLECTION_LLM_SERVERURL: "nim-llm:8000"
 
@@ -262,10 +262,10 @@ envVars:
   # Whether to filter content within <think></think> tags in model responses
   FILTER_THINK_TOKENS: "true"
 
-  # Reasoning configuration (supported by Nemotron 3 and other reasoning models)
-  LLM_ENABLE_THINKING: "false"
-  LLM_REASONING_BUDGET: "0"
-  LLM_LOW_EFFORT: "false"
+  # Reasoning configuration (enabled by default for Nemotron 3 Super)
+  LLM_ENABLE_THINKING: "true"
+  LLM_REASONING_BUDGET: "256"
+  LLM_LOW_EFFORT: "true"
 
   NEMO_GUARDRAILS_URL: "nemo-guardrails:7331"
 
@@ -391,7 +391,7 @@ ingestor-server:
 
     # === General ===
     # Summary Model Configurations
-    SUMMARY_LLM: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+    SUMMARY_LLM: "nvidia/nemotron-3-super-120b-a12b"
     SUMMARY_LLM_SERVERURL: "nim-llm:8000"
     SUMMARY_LLM_MAX_CHUNK_LENGTH: "9000"
     SUMMARY_CHUNK_OVERLAP: "400"
@@ -664,39 +664,35 @@ nimOperator:
     service:
       name: "nim-llm"
     image:
-      repository: nvcr.io/nim/nvidia/llama-3.3-nemotron-super-49b-v1.5
+      repository: nvcr.io/nim/nvidia/nemotron-3-super-120b-a12b
       pullPolicy: IfNotPresent
-      tag: "1.14.0"
-# -- For Nemotron 3 Super: uncomment the block below and comment the image block above
+      tag: "1.8.0"
+# -- To switch back to Llama 3.3 Nemotron Super 49B (single GPU), replace the image block above with:
 #    image:
-#      repository: nvcr.io/nim/nvidia/nemotron-3-super-120b-a12b
+#      repository: nvcr.io/nim/nvidia/llama-3.3-nemotron-super-49b-v1.5
 #      pullPolicy: IfNotPresent
-#      tag: "1.8.0"
+#      tag: "1.14.0"
+# -- and revert resources to 1 GPU and model engine to tensorrt_llm below.
     resources:
       limits:
-        nvidia.com/gpu: 1
+        nvidia.com/gpu: 2
       requests:
-        nvidia.com/gpu: 1
-# -- For Nemotron 3 Super (all hardware): uncomment the block below and comment the resources block above
+        nvidia.com/gpu: 2
+# -- To switch back to Llama 3.3 Nemotron Super 49B (single GPU), replace resources above with:
 #    resources:
 #      limits:
-#        nvidia.com/gpu: 2
+#        nvidia.com/gpu: 1
 #      requests:
-#        nvidia.com/gpu: 2
+#        nvidia.com/gpu: 1
     nodeSelector: {}
     tolerations: []
     model:
-      engine: tensorrt_llm
-# -- Uncomment this section to enable FP8 precision and throughput profile for the NIM LLM, change the GPU product according to the GPU you are using
-#      precision: "fp8"
-#      qosProfile: "throughput"
-#      tensorParallelism: "1"
-#      gpus:
-#        - product: "rtx6000_blackwell_sv"
-# -- For Nemotron 3 Super (all hardware): comment "engine: tensorrt_llm" above and uncomment the three lines below
-#      engine: vllm
-#      precision: "fp8"
-#      tensorParallelism: "2"
+      engine: vllm
+      precision: "fp8"
+      tensorParallelism: "2"
+# -- To switch back to Llama 3.3 Nemotron Super 49B, replace the model block above with:
+#    model:
+#      engine: tensorrt_llm
     storage:
       pvc:
         create: true
@@ -726,10 +722,14 @@ nimOperator:
       - name: NIM_TRITON_LOG_VERBOSE
         value: "1"
       - name: NIM_SERVED_MODEL_NAME
-        value: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
-      - name: NIM_MAX_MODEL_LEN
-        value: "131072"
-# -- For Nemotron 3 Super on RTX 6000 Pro: comment the NIM_MAX_MODEL_LEN entry above and uncomment the block below
+        value: "nvidia/nemotron-3-super-120b-a12b"
+      - name: NIM_ENABLE_CHUNKED_PREFILL
+        value: "1"
+      - name: NIM_KV_CACHE_DTYPE
+        value: "fp8"
+      - name: VLLM_ALLOW_LONG_MAX_MODEL_LEN
+        value: "1"
+# -- For Nemotron 3 Super on RTX 6000 Pro: comment the entries above and uncomment the block below
 #      - name: NIM_MAX_MODEL_LEN
 #        value: "32768"
 #      - name: NCCL_P2P_DISABLE
@@ -738,6 +738,9 @@ nimOperator:
 #        value: "0.9"
 #      - name: CUDA_VISIBLE_DEVICES
 #        value: "0"
+# -- To switch back to Llama 3.3 Nemotron Super 49B, replace NIM_SERVED_MODEL_NAME value above with:
+#        value: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+# -- and remove NIM_ENABLE_CHUNKED_PREFILL/NIM_KV_CACHE_DTYPE/VLLM_ALLOW_LONG_MAX_MODEL_LEN entries.
     expose:
       service:
         name: http

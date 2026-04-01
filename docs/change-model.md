@@ -15,11 +15,11 @@ To navigate this page more easily, click the outline button at the top of the pa
 
 ### Change the LLM Model
 
-To change the inference model to a model from the API catalog,
+The default LLM is `nvidia/nemotron-3-super-120b-a12b`. To use a different model from the API catalog,
 specify the model in the `APP_LLM_MODELNAME` environment variable when you start the RAG Server.
 
 ```console
-export APP_LLM_MODELNAME='nvidia/llama-3.3-nemotron-super-49b-v1.5' 
+export APP_LLM_MODELNAME='nvidia/nemotron-3-super-120b-a12b'
 docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d
 ```
 
@@ -48,7 +48,7 @@ Both names refer to the same underlying model. Use the appropriate name based on
 
 ##### Nemotron 3 Super
 
-Nemotron 3 Super is a larger model with different GPU and environment requirements: local NIM deployment requires at least 2 GPUs (FP8 TP2), and you may need a dedicated prompt config and reasoning settings. For full deployment steps (Docker and Helm), see the [Nemotron 3 Super deployment guide](nemotron3-super-deployment.md).
+`nvidia/nemotron-3-super-120b-a12b` is the default LLM for this blueprint. For hardware requirements and RTX PRO 6000-specific setup, see the [Nemotron 3 Super deployment guide](nemotron3-super-deployment.md).
 
 
 ### Change the Embedding Model
@@ -308,5 +308,4 @@ Use this procedure to change models when you are running self-hosted NVIDIA NIM 
 - [Deploy with Docker (Self-Hosted Models)](deploy-docker-self-hosted.md)
 - [Deploy with Docker (NVIDIA-Hosted Models)](deploy-docker-nvidia-hosted.md)
 - [Deploy with Helm](deploy-helm.md)
-- [Nemotron 3 Super deployment (Docker and Helm)](nemotron3-super-deployment.md)
 - [Service-Specific API Keys](api-key.md#service-specific-api-keys)

@@ -125,7 +125,7 @@ To deploy End-to-End RAG Server and Ingestor Server, use the following procedure
    Refer to [NIM Model Profile Configuration](model-profiles.md) for using non-default NIM LLM profile.
    :::
 
-   For **Nemotron 3 Super** on Helm, see the [Nemotron 3 Super deployment guide](nemotron3-super-deployment.md#helm-deployment-nemotron-3-super).
+   For **RTX PRO 6000** hardware, see the [RTX PRO 6000 setup prerequisites](nemotron3-super-deployment.md#rtx-pro-6000-setup) in the Nemotron 3 Super deployment guide.
 
 
 ## Verify a Deployment
