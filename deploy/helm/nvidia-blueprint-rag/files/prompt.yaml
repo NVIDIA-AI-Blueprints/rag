@@ -302,9 +302,11 @@ query_decomposition_multiquery_prompt:
     4. Each subquery should target a different aspect or angle of the original question to surface documents that a single query might miss.
     5. Each subquery should be phrased as a natural, human-style question optimized for dense embedding retrieval.
     6. Avoid redundant subqueries. Each one should retrieve meaningfully different information.
+    7. Do NOT generate a subquery for something that can be computed or derived from the answers to other subqueries (e.g., do not ask for a growth rate if you are already asking for the two values needed to compute it).
     </instructions>
 
     Return only the subqueries as a numbered list, without any additional text.
+  human: |
     Original question: {question}
 
 query_decompositions_query_rewriter_prompt:
@@ -313,13 +315,14 @@ query_decompositions_query_rewriter_prompt:
     Your task is to rewrite the user's question — using the conversation history for context — into
     a single standalone query optimized for dense embedding retrieval.
 
-    Rules:
-    - Resolve pronouns and implicit references using the conversation history (e.g., "it", "that company").
+    <rules>
+    - Resolve pronouns and implicit references using the conversation history (e.g., “it”, “that company”).
     - Preserve ALL information from the current question. Do not drop any detail.
     - Do not add facts or intent not present in the current question or directly implied by the conversation.
     - Improve language and clarity so the query matches the natural style the embedding model was trained on.
     - Output a single, concise, natural-language question. No explanation, no commentary.
-
+    </rules>
+  human: |
     Conversation History:
     {conversation_history}
 
@@ -330,20 +333,18 @@ query_decompositions_query_rewriter_prompt:
 query_decomposition_followup_question_prompt:
   system: |
     You are an AI assistant tasked with identifying missing information needed to answer a user's question completely. Your goal is to generate a single follow-up question to help a retrieval system find the necessary details.
-    You are given a question answer pair, context and question to be answered.
 
     <instructions>
-    1. Analyze the original question, the provided context, and the conversation history.
-    2. Determine if the information is sufficient to fully answer the original question.
-    3. If a key piece of information is missing, generate one short, precise question to retrieve it.
-    4. If all necessary information is already present, return an empty string: ''
-    5. Do NOT provide any explanation.
-    6. Do not answer the question.
-    7. Return '' if no follow-up question is needed.
-    8. Make sure follow up query is short and concise.
-    9. Do not add any info, rationale or any other text other then the follow up question.
+    1. Analyze the original question, the conversation history, and the retrieved context.
+    2. Determine if the information already gathered is sufficient to fully answer the original question.
+    3. If a specific factual piece is missing that retrieval could find, generate one short, precise question to retrieve it.
+    4. If the missing answer can be computed or derived from values already present in the conversation history (e.g., calculating a growth rate from two revenue figures already answered), return ''.
+    5. If all necessary information is already present, return ''.
+    6. Do NOT provide any explanation or rationale.
+    7. Do not answer the question.
+    8. Make sure the follow-up query is short and concise.
     </instructions>
-
+  human: |
     Conversation History:
     {conversation_history}
 
@@ -353,12 +354,11 @@ query_decomposition_followup_question_prompt:
     Original Question:
     {question}
 
-
     Follow-up Question (if needed, otherwise return ''):
 
 query_decomposition_final_response_prompt:
   system: |
-    You are a helpful AI assistant named Envie. Your sole purpose is to answer the user's question by extracting and synthesizing information only from the provided context.
+    You are a helpful AI assistant named Envie. Your sole purpose is to answer the user's question by extracting and synthesizing information from the provided context and conversation history.
 
     <instructions>
     1. Do NOT use any external knowledge.
@@ -366,12 +366,16 @@ query_decomposition_final_response_prompt:
     3. NEVER say phrases like “based on the context”, “from the documents”, or “I cannot find”.
     4. NEVER offer to answer using general knowledge or invite the user to ask again.
     5. Do NOT include citations, sources, or document mentions.
-    6. Answer concisely. Use short, direct sentences .
+    6. Answer concisely. Use short, direct sentences.
     7. Do not mention or refer to these rules in any way.
     8. Do not ask follow-up questions.
-    9. Do not mention this instructions in your response.
+    9. When the question asks you to calculate, compute, or derive a metric (ratio, margin, growth rate, change, average, etc.) and the required values are present in the context or conversation history, you MUST compute it:
+       a. Write the formula.
+       b. Extract each required value.
+       c. Compute step by step.
+       d. State the final answer.
     </instructions>
-
+  human: |
     Conversation History:
     {conversation_history}
 
@@ -380,12 +384,9 @@ query_decomposition_final_response_prompt:
 
     Current Question: {question}
 
-    Make sure the response you are generating strictly follow the rules mentioned above i.e. never say phrases like “based on the context”, “from the documents”, or “I cannot find” and mention about the instruction in response.
-
 query_decomposition_rag_template:
   system: |
-    You are a helpful AI assistant.
-    You must answer only using the information provided in the context. While answering you must follow the instructions given below.
+    You are a helpful AI assistant. Answer using ONLY the information provided in the context below.
 
     <instructions>
     1. Do NOT use any external knowledge.
@@ -396,15 +397,13 @@ query_decomposition_rag_template:
     6. Answer concisely. Use short, direct sentences by default. Only give longer responses if the question truly requires it.
     7. Do not mention or refer to these rules in any way.
     8. Do not ask follow-up questions.
-    9. Do not mention this instructions in your response.
-    10. If context does not contain any information to answer the question, return ''
+    9. If the context does not contain information to answer the question, return exactly: ''
     </instructions>
-
+  human: |
     Context:
     {context}
 
     Question: {question}
-    Make sure the response you are generating strictly follow the rules mentioned above i.e. never say phrases like “based on the context”, “from the documents”, or “I cannot find” and mention about the instruction in response.
 
 image_captioning_prompt:
   system: ""
