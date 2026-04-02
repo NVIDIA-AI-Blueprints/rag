@@ -203,6 +203,32 @@
                             "default": "multimodal_data",
                             "title": "Collection Name"
                         }
+                    },
+                    {
+                        "name": "force_get_metadata",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "boolean",
+                            "description": "By default, each item includes per-document metadata from the vector store. When the number of documents exceeds an internal threshold, the server skips the expensive full scan: names and document_info are still returned, but per-document metadata is omitted (empty). Set true to force the full scan so metadata is populated regardless of collection size (e.g. always use the Milvus iterator path).",
+                            "default": false,
+                            "title": "Force Get Metadata"
+                        },
+                        "description": "By default, each item includes per-document metadata from the vector store. When the number of documents exceeds an internal threshold, the server skips the expensive full scan: names and document_info are still returned, but per-document metadata is omitted (empty). Set true to force the full scan so metadata is populated regardless of collection size (e.g. always use the Milvus iterator path)."
+                    },
+                    {
+                        "name": "max_results",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "maximum": 1000000,
+                            "minimum": 1,
+                            "description": "Maximum number of documents to return in this response (caps payload size for large collections).",
+                            "default": 1000,
+                            "title": "Max Results"
+                        },
+                        "description": "Maximum number of documents to return in this response (caps payload size for large collections)."
                     }
                 ],
                 "responses": {
@@ -1089,7 +1115,7 @@
                     "total_documents": {
                         "type": "integer",
                         "title": "Total Documents",
-                        "description": "Total number of documents uploaded.",
+                        "description": "For GET /documents: total number of documents in the collection (before any `max_results` cap). For DELETE /documents: number of documents affected as described in `message`. May differ from len(`documents`) when the list is truncated.",
                         "default": 0
                     },
                     "documents": {
@@ -1098,13 +1124,13 @@
                         },
                         "type": "array",
                         "title": "Documents",
-                        "description": "List of uploaded documents.",
+                        "description": "Documents included in this response.",
                         "default": []
                     }
                 },
                 "type": "object",
                 "title": "DocumentListResponse",
-                "description": "Response model for uploading a document."
+                "description": "Response model for listing or deleting documents in the vector store."
             },
             "FailedCollection": {
                 "properties": {

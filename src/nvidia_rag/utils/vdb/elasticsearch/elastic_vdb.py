@@ -93,6 +93,7 @@ from nvidia_rag.utils.vdb.elasticsearch.es_queries import (
     get_metadata_schema_query,
     get_unique_sources_query,
     get_weighted_hybrid_custom_query,
+    get_all_document_info_query,
 )
 from nvidia_rag.utils.vdb.vdb_ingest_base import VDBRagIngest
 
@@ -535,7 +536,12 @@ class ElasticVDB(VDBRagIngest):
             "total_failed": len(failed_collections),
         }
 
-    def get_documents(self, collection_name: str) -> list[dict[str, Any]]:
+    def get_documents(
+        self,
+        collection_name: str,
+        *,
+        force_get_metadata: bool = False,
+    ) -> list[dict[str, Any]]:
         """
         Get the list of documents in a collection.
         """
@@ -543,6 +549,12 @@ class ElasticVDB(VDBRagIngest):
         response = self._es_connection.search(
             index=collection_name, body=get_unique_sources_query()
         )
+        
+        # Get all document info for the collection
+        all_document_info = self._get_all_document_info(collection_name)
+        all_document_info_map = {doc["document_name"]: doc["info_value"] for doc in all_document_info}
+        
+        # Get the list of documents
         documents_list = []
         for hit in response["aggregations"]["unique_sources"]["buckets"]:
             source_name = hit["key"]["source_name"]
@@ -560,11 +572,7 @@ class ElasticVDB(VDBRagIngest):
                 {
                     "document_name": os.path.basename(source_name),
                     "metadata": metadata_dict,
-                    "document_info": self.get_document_info(
-                        info_type="document",
-                        collection_name=collection_name,
-                        document_name=os.path.basename(source_name),
-                    ),
+                    "document_info": all_document_info_map.get(os.path.basename(source_name), {}),
                 }
             )
         return documents_list
@@ -791,17 +799,46 @@ class ElasticVDB(VDBRagIngest):
         document_name: str,
     ) -> dict[str, Any]:
         """Get document info from a Elasticsearch index."""
-        query = get_document_info_query(collection_name, document_name, info_type)
-        response = self._es_connection.search(
-            index=DEFAULT_DOCUMENT_INFO_COLLECTION, body=query
-        )
-        if len(response["hits"]["hits"]) > 0:
-            return response["hits"]["hits"][0]["_source"]["info_value"]
-        else:
-            logger.info(
-                f"No document info found for collection: {collection_name}, document: {document_name}, info type: {info_type}"
+        try:
+            query = get_document_info_query(collection_name, document_name, info_type)
+            response = self._es_connection.search(
+                index=DEFAULT_DOCUMENT_INFO_COLLECTION, body=query
             )
+            if len(response["hits"]["hits"]) > 0:
+                return response["hits"]["hits"][0]["_source"]["info_value"]
+            else:
+                logger.info(
+                    f"No document info found for collection: {collection_name}, document: {document_name}, info type: {info_type}"
+                )
+                return {}
+        except Exception as e:
+            logger.error(f"Error getting document info for {info_type}, {collection_name}, {document_name}: {e}")
             return {}
+    
+    def _get_all_document_info(self, collection_name: str) -> list[dict[str, Any]]:
+        """Get all document info for a collection.
+        
+        Returns:
+            list[dict[str, Any]]: List of document info for the collection. (hit["_source"])
+        """
+        try:
+            if not self._check_index_exists(index_name=DEFAULT_DOCUMENT_INFO_COLLECTION):
+                logger.warning(
+                    f"Document info collection {DEFAULT_DOCUMENT_INFO_COLLECTION} does not exist." \
+                    "Skipping document info retrieval."
+                    )
+                return []
+            query = get_all_document_info_query(collection_name)
+            response = self._es_connection.search(
+                index=DEFAULT_DOCUMENT_INFO_COLLECTION, body=query
+            )
+            if len(response["hits"]["hits"]) > 0:
+                return [hit["_source"] for hit in response["hits"]["hits"]]
+            else:
+                return []
+        except Exception as e:
+            logger.error(f"Error getting all document info for collection {collection_name}: {e}")
+            return []
 
     def get_catalog_metadata(self, collection_name: str) -> dict[str, Any]:
         """Get catalog metadata for a collection."""

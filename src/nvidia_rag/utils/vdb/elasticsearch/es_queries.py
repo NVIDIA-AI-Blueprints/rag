@@ -202,6 +202,23 @@ def get_document_info_query(collection_name: str, document_name: str, info_type:
     return query_document_info
 
 
+def get_all_document_info_query(collection_name: str):
+    """
+    Create search query for retrieving all document info by collection name.
+    """
+    query_all_document_info = {
+        "query": {
+            "bool": {
+                "must": [
+                    {"term": {"collection_name": collection_name}},
+                    {"term": {"info_type": "document"}},
+                ]
+            }
+        }
+    }
+    return query_all_document_info
+
+
 def get_delete_document_info_query_by_collection_name(collection_name: str):
     """
     Create deletion query for removing document info by collection name.

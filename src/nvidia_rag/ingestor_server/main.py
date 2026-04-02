@@ -1610,10 +1610,18 @@ class NvidiaRAGIngestor:
         vdb_endpoint: str | None = None,
         bypass_validation: bool = False,
         vdb_auth_token: str = "",
+        force_get_metadata: bool = False,
+        max_results: int | None = None,
     ) -> dict[str, Any]:
         """
         Retrieves filenames stored in the vector store.
         It's called when the GET endpoint of `/documents` API is invoked.
+
+        Args:
+            max_results: If set, cap ``documents`` to at most this many entries.
+                If ``None``, all matching documents are returned (no cap).
+                ``total_documents`` is always the full count in the collection,
+                not the length of the returned list.
 
         Returns:
             Dict[str, Any]: Response containing a list of documents with metadata.
@@ -1629,7 +1637,9 @@ class NvidiaRAGIngestor:
                 bypass_validation=bypass_validation,
                 vdb_auth_token=vdb_auth_token,
             )
-            documents_list = vdb_op.get_documents(collection_name)
+            documents_list = vdb_op.get_documents(
+                collection_name, force_get_metadata=force_get_metadata
+            )
 
             # Get metadata schema to filter out chunk-level auto-extracted fields
             metadata_schema = vdb_op.get_metadata_schema(collection_name)
@@ -1658,9 +1668,13 @@ class NvidiaRAGIngestor:
                 for doc_item in documents_list
             ]
 
+            total_documents = len(documents)
+            if max_results is not None:
+                documents = documents[: max(0, max_results)]
+
             return {
                 "documents": documents,
-                "total_documents": len(documents),
+                "total_documents": total_documents,
                 "message": "Document listing successfully completed.",
             }
 

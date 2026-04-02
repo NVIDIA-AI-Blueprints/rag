@@ -453,6 +453,34 @@ class TestNvidiaRAGIngestorCoverageImprovement:
             mock_vdb_op.get_documents.assert_called_once()
             assert "documents" in result
 
+    def test_get_documents_respects_max_results(self):
+        """When max_results is set, the response list is capped."""
+        mock_vdb_op = Mock(spec=VDBRag)
+        mock_vdb_op.get_documents.return_value = [
+            {"id": "1", "content": "a", "document_name": "a.txt"},
+            {"id": "2", "content": "b", "document_name": "b.txt"},
+            {"id": "3", "content": "c", "document_name": "c.txt"},
+        ]
+        mock_vdb_op.get_metadata_schema.return_value = []
+
+        ingestor = NvidiaRAGIngestor(mode=Mode.LIBRARY)
+
+        with patch.object(
+            ingestor,
+            "_NvidiaRAGIngestor__prepare_vdb_op_and_collection_name",
+            return_value=(mock_vdb_op, "test_collection"),
+        ):
+            result = ingestor.get_documents(
+                collection_name="test_collection",
+                vdb_endpoint="http://test.com",
+                max_results=2,
+            )
+
+            assert len(result["documents"]) == 2
+            assert result["total_documents"] == 3
+            assert result["documents"][0]["document_name"] == "a.txt"
+            assert result["documents"][1]["document_name"] == "b.txt"
+
     def test_delete_documents_success(self):
         """Test delete_documents success path."""
         mock_vdb_op = Mock(spec=VDBRag)

@@ -17,7 +17,7 @@
 
 import os
 import unittest
-from unittest.mock import MagicMock, Mock, call, patch
+from unittest.mock import ANY, MagicMock, Mock, call, patch
 
 import pandas as pd
 import pytest
@@ -561,7 +561,35 @@ class TestElasticVDB(unittest.TestCase):
                 }
             }
         }
-        mock_es_connection.search.return_value = mock_search_response
+        mock_document_info_search_response = {
+            "hits": {
+                "hits": [
+                    {
+                        "_source": {
+                            "document_name": "doc1.pdf",
+                            "info_value": {
+                                "total_pages": 5,
+                                "total_chunks": 50,
+                            },
+                        }
+                    },
+                    {
+                        "_source": {
+                            "document_name": "doc2.pdf",
+                            "info_value": {
+                                "total_pages": 10,
+                                "total_chunks": 100,
+                            },
+                        }
+                    },
+                ]
+            }
+        }
+        mock_es_connection.search.side_effect = [
+            mock_search_response,
+            mock_document_info_search_response,
+        ]
+        mock_es_connection.indices.exists.return_value = True
         mock_sources_query.return_value = {"query": "test_query"}
 
         # Create instance and test
@@ -570,12 +598,6 @@ class TestElasticVDB(unittest.TestCase):
         elastic_vdb._es_connection = mock_es_connection
         elastic_vdb.get_metadata_schema = Mock(
             return_value=[{"name": "title"}, {"name": "author"}]
-        )
-        elastic_vdb.get_document_info = Mock(
-            side_effect=[
-                {"total_pages": 5, "total_chunks": 50},
-                {"total_pages": 10, "total_chunks": 100},
-            ]
         )
 
         result = elastic_vdb.get_documents("test_collection")
@@ -594,8 +616,12 @@ class TestElasticVDB(unittest.TestCase):
         ]
 
         self.assertEqual(result, expected_result)
-        mock_es_connection.search.assert_called_once_with(
-            index="test_collection", body={"query": "test_query"}
+        self.assertEqual(mock_es_connection.search.call_count, 2)
+        mock_es_connection.search.assert_has_calls(
+            [
+                call(index="test_collection", body={"query": "test_query"}),
+                call(index="document_info", body=ANY),
+            ]
         )
 
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.Elasticsearch")
