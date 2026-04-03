@@ -96,7 +96,8 @@ class TestVLM:
 
     def test_extract_and_process_messages_attaches_doc_images(self):
         mock_minio = MagicMock()
-        mock_minio.get_payload.return_value = {"content": self.create_test_image_b64()}
+        b64_img = self.create_test_image_b64()
+        mock_minio.get_object.return_value = base64.b64decode(b64_img)
         doc = SimpleNamespace(
             metadata={
                 "content_metadata": {
@@ -105,17 +106,14 @@ class TestVLM:
                     "location": [0, 0, 1, 1],
                 },
                 "collection_name": "demo",
-                "source": {"source_id": "sample.pdf"},
+                "source": {
+                    "source_id": "sample.pdf",
+                    "source_location": "s3://default-bucket/demo/artifacts/page.png",
+                },
             },
             page_content="ignored",
         )
-        with (
-            patch("nvidia_rag.rag_server.vlm.get_minio_operator", return_value=mock_minio),
-            patch(
-                "nvidia_rag.rag_server.vlm.get_unique_thumbnail_id",
-                return_value="thumb-id",
-            ),
-        ):
+        with patch("nvidia_rag.rag_server.vlm.get_minio_operator", return_value=mock_minio):
             system_msg, user_msg, history = self.vlm.extract_and_process_messages(
                 self.vlm.vlm_template,
                 [doc],

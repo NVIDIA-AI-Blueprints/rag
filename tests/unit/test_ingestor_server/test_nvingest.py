@@ -184,6 +184,7 @@ class TestGetNvIngestIngestor:
         mock_ingestor_instance.extract.return_value = mock_ingestor_instance
         mock_ingestor_instance.split.return_value = mock_ingestor_instance
         mock_ingestor_instance.embed.return_value = mock_ingestor_instance
+        mock_ingestor_instance.store.return_value = mock_ingestor_instance
         mock_ingestor_instance.vdb_upload.return_value = mock_ingestor_instance
 
         result = get_nv_ingest_ingestor(
@@ -196,6 +197,7 @@ class TestGetNvIngestIngestor:
         assert result == mock_ingestor_instance
         mock_ingestor_class.assert_called_once_with(client=self.mock_client)
         mock_ingestor_instance.files.assert_called_once_with(self.filepaths)
+        mock_ingestor_instance.store.assert_called_once()
 
     @patch("nvidia_rag.ingestor_server.nvingest.sanitize_nim_url")
     @patch("nvidia_rag.ingestor_server.nvingest.Ingestor")
@@ -212,6 +214,7 @@ class TestGetNvIngestIngestor:
         mock_ingestor_instance.extract.return_value = mock_ingestor_instance
         mock_ingestor_instance.split.return_value = mock_ingestor_instance
         mock_ingestor_instance.embed.return_value = mock_ingestor_instance
+        mock_ingestor_instance.store.return_value = mock_ingestor_instance
         mock_ingestor_instance.vdb_upload.return_value = mock_ingestor_instance
 
         custom_split_options = {"chunk_size": 1000, "chunk_overlap": 200}
@@ -250,6 +253,7 @@ class TestGetNvIngestIngestor:
         mock_ingestor_instance.split.return_value = mock_ingestor_instance
         mock_ingestor_instance.caption.return_value = mock_ingestor_instance
         mock_ingestor_instance.embed.return_value = mock_ingestor_instance
+        mock_ingestor_instance.store.return_value = mock_ingestor_instance
         mock_ingestor_instance.vdb_upload.return_value = mock_ingestor_instance
 
         result = get_nv_ingest_ingestor(
@@ -279,6 +283,7 @@ class TestGetNvIngestIngestor:
         mock_ingestor_instance.extract.return_value = mock_ingestor_instance
         mock_ingestor_instance.split.return_value = mock_ingestor_instance
         mock_ingestor_instance.embed.return_value = mock_ingestor_instance
+        mock_ingestor_instance.store.return_value = mock_ingestor_instance
         mock_ingestor_instance.vdb_upload.return_value = mock_ingestor_instance
 
         result = get_nv_ingest_ingestor(
@@ -313,6 +318,7 @@ class TestGetNvIngestIngestor:
         mock_ingestor_instance.extract.return_value = mock_ingestor_instance
         mock_ingestor_instance.split.return_value = mock_ingestor_instance
         mock_ingestor_instance.embed.return_value = mock_ingestor_instance
+        mock_ingestor_instance.store.return_value = mock_ingestor_instance
         mock_ingestor_instance.vdb_upload.return_value = mock_ingestor_instance
 
         result = get_nv_ingest_ingestor(
@@ -353,6 +359,7 @@ class TestGetNvIngestIngestor:
             mock_ingestor_instance.split.return_value = mock_ingestor_instance
             mock_ingestor_instance.embed.return_value = mock_ingestor_instance
             mock_ingestor_instance.save_to_disk.return_value = mock_ingestor_instance
+            mock_ingestor_instance.store.return_value = mock_ingestor_instance
             mock_ingestor_instance.vdb_upload.return_value = mock_ingestor_instance
 
             result = get_nv_ingest_ingestor(
@@ -450,6 +457,7 @@ class TestGetNvIngestIngestor:
         # Test 2: Verify VDB-related methods were NOT called when vdb_op=None
         mock_ingestor_instance.embed.assert_not_called()
         mock_ingestor_instance.vdb_upload.assert_not_called()
+        mock_ingestor_instance.store.assert_not_called()
 
         # Test 3: extract_override with different custom parameters
         mock_ingestor_instance.extract.reset_mock()
@@ -482,6 +490,7 @@ class TestGetNvIngestIngestor:
         assert call_kwargs["table_output_format"] == "markdown"
         assert call_kwargs["extract_audio_params"] == {"segment_audio": True}
         assert call_kwargs["extract_page_as_image"] is True
+        mock_ingestor_instance.store.assert_not_called()
 
     @patch("nvidia_rag.ingestor_server.nvingest.sanitize_nim_url")
     @patch("nvidia_rag.ingestor_server.nvingest.Ingestor")
@@ -514,6 +523,7 @@ class TestGetNvIngestIngestor:
         mock_ingestor_instance.split.assert_not_called()
         # Verify extract was still called
         mock_ingestor_instance.extract.assert_called_once()
+        mock_ingestor_instance.store.assert_not_called()
 
     @patch("nvidia_rag.ingestor_server.nvingest.sanitize_nim_url")
     @patch("nvidia_rag.ingestor_server.nvingest.Ingestor")
@@ -547,6 +557,7 @@ class TestGetNvIngestIngestor:
         call_kwargs = mock_ingestor_instance.split.call_args[1]
         assert call_kwargs["chunk_size"] == 1000  # from mock config
         assert call_kwargs["chunk_overlap"] == 200  # from mock config
+        mock_ingestor_instance.store.assert_not_called()
 
     def _create_mock_config(self):
         """Create a mock config object with default values"""
@@ -577,5 +588,14 @@ class TestGetNvIngestIngestor:
         mock_config.embeddings.server_url = "http://test-embedding-server"
         mock_config.embeddings.model_name = "test-embedding-model"
         mock_config.embeddings.dimensions = 768
+
+        mock_config.minio = Mock()
+        mock_config.minio.endpoint = "localhost:9000"
+        mock_ak = Mock()
+        mock_ak.get_secret_value.return_value = "test-access"
+        mock_sk = Mock()
+        mock_sk.get_secret_value.return_value = "test-secret"
+        mock_config.minio.access_key = mock_ak
+        mock_config.minio.secret_key = mock_sk
 
         return mock_config

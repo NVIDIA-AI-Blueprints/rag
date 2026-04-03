@@ -42,10 +42,8 @@ from nvidia_rag.rag_server.response_generator import APIError, ErrorCodeMapping
 from nvidia_rag.utils.common import NVIDIA_API_DEFAULT_HEADERS
 from nvidia_rag.utils.configuration import NvidiaRAGConfig
 from nvidia_rag.utils.llm import get_prompts
-from nvidia_rag.utils.minio_operator import (
-    get_minio_operator,
-    get_unique_thumbnail_id,
-)
+from nvidia_rag.utils.minio_operator import get_minio_operator
+from nvidia_rag.utils.common import object_key_from_storage_uri
 
 logger = getLogger(__name__)
 
@@ -374,16 +372,15 @@ class VLM:
             if not (collection_name and file_name and page_number is not None and location is not None):
                 continue
             try:
-                unique_thumbnail_id = get_unique_thumbnail_id(
-                    collection_name=collection_name,
-                    file_name=file_name,
-                    page_number=page_number,
-                    location=location,
-                )
-                payload = get_minio_operator().get_payload(
-                    object_name=unique_thumbnail_id
-                )
-                content_b64 = (payload or {}).get("content", "")
+                source_location = doc.metadata.get("source").get(
+                            "source_location"
+                        )
+                if source_location:
+                    object_name = object_key_from_storage_uri(source_location)
+                    raw_content = get_minio_operator().get_object(object_name)
+                    content_b64 = base64.b64encode(raw_content).decode("ascii")
+                else:
+                    content_b64 = ""
                 if not content_b64:
                     continue
                 png_b64 = VLM._convert_image_url_to_png_b64(content_b64)

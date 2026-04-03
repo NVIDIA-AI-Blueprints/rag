@@ -21,6 +21,7 @@
 6. prepare_custom_metadata_dataframe: Prepare custom metadata for a document and write it to a dataframe in csv format.
 7. validate_filter_expr: Validate the filter expression for metadata filtering against multiple collections.
 8. process_filter_expr: Process the filter expression by transforming it to the appropriate syntax for the configured vector store.
+9. object_key_from_storage_uri: Extract the object key from an s3:// URI or a bare storage path.
 """
 
 import ast
@@ -32,6 +33,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from functools import wraps
 from typing import Any
+from urllib.parse import urlparse
 from uuid import uuid4
 
 import pandas as pd
@@ -142,6 +144,32 @@ def combine_dicts(dict_a: dict[str, Any], dict_b: dict[str, Any]) -> dict[str, A
             combined_dict[key] = value_b
 
     return combined_dict
+
+
+def object_key_from_storage_uri(uri: str) -> str:
+    """
+    Extract the object key (path within the bucket) from a storage URI.
+
+    For s3:// URIs, the key is the URL path with the leading slash removed (bucket
+    is the host/authority per RFC 3986). Example:
+    s3://nv-ingest/artifacts/store/images/foo/bar.png ->
+    artifacts/store/images/foo/bar.png
+
+    If the URI is not s3, leading slashes are stripped and the remainder is
+    returned so bare object keys still work.
+    """
+    if not uri or not isinstance(uri, str):
+        msg = "storage URI must be a non-empty string"
+        raise ValueError(msg)
+    stripped = uri.strip()
+    parsed = urlparse(stripped)
+    if parsed.scheme == "s3" and parsed.netloc:
+        key = parsed.path.lstrip("/")
+        if not key:
+            msg = f"S3 URI must include an object key path: {stripped!r}"
+            raise ValueError(msg)
+        return key
+    return stripped.lstrip("/")
 
 
 def sanitize_nim_url(url: str, model_name: str, model_type: str) -> str:

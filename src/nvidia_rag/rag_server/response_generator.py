@@ -29,6 +29,7 @@ import json
 import logging
 import os
 import time
+import base64
 from collections.abc import AsyncGenerator, Generator
 from typing import Any, Literal, Optional, Union
 from uuid import uuid4
@@ -38,10 +39,10 @@ from langchain_core.documents import Document
 from pydantic import BaseModel, Field, validator
 from pymilvus.exceptions import MilvusException, MilvusUnavailableException
 
+from nvidia_rag.utils.common import object_key_from_storage_uri
 from nvidia_rag.utils.minio_operator import (
     get_minio_operator,
     get_unique_thumbnail_id,
-    get_unique_thumbnail_id_from_result,
 )
 from nvidia_rag.utils.observability.otel_metrics import OtelMetrics
 
@@ -845,17 +846,15 @@ def prepare_citations(
                         logger.debug(
                             "Pulling content from minio for image/table/chart for citations ..."
                         )
-                        unique_thumbnail_id = get_unique_thumbnail_id_from_result(
-                            collection_name=doc.metadata.get("collection_name"),
-                            file_name=file_name,
-                            page_number=page_number,
-                            location=location,
-                            metadata=doc.metadata,
+                        source_location = doc.metadata.get("source").get(
+                            "source_location"
                         )
-                        payload = get_minio_operator_instance().get_payload(
-                            object_name=unique_thumbnail_id
-                        )
-                        content = payload.get("content", "")
+                        if source_location:
+                            object_name = object_key_from_storage_uri(source_location)
+                            raw_content = get_minio_operator_instance().get_object(object_name)
+                            content = base64.b64encode(raw_content).decode("ascii")
+                        else:
+                            content = ""
                         source_metadata = SourceMetadata(
                             page_number=page_number,
                             location=location,
@@ -869,7 +868,7 @@ def prepare_citations(
                             content_metadata=doc.metadata.get("content_metadata"),
                         )
                 except Exception as e:
-                    logger.error(
+                    logger.exception(
                         f"Error pulling content from minio for image/table/chart for citations: {e}"
                     )
                     content = ""
@@ -878,6 +877,8 @@ def prepare_citations(
                         content_metadata=doc.metadata.get("content_metadata", {}),
                     )
 
+            # If content is empty for image/text/table/chart/audio, skip adding to citations
+            # No content: asset is not available in MinIO, may cause an error in the UI client
             if content and document_type in [
                 "image",
                 "text",
