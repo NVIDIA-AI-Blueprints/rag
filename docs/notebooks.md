@@ -122,7 +122,7 @@ Use the following notebooks to learn how to how to extend the system with custom
 
 Use the following notebook for cloud deployment scenarios.
 
-- [launchable.ipynb](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/launchable.ipynb) – A deployment-ready notebook intended to run in a [Brev environment](https://console.brev.dev/environment/new). To learn more about Brev, refer to [Brev](https://docs.nvidia.com/brev/latest/about-brev.html). Follow the instructions for running Jupyter notebooks in a cloud-based environment based on the hardware requirements specified in the launchable.
+- [launchable.ipynb](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/launchable.ipynb) – A deployment-ready notebook intended to run in a [Brev environment](https://console.brev.dev/environment/new). To learn more about Brev, refer to [Brev](https://developer.nvidia.com/brev). Follow the instructions for running Jupyter notebooks in a cloud-based environment based on the hardware requirements specified in the launchable.
 
 
 ## Related Topics
