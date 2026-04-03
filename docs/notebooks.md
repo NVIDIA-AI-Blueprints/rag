@@ -49,8 +49,6 @@ After the RAG Blueprint is [deployed](../docs/readme.md#deployment-options-for-r
 
 6. Run the [ingestion_api_usage](https://github.com/NVIDIA-AI-Blueprints/rag/tree/main/notebooks/ingestion_api_usage.ipynb) notebook. Follow the cells in the notebook to ingest the PDF files from the data/dataset folder into the vector store.
 
-
-
 ## Intermediate Notebooks
 
 Use the following notebooks to learn comprehensive Python client usage, metadata, and other features.
@@ -63,22 +61,17 @@ Use the following notebooks to learn comprehensive Python client usage, metadata
 
 - [rag_library_usage.ipynb](https://github.com/NVIDIA-AI-Blueprints/rag/tree/main/notebooks/rag_library_usage.ipynb) – Demonstrates native usage of the NVIDIA RAG Python client, including environment setup, document ingestion, collection management, and querying. This notebook provides end-to-end API usage examples for interacting directly with the RAG system from Python, covering both ingestion and retrieval workflows.
 
-
-
 ## Advanced Notebooks
 
 Use the following notebooks to learn how to how to extend the system with custom vector database implementations.
 
 - [building_rag_vdb_operator.ipynb](https://github.com/NVIDIA-AI-Blueprints/rag/tree/main/notebooks/building_rag_vdb_operator.ipynb) – Demonstrates how to create and integrate custom vector database (VDB) operators with the NVIDIA RAG blueprint. This notebook builds a complete OpenSearch VDB operator from scratch by using the VDBRag base class architecture. This notebook is for developers who want to extend NVIDIA RAG with their own vector database implementations.
 
-
-
 ## Deployment Notebooks
 
 Use the following notebook for cloud deployment scenarios.
 
-- [launchable.ipynb](https://github.com/NVIDIA-AI-Blueprints/rag/tree/main/notebooks/launchable.ipynb) – A deployment-ready notebook intended to run in a [Brev environment](https://developer.nvidia.com/brev). To learn more about Brev, refer to [Brev](https://docs.nvidia.com/brev/latest/about-brev.html). Follow the instructions for running Jupyter notebooks in a cloud-based environment based on the hardware requirements specified in the launchable.
-
+- [launchable.ipynb](https://github.com/NVIDIA-AI-Blueprints/rag/tree/main/notebooks/launchable.ipynb) – A deployment-ready notebook intended to run in a [Brev environment](https://console.brev.dev/environment/new). To learn more about Brev, refer to [Brev](https://developer.nvidia.com/brev). Follow the instructions for running Jupyter notebooks in a cloud-based environment based on the hardware requirements specified in the launchable.  
 
 
 ## Set Up the Notebook Environment
