@@ -165,4 +165,4 @@ This approach ensures that even very large documents can be summarized effective
 
 ## 5. API Reference
 
-For more details, refer to the [OpenAPI schema](api_reference/openapi_schema_rag_server.json) and [Python usage examples](../notebooks/rag_library_usage.ipynb).
+For more details, refer to the [OpenAPI documentation for the RAG server](api-rag.md) and [Python usage examples](../notebooks/rag_library_usage.ipynb).
