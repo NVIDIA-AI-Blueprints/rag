@@ -78,7 +78,7 @@ export PROMPT_CONFIG_FILE=$(pwd)/deploy/compose/nemotron3-super-prompt.yaml
 
    Check the [model page](https://build.nvidia.com/nvidia/nemotron-3-super-120b-a12b/modelcard) for more details.
 
-   > Note: For RTX 6000 Pro GPUs, additional NIM environment variables are required — see [RTX 6000 Pro](#rtx-6000-pro) below.
+   > Note: For RTX 6000 Pro GPUs, additional NIM environment variables are required — see [RTX 6000 Pro](rtx-6000-pro) below.
 
 2. Set nemotron-3-super specific environment variables.
 
@@ -93,7 +93,8 @@ export PROMPT_CONFIG_FILE=$(pwd)/deploy/compose/nemotron3-super-prompt.yaml
 
    Follow [Start services using self-hosted on-premises models](deploy-docker-self-hosted.md#start-services-using-self-hosted-on-premises-models) to start the vectorstore, rag-server, NIMs, and ingestor-server.
 
-**RTX 6000 Pro**
+(rtx-6000-pro)=
+### RTX 6000 Pro
 
 > Note: To deploy TP2 profiles on RTX PRO 6000 Blackwell Server Edition, run the following commands. You don't need to go through these steps if you are using TP4 or TP8 profile.
 
@@ -120,6 +121,7 @@ export PROMPT_CONFIG_FILE=$(pwd)/deploy/compose/nemotron3-super-prompt.yaml
 
 ---
 
+(helm-deployment-nemotron-3-super)=
 ## Helm deployment (`nemotron-3-super-120b-a12b`)
 
 From the repository root, run:
@@ -136,7 +138,7 @@ helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvidia/blueprint/c
 
 The prompt file `deploy/compose/nemotron3-super-prompt.yaml` is tuned for `nemotron-3-super-120b-a12b`. To customize it, see [Prompt customization in Helm chart](prompt-customization.md#prompt-customization-in-helm-chart).
 
-**RTX 6000 Pro**
+### RTX 6000 Pro (Helm)
 
 > Note: To deploy TP2 profiles on RTX PRO 6000 Blackwell Server Edition, run the following commands. You don't need to go through these steps if you are using TP4 or TP8 profile.
 
