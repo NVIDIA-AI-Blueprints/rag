@@ -15,6 +15,7 @@
 
 import { useMemo } from "react";
 import { marked } from "marked";
+import DOMPurify from "dompurify";
 
 /**
  * Configuration options for markdown rendering.
@@ -39,6 +40,7 @@ const DEFAULT_OPTIONS: MarkdownOptions = {
  * 
  * Provides a memoized markdown renderer with configurable options
  * including GitHub Flavored Markdown support and line breaks.
+ * The rendered HTML is sanitized with DOMPurify to prevent XSS attacks.
  * 
  * @param options - Markdown rendering configuration options
  * @returns Object with markdown rendering function
@@ -55,8 +57,10 @@ export const useMarkdownRenderer = (options: MarkdownOptions = {}) => {
     ...options,
   }), [options]);
 
-  const renderMarkdown = useMemo(() => (content: string) => 
-    marked.parse(content, mergedOptions), [mergedOptions]);
+  const renderMarkdown = useMemo(() => (content: string) => {
+    const rawHtml = marked.parse(content, mergedOptions) as string;
+    return DOMPurify.sanitize(rawHtml);
+  }, [mergedOptions]);
 
   return { renderMarkdown };
 }; 
