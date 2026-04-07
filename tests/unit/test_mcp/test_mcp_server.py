@@ -289,6 +289,8 @@ async def test_tool_update_documents_uses_patch_and_form(monkeypatch, tmp_path):
     p2 = tmp_path / "b.pdf"
     p2.write_bytes(b"%PDF-1.4 b")
 
+    monkeypatch.setenv("MCP_UPLOAD_DIR", str(tmp_path))
+
     captured: dict[str, Any] = {}
 
     class FakeResp:
@@ -617,6 +619,8 @@ async def test_tool_upload_documents(monkeypatch, tmp_path):
 
     p = tmp_path / "doc.pdf"
     p.write_bytes(b"%PDF-1.4...")
+
+    monkeypatch.setenv("MCP_UPLOAD_DIR", str(tmp_path))
 
     class FakeResp:
         def __init__(self):

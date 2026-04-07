@@ -33,6 +33,9 @@ Implementation notes:
 Environment variables:
   - VITE_API_CHAT_URL: Base URL for RAG HTTP API (default http://localhost:8081)
   - INGESTOR_URL: Base URL for Ingestor API (default http://127.0.0.1:8082)
+  - MCP_UPLOAD_DIR: Allowed base directory for file uploads (default: cwd).
+    File paths passed to upload/update tools are validated to be within this
+    directory, preventing path-traversal attacks.
 """
 
 import argparse
@@ -66,6 +69,36 @@ def _rag_base_url() -> str:
       - http://localhost:8081
     """
     return os.environ.get("VITE_API_CHAT_URL", "http://localhost:8081").rstrip("/")
+
+
+def _upload_base_dir() -> str:
+    """
+    Return the base directory that file upload paths must reside within.
+    Controlled by the ``MCP_UPLOAD_DIR`` environment variable; defaults to
+    the current working directory when unset.
+    """
+    return os.environ.get("MCP_UPLOAD_DIR", os.getcwd())
+
+
+def _validate_file_path(path: str) -> str:
+    """
+    Resolve *path* to an absolute, canonical path and verify it is located
+    within the allowed upload directory (``MCP_UPLOAD_DIR``).
+
+    Returns the resolved path on success; raises ``ValueError`` otherwise.
+
+    Security: uses ``os.path.realpath`` to follow symlinks so that
+    ``../../etc/passwd`` or symlink escapes are caught.
+    """
+    base = os.path.realpath(_upload_base_dir())
+    resolved = os.path.realpath(path)
+    # Ensure the resolved path starts with the base directory
+    if not resolved.startswith(base + os.sep) and resolved != base:
+        raise ValueError(
+            f"Path {path!r} (resolved to {resolved!r}) is not within the "
+            f"allowed upload directory {base!r}"
+        )
+    return resolved
 
 
 @server.tool(
@@ -503,6 +536,7 @@ async def tool_update_documents(
     form_data = aiohttp.FormData()
 
     for path in file_paths or []:
+        path = _validate_file_path(path)
         try:
             if os.path.exists(path):
                 with open(path, "rb") as f:
@@ -818,6 +852,7 @@ async def tool_upload_documents(
     form_data = aiohttp.FormData()
     # Add files
     for path in file_paths or []:
+        path = _validate_file_path(path)
         try:
             if os.path.exists(path):
                 with open(path, "rb") as f:
