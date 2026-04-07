@@ -68,7 +68,10 @@ html_theme_options = {
         }
     ],
     "switcher": {
-        "json_url": "../versions1.json",
+        # Resolve relative to the current version directory (see PyData version-switcher fetch logic).
+        # Using ../versions1.json points at the parent of /rag/<ver>/ and requires a separate file
+        # at /rag/versions1.json, which is easy to miss in deployment.
+        "json_url": "versions1.json",
         "version_match": release,
     },
     "extra_head": {
