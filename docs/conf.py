@@ -74,7 +74,9 @@ html_theme_options = {
             "icon": "fa-brands fa-github",
         }
     ],
-    "switcher": {"json_url": "../versions1.json", "version_match": release},
+    # Path is resolved from the Sphinx conf directory (docs/). ../versions1.json
+    # points at the repo root and breaks local builds; versions1.json lives in docs/.
+    "switcher": {"json_url": "versions1.json", "version_match": release},
     "extra_head": {
         """
     <script src="https://assets.adobedtm.com/5d4962a43b79/c1061d2c5e7b/launch-191c2462b890.min.js" ></script>

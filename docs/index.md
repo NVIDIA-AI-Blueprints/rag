@@ -49,6 +49,7 @@ For detailed requirements, refer to [Support Matrix](support-matrix.md).
 
 - [Deploy with Docker (Self-Hosted Models)](deploy-docker-self-hosted.md)
 - [Deploy with Docker (NVIDIA-Hosted Models)](deploy-docker-nvidia-hosted.md)
+- [Nemotron 3 Super (120B) deployment](nemotron3-super-deployment.md)
 - [Deploy on Kubernetes with Helm](deploy-helm.md)
 - [Deploy on Kubernetes with Helm from the repository](deploy-helm-from-repo.md)
 - [Deploy on Kubernetes with Helm and MIG Support](mig-deployment.md)
@@ -167,7 +168,6 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
    :hidden:
 
    Get an API Key <api-key.md>
-   Get Started with the RAG Blueprint <deploy-docker-self-hosted.md>
    Web User Interface <user-interface.md>
    Use the RAG Python Package <python-client.md>
    Notebooks <notebooks.md>
@@ -182,6 +182,7 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
 
    Deploy with Docker (Self-Hosted Models) <deploy-docker-self-hosted.md>
    Deploy with Docker (NVIDIA-Hosted Models) <deploy-docker-nvidia-hosted.md>
+   Nemotron 3 Super deployment <nemotron3-super-deployment.md>
    Deploy on Kubernetes with Helm <deploy-helm.md>
    Deploy on Kubernetes with Helm from the repository <deploy-helm-from-repo.md>
    Deploy on Kubernetes with Helm and MIG Support <mig-deployment.md>
