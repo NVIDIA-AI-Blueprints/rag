@@ -1,6 +1,12 @@
 # -- Global chart configuration
 nameOverride: ""
 fullnameOverride: "rag-server"
+
+# -- OpenShift / OKD support
+# When enabled, the chart creates Routes (instead of relying on manual oc commands)
+# and a RoleBinding granting the anyuid SCC to service accounts that need it.
+openshift:
+  enabled: false
 # subsection: rag-server
 # RAG Orchestrator Service
 # -- Kubernetes scheduling
