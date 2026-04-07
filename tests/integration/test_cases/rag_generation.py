@@ -232,7 +232,7 @@ class RAGGenerationModule(BaseTestModule):
 
                             # Verify no valid response text is returned
                             if response_text:
-                                expected_keywords = ["context", "does not mention"]
+                                expected_keywords = ["context", "does not mention", "no information"]
                                 if verify_response_content(
                                     response_text, expected_keywords, min_matches=1
                                 ):

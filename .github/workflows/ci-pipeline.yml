@@ -329,6 +329,116 @@ jobs:
           cp tests/integration/integration_test.log logs/basic-tests/ 2>/dev/null || true
 
       # ========================================================================
+      # ELASTICSEARCH VECTOR DATABASE TESTS
+      # See docs/change-vectordb.md (Docker Compose: profile elasticsearch,
+      # APP_VECTORSTORE_URL / APP_VECTORSTORE_NAME, relaunch RAG + ingestor).
+      # ========================================================================
+
+      - name: Configure environment for Elasticsearch tests
+        run: |
+          echo "APP_VECTORSTORE_URL=http://elasticsearch:9200" >> $GITHUB_ENV
+          echo "APP_VECTORSTORE_NAME=elasticsearch" >> $GITHUB_ENV
+          echo "APP_VECTORSTORE_USERNAME=" >> $GITHUB_ENV
+          echo "APP_VECTORSTORE_PASSWORD=" >> $GITHUB_ENV
+
+      - name: Restart vector database for Elasticsearch
+        run: |
+          echo "Switching vector database from Milvus to Elasticsearch..."
+          docker compose -f tests/integration/vectordb.yaml down -v || true
+          docker compose -f tests/integration/vectordb.yaml --profile elasticsearch down -v || true
+          docker compose -f tests/integration/vectordb.yaml --profile elasticsearch up -d
+          echo "Waiting for Elasticsearch to become reachable..."
+          ES_UP=0
+          for i in $(seq 1 60); do
+            if curl -sf "http://localhost:9200/_cluster/health" >/dev/null; then
+              echo "Elasticsearch is up (attempt $i)"
+              ES_UP=1
+              break
+            fi
+            echo "Waiting for Elasticsearch... ($i/60)"
+            if [ "$((i % 5))" -eq 0 ] || [ "$i" -eq 1 ]; then
+              echo "=== Elasticsearch debug snapshot (attempt $i) ==="
+              docker ps -a --filter name=elasticsearch --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" || true
+              docker inspect elasticsearch --format 'Status={{.State.Status}} ExitCode={{.State.ExitCode}} OOMKilled={{.State.OOMKilled}} Error={{.State.Error}}' 2>/dev/null || echo "inspect: container not found"
+              echo "--- docker logs elasticsearch (last 100 lines) ---"
+              docker logs --tail 100 elasticsearch 2>&1 || echo "Could not read elasticsearch logs"
+              echo "--- /usr/share/elasticsearch/logs/docker-cluster.log (last 80 lines) ---"
+              docker exec elasticsearch tail -n 80 /usr/share/elasticsearch/logs/docker-cluster.log 2>&1 || echo "(no docker-cluster.log yet or exec failed)"
+              echo "=== end snapshot ==="
+            fi
+            sleep 5
+          done
+          if [ "$ES_UP" -ne 1 ]; then
+            echo "::error::Elasticsearch did not become reachable within the timeout"
+            docker ps -a
+            echo "--- docker logs elasticsearch (last 250 lines) ---"
+            docker logs --tail 250 elasticsearch 2>&1 || true
+            echo "--- /usr/share/elasticsearch/logs/docker-cluster.log (last 200 lines) ---"
+            docker exec elasticsearch tail -n 200 /usr/share/elasticsearch/logs/docker-cluster.log 2>&1 || true
+            exit 1
+          fi
+          curl -sS "http://localhost:9200/_cluster/health?pretty" || true
+          docker ps
+
+      - name: Restart services for Elasticsearch tests
+        env:
+          CI_NVSTAGING_BLUEPRINT_KEY: ${{ secrets.CI_NVSTAGING_BLUEPRINT_KEY }}
+        run: |
+          echo "Relaunching RAG and ingestor with Elasticsearch..."
+          export APP_VECTORSTORE_URL=http://elasticsearch:9200
+          export APP_VECTORSTORE_NAME=elasticsearch
+          docker compose -f deploy/compose/docker-compose-rag-server.yaml down || true
+          docker compose -f deploy/compose/docker-compose-ingestor-server.yaml down || true
+          sleep 5
+          docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d --build
+          docker compose -f deploy/compose/docker-compose-ingestor-server.yaml up -d --build
+          sleep 30
+          docker ps
+
+      - name: Run Elasticsearch integration tests
+        id: elastic-search-tests
+        continue-on-error: true
+        run: |
+          source venv/bin/activate
+          echo "Running Elasticsearch integration tests (sequence elastic_search)..."
+          python -m tests.integration.main --sequence elastic_search
+          echo "Elasticsearch integration tests completed"
+
+      - name: Collect logs after Elasticsearch tests
+        if: always()
+        run: |
+          mkdir -p logs/elasticsearch
+          docker logs elasticsearch > logs/elasticsearch/elasticsearch.log 2>&1 || true
+          docker cp elasticsearch:/usr/share/elasticsearch/logs/docker-cluster.log logs/elasticsearch/docker-cluster.log 2>&1 || true
+          docker logs rag-server > logs/elasticsearch/rag-server.log 2>&1 || true
+          docker logs ingestor-server > logs/elasticsearch/ingestor-server.log 2>&1 || true
+          docker logs compose-nv-ingest-ms-runtime-1 > logs/elasticsearch/nvingest.log 2>&1 || true
+          cp tests/integration/integration_test.log logs/elasticsearch/ 2>/dev/null || true
+
+      - name: Restore Milvus stack after Elasticsearch tests
+        env:
+          CI_NVSTAGING_BLUEPRINT_KEY: ${{ secrets.CI_NVSTAGING_BLUEPRINT_KEY }}
+        run: |
+          echo "Restoring Milvus for remaining integration tests..."
+          docker compose -f tests/integration/vectordb.yaml --profile elasticsearch down -v || true
+          docker compose -f tests/integration/vectordb.yaml up -d
+          echo "Waiting for Milvus to be ready..."
+          sleep 60
+          docker ps
+          echo "APP_VECTORSTORE_URL=http://milvus:19530" >> $GITHUB_ENV
+          echo "APP_VECTORSTORE_NAME=milvus" >> $GITHUB_ENV
+          export APP_VECTORSTORE_URL=http://milvus:19530
+          export APP_VECTORSTORE_NAME=milvus
+          echo "Relaunching RAG and ingestor with Milvus..."
+          docker compose -f deploy/compose/docker-compose-rag-server.yaml down || true
+          docker compose -f deploy/compose/docker-compose-ingestor-server.yaml down || true
+          sleep 5
+          docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d --build
+          docker compose -f deploy/compose/docker-compose-ingestor-server.yaml up -d --build
+          sleep 30
+          docker ps
+
+      # ========================================================================
       # QUERY REWRITER TESTS
       # ========================================================================
       
@@ -906,10 +1016,11 @@ jobs:
       # All test steps use continue-on-error so every suite runs; this step
       # marks the job as failed if any of them failed.
       - name: Fail job if any integration test failed
-        if: always() && (steps.basic-tests.outcome == 'failure' || steps.query-rewriter-tests.outcome == 'failure' || steps.reflection-tests.outcome == 'failure' || steps.guardrails-tests.outcome == 'failure' || steps.image-captioning-tests.outcome == 'failure' || steps.vlm-generation-tests.outcome == 'failure' || steps.multimodal-query-tests.outcome == 'failure' || steps.custom-prompt-tests.outcome == 'failure' || steps.library-usage-tests.outcome == 'failure' || steps.library-summarization-tests.outcome == 'failure' || steps.observability-tests.outcome == 'failure' || steps.milvus-vdb-auth-tests.outcome == 'failure')
+        if: always() && (steps.basic-tests.outcome == 'failure' || steps.elastic-search-tests.outcome == 'failure' || steps.query-rewriter-tests.outcome == 'failure' || steps.reflection-tests.outcome == 'failure' || steps.guardrails-tests.outcome == 'failure' || steps.image-captioning-tests.outcome == 'failure' || steps.vlm-generation-tests.outcome == 'failure' || steps.multimodal-query-tests.outcome == 'failure' || steps.custom-prompt-tests.outcome == 'failure' || steps.library-usage-tests.outcome == 'failure' || steps.library-summarization-tests.outcome == 'failure' || steps.observability-tests.outcome == 'failure' || steps.milvus-vdb-auth-tests.outcome == 'failure')
         run: |
           echo "=== Failed integration test suites ==="
           [ "${{ steps.basic-tests.outcome }}" = "failure" ] && echo "  - basic-tests"
+          [ "${{ steps.elastic-search-tests.outcome }}" = "failure" ] && echo "  - elastic-search-tests"
           [ "${{ steps.query-rewriter-tests.outcome }}" = "failure" ] && echo "  - query-rewriter-tests"
           [ "${{ steps.reflection-tests.outcome }}" = "failure" ] && echo "  - reflection-tests"
           [ "${{ steps.guardrails-tests.outcome }}" = "failure" ] && echo "  - guardrails-tests"
