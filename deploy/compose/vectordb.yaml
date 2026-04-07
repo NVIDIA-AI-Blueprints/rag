@@ -83,12 +83,16 @@ services:
   elasticsearch:
     container_name: elasticsearch
     image: "docker.elastic.co/elasticsearch/elasticsearch:9.0.3"
+    # privileged: true
+    # user: "0"
     ports:
       - 9200:9200
-    volumes:
-      # Run "sudo chown -R 1000:1000 deploy/compose/volumes/elasticsearch/" to fix permissions
-      - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/elasticsearch:/usr/share/elasticsearch/data
-    restart: on-failure
+    tmpfs:
+      - /usr/share/elasticsearch/data
+    # volumes:
+    #   # Run "sudo chown -R 1000:1000 deploy/compose/volumes/elasticsearch/" to fix permissions
+    #   - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/elasticsearch:/usr/share/elasticsearch/data
+    restart: "no"
     environment:
       - discovery.type=single-node
       - "ES_JAVA_OPTS=-Xms1024m -Xmx1024m"
