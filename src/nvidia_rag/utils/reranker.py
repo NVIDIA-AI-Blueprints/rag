@@ -99,7 +99,7 @@ class NVIDIAVLMRerank(BaseDocumentCompressor):
         default_factory=dict,
         description="Default headers merged into all requests.",
     )
-    timeout: int = Field(default=120, gt=0, description="Request timeout in seconds.")
+    timeout: int = Field(default=600, gt=0, description="Request timeout in seconds.")
 
     _session: requests.Session = PrivateAttr()
     _invoke_url: str = PrivateAttr()
@@ -113,7 +113,7 @@ class NVIDIAVLMRerank(BaseDocumentCompressor):
         top_n: int = 5,
         default_headers: dict | None = None,
         config: NvidiaRAGConfig | None = None,
-        timeout: int = 120,
+        timeout: int = 600,
     ) -> None:
         super().__init__(
             model=model,

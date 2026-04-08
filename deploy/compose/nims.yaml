@@ -33,7 +33,7 @@ services:
       interval: 10s
       timeout: 20s
       retries: 100
-    profiles: ["", "rag"]
+    profiles: ["", "rag", "text-rag", "vlm-rag"]
 
   nemotron-embedding-ms:
     container_name: nemotron-embedding-ms
@@ -134,7 +134,6 @@ services:
     - "8000"
     environment:
       NGC_API_KEY: ${NGC_API_KEY}
-      NIM_TRT_ENGINE_HOST_CODE_ALLOWED: 1
     user: "${USERID}"
     shm_size: 16GB
     deploy:
@@ -143,7 +142,7 @@ services:
           devices:
             - driver: nvidia
               # count: ${INFERENCE_GPU_COUNT:-all}
-              device_ids: ['${RANKING_VL_MS_GPU_ID:-0}']
+              device_ids: ['2']
               capabilities: [gpu]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/v1/health/ready"]
@@ -151,7 +150,7 @@ services:
       timeout: 20s
       retries: 3
       start_period: 10m
-    profiles: ["vlm-embed", "vlm-ingest", "vlm-rag"]
+    profiles: ["vlm-embed", "vlm-rag"]
 
   page-elements:
     image: ${YOLOX_IMAGE:-nvcr.io/nim/nvidia/nemotron-page-elements-v3}:${YOLOX_TAG:-1.8.0}
