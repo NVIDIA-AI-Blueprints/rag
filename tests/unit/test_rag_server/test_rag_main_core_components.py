@@ -351,6 +351,40 @@ class TestNvidiaRAGExtractTextFromContent:
         assert result == "123"
 
 
+class TestNvidiaRAGRerankerHelpers:
+    """Test the helper methods that gate VLM reranker usage."""
+
+    def test_can_apply_reranker_to_text_query(self):
+        """Text queries should continue to use any available reranker."""
+        rag = NvidiaRAG()
+
+        assert rag._can_apply_reranker_to_query(Mock(), "hello", False) is True
+
+    def test_can_apply_reranker_to_image_only_query_requires_text(self):
+        """Image-only queries should skip VLM reranking when no text is present."""
+        rag = NvidiaRAG()
+        ranker = Mock()
+        ranker.supports_image_passages = True
+
+        query = [{"type": "image_url", "image_url": {"url": "data:image/png;base64,abc"}}]
+
+        assert rag._can_apply_reranker_to_query(ranker, query, True) is False
+
+    def test_build_reranker_query_uses_text_only_for_vlm_reranker(self):
+        """The VLM reranker should receive the extracted text portion of multimodal queries."""
+        rag = NvidiaRAG()
+        ranker = Mock()
+        ranker.supports_image_passages = True
+        query = [
+            {"type": "text", "text": "branch profits tax"},
+            {"type": "image_url", "image_url": {"url": "data:image/png;base64,abc"}},
+        ]
+
+        result = rag._build_reranker_query(ranker, query, "fallback text", True)
+
+        assert result == "branch profits tax"
+
+
 class TestNvidiaRAGContainsImages:
     """Test cases for NvidiaRAG _contains_images method."""
 

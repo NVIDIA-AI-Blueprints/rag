@@ -1217,7 +1217,9 @@ class NvidiaRAG:
                     )
                 return prepare_citations(retrieved_documents=docs, force_citations=True, enable_citations=enable_citations)
             else:
-                if local_ranker and enable_reranker and not is_image_query:
+                if local_ranker and enable_reranker and self._can_apply_reranker_to_query(
+                    local_ranker, query, is_image_query
+                ):
                     logger.info(
                         "Narrowing the collection from %s results and further narrowing it to %s with the reranker for search",
                         top_k,
@@ -1226,6 +1228,9 @@ class NvidiaRAG:
                     logger.info("Setting ranker top n as: %s.", reranker_top_k)
                     # Update number of document to be retriever by ranker
                     local_ranker.top_n = reranker_top_k
+                    reranker_query = self._build_reranker_query(
+                        local_ranker, query, processed_query, is_image_query
+                    )
 
                     context_reranker = RunnableAssign(
                         {
@@ -1266,7 +1271,7 @@ class NvidiaRAG:
                     context_reranker_start_time = time.time()
                     try:
                         docs = await context_reranker.ainvoke(
-                            {"context": docs, "question": processed_query},
+                            {"context": docs, "question": reranker_query},
                             config={"run_name": "context_reranker"},
                         )
                     except (
@@ -1936,6 +1941,40 @@ class NvidiaRAG:
                 if isinstance(item, dict) and item.get("type") == "image_url":
                     return True
         return False
+
+    @staticmethod
+    def _ranker_supports_image_passages(ranker: Any) -> bool:
+        """Return True when the ranker can attach image-bearing passages."""
+        return bool(getattr(ranker, "supports_image_passages", False))
+
+    def _can_apply_reranker_to_query(
+        self, ranker: Any, query: Any, is_image_query: bool
+    ) -> bool:
+        """Keep text reranking behavior unchanged while allowing VLM reranking."""
+        if not ranker:
+            return False
+        if not is_image_query:
+            return True
+        if not self._ranker_supports_image_passages(ranker):
+            return False
+
+        query_text = self._extract_text_from_content(query).strip()
+        if query_text:
+            return True
+
+        logger.info(
+            "Skipping VLM reranker for image-only query because the ranking API "
+            "expects query.text."
+        )
+        return False
+
+    def _build_reranker_query(
+        self, ranker: Any, query: Any, processed_query: str, is_image_query: bool
+    ) -> str:
+        """Use clean text for multimodal reranker queries."""
+        if is_image_query and self._ranker_supports_image_passages(ranker):
+            return self._extract_text_from_content(query)
+        return processed_query
 
     def _build_retriever_query_from_content(self, content: Any) -> tuple[str, bool]:
         """Build retriever query from either string or multimodal content.
@@ -2623,8 +2662,10 @@ class NvidiaRAG:
                 logger.info("-" * 80)
             else:
                 otel_ctx = otel_context.get_current()
-                # Current reranker is not supported for image query
-                if ranker and enable_reranker and not is_image_query:
+                # Text rerankers remain text-only; VLM rerankers can accept image-bearing passages.
+                if ranker and enable_reranker and self._can_apply_reranker_to_query(
+                    ranker, query, is_image_query
+                ):
                     logger.info("=" * 80)
                     logger.info("STAGE: VDB Retrieval + Reranking")
                     logger.info("=" * 80)
@@ -2648,6 +2689,10 @@ class NvidiaRAG:
                                 for k, v in collection_filter_mapping.items()})
                     logger.info("Starting parallel retrieval from collections...")
                     logger.info("-" * 80)
+
+                    reranker_query = self._build_reranker_query(
+                        ranker, query, processed_query, is_image_query
+                    )
 
                     context_reranker = RunnableAssign(
                         {
@@ -2693,10 +2738,13 @@ class NvidiaRAG:
                     logger.info("-" * 80)
 
                     context_reranker_start_time = time.time()
-                    logger.info("Starting reranking with query: '%s'", processed_query[:200] if processed_query else "")
+                    logger.info(
+                        "Starting reranking with query: '%s'",
+                        reranker_query[:200] if reranker_query else "",
+                    )
                     try:
                         docs = await context_reranker.ainvoke(
-                            {"context": docs, "question": processed_query},
+                            {"context": docs, "question": reranker_query},
                             config={"run_name": "context_reranker"},
                         )
                     except (

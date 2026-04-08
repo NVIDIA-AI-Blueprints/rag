@@ -27,7 +27,6 @@ Class:
 """
 
 import base64
-import io
 import os
 import re
 from collections.abc import AsyncGenerator
@@ -36,11 +35,11 @@ from typing import Any
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
-from PIL import Image as PILImage
 
 from nvidia_rag.rag_server.response_generator import APIError, ErrorCodeMapping
 from nvidia_rag.utils.common import NVIDIA_API_DEFAULT_HEADERS
 from nvidia_rag.utils.configuration import NvidiaRAGConfig
+from nvidia_rag.utils.image_utils import convert_image_url_to_png_b64
 from nvidia_rag.utils.llm import get_prompts
 from nvidia_rag.utils.minio_operator import get_minio_operator
 from nvidia_rag.utils.common import object_key_from_storage_uri
@@ -514,51 +513,8 @@ class VLM:
 
     @staticmethod
     def _convert_image_url_to_png_b64(image_url: str) -> str:
-        """
-        Convert an image URL (data URL or base64 string) to PNG format base64.
-
-        Parameters
-        ----------
-        image_url : str
-            Image URL in data URL format or base64 string
-
-        Returns
-        -------
-        str
-            Base64-encoded PNG image string
-        """
-        try:
-            # Handle data URL format (e.g., "data:image/jpeg;base64,/9j/4AAQ...")
-            if image_url.startswith("data:image/"):
-                # Extract base64 data from data URL
-                match = re.match(r"data:image/[^;]+;base64,(.+)", image_url)
-                if match:
-                    b64_data = match.group(1)
-                else:
-                    logger.warning(f"Invalid data URL format: {image_url[:100]}...")
-                    return image_url
-            else:
-                # Assume it's already a base64 string
-                b64_data = image_url
-
-            # Decode base64 to bytes
-            image_bytes = base64.b64decode(b64_data)
-
-            # Open image with PIL and convert to RGB (in case it's RGBA or other format)
-            img = PILImage.open(io.BytesIO(image_bytes)).convert("RGB")
-
-            # Convert to PNG format
-            with io.BytesIO() as buffer:
-                img.save(buffer, format="PNG")
-                png_b64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
-
-            logger.debug("Successfully converted image to PNG format")
-            return png_b64
-
-        except Exception as e:
-            logger.warning(f"Failed to convert image URL to PNG: {e}")
-            # Return original if conversion fails
-            return image_url
+        """Backward-compatible wrapper around the shared PNG conversion helper."""
+        return convert_image_url_to_png_b64(image_url)
 
     def _redact_messages_for_logging(
         self, messages: list[HumanMessage | AIMessage | SystemMessage]
