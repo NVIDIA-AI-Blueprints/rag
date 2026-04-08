@@ -290,6 +290,9 @@ filter_expression_generator_prompt:
     3.  **On Logical Conflict:** The exact text UNSUPPORTED.
         * **Use this ONLY for impossible logic**, like "year is 2022 and year is 2023".
 
+  human: |
+    Generate the filter expression.{existing_filter_context}
+
 query_decomposition_multiquery_prompt:
   system: |
     You are an AI assistant designed to break down a user's complex question into a list of simpler, focused subqueries.
