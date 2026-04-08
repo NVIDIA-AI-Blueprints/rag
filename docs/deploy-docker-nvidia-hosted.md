@@ -236,7 +236,7 @@ After the first time you deploy the RAG Blueprint successfully, you can consider
    source deploy/compose/perf_profile.env
    ```
 
-- If you don't have a GPU available, you can switch to CPU-only Milvus by following the instructions in [milvus-configuration.md](./milvus-configuration.md).
+- If you prefer **Milvus** over the default **Elasticsearch** vector database, or need CPU-only Milvus tuning, see [Milvus configuration](milvus-configuration.md) and [Vector database configuration](change-vectordb.md) (section **Switching to Milvus**).
 
 - If you have a requirement to build the NeMo Retriever Library runtime container from source, you can do it by following instructions [here](https://github.com/NVIDIA/NeMo-Retriever).
 

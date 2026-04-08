@@ -94,9 +94,11 @@ Launch dependent services and NIMs. For more information, refer to [Docker prere
 
 3. Login to `nvcr.io` to pull dependency containers: `echo "${NGC_API_KEY}" | docker login nvcr.io -u '$oauthtoken' --password-stdin`
 
-### Setup Milvus Vector Database Services
+### Setup Milvus Vector Database Services (optional)
 
-Milvus uses GPU indexing by default. Set the correct GPU ID. For CPU-only mode, refer to [milvus-configuration.md](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/docs/milvus-configuration.md).
+Use this section **only if you opt into Milvus** as the vector database. The default Docker deployment uses **Elasticsearch**; see [Vector database configuration](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/docs/change-vectordb.md). For Milvus-specific tuning (GPU/CPU, auth), see [Milvus configuration](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/docs/milvus-configuration.md).
+
+When Milvus is enabled, it uses GPU indexing by default. Set the correct GPU ID. For CPU-only mode, refer to [milvus-configuration.md](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/docs/milvus-configuration.md).
 
 1. Set the GPU device ID:
 
@@ -104,10 +106,10 @@ Milvus uses GPU indexing by default. Set the correct GPU ID. For CPU-only mode, 
 os.environ["VECTORSTORE_GPU_DEVICE_ID"] = "0"
 ```
 
-2. Start the Milvus vector database:
+2. Start the Milvus vector database (Compose `milvus` profile):
 
 ```bash
-docker compose -f ../deploy/compose/vectordb.yaml up -d
+docker compose -f ../deploy/compose/vectordb.yaml --profile milvus up -d
 ```
 
 ### Setup NIMs
@@ -252,6 +254,10 @@ else:
 ingestor = NvidiaRAGIngestor(config=config_ingestor)
 ```
 
+:::{note}
+The API examples below use **`vdb_endpoint="http://localhost:9200"`**, matching the default **Elasticsearch** vector database. If you use **Milvus** instead, use `http://localhost:19530` (or your Milvus service URL) for every `vdb_endpoint` argument and ensure `APP_VECTORSTORE_*` targets Milvus.
+:::
+
 ### Create a New Collection
 
 ```python
@@ -273,7 +279,7 @@ print(response)
 ### List All Collections
 
 ```python
-response = ingestor.get_collections(vdb_endpoint="http://localhost:19530")
+response = ingestor.get_collections(vdb_endpoint="http://localhost:9200")
 print(response)  
 ```
 
@@ -284,7 +290,7 @@ Upload documents to a collection. To update existing documents, use `update_docu
 ```python
 response = await ingestor.upload_documents(
     collection_name="test_library",
-    vdb_endpoint="http://localhost:19530",
+    vdb_endpoint="http://localhost:9200",
     blocking=False,
     split_options={"chunk_size": 512, "chunk_overlap": 150},
     filepaths=[
@@ -322,7 +328,7 @@ print(response)
 ```python
 response = await ingestor.update_documents(
     collection_name="test_library",
-    vdb_endpoint="http://localhost:19530",
+    vdb_endpoint="http://localhost:9200",
     blocking=False,
     filepaths=["../data/multimodal/woods_frost.docx"],
     generate_summary=False
@@ -336,7 +342,7 @@ print(response)
 ```python
 response = ingestor.get_documents(
     collection_name="test_library",
-    vdb_endpoint="http://localhost:19530",
+    vdb_endpoint="http://localhost:9200",
 )
 print(response)  
 ```
@@ -598,7 +604,7 @@ rag_custom = NvidiaRAG(config=config_rag, prompts="custom_prompts.yaml")
 response = ingestor.delete_documents(
     collection_name="test_library",
     document_names=["../data/multimodal/multimodal_test.pdf"],
-    vdb_endpoint="http://localhost:19530"
+    vdb_endpoint="http://localhost:9200"
 )
 print(response)  
 ```
@@ -606,7 +612,7 @@ print(response)
 ## Delete Collections
 
 ```python
-response = ingestor.delete_collections(vdb_endpoint="http://localhost:19530", collection_names=["test_library"])
+response = ingestor.delete_collections(vdb_endpoint="http://localhost:9200", collection_names=["test_library"])
 print(response)  
 ```
 For more information, refer to [Prompt Customization](prompt-customization.md#prompt-customization-in-python-library-mode).
