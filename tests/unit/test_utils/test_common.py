@@ -30,6 +30,7 @@ from nvidia_rag.utils.common import (
     filter_documents_by_confidence,
     get_current_timestamp,
     get_metadata_configuration,
+    object_key_from_storage_uri,
     perform_document_info_aggregation,
     prepare_custom_metadata_dataframe,
     process_filter_expr,
@@ -111,6 +112,21 @@ class TestCombineDicts:
         result = combine_dicts(dict_a, dict_b)
         expected = {"key": "value"}
         assert result == expected
+
+
+class TestObjectKeyFromStorageUri:
+    """Test object_key_from_storage_uri."""
+
+    def test_s3_path_only(self) -> None:
+        uri = "s3://default-bucket/ragbattlepacket/tesla-10q.pdf"
+        assert object_key_from_storage_uri(uri) == "ragbattlepacket/tesla-10q.pdf"
+
+    def test_s3_path_with_fragment_in_object_key(self) -> None:
+        uri = "s3://default-bucket/ragbattlepacket/tesla-10q.pdf#pages_1-32/106.png"
+        assert (
+            object_key_from_storage_uri(uri)
+            == "ragbattlepacket/tesla-10q.pdf#pages_1-32/106.png"
+        )
 
 
 class TestSanitizeNimUrl:
