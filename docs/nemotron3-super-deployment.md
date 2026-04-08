@@ -78,7 +78,7 @@ export PROMPT_CONFIG_FILE=$(pwd)/deploy/compose/nemotron3-super-prompt.yaml
 
    Check the [model page](https://build.nvidia.com/nvidia/nemotron-3-super-120b-a12b/modelcard) for more details.
 
-   > Note: For RTX 6000 Pro GPUs, additional NIM environment variables are required — see [RTX 6000 Pro](rtx-6000-pro) below.
+   > Note: For RTX 6000 Pro GPUs, additional NIM environment variables are required — see [RTX 6000 Pro](#rtx-6000-pro) below.
 
 2. Set nemotron-3-super specific environment variables.
 
