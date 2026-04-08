@@ -356,7 +356,7 @@ async def generate_answer_for_query(
     )
     logger.info(f"Generated answer for question: '{question[:50]}...'")
 
-    return answer
+    return answer.strip()
 
 
 async def generate_followup_question(
@@ -734,6 +734,19 @@ async def iterative_query_decomposition(
         )
 
         if followup_question.strip().strip("'").strip('"'):
+            # Don't retry a question that already returned empty — it's not in the corpus
+            _empty = {"", "''", '""'}
+            already_tried_empty = any(
+                q.strip().lower() == followup_question.strip().lower()
+                and a.strip() in _empty
+                for q, a in conversation_history
+            )
+            if already_tried_empty:
+                logger.info(
+                    "Follow-up '%s' already returned empty, stopping at depth %d",
+                    followup_question, depth + 1,
+                )
+                break
             questions = [followup_question]
             logger.info(f"Continue with follow-up question: {followup_question}")
         else:
