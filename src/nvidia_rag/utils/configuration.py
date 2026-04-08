@@ -36,7 +36,7 @@ def Field(default=None, *, env: str = None, description: str = None, **kwargs):
         **kwargs: Other Pydantic Field parameters
 
     Example:
-        name: str = Field(default="milvus", env="APP_VECTORSTORE_NAME", description="Vector store name")
+        name: str = Field(default="elasticsearch", env="APP_VECTORSTORE_NAME", description="Vector store name")
     """
     if env:
         if "json_schema_extra" not in kwargs:
@@ -120,12 +120,12 @@ class VectorStoreConfig(_ConfigBase):
     """
 
     name: str = Field(
-        default="milvus",
+        default="elasticsearch",
         env="APP_VECTORSTORE_NAME",
         description="Name of the vector store backend (e.g., milvus, elasticsearch)",
     )
     url: str = Field(
-        default="http://localhost:19530",
+        default="http://localhost:9200",
         env="APP_VECTORSTORE_URL",
         description="URL endpoint for the vector store service",
     )

@@ -487,7 +487,7 @@ class CollectionManagementModule(BaseTestModule):
     @test_case(99, "Data Catalog Metadata")
     async def _test_data_catalog_metadata(self) -> bool:
         """Test data catalog metadata for collections and documents"""
-        logger.info("\n=== Test 86: Data Catalog Metadata ===")
+        logger.info("\n=== Test 99: Data Catalog Metadata ===")
         test_start = time.time()
 
         try:
@@ -792,6 +792,8 @@ class CollectionManagementModule(BaseTestModule):
         expected_status: str | None = None,
     ) -> bool:
         """Verify collection catalog metadata"""
+        logger.info(f"Waiting for 5 seconds to allow the catalog metadata to be updated...")
+        await asyncio.sleep(5)
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(
@@ -1039,6 +1041,8 @@ class CollectionManagementModule(BaseTestModule):
         expected_tags: list[str] | None = None,
     ) -> bool:
         """Verify document catalog metadata"""
+        logger.info(f"Waiting for 5 seconds to allow the catalog metadata to be updated...")
+        await asyncio.sleep(5)
         try:
             async with aiohttp.ClientSession() as session:
                 params = {"collection_name": collection_name}

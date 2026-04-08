@@ -19,6 +19,7 @@ from pathlib import Path
 import aiohttp
 
 from tests.integration.base import BaseTestModule, TestStatus, test_case
+from tests.integration.utils.vector_store import is_elasticsearch_vector_store
 
 logger = logging.getLogger(__name__)
 
@@ -444,7 +445,42 @@ class CustomMetadataModule(BaseTestModule):
             # Step 1: Search with filter expression for tech documents
             logger.info("Testing filter expression for tech documents...")
 
-            tech_filter = 'content_metadata["category"] == "tech"'
+            if is_elasticsearch_vector_store():
+                tech_filter = [
+                    {
+                        "term": {
+                            "metadata.content_metadata.category.keyword": "tech",
+                        },
+                    },
+                ]
+                rating_filter = [
+                    {
+                        "range": {
+                            "metadata.content_metadata.rating": {"gt": 4.0},
+                        },
+                    },
+                ]
+                complex_filter = [
+                    {
+                        "term": {
+                            "metadata.content_metadata.category.keyword": "tech",
+                        },
+                    },
+                    {
+                        "range": {
+                            "metadata.content_metadata.rating": {"gt": 4.0},
+                        },
+                    },
+                    {"term": {"metadata.content_metadata.is_public": True}},
+                ]
+            else:
+                tech_filter = 'content_metadata["category"] == "tech"'
+                rating_filter = 'content_metadata["rating"] > 4.0'
+                complex_filter = (
+                    'content_metadata["category"] == "tech" and '
+                    'content_metadata["rating"] > 4.0 and '
+                    'content_metadata["is_public"] == true'
+                )
 
             search_payload = {
                 "query": "policy guidelines",
@@ -477,7 +513,6 @@ class CustomMetadataModule(BaseTestModule):
             # Step 2: Search with filter expression for high-rated documents
             logger.info("Testing filter expression for high-rated documents...")
 
-            rating_filter = 'content_metadata["rating"] > 4.0'
             search_payload["filter_expr"] = rating_filter
 
             async with aiohttp.ClientSession() as session:
@@ -505,7 +540,6 @@ class CustomMetadataModule(BaseTestModule):
             # Step 3: Search with complex filter expression
             logger.info("Testing complex filter expression...")
 
-            complex_filter = 'content_metadata["category"] == "tech" and content_metadata["rating"] > 4.0 and content_metadata["is_public"] == true'
             search_payload["filter_expr"] = complex_filter
 
             async with aiohttp.ClientSession() as session:

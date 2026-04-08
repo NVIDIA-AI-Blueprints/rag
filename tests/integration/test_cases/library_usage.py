@@ -44,7 +44,11 @@ class LibraryUsageModule(BaseTestModule):
         self._config = None
         self._ingestor = None
         self._rag = None
-    
+
+    def _library_vdb_endpoint(self) -> str:
+        """URL for explicit ``vdb_endpoint`` args; matches integration YAML / vector store env."""
+        return self._get_config().vector_store.url
+
     def _get_config(self):
         """Get or create shared config object with common settings"""
         if self._config is None:
@@ -189,7 +193,7 @@ class LibraryUsageModule(BaseTestModule):
             # Create collection (Notebook: ingestor.create_collection())
             response = ingestor.create_collection(
                 collection_name=self.library_collection,
-                vdb_endpoint="http://localhost:19530",
+                vdb_endpoint=self._library_vdb_endpoint(),
             )
             
             logger.info(f"📋 Response:\n{json.dumps(response, indent=2)}")
@@ -245,7 +249,7 @@ class LibraryUsageModule(BaseTestModule):
             ingestor = self._get_ingestor()  # Use shared instance
             
             # List collections (Notebook: ingestor.get_collections())
-            response = ingestor.get_collections(vdb_endpoint="http://localhost:19530")
+            response = ingestor.get_collections(vdb_endpoint=self._library_vdb_endpoint())
             
             logger.info(f"✅ Collections retrieved successfully")
             logger.info(f"📋 Response:\n{json.dumps(response, indent=2)}")
@@ -419,7 +423,7 @@ class LibraryUsageModule(BaseTestModule):
             # Upload documents (Notebook: await ingestor.upload_documents())
             response = await ingestor.upload_documents(
                 collection_name=self.library_collection,
-                vdb_endpoint="http://localhost:19530",
+                vdb_endpoint=self._library_vdb_endpoint(),
                 blocking=False,  # Async as in notebook
                 split_options={"chunk_size": 512, "chunk_overlap": 150},
                 filepaths=test_files,
@@ -629,7 +633,7 @@ class LibraryUsageModule(BaseTestModule):
             # Get documents (Notebook: ingestor.get_documents())
             response = ingestor.get_documents(
                 collection_name=self.library_collection,
-                vdb_endpoint="http://localhost:19530",
+                vdb_endpoint=self._library_vdb_endpoint(),
             )
             
             logger.info(f"📋 Response:\n{json.dumps(response, indent=2)}")
@@ -878,7 +882,7 @@ class LibraryUsageModule(BaseTestModule):
             # First get documents to know what to delete
             docs_response = ingestor.get_documents(
                 collection_name=self.library_collection,
-                vdb_endpoint="http://localhost:19530",
+                vdb_endpoint=self._library_vdb_endpoint(),
             )
             
             documents = docs_response.get("documents", [])
@@ -933,7 +937,7 @@ class LibraryUsageModule(BaseTestModule):
             response = ingestor.delete_documents(
                 collection_name=self.library_collection,
                 document_names=[doc_filename],
-                vdb_endpoint="http://localhost:19530",
+                vdb_endpoint=self._library_vdb_endpoint(),
             )
             
             logger.info(f"📋 Response:\n{json.dumps(response, indent=2)}")
@@ -1340,7 +1344,7 @@ Summary:"""
             # Create collection first
             create_response = ingestor.create_collection(
                 collection_name=summary_collection,
-                vdb_endpoint="http://localhost:19530"
+                vdb_endpoint=self._library_vdb_endpoint()
             )
             logger.info(f"📋 Collection created: {create_response}")
             
@@ -1379,7 +1383,7 @@ Summary:"""
             result = await ingestor.upload_documents(
                 filepaths=[str(test_file)],
                 collection_name=summary_collection,
-                vdb_endpoint="http://localhost:19530",
+                vdb_endpoint=self._library_vdb_endpoint(),
                 generate_summary=True,
                 summary_options=summary_options,
                 blocking=False  # Non-blocking, as per notebook workflow
@@ -1590,7 +1594,7 @@ Summary:"""
             ingestor = self._get_ingestor()  # Use shared instance
             
             response = ingestor.delete_collections(
-                vdb_endpoint="http://localhost:19530",
+                vdb_endpoint=self._library_vdb_endpoint(),
                 collection_names=[summary_collection]
             )
             
@@ -1634,7 +1638,7 @@ Summary:"""
             
             # Delete collection (Notebook: ingestor.delete_collections())
             response = ingestor.delete_collections(
-                vdb_endpoint="http://localhost:19530",
+                vdb_endpoint=self._library_vdb_endpoint(),
                 collection_names=[self.library_collection]
             )
             
