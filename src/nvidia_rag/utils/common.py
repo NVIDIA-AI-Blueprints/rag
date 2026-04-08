@@ -21,7 +21,7 @@
 6. prepare_custom_metadata_dataframe: Prepare custom metadata for a document and write it to a dataframe in csv format.
 7. validate_filter_expr: Validate the filter expression for metadata filtering against multiple collections.
 8. process_filter_expr: Process the filter expression by transforming it to the appropriate syntax for the configured vector store.
-9. object_key_from_storage_uri: Extract the object key from an s3:// URI or a bare storage path.
+9. object_key_from_storage_uri: Extract the object key from an s3:// URI (bucket vs key split at the first slash after the scheme).
 """
 
 import ast
@@ -148,28 +148,32 @@ def combine_dicts(dict_a: dict[str, Any], dict_b: dict[str, Any]) -> dict[str, A
 
 def object_key_from_storage_uri(uri: str) -> str:
     """
-    Extract the object key (path within the bucket) from a storage URI.
+    Return the S3 object key from an ``s3://`` URI.
 
-    For s3:// URIs, the key is the URL path with the leading slash removed (bucket
-    is the host/authority per RFC 3986). Example:
-    s3://nv-ingest/artifacts/store/images/foo/bar.png ->
-    artifacts/store/images/foo/bar.png
+    The bucket name is the host part (between ``s3://`` and the first ``/``).
+    The object key is the remainder of the string after that slash, unchanged—
+    including any ``#`` suffix (e.g. page or image slice), since it is not parsed
+    as a URL fragment.
 
-    If the URI is not s3, leading slashes are stripped and the remainder is
-    returned so bare object keys still work.
+    Example: ``s3://my-bucket/a/b/doc.pdf#pages_1-2/x.png`` →
+    ``a/b/doc.pdf#pages_1-2/x.png``.
+
+    Raises:
+        ValueError: If the URI is missing ``s3://``, or has no bucket or no key.
     """
-    if not uri or not isinstance(uri, str):
-        msg = "storage URI must be a non-empty string"
-        raise ValueError(msg)
-    stripped = uri.strip()
-    parsed = urlparse(stripped)
-    if parsed.scheme == "s3" and parsed.netloc:
-        key = parsed.path.lstrip("/")
-        if not key:
-            msg = f"S3 URI must include an object key path: {stripped!r}"
-            raise ValueError(msg)
-        return key
-    return stripped.lstrip("/")
+    if not uri.startswith("s3://"):
+        raise ValueError("Invalid S3 URI")
+
+    # Remove scheme
+    path = uri[5:]  # removes "s3://"
+
+    # Split only on first '/'
+    bucket, _, object_name = path.partition("/")
+
+    if not bucket or not object_name:
+        raise ValueError("Invalid S3 URI format")
+
+    return object_name
 
 
 def sanitize_nim_url(url: str, model_name: str, model_type: str) -> str:
