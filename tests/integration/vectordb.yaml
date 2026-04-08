@@ -84,9 +84,10 @@ services:
     image: "docker.elastic.co/elasticsearch/elasticsearch:9.0.3"
     ports:
       - 9200:9200
-    volumes:
-      # Run "sudo chown -R 1000:1000 deploy/compose/volumes/elasticsearch/" to fix permissions
-      - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/elasticsearch:/usr/share/elasticsearch/data
+    # Omit bind-mount in CI: avoids host permission issues; data is ephemeral per run.
+    # For persistent local data, uncomment and chown the directory to uid 1000.
+    # volumes:
+    #   - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/elasticsearch:/usr/share/elasticsearch/data
     restart: on-failure
     environment:
       - discovery.type=single-node
