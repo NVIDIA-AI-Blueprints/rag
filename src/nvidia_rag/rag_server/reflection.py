@@ -198,6 +198,7 @@ async def check_context_relevance(
         "top_p": 0.1,
         "max_tokens": 32768,
         "api_key": config.reflection.get_api_key(),
+        "enable_thinking": False,  # Disable thinking for deterministic scoring/rewriting tasks
     }
 
     if reflection_llm_endpoint:
@@ -372,6 +373,7 @@ async def check_response_groundedness(
         "top_p": 0.1,  # Very low top_p for focused, deterministic responses
         "max_tokens": 32768,  # Large token limit for comprehensive analysis and long responses
         "api_key": config.reflection.get_api_key(),
+        "enable_thinking": False,  # Disable thinking for deterministic scoring tasks
     }
 
     if reflection_llm_endpoint:

@@ -265,9 +265,13 @@ class MilvusVDB(VDBRagIngest):
         """Close the Milvus connection."""
         if self._connected:
             try:
-                alias = getattr(self, "_langchain_compat_alias", "")
-                if alias and connections.has_connection(alias):
-                    connections.disconnect(alias)
+                # Do NOT call connections.disconnect() here. The ORM alias
+                # (cm-{id(handler)}) is shared across all MilvusVDB instances and
+                # LangchainMilvus objects that share the same ConnectionManager
+                # handler. Disconnecting it would tear down the ORM registration
+                # for all concurrent requests, causing ConnectionNotExistException.
+                # The underlying gRPC handler lifecycle is managed by ConnectionManager
+                # via _client.close() below.
                 if hasattr(self, "_client") and hasattr(self._client, "close"):
                     self._client.close()
                 logger.debug(f"Disconnected from Milvus at {self.vdb_endpoint}")
@@ -287,9 +291,7 @@ class MilvusVDB(VDBRagIngest):
         """Disconnect when the instance is garbage-collected (safety net if close() not used)."""
         if getattr(self, "_connected", False):
             try:
-                alias = getattr(self, "_langchain_compat_alias", "")
-                if alias and connections.has_connection(alias):
-                    connections.disconnect(alias)
+                # Do NOT call connections.disconnect() here — see close() for rationale.
                 client = getattr(self, "_client", None)
                 if client is not None and hasattr(client, "close"):
                     client.close()

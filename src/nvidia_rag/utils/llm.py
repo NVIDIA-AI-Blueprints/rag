@@ -214,7 +214,14 @@ def _is_nemotron_nano_9b_v2(model: str | None) -> bool:
 
 
 def _resolve_enable_thinking(config: NvidiaRAGConfig | None = None, **kwargs) -> bool:
-    """Resolve enable_thinking from config, kwargs, or deprecated env var fallback."""
+    """Resolve enable_thinking from config, kwargs, or deprecated env var fallback.
+
+    Explicit kwargs take priority over config so callers can opt out of thinking
+    (e.g. reflection tasks that need deterministic, non-thinking responses).
+    """
+    # Explicit kwarg takes highest priority (allows callers to override config)
+    if "enable_thinking" in kwargs:
+        return bool(kwargs["enable_thinking"])
     if config is not None:
         enable = config.llm.parameters.enable_thinking
         if enable:

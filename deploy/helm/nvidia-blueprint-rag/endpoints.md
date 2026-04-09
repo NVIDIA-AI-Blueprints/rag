@@ -16,11 +16,11 @@ This document describes the configurable endpoints used by the RAG server and it
 
 ### LLM Model
 - **APP_LLM_SERVERURL**: URL for the LLM model service (default: "nim-llm:8000")
-- **APP_LLM_MODELNAME**: Name of the LLM model (default: "nvidia/llama-3.3-nemotron-super-49b-v1.5")
+- **APP_LLM_MODELNAME**: Name of the LLM model (default: "nvidia/nemotron-3-super-120b-a12b")
 
 ### Query Rewriter Model
 - **APP_QUERYREWRITER_SERVERURL**: URL for the query rewriter model service (default: "nim-llm:8000")
-- **APP_QUERYREWRITER_MODELNAME**: Name of the query rewriter model (default: "nvidia/llama-3.3-nemotron-super-49b-v1.5")
+- **APP_QUERYREWRITER_MODELNAME**: Name of the query rewriter model (default: "nvidia/nemotron-3-super-120b-a12b")
 
 ### Embedding Model
 - **APP_EMBEDDINGS_SERVERURL**: URL for the embedding model service (default: "nemo-retriever-embedding-ms:8000")
@@ -32,7 +32,7 @@ This document describes the configurable endpoints used by the RAG server and it
 
 ### Reflection Model
 - **REFLECTION_LLM_SERVERURL**: URL for the reflection LLM service (default: "nim-llm:8000")
-- **REFLECTION_LLM**: Name of the reflection model (default: "nvidia/llama-3.3-nemotron-super-49b-v1.5")
+- **REFLECTION_LLM**: Name of the reflection model (default: "nvidia/nemotron-3-super-120b-a12b")
 
 ## Frontend Endpoints
 
@@ -41,7 +41,7 @@ This document describes the configurable endpoints used by the RAG server and it
 - **VITE_MODEL_NAME**: Base URL for vector database API endpoints (default: "http://ingestor-server:8082/v1")
 
 ### Model Configuration
-- **NEXT_PUBLIC_MODEL_NAME**: Name of the LLM model used in the frontend (default: "nvidia/llama-3.3-nemotron-super-49b-v1.5")
+- **NEXT_PUBLIC_MODEL_NAME**: Name of the LLM model used in the frontend (default: "nvidia/nemotron-3-super-120b-a12b")
 - **VITE_EMBEDDING_MODEL**: Name of the embedding model used in the frontend (default: "nvidia/llama-nemotron-embed-1b-v2")
 - **VITE_RERANKER_MODEL**: Name of the reranker model used in the frontend (default: "nvidia/llama-nemotron-rerank-1b-v2")
 

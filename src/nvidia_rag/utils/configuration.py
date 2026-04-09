@@ -496,7 +496,7 @@ class LLMConfig(_ConfigBase):
         description="URL endpoint for the LLM inference service",
     )
     model_name: str = Field(
-        default="nvidia/llama-3.3-nemotron-super-49b-v1.5",
+        default="nvidia/nemotron-3-super-120b-a12b",
         env="APP_LLM_MODELNAME",
         description="Name of the language model to use for generation",
     )
@@ -550,7 +550,7 @@ class QueryRewriterConfig(_ConfigBase):
     """Query Rewriter configuration."""
 
     model_name: str = Field(
-        default="nvidia/llama-3.3-nemotron-super-49b-v1.5",
+        default="nvidia/nemotron-3-super-120b-a12b",
         env="APP_QUERYREWRITER_MODELNAME",
         description="Model for rewriting user queries to improve retrieval",
     )
@@ -590,7 +590,7 @@ class FilterExpressionGeneratorConfig(_ConfigBase):
     """Filter Expression Generator configuration."""
 
     model_name: str = Field(
-        default="nvidia/llama-3.3-nemotron-super-49b-v1.5",
+        default="nvidia/nemotron-3-super-120b-a12b",
         env="APP_FILTEREXPRESSIONGENERATOR_MODELNAME",
         description="Model for generating metadata filter expressions from queries",
     )
@@ -951,7 +951,7 @@ class SummarizerConfig(_ConfigBase):
     """Summarizer configuration."""
 
     model_name: str = Field(
-        default="nvidia/llama-3.3-nemotron-super-49b-v1.5",
+        default="nvidia/nemotron-3-super-120b-a12b",
         env="SUMMARY_LLM",
         description="Model for generating document summaries",
     )
@@ -1051,7 +1051,7 @@ class ReflectionConfig(_ConfigBase):
         description="Maximum number of reflection iterations",
     )
     model_name: str = Field(
-        default="nvidia/llama-3.3-nemotron-super-49b-v1.5",
+        default="nvidia/nemotron-3-super-120b-a12b",
         env="REFLECTION_LLM",
         description="Model for reflection and quality assessment",
     )
