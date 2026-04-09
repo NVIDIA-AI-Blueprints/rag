@@ -52,8 +52,8 @@ class TestVectorStoreConfig:
         """Test default configuration values."""
         config = VectorStoreConfig()
 
-        assert config.name == "milvus"
-        assert config.url == "http://localhost:19530"
+        assert config.name == "elasticsearch"
+        assert config.url == "http://localhost:9200"
         assert config.nlist == 64
         assert config.nprobe == 16
         assert config.index_type == "GPU_CAGRA"
@@ -920,13 +920,13 @@ class TestNvidiaRAGConfigFileLoading:
         """Test that from_yaml returns default config when file doesn't exist."""
         config = NvidiaRAGConfig.from_yaml("/nonexistent/path/config.yaml")
         assert isinstance(config, NvidiaRAGConfig)
-        assert config.vector_store.name == "milvus"
+        assert config.vector_store.name == "elasticsearch"
 
     def test_from_json_file_not_exists(self):
         """Test that from_json returns default config when file doesn't exist."""
         config = NvidiaRAGConfig.from_json("/nonexistent/path/config.json")
         assert isinstance(config, NvidiaRAGConfig)
-        assert config.vector_store.name == "milvus"
+        assert config.vector_store.name == "elasticsearch"
 
     def test_from_yaml_file_exists(self):
         """Test that from_yaml loads config from existing file."""

@@ -31,10 +31,10 @@ services:
       ##===Vector DB specific configurations===
       # URL on which vectorstore is hosted
       # For custom operators, point to your service (e.g., http://your-custom-vdb:1234)
-      APP_VECTORSTORE_URL: ${APP_VECTORSTORE_URL:-http://milvus:19530}
+      APP_VECTORSTORE_URL: ${APP_VECTORSTORE_URL:-http://elasticsearch:9200}
       # Type of vectordb used to store embedding. Supported built-ins: "milvus", "elasticsearch".
       # You can also provide your custom value (e.g., "your_custom_vdb") when you register it in `_get_vdb_op`.
-      APP_VECTORSTORE_NAME: ${APP_VECTORSTORE_NAME:-"milvus"}
+      APP_VECTORSTORE_NAME: ${APP_VECTORSTORE_NAME:-"elasticsearch"}
       # Type of index to be used for vectorstore
       APP_VECTORSTORE_INDEXTYPE: ${APP_VECTORSTORE_INDEXTYPE:-"GPU_CAGRA"}
       
@@ -47,8 +47,8 @@ services:
       # Weight for sparse vector search in case of "weighted" Hybrid Search
       APP_VECTORSTORE_SPARSE_WEIGHT: ${APP_VECTORSTORE_SPARSE_WEIGHT:-0.5}
       
-      # Boolean to control GPU search for milvus vectorstore specific to rag-server
-      APP_VECTORSTORE_ENABLEGPUSEARCH: ${APP_VECTORSTORE_ENABLEGPUSEARCH:-True}
+      # Milvus only (ignored for Elasticsearch). Set True when using Milvus + GPU.
+      APP_VECTORSTORE_ENABLEGPUSEARCH: ${APP_VECTORSTORE_ENABLEGPUSEARCH:-False}
       # ef: Parameter controlling query time/accuracy trade-off. Higher ef leads to more accurate but slower search.
       APP_VECTORSTORE_EF: ${APP_VECTORSTORE_EF:-100} # Must be greater or equal to VECTOR_DB_TOPK
       # Username for vector store 
@@ -226,7 +226,6 @@ services:
         # Environment variables for Vite build
         VITE_API_CHAT_URL: ${VITE_API_CHAT_URL:-http://rag-server:8081/v1}
         VITE_API_VDB_URL: ${VITE_API_VDB_URL:-http://ingestor-server:8082/v1}
-        VITE_MILVUS_URL: http://milvus:19530
         DOWNLOAD_LEGAL_COMPLIANCE: ${DOWNLOAD_LEGAL_COMPLIANCE:-false}
     ports:
       - "8090:3000"
@@ -236,7 +235,6 @@ services:
       # Runtime environment variables for Vite
       VITE_API_CHAT_URL: ${VITE_API_CHAT_URL:-http://rag-server:8081/v1}
       VITE_API_VDB_URL: ${VITE_API_VDB_URL:-http://ingestor-server:8082/v1}
-      VITE_MILVUS_URL: http://milvus:19530
     depends_on:
       - rag-server
 
