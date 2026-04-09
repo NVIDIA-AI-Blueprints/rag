@@ -50,6 +50,7 @@ query_rewriter_prompt:
     Chat History:
     {chat_history}
 
+  human: |
     Latest Question: {input}
 
 reflection_relevance_check_prompt:
@@ -168,11 +169,13 @@ document_summary_prompt:
     Maintain the original document's tone and context in your summary.
 
     Please provide a concise summary for the following document:
+  human: |
     {document_text}
 
 shallow_summary_prompt:
   system: |
     Please provide a concise summary for the following document:
+  human: |
     {document_text}
 
 iterative_summary_prompt:
@@ -192,7 +195,7 @@ iterative_summary_prompt:
     9. Do not mention this instructions in your response.
     10. Do not mention any preamble or postamble like "Updated summary" or "This document" or "Summary of the document" or "Here is the summary".
     </instructions>
-
+  human: |
     Previous Summary:
     {previous_summary}
 
