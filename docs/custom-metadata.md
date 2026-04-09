@@ -22,7 +22,7 @@ The [NVIDIA RAG Blueprint](readme.md) features **advanced metadata filtering wit
 config = {
     "filter_expression_generator": {
         "enable_filter_generator": True,
-        "model_name": "nvidia/llama-3.3-nemotron-super-49b-v1.5",
+        "model_name": "nvidia/nemotron-3-super-120b-a12b",
         "temperature": 0.1,
         "max_tokens": 1024
     }
@@ -493,7 +493,7 @@ Elasticsearch filters use the `metadata.content_metadata.field_name` format and 
 # Configuration file (config.yaml)
 filter_expression_generator:
   enable_filter_generator: true  # Set to true to enable filter generation (default is false)
-  model_name: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+  model_name: "nvidia/nemotron-3-super-120b-a12b"
   server_url: ""  # Leave empty for default endpoint
   temperature: 0.1  # Low temperature for consistent results
   top_p: 0.9
@@ -517,7 +517,7 @@ metadata:
 export ENABLE_FILTER_GENERATOR=true
 
 # LLM configuration
-export APP_FILTEREXPRESSIONGENERATOR_MODELNAME="nvidia/llama-3.3-nemotron-super-49b-v1.5"
+export APP_FILTEREXPRESSIONGENERATOR_MODELNAME="nvidia/nemotron-3-super-120b-a12b"
 export APP_FILTEREXPRESSIONGENERATOR_SERVERURL=""
 
 # Note: Metadata configuration is not currently exposed via environment variables

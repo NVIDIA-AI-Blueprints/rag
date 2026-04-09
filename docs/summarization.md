@@ -316,7 +316,7 @@ For more details on customizing these prompts, see [Prompt Customization Guide](
 
 **Environment Variables:**
 
-- **SUMMARY_LLM**: The model name to use for summarization (default: `nvidia/llama-3.3-nemotron-super-49b-v1.5`)
+- **SUMMARY_LLM**: The model name to use for summarization (default: `nvidia/nemotron-3-super-120b-a12b`)
 - **SUMMARY_LLM_SERVERURL**: The server URL hosting the summarization model (default: empty, uses NVIDIA hosted API)
 - **SUMMARY_LLM_MAX_CHUNK_LENGTH**: Maximum chunk size in **tokens** for document processing (default: `9000`)
 - **SUMMARY_CHUNK_OVERLAP**: Overlap between chunks for summarization in **tokens** (default: `400`)
@@ -327,7 +327,7 @@ For more details on customizing these prompts, see [Prompt Customization Guide](
 ### Example Configuration
 
 ```bash
-export SUMMARY_LLM="nvidia/llama-3.3-nemotron-super-49b-v1.5"
+export SUMMARY_LLM="nvidia/nemotron-3-super-120b-a12b"
 export SUMMARY_LLM_SERVERURL=""
 export SUMMARY_LLM_MAX_CHUNK_LENGTH=9000
 export SUMMARY_CHUNK_OVERLAP=400

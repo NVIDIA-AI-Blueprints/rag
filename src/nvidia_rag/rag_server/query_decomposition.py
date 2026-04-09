@@ -179,17 +179,29 @@ async def generate_subqueries(
         ]
     )
 
+    def _parse_subqueries(text: str) -> list[str]:
+        prefixed, unprefixed = [], []
+        for line in text.split("\n"):
+            line = line.strip()
+            if not line:
+                continue
+            # Strip numbered prefix: "1. ", "2) ", etc.
+            if len(line) >= 3 and line[0].isdigit() and line[1] in ".)" and line[2] == " ":
+                prefixed.append(line[3:].strip())
+            # Strip bullet prefix: "- ", "* "
+            elif line[:2] in ("- ", "* "):
+                prefixed.append(line[2:].strip())
+            else:
+                unprefixed.append(line)
+        # Prefer prefixed lines (numbered/bulleted list); fall back to all lines
+        # if the LLM returned a single unprefixed query
+        return [q for q in prefixed if q] or [q for q in unprefixed if q]
+
     generate_queries = (
         prompt_perspectives
         | llm
         | StrOutputParser()
-        | (
-            lambda x: [
-                q.strip().split(". ", 1)[1] if ". " in q else q.strip()
-                for q in x.split("\n")
-                if q.strip() and any(c.isdigit() for c in q)
-            ]
-        )
+        | _parse_subqueries
     )
 
     questions = await generate_queries.ainvoke(
@@ -344,13 +356,13 @@ async def generate_answer_for_query(
     )
     logger.info(f"Generated answer for question: '{question[:50]}...'")
 
-    return answer
+    return answer.strip()
 
 
 async def generate_followup_question(
     history: list[tuple[str, str]],
     original_query: str,
-    contexts: list[Document],
+    contexts: dict[str, Any],
     llm: ChatNVIDIA,
     prompts: dict | None = None,
 ) -> str:
@@ -360,7 +372,7 @@ async def generate_followup_question(
     Args:
         history: Conversation history
         original_query: Original user query
-        contexts: Retrieved contexts
+        contexts: Subquery context dict mapping subquery -> {context, answer, rewritten_query}
         llm: Language model instance
         prompts: Optional prompts dictionary
 
@@ -386,12 +398,21 @@ async def generate_followup_question(
         ]
     )
 
+    # Format contexts as readable text: extract page_content from retrieved docs
+    context_parts = []
+    for subquery, data in contexts.items():
+        docs = data.get("context", [])
+        doc_texts = "\n".join(doc.page_content for doc in docs if doc.page_content)
+        if doc_texts:
+            context_parts.append(f"[{subquery}]\n{doc_texts}")
+    formatted_context = "\n\n".join(context_parts) if context_parts else ""
+
     followup_question_chain = followup_question_prompt | llm | StrOutputParser()
     followup_question = await followup_question_chain.ainvoke(
         {
             "conversation_history": format_conversation_history(history),
             "question": original_query,
-            "context": f"{contexts}",
+            "context": formatted_context,
         },
         config={"run_name": "follow-up-question-generation"},
     )
@@ -713,6 +734,19 @@ async def iterative_query_decomposition(
         )
 
         if followup_question.strip().strip("'").strip('"'):
+            # Don't retry a question that already returned empty — it's not in the corpus
+            _empty = {"", "''", '""'}
+            already_tried_empty = any(
+                q.strip().lower() == followup_question.strip().lower()
+                and a.strip() in _empty
+                for q, a in conversation_history
+            )
+            if already_tried_empty:
+                logger.info(
+                    "Follow-up '%s' already returned empty, stopping at depth %d",
+                    followup_question, depth + 1,
+                )
+                break
             questions = [followup_question]
             logger.info(f"Continue with follow-up question: {followup_question}")
         else:

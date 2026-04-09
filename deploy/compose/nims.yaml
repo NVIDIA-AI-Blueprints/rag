@@ -1,17 +1,21 @@
 services:
   nim-llm:
     container_name: nim-llm-ms
-    image: nvcr.io/nim/nvidia/llama-3.3-nemotron-super-49b-v1.5:1.14.0
+    image: nvcr.io/nim/nvidia/nemotron-3-super-120b-a12b:1.8.0
     shm_size: 16GB
     volumes:
     - ${MODEL_DIRECTORY:-./}:/opt/nim/.cache
-    user: "${USERID}"
+    # TODO: Change user to "${USERID}" when fix is available in the image.
+    user: "0"
     ports:
     - "8999:8000"
     expose:
     - "8000"
     environment:
       NGC_API_KEY: ${NGC_API_KEY}
+      NIM_ENABLE_CHUNKED_PREFILL: "1"
+      NIM_KV_CACHE_DTYPE: "fp8"
+      VLLM_ALLOW_LONG_MAX_MODEL_LEN: "1"
     ulimits:
       nofile:
         soft: 65536
@@ -22,7 +26,7 @@ services:
           devices:
             - driver: nvidia
               #count: ${INFERENCE_GPU_COUNT:-all}
-              device_ids: ['${LLM_MS_GPU_ID:-1}']
+              device_ids: ['${LLM_MS_GPU_ID:-1}', '${LLM_MS_GPU_ID2:-2}']
               capabilities: [gpu]
     healthcheck:
       test: ["CMD", "python3", "-c", "import requests; requests.get('http://localhost:8000/v1/health/ready')"]
