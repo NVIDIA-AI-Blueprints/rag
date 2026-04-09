@@ -3,6 +3,7 @@ envValueExemptions:
   perService:
     docker-compose-rag-server.yaml:
       rag-server:
+        - APP_VECTORSTORE_URL
         - NEMO_GUARDRAILS_URL
         - APP_TRACING_OTLPGRPCENDPOINT
         - APP_TRACING_OTLPHTTPENDPOINT
@@ -13,6 +14,7 @@ envValueExemptions:
         - REDIS_DB
     docker-compose-ingestor-server.yaml:
       ingestor-server:
+        - APP_VECTORSTORE_URL
         - APP_NVINGEST_CAPTIONENDPOINTURL
         - APP_NVINGEST_MESSAGECLIENTHOSTNAME
         - MINIO_ENDPOINT

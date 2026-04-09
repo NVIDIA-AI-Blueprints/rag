@@ -120,10 +120,10 @@ envVars:
 
   ##===Vector DB specific configurations===
   # URL on which vectorstore is hosted
-  APP_VECTORSTORE_URL: "http://milvus:19530" # Use "http://rag-eck-elasticsearch-es-http:9200" for elasticsearch
+  APP_VECTORSTORE_URL: "http://rag-eck-elasticsearch-es-http:9200" # Use "http://milvus:19530" for Milvus
   # Type of vectordb used to store embedding supported type "milvus" or "elasticsearch"
-  APP_VECTORSTORE_NAME: "milvus"
-  # Index type (e.g., GPU_CAGRA)
+  APP_VECTORSTORE_NAME: "elasticsearch"
+  # Index type (e.g., GPU_CAGRA); Milvus-oriented — Elasticsearch uses its own index mapping
   APP_VECTORSTORE_INDEXTYPE: "GPU_CAGRA"
   # Type of vectordb search to be used
   APP_VECTORSTORE_SEARCHTYPE: "dense"
@@ -133,8 +133,8 @@ envVars:
   APP_VECTORSTORE_DENSE_WEIGHT: "0.5"
   # Weight for sparse vector search in case of "weighted" Hybrid Search
   APP_VECTORSTORE_SPARSE_WEIGHT: "0.5"
-  # Boolean to control GPU search for milvus vectorstore specific to rag-server
-  APP_VECTORSTORE_ENABLEGPUSEARCH: "True"
+  # Milvus only (ignored for Elasticsearch). Set "True" when using Milvus + GPU.
+  APP_VECTORSTORE_ENABLEGPUSEARCH: "False"
   # ef: Parameter controlling query time/accuracy trade-off. Higher ef leads to more accurate but slower search.
   APP_VECTORSTORE_EF: "100"
   # Username for vector store authentication
@@ -324,8 +324,8 @@ ingestor-server:
     # Absolute path to custom prompt.yaml file
     PROMPT_CONFIG_FILE: "/prompt.yaml"
     # === Vector Store Configurations ===
-    APP_VECTORSTORE_URL: "http://milvus:19530" # Use "http://rag-eck-elasticsearch-es-http:9200" for elasticsearch
-    APP_VECTORSTORE_NAME: "milvus" # supported values: "milvus" or "elasticsearch"
+    APP_VECTORSTORE_URL: "http://rag-eck-elasticsearch-es-http:9200" # Use "http://milvus:19530" for Milvus
+    APP_VECTORSTORE_NAME: "elasticsearch" # supported values: "milvus" or "elasticsearch"
     APP_VECTORSTORE_SEARCHTYPE: "dense"
     # Type of ranker to use for vector store in case of Hybrid Search
     APP_VECTORSTORE_RANKER_TYPE: "rrf" # Can be "rrf" or "weighted"
@@ -333,8 +333,9 @@ ingestor-server:
     APP_VECTORSTORE_DENSE_WEIGHT: "0.5"
     # Weight for sparse vector search in case of "weighted" Hybrid Search
     APP_VECTORSTORE_SPARSE_WEIGHT: "0.5"
-    APP_VECTORSTORE_ENABLEGPUINDEX: "True"
-    APP_VECTORSTORE_ENABLEGPUSEARCH: "True"
+    # Milvus only (ignored for Elasticsearch). Set "True" when using Milvus + GPU.
+    APP_VECTORSTORE_ENABLEGPUINDEX: "False"
+    APP_VECTORSTORE_ENABLEGPUSEARCH: "False"
     # Username  for vector store authentication
     APP_VECTORSTORE_USERNAME: ""
     # Password for vector store authentication
@@ -485,12 +486,10 @@ frontend:
       value: "http://rag-server:8081/v1"
     - name: VITE_API_VDB_URL
       value: "http://ingestor-server:8082/v1"
-    - name: VITE_MILVUS_URL
-      value: "http://milvus:19530"
 
-# -- Elasticsearch dependency toggle
+# -- Elasticsearch dependency toggle (ECK). When true, align APP_VECTORSTORE_URL with the ES HTTP service (e.g. rag-eck-elasticsearch-es-http:9200).
 eck-elasticsearch:
-  enabled: false
+  enabled: true
   http:
     tls:
       selfSignedCertificate:
@@ -950,7 +949,6 @@ nv-ingest:
     MINIO_BUCKET: "nv-ingest"
     MINIO_ACCESS_KEY: "minioadmin"
     MINIO_SECRET_KEY: "minioadmin"
-    MILVUS_ENDPOINT: "http://milvus:19530"
     OTEL_EXPORTER_OTLP_ENDPOINT: "otel-collector:4317"
     MODEL_PREDOWNLOAD_PATH: "/workspace/models/"
     INSTALL_AUDIO_EXTRACTION_DEPS: "true"
@@ -990,8 +988,8 @@ nv-ingest:
     AUDIO_GRPC_ENDPOINT: nv-ingest-riva-nim:50051
     AUDIO_INFER_PROTOCOL: grpc
 
-  # Expose internal Milvus/MinIO config managed by nv-ingest subchart
-  milvusDeployed: true
+  # When false, nv-ingest does not deploy its Milvus subchart; RAG uses Elasticsearch (eck-elasticsearch + APP_VECTORSTORE_*).
+  milvusDeployed: false
   milvus:
     # Uncomment this section to enable authentication for Milvus
     # extraConfigFiles:

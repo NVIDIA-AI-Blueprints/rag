@@ -50,7 +50,7 @@ class RAGGenerationModule(BaseTestModule):
             self.add_test_result(
                 self._test_generate_with_filter.test_number,
                 self._test_generate_with_filter.test_name,
-                f"Test RAG generation with metadata filter to retrieve specific documents. Collection: {self.collections['with_metadata']}. Filter: {self.test_runner.metadata_filter_expr}. Includes response content verification for default files (expects '20' in hammer price response), streaming response handling, and filtered citation verification ensuring only multimodal_test.pdf is cited when using default files.",
+                f"Test RAG generation with metadata filter to retrieve specific documents. Collection: {self.collections['with_metadata']}. Filter: {self.test_runner.metadata_filter_expr_for_backend}. Includes response content verification for default files (expects '20' in hammer price response), streaming response handling, and filtered citation verification ensuring only multimodal_test.pdf is cited when using default files.",
                 ["POST /v1/generate"],
                 [
                     "messages",
@@ -67,7 +67,7 @@ class RAGGenerationModule(BaseTestModule):
             self.add_test_result(
                 self._test_generate_with_filter.test_number,
                 self._test_generate_with_filter.test_name,
-                f"Test RAG generation with metadata filter to retrieve specific documents. Collection: {self.collections['with_metadata']}. Filter: {self.test_runner.metadata_filter_expr}. Includes response content verification for default files (expects '20' in hammer price response), streaming response handling, and filtered citation verification ensuring only multimodal_test.pdf is cited when using default files.",
+                f"Test RAG generation with metadata filter to retrieve specific documents. Collection: {self.collections['with_metadata']}. Filter: {self.test_runner.metadata_filter_expr_for_backend}. Includes response content verification for default files (expects '20' in hammer price response), streaming response handling, and filtered citation verification ensuring only multimodal_test.pdf is cited when using default files.",
                 ["POST /v1/generate"],
                 [
                     "messages",
@@ -168,11 +168,13 @@ class RAGGenerationModule(BaseTestModule):
             )
             return False
 
-    async def test_generate_with_filter(self, filter_expr: str = None) -> bool:
+    async def test_generate_with_filter(
+        self, filter_expr: str | list[dict[str, Any]] | None = None
+    ) -> bool:
         """Test /generate endpoint with filter expression"""
         # Use configured filter expression if none provided
         if filter_expr is None:
-            filter_expr = self.test_runner.metadata_filter_expr
+            filter_expr = self.test_runner.metadata_filter_expr_for_backend
 
         payload = {
             "messages": [{"role": "user", "content": "Who is the author of poems?"}],

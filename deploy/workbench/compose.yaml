@@ -214,10 +214,10 @@ services:
       PROMPT_CONFIG_FILE: ${PROMPT_CONFIG_FILE:-/prompt.yaml}
 
       ##===Vector DB specific configurations===
-      # URL on which vectorstore is hosted
-      APP_VECTORSTORE_URL: "http://milvus:19530"
-      # Type of vectordb used to store embedding supported type milvus
-      APP_VECTORSTORE_NAME: "milvus"
+      # URL on which vectorstore is hosted (Milvus: http://milvus:19530 when using --profile vectordb)
+      APP_VECTORSTORE_URL: "http://elasticsearch:9200"
+      # Type of vectordb: "elasticsearch" or "milvus"
+      APP_VECTORSTORE_NAME: "elasticsearch"
       # Type of vectordb search to be used
       APP_VECTORSTORE_SEARCHTYPE: ${APP_VECTORSTORE_SEARCHTYPE:-"dense"} # Can be dense or hybrid
       # Type of ranker to use for vector store in case of Hybrid Search
@@ -226,15 +226,15 @@ services:
       APP_VECTORSTORE_DENSE_WEIGHT: ${APP_VECTORSTORE_DENSE_WEIGHT:-0.5}
       # Weight for sparse vector search in case of "weighted" Hybrid Search
       APP_VECTORSTORE_SPARSE_WEIGHT: ${APP_VECTORSTORE_SPARSE_WEIGHT:-0.5}
-      # Boolean to enable GPU index for milvus vectorstore specific to nvingest
-      APP_VECTORSTORE_ENABLEGPUINDEX: ${APP_VECTORSTORE_ENABLEGPUINDEX:-True}
-      # Boolean to control GPU search for milvus vectorstore specific to nvingest
-      APP_VECTORSTORE_ENABLEGPUSEARCH: ${APP_VECTORSTORE_ENABLEGPUSEARCH:-True}
+      # Boolean to enable GPU index (Milvus only; ignored for Elasticsearch)
+      APP_VECTORSTORE_ENABLEGPUINDEX: ${APP_VECTORSTORE_ENABLEGPUINDEX:-False}
+      # Boolean to control GPU search (Milvus only; ignored for Elasticsearch)
+      APP_VECTORSTORE_ENABLEGPUSEARCH: ${APP_VECTORSTORE_ENABLEGPUSEARCH:-False}
       # ef: Parameter controlling query time/accuracy trade-off. Higher ef leads to more accurate but slower search.
       APP_VECTORSTORE_EF: ${APP_VECTORSTORE_EF:-100}
-      # Username for vector store (Authentication is currently supported for Milvus only)
+      # Username for vector store authentication
       APP_VECTORSTORE_USERNAME: ${APP_VECTORSTORE_USERNAME:-""}
-      # Password for vector store (Authentication is currently supported for Milvus only)
+      # Password for vector store authentication
       APP_VECTORSTORE_PASSWORD: ${APP_VECTORSTORE_PASSWORD:-""}
       # vectorstore collection name to store embeddings
       COLLECTION_NAME: ${COLLECTION_NAME:-multimodal_data}
@@ -449,11 +449,11 @@ services:
       MINIO_SECRETKEY: "minioadmin"
 
       ##===Vector DB specific configurations===
-      # URL on which vectorstore is hosted
-      APP_VECTORSTORE_URL: "http://milvus:19530"
-      # Type of vectordb used to store embedding supported type milvus
-      APP_VECTORSTORE_NAME: "milvus"
-      # Type of index to be used for vectorstore
+      # URL on which vectorstore is hosted (Milvus: http://milvus:19530 when using --profile vectordb)
+      APP_VECTORSTORE_URL: "http://elasticsearch:9200"
+      # Type of vectordb: "elasticsearch" or "milvus"
+      APP_VECTORSTORE_NAME: "elasticsearch"
+      # Type of index to be used for vectorstore (Milvus-specific; Elasticsearch uses its own mapping)
       APP_VECTORSTORE_INDEXTYPE: ${APP_VECTORSTORE_INDEXTYPE:-"GPU_CAGRA"}
       
       # Type of vectordb search to be used
@@ -585,7 +585,8 @@ services:
       NVWB_TRIM_PREFIX: "true"
     profiles: ["rag"]
 
-  # Milvus can be made GPU accelerated by uncommenting the lines as specified below
+  # Optional Milvus stack (--profile vectordb). Default VDB is Elasticsearch (see elasticsearch service + ingest/rag profiles).
+  # When using Milvus, set APP_VECTORSTORE_URL=http://milvus:19530 and APP_VECTORSTORE_NAME=milvus on rag-server / ingestor-server.
   milvus:
     container_name: milvus-standalone
     image: milvusdb/milvus:v2.5.3-gpu # milvusdb/milvus:v2.5.3 for CPU
@@ -656,7 +657,31 @@ services:
       interval: 30s
       timeout: 20s
       retries: 3
-    profiles: ["vectordb"]
+    # Shared object storage for NV-Ingest and Milvus; included with ingest/rag so ES deployments do not require --profile vectordb
+    profiles: ["vectordb", "ingest", "rag"]
+
+  elasticsearch:
+    container_name: elasticsearch
+    image: "docker.elastic.co/elasticsearch/elasticsearch:9.0.3"
+    ports:
+      - "9200:9200"
+    volumes:
+      - ${DOCKER_VOLUME_DIRECTORY:-./volumes/elasticsearch}:/usr/share/elasticsearch/data
+    restart: on-failure
+    environment:
+      - discovery.type=single-node
+      - "ES_JAVA_OPTS=-Xms1024m -Xmx1024m"
+      - xpack.security.enabled=false
+      - xpack.license.self_generated.type=basic
+      - network.host=0.0.0.0
+      - cluster.routing.allocation.disk.threshold_enabled=false
+    hostname: elasticsearch
+    healthcheck:
+      test: ["CMD", "curl", "-s", "-f", "http://localhost:9200/_cat/health"]
+      interval: 10s
+      timeout: 1s
+      retries: 10
+    profiles: ["ingest", "rag"]
 
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.131.0

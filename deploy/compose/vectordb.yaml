@@ -41,7 +41,7 @@ services:
               capabilities: ["gpu"]
               # count: ${INFERENCE_GPU_COUNT:-all}
               device_ids: ['${VECTORSTORE_GPU_DEVICE_ID:-0}']
-    profiles: ["", "milvus"]
+    profiles: ["milvus"]
 
   etcd:
     container_name: milvus-etcd
@@ -59,7 +59,7 @@ services:
       interval: 30s
       timeout: 20s
       retries: 3
-    profiles: ["", "milvus"]
+    profiles: ["milvus"]
 
   minio:
     container_name: milvus-minio
@@ -107,7 +107,7 @@ services:
       interval: 10s
       timeout: 1s
       retries: 10
-    profiles: ["elasticsearch"]
+    profiles: ["", "elasticsearch"]
 
 networks:
   default:
