@@ -290,6 +290,9 @@ filter_expression_generator_prompt:
     3.  **On Logical Conflict:** The exact text UNSUPPORTED.
         * **Use this ONLY for impossible logic**, like "year is 2022 and year is 2023".
 
+  human: |
+    Generate the filter expression.{existing_filter_context}
+
 query_decomposition_multiquery_prompt:
   system: |
     You are an AI assistant designed to break down a user's complex question into a list of simpler, focused subqueries.
@@ -340,9 +343,10 @@ query_decomposition_followup_question_prompt:
     3. If a specific factual piece is missing that retrieval could find, generate one short, precise question to retrieve it.
     4. If the missing answer can be computed or derived from values already present in the conversation history (e.g., calculating a growth rate from two revenue figures already answered), return ''.
     5. If all necessary information is already present, return ''.
-    6. Do NOT provide any explanation or rationale.
-    7. Do not answer the question.
-    8. Make sure the follow-up query is short and concise.
+    6. If a question already appears in the conversation history with an empty answer ('' or no useful content), it means the information is not available — do NOT ask the same question again. Return ''.
+    7. Do NOT provide any explanation or rationale.
+    8. Do not answer the question.
+    9. Make sure the follow-up query is short and concise.
     </instructions>
   human: |
     Conversation History:
@@ -406,6 +410,8 @@ query_decomposition_rag_template:
     Question: {question}
 
 image_captioning_prompt:
-  system: ""
+  system: |
+    /no_think
+
   human: |
     Describe this image in detail, including the main subjects, their actions, the setting, and any notable objects or features.
