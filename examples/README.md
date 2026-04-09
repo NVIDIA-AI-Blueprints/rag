@@ -9,6 +9,7 @@ This directory contains example integrations and extensions for NVIDIA RAG.
 | [rag_react_agent](./rag_react_agent/) | Integration with [NeMo Agent Toolkit (NAT)](https://github.com/NVIDIA/NeMo-Agent-Toolkit) providing RAG query and search capabilities for agent workflows | [README](./rag_react_agent/README.md) |
 | [nvidia_rag_mcp](./nvidia_rag_mcp/) | MCP (Model Context Protocol) server and client for exposing NVIDIA RAG capabilities to MCP-compatible applications | [Documentation](../docs/mcp.md) |
 | [rag_event_ingest](./rag_event_ingest/) | Automated document ingestion from object storage (MinIO) via Kafka | [Notebook](../notebooks/rag_event_ingest.ipynb) |
+| [gcnv-data-ingestor](./gcnv-data-ingestor/) | Helm chart for deploying the GCNV data ingestor with PVC-backed storage and configurable runtime settings | [README](./gcnv-data-ingestor/README.md) |
 
 ## rag_react_agent
 
@@ -39,3 +40,11 @@ Components:
 - **data/** - Sample documents for testing
 
 See the [notebook](../notebooks/rag_event_ingest.ipynb) for step-by-step deployment and testing.
+
+## gcnv-data-ingestor
+
+This example packages a GCNV data ingestor deployment as a reusable Helm chart. It is intended for Kubernetes environments where application state and source data are mounted from PVCs, including NetApp Google Cloud NetApp Volumes-backed storage.
+
+The chart supports configurable image settings, PVC creation or reuse, health probes, service exposure, and runtime environment overrides for connecting to an NVIDIA ingestor endpoint.
+
+See the [gcnv-data-ingestor README](./gcnv-data-ingestor/README.md) for prerequisites, installation, and configuration details.

@@ -1,0 +1,99 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "gcnv-data-ingestor.fullname" . }}
+  labels:
+    {{- include "gcnv-data-ingestor.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: {{ .Values.strategy.type }}
+  selector:
+    matchLabels:
+      {{- include "gcnv-data-ingestor.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "gcnv-data-ingestor.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "gcnv-data-ingestor.serviceAccountName" . }}
+      {{- with .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- range . }}
+        - name: {{ . }}
+        {{- end }}
+      {{- end }}
+      containers:
+        - name: gcnv-data-ingestor
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.port }}
+              protocol: TCP
+          env:
+            - name: MOUNT_PATH
+              value: {{ .Values.sourceData.mountPath | quote }}
+            - name: SCAN_OUTPUT_ROOT
+              value: {{ .Values.env.scanOutputRoot | quote }}
+            - name: APP_DB_PATH
+              value: {{ .Values.env.appDbPath | quote }}
+            - name: DEFAULT_INCREMENTAL_SCHEDULER_MINS
+              value: {{ .Values.env.defaultIncrementalSchedulerMins | quote }}
+            - name: NV_INGEST_MODE
+              value: {{ .Values.env.nvIngestMode | quote }}
+            - name: NV_INGEST_ENDPOINT
+              value: {{ .Values.env.nvIngestEndpoint | quote }}
+            {{- with .Values.env.extra }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.probes.liveness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.probes.readiness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: app-data
+              mountPath: {{ .Values.appData.mountPath | quote }}
+            - name: source-data
+              mountPath: {{ .Values.sourceData.mountPath | quote }}
+              readOnly: {{ .Values.sourceData.readOnly }}
+      volumes:
+        - name: app-data
+          persistentVolumeClaim:
+            claimName: {{ include "gcnv-data-ingestor.appPvcName" . }}
+        - name: source-data
+          persistentVolumeClaim:
+            claimName: {{ include "gcnv-data-ingestor.sourcePvcName" . }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
