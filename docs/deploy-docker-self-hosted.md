@@ -324,7 +324,7 @@ After the first time you deploy the RAG Blueprint successfully, you can consider
    docker compose -f deploy/compose/docker-compose-*-server.yaml up -d --build
    ```
 
-- By default, GPU accelerated Milvus DB is deployed. You can choose the GPU ID to allocate by using the below env variable. For all service port mappings and GPU assignments, see [Service Port and GPU Reference](service-port-gpu-reference.md).
+By default, Elasticsearch is deployed as the vector database (`vectordb.yaml` with the default profile). Milvus is optional. You can start Milvus with `docker compose -f deploy/compose/vectordb.yaml --profile milvus up -d` and set `APP_VECTORSTORE_NAME` / `APP_VECTORSTORE_URL` for Milvus (see [Vector database configuration](change-vectordb.md)). When you use the Milvus profile, Milvus can run as GPU-accelerated. Choose the GPU ID using the following variables. For all service port mappings and GPU assignments, refer to [Service Port and GPU Reference](service-port-gpu-reference.md).
 
    ```bash
    VECTORSTORE_GPU_DEVICE_ID=0
