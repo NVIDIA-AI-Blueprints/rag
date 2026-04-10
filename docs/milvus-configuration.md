@@ -5,7 +5,7 @@
 # Milvus Configuration for NVIDIA RAG Blueprint
 
 :::{note}
-Milvus is an optional vector database for the NVIDIA RAG Blueprint. The default VDB is Elasticsearch. Use this guide if you want to switch to Milvus, or if you already use Milvus and need to tune GPU/CPU behavior, endpoints, authentication, or runtime API tokens. For enabling Milvus and wiring `APP_VECTORSTORE_*`, start with [Vector database configuration](change-vectordb.md) (section **Switching to Milvus**).
+Milvus is an optional vector database for the NVIDIA RAG Blueprint. The default VDB is Elasticsearch. Use this guide if you want to switch to Milvus, or if you already use Milvus and need to tune GPU/CPU behavior, endpoints, authentication, or runtime API tokens. For enabling Milvus and wiring `APP_VECTORSTORE_*`, start with [Vector database configuration](change-vectordb#switching-to-milvus.md) the Switching to Milvus section.
 :::
 
 This document describes **optional Milvus-specific** settings. It does not replace the default Elasticsearch path—see [Vector database configuration](change-vectordb.md) for the standard vector database and for switching between backends.
@@ -19,7 +19,7 @@ When Milvus is running, it uses GPU acceleration by default for vector operation
 
 ## Docker compose
 
-The commands below use the **`milvus` Compose profile** so the Milvus, etcd, and MinIO services start. Ensure `APP_VECTORSTORE_NAME` and `APP_VECTORSTORE_URL` target Milvus if you have not already switched from Elasticsearch ([Vector database configuration](change-vectordb.md)).
+The commands below use the `milvus` Compose profile so the Milvus, etcd, and MinIO services start. Ensure `APP_VECTORSTORE_NAME` and `APP_VECTORSTORE_URL` target Milvus if you have not already switched from Elasticsearch ([Vector database configuration](change-vectordb.md)).
 
 ### Configuration Steps
 
@@ -188,7 +188,7 @@ When `adapt_for_cpu` is in effect, your search requests must supply an `ef` para
 
 ## (Optional) Customize the Milvus Endpoint
 
-Use this procedure when the RAG stack should talk to a **Milvus instance you operate separately** (outside the chart’s Milvus subchart), for example a shared cluster or a different namespace.
+Use this procedure when the RAG stack should talk to a Milvus instance you operate separately (outside the chart’s Milvus subchart), for example a shared cluster or a different namespace.
 
 1. Update the `APP_VECTORSTORE_URL` and `MINIO_ENDPOINT` variables in both the RAG server and the ingestor server sections in [values.yaml](../deploy/helm/nvidia-blueprint-rag/values.yaml). Your changes should look similar to the following.
 
@@ -213,7 +213,7 @@ Use this procedure when the RAG stack should talk to a **Milvus instance you ope
        # ... existing code ...
    ```
 
-2. Turn off the **in-chart** Milvus deployment so Helm does not create a second Milvus alongside your external endpoint. Set `nv-ingest.milvusDeployed` to `false`:
+2. Turn off the in-chart Milvus deployment so Helm does not create a second Milvus alongside your external endpoint. Set `nv-ingest.milvusDeployed` to `false`:
 
    ```yaml
     nv-ingest:
@@ -306,7 +306,7 @@ nv-ingest:
 (Optional) For more details on configuring Milvus with Helm, refer to the [Milvus Helm configuration](https://milvus.io/docs/configure-helm.md).
 
 :::{important}
-**Change the password before starting the Helm deployment.** Once the deployment is started, the root password you set becomes persistent in the etcd volume. To change the password after deployment:
+Change the password before starting the Helm deployment. Once the deployment is started, the root password you set becomes persistent in the etcd volume. To change the password after deployment:
 
 1. Uninstall the deployment:
    ```bash
@@ -351,7 +351,7 @@ For detailed HELM deployment instructions, see [Helm Deployment Guide](deploy-he
 
 ## Using VDB Auth Token at Runtime via APIs
 
-When **Milvus** is the active vector database (`APP_VECTORSTORE_NAME=milvus`), NVIDIA RAG Blueprint servers accept a Vector DB (VDB) authentication token via the HTTP `Authorization` header at runtime. This header is forwarded to Milvus for auth-protected operations. If you use **Elasticsearch** as the default VDB, runtime bearer tokens are handled differently—see **Using VDB Auth Token at Runtime via APIs** in [Vector database configuration](change-vectordb.md).
+When Milvus is the active vector database (`APP_VECTORSTORE_NAME=milvus`), NVIDIA RAG Blueprint servers accept a Vector DB (VDB) authentication token via the HTTP `Authorization` header at runtime. This header is forwarded to Milvus for auth-protected operations. If you use Elasticsearch as the default VDB, runtime bearer tokens are handled differently—refer to Using VDB Auth Token at Runtime via APIs in [Vector database configuration](change-vectordb.md).
 
 This Milvus flow assumes you already know how to create Milvus users, roles, and privileges. After you configure those in Milvus, you can pass auth tokens in the `Authorization` header to enforce access control.
 

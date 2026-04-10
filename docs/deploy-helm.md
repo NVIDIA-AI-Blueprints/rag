@@ -138,7 +138,7 @@ To verify a deployment, use the following procedure.
     kubectl get pods -n rag
     ```
 
-    You should see output similar to the following. With the default **Elasticsearch** vector database (ECK), expect pods such as `rag-eck-elasticsearch-es-default-0`. If you enable **Milvus** in [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml), you will also see Milvus and etcd pods—see [Vector database configuration](change-vectordb.md).
+You should see output similar to the following. With the default Elasticsearch vector database (ECK), expect pods such as `rag-eck-elasticsearch-es-default-0`. If you enable Milvus in [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml), you will also see Milvus and etcd pods—refer to [Vector database configuration](change-vectordb.md).
 
    :::{note}
    If some pods remain in `Pending` state after deployment, refer to [PVCs in Pending state (StorageClass issues)](troubleshooting.md#pvcs-in-pending-state-storageclass-issues) in the troubleshooting guide.
@@ -204,7 +204,7 @@ To verify a deployment, use the following procedure.
     kubectl get svc -n rag
     ```
 
-    You should see output similar to the following. The default stack exposes **Elasticsearch** HTTP on a service such as `rag-eck-elasticsearch-es-http` (port 9200). Enabling **Milvus** adds separate services—see [Vector database configuration](change-vectordb.md).
+    You should see output similar to the following. The default stack exposes Elasticsearch HTTP on a service such as `rag-eck-elasticsearch-es-http` (port 9200). Enabling Milvus adds separate services—refer to [Vector database configuration](change-vectordb.md).
 
     ```sh
     NAME                                TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)              AGE

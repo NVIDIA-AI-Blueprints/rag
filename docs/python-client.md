@@ -96,7 +96,7 @@ Launch dependent services and NIMs. For more information, refer to [Docker prere
 
 ### Setup Milvus Vector Database Services (optional)
 
-Use this section **only if you opt into Milvus** as the vector database. The default Docker deployment uses **Elasticsearch**; see [Vector database configuration](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/docs/change-vectordb.md). For Milvus-specific tuning (GPU/CPU, auth), see [Milvus configuration](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/docs/milvus-configuration.md).
+Use this section only if you opt into Milvus as the vector database. The default Docker deployment uses Elasticsearch. Refer to [Vector database configuration](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/docs/change-vectordb.md) for more information. For Milvus-specific tuning (GPU/CPU, auth), refer to [Milvus configuration](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/docs/milvus-configuration.md).
 
 When Milvus is enabled, it uses GPU indexing by default. Set the correct GPU ID. For CPU-only mode, refer to [milvus-configuration.md](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/docs/milvus-configuration.md).
 
@@ -255,7 +255,7 @@ ingestor = NvidiaRAGIngestor(config=config_ingestor)
 ```
 
 :::{note}
-The API examples below use **`vdb_endpoint="http://localhost:9200"`**, matching the default **Elasticsearch** vector database. If you use **Milvus** instead, use `http://localhost:19530` (or your Milvus service URL) for every `vdb_endpoint` argument and ensure `APP_VECTORSTORE_*` targets Milvus.
+The API examples below use `vdb_endpoint="http://localhost:9200"`, matching the default Elasticsearch vector database. If you use Milvus instead, use the `http://localhost:19530` URL value (or your Milvus service URL) for every `vdb_endpoint` argument and confirm that the `APP_VECTORSTORE_*` value targets Milvus.
 :::
 
 ### Create a New Collection

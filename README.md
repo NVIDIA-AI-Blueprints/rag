@@ -124,7 +124,7 @@ This modular design ensures efficient query processing, accurate retrieval of in
 
 - **RAG Orchestrator Server** – Coordinates interactions between the user, retrievers, vector database, and inference models, ensuring multi-turn and context-aware query handling. This is [LangChain](https://www.langchain.com/)-based.
 
-- **Vector Database (accelerated with NVIDIA cuVS)** – Stores and searches embeddings at scale with GPU-accelerated indexing and retrieval for low-latency performance. **Default: [Elasticsearch](https://www.elastic.co/elasticsearch/vector-database).** **Alternative:** [Milvus](https://milvus.io/) (GPU-accelerated).
+- **Vector Database (accelerated with NVIDIA cuVS)** – Stores and searches embeddings at scale with GPU-accelerated indexing and retrieval for low-latency performance. The default is [Elasticsearch](https://www.elastic.co/elasticsearch/vector-database). Another alternative is [Milvus](https://milvus.io/) (GPU-accelerated).
 
 - **NeMo Retriever Extraction** – A high-performance ingestion microservice for parsing multimodal content. For more information about the ingestion pipeline, see [NeMo Retriever Extraction Overview](https://docs.nvidia.com/nemo/retriever/latest/extraction/overview/)
 
