@@ -138,7 +138,7 @@ To verify a deployment, use the following procedure.
     kubectl get pods -n rag
     ```
 
-    You should see output similar to the following.
+You should see output similar to the following. With the default Elasticsearch vector database (ECK), expect pods such as `rag-eck-elasticsearch-es-default-0`. If you enable Milvus in [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml), you will also see Milvus and etcd pods—refer to [Vector database configuration](change-vectordb.md).
 
    :::{note}
    If some pods remain in `Pending` state after deployment, refer to [PVCs in Pending state (StorageClass issues)](troubleshooting.md#pvcs-in-pending-state-storageclass-issues) in the troubleshooting guide.
@@ -147,7 +147,7 @@ To verify a deployment, use the following procedure.
     ```sh
     NAME                                                 READY   STATUS      RESTARTS   AGE
     ingestor-server-6cc886bcdf-6rfwm                     1/1     Running     0          54m
-    milvus-standalone-7dd5db4755-ctqzg                   1/1     Running     0          54m
+    rag-eck-elasticsearch-es-default-0                   1/1     Running     0          54m
     nemotron-embedding-ms-86f75c8f65-dfhd2          1/1     Running     0          39m
     nemotron-graphic-elements-v1-67d9d65bdc-ftbkw   1/1     Running     0          33m
     nemotron-ocr-v1-78f56cddb9-f4852                1/1     Running     0          40m
@@ -156,7 +156,6 @@ To verify a deployment, use the following procedure.
     nemotron-table-structure-v1-696c9f5665-l9sxn    1/1     Running     0          37m
     nim-llm-7cb9bdcc89-hwpkq                             1/1     Running     0          11m
     nim-llm-cache-job-77hpc                              0/1     Completed   0          94s
-    rag-etcd-0                                           1/1     Running     0          54m
     rag-frontend-5db7874b77-49q8f                        1/1     Running     0          54m
     rag-minio-649f6476c-n29b8                            1/1     Running     0          54m
     rag-nv-ingest-6bf4d98866-kbgg7                       1/1     Running     0          54m
@@ -205,12 +204,12 @@ To verify a deployment, use the following procedure.
     kubectl get svc -n rag
     ```
 
-    You should see output similar to the following.
+    You should see output similar to the following. The default stack exposes Elasticsearch HTTP on a service such as `rag-eck-elasticsearch-es-http` (port 9200). Enabling Milvus adds separate services—refer to [Vector database configuration](change-vectordb.md).
 
     ```sh
     NAME                                TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)              AGE
     ingestor-server                     ClusterIP   10.107.12.217    <none>        8082/TCP             54m
-    milvus                              ClusterIP   10.99.110.203    <none>        19530/TCP,9091/TCP   54m
+    rag-eck-elasticsearch-es-http       ClusterIP   10.99.110.203    <none>        9200/TCP             54m
     nemotron-embedding-ms          ClusterIP   10.104.99.15     <none>        8000/TCP,8001/TCP    54m
     nemotron-graphic-elements-v1   ClusterIP   10.96.115.45     <none>        8000/TCP,8001/TCP    54m
     nemotron-ocr-v1                ClusterIP   10.100.107.215   <none>        8000/TCP,8001/TCP    54m
@@ -218,8 +217,6 @@ To verify a deployment, use the following procedure.
     nemotron-ranking-ms            ClusterIP   10.96.114.244    <none>        8000/TCP,8001/TCP    54m
     nemotron-table-structure-v1    ClusterIP   10.107.227.139   <none>        8000/TCP,8001/TCP    54m
     nim-llm                             ClusterIP   10.104.60.155    <none>        8000/TCP,8001/TCP    54m
-    rag-etcd                            ClusterIP   10.104.74.116    <none>        2379/TCP,2380/TCP    54m
-    rag-etcd-headless                   ClusterIP   None             <none>        2379/TCP,2380/TCP    54m
     rag-frontend                        NodePort    10.100.190.142   <none>        3000:31473/TCP       54m
     rag-minio                           ClusterIP   10.101.18.143    <none>        9000/TCP             54m
     rag-nv-ingest                       ClusterIP   10.107.186.4     <none>        7670/TCP             54m

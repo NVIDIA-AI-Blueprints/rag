@@ -4,16 +4,22 @@
 -->
 # Milvus Configuration for NVIDIA RAG Blueprint
 
-You can configure how Milvus works with your [NVIDIA RAG Blueprint](readme.md).
+:::{note}
+Milvus is an optional vector database for the NVIDIA RAG Blueprint. The default VDB is Elasticsearch. Use this guide if you want to switch to Milvus, or if you already use Milvus and need to tune GPU/CPU behavior, endpoints, authentication, or runtime API tokens. For enabling Milvus and wiring `APP_VECTORSTORE_*`, start with the **Switching to Milvus** section in [Vector database configuration](change-vectordb.md#switching-to-milvus).
+:::
+
+This document describes **optional Milvus-specific** settings. It does not replace the default Elasticsearch path—see [Vector database configuration](change-vectordb.md) for the standard vector database and for switching between backends.
 
 
 ## GPU to CPU Mode Switch
 
-Milvus uses GPU acceleration by default for vector operations. Switch to CPU mode if you encounter:
+When Milvus is running, it uses GPU acceleration by default for vector operations. Switch to CPU mode if you encounter:
 - GPU memory constraints
 - Development without GPU support
 
 ## Docker compose
+
+The commands below use the `milvus` Compose profile so the Milvus, etcd, and MinIO services start. Ensure `APP_VECTORSTORE_NAME` and `APP_VECTORSTORE_URL` target Milvus if you have not already switched from Elasticsearch ([Vector database configuration](change-vectordb.md)).
 
 ### Configuration Steps
 
@@ -58,11 +64,11 @@ export APP_VECTORSTORE_ENABLEGPUINDEX=False
 After making the configuration changes and setting environment variables, restart the services:
 
 ```bash
-# 1. Stop existing services
-docker compose -f deploy/compose/vectordb.yaml down
+# 1. Stop existing services (Milvus profile)
+docker compose -f deploy/compose/vectordb.yaml --profile milvus down
 
 # 2. Start Milvus and dependencies
-docker compose -f deploy/compose/vectordb.yaml up -d
+docker compose -f deploy/compose/vectordb.yaml --profile milvus up -d
 
 # 3. Now start the ingestor server
 docker compose -f deploy/compose/docker-compose-ingestor-server.yaml up -d
@@ -78,9 +84,10 @@ To configure Milvus to run in CPU mode when deploying with Helm:
 
         ```yaml
         envVars:
-        APP_VECTORSTORE_ENABLEGPUSEARCH: "False"
+          APP_VECTORSTORE_ENABLEGPUSEARCH: "False"
+
         ingestor-server:
-        envVars:
+          envVars:
             APP_VECTORSTORE_ENABLEGPUSEARCH: "False"
             APP_VECTORSTORE_ENABLEGPUINDEX: "False"
         ```
@@ -136,7 +143,7 @@ Example sequence:
 
 ```bash
 # Start/ensure Milvus is up (GPU image if you want GPU indexing)
-docker compose -f deploy/compose/vectordb.yaml up -d
+docker compose -f deploy/compose/vectordb.yaml --profile milvus up -d
 
 # Set env vars and start the ingestor (GPU indexing + CPU search)
 export APP_VECTORSTORE_ENABLEGPUSEARCH=False
@@ -181,19 +188,19 @@ When `adapt_for_cpu` is in effect, your search requests must supply an `ef` para
 
 ## (Optional) Customize the Milvus Endpoint
 
-To use a custom Milvus endpoint, use the following procedure.
+Use this procedure when the RAG stack should talk to a Milvus instance you operate separately (outside the chart’s Milvus subchart), for example a shared cluster or a different namespace.
 
 1. Update the `APP_VECTORSTORE_URL` and `MINIO_ENDPOINT` variables in both the RAG server and the ingestor server sections in [values.yaml](../deploy/helm/nvidia-blueprint-rag/values.yaml). Your changes should look similar to the following.
 
    ```yaml
-   env:
+   envVars:
      # ... existing code ...
      APP_VECTORSTORE_URL: "http://your-custom-milvus-endpoint:19530"
      MINIO_ENDPOINT: "http://your-custom-minio-endpoint:9000"
      # ... existing code ...
 
    ingestor-server:
-     env:
+     envVars:
        # ... existing code ...
        APP_VECTORSTORE_URL: "http://your-custom-milvus-endpoint:19530"
        MINIO_ENDPOINT: "http://your-custom-minio-endpoint:9000"
@@ -206,7 +213,7 @@ To use a custom Milvus endpoint, use the following procedure.
        # ... existing code ...
    ```
 
-2. Disable the Milvus deployment. Set `milvusDeployed: false` in the `nv-ingest.milvusDeployed` section to prevent deploying the default Milvus instance. Your changes should look like the following.
+2. Turn off the in-chart Milvus deployment so Helm does not create a second Milvus alongside your external endpoint. Set `nv-ingest.milvusDeployed` to `false`:
 
    ```yaml
     nv-ingest:
@@ -220,13 +227,13 @@ To use a custom Milvus endpoint, use the following procedure.
 
 ## Milvus Authentication
 
-Enable authentication for Milvus to secure your vector database.
+Enable authentication for Milvus to secure the Milvus deployment you use with the blueprint (only applicable when Milvus is your configured vector database).
 
 ### Docker Compose
 
 #### 1. Configure Milvus Authentication
 
-Download the default Milvus configuration file (matching the version used in `deploy/compose/vectordb.yaml`):
+Download the Milvus configuration file from the upstream release (matching the version used in `deploy/compose/vectordb.yaml`):
 ```bash
 wget https://raw.githubusercontent.com/milvus-io/milvus/v2.6.5/configs/milvus.yaml -O deploy/compose/milvus.yaml
 ```
@@ -252,7 +259,7 @@ volumes:
 
 Start Milvus with authentication:
 ```bash
-docker compose -f deploy/compose/vectordb.yaml up -d
+docker compose -f deploy/compose/vectordb.yaml --profile milvus up -d
 ```
 
 Set authentication credentials and start RAG services:
@@ -268,9 +275,9 @@ docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d
 **Set the password before deployment** as it persists in the etcd volume. To change the password after deployment, stop the containers, remove the volumes, and restart:
 
 ```bash
-docker compose -f deploy/compose/vectordb.yaml down
+docker compose -f deploy/compose/vectordb.yaml --profile milvus down
 rm -rf deploy/compose/volumes/milvus deploy/compose/volumes/minio deploy/compose/volumes/etcd
-docker compose -f deploy/compose/vectordb.yaml up -d
+docker compose -f deploy/compose/vectordb.yaml --profile milvus up -d
 ```
 :::
 
@@ -299,7 +306,7 @@ nv-ingest:
 (Optional) For more details on configuring Milvus with Helm, refer to the [Milvus Helm configuration](https://milvus.io/docs/configure-helm.md).
 
 :::{important}
-**Change the password before starting the Helm deployment.** Once the deployment is started, the default password becomes persistent in the etcd volume. To change the password after deployment:
+Change the password before starting the Helm deployment. Once the deployment is started, the root password you set becomes persistent in the etcd volume. To change the password after deployment:
 
 1. Uninstall the deployment:
    ```bash
@@ -344,7 +351,9 @@ For detailed HELM deployment instructions, see [Helm Deployment Guide](deploy-he
 
 ## Using VDB Auth Token at Runtime via APIs
 
-NVIDIA RAG Blueprint servers accept a Vector DB (VDB) authentication token via the HTTP `Authorization` header at runtime. This header is forwarded to Milvus for auth-protected operations. This feature assumes you have prior knowledge of creating Milvus users, creating/granting roles, and granting appropriate privileges. Once you have configured users, roles, and privileges in Milvus, you can use these auth tokens in the `Authorization` header to enforce access control.
+When Milvus is the active vector database (`APP_VECTORSTORE_NAME=milvus`), NVIDIA RAG Blueprint servers accept a Vector DB (VDB) authentication token via the HTTP `Authorization` header at runtime. This header is forwarded to Milvus for auth-protected operations. If you use Elasticsearch as the default VDB, runtime bearer tokens are handled differently—refer to Using VDB Auth Token at Runtime via APIs in [Vector database configuration](change-vectordb.md).
+
+This Milvus flow assumes you already know how to create Milvus users, roles, and privileges. After you configure those in Milvus, you can pass auth tokens in the `Authorization` header to enforce access control.
 
 Access permissions are enforced based on the privileges assigned to each user:
 - **Read operations**: Users without privileges such as `Load`, `Search`, and `Query` will not be able to read data from collections.
@@ -458,7 +467,7 @@ If you encounter GPU_CAGRA errors that cannot be resolved by when switching to C
 
 1. Stop all running services:
    ```bash
-   docker compose -f deploy/compose/vectordb.yaml down
+   docker compose -f deploy/compose/vectordb.yaml --profile milvus down
    docker compose -f deploy/compose/docker-compose-ingestor-server.yaml down
    ```
 
@@ -469,7 +478,7 @@ If you encounter GPU_CAGRA errors that cannot be resolved by when switching to C
 
 3. Restart the services:
    ```bash
-   docker compose -f deploy/compose/vectordb.yaml up -d
+   docker compose -f deploy/compose/vectordb.yaml --profile milvus up -d
    docker compose -f deploy/compose/docker-compose-ingestor-server.yaml up -d
    ```
 
@@ -480,6 +489,7 @@ This will delete all existing vector data, so ensure you have backups if needed.
 
 ## Related Topics
 
+- [Vector database configuration](change-vectordb.md) (Elasticsearch default, switching to Milvus)
 - [NVIDIA RAG Blueprint Documentation](readme.md)
 - [Best Practices for Common Settings](accuracy_perf.md).
 - [RAG Pipeline Debugging Guide](debugging.md)

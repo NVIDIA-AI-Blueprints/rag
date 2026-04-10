@@ -72,7 +72,7 @@ To install the RAG Blueprint on Kubernetes, you need one of the following:
 
 The following are requirements and recommendations for the individual components of the RAG Blueprint:
 
-- **Pipeline operation** – 1x L40 GPU or similar recommended. This is needed for the Milvus vector database, as GPU acceleration is enabled by default.
+- **Pipeline operation** – 1x L40 GPU or similar recommended. This is required if you use Milvus (optional) as the vector database with GPU acceleration. The default Elasticsearch VDB does not require a GPU. If you change the vector backend or enable optional GPU acceleration for vector search, confirm GPU requirements for that configuration.
 - **LLM NIM (nemotron-3-super-120b-a12b)** – Refer to the [Support Matrix](https://docs.nvidia.com/nim/large-language-models/latest/supported-models.html).
 - **Embedding NIM (Llama-3.2-NV-EmbedQA-1B-v2 )** – Refer to the [Support Matrix](https://docs.nvidia.com/nim/nemo-retriever/text-embedding/latest/support-matrix.html#llama-3-2-nv-embedqa-1b-v2).
 - **Reranking NIM (llama-3_2-nv-rerankqa-1b-v2 )**: Refer to the [Support Matrix](https://docs.nvidia.com/nim/nemo-retriever/text-reranking/latest/support-matrix.html#llama-3-2-nv-rerankqa-1b-v2).

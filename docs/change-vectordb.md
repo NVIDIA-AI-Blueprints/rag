@@ -2,37 +2,29 @@
   SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
   SPDX-License-Identifier: Apache-2.0
 -->
-# Configure Elasticsearch as Your Vector Database for NVIDIA RAG Blueprint
+# Vector Database Configuration for NVIDIA RAG Blueprint
 
-The [NVIDIA RAG Blueprint](readme.md) supports multiple vector database backends including [Milvus](https://milvus.io/docs) and [Elasticsearch](https://www.elastic.co/elasticsearch/vector-database).
-Elasticsearch provides robust search capabilities and can be used as an alternative to Milvus for storing and retrieving document embeddings.
+[NVIDIA RAG Blueprint](readme.md) is compatible with several vector database backends, including [Elasticsearch](https://www.elastic.co/elasticsearch/vector-database) and [Milvus](https://milvus.io/docs). Elasticsearch is the default option. Standard deployments automatically use Elasticsearch—no manual configuration is required. In both the RAG and Ingestor servers, the defaults are set to `APP_VECTORSTORE_NAME=elasticsearch` and `APP_VECTORSTORE_URL=http://elasticsearch:9200` in Docker Compose, or to the bundled ECK Elasticsearch HTTP service when using Helm.
 
-After you have [deployed the blueprint](readme.md#deployment-options-for-rag-blueprint),
-use this documentation to configure Elasticsearch as your vector database.
+Milvus is available as an optional secondary backend if you prefer to use that stack.
+
+After you’ve [deployed the blueprint](readme.md#deployment-options-for-rag-blueprint), use this page to configure Elasticsearch settings (including authentication and index options), work with the default Elasticsearch setup, switch to Milvus, or connect a custom vector database.
 
 :::{tip}
 To navigate this page more easily, click the outline button at the top of the page. ![outline-button](assets/outline-button.png)
+:::
 
+## Configuring Elasticsearch
 
-## Prerequisites and Important Considerations Before You Start
+Use this section as a map to the topics below.
 
-The following are some important notes to keep in mind before you switch from Milvus to Elasticsearch.
+**Elasticsearch client (library installs)** – For local development without the pre-built Docker images, enable Elasticsearch support by installing nvidia_rag[elasticsearch] using `pip install nvidia_rag[elasticsearch]` or `uv sync --extra elasticsearch`. The Docker images already include this dependency.
 
-- **Elasticsearch Dependency** – Elasticsearch support is provided as an optional dependency. For local development, install it with:
-    ```bash
-    pip install nvidia_rag[elasticsearch]
-    ```
-    Or when using uv:
-    ```bash
-    uv sync --extra elasticsearch
-    ```
-    The Docker images already include this dependency by default.
+- **Changing the backend** – If you switch between vector databases (for example Elasticsearch and Milvus), you must re-upload your documents; data is not migrated automatically.
 
-- **Fresh Setup Required** – When you switch from Milvus to Elasticsearch, you need to re-upload your documents. The data stored in Milvus isn't automatically migrated to Elasticsearch.
+- **Port** – Elasticsearch listens on port 9200 by default. Ensure it is available or adjust your configuration.
 
-- **Port Availability** – Elasticsearch runs on port 9200 by default. Ensure this port is available and not in conflict with other services.
-
-- **Folder Permissions** – Elasticsearch data is persisted in the `volumes/elasticsearch` directory. Make sure you create the directory and have appropriate permissions set.
+- **Folder permissions (Docker Compose)** – Elasticsearch data is stored under `volumes/elasticsearch`. Create the directory and set ownership if required:
 
     ```bash
     sudo mkdir -p deploy/compose/volumes/elasticsearch/
@@ -40,21 +32,26 @@ The following are some important notes to keep in mind before you switch from Mi
     ```
 
    :::{note}
-   If the Elasticsearch container fails to start due to permission issues, you may optionally use `sudo chmod -R 777 deploy/compose/volumes/elasticsearch/` for broader access
+   If the Elasticsearch container fails to start due to permission issues, you may optionally use `sudo chmod -R 777 deploy/compose/volumes/elasticsearch/` for broader access.
    :::
 
+- **Authentication** – Refer to [Elasticsearch Authentication](#elasticsearch-authentication) for xpack, API keys, and Helm (ECK) credentials.
 
-## Docker Compose Configuration for Elasticsearch Vector Database
+- **Index and search tuning** – Adjust index type, dense or hybrid search, and related behavior with `APP_VECTORSTORE_*` in the RAG and Ingestor compose files or Helm `envVars` (for example `APP_VECTORSTORE_SEARCHTYPE`, `APP_VECTORSTORE_INDEXTYPE`).
 
-Use the following steps to configure Elasticsearch as your vector database in Docker.
+## Using Elasticsearch (Default)
 
-1. Start the Elasticsearch container.
+The following steps describe the default Elasticsearch deployment for Docker Compose and Helm.
+
+### Docker Compose
+
+1. Start the vector database stack. Elasticsearch is included in the default profile for `vectordb.yaml` (you may pass `--profile elasticsearch` explicitly if you prefer).
 
    ```bash
-   docker compose -f deploy/compose/vectordb.yaml --profile elasticsearch up -d
+   docker compose -f deploy/compose/vectordb.yaml up -d
    ```
 
-2. Set the vector database configuration.
+2. Confirm vector database settings. The compose files for the RAG and Ingestor servers already default to Elasticsearch; set or export these if you need to be explicit:
 
    ```bash
    export APP_VECTORSTORE_URL="http://elasticsearch:9200"
@@ -72,15 +69,15 @@ Use the following steps to configure Elasticsearch as your vector database in Do
 
    Access the RAG UI at `http://<host-ip>:8090`. In the UI, navigate to: Settings > Endpoint Configuration > Vector Database Endpoint → set to `http://elasticsearch:9200`.
 
-## Helm Deployment to Configure Elasticsearch as Vector Database
+### Helm
 
-If you're using Helm for deployment, use the following steps to configure Elasticsearch as your vector database.
+If you're using Helm for deployment, Elasticsearch (ECK) is enabled by default. Use the following steps to align the release with the default vector database.
 
 :::{note}
 **Performance Consideration**: Slow VDB upload is observed in Helm deployments for Elasticsearch (ES). For more details, refer to the [troubleshooting documentation](./troubleshooting.md).
 :::
 
-### Prerequisites
+#### Prerequisites
 
 1. Install the ECK (Elastic Cloud on Kubernetes) operator:
 
@@ -112,11 +109,11 @@ If you're using Helm for deployment, use the following steps to configure Elasti
    kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=elastic-operator -n elastic-system --timeout=300s
    ```
 
-### Configuration Steps
+#### Configuration Steps
 
-1. Configure Elasticsearch as the vector database in [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml).
+1. Confirm Elasticsearch settings in [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml).
 
-   Update both the RAG server and ingestor-server sections:
+   The chart defaults to Elasticsearch; ensure both the RAG server and ingestor-server sections match your ECK service URL and credentials:
 
     ```yaml
     # RAG Server configuration
@@ -135,7 +132,7 @@ If you're using Helm for deployment, use the following steps to configure Elasti
         APP_VECTORSTORE_PASSWORD: ""
    ```
 
-2. Enable Elasticsearch deployment in [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml).
+Ensure that Elasticsearch (ECK) is enabled in [values.yaml](../deploy/helm/nvidia-blueprint-rag/values.yaml). This is the default setting; use the following block as the reference configuration:
 
    ```yaml
    eck-elasticsearch:
@@ -198,17 +195,16 @@ If you're using Helm for deployment, use the following steps to configure Elasti
 
 7. Access the UI at `http://<host-ip>:3000` and set Settings > Endpoint Configuration > Vector Database Endpoint to `http://rag-eck-elasticsearch-es-http:9200`.
 
-
-## Verify Your Elasticsearch Vector Database Setup
+### Verify Your Elasticsearch Vector Database Setup
 
 After you complete the setup, verify that Elasticsearch is running correctly:
 
-### For Docker Deployment:
+#### For Docker Deployment:
 ```bash
 curl -X GET "localhost:9200/_cluster/health?pretty"
 ```
 
-### For Helm deployments:
+#### For Helm deployments:
 ```bash
 # 1. Get the name of your Elasticsearch pod:
 kubectl get pods -n rag | grep elasticsearch
@@ -223,6 +219,79 @@ curl -X GET "localhost:9200/_cluster/health?pretty"
 ```
 
 You should see a response that indicates the cluster status is green or yellow, confirming that Elasticsearch is operational and ready to store embeddings.
+
+## Switching to Milvus
+
+Use Milvus when you want the optional Milvus stack instead of Elasticsearch. You must re-upload your documents after switching; embeddings stored in Elasticsearch are not migrated to Milvus automatically.
+
+### Docker Compose
+
+1. Start the Milvus profile (Milvus, etcd, MinIO, and related services).
+
+   ```bash
+   docker compose -f deploy/compose/vectordb.yaml --profile milvus up -d
+   ```
+
+2. Point the application at Milvus.
+
+   ```bash
+   export APP_VECTORSTORE_NAME="milvus"
+   export APP_VECTORSTORE_URL="http://milvus:19530"
+   ```
+
+3. Relaunch the RAG and ingestion services.
+
+   ```bash
+   docker compose -f deploy/compose/docker-compose-ingestor-server.yaml up -d
+   docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d
+   ```
+
+4. Update the RAG UI configuration.
+
+   Settings > Endpoint Configuration > Vector Database Endpoint → `http://milvus:19530`.
+
+### Helm
+
+Configure [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) so Milvus is deployed, ECK Elasticsearch is disabled, and both servers use the Milvus endpoint.
+
+1. Set the vector database environment variables on the RAG server and ingestor server:
+
+    ```yaml
+    # RAG Server configuration
+    envVars:
+      APP_VECTORSTORE_URL: "http://milvus:19530"
+      APP_VECTORSTORE_NAME: "milvus"
+      APP_VECTORSTORE_USERNAME: ""
+      APP_VECTORSTORE_PASSWORD: ""
+
+    # Ingestor Server configuration
+    ingestor-server:
+      envVars:
+        APP_VECTORSTORE_URL: "http://milvus:19530"
+        APP_VECTORSTORE_NAME: "milvus"
+        APP_VECTORSTORE_USERNAME: ""
+        APP_VECTORSTORE_PASSWORD: ""
+    ```
+
+2. Disable ECK Elasticsearch and deploy Milvus via nv-ingest:
+
+   ```yaml
+   eck-elasticsearch:
+     enabled: false
+
+   nv-ingest:
+     milvusDeployed: true
+   ```
+
+   Adjust additional `nv-ingest.milvus` settings in [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) as needed (resources, images, authentication, and so on).
+
+3. Deploy or upgrade the Helm release as described in [Change a Deployment](deploy-helm.md#change-a-deployment).
+
+4. Verify Milvus pods and services, then set the RAG UI vector endpoint to match your Milvus HTTP/gRPC service (commonly `http://milvus:19530` from application pods when using the default `fullnameOverride`).
+
+:::{note}
+Kubernetes DNS names may include your Helm release prefix. Use `kubectl get svc -n rag` to confirm the Milvus service hostname if connections fail.
+:::
 
 ## Elasticsearch Authentication
 
@@ -891,7 +960,7 @@ Follow these steps to add your custom vector database to the NVIDIA RAG servers 
     Or, you may edit the files locally to show your custom value. Search for `APP_VECTORSTORE_NAME` and adjust defaults if desired:
     ```yaml
     # Type of vectordb used to store embedding (supports "milvus", "elasticsearch", or a custom value like "your_custom_vdb")
-    APP_VECTORSTORE_NAME: ${APP_VECTORSTORE_NAME:-"milvus"}
+    APP_VECTORSTORE_NAME: ${APP_VECTORSTORE_NAME:-"elasticsearch"}
     # URL on which vectorstore is hosted
     APP_VECTORSTORE_URL: ${APP_VECTORSTORE_URL:-http://your-custom-vdb:1234}
     ```
@@ -1001,11 +1070,14 @@ Update your [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) fil
 
 ### Disable Default Vector Database and Add Custom Helm Chart
 
-1. **Disable Milvus in the NeMo Retriever Library configuration:**
+**Disable the chart-managed vector databases you are replacing** in [values.yaml](../deploy/helm/nvidia-blueprint-rag/values.yaml). The default configuration deploys Elasticsearch (ECK) and keeps Milvus optional through nv-ingest; for a custom Helm chart backend, disable any bundled backends you no longer need—for example:
+
    ```yaml
+   eck-elasticsearch:
+     enabled: false
+
    nv-ingest:
      enabled: true
-     # Disable Milvus deployment
      milvusDeployed: false
      milvus:
        enabled: false

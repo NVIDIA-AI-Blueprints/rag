@@ -119,7 +119,7 @@ If you are working directly with the source Helm chart, and you want to customiz
    :::
 
 
-6. Follow the remaining instructions in [Deploy on Kubernetes with Helm](./deploy-helm.md):
+6. Follow the remaining instructions in [Deploy on Kubernetes with Helm](./deploy-helm.md) (including verification examples that reflect the default Elasticsearch vector database; optional Milvus adds different pods and services—refer to [Vector database configuration](change-vectordb.md)) for more information.
 
     - [Verify a Deployment](deploy-helm.md#verify-a-deployment)
     - [Port-Forwarding to Access Web User Interface](deploy-helm.md#port-forwarding-to-access-web-user-interface)
