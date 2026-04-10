@@ -5,7 +5,7 @@
 # Milvus Configuration for NVIDIA RAG Blueprint
 
 :::{note}
-Milvus is an optional vector database for the NVIDIA RAG Blueprint. The default VDB is Elasticsearch. Use this guide if you want to switch to Milvus, or if you already use Milvus and need to tune GPU/CPU behavior, endpoints, authentication, or runtime API tokens. For enabling Milvus and wiring `APP_VECTORSTORE_*`, start with [Vector database configuration](change-vectordb#switching-to-milvus.md) the Switching to Milvus section.
+Milvus is an optional vector database for the NVIDIA RAG Blueprint. The default VDB is Elasticsearch. Use this guide if you want to switch to Milvus, or if you already use Milvus and need to tune GPU/CPU behavior, endpoints, authentication, or runtime API tokens. For enabling Milvus and wiring `APP_VECTORSTORE_*`, start with the **Switching to Milvus** section in [Vector database configuration](change-vectordb.md#switching-to-milvus).
 :::
 
 This document describes **optional Milvus-specific** settings. It does not replace the default Elasticsearch path—see [Vector database configuration](change-vectordb.md) for the standard vector database and for switching between backends.
