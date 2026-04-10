@@ -581,6 +581,14 @@ class Prompt(BaseModel):
         le=1.0,
     )
 
+    @model_validator(mode="before")
+    @classmethod
+    def coerce_collection_name_singular(cls, values):
+        """Accept legacy collection_name (singular str) from AIRA <=1.2.x and convert to collection_names."""
+        if isinstance(values, dict) and "collection_name" in values and "collection_names" not in values:
+            values["collection_names"] = [values.pop("collection_name")]
+        return values
+
     @model_validator(mode="after")
     def validate_confidence_threshold(cls, values):
         """Custom validator for confidence_threshold to provide better error messages."""
@@ -699,6 +707,14 @@ class DocumentSearch(BaseModel):
         description="Enable or disable image/table/chart citations as part of response.",
         default=CONFIG.enable_citations,
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def coerce_collection_name_singular(cls, values):
+        """Accept legacy collection_name (singular str) from AIRA <=1.2.x and convert to collection_names."""
+        if isinstance(values, dict) and "collection_name" in values and "collection_names" not in values:
+            values["collection_names"] = [values.pop("collection_name")]
+        return values
 
     @model_validator(mode="after")
     def validate_confidence_threshold(cls, values):
