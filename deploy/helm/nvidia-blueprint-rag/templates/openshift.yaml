@@ -1,0 +1,109 @@
+{{- if .Values.openshift.enabled }}
+{{/*
+  OpenShift Routes — expose services via the OpenShift router.
+  Each route is individually toggleable via openshift.routes.<name>.enabled.
+*/}}
+
+{{- $routes := .Values.openshift.routes | default dict }}
+
+{{/* --- Route: rag-frontend --- */}}
+{{- $frontendRoute := $routes.frontend | default dict }}
+{{- if $frontendRoute.enabled }}
+{{- $frontendName := .Values.frontend.appName | default "rag-frontend" }}
+{{- $frontendTls := $frontendRoute.tls | default dict }}
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: {{ $frontendName }}
+  labels:
+    {{- include "nvidia-blueprint-rag.labels" . | nindent 4 }}
+    app.kubernetes.io/component: rag-frontend
+  {{- with $frontendRoute.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with $frontendRoute.host }}
+  host: {{ . }}
+  {{- end }}
+  to:
+    kind: Service
+    name: {{ $frontendName }}
+    weight: 100
+  port:
+    targetPort: {{ .Values.frontend.service.port | default 3000 }}
+  {{- if $frontendTls }}
+  tls:
+    termination: {{ $frontendTls.termination | default "edge" }}
+    {{- with $frontendTls.insecureEdgeTerminationPolicy }}
+    insecureEdgeTerminationPolicy: {{ . }}
+    {{- end }}
+  {{- end }}
+  wildcardPolicy: None
+{{- end }}
+
+{{/* --- Route: rag-server (API) --- */}}
+{{- $ragServerRoute := $routes.ragServer | default dict }}
+{{- if $ragServerRoute.enabled }}
+{{- $ragServerTls := $ragServerRoute.tls | default dict }}
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: {{ include "nvidia-blueprint-rag.fullname" . }}
+  labels:
+    {{- include "nvidia-blueprint-rag.labels" . | nindent 4 }}
+    app.kubernetes.io/component: rag-server
+  annotations:
+    haproxy.router.openshift.io/timeout: {{ $ragServerRoute.timeout | default "300s" | quote }}
+    {{- with $ragServerRoute.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  {{- with $ragServerRoute.host }}
+  host: {{ . }}
+  {{- end }}
+  to:
+    kind: Service
+    name: {{ include "nvidia-blueprint-rag.fullname" . }}
+    weight: 100
+  port:
+    targetPort: {{ .Values.service.port | default 8081 }}
+  {{- if $ragServerTls }}
+  tls:
+    termination: {{ $ragServerTls.termination | default "edge" }}
+    {{- with $ragServerTls.insecureEdgeTerminationPolicy }}
+    insecureEdgeTerminationPolicy: {{ . }}
+    {{- end }}
+  {{- end }}
+  wildcardPolicy: None
+{{- end }}
+
+{{/*
+  SCC RoleBinding — grants the anyuid SCC to service accounts that need it.
+  OpenShift's default restricted SCC assigns random UIDs that conflict with
+  many containers in this chart (NIM, nv-ingest, etcd, Zipkin).
+*/}}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "nvidia-blueprint-rag.fullname" . }}-anyuid-scc
+  labels:
+    {{- include "nvidia-blueprint-rag.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:openshift:scc:anyuid
+subjects:
+  - kind: ServiceAccount
+    name: default
+  - kind: ServiceAccount
+    name: {{ include "nvidia-blueprint-rag.serviceAccountName" . }}
+  - kind: ServiceAccount
+    name: rag-nv-ingest
+{{- if .Values.zipkin.enabled }}
+  - kind: ServiceAccount
+    name: rag-zipkin
+{{- end }}
+{{- end }}
