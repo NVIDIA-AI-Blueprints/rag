@@ -515,9 +515,24 @@ eck-elasticsearch:
             storage: 50Gi
     podTemplate:
       spec:
+        # JVM heap (-Xmx) must be ≤ 50% of pod memory limit; limit ≥ 2× -Xmx (here 2g heap → 4Gi limit).
+        initContainers:
+        - name: elastic-internal-init-filesystem
+          env:
+          - name: ES_JAVA_OPTS
+            value: "-Xms2g -Xmx2g"
         containers:
         - name: elasticsearch
-          # Override readiness probe to not require authentication
+          env:
+          - name: ES_JAVA_OPTS
+            value: "-Xms2g -Xmx2g"
+          resources:
+            requests:
+              memory: "4Gi"
+              cpu: "500m"
+            limits:
+              memory: "4Gi"
+          # Override readiness probe to not require authentication; tolerant under ingest load
           readinessProbe:
             exec:
               command:
@@ -525,10 +540,10 @@ eck-elasticsearch:
               - -c
               - |
                 curl -s http://localhost:9200/_cluster/health | grep -q '"status":"green"\|"status":"yellow"'
-            initialDelaySeconds: 10
+            initialDelaySeconds: 30
             periodSeconds: 10
             timeoutSeconds: 5
-            failureThreshold: 3
+            failureThreshold: 10
 
 # -- Observability
 # subsection: serviceMonitor
