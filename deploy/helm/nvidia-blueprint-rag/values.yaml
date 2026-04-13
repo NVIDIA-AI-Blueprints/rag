@@ -992,7 +992,7 @@ nv-ingest:
     AUDIO_INFER_PROTOCOL: grpc
 
   # When false, nv-ingest does not deploy its Milvus subchart; RAG uses Elasticsearch (eck-elasticsearch + APP_VECTORSTORE_*).
-  milvusDeployed: false
+  milvusDeployed: true
   milvus:
     # Uncomment this section to enable authentication for Milvus
     # extraConfigFiles:
