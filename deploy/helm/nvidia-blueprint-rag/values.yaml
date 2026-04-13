@@ -92,7 +92,7 @@ readinessProbe:
 
 # -- RAG server runtime configuration
 server:
-  workers: 8
+  workers: 128
 
 # -- Enable/disable creation of prompt ConfigMap
 promptConfig:
@@ -490,6 +490,8 @@ frontend:
 # -- Elasticsearch dependency toggle (ECK). When true, align APP_VECTORSTORE_URL with the ES HTTP service (e.g. rag-eck-elasticsearch-es-http:9200).
 eck-elasticsearch:
   enabled: true
+  # Preserve PVCs on helm uninstall; only delete when a node is explicitly scaled down.
+  volumeClaimDeletePolicy: DeleteOnScaledownOnly
   http:
     tls:
       selfSignedCertificate:
@@ -502,6 +504,15 @@ eck-elasticsearch:
       xpack.security.enabled: false
       xpack.security.http.ssl.enabled: false
       xpack.security.transport.ssl.enabled: false
+    volumeClaimTemplates:
+    - metadata:
+        name: elasticsearch-data
+      spec:
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 50Gi
     podTemplate:
       spec:
         containers:
@@ -1009,15 +1020,34 @@ nv-ingest:
         repository: docker.io/milvusdb/milvus-config-tool
         tag: v0.1.2
         pullPolicy: IfNotPresent
+    # cluster.enabled: true suppresses the standalone deployment (hardcoded replicas:1 in template).
+    # All cluster-mode components are individually disabled so no milvus pods run.
+    # Only the minio subchart remains active to serve nv-ingest.
+    cluster:
+      enabled: true
+    proxy:
+      enabled: false
+    rootCoordinator:
+      enabled: false
+    queryCoordinator:
+      enabled: false
+    queryNode:
+      enabled: false
+    indexCoordinator:
+      enabled: false
+    indexNode:
+      enabled: false
+    dataCoordinator:
+      enabled: false
+    dataNode:
+      enabled: false
     etcd:
+      enabled: false
       image:
         repository: milvusdb/etcd
         tag: "3.5.23-r2"
-    standalone:
-      resources:
-        limits:
-          nvidia.com/gpu: 1
     minio:
+      enabled: true
       image:
         repository: docker.io/minio/minio
         tag: "RELEASE.2025-09-07T16-13-09Z"
