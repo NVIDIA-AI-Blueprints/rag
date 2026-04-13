@@ -204,6 +204,8 @@ class ElasticVDB(VDBRagIngest):
             hybrid=self.hybrid,
         )
 
+        self._repair_stale_ingest_refresh_settings()
+
     @property
     def collection_name(self) -> str:
         """Get the collection name."""
@@ -237,6 +239,42 @@ class ElasticVDB(VDBRagIngest):
         Check if the index exists in Elasticsearch.
         """
         return self._es_connection.indices.exists(index=index_name)
+
+    def _repair_stale_ingest_refresh_settings(self) -> None:
+        """
+        If a prior bulk ingest exited before restoring settings, refresh_interval may
+        remain -1. Reset to 1s so search visibility and cluster behavior are normal.
+        """
+        if not self.index_name or not self._check_index_exists(self.index_name):
+            return
+        try:
+            resp = self._es_connection.indices.get_settings(index=self.index_name)
+        except (ESConnectionError, ConnectionError, OSError) as e:
+            logger.warning(
+                "Could not read settings for Elasticsearch index %s: %s",
+                self.index_name,
+                e,
+            )
+            return
+        index_block = resp.get(self.index_name)
+        if index_block is None and resp:
+            index_block = next(iter(resp.values()))
+        if not index_block:
+            return
+        settings = index_block.get("settings", {})
+        index_settings = settings.get("index", {})
+        refresh = index_settings.get("refresh_interval")
+        if refresh in ("-1", "-1s"):
+            logger.warning(
+                "Index %s has refresh_interval=%s (stale after interrupted ingest); "
+                "resetting to 1s",
+                self.index_name,
+                refresh,
+            )
+            self._es_connection.indices.put_settings(
+                index=self.index_name,
+                body={"index": {"refresh_interval": "1s"}},
+            )
 
     def create_index(self):
         """
@@ -293,35 +331,45 @@ class ElasticVDB(VDBRagIngest):
             f"Commencing Elasticsearch ingestion process for {total_records} records..."
         )
 
-        # Process records in batches of batch_size
-        for i in range(0, total_records, batch_size):
-            end_idx = min(i + batch_size, total_records)
-            batch_texts = texts[i:end_idx]
-            batch_embeddings = embeddings[i:end_idx]
-            batch_metadatas = metadatas[i:end_idx]
+        self._es_connection.indices.put_settings(
+            index=self.index_name,
+            body={"index": {"refresh_interval": "-1"}},
+        )
+        try:
+            # Process records in batches of batch_size
+            for i in range(0, total_records, batch_size):
+                end_idx = min(i + batch_size, total_records)
+                batch_texts = texts[i:end_idx]
+                batch_embeddings = embeddings[i:end_idx]
+                batch_metadatas = metadatas[i:end_idx]
 
-            # Upload current batch to Elasticsearch
-            self.es_store.add_texts(
-                texts=batch_texts,
-                vectors=batch_embeddings,
-                metadatas=batch_metadatas,
-            )
-
-            uploaded_count += len(batch_texts)
-
-            # Log progress every 5 batches (5000 records)
-            if (
-                uploaded_count % (5 * batch_size) == 0
-                or uploaded_count == total_records
-            ):
-                logger.info(
-                    f"Successfully ingested {uploaded_count} records into Elasticsearch index {self.index_name}"
+                # Upload current batch to Elasticsearch
+                self.es_store.add_texts(
+                    texts=batch_texts,
+                    vectors=batch_embeddings,
+                    metadatas=batch_metadatas,
                 )
+
+                uploaded_count += len(batch_texts)
+
+                # Log progress every 5 batches (5000 records)
+                if (
+                    uploaded_count % (5 * batch_size) == 0
+                    or uploaded_count == total_records
+                ):
+                    logger.info(
+                        f"Successfully ingested {uploaded_count} records into Elasticsearch index {self.index_name}"
+                    )
+        finally:
+            self._es_connection.indices.put_settings(
+                index=self.index_name,
+                body={"index": {"refresh_interval": "1s"}},
+            )
+            self._es_connection.indices.refresh(index=self.index_name)
 
         logger.info(
             f"Elasticsearch ingestion completed. Total records processed: {uploaded_count}"
         )
-        self._es_connection.indices.refresh(index=self.index_name)
 
     def retrieval(self, queries: list, **kwargs) -> list[dict[str, Any]]:
         """
@@ -787,7 +835,7 @@ class ElasticVDB(VDBRagIngest):
             "info_value": info_value,
         }
         self._es_connection.index(index=DEFAULT_DOCUMENT_INFO_COLLECTION, body=data)
-        logger.info(
+        logger.debug(
             f"Document info added to the ES index {DEFAULT_DOCUMENT_INFO_COLLECTION}. \
             Document info: {info_type}, {document_name}, {info_value}."
         )
