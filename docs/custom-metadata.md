@@ -233,12 +233,12 @@ The system automatically manages certain metadata fields that are added to all c
 | Field Name | Type | Description | Auto-Populated | User Override |
 |------------|------|-------------|----------------|---------------|
 | **`filename`** | `string` | Name of the uploaded file | ✅ RAG system | ✅ Yes - define in schema |
-| **`page_number`** | `integer` | Page number where content appears (1-indexed) | ✅ nv-ingest | ✅ Yes - define in schema |
-| **`start_time`** | `integer` | Start timestamp in milliseconds for audio/video segments | ✅ nv-ingest | ✅ Yes - define in schema |
-| **`end_time`** | `integer` | End timestamp in milliseconds for audio/video segments | ✅ nv-ingest | ✅ Yes - define in schema |
+| **`page_number`** | `integer` | Page number where content appears (1-indexed) | ✅ NeMo Retriever Library | ✅ Yes - define in schema |
+| **`start_time`** | `integer` | Start timestamp in milliseconds for audio/video segments | ✅ NeMo Retriever Library | ✅ Yes - define in schema |
+| **`end_time`** | `integer` | End timestamp in milliseconds for audio/video segments | ✅ NeMo Retriever Library | ✅ Yes - define in schema |
 
 :::{note}
-The following field names are **reserved** by NV-Ingest and cannot be used in custom metadata schemas: `type`, `subtype`, and `location`. These fields are exclusively managed by NV-Ingest during document processing and attempting to use them will result in a validation error.
+The following field names are **reserved** by NeMo Retriever Library and cannot be used in custom metadata schemas: `type`, `subtype`, and `location`. These fields are exclusively managed by NeMo Retriever Library during document processing and attempting to use them will result in a validation error.
 :::
 
 #### System-Managed Field Behavior
@@ -246,7 +246,7 @@ The following field names are **reserved** by NV-Ingest and cannot be used in cu
 - **Auto-Addition**: These fields are automatically added to your collection schema if you don't define them
 - **Auto-Population**: 
   - `filename` is populated by the RAG system during ingestion
-  - `page_number`, `start_time`, `end_time` are extracted and populated by nv-ingest during document processing
+  - `page_number`, `start_time`, `end_time` are extracted and populated by NeMo Retriever Library during document processing
 - **User Override**: You can define any of these fields in your schema with custom properties (e.g., different description, constraints)
   - If you provide a definition, your definition takes priority
   - If you don't provide a definition, the system auto-adds them with default settings
@@ -258,7 +258,7 @@ The following field names are **reserved** by NV-Ingest and cannot be used in cu
 :::{note}
 **Example**: If you upload a multi-page PDF without defining `page_number` in your schema, the system will:
 1. Automatically add the `page_number` field to your collection schema
-2. nv-ingest will extract the page number from each chunk during processing
+2. NeMo Retriever Library extracts the page number from each chunk during processing
 3. The page number will be available for filtering (e.g., `content_metadata["page_number"] == 5`)
 4. The page number will appear in citations when generating responses
 :::

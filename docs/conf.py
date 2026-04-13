@@ -1,4 +1,4 @@
-# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) '2025-%Y, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,10 +23,10 @@
 import os
 import sys
 
-project = " NVIDIA-RAG-blueprint"
-copyright = "2025, NVIDIA Corporation"
+project = " NVIDIA RAG blueprint"
+copyright = "'2025-%Y, NVIDIA Corporation"
 author = "NVIDIA Corporation"
-release = "2.4.0"
+release = "2.5.0"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
@@ -74,8 +74,7 @@ html_theme_options = {
             "icon": "fa-brands fa-github",
         }
     ],
-    # Version switcher disabled: set "switcher": {"json_url": "...", "version_match": release}
-    # and ensure versions1.json is at the json_url path when using versioned doc deployments.
+    "switcher": {"json_url": "../versions1.json", "version_match": release},
     "extra_head": {
         """
     <script src="https://assets.adobedtm.com/5d4962a43b79/c1061d2c5e7b/launch-191c2462b890.min.js" ></script>
@@ -87,6 +86,7 @@ html_theme_options = {
     """
     },
 }
+
 
 # Add any paths that contain custom static files (such as style sheets) here,
 html_css_files = ["swagger-nvidia.css"]

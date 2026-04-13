@@ -416,8 +416,8 @@ class TestNvidiaRAGBuildRetrieverQuery:
         ]
 
         result = rag._build_retriever_query_from_content(content)
-        # When image_url is present, the method returns the image URL
-        assert result == ("http://example.com/image.jpg", True)
+        # Text parts joined with \n\n first, then image URL with space separator
+        assert result == ("Hello\n\nworld http://example.com/image.jpg", True)
 
     def test_build_retriever_query_from_list_without_text(self):
         """Test building retriever query from list without text items."""
@@ -428,6 +428,7 @@ class TestNvidiaRAGBuildRetrieverQuery:
         ]
 
         result = rag._build_retriever_query_from_content(content)
+        # Image-only: no text, so final query is just the image URL (no leading space)
         assert result == ("http://example.com/image.jpg", True)
 
     def test_build_retriever_query_from_other_type(self):

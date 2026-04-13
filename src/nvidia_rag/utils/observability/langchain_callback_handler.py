@@ -40,6 +40,17 @@ from pydantic import BaseModel
 
 from .otel_metrics import OtelMetrics
 
+# Hardcoded attribute keys (replacing deprecated SpanAttributes constants)
+GEN_AI_PROMPTS = "gen_ai.prompt"
+GEN_AI_COMPLETIONS = "gen_ai.completion"
+LLM_REQUEST_MODEL = "gen_ai.request.model"
+LLM_RESPONSE_MODEL = "gen_ai.response.model"
+# Missing in opentelemetry.semconv_ai SpanAttributes (use llm.* to match existing semconv)
+LLM_REQUEST_MAX_TOKENS = "llm.request.max_tokens"
+LLM_REQUEST_TEMPERATURE = "llm.request.temperature"
+LLM_REQUEST_TOP_P = "llm.request.top_p"
+LLM_SYSTEM = "llm.system"
+
 
 class Config:
     exception_logger = None
@@ -137,9 +148,9 @@ def _set_request_params(span, kwargs, span_holder: SpanHolder):
     else:
         model = "unknown"
 
-    span.set_attribute(SpanAttributes.LLM_REQUEST_MODEL, model)
+    span.set_attribute(LLM_REQUEST_MODEL, model)
     # response is not available for LLM requests (as opposed to chat)
-    span.set_attribute(SpanAttributes.LLM_RESPONSE_MODEL, model)
+    span.set_attribute(LLM_RESPONSE_MODEL, model)
 
     if "invocation_params" in kwargs:
         params = (
@@ -150,13 +161,11 @@ def _set_request_params(span, kwargs, span_holder: SpanHolder):
 
     _set_span_attribute(
         span,
-        SpanAttributes.LLM_REQUEST_MAX_TOKENS,
+        LLM_REQUEST_MAX_TOKENS,
         params.get("max_tokens") or params.get("max_new_tokens"),
     )
-    _set_span_attribute(
-        span, SpanAttributes.LLM_REQUEST_TEMPERATURE, params.get("temperature")
-    )
-    _set_span_attribute(span, SpanAttributes.LLM_REQUEST_TOP_P, params.get("top_p"))
+    _set_span_attribute(span, LLM_REQUEST_TEMPERATURE, params.get("temperature"))
+    _set_span_attribute(span, LLM_REQUEST_TOP_P, params.get("top_p"))
 
 
 def _set_llm_request(
@@ -171,11 +180,11 @@ def _set_llm_request(
     if should_send_prompts():
         for i, msg in enumerate(prompts):
             span.set_attribute(
-                f"{SpanAttributes.LLM_PROMPTS}.{i}.role",
+                f"{GEN_AI_PROMPTS}.{i}.role",
                 "user",
             )
             span.set_attribute(
-                f"{SpanAttributes.LLM_PROMPTS}.{i}.content",
+                f"{GEN_AI_PROMPTS}.{i}.content",
                 msg,
             )
 
@@ -207,18 +216,18 @@ def _set_chat_request(
         for message in messages:
             for msg in message:
                 span.set_attribute(
-                    f"{SpanAttributes.LLM_PROMPTS}.{i}.role",
+                    f"{GEN_AI_PROMPTS}.{i}.role",
                     _message_type_to_role(msg.type),
                 )
                 # if msg.content is string
                 if isinstance(msg.content, str):
                     span.set_attribute(
-                        f"{SpanAttributes.LLM_PROMPTS}.{i}.content",
+                        f"{GEN_AI_PROMPTS}.{i}.content",
                         msg.content,
                     )
                 else:
                     span.set_attribute(
-                        f"{SpanAttributes.LLM_PROMPTS}.{i}.content",
+                        f"{GEN_AI_PROMPTS}.{i}.content",
                         json.dumps(msg.content, cls=CallbackFilteredJSONEncoder),
                     )
                 i += 1
@@ -252,7 +261,7 @@ def _set_chat_response(span: Span, response: LLMResult) -> None:
                 )
                 total_tokens = input_tokens + output_tokens
 
-            prefix = f"{SpanAttributes.LLM_COMPLETIONS}.{i}"
+            prefix = f"{GEN_AI_COMPLETIONS}.{i}"
             if hasattr(generation, "text") and generation.text != "":
                 span.set_attribute(
                     f"{prefix}.content",
@@ -317,11 +326,11 @@ def _set_chat_response(span: Span, response: LLMResult) -> None:
 
     if input_tokens > 0 or output_tokens > 0 or total_tokens > 0:
         span.set_attribute(
-            SpanAttributes.LLM_USAGE_PROMPT_TOKENS,
+            "gen_ai.usage.input_tokens",
             input_tokens,
         )
         span.set_attribute(
-            SpanAttributes.LLM_USAGE_COMPLETION_TOKENS,
+            "gen_ai.usage.output_tokens",
             output_tokens,
         )
         span.set_attribute(
@@ -462,7 +471,7 @@ class LangchainCallbackHandler(BaseCallbackHandler):
             entity_path=entity_path,
             metadata=metadata,
         )
-        span.set_attribute(SpanAttributes.LLM_SYSTEM, "Langchain")
+        span.set_attribute(LLM_SYSTEM, "Langchain")
         span.set_attribute(SpanAttributes.LLM_REQUEST_TYPE, request_type.value)
 
         return span
@@ -650,10 +659,10 @@ class LangchainCallbackHandler(BaseCallbackHandler):
                 "model_name"
             ) or response.llm_output.get("model_id")
             if model_name is not None:
-                span.set_attribute(SpanAttributes.LLM_RESPONSE_MODEL, model_name)
+                span.set_attribute(LLM_RESPONSE_MODEL, model_name)
 
                 if self.spans[run_id].request_model is None:
-                    span.set_attribute(SpanAttributes.LLM_REQUEST_MODEL, model_name)
+                    span.set_attribute(LLM_REQUEST_MODEL, model_name)
 
         token_usage = (response.llm_output or {}).get("token_usage") or (
             response.llm_output or {}
@@ -673,12 +682,8 @@ class LangchainCallbackHandler(BaseCallbackHandler):
                 prompt_tokens + completion_tokens
             )
 
-            _set_span_attribute(
-                span, SpanAttributes.LLM_USAGE_PROMPT_TOKENS, prompt_tokens
-            )
-            _set_span_attribute(
-                span, SpanAttributes.LLM_USAGE_COMPLETION_TOKENS, completion_tokens
-            )
+            _set_span_attribute(span, "gen_ai.usage.input_tokens", prompt_tokens)
+            _set_span_attribute(span, "gen_ai.usage.output_tokens", completion_tokens)
             _set_span_attribute(
                 span, SpanAttributes.LLM_USAGE_TOTAL_TOKENS, total_tokens
             )

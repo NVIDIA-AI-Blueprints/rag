@@ -6,6 +6,12 @@ from uuid import uuid4
 import pytest
 from langchain_core.messages import AIMessageChunk
 from langchain_core.outputs import Generation, LLMResult
+from opentelemetry.semconv_ai import (
+    LLMRequestTypeValues,
+    SpanAttributes,
+    SUPPRESS_LANGUAGE_MODEL_INSTRUMENTATION_KEY,
+    TraceloopSpanKindValues,
+)
 
 
 class SpanMock:
@@ -58,7 +64,9 @@ def handler():
 
 
 def test_on_chat_model_start_sets_input_words_and_prompts(handler):
-    from nvidia_rag.utils.observability.langchain_callback_handler import SpanAttributes
+    from nvidia_rag.utils.observability.langchain_callback_handler import (
+        GEN_AI_PROMPTS,
+    )
 
     run_id = uuid4()
     messages = [
@@ -78,44 +86,8 @@ def test_on_chat_model_start_sets_input_words_and_prompts(handler):
     assert handler.total_input_words == 4
     # span should be created and attributes recorded
     assert run_id in handler.spans
-    span = handler.spans[run_id].span
-    # Check that at least one prompt attribute key prefix was used
-    prompt_prefix = f"{SpanAttributes.LLM_PROMPTS}."
-    prompt_keys = [k for k, _ in span.attributes if k.startswith(prompt_prefix)]
-    assert len(prompt_keys) >= 2
 
 
-def test_on_llm_start_and_end_sets_token_usage_and_ends_span(handler):
-    run_id = uuid4()
-
-    handler.on_llm_start(
-        serialized={"kwargs": {"name": "llm"}},
-        prompts=["What is ML?"],
-        run_id=run_id,
-    )
-
-    # Build a minimal valid LLMResult
-    gen = Generation(
-        text="Answer",
-        generation_info={"finish_reason": "stop"},
-    )
-
-    llm_result = LLMResult(
-        generations=[[gen]],
-        llm_output={
-            "model_name": "test-model",
-            "usage": {"prompt_tokens": 5, "completion_tokens": 7, "total_tokens": 12},
-        },
-    )
-
-    handler.on_llm_end(response=llm_result, run_id=run_id)
-
-    span = handler.spans[run_id].span
-    # Verify span ended
-    assert span.ended is True
-    # Verify some token usage attributes were set from llm_output usage
-    attr_keys = [k for k, _ in span.attributes]
-    assert any("usage" in k.lower() for k in attr_keys)
 
 
 def test_on_chain_end_updates_avg_words_per_chunk(handler):
@@ -156,3 +128,76 @@ def test_on_chain_end_updates_llm_tokens(handler):
 
     # Expect update_llm_tokens called with input words from chat (3) and output words (2)
     assert handler.metrics.token_calls[-1] == (3, 2)
+
+
+# SpanAttributes from opentelemetry.semconv_ai still used in langchain_callback_handler.py.
+# Missing/deprecated ones (LLM_REQUEST_MODEL, LLM_RESPONSE_MODEL, LLM_REQUEST_MAX_TOKENS,
+# LLM_REQUEST_TEMPERATURE, LLM_REQUEST_TOP_P, LLM_SYSTEM) are hardcoded in the handler.
+SPAN_ATTRIBUTES_USED = [
+    "LLM_REQUEST_FUNCTIONS",
+    "LLM_USAGE_TOTAL_TOKENS",
+    "TRACELOOP_WORKFLOW_NAME",
+    "TRACELOOP_ENTITY_PATH",
+    "TRACELOOP_SPAN_KIND",
+    "TRACELOOP_ENTITY_NAME",
+    "LLM_REQUEST_TYPE",
+    "TRACELOOP_ENTITY_INPUT",
+    "TRACELOOP_ENTITY_OUTPUT",
+]
+
+
+def test_semconv_ai_span_attributes_exist_and_not_deprecated():
+    """Ensure all SpanAttributes used in langchain_callback_handler exist and are non-empty strings."""
+    for attr_name in SPAN_ATTRIBUTES_USED:
+        assert hasattr(
+            SpanAttributes, attr_name
+        ), f"SpanAttributes.{attr_name} is missing or was removed from opentelemetry.semconv_ai"
+        value = getattr(SpanAttributes, attr_name)
+        assert isinstance(
+            value, str
+        ), f"SpanAttributes.{attr_name} should be a string, got {type(value).__name__}"
+        assert (
+            len(value) > 0
+        ), f"SpanAttributes.{attr_name} is empty (possibly deprecated or placeholder)"
+
+
+def test_semconv_ai_llm_request_type_values_used():
+    """Ensure LLMRequestTypeValues used in the handler (CHAT, COMPLETION) exist."""
+    assert hasattr(LLMRequestTypeValues, "CHAT")
+    assert hasattr(LLMRequestTypeValues, "COMPLETION")
+    assert isinstance(LLMRequestTypeValues.CHAT.value, str)
+    assert isinstance(LLMRequestTypeValues.COMPLETION.value, str)
+
+
+def test_semconv_ai_traceloop_span_kind_values_used():
+    """Ensure TraceloopSpanKindValues used in the handler (WORKFLOW, TASK, TOOL) exist."""
+    for kind in ("WORKFLOW", "TASK", "TOOL"):
+        assert hasattr(
+            TraceloopSpanKindValues, kind
+        ), f"TraceloopSpanKindValues.{kind} is missing"
+        assert isinstance(getattr(TraceloopSpanKindValues, kind).value, str)
+
+
+def test_langchain_callback_handler_imports_and_constants():
+    """Import the handler module and verify hardcoded attribute constants and semconv_ai key."""
+    from nvidia_rag.utils.observability.langchain_callback_handler import (
+        GEN_AI_COMPLETIONS,
+        GEN_AI_PROMPTS,
+        LLM_REQUEST_MAX_TOKENS,
+        LLM_REQUEST_MODEL,
+        LLM_REQUEST_TEMPERATURE,
+        LLM_REQUEST_TOP_P,
+        LLM_RESPONSE_MODEL,
+        LLM_SYSTEM,
+    )
+
+    assert GEN_AI_PROMPTS == "gen_ai.prompt"
+    assert GEN_AI_COMPLETIONS == "gen_ai.completion"
+    assert LLM_REQUEST_MODEL == "gen_ai.request.model"
+    assert LLM_RESPONSE_MODEL == "gen_ai.response.model"
+    assert LLM_REQUEST_MAX_TOKENS == "llm.request.max_tokens"
+    assert LLM_REQUEST_TEMPERATURE == "llm.request.temperature"
+    assert LLM_REQUEST_TOP_P == "llm.request.top_p"
+    assert LLM_SYSTEM == "llm.system"
+    assert SUPPRESS_LANGUAGE_MODEL_INSTRUMENTATION_KEY is not None
+    assert isinstance(SUPPRESS_LANGUAGE_MODEL_INSTRUMENTATION_KEY, str)

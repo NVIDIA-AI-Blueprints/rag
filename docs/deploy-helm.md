@@ -14,7 +14,7 @@ The following are the core services that you install:
 
 - RAG server
 - Ingestor server
-- NV-Ingest
+- NeMo Retriever Library
 
 
 ## Prerequisites
@@ -37,7 +37,7 @@ Plan for additional space if you are enabling persistence for multiple services.
 
 4. Verify that you have Kubernetes v1.34.2 installed and running on Ubuntu 22.04/24.04. For more information, see [Kubernetes documentation](https://kubernetes.io/docs/setup/) and [NVIDIA Cloud Native Stack](https://github.com/NVIDIA/cloud-native-stack).
 
-5. Verify that you have installed Helm 3.  To install Helm 3 (and avoid Helm 4), follow the official Helm v3 installation instructions for your platform, for example by using the `get-helm-3` script described in the [Helm documentation](https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3).
+5. Verify that you have installed Helm 3.  To install Helm 3 (and avoid Helm 4), follow the official Helm v3 installation instructions for your platform, for example by using the `get-helm-3` script described in the [Helm documentation](https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3).
 
 6. Verify that you have a default storage class available in the cluster for PVC provisioning. One option is the local path provisioner by Rancher.   Refer to the [installation](https://github.com/rancher/local-path-provisioner?tab=readme-ov-file#installation) section of the README in the GitHub repository.
 
@@ -87,7 +87,7 @@ To deploy End-to-End RAG Server and Ingestor Server, use the following procedure
 2. Install the Helm chart by running the following command.
 
     ```sh
-    helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0.tgz \
+    helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.5.0.tgz \
     --username '$oauthtoken' \
     --password "${NGC_API_KEY}" \
     --set imagePullSecret.password=$NGC_API_KEY \
@@ -112,7 +112,7 @@ To deploy End-to-End RAG Server and Ingestor Server, use the following procedure
    
    Then install using the modified values.yaml:
    ```sh
-   helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0.tgz \
+   helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.5.0.tgz \
      --username '$oauthtoken' \
      --password "${NGC_API_KEY}" \
      --set imagePullSecret.password=$NGC_API_KEY \
@@ -124,6 +124,8 @@ To deploy End-to-End RAG Server and Ingestor Server, use the following procedure
    :::{note}
    Refer to [NIM Model Profile Configuration](model-profiles.md) for using non-default NIM LLM profile.
    :::
+
+   For **Nemotron 3 Super** on Helm, see the [Nemotron 3 Super deployment guide](nemotron3-super-deployment.md#helm-deployment-nemotron-3-super).
 
 
 ## Verify a Deployment
@@ -146,11 +148,11 @@ To verify a deployment, use the following procedure.
     NAME                                                 READY   STATUS      RESTARTS   AGE
     ingestor-server-6cc886bcdf-6rfwm                     1/1     Running     0          54m
     milvus-standalone-7dd5db4755-ctqzg                   1/1     Running     0          54m
-    nemoretriever-embedding-ms-86f75c8f65-dfhd2          1/1     Running     0          39m
+    nemotron-embedding-ms-86f75c8f65-dfhd2          1/1     Running     0          39m
     nemoretriever-graphic-elements-v1-67d9d65bdc-ftbkw   1/1     Running     0          33m
     nemoretriever-ocr-v1-78f56cddb9-f4852                1/1     Running     0          40m
     nemoretriever-page-elements-v3-56ddcf9b4b-qsg82      1/1     Running     0          49m
-    nemoretriever-ranking-ms-5ff774889f-fwrlm            1/1     Running     0          40m
+    nemotron-ranking-ms-5ff774889f-fwrlm            1/1     Running     0          40m
     nemoretriever-table-structure-v1-696c9f5665-l9sxn    1/1     Running     0          37m
     nim-llm-7cb9bdcc89-hwpkq                             1/1     Running     0          11m
     nim-llm-cache-job-77hpc                              0/1     Completed   0          94s
@@ -209,11 +211,11 @@ To verify a deployment, use the following procedure.
     NAME                                TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)              AGE
     ingestor-server                     ClusterIP   10.107.12.217    <none>        8082/TCP             54m
     milvus                              ClusterIP   10.99.110.203    <none>        19530/TCP,9091/TCP   54m
-    nemoretriever-embedding-ms          ClusterIP   10.104.99.15     <none>        8000/TCP,8001/TCP    54m
+    nemotron-embedding-ms          ClusterIP   10.104.99.15     <none>        8000/TCP,8001/TCP    54m
     nemoretriever-graphic-elements-v1   ClusterIP   10.96.115.45     <none>        8000/TCP,8001/TCP    54m
     nemoretriever-ocr-v1                ClusterIP   10.100.107.215   <none>        8000/TCP,8001/TCP    54m
     nemoretriever-page-elements-v3      ClusterIP   10.102.237.196   <none>        8000/TCP,8001/TCP    54m
-    nemoretriever-ranking-ms            ClusterIP   10.96.114.244    <none>        8000/TCP,8001/TCP    54m
+    nemotron-ranking-ms            ClusterIP   10.96.114.244    <none>        8000/TCP,8001/TCP    54m
     nemoretriever-table-structure-v1    ClusterIP   10.107.227.139   <none>        8000/TCP,8001/TCP    54m
     nim-llm                             ClusterIP   10.104.60.155    <none>        8000/TCP,8001/TCP    54m
     rag-etcd                            ClusterIP   10.104.74.116    <none>        2379/TCP,2380/TCP    54m
@@ -250,7 +252,7 @@ Port-forwarding is provided as a quick method to try out the UI. However, large 
 To change an existing deployment, after you modify the [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) file, run the following code.
 
 ```sh
-helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.4.0.tgz \
+helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.5.0.tgz \
 --username '$oauthtoken' \
 --password "${NGC_API_KEY}" \
 --set imagePullSecret.password=$NGC_API_KEY \

@@ -51,5 +51,12 @@
   },
   "resolutions": {
     "@kui/foundations": "./src/assets/kui-foundations-react-external-0.504.1.tgz"
+  },
+  "pnpm": {
+    "overrides": {
+      "rollup": ">=4.59.0",
+      "minimatch@3.1.2": "3.1.4",
+      "minimatch@9.0.5": "9.0.7"
+    }
   }
 }

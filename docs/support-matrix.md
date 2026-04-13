@@ -78,8 +78,7 @@ The following are requirements and recommendations for the individual components
 - **LLM NIM (llama-3.3-nemotron-super-49b-v1.5)** – Refer to the [Support Matrix](https://docs.nvidia.com/nim/large-language-models/latest/supported-models.html#llama-3-3-nemotron-super-49b-v1-5).
 - **Embedding NIM (Llama-3.2-NV-EmbedQA-1B-v2 )** – Refer to the [Support Matrix](https://docs.nvidia.com/nim/nemo-retriever/text-embedding/latest/support-matrix.html#llama-3-2-nv-embedqa-1b-v2).
 - **Reranking NIM (llama-3_2-nv-rerankqa-1b-v2 )**: Refer to the [Support Matrix](https://docs.nvidia.com/nim/nemo-retriever/text-reranking/latest/support-matrix.html#llama-3-2-nv-rerankqa-1b-v2).
-- **NeMo Retriever OCR (Default)**: Refer to the [Support Matrix](https://docs.nvidia.com/nim/ingestion/image-ocr/1.2.0/support-matrix.html).
-- **NVIDIA NIM for Image OCR (baidu/paddleocr - Legacy)**: Refer to the [Support Matrix](https://docs.nvidia.com/nim/ingestion/table-extraction/latest/support-matrix.html#supported-hardware).
+- **NeMo Retriever OCR (Default)**: Refer to the [Support Matrix](https://docs.nvidia.com/nim/ingestion/image-ocr/1.2.1/support-matrix.html).
 - **NVIDIA NIMs for Object Detection**:
   - NeMo Retriever Page Elements v3 [Support Matrix](https://docs.nvidia.com/nim/ingestion/object-detection/latest/support-matrix.html#nemo-retriever-page-elements-v3)
   - NeMo Retriever Graphic Elements v1 [Support Matrix](https://docs.nvidia.com/nim/ingestion/object-detection/latest/support-matrix.html#nemo-retriever-graphic-elements-v1)

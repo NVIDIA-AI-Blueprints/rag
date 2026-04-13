@@ -1,0 +1,39 @@
+# Override values for Nemotron 3 Super LLM NIM (all hardware).
+# Use with: -f deploy/helm/nvidia-blueprint-rag/values.yaml -f deploy/helm/nvidia-blueprint-rag/nemotron3-super-values.yaml
+# For RTX 6000 Pro, add: -f deploy/helm/nvidia-blueprint-rag/nemotron3-super-rtx6000-values.yaml
+# See docs/nemotron3-super-deployment.md.
+
+envVars:
+  APP_LLM_MODELNAME: "nvidia/nemotron-3-super-120b-a12b"
+  APP_QUERYREWRITER_MODELNAME: "nvidia/nemotron-3-super-120b-a12b"
+  APP_FILTEREXPRESSIONGENERATOR_MODELNAME: "nvidia/nemotron-3-super-120b-a12b"
+  REFLECTION_LLM: "nvidia/nemotron-3-super-120b-a12b"
+
+ingestor-server:
+  envVars:
+    SUMMARY_LLM: "nvidia/nemotron-3-super-120b-a12b"
+
+nimOperator:
+  nim-llm:
+    image:
+      repository: nvcr.io/nim/nvidia/nemotron-3-super-120b-a12b
+      pullPolicy: IfNotPresent
+      tag: "1.8.0"
+    resources:
+      limits:
+        nvidia.com/gpu: 2
+      requests:
+        nvidia.com/gpu: 2
+    model:
+      engine: vllm
+      precision: "fp8"
+      tensorParallelism: "2"
+    env:
+      - name: NIM_HTTP_API_PORT
+        value: "8000"
+      - name: NIM_TRITON_LOG_VERBOSE
+        value: "1"
+      - name: NIM_SERVED_MODEL_NAME
+        value: "nvidia/nemotron-3-super-120b-a12b"
+      - name: NIM_MAX_MODEL_LEN
+        value: "131072"
