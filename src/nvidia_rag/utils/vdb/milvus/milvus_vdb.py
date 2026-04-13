@@ -1275,7 +1275,8 @@ class MilvusVDB(VDBRagIngest):
             )
         except Exception as e:
             logger.error(
-                "Error generating embeddings or performing similarity search: %s", e
+                "Error generating embeddings or performing similarity search: %s", e,
+                exc_info=True,
             )
             return []
 

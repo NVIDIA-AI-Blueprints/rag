@@ -48,8 +48,9 @@ Document Info Management:
 
 Retrieval Operations:
 19. retrieval_langchain: Perform semantic search and return top-k relevant documents
-20. _get_langchain_vectorstore: Get the vectorstore for a collection
-21. _add_collection_name_to_retreived_docs: Add the collection name to the retrieved documents
+20. retrieval_image_langchain: Perform image-based (multimodal) search and return top-k relevant documents
+21. _get_langchain_vectorstore: Get the vectorstore for a collection
+22. _add_collection_name_to_retreived_docs: Add the collection name to the retrieved documents
 """
 
 import logging
@@ -1031,6 +1032,67 @@ class ElasticVDB(VDBRagIngest):
                 docs.append(Document(page_content=text, metadata={}))
 
         return self._add_collection_name_to_retreived_docs(docs, collection_name)
+
+    def retrieval_image_langchain(
+        self,
+        query: str,
+        collection_name: str,
+        vectorstore: ElasticsearchStore | None = None,
+        top_k: int = 10,
+        reranker_top_k: int | None = None,
+    ) -> list[Document]:
+        """Retrieve documents from a collection using an image query.
+
+        Embeds the image query via the configured embedding model, performs a
+        vector similarity search to find the most relevant document page, then
+        returns all chunks from that page for multimodal context.
+
+        Args:
+            query: The image query (base64 encoded)
+            collection_name: Name of the collection to search
+            vectorstore: Optional pre-initialized ElasticsearchStore
+            top_k: Number of results for initial similarity search (VDB top_k)
+            reranker_top_k: Final number of documents to return. If None,
+                           defaults to top_k.
+
+        Note: Uses the embedding_model provided during initialization.
+        """
+        final_limit = reranker_top_k if reranker_top_k is not None else top_k
+
+        if vectorstore is None:
+            vectorstore = self.get_langchain_vectorstore(collection_name)
+
+        try:
+            embedding = self._embedding_model.embed_documents([query])
+            scored = vectorstore.similarity_search_by_vector_with_relevance_scores(
+                embedding=embedding[0],
+                k=top_k,
+            )
+            results = [doc for doc, _ in scored]
+        except Exception as e:
+            logger.error(
+                "Error generating embeddings or performing similarity search: %s", e,
+                exc_info=True,
+            )
+            return []
+
+        if not results:
+            return []
+
+        try:
+            metadata = results[0].metadata
+            source_name = metadata["source"]["source_name"]
+            page_number = metadata["content_metadata"]["page_number"]
+        except (KeyError, IndexError, TypeError) as e:
+            logger.error("Error accessing metadata from search results: %s", e)
+            return []
+
+        return self.retrieve_chunks_by_filter(
+            collection_name=collection_name,
+            source_name=source_name,
+            page_numbers=[page_number],
+            limit=final_limit,
+        )
 
     def get_langchain_vectorstore(
         self,

@@ -172,9 +172,9 @@ jobs:
     runs-on: arc-runners-org-nvidia-ai-bp-2-gpu
     # Only run if push to develop OR PR from same repo (not fork) - needs secrets
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' || github.event.pull_request.head.repo.full_name == github.repository
-    # Multimodal query sequence requires Milvus; default CI VDB is Elasticsearch (see docs/multimodal-query.md).
+    # Multimodal query sequence uses NVIDIA API catalog cloud endpoints; works with Elasticsearch VDB.
     env:
-      ENABLE_MULTIMODAL_QUERY_CI: "false"
+      ENABLE_MULTIMODAL_QUERY_CI: "true"
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -694,7 +694,7 @@ jobs:
           cp tests/integration/integration_test.log logs/vlm-generation/ 2>/dev/null || true
 
       # ========================================================================
-      # MULTIMODAL QUERY TESTS (skipped while CI uses Elasticsearch; set ENABLE_MULTIMODAL_QUERY_CI=true to run)
+      # MULTIMODAL QUERY TESTS
       # ========================================================================
 
       - name: Prepare multimodal test data
