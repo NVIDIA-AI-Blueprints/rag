@@ -1064,13 +1064,15 @@ class ElasticVDB(VDBRagIngest):
 
         try:
             embedding = self._embedding_model.embed_documents([query])
-            results = vectorstore.similarity_search_by_vector(
+            scored = vectorstore.similarity_search_by_vector_with_relevance_scores(
                 embedding=embedding[0],
                 k=top_k,
             )
+            results = [doc for doc, _ in scored]
         except Exception as e:
             logger.error(
-                "Error generating embeddings or performing similarity search: %s", e
+                "Error generating embeddings or performing similarity search: %s", e,
+                exc_info=True,
             )
             return []
 

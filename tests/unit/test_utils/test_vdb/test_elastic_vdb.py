@@ -1584,7 +1584,7 @@ class TestElasticVDB(unittest.TestCase):
             },
         )
         mock_vectorstore = Mock()
-        mock_vectorstore.similarity_search_by_vector.return_value = [top_doc]
+        mock_vectorstore.similarity_search_by_vector_with_relevance_scores.return_value = [(top_doc, 0.9)]
 
         # Chunks returned by the page-level filter query
         page_chunk1 = Document(
@@ -1622,7 +1622,7 @@ class TestElasticVDB(unittest.TestCase):
             ["data:image/jpeg;base64,AAAA"]
         )
         # Similarity search called with the embedding and top_k
-        mock_vectorstore.similarity_search_by_vector.assert_called_once_with(
+        mock_vectorstore.similarity_search_by_vector_with_relevance_scores.assert_called_once_with(
             embedding=[0.1, 0.2, 0.3], k=5
         )
         # Two chunks returned
@@ -1663,7 +1663,7 @@ class TestElasticVDB(unittest.TestCase):
             },
         )
         mock_vectorstore = Mock()
-        mock_vectorstore.similarity_search_by_vector.return_value = [top_doc]
+        mock_vectorstore.similarity_search_by_vector_with_relevance_scores.return_value = [(top_doc, 0.9)]
 
         captured = {}
 
@@ -1714,7 +1714,7 @@ class TestElasticVDB(unittest.TestCase):
             },
         )
         mock_vectorstore = Mock()
-        mock_vectorstore.similarity_search_by_vector.return_value = [top_doc]
+        mock_vectorstore.similarity_search_by_vector_with_relevance_scores.return_value = [(top_doc, 0.9)]
 
         captured = {}
 
@@ -1759,7 +1759,7 @@ class TestElasticVDB(unittest.TestCase):
         )
 
         mock_vectorstore = Mock()
-        mock_vectorstore.similarity_search_by_vector.return_value = []  # nothing found
+        mock_vectorstore.similarity_search_by_vector_with_relevance_scores.return_value = []  # nothing found
 
         result = elastic_vdb.retrieval_image_langchain(
             query="img_data",
@@ -1835,7 +1835,7 @@ class TestElasticVDB(unittest.TestCase):
             metadata={"source": {}, "content_metadata": {}},
         )
         mock_vectorstore = Mock()
-        mock_vectorstore.similarity_search_by_vector.return_value = [bad_doc]
+        mock_vectorstore.similarity_search_by_vector_with_relevance_scores.return_value = [(bad_doc, 0.9)]
 
         result = elastic_vdb.retrieval_image_langchain(
             query="img",
@@ -1872,7 +1872,7 @@ class TestElasticVDB(unittest.TestCase):
         )
 
         mock_vs_instance = Mock()
-        mock_vs_instance.similarity_search_by_vector.return_value = []
+        mock_vs_instance.similarity_search_by_vector_with_relevance_scores.return_value = []
         mock_es_store_class.return_value = mock_vs_instance
 
         elastic_vdb.retrieval_image_langchain(
