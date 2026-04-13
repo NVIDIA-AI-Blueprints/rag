@@ -34,7 +34,7 @@ def get_unique_sources_query():
         "aggs": {
             "unique_sources": {
                 "composite": {
-                    "size": 1000,  # Adjust size depending on number of unique values
+                    "size": 65536,  # Adjust size depending on number of unique values
                     "sources": [
                         {
                             "source_name": {
@@ -102,7 +102,7 @@ def get_chunks_by_source_and_pages_query(
                 ]
             }
         },
-        "size": 1000,
+        "size": 65536,
         "_source": ["text", "metadata"],
     }
 

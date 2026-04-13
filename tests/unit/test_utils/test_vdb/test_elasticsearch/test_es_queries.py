@@ -30,7 +30,7 @@ class TestGetUniqueSourcesQuery:
         assert query["size"] == 0
         assert "aggs" in query
         assert "unique_sources" in query["aggs"]
-        assert query["aggs"]["unique_sources"]["composite"]["size"] == 1000
+        assert query["aggs"]["unique_sources"]["composite"]["size"] == 65536
         assert "top_hit" in query["aggs"]["unique_sources"]["aggs"]
         assert (
             query["aggs"]["unique_sources"]["composite"]["sources"][0]["source_name"][
