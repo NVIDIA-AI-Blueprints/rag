@@ -73,9 +73,9 @@ sequences:
   multimodal_query:
     name: "Multimodal Query Tests"
     description: "Multimodal RAG tests with image+text queries. Verifies retrieval and generation using VLM embedding and VLM model. Requires product_catalog.pdf and Creme_clutch_purse1-small.jpg."
-    test_numbers: [150, 151, 152, 153, 154, 155]
-    pre_sequence: []
-    post_sequence: []
+    test_numbers: [150, 151, 152, 153, 154]
+    pre_sequence: [155]  # Delete any leftover collection from a previous run
+    post_sequence: [155]  # Always clean up, even if a test fails
 
   query_rewriter:
     name: "Query Rewriter Tests"

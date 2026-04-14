@@ -292,3 +292,31 @@ class VDBRag(ABC):
         raise NotImplementedError(
             "retrieve_chunks_by_filter is not implemented for this vector store"
         )
+
+    def retrieval_image_langchain(
+        self,
+        query: str,
+        collection_name: str,
+        vectorstore: VectorStore | None = None,
+        top_k: int = 10,
+        reranker_top_k: int | None = None,
+    ) -> list[Document]:
+        """Retrieve documents from a collection using an image query.
+
+        Embeds the image, finds the most similar document page, then returns
+        all chunks from that page for multimodal context.
+
+        Args:
+            query: The image query (base64 encoded)
+            collection_name: Name of the collection to search
+            vectorstore: Optional pre-initialized vectorstore
+            top_k: Number of results for initial similarity search (VDB top_k)
+            reranker_top_k: Final number of documents to return (smaller value).
+                           If None, defaults to top_k.
+
+        Returns:
+            List of LangChain Document objects with page_content and metadata
+        """
+        raise NotImplementedError(
+            "retrieval_image_langchain is not implemented for this vector store"
+        )
