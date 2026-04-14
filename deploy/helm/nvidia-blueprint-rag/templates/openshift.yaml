@@ -101,9 +101,9 @@ subjects:
   - kind: ServiceAccount
     name: {{ include "nvidia-blueprint-rag.serviceAccountName" . }}
   - kind: ServiceAccount
-    name: rag-nv-ingest
+    name: {{ .Release.Name }}-nv-ingest
 {{- if .Values.zipkin.enabled }}
   - kind: ServiceAccount
-    name: rag-zipkin
+    name: {{ .Release.Name }}-zipkin
 {{- end }}
 {{- end }}

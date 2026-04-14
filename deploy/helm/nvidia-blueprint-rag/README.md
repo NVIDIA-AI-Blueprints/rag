@@ -200,10 +200,10 @@ helm upgrade --install rag -n <NAMESPACE> . \
   --set imagePullSecret.password=$NGC_API_KEY \
   --set ngcApiSecret.password=$NGC_API_KEY
 
-# 6. Grant additional SCCs as pods are created
-oc adm policy add-scc-to-user anyuid -z rag-zipkin -n <NAMESPACE>
-oc adm policy add-scc-to-user anyuid -z rag-nv-ingest -n <NAMESPACE>
-oc adm policy add-scc-to-user anyuid -z rag-server -n <NAMESPACE>
+# 6. Grant additional SCCs as pods are created (replace <RELEASE> with your Helm release name)
+oc adm policy add-scc-to-user anyuid -z <RELEASE>-zipkin -n <NAMESPACE>
+oc adm policy add-scc-to-user anyuid -z <RELEASE>-nv-ingest -n <NAMESPACE>
+oc adm policy add-scc-to-user anyuid -z <RELEASE>-server -n <NAMESPACE>
 ```
 
 Or install from a published chart version on NGC (replace `<VERSION>` with the desired release):
@@ -388,10 +388,10 @@ After the initial install, some pods will fail because they use dedicated servic
 # Check which service accounts need SCC grants
 oc get pods -n <NAMESPACE> -o wide | grep -E "CrashLoop|Error|Init"
 
-# Grant SCCs to service accounts created by the chart
-oc adm policy add-scc-to-user anyuid -z rag-zipkin -n <NAMESPACE>
-oc adm policy add-scc-to-user anyuid -z rag-nv-ingest -n <NAMESPACE>
-oc adm policy add-scc-to-user anyuid -z rag-server -n <NAMESPACE>
+# Grant SCCs to service accounts created by the chart (replace <RELEASE> with your Helm release name)
+oc adm policy add-scc-to-user anyuid -z <RELEASE>-zipkin -n <NAMESPACE>
+oc adm policy add-scc-to-user anyuid -z <RELEASE>-nv-ingest -n <NAMESPACE>
+oc adm policy add-scc-to-user anyuid -z <RELEASE>-server -n <NAMESPACE>
 ```
 
 > **Tip**: After granting SCCs, you may need to delete the affected pods so they are recreated with the correct security context:
@@ -591,11 +591,11 @@ oc delete nimcache --all -n <NAMESPACE>
 # Clean up PVCs (this deletes all data!)
 oc delete pvc --all -n <NAMESPACE>
 
-# Remove SCC grants
+# Remove SCC grants (replace <RELEASE> with your Helm release name)
 oc adm policy remove-scc-from-user anyuid -z default -n <NAMESPACE>
-oc adm policy remove-scc-from-user anyuid -z rag-zipkin -n <NAMESPACE>
-oc adm policy remove-scc-from-user anyuid -z rag-nv-ingest -n <NAMESPACE>
-oc adm policy remove-scc-from-user anyuid -z rag-server -n <NAMESPACE>
+oc adm policy remove-scc-from-user anyuid -z <RELEASE>-zipkin -n <NAMESPACE>
+oc adm policy remove-scc-from-user anyuid -z <RELEASE>-nv-ingest -n <NAMESPACE>
+oc adm policy remove-scc-from-user anyuid -z <RELEASE>-server -n <NAMESPACE>
 
 # Delete the namespace
 oc delete namespace <NAMESPACE>
@@ -619,9 +619,9 @@ mkdir: cannot create directory '/opt/nim/.cache': Permission denied
 **Fix**: Grant `anyuid` SCC to affected service accounts *before* deploying:
 ```bash
 oc adm policy add-scc-to-user anyuid -z default -n <NAMESPACE>
-oc adm policy add-scc-to-user anyuid -z rag-zipkin -n <NAMESPACE>
-oc adm policy add-scc-to-user anyuid -z rag-nv-ingest -n <NAMESPACE>
-oc adm policy add-scc-to-user anyuid -z rag-server -n <NAMESPACE>
+oc adm policy add-scc-to-user anyuid -z <RELEASE>-zipkin -n <NAMESPACE>
+oc adm policy add-scc-to-user anyuid -z <RELEASE>-nv-ingest -n <NAMESPACE>
+oc adm policy add-scc-to-user anyuid -z <RELEASE>-server -n <NAMESPACE>
 ```
 
 ### Challenge 2: GPU Node Scheduling and Tolerations
@@ -782,4 +782,4 @@ oc describe pod -l app.kubernetes.io/name=milvus -n <NAMESPACE> | grep -A5 "nvid
 | PVC `Pending` | StorageClass not found | Set correct `storageClass` in values or use `""` for default |
 | `504 Gateway Timeout` | Route timeout too low | Annotate route with `haproxy.router.openshift.io/timeout=300s` |
 | etcd `CrashLoopBackOff` | Permission denied on data directory | Grant `anyuid` SCC to `default` service account |
-| NV-Ingest not processing | Redis or NV-Ingest service account lacks permissions | Grant `anyuid` SCC to `rag-nv-ingest` |
+| NV-Ingest not processing | Redis or NV-Ingest service account lacks permissions | Grant `anyuid` SCC to `<RELEASE>-nv-ingest` |
