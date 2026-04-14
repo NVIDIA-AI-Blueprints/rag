@@ -281,6 +281,8 @@ class CollectionManagementModule(BaseTestModule):
 
     async def _verify_collections(self) -> bool:
         """Verify collections are created and metadata schema is available"""
+        time.sleep(2)
+        logger.info("Waiting for 2 seconds to allow the collections to be created...")
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(

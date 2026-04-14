@@ -11,7 +11,7 @@ license-files = [
 authors = [
     { name = "NVIDIA RAG", email = "foundational-rag-dev@exchange.nvidia.com" }
 ]
-requires-python = ">=3.11,<3.14"
+requires-python = ">=3.12,<3.14"
 
 dependencies = [
     "bleach>=6.2,<7.0",
@@ -34,7 +34,7 @@ dependencies = [
     "uvicorn[standard]>=0.32,<1.0",
     "langchain-core>=1.0.0",
     "redis>=4.3.4",
-    "protobuf>=6.33.5",
+    "protobuf>=5.26.1,<6.0.dev0",
     "lark>=1.2.2",
     "python-dateutil>=2.9.0.post0",
 ]
@@ -55,11 +55,16 @@ rag = [
     "azure-core>=1.35,<2.0",
     "azure-storage-blob>=12.26,<13.0",
     "pyarrow>=21.0,<22.0",
+    # Local LanceDB backend (APP_VECTORSTORE_NAME=lancedb)
+    "lancedb>=0.26,<0.30",
 ]
 ingest = [
     # nv-ingest dependencies (required for ingestion operations)
-    "nv-ingest-api==26.3.0",
-    "nv-ingest-client==26.3.0",
+    # nv-ingest dependencies (required for ingestion operations)
+    "nv-ingest==2026.4.15.dev20260415",
+    "nv-ingest-api==2026.4.15.dev20260415",
+    "nv-ingest-client==2026.4.15.dev20260415",
+    "nemo-retriever==2026.4.15.dev62",
     "tritonclient==2.57.0",
     # Other ingest dependencies
     "langchain-openai>=0.2,<1.1.9",
@@ -76,12 +81,15 @@ ingest = [
     "azure-core>=1.35,<2.0",
     "azure-storage-blob>=12.26,<13.0",
     "pyarrow>=21.0,<22.0",
-    "setuptools>=80.10.2",
+    "setuptools==78.1.1",
 ]
 all = [
     # nv-ingest dependencies (required for ingestion operations)
-    "nv-ingest-api==26.3.0",
-    "nv-ingest-client==26.3.0",
+    # nv-ingest dependencies (required for ingestion operations)
+    "nv-ingest==2026.4.15.dev20260415",
+    "nv-ingest-api==2026.4.15.dev20260415",
+    "nv-ingest-client==2026.4.15.dev20260415",
+    "nemo-retriever==2026.4.15.dev62",
     "tritonclient==2.57.0",
     # RAG + Ingest dependencies
     "langchain-openai>=0.2,<1.1.9",
@@ -98,11 +106,17 @@ all = [
     "azure-core>=1.35,<2.0",
     "azure-storage-blob>=12.26,<13.0",
     "pyarrow>=21.0,<22.0",
+    # Local LanceDB backend (APP_VECTORSTORE_NAME=lancedb)
+    "lancedb>=0.26,<0.30",
     # Elasticsearch support
     "langchain-elasticsearch>=0.3",
 ]
 elasticsearch = [
     "langchain-elasticsearch>=0.3",
+]
+# Minimal extra: only the LanceDB client (for library use or custom installs)
+lancedb = [
+    "lancedb>=0.26,<0.30",
 ]
 
 [tool.uv.sources]
@@ -131,7 +145,7 @@ Documentation = "https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/README.md
 
 # Linting and formatting configuration
 [tool.ruff]
-target-version = "py311"
+target-version = "py312"
 line-length = 88
 
 [tool.ruff.lint]
@@ -159,6 +173,9 @@ skip-magic-trailing-comma = false
 line-ending = "auto"
 
 [dependency-groups]
+dev = [
+    "ruff>=0.15.10",
+]
 docs = [
     "myst-parser>=4.0.1",
     "nvidia-sphinx-theme>=0.0.8",

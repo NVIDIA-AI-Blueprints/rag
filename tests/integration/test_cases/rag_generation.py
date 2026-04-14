@@ -518,7 +518,7 @@ class RAGGenerationModule(BaseTestModule):
                                     )
                                 else:
                                     logger.error(
-                                        "⚠️ Response content verification failed - expected price '20' not found"
+                                        f"⚠️ Response content verification failed - expected keywords '{expected_keywords}' not found"
                                     )
                                     return False
                             else:

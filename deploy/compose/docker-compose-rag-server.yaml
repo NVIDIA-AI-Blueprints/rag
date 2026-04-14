@@ -15,6 +15,7 @@ services:
     volumes:
       # Mount the prompt.yaml file to the container, path should be absolute
       - ${PROMPT_CONFIG_FILE}:${PROMPT_CONFIG_FILE}
+      - ${LANCEDB_VOLUME_MOUNT:-./volumes/lancedb}:/volumes/lancedb
     # Common customizations to the pipeline can be controlled using env variables
     environment:
       # Path to example directory relative to root
@@ -30,9 +31,9 @@ services:
 
       ##===Vector DB specific configurations===
       # URL on which vectorstore is hosted
-      # For custom operators, point to your service (e.g., http://your-custom-vdb:1234)
+      # For custom operators, point to your service (e.g., http://your-custom-vdb:1234 or /volumes/lancedb/lancedb - for lancedb)
       APP_VECTORSTORE_URL: ${APP_VECTORSTORE_URL:-http://elasticsearch:9200}
-      # Type of vectordb used to store embedding. Supported built-ins: "milvus", "elasticsearch".
+      # Type of vectordb used to store embedding. Supported built-ins: "elasticsearch"[default], "milvus", "lancedb".
       # You can also provide your custom value (e.g., "your_custom_vdb") when you register it in `_get_vdb_op`.
       APP_VECTORSTORE_NAME: ${APP_VECTORSTORE_NAME:-"elasticsearch"}
       # Type of index to be used for vectorstore

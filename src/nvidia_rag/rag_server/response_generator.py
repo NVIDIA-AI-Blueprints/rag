@@ -18,10 +18,11 @@
 2. prepare_llm_request(): Prepare the request for the LLM response generation.
 3. generate_answer(): Generate and stream the response to the provided prompt (sync).
 4. generate_answer_async(): Generate and stream the response to the provided prompt (async).
-5. prepare_citations(): Prepare citations for the response.
-6. error_response_generator(): Generate a stream of data for the error response (sync).
-7. error_response_generator_async(): Generate a stream of data for the error response (async).
-8. retrieve_summary(): Retrieve the summary of a document.
+5. prepare_citations(): Prepare citations for nv-ingest backed responses.
+6. prepare_citations_nrl(): Prepare citations for NRL (LanceDB) backed responses.
+7. error_response_generator(): Generate a stream of data for the error response (sync).
+8. error_response_generator_async(): Generate a stream of data for the error response (async).
+9. retrieve_summary(): Retrieve the summary of a document.
 """
 
 import asyncio
@@ -416,6 +417,7 @@ def generate_answer(
     model: str = "",
     collection_name: str = "",
     enable_citations: bool = True,
+    use_nrl_citations: bool = False,
     context_reranker_time_ms: float | None = None,
     retrieval_time_ms: float | None = None,
     rag_start_time_sec: float | None = None,
@@ -430,10 +432,16 @@ def generate_answer(
         model: Name of the model used for generation
         collection_name: Name of the collection used for retrieval
         enable_citations: Whether to enable citations in the response
+        use_nrl_citations: When True, use ``prepare_citations_nrl`` (NRL /
+            LanceDB ingestion mode) instead of the standard ``prepare_citations``.
         otel_metrics_client: Optional OpenTelemetry metrics client for updating latency histograms
         token_usage: Optional mutable dict (e.g. {}) that a callback may populate with
             prompt_tokens, completion_tokens, and total_tokens for the final chunk.
     """
+    # Choose the citations builder based on ingestion mode.
+    # NRL (LanceDB backend) produces text-only flat metadata; nv-ingest
+    # produces structured metadata with optional MinIO image assets.
+    _citations_fn = prepare_citations_nrl if use_nrl_citations else prepare_citations
 
     try:
         # unique response id for every query
@@ -451,7 +459,7 @@ def generate_answer(
             for chunk in generator:
                 # Accumulate chunks for final logging
                 accumulated_response += chunk
-                
+
                 # TODO: This is a hack to clear contexts if we get an error
                 # response from nemoguardrails
                 if chunk == "I'm sorry, I can't respond to that.":
@@ -482,7 +490,7 @@ def generate_answer(
                             "    == RAG Time to First Token (TTFT): %.2f ms ==",
                             rag_ttft_ms,
                         )
-                    chain_response.citations = prepare_citations(
+                    chain_response.citations = _citations_fn(
                         retrieved_documents=contexts,
                         enable_citations=enable_citations,
                     )
@@ -595,6 +603,7 @@ async def generate_answer_async(
     model: str = "",
     collection_name: str = "",
     enable_citations: bool = True,
+    use_nrl_citations: bool = False,
     context_reranker_time_ms: float | None = None,
     retrieval_time_ms: float | None = None,
     rag_start_time_sec: float | None = None,
@@ -609,10 +618,16 @@ async def generate_answer_async(
         model: Name of the model used for generation
         collection_name: Name of the collection used for retrieval
         enable_citations: Whether to enable citations in the response
+        use_nrl_citations: When True, use ``prepare_citations_nrl`` (NRL /
+            LanceDB ingestion mode) instead of the standard ``prepare_citations``.
         otel_metrics_client: Optional OpenTelemetry metrics client for updating latency histograms
         token_usage: Optional mutable dict (e.g. {}) that a callback may populate with
             prompt_tokens, completion_tokens, and total_tokens for the final chunk.
     """
+    # Choose the citations builder based on ingestion mode.
+    # NRL (LanceDB backend) produces text-only flat metadata; nv-ingest
+    # produces structured metadata with optional MinIO image assets.
+    _citations_fn = prepare_citations_nrl if use_nrl_citations else prepare_citations
 
     try:
         # unique response id for every query
@@ -630,7 +645,7 @@ async def generate_answer_async(
             async for chunk in generator:
                 # Accumulate chunks for final logging
                 accumulated_response += chunk
-                
+
                 # TODO: This is a hack to clear contexts if we get an error
                 # response from nemoguardrails
                 if chunk == "I'm sorry, I can't respond to that.":
@@ -661,7 +676,7 @@ async def generate_answer_async(
                             "    == RAG Time to First Token (TTFT): %.2f ms ==",
                             rag_ttft_ms,
                         )
-                    chain_response.citations = prepare_citations(
+                    chain_response.citations = _citations_fn(
                         retrieved_documents=contexts,
                         enable_citations=enable_citations,
                     )
@@ -794,6 +809,8 @@ def prepare_citations(
     """
     citations = []
 
+    logger.info(f"[Prepare Citations] Length of retrieved documents: {len(retrieved_documents)}")
+
     if force_citations or enable_citations:
         for doc in retrieved_documents:
             content = ""
@@ -896,6 +913,194 @@ def prepare_citations(
                 )
                 citations.append(source_result)
 
+    return Citations(total_results=len(citations), results=citations)
+
+
+def prepare_citations_nrl(
+    retrieved_documents: list[Document],
+    force_citations: bool = False,
+    enable_citations: bool = True,
+) -> Citations:
+    """Prepare citations for documents ingested via NRL (NemoRetriever Library).
+
+    NRL stores both text and image chunks in LanceDB.  Text chunks carry their
+    content directly in ``page_content``; image / chart / table chunks reference
+    a MinIO URI in the ``stored_image_uri`` metadata column.  When
+    ``stored_image_uri`` is present and non-empty, this function fetches the
+    image bytes from MinIO and returns them base64-encoded — exactly the same
+    approach used by ``prepare_citations`` for nv-ingest image chunks.
+
+    Document.metadata layout (set by ``NRLLanceDB.results_to_docs``):
+
+    +-----------------+----------------------------------------------------+
+    | Key             | Description                                        |
+    +=================+====================================================+
+    | filename        | Source file name (str).                            |
+    | path            | Full source file path (str).                       |
+    | source          | Source path as a plain string (str).               |
+    | source_id       | Unique source identifier (str).                    |
+    | page_number     | PDF page number (int).                             |
+    | pdf_page        | ``<basename>_<page>`` composite key (str).         |
+    | pdf_basename    | PDF basename without extension (str).              |
+    | stored_image_uri| MinIO URI for image chunks; empty for text (str).  |
+    | content_type    | NRL content type: ``text``, ``image``, ``chart``,  |
+    |                 | ``table``, ``infographic``, etc. (str).            |
+    | bbox_xyxy_norm  | Bounding-box JSON string (str).                    |
+    | metadata        | Parsed NRL metadata dict (ast.literal_eval result).|
+    | _distance       | ANN distance score (float, optional).              |
+    +-----------------+----------------------------------------------------+
+
+    Parameters
+    ----------
+    retrieved_documents:
+        LangChain Documents returned by ``LanceDBVDB.retrieval_langchain``.
+    force_citations:
+        When ``True``, return citations even if ``enable_citations`` is
+        ``False`` (used by the ``/search`` API endpoint).
+    enable_citations:
+        Global citations toggle from server configuration.
+
+    Returns
+    -------
+    Citations
+        Populated ``Citations`` object.  Each ``SourceResult`` carries either
+        plain text (``content = page_content``) or a base64-encoded image
+        fetched from MinIO (when ``stored_image_uri`` is set).
+    """
+    citations = []
+
+    logger.info(
+        "[Prepare Citations NRL] Processing %d retrieved documents.",
+        len(retrieved_documents),
+    )
+
+    if not (force_citations or enable_citations):
+        return Citations(total_results=0, results=[])
+
+    # Map NRL content-type strings → SourceResult.document_type literals.
+    # "infographic" has no direct equivalent in the API type; treat as "image".
+    _NRL_TYPE_MAP: dict[str, str] = {
+        "text": "text",
+        "image": "image",
+        "image_caption": "image",
+        "chart": "chart",
+        "chart_caption": "chart",
+        "table": "table",
+        "table_caption": "table",
+        "audio": "audio",
+        "infographic": "image",
+        "infographic_caption": "image",
+    }
+
+    for doc in retrieved_documents:
+        meta = doc.metadata
+
+        # ── Identify chunk type ───────────────────────────────────────────
+        # stored_image_uri is the authoritative signal: non-empty means the
+        # chunk is a visual asset (image / chart / table) stored in MinIO.
+        stored_image_uri: str = meta.get("stored_image_uri") or ""
+        nrl_content_type: str = str(meta.get("content_type") or "").strip().lower()
+
+        if stored_image_uri:
+            # Visual chunk: document_type from content_type, defaulting to "image".
+            document_type = _NRL_TYPE_MAP.get(nrl_content_type, "image")
+        else:
+            # Text chunk: document_type from content_type, defaulting to "text".
+            document_type = _NRL_TYPE_MAP.get(nrl_content_type, "text")
+
+        # ── Resolve content ───────────────────────────────────────────────
+        content = ""
+
+        if stored_image_uri and document_type != "text":
+            # Image / chart / table chunk — fetch raw bytes from MinIO and
+            # base64-encode them, mirroring prepare_citations for nv-ingest.
+            if enable_citations:
+                try:
+                    logger.debug(
+                        "[Prepare Citations NRL] Fetching visual asset from MinIO: %s",
+                        stored_image_uri,
+                    )
+                    object_name = object_key_from_storage_uri(stored_image_uri)
+                    raw_bytes = get_minio_operator_instance().get_object(object_name)
+                    content = base64.b64encode(raw_bytes).decode("ascii")
+                except Exception as exc:
+                    logger.exception(
+                        "[Prepare Citations NRL] Failed to fetch asset from MinIO"
+                        " (uri=%s): %s",
+                        stored_image_uri,
+                        exc,
+                    )
+                    content = ""
+            # When citations are disabled, content stays empty and the chunk
+            # is skipped by the guard below — no MinIO call is made.
+        else:
+            # Text / audio chunk — content comes directly from the chunk text.
+            content = doc.page_content or ""
+
+        # Skip chunks that produced no renderable content.
+        # This mirrors the guard in prepare_citations and prevents empty
+        # entries in the citation list that could confuse the UI client.
+        if not content:
+            continue
+
+        if document_type not in ("image", "text", "table", "chart", "audio"):
+            # document_type is not in the API Literal — skip rather than send
+            # an invalid value that would fail Pydantic validation downstream.
+            logger.debug(
+                "[Prepare Citations NRL] Skipping chunk with unmapped document_type=%r",
+                document_type,
+            )
+            continue
+
+        # ── Document name ─────────────────────────────────────────────────
+        # Prefer "filename" (set directly by NRL), fall back to path / source.
+        raw_filename = (
+            meta.get("filename")
+            or meta.get("path")
+            or meta.get("source")
+            or ""
+        )
+        document_name = os.path.basename(str(raw_filename)) if raw_filename else ""
+
+        # ── Page number ───────────────────────────────────────────────────
+        try:
+            page_number = int(meta.get("page_number") or 0)
+        except (TypeError, ValueError):
+            page_number = 0
+
+        # ── Relevance / distance score ────────────────────────────────────
+        # "relevance_score" is populated by the reranker; "_distance" is the
+        # raw ANN distance from LanceDB.  Fall back to 0.0 when neither exists.
+        score = float(
+            meta.get("relevance_score") or meta.get("_distance") or 0.0
+        )
+
+        # ── NRL metadata dict (has_text, dpi, source_path, etc.) ─────────
+        # Stored under "metadata" as a parsed dict by NRLLanceDB.results_to_docs.
+        # Passed as content_metadata so API consumers can inspect provenance.
+        nrl_meta: dict = meta.get("metadata") or {}
+
+        source_metadata = SourceMetadata(
+            page_number=page_number,
+            description=doc.page_content or "",
+            content_metadata=nrl_meta,
+        )
+
+        citations.append(
+            SourceResult(
+                content=content,
+                document_type=document_type,
+                document_name=document_name,
+                score=score,
+                metadata=source_metadata,
+            )
+        )
+
+    logger.info(
+        "[Prepare Citations NRL] Built %d citations from %d documents.",
+        len(citations),
+        len(retrieved_documents),
+    )
     return Citations(total_results=len(citations), results=citations)
 
 
