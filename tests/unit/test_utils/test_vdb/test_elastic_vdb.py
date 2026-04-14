@@ -1572,7 +1572,7 @@ class TestEsQueries(unittest.TestCase):
 
         # Verify composite aggregation
         composite = unique_sources["composite"]
-        self.assertEqual(composite["size"], 1000)
+        self.assertEqual(composite["size"], 65536)
         self.assertIn("sources", composite)
 
         # Verify source field configuration
