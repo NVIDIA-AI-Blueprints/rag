@@ -51,11 +51,23 @@ env:
 
 jobs:
   # ============================================================================
+  # BRANCH GUARD — scheduled runs are limited to the develop branch.
+  # workflow_dispatch is allowed from any branch.
+  # ============================================================================
+  check-branch:
+    name: Check branch for scheduled run
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/develop'
+    steps:
+      - run: echo "Branch check passed — ref ${{ github.ref }}"
+
+  # ============================================================================
   # PUBLISH WHEEL
   # ============================================================================
   publish-wheel:
     name: Build and Publish Python Wheel
     runs-on: ubuntu-latest
+    needs: check-branch
     if: github.event_name != 'workflow_dispatch' || github.event.inputs.JOBS_TO_RUN == 'all' || github.event.inputs.JOBS_TO_RUN == 'wheel-only'
     container:
       image: python:3.10
@@ -121,6 +133,9 @@ jobs:
           WHEEL_FILENAME=$(basename "$WHEEL_FILE")
           echo "Wheel filename: $WHEEL_FILENAME"
           
+          # Remove existing version to overwrite (ignore error if version does not exist)
+          ngc registry resource remove-version "nvstaging/blueprint/nvidia_rag:$ARTIFACTORY_VERSION" --org nvstaging -y 2>/dev/null || true
+
           # Publish to NGC
           echo "Publishing wheel to NGC: nvstaging/blueprint/nvidia_rag:$ARTIFACTORY_VERSION"
           ngc registry resource upload-version \
@@ -137,6 +152,7 @@ jobs:
   publish-rag-server:
     name: Build and Publish RAG Server Container
     runs-on: ubuntu-latest
+    needs: check-branch
     if: github.event_name != 'workflow_dispatch' || ((github.event.inputs.JOBS_TO_RUN == 'all' || github.event.inputs.JOBS_TO_RUN == 'containers-only') && github.event.inputs.PUBLISH_RAG_SERVER != 'false')
     steps:
       - name: Checkout code
@@ -178,6 +194,7 @@ jobs:
 
           # Tag and push to NGC Container Registry
           echo "Pushing rag-server to NGC Container Registry..."
+          docker tag nvcr.io/nvidia/blueprint/rag-server:$TAG nvcr.io/nvstaging/blueprint/rag-server:$TAG
           docker push nvcr.io/nvstaging/blueprint/rag-server:$TAG
           docker tag nvcr.io/nvidia/blueprint/rag-server:$TAG nvcr.io/nvstaging/blueprint/rag-server:latest
           docker push nvcr.io/nvstaging/blueprint/rag-server:latest
@@ -196,6 +213,7 @@ jobs:
   publish-ingestor-server:
     name: Build and Publish Ingestor Server Container
     runs-on: ubuntu-latest
+    needs: check-branch
     if: github.event_name != 'workflow_dispatch' || ((github.event.inputs.JOBS_TO_RUN == 'all' || github.event.inputs.JOBS_TO_RUN == 'containers-only') && github.event.inputs.PUBLISH_INGESTOR_SERVER != 'false')
     steps:
       - name: Checkout code
@@ -237,6 +255,7 @@ jobs:
 
           # Tag and push to NGC Container Registry
           echo "Pushing ingestor-server to NGC Container Registry..."
+          docker tag nvcr.io/nvidia/blueprint/ingestor-server:$TAG nvcr.io/nvstaging/blueprint/ingestor-server:$TAG
           docker push nvcr.io/nvstaging/blueprint/ingestor-server:$TAG
           docker tag nvcr.io/nvidia/blueprint/ingestor-server:$TAG nvcr.io/nvstaging/blueprint/ingestor-server:latest
           docker push nvcr.io/nvstaging/blueprint/ingestor-server:latest
@@ -255,6 +274,7 @@ jobs:
   publish-rag-frontend:
     name: Build and Publish RAG Frontend Container
     runs-on: ubuntu-latest
+    needs: check-branch
     if: github.event_name != 'workflow_dispatch' || ((github.event.inputs.JOBS_TO_RUN == 'all' || github.event.inputs.JOBS_TO_RUN == 'containers-only') && github.event.inputs.PUBLISH_RAG_FRONTEND != 'false')
     steps:
       - name: Checkout code
@@ -296,6 +316,7 @@ jobs:
 
           # Tag and push to NGC Container Registry
           echo "Pushing rag-frontend to NGC Container Registry..."
+          docker tag nvcr.io/nvidia/blueprint/rag-frontend:$TAG nvcr.io/nvstaging/blueprint/rag-frontend:$TAG
           docker push nvcr.io/nvstaging/blueprint/rag-frontend:$TAG
           docker tag nvcr.io/nvidia/blueprint/rag-frontend:$TAG nvcr.io/nvstaging/blueprint/rag-frontend:latest
           docker push nvcr.io/nvstaging/blueprint/rag-frontend:latest
@@ -314,6 +335,7 @@ jobs:
   publish-helm-chart:
     name: Build and Publish Helm Chart to NGC
     runs-on: ubuntu-latest
+    needs: check-branch
     if: github.event_name != 'workflow_dispatch' || github.event.inputs.JOBS_TO_RUN == 'all' || github.event.inputs.JOBS_TO_RUN == 'helm-chart-only'
     steps:
       - name: Checkout code
@@ -347,6 +369,16 @@ jobs:
             VERSION=$(./ci/get_version.sh)
             echo "Generated version: $VERSION"
           fi
+          # Helm requires strict semver. Convert Python-style version to semver:
+          #   2026.04.14.dev0  -> 2026.4.14-dev.0
+          #   2026.04.14.post1 -> 2026.4.14-post.1
+          #   2026.04.14       -> 2026.4.14
+          SEMVER=$(echo "$VERSION" \
+            | sed -E 's/^([0-9]+)\.0*([0-9]+)\.0*([0-9]+)\.dev([0-9]+)$/\1.\2.\3-dev.\4/' \
+            | sed -E 's/^([0-9]+)\.0*([0-9]+)\.0*([0-9]+)\.post([0-9]+)$/\1.\2.\3-post.\4/' \
+            | sed -E 's/^([0-9]+)\.0*([0-9]+)\.0*([0-9]+)$/\1.\2.\3/')
+          echo "Semver-normalised version: $SEMVER"
+          VERSION="$SEMVER"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "HELM_CHART_VERSION=$VERSION" >> $GITHUB_ENV
 
