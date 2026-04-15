@@ -101,13 +101,13 @@ all = [
     # Elasticsearch support
     "langchain-elasticsearch>=0.3",
     # Oracle 26ai support
-    "oracledb>=2.0.0",
+    "oracledb>=3.4.2",
 ]
 elasticsearch = [
     "langchain-elasticsearch>=0.3",
 ]
 oracle = [
-    "oracledb>=2.0.0",
+    "oracledb>=3.4.2",
     "langchain-community>=0.4",
 ]
 minio = [
