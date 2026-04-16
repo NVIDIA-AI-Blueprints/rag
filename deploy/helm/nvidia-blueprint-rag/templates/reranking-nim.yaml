@@ -12,6 +12,10 @@ spec:
       modelPuller: "{{ $nimModel.image.repository }}:{{ $nimModel.image.tag }}"
       pullSecret: {{ .Values.imagePullSecret.name }}
       authSecret: {{ .Values.ngcApiSecret.name }}
+  {{- with $nimModel.tolerations }}
+  tolerations:
+{{ toYaml . | nindent 4 }}
+  {{- end }}
   storage:
     pvc:
       create: {{ $nimModel.storage.pvc.create | default true }}
