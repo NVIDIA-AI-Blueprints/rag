@@ -25,7 +25,7 @@ Determine what the user wants and route immediately:
 | User Intent | Action |
 |-------------|--------|
 | Deploy, install, set up, start RAG | Read and follow `references/deploy.md` |
-| Configure, enable, change, toggle a feature | Use the **Configure** section below |
+| Configure, enable, change, toggle a feature | Use the Configure section below |
 | Troubleshoot, debug, fix, error, unhealthy | Read and follow `references/troubleshoot.md` |
 | Stop, shutdown, tear down, clean up | Read and follow `references/shutdown.md` |
 
@@ -54,7 +54,7 @@ Match the user's request to a reference file, then read and follow it:
 | Data catalog (collection/document metadata) | `references/configure/data-catalog.md` |
 | User interface (UI settings) | `references/configure/user-interface.md` |
 | API reference (endpoints, schemas) | `references/configure/api-reference.md` |
-| Evaluation (RAGAS metrics) | `references/configure/evaluation.md` |
+| Evaluation (RAGAS metrics) | `references/configure/evaluation.md` (and skill `rag-eval`) |
 | MCP server & client, agent toolkit | `references/configure/mcp.md` |
 | Migration (version upgrades) | `references/configure/migration.md` |
 | Notebooks (setup and catalog) | `references/configure/notebooks.md` |
@@ -93,7 +93,7 @@ Match the user's request to a reference file, then read and follow it:
    ```
 
 6. Read the reference file and apply changes:
-   - **Docker**: edit the env file (uncomment to enable, re-comment to disable — the env file is the source of truth). Then restart the affected service:
+   - Docker: edit the env file (uncomment to enable, re-comment to disable — the env file is the source of truth). Then restart the affected service:
      ```
      source <env-file> && docker compose -f deploy/compose/<compose-file> up -d
      ```
@@ -105,8 +105,8 @@ Match the user's request to a reference file, then read and follow it:
      | NIM containers (LLM, embedding, ranking, VLM, OCR) | `nims.yaml` |
      | guardrails | `docker-compose-nemo-guardrails.yaml` |
      | observability (Grafana, Prometheus, Zipkin) | `observability.yaml` |
-   - **Helm**: edit `values.yaml`, then upgrade: `helm upgrade rag <chart> -n rag -f values.yaml`
-   - **Library**: edit `notebooks/config.yaml`, then restart the Python process
+   - Helm: edit `values.yaml`, then upgrade: `helm upgrade rag <chart> -n rag -f values.yaml`
+   - Library: edit `notebooks/config.yaml`, then restart the Python process
 
 7. Verify:
    - Docker: `docker ps --format "table {{.Names}}\t{{.Status}}" | head -20; curl -s http://localhost:8081/v1/health?check_dependencies=true 2>/dev/null | head -1`

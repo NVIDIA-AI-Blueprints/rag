@@ -26,6 +26,8 @@ notebooks/             # Jupyter notebooks for evaluation and examples
 
 ```bash
 uv sync                              # Install all deps
+# Optional: RAGAS benchmark CLI (see scripts/eval/README.md)
+# uv sync --project scripts/eval
 uv run pytest tests/unit/            # Unit tests
 uv run pytest tests/integration/     # Integration tests
 ruff check --fix src/                # Lint + autofix
