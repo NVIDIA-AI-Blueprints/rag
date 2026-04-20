@@ -96,6 +96,9 @@ from nvidia_rag.utils.vdb.elasticsearch.es_queries import (
     get_weighted_hybrid_custom_query,
     get_all_document_info_query,
 )
+from nvidia_rag.utils.vdb.elasticsearch.es_dense_vector_strategy import (
+    DenseVectorStrategyWithIndexOptions,
+)
 from nvidia_rag.utils.vdb.vdb_ingest_base import VDBRagIngest
 
 logger = logging.getLogger(__name__)
@@ -217,6 +220,13 @@ class ElasticVDB(VDBRagIngest):
         """Set the collection name."""
         self.index_name = collection_name
 
+    def _get_retrieval_strategy(self, hybrid: bool = False) -> DenseVectorStrategy:
+        """Return the appropriate retrieval strategy based on GPU config."""
+        if self.config.vector_store.enable_gpu_index:
+            logger.debug("Elasticsearch GPU indexing enabled: using DenseVectorStrategyWithIndexOptions")
+            return DenseVectorStrategyWithIndexOptions(hybrid=hybrid)
+        return DenseVectorStrategy(hybrid=hybrid)
+
     def _get_es_store(
         self,
         index_name: str,
@@ -230,7 +240,7 @@ class ElasticVDB(VDBRagIngest):
             num_dimensions=dimensions,
             text_field="text",
             vector_field="vector",
-            retrieval_strategy=DenseVectorStrategy(hybrid=hybrid),
+            retrieval_strategy=self._get_retrieval_strategy(hybrid=hybrid),
         )
 
     # ----------------------------------------------------------------------------------------------
@@ -1154,7 +1164,7 @@ class ElasticVDB(VDBRagIngest):
             "index_name": collection_name,
             "es_url": self.es_url,
             "embedding": self._embedding_model,
-            "strategy": DenseVectorStrategy(
+            "strategy": self._get_retrieval_strategy(
                 hybrid=self.config.vector_store.search_type == SearchType.HYBRID
             ),
         }

@@ -45,9 +45,9 @@ services:
       # Weight for sparse vector search in case of "weighted" Hybrid Search
       APP_VECTORSTORE_SPARSE_WEIGHT: ${APP_VECTORSTORE_SPARSE_WEIGHT:-0.5}
       
-      # Milvus only (ignored for Elasticsearch). Set True when using Milvus + GPU.
+      # Enable GPU index building. Applies to both Milvus and Elasticsearch (requires GPU-capable image and license for ES).
       APP_VECTORSTORE_ENABLEGPUINDEX: ${APP_VECTORSTORE_ENABLEGPUINDEX:-False}
-      # Milvus only (ignored for Elasticsearch). Set True when using Milvus + GPU.
+      # Enable GPU search. Milvus only — GPU search is not supported by Elasticsearch.
       APP_VECTORSTORE_ENABLEGPUSEARCH: ${APP_VECTORSTORE_ENABLEGPUSEARCH:-False}
       # Username for vector store
       APP_VECTORSTORE_USERNAME: ${APP_VECTORSTORE_USERNAME:-""}

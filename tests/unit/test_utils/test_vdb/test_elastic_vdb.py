@@ -1124,6 +1124,8 @@ class TestElasticVDB(unittest.TestCase):
         """API key should be preferred over basic auth when both are present."""
         mock_config = Mock()
         mock_config.embeddings.dimensions = 768
+        # Mock() is truthy; GPU path uses DenseVectorStrategyWithIndexOptions, not DenseVectorStrategy
+        mock_config.vector_store.enable_gpu_index = False
         mock_config.vector_store.search_type = "hybrid"
         mock_config.vector_store.api_key = SecretStr("base64-id-secret")
         mock_config.vector_store.api_key_id = None

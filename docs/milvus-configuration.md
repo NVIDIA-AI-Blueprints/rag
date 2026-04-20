@@ -351,7 +351,7 @@ For detailed HELM deployment instructions, see [Helm Deployment Guide](deploy-he
 
 ## Using VDB Auth Token at Runtime via APIs
 
-When Milvus is the active vector database (`APP_VECTORSTORE_NAME=milvus`), NVIDIA RAG Blueprint servers accept a Vector DB (VDB) authentication token via the HTTP `Authorization` header at runtime. This header is forwarded to Milvus for auth-protected operations. If you use Elasticsearch as the default VDB, runtime bearer tokens are handled differently—refer to Using VDB Auth Token at Runtime via APIs in [Vector database configuration](change-vectordb.md).
+When Milvus is the active vector database (`APP_VECTORSTORE_NAME=milvus`), NVIDIA RAG Blueprint servers accept a Vector DB (VDB) authentication token via the HTTP `Authorization` header at runtime. This header is forwarded to Milvus for auth-protected operations. If you use Elasticsearch as the default VDB, runtime bearer tokens are handled differently—refer to [Elasticsearch Configuration](elasticsearch-configuration.md#using-vdb-auth-token-at-runtime-via-apis-enterprise-feature).
 
 This Milvus flow assumes you already know how to create Milvus users, roles, and privileges. After you configure those in Milvus, you can pass auth tokens in the `Authorization` header to enforce access control.
 

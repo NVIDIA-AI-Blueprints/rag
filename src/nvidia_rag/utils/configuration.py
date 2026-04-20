@@ -155,14 +155,14 @@ class VectorStoreConfig(_ConfigBase):
         description="Type of vector index (e.g., GPU_CAGRA, IVF_FLAT)",
     )
     enable_gpu_index: bool = Field(
-        default=True,
+        default=False,
         env="APP_VECTORSTORE_ENABLEGPUINDEX",
-        description="Enable GPU acceleration for index building",
+        description="Enable GPU acceleration for index building (Milvus and Elasticsearch)",
     )
     enable_gpu_search: bool = Field(
-        default=True,
+        default=False,
         env="APP_VECTORSTORE_ENABLEGPUSEARCH",
-        description="Enable GPU acceleration for search operations",
+        description="Enable GPU acceleration for search operations (Milvus only; not supported by Elasticsearch)",
     )
     search_type: SearchType = Field(
         default=SearchType.DENSE,

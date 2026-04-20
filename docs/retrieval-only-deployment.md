@@ -216,6 +216,8 @@ python scripts/retriever_api_usage.py \
 
 ## Deploy with Helm (Kubernetes)
 
+Use the same cluster prerequisites as a full Helm deployment, including the ECK operator for the default Elasticsearch vector database—see [Deploy on Kubernetes with Helm](deploy-helm.md#prerequisites).
+
 For Kubernetes deployments, configure the Helm chart to disable the LLM NIM:
 
 ```bash

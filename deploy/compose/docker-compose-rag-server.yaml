@@ -48,7 +48,7 @@ services:
       # Weight for sparse vector search in case of "weighted" Hybrid Search
       APP_VECTORSTORE_SPARSE_WEIGHT: ${APP_VECTORSTORE_SPARSE_WEIGHT:-0.5}
       
-      # Milvus only (ignored for Elasticsearch). Set True when using Milvus + GPU.
+      # Enable GPU search. Milvus only — GPU search is not supported by Elasticsearch.
       APP_VECTORSTORE_ENABLEGPUSEARCH: ${APP_VECTORSTORE_ENABLEGPUSEARCH:-False}
       # ef: Parameter controlling query time/accuracy trade-off. Higher ef leads to more accurate but slower search.
       APP_VECTORSTORE_EF: ${APP_VECTORSTORE_EF:-100} # Must be greater or equal to VECTOR_DB_TOPK

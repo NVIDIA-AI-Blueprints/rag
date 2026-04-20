@@ -100,6 +100,7 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
     - [Change the Vector Database](change-vectordb.md)
     - [Hybrid Search](hybrid_search.md)
     - [Milvus Configuration](milvus-configuration.md)
+    - [Elasticsearch Configuration](elasticsearch-configuration.md)
     - [Query Decomposition](query_decomposition.md)
 
 
