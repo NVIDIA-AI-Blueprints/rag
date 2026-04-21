@@ -16,6 +16,11 @@ envValueExemptions:
       ingestor-server:
         - APP_VECTORSTORE_URL
         - APP_NVINGEST_CAPTIONENDPOINTURL
+        # Compose uses nims.yaml DNS names; Helm uses chart service names (same mismatch pattern as caption URL).
+        - APP_NVINGEST_PAGEELEMENTSURL
+        - APP_NVINGEST_GRAPHICELEMENTSURL
+        - APP_NVINGEST_OCRURL
+        - APP_NVINGEST_TABLESTRUCTUREURL
         - APP_NVINGEST_MESSAGECLIENTHOSTNAME
         - MINIO_ENDPOINT
         - REDIS_HOST

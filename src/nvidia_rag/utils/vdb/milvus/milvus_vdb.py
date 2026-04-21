@@ -55,8 +55,9 @@ Retrieval Operations:
 
 import logging
 import os
+import threading
 import time
-from typing import Any
+from typing import Any, ClassVar
 from urllib.parse import urlparse
 from uuid import uuid4
 
@@ -104,6 +105,13 @@ class MilvusVDB(VDBRagIngest):
     - For RAG/search operations: Works without nv_ingest_client
     - For ingestion operations: Requires nv_ingest_client (pip install nvidia-rag[ingest])
     """
+
+    # Reference-count connections by "endpoint|token" so that two MilvusVDB instances
+    # sharing the same underlying pymilvus handler (2.6.9 deterministic hash, 2.6.10+
+    # ConnectionManager) don't race each other when one is GC'd while the other is
+    # still in flight.  _client.close() is deferred until the last holder releases.
+    _conn_refcount: ClassVar[dict[str, int]] = {}
+    _conn_refcount_lock: ClassVar[threading.Lock] = threading.Lock()
 
     def __init__(
         self,
@@ -175,6 +183,11 @@ class MilvusVDB(VDBRagIngest):
         username = username or os.environ.get("VECTOR_STORE_USERNAME", "")
         password = password or os.environ.get("VECTOR_STORE_PASSWORD", "")
 
+        # Sentinel for __del__ safety: set before _client is created so that a
+        # partially-constructed instance never tries to decrement a counter it never
+        # incremented.
+        self._connection_key: str | None = None
+
         # Establish a single persistent MilvusClient for the lifetime of this instance.
         # MilvusClient is the modern pymilvus API; the legacy ORM connections.connect()
         # is avoided here to ensure compatibility with pymilvus 2.6.10+ where ORM is
@@ -193,6 +206,13 @@ class MilvusVDB(VDBRagIngest):
                 f"Please verify Milvus is running and accessible. Error: {str(e)}",
                 ErrorCodeMapping.SERVICE_UNAVAILABLE,
             ) from e
+
+        # Register in the class-level refcount AFTER a successful connection so that
+        # close()/__del__ only decrements for instances that actually connected.
+        conn_key = f"{self.vdb_endpoint}|{self._get_milvus_token()}"
+        self._connection_key = conn_key
+        with MilvusVDB._conn_refcount_lock:
+            MilvusVDB._conn_refcount[conn_key] = MilvusVDB._conn_refcount.get(conn_key, 0) + 1
 
         # Register the MilvusClient's internal alias in the ORM connections registry.
         # langchain_milvus.Milvus still uses ORM-style Collection/utility internally and
@@ -261,21 +281,40 @@ class MilvusVDB(VDBRagIngest):
                 "nvidia-rag[ingest] to be installed"
             )
 
+    def _release_connection(self) -> None:
+        """Decrement the shared refcount and close _client only when this is the last holder.
+
+        Must NOT raise — called from both close() and __del__.
+        Do NOT call connections.disconnect(): the ORM alias is shared across all
+        MilvusVDB/LangchainMilvus instances using the same ConnectionManager handler.
+        """
+        conn_key = getattr(self, "_connection_key", None)
+        client = getattr(self, "_client", None)
+        try:
+            if conn_key:
+                with MilvusVDB._conn_refcount_lock:
+                    count = MilvusVDB._conn_refcount.get(conn_key, 0)
+                    if count <= 1:
+                        MilvusVDB._conn_refcount.pop(conn_key, None)
+                        if client is not None and hasattr(client, "close"):
+                            client.close()
+                    else:
+                        MilvusVDB._conn_refcount[conn_key] = count - 1
+            else:
+                # Partially-constructed instance (init failed before key was set) —
+                # close directly without touching the refcount.
+                if client is not None and hasattr(client, "close"):
+                    client.close()
+        except Exception:
+            pass
+        self._connected = False
+
     def close(self):
         """Close the Milvus connection."""
         if self._connected:
             try:
-                # Do NOT call connections.disconnect() here. The ORM alias
-                # (cm-{id(handler)}) is shared across all MilvusVDB instances and
-                # LangchainMilvus objects that share the same ConnectionManager
-                # handler. Disconnecting it would tear down the ORM registration
-                # for all concurrent requests, causing ConnectionNotExistException.
-                # The underlying gRPC handler lifecycle is managed by ConnectionManager
-                # via _client.close() below.
-                if hasattr(self, "_client") and hasattr(self._client, "close"):
-                    self._client.close()
+                self._release_connection()
                 logger.debug(f"Disconnected from Milvus at {self.vdb_endpoint}")
-                self._connected = False
             except Exception as e:
                 logger.warning(f"Error disconnecting from Milvus: {e}")
 
@@ -290,14 +329,7 @@ class MilvusVDB(VDBRagIngest):
     def __del__(self):
         """Disconnect when the instance is garbage-collected (safety net if close() not used)."""
         if getattr(self, "_connected", False):
-            try:
-                # Do NOT call connections.disconnect() here — see close() for rationale.
-                client = getattr(self, "_client", None)
-                if client is not None and hasattr(client, "close"):
-                    client.close()
-                self._connected = False
-            except Exception:
-                pass  # Avoid raising in __del__; module/logger may be gone at shutdown
+            self._release_connection()  # never raises
 
     @property
     def collection_name(self) -> str:

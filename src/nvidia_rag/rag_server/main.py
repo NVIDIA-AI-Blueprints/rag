@@ -66,6 +66,7 @@ from nvidia_rag.rag_server.response_generator import (
     RAGResponse,
     generate_answer_async,
     prepare_citations,
+    prepare_citations_nrl,
     prepare_llm_request,
     retrieve_summary,
 )
@@ -361,6 +362,17 @@ class NvidiaRAG:
             config=self.config,
             vdb_auth_token=vdb_auth_token,
         )
+
+    @property
+    def _is_nrl_mode(self) -> bool:
+        """Return True when the active vector store is LanceDB (NRL ingestion mode).
+
+        NRL (NemoRetriever Library) always uses LanceDB as its vector store.
+        When this flag is True, ``prepare_citations_nrl`` is used instead of
+        ``prepare_citations`` because NRL documents carry flat text metadata
+        rather than the nv-ingest structured metadata (with MinIO image assets).
+        """
+        return self.config.vector_store.name == "lancedb"
 
     def _validate_collections_exist(
         self, collection_names: list[str], vdb_op: VDBRag
@@ -812,6 +824,11 @@ class NvidiaRAG:
             validate_model_info(reranker_endpoint, "reranker_endpoint"),
         )
 
+        # Choose the citations builder based on ingestion mode.
+        # NRL (LanceDB) produces text-only flat metadata; nv-ingest produces
+        # structured metadata with potential MinIO image / table assets.
+        _citations_fn = prepare_citations_nrl if self._is_nrl_mode else prepare_citations
+
         try:
             if not collection_names:
                 raise APIError(
@@ -1215,7 +1232,7 @@ class NvidiaRAG:
                     logger.warning(
                         "Could not find sufficiently relevant context after maximum attempts"
                     )
-                return prepare_citations(retrieved_documents=docs, force_citations=True, enable_citations=enable_citations)
+                return _citations_fn(retrieved_documents=docs, force_citations=True, enable_citations=enable_citations)
             else:
                 if local_ranker and enable_reranker and not is_image_query:
                     logger.info(
@@ -1296,7 +1313,7 @@ class NvidiaRAG:
                             confidence_threshold=confidence_threshold,
                         )
 
-                    return prepare_citations(
+                    return _citations_fn(
                         retrieved_documents=docs, force_citations=True, enable_citations=enable_citations
                     )
                 else:
@@ -1327,7 +1344,7 @@ class NvidiaRAG:
                             ),
                             otel_ctx=otel_ctx,
                         )
-                    return prepare_citations(
+                    return _citations_fn(
                         retrieved_documents=docs, force_citations=True, enable_citations=enable_citations
                     )
 
@@ -2956,6 +2973,7 @@ class NvidiaRAG:
                                 model=model,
                                 collection_name=validated_collections[0] if validated_collections else "",
                                 enable_citations=enable_citations,
+                                use_nrl_citations=self._is_nrl_mode,
                             ),
                             status_code=ErrorCodeMapping.SUCCESS,
                         )
@@ -3161,6 +3179,7 @@ class NvidiaRAG:
                         model=model,
                         collection_name=validated_collections[0] if validated_collections else "",
                         enable_citations=enable_citations,
+                        use_nrl_citations=self._is_nrl_mode,
                         context_reranker_time_ms=context_reranker_time_ms,
                         retrieval_time_ms=retrieval_time_ms,
                         rag_start_time_sec=rag_start_time_sec,
@@ -3195,6 +3214,7 @@ class NvidiaRAG:
                         model=model,
                         collection_name=validated_collections[0] if validated_collections else "",
                         enable_citations=enable_citations,
+                        use_nrl_citations=self._is_nrl_mode,
                         context_reranker_time_ms=context_reranker_time_ms,
                         retrieval_time_ms=retrieval_time_ms,
                         rag_start_time_sec=rag_start_time_sec,

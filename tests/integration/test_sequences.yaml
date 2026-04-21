@@ -91,6 +91,13 @@ sequences:
     pre_sequence: []
     post_sequence: [85]  # Cleanup tests after sequence
 
+  nemo_retriever_library:
+    name: "Nemo Retriever Library Tests"
+    description: "Nemo Retriever Library functionality tests"
+    test_numbers: [1, 2, 3, 4, 5, 6, 7, 8, 11, 12, 13, 14]
+    pre_sequence: [18]  # Cleanup collection before tests
+    post_sequence: [16, 17, 18, 19]  # Cleanup tests after sequence
+
   library_usage:
     name: "Python Library Usage Tests"
     description: "Tests nvidia_rag Python library directly as shown in notebooks/rag_library_usage.ipynb. Assumes cloud deployed models (NVIDIA API catalog). Covers imports, config, collection management, document upload/status/retrieval, health check, RAG generation, search, and cleanup."
