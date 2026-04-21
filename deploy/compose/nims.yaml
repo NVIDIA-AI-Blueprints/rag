@@ -301,8 +301,8 @@ services:
     profiles: ["audio"]
 
   vlm-ms:
-    container_name: nemo-vlm-microservice
-    image: nvcr.io/nim/nvidia/nemotron-nano-12b-v2-vl:1.6.0
+    container_name: nemotron-3-nano-30b-a3b-omni-reasoning
+    image: nvcr.io/nvstaging/nim/nemotron-3-nano-30b-a3b-omni-reasoning:1.7.0-variant-rc2-48948519
     volumes:
     - ${MODEL_DIRECTORY:-./}:/opt/nim/.cache
     ports:
@@ -320,14 +320,14 @@ services:
       interval: 10s
       timeout: 20s
       retries: 100
-    shm_size: 16GB
+    shm_size: 32GB
     deploy:
       resources:
         reservations:
           devices:
             - driver: nvidia
               # count: ${INFERENCE_GPU_COUNT:-all}
-              device_ids: ['${VLM_MS_GPU_ID:-5}']
+              device_ids: ['3']
               capabilities: [gpu]
     profiles: ["vlm-only", "vlm-generation"]
 

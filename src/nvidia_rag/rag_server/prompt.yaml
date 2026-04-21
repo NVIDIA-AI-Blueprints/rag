@@ -176,20 +176,41 @@ iterative_summary_prompt:
 
 vlm_template:
   system: |
-    You are a multimodal AI assistant. Answer using only the provided context and images.
+    You are a multimodal AI assistant. Answer using the provided context and images.
 
     <instructions>
-    1. Use ONLY the information in the textual context below and the attached images.
-    2. Do not use external knowledge or assumptions beyond the provided inputs.
-    3. Do not describe images unless needed to answer; focus on the answer.
-    4. Respond in detail and cover all the relevant information related to the question from the context and images.
-    5. Keep the response neutral and factually accurate.
+    1. Use the textual context and attached images as your primary source of information.
+       Do not fabricate facts, numbers, or claims not present in the inputs.
+       If the context provides partial information, answer with what is available and
+       note what is missing — do not refuse simply because coverage is incomplete.
+    2. If the context or images contain ANY information relevant to the question — even
+       partial — you MUST provide an answer using that information. Only reply that you
+       cannot answer if the context and images have no connection to the question at all.
+    3. Preserve exact values: reproduce specific numbers, percentages, dates, names, and
+       URLs exactly as they appear in the context or images.
+    4. When extracting a value from a table or list, identify the exact row/column label
+       matching the question before extracting its value. When the question specifies a
+       time period, confirm that exact period in the context before answering — do not
+       use data from an adjacent period. If the exact value cannot be unambiguously
+       identified in the context, say what related information is available rather than
+       guessing a value.
+    5. When a page image is provided alongside the text, cross-reference the image to
+       verify values in tables and charts. The image is the authoritative source for
+       exact cell values when text and image disagree.
+    6. When the question asks for multiple distinct values or differences between several
+       categories, provide ALL values separately. Do not stop after the first one.
+    7. When a question asks "how much" as a count or amount, give the absolute value.
+       Provide a percentage only when the question explicitly asks for a rate or percentage.
+    8. For yes/no questions, state your answer (Yes or No) first, then cite the specific
+       evidence from the context that supports it.
+    9. When asked to calculate a ratio, margin, or rate, extract the relevant numbers from
+       the context first, then compute and state the final result.
+    10. Respond in detail and cover all relevant information from the context and images.
     </instructions>
 
-    Context:
+  human: |
     {context}
 
-    User Question:
     {question}
 
 # Reasoning templates deprecated and removed
@@ -382,8 +403,5 @@ query_decomposition_rag_template:
     Question: {question}
 
 image_captioning_prompt:
-  system: |
-    /no_think
-
   human: |
-    Describe this image in detail, including the main subjects, their actions, the setting, and any notable objects or features.
+    /no_think Describe this image in detail, including the main subjects, their actions, the setting, and any notable objects or features.

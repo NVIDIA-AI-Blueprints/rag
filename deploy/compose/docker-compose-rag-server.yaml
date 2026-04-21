@@ -69,7 +69,7 @@ services:
 
       # Fetch full page context: when True, fetches ALL chunks for retrieved pages and organizes by page
       # Useful for PDFs where we have page numbers in file
-      APP_FETCH_FULL_PAGE_CONTEXT: ${APP_FETCH_FULL_PAGE_CONTEXT:-false}
+      APP_FETCH_FULL_PAGE_CONTEXT: ${APP_FETCH_FULL_PAGE_CONTEXT:-False}
       # N pages before/after each retrieved page (0=disabled, 1=+/-1 page). Requires APP_FETCH_FULL_PAGE_CONTEXT=true
       APP_FETCH_NEIGHBORING_PAGES: ${APP_FETCH_NEIGHBORING_PAGES:-0}
 
@@ -117,20 +117,26 @@ services:
       RERANKER_SCORE_THRESHOLD: ${RERANKER_SCORE_THRESHOLD:-${RERANKER_CONFIDENCE_THRESHOLD:-0.0}}
 
       ##===VLM Model specific configurations===
-      ENABLE_VLM_INFERENCE: ${ENABLE_VLM_INFERENCE:-false}
+      ENABLE_VLM_INFERENCE: ${ENABLE_VLM_INFERENCE:-True}
       # When true, allow falling back to LLM flow if no images are present in query/messages/context
       # When false, always route generation through VLM when ENABLE_VLM_INFERENCE is true
-      VLM_TO_LLM_FALLBACK: ${VLM_TO_LLM_FALLBACK:-true}
+      VLM_TO_LLM_FALLBACK: ${VLM_TO_LLM_FALLBACK:-False}
       # Max images sent to VLM per request (query + context)
       APP_VLM_MAX_TOTAL_IMAGES: ${APP_VLM_MAX_TOTAL_IMAGES:-5}
+      # Whether to filter out reasoning tokens from VLM responses (stream only content, not reasoning)
+      VLM_FILTER_THINK_TOKENS: ${VLM_FILTER_THINK_TOKENS:-true}
+      # Enable reasoning mode for Nemotron 3 nano omni reasoning model
+      APP_VLM_ENABLE_THINKING: ${APP_VLM_ENABLE_THINKING:-true}
+      # Max reasoning tokens for VLM (0 = no cap); only applied when enable_thinking is true
+      APP_VLM_THINKING_TOKEN_BUDGET: ${APP_VLM_THINKING_TOKEN_BUDGET:-16384}
       # VLM generation parameters
-      APP_VLM_MAX_TOKENS: ${APP_VLM_MAX_TOKENS:-8192}
-      APP_VLM_TEMPERATURE: ${APP_VLM_TEMPERATURE:-0.1}
-      APP_VLM_TOP_P: ${APP_VLM_TOP_P:-1.0}
+      APP_VLM_MAX_TOKENS: ${APP_VLM_MAX_TOKENS:-32768}
+      APP_VLM_TEMPERATURE: ${APP_VLM_TEMPERATURE:-0.6}
+      APP_VLM_TOP_P: ${APP_VLM_TOP_P:-0.95}
       # VLM server URL
       APP_VLM_SERVERURL: ${APP_VLM_SERVERURL-"http://vlm-ms:8000/v1"}
       # VLM model name
-      APP_VLM_MODELNAME: ${APP_VLM_MODELNAME:-"nvidia/nemotron-nano-12b-v2-vl"}
+      APP_VLM_MODELNAME: ${APP_VLM_MODELNAME:-"nvidia/nemotron-3-nano-30b-a3b-omni-reasoning"}
 
       NVIDIA_API_KEY: ${NGC_API_KEY:?"NGC_API_KEY is required"}
 
