@@ -159,8 +159,8 @@ def get_nv_ingest_ingestor(
         )
     ingestor = ingestor.extract(**extract_kwargs)
 
-    # Add splitting task (By default only works for text documents)
-    if split_options is not None:
+    # Add splitting task (controlled by enable_split flag, disabled by default)
+    if config.nv_ingest.enable_split and split_options is not None:
         split_source_types = ["text", "html", "mp3", "docx", "pptx"]
         split_source_types = (
             ["PDF"] + split_source_types
@@ -178,6 +178,8 @@ def get_nv_ingest_ingestor(
             ),
             params={"split_source_types": split_source_types},
         )
+    elif not config.nv_ingest.enable_split:
+        logger.info("Split task disabled (APP_NVINGEST_ENABLESPLIT=False). Skipping split stage.")
 
     # Add captioning task if extract_images is enabled
     if config.nv_ingest.extract_images:

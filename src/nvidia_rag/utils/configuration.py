@@ -399,6 +399,11 @@ class NvIngestConfig(_ConfigBase):
             )
         return self
 
+    enable_split: bool = Field(
+        default=False,
+        env="APP_NVINGEST_ENABLESPLIT",
+        description="Enable text splitting/chunking stage during ingestion",
+    )
     enable_pdf_splitter: bool = Field(
         default=True,
         env="APP_NVINGEST_ENABLEPDFSPLITTER",

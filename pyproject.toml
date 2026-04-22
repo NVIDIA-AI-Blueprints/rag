@@ -124,7 +124,7 @@ nvidia-rag = { workspace = true }
 
 [tool.uv]
 # Pillow 12.x required for containers; moviepy pins pillow<12 so override needed for resolution
-override-dependencies = ["pillow>=12.1.0"]
+override-dependencies = ["pillow>=12.1.0", "lance-namespace>=0.4.5,<0.7"]
 
 [tool.setuptools]
 package-dir = {"" = "src"}

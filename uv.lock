@@ -17,7 +17,10 @@ resolution-markers = [
 ]
 
 [manifest]
-overrides = [{ name = "pillow", specifier = ">=12.1.0" }]
+overrides = [
+    { name = "lance-namespace", specifier = ">=0.4.5,<0.7" },
+    { name = "pillow", specifier = ">=12.1.0" },
+]
 
 [[package]]
 name = "absl-py"
