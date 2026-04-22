@@ -358,7 +358,7 @@ class NvidiaRAGIngestor:
         vdb_op.create_document_info_collection()
 
         # Set default values for mutable arguments
-        if split_options is None:
+        if split_options is None and self.config.nv_ingest.enable_split:
             split_options = {
                 "chunk_size": self.config.nv_ingest.chunk_size,
                 "chunk_overlap": self.config.nv_ingest.chunk_overlap,
@@ -965,7 +965,7 @@ class NvidiaRAGIngestor:
             vdb_endpoint = self.config.vector_store.url
 
         # Set default values for mutable arguments
-        if split_options is None:
+        if split_options is None and self.config.nv_ingest.enable_split:
             split_options = {
                 "chunk_size": self.config.nv_ingest.chunk_size,
                 "chunk_overlap": self.config.nv_ingest.chunk_overlap,
@@ -2284,6 +2284,25 @@ class NvidiaRAGIngestor:
             shallow_summary = summary_options.get("shallow_summary", False)
 
         # ------------------------------------------------------------------
+        # Pre-filter: identify files whose extensions are not supported by NRL.
+        # Mirrors __remove_unsupported_files / __get_non_supported_files from the
+        # NV-Ingest path so unsupported files are reported with a clear
+        # "Unsupported file type" error rather than silently producing zero chunks.
+        # Logic lives in nemo_retriever/filters.py, not here.
+        # ------------------------------------------------------------------
+        from nvidia_rag.ingestor_server.nemo_retriever.filters import filter_unsupported
+
+        filepaths, unsupported_failures = filter_unsupported(filepaths)
+
+        if not filepaths:
+            logger.warning(
+                "NRL: no supported files remain after pre-filter; "
+                "returning %d unsupported failure(s) immediately",
+                len(unsupported_failures),
+            )
+            return [], unsupported_failures
+
+        # ------------------------------------------------------------------
         # Set PENDING status for all files when summary generation is requested.
         # Mirrors the identical block at the top of __run_nvingest_batched_ingestion
         # so that callers polling GET /summary see a consistent initial state.
@@ -2389,7 +2408,8 @@ class NvidiaRAGIngestor:
 
         # failures shape: list[tuple[path, error]] — consumed by __get_failed_documents
         # which accesses failure[0] (path) and failure[1] (error message).
-        failures: list[tuple[str, Any]] = [
+        # unsupported_failures are prepended so they appear first in the response.
+        failures: list[tuple[str, Any]] = unsupported_failures + [
             (path, "NRL ingest produced no embedded chunks for this document")
             for path in schema_mgr.failed_sources()
         ]
@@ -2646,7 +2666,7 @@ class NvidiaRAGIngestor:
             - summary_options: SummaryOptions - Advanced options for summary (page_filter, shallow_summary, summarization_strategy)
             - state_manager: IngestionStateManager - State manager for the ingestion process
         """
-        if split_options is None:
+        if split_options is None and self.config.nv_ingest.enable_split:
             split_options = {
                 "chunk_size": self.config.nv_ingest.chunk_size,
                 "chunk_overlap": self.config.nv_ingest.chunk_overlap,

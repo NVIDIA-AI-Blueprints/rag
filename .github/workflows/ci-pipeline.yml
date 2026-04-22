@@ -83,15 +83,24 @@ jobs:
 
       - name: Install system dependencies
         run: |
-          apt-get update && apt-get install -y gcc && rm -rf /var/lib/apt/lists/*
+          apt-get update && apt-get install -y gcc curl && rm -rf /var/lib/apt/lists/*
 
       - name: Install package with dependencies
         run: |
-          pip install -e .[all]
-          pip install --no-cache-dir -r tests/unit/requirements-test.txt
+          # Install uv (Python package and environment manager)
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          export PATH="$HOME/.local/bin:$PATH"
+
+          # Create a fresh virtual environment using uv
+          rm -rf venv-unit || echo "No existing venv-unit to clean up"
+          uv venv venv-unit
+          . venv-unit/bin/activate
+          uv pip install -e .[all]
+          uv pip install --no-cache -r tests/unit/requirements-test.txt
 
       - name: Run unit tests with coverage
         run: |
+          . venv-unit/bin/activate
           python -m pytest -v -s --cov=src --cov-report=term-missing tests/unit
 
   frontend-unit-tests:

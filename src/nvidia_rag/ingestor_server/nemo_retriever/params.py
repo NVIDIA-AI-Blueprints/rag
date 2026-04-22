@@ -27,10 +27,13 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from nemo_retriever.params import (
+    ASRParams,
+    AudioChunkParams,
     BatchTuningParams,
     CaptionParams,
     EmbedParams,
     ExtractParams,
+    HtmlChunkParams,
     StoreParams,
     TextChunkParams,
 )
@@ -163,6 +166,37 @@ def make_caption_params(config: NvidiaRAGConfig) -> CaptionParams:
     #     params["api_key"] = api_key
 
     return CaptionParams(**params)
+
+
+def make_html_chunk_params(config: NvidiaRAGConfig) -> HtmlChunkParams:
+    """Build ``HtmlChunkParams`` from ``NvidiaRAGConfig``.
+
+    ``HtmlChunkParams`` inherits ``TextChunkParams`` with no extra fields;
+    the same chunk_size / chunk_overlap config values are reused.
+    """
+    return HtmlChunkParams(
+        max_tokens=config.nv_ingest.chunk_size,
+        overlap_tokens=config.nv_ingest.chunk_overlap,
+    )
+
+
+def make_audio_chunk_params(config: NvidiaRAGConfig) -> AudioChunkParams:  # noqa: ARG001
+    """Build ``AudioChunkParams`` from ``NvidiaRAGConfig``.
+
+    NRL defaults (split_type="size", split_interval=450) are used; no
+    audio-specific fields exist in NvIngestConfig yet.
+    """
+    return AudioChunkParams()
+
+
+def make_asr_params(config: NvidiaRAGConfig) -> ASRParams:
+    """Build ``ASRParams`` from ``NvidiaRAGConfig``.
+
+    Maps:
+        ``config.nv_ingest.segment_audio`` → ``ASRParams.segment_audio``
+    All other ASR fields (endpoints, protocol, auth) use NRL defaults.
+    """
+    return ASRParams(segment_audio=config.nv_ingest.segment_audio)
 
 
 def make_store_params(config: NvidiaRAGConfig, vdb_op: VDBRag) -> StoreParams:
