@@ -104,6 +104,7 @@ services:
       APP_NVINGEST_TEXTDEPTH: ${APP_NVINGEST_TEXTDEPTH:-page} # extract by "page" or "document"
 
       ##===NV-Ingest Splitting Configurations========
+      APP_NVINGEST_ENABLESPLIT: ${APP_NVINGEST_ENABLESPLIT:-False} # Master toggle: enable text splitting/chunking stage (disabled by default)
       APP_NVINGEST_CHUNKSIZE: ${APP_NVINGEST_CHUNKSIZE:-512}
       APP_NVINGEST_CHUNKOVERLAP: ${APP_NVINGEST_CHUNKOVERLAP:-150}
       APP_NVINGEST_ENABLEPDFSPLITTER: ${APP_NVINGEST_ENABLEPDFSPLITTER:-True}

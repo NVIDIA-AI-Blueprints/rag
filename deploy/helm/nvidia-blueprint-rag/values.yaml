@@ -413,6 +413,7 @@ ingestor-server:
     LOGLEVEL: "INFO"
 
     # === NV-Ingest splitting configurations ===
+    APP_NVINGEST_ENABLESPLIT: "False"  # Master toggle: enable text splitting/chunking stage (disabled by default)
     APP_NVINGEST_CHUNKSIZE: "512"  # Size of chunks for splitting
     APP_NVINGEST_CHUNKOVERLAP: "150"  # Overlap size for chunks
     APP_NVINGEST_ENABLEPDFSPLITTER: "True"  # Enable PDF splitter

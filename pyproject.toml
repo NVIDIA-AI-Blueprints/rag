@@ -61,10 +61,10 @@ rag = [
 ingest = [
     # nv-ingest dependencies (required for ingestion operations)
     # nv-ingest dependencies (required for ingestion operations)
-    "nv-ingest==2026.4.15.dev20260415",
-    "nv-ingest-api==2026.4.15.dev20260415",
-    "nv-ingest-client==2026.4.15.dev20260415",
-    "nemo-retriever==2026.4.15.dev62",
+    "nv-ingest==2026.4.21.dev20260421",
+    "nv-ingest-api==2026.4.21.dev20260421",
+    "nv-ingest-client==2026.4.21.dev20260421",
+    "nemo-retriever==2026.4.21.dev68",
     "tritonclient==2.57.0",
     # Other ingest dependencies
     "langchain-openai>=0.2,<1.1.9",
@@ -86,10 +86,10 @@ ingest = [
 all = [
     # nv-ingest dependencies (required for ingestion operations)
     # nv-ingest dependencies (required for ingestion operations)
-    "nv-ingest==2026.4.15.dev20260415",
-    "nv-ingest-api==2026.4.15.dev20260415",
-    "nv-ingest-client==2026.4.15.dev20260415",
-    "nemo-retriever==2026.4.15.dev62",
+    "nv-ingest==2026.4.21.dev20260421",
+    "nv-ingest-api==2026.4.21.dev20260421",
+    "nv-ingest-client==2026.4.21.dev20260421",
+    "nemo-retriever==2026.4.21.dev68",
     "tritonclient==2.57.0",
     # RAG + Ingest dependencies
     "langchain-openai>=0.2,<1.1.9",
@@ -124,7 +124,7 @@ nvidia-rag = { workspace = true }
 
 [tool.uv]
 # Pillow 12.x required for containers; moviepy pins pillow<12 so override needed for resolution
-override-dependencies = ["pillow>=12.1.0"]
+override-dependencies = ["pillow>=12.1.0", "lance-namespace>=0.4.5,<0.7"]
 
 [tool.setuptools]
 package-dir = {"" = "src"}

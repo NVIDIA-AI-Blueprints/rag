@@ -50,13 +50,13 @@ class TestNemoRetrieverHandlerBuildIngestor:
         for name in ("files", "extract", "split", "caption", "store", "embed"):
             getattr(mock_chain, name).return_value = mock_chain
 
-        nv = _nv_ingest_for_handler(extract_images=True)
+        nv = _nv_ingest_for_handler(extract_images=True, enable_split=True)
         config = NvidiaRAGConfig(nv_ingest=nv)
         h = NemoRetrieverHandler(config)
         try:
             vdb = MagicMock()
             vdb.collection_name = "c1"
-            h._build_ingestor(
+            h._build_pdf_doc_ingestor(
                 ["/tmp/a.pdf"],
                 split_options=None,
                 extract_override=None,
@@ -85,7 +85,7 @@ class TestNemoRetrieverHandlerBuildIngestor:
 
         h = NemoRetrieverHandler(nemo_config)
         try:
-            h._build_ingestor(
+            h._build_pdf_doc_ingestor(
                 ["/x.pdf"],
                 split_options=None,
                 extract_override=None,
@@ -146,7 +146,7 @@ class TestNemoRetrieverHandlerRunSync:
 class TestNemoRetrieverHandlerAsync:
     @pytest.mark.asyncio
     @patch.object(NemoRetrieverHandler, "_run_sync")
-    @patch.object(NemoRetrieverHandler, "_build_ingestor")
+    @patch.object(NemoRetrieverHandler, "_build_ingestors")
     async def test_ingest_returns_schema_manager(
         self,
         mock_build: MagicMock,
@@ -156,7 +156,7 @@ class TestNemoRetrieverHandlerAsync:
         df = pd.DataFrame({"c": [1]})
         mock_run.return_value = df
         mock_gi = MagicMock()
-        mock_build.return_value = mock_gi
+        mock_build.return_value = [("pdf_doc", mock_gi)]
 
         h = NemoRetrieverHandler(nemo_config)
         try:
@@ -168,7 +168,7 @@ class TestNemoRetrieverHandlerAsync:
         assert isinstance(result, IngestSchemaManager)
         assert result.row_count() == 1
         mock_build.assert_called_once()
-        mock_run.assert_called_once_with(mock_gi)
+        mock_run.assert_called_once_with(mock_gi, "pdf_doc")
 
     @pytest.mark.asyncio
     @patch.object(NemoRetrieverHandler, "_run_sync")

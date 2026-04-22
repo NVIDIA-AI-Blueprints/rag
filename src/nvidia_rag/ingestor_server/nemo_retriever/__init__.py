@@ -20,8 +20,11 @@ Public surface (imported by ``ingestor_server/main.py`` when
 
 * :class:`NemoRetrieverHandler` — async façade over ``GraphIngestor``.
 * :class:`IngestSchemaManager` — stable accessor API over the NRL DataFrame.
+* :func:`filter_unsupported` — split filepaths into supported / unsupported
+  before invoking ``NemoRetrieverHandler.ingest()``.
 """
 
+from nvidia_rag.ingestor_server.nemo_retriever.filters import filter_unsupported
 from nvidia_rag.ingestor_server.nemo_retriever.handler import NemoRetrieverHandler
 from nvidia_rag.ingestor_server.nemo_retriever.ingest_schema_manager import (
     IngestSchemaManager,
@@ -30,4 +33,5 @@ from nvidia_rag.ingestor_server.nemo_retriever.ingest_schema_manager import (
 __all__ = [
     "NemoRetrieverHandler",
     "IngestSchemaManager",
+    "filter_unsupported",
 ]
