@@ -390,22 +390,10 @@ def test_compose_helm_image_and_env_parity():
                     "tag",
                 ],
             },
-            # MinIO image parity (managed by nv-ingest.milvus.minio)
-            "minio": {
-                "values_image_repo_path": [
-                    "nv-ingest",
-                    "milvus",
-                    "minio",
-                    "image",
-                    "repository",
-                ],
-                "values_image_tag_path": [
-                    "nv-ingest",
-                    "milvus",
-                    "minio",
-                    "image",
-                    "tag",
-                ],
+            # SeaweedFS image parity (managed directly by the chart)
+            "seaweedfs": {
+                "values_image_repo_path": ["seaweedfs", "image", "repository"],
+                "values_image_tag_path": ["seaweedfs", "image", "tag"],
             },
         },
     }

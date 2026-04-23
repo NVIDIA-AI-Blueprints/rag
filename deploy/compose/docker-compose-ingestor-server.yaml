@@ -60,10 +60,10 @@ services:
       # vectorstore collection name to store embeddings
       COLLECTION_NAME: ${COLLECTION_NAME:-multimodal_data}
 
-      ##===MINIO specific configurations===
-      MINIO_ENDPOINT: "minio:9010"
-      MINIO_ACCESSKEY: "minioadmin"
-      MINIO_SECRETKEY: "minioadmin"
+      ##===Object-store specific configurations===
+      OBJECTSTORE_ENDPOINT: "seaweedfs:9010"
+      OBJECTSTORE_ACCESSKEY: "minioadmin"
+      OBJECTSTORE_SECRETKEY: "minioadmin"
 
       NGC_API_KEY: ${NGC_API_KEY:?"NGC_API_KEY is required"}
       NVIDIA_API_KEY: ${NGC_API_KEY:?"NGC_API_KEY is required"}
@@ -239,7 +239,7 @@ services:
       - PDF_SPLIT_PAGE_COUNT=${PDF_SPLIT_PAGE_COUNT:-32}
       - REDIS_INGEST_TASK_QUEUE=ingest_task_queue
       # Self-hosted redis endpoints.
-      - YOLOX_PAGE_IMAGE_FORMAT=JPEG # JPG is faster than PNG
+      - YOLOX_PAGE_IMAGE_FORMAT=PNG
       - YOLOX_GRPC_ENDPOINT=${YOLOX_GRPC_ENDPOINT:-page-elements:8001}
       - YOLOX_HTTP_ENDPOINT=${YOLOX_HTTP_ENDPOINT:-http://page-elements:8000/v1/infer}
       - YOLOX_INFER_PROTOCOL=${YOLOX_INFER_PROTOCOL:-grpc}

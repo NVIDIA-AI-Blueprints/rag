@@ -19,6 +19,7 @@ import json
 import os
 import tempfile
 from io import StringIO
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -27,7 +28,7 @@ from nvidia_rag.utils.configuration import (
     EmbeddingConfig,
     FilterExpressionGeneratorConfig,
     LLMConfig,
-    MinioConfig,
+    ObjectStoreConfig,
     ModelParametersConfig,
     NvidiaRAGConfig,
     NvIngestConfig,
@@ -235,16 +236,40 @@ class TestRetrieverConfig:
         assert config.fetch_neighboring_pages == 0
 
 
-class TestMinioConfig:
-    """Test cases for MinioConfig."""
+class TestObjectStoreConfig:
+    """Test cases for ObjectStoreConfig."""
 
     def test_default_values(self):
         """Test default configuration values."""
-        config = MinioConfig()
+        config = ObjectStoreConfig()
 
+        assert config.backend == "s3"
         assert config.endpoint == "localhost:9010"
+        assert config.endpoint_url == "http://localhost:9010"
+        assert config.storage_root == Path("/tmp/nvidia-rag-object-store").resolve()
         assert config.access_key.get_secret_value() == "minioadmin"
         assert config.secret_key.get_secret_value() == "minioadmin"
+
+    @patch.dict(os.environ, {"OBJECTSTORE_ENDPOINT": "https://bucket.example:9443"})
+    def test_endpoint_url_normalizes_https(self):
+        config = ObjectStoreConfig()
+
+        assert config.endpoint == "bucket.example:9443"
+        assert config.endpoint_url == "https://bucket.example:9443"
+        assert config.secure is True
+
+    @patch.dict(
+        os.environ,
+        {
+            "OBJECTSTORE_BACKEND": "filesystem",
+            "OBJECTSTORE_LOCAL_PATH": "/tmp/rag-fs-store",
+        },
+    )
+    def test_filesystem_backend_configuration(self):
+        config = ObjectStoreConfig()
+
+        assert config.backend == "filesystem"
+        assert config.storage_root == Path("/tmp/rag-fs-store").resolve()
 
 
 class TestSummarizerConfig:
@@ -392,7 +417,7 @@ class TestNvidiaRAGConfig:
         assert isinstance(config.nv_ingest, NvIngestConfig)
         assert isinstance(config.tracing, TracingConfig)
         assert isinstance(config.vlm, VLMConfig)
-        assert isinstance(config.minio, MinioConfig)
+        assert isinstance(config.object_store, ObjectStoreConfig)
         assert isinstance(config.summarizer, SummarizerConfig)
 
         # Test top-level boolean flags
@@ -426,7 +451,7 @@ class TestNvidiaRAGConfig:
             "APP_VECTORSTORE_NAME": "custom_vectorstore",
             "APP_LLM_MODELNAME": "custom/llm-model",
             "ENABLE_RERANKER": "false",
-            "MINIO_ENDPOINT": "custom-minio:9000",
+            "OBJECTSTORE_ENDPOINT": "custom-object-store:9000",
         }
 
         with patch.dict(os.environ, env_vars):
@@ -435,7 +460,7 @@ class TestNvidiaRAGConfig:
             assert config.vector_store.name == "custom_vectorstore"
             assert config.llm.model_name == "custom/llm-model"
             assert config.ranking.enable_reranker is False
-            assert config.minio.endpoint == "custom-minio:9000"
+            assert config.object_store.endpoint == "custom-object-store:9000"
 
     def test_from_dict_nested_structure(self):
         """Test loading from dictionary with nested structure."""
@@ -477,10 +502,10 @@ class TestConfigurationIntegration:
             "ENABLE_CITATIONS": "false",
             "ENABLE_RERANKER": "false",
             "ENABLE_VLM_INFERENCE": "true",
-            # Minio config
-            "MINIO_ENDPOINT": "minio.example.com:9000",
-            "MINIO_ACCESSKEY": "test_key",
-            "MINIO_SECRETKEY": "test_secret",
+            # Object-store config
+            "OBJECTSTORE_ENDPOINT": "minio.example.com:9000",
+            "OBJECTSTORE_ACCESSKEY": "test_key",
+            "OBJECTSTORE_SECRETKEY": "test_secret",
             # Other configs
             "TEMP_DIR": "/custom/temp",
             "VECTOR_DB_TOPK": "50",
@@ -498,9 +523,9 @@ class TestConfigurationIntegration:
             assert config.enable_citations is False
             assert config.ranking.enable_reranker is False
             assert config.enable_vlm_inference is True
-            assert config.minio.endpoint == "minio.example.com:9000"
-            assert config.minio.access_key.get_secret_value() == "test_key"
-            assert config.minio.secret_key.get_secret_value() == "test_secret"
+            assert config.object_store.endpoint == "minio.example.com:9000"
+            assert config.object_store.access_key.get_secret_value() == "test_key"
+            assert config.object_store.secret_key.get_secret_value() == "test_secret"
             assert config.temp_dir == "/custom/temp"
             assert config.retriever.vdb_top_k == 50
 
@@ -567,8 +592,8 @@ class TestConfigurationIntegration:
         env_vars = {
             "APP_VECTORSTORE_PASSWORD": "my_secret_password",
             "APP_VECTORSTORE_APIKEY": "my_api_key_123",
-            "MINIO_ACCESSKEY": "minio_user",
-            "MINIO_SECRETKEY": "minio_pass_456",
+            "OBJECTSTORE_ACCESSKEY": "minio_user",
+            "OBJECTSTORE_SECRETKEY": "minio_pass_456",
         }
 
         with patch.dict(os.environ, env_vars):
@@ -583,18 +608,18 @@ class TestConfigurationIntegration:
             assert isinstance(config.vector_store.api_key, SecretStr)
             assert config.vector_store.api_key.get_secret_value() == "my_api_key_123"
 
-            assert isinstance(config.minio.access_key, SecretStr)
-            assert config.minio.access_key.get_secret_value() == "minio_user"
+            assert isinstance(config.object_store.access_key, SecretStr)
+            assert config.object_store.access_key.get_secret_value() == "minio_user"
 
-            assert isinstance(config.minio.secret_key, SecretStr)
-            assert config.minio.secret_key.get_secret_value() == "minio_pass_456"
+            assert isinstance(config.object_store.secret_key, SecretStr)
+            assert config.object_store.secret_key.get_secret_value() == "minio_pass_456"
 
     @patch.dict(os.environ, {}, clear=True)
     def test_secretstr_with_quoted_environment_variables(self):
         """Test that SecretStr works with quoted environment variables (Docker Compose style)."""
         env_vars = {
             "APP_VECTORSTORE_PASSWORD": '"quoted_password"',  # Double quotes
-            "MINIO_SECRETKEY": "'single_quoted_secret'",  # Single quotes
+            "OBJECTSTORE_SECRETKEY": "'single_quoted_secret'",  # Single quotes
         }
 
         with patch.dict(os.environ, env_vars):
@@ -602,14 +627,17 @@ class TestConfigurationIntegration:
 
             # Verify quotes are stripped and converted to SecretStr
             assert config.vector_store.password.get_secret_value() == "quoted_password"
-            assert config.minio.secret_key.get_secret_value() == "single_quoted_secret"
+            assert (
+                config.object_store.secret_key.get_secret_value()
+                == "single_quoted_secret"
+            )
 
     @patch.dict(os.environ, {}, clear=True)
     def test_secretstr_string_representation_masked(self):
         """Test that SecretStr masks values in string representation."""
         env_vars = {
             "APP_VECTORSTORE_PASSWORD": "secret123",
-            "MINIO_ACCESSKEY": "access456",
+            "OBJECTSTORE_ACCESSKEY": "access456",
         }
 
         with patch.dict(os.environ, env_vars):
@@ -617,7 +645,7 @@ class TestConfigurationIntegration:
 
             # Verify string representation is masked
             password_str = str(config.vector_store.password)
-            access_key_str = str(config.minio.access_key)
+            access_key_str = str(config.object_store.access_key)
 
             assert "secret123" not in password_str
             assert "access456" not in access_key_str

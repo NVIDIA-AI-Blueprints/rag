@@ -242,10 +242,10 @@ services:
       # vectorstore collection name to store embeddings
       COLLECTION_NAME: ${COLLECTION_NAME:-multimodal_data}
 
-      ##===MINIO specific configurations===
-      MINIO_ENDPOINT: "minio:9010"
-      MINIO_ACCESSKEY: "minioadmin"
-      MINIO_SECRETKEY: "minioadmin"
+      ##===Object-store specific configurations===
+      OBJECTSTORE_ENDPOINT: "seaweedfs:9010"
+      OBJECTSTORE_ACCESSKEY: "minioadmin"
+      OBJECTSTORE_SECRETKEY: "minioadmin"
 
       NGC_API_KEY: ${NGC_API_KEY:?"NGC_API_KEY is required"}
       NVIDIA_API_KEY: ${NGC_API_KEY:?"NGC_API_KEY is required"}
@@ -397,7 +397,7 @@ services:
       # build.nvidia.com hosted yolox endpoints.
       # - YOLOX_HTTP_ENDPOINT=https://ai.api.nvidia.com/v1/cv/nvidia/nemotron-page-elements-v3
       # - YOLOX_INFER_PROTOCOL=http
-      - YOLOX_PAGE_IMAGE_FORMAT=JPEG
+      - YOLOX_PAGE_IMAGE_FORMAT=PNG
       - YOLOX_GRPC_ENDPOINT=${YOLOX_GRPC_ENDPOINT:-page-elements:8001}
       - YOLOX_HTTP_ENDPOINT=${YOLOX_HTTP_ENDPOINT:-http://page-elements:8000/v1/infer}
       - YOLOX_INFER_PROTOCOL=${YOLOX_INFER_PROTOCOL:-grpc}
@@ -446,10 +446,10 @@ services:
       # Absolute path to custom prompt.yaml file
       PROMPT_CONFIG_FILE: ${PROMPT_CONFIG_FILE:-/prompt.yaml}
 
-      ##===MINIO specific configurations which is used to store the multimodal base64 content===
-      MINIO_ENDPOINT: "minio:9010"
-      MINIO_ACCESSKEY: "minioadmin"
-      MINIO_SECRETKEY: "minioadmin"
+      ##===Object-store specific configurations which is used to store the multimodal base64 content===
+      OBJECTSTORE_ENDPOINT: "seaweedfs:9010"
+      OBJECTSTORE_ACCESSKEY: "minioadmin"
+      OBJECTSTORE_SECRETKEY: "minioadmin"
 
       ##===Vector DB specific configurations===
       # URL on which vectorstore is hosted (Milvus: http://milvus:19530 when using --profile vectordb)
@@ -596,7 +596,7 @@ services:
     command: ["milvus", "run", "standalone"]
     environment:
       ETCD_ENDPOINTS: etcd:2379
-      MINIO_ADDRESS: minio:9010
+      MINIO_ADDRESS: seaweedfs:9010
       KNOWHERE_GPU_MEM_POOL_SIZE: 2048;4096
     volumes:
       - ${DOCKER_VOLUME_DIRECTORY:-./volumes/milvus}:/var/lib/milvus
@@ -611,7 +611,7 @@ services:
       - "9091:9091"
     depends_on:
       - "etcd"
-      - "minio"
+      - "seaweedfs"
     # Comment out this section if CPU based image is used and set below env variables to False
     # export APP_VECTORSTORE_ENABLEGPUSEARCH=False
     # export APP_VECTORSTORE_ENABLEGPUINDEX=False
@@ -643,9 +643,9 @@ services:
       retries: 3
     profiles: ["vectordb"]
 
-  minio:
-    container_name: milvus-minio
-    image: minio/minio:RELEASE.2025-02-28T09-55-16Z
+  seaweedfs:
+    container_name: milvus-seaweedfs
+    image: chrislusf/seaweedfs:3.73
     environment:
       MINIO_ACCESS_KEY: minioadmin
       MINIO_SECRET_KEY: minioadmin
@@ -653,15 +653,22 @@ services:
       - "9011:9011"
       - "9010:9010"
     volumes:
-      - ${DOCKER_VOLUME_DIRECTORY:-./volumes/minio}:/minio_data
-    command: minio server /minio_data --console-address ":9011" --address ":9010"
+      - ${DOCKER_VOLUME_DIRECTORY:-./volumes/seaweedfs}:/data
+      - ../compose/seaweedfs-config/s3.json:/etc/seaweedfs/s3.json:ro
+    command:
+      - server
+      - -dir=/data
+      - -s3
+      - -s3.port=9010
+      - -s3.config=/etc/seaweedfs/s3.json
+      - -master.volumeSizeLimitMB=1024
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9010/minio/health/live"]
+      test: ["CMD-SHELL", "curl -s http://localhost:9010/ >/dev/null"]
       interval: 30s
       timeout: 20s
       retries: 3
     # Shared object storage for NV-Ingest and Milvus; included with ingest/rag so ES deployments do not require --profile vectordb
-    profiles: ["vectordb", "ingest", "rag"]
+    profiles: ["vectordb", "ingest", "rag", "seaweedfs"]
 
   elasticsearch:
     container_name: elasticsearch

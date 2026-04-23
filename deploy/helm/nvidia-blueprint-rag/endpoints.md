@@ -10,7 +10,7 @@ This document describes the configurable endpoints used by the RAG server and it
 - **APP_VECTORSTORE_SEARCHTYPE**: Type of vector store search (default: "dense")
 
 ### Object Storage
-- **MINIO_ENDPOINT**: MinIO service endpoint for storing multimodal content (default: "rag-minio:9000")
+- **OBJECTSTORE_ENDPOINT**: S3-compatible object-store endpoint for storing multimodal content (default: "rag-seaweedfs:9010")
 
 ## Model Service Endpoints
 

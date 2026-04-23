@@ -12,7 +12,7 @@ services:
       milvus run standalone'
     environment:
       ETCD_ENDPOINTS: etcd:2379
-      MINIO_ADDRESS: minio:9010
+      MINIO_ADDRESS: seaweedfs:9010
       KNOWHERE_GPU_MEM_POOL_SIZE: 2048;4096
     volumes:
       - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/milvus:/var/lib/milvus
@@ -29,7 +29,7 @@ services:
       - "9091:9091"
     depends_on:
       - "etcd"
-      - "minio"
+      - "seaweedfs"
     # Comment out this section if CPU based image is used and set below env variables to False
     # export APP_VECTORSTORE_ENABLEGPUSEARCH=False
     # export APP_VECTORSTORE_ENABLEGPUINDEX=False
@@ -61,9 +61,9 @@ services:
       retries: 3
     profiles: ["milvus"]
 
-  minio:
-    container_name: milvus-minio
-    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+  seaweedfs:
+    container_name: milvus-seaweedfs
+    image: chrislusf/seaweedfs:3.73
     environment:
       MINIO_ACCESS_KEY: minioadmin
       MINIO_SECRET_KEY: minioadmin
@@ -71,14 +71,21 @@ services:
       - "9011:9011"
       - "9010:9010"
     volumes:
-      - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/minio:/minio_data
-    command: minio server /minio_data --console-address ":9011" --address ":9010"
+      - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/seaweedfs:/data
+      - ./seaweedfs-config/s3.json:/etc/seaweedfs/s3.json:ro
+    command:
+      - server
+      - -dir=/data
+      - -s3
+      - -s3.port=9010
+      - -s3.config=/etc/seaweedfs/s3.json
+      - -master.volumeSizeLimitMB=1024
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9010/minio/health/live"]
+      test: ["CMD-SHELL", "curl -s http://localhost:9010/ >/dev/null"]
       interval: 30s
       timeout: 20s
       retries: 3
-    profiles: ["", "milvus", "elasticsearch", "minio"]
+    profiles: ["", "milvus", "elasticsearch", "seaweedfs"]
 
   elasticsearch:
     container_name: elasticsearch

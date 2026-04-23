@@ -42,8 +42,7 @@ from nvidia_rag.rag_server.response_generator import APIError, ErrorCodeMapping
 from nvidia_rag.utils.common import NVIDIA_API_DEFAULT_HEADERS
 from nvidia_rag.utils.configuration import NvidiaRAGConfig
 from nvidia_rag.utils.llm import get_prompts
-from nvidia_rag.utils.minio_operator import get_minio_operator
-from nvidia_rag.utils.common import object_key_from_storage_uri
+from nvidia_rag.utils.object_store import get_object_store_operator
 
 logger = getLogger(__name__)
 
@@ -357,7 +356,7 @@ class VLM:
         docs: list[Any],
         remaining_image_budget: int | None,
     ) -> list[dict[str, Any]]:
-        """Extract image parts from nv-ingest docs using source_location from MinIO."""
+        """Extract image parts from docs for object-store thumbnails."""
         parts: list[dict[str, Any]] = []
         for doc in docs or []:
             if remaining_image_budget is not None and remaining_image_budget <= 0:
@@ -385,8 +384,9 @@ class VLM:
                             "source_location"
                         )
                 if source_location:
-                    object_name = object_key_from_storage_uri(source_location)
-                    raw_content = get_minio_operator().get_object(object_name)
+                    raw_content = get_object_store_operator().get_object_from_uri(
+                        source_location
+                    )
                     content_b64 = base64.b64encode(raw_content).decode("ascii")
                 else:
                     content_b64 = ""
@@ -408,7 +408,7 @@ class VLM:
         docs: list[Any],
         remaining_image_budget: int | None,
     ) -> list[dict[str, Any]]:
-        """Extract image parts from NRL docs using stored_image_uri from MinIO.
+        """Extract image parts from NRL docs using stored_image_uri.
 
         In NRL mode every chunk (including text chunks) may carry a page image
         URI in ``stored_image_uri``.  This method fetches those images and
@@ -423,8 +423,9 @@ class VLM:
             if not stored_image_uri:
                 continue
             try:
-                object_name = object_key_from_storage_uri(stored_image_uri)
-                raw_content = get_minio_operator().get_object(object_name)
+                raw_content = get_object_store_operator().get_object_from_uri(
+                    stored_image_uri
+                )
                 content_b64 = base64.b64encode(raw_content).decode("ascii")
                 if not content_b64:
                     continue

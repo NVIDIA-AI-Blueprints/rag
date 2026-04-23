@@ -1,0 +1,64 @@
+{{- if .Values.seaweedfs.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "nvidia-blueprint-rag.seaweedfsFullname" . }}
+  labels:
+    app.kubernetes.io/name: seaweedfs
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: seaweedfs
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: seaweedfs
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: seaweedfs
+          image: "{{ .Values.seaweedfs.image.repository }}:{{ .Values.seaweedfs.image.tag }}"
+          imagePullPolicy: {{ .Values.seaweedfs.image.pullPolicy }}
+          args:
+            - server
+            - -dir=/data
+            - -s3
+            - -s3.port={{ .Values.seaweedfs.service.s3Port }}
+            - -s3.config=/etc/seaweedfs/s3.json
+            - -master.volumeSizeLimitMB=1024
+          ports:
+            - name: s3
+              containerPort: {{ .Values.seaweedfs.service.s3Port }}
+            - name: console
+              containerPort: {{ .Values.seaweedfs.service.consolePort }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/seaweedfs
+              readOnly: true
+            - name: data
+              mountPath: /data
+          readinessProbe:
+            tcpSocket:
+              port: s3
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: s3
+            initialDelaySeconds: 10
+            periodSeconds: 15
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "nvidia-blueprint-rag.seaweedfsFullname" . }}-config
+        - name: data
+          {{- if .Values.seaweedfs.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ default (printf "%s-data" (include "nvidia-blueprint-rag.seaweedfsFullname" .)) .Values.seaweedfs.persistence.existingClaim }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+{{- end }}

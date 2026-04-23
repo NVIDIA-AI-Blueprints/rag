@@ -1,0 +1,25 @@
+{{- if .Values.seaweedfs.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "nvidia-blueprint-rag.seaweedfsFullname" . }}-config
+  labels:
+    app.kubernetes.io/name: seaweedfs
+    app.kubernetes.io/instance: {{ .Release.Name }}
+data:
+  s3.json: |
+    {
+      "identities": [
+        {
+          "name": "default",
+          "credentials": [
+            {
+              "accessKey": {{ .Values.seaweedfs.credentials.accessKey | quote }},
+              "secretKey": {{ .Values.seaweedfs.credentials.secretKey | quote }}
+            }
+          ],
+          "actions": ["Admin", "Read", "Write", "List", "Tagging"]
+        }
+      ]
+    }
+{{- end }}

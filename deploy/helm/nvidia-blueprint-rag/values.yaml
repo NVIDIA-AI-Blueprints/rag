@@ -108,10 +108,10 @@ envVars:
   ## Service-specific API keys are now managed via apiKeysSecret section above.
   ## See apiKeysSecret configuration for details on setting service-specific keys.
 
-  ##===MINIO specific configurations used to store multimodal base64 content===
-  MINIO_ENDPOINT: "rag-minio:9000"
-  MINIO_ACCESSKEY: "minioadmin"
-  MINIO_SECRETKEY: "minioadmin"
+  ##===Object-store configurations used to store multimodal base64 content===
+  OBJECTSTORE_ENDPOINT: "rag-seaweedfs:9010"
+  OBJECTSTORE_ACCESSKEY: "minioadmin"
+  OBJECTSTORE_SECRETKEY: "minioadmin"
 
   ##===Redis configurations for summary status tracking===
   REDIS_HOST: "rag-redis-master"
@@ -347,10 +347,10 @@ ingestor-server:
     APP_VECTORSTORE_APIKEY: ""
     COLLECTION_NAME: "multimodal_data"
 
-    # === MinIO Configurations ===
-    MINIO_ENDPOINT: "rag-minio:9000"
-    MINIO_ACCESSKEY: "minioadmin"
-    MINIO_SECRETKEY: "minioadmin"
+    # === Object Store Configurations ===
+    OBJECTSTORE_ENDPOINT: "rag-seaweedfs:9010"
+    OBJECTSTORE_ACCESSKEY: "minioadmin"
+    OBJECTSTORE_SECRETKEY: "minioadmin"
 
     # === Authentication ===
     ## Service-specific API keys are managed via apiKeysSecret section (see top-level config).
@@ -457,6 +457,28 @@ ingestor-server:
     mountPath: "/data/"
     # Optional subPath within the PVC
     subPath: ""
+
+# -- SeaweedFS shared object store
+seaweedfs:
+  enabled: true
+  image:
+    repository: docker.io/chrislusf/seaweedfs
+    tag: "3.73"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    s3Port: 9010
+    consolePort: 9011
+  credentials:
+    accessKey: "minioadmin"
+    secretKey: "minioadmin"
+  persistence:
+    enabled: true
+    existingClaim: ""
+    storageClass: ""
+    accessModes:
+      - ReadWriteOnce
+    size: 50Gi
 
 # -- Frontend
 # subsection: frontend
@@ -980,8 +1002,8 @@ nv-ingest:
     MESSAGE_CLIENT_HOST: "rag-redis-master"
     MESSAGE_CLIENT_PORT: 6379
     MESSAGE_CLIENT_TYPE: "redis"
-    MINIO_INTERNAL_ADDRESS: "rag-minio:9000"
-    MINIO_PUBLIC_ADDRESS: "http://localhost:9000"
+    MINIO_INTERNAL_ADDRESS: "rag-seaweedfs:9010"
+    MINIO_PUBLIC_ADDRESS: "http://rag-seaweedfs:9010"
     MINIO_BUCKET: "nv-ingest"
     MINIO_ACCESS_KEY: "minioadmin"
     MINIO_SECRET_KEY: "minioadmin"
@@ -1005,7 +1027,7 @@ nv-ingest:
     PDF_SPLIT_PAGE_COUNT: "32"
 
     # YOLOX endpoints
-    YOLOX_PAGE_IMAGE_FORMAT: "JPEG"
+    YOLOX_PAGE_IMAGE_FORMAT: "PNG"
     YOLOX_GRPC_ENDPOINT: nemotron-page-elements-v3:8001
     YOLOX_HTTP_ENDPOINT: http://nemotron-page-elements-v3:8000/v1/infer
     YOLOX_INFER_PROTOCOL: grpc
@@ -1024,8 +1046,9 @@ nv-ingest:
     AUDIO_GRPC_ENDPOINT: nv-ingest-riva-nim:50051
     AUDIO_INFER_PROTOCOL: grpc
 
-  # When false, nv-ingest does not deploy its Milvus subchart; RAG uses Elasticsearch (eck-elasticsearch + APP_VECTORSTORE_*).
-  milvusDeployed: true
+  # Disable the vendored Milvus dependency entirely for the Elasticsearch + SeaweedFS topology.
+  # NV-Ingest still uses SeaweedFS via MINIO_* env vars for S3-compatible artifact storage.
+  milvusDeployed: false
   milvus:
     # Uncomment this section to enable authentication for Milvus
     # extraConfigFiles:
@@ -1042,11 +1065,9 @@ nv-ingest:
         repository: docker.io/milvusdb/milvus-config-tool
         tag: v0.1.2
         pullPolicy: IfNotPresent
-    # cluster.enabled: true suppresses the standalone deployment (hardcoded replicas:1 in template).
-    # All cluster-mode components are individually disabled so no milvus pods run.
-    # Only the minio subchart remains active to serve nv-ingest.
+    # These values are retained for reference only while the Milvus dependency is disabled.
     cluster:
-      enabled: true
+      enabled: false
     proxy:
       enabled: false
     rootCoordinator:
@@ -1069,13 +1090,9 @@ nv-ingest:
         repository: milvusdb/etcd
         tag: "3.5.23-r2"
     minio:
-      enabled: true
-      image:
-        repository: docker.io/minio/minio
-        tag: "RELEASE.2025-09-07T16-13-09Z"
-      accessKey: minioadmin
-      secretKey: minioadmin
-      bucketName: nv-ingest
+      enabled: false
+      tls:
+        enabled: false
     fullnameOverride: milvus
 
   # Redis Master

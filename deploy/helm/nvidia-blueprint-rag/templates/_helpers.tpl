@@ -78,3 +78,10 @@ Get API keys secret name (either existing or created)
 {{- .Values.apiKeysSecret.name -}}
 {{- end -}}
 {{- end -}}
+
+{{/*
+SeaweedFS resource base name
+*/}}
+{{- define "nvidia-blueprint-rag.seaweedfsFullname" -}}
+{{- printf "%s-seaweedfs" .Release.Name | trunc 63 | trimSuffix "-" -}}
+{{- end -}}

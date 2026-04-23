@@ -36,29 +36,29 @@ except ImportError:
     OPENTELEMETRY_AVAILABLE = False
 
 # --------------------------------------------------------------------------------------------------
-# Prepare import for minio operator to avoid actual Minio connection
+# Prepare import for object-store operator to avoid actual object-store connection
 # during testing
-fake_minio_operator = types.ModuleType("minio_operator")
-fake_minio_operator.DEFAULT_BUCKET_NAME = "default-bucket"
+fake_object_store = types.ModuleType("object_store")
+fake_object_store.DEFAULT_BUCKET_NAME = "default-bucket"
 
 
-def mock_minio_operator_methods(*args, **kwargs):
+def mock_object_store_methods(*args, **kwargs):
     return MagicMock()
 
 
-fake_minio_operator.get_minio_operator = mock_minio_operator_methods
-fake_minio_operator.get_unique_thumbnail_id_collection_prefix = (
-    mock_minio_operator_methods
+fake_object_store.get_object_store_operator = mock_object_store_methods
+fake_object_store.get_unique_thumbnail_id_collection_prefix = (
+    mock_object_store_methods
 )
-fake_minio_operator.get_unique_thumbnail_id_file_name_prefix = (
-    mock_minio_operator_methods
+fake_object_store.get_unique_thumbnail_id_file_name_prefix = (
+    mock_object_store_methods
 )
-fake_minio_operator.get_unique_thumbnail_id = mock_minio_operator_methods
-fake_minio_operator.get_unique_thumbnail_id_from_result = mock_minio_operator_methods
-fake_minio_operator.extract_location_from_metadata = mock_minio_operator_methods
-fake_minio_operator.MinioOperator = MagicMock()
+fake_object_store.get_unique_thumbnail_id = mock_object_store_methods
+fake_object_store.get_unique_thumbnail_id_from_result = mock_object_store_methods
+fake_object_store.extract_location_from_metadata = mock_object_store_methods
+fake_object_store.ObjectStoreOperator = MagicMock()
 # Temporarily inject the fake module into sys.modules
-sys.modules["nvidia_rag.utils.minio_operator"] = fake_minio_operator
+sys.modules["nvidia_rag.utils.object_store"] = fake_object_store
 
 
 # --------------------------------------------------------------------------------------------------

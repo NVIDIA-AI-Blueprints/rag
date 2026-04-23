@@ -85,11 +85,11 @@ vlm:
   model_name: "nvidia/nemotron-nano-12b-v2-vl"  # Vision-Language Model for processing images and text
   # api_key: ""  # Optional: API key for VLM service (overrides NVIDIA_API_KEY environment variable)
 
-# MinIO Configuration
-minio:
-  endpoint: "localhost:9010"  # MinIO object storage endpoint
-  access_key: "minioadmin"  # MinIO access key for authentication
-  secret_key: "minioadmin"  # MinIO secret key for authentication
+# Object Store Configuration
+object_store:
+  endpoint: "localhost:9010"  # S3-compatible object-store endpoint
+  access_key: "minioadmin"  # Object-store access key for authentication
+  secret_key: "minioadmin"  # Object-store secret key for authentication
 
 # Summarizer Configuration
 summarizer:

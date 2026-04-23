@@ -19,6 +19,7 @@ import os
 from enum import StrEnum
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 import yaml
 from pydantic import BaseModel, ConfigDict, SecretStr, field_validator, model_validator
@@ -982,24 +983,90 @@ class VLMConfig(_ConfigBase):
         return v
 
 
-class MinioConfig(_ConfigBase):
-    """Minio configuration."""
+class ObjectStoreConfig(_ConfigBase):
+    """Object-store configuration for S3-compatible backends."""
 
+    backend: str = Field(
+        default="s3",
+        env="OBJECTSTORE_BACKEND",
+        description='Object-store backend: "s3" or "filesystem"',
+    )
     endpoint: str = Field(
         default="localhost:9010",
-        env="MINIO_ENDPOINT",
-        description="MinIO object storage endpoint",
+        env="OBJECTSTORE_ENDPOINT",
+        description="Object-store endpoint in host:port form",
     )
     access_key: SecretStr = Field(
         default=SecretStr("minioadmin"),
-        env="MINIO_ACCESSKEY",
-        description="MinIO access key for authentication",
+        env="OBJECTSTORE_ACCESSKEY",
+        description="Object-store access key for authentication",
     )
     secret_key: SecretStr = Field(
         default=SecretStr("minioadmin"),
-        env="MINIO_SECRETKEY",
-        description="MinIO secret key for authentication",
+        env="OBJECTSTORE_SECRETKEY",
+        description="Object-store secret key for authentication",
     )
+    secure: bool = Field(
+        default=False,
+        description="Whether to use TLS when connecting to the object store",
+    )
+    local_path: str = Field(
+        default="/tmp/nvidia-rag-object-store",
+        env="OBJECTSTORE_LOCAL_PATH",
+        description="Root path for the filesystem-backed object store",
+    )
+
+    @field_validator("backend", mode="before")
+    @classmethod
+    def normalize_backend(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            normalized = value.strip().strip('"').strip("'").lower()
+            if normalized not in {"s3", "filesystem"}:
+                raise ValueError(
+                    f"Unsupported object-store backend: {value!r}. Supported backends: s3, filesystem"
+                )
+            return normalized
+        return value
+
+    @field_validator("local_path", mode="before")
+    @classmethod
+    def normalize_local_path(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            return value.strip().strip('"').strip("'")
+        return value
+
+    @classmethod
+    def _normalize_endpoint(cls, value: str) -> tuple[str, bool]:
+        normalized = value.strip().strip('"').strip("'")
+        if "://" not in normalized:
+            return normalized, False
+
+        parsed = urlparse(normalized)
+        return parsed.netloc or parsed.path, parsed.scheme == "https"
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_object_store_values(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+
+        normalized = dict(data)
+        endpoint = normalized.get("endpoint")
+        if isinstance(endpoint, str) and endpoint:
+            normalized_endpoint, secure = cls._normalize_endpoint(endpoint)
+            normalized["endpoint"] = normalized_endpoint
+            normalized.setdefault("secure", secure)
+
+        return normalized
+
+    @property
+    def endpoint_url(self) -> str:
+        scheme = "https" if self.secure else "http"
+        return f"{scheme}://{self.endpoint}"
+
+    @property
+    def storage_root(self) -> Path:
+        return Path(self.local_path).expanduser().resolve()
 
 
 class SummarizerConfig(_ConfigBase):
@@ -1170,7 +1237,7 @@ class NvidiaRAGConfig(_ConfigBase):
     nv_ingest: NvIngestConfig = PydanticField(default_factory=NvIngestConfig)
     tracing: TracingConfig = PydanticField(default_factory=TracingConfig)
     vlm: VLMConfig = PydanticField(default_factory=VLMConfig)
-    minio: MinioConfig = PydanticField(default_factory=MinioConfig)
+    object_store: ObjectStoreConfig = PydanticField(default_factory=ObjectStoreConfig)
     summarizer: SummarizerConfig = PydanticField(default_factory=SummarizerConfig)
     metadata: MetadataConfig = PydanticField(default_factory=MetadataConfig)
     query_decomposition: QueryDecompositionConfig = PydanticField(

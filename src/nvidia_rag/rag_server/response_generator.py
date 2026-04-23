@@ -40,9 +40,9 @@ from langchain_core.documents import Document
 from pydantic import BaseModel, Field, validator
 from pymilvus.exceptions import MilvusException, MilvusUnavailableException
 
-from nvidia_rag.utils.common import object_key_from_storage_uri
-from nvidia_rag.utils.minio_operator import (
-    get_minio_operator,
+from nvidia_rag.utils.configuration import NvidiaRAGConfig
+from nvidia_rag.utils.object_store import (
+    get_object_store_operator,
     get_unique_thumbnail_id,
 )
 from nvidia_rag.utils.observability.otel_metrics import OtelMetrics
@@ -93,15 +93,25 @@ FALLBACK_EXCEPTION_MSG = (
     "Error from rag-server. Please check rag-server logs for more details."
 )
 
-MINIO_OPERATOR = None
+OBJECT_STORE_OPERATOR = None
+OBJECT_STORE_CONFIG: NvidiaRAGConfig | None = None
 
 
-def get_minio_operator_instance():
-    """Lazy initialize the MinioOperator instance"""
-    global MINIO_OPERATOR
-    if MINIO_OPERATOR is None:
-        MINIO_OPERATOR = get_minio_operator()
-    return MINIO_OPERATOR
+def configure_object_store_operator(config: NvidiaRAGConfig | None) -> None:
+    """Reset the cached object-store operator to use the provided config."""
+    global OBJECT_STORE_OPERATOR, OBJECT_STORE_CONFIG
+    OBJECT_STORE_CONFIG = config
+    OBJECT_STORE_OPERATOR = None
+
+
+def get_object_store_operator_instance(config: NvidiaRAGConfig | None = None):
+    """Lazy initialize the object-store operator instance."""
+    global OBJECT_STORE_OPERATOR, OBJECT_STORE_CONFIG
+    if config is not None:
+        OBJECT_STORE_CONFIG = config
+    if OBJECT_STORE_OPERATOR is None:
+        OBJECT_STORE_OPERATOR = get_object_store_operator(config=OBJECT_STORE_CONFIG)
+    return OBJECT_STORE_OPERATOR
 
 
 class Usage(BaseModel):
@@ -440,7 +450,7 @@ def generate_answer(
     """
     # Choose the citations builder based on ingestion mode.
     # NRL (LanceDB backend) produces text-only flat metadata; nv-ingest
-    # produces structured metadata with optional MinIO image assets.
+    # produces structured metadata with optional object-store image assets.
     _citations_fn = prepare_citations_nrl if use_nrl_citations else prepare_citations
 
     try:
@@ -626,7 +636,7 @@ async def generate_answer_async(
     """
     # Choose the citations builder based on ingestion mode.
     # NRL (LanceDB backend) produces text-only flat metadata; nv-ingest
-    # produces structured metadata with optional MinIO image assets.
+    # produces structured metadata with optional object-store image assets.
     _citations_fn = prepare_citations_nrl if use_nrl_citations else prepare_citations
 
     try:
@@ -861,14 +871,15 @@ def prepare_citations(
                 try:
                     if enable_citations:
                         logger.debug(
-                            "Pulling content from minio for image/table/chart for citations ..."
+                            "Pulling content from object storage for image/table/chart citations ..."
                         )
                         source_location = doc.metadata.get("source").get(
                             "source_location"
                         )
                         if source_location:
-                            object_name = object_key_from_storage_uri(source_location)
-                            raw_content = get_minio_operator_instance().get_object(object_name)
+                            raw_content = get_object_store_operator_instance().get_object_from_uri(
+                                source_location
+                            )
                             content = base64.b64encode(raw_content).decode("ascii")
                         else:
                             content = ""
@@ -886,7 +897,7 @@ def prepare_citations(
                         )
                 except Exception as e:
                     logger.exception(
-                        f"Error pulling content from minio for image/table/chart for citations: {e}"
+                        f"Error pulling content from object storage for image/table/chart for citations: {e}"
                     )
                     content = ""
                     source_metadata = SourceMetadata(
@@ -895,7 +906,7 @@ def prepare_citations(
                     )
 
             # If content is empty for image/text/table/chart/audio, skip adding to citations
-            # No content: asset is not available in MinIO, may cause an error in the UI client
+            # No content: asset is not available in object storage, may cause an error in the UI client
             if content and document_type in [
                 "image",
                 "text",
@@ -925,9 +936,9 @@ def prepare_citations_nrl(
 
     NRL stores both text and image chunks in LanceDB.  Text chunks carry their
     content directly in ``page_content``; image / chart / table chunks reference
-    a MinIO URI in the ``stored_image_uri`` metadata column.  When
+    an object-store URI in the ``stored_image_uri`` metadata column.  When
     ``stored_image_uri`` is present and non-empty, this function fetches the
-    image bytes from MinIO and returns them base64-encoded — exactly the same
+    image bytes from object storage and returns them base64-encoded — exactly the same
     approach used by ``prepare_citations`` for nv-ingest image chunks.
 
     Document.metadata layout (set by ``NRLLanceDB.results_to_docs``):
@@ -942,7 +953,7 @@ def prepare_citations_nrl(
     | page_number     | PDF page number (int).                             |
     | pdf_page        | ``<basename>_<page>`` composite key (str).         |
     | pdf_basename    | PDF basename without extension (str).              |
-    | stored_image_uri| MinIO URI for image chunks; empty for text (str).  |
+    | stored_image_uri| Object-store URI for image chunks; empty for text. |
     | content_type    | NRL content type: ``text``, ``image``, ``chart``,  |
     |                 | ``table``, ``infographic``, etc. (str).            |
     | bbox_xyxy_norm  | Bounding-box JSON string (str).                    |
@@ -965,7 +976,7 @@ def prepare_citations_nrl(
     Citations
         Populated ``Citations`` object.  Each ``SourceResult`` carries either
         plain text (``content = page_content``) or a base64-encoded image
-        fetched from MinIO (when ``stored_image_uri`` is set).
+        fetched from object storage (when ``stored_image_uri`` is set).
     """
     citations = []
 
@@ -997,7 +1008,7 @@ def prepare_citations_nrl(
 
         # ── Identify chunk type ───────────────────────────────────────────
         # stored_image_uri is the authoritative signal: non-empty means the
-        # chunk is a visual asset (image / chart / table) stored in MinIO.
+        # chunk is a visual asset (image / chart / table) stored in object storage.
         stored_image_uri: str = meta.get("stored_image_uri") or ""
         nrl_content_type: str = str(meta.get("content_type") or "").strip().lower()
 
@@ -1012,20 +1023,21 @@ def prepare_citations_nrl(
         content = ""
 
         if stored_image_uri and document_type != "text":
-            # Image / chart / table chunk — fetch raw bytes from MinIO and
+            # Image / chart / table chunk — fetch raw bytes from object storage and
             # base64-encode them, mirroring prepare_citations for nv-ingest.
             if enable_citations:
                 try:
                     logger.debug(
-                        "[Prepare Citations NRL] Fetching visual asset from MinIO: %s",
+                        "[Prepare Citations NRL] Fetching visual asset from object storage: %s",
                         stored_image_uri,
                     )
-                    object_name = object_key_from_storage_uri(stored_image_uri)
-                    raw_bytes = get_minio_operator_instance().get_object(object_name)
+                    raw_bytes = get_object_store_operator_instance().get_object_from_uri(
+                        stored_image_uri
+                    )
                     content = base64.b64encode(raw_bytes).decode("ascii")
                 except Exception as exc:
                     logger.exception(
-                        "[Prepare Citations NRL] Failed to fetch asset from MinIO"
+                        "[Prepare Citations NRL] Failed to fetch asset from object storage"
                         " (uri=%s): %s",
                         stored_image_uri,
                         exc,
@@ -1182,7 +1194,7 @@ async def retrieve_summary(
     """
     Get the summary of a document with Redis-based status tracking.
 
-    This function checks Redis for generation status before polling MinIO,
+    This function checks Redis for generation status before polling object storage,
     enabling efficient status queries and proper error reporting.
 
     Args:
@@ -1205,7 +1217,7 @@ async def retrieve_summary(
             status_data = SUMMARY_STATUS_HANDLER.get_status(collection_name, file_name)
         else:
             logger.debug(
-                "Redis unavailable - skipping status check, will attempt direct MinIO retrieval"
+                "Redis unavailable - skipping status check, will attempt direct object-store retrieval"
             )
 
         # STEP 2: Handle status from Redis
@@ -1242,7 +1254,7 @@ async def retrieve_summary(
                     "completed_at": status_data.get("completed_at"),
                 }
 
-        # STEP 3: Check MinIO for summary content
+        # STEP 3: Check object storage for summary content
         unique_thumbnail_id = get_unique_thumbnail_id(
             collection_name=f"summary_{collection_name}",
             file_name=file_name,
@@ -1250,7 +1262,7 @@ async def retrieve_summary(
             location=[],
         )
 
-        payload = get_minio_operator_instance().get_payload(
+        payload = get_object_store_operator_instance().get_payload(
             object_name=unique_thumbnail_id
         )
 
@@ -1314,16 +1326,16 @@ async def _wait_for_summary_completion(
         # Check if Redis is available
         if not SUMMARY_STATUS_HANDLER.is_available():
             logger.warning(
-                "Redis connection lost during polling - falling back to MinIO checks"
+                "Redis connection lost during polling - falling back to object-store checks"
             )
-            # Fall back to MinIO-only polling
+            # Fall back to object-store-only polling
             unique_thumbnail_id = get_unique_thumbnail_id(
                 collection_name=f"summary_{collection_name}",
                 file_name=file_name,
                 page_number=0,
                 location=[],
             )
-            payload = get_minio_operator_instance().get_payload(
+            payload = get_object_store_operator_instance().get_payload(
                 object_name=unique_thumbnail_id
             )
             if payload:
@@ -1341,7 +1353,7 @@ async def _wait_for_summary_completion(
             if status_data:
                 status = status_data.get("status")
 
-                # Success - fetch from MinIO
+                # Success - fetch from object storage
                 if status == "SUCCESS":
                     unique_thumbnail_id = get_unique_thumbnail_id(
                         collection_name=f"summary_{collection_name}",
@@ -1349,7 +1361,7 @@ async def _wait_for_summary_completion(
                         page_number=0,
                         location=[],
                     )
-                    payload = get_minio_operator_instance().get_payload(
+                    payload = get_object_store_operator_instance().get_payload(
                         object_name=unique_thumbnail_id
                     )
                     if payload:
@@ -1363,7 +1375,7 @@ async def _wait_for_summary_completion(
                     else:
                         # Status says SUCCESS but no content - this is an error
                         logger.error(
-                            f"Summary status is SUCCESS but content not found in MinIO for {file_name}"
+                            f"Summary status is SUCCESS but content not found in object storage for {file_name}"
                         )
                         return {
                             "message": f"Summary marked as complete but content not found in storage for {file_name}",

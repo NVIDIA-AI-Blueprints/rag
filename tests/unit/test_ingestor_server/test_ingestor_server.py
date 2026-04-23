@@ -72,7 +72,7 @@ class MockNvidiaRAGIngestor:
                     ],
                     "object_storage": [
                         {
-                            "service": "MinIO",
+                            "service": "Object Storage",
                             "url": "http://localhost:9000",
                             "status": "healthy",
                             "latency_ms": 8.2,
@@ -457,7 +457,7 @@ class TestHealthEndpoint:
         # Verify object storage health info structure
         assert len(response_data["object_storage"]) == 1
         storage_health = response_data["object_storage"][0]
-        assert storage_health["service"] == "MinIO"
+        assert storage_health["service"] == "Object Storage"
         assert storage_health["url"] == "http://localhost:9000"
         assert storage_health["status"] == "healthy"
         assert "latency_ms" in storage_health
