@@ -24,6 +24,7 @@ from urllib.parse import urlparse
 from minio import Minio
 from minio.commonconfig import SnowballObject
 
+from nvidia_rag.utils.common import object_key_from_storage_uri
 from nvidia_rag.utils.configuration import NvidiaRAGConfig
 
 logger = logging.getLogger(__name__)
@@ -101,8 +102,8 @@ class S3ObjectStoreOperator:
         if parsed.scheme != "s3":
             raise ValueError(f"Unsupported storage URI scheme: {parsed.scheme}")
 
-        object_name = parsed.path.lstrip("/")
         bucket_name = parsed.netloc
+        object_name = object_key_from_storage_uri(uri)
         if not bucket_name or not object_name:
             raise ValueError("Invalid S3 URI")
 
