@@ -62,8 +62,8 @@ services:
 
       ##===Object-store specific configurations===
       OBJECTSTORE_ENDPOINT: "seaweedfs:9010"
-      OBJECTSTORE_ACCESSKEY: "minioadmin"
-      OBJECTSTORE_SECRETKEY: "minioadmin"
+      OBJECTSTORE_ACCESSKEY: "seaweedfsadmin"
+      OBJECTSTORE_SECRETKEY: "seaweedfsadmin"
 
       NGC_API_KEY: ${NGC_API_KEY:?"NGC_API_KEY is required"}
       NVIDIA_API_KEY: ${NGC_API_KEY:?"NGC_API_KEY is required"}
@@ -217,8 +217,8 @@ services:
       - MESSAGE_CLIENT_PORT=6379
       - MESSAGE_CLIENT_TYPE=redis
       - MINIO_BUCKET=${MINIO_BUCKET:-${NVINGEST_MINIO_BUCKET:-nv-ingest}}
-      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY:-minioadmin}
-      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY:-minioadmin}
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY:-seaweedfsadmin}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY:-seaweedfsadmin}
       # - NEMOTRON_PARSE_HTTP_ENDPOINT=https://integrate.api.nvidia.com/v1/chat/completions
       - NEMOTRON_PARSE_HTTP_ENDPOINT=${NEMOTRON_PARSE_HTTP_ENDPOINT:-http://nemotron-parse:8000/v1/chat/completions}
       - NEMOTRON_PARSE_INFER_PROTOCOL=${NEMOTRON_PARSE_INFER_PROTOCOL:-http}

@@ -997,12 +997,12 @@ class ObjectStoreConfig(_ConfigBase):
         description="Object-store endpoint in host:port form",
     )
     access_key: SecretStr = Field(
-        default=SecretStr("minioadmin"),
+        default=SecretStr("seaweedfsadmin"),
         env="OBJECTSTORE_ACCESSKEY",
         description="Object-store access key for authentication",
     )
     secret_key: SecretStr = Field(
-        default=SecretStr("minioadmin"),
+        default=SecretStr("seaweedfsadmin"),
         env="OBJECTSTORE_SECRETKEY",
         description="Object-store secret key for authentication",
     )

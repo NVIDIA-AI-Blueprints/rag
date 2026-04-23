@@ -64,8 +64,8 @@ services:
     container_name: milvus-seaweedfs
     image: chrislusf/seaweedfs:3.73
     environment:
-      MINIO_ACCESS_KEY: minioadmin
-      MINIO_SECRET_KEY: minioadmin
+      MINIO_ACCESS_KEY: seaweedfsadmin
+      MINIO_SECRET_KEY: seaweedfsadmin
     ports:
       - "9011:9011"
       - "9010:9010"

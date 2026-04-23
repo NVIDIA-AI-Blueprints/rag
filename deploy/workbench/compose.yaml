@@ -244,8 +244,8 @@ services:
 
       ##===Object-store specific configurations===
       OBJECTSTORE_ENDPOINT: "seaweedfs:9010"
-      OBJECTSTORE_ACCESSKEY: "minioadmin"
-      OBJECTSTORE_SECRETKEY: "minioadmin"
+      OBJECTSTORE_ACCESSKEY: "seaweedfsadmin"
+      OBJECTSTORE_SECRETKEY: "seaweedfsadmin"
 
       NGC_API_KEY: ${NGC_API_KEY:?"NGC_API_KEY is required"}
       NVIDIA_API_KEY: ${NGC_API_KEY:?"NGC_API_KEY is required"}
@@ -370,8 +370,8 @@ services:
       - MESSAGE_CLIENT_PORT=6379
       - MESSAGE_CLIENT_TYPE=redis
       - MINIO_BUCKET=${MINIO_BUCKET:-nv-ingest}
-      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY:-minioadmin}
-      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY:-minioadmin}
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY:-seaweedfsadmin}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY:-seaweedfsadmin}
       - MRC_IGNORE_NUMA_CHECK=1
       - NEMOTRON_PARSE_HTTP_ENDPOINT=${NEMOTRON_PARSE_HTTP_ENDPOINT:-http://nemotron-parse:8000/v1/chat/completions}
       - NEMOTRON_PARSE_INFER_PROTOCOL=${NEMOTRON_PARSE_INFER_PROTOCOL:-http}
@@ -448,8 +448,8 @@ services:
 
       ##===Object-store specific configurations which is used to store the multimodal base64 content===
       OBJECTSTORE_ENDPOINT: "seaweedfs:9010"
-      OBJECTSTORE_ACCESSKEY: "minioadmin"
-      OBJECTSTORE_SECRETKEY: "minioadmin"
+      OBJECTSTORE_ACCESSKEY: "seaweedfsadmin"
+      OBJECTSTORE_SECRETKEY: "seaweedfsadmin"
 
       ##===Vector DB specific configurations===
       # URL on which vectorstore is hosted (Milvus: http://milvus:19530 when using --profile vectordb)
@@ -647,8 +647,8 @@ services:
     container_name: milvus-seaweedfs
     image: chrislusf/seaweedfs:3.73
     environment:
-      MINIO_ACCESS_KEY: minioadmin
-      MINIO_SECRET_KEY: minioadmin
+      MINIO_ACCESS_KEY: seaweedfsadmin
+      MINIO_SECRET_KEY: seaweedfsadmin
     ports:
       - "9011:9011"
       - "9010:9010"

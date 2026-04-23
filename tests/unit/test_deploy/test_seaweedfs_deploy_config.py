@@ -94,17 +94,28 @@ def test_helm_values_default_to_seaweedfs_and_persistence():
 
     assert values["envVars"]["OBJECTSTORE_ENDPOINT"] == "rag-seaweedfs:9010"
     assert (
+        values["envVars"]["APP_VECTORSTORE_URL"]
+        == "http://rag-eck-elasticsearch-es-default:9200"
+    )
+    assert (
         values["ingestor-server"]["envVars"]["OBJECTSTORE_ENDPOINT"]
         == "rag-seaweedfs:9010"
     )
+    assert (
+        values["ingestor-server"]["envVars"]["APP_VECTORSTORE_URL"]
+        == "http://rag-eck-elasticsearch-es-default:9200"
+    )
     assert values["seaweedfs"]["enabled"] is True
     assert values["seaweedfs"]["persistence"]["enabled"] is True
+    assert values["eck-elasticsearch"]["fullnameOverride"] == "rag-eck-elasticsearch"
+    assert values["nv-ingest"]["fullnameOverride"] == "rag-nv-ingest"
     assert values["nv-ingest"]["envVars"]["MINIO_INTERNAL_ADDRESS"] == (
         "rag-seaweedfs:9010"
     )
     assert values["nv-ingest"]["envVars"]["MINIO_PUBLIC_ADDRESS"] == (
         "http://rag-seaweedfs:9010"
     )
+    assert values["nv-ingest"]["redis"]["fullnameOverride"] == "rag-redis"
     assert values["nv-ingest"]["envVars"]["YOLOX_PAGE_IMAGE_FORMAT"] == "PNG"
     assert values["nv-ingest"]["milvusDeployed"] is False
     assert values["nv-ingest"]["milvus"]["minio"]["enabled"] is False
@@ -128,3 +139,22 @@ def test_helm_seaweedfs_templates_exist_and_mount_data_dir():
     assert "PersistentVolumeClaim" in pvc
     assert '"actions": ["Admin", "Read", "Write", "List", "Tagging"]' in configmap
     assert "tcpSocket:" in deployment
+    assert 'printf "rag-seaweedfs"' in (
+        template_dir / "_helpers.tpl"
+    ).read_text(encoding="utf-8")
+
+
+def test_helm_templates_wire_elasticsearch_secret_for_bundled_eck():
+    template_dir = REPO_ROOT / "deploy/helm/nvidia-blueprint-rag/templates"
+
+    rag_deployment = (template_dir / "deployment.yaml").read_text(encoding="utf-8")
+    ingestor_deployment = (
+        template_dir / "ingestor-server-deployment.yaml"
+    ).read_text(encoding="utf-8")
+    helpers = (template_dir / "_helpers.tpl").read_text(encoding="utf-8")
+
+    assert "APP_VECTORSTORE_PASSWORD" in rag_deployment
+    assert "APP_VECTORSTORE_PASSWORD" in ingestor_deployment
+    assert "elasticsearchUserSecretName" in rag_deployment
+    assert "elasticsearchUserSecretName" in ingestor_deployment
+    assert "es-elastic-user" in helpers

@@ -247,8 +247,8 @@ class TestObjectStoreConfig:
         assert config.endpoint == "localhost:9010"
         assert config.endpoint_url == "http://localhost:9010"
         assert config.storage_root == Path("/tmp/nvidia-rag-object-store").resolve()
-        assert config.access_key.get_secret_value() == "minioadmin"
-        assert config.secret_key.get_secret_value() == "minioadmin"
+        assert config.access_key.get_secret_value() == "seaweedfsadmin"
+        assert config.secret_key.get_secret_value() == "seaweedfsadmin"
 
     @patch.dict(os.environ, {"OBJECTSTORE_ENDPOINT": "https://bucket.example:9443"})
     def test_endpoint_url_normalizes_https(self):

@@ -26,8 +26,8 @@ services:
 
       ##===Object-store configurations used to store multimodal base64 content===
       OBJECTSTORE_ENDPOINT: "seaweedfs:9010"
-      OBJECTSTORE_ACCESSKEY: "minioadmin"
-      OBJECTSTORE_SECRETKEY: "minioadmin"
+      OBJECTSTORE_ACCESSKEY: "seaweedfsadmin"
+      OBJECTSTORE_SECRETKEY: "seaweedfsadmin"
 
       ##===Vector DB specific configurations===
       # URL on which vectorstore is hosted

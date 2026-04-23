@@ -88,8 +88,8 @@ vlm:
 # Object Store Configuration
 object_store:
   endpoint: "localhost:9010"  # S3-compatible object-store endpoint
-  access_key: "minioadmin"  # Object-store access key for authentication
-  secret_key: "minioadmin"  # Object-store secret key for authentication
+  access_key: "seaweedfsadmin"  # Object-store access key for authentication
+  secret_key: "seaweedfsadmin"  # Object-store secret key for authentication
 
 # Summarizer Configuration
 summarizer:
