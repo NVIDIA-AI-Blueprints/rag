@@ -239,7 +239,7 @@ services:
       - PDF_SPLIT_PAGE_COUNT=${PDF_SPLIT_PAGE_COUNT:-32}
       - REDIS_INGEST_TASK_QUEUE=ingest_task_queue
       # Self-hosted redis endpoints.
-      - YOLOX_PAGE_IMAGE_FORMAT=PNG
+      - YOLOX_PAGE_IMAGE_FORMAT=JPEG
       - YOLOX_GRPC_ENDPOINT=${YOLOX_GRPC_ENDPOINT:-page-elements:8001}
       - YOLOX_HTTP_ENDPOINT=${YOLOX_HTTP_ENDPOINT:-http://page-elements:8000/v1/infer}
       - YOLOX_INFER_PROTOCOL=${YOLOX_INFER_PROTOCOL:-grpc}

@@ -397,7 +397,7 @@ services:
       # build.nvidia.com hosted yolox endpoints.
       # - YOLOX_HTTP_ENDPOINT=https://ai.api.nvidia.com/v1/cv/nvidia/nemotron-page-elements-v3
       # - YOLOX_INFER_PROTOCOL=http
-      - YOLOX_PAGE_IMAGE_FORMAT=PNG
+      - YOLOX_PAGE_IMAGE_FORMAT=JPEG
       - YOLOX_GRPC_ENDPOINT=${YOLOX_GRPC_ENDPOINT:-page-elements:8001}
       - YOLOX_HTTP_ENDPOINT=${YOLOX_HTTP_ENDPOINT:-http://page-elements:8000/v1/infer}
       - YOLOX_INFER_PROTOCOL=${YOLOX_INFER_PROTOCOL:-grpc}

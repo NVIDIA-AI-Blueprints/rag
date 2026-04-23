@@ -1049,7 +1049,7 @@ nv-ingest:
     PDF_SPLIT_PAGE_COUNT: "32"
 
     # YOLOX endpoints
-    YOLOX_PAGE_IMAGE_FORMAT: "PNG"
+    YOLOX_PAGE_IMAGE_FORMAT: "JPEG"
     YOLOX_GRPC_ENDPOINT: nemotron-page-elements-v3:8001
     YOLOX_HTTP_ENDPOINT: http://nemotron-page-elements-v3:8000/v1/infer
     YOLOX_INFER_PROTOCOL: grpc

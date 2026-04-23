@@ -74,7 +74,7 @@ def test_compose_app_services_default_to_seaweedfs():
     )
 
     nv_ingest_env = ingestor["services"]["nv-ingest-ms-runtime"]["environment"]
-    assert "YOLOX_PAGE_IMAGE_FORMAT=PNG" in nv_ingest_env
+    assert "YOLOX_PAGE_IMAGE_FORMAT=JPEG" in nv_ingest_env
 
 
 def test_workbench_defaults_to_seaweedfs():
@@ -98,7 +98,7 @@ def test_workbench_defaults_to_seaweedfs():
         in services["milvus"]["command"]
     )
     assert services["seaweedfs"]["command"][1] == "-dir=/data"
-    assert "YOLOX_PAGE_IMAGE_FORMAT=PNG" in services["nv-ingest-ms-runtime"]["environment"]
+    assert "YOLOX_PAGE_IMAGE_FORMAT=JPEG" in services["nv-ingest-ms-runtime"]["environment"]
 
 
 def test_helm_values_default_to_seaweedfs_and_persistence():
@@ -135,7 +135,7 @@ def test_helm_values_default_to_seaweedfs_and_persistence():
         "http://rag-seaweedfs-all-in-one:9010"
     )
     assert values["nv-ingest"]["redis"]["fullnameOverride"] == "rag-redis"
-    assert values["nv-ingest"]["envVars"]["YOLOX_PAGE_IMAGE_FORMAT"] == "PNG"
+    assert values["nv-ingest"]["envVars"]["YOLOX_PAGE_IMAGE_FORMAT"] == "JPEG"
     assert values["nv-ingest"]["milvusDeployed"] is False
     assert values["nv-ingest"]["milvus"]["minio"]["enabled"] is False
 
