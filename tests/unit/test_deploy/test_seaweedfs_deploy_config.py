@@ -20,6 +20,8 @@ def test_compose_vectordb_uses_seaweedfs_with_persistent_data_dir():
 
     assert milvus["environment"]["MINIO_ADDRESS"] == "seaweedfs:9010"
     assert "seaweedfs" in milvus["depends_on"]
+    assert "accessKeyID: ${MINIO_ACCESS_KEY:-seaweedfsadmin}" in milvus["command"]
+    assert "secretAccessKey: ${MINIO_SECRET_KEY:-seaweedfsadmin}" in milvus["command"]
 
     assert seaweedfs["image"] == "chrislusf/seaweedfs:3.73"
     assert seaweedfs["command"] == [
@@ -50,6 +52,8 @@ def test_integration_vectordb_uses_same_seaweedfs_bootstrap():
 
     assert milvus["environment"]["MINIO_ADDRESS"] == "seaweedfs:9010"
     assert "seaweedfs" in milvus["depends_on"]
+    assert "accessKeyID: ${MINIO_ACCESS_KEY:-seaweedfsadmin}" in milvus["command"]
+    assert "secretAccessKey: ${MINIO_SECRET_KEY:-seaweedfsadmin}" in milvus["command"]
     assert "-dir=/data" in seaweedfs["command"]
     assert (
         "../../deploy/compose/seaweedfs-config/s3.json:/etc/seaweedfs/s3.json:ro"
@@ -85,6 +89,14 @@ def test_workbench_defaults_to_seaweedfs():
         "seaweedfs:9010"
     )
     assert services["milvus"]["environment"]["MINIO_ADDRESS"] == "seaweedfs:9010"
+    assert (
+        "accessKeyID: ${MINIO_ACCESS_KEY:-seaweedfsadmin}"
+        in services["milvus"]["command"]
+    )
+    assert (
+        "secretAccessKey: ${MINIO_SECRET_KEY:-seaweedfsadmin}"
+        in services["milvus"]["command"]
+    )
     assert services["seaweedfs"]["command"][1] == "-dir=/data"
     assert "YOLOX_PAGE_IMAGE_FORMAT=PNG" in services["nv-ingest-ms-runtime"]["environment"]
 
@@ -92,28 +104,35 @@ def test_workbench_defaults_to_seaweedfs():
 def test_helm_values_default_to_seaweedfs_and_persistence():
     values = load_yaml(REPO_ROOT / "deploy/helm/nvidia-blueprint-rag/values.yaml")
 
-    assert values["envVars"]["OBJECTSTORE_ENDPOINT"] == "rag-seaweedfs:9010"
+    assert values["envVars"]["OBJECTSTORE_ENDPOINT"] == "rag-seaweedfs-all-in-one:9010"
     assert (
         values["envVars"]["APP_VECTORSTORE_URL"]
         == "http://rag-eck-elasticsearch-es-default:9200"
     )
     assert (
         values["ingestor-server"]["envVars"]["OBJECTSTORE_ENDPOINT"]
-        == "rag-seaweedfs:9010"
+        == "rag-seaweedfs-all-in-one:9010"
     )
     assert (
         values["ingestor-server"]["envVars"]["APP_VECTORSTORE_URL"]
         == "http://rag-eck-elasticsearch-es-default:9200"
     )
     assert values["seaweedfs"]["enabled"] is True
-    assert values["seaweedfs"]["persistence"]["enabled"] is True
+    assert values["seaweedfs"]["fullnameOverride"] == "rag-seaweedfs"
+    assert values["seaweedfs"]["master"]["enabled"] is False
+    assert values["seaweedfs"]["volume"]["enabled"] is False
+    assert values["seaweedfs"]["filer"]["enabled"] is False
+    assert values["seaweedfs"]["allInOne"]["enabled"] is True
+    assert values["seaweedfs"]["allInOne"]["s3"]["enabled"] is True
+    assert values["seaweedfs"]["allInOne"]["s3"]["port"] == 9010
+    assert values["seaweedfs"]["allInOne"]["data"]["type"] == "persistentVolumeClaim"
     assert values["eck-elasticsearch"]["fullnameOverride"] == "rag-eck-elasticsearch"
     assert values["nv-ingest"]["fullnameOverride"] == "rag-nv-ingest"
     assert values["nv-ingest"]["envVars"]["MINIO_INTERNAL_ADDRESS"] == (
-        "rag-seaweedfs:9010"
+        "rag-seaweedfs-all-in-one:9010"
     )
     assert values["nv-ingest"]["envVars"]["MINIO_PUBLIC_ADDRESS"] == (
-        "http://rag-seaweedfs:9010"
+        "http://rag-seaweedfs-all-in-one:9010"
     )
     assert values["nv-ingest"]["redis"]["fullnameOverride"] == "rag-redis"
     assert values["nv-ingest"]["envVars"]["YOLOX_PAGE_IMAGE_FORMAT"] == "PNG"
@@ -121,27 +140,14 @@ def test_helm_values_default_to_seaweedfs_and_persistence():
     assert values["nv-ingest"]["milvus"]["minio"]["enabled"] is False
 
 
-def test_helm_seaweedfs_templates_exist_and_mount_data_dir():
-    template_dir = REPO_ROOT / "deploy/helm/nvidia-blueprint-rag/templates"
+def test_helm_chart_uses_upstream_seaweedfs_dependency():
+    chart = load_yaml(REPO_ROOT / "deploy/helm/nvidia-blueprint-rag/Chart.yaml")
+    dependencies = {dependency["name"]: dependency for dependency in chart["dependencies"]}
 
-    deployment = (template_dir / "seaweedfs-deployment.yaml").read_text(
-        encoding="utf-8"
-    )
-    service = (template_dir / "seaweedfs-service.yaml").read_text(encoding="utf-8")
-    pvc = (template_dir / "seaweedfs-pvc.yaml").read_text(encoding="utf-8")
-    configmap = (template_dir / "seaweedfs-configmap.yaml").read_text(
-        encoding="utf-8"
-    )
-
-    assert "- -dir=/data" in deployment
-    assert "mountPath: /data" in deployment
-    assert "s3Port" in service
-    assert "PersistentVolumeClaim" in pvc
-    assert '"actions": ["Admin", "Read", "Write", "List", "Tagging"]' in configmap
-    assert "tcpSocket:" in deployment
-    assert 'printf "rag-seaweedfs"' in (
-        template_dir / "_helpers.tpl"
-    ).read_text(encoding="utf-8")
+    assert "seaweedfs" in dependencies
+    assert dependencies["seaweedfs"]["repository"] == "https://seaweedfs.github.io/seaweedfs/helm"
+    assert dependencies["seaweedfs"]["version"] == "4.21.0"
+    assert dependencies["seaweedfs"]["condition"] == "seaweedfs.enabled"
 
 
 def test_helm_templates_wire_elasticsearch_secret_for_bundled_eck():

@@ -6,7 +6,7 @@ services:
     image: milvusdb/milvus:${MILVUS_VERSION:-v2.6.5-gpu} # milvusdb/milvus:v2.6.5 for CPU
     command: >
       bash -lc 'tmpfile=$(mktemp) &&
-      sed "s/bucketName: a-bucket/bucketName: ${MINIO_BUCKET:-${NVINGEST_MINIO_BUCKET:-nv-ingest}}/" /milvus/configs/milvus.yaml > "$$tmpfile" &&
+      sed -e "s/bucketName: a-bucket/bucketName: ${MINIO_BUCKET:-${NVINGEST_MINIO_BUCKET:-nv-ingest}}/" -e "s/accessKeyID: minioadmin/accessKeyID: ${MINIO_ACCESS_KEY:-seaweedfsadmin}/" -e "s/secretAccessKey: minioadmin/secretAccessKey: ${MINIO_SECRET_KEY:-seaweedfsadmin}/" /milvus/configs/milvus.yaml > "$$tmpfile" &&
       cat "$$tmpfile" > /milvus/configs/milvus.yaml &&
       rm "$$tmpfile" &&
       milvus run standalone'

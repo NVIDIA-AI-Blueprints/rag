@@ -5,12 +5,12 @@ This document describes the configurable endpoints used by the RAG server and it
 ## Core Service Endpoints
 
 ### Vector Store
-- **APP_VECTORSTORE_URL**: URL for the vector store service (default: "http://rag-eck-elasticsearch-es-http:9200")
+- **APP_VECTORSTORE_URL**: URL for the vector store service (default: "http://rag-eck-elasticsearch-es-default:9200")
 - **APP_VECTORSTORE_NAME**: Type of vector store (default: "elasticsearch")
 - **APP_VECTORSTORE_SEARCHTYPE**: Type of vector store search (default: "dense")
 
 ### Object Storage
-- **OBJECTSTORE_ENDPOINT**: S3-compatible object-store endpoint for storing multimodal content (default: "rag-seaweedfs:9010")
+- **OBJECTSTORE_ENDPOINT**: S3-compatible object-store endpoint for storing multimodal content (default: "rag-seaweedfs-all-in-one:9010")
 
 ## Model Service Endpoints
 

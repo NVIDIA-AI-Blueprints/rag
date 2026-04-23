@@ -109,9 +109,9 @@ envVars:
   ## See apiKeysSecret configuration for details on setting service-specific keys.
 
   ##===Object-store configurations used to store multimodal base64 content===
-  OBJECTSTORE_ENDPOINT: "rag-seaweedfs:9010"
-  OBJECTSTORE_ACCESSKEY: "minioadmin"
-  OBJECTSTORE_SECRETKEY: "minioadmin"
+  OBJECTSTORE_ENDPOINT: "rag-seaweedfs-all-in-one:9010"
+  OBJECTSTORE_ACCESSKEY: "seaweedfsadmin"
+  OBJECTSTORE_SECRETKEY: "seaweedfsadmin"
 
   ##===Redis configurations for summary status tracking===
   REDIS_HOST: "rag-redis-master"
@@ -120,7 +120,7 @@ envVars:
 
   ##===Vector DB specific configurations===
   # URL on which vectorstore is hosted
-  APP_VECTORSTORE_URL: "http://rag-eck-elasticsearch-es-http:9200" # Use "http://milvus:19530" for Milvus
+  APP_VECTORSTORE_URL: "http://rag-eck-elasticsearch-es-default:9200" # Use "http://milvus:19530" for Milvus
   # Type of vectordb used to store embedding supported type "milvus" or "elasticsearch"
   APP_VECTORSTORE_NAME: "elasticsearch"
   # Index type (e.g., GPU_CAGRA); Milvus-oriented — Elasticsearch uses its own index mapping
@@ -324,7 +324,7 @@ ingestor-server:
     # Absolute path to custom prompt.yaml file
     PROMPT_CONFIG_FILE: "/prompt.yaml"
     # === Vector Store Configurations ===
-    APP_VECTORSTORE_URL: "http://rag-eck-elasticsearch-es-http:9200" # Use "http://milvus:19530" for Milvus
+    APP_VECTORSTORE_URL: "http://rag-eck-elasticsearch-es-default:9200" # Use "http://milvus:19530" for Milvus
     APP_VECTORSTORE_NAME: "elasticsearch" # supported values: "milvus" or "elasticsearch"
     APP_VECTORSTORE_SEARCHTYPE: "dense"
     # Type of ranker to use for vector store in case of Hybrid Search
@@ -348,9 +348,9 @@ ingestor-server:
     COLLECTION_NAME: "multimodal_data"
 
     # === Object Store Configurations ===
-    OBJECTSTORE_ENDPOINT: "rag-seaweedfs:9010"
-    OBJECTSTORE_ACCESSKEY: "minioadmin"
-    OBJECTSTORE_SECRETKEY: "minioadmin"
+    OBJECTSTORE_ENDPOINT: "rag-seaweedfs-all-in-one:9010"
+    OBJECTSTORE_ACCESSKEY: "seaweedfsadmin"
+    OBJECTSTORE_SECRETKEY: "seaweedfsadmin"
 
     # === Authentication ===
     ## Service-specific API keys are managed via apiKeysSecret section (see top-level config).
@@ -461,24 +461,44 @@ ingestor-server:
 # -- SeaweedFS shared object store
 seaweedfs:
   enabled: true
+  fullnameOverride: "rag-seaweedfs"
+  nameOverride: "seaweedfs"
   image:
-    repository: docker.io/chrislusf/seaweedfs
+    repository: "chrislusf/seaweedfs"
     tag: "3.73"
-    pullPolicy: IfNotPresent
-  service:
-    type: ClusterIP
-    s3Port: 9010
-    consolePort: 9011
-  credentials:
-    accessKey: "minioadmin"
-    secretKey: "minioadmin"
-  persistence:
+  global:
+    seaweedfs:
+      createClusterRole: false
+      imagePullPolicy: IfNotPresent
+  master:
+    enabled: false
+  volume:
+    enabled: false
+  filer:
+    enabled: false
+  s3:
+    enabled: false
+    enableAuth: true
+    credentials:
+      admin:
+        accessKey: "seaweedfsadmin"
+        secretKey: "seaweedfsadmin"
+  sftp:
+    enabled: false
+  allInOne:
     enabled: true
-    existingClaim: ""
-    storageClass: ""
-    accessModes:
-      - ReadWriteOnce
-    size: 50Gi
+    service:
+      type: ClusterIP
+    s3:
+      enabled: true
+      port: 9010
+      enableAuth: true
+    data:
+      type: "persistentVolumeClaim"
+      storageClass: ""
+      accessModes:
+        - ReadWriteOnce
+      size: 50Gi
 
 # -- Frontend
 # subsection: frontend
@@ -518,6 +538,7 @@ frontend:
 
 # -- Elasticsearch dependency toggle (ECK). When true, align APP_VECTORSTORE_URL with the ES HTTP service (e.g. rag-eck-elasticsearch-es-http:9200).
 eck-elasticsearch:
+  fullnameOverride: "rag-eck-elasticsearch"
   enabled: true
   # Preserve PVCs on helm uninstall; only delete when a node is explicitly scaled down.
   volumeClaimDeletePolicy: DeleteOnScaledownOnly
@@ -961,6 +982,7 @@ nimOperator:
 # subsection: nv-ingest
 # NV-Ingest Service
 nv-ingest:
+  fullnameOverride: "rag-nv-ingest"
   enabled: true
   imagePullSecrets:
     - name: "ngc-secret"
@@ -1002,11 +1024,11 @@ nv-ingest:
     MESSAGE_CLIENT_HOST: "rag-redis-master"
     MESSAGE_CLIENT_PORT: 6379
     MESSAGE_CLIENT_TYPE: "redis"
-    MINIO_INTERNAL_ADDRESS: "rag-seaweedfs:9010"
-    MINIO_PUBLIC_ADDRESS: "http://rag-seaweedfs:9010"
+    MINIO_INTERNAL_ADDRESS: "rag-seaweedfs-all-in-one:9010"
+    MINIO_PUBLIC_ADDRESS: "http://rag-seaweedfs-all-in-one:9010"
     MINIO_BUCKET: "nv-ingest"
-    MINIO_ACCESS_KEY: "minioadmin"
-    MINIO_SECRET_KEY: "minioadmin"
+    MINIO_ACCESS_KEY: "seaweedfsadmin"
+    MINIO_SECRET_KEY: "seaweedfsadmin"
     OTEL_EXPORTER_OTLP_ENDPOINT: "otel-collector:4317"
     MODEL_PREDOWNLOAD_PATH: "/workspace/models/"
     INSTALL_AUDIO_EXTRACTION_DEPS: "true"
@@ -1097,6 +1119,7 @@ nv-ingest:
 
   # Redis Master
   redis:
+    fullnameOverride: "rag-redis"
     image:
       repository: redis
       tag: 8.2.1

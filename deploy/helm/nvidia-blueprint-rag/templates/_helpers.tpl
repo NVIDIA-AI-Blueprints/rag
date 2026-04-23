@@ -80,8 +80,16 @@ Get API keys secret name (either existing or created)
 {{- end -}}
 
 {{/*
-SeaweedFS resource base name
+Elasticsearch resource base name
 */}}
-{{- define "nvidia-blueprint-rag.seaweedfsFullname" -}}
-{{- printf "%s-seaweedfs" .Release.Name | trunc 63 | trimSuffix "-" -}}
+{{- define "nvidia-blueprint-rag.elasticsearchFullname" -}}
+{{- $esCfg := index .Values "eck-elasticsearch" -}}
+{{- default (printf "%s-eck-elasticsearch" .Release.Name) $esCfg.fullnameOverride | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{/*
+Elasticsearch elastic user secret name
+*/}}
+{{- define "nvidia-blueprint-rag.elasticsearchUserSecretName" -}}
+{{- printf "%s-es-elastic-user" (include "nvidia-blueprint-rag.elasticsearchFullname" .) -}}
 {{- end -}}
