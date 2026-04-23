@@ -39,7 +39,7 @@ def test_compose_vectordb_uses_seaweedfs_with_persistent_data_dir():
     assert "./seaweedfs-config/s3.json:/etc/seaweedfs/s3.json:ro" in seaweedfs["volumes"]
     assert seaweedfs["healthcheck"]["test"] == [
         "CMD-SHELL",
-        "curl -s http://localhost:9010/ >/dev/null",
+        "nc -z 127.0.0.1 9010",
     ]
 
 
