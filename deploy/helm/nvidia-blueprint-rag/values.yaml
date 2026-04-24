@@ -218,6 +218,8 @@ envVars:
   APP_TEXTSPLITTER_CHUNKOVERLAP: "200"
 
   # === General ===
+  # Ingestion backend: "nv_ingest" (NV-Ingest microservice) or "nrl" (NeMo-Retriever Library in-process)
+  INGESTOR_BACKEND: "nv_ingest"
   # Choose whether to enable citations in the response
   ENABLE_CITATIONS: "True"
   # Choose whether to enable/disable guardrails
