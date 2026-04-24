@@ -13,7 +13,7 @@
 |------|-------------|
 | **Total Requests** | The total number of questions issued to the RAG server in a single benchmark run. Controls the size of the workload and is kept constant across configurations for fair comparison. |
 | **Concurrency** | The number of simultaneously active worker threads sending requests to the server. A higher concurrency simulates a heavier multi-user load. |
-| **N_Times** | The number of measured benchmark iterations performed after warm-up. Multiple iterations improve statistical stability of the reported metrics. In all experiments reported in this document, N_Times is set to 3. |
+| **N_Times** | The number of measured benchmark iterations performed after warm-up. Multiple iterations improve statistical stability of the reported metrics. In all experiments reported in this document, `N_Times` is set to 3. |
 | **Input Sequence Length (ISL)** | The number of tokens in the input prompt sent to the RAG server. |
 | **Output Sequence Length (OSL)** | The number of tokens in the RAG server's generated response. |
 | **TTFT (Time to First Token)** | The elapsed time from when a request is submitted until the first output token is returned. A key indicator of perceived responsiveness in streaming deployments. |
