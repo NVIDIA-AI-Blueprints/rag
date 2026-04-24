@@ -5,7 +5,7 @@
 
 # RAG Performance Measurement Methodology
 
-[GenAI Perf](https://github.com/triton-inference-server/perf_analyzer/tree/main/genai-perf), NVIDIA's open-source benchmarking tool, is employed to evaluate the end-to-end performance of the RAG pipeline under realistic load conditions. By sweeping across multiple concurrency levels, it provides a reproducible and consistent basis for comparing different RAG deployment configurations.
+[GenAI Perf](https://github.com/triton-inference-server/perf_analyzer/tree/main/genai-perf), NVIDIA’s open-source benchmarking tool evaluates end-to-end RAG pipeline performance under realistic load conditions. By testing across varying levels of concurrency, it offers a consistent and reproducible way to compare different RAG deployment configurations.
 
 ## Key Terms
 
