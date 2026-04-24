@@ -69,7 +69,7 @@ Plan for additional space if you are enabling persistence for multiple services.
 
     For more details, see instructions [here](https://docs.nvidia.com/nim-operator/latest/install.html).
 
-11. Install the ECK (Elastic Cloud on Kubernetes) operator. Elasticsearch is the default vector database for this chart; the ECK operator manages Elasticsearch on Kubernetes.
+11. Install the Elastic Cloud on Kubernetes (ECK) operator. Elasticsearch is the default vector database for this chart; the ECK operator manages Elasticsearch on Kubernetes.
 
     ```sh
     helm repo add elastic https://helm.elastic.co

@@ -5,7 +5,7 @@
 
 # Elasticsearch Configuration
 
-This document describes **optional** GPU-accelerated vector indexing and authentication configuration for Elasticsearch in the [NVIDIA RAG Blueprint](readme.md).
+This document describes optional GPU-accelerated vector indexing and authentication configuration for Elasticsearch in the [NVIDIA RAG Blueprint](readme.md).
 
 For standard Elasticsearch usage (ports, switching backends, default deployment), see [Vector database configuration](change-vectordb.md).
 
@@ -13,7 +13,7 @@ For standard Elasticsearch usage (ports, switching backends, default deployment)
 
 ## GPU Indexing
 
-GPU indexing is part of **Elasticsearch Enterprise** (or a compatible Elastic license tier). You must obtain a GPU-enabled Elasticsearch image, apply a valid Elastic license, and configure your deployment accordingly.
+GPU indexing is part of Elasticsearch Enterprise (or a compatible Elastic license tier). You must obtain a GPU-enabled Elasticsearch image, apply a valid Elastic license, and configure your deployment accordingly.
 
 ### Prerequisites
 
@@ -68,7 +68,7 @@ deploy:
 
 #### 4. Set Up Data Volume Permissions
 
-Elasticsearch data is bind-mounted under `deploy/compose/volumes/elasticsearch`. Ensure the directory exists and is owned by UID/GID **1000:1000**:
+Elasticsearch data is bind-mounted under `deploy/compose/volumes/elasticsearch`. Ensure the directory exists and is owned by UID/GID 1000:1000:
 
 ```bash
 sudo mkdir -p deploy/compose/volumes/elasticsearch/
@@ -572,14 +572,14 @@ Prerequisite:
 
 Before making API requests with authentication, export the required environment variables.
 
-**1. Export service endpoints:**
+1. Export service endpoints:
 
 ```bash
 export INGESTOR_URL="http://localhost:8082"
 export RAG_URL="http://localhost:8081"
 ```
 
-**2. Export authentication token:**
+2. Export authentication token:
 
 Runtime authentication via the `Authorization` header only supports Elasticsearch API keys. Export your API key token:
 
