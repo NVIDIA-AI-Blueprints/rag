@@ -45,7 +45,7 @@ A curated set of domain-specific questions serves as the request pool. To preven
 | [BO767](https://digitalcorpora.org/) | 487 | 767 PDFs | 54,730 pages | Varied, heterogeneous content across a large-scale mixed corpus of forensic and operational documents; high proportion of image and structured content alongside text |
 
 ## How It Works
-
+The following sections describe how benchmarking works.
 ### Request Pool Construction
 
 Depending on the selected mode, the request pool is constructed differently:
