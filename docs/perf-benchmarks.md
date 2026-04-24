@@ -72,7 +72,7 @@ Before recording any metrics, GenAI Perf executes an initial warm-up run to brin
 For every request across all threads and iterations, GenAI Perf records timing and outcome data. These are aggregated into a performance result store, from which key metrics — including Time-to-First-Token and Inter-Token Latency — are computed and reported per concurrency level.
 
 ## Configuration and Performance Results
-
+The following sections provide further information about configuration and performance results.
 ### Configuration and Setup
 
 The following deployment configurations are evaluated:
