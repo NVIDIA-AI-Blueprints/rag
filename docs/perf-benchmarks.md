@@ -92,7 +92,7 @@ The following deployment configurations are evaluated:
 
 ### Impact Factors
 
-**TTFT (Time to First Token) at high concurrency is primarily determined by KV cache memory pressure.** Each active request occupies HBM proportional to sequence length × model layers × hidden dimension. When aggregate KV cache across concurrent requests saturates HBM, incoming requests queue, driving up p95 TTFT.
+TTFT (Time to First Token) at high concurrency is primarily determined by KV cache memory pressure. Each active request occupies HBM proportional to sequence length × model layers × hidden dimension. When aggregate KV cache across concurrent requests saturates HBM, incoming requests queue, driving up p95 TTFT.
 
 Factors governing TTFT:
 
