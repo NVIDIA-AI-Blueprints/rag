@@ -149,7 +149,7 @@ The purpose of this mode is to evaluate the performance of RAG under different u
 ![HotPotQA — H100 Performance](assets/perf-benchmarks/hotpotqa_h100_performance.png)
 
 - LLM-Reasoning-On produces the highest p95 TTFT of all datasets, exceeding 250s at concurrency=125.
-  - *Reason:* HotPotQA's multi-hop questions require chaining facts across multiple source documents, which elicits longer reasoning chains from a thinking-enabled model. Each request holds a large KV cache slot (49B model) for an extended duration, accelerating HBM saturation at scale.
+  - Reason: HotPotQA's multi-hop questions require chaining facts across multiple source documents, which elicits longer reasoning chains from a thinking-enabled model. Each request holds a large KV cache slot (49B model) for an extended duration, accelerating HBM saturation at scale.
 - VLM-Reasoning-Off records the lowest TTFT.
   - *Reason:* HotPotQA source documents are plain Wikipedia text containing no tables or figures, so VLM ingestion does not inflate retrieved context. The model-size advantage of VLM nano translates directly into lower KV cache pressure and reduced queuing latency.
 - VLM-Reasoning-Off again records the highest ITL, rising continuously to approximately 330ms at concurrency=125. This indicates the system has not yet reached batch saturation at concurrency=125 on this dataset, consistent with HotPotQA's short Wikipedia paragraph chunks producing compact retrieved contexts that allow the VLM nano model to continue accepting additional concurrent requests at the highest tested concurrency.
