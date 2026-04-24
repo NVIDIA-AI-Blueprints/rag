@@ -80,7 +80,7 @@ The following deployment configurations are evaluated:
 - **LLM-49B** — [Llama-3.3-Nemotron-Super-49B](https://build.nvidia.com/nvidia/llama-3_3-nemotron-super-49b-v1_5/modelcard): A key feature is the reasoning toggle — setting the system prompt to "detailed thinking on" causes the model to generate an internal chain-of-thought before the final answer; "detailed thinking off" produces a direct response. This is a system-prompt switch — no weight change occurs between modes.
 - **VLM nano** — [Nemotron Nano VL](https://build.nvidia.com/nvidia/nemotron-nano-12b-v2-vl/modelcard): Its smaller parameter count means significantly lower KV cache memory consumption per request compared to the 49B model.
 - **Ingestion setup:**
-  - *Default ingestion:* The default ingestion that RAG 2.4.0 uses.
+  - Default ingestion: The default ingestion that RAG 2.4.0 uses.
   - *Default ingestion with VLM image captioning enabled:* Details in [Image Captioning Support](image_captioning.md). VLM is enabled during ingestion to extract image and structured content from documents, and also enabled at query time to process retrieved image and structured chunks via the multimodal pipeline.
 
 | # | LLM Model | Embedding Model | Reasoning On/Off | Ingestion Method |
