@@ -26,11 +26,11 @@
 """
 
 import asyncio
+import base64
 import json
 import logging
 import os
 import time
-import base64
 from collections.abc import AsyncGenerator, Generator
 from typing import Any, Literal, Optional, Union
 from uuid import uuid4
@@ -515,9 +515,11 @@ def generate_answer(
             logger.info("=" * 80)
             logger.info("Final LLM Response:")
             logger.info("  - Length: %d characters", len(accumulated_response))
-            logger.info("  - Content Preview (first 500 chars): %s%s", 
-                       accumulated_response[:500],
-                       "..." if len(accumulated_response) > 500 else "")
+            logger.info(
+                "  - Content Preview (first 500 chars): %s%s",
+                accumulated_response[:500],
+                "..." if len(accumulated_response) > 500 else "",
+            )
             if len(accumulated_response) > 500:
                 logger.info("  - Full response logged at DEBUG level")
                 logger.debug("Full LLM Response:\n%s", accumulated_response)
@@ -561,7 +563,8 @@ def generate_answer(
             chain_response.metrics = final_metrics
             if token_usage:
                 total = token_usage.get("total_tokens") or (
-                    token_usage.get("prompt_tokens", 0) + token_usage.get("completion_tokens", 0)
+                    token_usage.get("prompt_tokens", 0)
+                    + token_usage.get("completion_tokens", 0)
                 )
                 if total > 0:
                     chain_response.usage = Usage(
@@ -701,9 +704,11 @@ async def generate_answer_async(
             logger.info("=" * 80)
             logger.info("Final LLM Response:")
             logger.info("  - Length: %d characters", len(accumulated_response))
-            logger.info("  - Content Preview (first 500 chars): %s%s", 
-                       accumulated_response[:500],
-                       "..." if len(accumulated_response) > 500 else "")
+            logger.info(
+                "  - Content Preview (first 500 chars): %s%s",
+                accumulated_response[:500],
+                "..." if len(accumulated_response) > 500 else "",
+            )
             if len(accumulated_response) > 500:
                 logger.info("  - Full response logged at DEBUG level")
                 logger.debug("Full LLM Response:\n%s", accumulated_response)
@@ -747,7 +752,8 @@ async def generate_answer_async(
             chain_response.metrics = final_metrics
             if token_usage:
                 total = token_usage.get("total_tokens") or (
-                    token_usage.get("prompt_tokens", 0) + token_usage.get("completion_tokens", 0)
+                    token_usage.get("prompt_tokens", 0)
+                    + token_usage.get("completion_tokens", 0)
                 )
                 if total > 0:
                     chain_response.usage = Usage(
@@ -819,7 +825,9 @@ def prepare_citations(
     """
     citations = []
 
-    logger.info(f"[Prepare Citations] Length of retrieved documents: {len(retrieved_documents)}")
+    logger.info(
+        f"[Prepare Citations] Length of retrieved documents: {len(retrieved_documents)}"
+    )
 
     if force_citations or enable_citations:
         for doc in retrieved_documents:
@@ -1031,8 +1039,10 @@ def prepare_citations_nrl(
                         "[Prepare Citations NRL] Fetching visual asset from object storage: %s",
                         stored_image_uri,
                     )
-                    raw_bytes = get_object_store_operator_instance().get_object_from_uri(
-                        stored_image_uri
+                    raw_bytes = (
+                        get_object_store_operator_instance().get_object_from_uri(
+                            stored_image_uri
+                        )
                     )
                     content = base64.b64encode(raw_bytes).decode("ascii")
                 except Exception as exc:
@@ -1044,7 +1054,7 @@ def prepare_citations_nrl(
                     )
                     content = ""
             # When citations are disabled, content stays empty and the chunk
-            # is skipped by the guard below — no MinIO call is made.
+            # is skipped by the guard below, so no object-store call is made.
         else:
             # Text / audio chunk — content comes directly from the chunk text.
             content = doc.page_content or ""
@@ -1067,10 +1077,7 @@ def prepare_citations_nrl(
         # ── Document name ─────────────────────────────────────────────────
         # Prefer "filename" (set directly by NRL), fall back to path / source.
         raw_filename = (
-            meta.get("filename")
-            or meta.get("path")
-            or meta.get("source")
-            or ""
+            meta.get("filename") or meta.get("path") or meta.get("source") or ""
         )
         document_name = os.path.basename(str(raw_filename)) if raw_filename else ""
 
@@ -1083,9 +1090,7 @@ def prepare_citations_nrl(
         # ── Relevance / distance score ────────────────────────────────────
         # "relevance_score" is populated by the reranker; "_distance" is the
         # raw ANN distance from LanceDB.  Fall back to 0.0 when neither exists.
-        score = float(
-            meta.get("relevance_score") or meta.get("_distance") or 0.0
-        )
+        score = float(meta.get("relevance_score") or meta.get("_distance") or 0.0)
 
         # ── NRL metadata dict (has_text, dpi, source_path, etc.) ─────────
         # Stored under "metadata" as a parsed dict by NRLLanceDB.results_to_docs.

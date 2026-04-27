@@ -25,14 +25,15 @@ from pydantic import SecretStr
 from nvidia_rag.ingestor_server.health import (
     check_all_services_health,
     check_and_print_services_health,
-    check_object_store_health,
     check_nv_ingest_health,
+    check_object_store_health,
     check_redis_health,
     check_service_health,
     check_services_health,
     is_nvidia_api_catalog_url,
     print_health_report,
 )
+from nvidia_rag.utils.configuration import ObjectStoreConfig
 from nvidia_rag.utils.health_models import (
     DatabaseHealthInfo,
     IngestorHealthResponse,
@@ -42,7 +43,6 @@ from nvidia_rag.utils.health_models import (
     StorageHealthInfo,
     TaskManagementHealthInfo,
 )
-from nvidia_rag.utils.configuration import ObjectStoreConfig
 
 
 class MockAsyncContextManager:
@@ -279,7 +279,7 @@ class TestCheckAllServicesHealth:
                             # Setup mock returns - health check functions return Pydantic models
                             mock_object_store.return_value = StorageHealthInfo(
                                 service="Object Storage",
-                                url="http://minio:9000",
+                                url="http://seaweedfs:9010",
                                 status=ServiceStatus.HEALTHY,
                             )
                             mock_nv_ingest.return_value = ProcessingHealthInfo(
@@ -298,7 +298,9 @@ class TestCheckAllServicesHealth:
                                 status=ServiceStatus.HEALTHY,
                             )
 
-                            result = await check_all_services_health(mock_vdb_op, mock_config)
+                            result = await check_all_services_health(
+                                mock_vdb_op, mock_config
+                            )
 
                             assert isinstance(result, IngestorHealthResponse)
                             assert hasattr(result, "databases")
@@ -327,22 +329,33 @@ class TestCheckAllServicesHealth:
             os.environ,
             {"REDIS_HOST": "localhost", "REDIS_PORT": "6379", "REDIS_DB": "0"},
         ):
-            with patch("nvidia_rag.ingestor_server.health.check_object_store_health", return_value=StorageHealthInfo(
-                service="Object Storage", url="http://minio:9000", status=ServiceStatus.HEALTHY
-            )):
+            with patch(
+                "nvidia_rag.ingestor_server.health.check_object_store_health",
+                return_value=StorageHealthInfo(
+                    service="Object Storage",
+                    url="http://seaweedfs:9010",
+                    status=ServiceStatus.HEALTHY,
+                ),
+            ):
                 with patch(
                     "nvidia_rag.ingestor_server.health.check_nv_ingest_health",
                     return_value=ProcessingHealthInfo(
-                        service="NV-Ingest", url="http://nv-ingest:8000", status=ServiceStatus.HEALTHY
-                    )
+                        service="NV-Ingest",
+                        url="http://nv-ingest:8000",
+                        status=ServiceStatus.HEALTHY,
+                    ),
                 ):
                     with patch(
                         "nvidia_rag.ingestor_server.health.check_redis_health",
                         return_value=TaskManagementHealthInfo(
-                            service="Redis", url="redis://redis:6379", status=ServiceStatus.HEALTHY
-                        )
+                            service="Redis",
+                            url="redis://redis:6379",
+                            status=ServiceStatus.HEALTHY,
+                        ),
                     ):
-                        result = await check_all_services_health(mock_vdb_op, mock_config)
+                        result = await check_all_services_health(
+                            mock_vdb_op, mock_config
+                        )
 
                         nim_services = result.nim
                         assert len(nim_services) == 3
@@ -382,35 +395,47 @@ class TestCheckAllServicesHealth:
             os.environ,
             {"REDIS_HOST": "localhost", "REDIS_PORT": "6379", "REDIS_DB": "0"},
         ):
-            with patch("nvidia_rag.ingestor_server.health.check_object_store_health", return_value=StorageHealthInfo(
-                service="Object Storage", url="http://minio:9000", status=ServiceStatus.HEALTHY
-            )):
+            with patch(
+                "nvidia_rag.ingestor_server.health.check_object_store_health",
+                return_value=StorageHealthInfo(
+                    service="Object Storage",
+                    url="http://seaweedfs:9010",
+                    status=ServiceStatus.HEALTHY,
+                ),
+            ):
                 with patch(
                     "nvidia_rag.ingestor_server.health.check_nv_ingest_health",
                     return_value=ProcessingHealthInfo(
-                        service="NV-Ingest", url="http://nv-ingest:8000", status=ServiceStatus.HEALTHY
-                    )
+                        service="NV-Ingest",
+                        url="http://nv-ingest:8000",
+                        status=ServiceStatus.HEALTHY,
+                    ),
                 ):
                     with patch(
                         "nvidia_rag.ingestor_server.health.check_service_health",
                         return_value=NIMServiceHealthInfo(
-                            service="Test", url="http://test:8000", status=ServiceStatus.HEALTHY
-                        )
+                            service="Test",
+                            url="http://test:8000",
+                            status=ServiceStatus.HEALTHY,
+                        ),
                     ):
                         with patch(
                             "nvidia_rag.ingestor_server.health.check_redis_health",
                             return_value=TaskManagementHealthInfo(
-                                service="Redis", url="redis://redis:6379", status=ServiceStatus.HEALTHY
-                            )
+                                service="Redis",
+                                url="redis://redis:6379",
+                                status=ServiceStatus.HEALTHY,
+                            ),
                         ):
-                            result = await check_all_services_health(mock_vdb_op, mock_config)
+                            result = await check_all_services_health(
+                                mock_vdb_op, mock_config
+                            )
 
                             db_services = result.databases
                             assert len(db_services) == 1
                             assert db_services[0].status == ServiceStatus.UNKNOWN
                             assert (
-                                "Unsupported vector store type"
-                                in db_services[0].error
+                                "Unsupported vector store type" in db_services[0].error
                             )
 
 
@@ -420,13 +445,17 @@ class TestPrintHealthReport:
     def test_print_health_report_all_healthy(self, caplog):
         """Test printing report with all healthy services"""
         from nvidia_rag.utils.health_models import (
-            DatabaseHealthInfo,
             NIMServiceHealthInfo,
         )
 
         health_results = IngestorHealthResponse(
             databases=[
-                DatabaseHealthInfo(service="Milvus", url="", status=ServiceStatus.HEALTHY, latency_ms=100)
+                DatabaseHealthInfo(
+                    service="Milvus",
+                    url="",
+                    status=ServiceStatus.HEALTHY,
+                    latency_ms=100,
+                )
             ],
             nim=[
                 NIMServiceHealthInfo(
@@ -448,13 +477,17 @@ class TestPrintHealthReport:
     def test_print_health_report_mixed_status(self, caplog):
         """Test printing report with mixed service status"""
         from nvidia_rag.utils.health_models import (
-            DatabaseHealthInfo,
             NIMServiceHealthInfo,
         )
 
         health_results = IngestorHealthResponse(
             databases=[
-                DatabaseHealthInfo(service="Redis", url="", status=ServiceStatus.ERROR, error="Connection failed")
+                DatabaseHealthInfo(
+                    service="Redis",
+                    url="",
+                    status=ServiceStatus.ERROR,
+                    error="Connection failed",
+                )
             ],
             nim=[
                 NIMServiceHealthInfo(

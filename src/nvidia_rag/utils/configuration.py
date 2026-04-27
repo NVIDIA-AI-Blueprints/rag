@@ -349,7 +349,7 @@ class NvIngestConfig(_ConfigBase):
         env="APP_NVINGEST_OCRURL",
         description="Invoke URL for the OCR NIM (e.g. https://ai.api.nvidia.com/v1/cv/nvidia/nemoretriever-ocr-v1)",
     )
-    
+
     table_structure_invoke_url: str | None = Field(
         default="https://ai.api.nvidia.com/v1/cv/nvidia/nemotron-table-structure-v1",
         env="APP_NVINGEST_TABLESTRUCTUREURL",
@@ -419,6 +419,11 @@ class NvIngestConfig(_ConfigBase):
         default=False,
         env="APP_NVINGEST_SAVETODISK",
         description="Save extracted content to disk for debugging",
+    )
+    object_store_bucket: str = Field(
+        default="nv-ingest",
+        env="NVINGEST_OBJECTSTORE_BUCKET",
+        description="Object-store bucket used by NV-Ingest and Milvus integrations",
     )
     # Batch processing configuration
     enable_batch_mode: bool = Field(
@@ -871,13 +876,9 @@ class RetrieverConfig(_ConfigBase):
                 f"fetch_neighboring_pages must be an integer, got {type(v).__name__}"
             )
         if v < 0:
-            raise ValueError(
-                f"fetch_neighboring_pages must be >= 0, got {v}"
-            )
+            raise ValueError(f"fetch_neighboring_pages must be >= 0, got {v}")
         if v > 10:
-            raise ValueError(
-                f"fetch_neighboring_pages must be <= 10, got {v}"
-            )
+            raise ValueError(f"fetch_neighboring_pages must be <= 10, got {v}")
         return v
 
     @model_validator(mode="after")

@@ -6,7 +6,7 @@ services:
     image: milvusdb/milvus:${MILVUS_VERSION:-v2.6.5-gpu} # milvusdb/milvus:v2.6.5 for CPU
     command: >
       bash -lc 'tmpfile=$(mktemp) &&
-      sed -e "s/bucketName: a-bucket/bucketName: ${MINIO_BUCKET:-${NVINGEST_MINIO_BUCKET:-nv-ingest}}/" -e "s/accessKeyID: minioadmin/accessKeyID: ${MINIO_ACCESS_KEY:-seaweedfsadmin}/" -e "s/secretAccessKey: minioadmin/secretAccessKey: ${MINIO_SECRET_KEY:-seaweedfsadmin}/" /milvus/configs/milvus.yaml > "$$tmpfile" &&
+      sed -e "s/bucketName: a-bucket/bucketName: ${NVINGEST_OBJECTSTORE_BUCKET:-nv-ingest}/" -e "s/accessKeyID: minioadmin/accessKeyID: ${OBJECTSTORE_ACCESSKEY:-seaweedfsadmin}/" -e "s/secretAccessKey: minioadmin/secretAccessKey: ${OBJECTSTORE_SECRETKEY:-seaweedfsadmin}/" /milvus/configs/milvus.yaml > "$$tmpfile" &&
       cat "$$tmpfile" > /milvus/configs/milvus.yaml &&
       rm "$$tmpfile" &&
       milvus run standalone'
@@ -64,8 +64,8 @@ services:
     container_name: milvus-seaweedfs
     image: chrislusf/seaweedfs:3.73
     environment:
-      MINIO_ACCESS_KEY: seaweedfsadmin
-      MINIO_SECRET_KEY: seaweedfsadmin
+      MINIO_ACCESS_KEY: ${OBJECTSTORE_ACCESSKEY:-seaweedfsadmin}
+      MINIO_SECRET_KEY: ${OBJECTSTORE_SECRETKEY:-seaweedfsadmin}
     ports:
       - "9011:9011"
       - "9010:9010"

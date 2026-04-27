@@ -24,14 +24,16 @@ from unittest.mock import patch
 
 import pytest
 import yaml
+from pydantic import SecretStr, ValidationError
+
 from nvidia_rag.utils.configuration import (
     EmbeddingConfig,
     FilterExpressionGeneratorConfig,
     LLMConfig,
-    ObjectStoreConfig,
     ModelParametersConfig,
     NvidiaRAGConfig,
     NvIngestConfig,
+    ObjectStoreConfig,
     QueryRewriterConfig,
     RankingConfig,
     ReflectionConfig,
@@ -43,7 +45,6 @@ from nvidia_rag.utils.configuration import (
     VectorStoreConfig,
     VLMConfig,
 )
-from pydantic import SecretStr, ValidationError
 
 
 class TestVectorStoreConfig:
@@ -335,6 +336,14 @@ class TestNvIngestConfig:
             == "https://integrate.api.nvidia.com/v1/chat/completions"
         )
         assert config.enable_pdf_splitter is True
+        assert config.object_store_bucket == "nv-ingest"
+
+    @patch.dict(os.environ, {"NVINGEST_OBJECTSTORE_BUCKET": "custom-bucket"})
+    def test_object_store_bucket_from_env(self):
+        """Test NV-Ingest object-store bucket environment override."""
+        config = NvIngestConfig()
+
+        assert config.object_store_bucket == "custom-bucket"
 
     @pytest.mark.parametrize(
         "input_value",
@@ -503,7 +512,7 @@ class TestConfigurationIntegration:
             "ENABLE_RERANKER": "false",
             "ENABLE_VLM_INFERENCE": "true",
             # Object-store config
-            "OBJECTSTORE_ENDPOINT": "minio.example.com:9000",
+            "OBJECTSTORE_ENDPOINT": "object-store.example.com:9000",
             "OBJECTSTORE_ACCESSKEY": "test_key",
             "OBJECTSTORE_SECRETKEY": "test_secret",
             # Other configs
@@ -523,7 +532,7 @@ class TestConfigurationIntegration:
             assert config.enable_citations is False
             assert config.ranking.enable_reranker is False
             assert config.enable_vlm_inference is True
-            assert config.object_store.endpoint == "minio.example.com:9000"
+            assert config.object_store.endpoint == "object-store.example.com:9000"
             assert config.object_store.access_key.get_secret_value() == "test_key"
             assert config.object_store.secret_key.get_secret_value() == "test_secret"
             assert config.temp_dir == "/custom/temp"
@@ -592,8 +601,8 @@ class TestConfigurationIntegration:
         env_vars = {
             "APP_VECTORSTORE_PASSWORD": "my_secret_password",
             "APP_VECTORSTORE_APIKEY": "my_api_key_123",
-            "OBJECTSTORE_ACCESSKEY": "minio_user",
-            "OBJECTSTORE_SECRETKEY": "minio_pass_456",
+            "OBJECTSTORE_ACCESSKEY": "object_store_user",
+            "OBJECTSTORE_SECRETKEY": "object_store_pass_456",
         }
 
         with patch.dict(os.environ, env_vars):
@@ -609,10 +618,15 @@ class TestConfigurationIntegration:
             assert config.vector_store.api_key.get_secret_value() == "my_api_key_123"
 
             assert isinstance(config.object_store.access_key, SecretStr)
-            assert config.object_store.access_key.get_secret_value() == "minio_user"
+            assert (
+                config.object_store.access_key.get_secret_value() == "object_store_user"
+            )
 
             assert isinstance(config.object_store.secret_key, SecretStr)
-            assert config.object_store.secret_key.get_secret_value() == "minio_pass_456"
+            assert (
+                config.object_store.secret_key.get_secret_value()
+                == "object_store_pass_456"
+            )
 
     @patch.dict(os.environ, {}, clear=True)
     def test_secretstr_with_quoted_environment_variables(self):
@@ -901,7 +915,9 @@ class TestRetrieverConfigValidation:
 
     def test_fetch_neighboring_pages_max_boundary_accepted(self):
         """Test that fetch_neighboring_pages == 10 is valid."""
-        config = RetrieverConfig(fetch_full_page_context=True, fetch_neighboring_pages=10)
+        config = RetrieverConfig(
+            fetch_full_page_context=True, fetch_neighboring_pages=10
+        )
         assert config.fetch_neighboring_pages == 10
 
 

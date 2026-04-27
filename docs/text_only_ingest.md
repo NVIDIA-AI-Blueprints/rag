@@ -90,7 +90,7 @@ When you install the Helm chart, enable only the following services that are req
 - `text-reranking-nim`
 - `nim-llm`
 - `milvus`
-- `minio`
+- `seaweedfs`
 
 Additionally, ensure that **table extraction**, **chart extraction**, and **image extraction** are disabled.
 

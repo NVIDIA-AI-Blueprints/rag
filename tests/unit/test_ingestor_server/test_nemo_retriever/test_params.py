@@ -16,9 +16,9 @@ from nvidia_rag.ingestor_server.nemo_retriever.params import (
 )
 from nvidia_rag.utils.configuration import (
     EmbeddingConfig,
-    ObjectStoreConfig,
     NvidiaRAGConfig,
     NvIngestConfig,
+    ObjectStoreConfig,
 )
 from nvidia_rag.utils.object_store import DEFAULT_BUCKET_NAME
 
@@ -122,7 +122,7 @@ class TestMakeCaptionParams:
 class TestMakeStoreParams:
     def test_storage_uri_and_options(self) -> None:
         object_store = ObjectStoreConfig(
-            endpoint="minio:9000",
+            endpoint="seaweedfs:9010",
             access_key=SecretStr("ak"),
             secret_key=SecretStr("sk"),
         )
@@ -138,7 +138,8 @@ class TestMakeStoreParams:
         assert sp.storage_options["key"] == "ak"
         assert sp.storage_options["secret"] == "sk"
         assert (
-            sp.storage_options["client_kwargs"]["endpoint_url"] == "http://minio:9000"
+            sp.storage_options["client_kwargs"]["endpoint_url"]
+            == "http://seaweedfs:9010"
         )
 
     def test_filesystem_storage_uri(self, tmp_path) -> None:
@@ -153,8 +154,16 @@ class TestMakeStoreParams:
         sp = make_store_params(config, vdb_op)
 
         expected_uri = (
-            tmp_path / "object-store" / DEFAULT_BUCKET_NAME / "my_collection" / "images"
-        ).resolve().as_uri()
+            (
+                tmp_path
+                / "object-store"
+                / DEFAULT_BUCKET_NAME
+                / "my_collection"
+                / "images"
+            )
+            .resolve()
+            .as_uri()
+        )
         assert sp.storage_uri == expected_uri
         assert sp.public_base_url == expected_uri
         assert sp.storage_options == {}

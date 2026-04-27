@@ -524,7 +524,7 @@ class TestHealthEndpoint:
                         ],
                         "object_storage": [
                             {
-                                "service": "MinIO",
+                                "service": "Object Storage",
                                 "url": "http://localhost:9000",
                                 "status": "timeout",
                                 "latency_ms": 5000,
@@ -633,7 +633,7 @@ class TestHealthEndpoint:
                         ],
                         "object_storage": [
                             {
-                                "service": "MinIO",
+                                "service": "Object Storage",
                                 "url": "http://localhost:9000",
                                 "status": "error",
                                 "latency_ms": 0,

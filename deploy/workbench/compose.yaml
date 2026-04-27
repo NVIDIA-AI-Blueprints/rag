@@ -283,7 +283,7 @@ services:
 
       ##===NV-Ingest Save to Disk Configurations====
       APP_NVINGEST_SAVETODISK: ${APP_NVINGEST_SAVETODISK:-False}
-      NVINGEST_MINIO_BUCKET: ${NVINGEST_MINIO_BUCKET:-nv-ingest}
+      NVINGEST_OBJECTSTORE_BUCKET: ${NVINGEST_OBJECTSTORE_BUCKET:-nv-ingest}
 
       ##===NV-Ingest Performance Configurations========
       APP_NVINGEST_ENABLE_PDF_SPLIT_PROCESSING: ${APP_NVINGEST_ENABLE_PDF_SPLIT_PROCESSING:-False}
@@ -369,9 +369,9 @@ services:
       - MESSAGE_CLIENT_HOST=redis
       - MESSAGE_CLIENT_PORT=6379
       - MESSAGE_CLIENT_TYPE=redis
-      - MINIO_BUCKET=${MINIO_BUCKET:-nv-ingest}
-      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY:-seaweedfsadmin}
-      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY:-seaweedfsadmin}
+      - MINIO_BUCKET=${NVINGEST_OBJECTSTORE_BUCKET:-nv-ingest}
+      - MINIO_ACCESS_KEY=${OBJECTSTORE_ACCESSKEY:-seaweedfsadmin}
+      - MINIO_SECRET_KEY=${OBJECTSTORE_SECRETKEY:-seaweedfsadmin}
       - MRC_IGNORE_NUMA_CHECK=1
       - NEMOTRON_PARSE_HTTP_ENDPOINT=${NEMOTRON_PARSE_HTTP_ENDPOINT:-http://nemotron-parse:8000/v1/chat/completions}
       - NEMOTRON_PARSE_INFER_PROTOCOL=${NEMOTRON_PARSE_INFER_PROTOCOL:-http}
@@ -595,7 +595,7 @@ services:
     image: milvusdb/milvus:v2.5.3-gpu # milvusdb/milvus:v2.5.3 for CPU
     command: >
       bash -lc 'tmpfile=$(mktemp) &&
-      sed -e "s/bucketName: a-bucket/bucketName: ${MINIO_BUCKET:-${NVINGEST_MINIO_BUCKET:-nv-ingest}}/" -e "s/accessKeyID: minioadmin/accessKeyID: ${MINIO_ACCESS_KEY:-seaweedfsadmin}/" -e "s/secretAccessKey: minioadmin/secretAccessKey: ${MINIO_SECRET_KEY:-seaweedfsadmin}/" /milvus/configs/milvus.yaml > "$$tmpfile" &&
+      sed -e "s/bucketName: a-bucket/bucketName: ${NVINGEST_OBJECTSTORE_BUCKET:-nv-ingest}/" -e "s/accessKeyID: minioadmin/accessKeyID: ${OBJECTSTORE_ACCESSKEY:-seaweedfsadmin}/" -e "s/secretAccessKey: minioadmin/secretAccessKey: ${OBJECTSTORE_SECRETKEY:-seaweedfsadmin}/" /milvus/configs/milvus.yaml > "$$tmpfile" &&
       cat "$$tmpfile" > /milvus/configs/milvus.yaml &&
       rm "$$tmpfile" &&
       milvus run standalone'
@@ -652,8 +652,8 @@ services:
     container_name: milvus-seaweedfs
     image: chrislusf/seaweedfs:3.73
     environment:
-      MINIO_ACCESS_KEY: seaweedfsadmin
-      MINIO_SECRET_KEY: seaweedfsadmin
+      MINIO_ACCESS_KEY: ${OBJECTSTORE_ACCESSKEY:-seaweedfsadmin}
+      MINIO_SECRET_KEY: ${OBJECTSTORE_SECRETKEY:-seaweedfsadmin}
     ports:
       - "9011:9011"
       - "9010:9010"

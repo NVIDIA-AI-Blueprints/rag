@@ -64,8 +64,8 @@ class TestNvidiaRAGIngestor:
         return MagicMock()
 
     @pytest.fixture
-    def mock_minio_operator(self):
-        """Mock MinIO operator."""
+    def mock_object_store_operator(self):
+        """Mock object-store operator."""
         return MagicMock()
 
     @pytest.fixture
@@ -94,7 +94,7 @@ class TestNvidiaRAGIngestor:
         self,
         mock_config,
         mock_nv_ingest_client,
-        mock_minio_operator,
+        mock_object_store_operator,
         mock_task_handler,
         mock_vdb_op,
     ):

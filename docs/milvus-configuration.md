@@ -19,7 +19,7 @@ When Milvus is running, it uses GPU acceleration by default for vector operation
 
 ## Docker compose
 
-The commands below use the `milvus` Compose profile so the Milvus, etcd, and MinIO services start. Ensure `APP_VECTORSTORE_NAME` and `APP_VECTORSTORE_URL` target Milvus if you have not already switched from Elasticsearch ([Vector database configuration](change-vectordb.md)).
+The commands below use the `milvus` Compose profile so the Milvus, etcd, and SeaweedFS object-store services start. Ensure `APP_VECTORSTORE_NAME` and `APP_VECTORSTORE_URL` target Milvus if you have not already switched from Elasticsearch ([Vector database configuration](change-vectordb.md)).
 
 ### Configuration Steps
 
@@ -190,26 +190,26 @@ When `adapt_for_cpu` is in effect, your search requests must supply an `ef` para
 
 Use this procedure when the RAG stack should talk to a Milvus instance you operate separately (outside the chart’s Milvus subchart), for example a shared cluster or a different namespace.
 
-1. Update the `APP_VECTORSTORE_URL` and `MINIO_ENDPOINT` variables in both the RAG server and the ingestor server sections in [values.yaml](../deploy/helm/nvidia-blueprint-rag/values.yaml). Your changes should look similar to the following.
+1. Update the `APP_VECTORSTORE_URL` and `OBJECTSTORE_ENDPOINT` variables in both the RAG server and the ingestor server sections in [values.yaml](../deploy/helm/nvidia-blueprint-rag/values.yaml). Your changes should look similar to the following.
 
    ```yaml
-   envVars:
-     # ... existing code ...
-     APP_VECTORSTORE_URL: "http://your-custom-milvus-endpoint:19530"
-     MINIO_ENDPOINT: "http://your-custom-minio-endpoint:9000"
+     envVars:
+       # ... existing code ...
+       APP_VECTORSTORE_URL: "http://your-custom-milvus-endpoint:19530"
+     OBJECTSTORE_ENDPOINT: "http://your-custom-object-store-endpoint:9000"
      # ... existing code ...
 
    ingestor-server:
      envVars:
        # ... existing code ...
        APP_VECTORSTORE_URL: "http://your-custom-milvus-endpoint:19530"
-       MINIO_ENDPOINT: "http://your-custom-minio-endpoint:9000"
+       OBJECTSTORE_ENDPOINT: "http://your-custom-object-store-endpoint:9000"
        # ... existing code ...
 
    nv-ingest:
      envVars:
        # ... existing code ...
-       MINIO_INTERNAL_ADDRESS: "http://your-custom-minio-endpoint:9000"
+       MINIO_INTERNAL_ADDRESS: "http://your-custom-object-store-endpoint:9000"
        # ... existing code ...
    ```
 
@@ -276,13 +276,13 @@ docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d
 
 ```bash
 docker compose -f deploy/compose/vectordb.yaml --profile milvus down
-rm -rf deploy/compose/volumes/milvus deploy/compose/volumes/minio deploy/compose/volumes/etcd
+rm -rf deploy/compose/volumes/milvus deploy/compose/volumes/seaweedfs deploy/compose/volumes/etcd
 docker compose -f deploy/compose/vectordb.yaml --profile milvus up -d
 ```
 :::
 
 :::{warning}
-**Data Loss Warning:** Removing volumes deletes **all ingested data** (Milvus vectors and MinIO files). You must re-ingest all documents afterward. Ensure you have backups before proceeding.
+**Data Loss Warning:** Removing volumes deletes **all ingested data** (Milvus vectors and object-store files). You must re-ingest all documents afterward. Ensure you have backups before proceeding.
 :::
 
 ### Helm Chart

@@ -390,7 +390,7 @@ ingestor-server:
 
     # === NV-Ingest save to disk configurations ===
     APP_NVINGEST_SAVETODISK: "False"
-    NVINGEST_MINIO_BUCKET: "nv-ingest" # If this value is modified, ensure the corresponding Milvus bucketName is also updated
+    NVINGEST_OBJECTSTORE_BUCKET: "nv-ingest" # If this value is modified, ensure the corresponding Milvus bucketName is also updated
 
     # === NV-Ingest performance configurations ===
     APP_NVINGEST_ENABLE_PDF_SPLIT_PROCESSING: "False"

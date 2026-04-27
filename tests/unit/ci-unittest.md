@@ -80,8 +80,8 @@ pytest tests/unit/ -v
 3. **Test failures due to missing dependencies**
    - Solution: Ensure both the package and test requirements are installed in the correct order
 
-4. **MinIO connection errors in tests**
-   - Solution: The tests use mocks for external services like MinIO, so these errors should not occur in properly configured tests
+4. **Object-store connection errors in tests**
+   - Solution: The tests use mocks for external services like object storage, so these errors should not occur in properly configured tests
 
 ### Running Tests with Coverage
 

@@ -402,10 +402,10 @@ class TestPrepareCitations:
 
         with patch(
             "nvidia_rag.rag_server.response_generator.get_object_store_operator_instance"
-        ) as mock_get_minio:
+        ) as mock_get_object_store:
             mock_op = Mock()
             mock_op.get_object_from_uri.return_value = b"thumbnail-bytes"
-            mock_get_minio.return_value = mock_op
+            mock_get_object_store.return_value = mock_op
 
             result = prepare_citations(contexts, enable_citations=True)
 
@@ -434,10 +434,10 @@ class TestPrepareCitations:
 
         with patch(
             "nvidia_rag.rag_server.response_generator.get_object_store_operator_instance"
-        ) as mock_get_minio:
+        ) as mock_get_object_store:
             mock_op = Mock()
             mock_op.get_object_from_uri.return_value = b"base64_thumbnail"
-            mock_get_minio.return_value = mock_op
+            mock_get_object_store.return_value = mock_op
 
             result = prepare_citations(contexts, enable_citations=True)
 
@@ -477,7 +477,9 @@ class TestPrepareCitations:
 
     def test_object_store_operator_uses_configured_filesystem_backend(self, tmp_path):
         """Test object-store singleton honors the configured filesystem backend."""
-        from nvidia_rag.rag_server import response_generator as response_generator_module
+        from nvidia_rag.rag_server import (
+            response_generator as response_generator_module,
+        )
         from nvidia_rag.utils.configuration import NvidiaRAGConfig, ObjectStoreConfig
 
         config = NvidiaRAGConfig(
@@ -501,9 +503,10 @@ class TestPrepareCitations:
             mock_get_object_store_operator.assert_called_once()
             call_config = mock_get_object_store_operator.call_args.kwargs["config"]
             assert call_config.object_store.backend == "filesystem"
-            assert call_config.object_store.storage_root == (
-                tmp_path / "object-store"
-            ).resolve()
+            assert (
+                call_config.object_store.storage_root
+                == (tmp_path / "object-store").resolve()
+            )
 
 
 class TestErrorResponseGenerator:
@@ -758,12 +761,12 @@ class TestRetrieveSummary:
         with (
             patch(
                 "nvidia_rag.rag_server.response_generator.OBJECT_STORE_OPERATOR"
-            ) as mock_minio,
+            ) as mock_object_store,
             patch(
                 "nvidia_rag.rag_server.response_generator.get_unique_thumbnail_id"
             ) as mock_get_thumbnail,
         ):
-            mock_minio.get_payload.return_value = {
+            mock_object_store.get_payload.return_value = {
                 "summary": "Test summary",
                 "file_name": "test.pdf",
             }
@@ -782,12 +785,12 @@ class TestRetrieveSummary:
         with (
             patch(
                 "nvidia_rag.rag_server.response_generator.OBJECT_STORE_OPERATOR"
-            ) as mock_minio,
+            ) as mock_object_store,
             patch(
                 "nvidia_rag.rag_server.response_generator.get_unique_thumbnail_id"
             ) as mock_get_thumbnail,
         ):
-            mock_minio.get_payload.side_effect = Exception("Summary error")
+            mock_object_store.get_payload.side_effect = Exception("Summary error")
             mock_get_thumbnail.return_value = "test_thumbnail_id"
 
             result = await retrieve_summary(
@@ -1129,14 +1132,14 @@ class TestRetrieveSummaryEdgeCases:
         with (
             patch(
                 "nvidia_rag.rag_server.response_generator.get_object_store_operator_instance"
-            ) as mock_minio_getter,
+            ) as mock_object_store_getter,
             patch(
                 "nvidia_rag.rag_server.response_generator.get_unique_thumbnail_id"
             ) as mock_get_thumbnail,
         ):
-            mock_minio = Mock()
-            mock_minio.get_payload.return_value = None
-            mock_minio_getter.return_value = mock_minio
+            mock_object_store = Mock()
+            mock_object_store.get_payload.return_value = None
+            mock_object_store_getter.return_value = mock_object_store
             mock_get_thumbnail.return_value = "test_thumbnail_id"
 
             result = await retrieve_summary(
@@ -1154,7 +1157,7 @@ class TestRetrieveSummaryEdgeCases:
         with (
             patch(
                 "nvidia_rag.rag_server.response_generator.get_object_store_operator_instance"
-            ) as mock_minio_getter,
+            ) as mock_object_store_getter,
             patch(
                 "nvidia_rag.rag_server.response_generator.get_unique_thumbnail_id"
             ) as mock_get_thumbnail,
@@ -1163,9 +1166,9 @@ class TestRetrieveSummaryEdgeCases:
             ) as mock_handler,
             patch("asyncio.sleep", new_callable=AsyncMock),
         ):
-            mock_minio = Mock()
-            mock_minio.get_payload.return_value = None
-            mock_minio_getter.return_value = mock_minio
+            mock_object_store = Mock()
+            mock_object_store.get_payload.return_value = None
+            mock_object_store_getter.return_value = mock_object_store
             mock_get_thumbnail.return_value = "test_thumbnail_id"
             mock_handler.is_available.return_value = True
             mock_handler.get_status.return_value = None
@@ -1186,7 +1189,7 @@ class TestRetrieveSummaryEdgeCases:
         with (
             patch(
                 "nvidia_rag.rag_server.response_generator.get_object_store_operator_instance"
-            ) as mock_minio_getter,
+            ) as mock_object_store_getter,
             patch(
                 "nvidia_rag.rag_server.response_generator.get_unique_thumbnail_id"
             ) as mock_get_thumbnail,
@@ -1195,9 +1198,9 @@ class TestRetrieveSummaryEdgeCases:
             ) as mock_handler,
             patch("asyncio.sleep", new_callable=AsyncMock),
         ):
-            mock_minio = Mock()
-            mock_minio.get_payload.return_value = {"summary": "Test summary"}
-            mock_minio_getter.return_value = mock_minio
+            mock_object_store = Mock()
+            mock_object_store.get_payload.return_value = {"summary": "Test summary"}
+            mock_object_store_getter.return_value = mock_object_store
             mock_get_thumbnail.return_value = "test_thumbnail_id"
             mock_handler.is_available.return_value = False
 
@@ -1217,7 +1220,7 @@ class TestRetrieveSummaryEdgeCases:
         with (
             patch(
                 "nvidia_rag.rag_server.response_generator.get_object_store_operator_instance"
-            ) as mock_minio_getter,
+            ) as mock_object_store_getter,
             patch(
                 "nvidia_rag.rag_server.response_generator.get_unique_thumbnail_id"
             ) as mock_get_thumbnail,
@@ -1226,9 +1229,9 @@ class TestRetrieveSummaryEdgeCases:
             ) as mock_handler,
             patch("asyncio.sleep", new_callable=AsyncMock),
         ):
-            mock_minio = Mock()
-            mock_minio.get_payload.return_value = None
-            mock_minio_getter.return_value = mock_minio
+            mock_object_store = Mock()
+            mock_object_store.get_payload.return_value = None
+            mock_object_store_getter.return_value = mock_object_store
             mock_get_thumbnail.return_value = "test_thumbnail_id"
             mock_handler.is_available.return_value = True
             mock_handler.get_status.return_value = {"status": "SUCCESS"}
@@ -1249,7 +1252,7 @@ class TestRetrieveSummaryEdgeCases:
         with (
             patch(
                 "nvidia_rag.rag_server.response_generator.get_object_store_operator_instance"
-            ) as mock_minio_getter,
+            ) as mock_object_store_getter,
             patch(
                 "nvidia_rag.rag_server.response_generator.get_unique_thumbnail_id"
             ) as mock_get_thumbnail,
@@ -1258,8 +1261,8 @@ class TestRetrieveSummaryEdgeCases:
             ) as mock_handler,
             patch("asyncio.sleep", new_callable=AsyncMock),
         ):
-            mock_minio = Mock()
-            mock_minio_getter.return_value = mock_minio
+            mock_object_store = Mock()
+            mock_object_store_getter.return_value = mock_object_store
             mock_get_thumbnail.return_value = "test_thumbnail_id"
             mock_handler.is_available.return_value = True
             mock_handler.get_status.return_value = {

@@ -1,8 +1,8 @@
 import importlib
 import sys
-from types import SimpleNamespace
 from io import BytesIO
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -43,9 +43,7 @@ class FakeMinioClient:
     # Object ops
     def put_object(self, bucket, object_name, data, length, content_type=None):
         # Record for assertions
-        self.put_object_calls.append(
-            (bucket, object_name, data, length, content_type)
-        )
+        self.put_object_calls.append((bucket, object_name, data, length, content_type))
 
     def upload_snowball_objects(self, bucket, snowball_objects):
         self.upload_snowball_calls.append((bucket, snowball_objects))
@@ -145,7 +143,7 @@ def test_put_payload_uploads_json(monkeypatch, object_store_module):
     data.seek(0)
     body = data.read()
     assert length == len(body)
-    assert body == b"{\"x\": 1, \"y\": \"z\"}"
+    assert body == b'{"x": 1, "y": "z"}'
 
 
 def test_put_payloads_bulk_uses_snowball_objects(monkeypatch, object_store_module):
@@ -175,14 +173,15 @@ def test_put_payloads_bulk_uses_snowball_objects(monkeypatch, object_store_modul
         assert isinstance(sb.data, BytesIO)
         sb.data.seek(0)
         decoded.append(sb.data.read())
-    assert decoded == [b"{\"a\": 1}", b"{\"b\": 2}"]
+    assert decoded == [b'{"a": 1}', b'{"b": 2}']
 
 
 def test_get_payload_success(monkeypatch, object_store_module):
     client = FakeMinioClient(endpoint="", access_key="", secret_key="", secure=False)
+
     class Resp:
         def read(self):
-            return b"{\"k\": \"v\"}"
+            return b'{"k": "v"}'
 
     client.get_object_response = Resp()
     monkeypatch.setattr(
@@ -241,8 +240,9 @@ def test_get_object_store_operator_uses_config(monkeypatch, object_store_module)
 
     # Create a mock config with the expected object-store settings
     from types import SimpleNamespace
+
     from pydantic import SecretStr
-    
+
     mock_config = SimpleNamespace(
         object_store=SimpleNamespace(
             backend="s3",
@@ -281,7 +281,9 @@ def test_filesystem_operator_roundtrip(tmp_path, object_store_module):
     assert operator.list_payloads() == []
 
 
-def test_get_object_store_operator_returns_filesystem_backend(tmp_path, object_store_module):
+def test_get_object_store_operator_returns_filesystem_backend(
+    tmp_path, object_store_module
+):
     from pydantic import SecretStr
 
     mock_config = SimpleNamespace(
@@ -309,7 +311,9 @@ def test_unique_thumbnail_id_helpers(object_store_module):
     p1 = object_store_module.get_unique_thumbnail_id_collection_prefix("coll")
     assert p1 == "coll_::"
 
-    p2 = object_store_module.get_unique_thumbnail_id_file_name_prefix("coll", "file.pdf")
+    p2 = object_store_module.get_unique_thumbnail_id_file_name_prefix(
+        "coll", "file.pdf"
+    )
     # Note: current implementation adds an underscore before file name
     assert p2 == "coll_::_file.pdf_::"
 
@@ -326,10 +330,7 @@ def test_unique_thumbnail_id_helpers(object_store_module):
 def test_extract_location_from_metadata_from_content_metadata(object_store_module):
     """Test extract_location_from_metadata when location is in content_metadata"""
     metadata = {
-        "content_metadata": {
-            "type": "image",
-            "location": [10.0, 20.0, 30.0, 40.0]
-        }
+        "content_metadata": {"type": "image", "location": [10.0, 20.0, 30.0, 40.0]}
     }
     location = object_store_module.extract_location_from_metadata("image", metadata)
     assert location == [10.0, 20.0, 30.0, 40.0]
@@ -337,34 +338,26 @@ def test_extract_location_from_metadata_from_content_metadata(object_store_modul
 
 def test_extract_location_from_metadata_from_image_metadata(object_store_module):
     """Test extract_location_from_metadata from image_metadata"""
-    metadata = {
-        "image_metadata": {
-            "image_location": [5.0, 10.0, 15.0, 20.0]
-        }
-    }
+    metadata = {"image_metadata": {"image_location": [5.0, 10.0, 15.0, 20.0]}}
     location = object_store_module.extract_location_from_metadata("image", metadata)
     assert location == [5.0, 10.0, 15.0, 20.0]
 
 
 def test_extract_location_from_metadata_from_table_metadata(object_store_module):
     """Test extract_location_from_metadata from table_metadata"""
-    metadata = {
-        "table_metadata": {
-            "table_location": [1.0, 2.0, 3.0, 4.0]
-        }
-    }
-    location = object_store_module.extract_location_from_metadata("structured", metadata)
+    metadata = {"table_metadata": {"table_location": [1.0, 2.0, 3.0, 4.0]}}
+    location = object_store_module.extract_location_from_metadata(
+        "structured", metadata
+    )
     assert location == [1.0, 2.0, 3.0, 4.0]
 
 
 def test_extract_location_from_metadata_from_chart_metadata(object_store_module):
     """Test extract_location_from_metadata from chart_metadata"""
-    metadata = {
-        "chart_metadata": {
-            "chart_location": [11.0, 22.0, 33.0, 44.0]
-        }
-    }
-    location = object_store_module.extract_location_from_metadata("structured", metadata)
+    metadata = {"chart_metadata": {"chart_location": [11.0, 22.0, 33.0, 44.0]}}
+    location = object_store_module.extract_location_from_metadata(
+        "structured", metadata
+    )
     assert location == [11.0, 22.0, 33.0, 44.0]
 
 
@@ -382,37 +375,38 @@ def test_get_unique_thumbnail_id_from_result_with_location(object_store_module):
         file_name="doc.pdf",
         page_number=1,
         location=[10.0, 20.0, 30.0, 40.0],
-        metadata=None
+        metadata=None,
     )
     assert result == "test_coll_::_doc.pdf_::_1_10.0_20.0_30.0_40.0"
 
 
-def test_get_unique_thumbnail_id_from_result_with_metadata_fallback(object_store_module):
+def test_get_unique_thumbnail_id_from_result_with_metadata_fallback(
+    object_store_module,
+):
     """Test get_unique_thumbnail_id_from_result with metadata fallback"""
     metadata = {
-        "content_metadata": {
-            "type": "image",
-            "location": [5.0, 10.0, 15.0, 20.0]
-        }
+        "content_metadata": {"type": "image", "location": [5.0, 10.0, 15.0, 20.0]}
     }
     result = object_store_module.get_unique_thumbnail_id_from_result(
         collection_name="test_coll",
         file_name="doc.pdf",
         page_number=2,
         location=None,
-        metadata=metadata
+        metadata=metadata,
     )
     assert result == "test_coll_::_doc.pdf_::_2_5.0_10.0_15.0_20.0"
 
 
-def test_get_unique_thumbnail_id_from_result_no_location_returns_none(object_store_module):
+def test_get_unique_thumbnail_id_from_result_no_location_returns_none(
+    object_store_module,
+):
     """Test get_unique_thumbnail_id_from_result returns None when no location found"""
     result = object_store_module.get_unique_thumbnail_id_from_result(
         collection_name="test_coll",
         file_name="doc.pdf",
         page_number=1,
         location=None,
-        metadata={}
+        metadata={},
     )
     assert result is None
 
@@ -425,7 +419,7 @@ def test_get_unique_thumbnail_id_from_result_handles_exceptions(object_store_mod
         file_name="doc.pdf",
         page_number=1,
         location="invalid_location",  # Not a list
-        metadata=None
+        metadata=None,
     )
     # Should return None on exception
     assert result is None
