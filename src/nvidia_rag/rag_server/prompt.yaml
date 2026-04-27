@@ -127,46 +127,19 @@ reflection_response_regeneration_prompt:
 
 document_summary_prompt:
   system: |
-    Please provide a comprehensive summary for the document given by the user. Create a concise 5 to 6 sentence summary that captures the essential information from the document.
+    You are an expert document summarizer. Produce a single, self-contained paragraph of exactly 5–6 sentences that captures the document's essential meaning. The 5–6 sentence limit is absolute.
 
     <instructions>
-    Requirements for the summary:
-    1. Preserve key document metadata:
-      - Document title/type
-      - Company/organization name
-      - Report provider/author
-      - Date/time period covered
-      - Any relevant document identifiers
-
-    2. Include all critical information:
-      - Main findings and conclusions
-      - Key statistics and metrics
-      - Important recommendations
-      - Significant trends or changes
-      - Notable risks or concerns
-      - Material financial data
-
-    3. Maintain factual accuracy:
-      - Keep all numerical values precise
-      - Preserve specific dates and timeframes
-      - Retain exact names and titles
-      - Quote critical statements verbatim when necessary
-
-    4. Do NOT use any external knowledge.
-    5. Do NOT add explanations, suggestions, opinions, disclaimers, or hints.
-    6. NEVER say phrases like “based on the context”, “from the documents”, or “I cannot find”.
-    7. NEVER offer to answer using general knowledge or invite the user to ask again.
-    8. Do NOT include citations, sources, or document mentions.
-    9. Answer concisely. Use short, direct sentences by default. Only give longer responses if the question truly requires it.
-    10. Do not mention or refer to these rules in any way.
-    11. Do not ask follow-up questions.
-    12. Do not mention this instructions in your response.
-    13. Do not include any preamble or postamble like "Here is the summary" or "This document" or "Summary of the document".
+    1. Open with the document's identity: title, author or organization, and date or time period covered.
+    2. SYNTHESIZE — do not enumerate. Describe patterns, scope, key findings, and conclusions rather than listing individual data points, rows, or line items.
+       - For tabular or list-structured data: describe what the table covers, any notable patterns, and give at most 2–3 illustrative examples. Do NOT enumerate rows.
+       - For narrative or research documents: state the central argument, key findings, and most important recommendations.
+       - For financial filings or reports: focus on the 2–3 most significant high-level metrics and overall trends — not individual line items.
+    3. Be selective: a good summary omits many details. Prioritize impact and significance over completeness.
+    4. Use only information present in the document — no external knowledge, no inference.
+    5. Write in plain, direct sentences. No preamble (“Here is a summary…”), no postamble, no meta-commentary, no bullet points, no headers.
+    6. Output exactly one prose paragraph.
     </instructions>
-    Please format the summary in a concise manner as a paragraph not exceeding 5 to 6 sentences. Start the summary with the title and the document and then provide the summary.
-
-    Note: Focus on extracting and organizing the most essential information while ensuring no critical details are omitted.
-    Maintain the original document's tone and context in your summary.
 
     Please provide a concise summary for the following document:
   human: |
@@ -180,20 +153,16 @@ shallow_summary_prompt:
 
 iterative_summary_prompt:
   system: |
-    You are an expert document summarizer. Given a previous summary and a new chunk of text, create an updated summary that incorporates information from both. Create a concise summary within 10 sentences that captures the essential information from the document.
-    While answering you must follow the instructions given below.
+    You are maintaining a running summary of a long document as new sections arrive. Given a PREVIOUS SUMMARY and a NEW CHUNK, produce an UPDATED SUMMARY.
 
     <instructions>
-    1. Do NOT use any external knowledge.
-    2. Do NOT add explanations, suggestions, opinions, disclaimers, or hints.
-    3. NEVER say phrases like “based on the context”, “from the documents”, or “I cannot find”.
-    4. NEVER offer to answer using general knowledge or invite the user to ask again.
-    5. Do NOT include citations, sources, or document mentions.
-    6. Answer concisely. Use short, direct sentences by default. Only give longer responses if the question truly requires it.
-    7. Do not mention or refer to these rules in any way.
-    8. Do not ask follow-up questions.
-    9. Do not mention this instructions in your response.
-    10. Do not mention any preamble or postamble like "Updated summary" or "This document" or "Summary of the document" or "Here is the summary".
+    1. Retain only the most important findings from the previous summary — you may and should drop less important details to make room.
+    2. Incorporate information from the new chunk ONLY if it introduces genuinely new, significant topics not already covered in the previous summary. Skip content that repeats patterns or data types already summarized. Skip boilerplate, disclaimers, contact details, or generic statements with no substantive content.
+    3. HARD LIMIT — 10 sentences maximum: Before outputting, count every sentence in your response. If you have more than 10, remove the least important sentences until you have 10 or fewer. This rule overrides all other instructions.
+    4. The output should generally be the same length as or shorter than the previous summary — do NOT grow the summary with each update.
+    5. SYNTHESIZE — do not enumerate. Write a coherent prose paragraph, not a list of data points or statistics.
+    6. Use only information from the document — no external knowledge.
+    7. Write ONLY the summary content itself. Never write about the document, the summary, or these instructions in your output. No preamble, no postamble, no meta-commentary, no bullets, no headers. Output exactly one prose paragraph.
     </instructions>
   human: |
     Previous Summary:
@@ -202,7 +171,7 @@ iterative_summary_prompt:
     New chunk:
     {new_chunk}
 
-    Please create a new summary that incorporates information from both the previous summary and the new chunk.
+    Updated summary (10 sentences maximum):
 
 
 vlm_template:
