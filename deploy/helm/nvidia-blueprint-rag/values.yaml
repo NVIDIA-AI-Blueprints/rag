@@ -218,6 +218,8 @@ envVars:
   APP_TEXTSPLITTER_CHUNKOVERLAP: "200"
 
   # === General ===
+  # Ingestion backend: "nv_ingest" (NV-Ingest microservice) or "nrl" (NeMo-Retriever Library in-process)
+  INGESTOR_BACKEND: "nv_ingest"
   # Choose whether to enable citations in the response
   ENABLE_CITATIONS: "True"
   # Choose whether to enable/disable guardrails
@@ -364,6 +366,8 @@ ingestor-server:
     # === NV-Ingest Configurations ===
     APP_NVINGEST_MESSAGECLIENTHOSTNAME: "rag-nv-ingest"
     APP_NVINGEST_MESSAGECLIENTPORT: "7670"
+    # nv_ingest: NV-Ingest microservice; nrl: NeMo-Retriever Library in-process
+    INGESTOR_BACKEND: "nv_ingest"
 
     # === NV-Ingest extraction configurations ===
     APP_NVINGEST_PDFEXTRACTMETHOD: "None"  # Method used for text extraction from "None", "pdfium", "nemotron_parse"

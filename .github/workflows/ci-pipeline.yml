@@ -101,7 +101,7 @@ jobs:
       - name: Run unit tests with coverage
         run: |
           . venv-unit/bin/activate
-          python -m pytest -v -s --cov=src --cov-report=term-missing tests/unit --ignore=tests/unit/test_ingestor_server/test_nemo_retriever --ignore=tests/unit/test_utils/test_vdb/test_lancedb_vdb.py
+          python -m pytest -v -s --cov=src --cov-report=term-missing tests/unit
 
   frontend-unit-tests:
     name: Frontend Unit Tests
@@ -185,7 +185,7 @@ jobs:
     env:
       ENABLE_MULTIMODAL_QUERY_CI: "true"
       # NeMo Retriever Library (NRL) + LanceDB integration sequences (set to "true" to run in CI).
-      ENABLE_NRL_INTEGRATION_TESTS: "false"
+      ENABLE_NRL_INTEGRATION_TESTS: "true"
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
