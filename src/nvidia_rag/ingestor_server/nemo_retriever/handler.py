@@ -427,10 +427,10 @@ class NemoRetrieverHandler:
             gi = gi.split(make_split_params(self._config))
         if self._config.nv_ingest.extract_images:
             gi = gi.caption(make_caption_params(self._config))
-        if vdb_op is not None:
-            gi = gi.embed(make_embed_params(self._config))
         if store_images and vdb_op is not None:
             gi = gi.store(make_store_params(self._config, vdb_op))
+        if vdb_op is not None:
+            gi = gi.embed(make_embed_params(self._config))
         return gi
 
     def _build_image_ingestor(
@@ -461,10 +461,10 @@ class NemoRetrieverHandler:
         gi = gi.extract_image_files(make_extract_params(self._config, extract_override))
         if self._config.nv_ingest.extract_images:
             gi = gi.caption(make_caption_params(self._config))
-        if vdb_op is not None:
-            gi = gi.embed(make_embed_params(self._config))
         if store_images and vdb_op is not None:
             gi = gi.store(make_store_params(self._config, vdb_op))
+        if vdb_op is not None:
+            gi = gi.embed(make_embed_params(self._config))
         return gi
 
     def _build_text_ingestor(

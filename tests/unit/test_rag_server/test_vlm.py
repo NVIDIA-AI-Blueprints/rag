@@ -302,3 +302,71 @@ class TestVLM:
         formatted = self.vlm._format_docs_text([doc])
         assert "File: foo" in formatted
         assert "Important text" in formatted
+
+    def test_extract_images_from_docs_nrl_fetches_stored_uri_and_returns_png_parts(self):
+        mock_minio = MagicMock()
+        b64_img = self.create_test_image_b64()
+        mock_minio.get_object.return_value = base64.b64decode(b64_img)
+        doc = SimpleNamespace(
+            metadata={
+                "stored_image_uri": "s3://default-bucket/collection/page.png",
+            },
+            page_content="chunk text",
+        )
+        with patch("nvidia_rag.rag_server.vlm.get_minio_operator", return_value=mock_minio):
+            parts = self.vlm._extract_images_from_docs_nrl([doc], remaining_image_budget=None)
+
+        mock_minio.get_object.assert_called_once_with("collection/page.png")
+        assert len(parts) == 1
+        assert parts[0]["type"] == "image_url"
+        assert parts[0]["image_url"]["url"].startswith("data:image/png;base64,")
+
+    def test_extract_images_from_docs_nrl_skips_without_stored_image_uri(self):
+        doc = SimpleNamespace(metadata={}, page_content="text only")
+        with patch("nvidia_rag.rag_server.vlm.get_minio_operator") as mock_get_minio:
+            parts = self.vlm._extract_images_from_docs_nrl([doc], remaining_image_budget=5)
+
+        assert parts == []
+        mock_get_minio.return_value.get_object.assert_not_called()
+
+    def test_extract_images_from_docs_nrl_respects_remaining_image_budget(self):
+        mock_minio = MagicMock()
+        b64_img = self.create_test_image_b64()
+        raw_png = base64.b64decode(b64_img)
+        mock_minio.get_object.return_value = raw_png
+        docs = [
+            SimpleNamespace(
+                metadata={"stored_image_uri": "s3://b/a/1.png"},
+                page_content="a",
+            ),
+            SimpleNamespace(
+                metadata={"stored_image_uri": "s3://b/a/2.png"},
+                page_content="b",
+            ),
+        ]
+        with patch("nvidia_rag.rag_server.vlm.get_minio_operator", return_value=mock_minio):
+            parts = self.vlm._extract_images_from_docs_nrl(docs, remaining_image_budget=1)
+
+        assert len(parts) == 1
+        mock_minio.get_object.assert_called_once_with("a/1.png")
+
+    def test_extract_images_from_docs_nrl_continues_on_minio_error(self):
+        mock_minio = MagicMock()
+        b64_img = self.create_test_image_b64()
+        good_raw = base64.b64decode(b64_img)
+        docs = [
+            SimpleNamespace(
+                metadata={"stored_image_uri": "s3://b/bad.png"},
+                page_content="x",
+            ),
+            SimpleNamespace(
+                metadata={"stored_image_uri": "s3://b/good.png"},
+                page_content="y",
+            ),
+        ]
+        mock_minio.get_object.side_effect = [RuntimeError("unavailable"), good_raw]
+        with patch("nvidia_rag.rag_server.vlm.get_minio_operator", return_value=mock_minio):
+            parts = self.vlm._extract_images_from_docs_nrl(docs, remaining_image_budget=None)
+
+        assert len(parts) == 1
+        assert parts[0]["type"] == "image_url"

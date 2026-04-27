@@ -251,6 +251,7 @@ class VLM:
         question_text: str | None,
         max_total_images: int | None = None,
         organize_by_page: bool = False,
+        nrl_mode: bool = False,
     ) -> tuple[
         SystemMessage, HumanMessage, list[HumanMessage | AIMessage | SystemMessage]
     ]:
@@ -258,6 +259,8 @@ class VLM:
         Build system and user messages from template, normalize chat history, and
         extract any query/context images to be attached to the last human message.
         When organize_by_page=True, interleaves text and images per page.
+        When nrl_mode=True, uses NRL metadata layout (stored_image_uri) instead of
+        nv-ingest nested content_metadata.
         """
         textual_context = (
             context_text if context_text is not None else self._format_docs_text(docs)
@@ -296,6 +299,7 @@ class VLM:
                 question_text,
                 docs,
                 remaining_image_budget,
+                nrl_mode=nrl_mode,
             )
         else:
             human_template = vlm_template.get("human") or "{context}\n\n{question}"
@@ -304,9 +308,14 @@ class VLM:
                 question=(question_text or "").strip(),
             )
             content_parts = [{"type": "text", "text": formatted_human}]
-            content_parts.extend(
-                self._extract_images_from_docs(docs, remaining_image_budget)
-            )
+            if nrl_mode:
+                content_parts.extend(
+                    self._extract_images_from_docs_nrl(docs, remaining_image_budget)
+                )
+            else:
+                content_parts.extend(
+                    self._extract_images_from_docs(docs, remaining_image_budget)
+                )
 
         citations_instruct_user_message = HumanMessage(content=content_parts)
         return (system_message, citations_instruct_user_message, chat_history_messages)
@@ -348,7 +357,7 @@ class VLM:
         docs: list[Any],
         remaining_image_budget: int | None,
     ) -> list[dict[str, Any]]:
-        """Extract image parts from docs for MinIO thumbnails."""
+        """Extract image parts from nv-ingest docs using source_location from MinIO."""
         parts: list[dict[str, Any]] = []
         for doc in docs or []:
             if remaining_image_budget is not None and remaining_image_budget <= 0:
@@ -394,6 +403,42 @@ class VLM:
                 continue
         return parts
 
+    def _extract_images_from_docs_nrl(
+        self,
+        docs: list[Any],
+        remaining_image_budget: int | None,
+    ) -> list[dict[str, Any]]:
+        """Extract image parts from NRL docs using stored_image_uri from MinIO.
+
+        In NRL mode every chunk (including text chunks) may carry a page image
+        URI in ``stored_image_uri``.  This method fetches those images and
+        returns them as base64-PNG image_url parts for VLM consumption.
+        """
+        parts: list[dict[str, Any]] = []
+        for doc in docs or []:
+            if remaining_image_budget is not None and remaining_image_budget <= 0:
+                break
+            metadata = getattr(doc, "metadata", {}) or {}
+            stored_image_uri: str = metadata.get("stored_image_uri") or ""
+            if not stored_image_uri:
+                continue
+            try:
+                object_name = object_key_from_storage_uri(stored_image_uri)
+                raw_content = get_minio_operator().get_object(object_name)
+                content_b64 = base64.b64encode(raw_content).decode("ascii")
+                if not content_b64:
+                    continue
+                png_b64 = VLM._convert_image_url_to_png_b64(content_b64)
+                parts.append({
+                    "type": "image_url",
+                    "image_url": {"url": f"data:image/png;base64,{png_b64}"},
+                })
+                if remaining_image_budget is not None:
+                    remaining_image_budget -= 1
+            except Exception:
+                continue
+        return parts
+
     def _build_content_parts_by_page(
         self,
         vlm_template: dict[str, Any],
@@ -401,8 +446,16 @@ class VLM:
         question_text: str | None,
         docs: list[Any],
         remaining_image_budget: int | None,
+        nrl_mode: bool = False,
     ) -> list[dict[str, Any]]:
-        """Build content_parts with text and images interleaved per page."""
+        """Build content_parts with text and images interleaved per page.
+
+        When nrl_mode=True, uses flat NRL metadata fields (page_number,
+        filename/path/source, stored_image_uri) instead of the nested
+        nv-ingest content_metadata structure.  In NRL mode a single chunk may
+        carry both text content (page_content) *and* a page image
+        (stored_image_uri), so both are included.
+        """
         human_template = vlm_template.get("human") or "{context}\n\n{question}"
         intro = human_template.format(context="", question="").rstrip()
         if intro.endswith("Context:"):
@@ -413,13 +466,28 @@ class VLM:
         no_page: list[Any] = []
         for doc in docs or []:
             meta = getattr(doc, "metadata", {}) or {}
-            content_md = meta.get("content_metadata", {}) or {}
-            page_num = content_md.get("page_number")
-            source = meta.get("source", {})
-            source_path = (
-                source.get("source_name", "") if isinstance(source, dict) else source
-            )
-            source_key = str(source_path) if source_path else ""
+            if nrl_mode:
+                raw_page = meta.get("page_number")
+                if raw_page is not None:
+                    try:
+                        page_num: int | None = int(raw_page)
+                    except (TypeError, ValueError):
+                        page_num = None
+                else:
+                    page_num = None
+                raw_source = (
+                    meta.get("path") or meta.get("filename") or meta.get("source") or ""
+                )
+                source_key = str(raw_source) if raw_source else ""
+            else:
+                content_md = meta.get("content_metadata", {}) or {}
+                page_num = content_md.get("page_number")
+                source = meta.get("source", {})
+                source_path = (
+                    source.get("source_name", "") if isinstance(source, dict) else source
+                )
+                source_key = str(source_path) if source_path else ""
+
             if page_num is not None:
                 has_page.append((source_key, int(page_num), doc))
             else:
@@ -437,11 +505,21 @@ class VLM:
             text_parts: list[str] = []
             image_docs: list[Any] = []
             for d in doc_list:
-                content_md = (getattr(d, "metadata", {}) or {}).get("content_metadata", {}) or {}
-                if content_md.get("type") in ["image", "structured"]:
-                    image_docs.append(d)
+                if nrl_mode:
+                    # In NRL mode a chunk can contribute text AND a page image.
+                    text_content = getattr(d, "page_content", "") or ""
+                    if text_content:
+                        text_parts.append(text_content)
+                    d_meta = getattr(d, "metadata", {}) or {}
+                    if d_meta.get("stored_image_uri"):
+                        image_docs.append(d)
                 else:
-                    text_parts.append(getattr(d, "page_content", "") or "")
+                    content_md = (getattr(d, "metadata", {}) or {}).get("content_metadata", {}) or {}
+                    if content_md.get("type") in ["image", "structured"]:
+                        image_docs.append(d)
+                    else:
+                        text_parts.append(getattr(d, "page_content", "") or "")
+
             filename = os.path.splitext(os.path.basename(source_key))[0] if source_key else "unknown"
             page_text = f"=== Page {page_num} ({filename}) ===\n" + "\n\n".join(p for p in text_parts if p)
             if page_text.strip():
@@ -449,7 +527,10 @@ class VLM:
             for img_doc in image_docs:
                 if remaining_image_budget is not None and remaining_image_budget <= 0:
                     break
-                img_parts = self._extract_images_from_docs([img_doc], remaining_image_budget)
+                if nrl_mode:
+                    img_parts = self._extract_images_from_docs_nrl([img_doc], remaining_image_budget)
+                else:
+                    img_parts = self._extract_images_from_docs([img_doc], remaining_image_budget)
                 content_parts.extend(img_parts)
                 if remaining_image_budget is not None and img_parts:
                     remaining_image_budget -= len(img_parts)
@@ -661,6 +742,7 @@ class VLM:
         top_p: float | None = None,
         max_tokens: int | None = None,
         max_total_images: int | None = None,
+        nrl_mode: bool = False,
         **_: Any,
     ) -> str:
         """
@@ -710,6 +792,7 @@ class VLM:
             context_text,
             question_text,
             max_total_images=eff_max_total_images,
+            nrl_mode=nrl_mode,
         )
 
         lc_messages = self.assemble_messages(
@@ -758,6 +841,7 @@ class VLM:
         max_tokens: int | None = None,
         max_total_images: int | None = None,
         organize_by_page: bool = False,
+        nrl_mode: bool = False,
         **_: Any,
     ) -> AsyncGenerator[str, None]:
         """
@@ -797,6 +881,7 @@ class VLM:
                 question_text,
                 max_total_images=eff_max_total_images,
                 organize_by_page=organize_by_page,
+                nrl_mode=nrl_mode,
             )
 
             lc_messages = self.assemble_messages(
