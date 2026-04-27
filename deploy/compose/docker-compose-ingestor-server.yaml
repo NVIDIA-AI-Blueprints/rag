@@ -18,6 +18,7 @@ services:
       - ${PROMPT_CONFIG_FILE}:${PROMPT_CONFIG_FILE}
       # Please mount the volume to the container to the path specified here
       - ${INGESTOR_SERVER_EXTERNAL_VOLUME_MOUNT:-./volumes/ingestor-server}:${INGESTOR_SERVER_DATA_DIR:-/data/}
+      - ${LANCEDB_VOLUME_MOUNT:-./volumes/lancedb}:/volumes/lancedb
 
     # Common customizations to the pipeline can be controlled using env variables
     environment:
@@ -29,9 +30,9 @@ services:
 
       ##===Vector DB specific configurations===
       # URL on which vectorstore is hosted
-      # For custom operators, point to your service (e.g., http://your-custom-vdb:1234)
+      # For custom operators, point to your service (e.g., http://your-custom-vdb:1234 or /volumes/lancedb/lancedb - for lancedb)
       APP_VECTORSTORE_URL: ${APP_VECTORSTORE_URL:-http://elasticsearch:9200}
-      # Type of vectordb used to store embedding. Supported built-ins: "milvus", "elasticsearch".
+      # Type of vectordb used to store embedding. Supported built-ins: "elasticsearch"[default], "milvus", "lancedb".
       # You can also provide your custom value (e.g., "your_custom_vdb") when you register it in `_get_vdb_op`.
       APP_VECTORSTORE_NAME: ${APP_VECTORSTORE_NAME:-"elasticsearch"}
       
@@ -85,6 +86,8 @@ services:
       ##===NV-Ingest Connection Configurations=======
       APP_NVINGEST_MESSAGECLIENTHOSTNAME: ${APP_NVINGEST_MESSAGECLIENTHOSTNAME:-"nv-ingest-ms-runtime"}
       APP_NVINGEST_MESSAGECLIENTPORT: ${APP_NVINGEST_MESSAGECLIENTPORT:-7670}
+      # Ingestion backend: nv_ingest (NV-Ingest microservice) or nrl (NeMo-Retriever Library in-process)
+      INGESTOR_BACKEND: ${INGESTOR_BACKEND:-nv_ingest}
 
       ##===NV-Ingest Extract Configurations==========
       APP_NVINGEST_EXTRACTTEXT: ${APP_NVINGEST_EXTRACTTEXT:-True}
@@ -101,6 +104,7 @@ services:
       APP_NVINGEST_TEXTDEPTH: ${APP_NVINGEST_TEXTDEPTH:-page} # extract by "page" or "document"
 
       ##===NV-Ingest Splitting Configurations========
+      APP_NVINGEST_ENABLESPLIT: ${APP_NVINGEST_ENABLESPLIT:-False} # Master toggle: enable text splitting/chunking stage (disabled by default)
       APP_NVINGEST_CHUNKSIZE: ${APP_NVINGEST_CHUNKSIZE:-512}
       APP_NVINGEST_CHUNKOVERLAP: ${APP_NVINGEST_CHUNKOVERLAP:-150}
       APP_NVINGEST_ENABLEPDFSPLITTER: ${APP_NVINGEST_ENABLEPDFSPLITTER:-True}
@@ -110,6 +114,13 @@ services:
       APP_NVINGEST_CAPTIONMODELNAME: ${APP_NVINGEST_CAPTIONMODELNAME:-"nvidia/nemotron-nano-12b-v2-vl"}
       # Incase of nvidia-hosted caption model, use the endpoint url as - https://integrate.api.nvidia.com/v1
       APP_NVINGEST_CAPTIONENDPOINTURL: ${APP_NVINGEST_CAPTIONENDPOINTURL:-"http://vlm-ms:8000/v1/chat/completions"}
+
+      ##===NeMo Retriever invoke URLs (HTTP, local NIMs)====
+      # Align with YOLOX_*_HTTP_ENDPOINT / OCR_HTTP_ENDPOINT on nv-ingest-ms-runtime (nims.yaml service names).
+      APP_NVINGEST_PAGEELEMENTSURL: ${APP_NVINGEST_PAGEELEMENTSURL:-http://page-elements:8000/v1/infer}
+      APP_NVINGEST_GRAPHICELEMENTSURL: ${APP_NVINGEST_GRAPHICELEMENTSURL:-http://graphic-elements:8000/v1/infer}
+      APP_NVINGEST_OCRURL: ${APP_NVINGEST_OCRURL:-http://nemotron-ocr:8000/v1/infer}
+      APP_NVINGEST_TABLESTRUCTUREURL: ${APP_NVINGEST_TABLESTRUCTUREURL:-http://table-structure:8000/v1/infer}
 
       ##===NV-Ingest Save to Disk Configurations====
       APP_NVINGEST_SAVETODISK: ${APP_NVINGEST_SAVETODISK:-False}
@@ -161,7 +172,7 @@ services:
       - "8082:8082"
     expose:
       - "8082"
-    shm_size: 5gb
+    shm_size: 12gb
 
   redis:
     image: "redis/redis-stack:7.2.0-v18"

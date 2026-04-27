@@ -120,5 +120,19 @@ def _get_vdb_op(
             config=config,
         )
 
+    elif config.vector_store.name == "lancedb":
+        from nvidia_rag.utils.vdb.lancedb.lancedb_vdb import LanceDBVDB
+
+        # LanceDB is a local/embedded VDB used exclusively with the NRL ingestion
+        # pipeline.  Speed and scalability are not requirements for this backend.
+        # All lancedb imports are kept inside methods (not fork-safe).
+        return LanceDBVDB(
+            table_name=collection_name,
+            uri=vdb_endpoint or config.vector_store.url,
+            embedding_model=embedding_model,
+            config=config,
+            hybrid=(config.vector_store.search_type == SearchType.HYBRID),
+        )
+
     else:
         raise ValueError(f"Invalid vector store name: {config.vector_store.name}")

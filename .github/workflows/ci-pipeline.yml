@@ -83,15 +83,24 @@ jobs:
 
       - name: Install system dependencies
         run: |
-          apt-get update && apt-get install -y gcc && rm -rf /var/lib/apt/lists/*
+          apt-get update && apt-get install -y gcc curl && rm -rf /var/lib/apt/lists/*
 
       - name: Install package with dependencies
         run: |
-          pip install -e .[all]
-          pip install --no-cache-dir -r tests/unit/requirements-test.txt
+          # Install uv (Python package and environment manager)
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          export PATH="$HOME/.local/bin:$PATH"
+
+          # Create a fresh virtual environment using uv
+          rm -rf venv-unit || echo "No existing venv-unit to clean up"
+          uv venv venv-unit
+          . venv-unit/bin/activate
+          uv pip install -e .[all]
+          uv pip install --no-cache -r tests/unit/requirements-test.txt
 
       - name: Run unit tests with coverage
         run: |
+          . venv-unit/bin/activate
           python -m pytest -v -s --cov=src --cov-report=term-missing tests/unit
 
   frontend-unit-tests:
@@ -1061,6 +1070,95 @@ jobs:
           echo "APP_VECTORSTORE_PASSWORD=" >> $GITHUB_ENV
           echo "VDB_AUTH_TOKEN=" >> $GITHUB_ENV
           echo "MILVUS_ROOT_TOKEN=" >> $GITHUB_ENV
+
+      # ========================================================================
+      # NEMO RETRIEVER LIBRARY (NRL) + LANCEDB TESTS
+      # ========================================================================
+      # NeMo-Retriever Library runs in-process; LanceDB URI is the mounted path inside containers.
+
+      - name: Prepare LanceDB volume directory
+        run: |
+          mkdir -p volumes/lancedb
+          # Clear prior DB only (APP_VECTORSTORE_URL=/volumes/lancedb/lancedb); keep .gitkeep
+          rm -rf volumes/lancedb/lancedb 2>/dev/null || true
+          ls -la volumes/lancedb
+
+      - name: Configure environment for NeMo Retriever Library (NRL) sequence tests
+        run: |
+          echo "APP_VECTORSTORE_URL=/volumes/lancedb/lancedb" >> $GITHUB_ENV
+          echo "APP_VECTORSTORE_NAME=lancedb" >> $GITHUB_ENV
+          echo "INGESTOR_BACKEND=nrl" >> $GITHUB_ENV
+          # Reset ingestor + shared compose env after prior suites (vs docker-compose-ingestor-server.yaml + nvdev.env).
+          echo "APP_NVINGEST_EXTRACTIMAGES=False" >> $GITHUB_ENV
+          echo "APP_NVINGEST_STRUCTURED_ELEMENTS_MODALITY=" >> $GITHUB_ENV
+          echo "APP_NVINGEST_IMAGE_ELEMENTS_MODALITY=" >> $GITHUB_ENV
+          echo "APP_EMBEDDINGS_MODELNAME=nvidia/llama-nemotron-embed-1b-v2" >> $GITHUB_ENV
+          echo "APP_EMBEDDINGS_SERVERURL=https://integrate.api.nvidia.com/v1" >> $GITHUB_ENV
+          echo "APP_TRACING_ENABLED=False" >> $GITHUB_ENV
+          # RAG compose (same job env for docker compose): restore nvdev / defaults after multimodal
+          echo "ENABLE_VLM_INFERENCE=False" >> $GITHUB_ENV
+          echo "ENABLE_RERANKER=True" >> $GITHUB_ENV
+          echo "APP_RANKING_SERVERURL=" >> $GITHUB_ENV
+          echo "MILVUS_CONFIG_FILE=" >> $GITHUB_ENV
+
+      - name: Restart services for NRL + LanceDB sequence tests
+        env:
+          CI_NVSTAGING_BLUEPRINT_KEY: ${{ secrets.CI_NVSTAGING_BLUEPRINT_KEY }}
+        run: |
+          echo "Relaunching RAG and ingestor with LanceDB + NRL..."
+          export APP_VECTORSTORE_URL=/volumes/lancedb/lancedb
+          export APP_VECTORSTORE_NAME=lancedb
+          export INGESTOR_BACKEND=nrl
+          export APP_EMBEDDINGS_MODELNAME=nvidia/llama-nemotron-embed-1b-v2
+          export APP_EMBEDDINGS_SERVERURL=https://integrate.api.nvidia.com/v1
+          export APP_NVINGEST_EXTRACTIMAGES=False
+          export APP_NVINGEST_IMAGE_ELEMENTS_MODALITY=
+          export APP_TRACING_ENABLED=False
+          docker compose -f deploy/compose/docker-compose-rag-server.yaml down || true
+          docker compose -f deploy/compose/docker-compose-ingestor-server.yaml down || true
+          sleep 5
+          docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d --build
+          docker compose -f deploy/compose/docker-compose-ingestor-server.yaml up -d --build
+          sleep 30
+          docker ps
+
+      - name: Run NeMo Retriever Library integration tests
+        id: nemo-retriever-library-tests
+        continue-on-error: true
+        run: |
+          source venv/bin/activate
+          echo "Running NeMo Retriever Library integration tests (sequence nemo_retriever_library)..."
+          python -m tests.integration.main --sequence nemo_retriever_library
+          echo "NeMo Retriever Library integration tests completed"
+
+      - name: Collect logs after NeMo Retriever Library tests
+        if: always()
+        run: |
+          mkdir -p logs/nemo-retriever-library
+          docker logs rag-server > logs/nemo-retriever-library/rag-server.log 2>&1 || true
+          docker logs ingestor-server > logs/nemo-retriever-library/ingestor-server.log 2>&1 || true
+          docker logs compose-nv-ingest-ms-runtime-1 > logs/nemo-retriever-library/nvingest.log 2>&1 || true
+          cp tests/integration/integration_test.log logs/nemo-retriever-library/ 2>/dev/null || true
+
+      - name: Restore default vector store and ingestor backend after NRL tests
+        if: always()
+        env:
+          CI_NVSTAGING_BLUEPRINT_KEY: ${{ secrets.CI_NVSTAGING_BLUEPRINT_KEY }}
+        run: |
+          echo "Restoring Elasticsearch + nv_ingest for workflow cleanup consistency..."
+          echo "APP_VECTORSTORE_URL=http://elasticsearch:9200" >> $GITHUB_ENV
+          echo "APP_VECTORSTORE_NAME=elasticsearch" >> $GITHUB_ENV
+          echo "INGESTOR_BACKEND=nv_ingest" >> $GITHUB_ENV
+          export APP_VECTORSTORE_URL=http://elasticsearch:9200
+          export APP_VECTORSTORE_NAME=elasticsearch
+          export INGESTOR_BACKEND=nv_ingest
+          docker compose -f deploy/compose/docker-compose-rag-server.yaml down || true
+          docker compose -f deploy/compose/docker-compose-ingestor-server.yaml down || true
+          sleep 5
+          docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d --build
+          docker compose -f deploy/compose/docker-compose-ingestor-server.yaml up -d --build
+          sleep 30
+          docker ps
       
       # ========================================================================
       # FAIL JOB IF ANY INTEGRATION TEST FAILED
@@ -1068,7 +1166,7 @@ jobs:
       # All test steps use continue-on-error so every suite runs; this step
       # marks the job as failed if any of them failed.
       - name: Fail job if any integration test failed
-        if: always() && (steps.basic-tests.outcome == 'failure' || steps.milvus-sequence-tests.outcome == 'failure' || steps.query-rewriter-tests.outcome == 'failure' || steps.reflection-tests.outcome == 'failure' || steps.guardrails-tests.outcome == 'failure' || steps.image-captioning-tests.outcome == 'failure' || steps.vlm-generation-tests.outcome == 'failure' || steps.multimodal-query-tests.outcome == 'failure' || steps.custom-prompt-tests.outcome == 'failure' || steps.library-usage-tests.outcome == 'failure' || steps.library-summarization-tests.outcome == 'failure' || steps.observability-tests.outcome == 'failure' || steps.milvus-vdb-auth-tests.outcome == 'failure')
+        if: always() && (steps.basic-tests.outcome == 'failure' || steps.milvus-sequence-tests.outcome == 'failure' || steps.query-rewriter-tests.outcome == 'failure' || steps.reflection-tests.outcome == 'failure' || steps.guardrails-tests.outcome == 'failure' || steps.image-captioning-tests.outcome == 'failure' || steps.vlm-generation-tests.outcome == 'failure' || steps.multimodal-query-tests.outcome == 'failure' || steps.custom-prompt-tests.outcome == 'failure' || steps.library-usage-tests.outcome == 'failure' || steps.library-summarization-tests.outcome == 'failure' || steps.observability-tests.outcome == 'failure' || steps.milvus-vdb-auth-tests.outcome == 'failure' || steps.nemo-retriever-library-tests.outcome == 'failure')
         run: |
           echo "=== Failed integration test suites ==="
           [ "${{ steps.basic-tests.outcome }}" = "failure" ] && echo "  - basic-tests"
@@ -1084,6 +1182,7 @@ jobs:
           [ "${{ steps.library-summarization-tests.outcome }}" = "failure" ] && echo "  - library-summarization-tests"
           [ "${{ steps.observability-tests.outcome }}" = "failure" ] && echo "  - observability-tests"
           [ "${{ steps.milvus-vdb-auth-tests.outcome }}" = "failure" ] && echo "  - milvus-vdb-auth-tests"
+          [ "${{ steps.nemo-retriever-library-tests.outcome }}" = "failure" ] && echo "  - nemo-retriever-library-tests"
           echo "One or more integration test suites failed. Failing job."
           exit 1
 

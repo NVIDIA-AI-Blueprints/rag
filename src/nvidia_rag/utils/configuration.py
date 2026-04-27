@@ -122,12 +122,12 @@ class VectorStoreConfig(_ConfigBase):
     name: str = Field(
         default="elasticsearch",
         env="APP_VECTORSTORE_NAME",
-        description="Name of the vector store backend (e.g., milvus, elasticsearch)",
+        description="Name of the vector store backend (e.g., milvus, elasticsearch, lancedb)",
     )
     url: str = Field(
         default="http://localhost:9200",
         env="APP_VECTORSTORE_URL",
-        description="URL endpoint for the vector store service",
+        description="URL endpoint for the vector store service (or LanceDB directory path)",
     )
 
     @field_validator("name", "url", mode="before")
@@ -220,6 +220,21 @@ class VectorStoreConfig(_ConfigBase):
         env="APP_VECTORSTORE_APIKEY_SECRET",
         description="API key secret for vector store authentication",
     )
+
+    @model_validator(mode="after")
+    def default_lancedb_uri(self) -> "VectorStoreConfig":
+        """Point LanceDB at the ingestor-mounted data dir when URL was left at ES default.
+
+        In Docker Compose, ``./volumes/lancedb`` is mounted at ``/volumes/lancedb``;
+        the database directory defaults to ``/volumes/lancedb/lancedb``.  If
+        ``APP_VECTORSTORE_URL`` is set explicitly, it is respected.
+        """
+        if self.name.lower() != "lancedb":
+            return self
+        default_es_url = "http://localhost:9200"
+        if not self.url or self.url == default_es_url:
+            self.url = "/volumes/lancedb/lancedb"
+        return self
 
 
 class NvIngestConfig(_ConfigBase):
@@ -316,6 +331,30 @@ class NvIngestConfig(_ConfigBase):
             return None
         return v
 
+    page_elements_invoke_url: str | None = Field(
+        default="https://ai.api.nvidia.com/v1/cv/nvidia/nemotron-page-elements-v3",
+        env="APP_NVINGEST_PAGEELEMENTSURL",
+        description="Invoke URL for the page-elements NIM (e.g. https://ai.api.nvidia.com/v1/cv/nvidia/nemotron-page-elements-v3)",
+    )
+
+    graphic_elements_invoke_url: str | None = Field(
+        default="https://ai.api.nvidia.com/v1/cv/nvidia/nemotron-graphic-elements-v1",
+        env="APP_NVINGEST_GRAPHICELEMENTSURL",
+        description="Invoke URL for the graphic-elements NIM (e.g. https://ai.api.nvidia.com/v1/cv/nvidia/nemotron-graphic-elements-v1)",
+    )
+
+    ocr_invoke_url: str | None = Field(
+        default="https://ai.api.nvidia.com/v1/cv/nvidia/nemoretriever-ocr-v1",
+        env="APP_NVINGEST_OCRURL",
+        description="Invoke URL for the OCR NIM (e.g. https://ai.api.nvidia.com/v1/cv/nvidia/nemoretriever-ocr-v1)",
+    )
+    
+    table_structure_invoke_url: str | None = Field(
+        default="https://ai.api.nvidia.com/v1/cv/nvidia/nemotron-table-structure-v1",
+        env="APP_NVINGEST_TABLESTRUCTUREURL",
+        description="Invoke URL for the table-structure NIM (e.g. https://ai.api.nvidia.com/v1/cv/nvidia/nemotron-table-structure-v1)",
+    )
+
     tokenizer: str = Field(
         default="intfloat/e5-large-unsupervised",
         env="APP_NVINGEST_TOKENIZER",
@@ -360,6 +399,11 @@ class NvIngestConfig(_ConfigBase):
             )
         return self
 
+    enable_split: bool = Field(
+        default=False,
+        env="APP_NVINGEST_ENABLESPLIT",
+        description="Enable text splitting/chunking stage during ingestion",
+    )
     enable_pdf_splitter: bool = Field(
         default=True,
         env="APP_NVINGEST_ENABLEPDFSPLITTER",
@@ -415,6 +459,17 @@ class NvIngestConfig(_ConfigBase):
         default=2048,
         env="INGESTION_MAX_MEMORY_BUDGET_MB",
         description="Max memory budget (MB) for a single ingestion job; used for dynamic batch sizing",
+    )
+    # NRL (NeMo-Retriever Library) backend configuration — see NRL_INTEGRATION_PLAN.md §8
+    backend: str = Field(
+        default="nv_ingest",
+        env="INGESTOR_BACKEND",
+        description='Ingestion backend: "nv_ingest" (default, NV-Ingest microservice) or "nrl" (NeMo-Retriever Library in-process)',
+    )
+    nrl_run_mode: str = Field(
+        default="batch",
+        env="NRL_RUN_MODE",
+        description='NRL GraphIngestor run mode: "inprocess" (default, no Ray cluster) or "batch" (Ray cluster for production throughput)',
     )
 
 

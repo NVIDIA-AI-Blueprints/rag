@@ -364,6 +364,8 @@ ingestor-server:
     # === NV-Ingest Configurations ===
     APP_NVINGEST_MESSAGECLIENTHOSTNAME: "rag-nv-ingest"
     APP_NVINGEST_MESSAGECLIENTPORT: "7670"
+    # nv_ingest: NV-Ingest microservice; nrl: NeMo-Retriever Library in-process
+    INGESTOR_BACKEND: "nv_ingest"
 
     # === NV-Ingest extraction configurations ===
     APP_NVINGEST_PDFEXTRACTMETHOD: "None"  # Method used for text extraction from "None", "pdfium", "nemotron_parse"
@@ -381,6 +383,12 @@ ingestor-server:
     # === NV-Ingest caption configurations ===
     APP_NVINGEST_CAPTIONMODELNAME: "nvidia/nemotron-nano-12b-v2-vl"  # Model name for captioning
     APP_NVINGEST_CAPTIONENDPOINTURL: ""  # Endpoint URL for captioning model
+
+    # NeMo Retriever invoke URLs (HTTP) for local NIMs (see rag-nv-ingest YOLOX_*_HTTP_ENDPOINT)
+    APP_NVINGEST_PAGEELEMENTSURL: "http://nemotron-page-elements-v3:8000/v1/infer"
+    APP_NVINGEST_GRAPHICELEMENTSURL: "http://nemotron-graphic-elements-v1:8000/v1/infer"
+    APP_NVINGEST_OCRURL: "http://nemotron-ocr-v1:8000/v1/infer"
+    APP_NVINGEST_TABLESTRUCTUREURL: "http://nemotron-table-structure-v1:8000/v1/infer"
 
     # === NV-Ingest save to disk configurations ===
     APP_NVINGEST_SAVETODISK: "False"
@@ -405,6 +413,7 @@ ingestor-server:
     LOGLEVEL: "INFO"
 
     # === NV-Ingest splitting configurations ===
+    APP_NVINGEST_ENABLESPLIT: "False"  # Master toggle: enable text splitting/chunking stage (disabled by default)
     APP_NVINGEST_CHUNKSIZE: "512"  # Size of chunks for splitting
     APP_NVINGEST_CHUNKOVERLAP: "150"  # Overlap size for chunks
     APP_NVINGEST_ENABLEPDFSPLITTER: "True"  # Enable PDF splitter
