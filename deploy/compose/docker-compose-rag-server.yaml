@@ -132,9 +132,6 @@ services:
       # VLM model name
       APP_VLM_MODELNAME: ${APP_VLM_MODELNAME:-"nvidia/nemotron-nano-12b-v2-vl"}
 
-      # Ingestion backend: "nv_ingest" (NV-Ingest microservice) or "nrl" (NeMo-Retriever Library in-process)
-      INGESTOR_BACKEND: ${INGESTOR_BACKEND:-nv_ingest}
-
       NVIDIA_API_KEY: ${NGC_API_KEY:?"NGC_API_KEY is required"}
 
       # ==== Service-Specific API Keys (Optional) ====

@@ -150,6 +150,14 @@ class NvidiaRAGIngestor:
         # Track background summary tasks to prevent garbage collection
         self._background_tasks = set()
         self.config = config or NvidiaRAGConfig()
+        if (
+            self.config.vector_store.name.lower() == "lancedb"
+            and self.config.nv_ingest.backend.lower() != "nrl"
+        ):
+            raise ValueError(
+                "LanceDB is supported only with the NRL ingestion backend "
+                "(INGESTOR_BACKEND=nrl)."
+            )
         # NRL handler — populated lazily on first upload_documents call when
         # config.nv_ingest.backend == "nrl".  None means NV-Ingest path is active.
         # Type annotation uses a string literal to avoid importing at module level
