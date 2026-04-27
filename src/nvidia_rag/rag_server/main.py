@@ -365,14 +365,13 @@ class NvidiaRAG:
 
     @property
     def _is_nrl_mode(self) -> bool:
-        """Return True when the active vector store is LanceDB (NRL ingestion mode).
+        """Return True when the NRL ingestion backend is active.
 
-        NRL (NemoRetriever Library) always uses LanceDB as its vector store.
         When this flag is True, ``prepare_citations_nrl`` is used instead of
         ``prepare_citations`` because NRL documents carry flat text metadata
         rather than the nv-ingest structured metadata (with MinIO image assets).
         """
-        return self.config.vector_store.name == "lancedb"
+        return self.config.nv_ingest.backend == "nrl"
 
     def _validate_collections_exist(
         self, collection_names: list[str], vdb_op: VDBRag
@@ -2853,10 +2852,16 @@ class NvidiaRAG:
                 try:
                     for d in context_to_show:
                         meta = getattr(d, "metadata", {}) or {}
-                        content_md = meta.get("content_metadata", {}) or {}
-                        if content_md.get("type") in ["image", "structured"]:
-                            has_images_in_context = True
-                            break
+                        if self._is_nrl_mode:
+                            # NRL uses flat stored_image_uri to signal visual chunks
+                            if meta.get("stored_image_uri"):
+                                has_images_in_context = True
+                                break
+                        else:
+                            content_md = meta.get("content_metadata", {}) or {}
+                            if content_md.get("type") in ["image", "structured"]:
+                                has_images_in_context = True
+                                break
                 except Exception:
                     # If metadata inspection fails, be conservative and proceed
                     has_images_in_context = False
@@ -2956,6 +2961,7 @@ class NvidiaRAG:
                             top_p=vlm_top_p_cfg,
                             max_tokens=vlm_max_tokens_cfg,
                             max_total_images=vlm_max_total_images_cfg,
+                            nrl_mode=self._is_nrl_mode,
                         )
                         # Eagerly prefetch first chunk to trigger any errors before creating RAGResponse
                         # ensures connection errors are caught early

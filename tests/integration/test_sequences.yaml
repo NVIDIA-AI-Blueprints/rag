@@ -98,6 +98,13 @@ sequences:
     pre_sequence: [18]  # Cleanup collection before tests
     post_sequence: [16, 17, 18, 19]  # Cleanup tests after sequence
 
+  nemo_retriever_library_vlm_generation:
+    name: "NeMo Retriever Library VLM Generation Tests"
+    description: "VLM generation with INGESTOR_BACKEND=nrl and LanceDB (same cases as vlm_generation)"
+    test_numbers: [61, 62, 63, 64]
+    pre_sequence: [65]  # Cleanup collection before VLM generation tests
+    post_sequence: [65]  # Cleanup tests after sequence
+
   library_usage:
     name: "Python Library Usage Tests"
     description: "Tests nvidia_rag Python library directly as shown in notebooks/rag_library_usage.ipynb. Assumes cloud deployed models (NVIDIA API catalog). Covers imports, config, collection management, document upload/status/retrieval, health check, RAG generation, search, and cleanup."
