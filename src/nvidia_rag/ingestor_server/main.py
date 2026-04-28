@@ -376,7 +376,7 @@ class NvidiaRAGIngestor:
         vdb_op.create_document_info_collection()
 
         # Set default values for mutable arguments
-        if split_options is None and self.config.nv_ingest.enable_split:
+        if split_options is None:
             split_options = {
                 "chunk_size": self.config.nv_ingest.chunk_size,
                 "chunk_overlap": self.config.nv_ingest.chunk_overlap,
@@ -983,7 +983,7 @@ class NvidiaRAGIngestor:
             vdb_endpoint = self.config.vector_store.url
 
         # Set default values for mutable arguments
-        if split_options is None and self.config.nv_ingest.enable_split:
+        if split_options is None:
             split_options = {
                 "chunk_size": self.config.nv_ingest.chunk_size,
                 "chunk_overlap": self.config.nv_ingest.chunk_overlap,
@@ -2686,7 +2686,7 @@ class NvidiaRAGIngestor:
             - summary_options: SummaryOptions - Advanced options for summary (page_filter, shallow_summary, summarization_strategy)
             - state_manager: IngestionStateManager - State manager for the ingestion process
         """
-        if split_options is None and self.config.nv_ingest.enable_split:
+        if split_options is None:
             split_options = {
                 "chunk_size": self.config.nv_ingest.chunk_size,
                 "chunk_overlap": self.config.nv_ingest.chunk_overlap,
