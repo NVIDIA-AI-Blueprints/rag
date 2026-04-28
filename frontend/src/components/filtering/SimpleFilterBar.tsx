@@ -479,7 +479,7 @@ export default function FilterBar({ filters, setFilters }: Props) {
           to { transform: rotate(360deg); }
         }
       `}</style>
-      <Block style={STYLES.container}>
+      <Block style={STYLES.container} data-testid="filter-bar">
         <Flex align="center" gap="density-sm" style={STYLES.flex}>
         <FilterIcon />
         <FilterChips 

@@ -87,12 +87,19 @@ export const CollectionsGrid = ({ searchQuery }: CollectionsGridProps) => {
   return (
     <VerticalNav
       style={{ width: '100%' }}
+      data-testid="collection-list"
       items={filteredCollections.map((collection: Collection) => ({
         id: collection.collection_name,
         slotLabel: (
-          <CollectionItem 
-            collection={collection} 
-          />
+          <div
+            data-testid="collection-row"
+            data-collection-name={collection.collection_name}
+            data-selected={selectedCollections.includes(collection.collection_name) ? "true" : "false"}
+          >
+            <CollectionItem 
+              collection={collection} 
+            />
+          </div>
         ),
         active: selectedCollections.includes(collection.collection_name),
         href: `#${collection.collection_name}`,

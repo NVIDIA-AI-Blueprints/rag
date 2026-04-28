@@ -56,7 +56,10 @@ export const NotificationDropdown = () => {
 
   if (totalNotifications === 0) {
     return (
-      <div style={{ width: '600px', maxHeight: '384px', padding: '16px' }}>
+      <div
+        data-testid="notification-dropdown"
+        style={{ width: '600px', maxHeight: '384px', padding: '16px' }}
+      >
         <Text kind="body/regular/sm">
           No notifications
         </Text>
@@ -65,8 +68,9 @@ export const NotificationDropdown = () => {
   }
 
   return (
-    <Stack 
-      gap="3" 
+    <Stack
+      gap="3"
+      data-testid="notification-dropdown"
       style={{ 
         width: '50vw', 
         maxHeight: '484px', 
