@@ -86,8 +86,6 @@ services:
       ##===NV-Ingest Connection Configurations=======
       APP_NVINGEST_MESSAGECLIENTHOSTNAME: ${APP_NVINGEST_MESSAGECLIENTHOSTNAME:-"nv-ingest-ms-runtime"}
       APP_NVINGEST_MESSAGECLIENTPORT: ${APP_NVINGEST_MESSAGECLIENTPORT:-7670}
-      # Ingestion backend: nv_ingest (NV-Ingest microservice) or nrl (NeMo-Retriever Library in-process)
-      INGESTOR_BACKEND: ${INGESTOR_BACKEND:-nv_ingest}
 
       ##===NV-Ingest Extract Configurations==========
       APP_NVINGEST_EXTRACTTEXT: ${APP_NVINGEST_EXTRACTTEXT:-True}

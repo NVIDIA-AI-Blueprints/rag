@@ -31,6 +31,7 @@ from nvidia_rag.rag_server.reflection import (
     check_response_groundedness,
 )
 from nvidia_rag.rag_server.response_generator import APIError
+from nvidia_rag.utils.configuration import NvidiaRAGConfig
 from nvidia_rag.utils.health_models import RAGHealthResponse
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
 
@@ -97,6 +98,17 @@ class TestNvidiaRAGInit:
             match="vdb_op must be an instance of nvidia_rag.utils.vdb.vdb_base.VDBRag",
         ):
             NvidiaRAG(vdb_op=InvalidVDB())
+
+    def test_init_with_lancedb_and_non_nrl_backend_raises(self):
+        """LanceDB is only supported when INGESTOR_BACKEND is set to nrl."""
+        config = NvidiaRAGConfig.from_dict(
+            {"vector_store": {"name": "lancedb"}, "nv_ingest": {"backend": "nv_ingest"}}
+        )
+
+        with pytest.raises(
+            ValueError, match="LanceDB is supported only with the NRL ingestion backend"
+        ):
+            NvidiaRAG(config=config)
 
     def test_init_with_prompts_dict(self):
         """Test initialization with prompts as a dictionary."""

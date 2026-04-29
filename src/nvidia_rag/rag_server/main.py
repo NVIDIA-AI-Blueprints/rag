@@ -139,6 +139,14 @@ class NvidiaRAG:
         """
         # Store config
         self.config = config or NvidiaRAGConfig()
+        if (
+            self.config.vector_store.name.lower() == "lancedb"
+            and self.config.nv_ingest.backend.lower() != "nrl"
+        ):
+            raise ValueError(
+                "LanceDB is supported only with the NRL ingestion backend "
+                "(INGESTOR_BACKEND=nrl)."
+            )
         self.vdb_op = vdb_op
 
         if self.vdb_op is not None:

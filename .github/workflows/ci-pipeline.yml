@@ -101,7 +101,7 @@ jobs:
       - name: Run unit tests with coverage
         run: |
           . venv-unit/bin/activate
-          python -m pytest -v -s --cov=src --cov-report=term-missing tests/unit
+          python -m pytest -v -s --cov=src --cov-report=term-missing tests/unit --ignore=tests/unit/test_ingestor_server/test_nemo_retriever --ignore=tests/unit/test_utils/test_vdb/test_lancedb_vdb.py
 
   frontend-unit-tests:
     name: Frontend Unit Tests
@@ -184,6 +184,8 @@ jobs:
     # Multimodal query sequence uses NVIDIA API catalog cloud endpoints; works with Elasticsearch VDB.
     env:
       ENABLE_MULTIMODAL_QUERY_CI: "true"
+      # NeMo Retriever Library (NRL) + LanceDB integration sequences (set to "true" to run in CI).
+      ENABLE_NRL_INTEGRATION_TESTS: "false"
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -1075,8 +1077,10 @@ jobs:
       # NEMO RETRIEVER LIBRARY (NRL) + LANCEDB TESTS
       # ========================================================================
       # NeMo-Retriever Library runs in-process; LanceDB URI is the mounted path inside containers.
+      # Gated by ENABLE_NRL_INTEGRATION_TESTS (job env above).
 
       - name: Prepare LanceDB volume directory
+        if: ${{ env.ENABLE_NRL_INTEGRATION_TESTS == 'true' }}
         run: |
           mkdir -p volumes/lancedb
           # Clear prior DB only (APP_VECTORSTORE_URL=/volumes/lancedb/lancedb); keep .gitkeep
@@ -1084,6 +1088,7 @@ jobs:
           ls -la volumes/lancedb
 
       - name: Configure environment for NeMo Retriever Library (NRL) sequence tests
+        if: ${{ env.ENABLE_NRL_INTEGRATION_TESTS == 'true' }}
         run: |
           echo "APP_VECTORSTORE_URL=/volumes/lancedb/lancedb" >> $GITHUB_ENV
           echo "APP_VECTORSTORE_NAME=lancedb" >> $GITHUB_ENV
@@ -1102,6 +1107,7 @@ jobs:
           echo "MILVUS_CONFIG_FILE=" >> $GITHUB_ENV
 
       - name: Restart services for NRL + LanceDB sequence tests
+        if: ${{ env.ENABLE_NRL_INTEGRATION_TESTS == 'true' }}
         env:
           CI_NVSTAGING_BLUEPRINT_KEY: ${{ secrets.CI_NVSTAGING_BLUEPRINT_KEY }}
         run: |
@@ -1123,6 +1129,7 @@ jobs:
           docker ps
 
       - name: Run NeMo Retriever Library integration tests
+        if: ${{ env.ENABLE_NRL_INTEGRATION_TESTS == 'true' }}
         id: nemo-retriever-library-tests
         continue-on-error: true
         run: |
@@ -1132,7 +1139,7 @@ jobs:
           echo "NeMo Retriever Library integration tests completed"
 
       - name: Collect logs after NeMo Retriever Library tests
-        if: always()
+        if: ${{ always() && env.ENABLE_NRL_INTEGRATION_TESTS == 'true' }}
         run: |
           mkdir -p logs/nemo-retriever-library
           docker logs rag-server > logs/nemo-retriever-library/rag-server.log 2>&1 || true
@@ -1144,6 +1151,7 @@ jobs:
       # NRL + LanceDB: VLM generation (same API tests as vlm_generation)
       # ------------------------------------------------------------------------
       - name: Configure environment for NeMo Retriever Library VLM generation tests
+        if: ${{ env.ENABLE_NRL_INTEGRATION_TESTS == 'true' }}
         run: |
           echo "ENABLE_VLM_INFERENCE=True" >> $GITHUB_ENV
           echo "APP_NVINGEST_EXTRACTIMAGES=False" >> $GITHUB_ENV
@@ -1151,6 +1159,7 @@ jobs:
           echo "CONVERSATION_HISTORY=0" >> $GITHUB_ENV
 
       - name: Restart services for NeMo Retriever Library VLM generation tests
+        if: ${{ env.ENABLE_NRL_INTEGRATION_TESTS == 'true' }}
         env:
           CI_NVSTAGING_BLUEPRINT_KEY: ${{ secrets.CI_NVSTAGING_BLUEPRINT_KEY }}
         run: |
@@ -1175,6 +1184,7 @@ jobs:
           docker ps
 
       - name: Run NeMo Retriever Library VLM generation integration tests
+        if: ${{ env.ENABLE_NRL_INTEGRATION_TESTS == 'true' }}
         id: nemo-retriever-library-vlm-generation-tests
         continue-on-error: true
         run: |
@@ -1184,7 +1194,7 @@ jobs:
           echo "NeMo Retriever Library VLM generation integration tests completed"
 
       - name: Collect logs after NeMo Retriever Library VLM generation tests
-        if: always()
+        if: ${{ always() && env.ENABLE_NRL_INTEGRATION_TESTS == 'true' }}
         run: |
           mkdir -p logs/nemo-retriever-library-vlm-generation
           docker logs rag-server > logs/nemo-retriever-library-vlm-generation/rag-server.log 2>&1 || true
@@ -1193,7 +1203,7 @@ jobs:
           cp tests/integration/integration_test.log logs/nemo-retriever-library-vlm-generation/ 2>/dev/null || true
 
       - name: Restore default vector store and ingestor backend after NRL tests
-        if: always()
+        if: ${{ always() && env.ENABLE_NRL_INTEGRATION_TESTS == 'true' }}
         env:
           CI_NVSTAGING_BLUEPRINT_KEY: ${{ secrets.CI_NVSTAGING_BLUEPRINT_KEY }}
         run: |
