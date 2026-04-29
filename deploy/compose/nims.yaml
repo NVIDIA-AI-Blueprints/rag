@@ -27,7 +27,16 @@ services:
               device_ids: ['${LLM_MS_GPU_ID:-1}', '${LLM_MS_GPU_ID2:-2}']
               capabilities: [gpu]
     healthcheck:
-      test: ["CMD", "python3", "-c", "import requests; requests.get('http://localhost:8000/v1/health/ready')"]
+      test:
+        - CMD
+        - python3
+        - -c
+        - |
+          import json
+          import sys
+          import urllib.request
+          response = urllib.request.urlopen("http://localhost:8000/v1/health/ready", timeout=5)
+          sys.exit(0 if json.load(response).get("status") == "ready" else 1)
       interval: 10s
       timeout: 20s
       retries: 100

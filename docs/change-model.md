@@ -257,12 +257,12 @@ Use this procedure to change models when you are running self-hosted NVIDIA NIM 
 
     **Nemotron Nano Models (Thinking budget LLMs) – vLLM profile**
 
-    For these Thinking budget LLMs, only the vLLM profile is supported on H100 and RTX GPUs (for example, RTX 6000 Pro).
+    For these Thinking budget LLMs, only the vLLM profile is supported on H100 and RTX GPUs (for example, RTX PRO 6000).
 
     | GPU | Model | Supported profile |
     |-----|-------|-------------------|
-    | H100, RTX 6000 Pro | nvidia/nvidia-nemotron-nano-9b-v2 | vllm |
-    | H100, RTX 6000 Pro | nvidia/nemotron-3-nano | vllm |
+    | H100, RTX PRO 6000 | nvidia/nvidia-nemotron-nano-9b-v2 | vllm |
+    | H100, RTX PRO 6000 | nvidia/nemotron-3-nano | vllm |
 
     :::{note}
     **If only the vLLM profile is available**
