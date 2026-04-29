@@ -555,6 +555,40 @@ services:
       # reflection llm server url. If "", Nvidia hosted API is used
       REFLECTION_LLM_SERVERURL: ${REFLECTION_LLM_SERVERURL-"nim-llm:8000"}
 
+      # === Agentic RAG (LangGraph plan-and-execute pipeline) ===
+      ENABLE_AGENTIC_RAG: ${ENABLE_AGENTIC_RAG:-false}
+
+      ##===Agentic Planner LLM configurations===
+      AGENTIC_PLANNER_LLM_SERVERURL: ${AGENTIC_PLANNER_LLM_SERVERURL-"nim-llm:8000"}
+      AGENTIC_PLANNER_LLM_MODEL: ${AGENTIC_PLANNER_LLM_MODEL:-"nvidia/nemotron-3-super-120b-a12b"}
+
+      ##===Agentic Task LLM configurations===
+      AGENTIC_TASK_LLM_SERVERURL: ${AGENTIC_TASK_LLM_SERVERURL-"nim-llm:8000"}
+      AGENTIC_TASK_LLM_MODEL: ${AGENTIC_TASK_LLM_MODEL:-"nvidia/nemotron-3-super-120b-a12b"}
+
+      ##===Agentic Seed Gen LLM configurations===
+      AGENTIC_SEED_GEN_LLM_SERVERURL: ${AGENTIC_SEED_GEN_LLM_SERVERURL-"nim-llm:8000"}
+      AGENTIC_SEED_GEN_LLM_MODEL: ${AGENTIC_SEED_GEN_LLM_MODEL:-"nvidia/nemotron-3-super-120b-a12b"}
+
+      ##===Agentic Synthesis LLM configurations===
+      AGENTIC_SYNTHESIS_LLM_SERVERURL: ${AGENTIC_SYNTHESIS_LLM_SERVERURL-"nim-llm:8000"}
+      AGENTIC_SYNTHESIS_LLM_MODEL: ${AGENTIC_SYNTHESIS_LLM_MODEL:-"nvidia/nemotron-3-super-120b-a12b"}
+
+      # Per-role agentic API keys (optional; empty uses NVIDIA_API_KEY fallback)
+      AGENTIC_PLANNER_LLM_APIKEY: ${AGENTIC_PLANNER_LLM_APIKEY:-""}
+      AGENTIC_TASK_LLM_APIKEY: ${AGENTIC_TASK_LLM_APIKEY:-""}
+      AGENTIC_SEED_GEN_LLM_APIKEY: ${AGENTIC_SEED_GEN_LLM_APIKEY:-""}
+      AGENTIC_SYNTHESIS_LLM_APIKEY: ${AGENTIC_SYNTHESIS_LLM_APIKEY:-""}
+
+      # Agent behaviour tuning
+      AGENTIC_LOG_LEVEL: ${AGENTIC_LOG_LEVEL:-INFO}
+
+      # Verification pass (disabled by default)
+      AGENTIC_VERIFICATION_ENABLED: ${AGENTIC_VERIFICATION_ENABLED:-false}
+
+      # Context window budget for retrieved chunks
+      AGENTIC_CONTEXT_MAX_TOKENS: ${AGENTIC_CONTEXT_MAX_TOKENS:-100000}
+
     ports:
       - "8081:8081"
     expose:

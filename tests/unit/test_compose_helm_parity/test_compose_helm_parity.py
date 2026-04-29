@@ -240,6 +240,10 @@ def test_compose_helm_image_and_env_parity():
                     "APP_VLM_APIKEY",
                     "SUMMARY_LLM_APIKEY",
                     "REFLECTION_LLM_APIKEY",
+                    "AGENTIC_PLANNER_LLM_APIKEY",
+                    "AGENTIC_TASK_LLM_APIKEY",
+                    "AGENTIC_SEED_GEN_LLM_APIKEY",
+                    "AGENTIC_SYNTHESIS_LLM_APIKEY",
                 },
             },
             "rag-frontend": {
