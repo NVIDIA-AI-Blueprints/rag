@@ -58,7 +58,7 @@ Set these parameters via environment variables in your deployment configuration 
 
 ## Enable VLM with Docker Compose
 
-NVIDIA RAG uses the [**nemotron-nano-12b-v2-vl**](https://build.nvidia.com/nvidia/nemotron-nano-12b-v2-vl) Vision-Language Model by default, provided as the `vlm-ms` service in `deploy/compose/nims.yaml`.
+NVIDIA RAG uses the [**nemotron-3-nano-30b-a3b-omni-reasoning**](https://build.nvidia.com/nvidia/nemotron-3-nano-30b-a3b-omni-reasoning) Vision-Language Model (with reasoning support) by default as of 2.5.1, provided as the `vlm-ms` service in `deploy/compose/nims.yaml`. The image is `nvcr.io/nvstaging/nim/nemotron-3-nano-30b-a3b-omni-reasoning:1.7.0-variant-rc2-48948519` (RC2). Reasoning streaming is controlled by `APP_VLM_ENABLE_THINKING` (default `true`), `APP_VLM_THINKING_TOKEN_BUDGET` (default `0` = uncapped), and `VLM_FILTER_THINK_TOKENS` (default `true` = hide reasoning trace from clients).
 
 The `vlm-generation` profile in `deploy/compose/nims.yaml` is designed for VLM-based generation on **2xH100 GPUs**. It skips the NIM LLM deployment (VLM replaces LLM), deploys the VLM service (`vlm-ms`), and deploys embedding and reranker microservices.
 
@@ -82,7 +82,7 @@ The `vlm-generation` profile in `deploy/compose/nims.yaml` is designed for VLM-b
    USERID=$(id -u) docker compose -f deploy/compose/nims.yaml --profile vlm-generation up -d
    ```
 
-2. Enable image extraction and captioning for ingestion. In `deploy/compose/docker-compose-ingestor-server.yaml`, under the `ingestor-server` service, ensure `APP_NVINGEST_EXTRACTIMAGES` is set to `True` so images are extracted and stored. Image captioning is enabled by default: `APP_NVINGEST_CAPTIONMODELNAME` is set to `nvidia/nemotron-nano-12b-v2-vl` and `APP_NVINGEST_CAPTIONENDPOINTURL` points to the `vlm-ms` service. Override via environment variables if needed:
+2. Enable image extraction and captioning for ingestion. In `deploy/compose/docker-compose-ingestor-server.yaml`, under the `ingestor-server` service, `APP_NVINGEST_EXTRACTIMAGES` defaults to `True` (as of 2.5.1) so images are extracted and stored. Image captioning is enabled by default: `APP_NVINGEST_CAPTIONMODELNAME` is set to `nvidia/nemotron-3-nano-30b-a3b-omni-reasoning` and `APP_NVINGEST_CAPTIONENDPOINTURL` points to the `vlm-ms` service. Override via environment variables if needed:
 
    ```bash
    export APP_NVINGEST_EXTRACTIMAGES=True
@@ -93,7 +93,7 @@ The `vlm-generation` profile in `deploy/compose/nims.yaml` is designed for VLM-b
 
    ```bash
    export ENABLE_VLM_INFERENCE="true"
-   export APP_VLM_MODELNAME="nvidia/nemotron-nano-12b-v2-vl"
+   export APP_VLM_MODELNAME="nvidia/nemotron-3-nano-30b-a3b-omni-reasoning"
    export APP_VLM_SERVERURL="http://vlm-ms:8000/v1"
    docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d
    ```
@@ -114,7 +114,7 @@ To use a remote NVIDIA-hosted NIM for VLM inference, set `APP_VLM_SERVERURL` to 
 
 ```bash
 export ENABLE_VLM_INFERENCE="true"
-export APP_VLM_MODELNAME="nvidia/nemotron-nano-12b-v2-vl"
+export APP_VLM_MODELNAME="nvidia/nemotron-3-nano-30b-a3b-omni-reasoning"
 export APP_VLM_SERVERURL="https://integrate.api.nvidia.com/v1/"
 docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d
 ```
@@ -131,7 +131,7 @@ Continue with [Deploy with Docker (NVIDIA-Hosted Models)](deploy-docker-nvidia-h
 
    ```yaml
    ENABLE_VLM_INFERENCE: "true"
-   APP_VLM_MODELNAME: "nvidia/nemotron-nano-12b-v2-vl"
+   APP_VLM_MODELNAME: "nvidia/nemotron-3-nano-30b-a3b-omni-reasoning"
    APP_VLM_SERVERURL: "http://nim-vlm:8000/v1"
    ```
 
@@ -197,7 +197,7 @@ USERID=$(id -u) docker compose -f deploy/compose/nims.yaml up -d
 
 export ENABLE_VLM_INFERENCE="true"
 export VLM_TO_LLM_FALLBACK="true"
-export APP_VLM_MODELNAME="nvidia/nemotron-nano-12b-v2-vl"
+export APP_VLM_MODELNAME="nvidia/nemotron-3-nano-30b-a3b-omni-reasoning"
 export APP_VLM_SERVERURL="http://vlm-ms:8000/v1"
 docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d
 ```
@@ -212,7 +212,7 @@ Do not use the `vlm-generation` profile when fallback is enabled; it skips the L
 envVars:
   ENABLE_VLM_INFERENCE: "true"
   VLM_TO_LLM_FALLBACK: "true"
-  APP_VLM_MODELNAME: "nvidia/nemotron-nano-12b-v2-vl"
+  APP_VLM_MODELNAME: "nvidia/nemotron-3-nano-30b-a3b-omni-reasoning"
   APP_VLM_SERVERURL: "http://nim-vlm:8000/v1"
 
 nimOperator:
