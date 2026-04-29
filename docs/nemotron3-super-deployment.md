@@ -29,29 +29,6 @@ The default Helm configuration requests 2 GPUs for the LLM and 1 GPU for each en
 Add 1 GPU if you enable an optional GPU-backed service such as VLM generation or GPU-accelerated Milvus.
 For the full platform matrix, see the [NVIDIA NIM LLM 2.0.3 support matrix](https://docs.nvidia.com/nim/large-language-models/2.0.3/reference/support-matrix.html).
 
----
-
-## RTX PRO 6000 Setup
-
-> Note: These steps are only required for RTX PRO 6000 Blackwell Server Edition using the TP2 profile. Skip if you are using a TP4 or TP8 profile.
-
-1. Edit `/etc/default/grub` and set:
-
-   ```text
-   GRUB_CMDLINE_LINUX_DEFAULT="quiet splash iommu=pt"
-   ```
-
-2. Run:
-
-   ```bash
-   sudo update-grub2
-   sudo reboot
-   ```
-
-No additional configuration changes are needed in `nims.yaml` or `values.yaml` beyond the defaults.
-
----
-
 ## Reasoning and non-reasoning mode
 
 To disable reasoning mode:

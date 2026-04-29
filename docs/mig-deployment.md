@@ -152,7 +152,7 @@ kubectl label nodes <node-name> nvidia.com/mig.config=custom-7x1g10-2x1g20-1x3g4
 ```
 
 :::{important}
-**For NVIDIA RTX6000 Pro Deployments:**
+**For NVIDIA RTX PRO 6000 Deployments:**
 
 Use [`mig-config-rtx6000.yaml`](../deploy/helm/mig-slicing/mig-config-rtx6000.yaml) instead:
 
@@ -197,9 +197,9 @@ helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvidia/blueprint/c
 ```
 
 :::{important}
-**For NVIDIA RTX6000 Pro Deployments:**
+**For NVIDIA RTX PRO 6000 Deployments:**
 
-If you are deploying on NVIDIA RTX6000 Pro GPUs (instead of H100 GPUs), use [`values-mig-rtx6000.yaml`](../deploy/helm/mig-slicing/values-mig-rtx6000.yaml) and [`mig-config-rtx6000.yaml`](../deploy/helm/mig-slicing/mig-config-rtx6000.yaml) which include the RTX6000-specific MIG profiles and NIM LLM model configuration.
+If you are deploying on NVIDIA RTX PRO 6000 GPUs (instead of H100 GPUs), use [`values-mig-rtx6000.yaml`](../deploy/helm/mig-slicing/values-mig-rtx6000.yaml) and [`mig-config-rtx6000.yaml`](../deploy/helm/mig-slicing/mig-config-rtx6000.yaml), which include the RTX PRO 6000-specific MIG resource profiles.
 
 ```sh
 helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.6.0-dev.tgz \

@@ -89,33 +89,15 @@ If you are working directly with the source Helm chart, and you want to customiz
     --set ngcApiSecret.password=$NGC_API_KEY
     ```
 
-   :::{important}
-   **For NVIDIA RTX6000 Pro Deployments:**
-   
-    If you are deploying on NVIDIA RTX6000 Pro GPUs (instead of H100 GPUs), you need to configure the NIM LLM model profile. The required configuration is already present but commented out in the [values.yaml](../deploy/helm/nvidia-blueprint-rag/values.yaml) file.
-   
-   Uncomment and modify the following section under `nimOperator.nim-llm.model` in the values.yaml:
-   ```yaml
-   model:
-     engine: tensorrt_llm
-     precision: "fp8"
-     qosProfile: "throughput"
-     tensorParallelism: "1"
-     gpus:
-       - product: "rtx6000_blackwell_sv"
-   ```
-   
-   Then install using the modified values.yaml:
-   ```sh
-   helm upgrade --install rag -n rag nvidia-blueprint-rag/ \
-     --set imagePullSecret.password=$NGC_API_KEY \
-     --set ngcApiSecret.password=$NGC_API_KEY \
-     -f nvidia-blueprint-rag/values.yaml
-   ```
+   :::{note}
+   The default Helm values use the Nemotron 3 Super FP8 TP2 profile and request
+   2 GPUs for the LLM. Use the same default full-GPU configuration for supported
+   platforms. For MIG-sliced deployments, see [Deploy with Helm and MIG Support](mig-deployment.md).
    :::
 
    :::{note}
    Refer to [NIM Model Profile Configuration](model-profiles.md) for using non-default NIM LLM profile.
+   For the full Nemotron 3 Super NIM 2.0.3 GPU matrix, see the [NVIDIA NIM LLM 2.0.3 support matrix](https://docs.nvidia.com/nim/large-language-models/2.0.3/reference/support-matrix.html).
    :::
 
 

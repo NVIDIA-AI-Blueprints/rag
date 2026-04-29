@@ -48,7 +48,7 @@ Both names refer to the same underlying model. Use the appropriate name based on
 
 ##### Nemotron 3 Super
 
-`nvidia/nemotron-3-super-120b-a12b` is the default LLM for this blueprint. For hardware requirements and RTX PRO 6000-specific setup, see the [Nemotron 3 Super deployment guide](nemotron3-super-deployment.md).
+`nvidia/nemotron-3-super-120b-a12b` is the default LLM for this blueprint. For hardware requirements, see the [Nemotron 3 Super deployment guide](nemotron3-super-deployment.md).
 
 
 ### Change the Embedding Model
