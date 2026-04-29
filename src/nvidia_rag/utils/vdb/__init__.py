@@ -71,8 +71,9 @@ def _get_vdb_op(
             milvus_uri=vdb_endpoint or config.vector_store.url,
             embedding_model=embedding_model,
             config=config,
-            # Object-store configuration for Milvus / NV-Ingest integrations.
-            object_store_endpoint=config.object_store.endpoint_url,
+            # Milvus bulk import passes this to the MinIO SDK, which expects
+            # host:port without an http(s) scheme.
+            object_store_endpoint=config.object_store.endpoint,
             access_key=config.object_store.access_key.get_secret_value(),
             secret_key=config.object_store.secret_key.get_secret_value(),
             bucket_name=config.nv_ingest.object_store_bucket,

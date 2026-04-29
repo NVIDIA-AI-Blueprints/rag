@@ -247,13 +247,15 @@ class MilvusVDB(VDBRagIngest):
         try:
             from nv_ingest_client.util.milvus import Milvus as NvIngestMilvus
 
+            minio_endpoint = self._normalize_minio_endpoint(object_store_endpoint)
+
             # Build kwargs for NvIngestMilvus - match all supported parameters
             nv_milvus_kwargs = {
                 "collection_name": collection_name,
                 "milvus_uri": milvus_uri,
                 # nv_ingest_client still exposes this S3-compatible endpoint
                 # argument with a MinIO-specific name.
-                "minio_endpoint": object_store_endpoint,
+                "minio_endpoint": minio_endpoint,
                 "access_key": access_key,
                 "secret_key": secret_key,
                 "bucket_name": bucket_name,
@@ -332,6 +334,20 @@ class MilvusVDB(VDBRagIngest):
         """Disconnect when the instance is garbage-collected (safety net if close() not used)."""
         if getattr(self, "_connected", False):
             self._release_connection()  # never raises
+
+    @staticmethod
+    def _normalize_minio_endpoint(endpoint: str | None) -> str | None:
+        """Return a MinIO SDK endpoint in host:port form."""
+        if not endpoint:
+            return endpoint
+
+        if "://" not in endpoint:
+            return endpoint
+
+        parsed = urlparse(endpoint)
+        if parsed.scheme:
+            return parsed.netloc or parsed.path
+        return endpoint
 
     @property
     def collection_name(self) -> str:

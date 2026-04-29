@@ -84,7 +84,7 @@ class TestVDBInit:
             call_args = mock_milvus_vdb.call_args[1]
             assert call_args["collection_name"] == "test_collection"
             assert call_args["milvus_uri"] == "http://test-milvus:19530"
-            assert call_args["object_store_endpoint"] == "http://seaweedfs:9010"
+            assert call_args["object_store_endpoint"] == "seaweedfs:9010"
             assert call_args["access_key"] == "seaweedfsadmin"
             assert call_args["secret_key"] == "seaweedfsadmin"
             assert call_args["bucket_name"] == "test-bucket"
@@ -95,6 +95,39 @@ class TestVDBInit:
             assert call_args["gpu_index"] is True
             assert call_args["gpu_search"] is True
             assert call_args["embedding_model"] == "test-embedding"
+
+    @patch("nvidia_rag.utils.vdb.get_metadata_configuration")
+    def test_get_vdb_op_milvus_passes_scheme_less_object_store_endpoint(
+        self, mock_get_metadata_config
+    ):
+        """Milvus bulk import passes this value to Minio(), which rejects URL schemes."""
+        mock_config = Mock()
+        mock_config.vector_store.name = "milvus"
+        mock_config.vector_store.url = "http://milvus:19530"
+        mock_config.vector_store.search_type = "dense"
+        mock_config.vector_store.enable_gpu_index = False
+        mock_config.vector_store.enable_gpu_search = False
+        mock_config.nv_ingest.extract_images = False
+        mock_config.nv_ingest.extract_page_as_image = False
+        mock_config.embeddings.dimensions = 768
+        self._set_object_store_config(
+            mock_config,
+            endpoint="https://bucket.example:9443",
+        )
+
+        mock_get_metadata_config.return_value = (None, None, None)
+
+        with patch(
+            "nvidia_rag.utils.vdb.milvus.milvus_vdb.MilvusVDB"
+        ) as mock_milvus_vdb:
+            _get_vdb_op(
+                vdb_endpoint="http://test-milvus:19530",
+                collection_name="test_collection",
+                config=mock_config,
+            )
+
+            call_args = mock_milvus_vdb.call_args[1]
+            assert call_args["object_store_endpoint"] == "bucket.example:9443"
 
     @patch("nvidia_rag.utils.vdb.get_metadata_configuration")
     def test_get_vdb_op_milvus_with_custom_metadata(self, mock_get_metadata_config):
