@@ -17,11 +17,17 @@ For [self-hosted local NIM](deploy-docker-self-hosted.md) deployment with `nemot
 - 3 x B200
 - 3 x RTX PRO 6000
 
+The default Docker Compose configuration uses 2 GPUs for the LLM and 1 shared GPU for the non-LLM NIMs.
+
 For [Helm](deploy-helm.md) deployment, you need one of the following:
 
-- 9 x H100-80GB
-- 9 x B200
-- 9 x RTX PRO 6000
+- 8 x H100-80GB
+- 8 x B200
+- 8 x RTX PRO 6000
+
+The default Helm configuration requests 2 GPUs for the LLM and 1 GPU for each enabled non-LLM NIM pod.
+Add 1 GPU if you enable an optional GPU-backed service such as VLM generation or GPU-accelerated Milvus.
+For the full platform matrix, see the [NVIDIA NIM LLM 2.0.3 support matrix](https://docs.nvidia.com/nim/large-language-models/2.0.3/reference/support-matrix.html).
 
 ---
 

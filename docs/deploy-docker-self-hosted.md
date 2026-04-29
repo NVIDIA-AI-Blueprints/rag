@@ -93,10 +93,11 @@ Use the following procedure to start all containers needed for this blueprint.
    ```
 
 
-3. (For A100 SXM and B200 platforms only) Run the following code to allocate 2 available GPUs before you continue with the following steps.
+3. For the default 2-GPU LLM profile, run the following code to allocate 2 available GPUs before you continue with the following steps.
 
    ```bash
-   export LLM_MS_GPU_ID=1,2
+   export LLM_MS_GPU_ID=1
+   export LLM_MS_GPU_ID2=2
    ```
 
 

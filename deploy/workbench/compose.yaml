@@ -2,7 +2,7 @@ services:
 
   nim-llm:
     container_name: nim-llm-ms
-    image: nvcr.io/nim/nvidia/nemotron-3-super-120b-a12b:1.8.0
+    image: nvcr.io/nim/nvidia/nemotron-3-super-120b-a12b:2.0.3
     volumes:
     - ${MODEL_DIRECTORY:-/tmp}:/opt/nim/.cache
     user: "0"
@@ -12,9 +12,7 @@ services:
     - "8000"
     environment:
       NGC_API_KEY: ${NGC_API_KEY}
-      NIM_ENABLE_CHUNKED_PREFILL: "1"
-      NIM_KV_CACHE_DTYPE: "fp8"
-      VLLM_ALLOW_LONG_MAX_MODEL_LEN: "1"
+      NIM_PASSTHROUGH_ARGS: ${NIM_LLM_PASSTHROUGH_ARGS:---enable-chunked-prefill --kv-cache-dtype fp8}
     shm_size: 20gb
     deploy:
       resources:
