@@ -203,6 +203,19 @@ Refer to the [full documentation](docs/readme.md) to learn about the following:
 
 
 
+## OpenShift Deployment
+
+The RAG Blueprint has been validated on Red Hat OpenShift. OpenShift support is built into the Helm chart behind an `openshift.enabled` flag — Routes, SCC RoleBindings, and secret creation are handled declaratively.
+
+```bash
+helm upgrade --install rag -n <namespace> deploy/helm/nvidia-blueprint-rag \
+  -f deploy/helm/nvidia-blueprint-rag/values-openshift.yaml \
+  --set imagePullSecret.password="$NGC_API_KEY" \
+  --set ngcApiSecret.password="$NGC_API_KEY"
+```
+
+For the full deployment runbook (prerequisites, NIM Operator setup, troubleshooting), see [`deploy/helm/nvidia-blueprint-rag/openshift.md`](deploy/helm/nvidia-blueprint-rag/openshift.md).
+
 ## Blog Posts
 
 - [NVIDIA NeMo Retriever Delivers Accurate Multimodal PDF Data Extraction 15x Faster](https://developer.nvidia.com/blog/nvidia-nemo-retriever-delivers-accurate-multimodal-pdf-data-extraction-15x-faster/)
