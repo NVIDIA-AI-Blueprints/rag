@@ -90,7 +90,7 @@ FILEPATHS = [
 COLLECTION_NAME = "multimodal_data_nvingest"
 
 MILVUS_URI = "http://localhost:19530"
-MINIO_ENDPOINT = "localhost:9010"
+OBJECT_STORE_ENDPOINT = "localhost:9010"
 
 # Server Mode (Create NeMo Retriever Library client)
 client = NvIngestClient(
@@ -127,7 +127,8 @@ ingestor = ingestor.embed(
 ingestor = ingestor.vdb_upload(
                 collection_name=COLLECTION_NAME,
                 milvus_uri=MILVUS_URI,
-                minio_endpoint=MINIO_ENDPOINT,
+                # nv-ingest client names this S3-compatible endpoint "minio_endpoint".
+                minio_endpoint=OBJECT_STORE_ENDPOINT,
                 sparse=False,
                 enable_images=True,
                 recreate=False,

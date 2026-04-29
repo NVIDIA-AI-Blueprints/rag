@@ -6,13 +6,13 @@ services:
     image: milvusdb/milvus:${MILVUS_VERSION:-v2.6.5-gpu} # milvusdb/milvus:v2.6.5 for CPU
     command: >
       bash -lc 'tmpfile=$(mktemp) &&
-      sed "s/bucketName: a-bucket/bucketName: ${MINIO_BUCKET:-${NVINGEST_MINIO_BUCKET:-nv-ingest}}/" /milvus/configs/milvus.yaml > "$$tmpfile" &&
+      sed -e "s/bucketName: a-bucket/bucketName: ${NVINGEST_OBJECTSTORE_BUCKET:-nv-ingest}/" -e "s/accessKeyID: minioadmin/accessKeyID: ${OBJECTSTORE_ACCESSKEY:-seaweedfsadmin}/" -e "s/secretAccessKey: minioadmin/secretAccessKey: ${OBJECTSTORE_SECRETKEY:-seaweedfsadmin}/" /milvus/configs/milvus.yaml > "$$tmpfile" &&
       cat "$$tmpfile" > /milvus/configs/milvus.yaml &&
       rm "$$tmpfile" &&
       milvus run standalone'
     environment:
       ETCD_ENDPOINTS: etcd:2379
-      MINIO_ADDRESS: minio:9010
+      MINIO_ADDRESS: seaweedfs:9010
       KNOWHERE_GPU_MEM_POOL_SIZE: 2048;4096
     volumes:
       - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/milvus:/var/lib/milvus
@@ -28,7 +28,7 @@ services:
       - "9091:9091"
     depends_on:
       - "etcd"
-      - "minio"
+      - "seaweedfs"
     # Comment out this section if CPU based image is used and set below env variables to False
     # export APP_VECTORSTORE_ENABLEGPUSEARCH=False
     # export APP_VECTORSTORE_ENABLEGPUINDEX=False
@@ -60,24 +60,31 @@ services:
       retries: 3
     profiles: ["milvus"]
 
-  minio:
-    container_name: milvus-minio
-    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+  seaweedfs:
+    container_name: milvus-seaweedfs
+    image: chrislusf/seaweedfs:3.73
     environment:
-      MINIO_ACCESS_KEY: minioadmin
-      MINIO_SECRET_KEY: minioadmin
+      MINIO_ACCESS_KEY: ${OBJECTSTORE_ACCESSKEY:-seaweedfsadmin}
+      MINIO_SECRET_KEY: ${OBJECTSTORE_SECRETKEY:-seaweedfsadmin}
     ports:
       - "9011:9011"
       - "9010:9010"
     volumes:
-      - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/minio:/minio_data
-    command: minio server /minio_data --console-address ":9011" --address ":9010"
+      - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/seaweedfs:/data
+      - ../../deploy/compose/seaweedfs-config/s3.json:/etc/seaweedfs/s3.json:ro
+    command:
+      - server
+      - -dir=/data
+      - -s3
+      - -s3.port=9010
+      - -s3.config=/etc/seaweedfs/s3.json
+      - -master.volumeSizeLimitMB=1024
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9010/minio/health/live"]
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 9010"]
       interval: 30s
       timeout: 20s
       retries: 3
-    profiles: ["", "milvus", "elasticsearch", "minio"]
+    profiles: ["", "milvus", "elasticsearch", "seaweedfs"]
 
   elasticsearch:
     container_name: elasticsearch

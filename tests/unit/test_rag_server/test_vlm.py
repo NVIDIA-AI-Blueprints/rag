@@ -61,18 +61,22 @@ class TestVLM:
 
     def test_vlm_init_missing_url(self):
         with pytest.raises(
-            OSError, match="VLM server URL and model name must be set in the environment"
+            OSError,
+            match="VLM server URL and model name must be set in the environment",
         ):
             VLM(self.vlm_model, "", config=self.mock_config)
 
     def test_vlm_init_missing_model(self):
         with pytest.raises(
-            OSError, match="VLM server URL and model name must be set in the environment"
+            OSError,
+            match="VLM server URL and model name must be set in the environment",
         ):
             VLM("", self.vlm_endpoint, config=self.mock_config)
 
     def test_normalize_messages_converts_images_and_accumulates_system_text(self):
-        with patch.object(VLM, "_convert_image_url_to_png_b64", return_value="converted"):
+        with patch.object(
+            VLM, "_convert_image_url_to_png_b64", return_value="converted"
+        ):
             messages, last_idx, system_text = VLM._normalize_messages(
                 [
                     {"role": "system", "content": "sys notice"},
@@ -95,9 +99,9 @@ class TestVLM:
         assert image_part["image_url"]["url"] == "data:image/png;base64,converted"
 
     def test_extract_and_process_messages_attaches_doc_images(self):
-        mock_minio = MagicMock()
+        mock_object_store = MagicMock()
         b64_img = self.create_test_image_b64()
-        mock_minio.get_object.return_value = base64.b64decode(b64_img)
+        mock_object_store.get_object_from_uri.return_value = base64.b64decode(b64_img)
         doc = SimpleNamespace(
             metadata={
                 "content_metadata": {
@@ -113,7 +117,10 @@ class TestVLM:
             },
             page_content="ignored",
         )
-        with patch("nvidia_rag.rag_server.vlm.get_minio_operator", return_value=mock_minio):
+        with patch(
+            "nvidia_rag.rag_server.vlm.get_object_store_operator",
+            return_value=mock_object_store,
+        ):
             system_msg, user_msg, history = self.vlm.extract_and_process_messages(
                 self.vlm.vlm_template,
                 [doc],
@@ -135,7 +142,9 @@ class TestVLM:
                 {"type": "text", "text": "hi"},
                 {
                     "type": "image_url",
-                    "image_url": {"url": f"data:image/png;base64,{self.create_test_image_b64()}"},
+                    "image_url": {
+                        "url": f"data:image/png;base64,{self.create_test_image_b64()}"
+                    },
                 },
             ],
         }
@@ -168,7 +177,12 @@ class TestVLM:
                 VLM, "assemble_messages", return_value=[system_message, user_message]
             ) as mock_assemble,
             patch.object(VLM, "_redact_messages_for_logging"),
-            patch.object(VLM, "invoke_model_async", new_callable=AsyncMock, return_value="final-response") as mock_invoke,
+            patch.object(
+                VLM,
+                "invoke_model_async",
+                new_callable=AsyncMock,
+                return_value="final-response",
+            ) as mock_invoke,
         ):
             response = await self.vlm.analyze_with_messages(
                 docs=[],
@@ -209,9 +223,16 @@ class TestVLM:
                 "extract_and_process_messages",
                 return_value=(system_message, user_message, []),
             ),
-            patch.object(VLM, "assemble_messages", return_value=[system_message, user_message]),
+            patch.object(
+                VLM, "assemble_messages", return_value=[system_message, user_message]
+            ),
             patch.object(VLM, "_redact_messages_for_logging"),
-            patch.object(VLM, "invoke_model_async", new_callable=AsyncMock, side_effect=RuntimeError("boom")),
+            patch.object(
+                VLM,
+                "invoke_model_async",
+                new_callable=AsyncMock,
+                side_effect=RuntimeError("boom"),
+            ),
         ):
             response = await self.vlm.analyze_with_messages(
                 docs=[], messages=[{"role": "user", "content": "hi"}]
@@ -239,7 +260,9 @@ class TestVLM:
                 "extract_and_process_messages",
                 return_value=(system_message, user_message, []),
             ),
-            patch.object(VLM, "assemble_messages", return_value=[system_message, user_message]),
+            patch.object(
+                VLM, "assemble_messages", return_value=[system_message, user_message]
+            ),
             patch.object(VLM, "_redact_messages_for_logging"),
         ):
             chunks = []
@@ -303,37 +326,50 @@ class TestVLM:
         assert "File: foo" in formatted
         assert "Important text" in formatted
 
-    def test_extract_images_from_docs_nrl_fetches_stored_uri_and_returns_png_parts(self):
-        mock_minio = MagicMock()
+    def test_extract_images_from_docs_nrl_fetches_stored_uri_and_returns_png_parts(
+        self,
+    ):
+        mock_object_store = MagicMock()
         b64_img = self.create_test_image_b64()
-        mock_minio.get_object.return_value = base64.b64decode(b64_img)
+        mock_object_store.get_object_from_uri.return_value = base64.b64decode(b64_img)
         doc = SimpleNamespace(
             metadata={
                 "stored_image_uri": "s3://default-bucket/collection/page.png",
             },
             page_content="chunk text",
         )
-        with patch("nvidia_rag.rag_server.vlm.get_minio_operator", return_value=mock_minio):
-            parts = self.vlm._extract_images_from_docs_nrl([doc], remaining_image_budget=None)
+        with patch(
+            "nvidia_rag.rag_server.vlm.get_object_store_operator",
+            return_value=mock_object_store,
+        ):
+            parts = self.vlm._extract_images_from_docs_nrl(
+                [doc], remaining_image_budget=None
+            )
 
-        mock_minio.get_object.assert_called_once_with("collection/page.png")
+        mock_object_store.get_object_from_uri.assert_called_once_with(
+            "s3://default-bucket/collection/page.png"
+        )
         assert len(parts) == 1
         assert parts[0]["type"] == "image_url"
         assert parts[0]["image_url"]["url"].startswith("data:image/png;base64,")
 
     def test_extract_images_from_docs_nrl_skips_without_stored_image_uri(self):
         doc = SimpleNamespace(metadata={}, page_content="text only")
-        with patch("nvidia_rag.rag_server.vlm.get_minio_operator") as mock_get_minio:
-            parts = self.vlm._extract_images_from_docs_nrl([doc], remaining_image_budget=5)
+        with patch(
+            "nvidia_rag.rag_server.vlm.get_object_store_operator"
+        ) as mock_get_object_store:
+            parts = self.vlm._extract_images_from_docs_nrl(
+                [doc], remaining_image_budget=5
+            )
 
         assert parts == []
-        mock_get_minio.return_value.get_object.assert_not_called()
+        mock_get_object_store.return_value.get_object_from_uri.assert_not_called()
 
     def test_extract_images_from_docs_nrl_respects_remaining_image_budget(self):
-        mock_minio = MagicMock()
+        mock_object_store = MagicMock()
         b64_img = self.create_test_image_b64()
         raw_png = base64.b64decode(b64_img)
-        mock_minio.get_object.return_value = raw_png
+        mock_object_store.get_object_from_uri.return_value = raw_png
         docs = [
             SimpleNamespace(
                 metadata={"stored_image_uri": "s3://b/a/1.png"},
@@ -344,14 +380,19 @@ class TestVLM:
                 page_content="b",
             ),
         ]
-        with patch("nvidia_rag.rag_server.vlm.get_minio_operator", return_value=mock_minio):
-            parts = self.vlm._extract_images_from_docs_nrl(docs, remaining_image_budget=1)
+        with patch(
+            "nvidia_rag.rag_server.vlm.get_object_store_operator",
+            return_value=mock_object_store,
+        ):
+            parts = self.vlm._extract_images_from_docs_nrl(
+                docs, remaining_image_budget=1
+            )
 
         assert len(parts) == 1
-        mock_minio.get_object.assert_called_once_with("a/1.png")
+        mock_object_store.get_object_from_uri.assert_called_once_with("s3://b/a/1.png")
 
-    def test_extract_images_from_docs_nrl_continues_on_minio_error(self):
-        mock_minio = MagicMock()
+    def test_extract_images_from_docs_nrl_continues_on_object_store_error(self):
+        mock_object_store = MagicMock()
         b64_img = self.create_test_image_b64()
         good_raw = base64.b64decode(b64_img)
         docs = [
@@ -364,9 +405,17 @@ class TestVLM:
                 page_content="y",
             ),
         ]
-        mock_minio.get_object.side_effect = [RuntimeError("unavailable"), good_raw]
-        with patch("nvidia_rag.rag_server.vlm.get_minio_operator", return_value=mock_minio):
-            parts = self.vlm._extract_images_from_docs_nrl(docs, remaining_image_budget=None)
+        mock_object_store.get_object_from_uri.side_effect = [
+            RuntimeError("unavailable"),
+            good_raw,
+        ]
+        with patch(
+            "nvidia_rag.rag_server.vlm.get_object_store_operator",
+            return_value=mock_object_store,
+        ):
+            parts = self.vlm._extract_images_from_docs_nrl(
+                docs, remaining_image_budget=None
+            )
 
         assert len(parts) == 1
         assert parts[0]["type"] == "image_url"

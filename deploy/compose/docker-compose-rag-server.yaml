@@ -24,10 +24,10 @@ services:
       # Absolute path to custom prompt.yaml file
       PROMPT_CONFIG_FILE: ${PROMPT_CONFIG_FILE:-/prompt.yaml}
 
-      ##===MINIO specific configurations which is used to store the multimodal base64 content===
-      MINIO_ENDPOINT: "minio:9010"
-      MINIO_ACCESSKEY: "minioadmin"
-      MINIO_SECRETKEY: "minioadmin"
+      ##===Object-store configurations used to store multimodal base64 content===
+      OBJECTSTORE_ENDPOINT: "seaweedfs:9010"
+      OBJECTSTORE_ACCESSKEY: "seaweedfsadmin"
+      OBJECTSTORE_SECRETKEY: "seaweedfsadmin"
 
       ##===Vector DB specific configurations===
       # URL on which vectorstore is hosted

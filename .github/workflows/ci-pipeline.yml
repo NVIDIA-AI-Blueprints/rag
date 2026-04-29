@@ -316,7 +316,7 @@ jobs:
         run: |
           echo "=== LOGS FOR RUNNING CONTAINERS ==="
           docker logs --tail 50 elasticsearch || echo "No logs for elasticsearch"
-          docker logs --tail 50 milvus-minio || echo "No logs for milvus-minio"
+          docker logs --tail 50 milvus-seaweedfs || echo "No logs for milvus-seaweedfs"
           docker logs rag-server || echo "No logs for rag-server"
           docker logs ingestor-server || echo "No logs for ingestor-server"
           echo "Deploy stage completed successfully"
@@ -420,7 +420,7 @@ jobs:
           mkdir -p logs/milvus-sequence
           docker logs milvus-standalone > logs/milvus-sequence/milvus.log 2>&1 || true
           docker logs milvus-etcd > logs/milvus-sequence/etcd.log 2>&1 || true
-          docker logs milvus-minio > logs/milvus-sequence/minio.log 2>&1 || true
+          docker logs milvus-seaweedfs > logs/milvus-sequence/seaweedfs.log 2>&1 || true
           docker logs rag-server > logs/milvus-sequence/rag-server.log 2>&1 || true
           docker logs ingestor-server > logs/milvus-sequence/ingestor-server.log 2>&1 || true
           docker logs compose-nv-ingest-ms-runtime-1 > logs/milvus-sequence/nvingest.log 2>&1 || true
@@ -819,7 +819,7 @@ jobs:
       - name: Stop rag-server and ingestor-server for library tests
         run: |
           echo "Stopping rag-server and ingestor-server containers (library mode doesn't need them)..."
-          echo "Keeping nv-ingest-ms-runtime, Elasticsearch, Redis, MinIO running for library mode..."
+          echo "Keeping nv-ingest-ms-runtime, Elasticsearch, Redis, object store running for library mode..."
           docker stop rag-server || true
           docker stop ingestor-server || true
           echo "Services stopped. Library tests will use the nvidia_rag library directly."
@@ -997,7 +997,7 @@ jobs:
           echo "Checking Milvus logs..."
           docker logs --tail 100 milvus-standalone || true
           docker logs --tail 50 milvus-etcd || true
-          docker logs --tail 50 milvus-minio || true
+          docker logs --tail 50 milvus-seaweedfs || true
       
       - name: Restart services for Milvus VDB auth tests
         env:
@@ -1038,7 +1038,7 @@ jobs:
           docker logs ingestor-server > logs/milvus-vdb-auth/ingestor-server.log 2>&1 || true
           docker logs milvus-standalone > logs/milvus-vdb-auth/milvus.log 2>&1 || true
           docker logs milvus-etcd > logs/milvus-vdb-auth/etcd.log 2>&1 || true
-          docker logs milvus-minio > logs/milvus-vdb-auth/minio.log 2>&1 || true
+          docker logs milvus-seaweedfs > logs/milvus-vdb-auth/seaweedfs.log 2>&1 || true
           cp tests/integration/integration_test.log logs/milvus-vdb-auth/ 2>/dev/null || true
       
       - name: Revert Milvus VDB auth configurations
@@ -1059,7 +1059,7 @@ jobs:
           sed -i 's|- \${MILVUS_CONFIG_FILE:-./milvus.yaml}:/milvus/configs/milvus.yaml|# - ${MILVUS_CONFIG_FILE:-./milvus.yaml}:/milvus/configs/milvus.yaml|' tests/integration/vectordb.yaml
           sed -i 's|# - \${DOCKER_VOLUME_DIRECTORY:-.}/volumes/milvus:/var/lib/milvus|- \${DOCKER_VOLUME_DIRECTORY:-.}/volumes/milvus:/var/lib/milvus|' tests/integration/vectordb.yaml
           
-          # Restart default vector DB stack (Elasticsearch + MinIO) for end of job
+          # Restart default vector DB stack (Elasticsearch + object store) for end of job
           echo "Restarting vector database stack after Milvus auth tests..."
           docker compose -f tests/integration/vectordb.yaml up -d
           sleep 30

@@ -64,6 +64,7 @@ from nvidia_rag.rag_server.response_generator import (
     Citations,
     ErrorCodeMapping,
     RAGResponse,
+    configure_object_store_operator,
     generate_answer_async,
     prepare_citations,
     prepare_citations_nrl,
@@ -148,6 +149,7 @@ class NvidiaRAG:
                 "(INGESTOR_BACKEND=nrl)."
             )
         self.vdb_op = vdb_op
+        configure_object_store_operator(self.config)
 
         if self.vdb_op is not None:
             if not isinstance(self.vdb_op, VDBRag):
@@ -377,7 +379,7 @@ class NvidiaRAG:
 
         When this flag is True, ``prepare_citations_nrl`` is used instead of
         ``prepare_citations`` because NRL documents carry flat text metadata
-        rather than the nv-ingest structured metadata (with MinIO image assets).
+        rather than the nv-ingest structured metadata (with object-store image assets).
         """
         return self.config.nv_ingest.backend == "nrl"
 
@@ -833,7 +835,7 @@ class NvidiaRAG:
 
         # Choose the citations builder based on ingestion mode.
         # NRL (LanceDB) produces text-only flat metadata; nv-ingest produces
-        # structured metadata with potential MinIO image / table assets.
+        # structured metadata with potential object-store image / table assets.
         _citations_fn = prepare_citations_nrl if self._is_nrl_mode else prepare_citations
 
         try:

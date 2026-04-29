@@ -61,6 +61,7 @@ from nvidia_rag.ingestor_server.nvingest import (
 )
 from nvidia_rag.ingestor_server.task_handler import INGESTION_TASK_HANDLER
 from nvidia_rag.rag_server.main import APIError
+from nvidia_rag.rag_server.response_generator import configure_object_store_operator
 from nvidia_rag.utils.batch_utils import calculate_dynamic_batch_parameters
 from nvidia_rag.utils.common import (
     create_catalog_metadata,
@@ -78,8 +79,9 @@ from nvidia_rag.utils.metadata_validation import (
     MetadataSchema,
     MetadataValidator,
 )
-from nvidia_rag.utils.minio_operator import (
-    get_minio_operator,
+from nvidia_rag.utils.object_store import (
+    DEFAULT_BUCKET_NAME,
+    get_object_store_operator,
     get_unique_thumbnail_id_collection_prefix,
     get_unique_thumbnail_id_file_name_prefix,
 )
@@ -158,6 +160,7 @@ class NvidiaRAGIngestor:
                 "LanceDB is supported only with the NRL ingestion backend "
                 "(INGESTOR_BACKEND=nrl)."
             )
+        configure_object_store_operator(self.config)
         # NRL handler — populated lazily on first upload_documents call when
         # config.nv_ingest.backend == "nrl".  None means NV-Ingest path is active.
         # Type annotation uses a string literal to avoid importing at module level
@@ -170,23 +173,30 @@ class NvidiaRAGIngestor:
             config=self.config, get_lite_client=self.mode == Mode.LITE
         )
 
-        # Initialize MinIO operator - handle failures gracefully
+        # Initialize object-store operator - handle failures gracefully
         try:
             if self.mode == Mode.LITE:
-                raise ValueError("MinIO operations are not supported in RAG Lite mode")
-            self.minio_operator = get_minio_operator(config=self.config)
+                raise ValueError(
+                    "Object-store operations are not supported in RAG Lite mode"
+                )
+            self.object_store_operator = get_object_store_operator(config=self.config)
             # Ensure default bucket exists (idempotent operation)
             try:
-                self.minio_operator._make_bucket(bucket_name="a-bucket")
-                logger.debug("Ensured 'a-bucket' exists in MinIO")
+                self.object_store_operator._make_bucket(
+                    bucket_name=DEFAULT_BUCKET_NAME
+                )
+                logger.debug(
+                    "Ensured default object-store bucket '%s' exists",
+                    DEFAULT_BUCKET_NAME,
+                )
             except Exception as bucket_err:
                 # Log specific exception for debugging bucket creation issues
                 logger.debug("Could not ensure bucket exists: %s", bucket_err)
         except Exception as e:
-            self.minio_operator = None
-            # Error already logged in MinioOperator.__init__, just note it here
+            self.object_store_operator = None
+            # Error already logged in object-store operator init, just note it here
             logger.debug(
-                "MinIO operator set to None due to initialization failure, reason: %s",
+                "Object-store operator set to None due to initialization failure, reason: %s",
                 e,
             )
 
@@ -1556,42 +1566,42 @@ class NvidiaRAGIngestor:
             )
 
             response = vdb_op.delete_collections(collection_names)
-            # Delete citation metadata from Minio (skip if MinIO unavailable)
-            if self.minio_operator is not None:
+            # Delete citation metadata from object storage (skip if unavailable)
+            if self.object_store_operator is not None:
                 for collection in collection_names:
                     collection_prefix = get_unique_thumbnail_id_collection_prefix(
                         collection
                     )
                     try:
-                        delete_object_names = self.minio_operator.list_payloads(
+                        delete_object_names = self.object_store_operator.list_payloads(
                             collection_prefix
                         )
-                        self.minio_operator.delete_payloads(delete_object_names)
+                        self.object_store_operator.delete_payloads(delete_object_names)
                     except Exception as e:
                         logger.warning(
-                            f"Failed to delete MinIO objects for collection {collection}: {e}"
+                            f"Failed to delete object-store objects for collection {collection}: {e}"
                         )
 
-                # Delete document summary from Minio
+                # Delete document summary from object storage
                 for collection in collection_names:
                     collection_prefix = get_unique_thumbnail_id_collection_prefix(
                         f"summary_{collection}"
                     )
                     try:
-                        delete_object_names = self.minio_operator.list_payloads(
+                        delete_object_names = self.object_store_operator.list_payloads(
                             collection_prefix
                         )
                         if len(delete_object_names):
-                            self.minio_operator.delete_payloads(delete_object_names)
+                            self.object_store_operator.delete_payloads(delete_object_names)
                             logger.info(
-                                f"Deleted all document summaries from Minio for collection: {collection}"
+                                f"Deleted all document summaries from object storage for collection: {collection}"
                             )
                     except Exception as e:
                         logger.warning(
-                            f"Failed to delete MinIO summaries for collection {collection}: {e}"
+                            f"Failed to delete object-store summaries for collection {collection}: {e}"
                         )
             else:
-                logger.warning("MinIO unavailable - skipping metadata deletion")
+                logger.warning("Object store unavailable - skipping metadata deletion")
 
             return response
         except Exception as e:
@@ -1836,10 +1846,10 @@ class NvidiaRAGIngestor:
             if not deleted_docs and not not_found_docs:
                 deleted_docs = document_names
 
-            # Helper function to delete MinIO metadata for documents
-            def delete_minio_metadata(docs_to_delete: list[str]) -> None:
-                if self.minio_operator is None:
-                    logger.warning("MinIO unavailable - skipping metadata deletion")
+            # Helper function to delete object-store metadata for documents
+            def delete_object_store_metadata(docs_to_delete: list[str]) -> None:
+                if self.object_store_operator is None:
+                    logger.warning("Object store unavailable - skipping metadata deletion")
                     return
 
                 for doc in docs_to_delete:
@@ -1848,13 +1858,13 @@ class NvidiaRAGIngestor:
                         collection_name, doc
                     )
                     try:
-                        delete_object_names = self.minio_operator.list_payloads(
+                        delete_object_names = self.object_store_operator.list_payloads(
                             filename_prefix
                         )
-                        self.minio_operator.delete_payloads(delete_object_names)
+                        self.object_store_operator.delete_payloads(delete_object_names)
                     except Exception as e:
                         logger.warning(
-                            f"Failed to delete MinIO objects for doc {doc}: {e}"
+                            f"Failed to delete object-store objects for doc {doc}: {e}"
                         )
 
                     # Delete document summary
@@ -1862,15 +1872,17 @@ class NvidiaRAGIngestor:
                         f"summary_{collection_name}", doc
                     )
                     try:
-                        delete_object_names = self.minio_operator.list_payloads(
+                        delete_object_names = self.object_store_operator.list_payloads(
                             filename_prefix
                         )
                         if len(delete_object_names):
-                            self.minio_operator.delete_payloads(delete_object_names)
-                            logger.info(f"Deleted summary for doc: {doc} from Minio")
+                            self.object_store_operator.delete_payloads(delete_object_names)
+                            logger.info(
+                                "Deleted summary for doc: %s from object storage", doc
+                            )
                     except Exception as e:
                         logger.warning(
-                            f"Failed to delete MinIO summary for doc {doc}: {e}"
+                            f"Failed to delete object-store summary for doc {doc}: {e}"
                         )
 
             # Recalculate collection info from remaining documents after deletion
@@ -1995,8 +2007,8 @@ class NvidiaRAGIngestor:
                     "documents": [],
                 }
 
-            # Delete MinIO metadata for successfully deleted documents
-            delete_minio_metadata(deleted_docs)
+            # Delete object-store metadata for successfully deleted documents
+            delete_object_store_metadata(deleted_docs)
 
             # Build documents response with metadata and document_info from fetched data
             documents = []

@@ -44,12 +44,31 @@ spec:
           - "{{ .Values.server.workers }}"
           ports:
             - containerPort: 8081
+          {{- $eckCfg := index .Values "eck-elasticsearch" }}
+          {{- $vectorUser := index .Values.envVars "APP_VECTORSTORE_USERNAME" }}
+          {{- $vectorPass := index .Values.envVars "APP_VECTORSTORE_PASSWORD" }}
+          {{- $vectorApiKey := index .Values.envVars "APP_VECTORSTORE_APIKEY" }}
+          {{- $vectorApiKeyId := index .Values.envVars "APP_VECTORSTORE_APIKEY_ID" }}
+          {{- $vectorApiKeySecret := index .Values.envVars "APP_VECTORSTORE_APIKEY_SECRET" }}
+          {{- $useElasticUserSecret := and $eckCfg.enabled (not $vectorUser) (not $vectorPass) (not $vectorApiKey) (not $vectorApiKeyId) (not $vectorApiKeySecret) }}
           env:
           {{- if .Values.envVars }}
           {{- range $k, $v := .Values.envVars }}
+          {{- if and $useElasticUserSecret (or (eq $k "APP_VECTORSTORE_USERNAME") (eq $k "APP_VECTORSTORE_PASSWORD")) }}
+          {{- else }}
             - name: "{{ $k }}"
               value: "{{ $v }}"
           {{- end }}
+          {{- end }}
+          {{- end }}
+          {{- if $useElasticUserSecret }}
+            - name: APP_VECTORSTORE_USERNAME
+              value: "elastic"
+            - name: APP_VECTORSTORE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "nvidia-blueprint-rag.elasticsearchUserSecretName" . }}
+                  key: elastic
           {{- end }}
             - name: NVIDIA_API_KEY
               valueFrom:

@@ -226,7 +226,7 @@ Use Milvus when you want the optional Milvus stack instead of Elasticsearch. You
 
 ### Docker Compose
 
-1. Start the Milvus profile (Milvus, etcd, MinIO, and related services).
+1. Start the Milvus profile (Milvus, etcd, SeaweedFS object store, and related services).
 
    ```bash
    docker compose -f deploy/compose/vectordb.yaml --profile milvus up -d

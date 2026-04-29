@@ -32,7 +32,7 @@ from nvidia_rag.utils.observability.tracing import get_tracer, trace_function
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
 
 from nvidia_rag.utils.llm import get_prompts
-from nvidia_rag.utils.minio_operator import DEFAULT_BUCKET_NAME
+from nvidia_rag.utils.object_store import DEFAULT_BUCKET_NAME
 
 logger = logging.getLogger(__name__)
 TRACER = get_tracer("nvidia_rag.ingestor.nvingest")
@@ -102,7 +102,7 @@ def get_nv_ingest_ingestor(
         - enable_pdf_split_processing: Whether PDF split processing is enabled
         - pdf_split_processing_options: Options for PDF split processing
         - prompts: Prompts dict for captioning (optional)
-        - store_images: When True and vdb_op is set, append NV-Ingest ``.store()`` for MinIO storage
+        - store_images: When True and vdb_op is set, append NV-Ingest ``.store()`` for object storage
             (citation assets). Set False for RAG Lite.
     
     Returns:
@@ -246,14 +246,24 @@ def get_nv_ingest_ingestor(
     # Add store task (object storage for citations / multimodal). Requires a collection
     # prefix from vdb_op; skipped for shallow extraction (vdb_op=None) and RAG Lite.
     if vdb_op is not None and store_images:
-        storage_uri = f"s3://{DEFAULT_BUCKET_NAME}/{vdb_op.collection_name}"
-        public_base_url = f"s3://{DEFAULT_BUCKET_NAME}/{vdb_op.collection_name}"
-        storage_options = {
-            "key": config.minio.access_key.get_secret_value(),
-            "secret": config.minio.secret_key.get_secret_value(),
-            "client_kwargs": {"endpoint_url": "http://" + config.minio.endpoint},
-        }
-        logger.info("Storing to MinIO at storage URI: %s", storage_uri)
+        if config.object_store.backend == "filesystem":
+            storage_root = (
+                config.object_store.storage_root
+                / DEFAULT_BUCKET_NAME
+                / vdb_op.collection_name
+            )
+            storage_uri = storage_root.as_uri()
+            public_base_url = storage_uri
+            storage_options = {}
+        else:
+            storage_uri = f"s3://{DEFAULT_BUCKET_NAME}/{vdb_op.collection_name}"
+            public_base_url = f"s3://{DEFAULT_BUCKET_NAME}/{vdb_op.collection_name}"
+            storage_options = {
+                "key": config.object_store.access_key.get_secret_value(),
+                "secret": config.object_store.secret_key.get_secret_value(),
+                "client_kwargs": {"endpoint_url": config.object_store.endpoint_url},
+            }
+        logger.info("Storing extracted assets at storage URI: %s", storage_uri)
         ingestor = ingestor.store(
             structured=True,
             images=True,

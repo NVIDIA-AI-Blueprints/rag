@@ -242,10 +242,10 @@ services:
       # vectorstore collection name to store embeddings
       COLLECTION_NAME: ${COLLECTION_NAME:-multimodal_data}
 
-      ##===MINIO specific configurations===
-      MINIO_ENDPOINT: "minio:9010"
-      MINIO_ACCESSKEY: "minioadmin"
-      MINIO_SECRETKEY: "minioadmin"
+      ##===Object-store specific configurations===
+      OBJECTSTORE_ENDPOINT: "seaweedfs:9010"
+      OBJECTSTORE_ACCESSKEY: "seaweedfsadmin"
+      OBJECTSTORE_SECRETKEY: "seaweedfsadmin"
 
       NGC_API_KEY: ${NGC_API_KEY:?"NGC_API_KEY is required"}
       NVIDIA_API_KEY: ${NGC_API_KEY:?"NGC_API_KEY is required"}
@@ -283,7 +283,7 @@ services:
 
       ##===NV-Ingest Save to Disk Configurations====
       APP_NVINGEST_SAVETODISK: ${APP_NVINGEST_SAVETODISK:-False}
-      NVINGEST_MINIO_BUCKET: ${NVINGEST_MINIO_BUCKET:-nv-ingest}
+      NVINGEST_OBJECTSTORE_BUCKET: ${NVINGEST_OBJECTSTORE_BUCKET:-nv-ingest}
 
       ##===NV-Ingest Performance Configurations========
       APP_NVINGEST_ENABLE_PDF_SPLIT_PROCESSING: ${APP_NVINGEST_ENABLE_PDF_SPLIT_PROCESSING:-False}
@@ -369,9 +369,9 @@ services:
       - MESSAGE_CLIENT_HOST=redis
       - MESSAGE_CLIENT_PORT=6379
       - MESSAGE_CLIENT_TYPE=redis
-      - MINIO_BUCKET=${MINIO_BUCKET:-nv-ingest}
-      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY:-minioadmin}
-      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY:-minioadmin}
+      - MINIO_BUCKET=${NVINGEST_OBJECTSTORE_BUCKET:-nv-ingest}
+      - MINIO_ACCESS_KEY=${OBJECTSTORE_ACCESSKEY:-seaweedfsadmin}
+      - MINIO_SECRET_KEY=${OBJECTSTORE_SECRETKEY:-seaweedfsadmin}
       - MRC_IGNORE_NUMA_CHECK=1
       - NEMOTRON_PARSE_HTTP_ENDPOINT=${NEMOTRON_PARSE_HTTP_ENDPOINT:-http://nemotron-parse:8000/v1/chat/completions}
       - NEMOTRON_PARSE_INFER_PROTOCOL=${NEMOTRON_PARSE_INFER_PROTOCOL:-http}
@@ -446,10 +446,10 @@ services:
       # Absolute path to custom prompt.yaml file
       PROMPT_CONFIG_FILE: ${PROMPT_CONFIG_FILE:-/prompt.yaml}
 
-      ##===MINIO specific configurations which is used to store the multimodal base64 content===
-      MINIO_ENDPOINT: "minio:9010"
-      MINIO_ACCESSKEY: "minioadmin"
-      MINIO_SECRETKEY: "minioadmin"
+      ##===Object-store specific configurations which is used to store the multimodal base64 content===
+      OBJECTSTORE_ENDPOINT: "seaweedfs:9010"
+      OBJECTSTORE_ACCESSKEY: "seaweedfsadmin"
+      OBJECTSTORE_SECRETKEY: "seaweedfsadmin"
 
       ##===Vector DB specific configurations===
       # URL on which vectorstore is hosted (Milvus: http://milvus:19530 when using --profile vectordb)
@@ -593,10 +593,15 @@ services:
   milvus:
     container_name: milvus-standalone
     image: milvusdb/milvus:v2.5.3-gpu # milvusdb/milvus:v2.5.3 for CPU
-    command: ["milvus", "run", "standalone"]
+    command: >
+      bash -lc 'tmpfile=$(mktemp) &&
+      sed -e "s/bucketName: a-bucket/bucketName: ${NVINGEST_OBJECTSTORE_BUCKET:-nv-ingest}/" -e "s/accessKeyID: minioadmin/accessKeyID: ${OBJECTSTORE_ACCESSKEY:-seaweedfsadmin}/" -e "s/secretAccessKey: minioadmin/secretAccessKey: ${OBJECTSTORE_SECRETKEY:-seaweedfsadmin}/" /milvus/configs/milvus.yaml > "$$tmpfile" &&
+      cat "$$tmpfile" > /milvus/configs/milvus.yaml &&
+      rm "$$tmpfile" &&
+      milvus run standalone'
     environment:
       ETCD_ENDPOINTS: etcd:2379
-      MINIO_ADDRESS: minio:9010
+      MINIO_ADDRESS: seaweedfs:9010
       KNOWHERE_GPU_MEM_POOL_SIZE: 2048;4096
     volumes:
       - ${DOCKER_VOLUME_DIRECTORY:-./volumes/milvus}:/var/lib/milvus
@@ -611,7 +616,7 @@ services:
       - "9091:9091"
     depends_on:
       - "etcd"
-      - "minio"
+      - "seaweedfs"
     # Comment out this section if CPU based image is used and set below env variables to False
     # export APP_VECTORSTORE_ENABLEGPUSEARCH=False
     # export APP_VECTORSTORE_ENABLEGPUINDEX=False
@@ -643,25 +648,32 @@ services:
       retries: 3
     profiles: ["vectordb"]
 
-  minio:
-    container_name: milvus-minio
-    image: minio/minio:RELEASE.2025-02-28T09-55-16Z
+  seaweedfs:
+    container_name: milvus-seaweedfs
+    image: chrislusf/seaweedfs:3.73
     environment:
-      MINIO_ACCESS_KEY: minioadmin
-      MINIO_SECRET_KEY: minioadmin
+      MINIO_ACCESS_KEY: ${OBJECTSTORE_ACCESSKEY:-seaweedfsadmin}
+      MINIO_SECRET_KEY: ${OBJECTSTORE_SECRETKEY:-seaweedfsadmin}
     ports:
       - "9011:9011"
       - "9010:9010"
     volumes:
-      - ${DOCKER_VOLUME_DIRECTORY:-./volumes/minio}:/minio_data
-    command: minio server /minio_data --console-address ":9011" --address ":9010"
+      - ${DOCKER_VOLUME_DIRECTORY:-./volumes/seaweedfs}:/data
+      - ../compose/seaweedfs-config/s3.json:/etc/seaweedfs/s3.json:ro
+    command:
+      - server
+      - -dir=/data
+      - -s3
+      - -s3.port=9010
+      - -s3.config=/etc/seaweedfs/s3.json
+      - -master.volumeSizeLimitMB=1024
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9010/minio/health/live"]
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 9010"]
       interval: 30s
       timeout: 20s
       retries: 3
     # Shared object storage for NV-Ingest and Milvus; included with ingest/rag so ES deployments do not require --profile vectordb
-    profiles: ["vectordb", "ingest", "rag"]
+    profiles: ["vectordb", "ingest", "rag", "seaweedfs"]
 
   elasticsearch:
     container_name: elasticsearch

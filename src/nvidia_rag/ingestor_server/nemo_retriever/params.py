@@ -38,7 +38,7 @@ from nemo_retriever.params import (
     TextChunkParams,
 )
 
-from nvidia_rag.utils.minio_operator import DEFAULT_BUCKET_NAME
+from nvidia_rag.utils.object_store import DEFAULT_BUCKET_NAME
 
 if TYPE_CHECKING:
     from nvidia_rag.utils.configuration import NvidiaRAGConfig
@@ -203,18 +203,27 @@ def make_store_params(config: NvidiaRAGConfig, vdb_op: VDBRag) -> StoreParams:
     """Build ``StoreParams`` from ``NvidiaRAGConfig`` and the active VDB operation.
 
     Maps (playground-aligned):
-        ``config.minio.*``         → ``storage_options`` (key, secret, client_kwargs)
+        ``config.object_store.*``  → ``storage_options`` (key, secret, client_kwargs)
         ``vdb_op.collection_name`` → path under default bucket, ``.../images`` suffix
         ``public_base_url``        → same as ``storage_uri`` (optional in NRL; required for metadata)
     """
     collection = vdb_op.collection_name
-    endpoint = config.minio.endpoint
-    storage_options: dict[str, Any] = {
-        "key": config.minio.access_key.get_secret_value(),
-        "secret": config.minio.secret_key.get_secret_value(),
-        "client_kwargs": {"endpoint_url": f"http://{endpoint}"},
-    }
-    storage_uri = f"s3://{DEFAULT_BUCKET_NAME}/{collection}/images"
+    if config.object_store.backend == "filesystem":
+        storage_uri = (
+            config.object_store.storage_root
+            / DEFAULT_BUCKET_NAME
+            / collection
+            / "images"
+        ).as_uri()
+        storage_options: dict[str, Any] = {}
+    else:
+        endpoint_url = config.object_store.endpoint_url
+        storage_options = {
+            "key": config.object_store.access_key.get_secret_value(),
+            "secret": config.object_store.secret_key.get_secret_value(),
+            "client_kwargs": {"endpoint_url": endpoint_url},
+        }
+        storage_uri = f"s3://{DEFAULT_BUCKET_NAME}/{collection}/images"
     return StoreParams(
         storage_uri=storage_uri,
         public_base_url=storage_uri,

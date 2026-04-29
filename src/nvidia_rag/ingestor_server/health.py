@@ -14,7 +14,7 @@
 # limitations under the License.
 """This defines the health check for the services used by the ingestor-server.
 1. check_service_health(): Check the health of a service endpoint asynchronously.
-2. check_minio_health(): Check the health of the MinIO server.
+2. check_object_store_health(): Check the health of the object-store server.
 3. check_nv_ingest_health(): Check the health of the NV-Ingest service.
 4. check_redis_health(): Check the health of the Redis server.
 5. check_all_services_health(): Check the health of all services used by the ingestor.
@@ -33,7 +33,7 @@ from urllib.parse import urlparse
 import aiohttp
 from pymilvus import connections, utility
 
-from nvidia_rag.utils.configuration import NvidiaRAGConfig
+from nvidia_rag.utils.configuration import NvidiaRAGConfig, ObjectStoreConfig
 from nvidia_rag.utils.health_models import (
     DatabaseHealthInfo,
     HealthResponseBase,
@@ -44,7 +44,7 @@ from nvidia_rag.utils.health_models import (
     StorageHealthInfo,
     TaskManagementHealthInfo,
 )
-from nvidia_rag.utils.minio_operator import MinioOperator
+from nvidia_rag.utils.object_store import get_object_store_operator
 from nvidia_rag.utils.observability.tracing import get_tracer, trace_function
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
 
@@ -163,14 +163,44 @@ async def check_service_health(
         )
 
 
-@trace_function("ingestor.health.check_minio_health", tracer=TRACER)
-async def check_minio_health(
-    endpoint: str, access_key: str, secret_key: str
+@trace_function("ingestor.health.check_object_store_health", tracer=TRACER)
+async def check_object_store_health(
+    config: ObjectStoreConfig,
 ) -> StorageHealthInfo:
-    """Check MinIO server health"""
+    """Check object-store server health."""
+    if config.backend == "filesystem":
+        start_time = time.time()
+        try:
+            storage_root = config.storage_root
+            storage_root.mkdir(parents=True, exist_ok=True)
+            probe_file = storage_root / ".healthcheck"
+            probe_file.write_text("ok", encoding="utf-8")
+            probe_file.read_text(encoding="utf-8")
+            probe_file.unlink(missing_ok=True)
+            latency_ms = round((time.time() - start_time) * 1000, 2)
+            bucket_count = sum(1 for path in storage_root.iterdir() if path.is_dir())
+            return StorageHealthInfo(
+                service="Object Storage",
+                url=storage_root.as_uri(),
+                status=ServiceStatus.HEALTHY,
+                latency_ms=latency_ms,
+                buckets=bucket_count,
+            )
+        except Exception as e:
+            latency_ms = round((time.time() - start_time) * 1000, 2)
+            logger.error("Error checking filesystem object-store health: %s", e, exc_info=True)
+            return StorageHealthInfo(
+                service="Object Storage",
+                url=config.storage_root.as_uri(),
+                status=ServiceStatus.ERROR,
+                latency_ms=latency_ms,
+                error=str(e),
+            )
+
+    endpoint = config.endpoint
     if not endpoint:
         return StorageHealthInfo(
-            service="MinIO",
+            service="Object Storage",
             url=endpoint,
             status=ServiceStatus.SKIPPED,
             latency_ms=0,
@@ -179,15 +209,13 @@ async def check_minio_health(
 
     try:
         start_time = time.time()
-        minio_operator = MinioOperator(
-            endpoint=endpoint, access_key=access_key, secret_key=secret_key
-        )
+        object_store_operator = get_object_store_operator(config=NvidiaRAGConfig(object_store=config))
         # Test basic operation - list buckets
-        buckets = minio_operator.client.list_buckets()
+        buckets = object_store_operator.client.list_buckets()
         latency_ms = round((time.time() - start_time) * 1000, 2)
 
         return StorageHealthInfo(
-            service="MinIO",
+            service="Object Storage",
             url=endpoint,
             status=ServiceStatus.HEALTHY,
             latency_ms=latency_ms,
@@ -195,9 +223,9 @@ async def check_minio_health(
         )
     except Exception as e:
         latency_ms = round((time.time() - start_time) * 1000, 2)
-        logger.error("Error checking MinIO health: %s", e, exc_info=True)
+        logger.error("Error checking object-store health: %s", e, exc_info=True)
         return StorageHealthInfo(
-            service="MinIO",
+            service="Object Storage",
             url=endpoint,
             status=ServiceStatus.ERROR,
             latency_ms=latency_ms,
@@ -377,17 +405,10 @@ async def check_all_services_health(
     processing: list[ProcessingHealthInfo] = []
     task_management: list[TaskManagementHealthInfo] = []
 
-    # MinIO health check
-    minio_endpoint = config.minio.endpoint
-    minio_access_key = config.minio.access_key.get_secret_value()
-    minio_secret_key = config.minio.secret_key.get_secret_value()
-    if minio_endpoint:
-        minio_result = await check_minio_health(
-            endpoint=minio_endpoint,
-            access_key=minio_access_key,
-            secret_key=minio_secret_key,
-        )
-        object_storage.append(minio_result)
+    # Object-store health check
+    if config.object_store.backend == "filesystem" or config.object_store.endpoint:
+        object_store_result = await check_object_store_health(config.object_store)
+        object_storage.append(object_store_result)
 
     # Vector DB health check
     try:
