@@ -59,7 +59,7 @@ services:
       timeout: 20s
       retries: 3
       start_period: 10m
-    profiles: ["", "rag", "ingest", "text-embed", "vlm-generation"]
+    profiles: ["text-embed"]
 
   nemotron-vlm-embedding-ms:
     container_name: nemotron-vlm-embedding-ms
@@ -89,7 +89,7 @@ services:
       timeout: 20s
       retries: 3
       start_period: 10m
-    profiles: ["vlm-embed", "vlm-ingest"]
+    profiles: ["", "rag", "ingest", "vlm-embed", "vlm-ingest", "vlm-generation"]
 
   nemotron-ranking-ms:
     container_name: nemotron-ranking-ms
@@ -305,8 +305,8 @@ services:
     profiles: ["audio"]
 
   vlm-ms:
-    container_name: nemo-vlm-microservice
-    image: nvcr.io/nim/nvidia/nemotron-nano-12b-v2-vl:1.5.0
+    container_name: nemotron-3-nano-30b-a3b-omni-reasoning
+    image: nvcr.io/nvstaging/nim/nemotron-3-nano-30b-a3b-omni-reasoning:1.7.0-variant-rc2-48948519
     volumes:
     - ${MODEL_DIRECTORY:-./}:/opt/nim/.cache
     ports:
@@ -324,7 +324,7 @@ services:
       interval: 10s
       timeout: 20s
       retries: 100
-    shm_size: 16GB
+    shm_size: 32GB
     deploy:
       resources:
         reservations:
