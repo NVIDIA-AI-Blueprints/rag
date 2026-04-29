@@ -78,7 +78,7 @@ services:
       # url on which llm model is hosted. If "", Nvidia hosted API is used
       APP_LLM_SERVERURL: ${APP_LLM_SERVERURL-"nim-llm:8000"}
       # LLM model parameters
-      LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-131072}
+      LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-128000}
       LLM_TEMPERATURE: ${LLM_TEMPERATURE:-0}
       LLM_TOP_P: ${LLM_TOP_P:-1.0}
 
@@ -149,6 +149,10 @@ services:
       APP_VLM_APIKEY: ${APP_VLM_APIKEY:-""}
       SUMMARY_LLM_APIKEY: ${SUMMARY_LLM_APIKEY:-""}
       REFLECTION_LLM_APIKEY: ${REFLECTION_LLM_APIKEY:-""}
+      AGENTIC_PLANNER_LLM_APIKEY: ${AGENTIC_PLANNER_LLM_APIKEY:-""}
+      AGENTIC_TASK_LLM_APIKEY: ${AGENTIC_TASK_LLM_APIKEY:-""}
+      AGENTIC_SEED_GEN_LLM_APIKEY: ${AGENTIC_SEED_GEN_LLM_APIKEY:-""}
+      AGENTIC_SYNTHESIS_LLM_APIKEY: ${AGENTIC_SYNTHESIS_LLM_APIKEY:-""}
 
       # Number of document chunks to insert in LLM prompt, used only when ENABLE_RERANKER is set to True
       APP_RETRIEVER_TOPK: ${APP_RETRIEVER_TOPK:-10}
@@ -211,6 +215,54 @@ services:
       REDIS_HOST: ${REDIS_HOST:-redis}
       REDIS_PORT: ${REDIS_PORT:-6379}
       REDIS_DB: ${REDIS_DB:-0}
+
+      # === Agentic RAG (LangGraph plan-and-execute pipeline) ===
+      ENABLE_AGENTIC_RAG: ${ENABLE_AGENTIC_RAG:-false}
+
+      ##===Agentic Planner LLM configurations===
+      AGENTIC_PLANNER_LLM_SERVERURL: ${AGENTIC_PLANNER_LLM_SERVERURL-"nim-llm:8000"}
+      AGENTIC_PLANNER_LLM_MODEL: ${AGENTIC_PLANNER_LLM_MODEL:-"nvidia/nemotron-3-super-120b-a12b"}
+
+      ##===Agentic Task LLM configurations===
+      AGENTIC_TASK_LLM_SERVERURL: ${AGENTIC_TASK_LLM_SERVERURL-"nim-llm:8000"}
+      AGENTIC_TASK_LLM_MODEL: ${AGENTIC_TASK_LLM_MODEL:-"nvidia/nemotron-3-super-120b-a12b"}
+
+      ##===Agentic Seed Gen LLM configurations===
+      AGENTIC_SEED_GEN_LLM_SERVERURL: ${AGENTIC_SEED_GEN_LLM_SERVERURL-"nim-llm:8000"}
+      AGENTIC_SEED_GEN_LLM_MODEL: ${AGENTIC_SEED_GEN_LLM_MODEL:-"nvidia/nemotron-3-super-120b-a12b"}
+
+      ##===Agentic Synthesis LLM configurations===
+      AGENTIC_SYNTHESIS_LLM_SERVERURL: ${AGENTIC_SYNTHESIS_LLM_SERVERURL-"nim-llm:8000"}
+      AGENTIC_SYNTHESIS_LLM_MODEL: ${AGENTIC_SYNTHESIS_LLM_MODEL:-"nvidia/nemotron-3-super-120b-a12b"}
+
+      # Agent behaviour tuning
+      AGENTIC_CONCURRENCY_LIMIT: ${AGENTIC_CONCURRENCY_LIMIT:-3}
+      AGENTIC_RECURSION_LIMIT: ${AGENTIC_RECURSION_LIMIT:-50}
+      AGENTIC_LOG_LEVEL: ${AGENTIC_LOG_LEVEL:-INFO}
+
+      # Planner
+      AGENTIC_PLANNER_MAX_TASKS: ${AGENTIC_PLANNER_MAX_TASKS:-3}
+      AGENTIC_PLANNER_MAX_SCOPE_ROUNDS: ${AGENTIC_PLANNER_MAX_SCOPE_ROUNDS:-2}
+      AGENTIC_PLANNER_MAX_ATTEMPTS: ${AGENTIC_PLANNER_MAX_ATTEMPTS:-3}
+
+      # Task execution
+      AGENTIC_TASK_SCOPE_MAX_RETRIES: ${AGENTIC_TASK_SCOPE_MAX_RETRIES:-1}
+      AGENTIC_TASK_ANSWER_MAX_RETRIES: ${AGENTIC_TASK_ANSWER_MAX_RETRIES:-3}
+
+      # LLM transport
+      AGENTIC_LLM_CALL_TIMEOUT: ${AGENTIC_LLM_CALL_TIMEOUT:-300}
+      AGENTIC_LLM_MAX_RETRIES: ${AGENTIC_LLM_MAX_RETRIES:-4}
+
+      # Verification pass (disabled by default)
+      AGENTIC_VERIFICATION_ENABLED: ${AGENTIC_VERIFICATION_ENABLED:-false}
+      AGENTIC_VERIFICATION_MAX_TASKS: ${AGENTIC_VERIFICATION_MAX_TASKS:-3}
+
+      # Context window budget for retrieved chunks
+      AGENTIC_CONTEXT_MAX_TOKENS: ${AGENTIC_CONTEXT_MAX_TOKENS:-100000}
+
+      # JSON trace files (per-query diagnostic dumps; disabled by default)
+      AGENTIC_JSON_TRACES: ${AGENTIC_JSON_TRACES:-false}
+      AGENTIC_TRACES_DIR: ${AGENTIC_TRACES_DIR:-./traces}
 
     ports:
       - "8081:8081"
