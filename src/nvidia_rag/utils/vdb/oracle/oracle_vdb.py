@@ -128,7 +128,7 @@ class OracleVSCompat(OracleVS):
                        TO_VECTOR(:embedding, {self._embedding_dim}, FLOAT32),
                        {distance_fn}
                    ) AS distance
-            FROM {self.table_name}
+            FROM "{self.table_name}"
             ORDER BY distance
             FETCH APPROX FIRST {k} ROWS ONLY
         """
@@ -214,7 +214,7 @@ class OracleVDB(VDBRagIngest):
             hybrid: Enable hybrid search with Oracle Text
         """
         self.config = config or NvidiaRAGConfig()
-        self._collection_name = collection_name.upper() if collection_name else ""
+        self._collection_name = collection_name if collection_name else ""
         self._embedding_model = embedding_model
 
         # Connection parameters from args or environment
@@ -278,7 +278,7 @@ class OracleVDB(VDBRagIngest):
     @collection_name.setter
     def collection_name(self, value: str) -> None:
         """Set the collection name."""
-        self._collection_name = value.upper() if value else ""
+        self._collection_name = value if value else ""
 
     def _get_connection(self):
         """Acquire a connection from the pool."""
@@ -344,7 +344,7 @@ class OracleVDB(VDBRagIngest):
         with self._get_connection() as conn:
             with conn.cursor() as cursor:
                 insert_sql = f"""
-                INSERT INTO {self._collection_name} (text, vector, source, content_metadata)
+                INSERT INTO "{self._collection_name}" (text, vector, source, content_metadata)
                 VALUES (:text, TO_VECTOR(:vector, {self.config.embeddings.dimensions}, FLOAT32), :source, :content_metadata)
                 """
 
@@ -441,7 +441,7 @@ class OracleVDB(VDBRagIngest):
         collection_type: str = "text",
     ) -> None:
         """Create a new vector collection table."""
-        table_name = collection_name.upper()
+        table_name = collection_name
 
         if self._table_exists(table_name):
             logger.info(f"Collection {table_name} already exists")
@@ -476,7 +476,7 @@ class OracleVDB(VDBRagIngest):
 
     def check_collection_exists(self, collection_name: str) -> bool:
         """Check if a collection exists."""
-        return self._table_exists(collection_name.upper())
+        return self._table_exists(collection_name)
 
     def get_collection(self) -> list[dict[str, Any]]:
         """Get all collections with metadata."""
@@ -527,7 +527,7 @@ class OracleVDB(VDBRagIngest):
         failed = []
 
         for name in collection_names:
-            table_name = name.upper()
+            table_name = name
             try:
                 if self._table_exists(table_name):
                     with self._get_connection() as conn:
@@ -585,7 +585,7 @@ class OracleVDB(VDBRagIngest):
     # Document Management
     def get_documents(self, collection_name: str) -> list[dict[str, Any]]:
         """Get all documents in a collection."""
-        table_name = collection_name.upper()
+        table_name = collection_name
         metadata_schema = self.get_metadata_schema(table_name)
 
         documents = []
@@ -630,7 +630,7 @@ class OracleVDB(VDBRagIngest):
         result_dict: dict[str, list[str]] | None = None,
     ) -> bool:
         """Delete documents by source values."""
-        table_name = collection_name.upper()
+        table_name = collection_name
 
         if result_dict is not None:
             result_dict["deleted"] = []
@@ -691,7 +691,7 @@ class OracleVDB(VDBRagIngest):
         metadata_schema: list[dict[str, Any]],
     ) -> None:
         """Add or update metadata schema for a collection."""
-        table_name = collection_name.upper()
+        table_name = collection_name
 
         with self._get_connection() as conn:
             with conn.cursor() as cursor:
@@ -718,7 +718,7 @@ class OracleVDB(VDBRagIngest):
 
     def get_metadata_schema(self, collection_name: str) -> list[dict[str, Any]]:
         """Get metadata schema for a collection."""
-        table_name = collection_name.upper()
+        table_name = collection_name
 
         with self._get_connection() as conn:
             with conn.cursor() as cursor:
@@ -757,7 +757,7 @@ class OracleVDB(VDBRagIngest):
         info_value: dict[str, Any],
     ) -> None:
         """Add document info."""
-        table_name = collection_name.upper()
+        table_name = collection_name
 
         # Aggregate collection info
         if info_type == "collection":
@@ -803,7 +803,7 @@ class OracleVDB(VDBRagIngest):
         caller's pre-computed value is stored as-is.  Use this after document deletion
         when the caller has already recalculated the correct aggregated state.
         """
-        table_name = collection_name.upper()
+        table_name = collection_name
 
         with self._get_connection() as conn:
             with conn.cursor() as cursor:
@@ -874,7 +874,7 @@ class OracleVDB(VDBRagIngest):
         document_name: str,
     ) -> dict[str, Any]:
         """Get document info."""
-        table_name = collection_name.upper()
+        table_name = collection_name
 
         with self._get_connection() as conn:
             with conn.cursor() as cursor:
@@ -961,7 +961,7 @@ class OracleVDB(VDBRagIngest):
     # Retrieval Operations
     def get_langchain_vectorstore(self, collection_name: str) -> OracleVS:
         """Get LangChain OracleVS vectorstore."""
-        table_name = collection_name.upper()
+        table_name = collection_name
 
         # Map distance metric
         distance_map = {
@@ -995,7 +995,7 @@ class OracleVDB(VDBRagIngest):
         otel_ctx: Any | None = None,
     ) -> list[Document]:
         """Perform semantic search and return documents."""
-        table_name = collection_name.upper()
+        table_name = collection_name
 
         logger.info(
             "Oracle Retrieval: Retrieving from %s, search type: %s",

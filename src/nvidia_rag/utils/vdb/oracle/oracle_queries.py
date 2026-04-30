@@ -49,7 +49,7 @@ def create_vector_table_ddl(
         DDL statement string
     """
     return f"""
-    CREATE TABLE {table_name} (
+    CREATE TABLE "{table_name}" (
         id RAW(16) DEFAULT SYS_GUID() PRIMARY KEY,
         text CLOB,
         vector VECTOR({dimension}, FLOAT32),
@@ -86,7 +86,7 @@ def create_vector_index_ddl(
 
     if index_type == "IVF":
         return f"""
-        CREATE VECTOR INDEX {index_name} ON {table_name}(vector)
+        CREATE VECTOR INDEX "{index_name}" ON "{table_name}"(vector)
         ORGANIZATION NEIGHBOR PARTITIONS
         WITH DISTANCE {distance_metric}
         WITH TARGET ACCURACY 95
@@ -97,7 +97,7 @@ def create_vector_index_ddl(
         """
     else:  # HNSW
         return f"""
-        CREATE VECTOR INDEX {index_name} ON {table_name}(vector)
+        CREATE VECTOR INDEX "{index_name}" ON "{table_name}"(vector)
         ORGANIZATION INMEMORY NEIGHBOR GRAPH
         WITH DISTANCE {distance_metric}
         WITH TARGET ACCURACY 95
@@ -121,7 +121,7 @@ def create_text_index_ddl(table_name: str) -> str:
     """
     index_name = f"{table_name}_text_idx"
     return f"""
-    CREATE INDEX {index_name} ON {table_name}(text)
+    CREATE INDEX "{index_name}" ON "{table_name}"(text)
     INDEXTYPE IS CTXSYS.CONTEXT
     PARAMETERS ('SYNC (ON COMMIT)')
     """
@@ -170,7 +170,7 @@ def get_unique_sources_query(table_name: str) -> str:
     WITH unique_sources AS (
         SELECT source, content_metadata,
                ROW_NUMBER() OVER (PARTITION BY source ORDER BY created_at DESC) as rn
-        FROM {table_name}
+        FROM "{table_name}"
         WHERE source IS NOT NULL
     )
     SELECT source, content_metadata
@@ -196,7 +196,7 @@ def get_delete_docs_query(table_name: str) -> str:
         SQL query string with :source_value bind variable
     """
     return f"""
-    DELETE FROM {table_name}
+    DELETE FROM "{table_name}"
     WHERE JSON_VALUE(source, '$.source_name') = :source_value
        OR source = :source_value
     """
@@ -275,7 +275,7 @@ def get_similarity_search_query(
     return f"""
     SELECT id, text, source, content_metadata,
            VECTOR_DISTANCE(vector, :query_vector, {distance_metric}) as distance
-    FROM {table_name}
+    FROM "{table_name}"
     ORDER BY distance
     FETCH FIRST :top_k ROWS ONLY
     """
@@ -304,13 +304,13 @@ def get_hybrid_search_query(
         SELECT id, text, source, content_metadata,
                VECTOR_DISTANCE(vector, :query_vector, {distance_metric}) as vec_distance,
                ROW_NUMBER() OVER (ORDER BY VECTOR_DISTANCE(vector, :query_vector, {distance_metric})) as vec_rank
-        FROM {table_name}
+        FROM "{table_name}"
         FETCH FIRST :top_k * 2 ROWS ONLY
     ),
     text_results AS (
         SELECT id, SCORE(1) as text_score,
                ROW_NUMBER() OVER (ORDER BY SCORE(1) DESC) as text_rank
-        FROM {table_name}
+        FROM "{table_name}"
         WHERE CONTAINS(text, :query_text, 1) > 0
         FETCH FIRST :top_k * 2 ROWS ONLY
     )
@@ -326,21 +326,25 @@ def get_hybrid_search_query(
 
 def get_count_query(table_name: str) -> str:
     """Generate query to count documents in a collection."""
-    return f"SELECT COUNT(*) as cnt FROM {table_name}"
+    return f'SELECT COUNT(*) as cnt FROM "{table_name}"'
 
 
 def check_table_exists_query() -> str:
-    """Generate query to check if a table exists."""
+    """Generate query to check if a table exists.
+
+    Uses exact case match (no UPPER) so quoted-identifier tables
+    preserve their original casing.
+    """
     return """
     SELECT COUNT(*) as cnt
     FROM user_tables
-    WHERE table_name = UPPER(:table_name)
+    WHERE table_name = :table_name
     """
 
 
 def drop_table_ddl(table_name: str) -> str:
     """Generate DDL to drop a table."""
-    return f"DROP TABLE {table_name} CASCADE CONSTRAINTS PURGE"
+    return f'DROP TABLE "{table_name}" CASCADE CONSTRAINTS PURGE'
 
 
 def get_all_collections_query() -> str:
