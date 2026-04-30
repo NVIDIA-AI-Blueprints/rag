@@ -93,3 +93,75 @@ Elasticsearch elastic user secret name
 {{- define "nvidia-blueprint-rag.elasticsearchUserSecretName" -}}
 {{- printf "%s-es-elastic-user" (include "nvidia-blueprint-rag.elasticsearchFullname" .) -}}
 {{- end -}}
+
+{{/*
+Whether bundled ECK Elasticsearch has xpack security enabled.
+*/}}
+{{- define "nvidia-blueprint-rag.elasticsearchSecurityEnabled" -}}
+{{- $esCfg := index .Values "eck-elasticsearch" -}}
+{{- $nodeSets := default (list) $esCfg.nodeSets -}}
+{{- $firstNodeSet := dict -}}
+{{- if gt (len $nodeSets) 0 -}}
+{{- $firstNodeSet = index $nodeSets 0 -}}
+{{- end -}}
+{{- $esNodeCfg := default (dict) (index $firstNodeSet "config") -}}
+{{- $enabled := true -}}
+{{- if hasKey $esNodeCfg "xpack.security.enabled" -}}
+{{- $enabled = index $esNodeCfg "xpack.security.enabled" -}}
+{{- end -}}
+{{- if eq (toString $enabled) "true" -}}true{{- else -}}false{{- end -}}
+{{- end -}}
+
+{{/*
+SeaweedFS resource base name
+*/}}
+{{- define "nvidia-blueprint-rag.seaweedfsFullname" -}}
+{{- $cfg := .Values.seaweedfs -}}
+{{- if $cfg.fullnameOverride -}}
+{{- $cfg.fullnameOverride | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- printf "%s-%s" .Release.Name (default "seaweedfs" $cfg.nameOverride) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+SeaweedFS all-in-one resource name
+*/}}
+{{- define "nvidia-blueprint-rag.seaweedfsAllInOneName" -}}
+{{- printf "%s-all-in-one" (include "nvidia-blueprint-rag.seaweedfsFullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{/*
+SeaweedFS labels
+*/}}
+{{- define "nvidia-blueprint-rag.seaweedfsLabels" -}}
+app.kubernetes.io/name: {{ default "seaweedfs" .Values.seaweedfs.nameOverride }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/component: seaweedfs-all-in-one
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+{{- end -}}
+
+{{/*
+SeaweedFS selector labels
+*/}}
+{{- define "nvidia-blueprint-rag.seaweedfsSelectorLabels" -}}
+app.kubernetes.io/name: {{ default "seaweedfs" .Values.seaweedfs.nameOverride }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/component: seaweedfs-all-in-one
+{{- end -}}
+
+{{/*
+Redis resource base name used by the nv-ingest topology
+*/}}
+{{- define "nvidia-blueprint-rag.redisFullname" -}}
+{{- $redis := (index .Values "nv-ingest").redis -}}
+{{- default "rag-redis" $redis.fullnameOverride | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{/*
+Redis master service/deployment name
+*/}}
+{{- define "nvidia-blueprint-rag.redisMasterName" -}}
+{{- printf "%s-master" (include "nvidia-blueprint-rag.redisFullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}

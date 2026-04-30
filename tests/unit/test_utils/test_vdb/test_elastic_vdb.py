@@ -234,6 +234,75 @@ class TestElasticVDB(unittest.TestCase):
 
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.Elasticsearch")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.VectorStore")
+    @patch("nv_ingest_client.util.milvus.cleanup_records")
+    @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.logger")
+    def test_write_to_index_retries_without_optional_metadata_on_empty_match(
+        self,
+        mock_logger,
+        mock_cleanup_records,
+        mock_vector_store,
+        mock_elasticsearch,
+    ):
+        """Test metadata row misses do not fail Elasticsearch ingestion."""
+        mock_es_connection = Mock()
+        mock_elasticsearch.return_value = mock_es_connection
+
+        mock_es_store = Mock()
+        mock_vector_store.return_value = mock_es_store
+
+        records = [{"raw": "record1"}]
+        cleaned_records = [
+            {
+                "text": "test text",
+                "vector": [0.1, 0.2, 0.3],
+                "source": "doc1.pdf",
+                "content_metadata": {"title": "Test Doc"},
+            }
+        ]
+        mock_cleanup_records.side_effect = [
+            IndexError("single positional indexer is out-of-bounds"),
+            cleaned_records,
+        ]
+
+        elastic_vdb = ElasticVDB(
+            self.index_name,
+            self.es_url,
+            meta_dataframe=self.meta_dataframe,
+            meta_source_field=self.meta_source_field,
+            meta_fields=self.meta_fields,
+        )
+        elastic_vdb._es_connection = mock_es_connection
+
+        elastic_vdb.write_to_index(records)
+
+        self.assertEqual(mock_cleanup_records.call_count, 2)
+        mock_cleanup_records.assert_has_calls(
+            [
+                call(
+                    records=records,
+                    meta_dataframe=self.meta_dataframe,
+                    meta_source_field=self.meta_source_field,
+                    meta_fields=self.meta_fields,
+                ),
+                call(
+                    records=records,
+                    meta_dataframe=None,
+                    meta_source_field=None,
+                    meta_fields=None,
+                ),
+            ]
+        )
+        mock_logger.warning.assert_called_once()
+        mock_es_store.add_texts.assert_called_once_with(
+            texts=["test text"],
+            vectors=[[0.1, 0.2, 0.3]],
+            metadatas=[
+                {"source": "doc1.pdf", "content_metadata": {"title": "Test Doc"}}
+            ],
+        )
+
+    @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.Elasticsearch")
+    @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.VectorStore")
     def test_retrieval_not_implemented(self, mock_vector_store, mock_elasticsearch):
         """Test retrieval method raises NotImplementedError."""
         # Setup mocks

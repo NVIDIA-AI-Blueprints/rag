@@ -26,6 +26,7 @@ def test_compose_vectordb_uses_seaweedfs_with_persistent_data_dir():
     )
 
     assert seaweedfs["image"] == "chrislusf/seaweedfs:3.73"
+    assert seaweedfs["container_name"] == "seaweedfs"
     assert seaweedfs["command"] == [
         "server",
         "-dir=/data",
@@ -61,6 +62,7 @@ def test_integration_vectordb_uses_same_seaweedfs_bootstrap():
         "secretAccessKey: ${OBJECTSTORE_SECRETKEY:-seaweedfsadmin}" in milvus["command"]
     )
     assert "-dir=/data" in seaweedfs["command"]
+    assert seaweedfs["container_name"] == "seaweedfs"
     assert (
         "../../deploy/compose/seaweedfs-config/s3.json:/etc/seaweedfs/s3.json:ro"
         in seaweedfs["volumes"]
@@ -112,6 +114,7 @@ def test_workbench_defaults_to_seaweedfs():
         "secretAccessKey: ${OBJECTSTORE_SECRETKEY:-seaweedfsadmin}"
         in services["milvus"]["command"]
     )
+    assert services["seaweedfs"]["container_name"] == "seaweedfs"
     assert services["seaweedfs"]["command"][1] == "-dir=/data"
     nv_ingest_env = services["nv-ingest-ms-runtime"]["environment"]
     assert "MINIO_BUCKET=${NVINGEST_OBJECTSTORE_BUCKET:-nv-ingest}" in nv_ingest_env
@@ -164,22 +167,24 @@ def test_helm_values_default_to_seaweedfs_and_persistence():
     assert values["nv-ingest"]["milvus"]["minio"]["enabled"] is False
 
 
-def test_helm_chart_uses_upstream_seaweedfs_dependency():
+def test_helm_chart_uses_native_seaweedfs_templates():
     chart = load_yaml(REPO_ROOT / "deploy/helm/nvidia-blueprint-rag/Chart.yaml")
     dependencies = {
         dependency["name"]: dependency for dependency in chart["dependencies"]
     }
 
-    assert "seaweedfs" in dependencies
-    assert (
-        dependencies["seaweedfs"]["repository"]
-        == "https://seaweedfs.github.io/seaweedfs/helm"
-    )
-    assert dependencies["seaweedfs"]["version"] == "4.21.0"
-    assert dependencies["seaweedfs"]["condition"] == "seaweedfs.enabled"
+    assert "seaweedfs" not in dependencies
+
+    template_dir = REPO_ROOT / "deploy/helm/nvidia-blueprint-rag/templates"
+    seaweedfs_deployment = template_dir / "seaweedfs-deployment.yaml"
+    assert seaweedfs_deployment.exists()
+    assert (template_dir / "seaweedfs-service.yaml").exists()
+    assert (template_dir / "seaweedfs-pvc.yaml").exists()
+    assert (template_dir / "seaweedfs-secret.yaml").exists()
+    assert "type: Recreate" in seaweedfs_deployment.read_text(encoding="utf-8")
 
 
-def test_helm_templates_wire_elasticsearch_secret_for_bundled_eck():
+def test_helm_templates_wire_elasticsearch_secret_when_security_enabled():
     template_dir = REPO_ROOT / "deploy/helm/nvidia-blueprint-rag/templates"
 
     rag_deployment = (template_dir / "deployment.yaml").read_text(encoding="utf-8")
@@ -190,6 +195,9 @@ def test_helm_templates_wire_elasticsearch_secret_for_bundled_eck():
 
     assert "APP_VECTORSTORE_PASSWORD" in rag_deployment
     assert "APP_VECTORSTORE_PASSWORD" in ingestor_deployment
+    assert "elasticsearchSecurityEnabled" in rag_deployment
+    assert "elasticsearchSecurityEnabled" in ingestor_deployment
     assert "elasticsearchUserSecretName" in rag_deployment
     assert "elasticsearchUserSecretName" in ingestor_deployment
     assert "es-elastic-user" in helpers
+    assert "xpack.security.enabled" in helpers

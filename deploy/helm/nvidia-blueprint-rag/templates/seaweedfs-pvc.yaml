@@ -1,0 +1,19 @@
+{{- $cfg := .Values.seaweedfs -}}
+{{- if and $cfg.enabled $cfg.allInOne.enabled (eq $cfg.allInOne.data.type "persistentVolumeClaim") }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "nvidia-blueprint-rag.seaweedfsAllInOneName" . }}-data
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "nvidia-blueprint-rag.seaweedfsLabels" . | nindent 4 }}
+spec:
+  accessModes:
+    {{- toYaml ($cfg.allInOne.data.accessModes | default (list "ReadWriteOnce")) | nindent 4 }}
+  {{- if $cfg.allInOne.data.storageClass }}
+  storageClassName: {{ $cfg.allInOne.data.storageClass | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ $cfg.allInOne.data.size | default "50Gi" }}
+{{- end }}

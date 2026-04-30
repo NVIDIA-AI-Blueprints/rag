@@ -304,13 +304,33 @@ class ElasticVDB(VDBRagIngest):
         if meta_dataframe is None and self.csv_file_path is not None:
             meta_dataframe = pandas_file_reader(self.csv_file_path)
 
-        # Clean up and flatten records to pull appropriate fields from the records
-        cleaned_records = cleanup_records(
-            records=records,
-            meta_dataframe=meta_dataframe,
-            meta_source_field=self.meta_source_field,
-            meta_fields=self.meta_fields,
-        )
+        # Clean up and flatten records to pull appropriate fields from the records.
+        # nv_ingest_client raises IndexError when optional metadata is configured
+        # but the metadata DataFrame has no row for a source file. In that case,
+        # keep the ingestion moving and index the extracted records without the
+        # optional CSV metadata.
+        try:
+            cleaned_records = cleanup_records(
+                records=records,
+                meta_dataframe=meta_dataframe,
+                meta_source_field=self.meta_source_field,
+                meta_fields=self.meta_fields,
+            )
+        except IndexError as e:
+            if "single positional indexer is out-of-bounds" not in str(e):
+                raise
+            logger.warning(
+                "Metadata enrichment failed for index %s because no matching "
+                "metadata row was found; indexing records without optional "
+                "metadata fields.",
+                self.index_name,
+            )
+            cleaned_records = cleanup_records(
+                records=records,
+                meta_dataframe=None,
+                meta_source_field=None,
+                meta_fields=None,
+            )
 
         # Prepare texts, embeddings, and metadatas from cleaned records
         texts, embeddings, metadatas = [], [], []

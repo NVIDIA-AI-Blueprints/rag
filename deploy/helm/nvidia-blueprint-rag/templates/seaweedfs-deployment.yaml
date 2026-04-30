@@ -1,0 +1,122 @@
+{{- $cfg := .Values.seaweedfs -}}
+{{- if and $cfg.enabled $cfg.allInOne.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "nvidia-blueprint-rag.seaweedfsAllInOneName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "nvidia-blueprint-rag.seaweedfsLabels" . | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "nvidia-blueprint-rag.seaweedfsSelectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "nvidia-blueprint-rag.seaweedfsSelectorLabels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: seaweedfs
+          image: "{{ $cfg.image.repository }}:{{ $cfg.image.tag }}"
+          imagePullPolicy: {{ $cfg.global.seaweedfs.imagePullPolicy | default "IfNotPresent" }}
+          env:
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+          command:
+            - /usr/bin/weed
+          args:
+            - server
+            - -dir=/data
+            - -master
+            - -volume
+            - -ip=$(POD_IP)
+            - -ip.bind=0.0.0.0
+            - -master.port={{ $cfg.master.port | default 9333 }}
+            - -master.defaultReplication={{ $cfg.master.defaultReplication | default "000" }}
+            - -master.volumeSizeLimitMB={{ $cfg.master.volumeSizeLimitMB | default 1024 }}
+            - -volume.port={{ $cfg.volume.port | default 8080 }}
+            - -volume.readMode={{ $cfg.volume.readMode | default "proxy" }}
+            - -volume.minFreeSpacePercent={{ $cfg.volume.minFreeSpacePercent | default 1 }}
+            - -volume.compactionMBps={{ $cfg.volume.compactionMBps | default 50 }}
+            {{- if $cfg.allInOne.metricsPort }}
+            - -metricsPort={{ $cfg.allInOne.metricsPort }}
+            {{- end }}
+            - -filer
+            - -filer.port={{ $cfg.filer.port | default 8888 }}
+            - -filer.dirListLimit={{ $cfg.filer.dirListLimit | default 100000 }}
+            - -filer.defaultReplicaPlacement={{ $cfg.filer.defaultReplicaPlacement | default "000" }}
+            {{- if $cfg.allInOne.s3.enabled }}
+            - -s3
+            - -s3.port={{ $cfg.allInOne.s3.port | default 9010 }}
+            {{- if or $cfg.allInOne.s3.enableAuth $cfg.s3.enableAuth }}
+            - -s3.config=/etc/sw/s3/seaweedfs_s3_config
+            {{- end }}
+            {{- end }}
+          ports:
+            - name: master
+              containerPort: {{ $cfg.master.port | default 9333 }}
+            - name: master-grpc
+              containerPort: {{ $cfg.master.grpcPort | default 19333 }}
+            - name: volume
+              containerPort: {{ $cfg.volume.port | default 8080 }}
+            - name: volume-grpc
+              containerPort: {{ $cfg.volume.grpcPort | default 18080 }}
+            - name: filer
+              containerPort: {{ $cfg.filer.port | default 8888 }}
+            - name: filer-grpc
+              containerPort: {{ $cfg.filer.grpcPort | default 18888 }}
+            {{- if $cfg.allInOne.s3.enabled }}
+            - name: s3
+              containerPort: {{ $cfg.allInOne.s3.port | default 9010 }}
+            {{- end }}
+            {{- if $cfg.allInOne.metricsPort }}
+            - name: server-metrics
+              containerPort: {{ $cfg.allInOne.metricsPort }}
+            {{- end }}
+          {{- if $cfg.allInOne.s3.enabled }}
+          readinessProbe:
+            tcpSocket:
+              port: s3
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            tcpSocket:
+              port: s3
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 4
+          {{- end }}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            {{- if and $cfg.allInOne.s3.enabled (or $cfg.allInOne.s3.enableAuth $cfg.s3.enableAuth) }}
+            - name: config-s3-users
+              mountPath: /etc/sw/s3
+              readOnly: true
+            {{- end }}
+      volumes:
+        - name: data
+          {{- if eq $cfg.allInOne.data.type "persistentVolumeClaim" }}
+          persistentVolumeClaim:
+            claimName: {{ include "nvidia-blueprint-rag.seaweedfsAllInOneName" . }}-data
+          {{- else if eq $cfg.allInOne.data.type "existingClaim" }}
+          persistentVolumeClaim:
+            claimName: {{ required "seaweedfs.allInOne.data.claimName is required when data.type is existingClaim" $cfg.allInOne.data.claimName }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        {{- if and $cfg.allInOne.s3.enabled (or $cfg.allInOne.s3.enableAuth $cfg.s3.enableAuth) }}
+        - name: config-s3-users
+          secret:
+            secretName: {{ default (printf "%s-s3-secret" (include "nvidia-blueprint-rag.seaweedfsFullname" .)) $cfg.s3.existingConfigSecret }}
+        {{- end }}
+{{- end }}
