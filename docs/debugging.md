@@ -109,7 +109,7 @@ After starting your ingestion containers, verify these core services are healthy
 docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 
 # Check specifically for ingestion-related containers
-docker ps | grep -E "(ingestor-server|nv-ingest|nemoretriever-embedding|milvus|redis)"
+docker ps | grep -E "(ingestor-server|nv-ingest|nemoretriever-embedding|milvus|seaweedfs|redis)"
 ```
 
    *Example Output*
@@ -122,7 +122,7 @@ docker ps | grep -E "(ingestor-server|nv-ingest|nemoretriever-embedding|milvus|r
    rag-frontend                            Up 9 minutes
    rag-server                              Up 9 minutes
    milvus-standalone                       Up 36 minutes (healthy)
-   milvus-seaweedfs                        Up 35 minutes (healthy)
+   seaweedfs                               Up 35 minutes (healthy)
    milvus-etcd                             Up 35 minutes (healthy)
    nemotron-ranking-ms                Up 38 minutes (healthy)
    compose-page-elements-1                 Up 38 minutes

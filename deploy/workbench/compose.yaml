@@ -649,7 +649,7 @@ services:
     profiles: ["vectordb"]
 
   seaweedfs:
-    container_name: milvus-seaweedfs
+    container_name: seaweedfs
     image: chrislusf/seaweedfs:3.73
     environment:
       MINIO_ACCESS_KEY: ${OBJECTSTORE_ACCESSKEY:-seaweedfsadmin}

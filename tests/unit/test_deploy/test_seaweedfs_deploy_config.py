@@ -26,6 +26,7 @@ def test_compose_vectordb_uses_seaweedfs_with_persistent_data_dir():
     )
 
     assert seaweedfs["image"] == "chrislusf/seaweedfs:3.73"
+    assert seaweedfs["container_name"] == "seaweedfs"
     assert seaweedfs["command"] == [
         "server",
         "-dir=/data",
@@ -61,6 +62,7 @@ def test_integration_vectordb_uses_same_seaweedfs_bootstrap():
         "secretAccessKey: ${OBJECTSTORE_SECRETKEY:-seaweedfsadmin}" in milvus["command"]
     )
     assert "-dir=/data" in seaweedfs["command"]
+    assert seaweedfs["container_name"] == "seaweedfs"
     assert (
         "../../deploy/compose/seaweedfs-config/s3.json:/etc/seaweedfs/s3.json:ro"
         in seaweedfs["volumes"]
@@ -112,6 +114,7 @@ def test_workbench_defaults_to_seaweedfs():
         "secretAccessKey: ${OBJECTSTORE_SECRETKEY:-seaweedfsadmin}"
         in services["milvus"]["command"]
     )
+    assert services["seaweedfs"]["container_name"] == "seaweedfs"
     assert services["seaweedfs"]["command"][1] == "-dir=/data"
     nv_ingest_env = services["nv-ingest-ms-runtime"]["environment"]
     assert "MINIO_BUCKET=${NVINGEST_OBJECTSTORE_BUCKET:-nv-ingest}" in nv_ingest_env
