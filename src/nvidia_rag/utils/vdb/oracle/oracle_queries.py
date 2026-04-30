@@ -28,10 +28,40 @@ Functions:
 8. get_hybrid_search_query: Combined vector + text search query
 """
 
+import hashlib
 from typing import Literal
 
 DistanceMetric = Literal["COSINE", "L2", "DOT", "MANHATTAN"]
 IndexType = Literal["IVF", "HNSW"]
+
+# Oracle 12.2+ identifier length limit (in bytes; we treat as chars since we
+# only emit ASCII-safe derived names). Underscore-prefixed variant left for
+# clarity at call sites.
+ORACLE_MAX_IDENTIFIER_LEN = 128
+
+
+def _derive_object_name(table_name: str, suffix: str) -> str:
+    """Derive a per-collection object name (index, etc.) that fits in 128 chars.
+
+    For short table names, returns f"{table_name}{suffix}" verbatim so the
+    derived name stays human-readable and case-preserves alongside its parent
+    table.
+
+    For long table names where f"{table_name}{suffix}" would exceed Oracle's
+    128-character identifier limit, builds a deterministic hashed name:
+    f"nvr_{16-char-hex-digest}{suffix}". The hash is stable across calls,
+    so re-running CREATE produces the same name (idempotent ORA-00955).
+
+    The "nvr_" prefix is fixed (Oracle case-folds it consistently to NVR_
+    when unquoted, or preserves it when quoted), and the digest is hex
+    (case-insensitive) so the derived name is identical regardless of
+    quoting/case-folding mode.
+    """
+    candidate = f"{table_name}{suffix}"
+    if len(candidate) <= ORACLE_MAX_IDENTIFIER_LEN:
+        return candidate
+    digest = hashlib.sha256(table_name.encode("utf-8")).hexdigest()[:16]
+    return f"nvr_{digest}{suffix}"
 
 
 def create_vector_table_ddl(
@@ -82,7 +112,7 @@ def create_vector_index_ddl(
     Returns:
         DDL statement string
     """
-    index_name = f"{table_name}_vec_idx"
+    index_name = _derive_object_name(table_name, "_vec_idx")
 
     if index_type == "IVF":
         return f"""
@@ -119,7 +149,7 @@ def create_text_index_ddl(table_name: str) -> str:
     Returns:
         DDL statement string
     """
-    index_name = f"{table_name}_text_idx"
+    index_name = _derive_object_name(table_name, "_text_idx")
     return f"""
     CREATE INDEX "{index_name}" ON "{table_name}"(text)
     INDEXTYPE IS CTXSYS.CONTEXT

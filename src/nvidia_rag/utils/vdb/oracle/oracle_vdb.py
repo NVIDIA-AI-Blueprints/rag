@@ -335,12 +335,59 @@ class OracleVDB(VDBRagIngest):
         return self._pool.acquire()
 
     def _table_exists(self, table_name: str) -> bool:
-        """Check if a table exists."""
+        """Check if a table exists with exact case match.
+
+        Quoted-identifier user tables (created via CREATE TABLE "name") preserve
+        case in user_tables, so exact-case lookup matches.
+
+        For tables created without quoting (legacy v0.0.6 user tables, system
+        tables like METADATA_SCHEMA / DOCUMENT_INFO), Oracle case-folds names
+        to UPPERCASE in user_tables. Use _table_exists_unquoted() for those.
+        """
         with self._get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(check_table_exists_query(), {"table_name": table_name})
                 result = cursor.fetchone()
                 return result[0] > 0
+
+    def _table_exists_unquoted(self, table_name: str) -> bool:
+        """Check if a table exists, matching Oracle's unquoted-identifier folding.
+
+        Oracle stores unquoted CREATE TABLE foo as FOO in user_tables. Lookups
+        for the system tables (metadata_schema, document_info) and any legacy
+        v0.0.6 collection tables must use UPPER() to find them.
+        """
+        with self._get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    "SELECT COUNT(*) FROM user_tables WHERE table_name = UPPER(:table_name)",
+                    {"table_name": table_name},
+                )
+                result = cursor.fetchone()
+                return result[0] > 0
+
+    @staticmethod
+    def _execute_ddl_idempotent(cursor: Any, ddl: str, kind: str = "object") -> bool:
+        """Execute a CREATE DDL, swallowing ORA-00955 (name already exists).
+
+        Oracle has no native CREATE ... IF NOT EXISTS for tables/indexes/etc.
+        Existence pre-checks have race conditions and don't always match
+        (case-folding subtleties). This wrapper makes CREATE idempotent.
+
+        Returns True if the object was created, False if it already existed.
+        Re-raises any other oracledb error.
+        """
+        try:
+            cursor.execute(ddl)
+            return True
+        except oracledb.Error as e:
+            # ORA-00955: name is already used by an existing object
+            err_obj = e.args[0] if e.args else None
+            code = getattr(err_obj, "code", None)
+            if code == 955:
+                logger.info(f"{kind} already exists, skipping CREATE")
+                return False
+            raise
 
     # -------------------------------------------------------------------------
     # NV-Ingest VDB Operations
@@ -490,34 +537,69 @@ class OracleVDB(VDBRagIngest):
         dimension: int = 2048,
         collection_type: str = "text",
     ) -> None:
-        """Create a new vector collection table."""
+        """Create a new vector collection table.
+
+        Idempotent: existence checks AND ORA-00955 swallowing handle both
+        the case where the table exists (skip) and the race where another
+        caller created it between the check and the CREATE.
+
+        Both legacy v0.0.6 uppercase tables (BIOMEDICAL_DATASET) and v0.0.7+
+        case-preserved tables (Test_MixedCase) are detected via the
+        case-insensitive existence check, preventing ORA-00955 collisions
+        on upgrade.
+        """
         table_name = collection_name
 
-        if self._table_exists(table_name):
-            logger.info(f"Collection {table_name} already exists")
+        # Validate length: Oracle's hard limit is 128 chars for identifiers.
+        # We accept up to 128; index names that would exceed get hashed in
+        # _derive_object_name, but the table name itself can't be hashed
+        # without losing user-visible identity.
+        if len(table_name) > 128:
+            raise ValueError(
+                f"Collection name exceeds Oracle's 128-character identifier limit "
+                f"(got {len(table_name)} chars): {table_name[:64]}..."
+            )
+
+        # Detect both case-preserved (v0.0.7+) and case-folded (v0.0.6 legacy
+        # or system tables created without quoting) existing tables.
+        if self._table_exists(table_name) or self._table_exists_unquoted(table_name):
+            logger.info(f"Collection {table_name} already exists, skipping CREATE")
             return
 
         with self._get_connection() as conn:
             with conn.cursor() as cursor:
-                # Create table
-                cursor.execute(create_vector_table_ddl(table_name, dimension))
-                logger.info(f"Created table {table_name}")
+                # Create table (idempotent on ORA-00955 in case of race)
+                created = self._execute_ddl_idempotent(
+                    cursor,
+                    create_vector_table_ddl(table_name, dimension),
+                    kind=f"table {table_name}",
+                )
+                if created:
+                    logger.info(f"Created table {table_name}")
 
-                # Create vector index
+                # Create vector index (idempotent)
                 try:
-                    cursor.execute(create_vector_index_ddl(
-                        table_name,
-                        index_type=self._index_type,
-                        distance_metric=self._distance_metric,
-                    ))
+                    self._execute_ddl_idempotent(
+                        cursor,
+                        create_vector_index_ddl(
+                            table_name,
+                            index_type=self._index_type,
+                            distance_metric=self._distance_metric,
+                        ),
+                        kind=f"vector index for {table_name}",
+                    )
                     logger.info(f"Created {self._index_type} vector index on {table_name}")
                 except oracledb.Error as e:
                     logger.warning(f"Could not create vector index: {e}")
 
-                # Create text index for hybrid search
+                # Create text index for hybrid search (idempotent)
                 if self._hybrid:
                     try:
-                        cursor.execute(create_text_index_ddl(table_name))
+                        self._execute_ddl_idempotent(
+                            cursor,
+                            create_text_index_ddl(table_name),
+                            kind=f"text index for {table_name}",
+                        )
                         logger.info(f"Created text index on {table_name}")
                     except oracledb.Error as e:
                         logger.warning(f"Could not create text index: {e}")
@@ -525,8 +607,16 @@ class OracleVDB(VDBRagIngest):
                 conn.commit()
 
     def check_collection_exists(self, collection_name: str) -> bool:
-        """Check if a collection exists."""
-        return self._table_exists(collection_name)
+        """Check if a collection exists.
+
+        Returns True for both case-preserved (v0.0.7+ quoted-DDL) tables and
+        case-folded (v0.0.6 legacy unquoted-DDL) tables. This lets clients
+        upgrading from v0.0.6 still find their legacy collections regardless
+        of which case they query with.
+        """
+        return self._table_exists(collection_name) or self._table_exists_unquoted(
+            collection_name
+        )
 
     def get_collection(self) -> list[dict[str, Any]]:
         """Get all collections with metadata."""
@@ -722,16 +812,25 @@ class OracleVDB(VDBRagIngest):
     # -------------------------------------------------------------------------
     # Metadata Schema Management
     def create_metadata_schema_collection(self) -> None:
-        """Create metadata schema table if not exists."""
+        """Create metadata schema table if not exists.
+
+        Uses unquoted lookup since the DDL itself is unquoted — Oracle stores
+        it as METADATA_SCHEMA. CREATE is idempotent (swallows ORA-00955).
+        """
         if self._metadata_schema_initialized:
             return
 
-        if not self._table_exists(DEFAULT_METADATA_SCHEMA_COLLECTION):
+        if not self._table_exists_unquoted(DEFAULT_METADATA_SCHEMA_COLLECTION):
             with self._get_connection() as conn:
                 with conn.cursor() as cursor:
-                    cursor.execute(create_metadata_schema_table_ddl())
+                    created = self._execute_ddl_idempotent(
+                        cursor,
+                        create_metadata_schema_table_ddl(),
+                        kind=DEFAULT_METADATA_SCHEMA_COLLECTION,
+                    )
                     conn.commit()
-            logger.info(f"Created {DEFAULT_METADATA_SCHEMA_COLLECTION} table")
+                    if created:
+                        logger.info(f"Created {DEFAULT_METADATA_SCHEMA_COLLECTION} table")
 
         self._metadata_schema_initialized = True
 
@@ -786,16 +885,25 @@ class OracleVDB(VDBRagIngest):
     # -------------------------------------------------------------------------
     # Document Info Management
     def create_document_info_collection(self) -> None:
-        """Create document info table if not exists."""
+        """Create document info table if not exists.
+
+        Uses unquoted lookup since the DDL itself is unquoted — Oracle stores
+        it as DOCUMENT_INFO. CREATE is idempotent (swallows ORA-00955).
+        """
         if self._document_info_initialized:
             return
 
-        if not self._table_exists(DEFAULT_DOCUMENT_INFO_COLLECTION):
+        if not self._table_exists_unquoted(DEFAULT_DOCUMENT_INFO_COLLECTION):
             with self._get_connection() as conn:
                 with conn.cursor() as cursor:
-                    cursor.execute(create_document_info_table_ddl())
+                    created = self._execute_ddl_idempotent(
+                        cursor,
+                        create_document_info_table_ddl(),
+                        kind=DEFAULT_DOCUMENT_INFO_COLLECTION,
+                    )
                     conn.commit()
-            logger.info(f"Created {DEFAULT_DOCUMENT_INFO_COLLECTION} table")
+                    if created:
+                        logger.info(f"Created {DEFAULT_DOCUMENT_INFO_COLLECTION} table")
 
         self._document_info_initialized = True
 
