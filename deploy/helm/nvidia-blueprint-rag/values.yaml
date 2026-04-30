@@ -166,8 +166,8 @@ envVars:
   # URL on which LLM model is hosted. If "", Nvidia hosted API is used
   APP_LLM_SERVERURL: "nim-llm:8000"
   # LLM model parameters
-  # For Nemotron 3 Super on RTX 6000 Pro: uncomment and set to 16256 (reasoning) or 1024 (non-reasoning); comment LLM_MAX_TOKENS above
-  LLM_MAX_TOKENS: "131072" # "16256" for RTX 6000 Pro
+  # For memory-constrained profiles, reduce LLM_MAX_TOKENS and consider setting NIM_MAX_MODEL_LEN under nimOperator.nim-llm.env.
+  LLM_MAX_TOKENS: "32768"
   LLM_TEMPERATURE: "0"
   LLM_TOP_P: "1.0"
 
@@ -739,7 +739,7 @@ nimOperator:
     image:
       repository: nvcr.io/nim/nvidia/nemotron-3-super-120b-a12b
       pullPolicy: IfNotPresent
-      tag: "1.8.0"
+      tag: "2.0.3"
 # -- To switch back to Llama 3.3 Nemotron Super 49B (single GPU), replace the image block above with:
 #    image:
 #      repository: nvcr.io/nim/nvidia/llama-3.3-nemotron-super-49b-v1.5
@@ -792,28 +792,18 @@ nimOperator:
     env:
       - name: NIM_HTTP_API_PORT
         value: "8000"
-      - name: NIM_TRITON_LOG_VERBOSE
-        value: "1"
+      - name: NIM_LOG_LEVEL
+        value: "INFO"
       - name: NIM_SERVED_MODEL_NAME
         value: "nvidia/nemotron-3-super-120b-a12b"
-      - name: NIM_ENABLE_CHUNKED_PREFILL
-        value: "1"
-      - name: NIM_KV_CACHE_DTYPE
-        value: "fp8"
-      - name: VLLM_ALLOW_LONG_MAX_MODEL_LEN
-        value: "1"
-# -- For Nemotron 3 Super on RTX 6000 Pro: comment the entries above and uncomment the block below
+      - name: NIM_PASSTHROUGH_ARGS
+        value: "--enable-chunked-prefill --kv-cache-dtype fp8"
+# -- If startup fails because the full context does not fit, uncomment and tune NIM_MAX_MODEL_LEN.
 #      - name: NIM_MAX_MODEL_LEN
 #        value: "32768"
-#      - name: NCCL_P2P_DISABLE
-#        value: "1"
-#      - name: NIM_KVCACHE_PERCENT
-#        value: "0.9"
-#      - name: CUDA_VISIBLE_DEVICES
-#        value: "0"
 # -- To switch back to Llama 3.3 Nemotron Super 49B, replace NIM_SERVED_MODEL_NAME value above with:
 #        value: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
-# -- and remove NIM_ENABLE_CHUNKED_PREFILL/NIM_KV_CACHE_DTYPE/VLLM_ALLOW_LONG_MAX_MODEL_LEN entries.
+# -- and remove or retune NIM_PASSTHROUGH_ARGS for that image.
     expose:
       service:
         name: http
@@ -823,9 +813,16 @@ nimOperator:
     startupProbe:
       enabled: true
       probe:
-        httpGet:
-          path: /v1/health/ready
-          port: 8000
+        exec:
+          command:
+            - python3
+            - -c
+            - |
+              import json
+              import sys
+              import urllib.request
+              response = urllib.request.urlopen("http://localhost:8000/v1/health/ready", timeout=5)
+              sys.exit(0 if json.load(response).get("status") == "ready" else 1)
         initialDelaySeconds: 60
         periodSeconds: 10
         failureThreshold: 750

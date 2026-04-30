@@ -78,7 +78,7 @@ services:
       # url on which llm model is hosted. If "", Nvidia hosted API is used
       APP_LLM_SERVERURL: ${APP_LLM_SERVERURL-"nim-llm:8000"}
       # LLM model parameters
-      LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-131072}
+      LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-32768}
       LLM_TEMPERATURE: ${LLM_TEMPERATURE:-0}
       LLM_TOP_P: ${LLM_TOP_P:-1.0}
 

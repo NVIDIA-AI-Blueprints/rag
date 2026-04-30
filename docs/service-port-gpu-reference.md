@@ -19,7 +19,7 @@ The following table provides a comprehensive reference of all services, their po
 
 | Service | Container Name | Host Port(s) | Container Port(s) | Default GPU ID | Environment Variable | Notes |
 |---------|---------------|--------------|-------------------|----------------|---------------------|-------|
-| LLM | `nim-llm-ms` | 8999 | 8000 | 1 | `LLM_MS_GPU_ID` | Main language model |
+| LLM | `nim-llm-ms` | 8999 | 8000 | 1, 2 | `LLM_MS_GPU_ID`, `LLM_MS_GPU_ID2` | Main language model. Default profile uses 2 GPUs. |
 | Embedding | `nemotron-embedding-ms` | 9080 | 8000 | 0 | `EMBEDDING_MS_GPU_ID` | Text embeddings |
 | VLM Embedding | `nemotron-vlm-embedding-ms` | 9081 | 8000 | 0 | `VLM_EMBEDDING_MS_GPU_ID` | Vision-language embeddings (opt-in, profile: vlm-embed) |
 | Ranking | `nemotron-ranking-ms` | 1976 | 8000 | 0 | `RANKING_MS_GPU_ID` | Reranking model |
@@ -63,7 +63,8 @@ USERID=$(id -u) docker compose -f deploy/compose/nims.yaml --profile nemotron-pa
 - For services using multiple ports (e.g., page-elements: 8000, 8001, 8002), these correspond to HTTP API, gRPC, and metrics endpoints respectively.
 - Services marked with "Profile:" only start when that Docker Compose profile is specified using `--profile <name>`.
 - Multiple services can share the same GPU (e.g., embedding, ranking, and ingestion services default to GPU 0).
-- For multi-GPU setups on A100 SXM or B200, see step 3 in the deployment procedure.
+- For the default 2-GPU LLM profile, set `LLM_MS_GPU_ID` and `LLM_MS_GPU_ID2`; see step 3 in the deployment procedure.
+- The default LLM profile uses two GPUs. For the full platform matrix, see the [NVIDIA NIM LLM 2.0.3 support matrix](https://docs.nvidia.com/nim/large-language-models/2.0.3/reference/support-matrix.html).
 :::
 
 :::{note}

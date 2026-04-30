@@ -6,14 +6,14 @@
 
 Use the following documentation to learn about model profiles available for [NVIDIA RAG Blueprint](readme.md).
 
-This section provides the recommended model profiles for different hardware configurations. 
+This section provides model profile guidance for different hardware configurations.
 You should use these profiles for all deployment methods (Docker Compose, Helm Chart, RAG python library, and NIM Operator).
 
 
 ## Profile Selection Guidelines
 
-- **TensorRT-LLM profiles** (`tensorrt_llm-*`) are recommended for best performance
-- For multi-GPU setups, ensure proper GPU allocation by setting `LLM_MS_GPU_ID` environment variable in docker setup.
+- NIM LLM 2.0 uses vLLM as the inference backend. Use `vllm-*` profiles for Nemotron 3 Super NIM 2.0.3.
+- For multi-GPU setups, ensure proper GPU allocation by setting `LLM_MS_GPU_ID`, `LLM_MS_GPU_ID2`, and related Docker Compose GPU variables.
 - Always verify available profiles using the `list-model-profiles` command before deployment
 - By default, NIM uses automatic profile detection. However, you can manually specify a profile for optimal performance using the instructions below
 
@@ -26,7 +26,7 @@ To see all available profiles for your specific hardware configuration, run the 
 ```bash
 USERID=$(id -u) docker run --rm --gpus all \
   -v ~/.cache/model-cache:/opt/nim/.cache \
-  nvcr.io/nim/nvidia/nemotron-3-super-120b-a12b:1.8.0 \
+  nvcr.io/nim/nvidia/nemotron-3-super-120b-a12b:2.0.3 \
   list-model-profiles
 ```
 
@@ -35,13 +35,11 @@ USERID=$(id -u) docker run --rm --gpus all \
 1. **Run** the `list-model-profiles` command (see above) to see all available profiles
 2. **Select** a profile from the "Compatible with system and runnable" section
 3. **Choose** based on these profile name components:
-   - `tensorrt_llm` = best performance (recommended), `vllm` = alternative
-   - GPU type: `h100_nvl`, `h100`, `a100`, `b200`, `rtx6000_blackwell_sv`, etc.
-   - Precision: `fp8` (faster) or `bf16` (better accuracy)
+   - Engine: `vllm`
+   - Precision: `fp8`, `bf16`, or `nvfp4`, depending on the GPU
    - `tp<N>` = number of GPUs (e.g., `tp1` = 1 GPU, `tp2` = 2 GPUs)
-   - `throughput` = batch processing, `latency` = interactive
 
-**Example**: For 1xH100 NVL, select a profile like `tensorrt_llm-h100_nvl-fp8-tp1-pp1-throughput-...` and copy the full string from the output.
+**Example**: The default Nemotron 3 Super deployment uses an FP8 TP2 profile such as `vllm-fp8-tp2-pp1`.
 
 ## Configuring Model Profiles
 
@@ -54,7 +52,7 @@ To set a specific model profile in Docker Compose, add the `NIM_MODEL_PROFILE` e
 ```yaml
   nim-llm:
     container_name: nim-llm-ms
-    image: nvcr.io/nim/nvidia/nemotron-3-super-120b-a12b:1.8.0
+    image: nvcr.io/nim/nvidia/nemotron-3-super-120b-a12b:2.0.3
     # ... other configuration ...
     environment:
       NGC_API_KEY: ${NGC_API_KEY}
@@ -64,7 +62,7 @@ To set a specific model profile in Docker Compose, add the `NIM_MODEL_PROFILE` e
 Then set the profile in your environment or `.env` file before deploying:
 
 ```bash
-export NIM_MODEL_PROFILE="tensorrt_llm-h100-fp8-tp1-pp1-throughput-2330:10de-a5381c1be0b8ee66ad41e7dc7b4e6d2cffaa7a4e37ca05f57898817560b0bd2b-1"
+export NIM_MODEL_PROFILE="vllm-fp8-tp2-pp1"
 docker compose -f deploy/compose/nims.yaml up -d
 ```
 
@@ -82,7 +80,7 @@ nimOperator:
     image:
       repository: nvcr.io/nim/nvidia/nemotron-3-super-120b-a12b
       pullPolicy: IfNotPresent
-      tag: "1.8.0"
+      tag: "2.0.3"
     resources:
       limits:
         nvidia.com/gpu: 2
@@ -92,8 +90,6 @@ nimOperator:
       engine: vllm
       precision: "fp8"
       tensorParallelism: "2"
-      gpus:
-        - product: "rtx6000_blackwell_sv"  # Change based on your GPU
     storage:
       pvc:
         create: true
@@ -104,22 +100,23 @@ nimOperator:
     env:
       - name: NIM_HTTP_API_PORT
         value: "8000"
-      - name: NIM_TRITON_LOG_VERBOSE
-        value: "1"
+      - name: NIM_LOG_LEVEL
+        value: "INFO"
       - name: NIM_SERVED_MODEL_NAME
         value: "nvidia/nemotron-3-super-120b-a12b"
+      - name: NIM_PASSTHROUGH_ARGS
+        value: "--enable-chunked-prefill --kv-cache-dtype fp8"
 ```
 
 **Key profile parameters:**
-- **`engine`**: `tensorrt_llm` (recommended) or `vllm`
-- **`precision`**: `fp8` (faster) or `bf16` (better accuracy)
-- **`qosProfile`**: `throughput` (batch processing) or `latency` (interactive)
-- **`tensorParallelism`**: Number of GPUs (e.g., `"1"`, `"2"`)
-- **`gpus.product`**: GPU type (e.g., `h100`, `h100_nvl`, `a100`, `rtx6000_blackwell_sv`)
-
+- **`engine`**: `vllm`
+- **`precision`**: `fp8`, `bf16`, or `nvfp4`, based on the support matrix for your GPU
+- **`tensorParallelism`**: Number of GPUs used by the LLM profile (e.g., `"1"`, `"2"`, `"4"`)
 :::{note}
 The NIM operator automatically selects the optimal profile based on these parameters.
 :::
+
+For the full Nemotron 3 Super NIM 2.0.3 GPU matrix and minimum GPU counts, see the [NVIDIA NIM LLM 2.0.3 support matrix](https://docs.nvidia.com/nim/large-language-models/2.0.3/reference/support-matrix.html).
 
 After modifying the [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) file, apply the changes as described in [Change a Deployment](deploy-helm.md#change-a-deployment).
 
