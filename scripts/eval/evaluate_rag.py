@@ -345,6 +345,8 @@ class RAGClient:
     def _corpus_file_count(self) -> int:
         """Count regular files under corpus/ (recursive)."""
         n = 0
+        if not os.path.isdir(self.dataset_path):
+            return 0
         for _, _, files in os.walk(self.dataset_path):
             n += len(files)
         return n
@@ -949,7 +951,7 @@ def main():
                     return float(pd.Series(values).mean())
                 except (TypeError, ValueError):
                     return 0.0
-            print(f"        - nv_accuracy (Answer Accuracy):       {_mean(all_result.get(NV_METRIC_NV_ACCURACY, []))}")
+            print(f"        - nv_accuracy:                        {_mean(all_result.get(NV_METRIC_NV_ACCURACY, []))}")
             if all_result.get(NV_METRIC_NV_CONTEXT_RELEVANCE):
                 print(
                     f"        - nv_context_relevance:               {_mean(all_result.get(NV_METRIC_NV_CONTEXT_RELEVANCE, []))}"

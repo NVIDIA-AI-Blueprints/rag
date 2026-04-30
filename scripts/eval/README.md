@@ -67,10 +67,10 @@ Use a JSON array of objects. The script reads these fields from each object:
 
 Context relevance and response groundedness compare the model answer to the contexts retrieved from the RAG server. E2E accuracy uses `question`, `answer`, and the model’s answer.
 
-Each item in `contexts` should include the `filename` and `text` fields:
+Each item in `contexts` should include a `filename` and a `text` field:
 
-- `filename` — stem of the source file under `corpus/` (no extension), e.g. `COMPANY_2020_10K` for `COMPANY_2020_10K.pdf`.
-- `text` — the span tied to that file (page, snippet, or chunk text).
+- `filename` — the same file name the document has under `corpus/` (its basename, not a subdirectory path), matching the file on disk exactly.
+- `text` — the reference span (page, snippet, or chunk text) used for answering the query.
 
 ```json
 "contexts": [
@@ -81,7 +81,7 @@ Each item in `contexts` should include the `filename` and `text` fields:
 ]
 ```
 
-Multiple objects are allowed when several spans or files apply. A legacy shape of plain strings (`["…", "…"]`) is also valid for simple bundles where a file stem is not needed.
+Multiple objects are allowed when several files apply. A legacy shape of plain strings (`["…", "…"]`) is also valid for simple bundles where per-file tagging is not needed.
 
 Minimal example:
 
@@ -95,11 +95,11 @@ Minimal example:
 ]
 ```
 
-Corpus files should be the documents you want indexed; prefer PDF when building the bundle from external data, especially when upstream references omit a file extension. Naming must stay consistent with how your ingestor stores `document_name` (citation parsing matches streamed citation results using basenames).
+Corpus files should be the documents you want indexed; prefer PDF when building the bundle from external data, especially when upstream references do not pin down a concrete on-disk name. Naming must stay consistent with how your ingestor stores `document_name` (citation parsing matches streamed citation results using basenames).
 
 ### Ingestion: `--file-type`
 
-The default value is `pdf`. If the converted corpus is mostly PDFs (recommended when preparing benchmarks, including when you materialize sources from links without explicit extensions), leave defaults or pass `--file-type pdf`; the substring `pdf` enables PDF page counts in ingestion metrics. For non-PDF corpora, use values such as `txt` or `txt,html` so they match what is under `corpus/`.
+The default value is `pdf`. If the converted corpus is mostly PDFs (recommended when preparing benchmarks, including when you materialize sources from links that do not spell out a concrete file name), leave defaults or pass `--file-type pdf`; the substring `pdf` enables PDF page counts in ingestion metrics. For non-PDF corpora, use values such as `txt` or `txt,html` so they match what is under `corpus/`.
 
 ### Checklist
 
