@@ -157,7 +157,7 @@ You should see output similar to the following. With the default Elasticsearch v
     nim-llm-7cb9bdcc89-hwpkq                             1/1     Running     0          11m
     nim-llm-cache-job-77hpc                              0/1     Completed   0          94s
     rag-frontend-5db7874b77-49q8f                        1/1     Running     0          54m
-    rag-minio-649f6476c-n29b8                            1/1     Running     0          54m
+    rag-seaweedfs-all-in-one-649f6476c-n29b8              1/1     Running     0          54m
     rag-nv-ingest-6bf4d98866-kbgg7                       1/1     Running     0          54m
     rag-redis-master-0                                   1/1     Running     0          54m
     rag-redis-replicas-0                                 1/1     Running     0          54m
@@ -218,7 +218,7 @@ You should see output similar to the following. With the default Elasticsearch v
     nemotron-table-structure-v1    ClusterIP   10.107.227.139   <none>        8000/TCP,8001/TCP    54m
     nim-llm                             ClusterIP   10.104.60.155    <none>        8000/TCP,8001/TCP    54m
     rag-frontend                        NodePort    10.100.190.142   <none>        3000:31473/TCP       54m
-    rag-minio                           ClusterIP   10.101.18.143    <none>        9000/TCP             54m
+    rag-seaweedfs-all-in-one            ClusterIP   10.101.18.143    <none>        9010/TCP             54m
     rag-nv-ingest                       ClusterIP   10.107.186.4     <none>        7670/TCP             54m
     rag-redis-headless                  ClusterIP   None             <none>        6379/TCP             54m
     rag-redis-master                    ClusterIP   10.105.178.202   <none>        6379/TCP             54m

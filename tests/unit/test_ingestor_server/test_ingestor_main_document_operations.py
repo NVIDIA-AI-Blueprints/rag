@@ -26,6 +26,7 @@ from unittest.mock import MagicMock, Mock, mock_open, patch
 import pytest
 
 from nvidia_rag.ingestor_server.main import Mode, NvidiaRAGIngestor
+from nvidia_rag.utils.object_store import DEFAULT_BUCKET_NAME
 from nvidia_rag.utils.vdb.milvus.milvus_vdb import MilvusClient
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
 from nvidia_rag.utils.vdb.vdb_ingest_base import VDBRagIngest
@@ -391,22 +392,20 @@ class TestNvidiaRAGIngestorCoverageImprovement:
             "_NvidiaRAGIngestor__prepare_vdb_op_and_collection_name",
             return_value=(mock_vdb_op, "test_collection"),
         ):
+            ingestor.object_store_operator = Mock()
+            ingestor.object_store_operator.list_payloads.return_value = []
             with patch(
                 "nvidia_rag.ingestor_server.main.get_unique_thumbnail_id_collection_prefix",
                 return_value="test_prefix",
             ):
-                with patch(
-                    "nvidia_rag.ingestor_server.main.get_minio_operator",
-                    return_value=Mock(),
-                ):
-                    result = ingestor.delete_collections(
-                        collection_names=["col1", "col2"],
-                        vdb_endpoint="http://test.com",
-                    )
+                result = ingestor.delete_collections(
+                    collection_names=["col1", "col2"],
+                    vdb_endpoint="http://test.com",
+                )
 
-                    # Verify collections were deleted
-                    assert mock_vdb_op.delete_collections.call_count == 1
-                    assert result == {"status": "success"}
+                # Verify collections were deleted
+                assert mock_vdb_op.delete_collections.call_count == 1
+                assert result == {"status": "success"}
 
     def test_get_collections_success(self):
         """Test get_collections success path."""
@@ -506,12 +505,12 @@ class TestNvidiaRAGIngestorCoverageImprovement:
 
         ingestor = NvidiaRAGIngestor(mode=Mode.LIBRARY)
 
-        mock_minio = Mock()
-        mock_minio.list_payloads.return_value = []
-        mock_minio.delete_payloads.return_value = None
+        mock_object_store = Mock()
+        mock_object_store.list_payloads.return_value = []
+        mock_object_store.delete_payloads.return_value = None
 
-        # Patch the instance's minio_operator directly
-        ingestor.minio_operator = mock_minio
+        # Patch the instance's object_store_operator directly
+        ingestor.object_store_operator = mock_object_store
 
         with patch.object(
             ingestor,
@@ -579,8 +578,8 @@ class TestNvidiaRAGIngestorCoverageImprovement:
             with open(test_file2, "w") as f:
                 f.write("Test content 2")
 
-            # Patch the instance's minio_operator directly
-            ingestor.minio_operator = Mock()
+            # Patch the instance's object_store_operator directly
+            ingestor.object_store_operator = Mock()
 
             # Create proper mock result structure for both files
             mock_results = [
@@ -815,10 +814,10 @@ class TestNvidiaRAGIngestorCoverageImprovement:
 
         ingestor = NvidiaRAGIngestor(mode=Mode.LIBRARY)
 
-        mock_minio = Mock()
-        mock_minio.list_payloads.return_value = []
-        mock_minio.delete_payloads.return_value = None
-        ingestor.minio_operator = mock_minio
+        mock_object_store = Mock()
+        mock_object_store.list_payloads.return_value = []
+        mock_object_store.delete_payloads.return_value = None
+        ingestor.object_store_operator = mock_object_store
 
         with patch.object(
             ingestor,
@@ -846,8 +845,8 @@ class TestNvidiaRAGIngestorCoverageImprovement:
                     assert result["total_documents"] == 1
                     assert mock_vdb_op.get_documents.call_count == 2
 
-    def test_delete_documents_minio_unavailable(self):
-        """Test delete_documents when MinIO is unavailable."""
+    def test_delete_documents_object_store_unavailable(self):
+        """Test delete_documents when the object store is unavailable."""
         mock_vdb_op = Mock(spec=VDBRag)
 
         def mock_delete_documents(_collection_name, _source_values, result_dict=None):
@@ -867,7 +866,7 @@ class TestNvidiaRAGIngestorCoverageImprovement:
         mock_vdb_op.config = mock_config
 
         ingestor = NvidiaRAGIngestor(mode=Mode.LIBRARY)
-        ingestor.minio_operator = None
+        ingestor.object_store_operator = None
 
         with patch.object(
             ingestor,
@@ -890,17 +889,34 @@ class TestNvidiaRAGIngestorCoverageImprovement:
                 assert result["message"] == "Files deleted successfully"
                 assert result["total_documents"] == 1
 
-    def test_minio_initialization_error_handling(self):
-        """Test that MinIO initialization errors are handled gracefully."""
+    def test_object_store_initialization_error_handling(self):
+        """Test that object-store initialization errors are handled gracefully."""
         with patch(
-            "nvidia_rag.ingestor_server.main.get_minio_operator"
-        ) as mock_get_minio:
-            mock_get_minio.side_effect = Exception("MinIO connection failed")
+            "nvidia_rag.ingestor_server.main.get_object_store_operator"
+        ) as mock_get_object_store_operator:
+            mock_get_object_store_operator.side_effect = Exception(
+                "Object store connection failed"
+            )
 
             ingestor = NvidiaRAGIngestor(mode=Mode.LIBRARY)
 
-            assert ingestor.minio_operator is None
-            mock_get_minio.assert_called_once()
+            assert ingestor.object_store_operator is None
+            mock_get_object_store_operator.assert_called_once()
+
+    def test_object_store_initialization_ensures_default_bucket(self):
+        """Test ingestor startup ensures the shared default object-store bucket."""
+        mock_operator = Mock()
+
+        with patch(
+            "nvidia_rag.ingestor_server.main.get_object_store_operator",
+            return_value=mock_operator,
+        ):
+            ingestor = NvidiaRAGIngestor(mode=Mode.LIBRARY)
+
+        assert ingestor.object_store_operator is mock_operator
+        mock_operator._make_bucket.assert_called_once_with(
+            bucket_name=DEFAULT_BUCKET_NAME
+        )
 
 
 class TestGetDocumentTypeCounts:

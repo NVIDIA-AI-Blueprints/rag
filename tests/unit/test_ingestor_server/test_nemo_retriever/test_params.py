@@ -16,11 +16,11 @@ from nvidia_rag.ingestor_server.nemo_retriever.params import (
 )
 from nvidia_rag.utils.configuration import (
     EmbeddingConfig,
-    MinioConfig,
     NvidiaRAGConfig,
     NvIngestConfig,
+    ObjectStoreConfig,
 )
-from nvidia_rag.utils.minio_operator import DEFAULT_BUCKET_NAME
+from nvidia_rag.utils.object_store import DEFAULT_BUCKET_NAME
 
 
 def _base_nv_ingest(**kwargs: object) -> NvIngestConfig:
@@ -121,12 +121,12 @@ class TestMakeCaptionParams:
 
 class TestMakeStoreParams:
     def test_storage_uri_and_options(self) -> None:
-        minio = MinioConfig(
-            endpoint="minio:9000",
+        object_store = ObjectStoreConfig(
+            endpoint="seaweedfs:9010",
             access_key=SecretStr("ak"),
             secret_key=SecretStr("sk"),
         )
-        config = NvidiaRAGConfig(minio=minio)
+        config = NvidiaRAGConfig(object_store=object_store)
         vdb_op = MagicMock()
         vdb_op.collection_name = "my_collection"
 
@@ -138,5 +138,32 @@ class TestMakeStoreParams:
         assert sp.storage_options["key"] == "ak"
         assert sp.storage_options["secret"] == "sk"
         assert (
-            sp.storage_options["client_kwargs"]["endpoint_url"] == "http://minio:9000"
+            sp.storage_options["client_kwargs"]["endpoint_url"]
+            == "http://seaweedfs:9010"
         )
+
+    def test_filesystem_storage_uri(self, tmp_path) -> None:
+        object_store = ObjectStoreConfig(
+            backend="filesystem",
+            local_path=str(tmp_path / "object-store"),
+        )
+        config = NvidiaRAGConfig(object_store=object_store)
+        vdb_op = MagicMock()
+        vdb_op.collection_name = "my_collection"
+
+        sp = make_store_params(config, vdb_op)
+
+        expected_uri = (
+            (
+                tmp_path
+                / "object-store"
+                / DEFAULT_BUCKET_NAME
+                / "my_collection"
+                / "images"
+            )
+            .resolve()
+            .as_uri()
+        )
+        assert sp.storage_uri == expected_uri
+        assert sp.public_base_url == expected_uri
+        assert sp.storage_options == {}

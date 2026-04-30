@@ -108,10 +108,10 @@ envVars:
   ## Service-specific API keys are now managed via apiKeysSecret section above.
   ## See apiKeysSecret configuration for details on setting service-specific keys.
 
-  ##===MINIO specific configurations used to store multimodal base64 content===
-  MINIO_ENDPOINT: "rag-minio:9000"
-  MINIO_ACCESSKEY: "minioadmin"
-  MINIO_SECRETKEY: "minioadmin"
+  ##===Object-store configurations used to store multimodal base64 content===
+  OBJECTSTORE_ENDPOINT: "rag-seaweedfs-all-in-one:9010"
+  OBJECTSTORE_ACCESSKEY: "seaweedfsadmin"
+  OBJECTSTORE_SECRETKEY: "seaweedfsadmin"
 
   ##===Redis configurations for summary status tracking===
   REDIS_HOST: "rag-redis-master"
@@ -120,7 +120,7 @@ envVars:
 
   ##===Vector DB specific configurations===
   # URL on which vectorstore is hosted
-  APP_VECTORSTORE_URL: "http://rag-eck-elasticsearch-es-http:9200" # Use "http://milvus:19530" for Milvus
+  APP_VECTORSTORE_URL: "http://rag-eck-elasticsearch-es-default:9200" # Use "http://milvus:19530" for Milvus
   # Type of vectordb used to store embedding supported type "milvus" or "elasticsearch"
   APP_VECTORSTORE_NAME: "elasticsearch"
   # Index type (e.g., GPU_CAGRA); Milvus-oriented — Elasticsearch uses its own index mapping
@@ -218,8 +218,6 @@ envVars:
   APP_TEXTSPLITTER_CHUNKOVERLAP: "200"
 
   # === General ===
-  # Ingestion backend: "nv_ingest" (NV-Ingest microservice) or "nrl" (NeMo-Retriever Library in-process)
-  INGESTOR_BACKEND: "nv_ingest"
   # Choose whether to enable citations in the response
   ENABLE_CITATIONS: "True"
   # Choose whether to enable/disable guardrails
@@ -326,7 +324,7 @@ ingestor-server:
     # Absolute path to custom prompt.yaml file
     PROMPT_CONFIG_FILE: "/prompt.yaml"
     # === Vector Store Configurations ===
-    APP_VECTORSTORE_URL: "http://rag-eck-elasticsearch-es-http:9200" # Use "http://milvus:19530" for Milvus
+    APP_VECTORSTORE_URL: "http://rag-eck-elasticsearch-es-default:9200" # Use "http://milvus:19530" for Milvus
     APP_VECTORSTORE_NAME: "elasticsearch" # supported values: "milvus" or "elasticsearch"
     APP_VECTORSTORE_SEARCHTYPE: "dense"
     # Type of ranker to use for vector store in case of Hybrid Search
@@ -349,10 +347,10 @@ ingestor-server:
     APP_VECTORSTORE_APIKEY: ""
     COLLECTION_NAME: "multimodal_data"
 
-    # === MinIO Configurations ===
-    MINIO_ENDPOINT: "rag-minio:9000"
-    MINIO_ACCESSKEY: "minioadmin"
-    MINIO_SECRETKEY: "minioadmin"
+    # === Object Store Configurations ===
+    OBJECTSTORE_ENDPOINT: "rag-seaweedfs-all-in-one:9010"
+    OBJECTSTORE_ACCESSKEY: "seaweedfsadmin"
+    OBJECTSTORE_SECRETKEY: "seaweedfsadmin"
 
     # === Authentication ===
     ## Service-specific API keys are managed via apiKeysSecret section (see top-level config).
@@ -366,8 +364,6 @@ ingestor-server:
     # === NV-Ingest Configurations ===
     APP_NVINGEST_MESSAGECLIENTHOSTNAME: "rag-nv-ingest"
     APP_NVINGEST_MESSAGECLIENTPORT: "7670"
-    # nv_ingest: NV-Ingest microservice; nrl: NeMo-Retriever Library in-process
-    INGESTOR_BACKEND: "nv_ingest"
 
     # === NV-Ingest extraction configurations ===
     APP_NVINGEST_PDFEXTRACTMETHOD: "None"  # Method used for text extraction from "None", "pdfium", "nemotron_parse"
@@ -394,7 +390,7 @@ ingestor-server:
 
     # === NV-Ingest save to disk configurations ===
     APP_NVINGEST_SAVETODISK: "False"
-    NVINGEST_MINIO_BUCKET: "nv-ingest" # If this value is modified, ensure the corresponding Milvus bucketName is also updated
+    NVINGEST_OBJECTSTORE_BUCKET: "nv-ingest" # If this value is modified, ensure the corresponding Milvus bucketName is also updated
 
     # === NV-Ingest performance configurations ===
     APP_NVINGEST_ENABLE_PDF_SPLIT_PROCESSING: "False"
@@ -462,6 +458,48 @@ ingestor-server:
     # Optional subPath within the PVC
     subPath: ""
 
+# -- SeaweedFS shared object store
+seaweedfs:
+  enabled: true
+  fullnameOverride: "rag-seaweedfs"
+  nameOverride: "seaweedfs"
+  image:
+    repository: "chrislusf/seaweedfs"
+    tag: "3.73"
+  global:
+    seaweedfs:
+      createClusterRole: false
+      imagePullPolicy: IfNotPresent
+  master:
+    enabled: false
+  volume:
+    enabled: false
+  filer:
+    enabled: false
+  s3:
+    enabled: false
+    enableAuth: true
+    credentials:
+      admin:
+        accessKey: "seaweedfsadmin"
+        secretKey: "seaweedfsadmin"
+  sftp:
+    enabled: false
+  allInOne:
+    enabled: true
+    service:
+      type: ClusterIP
+    s3:
+      enabled: true
+      port: 9010
+      enableAuth: true
+    data:
+      type: "persistentVolumeClaim"
+      storageClass: ""
+      accessModes:
+        - ReadWriteOnce
+      size: 50Gi
+
 # -- Frontend
 # subsection: frontend
 # rag frontend Frontend
@@ -500,6 +538,7 @@ frontend:
 
 # -- Elasticsearch dependency toggle (ECK). When true, align APP_VECTORSTORE_URL with the ES HTTP service (e.g. rag-eck-elasticsearch-es-http:9200).
 eck-elasticsearch:
+  fullnameOverride: "rag-eck-elasticsearch"
   enabled: true
   # Preserve PVCs on helm uninstall; only delete when a node is explicitly scaled down.
   volumeClaimDeletePolicy: DeleteOnScaledownOnly
@@ -943,6 +982,7 @@ nimOperator:
 # subsection: nv-ingest
 # NV-Ingest Service
 nv-ingest:
+  fullnameOverride: "rag-nv-ingest"
   enabled: true
   imagePullSecrets:
     - name: "ngc-secret"
@@ -984,11 +1024,11 @@ nv-ingest:
     MESSAGE_CLIENT_HOST: "rag-redis-master"
     MESSAGE_CLIENT_PORT: 6379
     MESSAGE_CLIENT_TYPE: "redis"
-    MINIO_INTERNAL_ADDRESS: "rag-minio:9000"
-    MINIO_PUBLIC_ADDRESS: "http://localhost:9000"
+    MINIO_INTERNAL_ADDRESS: "rag-seaweedfs-all-in-one:9010"
+    MINIO_PUBLIC_ADDRESS: "http://rag-seaweedfs-all-in-one:9010"
     MINIO_BUCKET: "nv-ingest"
-    MINIO_ACCESS_KEY: "minioadmin"
-    MINIO_SECRET_KEY: "minioadmin"
+    MINIO_ACCESS_KEY: "seaweedfsadmin"
+    MINIO_SECRET_KEY: "seaweedfsadmin"
     OTEL_EXPORTER_OTLP_ENDPOINT: "otel-collector:4317"
     MODEL_PREDOWNLOAD_PATH: "/workspace/models/"
     INSTALL_AUDIO_EXTRACTION_DEPS: "true"
@@ -1028,8 +1068,9 @@ nv-ingest:
     AUDIO_GRPC_ENDPOINT: nv-ingest-riva-nim:50051
     AUDIO_INFER_PROTOCOL: grpc
 
-  # When false, nv-ingest does not deploy its Milvus subchart; RAG uses Elasticsearch (eck-elasticsearch + APP_VECTORSTORE_*).
-  milvusDeployed: true
+  # Disable the vendored Milvus dependency entirely for the Elasticsearch + SeaweedFS topology.
+  # NV-Ingest still uses SeaweedFS via MINIO_* env vars for S3-compatible artifact storage.
+  milvusDeployed: false
   milvus:
     # Uncomment this section to enable authentication for Milvus
     # extraConfigFiles:
@@ -1046,11 +1087,9 @@ nv-ingest:
         repository: docker.io/milvusdb/milvus-config-tool
         tag: v0.1.2
         pullPolicy: IfNotPresent
-    # cluster.enabled: true suppresses the standalone deployment (hardcoded replicas:1 in template).
-    # All cluster-mode components are individually disabled so no milvus pods run.
-    # Only the minio subchart remains active to serve nv-ingest.
+    # These values are retained for reference only while the Milvus dependency is disabled.
     cluster:
-      enabled: true
+      enabled: false
     proxy:
       enabled: false
     rootCoordinator:
@@ -1073,17 +1112,14 @@ nv-ingest:
         repository: milvusdb/etcd
         tag: "3.5.23-r2"
     minio:
-      enabled: true
-      image:
-        repository: docker.io/minio/minio
-        tag: "RELEASE.2025-09-07T16-13-09Z"
-      accessKey: minioadmin
-      secretKey: minioadmin
-      bucketName: nv-ingest
+      enabled: false
+      tls:
+        enabled: false
     fullnameOverride: milvus
 
   # Redis Master
   redis:
+    fullnameOverride: "rag-redis"
     image:
       repository: redis
       tag: 8.2.1

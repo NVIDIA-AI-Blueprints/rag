@@ -26,6 +26,7 @@ from pydantic import SecretStr
 from pymilvus import MilvusException
 
 from nvidia_rag.rag_server.response_generator import APIError, ErrorCodeMapping
+from nvidia_rag.utils.configuration import RankerType, SearchType
 from nvidia_rag.utils.vdb import (
     DEFAULT_DOCUMENT_INFO_COLLECTION,
     DEFAULT_METADATA_SCHEMA_COLLECTION,
@@ -92,6 +93,49 @@ class TestMilvusVDB:
 
         # MilvusClient should be instantiated with the endpoint
         mock_milvus_client.assert_called_once_with("http://localhost:19530", token="")
+
+    @patch("nv_ingest_client.util.milvus.Milvus")
+    @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.MilvusClient")
+    @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
+    @pytest.mark.parametrize(
+        ("object_store_endpoint", "expected_minio_endpoint"),
+        [
+            ("http://seaweedfs:9010", "seaweedfs:9010"),
+            ("seaweedfs:9010", "seaweedfs:9010"),
+        ],
+    )
+    def test_init_normalizes_minio_endpoint_for_nv_ingest_milvus(
+        self,
+        mock_connections,
+        mock_milvus_client,
+        mock_nv_ingest_milvus,
+        object_store_endpoint,
+        expected_minio_endpoint,
+    ):
+        """NV-Ingest Milvus bulk upload passes minio_endpoint to Minio(host:port)."""
+        mock_config = Mock()
+        mock_config.vector_store.username = ""
+        mock_config.vector_store.password = None
+        mock_connections.has_connection.return_value = True
+        mock_milvus_client.return_value._using = "milvus_test_alias"
+
+        MilvusVDB(
+            collection_name="test_collection",
+            milvus_uri="http://localhost:19530",
+            embedding_model=Mock(),
+            config=mock_config,
+            object_store_endpoint=object_store_endpoint,
+            access_key="access",
+            secret_key="secret",
+            bucket_name="nv-ingest",
+        )
+
+        mock_nv_ingest_milvus.assert_called_once()
+        call_args = mock_nv_ingest_milvus.call_args[1]
+        assert call_args["minio_endpoint"] == expected_minio_endpoint
+        assert call_args["access_key"] == "access"
+        assert call_args["secret_key"] == "secret"
+        assert call_args["bucket_name"] == "nv-ingest"
 
     @patch("nv_ingest_client.util.milvus.create_nvingest_collection")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
@@ -1253,8 +1297,6 @@ class TestMilvusVDB:
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.time")
     def test_retrieval_langchain_hybrid_weighted_ranker(self, mock_time, mock_connections):
         """Test retrieval_langchain with hybrid search and weighted ranker type."""
-        from nvidia_rag.utils.configuration import SearchType, RankerType
-
         mock_config = Mock()
         mock_config.vector_store.search_type = SearchType.HYBRID
         mock_config.vector_store.ranker_type = RankerType.WEIGHTED
@@ -1325,17 +1367,14 @@ class TestMilvusVDB:
 
                 # Verify RunnableLambda was called
                 assert mock_runnable_lambda.called
-                
-                # Get the lambda function that was passed to RunnableLambda
-                lambda_func = mock_runnable_lambda.call_args[0][0]
-                
+
                 # Create a mock retriever with invoke method to test the lambda
                 test_retriever = Mock()
                 test_retriever.invoke = Mock(return_value=mock_docs)
-                
+
                 # Temporarily replace the retriever in the lambda's closure
                 # and call the lambda to verify it passes ranker params
-                with patch.object(mock_retriever, 'invoke', return_value=mock_docs) as mock_invoke:
+                with patch.object(mock_retriever, "invoke", return_value=mock_docs):
                     # We can't easily test the lambda directly, but we verified it's created correctly
                     pass
 
@@ -1345,8 +1384,6 @@ class TestMilvusVDB:
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.time")
     def test_retrieval_langchain_hybrid_rrf_ranker(self, mock_time, mock_connections):
         """Test retrieval_langchain with hybrid search and RRF ranker type."""
-        from nvidia_rag.utils.configuration import SearchType, RankerType
-
         mock_config = Mock()
         mock_config.vector_store.search_type = SearchType.HYBRID
         mock_config.vector_store.ranker_type = RankerType.RRF
@@ -1414,8 +1451,6 @@ class TestMilvusVDB:
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.time")
     def test_retrieval_langchain_dense_search(self, mock_time, mock_connections):
         """Test retrieval_langchain with dense search (no ranker params)."""
-        from nvidia_rag.utils.configuration import SearchType
-
         mock_config = Mock()
         mock_config.vector_store.search_type = SearchType.DENSE
         mock_time.time.side_effect = [0.0, 1.5]
