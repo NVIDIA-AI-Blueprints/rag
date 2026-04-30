@@ -9,7 +9,7 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV DEBIAN_FRONTEND noninteractive
 
 # Install uv https://docs.astral.sh/uv/guides/integration/docker/#installing-uv
-COPY --from=ghcr.io/astral-sh/uv:0.7.4 /uv /uvx /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.8.12 /uv /uvx /bin/
 
 WORKDIR /build
 
@@ -32,10 +32,12 @@ RUN if [ "$DOWNLOAD_LEGAL_COMPLIANCE" = "true" ]; then \
     fi
 
 # Install required ubuntu packages for setting up python 3.13
+# Update all packages to address security vulnerabilities including CVE-2025-68973 (gpgv)
 RUN apt update && \
+    apt upgrade -y && \
     apt install -y curl software-properties-common libgl1 libglib2.0-0 libmagic1 file build-essential && \
     add-apt-repository ppa:deadsnakes/ppa && \
-    apt update && apt install -y python3.13 python3.13-dev && \
+    apt update && apt upgrade -y && apt install -y python3.13 python3.13-dev && \
     apt-get clean
 
 # Download ONLY sources for packages WE installed (conditional on DOWNLOAD_LEGAL_COMPLIANCE)
@@ -106,8 +108,10 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV DEBIAN_FRONTEND noninteractive
 
 # Install ONLY the essential runtime libraries (no build tools, no Python installation process)
+# Update all packages to address CVE-2025-68973 (gpgv) and other security vulnerabilities
 RUN apt update && \
-    apt install -y libexpat1 gpgv=2.2.27-3ubuntu2.5 && \
+    apt upgrade -y && \
+    apt install -y libexpat1 && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 

@@ -71,10 +71,10 @@ def get_gt_file_pages_from_dataset(dataset_contexts, dataset_path):
                 try:
                     # Read PDF and compare each page with ground truth text
                     reader = PyPDF2.PdfReader(file_path)
-                    best_match_page_number = 0  # Default to first page
+                    best_match_page_number = 1  # Default to first page (1-indexed)
                     max_similarity_ratio = 0
-                    
-                    for page_num, page in enumerate(reader.pages):
+
+                    for page_num, page in enumerate(reader.pages, start=1):
                         # Extract text from current page
                         page_text = page.extract_text()
                         

@@ -87,10 +87,10 @@ During first-time deployments, large models are downloaded without visible progr
 docker logs -f nim-llm-ms
 
 # Monitor embedding service
-docker logs -f nemoretriever-embedding-ms
+docker logs -f nemotron-embedding-ms
 
 # Monitor ranking service
-docker logs -f nemoretriever-ranking-ms
+docker logs -f nemotron-ranking-ms
 ```
 
 **Check disk usage to verify download progress:**
@@ -105,7 +105,7 @@ watch -n 10 'du -sh ~/.cache/model-cache/'
 **Check container stats:**
 ```bash
 # View resource usage and verify containers are active
-docker stats nim-llm-ms nemoretriever-embedding-ms nemoretriever-ranking-ms
+docker stats nim-llm-ms nemotron-embedding-ms nemotron-ranking-ms
 ```
 
 ### Kubernetes/Helm Deployments
@@ -340,7 +340,7 @@ If the above error related to dependency conflicts are seen while building conta
 We've integrated VDB and embedding creation directly into the pipeline with caching included for expediency.
 However, in a production environment, it's better to use a separately managed VDB service.
 
-NVIDIA offers optimized models and tools like NVIDIA NeMo Retriever ([build.nvidia.com/explore/retrieval](https://build.nvidia.com/explore/retrieval))
+NVIDIA offers optimized models and tools like NVIDIA NeMo Retriever Library ([build.nvidia.com/explore/retrieval](https://build.nvidia.com/explore/retrieval))
 and cuVS ([github.com/rapidsai/cuvs](https://github.com/rapidsai/cuvs)).
 
 
@@ -367,7 +367,7 @@ Adding this information may impact response accuracy, especially when partial in
 ## Helm Deployment Issues
 
 ### PVCs in Pending state (StorageClass issues)
-If NIM Cache PVCs (e.g., `nemoretriever-embedding-ms-cache-pvc`) remain in `Pending` state, check if they are requesting a `storageClassName: default` that does not exist.
+If NIM Cache PVCs (e.g., `nemotron-embedding-ms-cache-pvc`) remain in `Pending` state, check if they are requesting a `storageClassName: default` that does not exist.
 **Fix:** Ensure you have a default storage class. If using `local-path`, you can create an alias:
 ```yaml
 apiVersion: storage.k8s.io/v1

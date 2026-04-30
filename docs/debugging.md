@@ -33,7 +33,7 @@ docker logs -f nim-llm-ms
 watch -n 10 'du -sh ~/.cache/model-cache/'
 
 # Check specific container resource usage
-docker stats nim-llm-ms nemoretriever-embedding-ms nemoretriever-ranking-ms
+docker stats nim-llm-ms nemotron-embedding-ms nemotron-ranking-ms
 ```
 
 The expected timeline for Docker (Self-Hosted) deployment is the following:
@@ -124,12 +124,12 @@ docker ps | grep -E "(ingestor-server|nv-ingest|nemoretriever-embedding|milvus|r
    milvus-standalone                       Up 36 minutes (healthy)
    milvus-minio                            Up 35 minutes (healthy)
    milvus-etcd                             Up 35 minutes (healthy)
-   nemoretriever-ranking-ms                Up 38 minutes (healthy)
+   nemotron-ranking-ms                Up 38 minutes (healthy)
    compose-page-elements-1                 Up 38 minutes
    compose-nemoretriever-ocr-1             Up 38 minutes
    compose-graphic-elements-1              Up 38 minutes
    compose-table-structure-1               Up 38 minutes
-   nemoretriever-embedding-ms              Up 38 minutes (healthy)
+   nemotron-embedding-ms              Up 38 minutes (healthy)
    nim-llm-ms                              Up 38 minutes (healthy)
    ```
 
@@ -141,7 +141,7 @@ docker ps | grep -E "(ingestor-server|nv-ingest|nemoretriever-embedding|milvus|r
 # Check ingestor server health with all dependencies
 curl -X GET "http://localhost:8082/v1/health?check_dependencies=true" | jq
 
-# Verify NV-Ingest runtime is ready for processing
+# Verify NeMo Retriever Library runtime is ready for processing
 curl -X GET "http://localhost:7670/v1/health/ready"
 
 # Check embedding service is responding
@@ -219,11 +219,11 @@ Start by examining the logs of key ingestion services to identify the specific e
 # Check ingestor server logs for API errors
 docker logs ingestor-server --tail 100
 
-# Check NV-Ingest runtime logs for processing errors
+# Check NeMo Retriever Library runtime logs for processing errors
 docker logs nv-ingest-ms-runtime --tail 100
 
 # Check embedding service logs for model issues
-docker logs nemoretriever-embedding-ms --tail 100
+docker logs nemotron-embedding-ms --tail 100
 ```
 
 ### 2. Common Ingestion Problems and Solutions
@@ -245,15 +245,15 @@ docker logs milvus-standalone --tail 50
 **Embedding Service Issues:**
 ```bash
 # Check embedding service logs
-docker logs nemoretriever-embedding-ms --tail 100
+docker logs nemotron-embedding-ms --tail 100
 
 # Verify GPU availability and memory
 nvidia-smi
 ```
 
-**NV-Ingest Processing Errors:**
+**NeMo Retriever Library Processing Errors:**
 ```bash
-# Check NV-Ingest logs for processing errors
+# Check NeMo Retriever Library logs for processing errors
 docker logs nv-ingest-ms-runtime --tail 200 | grep -i error
 
 # Check Redis connectivity for task queue
@@ -288,7 +288,7 @@ docker logs rag-server --tail 100
 docker logs nim-llm-ms --tail 100
 
 # Check ranking service logs for reranking errors
-docker logs nemoretriever-ranking-ms --tail 100
+docker logs nemotron-ranking-ms --tail 100
 ```
 
 ### 2. Common Retrieval Problems and Solutions

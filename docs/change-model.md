@@ -46,6 +46,10 @@ The `nemotron-3-nano-30b` model has different naming conventions depending on th
 
 Both names refer to the same underlying model. Use the appropriate name based on your deployment type.
 
+##### Nemotron 3 Super
+
+Nemotron 3 Super is a larger model with different GPU and environment requirements: local NIM deployment requires at least 2 GPUs (FP8 TP2), and you may need a dedicated prompt config and reasoning settings. For full deployment steps (Docker and Helm), see the [Nemotron 3 Super deployment guide](nemotron3-super-deployment.md).
+
 
 ### Change the Embedding Model
 
@@ -77,7 +81,7 @@ Always use same embedding model or model having same tokinizers for both ingesti
 
 ### Configure Embedding Dimensions
 
-The default embedding model (`nvidia/llama-3.2-nv-embedqa-1b-v2`) uses **2048 dimensions** by default. When changing to a different embedding model, you may need to update the dimensions to match the model's output.
+The default embedding model (`nvidia/llama-nemotron-embed-1b-v2`) uses **2048 dimensions** by default. When changing to a different embedding model, you may need to update the dimensions to match the model's output.
 
 **Important:** Some embedding models have **fixed output dimensions** and do not accept a `dimensions` parameter. For example, `nvidia/nv-embedqa-e5-v5` always outputs 1024-dimensional embeddings. If you use such a model without configuring the dimensions, you may encounter an error like:
 
@@ -124,13 +128,13 @@ You can specify the model for NVIDIA NIM containers to use in the [nims.yaml](..
        image: nvcr.io/nim/<image>:<tag>
        ...
 
-     nemoretriever-embedding-ms:
-       container_name: nemoretriever-embedding-ms
+     nemotron-embedding-ms:
+       container_name: nemotron-embedding-ms
        image: nvcr.io/nim/<image>:<tag>
 
 
-     nemoretriever-ranking-ms:
-       container_name: nemoretriever-ranking-ms
+     nemotron-ranking-ms:
+       container_name: nemotron-ranking-ms
        image: nvcr.io/nim/<image>:<tag>
    ```
 
@@ -173,11 +177,11 @@ Use this procedure to change models when you are running self-hosted NVIDIA NIM 
 
       # === Embeddings ===
       APP_EMBEDDINGS_MODELNAME: "<embedding-model-name>"
-      APP_EMBEDDINGS_SERVERURL: "nemoretriever-embedding-ms:8000/v1"
+      APP_EMBEDDINGS_SERVERURL: "nemotron-embedding-ms:8000/v1"
 
       # === Reranker ===
       APP_RANKING_MODELNAME: "<reranker-model-name>"
-      APP_RANKING_SERVERURL: "nemoretriever-ranking-ms:8000"
+      APP_RANKING_SERVERURL: "nemotron-ranking-ms:8000"
     ```
 
 3. Configure the NIM microservices that host those models. Replace `<image>:<tag>` with the image you selected (format `nvcr.io/nim/<image>:<tag>`) in [values.yaml](../deploy/helm/nvidia-blueprint-rag/values.yaml).
@@ -215,7 +219,7 @@ Use this procedure to change models when you are running self-hosted NVIDIA NIM 
       enabled: true
       replicas: 1
       service:
-        name: "nemoretriever-embedding-ms"
+        name: "nemotron-embedding-ms"
       image:
         # nvcr.io/nim/<image>:<tag>
         repository: nvcr.io/nim/<image>
@@ -237,7 +241,7 @@ Use this procedure to change models when you are running self-hosted NVIDIA NIM 
       enabled: true
       replicas: 1
       service:
-        name: "nemoretriever-ranking-ms"
+        name: "nemotron-ranking-ms"
       image:
         # nvcr.io/nim/<image>:<tag>
         repository: nvcr.io/nim/<image>
@@ -264,7 +268,19 @@ Use this procedure to change models when you are running self-hosted NVIDIA NIM 
     **If only the vLLM profile is available**
 
    When only a vLLM profile is available for a model, such as on H100 and RTX GPUs, you must use the vLLM engine. First [run the list-model-profiles command](model-profiles.md#list-available-profiles) to confirm which profiles are available and then apply the following configurations.
-
+    **For Nemotron Nano Models VLLM profile**
+    
+    When deploying `nvidia/nvidia-nemotron-nano-9b-v2` or `nvidia/nemotron-3-nano`, check if `tensorrt_llm` profile is available using below command for your required model. 
+    
+    ```bash
+    # Change model name as needed
+    USERID=$(id -u) docker run --rm --gpus all \
+      nvcr.io/nim/nvidia/nvidia-nemotron-nano-9b-v2:latest \ 
+      list-model-profiles
+    ```
+    
+    If only `vllm` profile is available, you must use the **vLLM engine** and add these specific configurations:
+    
     ```yaml
     nimOperator:
       nim-llm:
@@ -292,4 +308,5 @@ Use this procedure to change models when you are running self-hosted NVIDIA NIM 
 - [Deploy with Docker (Self-Hosted Models)](deploy-docker-self-hosted.md)
 - [Deploy with Docker (NVIDIA-Hosted Models)](deploy-docker-nvidia-hosted.md)
 - [Deploy with Helm](deploy-helm.md)
+- [Nemotron 3 Super deployment (Docker and Helm)](nemotron3-super-deployment.md)
 - [Service-Specific API Keys](api-key.md#service-specific-api-keys)

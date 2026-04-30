@@ -38,6 +38,7 @@ from array import array
 import oracledb
 from langchain_community.vectorstores.oraclevs import (
     OracleVS,
+    _compare_version,
     _get_connection,
     _get_distance_function,
 )
@@ -86,14 +87,63 @@ logger.setLevel(logging.DEBUG)
 
 
 class OracleVSCompat(OracleVS):
-    """Compatibility shim to align LangChain OracleVS with our schema and vector bind needs."""
+    """Compatibility shim to align LangChain OracleVS with our schema and vector bind needs.
+
+    Bypasses LangChain OracleVS's __init__ table-creation logic, which uses
+    unquoted DDL (Oracle case-folds to UPPERCASE) and would create a shadow
+    uppercase table when our quoted-identifier table already exists. We
+    create the user table ourselves via create_vector_table_ddl with quoted
+    identifiers; LangChain only handles retrieval through our overridden
+    similarity_search_by_vector_with_relevance_scores.
+    """
 
     def __init__(
         self,
-        *args,
-        **kwargs,
+        client: Any,
+        embedding_function: Any,
+        table_name: str,
+        distance_strategy: Any = None,
+        query: str | None = "What is a Oracle database",
+        params: dict[str, Any] | None = None,
     ):
-        super().__init__(*args, **kwargs)
+        # Replicate OracleVS.__init__ state setup WITHOUT calling _create_table.
+        # The user table was already created by NvidiaRAG's create_collection()
+        # using create_vector_table_ddl which quotes identifiers to preserve case.
+        connection = _get_connection(client)
+        if connection is None:
+            raise ValueError("Failed to acquire a connection.")
+
+        # Determine insert_mode the same way OracleVS does: thin vs thick driver
+        # and oracledb client version dictate whether vectors are bound as
+        # Python arrays or CLOB JSON.
+        self.insert_mode = "array"
+        if hasattr(connection, "thin") and connection.thin:
+            if oracledb.__version__ == "2.1.0":
+                raise Exception(
+                    "Oracle DB python thin client driver version 2.1.0 not supported"
+                )
+            elif _compare_version(oracledb.__version__, "2.2.0"):
+                self.insert_mode = "clob"
+        else:
+            try:
+                client_ver = ".".join(map(str, oracledb.clientversion()))
+                if _compare_version(client_ver, "23.4"):
+                    self.insert_mode = "clob"
+            except oracledb.Error:
+                # No thick client available; default to array mode
+                self.insert_mode = "array"
+
+        self.client = client
+        self.embedding_function = embedding_function
+        self.query = query
+        self.table_name = table_name
+        self.distance_strategy = (
+            distance_strategy
+            if distance_strategy is not None
+            else DistanceStrategy.EUCLIDEAN_DISTANCE
+        )
+        self.params = params
+
         # Cache embedding dimension to avoid re-embedding per query
         self._embedding_dim = self.get_embedding_dimension()
 
@@ -128,7 +178,7 @@ class OracleVSCompat(OracleVS):
                        TO_VECTOR(:embedding, {self._embedding_dim}, FLOAT32),
                        {distance_fn}
                    ) AS distance
-            FROM {self.table_name}
+            FROM "{self.table_name}"
             ORDER BY distance
             FETCH APPROX FIRST {k} ROWS ONLY
         """
@@ -214,7 +264,7 @@ class OracleVDB(VDBRagIngest):
             hybrid: Enable hybrid search with Oracle Text
         """
         self.config = config or NvidiaRAGConfig()
-        self._collection_name = collection_name.upper() if collection_name else ""
+        self._collection_name = collection_name if collection_name else ""
         self._embedding_model = embedding_model
 
         # Connection parameters from args or environment
@@ -278,19 +328,66 @@ class OracleVDB(VDBRagIngest):
     @collection_name.setter
     def collection_name(self, value: str) -> None:
         """Set the collection name."""
-        self._collection_name = value.upper() if value else ""
+        self._collection_name = value if value else ""
 
     def _get_connection(self):
         """Acquire a connection from the pool."""
         return self._pool.acquire()
 
     def _table_exists(self, table_name: str) -> bool:
-        """Check if a table exists."""
+        """Check if a table exists with exact case match.
+
+        Quoted-identifier user tables (created via CREATE TABLE "name") preserve
+        case in user_tables, so exact-case lookup matches.
+
+        For tables created without quoting (legacy v0.0.6 user tables, system
+        tables like METADATA_SCHEMA / DOCUMENT_INFO), Oracle case-folds names
+        to UPPERCASE in user_tables. Use _table_exists_unquoted() for those.
+        """
         with self._get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(check_table_exists_query(), {"table_name": table_name})
                 result = cursor.fetchone()
                 return result[0] > 0
+
+    def _table_exists_unquoted(self, table_name: str) -> bool:
+        """Check if a table exists, matching Oracle's unquoted-identifier folding.
+
+        Oracle stores unquoted CREATE TABLE foo as FOO in user_tables. Lookups
+        for the system tables (metadata_schema, document_info) and any legacy
+        v0.0.6 collection tables must use UPPER() to find them.
+        """
+        with self._get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    "SELECT COUNT(*) FROM user_tables WHERE table_name = UPPER(:table_name)",
+                    {"table_name": table_name},
+                )
+                result = cursor.fetchone()
+                return result[0] > 0
+
+    @staticmethod
+    def _execute_ddl_idempotent(cursor: Any, ddl: str, kind: str = "object") -> bool:
+        """Execute a CREATE DDL, swallowing ORA-00955 (name already exists).
+
+        Oracle has no native CREATE ... IF NOT EXISTS for tables/indexes/etc.
+        Existence pre-checks have race conditions and don't always match
+        (case-folding subtleties). This wrapper makes CREATE idempotent.
+
+        Returns True if the object was created, False if it already existed.
+        Re-raises any other oracledb error.
+        """
+        try:
+            cursor.execute(ddl)
+            return True
+        except oracledb.Error as e:
+            # ORA-00955: name is already used by an existing object
+            err_obj = e.args[0] if e.args else None
+            code = getattr(err_obj, "code", None)
+            if code == 955:
+                logger.info(f"{kind} already exists, skipping CREATE")
+                return False
+            raise
 
     # -------------------------------------------------------------------------
     # NV-Ingest VDB Operations
@@ -344,7 +441,7 @@ class OracleVDB(VDBRagIngest):
         with self._get_connection() as conn:
             with conn.cursor() as cursor:
                 insert_sql = f"""
-                INSERT INTO {self._collection_name} (text, vector, source, content_metadata)
+                INSERT INTO "{self._collection_name}" (text, vector, source, content_metadata)
                 VALUES (:text, TO_VECTOR(:vector, {self.config.embeddings.dimensions}, FLOAT32), :source, :content_metadata)
                 """
 
@@ -440,34 +537,69 @@ class OracleVDB(VDBRagIngest):
         dimension: int = 2048,
         collection_type: str = "text",
     ) -> None:
-        """Create a new vector collection table."""
-        table_name = collection_name.upper()
+        """Create a new vector collection table.
 
-        if self._table_exists(table_name):
-            logger.info(f"Collection {table_name} already exists")
+        Idempotent: existence checks AND ORA-00955 swallowing handle both
+        the case where the table exists (skip) and the race where another
+        caller created it between the check and the CREATE.
+
+        Both legacy v0.0.6 uppercase tables (BIOMEDICAL_DATASET) and v0.0.7+
+        case-preserved tables (Test_MixedCase) are detected via the
+        case-insensitive existence check, preventing ORA-00955 collisions
+        on upgrade.
+        """
+        table_name = collection_name
+
+        # Validate length: Oracle's hard limit is 128 chars for identifiers.
+        # We accept up to 128; index names that would exceed get hashed in
+        # _derive_object_name, but the table name itself can't be hashed
+        # without losing user-visible identity.
+        if len(table_name) > 128:
+            raise ValueError(
+                f"Collection name exceeds Oracle's 128-character identifier limit "
+                f"(got {len(table_name)} chars): {table_name[:64]}..."
+            )
+
+        # Detect both case-preserved (v0.0.7+) and case-folded (v0.0.6 legacy
+        # or system tables created without quoting) existing tables.
+        if self._table_exists(table_name) or self._table_exists_unquoted(table_name):
+            logger.info(f"Collection {table_name} already exists, skipping CREATE")
             return
 
         with self._get_connection() as conn:
             with conn.cursor() as cursor:
-                # Create table
-                cursor.execute(create_vector_table_ddl(table_name, dimension))
-                logger.info(f"Created table {table_name}")
+                # Create table (idempotent on ORA-00955 in case of race)
+                created = self._execute_ddl_idempotent(
+                    cursor,
+                    create_vector_table_ddl(table_name, dimension),
+                    kind=f"table {table_name}",
+                )
+                if created:
+                    logger.info(f"Created table {table_name}")
 
-                # Create vector index
+                # Create vector index (idempotent)
                 try:
-                    cursor.execute(create_vector_index_ddl(
-                        table_name,
-                        index_type=self._index_type,
-                        distance_metric=self._distance_metric,
-                    ))
+                    self._execute_ddl_idempotent(
+                        cursor,
+                        create_vector_index_ddl(
+                            table_name,
+                            index_type=self._index_type,
+                            distance_metric=self._distance_metric,
+                        ),
+                        kind=f"vector index for {table_name}",
+                    )
                     logger.info(f"Created {self._index_type} vector index on {table_name}")
                 except oracledb.Error as e:
                     logger.warning(f"Could not create vector index: {e}")
 
-                # Create text index for hybrid search
+                # Create text index for hybrid search (idempotent)
                 if self._hybrid:
                     try:
-                        cursor.execute(create_text_index_ddl(table_name))
+                        self._execute_ddl_idempotent(
+                            cursor,
+                            create_text_index_ddl(table_name),
+                            kind=f"text index for {table_name}",
+                        )
                         logger.info(f"Created text index on {table_name}")
                     except oracledb.Error as e:
                         logger.warning(f"Could not create text index: {e}")
@@ -475,8 +607,16 @@ class OracleVDB(VDBRagIngest):
                 conn.commit()
 
     def check_collection_exists(self, collection_name: str) -> bool:
-        """Check if a collection exists."""
-        return self._table_exists(collection_name.upper())
+        """Check if a collection exists.
+
+        Returns True for both case-preserved (v0.0.7+ quoted-DDL) tables and
+        case-folded (v0.0.6 legacy unquoted-DDL) tables. This lets clients
+        upgrading from v0.0.6 still find their legacy collections regardless
+        of which case they query with.
+        """
+        return self._table_exists(collection_name) or self._table_exists_unquoted(
+            collection_name
+        )
 
     def get_collection(self) -> list[dict[str, Any]]:
         """Get all collections with metadata."""
@@ -527,7 +667,7 @@ class OracleVDB(VDBRagIngest):
         failed = []
 
         for name in collection_names:
-            table_name = name.upper()
+            table_name = name
             try:
                 if self._table_exists(table_name):
                     with self._get_connection() as conn:
@@ -585,7 +725,7 @@ class OracleVDB(VDBRagIngest):
     # Document Management
     def get_documents(self, collection_name: str) -> list[dict[str, Any]]:
         """Get all documents in a collection."""
-        table_name = collection_name.upper()
+        table_name = collection_name
         metadata_schema = self.get_metadata_schema(table_name)
 
         documents = []
@@ -630,7 +770,7 @@ class OracleVDB(VDBRagIngest):
         result_dict: dict[str, list[str]] | None = None,
     ) -> bool:
         """Delete documents by source values."""
-        table_name = collection_name.upper()
+        table_name = collection_name
 
         if result_dict is not None:
             result_dict["deleted"] = []
@@ -672,16 +812,25 @@ class OracleVDB(VDBRagIngest):
     # -------------------------------------------------------------------------
     # Metadata Schema Management
     def create_metadata_schema_collection(self) -> None:
-        """Create metadata schema table if not exists."""
+        """Create metadata schema table if not exists.
+
+        Uses unquoted lookup since the DDL itself is unquoted — Oracle stores
+        it as METADATA_SCHEMA. CREATE is idempotent (swallows ORA-00955).
+        """
         if self._metadata_schema_initialized:
             return
 
-        if not self._table_exists(DEFAULT_METADATA_SCHEMA_COLLECTION):
+        if not self._table_exists_unquoted(DEFAULT_METADATA_SCHEMA_COLLECTION):
             with self._get_connection() as conn:
                 with conn.cursor() as cursor:
-                    cursor.execute(create_metadata_schema_table_ddl())
+                    created = self._execute_ddl_idempotent(
+                        cursor,
+                        create_metadata_schema_table_ddl(),
+                        kind=DEFAULT_METADATA_SCHEMA_COLLECTION,
+                    )
                     conn.commit()
-            logger.info(f"Created {DEFAULT_METADATA_SCHEMA_COLLECTION} table")
+                    if created:
+                        logger.info(f"Created {DEFAULT_METADATA_SCHEMA_COLLECTION} table")
 
         self._metadata_schema_initialized = True
 
@@ -691,7 +840,7 @@ class OracleVDB(VDBRagIngest):
         metadata_schema: list[dict[str, Any]],
     ) -> None:
         """Add or update metadata schema for a collection."""
-        table_name = collection_name.upper()
+        table_name = collection_name
 
         with self._get_connection() as conn:
             with conn.cursor() as cursor:
@@ -718,7 +867,7 @@ class OracleVDB(VDBRagIngest):
 
     def get_metadata_schema(self, collection_name: str) -> list[dict[str, Any]]:
         """Get metadata schema for a collection."""
-        table_name = collection_name.upper()
+        table_name = collection_name
 
         with self._get_connection() as conn:
             with conn.cursor() as cursor:
@@ -736,16 +885,25 @@ class OracleVDB(VDBRagIngest):
     # -------------------------------------------------------------------------
     # Document Info Management
     def create_document_info_collection(self) -> None:
-        """Create document info table if not exists."""
+        """Create document info table if not exists.
+
+        Uses unquoted lookup since the DDL itself is unquoted — Oracle stores
+        it as DOCUMENT_INFO. CREATE is idempotent (swallows ORA-00955).
+        """
         if self._document_info_initialized:
             return
 
-        if not self._table_exists(DEFAULT_DOCUMENT_INFO_COLLECTION):
+        if not self._table_exists_unquoted(DEFAULT_DOCUMENT_INFO_COLLECTION):
             with self._get_connection() as conn:
                 with conn.cursor() as cursor:
-                    cursor.execute(create_document_info_table_ddl())
+                    created = self._execute_ddl_idempotent(
+                        cursor,
+                        create_document_info_table_ddl(),
+                        kind=DEFAULT_DOCUMENT_INFO_COLLECTION,
+                    )
                     conn.commit()
-            logger.info(f"Created {DEFAULT_DOCUMENT_INFO_COLLECTION} table")
+                    if created:
+                        logger.info(f"Created {DEFAULT_DOCUMENT_INFO_COLLECTION} table")
 
         self._document_info_initialized = True
 
@@ -757,7 +915,7 @@ class OracleVDB(VDBRagIngest):
         info_value: dict[str, Any],
     ) -> None:
         """Add document info."""
-        table_name = collection_name.upper()
+        table_name = collection_name
 
         # Aggregate collection info
         if info_type == "collection":
@@ -803,7 +961,7 @@ class OracleVDB(VDBRagIngest):
         caller's pre-computed value is stored as-is.  Use this after document deletion
         when the caller has already recalculated the correct aggregated state.
         """
-        table_name = collection_name.upper()
+        table_name = collection_name
 
         with self._get_connection() as conn:
             with conn.cursor() as cursor:
@@ -874,7 +1032,7 @@ class OracleVDB(VDBRagIngest):
         document_name: str,
     ) -> dict[str, Any]:
         """Get document info."""
-        table_name = collection_name.upper()
+        table_name = collection_name
 
         with self._get_connection() as conn:
             with conn.cursor() as cursor:
@@ -961,7 +1119,7 @@ class OracleVDB(VDBRagIngest):
     # Retrieval Operations
     def get_langchain_vectorstore(self, collection_name: str) -> OracleVS:
         """Get LangChain OracleVS vectorstore."""
-        table_name = collection_name.upper()
+        table_name = collection_name
 
         # Map distance metric
         distance_map = {
@@ -995,7 +1153,7 @@ class OracleVDB(VDBRagIngest):
         otel_ctx: Any | None = None,
     ) -> list[Document]:
         """Perform semantic search and return documents."""
-        table_name = collection_name.upper()
+        table_name = collection_name
 
         logger.info(
             "Oracle Retrieval: Retrieving from %s, search type: %s",

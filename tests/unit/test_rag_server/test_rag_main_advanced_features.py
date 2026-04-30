@@ -1192,26 +1192,20 @@ class TestNvidiaRAGPromptProcessingCoverage:
         assert user_message == [("user", "Test human prompt")]
 
     def test_handle_prompt_processing_with_nemotron_v1_model(self):
-        """Test prompt processing with Nemotron v1 model."""
+        """Test prompt processing with Nemotron v1 model uses the chat_template system prompt."""
         rag = NvidiaRAG()
 
         chat_history = []
 
-        # Mock instance attribute
-        mock_prompts = Mock()
         with patch.dict(os.environ, {"ENABLE_NEMOTRON_THINKING": "true"}):
-            mock_prompts.get.return_value = {
-                "system": "Test system prompt",
-                "human": "Test human prompt",
-            }
-
             result = rag._handle_prompt_processing(
                 chat_history, "llama-3.3-nemotron-super-49b-v1", "chat_template"
             )
 
             assert len(result) == 3
             system_message, conversation_history, user_message = result
-            assert system_message == [("system", "detailed thinking on")]
+            expected_system = rag.prompts.get("chat_template", {}).get("system", "")
+            assert system_message == [("system", expected_system)]
 
     def test_handle_prompt_processing_with_system_message_in_history(self):
         """Test prompt processing with system message in chat history."""

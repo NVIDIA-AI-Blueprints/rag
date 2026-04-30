@@ -66,11 +66,11 @@ class TestGetRankingModelPrivate:
         mock_nvidia_rerank.return_value = mock_reranker
 
         result = _get_ranking_model(
-            "nvidia/llama-3.2-nv-rerankqa-1b-v2", "", 10, config=mock_config
+            "nvidia/llama-nemotron-rerank-1b-v2", "", 10, config=mock_config
         )
 
         mock_nvidia_rerank.assert_called_once_with(
-            model="nvidia/llama-3.2-nv-rerankqa-1b-v2",
+            model="nvidia/llama-nemotron-rerank-1b-v2",
             api_key="test-api-key",
             top_n=10,
             truncate="END",
@@ -297,7 +297,7 @@ class TestRankingModelIntegration:
 
             # Test the workflow
             model = get_ranking_model(
-                "nvidia/llama-3.2-nv-rerankqa-1b-v2", "rerank-service:8080", 10
+                "nvidia/llama-nemotron-rerank-1b-v2", "rerank-service:8080", 10
             )
 
             # Test that the model can be used
@@ -325,7 +325,7 @@ class TestRankingModelIntegration:
             mock_get_model.return_value = mock_reranker
 
             # Test the workflow
-            model = get_ranking_model("nvidia/llama-3.2-nv-rerankqa-1b-v2", "", 5)
+            model = get_ranking_model("nvidia/llama-nemotron-rerank-1b-v2", "", 5)
 
             # Test that the model can be used
             documents = ["doc1", "doc2"]

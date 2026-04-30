@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: custom-mig-config
+data:
+  config.yaml: |
+    version: v1
+    mig-configs:
+      all-disabled:
+        - devices: all
+          mig-enabled: false
+      
+      custom-rtx6000-4x1g24-2x1g24-1x2g48-1x4g96:
+        - devices: [0]
+          mig-enabled: true
+          mig-devices:
+            "1g.24gb": 4
+        - devices: [1]
+          mig-enabled: true
+          mig-devices:
+            "1g.24gb": 2
+            "2g.48gb": 1
+        - devices: [2]
+          mig-enabled: true
+          mig-devices:
+            "4g.96gb": 1
