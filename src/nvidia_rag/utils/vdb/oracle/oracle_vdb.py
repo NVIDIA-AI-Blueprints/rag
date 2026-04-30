@@ -38,6 +38,7 @@ from array import array
 import oracledb
 from langchain_community.vectorstores.oraclevs import (
     OracleVS,
+    _compare_version,
     _get_connection,
     _get_distance_function,
 )
@@ -86,14 +87,63 @@ logger.setLevel(logging.DEBUG)
 
 
 class OracleVSCompat(OracleVS):
-    """Compatibility shim to align LangChain OracleVS with our schema and vector bind needs."""
+    """Compatibility shim to align LangChain OracleVS with our schema and vector bind needs.
+
+    Bypasses LangChain OracleVS's __init__ table-creation logic, which uses
+    unquoted DDL (Oracle case-folds to UPPERCASE) and would create a shadow
+    uppercase table when our quoted-identifier table already exists. We
+    create the user table ourselves via create_vector_table_ddl with quoted
+    identifiers; LangChain only handles retrieval through our overridden
+    similarity_search_by_vector_with_relevance_scores.
+    """
 
     def __init__(
         self,
-        *args,
-        **kwargs,
+        client: Any,
+        embedding_function: Any,
+        table_name: str,
+        distance_strategy: Any = None,
+        query: str | None = "What is a Oracle database",
+        params: dict[str, Any] | None = None,
     ):
-        super().__init__(*args, **kwargs)
+        # Replicate OracleVS.__init__ state setup WITHOUT calling _create_table.
+        # The user table was already created by NvidiaRAG's create_collection()
+        # using create_vector_table_ddl which quotes identifiers to preserve case.
+        connection = _get_connection(client)
+        if connection is None:
+            raise ValueError("Failed to acquire a connection.")
+
+        # Determine insert_mode the same way OracleVS does: thin vs thick driver
+        # and oracledb client version dictate whether vectors are bound as
+        # Python arrays or CLOB JSON.
+        self.insert_mode = "array"
+        if hasattr(connection, "thin") and connection.thin:
+            if oracledb.__version__ == "2.1.0":
+                raise Exception(
+                    "Oracle DB python thin client driver version 2.1.0 not supported"
+                )
+            elif _compare_version(oracledb.__version__, "2.2.0"):
+                self.insert_mode = "clob"
+        else:
+            try:
+                client_ver = ".".join(map(str, oracledb.clientversion()))
+                if _compare_version(client_ver, "23.4"):
+                    self.insert_mode = "clob"
+            except oracledb.Error:
+                # No thick client available; default to array mode
+                self.insert_mode = "array"
+
+        self.client = client
+        self.embedding_function = embedding_function
+        self.query = query
+        self.table_name = table_name
+        self.distance_strategy = (
+            distance_strategy
+            if distance_strategy is not None
+            else DistanceStrategy.EUCLIDEAN_DISTANCE
+        )
+        self.params = params
+
         # Cache embedding dimension to avoid re-embedding per query
         self._embedding_dim = self.get_embedding_dimension()
 
