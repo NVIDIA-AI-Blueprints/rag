@@ -472,10 +472,23 @@ seaweedfs:
       imagePullPolicy: IfNotPresent
   master:
     enabled: false
+    port: 9333
+    grpcPort: 19333
+    defaultReplication: "000"
+    volumeSizeLimitMB: 1024
   volume:
     enabled: false
+    port: 8080
+    grpcPort: 18080
+    readMode: proxy
+    minFreeSpacePercent: 1
+    compactionMBps: 50
   filer:
     enabled: false
+    port: 8888
+    grpcPort: 18888
+    dirListLimit: 100000
+    defaultReplicaPlacement: "000"
   s3:
     enabled: false
     enableAuth: true
@@ -489,6 +502,7 @@ seaweedfs:
     enabled: true
     service:
       type: ClusterIP
+    metricsPort: 9324
     s3:
       enabled: true
       port: 9010
@@ -1071,6 +1085,7 @@ nv-ingest:
   # Disable the vendored Milvus dependency entirely for the Elasticsearch + SeaweedFS topology.
   # NV-Ingest still uses SeaweedFS via MINIO_* env vars for S3-compatible artifact storage.
   milvusDeployed: false
+  redisDeployed: false
   milvus:
     # Uncomment this section to enable authentication for Milvus
     # extraConfigFiles:
@@ -1119,15 +1134,27 @@ nv-ingest:
 
   # Redis Master
   redis:
+    enabled: true
     fullnameOverride: "rag-redis"
     image:
-      repository: redis
-      tag: 8.2.1
+      repository: redis/redis-stack
+      tag: 7.2.0-v18
+      pullPolicy: IfNotPresent
+    service:
+      port: 6379
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        memory: 1Gi
 
 
   # Ensure nv-ingest does not deploy its own observability components
   otelDeployed: false
   zipkinDeployed: false
+  prometheus:
+    enabled: false
 
   nimOperator:
     # Ensure nv-ingest does not deploy its own embedding NIM

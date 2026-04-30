@@ -1,0 +1,51 @@
+{{- $cfg := .Values.seaweedfs -}}
+{{- if and $cfg.enabled $cfg.allInOne.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "nvidia-blueprint-rag.seaweedfsAllInOneName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "nvidia-blueprint-rag.seaweedfsLabels" . | nindent 4 }}
+spec:
+  type: {{ $cfg.allInOne.service.type | default "ClusterIP" }}
+  ports:
+    - name: master
+      port: {{ $cfg.master.port | default 9333 }}
+      targetPort: master
+      protocol: TCP
+    - name: master-grpc
+      port: {{ $cfg.master.grpcPort | default 19333 }}
+      targetPort: master-grpc
+      protocol: TCP
+    - name: volume
+      port: {{ $cfg.volume.port | default 8080 }}
+      targetPort: volume
+      protocol: TCP
+    - name: volume-grpc
+      port: {{ $cfg.volume.grpcPort | default 18080 }}
+      targetPort: volume-grpc
+      protocol: TCP
+    - name: filer
+      port: {{ $cfg.filer.port | default 8888 }}
+      targetPort: filer
+      protocol: TCP
+    - name: filer-grpc
+      port: {{ $cfg.filer.grpcPort | default 18888 }}
+      targetPort: filer-grpc
+      protocol: TCP
+    {{- if $cfg.allInOne.s3.enabled }}
+    - name: s3
+      port: {{ $cfg.allInOne.s3.port | default 9010 }}
+      targetPort: s3
+      protocol: TCP
+    {{- end }}
+    {{- if $cfg.allInOne.metricsPort }}
+    - name: server-metrics
+      port: {{ $cfg.allInOne.metricsPort }}
+      targetPort: server-metrics
+      protocol: TCP
+    {{- end }}
+  selector:
+    {{- include "nvidia-blueprint-rag.seaweedfsSelectorLabels" . | nindent 4 }}
+{{- end }}

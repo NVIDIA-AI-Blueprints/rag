@@ -53,7 +53,8 @@ spec:
           {{- $vectorApiKey := index $cfg.envVars "APP_VECTORSTORE_APIKEY" }}
           {{- $vectorApiKeyId := index $cfg.envVars "APP_VECTORSTORE_APIKEY_ID" }}
           {{- $vectorApiKeySecret := index $cfg.envVars "APP_VECTORSTORE_APIKEY_SECRET" }}
-          {{- $useElasticUserSecret := and $eckCfg.enabled (not $vectorUser) (not $vectorPass) (not $vectorApiKey) (not $vectorApiKeyId) (not $vectorApiKeySecret) }}
+          {{- $elasticSecurityEnabled := eq (include "nvidia-blueprint-rag.elasticsearchSecurityEnabled" .) "true" }}
+          {{- $useElasticUserSecret := and $eckCfg.enabled $elasticSecurityEnabled (not $vectorUser) (not $vectorPass) (not $vectorApiKey) (not $vectorApiKeyId) (not $vectorApiKeySecret) }}
           {{- $apiKeysSecretName := include "apiKeysSecretName" . }}
           {{- $hasAnyKey := or .Values.apiKeysSecret.embeddingsApiKey .Values.apiKeysSecret.summaryLlmApiKey }}
           {{- $shouldCreateSecret := and .Values.apiKeysSecret.create (not .Values.apiKeysSecret.existingSecret) $hasAnyKey }}

@@ -1,0 +1,45 @@
+{{- $nvIngest := index .Values "nv-ingest" -}}
+{{- $redis := $nvIngest.redis -}}
+{{- if and $nvIngest.enabled $redis.enabled (not $nvIngest.redisDeployed) }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "nvidia-blueprint-rag.redisMasterName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "nvidia-blueprint-rag.labels" . | nindent 4 }}
+    app.kubernetes.io/component: redis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "nvidia-blueprint-rag.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: redis
+  template:
+    metadata:
+      labels:
+        {{- include "nvidia-blueprint-rag.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: redis
+    spec:
+      containers:
+        - name: redis
+          image: "{{ $redis.image.repository }}:{{ $redis.image.tag }}"
+          imagePullPolicy: {{ $redis.image.pullPolicy | default "IfNotPresent" }}
+          ports:
+            - name: redis
+              containerPort: {{ $redis.service.port | default 6379 }}
+          readinessProbe:
+            tcpSocket:
+              port: redis
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: redis
+            initialDelaySeconds: 15
+            periodSeconds: 15
+          {{- with $redis.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+{{- end }}
