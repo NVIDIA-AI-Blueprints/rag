@@ -1,5 +1,35 @@
 {{- $nimLlm := index .Values.nimOperator "nim-llm" -}}
 {{- if and (.Capabilities.APIVersions.Has "apps.nvidia.com/v1alpha1") (eq $nimLlm.enabled true) }}
+{{- /*
+  GPU auto-detection for tensorParallelism.
+  Reads OKE node shape label to set TP + GPU count + UCX env vars.
+  User override: set nimOperator.nim-llm.model.tensorParallelism explicitly.
+*/ -}}
+{{- $autoTp := "" -}}
+{{- $autoGpu := 1 -}}
+{{- if not $nimLlm.model.tensorParallelism -}}
+  {{- $nodeResult := (lookup "v1" "Node" "" "") -}}
+  {{- if $nodeResult -}}
+    {{- range $nodeResult.items -}}
+      {{- $shape := "" -}}
+      {{- $gpuProduct := "" -}}
+      {{- if .metadata.labels -}}
+        {{- $shape = index .metadata.labels "node.kubernetes.io/instance-type" | default "" -}}
+        {{- $gpuProduct = index .metadata.labels "nvidia.com/gpu.product" | default "" -}}
+      {{- end -}}
+      {{- if contains "GPU4" $shape -}}
+        {{- $autoTp = "4" -}}
+        {{- $autoGpu = 4 -}}
+      {{- else if or (contains "A100" $shape) (contains "A100" $gpuProduct) -}}
+        {{- $autoTp = "2" -}}
+        {{- $autoGpu = 2 -}}
+      {{- else if $shape -}}
+        {{- $autoTp = "1" -}}
+        {{- $autoGpu = 1 -}}
+      {{- end -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
 apiVersion: apps.nvidia.com/v1alpha1
 kind: NIMCache
 metadata:
@@ -13,7 +43,24 @@ spec:
       pullSecret: {{ .Values.imagePullSecret.name }}
       authSecret: {{ .Values.ngcApiSecret.name }}
       model:
-{{ toYaml $nimLlm.model | nindent 8 }}
+        engine: {{ $nimLlm.model.engine }}
+        {{- if $nimLlm.model.tensorParallelism }}
+        tensorParallelism: {{ $nimLlm.model.tensorParallelism | quote }}
+        {{- else if $autoTp }}
+        tensorParallelism: {{ $autoTp | quote }}
+        {{- else }}
+        tensorParallelism: "1"
+        {{- end }}
+        {{- with $nimLlm.model.precision }}
+        precision: {{ . | quote }}
+        {{- end }}
+        {{- with $nimLlm.model.qosProfile }}
+        qosProfile: {{ . | quote }}
+        {{- end }}
+        {{- with $nimLlm.model.gpus }}
+        gpus:
+{{ toYaml . | nindent 10 }}
+        {{- end }}
   storage:
     pvc:
       create: {{ $nimLlm.storage.pvc.create | default true }}
@@ -41,6 +88,14 @@ spec:
       name: {{ $nimLlm.service.name }}-cache
     sharedMemorySizeLimit: {{ $nimLlm.storage.sharedMemorySizeLimit | default "16Gi" }}
   env:
+{{- if and $autoTp (gt ($autoTp | int) 1) }}
+    - name: UCX_TLS
+      value: "tcp,cuda_copy,cuda_ipc"
+    - name: NCCL_IB_DISABLE
+      value: "1"
+    - name: UCX_MEMTYPE_CACHE
+      value: "n"
+{{- end }}
 {{ toYaml $nimLlm.env | nindent 4 }}
   replicas: {{ $nimLlm.replicas | default 1 }}
   {{- with $nimLlm.nodeSelector }}
@@ -53,7 +108,14 @@ spec:
 {{- end }}
 {{- if not .Values.nimOperator.draResources.enabled }}
   resources:
+    {{- if and $autoTp (ne $autoTp "1") }}
+    limits:
+      nvidia.com/gpu: {{ $autoGpu }}
+    requests:
+      nvidia.com/gpu: {{ $autoGpu }}
+    {{- else }}
 {{ toYaml $nimLlm.resources | nindent 4 }}
+    {{- end }}
 {{- end }}
   {{- with $nimLlm.tolerations }}
   tolerations:

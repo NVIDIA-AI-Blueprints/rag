@@ -1,0 +1,85 @@
+{{- if .Values.minio.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: rag-minio
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.minio.storage | quote }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rag-minio
+  labels:
+    app.kubernetes.io/name: rag-minio
+    app.kubernetes.io/component: object-storage
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: rag-minio
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: rag-minio
+        app.kubernetes.io/component: object-storage
+    spec:
+      containers:
+        - name: minio
+          image: {{ .Values.minio.image | quote }}
+          args: ["server", "/data", "--console-address", ":9001"]
+          env:
+            - name: MINIO_ROOT_USER
+              value: {{ .Values.minio.accessKey | quote }}
+            - name: MINIO_ROOT_PASSWORD
+              value: {{ .Values.minio.secretKey | quote }}
+          ports:
+            - name: api
+              containerPort: 9000
+            - name: console
+              containerPort: 9001
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          livenessProbe:
+            httpGet:
+              path: /minio/health/live
+              port: api
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /minio/health/ready
+              port: api
+            initialDelaySeconds: 5
+            periodSeconds: 10
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: rag-minio
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rag-minio
+  labels:
+    app.kubernetes.io/name: rag-minio
+    app.kubernetes.io/component: object-storage
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: rag-minio
+  ports:
+    - name: api
+      port: 9000
+      targetPort: api
+    - name: console
+      port: 9001
+      targetPort: console
+{{- end }}

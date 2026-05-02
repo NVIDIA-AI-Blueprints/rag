@@ -1,0 +1,6 @@
+{{- if and .Values.ngcApiSecret.create (not .Values.ngcApiSecret.password) }}
+{{- fail "Oracle RAG Helm install requires ngcApiSecret.password for NIM model downloads. Use the stock RAG pattern: export NGC_API_KEY=<key>; helm install ... --set ngcApiSecret.password=$NGC_API_KEY --set imagePullSecret.password=$NGC_API_KEY" }}
+{{- end }}
+{{- if and .Values.imagePullSecret.create (not .Values.imagePullSecret.password) }}
+{{- fail "Oracle RAG Helm install requires imagePullSecret.password for nvcr.io image pulls. Use: --set imagePullSecret.password=$NGC_API_KEY" }}
+{{- end }}

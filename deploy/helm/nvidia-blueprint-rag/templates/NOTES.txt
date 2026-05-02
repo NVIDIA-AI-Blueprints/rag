@@ -1,0 +1,30 @@
+
+NVIDIA RAG Blueprint v2.5 deployed successfully.
+
+{{- if hasKey .Values "oracle" }}
+{{- if eq (default "" .Values.oracle.mode) "create" }}
+
+  Oracle 26AI: A fresh Autonomous Database was provisioned automatically.
+  The oracle-creds secret contains ORACLE_USER, ORACLE_PASSWORD, ORACLE_CS.
+{{- else }}
+
+  Oracle 26AI: Using existing database from oracle-creds secret.
+{{- end }}
+{{- end }}
+
+  Monitor pods:     kubectl get pods -n {{ .Release.Namespace }} -w
+  NIM model status: kubectl get nimcache,nimservice -n {{ .Release.Namespace }}
+
+  Frontend URL (wait for EXTERNAL-IP):
+    kubectl get svc rag-frontend -n {{ .Release.Namespace }} -w
+
+  Once EXTERNAL-IP appears:
+    http://<EXTERNAL-IP>:3000
+
+  Expected timeline on a fresh node:
+    ~10 min   NIM caches download models
+    ~25 min   Retriever NIMs ready
+    ~35 min   LLM loaded, all pods ready
+
+  Verify all pods:
+    kubectl get pods -n {{ .Release.Namespace }} --no-headers | grep -v Completed | awk '{r+=($2=="1/1"); t++} END{print r"/"t" ready"}'
