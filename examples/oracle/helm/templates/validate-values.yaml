@@ -1,0 +1,46 @@
+{{- if and .Values.ngcApiSecret.create (not .Values.ngcApiSecret.password) }}
+{{- fail "Oracle RAG Helm install requires ngcApiSecret.password for NIM model downloads. Use the stock RAG pattern: export NGC_API_KEY=<key>; helm install ... --set ngcApiSecret.password=$NGC_API_KEY --set imagePullSecret.password=$NGC_API_KEY" }}
+{{- end }}
+{{- if and .Values.imagePullSecret.create (not .Values.imagePullSecret.password) }}
+{{- fail "Oracle RAG Helm install requires imagePullSecret.password for nvcr.io image pulls. Use: --set imagePullSecret.password=$NGC_API_KEY" }}
+{{- end }}
+
+{{- /*
+  PAI gpu-index is on by default. If a user keeps it on but doesn't supply
+  Oracle Container Registry credentials, fail fast with a clear message
+  rather than letting the Deployment hit ImagePullBackOff.
+*/ -}}
+{{- if and (hasKey .Values "oracle") (default false .Values.oracle.gpuIndexOffload.enabled) (default false .Values.oracle.containerRegistry.create) }}
+{{- if or (not .Values.oracle.containerRegistry.username) (not .Values.oracle.containerRegistry.password) }}
+{{- fail `
+Oracle PAI gpu-index (cuVS index acceleration) is enabled by default but
+container-registry.oracle.com credentials are missing.
+
+This is the headline feature of the integration -- HNSW vector index builds
+on Oracle 26ai are GPU-offloaded to NVIDIA cuVS via the Oracle Private AI
+Services Container. Without these credentials the chart cannot pull the
+PAI image and the install would fail mid-flight.
+
+Pass the credentials the same way you pass NGC creds:
+
+  --set oracle.containerRegistry.username=$ORACLE_SSO_EMAIL \
+  --set oracle.containerRegistry.password=$ORACLE_OCR_TOKEN
+
+Steps to obtain a token (one-time):
+  1. Sign in at https://container-registry.oracle.com with your Oracle SSO.
+  2. Open the "Database -> Private AI" repo and accept the license -- this
+     is required even if you have a token; the pull is denied otherwise.
+  3. Profile menu -> Auth Token -> Generate Secret Key. Copy it once.
+
+If you already have a docker-registry secret in this namespace, reuse it:
+
+  --set oracle.containerRegistry.create=false \
+  --set oracle.containerRegistry.name=<existing-secret>
+
+To opt out of GPU index acceleration entirely (not recommended; HNSW will
+build on database CPU, which is much slower on large corpora):
+
+  --set oracle.gpuIndexOffload.enabled=false
+` }}
+{{- end }}
+{{- end }}

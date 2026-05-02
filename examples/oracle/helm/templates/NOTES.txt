@@ -1,0 +1,46 @@
+
+NVIDIA RAG Blueprint with Oracle Database 26AI with cuVS — install complete.
+
+What was deployed:
+
+  - Oracle Autonomous AI Database 26ai (provisioned automatically by the
+    pre-install hook; ADMIN + RAG_APP credentials in {{ .Release.Namespace }}/{{ .Values.oracle.credentials.oracleSecret | default "oracle-creds" }})
+  - NVIDIA RAG Blueprint (rag-server, ingestor-server, embedding/rerank/VLM/
+    NV-Ingest NIMs, NIM LLM)
+{{- if and (hasKey .Values "oracle") (default false .Values.oracle.gpuIndexOffload.enabled) }}
+  - Oracle Private AI Services Container (gpu-index variant) — cuVS-backed
+    HNSW vector index build offload, exposed as an OCI internal LoadBalancer
+    so ADB can reach it from your VCN (ClusterIPs and cluster.local DNS are
+    not visible to ADB).
+
+    The post-install Job 'oracle-pai-verify' waits for the LoadBalancer to
+    get an ingress IP, patches {{ .Values.oracle.credentials.oracleSecret | default "oracle-creds" }} with
+    ORACLE_PAI_INDEX_URL=http://<lb-ip>:{{ default 8080 .Values.oracle.gpuIndexOffload.service.port }}/v1/index, and rolls
+    rag-server + ingestor-server so they re-read it. After that, every HNSW
+    CREATE VECTOR INDEX issued by the blueprint runs through cuVS on the GPU
+    instead of the database CPU.
+
+    The ADB-side OCI security path (ingress on the OKE service-LB subnet
+    from the ADB private endpoint CIDR on TCP {{ default 8080 .Values.oracle.gpuIndexOffload.service.port }}) is opened automatically by
+    the provisioner Job. If the provisioner's IAM policy did not permit
+    that, the verify Job log prints the exact `oci network security-list
+    update` command to run as a fallback.
+
+    To see the resolved endpoint and security-path status:
+      kubectl logs -n {{ .Release.Namespace }} job/oracle-pai-verify
+      kubectl logs -n {{ .Release.Namespace }} job/oracle-adb-provisioner | grep "PAI NSG"
+      kubectl get svc -n {{ .Release.Namespace }} oracle-pai-gpu-index
+{{- else }}
+  - GPU index offload via cuVS: DISABLED by --set oracle.gpuIndexOffload.enabled=false.
+    HNSW index builds will run on the database CPU.
+{{- end }}
+
+Useful commands:
+
+  Pods:           kubectl get pods -n {{ .Release.Namespace }}
+  PAI logs:       kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/name=oracle-pai-gpu-index -f
+  PAI verify:     kubectl logs -n {{ .Release.Namespace }} job/oracle-pai-verify
+  PAI endpoint:   kubectl get svc -n {{ .Release.Namespace }} oracle-pai-gpu-index
+  RAG frontend:   kubectl get svc -n {{ .Release.Namespace }} | grep frontend
+
+Once the frontend EXTERNAL-IP appears: open http://<EXTERNAL-IP>:3000

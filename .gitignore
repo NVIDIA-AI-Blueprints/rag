@@ -85,4 +85,23 @@ tests/data/
 /.claude/
 skills-lock.json
 
+# Test-time temp dirs (created by mocked tests)
+/MagicMock/
+
+# Sensitive local files — NEVER commit
+.tmp-oci-config
+*.pem
+wallet*/
+oracle-wallet/
+generated/
+*.env.local
+
+# Helm sub-chart tarballs (fetched via `helm dependency update`).
+# Per upstream review (PR #513), we never redistribute third-party charts
+# inside the repo — customers run `helm dependency update` to fetch them
+# from the public registries listed in each Chart.yaml.
+/deploy/helm/*/charts/*.tgz
+/examples/*/helm/charts/*.tgz
+**/Chart.lock
+
 # Workbench Project Layout

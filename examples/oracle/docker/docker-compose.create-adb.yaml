@@ -1,0 +1,48 @@
+# Docker Compose create-ADB path for the Oracle branch.
+# This is a developer/local example. It creates ADB through the provisioner,
+# writes generated/oracle.env, then starts RAG services using Oracle.
+
+services:
+  docker-prereq-check:
+    image: python:3.12-slim
+    env_file:
+      - .env
+    command:
+      - python
+      - -c
+      - |
+        import os
+        missing = [k for k in ("NGC_API_KEY", "OCI_COMPARTMENT_OCID", "OCI_SUBNET_OCID") if not os.getenv(k)]
+        if missing:
+            raise SystemExit(
+                "Missing required environment variables: "
+                + ", ".join(missing)
+                + ". Copy .env.example to .env and fill the values. Also run: "
+                + "docker login nvcr.io -u '$oauthtoken' -p \"$NGC_API_KEY\""
+            )
+        print("Docker/Oracle prerequisites look valid.")
+
+  oracle-adb-provisioner:
+    build:
+      context: ../provisioner
+    depends_on:
+      docker-prereq-check:
+        condition: service_completed_successfully
+    env_file:
+      - .env
+    environment:
+      OCI_COMPARTMENT_OCID: ${OCI_COMPARTMENT_OCID}
+      OCI_SUBNET_OCID: ${OCI_SUBNET_OCID}
+      ORACLE_DB_NAME: ${ORACLE_DB_NAME:-ragbp}
+      ORACLE_DB_DISPLAY_NAME: ${ORACLE_DB_DISPLAY_NAME:-ragbp}
+      ORACLE_DB_ECPUS: ${ORACLE_DB_ECPUS:-4}
+      ORACLE_DB_STORAGE_TB: ${ORACLE_DB_STORAGE_TB:-1}
+      ORACLE_DELETE_ON_DOWN: "false"
+    volumes:
+      - ${HOME}/.oci:/root/.oci:ro
+      - ../generated:/generated
+    command: ["python", "/app/provision_adb.py", "create", "--output-env", "/generated/oracle.env"]
+
+  # The full RAG compose stack extends the repository's standard compose file.
+  # RAG services should load ../generated/oracle.env and set
+  # APP_VECTORSTORE_NAME=oracle.

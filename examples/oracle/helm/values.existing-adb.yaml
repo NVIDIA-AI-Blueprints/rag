@@ -1,0 +1,305 @@
+# Existing-ADB mode for the Oracle wrapper chart.
+#
+# Use this values file when you already have an Oracle ADB (23ai or 26ai)
+# and want to connect the RAG Blueprint to it. Works with any ADB:
+#
+#   * Same VCN / private endpoint  -> walletless TLS (simplest)
+#   * Same VCN / public endpoint   -> mTLS with wallet
+#   * Different region / tenancy   -> mTLS with wallet over internet
+#   * On-premises Oracle 26ai      -> TLS or mTLS depending on network
+#
+# Prerequisites:
+#   1. Existing Oracle ADB 23ai/26ai (any region, any tenancy)
+#   2. RAG_APP bootstrapped with grants (see examples/oracle/bootstrap.sql):
+#        GRANT CONNECT, RESOURCE, UNLIMITED TABLESPACE, CTXAPP to RAG_APP
+#        GRANT EXECUTE ON CTXSYS.CTX_QUERY TO RAG_APP
+#   3. K8s Secret `oracle-creds` in the target namespace:
+#        kubectl create secret generic oracle-creds \
+#          --from-literal=ORACLE_USER=RAG_APP \
+#          --from-literal=ORACLE_PASSWORD='<password>' \
+#          --from-literal=ORACLE_CS='<connection string or TNS alias>'
+#
+# Connection modes:
+#
+#   Walletless TLS (private endpoint ADB, same VCN):
+#     ORACLE_CS = full DSN descriptor:
+#       (description=(address=(protocol=tcps)(port=1521)(host=<adb-host>))
+#        (connect_data=(service_name=<service>_medium.adb.oraclecloud.com))
+#        (security=(ssl_server_dn_match=no)))
+#
+#   mTLS with wallet (public endpoint / cross-region / cross-tenancy):
+#     1. Download wallet from OCI Console -> ADB -> DB Connection -> Download
+#     2. kubectl create secret generic oracle-wallet --from-file=<unzipped-wallet-dir>/
+#     3. ORACLE_CS = TNS alias from tnsnames.ora (e.g. test1_medium)
+#     4. Add ORACLE_WALLET_PASSWORD to oracle-creds Secret
+#     5. Uncomment the wallet volume sections below
+#
+# cuVS GPU index offload:
+#   cuVS is enabled by default in ALL scenarios. The PAI Service is exposed
+#   as an OCI LoadBalancer so ADB can reach it for OFFLOAD_URL index builds.
+#
+#   Same VCN (default):
+#     Internal LB (oracle.gpuIndexOffload.service.internal=true).
+#     ADB reaches PAI via VCN-routable private IP. HTTP is acceptable
+#     because traffic never leaves the VCN.
+#
+#   Cross-region / cross-tenancy (public LB):
+#     --set oracle.gpuIndexOffload.service.internal=false
+#     --set oracle.gpuIndexOffload.auth=true
+#     --set oracle.gpuIndexOffload.https=true
+#     The LB gets a public IP; PAI enables authentication + HTTPS so
+#     enterprise data traversing the internet is encrypted and
+#     authenticated. The verify Job patches ORACLE_PAI_INDEX_URL with
+#     the public LB IP. ADB connects via HTTPS for HNSW offload.
+#     The OFFLOAD_CREDENTIAL_NAME on the ADB side authenticates to PAI.
+
+oracle:
+  mode: existing
+  createDatabase:
+    enabled: false
+  credentials:
+    oracleSecret: oracle-creds
+
+  # cuVS GPU index offload via the Oracle Private AI Services container.
+  # Enabled by default for parity with the create-adb path. Customer must
+  # also accept the OCR license once and pass:
+  #   --set oracle.containerRegistry.username=$ORACLE_SSO_EMAIL
+  #   --set oracle.containerRegistry.password=$ORACLE_OCR_TOKEN
+  # Disable explicitly with --set oracle.gpuIndexOffload.enabled=false.
+  gpuIndexOffload:
+    enabled: true
+    # Pre-install hook that pulls the PAI image onto a GPU node BEFORE
+    # other resources (existing-adb mode skips ADB provisioning, but
+    # the preflight still catches bad OCR creds + missing GPU node).
+    preflight:
+      enabled: true
+    image:
+      repository: container-registry.oracle.com/database/private-ai
+      tag: gpu-index-26.1.0.0.0
+      pullPolicy: IfNotPresent
+    replicaCount: 1
+    service:
+      type: LoadBalancer
+      internal: true
+      port: 8080
+      shape: ""
+      subnetId: ""
+      nsgIds: []
+      annotations: {}
+    nodeSelector: {}
+    tolerations: []
+    resources:
+      requests:
+        cpu: "2"
+        memory: 4Gi
+        nvidia.com/gpu: 1
+      limits:
+        cpu: "8"
+        memory: 16Gi
+        nvidia.com/gpu: 1
+    gpuMode: FORCE
+    https: false
+    auth: false
+    extraEnv: []
+
+  containerRegistry:
+    create: true
+    name: oracle-pull-secret
+    server: container-registry.oracle.com
+    username: ""
+    password: ""
+
+  # Bring-Your-Own data: expose existing Oracle tables to the frontend.
+  #
+  # The post-install oracle-byo-import Job runs whenever oracle.mode=existing
+  # OR this list is non-empty. It does two things:
+  #
+  #   1. For each entry below, CREATE OR REPLACE VIEW <collectionName> AS a
+  #      SELECT that projects the customer's columns into the RAG canonical
+  #      shape (id, text, vector, source, content_metadata). The view is
+  #      read-only by Oracle's DML rules so the customer's base table is
+  #      never mutated by the RAG ingestor or delete-by-source flow.
+  #
+  #   2. Discovery scan: any table/view with a VECTOR column that already
+  #      matches the RAG canonical shape is auto-registered with the
+  #      tracking tables (idempotent MERGE) so the frontend lists it with
+  #      accurate doc counts and a "byo" tag without manual config.
+  #
+  # Example (uncomment + edit):
+  #
+  #   importExistingTables:
+  #     - sourceTable: KB_USER.MY_DOCS    # schema-qualified or bare table
+  #       collectionName: my_kb_view      # name to expose to the frontend
+  #       columns:
+  #         text: content                 # required: text content column
+  #         vector: embedding             # required: VECTOR column
+  #         source: source_url            # optional: filename / URL
+  #         sourceWrapJson: true          # wrap source into JSON_OBJECT()
+  #         contentMetadata: meta_json    # optional: JSON metadata column
+  #         id: doc_id                    # optional; defaults to ROWID
+  importExistingTables: []
+
+imagePullSecret:
+  create: true
+  name: ngc-secret
+  registry: nvcr.io
+  username: "$oauthtoken"
+  password: ""
+
+ngcApiSecret:
+  create: true
+  name: ngc-api
+  password: ""
+
+frontend:
+  service:
+    type: ClusterIP
+
+operators:
+  gpu:
+    enabled: true
+  nim:
+    enabled: true
+
+gpu-operator:
+  # Upstream NFD post-delete prune Job has a pod-spec/container-spec
+  # bug that fails 1.27+ admission. Disable to keep `helm uninstall`
+  # working. See values.create-adb.yaml for context.
+  node-feature-discovery:
+    postDeleteCleanup: false
+nim-operator: {}
+
+minio:
+  enabled: true
+  image: docker.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
+  accessKey: minioadmin
+  secretKey: minioadmin
+  storage: 50Gi
+
+rag:
+  imagePullSecret:
+    create: false
+    name: ngc-secret
+    registry: nvcr.io
+    username: "$oauthtoken"
+    password: ""
+  ngcApiSecret:
+    create: false
+    name: ngc-api
+    password: ""
+  frontend:
+    service:
+      type: ClusterIP
+  initContainers:
+    - name: install-oracle-deps
+      image: "nvcr.io/nvidia/blueprint/rag-server:2.5.0"
+      command: ["python", "-m", "pip"]
+      args: ["install", "--target=/opt/oracle-deps", "--no-cache-dir",
+             "oracledb==3.4.2", "langchain-oracledb==1.3.0"]
+      volumeMounts:
+        - name: oracle-pip-packages
+          mountPath: /opt/oracle-deps
+  extraVolumes:
+    - name: oracle-pip-packages
+      emptyDir: {}
+    # --- mTLS wallet mount (uncomment for public-endpoint / cross-region ADB) ---
+    # - name: oracle-wallet
+    #   secret:
+    #     secretName: oracle-wallet
+    #     defaultMode: 0400
+  extraVolumeMounts:
+    - name: oracle-pip-packages
+      mountPath: /opt/oracle-deps
+    # --- mTLS wallet mount (uncomment for public-endpoint / cross-region ADB) ---
+    # - name: oracle-wallet
+    #   mountPath: /app/wallet
+    #   readOnly: true
+  envFrom:
+    - secretRef:
+        name: oracle-creds
+  milvusDeployed: false
+  nv-ingest:
+    milvusDeployed: false
+  # Nemotron 3 Super 120B as the standard LLM.
+  nimOperator:
+    nim-llm:
+      image:
+        repository: nvcr.io/nim/nvidia/nemotron-3-super-120b-a12b
+        pullPolicy: IfNotPresent
+        tag: "1.8.0"
+      resources:
+        limits:
+          nvidia.com/gpu: 2
+        requests:
+          nvidia.com/gpu: 2
+      model:
+        engine: vllm
+        precision: "fp8"
+        tensorParallelism: "2"
+      env:
+        - name: NIM_HTTP_API_PORT
+          value: "8000"
+        - name: NIM_SERVED_MODEL_NAME
+          value: "nvidia/nemotron-3-super-120b-a12b"
+        - name: NIM_MAX_MODEL_LEN
+          value: "131072"
+  envVars:
+    PYTHONPATH: "/opt/oracle-deps"
+    APP_VECTORSTORE_NAME: "oracle"
+    APP_VECTORSTORE_SEARCHTYPE: "hybrid"
+    APP_VECTORSTORE_INDEXTYPE: "HNSW"
+    APP_VECTORSTORE_ENABLEGPUSEARCH: "False"
+    APP_VECTORSTORE_URL: ""
+    ENABLE_MINIO: "true"
+    MINIO_ENDPOINT: "rag-minio:9000"
+    MINIO_ACCESSKEY: "minioadmin"
+    MINIO_SECRETKEY: "minioadmin"
+    ORACLE_VECTOR_INDEX_TYPE: "HNSW"
+    ORACLE_DISTANCE_METRIC: "COSINE"
+    APP_LLM_MODELNAME: "nvidia/nemotron-3-super-120b-a12b"
+    APP_QUERYREWRITER_MODELNAME: "nvidia/nemotron-3-super-120b-a12b"
+    APP_FILTEREXPRESSIONGENERATOR_MODELNAME: "nvidia/nemotron-3-super-120b-a12b"
+    REFLECTION_LLM: "nvidia/nemotron-3-super-120b-a12b"
+  ingestor-server:
+    initContainers:
+      - name: install-oracle-deps
+        image: "nvcr.io/nvidia/blueprint/ingestor-server:2.5.0"
+        command: ["python", "-m", "pip"]
+        args: ["install", "--target=/opt/oracle-deps", "--no-cache-dir",
+               "oracledb==3.4.2", "langchain-oracledb==1.3.0"]
+        volumeMounts:
+          - name: oracle-pip-packages
+            mountPath: /opt/oracle-deps
+    extraVolumes:
+      - name: oracle-pip-packages
+        emptyDir: {}
+      # --- mTLS wallet mount (uncomment for public-endpoint / cross-region ADB) ---
+      # - name: oracle-wallet
+      #   secret:
+      #     secretName: oracle-wallet
+      #     defaultMode: 0400
+    extraVolumeMounts:
+      - name: oracle-pip-packages
+        mountPath: /opt/oracle-deps
+      # --- mTLS wallet mount (uncomment for public-endpoint / cross-region ADB) ---
+      # - name: oracle-wallet
+      #   mountPath: /app/wallet
+      #   readOnly: true
+    envFrom:
+      - secretRef:
+          name: oracle-creds
+    envVars:
+      APP_VECTORSTORE_NAME: "oracle"
+      APP_VECTORSTORE_SEARCHTYPE: "hybrid"
+      APP_VECTORSTORE_INDEXTYPE: "HNSW"
+      APP_VECTORSTORE_ENABLEGPUSEARCH: "False"
+      APP_VECTORSTORE_URL: ""
+      ENABLE_MINIO: "true"
+      MINIO_ENDPOINT: "rag-minio:9000"
+      MINIO_ACCESSKEY: "minioadmin"
+      MINIO_SECRETKEY: "minioadmin"
+      PYTHONPATH: "/opt/oracle-deps"
+      ORACLE_VECTOR_INDEX_TYPE: "HNSW"
+      ORACLE_DISTANCE_METRIC: "COSINE"
+      SUMMARY_LLM: "nvidia/nemotron-3-super-120b-a12b"
+

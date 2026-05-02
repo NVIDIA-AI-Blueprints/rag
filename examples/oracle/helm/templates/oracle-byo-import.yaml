@@ -1,0 +1,313 @@
+{{- /*
+  Post-install Job: Bring-Your-Own data integration.
+
+  This Job runs whenever the chart is installed against an existing ADB
+  (oracle.mode=existing) OR whenever oracle.importExistingTables is non-
+  empty in values. It performs two passes:
+
+    1. Mapping pass (oracle.importExistingTables):
+         For each entry, CREATE OR REPLACE VIEW <collectionName> AS
+         a SELECT that projects the customer's columns into the RAG
+         canonical shape (id, text, vector, source, content_metadata).
+         Views are read-only by Oracle's DML rules, so customer data is
+         never mutated by the RAG ingestor or delete-by-source flow.
+
+    2. Discovery pass:
+         Scan user_tab_columns for any object with a VECTOR column.
+         Auto-register canonical-shape ones with the metadata_schema
+         and document_info tracking tables (idempotent MERGE) so the
+         frontend lists them with accurate counts and a 'byo' tag.
+         Non-canonical objects are logged with a values.yaml snippet
+         the operator can paste in to expose them via a SQL view.
+
+  We never DROP or TRUNCATE anything in this Job: BYO data is sacred.
+*/ -}}
+{{- $byo := default (list) ((.Values.oracle).importExistingTables) -}}
+{{- $hasMode := and (hasKey .Values "oracle") (hasKey .Values.oracle "mode") -}}
+{{- $existing := and $hasMode (eq .Values.oracle.mode "existing") -}}
+{{- if or $existing (gt (len $byo) 0) }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: oracle-byo-import
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "10"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 600
+  activeDeadlineSeconds: 600
+  template:
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: byo-import
+          image: {{ (((.Values.oracle).provisioner).image) | default "docker.io/python:3.12-slim" | quote }}
+          imagePullPolicy: {{ (((.Values.oracle).provisioner).imagePullPolicy) | default "IfNotPresent" | quote }}
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          envFrom:
+            - secretRef:
+                name: {{ default "oracle-creds" .Values.oracle.credentials.oracleSecret | quote }}
+          env:
+            - name: BYO_TABLES_JSON
+              value: {{ $byo | toJson | quote }}
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eu
+              pip install --quiet --no-cache-dir 'oracledb==3.4.2' >/dev/null
+              python <<'PY'
+              import json, os, sys
+              import oracledb
+
+              user = os.environ["ORACLE_USER"]
+              password = os.environ["ORACLE_PASSWORD"]
+              cs = os.environ["ORACLE_CS"]
+              entries = json.loads(os.environ.get("BYO_TABLES_JSON", "[]") or "[]")
+
+              print(f"Connecting to {cs} as {user} ...", flush=True)
+              # Walletless TLS DSN (provisioner emits this format); no wallet
+              # mount needed in BYO mode.
+              try:
+                  conn = oracledb.connect(user=user, password=password, dsn=cs)
+              except Exception as e:
+                  print(f"FAIL: cannot connect to ADB: {e}")
+                  print("  Verify oracle-creds Secret values; check the ADB private "
+                        "endpoint is reachable from this namespace.")
+                  sys.exit(1)
+
+              cur = conn.cursor()
+
+              # ---- 1) Mapping pass: VIEW per oracle.importExistingTables entry
+              # Fail-fast policy: a misconfigured entry should fail this Job
+              # in <30s, not silently produce a missing collection that the
+              # operator finds the next day. We collect ALL errors first so
+              # the operator sees every problem in one log scrape, then exit
+              # non-zero at the end.
+              created_views = []
+              fatal_errors = []
+              for e in entries:
+                  view = (e.get("collectionName") or "").strip()
+                  src = (e.get("sourceTable") or "").strip()
+                  cols = e.get("columns") or {}
+                  if not view or not src:
+                      fatal_errors.append(
+                          f"importExistingTables entry missing required "
+                          f"sourceTable+collectionName: {e}"
+                      )
+                      continue
+                  text = cols.get("text")
+                  vec  = cols.get("vector")
+                  if not text or not vec:
+                      fatal_errors.append(
+                          f"{view}: missing required column mapping. "
+                          f"Both 'text' and 'vector' are required. Got: {cols}"
+                      )
+                      continue
+
+                  # Verify the source table actually exists BEFORE we try to
+                  # CREATE VIEW against it — Oracle's error for a missing
+                  # table is just ORA-00942 with no hint.
+                  schema_part, _, table_part = src.partition(".")
+                  if not table_part:
+                      schema_part, table_part = "", src
+                  cur.execute(
+                      "SELECT COUNT(*) FROM all_tables WHERE table_name = :t "
+                      + ("AND owner = :o" if schema_part else ""),
+                      {"t": table_part.upper(), "o": schema_part.upper()}
+                          if schema_part else {"t": table_part.upper()},
+                  )
+                  if cur.fetchone()[0] == 0:
+                      cur.execute(
+                          "SELECT COUNT(*) FROM all_views WHERE view_name = :t "
+                          + ("AND owner = :o" if schema_part else ""),
+                          {"t": table_part.upper(), "o": schema_part.upper()}
+                              if schema_part else {"t": table_part.upper()},
+                      )
+                      if cur.fetchone()[0] == 0:
+                          fatal_errors.append(
+                              f"{view}: sourceTable '{src}' does not exist or "
+                              f"is not visible to user '{user}'. Verify the "
+                              f"name and grant SELECT to '{user}' if needed."
+                          )
+                          continue
+
+                  # Verify each referenced column exists on the source.
+                  cur.execute(
+                      "SELECT column_name, data_type FROM all_tab_columns "
+                      "WHERE table_name = :t " +
+                      ("AND owner = :o" if schema_part else ""),
+                      {"t": table_part.upper(), "o": schema_part.upper()}
+                          if schema_part else {"t": table_part.upper()},
+                  )
+                  src_cols = {r[0].upper(): r[1] for r in cur.fetchall()}
+                  missing = [
+                      c for c in (text, vec, cols.get("source"),
+                                  cols.get("contentMetadata"), cols.get("id"))
+                      if c and c.upper() not in src_cols
+                  ]
+                  if missing:
+                      fatal_errors.append(
+                          f"{view}: column(s) {missing} not found on '{src}'. "
+                          f"Available columns: {sorted(src_cols)}"
+                      )
+                      continue
+                  if not src_cols.get(vec.upper(), "").startswith("VECTOR"):
+                      fatal_errors.append(
+                          f"{view}: column '{vec}' on '{src}' is not a VECTOR "
+                          f"type (got {src_cols.get(vec.upper())}). Pick the "
+                          f"VECTOR column or convert with TO_VECTOR(...) "
+                          f"in a base view first."
+                      )
+                      continue
+
+                  id_expr = cols.get("id") or "ROWID"
+                  if "source" in cols:
+                      wrap = str(cols.get("sourceWrapJson", True)).lower() in ("true","1","yes")
+                      if wrap:
+                          source_expr = "JSON_OBJECT('source_name' VALUE TO_CHAR(" + cols["source"] + "))"
+                      else:
+                          source_expr = cols["source"]
+                  else:
+                      source_expr = "JSON_OBJECT('source_name' VALUE 'byo')"
+                  if "contentMetadata" in cols:
+                      meta_expr = "COALESCE(" + cols["contentMetadata"] + ", JSON_OBJECT())"
+                  else:
+                      meta_expr = "JSON_OBJECT()"
+
+                  ddl = (
+                      "CREATE OR REPLACE VIEW " + view + " AS "
+                      "SELECT " + id_expr + " AS id, "
+                      + text + " AS text, "
+                      + vec  + " AS vector, "
+                      + source_expr + " AS source, "
+                      + meta_expr + " AS content_metadata, "
+                      "CURRENT_TIMESTAMP AS created_at "
+                      "FROM " + src
+                  )
+                  try:
+                      cur.execute(ddl)
+                      conn.commit()
+                      print(f"  CREATE OR REPLACE VIEW {view} -> {src}: OK")
+                      created_views.append(view.upper())
+                  except oracledb.Error as exc:
+                      fatal_errors.append(
+                          f"{view}: CREATE VIEW failed against '{src}'. "
+                          f"DDL=<{ddl}> error={exc}"
+                      )
+
+              # If any mapping entry failed validation OR DDL, stop here.
+              # Discovery pass would silently mask these problems. We want
+              # the operator to see ALL of them in one log scrape, then fix
+              # values.yaml and re-run.
+              if fatal_errors:
+                  print("\nFAIL: BYO mapping had errors (none of the bad "
+                        "entries were applied; entries that succeeded ARE "
+                        "now in the schema):", flush=True)
+                  for msg in fatal_errors:
+                      print(f"  - {msg}")
+                  print("\nFix oracle.importExistingTables in your values "
+                        "file and re-run `helm upgrade`. The Job is "
+                        "idempotent; previously-created views are not "
+                        "re-applied unless you change them.")
+                  sys.exit(1)
+
+              # ---- 2) Discovery pass: scan for any vector-bearing tables/views
+              # and either auto-register canonical ones or log a hint for non-
+              # canonical ones.
+              print("\nScanning schema for vector-bearing tables/views ...", flush=True)
+              cur.execute(
+                  "SELECT DISTINCT table_name FROM user_tab_columns "
+                  "WHERE data_type LIKE 'VECTOR%' ORDER BY table_name"
+              )
+              vector_objects = [r[0] for r in cur.fetchall()]
+              print(f"  Found {len(vector_objects)} vector-bearing object(s): {vector_objects}")
+
+              REQUIRED = {"ID", "TEXT", "VECTOR", "SOURCE", "CONTENT_METADATA"}
+              registered, hinted = [], []
+              for obj in vector_objects:
+                  cur.execute(
+                      "SELECT column_name FROM user_tab_columns "
+                      "WHERE table_name = :t",
+                      {"t": obj},
+                  )
+                  cols = {r[0].upper() for r in cur.fetchall()}
+                  cur.execute(
+                      "SELECT COUNT(*) FROM user_views WHERE view_name = :n",
+                      {"n": obj},
+                  )
+                  is_view = bool(cur.fetchone()[0])
+                  is_canonical = REQUIRED.issubset(cols)
+                  if is_canonical:
+                      cur.execute(get_count := f"SELECT COUNT(*) FROM {obj}")
+                      n = cur.fetchone()[0]
+                      info = json.dumps({
+                          "ingested_via": "byo",
+                          "is_view": is_view,
+                          "num_entities": int(n),
+                          "registered_at": "byo-import-job",
+                      })
+                      cur.execute(
+                          "MERGE INTO metadata_schema d "
+                          "USING (SELECT :n AS collection_name FROM dual) s "
+                          "ON (d.collection_name = s.collection_name) "
+                          "WHEN NOT MATCHED THEN INSERT (collection_name, metadata_schema) "
+                          "VALUES (s.collection_name, :j)",
+                          {"n": obj, "j": "[]"},
+                      )
+                      cur.execute(
+                          "MERGE INTO document_info d "
+                          "USING (SELECT :n AS collection_name FROM dual) s "
+                          "ON (d.collection_name = s.collection_name "
+                          " AND d.info_type = 'collection' "
+                          " AND d.document_name = 'NA') "
+                          "WHEN NOT MATCHED THEN INSERT "
+                          "(collection_name, info_type, document_name, info_value) "
+                          "VALUES (s.collection_name, 'collection', 'NA', :i)",
+                          {"n": obj, "i": info},
+                      )
+                      conn.commit()
+                      registered.append(obj)
+                      print(f"  REGISTER {obj}: canonical, rows={n}, view={is_view}")
+                  elif obj not in created_views:
+                      missing = sorted(REQUIRED - cols)
+                      hinted.append((obj, missing))
+                      print(f"  HINT {obj}: missing canonical columns {missing}.")
+                      print(
+                          "    Map it via values:\n"
+                          "      oracle:\n"
+                          "        importExistingTables:\n"
+                          f"          - sourceTable: {obj}\n"
+                          f"            collectionName: {obj.lower()}_view\n"
+                          "            columns:\n"
+                          "              text: <TEXT_COLUMN>\n"
+                          "              vector: <VECTOR_COLUMN>\n"
+                          "              source: <SOURCE_COLUMN>          # optional\n"
+                          "              contentMetadata: <META_COLUMN>   # optional\n"
+                      )
+
+              cur.close()
+              conn.close()
+
+              print("\n===========================================================")
+              print(" Oracle BYO import complete.")
+              print(f"   Views created from importExistingTables: {len(created_views)}")
+              print(f"   Canonical tables auto-registered:        {len(registered)}")
+              print(f"   Custom-shape tables awaiting mapping:    {len(hinted)}")
+              print("   The frontend will list registered/mapped collections")
+              print("   on the next /collections call (no restart required).")
+              print("===========================================================")
+              PY
+{{- end }}
