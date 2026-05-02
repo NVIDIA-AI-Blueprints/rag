@@ -37,10 +37,10 @@ from langchain_core.output_parsers.string import StrOutputParser
 from langchain_core.prompts.chat import ChatPromptTemplate
 from transformers import AutoTokenizer
 
-from nvidia_rag.rag_server.response_generator import get_minio_operator_instance
+from nvidia_rag.rag_server.response_generator import get_object_store_operator_instance
 from nvidia_rag.utils.configuration import NvidiaRAGConfig
 from nvidia_rag.utils.llm import get_llm, get_prompts
-from nvidia_rag.utils.minio_operator import get_unique_thumbnail_id
+from nvidia_rag.utils.object_store import get_unique_thumbnail_id
 from nvidia_rag.utils.summary_status_handler import SUMMARY_STATUS_HANDLER
 
 logger = logging.getLogger(__name__)
@@ -558,7 +558,7 @@ async def _process_single_file_summary(
                 prompts=prompts,
             )
 
-            await _store_summary_in_minio(summary_doc)
+            await _store_summary_in_object_store(summary_doc)
 
             SUMMARY_STATUS_HANDLER.update_progress(
                 collection_name=collection_name,
@@ -1073,8 +1073,8 @@ async def _update_file_progress(
     )
 
 
-async def _store_summary_in_minio(document: Document):
-    """Store document summary in MinIO."""
+async def _store_summary_in_object_store(document: Document):
+    """Store document summary in object storage."""
     summary = document.metadata["summary"]
     file_name = document.metadata["filename"]
     collection_name = document.metadata["collection_name"]
@@ -1086,7 +1086,7 @@ async def _store_summary_in_minio(document: Document):
         location=[],
     )
 
-    get_minio_operator_instance().put_payload(
+    get_object_store_operator_instance().put_payload(
         payload={
             "summary": summary,
             "file_name": file_name,
@@ -1095,4 +1095,4 @@ async def _store_summary_in_minio(document: Document):
         object_name=unique_thumbnail_id,
     )
 
-    logger.debug(f"Stored summary for {file_name} in MinIO")
+    logger.debug("Stored summary for %s in object storage", file_name)

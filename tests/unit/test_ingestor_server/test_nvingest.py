@@ -236,6 +236,40 @@ class TestGetNvIngestIngestor:
 
     @patch("nvidia_rag.ingestor_server.nvingest.sanitize_nim_url")
     @patch("nvidia_rag.ingestor_server.nvingest.Ingestor")
+    def test_get_nv_ingest_ingestor_with_filesystem_object_store(
+        self, mock_ingestor_class, mock_sanitize_url, tmp_path
+    ):
+        mock_config = self._create_mock_config()
+        mock_config.object_store.backend = "filesystem"
+        mock_config.object_store.storage_root = (tmp_path / "object-store").resolve()
+        mock_sanitize_url.return_value = "http://test-embedding-url"
+
+        mock_ingestor_instance = Mock()
+        mock_ingestor_class.return_value = mock_ingestor_instance
+        mock_ingestor_instance.files.return_value = mock_ingestor_instance
+        mock_ingestor_instance.extract.return_value = mock_ingestor_instance
+        mock_ingestor_instance.split.return_value = mock_ingestor_instance
+        mock_ingestor_instance.embed.return_value = mock_ingestor_instance
+        mock_ingestor_instance.store.return_value = mock_ingestor_instance
+        mock_ingestor_instance.vdb_upload.return_value = mock_ingestor_instance
+
+        get_nv_ingest_ingestor(
+            self.mock_client,
+            self.filepaths,
+            vdb_op=self.mock_vdb_op,
+            config=mock_config,
+        )
+
+        call_kwargs = mock_ingestor_instance.store.call_args[1]
+        expected_uri = (
+            tmp_path / "object-store" / "default-bucket" / "test_collection"
+        ).resolve().as_uri()
+        assert call_kwargs["storage_uri"] == expected_uri
+        assert call_kwargs["public_base_url"] == expected_uri
+        assert call_kwargs["storage_options"] == {}
+
+    @patch("nvidia_rag.ingestor_server.nvingest.sanitize_nim_url")
+    @patch("nvidia_rag.ingestor_server.nvingest.Ingestor")
     def test_get_nv_ingest_ingestor_with_images_enabled(
         self, mock_ingestor_class, mock_sanitize_url
     ):
@@ -589,13 +623,16 @@ class TestGetNvIngestIngestor:
         mock_config.embeddings.model_name = "test-embedding-model"
         mock_config.embeddings.dimensions = 768
 
-        mock_config.minio = Mock()
-        mock_config.minio.endpoint = "localhost:9000"
+        mock_config.object_store = Mock()
+        mock_config.object_store.backend = "s3"
+        mock_config.object_store.endpoint = "localhost:9000"
+        mock_config.object_store.endpoint_url = "http://localhost:9000"
+        mock_config.object_store.storage_root = None
         mock_ak = Mock()
         mock_ak.get_secret_value.return_value = "test-access"
         mock_sk = Mock()
         mock_sk.get_secret_value.return_value = "test-secret"
-        mock_config.minio.access_key = mock_ak
-        mock_config.minio.secret_key = mock_sk
+        mock_config.object_store.access_key = mock_ak
+        mock_config.object_store.secret_key = mock_sk
 
         return mock_config

@@ -1,88 +1,114 @@
 ---
 name: rag-eval
-description: >
-  Prepares filesystem RAG benchmark roots (`corpus/` + `train.json`), validates `train.json` shape, explains
-  optional `contexts` for RAGAS, and debugs `scripts/eval/evaluate_rag.py` runs with uv. Use when the user
-  works with on-disk eval bundles, importing external benchmarks into this layout (corpus: prefer PDF, including when sources lack extensions), `train.json` schema,
-  `evaluate_rag.py` flags, skip_ingestion, collection naming, NVIDIA_API_KEY or
-  RAG_EVAL_JUDGE_MODEL for the RAGAS judge—even if they do not name this skill.
-argument-hint: on-disk RAG eval | evaluate_rag | train.json | corpus | contexts | uv run --project scripts/eval
-allowed-tools: Read, Grep, Glob, Bash(ls *), Bash(python3 *)
+version: "1.0.0"
+description: >-
+  Filesystem RAG benchmarks: corpus/, train.json, evaluate_rag.py (RAGAS, perf). Not for prod
+  monitoring or evals outside this repo layout.
+argument-hint: RAGAS eval | evaluate_rag | perf | train.json | corpus | results json | error triage | uv run --project scripts/eval | enable_reranker | query_rewriting | temperature | latency
+allowed-tools: Read, Grep, Glob, Bash(ls *), Bash(python3 *), Bash(uv *), Write, Edit
 license: Apache-2.0
 compatibility: Repository checkout with uv; Python 3.11+; run from repo root; uv sync --project scripts/eval (eval deps live in scripts/eval/pyproject.toml); network to RAG, ingestor, and vdb endpoints; NVIDIA_API_KEY for RAGAS; optional RAG_EVAL_JUDGE_MODEL (default mistralai/mixtral-8x22b-instruct-v0.1).
 metadata:
-  author: nvidia-rag-team
-  version: "2.0"
+  author: NVIDIA RAG <foundational-rag-dev@exchange.nvidia.com>
+  tags:
+    - rag
+    - evaluation
+    - ragas
+    - benchmarking
+    - nvidia-rag-blueprint
 ---
 
 # On-disk RAG evaluation (`corpus/` + `train.json`)
 
-This skill covers the filesystem benchmark contract and how it ties into `evaluate_rag.py`. It does not replace the blueprint’s high-level evaluation guide; use `rag-blueprint` → `references/configure/evaluation.md` for notebooks vs CLI tradeoffs and links to `docs/evaluate.md`.
+## Purpose
+
+Guide agents through NVIDIA RAG Blueprint **filesystem** benchmarks: preparing `corpus/` and `train.json`, running `scripts/eval/evaluate_rag.py`, tuning retrieval/generation flags, interpreting JSON outputs, and triaging failures (HTTP/stream errors, empty contexts, collection mismatch, judge API).
+
+## When not to use
+
+Do **not** use this skill for: deploying or repairing services (use rag-blueprint); evaluating APIs without the `corpus/` + `train.json` layout; general ML experimentation unrelated to this evaluator; or replacing production monitoring/alerting.
+
+## Prerequisites
+
+- Repo cloned; **run commands from repo root** (imports and paths assume this).
+- Python **3.11+** and **uv**; eval deps: `uv sync --project scripts/eval`.
+- Reachable **RAG server** and **ingestor** (defaults often `localhost:8081` / `8082`).
+- **`NVIDIA_API_KEY`** for RAGAS (see [credential hygiene](references/benchmark-execution.md#credential-hygiene-nvidia_api_key)); optional **`RAG_EVAL_JUDGE_MODEL`**.
+- Dataset roots passed to `--dataset-paths` each contain **`corpus/`** and **`train.json`**.
+
+## Instructions
+
+1. **Prepare data** — Ensure each dataset directory matches the layout and `train.json` rules in [`references/dataset-and-conversion.md`](references/dataset-and-conversion.md). When sources arrive as public links (sites or dataset pages), materialize documents under `corpus/`—prefer **PDF** for multimodal content so **images stay embedded**; convert CSV/JSONL/etc. using the patterns there.
+2. **Run eval** — `uv run --project scripts/eval python scripts/eval/evaluate_rag.py` with `--dataset-paths`, `--host`, and `--port`. See [`references/benchmark-execution.md`](references/benchmark-execution.md) for full command examples, outputs, and perf flags. Use [`references/evaluate-rag-cli.md`](references/evaluate-rag-cli.md) for flag-level detail.
+3. **Tune performance** — Adjust `--thread`, `--timeout`, `--batch_size`, `--top_k` / `--vdb_top_k`, reranker and query-rewriting toggles, and generation overrides as documented in [`references/benchmark-execution.md`](references/benchmark-execution.md). For a lighter timing probe, use a one-row `train.json` and the patterns in that doc.
+4. **Analyze results** — Use [`references/result-analysis.md`](references/result-analysis.md) for scripts; scan `rag_*_evaluation_summary.json` for headline metrics.
+5. **Triage errors** — Use the [error signal table](references/benchmark-execution.md#common-error-cases-and-signals) and the **Troubleshooting** section below.
+
+## Examples
+
+**Set API key without putting secrets in shell history (preferred patterns):** load from a gitignored env file or secrets manager; avoid committing `.env`; rotate keys if exposed. Details: [`references/benchmark-execution.md#credential-hygiene-nvidia_api_key`](references/benchmark-execution.md#credential-hygiene-nvidia_api_key).
+
+**Minimal eval (key already in environment):**
+
+```bash
+uv sync --project scripts/eval
+uv run --project scripts/eval python scripts/eval/evaluate_rag.py \
+  --dataset-paths /path/to/my_dataset \
+  --host localhost \
+  --port 8081
+```
+
+**Pretty-print summary JSON:**
+
+```bash
+python3 -m json.tool results/my_dataset/rag_my_dataset_evaluation_summary.json
+```
+
+More examples (skip ingestion, perf sweeps, smoke tests): [`references/benchmark-execution.md`](references/benchmark-execution.md).
+
+## Limitations
+
+- Evaluator behavior is fixed to the **filesystem contract** and `evaluate_rag.py`; it does not substitute for custom offline judges or non-RAG benchmarks.
+- **Vector DB / embedding** choices follow deployed ingestor and RAG env — not overridden by this CLI alone.
+- **Scores depend on** retrieval quality, judge model availability, and `NVIDIA_API_KEY`; empty contexts yield partial RAGAS metrics (see references).
+- Large procedural detail lives under **`references/`** to keep routing concise; read those files when the user needs step-by-step conversion, full flags, or error tables.
+
+## Troubleshooting
+
+| Error / signal | Likely cause | What to do |
+|----------------|--------------|------------|
+| Immediate exit mentioning `NVIDIA_API_KEY` | Missing or invalid key | Set key via secure channel; see credential hygiene in [`references/benchmark-execution.md`](references/benchmark-execution.md). |
+| `train.json must be a JSON array` | Wrong JSON shape | Top-level array of objects; validate per [`references/dataset-and-conversion.md`](references/dataset-and-conversion.md). |
+| Fewer rows in `evaluation_data.json` than `train.json` | Per-query failures | Check stderr: timeouts, network, stream JSON errors; increase `--timeout`. |
+| Empty `generated_contexts` everywhere | Retrieval gap | Verify collection, ingestion, `top_k` / `vdb_top_k`, and `ingestor_server_url` **without** `/v1` suffix. |
+| Ingestor 404 on upload | Bad ingestor base URL | Pass `http://host:port` only — code appends `/v1/`. |
+
+Full signal table: [`references/benchmark-execution.md#common-error-cases-and-signals`](references/benchmark-execution.md#common-error-cases-and-signals).
+
+## Gotchas
+
+- **Run from repo root**: paths and imports in `scripts/eval/evaluate_rag.py` assume this; a wrong directory silently breaks imports.
+- **`--ingestor_server_url`**: pass `http://host:port` without `/v1`—the code appends `/v1/` automatically. Including `/v1` causes 404s on ingestor calls.
+- **Vector DB / embedding settings**: not set by this CLI; configure via the deployed ingestor and RAG server env vars (e.g. `APP_VECTORSTORE_URL`, embedding model).
+- **`--model` / `--llm_endpoint`**: forwarded verbatim only when explicitly set; omit to keep the server's configured LLM.
+- **Stale collections**: a previous run's ingested data persists unless you use `--force_ingestion`. Use `--collection` with a unique name for clean perf comparisons across runs.
+- **Empty context metrics**: if all `generated_contexts` are empty, RAGAS scores only `nv_accuracy` and leaves the other two metrics blank—this is not a silent success.
 
 ## Source of truth
 
 | Piece | Location |
 |-------|----------|
 | Driver | `scripts/eval/evaluate_rag.py` (`CORPUS_DIRECTORY` = `corpus`, `EVAL_DATA` = `train.json`) |
-| Human README | `scripts/eval/README.md` |
-| Full CLI (flags, defaults, examples) | [`references/evaluate-rag-cli.md`](references/evaluate-rag-cli.md) |
+| Human README (always in-repo) | `scripts/eval/README.md` |
+| Full CLI (flags, defaults) | `scripts/eval/evaluate_rag.py --help`; [`references/evaluate-rag-cli.md`](references/evaluate-rag-cli.md) |
+| Dataset / conversion | [`references/dataset-and-conversion.md`](references/dataset-and-conversion.md) |
+| Runs, outputs, perf, errors | [`references/benchmark-execution.md`](references/benchmark-execution.md) |
+| Result analysis scripts | [`references/result-analysis.md`](references/result-analysis.md) |
 
-Work from repository root (imports and paths assume this).
+## Agent playbook
 
-## Dataset layout
-
-Each `--dataset-paths` entry is a directory containing:
-
-1. `corpus/` — files indexed recursively for ingestion (see corpus format below).
-2. `train.json` — evaluation questions and answers (see below).
-
-## `train.json` schema
-
-The driver accepts a **top-level JSON array** of objects only. Required per row: `question`, `answer`. Optional: `id` or `query_id`.
-
-Optional `contexts`: JSON array of objects. Each object must include `filename` (corpus file stem, no extension) and `text` (the span for that file).
-
-```json
-"contexts": [
-  { "filename": "DOCUMENT_STEM", "text": "..." }
-]
-```
-
-Multiple entries per row are allowed. Plain strings (`["...", "..."]`) remain acceptable for minimal bundles without per-file tagging.
-
-### Quick validation
-
-```bash
-python3 -c "import json,sys; d=json.load(open(sys.argv[1])); assert isinstance(d, list) and all(isinstance(x, dict) for x in d), 'train.json must be a list of objects'" train.json
-```
-
-Pass the path to `train.json` as the only argument (example above uses `train.json` in the current directory).
-
-## Corpus format when converting external benchmarks
-
-When you map another benchmark into this layout, prefer putting sources in `corpus/` as PDF whenever you can (render or export HTML, Office, markdown, etc. to PDF). That matches typical production RAG on documents, aligns with the evaluator default `--file-type pdf`, and unlocks PDF page counts in ingestion metrics.
-
-If the upstream artifact only gives URLs or document pointers with no filename or extension (common in published benchmarks), assume PDF as the target format for materialized files under `corpus/` instead of defaulting to plain text. Use other formats (for example `.txt`, `.html`) only when converting to PDF is impractical; then set `--file-type` to match what dominates under `corpus/`.
-
-Keep `train.json` `filename` fields aligned with corpus basenames without an extension (for example `Report_2023` for `Report_2023.pdf`).
-
-## Bringing external data into this layout
-
-Benchmarks packaged elsewhere (CSV, JSONL, parquet, archives, APIs, annotation exports, etc.) are not consumed directly by the CLI. Convert them so each eval root has `corpus/` documents and a `train.json` that follows the schema above—map source fields to `question`, `answer`, and optionally `id` / `query_id` and `contexts`. Implement conversion in whichever way fits your pipeline (notebook, ad hoc script, or reusable importer). Prefer PDFs in `corpus/` when converting, including when sources are links or lack an extension. Keep `corpus/` filenames consistent with how your ingestor and citations surface `document_name` so retrieval and scoring align with runtime behavior.
-
-## Running the benchmark
-
-Export `NVIDIA_API_KEY` (and optionally `RAG_EVAL_JUDGE_MODEL` for the RAGAS judge LLM id), then from repo root use `uv run --project scripts/eval python scripts/eval/evaluate_rag.py` with `--dataset-paths`, `--host`, `--port`, and ingestor URL flags as needed. The script does not pass vector DB URL or embedding dimension—those come from ingestor/RAG server configuration (see [`references/evaluate-rag-cli.md`](references/evaluate-rag-cli.md)).
-
-## Gotchas
-
-- Wrong working directory: run from the repo root so `scripts/eval/evaluate_rag.py` runs with correct paths.
-- `--ingestor_server_url`: use `http://host:port` without `/v1`, because the code appends `/v1/` automatically.
-- Vector DB URL and embedding behavior are not set by this client; configure the deployed ingestor and RAG server (for example `APP_VECTORSTORE_URL` and embedding model settings).
-
-## Pre-flight checklist
-
-1. Each dataset root: `corpus/` + `train.json` (`corpus/` preferably PDF when converted from external sources, including URL-only or extension-less references).
-2. `train.json`: top-level array of rows (dict-shaped `train.json` is rejected).
-3. Rows include `question` and `answer` for meaningful RAGAS scores.
-4. `NVIDIA_API_KEY` exported before invoking the script (optional `RAG_EVAL_JUDGE_MODEL` if not using the default judge id).
+1. **Run eval** — `uv sync --project scripts/eval` then `uv run --project scripts/eval python scripts/eval/evaluate_rag.py` with required `--dataset-paths`, `--host`, and `--port` (and env `NVIDIA_API_KEY`). Argument `--ingestor_server_url` is optional (defaults to `http://localhost:8082`); pass it only when overriding the ingestor endpoint.
+2. **Performance tuning** — See [`references/benchmark-execution.md`](references/benchmark-execution.md): `--thread`, `--timeout`, `--batch_size`, `--top_k`/`--vdb_top_k`, reranker and query-rewriting toggles, `--temperature`, `--top-p`, `--max-tokens`, and the lightweight latency section there.
+3. **Data conversion** — Follow [`references/dataset-and-conversion.md`](references/dataset-and-conversion.md).
+4. **Analyze results** — [`references/result-analysis.md`](references/result-analysis.md); quick scan: `python3 -m json.tool results/<dataset>/rag_<dataset>_evaluation_summary.json`.
+5. **Error triage** — [`references/benchmark-execution.md#common-error-cases-and-signals`](references/benchmark-execution.md#common-error-cases-and-signals).

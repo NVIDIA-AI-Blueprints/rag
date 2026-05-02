@@ -24,6 +24,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from nvidia_rag.ingestor_server.main import Mode, NvidiaRAGIngestor
+from nvidia_rag.utils.configuration import NvidiaRAGConfig
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
 
 
@@ -48,6 +49,17 @@ class TestNvidiaRAGIngestorInit:
             ValueError, match="Invalid mode: invalid_mode. Supported modes are:"
         ):
             NvidiaRAGIngestor(mode="invalid_mode")
+
+    def test_init_with_lancedb_and_non_nrl_backend_raises(self):
+        """LanceDB is only supported when INGESTOR_BACKEND is set to nrl."""
+        config = NvidiaRAGConfig.from_dict(
+            {"vector_store": {"name": "lancedb"}, "nv_ingest": {"backend": "nv_ingest"}}
+        )
+
+        with pytest.raises(
+            ValueError, match="LanceDB is supported only with the NRL ingestion backend"
+        ):
+            NvidiaRAGIngestor(config=config)
 
     def test_init_with_valid_vdb_op(self):
         """Test initialization with valid VDBRag instance."""

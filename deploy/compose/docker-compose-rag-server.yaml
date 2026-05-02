@@ -24,10 +24,10 @@ services:
       # Absolute path to custom prompt.yaml file
       PROMPT_CONFIG_FILE: ${PROMPT_CONFIG_FILE:-/prompt.yaml}
 
-      ##===MINIO specific configurations which is used to store the multimodal base64 content===
-      MINIO_ENDPOINT: "minio:9010"
-      MINIO_ACCESSKEY: "minioadmin"
-      MINIO_SECRETKEY: "minioadmin"
+      ##===Object-store configurations used to store multimodal base64 content===
+      OBJECTSTORE_ENDPOINT: "seaweedfs:9010"
+      OBJECTSTORE_ACCESSKEY: "seaweedfsadmin"
+      OBJECTSTORE_SECRETKEY: "seaweedfsadmin"
 
       ##===Vector DB specific configurations===
       # URL on which vectorstore is hosted
@@ -131,9 +131,6 @@ services:
       APP_VLM_SERVERURL: ${APP_VLM_SERVERURL-"http://vlm-ms:8000/v1"}
       # VLM model name
       APP_VLM_MODELNAME: ${APP_VLM_MODELNAME:-"nvidia/nemotron-nano-12b-v2-vl"}
-
-      # Ingestion backend: "nv_ingest" (NV-Ingest microservice) or "nrl" (NeMo-Retriever Library in-process)
-      INGESTOR_BACKEND: ${INGESTOR_BACKEND:-nv_ingest}
 
       NVIDIA_API_KEY: ${NGC_API_KEY:?"NGC_API_KEY is required"}
 

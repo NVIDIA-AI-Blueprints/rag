@@ -1,99 +1,71 @@
-# `evaluate_rag.py` CLI reference
+# `evaluate_rag.py` CLI flag reference
 
-
-Use when:
-- The user wants to measure RAG pipeline quality.
-- The user is asking about accuracy, relevancy or groundedness.
-- The user wants to run the filesystem benchmark evaluator (`scripts/eval/evaluate_rag.py`) with `corpus/` plus `train.json`.
-
-
-
-Use `scripts/eval/evaluate_rag.py` and its `argparse` definitions as the source of truth for flags, default values, optional behaviors, and full command examples.
-
-## Prerequisites
-
-1. `NVIDIA_API_KEY` in the environment (script raises if missing) — RAGAS judge LLM.
-2. `RAG_EVAL_JUDGE_MODEL` (optional) — model id for the RAGAS judge (`ChatNVIDIA`). When unset or empty, defaults to `mistralai/mixtral-8x22b-instruct-v0.1`.
-3. RAG server at `http://<host>:<port>/v1/generate` (streaming).
-4. Ingestor at `--ingestor_server_url` (default `http://localhost:8082`); code appends `/v1/` via `urljoin` — pass base URL without trailing `/v1`.
-5. From repo root: `uv sync --project scripts/eval` (evaluator dependencies are in `scripts/eval/pyproject.toml`; `uv run --project scripts/eval` uses that environment).
-
-When preparing a dataset root from an external benchmark, the `corpus/` directory should use PDF files when possible so runs align with `--file-type pdf` defaults and production-style document ingestion. If sources are bare links or lack a file extension, prefer materializing PDFs rather than plain text; see `scripts/eval/README.md`.
+Complete argument tables for `scripts/eval/evaluate_rag.py`. Load this when the user asks about a specific flag, its default value, or fixed evaluator behavior not covered in the main skill.
 
 ## Arguments
 
-| Argument | Required | Default / notes |
-|----------|----------|------------------|
-| `--dataset-paths` | Yes (one or more paths) | Each root must contain `corpus/` and `train.json`. |
-| `--host` | Yes | RAG server host. |
-| `--port` | Yes | RAG server port. |
-| `--file-type` | No | Default `pdf`. Prefer PDF-based `corpus/` when converting benchmarks; if the value contains `pdf`, PDF page counts are used for ingestion metrics. |
-| `--verbose` | No | Flag. |
-| `--thread` | No | Default `4`; number of parallel workers for queries and related work. |
-| `--output_dir` | No | Default `results`; each dataset gets a subdirectory named after the dataset basename. |
-| `--retries` | No | Default `3`; currently unused in the code path, kept for CLI compatibility. |
-| `--batch_size` | No | Default `1000`; ingestion batch size. |
-| `--top_k` | No | If set, sent as `reranker_top_k`; if omitted, it is not sent. |
-| `--vdb_top_k` | No | If set, sent as `vdb_top_k`; if omitted, it is not sent. |
-| `--ingestor_server_url` | No | Default `http://localhost:8082`. |
-| `--skip_ingestion` | No | Flag; run query and scoring only (collection must already exist). |
-| `--skip_evaluation` | No | Flag; perform ingestion only. |
-| `--delete_collection` | No | Flag; delete the collection after the run for that dataset. |
-| `--force_ingestion` | No | Flag; delete the collection first, then re-ingest. |
-| `--collection` | No | Override collection name (default is the dataset folder basename). |
-| `--model` | No | If set, passed to `generate` as `model`; otherwise omitted so the server default is used. |
-| `--llm_endpoint` | No | If set, passed as `llm_endpoint`; otherwise omitted. |
-| `--timeout` | No | Default `180` seconds for RAG HTTP requests. |
+### Required
 
-## `train.json` — `contexts`
+| Argument | Notes |
+|----------|-------|
+| `--dataset-paths` | One or more dataset root directories, each containing `corpus/` and `train.json`. |
+| `--host` | RAG server host. |
+| `--port` | RAG server port (integer). |
 
-Each element includes `filename` (corpus basename without extension) and `text` (snippet or chunk):
+### Dataset and ingestion
 
-```json
-"contexts": [
-  { "filename": "DOCUMENT_STEM", "text": "..." }
-]
-```
+| Argument | Default | Notes |
+|----------|---------|-------|
+| `--file-type` | `pdf` | Ingestion file type for metrics (e.g. `pdf`, `txt`, `txt,html`). Substring `pdf` enables PDF page counts in ingestion metrics. |
+| `--ingestor_server_url` | `http://localhost:8082` | Base URL — code appends `/v1/` automatically; do not include `/v1` here. |
+| `--collection` | dataset folder basename | Override collection name for ingest and query. |
+| `--batch_size` | `1000` | Ingestion batch size (server max is 10000). |
+| `--skip_ingestion` | flag | Skip ingestion; query and RAGAS scoring only (collection must already exist). |
+| `--skip_evaluation` | flag | Skip RAGAS scoring; perform ingestion only. |
+| `--force_ingestion` | flag | Delete the collection first, then re-ingest from scratch. |
+| `--delete_collection` | flag | Delete the collection after the run completes. |
 
-See `scripts/eval/README.md` for the full contract (including optional plain-string arrays).
+### Retrieval
+
+| Argument | Default | Notes |
+|----------|---------|-------|
+| `--top_k` | (omitted) | If set, sent as `reranker_top_k` on `/v1/generate`; if omitted, not sent. |
+| `--vdb_top_k` | (omitted) | If set, sent as `vdb_top_k`; if omitted, not sent. |
+
+### Pipeline stage toggles
+
+| Argument | Notes |
+|----------|-------|
+| `--enable-reranker` | Send `enable_reranker=true` on `/v1/generate`. Mutually exclusive with `--disable-reranker`. |
+| `--disable-reranker` | Send `enable_reranker=false` on `/v1/generate`. |
+| `--enable-query-rewriting` | Send `enable_query_rewriting=true` on `/v1/generate`. Mutually exclusive with `--disable-query-rewriting`. |
+| `--disable-query-rewriting` | Send `enable_query_rewriting=false` on `/v1/generate`. |
+
+Omitting either pair entirely does not send the field — the RAG server uses its own configured default.
+
+### Generation overrides
+
+| Argument | Default | Notes |
+|----------|---------|-------|
+| `--model` | (omitted) | LLM model id forwarded to `/v1/generate` as `model`; omit to use the server default. |
+| `--llm_endpoint` | (omitted) | LLM API endpoint URL forwarded as `llm_endpoint`; omit to use the server default. |
+| `--temperature` | (omitted) | Sampling temperature forwarded to `/v1/generate`; omit to use the server default. |
+| `--top-p` | (omitted) | Top-p forwarded to `/v1/generate`; omit to use the server default. |
+| `--max-tokens` | (omitted) | Max tokens forwarded to `/v1/generate`; omit to use the server default. |
+
+### Performance and output
+
+| Argument | Default | Notes |
+|----------|---------|-------|
+| `--thread` | `4` | Number of parallel workers for query generation. |
+| `--timeout` | `180` | RAG HTTP request timeout in seconds. Increase for slow models. |
+| `--output_dir` | `results` | Root output directory; each dataset gets a subdirectory named after the dataset basename. |
+| `--verbose` | flag | Enable verbose output. |
 
 ## Fixed behavior (not CLI flags)
 
 - The evaluator does not send `vdb_endpoint`, embedding dimension, or related overrides to the ingestor or `/v1/generate`; services use their configured defaults (environment / server config).
 - Ingestion uploads always use `blocking: true` for a synchronous ingestor response.
-- The client does not send `split_options` on document upload, so chunk size and overlap are controlled by the ingestor server configuration.
-- RAG queries always use `POST /v1/generate` with a single user turn per benchmark row, and `enable_filter_generator` is set to `false` in the generate payloads.
-
-## Examples
-
-Single dataset, full ingest + eval (from repository root):
-
-```bash
-export NVIDIA_API_KEY="nvapi-..."
-
-uv run --project scripts/eval python scripts/eval/evaluate_rag.py \
-  --dataset-paths ./datasets/sample_eval \
-  --host localhost \
-  --port 8081 \
-  --ingestor_server_url http://localhost:8082 \
-  --output_dir results
-```
-
-Collection already populated:
-
-```bash
-uv run --project scripts/eval python scripts/eval/evaluate_rag.py \
-  --dataset-paths ./datasets/sample_eval \
-  --host localhost \
-  --port 8081 \
-  --ingestor_server_url http://localhost:8082 \
-  --skip_ingestion \
-  --output_dir results
-```
-
-## Outputs (under `--output_dir/<dataset_basename>/`)
-
-- `rag_<label>_evaluation_summary.json` — mean metrics plus a token usage summary when available.
-- `rag_<label>_evaluation_results.json` — per-metric lists and per-sample usage details when available.
-- `rag_<label>_evaluation_metrics.json` — ingestion KPIs, evaluation means, and the token usage structure.
-- `rag_<label>_evaluation_data.json` is written before scoring.
+- The client does not send `split_options` on document upload; chunk size and overlap are controlled by the ingestor server configuration.
+- RAG queries use `POST /v1/generate` with a single user turn per benchmark row; `enable_filter_generator` is not sent (server default applies).
+- `RAG_EVAL_JUDGE_MODEL` env var sets the RAGAS judge model id (`ChatNVIDIA`); defaults to `mistralai/mixtral-8x22b-instruct-v0.1` when unset or empty.

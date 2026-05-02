@@ -5,6 +5,10 @@ dependencies:
   name: nv-ingest
   repository: https://helm.ngc.nvidia.com/nvidia/nemo-microservices
   version: 26.3.0
+- condition: seaweedfs.enabled
+  name: seaweedfs
+  repository: https://seaweedfs.github.io/seaweedfs/helm
+  version: 4.21.0
 - condition: eck-elasticsearch.enabled
   name: eck-elasticsearch
   repository: https://helm.elastic.co

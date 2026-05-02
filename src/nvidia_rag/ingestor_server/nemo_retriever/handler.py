@@ -81,6 +81,16 @@ from typing import TYPE_CHECKING, Any
 import pandas as pd
 from nemo_retriever.graph_ingestor import GraphIngestor
 
+from nvidia_rag.ingestor_server.nemo_retriever.extensions import (
+    NRL_SUPPORTED_EXTENSIONS,
+    _AUDIO_VIDEO_EXTS,
+    _EXT_TO_TYPE,
+    _HTML_EXTS,
+    _IMAGE_EXTS,
+    _PDF_DOC_EXTS,
+    _TEXT_EXTS,
+    _TYPE_ORDER,
+)
 from nvidia_rag.ingestor_server.nemo_retriever.ingest_schema_manager import (
     IngestSchemaManager,
 )
@@ -100,33 +110,6 @@ if TYPE_CHECKING:
     from nvidia_rag.utils.vdb.vdb_base import VDBRag
 
 logger = logging.getLogger(__name__)
-
-# ---------------------------------------------------------------------------
-# File-type extension sets and lookup table
-# ---------------------------------------------------------------------------
-
-_PDF_DOC_EXTS: frozenset[str] = frozenset({".pdf", ".docx", ".pptx"})
-_IMAGE_EXTS: frozenset[str] = frozenset({".jpg", ".jpeg", ".png", ".tiff", ".tif", ".bmp"})
-_TEXT_EXTS: frozenset[str] = frozenset({".txt"})
-_HTML_EXTS: frozenset[str] = frozenset({".html", ".htm"})
-_AUDIO_VIDEO_EXTS: frozenset[str] = frozenset({".mp3", ".wav", ".mp4"})
-
-# Flat extension → type-key lookup built once at import time.
-_EXT_TO_TYPE: dict[str, str] = {
-    **dict.fromkeys(_PDF_DOC_EXTS, "pdf_doc"),
-    **dict.fromkeys(_IMAGE_EXTS, "image"),
-    **dict.fromkeys(_TEXT_EXTS, "text"),
-    **dict.fromkeys(_HTML_EXTS, "html"),
-    **dict.fromkeys(_AUDIO_VIDEO_EXTS, "audio_video"),
-}
-
-# Processing order: deterministic for concat ordering and log output.
-_TYPE_ORDER: tuple[str, ...] = ("pdf_doc", "image", "text", "html", "audio_video")
-
-# Public constant: all extensions recognised by the NRL pipeline.
-# Exposed so callers (e.g. main.py) can pre-filter unsupported files before
-# calling ingest(), mirroring SUPPORTED_FILE_TYPES in the NV-Ingest path.
-NRL_SUPPORTED_EXTENSIONS: frozenset[str] = frozenset(_EXT_TO_TYPE)
 
 
 class NemoRetrieverHandler:

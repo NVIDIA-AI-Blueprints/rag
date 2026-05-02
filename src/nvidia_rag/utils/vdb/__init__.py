@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 from typing import Any
 
 from nvidia_rag.utils.common import get_metadata_configuration
@@ -72,11 +71,12 @@ def _get_vdb_op(
             milvus_uri=vdb_endpoint or config.vector_store.url,
             embedding_model=embedding_model,
             config=config,
-            # Minio configurations
-            minio_endpoint=os.getenv("MINIO_ENDPOINT"),
-            access_key=os.getenv("MINIO_ACCESSKEY"),
-            secret_key=os.getenv("MINIO_SECRETKEY"),
-            bucket_name=os.getenv("NVINGEST_MINIO_BUCKET", "nv-ingest"),
+            # Milvus bulk import passes this to the MinIO SDK, which expects
+            # host:port without an http(s) scheme.
+            object_store_endpoint=config.object_store.endpoint,
+            access_key=config.object_store.access_key.get_secret_value(),
+            secret_key=config.object_store.secret_key.get_secret_value(),
+            bucket_name=config.nv_ingest.object_store_bucket,
             # Hybrid search configurations
             sparse=(config.vector_store.search_type == SearchType.HYBRID),
             # Additional configurations

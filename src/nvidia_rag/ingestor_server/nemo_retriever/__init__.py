@@ -15,23 +15,47 @@
 
 """NeMo-Retriever Library integration package for the ingestor server.
 
-Public surface (imported by ``ingestor_server/main.py`` when
-``config.nv_ingest.backend == "nrl"``):
+Public surface (used when ``config.nv_ingest.backend == "nrl"`` — see
+``ingestor_server/main.py`` for lazy imports):
 
 * :class:`NemoRetrieverHandler` — async façade over ``GraphIngestor``.
 * :class:`IngestSchemaManager` — stable accessor API over the NRL DataFrame.
 * :func:`filter_unsupported` — split filepaths into supported / unsupported
   before invoking ``NemoRetrieverHandler.ingest()``.
+
+Submodules are not imported at package load time; use :func:`__getattr__` or
+import submodules directly (as ``main.py`` does) so optional ``nemo_retriever``
+wheels are not required for the default NV-Ingest backend.
 """
 
-from nvidia_rag.ingestor_server.nemo_retriever.filters import filter_unsupported
-from nvidia_rag.ingestor_server.nemo_retriever.handler import NemoRetrieverHandler
-from nvidia_rag.ingestor_server.nemo_retriever.ingest_schema_manager import (
-    IngestSchemaManager,
-)
+from __future__ import annotations
+
+from typing import Any
 
 __all__ = [
     "NemoRetrieverHandler",
     "IngestSchemaManager",
     "filter_unsupported",
 ]
+
+
+def __getattr__(name: str) -> Any:
+    if name == "NemoRetrieverHandler":
+        from nvidia_rag.ingestor_server.nemo_retriever.handler import (
+            NemoRetrieverHandler,
+        )
+
+        return NemoRetrieverHandler
+    if name == "IngestSchemaManager":
+        from nvidia_rag.ingestor_server.nemo_retriever.ingest_schema_manager import (
+            IngestSchemaManager,
+        )
+
+        return IngestSchemaManager
+    if name == "filter_unsupported":
+        from nvidia_rag.ingestor_server.nemo_retriever.filters import (
+            filter_unsupported,
+        )
+
+        return filter_unsupported
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
