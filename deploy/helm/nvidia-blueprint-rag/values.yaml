@@ -133,7 +133,7 @@ envVars:
   APP_VECTORSTORE_DENSE_WEIGHT: "0.5"
   # Weight for sparse vector search in case of "weighted" Hybrid Search
   APP_VECTORSTORE_SPARSE_WEIGHT: "0.5"
-  # Milvus only (ignored for Elasticsearch). Set "True" when using Milvus + GPU.
+  # Enable GPU search. Milvus only — GPU search is not supported by Elasticsearch.
   APP_VECTORSTORE_ENABLEGPUSEARCH: "False"
   # ef: Parameter controlling query time/accuracy trade-off. Higher ef leads to more accurate but slower search.
   APP_VECTORSTORE_EF: "100"
@@ -333,8 +333,9 @@ ingestor-server:
     APP_VECTORSTORE_DENSE_WEIGHT: "0.5"
     # Weight for sparse vector search in case of "weighted" Hybrid Search
     APP_VECTORSTORE_SPARSE_WEIGHT: "0.5"
-    # Milvus only (ignored for Elasticsearch). Set "True" when using Milvus + GPU.
+    # Enable GPU index building. Applies to both Milvus and Elasticsearch (requires GPU-capable image and license for ES).
     APP_VECTORSTORE_ENABLEGPUINDEX: "False"
+    # Enable GPU search. Milvus only — GPU search is not supported by Elasticsearch.
     APP_VECTORSTORE_ENABLEGPUSEARCH: "False"
     # Username  for vector store authentication
     APP_VECTORSTORE_USERNAME: ""
@@ -539,6 +540,8 @@ frontend:
 eck-elasticsearch:
   fullnameOverride: "rag-eck-elasticsearch"
   enabled: true
+  # Uncomment this line to use a custom Elasticsearch GPU image
+  # image: <your-es-gpu-image-here>
   # Preserve PVCs on helm uninstall; only delete when a node is explicitly scaled down.
   volumeClaimDeletePolicy: DeleteOnScaledownOnly
   http:
@@ -553,6 +556,8 @@ eck-elasticsearch:
       xpack.security.enabled: false
       xpack.security.http.ssl.enabled: false
       xpack.security.transport.ssl.enabled: false
+      # Uncomment this line to use GPU for Elasticsearch
+      # vectors.indexing.use_gpu: true
     volumeClaimTemplates:
     - metadata:
         name: elasticsearch-data
@@ -564,6 +569,9 @@ eck-elasticsearch:
             storage: 50Gi
     podTemplate:
       spec:
+        # Uncomment this line to download the image from NGC
+        # imagePullSecrets:
+        #   - name: ngc-secret
         # JVM heap (-Xmx) must be ≤ 50% of pod memory limit; limit ≥ 2× -Xmx (here 2g heap → 4Gi limit).
         initContainers:
         - name: elastic-internal-init-filesystem
@@ -579,8 +587,12 @@ eck-elasticsearch:
             requests:
               memory: "4Gi"
               cpu: "500m"
+              # Uncomment this line to use GPU for Elasticsearch
+              # nvidia.com/gpu: 1
             limits:
               memory: "4Gi"
+              # Uncomment this line to use GPU for Elasticsearch
+              # nvidia.com/gpu: 1
           # Override readiness probe to not require authentication; tolerant under ingest load
           readinessProbe:
             exec:

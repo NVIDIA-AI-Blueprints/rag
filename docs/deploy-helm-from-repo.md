@@ -35,6 +35,16 @@ The following are the core services that you install:
 
     For more details, see instructions [here](https://docs.nvidia.com/nim-operator/latest/install.html).
 
+4. Install the ECK (Elastic Cloud on Kubernetes) operator. Elasticsearch is the default vector database; the ECK operator manages Elasticsearch on Kubernetes.
+
+    ```sh
+    helm repo add elastic https://helm.elastic.co
+    helm repo update
+    helm install elastic-operator elastic/eck-operator -n elastic-system --create-namespace
+    ```
+
+    For verification and Elasticsearch-specific Helm settings, see [Vector database configuration](change-vectordb.md).
+
 :::{important}
 Consider the following before you deploy the RAG Blueprint:
 

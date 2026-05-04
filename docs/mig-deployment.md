@@ -71,6 +71,17 @@ For monitoring deployment progress, refer to [Deploy on Kubernetes with Helm](./
 
     For more details, see instructions [here](https://docs.nvidia.com/nim-operator/latest/install.html).
 
+11. Install the ECK operator. Elasticsearch is the default vector database for this chart; the ECK operator manages Elasticsearch on Kubernetes.
+
+    ```sh
+    helm repo add elastic https://helm.elastic.co
+    helm repo update
+    helm install elastic-operator elastic/eck-operator -n elastic-system --create-namespace
+    ```
+
+  If you switch from the default stack to Milvus or another standalone backend and turn off the chart-managed Elasticsearch, the ECK operator is no longer required. See [Vector database configuration](change-vectordb.md) for details.
+
+    For verification commands and Elasticsearch tuning in Helm, see [Vector database configuration](change-vectordb.md).
 
 
 ## Step 1: Enable MIG with Mixed Strategy

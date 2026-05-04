@@ -8,8 +8,10 @@ vector_store:
   url: "http://localhost:9200"  # URL endpoint for the vector store service
   index_type: "GPU_CAGRA"  # Type of vector index (e.g., GPU_CAGRA, IVF_FLAT)
   search_type: "dense"  # Type of search to perform (dense, hybrid)
-  enable_gpu_index: false  # Milvus only (ignored for Elasticsearch); set true for Milvus + GPU
-  enable_gpu_search: false  # Milvus only (ignored for Elasticsearch); set true for Milvus + GPU
+  # Same env as APP_VECTORSTORE_ENABLEGPUINDEX — applies to Milvus and Elasticsearch (ES needs GPU image + license; see docs).
+  enable_gpu_index: false
+  # Same env as APP_VECTORSTORE_ENABLEGPUSEARCH — Milvus only; Elasticsearch does not support GPU search.
+  enable_gpu_search: false
   default_collection_name: "test_native"  # Default collection/index name for storing vectors
 
 # NV-Ingest Configuration

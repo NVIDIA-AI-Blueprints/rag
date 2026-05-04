@@ -103,6 +103,8 @@ services:
       - xpack.license.self_generated.type=basic
       - network.host=0.0.0.0
       - cluster.routing.allocation.disk.threshold_enabled=false
+      # Uncomment this line to use GPU for Elasticsearch
+      # - "vectors.indexing.use_gpu=true"
       # Uncomment the line below to use the username and password environment variables
       # - ELASTIC_USERNAME=${APP_VECTORSTORE_USERNAME}
       # - ELASTIC_PASSWORD=${APP_VECTORSTORE_PASSWORD}
@@ -114,6 +116,15 @@ services:
       interval: 10s
       timeout: 1s
       retries: 10
+    # Uncomment the lines below to use GPU for Elasticsearch
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           capabilities: ["gpu"]
+    #           # count: ${INFERENCE_GPU_COUNT:-all}
+    #           device_ids: ['${VECTORSTORE_GPU_DEVICE_ID:-0}']
     profiles: ["", "elasticsearch"]
 
 networks:
