@@ -393,7 +393,7 @@ class NemoRetrieverHandler:
         and remove the post-ingest ``write_rows()`` call in main.py.
         """
         stages = ["extract"]
-        if self._config.nv_ingest.enable_split:
+        if self._config.nv_ingest.enable_paged_doc_split:
             stages.append("split")
         if self._config.nv_ingest.extract_images:
             stages.append("caption")
@@ -406,7 +406,7 @@ class NemoRetrieverHandler:
         gi = GraphIngestor(run_mode=self._run_mode)
         gi = gi.files(filepaths)
         gi = gi.extract(make_extract_params(self._config, extract_override))
-        if self._config.nv_ingest.enable_split:
+        if self._config.nv_ingest.enable_paged_doc_split:
             gi = gi.split(make_split_params(self._config))
         if self._config.nv_ingest.extract_images:
             gi = gi.caption(make_caption_params(self._config))

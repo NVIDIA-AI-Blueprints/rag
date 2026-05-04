@@ -29,7 +29,7 @@ nv_ingest:
   chunk_overlap: 150  # Number of overlapping tokens between chunks
   caption_model_name: "nvidia/nemotron-nano-12b-v2-vl"  # Model name for generating image captions
   caption_endpoint_url: "http://localhost:1977/v1/chat/completions"  # API endpoint for caption generation service
-  enable_pdf_splitter: true  # Enable PDF page splitting during ingestion
+  enable_paged_doc_split: false  # Enable paged document splitting during ingestion
 
 # LLM Configuration
 llm:

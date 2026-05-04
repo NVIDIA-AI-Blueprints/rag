@@ -50,7 +50,7 @@ class TestNemoRetrieverHandlerBuildIngestor:
         for name in ("files", "extract", "split", "caption", "store", "embed"):
             getattr(mock_chain, name).return_value = mock_chain
 
-        nv = _nv_ingest_for_handler(extract_images=True, enable_split=True)
+        nv = _nv_ingest_for_handler(extract_images=True, enable_paged_doc_split=True)
         config = NvidiaRAGConfig(nv_ingest=nv)
         h = NemoRetrieverHandler(config)
         try:

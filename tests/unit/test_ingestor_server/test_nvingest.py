@@ -608,7 +608,7 @@ class TestGetNvIngestIngestor:
         mock_config.nv_ingest.text_depth = 1
         mock_config.nv_ingest.segment_audio = True
         mock_config.nv_ingest.extract_page_as_image = True
-        mock_config.nv_ingest.enable_pdf_splitter = True
+        mock_config.nv_ingest.enable_paged_doc_split = True
         mock_config.nv_ingest.tokenizer = "test_tokenizer"
         mock_config.nv_ingest.chunk_size = 1000
         mock_config.nv_ingest.chunk_overlap = 200
