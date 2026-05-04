@@ -335,7 +335,7 @@ class TestNvIngestConfig:
             config.caption_endpoint_url
             == "https://integrate.api.nvidia.com/v1/chat/completions"
         )
-        assert config.enable_pdf_splitter is True
+        assert config.enable_paged_doc_split is False
         assert config.object_store_bucket == "nv-ingest"
 
     @patch.dict(os.environ, {"NVINGEST_OBJECTSTORE_BUCKET": "custom-bucket"})

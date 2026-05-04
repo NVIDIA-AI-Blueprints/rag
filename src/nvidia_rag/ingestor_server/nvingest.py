@@ -159,16 +159,17 @@ def get_nv_ingest_ingestor(
         )
     ingestor = ingestor.extract(**extract_kwargs)
 
-    # Add splitting task (controlled by enable_split flag, disabled by default)
-    if config.nv_ingest.enable_split and split_options is not None:
-        split_source_types = ["text", "html", "mp3", "docx", "pptx"]
-        split_source_types = (
-            ["PDF"] + split_source_types
-            if config.nv_ingest.enable_pdf_splitter
-            else split_source_types
-        )
+    # Add splitting task.
+    # Split text/html/mp3 always; include paged docs (PDF/docx/pptx) only when
+    # enable_paged_doc_split is explicitly enabled.
+    if split_options is not None:
+        split_source_types = ["text", "html", "mp3"]
+        if config.nv_ingest.enable_paged_doc_split:
+            split_source_types.extend(["docx", "pptx", "PDF"])
         logger.info(
-            f"Post chunk split status: {config.nv_ingest.enable_pdf_splitter}. Splitting by: {split_source_types}"
+            "Post chunk split config: enable_paged_doc_split=%s. Splitting by: %s",
+            config.nv_ingest.enable_paged_doc_split,
+            split_source_types,
         )
         ingestor = ingestor.split(
             tokenizer=config.nv_ingest.tokenizer,
@@ -178,8 +179,6 @@ def get_nv_ingest_ingestor(
             ),
             params={"split_source_types": split_source_types},
         )
-    elif not config.nv_ingest.enable_split:
-        logger.info("Split task disabled (APP_NVINGEST_ENABLESPLIT=False). Skipping split stage.")
 
     # Add captioning task if extract_images is enabled
     if config.nv_ingest.extract_images:
