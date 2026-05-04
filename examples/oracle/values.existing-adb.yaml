@@ -1,0 +1,139 @@
+# =============================================================================
+# Helm values overrides for the NVIDIA RAG Blueprint v2.5.0 with Oracle 26ai
+# as the vector store backend.
+# =============================================================================
+# Apply on top of the stock chart:
+#
+#   helm upgrade --install rag nvidia-blueprint/nvidia-blueprint-rag \
+#     --version v2.5.0 \
+#     --namespace rag --create-namespace \
+#     -f examples/oracle/values.yaml
+#
+# Prerequisites (created before `helm install`):
+#
+#   1. Oracle Autonomous AI Database (23ai or 26ai) reachable from the
+#      cluster, with a RAG_APP user created via examples/oracle/bootstrap.sql.
+#
+#   2. K8s secret `oracle-creds` with credentials:
+#        kubectl -n rag create secret generic oracle-creds \
+#          --from-literal=ORACLE_USER=RAG_APP \
+#          --from-literal=ORACLE_PASSWORD=<rag-app-password> \
+#          --from-literal=ORACLE_WALLET_PASSWORD=<wallet-password>   # mTLS only
+#
+#   3. (mTLS only) K8s secret `oracle-wallet` with the ADB wallet contents:
+#        kubectl -n rag create secret generic oracle-wallet \
+#          --from-file=cwallet.sso=./wallet/cwallet.sso \
+#          --from-file=ewallet.pem=./wallet/ewallet.pem \
+#          --from-file=tnsnames.ora=./wallet/tnsnames.ora \
+#          --from-file=sqlnet.ora=./wallet/sqlnet.ora \
+#          --from-file=ewallet.p12=./wallet/ewallet.p12 \
+#          --from-file=keystore.jks=./wallet/keystore.jks \
+#          --from-file=truststore.jks=./wallet/truststore.jks \
+#          --from-file=ojdbc.properties=./wallet/ojdbc.properties
+#
+#   4. Custom rag-server / ingestor-server images built with `--extra oracle`.
+#      The Dockerfiles in this branch already include the extra; rebuild and
+#      push to your registry, then set `image.repository` / `image.tag` below.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# 1. rag-server — Oracle env vars + wallet mount
+# -----------------------------------------------------------------------------
+image:
+  repository: <your-registry>/rag-server
+  tag: v2.5.0-oracle
+  pullPolicy: IfNotPresent
+
+envVars:
+  # Selects the Oracle plugin (added in this branch)
+  APP_VECTORSTORE_NAME: "oracle"
+  # Hybrid (vector + Oracle Text BM25, RRF-fused) retrieval
+  APP_VECTORSTORE_SEARCHTYPE: "hybrid"
+  # Approximate index type — IVF or HNSW
+  APP_VECTORSTORE_INDEXTYPE: "IVF"
+  # TNS alias OR full DSN descriptor (full descriptor required for walletless)
+  ORACLE_CS: "ragbp_medium"
+  # Oracle plugin tunables
+  ORACLE_VECTOR_INDEX_TYPE: "IVF"
+  ORACLE_DISTANCE_METRIC: "COSINE"
+  # mTLS only — points python-oracledb at the wallet directory.
+  # Omit this entirely for walletless TLS connections.
+  TNS_ADMIN: "/app/wallet"
+
+# Inject DB credentials from the K8s secret (oracle-creds).
+envFrom:
+  - secretRef:
+      name: oracle-creds
+
+# Mount the wallet (mTLS mode only — omit for walletless TLS).
+extraVolumes:
+  - name: oracle-wallet
+    secret:
+      secretName: oracle-wallet
+      defaultMode: 0400
+
+extraVolumeMounts:
+  - name: oracle-wallet
+    mountPath: /app/wallet
+    readOnly: true
+
+# -----------------------------------------------------------------------------
+# 2. ingestor-server — same Oracle env + wallet
+# -----------------------------------------------------------------------------
+ingestor-server:
+  image:
+    repository: <your-registry>/ingestor-server
+    tag: v2.5.0-oracle
+    pullPolicy: IfNotPresent
+
+  envVars:
+    APP_VECTORSTORE_NAME: "oracle"
+    APP_VECTORSTORE_SEARCHTYPE: "hybrid"
+    APP_VECTORSTORE_INDEXTYPE: "IVF"
+    ORACLE_CS: "ragbp_medium"
+    ORACLE_VECTOR_INDEX_TYPE: "IVF"
+    ORACLE_DISTANCE_METRIC: "COSINE"
+    TNS_ADMIN: "/app/wallet"
+
+  envFrom:
+    - secretRef:
+        name: oracle-creds
+
+  extraVolumes:
+    - name: oracle-wallet
+      secret:
+        secretName: oracle-wallet
+        defaultMode: 0400
+
+  extraVolumeMounts:
+    - name: oracle-wallet
+      mountPath: /app/wallet
+      readOnly: true
+
+# -----------------------------------------------------------------------------
+# 3. Disable Milvus (Oracle replaces it).  MinIO MUST stay — it's used for
+#    image-blob/multimodal citation storage and is independent of the vector
+#    store.
+#
+#    NOTE: in the stock chart, MinIO is bundled inside the Milvus
+#    sub-dependency.  We keep the Milvus chart rendered (so MinIO is
+#    deployed) but scale the milvus-standalone Deployment to 0 replicas
+#    via a post-install step:
+#
+#      kubectl -n rag scale deploy milvus-standalone --replicas=0
+#
+#    (The Milvus sub-chart hardcodes replicas=1 in standalone-deployment.yaml,
+#    so it cannot be set to 0 via Helm values alone.)
+# -----------------------------------------------------------------------------
+nv-ingest:
+  milvusDeployed: true
+  milvus:
+    enabled: true
+    cluster:
+      enabled: false
+    minio:
+      enabled: true        # keep MinIO bundled (used for image-blob storage)
+    etcd:
+      enabled: false       # etcd was only metadata for milvus; safe to drop
+
+milvusDeployed: true       # parent chart's flag — keep MinIO sub-chart rendered

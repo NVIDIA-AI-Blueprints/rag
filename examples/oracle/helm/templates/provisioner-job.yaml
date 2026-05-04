@@ -1,0 +1,92 @@
+{{- if and (eq .Values.oracle.mode "create") .Values.oracle.createDatabase.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: oracle-adb-provisioner
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-10"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 1
+  template:
+    spec:
+      serviceAccountName: oracle-adb-provisioner
+      restartPolicy: Never
+      containers:
+        - name: provisioner
+          image: {{ .Values.oracle.provisioner.image | quote }}
+          imagePullPolicy: {{ .Values.oracle.provisioner.imagePullPolicy | default "IfNotPresent" | quote }}
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -euo pipefail
+              if ! python - <<'PY'
+              import importlib.util, sys
+              missing=[m for m in ("oci","oracledb","kubernetes") if importlib.util.find_spec(m) is None]
+              sys.exit(1 if missing else 0)
+              PY
+              then
+                pip install --no-cache-dir oci oracledb kubernetes
+              fi
+              EXTRA_ARGS=""
+              {{- if not .Values.oracle.createDatabase.autoDiscover }}
+              EXTRA_ARGS="$EXTRA_ARGS --no-auto-discover"
+              {{- end }}
+              {{- if .Values.oracle.createDatabase.reuseExisting }}
+              EXTRA_ARGS="$EXTRA_ARGS --reuse-existing"
+              {{- end }}
+              python /app/provision_adb.py create \
+                --namespace {{ .Release.Namespace | quote }} \
+                --k8s-secret {{ .Values.oracle.credentials.oracleSecret | quote }} \
+                --db-name {{ .Values.oracle.createDatabase.dbName | quote }} \
+                --display-name {{ .Values.oracle.createDatabase.displayName | quote }} \
+                --workload-type {{ .Values.oracle.createDatabase.workloadType | quote }} \
+                --ecpus {{ .Values.oracle.createDatabase.ecpus }} \
+                --storage-tb {{ .Values.oracle.createDatabase.storageTb }} \
+                $EXTRA_ARGS
+          env:
+            {{- if eq .Values.oracle.auth.method "oci_cli_config" }}
+            - name: OCI_CLI_CONFIG_FILE
+              value: /root/.oci/config
+            - name: OCI_CLI_PROFILE
+              value: {{ .Values.oracle.auth.profile | default "DEFAULT" | quote }}
+            {{- end }}
+            - name: OCI_AUTH
+              value: {{ .Values.oracle.auth.method | quote }}
+            - name: HELM_RELEASE_NAME
+              value: {{ .Release.Name | quote }}
+            - name: HELM_NAMESPACE
+              value: {{ .Release.Namespace | quote }}
+            - name: OCI_COMPARTMENT_OCID
+              value: {{ .Values.oracle.createDatabase.compartmentId | quote }}
+            - name: OCI_SUBNET_OCID
+              value: {{ .Values.oracle.createDatabase.subnetId | quote }}
+            {{- with .Values.oracle.createDatabase.vcnId }}
+            - name: OCI_VCN_OCID
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.oracle.createDatabase.region }}
+            - name: OCI_REGION
+              value: {{ . | quote }}
+            {{- end }}
+          volumeMounts:
+            - name: provisioner-code
+              mountPath: /app/provision_adb.py
+              subPath: provision_adb.py
+            {{- if eq .Values.oracle.auth.method "oci_cli_config" }}
+            - name: oci-config
+              mountPath: /root/.oci
+              readOnly: true
+            {{- end }}
+      volumes:
+        - name: provisioner-code
+          configMap:
+            name: oracle-adb-provisioner
+            defaultMode: 0755
+        {{- if eq .Values.oracle.auth.method "oci_cli_config" }}
+        - name: oci-config
+          secret:
+            secretName: {{ .Values.oracle.auth.ociConfigSecret | quote }}
+        {{- end }}
+{{- end }}

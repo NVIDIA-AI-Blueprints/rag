@@ -1,0 +1,128 @@
+# =============================================================================
+# Oracle 26AI values overlay for NVIDIA RAG Blueprint v2.5.
+#
+# Usage (same pattern as stock blueprint):
+#
+#   kubectl create namespace rag
+#   kubectl create secret generic oci-config -n rag \
+#     --from-file=config=$HOME/.oci/config \
+#     --from-file=oci_api_key.pem=$HOME/.oci/oci_api_key.pem
+#
+#   helm install rag ./deploy/helm/nvidia-blueprint-rag \
+#     -n rag -f examples/oracle/values.yaml \
+#     --set imagePullSecret.password=$NGC_API_KEY \
+#     --set ngcApiSecret.password=$NGC_API_KEY \
+#     --timeout 60m
+#
+# For existing DB:
+#   kubectl create secret generic oracle-creds -n rag \
+#     --from-literal=ORACLE_USER=RAG_APP \
+#     --from-literal=ORACLE_PASSWORD='<pw>' \
+#     --from-literal=ORACLE_CS='<dsn>'
+#   Then add: --set oracle.mode=existing --set oracle.createDatabase.enabled=false
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Oracle ADB provisioner (pre-install hook — creates fresh DB automatically)
+# -----------------------------------------------------------------------------
+oracle:
+  mode: create
+  createDatabase:
+    enabled: true
+    autoDiscover: true
+    compartmentId: ""
+    subnetId: ""
+    dbName: ""
+    displayName: ""
+    reuseExisting: false
+    ecpus: 4
+    storageTb: 1
+    workloadType: LH
+  auth:
+    method: oci_cli_config
+    ociConfigSecret: oci-config
+    profile: DEFAULT
+    # Passed via --set-file (chart creates the secret automatically):
+    #   --set-file oracle.auth.ociConfig=$HOME/.oci/config
+    #   --set-file oracle.auth.ociKey=$HOME/.oci/oci_api_key.pem
+    ociConfig: ""
+    ociKey: ""
+  credentials:
+    oracleSecret: oracle-creds
+  provisioner:
+    image: docker.io/python:3.12-slim
+
+# -----------------------------------------------------------------------------
+# Frontend
+# -----------------------------------------------------------------------------
+frontend:
+  service:
+    type: LoadBalancer
+
+# -----------------------------------------------------------------------------
+# Custom Oracle-enabled container images
+# -----------------------------------------------------------------------------
+image:
+  repository: us-chicago-1.ocir.io/axoiqxe88ikb/ragbp/rag-server
+  tag: v2.5.0-oracle-rev2
+  pullPolicy: IfNotPresent
+
+# -----------------------------------------------------------------------------
+# rag-server — Oracle env + credentials
+# -----------------------------------------------------------------------------
+envVars:
+  APP_VECTORSTORE_NAME: "oracle"
+  APP_VECTORSTORE_SEARCHTYPE: "hybrid"
+  APP_VECTORSTORE_INDEXTYPE: "IVF"
+  APP_VECTORSTORE_ENABLEGPUSEARCH: "False"
+  APP_VECTORSTORE_URL: ""
+  ORACLE_VECTOR_INDEX_TYPE: "IVF"
+  ORACLE_DISTANCE_METRIC: "COSINE"
+  ENABLE_MINIO: "true"
+  MINIO_ENDPOINT: "rag-minio:9000"
+  MINIO_ACCESSKEY: "minioadmin"
+  MINIO_SECRETKEY: "minioadmin"
+
+envFrom:
+  - secretRef:
+      name: oracle-creds
+
+# -----------------------------------------------------------------------------
+# ingestor-server — same Oracle env + credentials
+# -----------------------------------------------------------------------------
+ingestor-server:
+  image:
+    repository: us-chicago-1.ocir.io/axoiqxe88ikb/ragbp/ingestor-server
+    tag: v2.5.0-oracle-rev2
+    pullPolicy: IfNotPresent
+  envVars:
+    APP_VECTORSTORE_NAME: "oracle"
+    APP_VECTORSTORE_SEARCHTYPE: "hybrid"
+    APP_VECTORSTORE_INDEXTYPE: "IVF"
+    APP_VECTORSTORE_ENABLEGPUSEARCH: "False"
+    APP_VECTORSTORE_URL: ""
+    ORACLE_VECTOR_INDEX_TYPE: "IVF"
+    ORACLE_DISTANCE_METRIC: "COSINE"
+    ENABLE_MINIO: "true"
+    MINIO_ENDPOINT: "rag-minio:9000"
+    MINIO_ACCESSKEY: "minioadmin"
+    MINIO_SECRETKEY: "minioadmin"
+  envFrom:
+    - secretRef:
+        name: oracle-creds
+
+# -----------------------------------------------------------------------------
+# Oracle replaces Milvus. Standalone MinIO for multimodal blob storage.
+# -----------------------------------------------------------------------------
+milvusDeployed: false
+nv-ingest:
+  milvusDeployed: false
+  envVars:
+    COMPONENTS_TO_READY_CHECK: ""
+
+minio:
+  enabled: true
+  image: docker.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
+  accessKey: minioadmin
+  secretKey: minioadmin
+  storage: 50Gi

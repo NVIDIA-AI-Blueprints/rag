@@ -1,0 +1,12 @@
+dependencies:
+- name: gpu-operator
+  repository: https://helm.ngc.nvidia.com/nvidia
+  version: v26.3.1
+- name: k8s-nim-operator
+  repository: https://helm.ngc.nvidia.com/nvidia
+  version: 3.1.0
+- name: nvidia-blueprint-rag
+  repository: file://../../../deploy/helm/nvidia-blueprint-rag
+  version: v2.5.0
+digest: sha256:bba50efa4ac5cdcf11ecfd4ef8ad3e5a4a8fd7f8999b5939388e05e781c997b6
+generated: "2026-04-30T23:13:10.670719-07:00"

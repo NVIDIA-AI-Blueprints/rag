@@ -1,0 +1,175 @@
+{{- if and (hasKey .Values "oracle") (eq (default "" .Values.oracle.mode) "create") (default false .Values.oracle.createDatabase.enabled) }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: oracle-adb-provisioner
+  annotations:
+    "helm.sh/hook": pre-install
+    "helm.sh/hook-weight": "-20"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: oracle-adb-provisioner-{{ .Release.Namespace }}
+  annotations:
+    "helm.sh/hook": pre-install
+    "helm.sh/hook-weight": "-20"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+rules:
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: oracle-adb-provisioner
+  annotations:
+    "helm.sh/hook": pre-install
+    "helm.sh/hook-weight": "-20"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "create", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: oracle-adb-provisioner-{{ .Release.Namespace }}
+  annotations:
+    "helm.sh/hook": pre-install
+    "helm.sh/hook-weight": "-20"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+subjects:
+  - kind: ServiceAccount
+    name: oracle-adb-provisioner
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: oracle-adb-provisioner-{{ .Release.Namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: oracle-adb-provisioner
+  annotations:
+    "helm.sh/hook": pre-install
+    "helm.sh/hook-weight": "-20"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+subjects:
+  - kind: ServiceAccount
+    name: oracle-adb-provisioner
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: oracle-adb-provisioner
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: oracle-adb-provisioner
+  annotations:
+    "helm.sh/hook": pre-install
+    "helm.sh/hook-weight": "-20"
+    "helm.sh/hook-delete-policy": before-hook-creation
+data:
+  provision_adb.py: |
+{{ .Files.Get "files/provision_adb.py" | indent 4 }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: oracle-adb-provisioner
+  annotations:
+    "helm.sh/hook": pre-install
+    "helm.sh/hook-weight": "-10"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 1
+  template:
+    spec:
+      serviceAccountName: oracle-adb-provisioner
+      restartPolicy: Never
+      containers:
+        - name: provisioner
+          image: {{ .Values.oracle.provisioner.image | default "docker.io/python:3.12-slim" | quote }}
+          imagePullPolicy: IfNotPresent
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          env:
+            - name: PYTHONUNBUFFERED
+              value: "1"
+            {{- if eq (default "oci_cli_config" .Values.oracle.auth.method) "oci_cli_config" }}
+            - name: OCI_CLI_CONFIG_FILE
+              value: /root/.oci/config
+            - name: OCI_CLI_PROFILE
+              value: {{ .Values.oracle.auth.profile | default "DEFAULT" | quote }}
+            {{- end }}
+            - name: OCI_AUTH
+              value: {{ .Values.oracle.auth.method | default "oci_cli_config" | quote }}
+            - name: HELM_RELEASE_NAME
+              value: {{ .Release.Name | quote }}
+            - name: HELM_NAMESPACE
+              value: {{ .Release.Namespace | quote }}
+            {{- with .Values.oracle.createDatabase.compartmentId }}
+            - name: OCI_COMPARTMENT_OCID
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.oracle.createDatabase.subnetId }}
+            - name: OCI_SUBNET_OCID
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.oracle.createDatabase.region }}
+            - name: OCI_REGION
+              value: {{ . | quote }}
+            {{- end }}
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -euo pipefail
+              pip install --no-cache-dir -q oci oracledb kubernetes
+              python /app/provision_adb.py create \
+                --namespace {{ .Release.Namespace | quote }} \
+                --k8s-secret {{ .Values.oracle.credentials.oracleSecret | default "oracle-creds" | quote }} \
+                --db-name {{ .Values.oracle.createDatabase.dbName | default "" | quote }} \
+                --display-name {{ .Values.oracle.createDatabase.displayName | default "" | quote }} \
+                --workload-type {{ .Values.oracle.createDatabase.workloadType | default "LH" | quote }} \
+                --ecpus {{ .Values.oracle.createDatabase.ecpus | default 4 }} \
+                --storage-tb {{ .Values.oracle.createDatabase.storageTb | default 1 }} \
+                {{- if not (default true .Values.oracle.createDatabase.autoDiscover) }}
+                --no-auto-discover \
+                {{- end }}
+                {{- if .Values.oracle.createDatabase.reuseExisting }}
+                --reuse-existing \
+                {{- end }}
+
+          volumeMounts:
+            - name: provisioner-code
+              mountPath: /app/provision_adb.py
+              subPath: provision_adb.py
+            {{- if eq (default "oci_cli_config" .Values.oracle.auth.method) "oci_cli_config" }}
+            - name: oci-config
+              mountPath: /root/.oci
+              readOnly: true
+            {{- end }}
+      volumes:
+        - name: provisioner-code
+          configMap:
+            name: oracle-adb-provisioner
+            defaultMode: 0755
+        {{- if eq (default "oci_cli_config" .Values.oracle.auth.method) "oci_cli_config" }}
+        - name: oci-config
+          secret:
+            secretName: {{ .Values.oracle.auth.ociConfigSecret | default "oci-config" | quote }}
+        {{- end }}
+{{- end }}

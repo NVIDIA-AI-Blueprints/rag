@@ -1,0 +1,147 @@
+# Oracle branch default Helm values: create a fresh Oracle Autonomous AI
+# Database 26ai, bootstrap RAG_APP, then deploy RAG configured to use Oracle.
+
+oracle:
+  mode: create
+  createDatabase:
+    enabled: true
+    autoDiscover: true
+    compartmentId: "" # optional override
+    subnetId: ""      # optional override; private subnet recommended
+    nsgIds: []
+    # Empty by default: provisioner generates a stable, unique name from
+    # Helm release + namespace (for example ragbp1a2b3c). Override only if you
+    # intentionally want a specific database name.
+    dbName: ""
+    displayName: ""
+    reuseExisting: false
+    ecpus: 4
+    storageTb: 1
+    # OCI API enum: LH = Lakehouse (analytics + AI), OLTP = Transaction
+    # Processing, AJD = JSON, APEX = APEX.
+    workloadType: LH
+    deleteOnUninstall: false
+  auth:
+    method: oci_cli_config
+    ociConfigSecret: oci-config
+    profile: DEFAULT
+  credentials:
+    oracleSecret: oracle-creds
+  provisioner:
+    # Uses Python image + pip installs OCI/oracledb/kubernetes in the hook Job.
+    # For production, publish examples/oracle/provisioner/Dockerfile and set
+    # image to that prebuilt image to avoid pip install during helm install.
+    image: docker.io/python:3.12-slim
+    imagePullPolicy: IfNotPresent
+
+operators:
+  # Install the NVIDIA GPU Operator as part of the Oracle wrapper so a clean
+  # OKE cluster can go from zero to serving NIMs without a separate operator
+  # pre-install step. Set false if your cluster already manages GPU drivers.
+  gpu:
+    enabled: true
+  # Install NIM Operator so the RAG chart's NIMService/NIMCache resources
+  # reconcile into pods and model-cache PVCs.
+  nim:
+    enabled: true
+
+# GPU Operator defaults. The upstream chart ships the sensible defaults; this
+# section exists so users can override if their cluster already has drivers,
+# toolkit, or device plugin installed.
+gpu-operator:
+  driver:
+    enabled: false
+  toolkit:
+    enabled: true
+
+nim-operator: {}
+
+# Match the stock NVIDIA RAG chart UX:
+#   --set imagePullSecret.password=$NGC_API_KEY
+#   --set ngcApiSecret.password=$NGC_API_KEY
+#
+# If `create=false`, the chart assumes the named secrets already exist. This
+# is how AI Pack / ORM deployments can supply platform-managed secrets without
+# asking the Helm user for the key.
+imagePullSecret:
+  create: true
+  name: ngc-secret
+  registry: nvcr.io
+  username: "$oauthtoken"
+  password: ""
+
+ngcApiSecret:
+  create: true
+  name: ngc-api
+  password: ""
+
+frontend:
+  service:
+    type: LoadBalancer
+
+rag:
+  imagePullSecret:
+    create: false
+    name: ngc-secret
+  ngcApiSecret:
+    create: false
+    name: ngc-api
+  frontend:
+    service:
+      type: LoadBalancer
+  # Custom Oracle-enabled container images
+  image:
+    repository: us-chicago-1.ocir.io/axoiqxe88ikb/ragbp/rag-server
+    tag: v2.5.0-oracle-rev2
+    pullPolicy: IfNotPresent
+  ingestor-server:
+    image:
+      repository: us-chicago-1.ocir.io/axoiqxe88ikb/ragbp/ingestor-server
+      tag: v2.5.0-oracle-rev2
+      pullPolicy: IfNotPresent
+    envFrom:
+      - secretRef:
+          name: oracle-creds
+    envVars:
+      APP_VECTORSTORE_NAME: oracle
+      APP_VECTORSTORE_SEARCHTYPE: hybrid
+      APP_VECTORSTORE_INDEXTYPE: IVF
+      APP_VECTORSTORE_ENABLEGPUSEARCH: "False"
+      APP_VECTORSTORE_URL: ""
+      ENABLE_MINIO: "true"
+      MINIO_ENDPOINT: "rag-minio:9000"
+      MINIO_ACCESSKEY: "minioadmin"
+      MINIO_SECRETKEY: "minioadmin"
+      ORACLE_VECTOR_INDEX_TYPE: IVF
+      ORACLE_DISTANCE_METRIC: COSINE
+  # v2.5 OKE fix: constrain LLM to single profile (prevents PVC overflow)
+  nimOperator:
+    nim-llm:
+      model:
+        tensorParallelism: "1"
+  envFrom:
+    - secretRef:
+        name: oracle-creds
+  # Oracle replaces Milvus. Disable bundled Milvus.
+  milvusDeployed: false
+  nv-ingest:
+    milvusDeployed: false
+  envVars:
+    APP_VECTORSTORE_NAME: oracle
+    APP_VECTORSTORE_SEARCHTYPE: hybrid
+    APP_VECTORSTORE_INDEXTYPE: IVF
+    APP_VECTORSTORE_ENABLEGPUSEARCH: "False"
+    APP_VECTORSTORE_URL: ""
+    ENABLE_MINIO: "true"
+    MINIO_ENDPOINT: "rag-minio:9000"
+    MINIO_ACCESSKEY: "minioadmin"
+    MINIO_SECRETKEY: "minioadmin"
+    ORACLE_VECTOR_INDEX_TYPE: IVF
+    ORACLE_DISTANCE_METRIC: COSINE
+
+minio:
+  enabled: true
+  image: docker.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
+  accessKey: minioadmin
+  secretKey: minioadmin
+  storage: 50Gi

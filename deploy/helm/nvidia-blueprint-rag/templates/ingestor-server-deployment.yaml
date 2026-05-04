@@ -96,6 +96,10 @@ spec:
           {{- end }}
           {{- end }}
           {{- end }}
+          {{- with $cfg.envFrom }}
+          envFrom:
+{{ toYaml . | nindent 12 }}
+          {{- end }}
           {{- if $cfg.livenessProbe }}
           livenessProbe:
 {{ toYaml $cfg.livenessProbe | nindent 12 }}
@@ -116,8 +120,12 @@ spec:
               subPath: {{ $cfg.persistence.subPath }}
               {{- end }}
           {{- end }}
-      {{- if $cfg.persistence.enabled }}
+          {{- if $cfg.extraVolumeMounts }}
+{{ toYaml $cfg.extraVolumeMounts | nindent 12 }}
+          {{- end }}
+      {{- if or $cfg.persistence.enabled $cfg.extraVolumes }}
       volumes:
+      {{- if $cfg.persistence.enabled }}
         - name: ingestor-server-data
           {{- if $cfg.persistence.existingClaim }}
           persistentVolumeClaim:
@@ -126,5 +134,9 @@ spec:
           persistentVolumeClaim:
             claimName: {{ printf "%s-data" $cfg.appName }}
           {{- end }}
+      {{- end }}
+      {{- if $cfg.extraVolumes }}
+{{ toYaml $cfg.extraVolumes | nindent 8 }}
+      {{- end }}
       {{- end }}
 {{- end }}

@@ -1,0 +1,97 @@
+# Existing-ADB mode for the Oracle wrapper chart.
+#
+# Prerequisites:
+#   1. Existing Oracle ADB 23ai/26ai
+#   2. RAG_APP bootstrapped via examples/oracle/bootstrap.sql
+#   3. K8s Secret `oracle-creds` in the target namespace with:
+#        ORACLE_USER, ORACLE_PASSWORD, ORACLE_CS
+#      and for mTLS only: ORACLE_WALLET_PASSWORD + oracle-wallet volume wiring
+
+oracle:
+  mode: existing
+  createDatabase:
+    enabled: false
+  credentials:
+    oracleSecret: oracle-creds
+
+imagePullSecret:
+  create: true
+  name: ngc-secret
+  registry: nvcr.io
+  username: "$oauthtoken"
+  password: ""
+
+ngcApiSecret:
+  create: true
+  name: ngc-api
+  password: ""
+
+frontend:
+  service:
+    type: ClusterIP
+
+operators:
+  gpu:
+    enabled: true
+  nim:
+    enabled: true
+
+gpu-operator: {}
+nim-operator: {}
+
+minio:
+  enabled: true
+  image: docker.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
+  accessKey: minioadmin
+  secretKey: minioadmin
+  storage: 50Gi
+
+rag:
+  imagePullSecret:
+    create: false
+    name: ngc-secret
+    registry: nvcr.io
+    username: "$oauthtoken"
+    password: ""
+  ngcApiSecret:
+    create: false
+    name: ngc-api
+    password: ""
+  frontend:
+    service:
+      type: ClusterIP
+  envFrom:
+    - secretRef:
+        name: oracle-creds
+  milvusDeployed: false
+  nv-ingest:
+    milvusDeployed: false
+  envVars:
+    APP_VECTORSTORE_NAME: "oracle"
+    APP_VECTORSTORE_SEARCHTYPE: "hybrid"
+    APP_VECTORSTORE_INDEXTYPE: "IVF"
+    APP_VECTORSTORE_ENABLEGPUSEARCH: "False"
+    APP_VECTORSTORE_URL: ""
+    ENABLE_MINIO: "true"
+    MINIO_ENDPOINT: "rag-minio:9000"
+    MINIO_ACCESSKEY: "minioadmin"
+    MINIO_SECRETKEY: "minioadmin"
+    ORACLE_VECTOR_INDEX_TYPE: "IVF"
+    ORACLE_DISTANCE_METRIC: "COSINE"
+  ingestor-server:
+    envFrom:
+      - secretRef:
+          name: oracle-creds
+    envVars:
+      APP_VECTORSTORE_NAME: "oracle"
+      APP_VECTORSTORE_SEARCHTYPE: "hybrid"
+      APP_VECTORSTORE_INDEXTYPE: "IVF"
+      APP_VECTORSTORE_ENABLEGPUSEARCH: "False"
+      APP_VECTORSTORE_URL: ""
+      ENABLE_MINIO: "true"
+      MINIO_ENDPOINT: "rag-minio:9000"
+      MINIO_ACCESSKEY: "minioadmin"
+      MINIO_SECRETKEY: "minioadmin"
+      ORACLE_VECTOR_INDEX_TYPE: "IVF"
+      ORACLE_DISTANCE_METRIC: "COSINE"
+

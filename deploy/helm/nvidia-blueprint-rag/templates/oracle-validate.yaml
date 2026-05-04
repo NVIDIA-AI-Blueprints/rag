@@ -1,0 +1,86 @@
+{{- /*
+  Pre-flight validation for Oracle 26AI deployment.
+  Fails helm install with clear, actionable messages before any
+  resources are created. Only active when oracle values are present.
+*/ -}}
+{{- if hasKey .Values "oracle" }}
+
+{{- /* Validate NGC credentials */ -}}
+{{- if and .Values.imagePullSecret.create (not .Values.imagePullSecret.password) }}
+{{- fail `
+╔══════════════════════════════════════════════════════════════╗
+║  MISSING: NGC API Key                                       ║
+╠══════════════════════════════════════════════════════════════╣
+║  NIM model images require NGC authentication.               ║
+║                                                              ║
+║  Fix: Add to your helm command:                              ║
+║    --set imagePullSecret.password=$NGC_API_KEY               ║
+║    --set ngcApiSecret.password=$NGC_API_KEY                  ║
+║                                                              ║
+║  Get a key: https://ngc.nvidia.com/setup/api-key             ║
+╚══════════════════════════════════════════════════════════════╝
+` }}
+{{- end }}
+
+{{- /* Validate OCI credentials for create mode */ -}}
+{{- if and (eq (default "" .Values.oracle.mode) "create") (default false .Values.oracle.createDatabase.enabled) }}
+
+{{- if eq (default "oci_cli_config" .Values.oracle.auth.method) "oci_cli_config" }}
+{{- if not .Values.oracle.auth.ociConfig }}
+{{- fail `
+╔══════════════════════════════════════════════════════════════╗
+║  MISSING: OCI API credentials                               ║
+╠══════════════════════════════════════════════════════════════╣
+║  The Oracle provisioner needs OCI credentials to create      ║
+║  an Autonomous Database.                                     ║
+║                                                              ║
+║  Fix: Add to your helm command:                              ║
+║    --set-file oracle.auth.ociConfig=$HOME/.oci/config        ║
+║    --set-file oracle.auth.ociKey=$HOME/.oci/oci_api_key.pem  ║
+║                                                              ║
+║  If your OCI config has multiple profiles, also set:         ║
+║    --set oracle.auth.profile=<PROFILE_NAME>                  ║
+║                                                              ║
+║  For existing DB (no provisioning):                          ║
+║    --set oracle.mode=existing                                ║
+║    --set oracle.createDatabase.enabled=false                 ║
+╚══════════════════════════════════════════════════════════════╝
+` }}
+{{- end }}
+
+{{- if not .Values.oracle.auth.ociKey }}
+{{- fail `
+╔══════════════════════════════════════════════════════════════╗
+║  MISSING: OCI API private key                               ║
+╠══════════════════════════════════════════════════════════════╣
+║  The OCI config was provided but the private key is missing. ║
+║                                                              ║
+║  Fix: Add to your helm command:                              ║
+║    --set-file oracle.auth.ociKey=$HOME/.oci/oci_api_key.pem  ║
+╚══════════════════════════════════════════════════════════════╝
+` }}
+{{- end }}
+{{- end }}{{/* oci_cli_config */}}
+
+{{- end }}{{/* create mode */}}
+
+{{- /* Validate existing DB mode */ -}}
+{{- if eq (default "" .Values.oracle.mode) "existing" }}
+{{- if not .Values.envFrom }}
+{{- fail `
+╔══════════════════════════════════════════════════════════════╗
+║  MISSING: Oracle credentials for existing DB                ║
+╠══════════════════════════════════════════════════════════════╣
+║  Using existing DB mode but no oracle-creds secret wired.   ║
+║                                                              ║
+║  Before helm install, create the secret:                     ║
+║    kubectl create secret generic oracle-creds -n <ns>        ║
+║      --from-literal=ORACLE_USER=RAG_APP                      ║
+║      --from-literal=ORACLE_PASSWORD='<password>'             ║
+║      --from-literal=ORACLE_CS='<connection-string>'          ║
+╚══════════════════════════════════════════════════════════════╝
+` }}
+{{- end }}
+{{- end }}
+
+{{- end }}{{/* hasKey oracle */}}
