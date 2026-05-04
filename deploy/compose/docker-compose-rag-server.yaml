@@ -11,7 +11,7 @@ services:
       args:
         DOWNLOAD_LEGAL_COMPLIANCE: ${DOWNLOAD_LEGAL_COMPLIANCE:-false}
     # start the server on port 8081 with 8 workers for improved latency on concurrent requests.
-    command: --port 8081 --host 0.0.0.0 --workers 4
+    command: --port 8081 --host 0.0.0.0 --workers 8
     volumes:
       # Mount the prompt.yaml file to the container, path should be absolute
       - ${PROMPT_CONFIG_FILE}:${PROMPT_CONFIG_FILE}
@@ -62,7 +62,7 @@ services:
       APP_VECTORSTORE_APIKEY_SECRET: ${APP_VECTORSTORE_APIKEY_SECRET:-""}
       APP_VECTORSTORE_APIKEY: ${APP_VECTORSTORE_APIKEY:-""}
       # vectorstore collection name to store embeddings
-      COLLECTION_NAME: ${COLLECTION_NAME:-ragbattlepacket}
+      COLLECTION_NAME: ${COLLECTION_NAME:-multimodal_data}
       APP_RETRIEVER_SCORETHRESHOLD: 0.25
       # Top K from vector DB, which goes as input to reranker model if enabled, else goes to LLM prompt
       VECTOR_DB_TOPK: ${VECTOR_DB_TOPK:-100}
@@ -109,8 +109,8 @@ services:
 
       ##===Reranking Model specific configurations===
       # url on which ranking model is hosted. If "", Nvidia hosted API is used
-      APP_RANKING_SERVERURL: ${APP_RANKING_SERVERURL-"nemotron-ranking-vl-ms:8000"}
-      APP_RANKING_MODELNAME: ${APP_RANKING_MODELNAME:-"nvidia/llama-nemotron-rerank-vl-1b-v2"}
+      APP_RANKING_SERVERURL: ${APP_RANKING_SERVERURL-"nemotron-ranking-ms:8000"}
+      APP_RANKING_MODELNAME: ${APP_RANKING_MODELNAME:-"nvidia/llama-nemotron-rerank-1b-v2"}
       # APP_RANKING_SERVERURL: ${APP_RANKING_SERVERURL-"nemotron-ranking-ms:8000"}
       # APP_RANKING_MODELNAME: ${APP_RANKING_MODELNAME:-"nvidia/llama-nemotron-rerank-1b-v2"}
       ENABLE_RERANKER: ${ENABLE_RERANKER:-True}
@@ -118,7 +118,7 @@ services:
       RERANKER_SCORE_THRESHOLD: ${RERANKER_SCORE_THRESHOLD:-${RERANKER_CONFIDENCE_THRESHOLD:-0.0}}
 
       ##===VLM Model specific configurations===
-      ENABLE_VLM_INFERENCE: ${ENABLE_VLM_INFERENCE:-false}
+      ENABLE_VLM_INFERENCE: ${ENABLE_VLM_INFERENCE:-False}
       # When true, allow falling back to LLM flow if no images are present in query/messages/context
       # When false, always route generation through VLM when ENABLE_VLM_INFERENCE is true
       VLM_TO_LLM_FALLBACK: ${VLM_TO_LLM_FALLBACK:-False}
