@@ -37,6 +37,8 @@ const StopButton = () => {
       color="danger"
       size="small"
       onClick={stopStream}
+      data-testid="stop-button"
+      aria-label="Stop generating"
     >
       <Flex align="center" gap="density-xs">
         <StopIcon />
@@ -78,6 +80,8 @@ const SendButton = () => {
       onClick={handleSubmit}
       disabled={!canSubmit}
       title={getButtonTitle()}
+      data-testid="send-button"
+      aria-label={getButtonTitle()}
     >
       {getButtonContent()}
     </Button>

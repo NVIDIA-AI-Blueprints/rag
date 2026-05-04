@@ -119,6 +119,8 @@ export default function NotificationBell() {
         <Button 
           kind="tertiary" 
           size="small"
+          data-testid="notification-bell"
+          aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ""}`}
         >
           <NotificationBadge count={unreadCount} />
         </Button>

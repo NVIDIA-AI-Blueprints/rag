@@ -1,0 +1,243 @@
+name: E2E Tests
+
+on:
+  pull_request:
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/e2e.yml'
+  push:
+    branches:
+      - develop
+      - main
+      - 'release-**'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Run mode (mocked | integration)'
+        default: 'mocked'
+        required: false
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Mocked E2E: fast, deterministic, sharded across workers. This is the
+  # primary signal gate for frontend PRs.
+  # ---------------------------------------------------------------------------
+  e2e-mocked:
+    name: E2E (mocked, shard ${{ matrix.shard }}/${{ strategy.job-total }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('frontend/pnpm-lock.yaml') }}
+
+      - name: Install Playwright browsers (chromium + webkit)
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: pnpm exec playwright install --with-deps chromium webkit
+
+      - name: Install Playwright system deps only
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: pnpm exec playwright install-deps chromium webkit
+
+      - name: Run E2E tests (chromium + webkit)
+        env:
+          CI: 'true'
+          E2E_MODE: mocked
+          E2E_COVERAGE: '0'
+        run: |
+          pnpm exec playwright test \
+            --config=e2e/playwright.config.ts \
+            --project=chromium \
+            --project=webkit \
+            --shard=${{ matrix.shard }}/${{ strategy.job-total }}
+
+      - name: Upload blob report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: blob-report-${{ matrix.shard }}
+          path: frontend/blob-report
+          retention-days: 7
+
+      - name: Upload HTML report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ matrix.shard }}
+          path: frontend/e2e/playwright-report
+          retention-days: 7
+
+      - name: Upload test results on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.shard }}
+          path: frontend/e2e/test-results
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # Merge blob reports from each shard into a single HTML report.
+  # ---------------------------------------------------------------------------
+  merge-reports:
+    name: Merge E2E Reports
+    if: ${{ !cancelled() }}
+    needs: e2e-mocked
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Download blob reports
+        uses: actions/download-artifact@v4
+        with:
+          path: frontend/all-blob-reports
+          pattern: blob-report-*
+          merge-multiple: true
+
+      - name: Merge into single HTML report
+        run: pnpm exec playwright merge-reports --reporter html ./all-blob-reports
+
+      - name: Upload merged report
+        uses: actions/upload-artifact@v4
+        with:
+          name: html-report--attempt-${{ github.run_attempt }}
+          path: frontend/playwright-report
+          retention-days: 14
+
+  # ---------------------------------------------------------------------------
+  # A11y + visual regression (chromium only). Runs on PRs but does not block
+  # merges — treat results as informational until baselines stabilize.
+  # ---------------------------------------------------------------------------
+  e2e-a11y-visual:
+    name: E2E A11y + Visual
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: A11y scans
+        run: pnpm exec playwright test --config=e2e/playwright.config.ts --project=chromium e2e/tests/a11y
+
+      - name: Visual regression
+        continue-on-error: true
+        run: pnpm exec playwright test --config=e2e/playwright.config.ts --project=visual
+
+      - name: Upload visual diffs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-diffs
+          path: frontend/e2e/test-results
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # Integration suite — opt-in via workflow_dispatch (mode: integration).
+  # Requires the real backend stack which is outside this workflow's scope.
+  # ---------------------------------------------------------------------------
+  e2e-integration:
+    name: E2E Integration (opt-in)
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'integration' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run integration smoke
+        env:
+          E2E_MODE: integration
+          E2E_BASE_URL: ${{ vars.E2E_BASE_URL || 'http://localhost:3000' }}
+        run: pnpm exec playwright test --config=e2e/playwright.config.ts --project=integration
+
+      - name: Upload report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-report
+          path: frontend/e2e/playwright-report
+          retention-days: 14

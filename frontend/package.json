@@ -12,7 +12,21 @@
     "test:ui": "vitest --ui",
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "test:watch": "vitest --watch"
+    "test:watch": "vitest --watch",
+    "e2e": "playwright test --config=e2e/playwright.config.ts --project=chromium --project=webkit",
+    "e2e:ui": "playwright test --config=e2e/playwright.config.ts --ui",
+    "e2e:headed": "playwright test --config=e2e/playwright.config.ts --headed",
+    "e2e:debug": "playwright test --config=e2e/playwright.config.ts --debug",
+    "e2e:chromium": "playwright test --config=e2e/playwright.config.ts --project=chromium",
+    "e2e:webkit": "playwright test --config=e2e/playwright.config.ts --project=webkit",
+    "e2e:firefox": "playwright test --config=e2e/playwright.config.ts --project=firefox",
+    "e2e:a11y": "playwright test --config=e2e/playwright.config.ts --project=chromium e2e/tests/a11y",
+    "e2e:visual": "playwright test --config=e2e/playwright.config.ts --project=visual",
+    "e2e:visual:update": "playwright test --config=e2e/playwright.config.ts --project=visual --update-snapshots",
+    "e2e:integration": "E2E_MODE=integration playwright test --config=e2e/playwright.config.ts --project=integration",
+    "e2e:coverage": "E2E_COVERAGE=1 playwright test --config=e2e/playwright.config.ts --project=chromium",
+    "e2e:report": "playwright show-report e2e/playwright-report",
+    "e2e:install": "playwright install --with-deps"
   },
   "dependencies": {
     "@kui/react": "./src/assets/kui-foundations-react-external-0.504.1.tgz",
@@ -26,8 +40,11 @@
     "zustand": "^5.0.5"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.11.2",
     "@eslint/js": "^9.25.0",
+    "@faker-js/faker": "^10.4.0",
     "@kui/foundations": "file:src/assets/kui-foundations-react-external-0.504.1.tgz",
+    "@playwright/test": "^1.59.1",
     "@tailwindcss/vite": "^4.1.11",
     "@testing-library/jest-dom": "^6.6.4",
     "@testing-library/react": "^16.3.0",
@@ -43,6 +60,7 @@
     "eslint-plugin-react-refresh": "^0.4.19",
     "globals": "^16.0.0",
     "jsdom": "^26.1.0",
+    "monocart-reporter": "^2.10.1",
     "tailwindcss": "^4.1.11",
     "typescript": "~5.8.3",
     "typescript-eslint": "^8.30.1",

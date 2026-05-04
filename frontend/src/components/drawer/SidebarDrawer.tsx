@@ -63,6 +63,8 @@ export default function SidebarDrawer() {
       modal
       closeOnClickOutside
       hideCloseButton
+      data-testid="sidebar-drawer"
+      data-view={view ?? "closed"}
       style={{
         "--side-panel-width": "75vw"
       }}

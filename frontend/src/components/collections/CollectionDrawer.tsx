@@ -120,7 +120,9 @@ export default function CollectionDrawer() {
       }
       closeOnClickOutside
     >
-      <Stack gap="density-md">
+      {/* data-testid lives on a wrapper div so it doesn't override KUI's
+          internal `nv-side-panel-content` testid (which the unit tests rely on). */}
+      <Stack gap="density-md" data-testid="collection-drawer">
         {activeCollection && (
           <CollectionCatalogInfo 
             collection={activeCollection} 

@@ -65,14 +65,23 @@ interface ChatMessageBubbleProps {
 const MessageContainer = ({ 
   role, 
   isError = false,
+  isStreaming = false,
   children 
 }: { 
   role: "user" | "assistant"; 
   isError?: boolean;
+  isStreaming?: boolean;
   children: React.ReactNode;
 }) => (
-  <Flex justify={role === "user" ? "end" : "start"}>
+  <Flex
+    justify={role === "user" ? "end" : "start"}
+    data-testid="chat-message-bubble"
+    data-role={role}
+    data-error={isError ? "true" : "false"}
+    data-streaming={isStreaming ? "true" : "false"}
+  >
     <Panel
+      data-testid={`chat-message-role-${role}`}
       style={{
         maxWidth: '32rem',
         backgroundColor: role === "user" 
@@ -96,7 +105,7 @@ const MessageContainer = ({
 const StreamingMessage = ({ content, isError = false }: { content: MessageContentType; isError?: boolean }) => {
   const textContent = extractTextFromContent(content);
   return (
-    <MessageContainer role="assistant" isError={isError}>
+    <MessageContainer role="assistant" isError={isError} isStreaming>
       <Flex align="center" gap="2">
         <MessageContent content={textContent} />
         {!textContent && <StreamingIndicator />}

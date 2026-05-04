@@ -98,6 +98,7 @@ export const ChatActionsMenu = () => {
       children: (
         <label 
           htmlFor={fileInputId} 
+          data-testid="attach-image-item"
           style={{ 
             display: 'flex', 
             alignItems: 'center', 
@@ -115,7 +116,7 @@ export const ChatActionsMenu = () => {
       // No onSelect needed - the label handles the file input trigger
     },
     {
-      children: "Clear chat",
+      children: <span data-testid="clear-chat-item-label">Clear chat</span>,
       slotLeft: <TrashIcon />,
       disabled: !hasMessages,
       danger: true,
@@ -143,6 +144,7 @@ export const ChatActionsMenu = () => {
         side="top"
         align="start"
         aria-label="Chat options"
+        data-testid="chat-actions-menu"
         style={{
           color: 'var(--text-color-subtle)'
         }}
@@ -161,12 +163,13 @@ export const ChatActionsMenu = () => {
         open={showConfirmModal}
         onOpenChange={setShowConfirmModal}
         slotHeading="Clear Chat"
+        data-testid="clear-chat-modal"
         slotFooter={
           <Flex align="center" justify="end" gap="density-sm">
-            <Button kind="tertiary" onClick={handleCancelClear}>
+            <Button kind="tertiary" onClick={handleCancelClear} data-testid="clear-chat-cancel">
               Cancel
             </Button>
-            <Button color="danger" onClick={handleConfirmClear}>
+            <Button color="danger" onClick={handleConfirmClear} data-testid="clear-chat-confirm">
               Clear Chat
             </Button>
           </Flex>

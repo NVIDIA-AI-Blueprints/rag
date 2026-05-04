@@ -51,6 +51,8 @@ export default function CollectionList() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search collections"
+            data-testid="collection-search"
+            aria-label="Search collections"
           />
         </Block>
 

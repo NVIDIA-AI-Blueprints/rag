@@ -47,6 +47,7 @@ export const NewCollectionButton = ({ disabled = false }: NewCollectionButtonPro
       onClick={handleClick} 
       disabled={disabled}
       size="large"
+      data-testid="new-collection-nav-button"
       style={{ width: '100%' }}
     >
       + New Collection
