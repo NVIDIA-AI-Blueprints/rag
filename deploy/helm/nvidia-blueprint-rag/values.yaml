@@ -944,6 +944,40 @@ nimOperator:
         port: 8000
         grpcPort: 8001
 
+# subsection: nvidia-nim-llama-nemotron-rerank-vl-1b-v2
+# NIM VLM Reranking
+  nvidia-nim-llama-nemotron-rerank-vl-1b-v2:
+    enabled: false
+    replicas: 1
+    service:
+      name: "nemotron-ranking-vl-ms"
+    image:
+      repository: nvcr.io/nim/nvidia/llama-nemotron-rerank-vl-1b-v2
+      tag: "1.11.0"
+      pullPolicy: IfNotPresent
+    resources:
+      limits:
+        nvidia.com/gpu: 1
+      requests:
+        nvidia.com/gpu: 1
+    nodeSelector: {}
+    tolerations: []
+#    draResources:
+#      - resourceClaimName: rag-claim
+    storage:
+      pvc:
+        create: true
+        size: "50Gi"
+        volumeAccessMode: ReadWriteOnce
+        storageClass: ""
+    env: []
+    expose:
+      service:
+        name: http
+        type: ClusterIP
+        port: 8000
+        grpcPort: 8001
+
   # subsection: nim-vlm
   # NIM Vision-Language (VLM)
   nim-vlm:
