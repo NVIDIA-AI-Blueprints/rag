@@ -788,6 +788,11 @@ class RankingConfig(_ConfigBase):
         env="ENABLE_RERANKER",
         description="Enable reranking of retrieved documents before generation",
     )
+    enable_vlm_image_input: bool = Field(
+        default=False,
+        env="ENABLE_VLM_RERANKER_IMAGE_INPUT",
+        description="When True, include images from retrieved citations in VLM reranker passages",
+    )
     api_key: SecretStr | None = Field(
         default=None,
         env="APP_RANKING_APIKEY",

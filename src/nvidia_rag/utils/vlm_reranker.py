@@ -124,6 +124,10 @@ class NVIDIAVLMRerank(BaseDocumentCompressor):
         description="Default headers merged into all requests.",
     )
     timeout: int = Field(default=600, gt=0, description="Request timeout in seconds.")
+    enable_image_input: bool = Field(
+        default=False,
+        description="When True, include images from retrieved citations in reranker passages.",
+    )
 
     _session: requests.Session = PrivateAttr()
     _invoke_url: str = PrivateAttr()
@@ -139,6 +143,9 @@ class NVIDIAVLMRerank(BaseDocumentCompressor):
         config: NvidiaRAGConfig | None = None,
         timeout: int = 600,
     ) -> None:
+        enable_image_input = (
+            config.ranking.enable_vlm_image_input if config is not None else False
+        )
         super().__init__(
             model=model,
             url=url,
@@ -146,10 +153,10 @@ class NVIDIAVLMRerank(BaseDocumentCompressor):
             top_n=top_n,
             default_headers=default_headers or {},
             timeout=timeout,
+            enable_image_input=enable_image_input,
         )
         self._invoke_url = _build_vlm_rerank_invoke_url(url, model)
         self._session = requests.Session()
-        _ = config
 
     def _headers(self) -> dict[str, str]:
         """Build request headers for the VLM reranker API."""
@@ -216,9 +223,10 @@ class NVIDIAVLMRerank(BaseDocumentCompressor):
         passages: list[dict[str, str]] = []
         for doc in documents:
             passage = {"text": doc.page_content}
-            image_data_url = self._build_image_data_url(doc)
-            if image_data_url:
-                passage["image"] = image_data_url
+            if self.enable_image_input:
+                image_data_url = self._build_image_data_url(doc)
+                if image_data_url:
+                    passage["image"] = image_data_url
             passages.append(passage)
 
         return {
