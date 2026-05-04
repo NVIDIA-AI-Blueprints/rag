@@ -4,14 +4,12 @@
 
 # Vector Store Configuration
 vector_store:
-  name: "milvus"  # Name of the vector store backend (e.g., milvus, elasticsearch)
-  url: "http://localhost:19530"  # URL endpoint for the vector store service
-  index_type: "GPU_CAGRA"  # Type of vector index (e.g., GPU_CAGRA, IVF_FLAT)
+  name: "elasticsearch"  # Name of the vector store backend (e.g., milvus, elasticsearch)
+  url: "http://localhost:9200"  # URL endpoint for the vector store service
+  index_type: "hnsw"  # Type of vector index (e.g., GPU_CAGRA, IVF_FLAT)
   search_type: "dense"  # Type of search to perform (dense, hybrid)
-  # APP_VECTORSTORE_ENABLEGPUINDEX — shared by Milvus and Elasticsearch (not a Milvus-only flag).
-  enable_gpu_index: true
-  # APP_VECTORSTORE_ENABLEGPUSEARCH — Milvus only; ignored for Elasticsearch.
-  enable_gpu_search: true
+  enable_gpu_index: false  # Enable GPU acceleration for index building
+  enable_gpu_search: false  # Enable GPU acceleration for search operations
   default_collection_name: "test_native"  # Default collection/index name for storing vectors
 
 # NV-Ingest Configuration
@@ -89,7 +87,7 @@ vlm:
 
 # Object-store Configuration
 object_store:
-  endpoint: "localhost:9010"  # S3-compatible object storage endpoint
+  endpoint: "seaweedfs:9010"  # S3-compatible object storage endpoint
   access_key: "seaweedfsadmin"  # Object-store access key for authentication
   secret_key: "seaweedfsadmin"  # Object-store secret key for authentication
 

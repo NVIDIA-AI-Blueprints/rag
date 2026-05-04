@@ -463,8 +463,8 @@ For Elasticsearch, filters must be provided as a list of dictionaries using Elas
 ```python
 # Elasticsearch filter example
 filter_expr = [
-    {"term": {"metadata.content_metadata.category": "AI"}},
-    {"range": {"metadata.content_metadata.priority": {"gt": 5}}}
+    {"term": {"metadata.content_metadata.category.keyword": "AI"}},
+    {"range": {"metadata.content_metadata.priority.keyword": {"gt": 5}}}
 ]
 ```
 

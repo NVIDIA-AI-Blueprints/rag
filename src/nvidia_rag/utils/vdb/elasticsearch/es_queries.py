@@ -63,7 +63,7 @@ def get_delete_metadata_schema_query(collection_name: str):
     Create deletion query for removing metadata schema by collection name.
     """
     query_delete_metadata_schema = {
-        "query": {"term": {"collection_name.keyword": collection_name}}
+        "query": {"term": {"collection_name": collection_name}}
     }
     return query_delete_metadata_schema
 

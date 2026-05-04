@@ -750,7 +750,7 @@ class ElasticVDB(VDBRagIngest):
             index=DEFAULT_METADATA_SCHEMA_COLLECTION, body=query
         )
         if len(response["hits"]["hits"]) > 0:
-            return response["hits"]["hits"][0]["_source"]["metadata_schema"]
+            return response["hits"]["hits"][-1]["_source"]["metadata_schema"]
         else:
             logging_message = (
                 f"No metadata schema found for the collection: {collection_name}."

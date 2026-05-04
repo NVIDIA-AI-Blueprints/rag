@@ -1931,8 +1931,8 @@ class TestEsQueries(unittest.TestCase):
 
         # Verify term query
         term_query = result["query"]["term"]
-        self.assertIn("collection_name.keyword", term_query)
-        self.assertEqual(term_query["collection_name.keyword"], collection_name)
+        self.assertIn("collection_name", term_query)
+        self.assertEqual(term_query["collection_name"], collection_name)
 
     def test_get_metadata_schema_query(self):
         """Test get_metadata_schema_query function with collection name."""
@@ -1994,7 +1994,7 @@ class TestEsQueries(unittest.TestCase):
         # Should still return valid structure with empty string
         self.assertIn("query", result)
         term_query = result["query"]["term"]
-        self.assertEqual(term_query["collection_name.keyword"], "")
+        self.assertEqual(term_query["collection_name"], "")
 
     def test_get_metadata_schema_query_special_characters(self):
         """Test get_metadata_schema_query with special characters in collection name."""

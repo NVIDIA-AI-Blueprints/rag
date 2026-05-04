@@ -49,13 +49,13 @@ class TestGetDeleteMetadataSchemaQuery:
         query = es_queries.get_delete_metadata_schema_query(collection_name)
 
         assert "query" in query
-        assert query["query"]["term"]["collection_name.keyword"] == collection_name
+        assert query["query"]["term"]["collection_name"] == collection_name
 
     def test_get_delete_metadata_schema_query_empty_name(self):
         """Test get_delete_metadata_schema_query with empty collection name."""
         query = es_queries.get_delete_metadata_schema_query("")
 
-        assert query["query"]["term"]["collection_name.keyword"] == ""
+        assert query["query"]["term"]["collection_name"] == ""
 
 
 class TestGetMetadataSchemaQuery:
