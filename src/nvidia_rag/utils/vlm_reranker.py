@@ -142,10 +142,10 @@ class NVIDIAVLMRerank(BaseDocumentCompressor):
         default_headers: dict | None = None,
         config: NvidiaRAGConfig | None = None,
         timeout: int = 600,
+        enable_image_input: bool = False,
     ) -> None:
-        enable_image_input = (
-            config.ranking.enable_vlm_image_input if config is not None else False
-        )
+        if config is not None:
+            enable_image_input = config.ranking.enable_vlm_image_input
         super().__init__(
             model=model,
             url=url,

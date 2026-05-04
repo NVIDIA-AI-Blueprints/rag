@@ -475,10 +475,11 @@ class TestNVIDIAVLMRerank:
     """Focused tests for the requests-based multimodal reranker."""
 
     def test_build_payload_attaches_image_when_available(self):
-        """Payloads should include passage images when MinIO content is available."""
+        """Payloads should include passage images when enable_image_input is True."""
         ranker = NVIDIAVLMRerank(
             model="nvidia/llama-nemotron-rerank-vl-1b-v2",
             url="http://nemotron-ranking-vl-ms:8000",
+            enable_image_input=True,
         )
         doc = Document(
             page_content="A chart about tax rates.",
@@ -506,6 +507,27 @@ class TestNVIDIAVLMRerank:
                 "image": "data:image/png;base64,abc",
             }
         ]
+
+    def test_build_payload_omits_image_when_flag_disabled(self):
+        """Payloads should be text-only when enable_image_input is False (default)."""
+        ranker = NVIDIAVLMRerank(
+            model="nvidia/llama-nemotron-rerank-vl-1b-v2",
+            url="http://nemotron-ranking-vl-ms:8000",
+        )
+        doc = Document(
+            page_content="A chart about tax rates.",
+            metadata={
+                "content_metadata": {"type": "image", "page_number": 1, "location": [0, 0, 1, 1]},
+                "collection_name": "demo",
+                "source": {"source_id": "sample.pdf", "source_location": "s3://default-bucket/demo/page.png"},
+            },
+        )
+
+        with patch.object(ranker, "_build_image_data_url", return_value="data:image/png;base64,abc") as mock_builder:
+            payload = ranker._build_payload("What does the chart show?", [doc])
+
+        mock_builder.assert_not_called()
+        assert payload["passages"] == [{"text": "A chart about tax rates."}]
 
     def test_compress_documents_returns_ranked_documents_in_api_order(self):
         """Returned documents should follow the API ranking order."""
