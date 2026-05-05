@@ -555,6 +555,60 @@ services:
       # reflection llm server url. If "", Nvidia hosted API is used
       REFLECTION_LLM_SERVERURL: ${REFLECTION_LLM_SERVERURL-"nim-llm:8000"}
 
+      # === Agentic RAG (LangGraph plan-and-execute pipeline) ===
+      ENABLE_AGENTIC_RAG: ${ENABLE_AGENTIC_RAG:-false}
+
+      ##===Agentic Planner LLM configurations===
+      AGENTIC_PLANNER_LLM_SERVERURL: ${AGENTIC_PLANNER_LLM_SERVERURL-"nim-llm:8000"}
+      AGENTIC_PLANNER_LLM_MODEL: ${AGENTIC_PLANNER_LLM_MODEL:-"nvidia/nemotron-3-super-120b-a12b"}
+
+      ##===Agentic Task LLM configurations===
+      AGENTIC_TASK_LLM_SERVERURL: ${AGENTIC_TASK_LLM_SERVERURL-"nim-llm:8000"}
+      AGENTIC_TASK_LLM_MODEL: ${AGENTIC_TASK_LLM_MODEL:-"nvidia/nemotron-3-super-120b-a12b"}
+
+      ##===Agentic Seed Gen LLM configurations===
+      AGENTIC_SEED_GEN_LLM_SERVERURL: ${AGENTIC_SEED_GEN_LLM_SERVERURL-"nim-llm:8000"}
+      AGENTIC_SEED_GEN_LLM_MODEL: ${AGENTIC_SEED_GEN_LLM_MODEL:-"nvidia/nemotron-3-super-120b-a12b"}
+
+      ##===Agentic Synthesis LLM configurations===
+      AGENTIC_SYNTHESIS_LLM_SERVERURL: ${AGENTIC_SYNTHESIS_LLM_SERVERURL-"nim-llm:8000"}
+      AGENTIC_SYNTHESIS_LLM_MODEL: ${AGENTIC_SYNTHESIS_LLM_MODEL:-"nvidia/nemotron-3-super-120b-a12b"}
+
+      # Per-role agentic API keys (optional; empty uses NVIDIA_API_KEY fallback)
+      AGENTIC_PLANNER_LLM_APIKEY: ${AGENTIC_PLANNER_LLM_APIKEY:-""}
+      AGENTIC_TASK_LLM_APIKEY: ${AGENTIC_TASK_LLM_APIKEY:-""}
+      AGENTIC_SEED_GEN_LLM_APIKEY: ${AGENTIC_SEED_GEN_LLM_APIKEY:-""}
+      AGENTIC_SYNTHESIS_LLM_APIKEY: ${AGENTIC_SYNTHESIS_LLM_APIKEY:-""}
+
+      # Agent behaviour tuning
+      AGENTIC_CONCURRENCY_LIMIT: ${AGENTIC_CONCURRENCY_LIMIT:-3}
+      AGENTIC_RECURSION_LIMIT: ${AGENTIC_RECURSION_LIMIT:-50}
+      AGENTIC_LOG_LEVEL: ${AGENTIC_LOG_LEVEL:-INFO}
+
+      # Planner
+      AGENTIC_PLANNER_MAX_TASKS: ${AGENTIC_PLANNER_MAX_TASKS:-3}
+      AGENTIC_PLANNER_MAX_SCOPE_ROUNDS: ${AGENTIC_PLANNER_MAX_SCOPE_ROUNDS:-2}
+      AGENTIC_PLANNER_MAX_ATTEMPTS: ${AGENTIC_PLANNER_MAX_ATTEMPTS:-3}
+
+      # Task execution
+      AGENTIC_TASK_SCOPE_MAX_RETRIES: ${AGENTIC_TASK_SCOPE_MAX_RETRIES:-1}
+      AGENTIC_TASK_ANSWER_MAX_RETRIES: ${AGENTIC_TASK_ANSWER_MAX_RETRIES:-3}
+
+      # LLM transport
+      AGENTIC_LLM_CALL_TIMEOUT: ${AGENTIC_LLM_CALL_TIMEOUT:-300}
+      AGENTIC_LLM_MAX_RETRIES: ${AGENTIC_LLM_MAX_RETRIES:-4}
+
+      # Verification pass (disabled by default)
+      AGENTIC_VERIFICATION_ENABLED: ${AGENTIC_VERIFICATION_ENABLED:-false}
+      AGENTIC_VERIFICATION_MAX_TASKS: ${AGENTIC_VERIFICATION_MAX_TASKS:-3}
+
+      # Context window budget for retrieved chunks
+      AGENTIC_CONTEXT_MAX_TOKENS: ${AGENTIC_CONTEXT_MAX_TOKENS:-100000}
+
+      # JSON trace files (per-query diagnostic dumps; disabled by default)
+      AGENTIC_JSON_TRACES: ${AGENTIC_JSON_TRACES:-false}
+      AGENTIC_TRACES_DIR: ${AGENTIC_TRACES_DIR:-./traces}
+
     ports:
       - "8081:8081"
     expose:

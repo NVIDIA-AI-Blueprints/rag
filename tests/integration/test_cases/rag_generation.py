@@ -168,6 +168,50 @@ class RAGGenerationModule(BaseTestModule):
             )
             return False
 
+    @test_case(115, "Basic Generate with Agentic")
+    async def _test_generate_with_agentic(self) -> bool:
+        """Test basic RAG generation with agentic mode enabled"""
+        logger.info("\n=== Test 115: Basic Generate with Agentic ===")
+        generate_agentic_start = time.time()
+        generate_agentic_success = await self.test_generate_with_agentic()
+        generate_agentic_time = time.time() - generate_agentic_start
+
+        if generate_agentic_success:
+            self.add_test_result(
+                self._test_generate_with_agentic.test_number,
+                self._test_generate_with_agentic.test_name,
+                f"Basic RAG generation with agentic mode enabled using /v1/generate. Collection: {self.collections['with_metadata']}. Includes response content verification for default files, streaming response handling, and citation document verification.",
+                ["POST /v1/generate"],
+                [
+                    "messages",
+                    "collection_names",
+                    "agentic",
+                    "enable_citations",
+                    "enable_reranker",
+                ],
+                generate_agentic_time,
+                TestStatus.SUCCESS,
+            )
+            return True
+        else:
+            self.add_test_result(
+                self._test_generate_with_agentic.test_number,
+                self._test_generate_with_agentic.test_name,
+                f"Basic RAG generation with agentic mode enabled using /v1/generate. Collection: {self.collections['with_metadata']}. Includes response content verification for default files, streaming response handling, and citation document verification.",
+                ["POST /v1/generate"],
+                [
+                    "messages",
+                    "collection_names",
+                    "agentic",
+                    "enable_citations",
+                    "enable_reranker",
+                ],
+                generate_agentic_time,
+                TestStatus.FAILURE,
+                "Basic generate with agentic test failed",
+            )
+            return False
+
     async def test_generate_with_filter(
         self, filter_expr: str | list[dict[str, Any]] | None = None
     ) -> bool:
@@ -572,6 +616,113 @@ class RAGGenerationModule(BaseTestModule):
                         return False
             except Exception as e:
                 logger.error(f"❌ Error in generate without reranker test: {e}")
+                return False
+
+    async def test_generate_with_agentic(self) -> bool:
+        """Test /generate endpoint with agentic=true."""
+        payload = {
+            "messages": [{"role": "user", "content": "Who is the author of poems?"}],
+            "use_knowledge_base": True,
+            "temperature": 0,
+            "top_p": 0.1,
+            "max_tokens": 32768,
+            "reranker_top_k": 2,
+            "vdb_top_k": 10,
+            "collection_names": [self.collections["with_metadata"]],
+            "enable_query_rewriting": False,
+            "enable_reranker": False,
+            "enable_citations": True,
+            "agentic": True,
+            "stop": [],
+        }
+
+        async with aiohttp.ClientSession() as session:
+            try:
+                logger.info("🤖 Generating response with agentic mode enabled")
+                logger.info(
+                    f"📋 Generate request payload:\n{json.dumps(payload, indent=2)}"
+                )
+
+                async with session.post(
+                    f"{self.rag_server_url}/v1/generate", json=payload
+                ) as response:
+                    result = await print_response(response)
+                    if response.status == 200:
+                        if result.get("streaming_response"):
+                            logger.info(
+                                "✅ Basic generate with agentic test passed (streaming response processed)"
+                            )
+                        else:
+                            logger.info("✅ Basic generate with agentic test passed")
+
+                        response_text = ""
+                        if result.get("streaming_response"):
+                            response_text = extract_streaming_text(result)
+                        else:
+                            choices = result.get("choices", [])
+                            if choices:
+                                response_text = (
+                                    choices[0].get("message", {}).get("content", "")
+                                )
+
+                        if response_text:
+                            expected_keywords = ["Robert Frost"]
+                            if verify_response_content(
+                                response_text, expected_keywords, min_matches=1
+                            ):
+                                logger.info(
+                                    "✅ Response content verification passed - found expected author information"
+                                )
+                            else:
+                                logger.error(
+                                    f"⚠️ Response content verification failed - expected keywords '{expected_keywords}' not found"
+                                )
+                                return False
+                        else:
+                            logger.error(
+                                "⚠️ No response text found for content verification"
+                            )
+                            return False
+
+                        if "citations" in result:
+                            citations = result["citations"]
+                            results = citations.get("results", [])
+                            expected_count = payload["vdb_top_k"]
+
+                            if len(results) == expected_count:
+                                logger.info(
+                                    f"✅ Citation count verified: {len(results)} results (expected: {expected_count})"
+                                )
+
+                                if await verify_citation_document_names(
+                                    results,
+                                    [self.collections["with_metadata"]],
+                                    self.ingestor_server_url,
+                                ):
+                                    logger.info("✅ Citation document names verified")
+                                else:
+                                    logger.error(
+                                        "❌ Citation document names verification failed"
+                                    )
+                                    return False
+                            else:
+                                logger.warning(
+                                    f"❌ Citation count mismatch: got {len(results)}, expected {expected_count}"
+                                )
+                                logger.info(
+                                    "TODO: Server should ensure correct citation count based on vdb_top_k and available documents"
+                                )
+                                return True
+                        else:
+                            logger.error("⚠️ No citations found in generate response")
+                            return False
+
+                        return True
+                    else:
+                        logger.error("❌ Basic generate with agentic test failed")
+                        return False
+            except Exception as e:
+                logger.error(f"❌ Error in basic generate with agentic test: {e}")
                 return False
 
     @test_case(35, "Generate with Confidence Threshold")

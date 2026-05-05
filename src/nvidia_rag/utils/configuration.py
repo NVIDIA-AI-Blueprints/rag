@@ -1210,6 +1210,12 @@ class ReflectionConfig(_ConfigBase):
         return v
 
 
+# Agentic RAG config classes live in a dedicated module to avoid bloating
+# this file.  Import must happen after _ConfigBase and Field are defined above
+# (Python partial-module resolution handles the deliberate circular reference).
+from nvidia_rag.utils.agentic_rag_config import AgenticRAGConfig  # noqa: E402
+
+
 class NvidiaRAGConfig(_ConfigBase):
     """Main NVIDIA RAG configuration.
 
@@ -1245,8 +1251,19 @@ class NvidiaRAGConfig(_ConfigBase):
         default_factory=QueryDecompositionConfig
     )
     reflection: ReflectionConfig = PydanticField(default_factory=ReflectionConfig)
+    agentic_rag: AgenticRAGConfig = PydanticField(default_factory=AgenticRAGConfig)
 
     # Top-level flags
+    enable_agentic_rag: bool = Field(
+        default=False,
+        env="ENABLE_AGENTIC_RAG",
+        description=(
+            "Enable the agentic RAG pipeline for knowledge-base queries. "
+            "When True, requests with use_knowledge_base=True are routed through "
+            "the LangGraph plan-and-execute agent instead of the standard RAG chain. "
+            "Can be overridden per-request via the agentic parameter in the request body."
+        ),
+    )
     enable_guardrails: bool = Field(
         default=False,
         env="ENABLE_GUARDRAILS",

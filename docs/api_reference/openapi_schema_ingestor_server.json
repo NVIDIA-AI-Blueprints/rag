@@ -964,7 +964,7 @@
                         "type": "string",
                         "title": "Vdb Endpoint",
                         "description": "Endpoint of the vector database.",
-                        "default": "http://milvus:19530"
+                        "default": "http://elasticsearch:9200"
                     },
                     "collection_name": {
                         "type": "string",
