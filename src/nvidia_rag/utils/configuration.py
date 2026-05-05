@@ -872,7 +872,7 @@ class VLMConfig(_ConfigBase):
         default=True,
         env="APP_VLM_ENABLE_THINKING",
         description=(
-            "Enable reasoning mode for the VLM (nvidia/nemotron-3-nano-30b-a3b-omni-reasoning). "
+            "Enable reasoning mode for the VLM (nvidia/nemotron-3-nano-omni-30b-a3b-reasoning). "
             "When True the model separates chain-of-thought into the 'reasoning' field and the "
             "final answer into 'content'. Set False to skip reasoning entirely."
         ),

@@ -192,7 +192,7 @@ envVars:
   RERANKER_SCORE_THRESHOLD: "0.0"
 
   ##===VLM Model specific configurations===
-  ENABLE_VLM_INFERENCE: "True"
+  ENABLE_VLM_INFERENCE: "False"
   # When true, allow falling back to LLM flow if no images are present in query/messages/context.
   # When false, always route generation through VLM when ENABLE_VLM_INFERENCE is true.
   VLM_TO_LLM_FALLBACK: "False"
@@ -211,7 +211,7 @@ envVars:
   # VLM server URL
   APP_VLM_SERVERURL: "http://nim-vlm:8000/v1"
   # VLM model name
-  APP_VLM_MODELNAME: "nvidia/nemotron-3-nano-30b-a3b-omni-reasoning"
+  APP_VLM_MODELNAME: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
 
   # === Text Splitter ===
   APP_TEXTSPLITTER_CHUNKSIZE: "2000"
@@ -297,7 +297,7 @@ ingestor-server:
 
   image:
     repository: nvcr.io/nvidia/blueprint/ingestor-server
-    tag: "2.5.1"
+    tag: "2.5.0"
     pullPolicy: Always
 
   # -- Service config for ingestor-server
@@ -371,14 +371,14 @@ ingestor-server:
     APP_NVINGEST_EXTRACTINFOGRAPHICS: "False"  # Enable infographic extraction
     APP_NVINGEST_EXTRACTTABLES: "True"  # Enable table extraction
     APP_NVINGEST_EXTRACTCHARTS: "True"  # Enable chart extraction
-    APP_NVINGEST_EXTRACTIMAGES: "True"  # Enable image extraction (default as of 2.5.1)
+    APP_NVINGEST_EXTRACTIMAGES: "False"  # Enable image extraction (opt-in for VLM caption pipeline)
     APP_NVINGEST_EXTRACTPAGEASIMAGE: "False"  # Extracts each page as image if enabled
     APP_NVINGEST_STRUCTURED_ELEMENTS_MODALITY: ""  # "image", "text_image"
     APP_NVINGEST_IMAGE_ELEMENTS_MODALITY: ""  # "image"
     APP_NVINGEST_TEXTDEPTH: "page"  # Extract text by "page" or "document"
 
     # === NV-Ingest caption configurations ===
-    APP_NVINGEST_CAPTIONMODELNAME: "nvidia/nemotron-3-nano-30b-a3b-omni-reasoning"  # Model name for captioning
+    APP_NVINGEST_CAPTIONMODELNAME: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"  # Model name for captioning
     APP_NVINGEST_CAPTIONENDPOINTURL: ""  # Endpoint URL for captioning model
 
     # === NV-Ingest save to disk configurations ===
@@ -462,7 +462,7 @@ frontend:
   image:
     repository: nvcr.io/nvidia/blueprint/rag-frontend
     pullPolicy: IfNotPresent
-    tag: "2.5.1"
+    tag: "2.5.0"
 
   imagePullSecret:
     name: "ngc-secret"
@@ -874,8 +874,8 @@ nimOperator:
     service:
       name: "nim-vlm"
     image:
-      repository: nvcr.io/nvstaging/nim/nemotron-3-nano-30b-a3b-omni-reasoning
-      tag: "1.7.0-variant-rc2-48948519"
+      repository: nvcr.io/nim/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning
+      tag: "1.7.0-variant"
       pullPolicy: IfNotPresent
     resources:
       limits:
@@ -982,7 +982,7 @@ nv-ingest:
     YOLOX_TABLE_STRUCTURE_INFER_PROTOCOL: grpc
 
     # Captioning
-    VLM_CAPTION_MODEL_NAME: nvidia/nemotron-3-nano-30b-a3b-omni-reasoning
+    VLM_CAPTION_MODEL_NAME: nvidia/nemotron-3-nano-omni-30b-a3b-reasoning
     VLM_CAPTION_ENDPOINT: http://nim-vlm:8000/v1/chat/completions
 
     # Audio service

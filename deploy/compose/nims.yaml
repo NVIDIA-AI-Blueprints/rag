@@ -305,8 +305,8 @@ services:
     profiles: ["audio"]
 
   vlm-ms:
-    container_name: nemotron-3-nano-30b-a3b-omni-reasoning
-    image: nvcr.io/nvstaging/nim/nemotron-3-nano-30b-a3b-omni-reasoning:1.7.0-variant-rc2-48948519
+    container_name: nemotron-3-nano-omni-30b-a3b-reasoning
+    image: nvcr.io/nim/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:1.7.0-variant
     volumes:
     - ${MODEL_DIRECTORY:-./}:/opt/nim/.cache
     ports:

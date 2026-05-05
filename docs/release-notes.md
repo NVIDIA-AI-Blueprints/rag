@@ -10,11 +10,11 @@ This documentation contains the release notes for [NVIDIA RAG Blueprint](readme.
 
 ## Release 2.5.1 (2026-04-29)
 
-This release replaces the default Vision-Language Model with [`nvidia/nemotron-3-nano-30b-a3b-omni-reasoning`](https://build.nvidia.com/nvidia/nemotron-3-nano-30b-a3b-omni-reasoning/modelcard) (RC) and adds first-class support for VLM reasoning streams. It is intended as the production-ready successor to 2.5.0 for multimodal RAG workloads. Tracked under [BCS-445](https://jirasw.nvidia.com/browse/BCS-445).
+This release replaces the default Vision-Language Model with [`nvidia/nemotron-3-nano-omni-30b-a3b-reasoning`](https://build.nvidia.com/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning/modelcard) (RC) and adds first-class support for VLM reasoning streams. It is intended as the production-ready successor to 2.5.0 for multimodal RAG workloads. Tracked under [BCS-445](https://jirasw.nvidia.com/browse/BCS-445).
 
 ### Highlights
 
-- **New default VLM:** `nvidia/nemotron-3-nano-30b-a3b-omni-reasoning` replaces `nvidia/nemotron-nano-12b-v2-vl` for both generation and ingestion captioning. Image: `nvcr.io/nvstaging/nim/nemotron-3-nano-30b-a3b-omni-reasoning:1.7.0-variant-rc2-48948519`.
+- **New default VLM:** `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning` replaces `nvidia/nemotron-nano-12b-v2-vl` for both generation and ingestion captioning. Image: `nvcr.io/nim/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:1.7.0-variant`.
 - **VLM embedding by default:** Compose profiles now bring up `nvidia/llama-nemotron-embed-vl-1b-v2` (vector dim 2048) instead of the text-only `nvidia/llama-nemotron-embed-1b-v2`. Profile aliases (`""`, `rag`, `ingest`, `vlm-generation`) now map to the VLM embed service.
 - **Reasoning streaming:** New `enable_thinking` and `thinking_token_budget` config (mapped to `APP_VLM_ENABLE_THINKING`, `APP_VLM_THINKING_TOKEN_BUDGET`). When enabled, chain-of-thought tokens stream via `additional_kwargs["reasoning"]` and the final answer streams via `content`. Use `VLM_FILTER_THINK_TOKENS=false` to forward both to the client.
 - **VLM-first generation defaults:** `ENABLE_VLM_INFERENCE` defaults to `true`, `VLM_TO_LLM_FALLBACK` defaults to `false`, `APP_VLM_MAX_TOKENS=32768`, `APP_VLM_TEMPERATURE=0.6`, `APP_VLM_TOP_P=0.95`.
@@ -30,7 +30,7 @@ This release replaces the default Vision-Language Model with [`nvidia/nemotron-3
 
 ### Known Issues
 
-- The VLM image lives on `nvcr.io/nvstaging/...` (RC2). It is not pullable from the public registry. Public users must wait for the GA promotion or override `vlm-ms.image` to a model they can pull.
+- None at GA. The VLM image is published to the public NGC registry at `nvcr.io/nim/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:1.7.0-variant`.
 
 ## Release 2.5.0 (2026-03-17)
 

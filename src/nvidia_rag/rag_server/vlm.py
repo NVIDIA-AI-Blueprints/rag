@@ -151,7 +151,7 @@ class VLM:
         """
         Initialize and return the VLM ChatOpenAI model instance.
 
-        For ``nvidia/nemotron-3-nano-30b-a3b-omni-reasoning``, reasoning is
+        For ``nvidia/nemotron-3-nano-omni-30b-a3b-reasoning``, reasoning is
         controlled via ``chat_template_kwargs`` in the request body.  When
         ``enable_thinking=True`` the model separates chain-of-thought into a
         ``reasoning`` delta field and the final answer into ``content``.
@@ -731,7 +731,7 @@ class VLM:
 
             # Stream response chunks.
             #
-            # nvidia/nemotron-3-nano-30b-a3b-omni-reasoning separates its output
+            # nvidia/nemotron-3-nano-omni-30b-a3b-reasoning separates its output
             # into two delta fields per chunk:
             #   • chunk.additional_kwargs["reasoning"] — chain-of-thought tokens
             #   • chunk.content                        — final answer tokens
