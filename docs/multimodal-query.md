@@ -12,7 +12,7 @@ The multimodal query feature in the [NVIDIA RAG Blueprint](readme.md) enables yo
 
 This feature combines:
 - **VLM Embeddings**: `nvidia/llama-nemotron-embed-vl-1b-v2` for creating multimodal embeddings that understand both text and images
-- **Vision-Language Model**: `nvidia/nemotron-nano-12b-v2-vl` for generating intelligent responses based on visual and textual context
+- **Vision-Language Model**: `nvidia/nemotron-3-nano-30b-a3b-omni-reasoning` for generating intelligent responses based on visual and textual context (with optional reasoning trace)
 
 
 
@@ -81,7 +81,7 @@ Set the model names and service URLs for the RAG pipeline:
 
 ```bash
 # VLM (Vision-Language Model) configuration
-export APP_VLM_MODELNAME="nvidia/nemotron-nano-12b-v2-vl"
+export APP_VLM_MODELNAME="nvidia/nemotron-3-nano-30b-a3b-omni-reasoning"
 export APP_VLM_SERVERURL="http://vlm-ms:8000/v1"
 export APP_LLM_SERVERURL=""
 
@@ -169,7 +169,7 @@ Then set the VLM configuration:
 
 ```bash
 # VLM (Vision-Language Model) configuration - cloud hosted
-export APP_VLM_MODELNAME="nvidia/nemotron-nano-12b-v2-vl"
+export APP_VLM_MODELNAME="nvidia/nemotron-3-nano-30b-a3b-omni-reasoning"
 export APP_VLM_SERVERURL="https://integrate.api.nvidia.com"
 export APP_LLM_SERVERURL=""
 
@@ -274,7 +274,7 @@ envVars:
   # VLM inference settings
   ENABLE_VLM_INFERENCE: "true"
   VLM_TO_LLM_FALLBACK: "false"
-  APP_VLM_MODELNAME: "nvidia/nemotron-nano-12b-v2-vl"
+  APP_VLM_MODELNAME: "nvidia/nemotron-3-nano-30b-a3b-omni-reasoning"
   APP_VLM_SERVERURL: "http://nim-vlm:8000/v1"
 
   # VLM embedding settings

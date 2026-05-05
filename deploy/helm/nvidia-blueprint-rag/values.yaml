@@ -57,7 +57,7 @@ apiKeysSecret:
 # -- RAG server container image
 image:
   repository: nvcr.io/nvidia/blueprint/rag-server
-  tag: "2.5.0"
+  tag: "2.5.1"
   pullPolicy: Always
 
 # -- RAG server service configuration
@@ -179,8 +179,8 @@ envVars:
 
   ##===Embedding Model specific configurations===
   # URL on which embedding model is hosted. If "", Nvidia hosted API is used
-  APP_EMBEDDINGS_SERVERURL: "nemotron-embedding-ms:8000/v1"
-  APP_EMBEDDINGS_MODELNAME: "nvidia/llama-nemotron-embed-1b-v2"
+  APP_EMBEDDINGS_SERVERURL: "nemotron-vlm-embedding-ms:8000/v1"
+  APP_EMBEDDINGS_MODELNAME: "nvidia/llama-nemotron-embed-vl-1b-v2"
   APP_EMBEDDINGS_DIMENSIONS: "2048"
 
   ##===Reranking Model specific configurations===
@@ -192,20 +192,26 @@ envVars:
   RERANKER_SCORE_THRESHOLD: "0.0"
 
   ##===VLM Model specific configurations===
-  ENABLE_VLM_INFERENCE: "false"
+  ENABLE_VLM_INFERENCE: "True"
   # When true, allow falling back to LLM flow if no images are present in query/messages/context.
   # When false, always route generation through VLM when ENABLE_VLM_INFERENCE is true.
-  VLM_TO_LLM_FALLBACK: "true"
+  VLM_TO_LLM_FALLBACK: "False"
   # Max images sent to VLM per request (query + context)
   APP_VLM_MAX_TOTAL_IMAGES: "5"
+  # Whether to filter out reasoning tokens from VLM responses (stream only content, not reasoning)
+  VLM_FILTER_THINK_TOKENS: "true"
+  # Enable reasoning mode for Nemotron 3 nano omni reasoning model
+  APP_VLM_ENABLE_THINKING: "true"
+  # Max reasoning tokens for VLM (0 = no cap); only applied when enable_thinking is true
+  APP_VLM_THINKING_TOKEN_BUDGET: "0"
   # VLM generation parameters
-  APP_VLM_MAX_TOKENS: "8192"
-  APP_VLM_TEMPERATURE: "0.1"
-  APP_VLM_TOP_P: "1.0"
+  APP_VLM_MAX_TOKENS: "32768"
+  APP_VLM_TEMPERATURE: "0.6"
+  APP_VLM_TOP_P: "0.95"
   # VLM server URL
   APP_VLM_SERVERURL: "http://nim-vlm:8000/v1"
   # VLM model name
-  APP_VLM_MODELNAME: "nvidia/nemotron-nano-12b-v2-vl"
+  APP_VLM_MODELNAME: "nvidia/nemotron-3-nano-30b-a3b-omni-reasoning"
 
   # === Text Splitter ===
   APP_TEXTSPLITTER_CHUNKSIZE: "2000"
@@ -291,7 +297,7 @@ ingestor-server:
 
   image:
     repository: nvcr.io/nvidia/blueprint/ingestor-server
-    tag: "2.5.0"
+    tag: "2.5.1"
     pullPolicy: Always
 
   # -- Service config for ingestor-server
@@ -350,8 +356,8 @@ ingestor-server:
     ## APP_EMBEDDINGS_APIKEY and SUMMARY_LLM_APIKEY are loaded from secrets automatically.
 
     # === Embeddings Configurations ===
-    APP_EMBEDDINGS_SERVERURL: "nemotron-embedding-ms:8000/v1"
-    APP_EMBEDDINGS_MODELNAME: "nvidia/llama-nemotron-embed-1b-v2"
+    APP_EMBEDDINGS_SERVERURL: "nemotron-vlm-embedding-ms:8000/v1"
+    APP_EMBEDDINGS_MODELNAME: "nvidia/llama-nemotron-embed-vl-1b-v2"
     APP_EMBEDDINGS_DIMENSIONS: "2048"
 
     # === NV-Ingest Configurations ===
@@ -365,14 +371,14 @@ ingestor-server:
     APP_NVINGEST_EXTRACTINFOGRAPHICS: "False"  # Enable infographic extraction
     APP_NVINGEST_EXTRACTTABLES: "True"  # Enable table extraction
     APP_NVINGEST_EXTRACTCHARTS: "True"  # Enable chart extraction
-    APP_NVINGEST_EXTRACTIMAGES: "False"  # Enable image extraction
+    APP_NVINGEST_EXTRACTIMAGES: "True"  # Enable image extraction (default as of 2.5.1)
     APP_NVINGEST_EXTRACTPAGEASIMAGE: "False"  # Extracts each page as image if enabled
     APP_NVINGEST_STRUCTURED_ELEMENTS_MODALITY: ""  # "image", "text_image"
     APP_NVINGEST_IMAGE_ELEMENTS_MODALITY: ""  # "image"
     APP_NVINGEST_TEXTDEPTH: "page"  # Extract text by "page" or "document"
 
     # === NV-Ingest caption configurations ===
-    APP_NVINGEST_CAPTIONMODELNAME: "nvidia/nemotron-nano-12b-v2-vl"  # Model name for captioning
+    APP_NVINGEST_CAPTIONMODELNAME: "nvidia/nemotron-3-nano-30b-a3b-omni-reasoning"  # Model name for captioning
     APP_NVINGEST_CAPTIONENDPOINTURL: ""  # Endpoint URL for captioning model
 
     # === NV-Ingest save to disk configurations ===
@@ -456,7 +462,7 @@ frontend:
   image:
     repository: nvcr.io/nvidia/blueprint/rag-frontend
     pullPolicy: IfNotPresent
-    tag: "2.5.0"
+    tag: "2.5.1"
 
   imagePullSecret:
     name: "ngc-secret"
@@ -748,9 +754,9 @@ nimOperator:
         timeoutSeconds: 5
 
 # subsection: nvidia-nim-llama-32-nv-embedqa-1b-v2
-# NIM Text Embedding
+# NIM Text Embedding (opt-in as of 2.5.1; default embedder is now VLM embed)
   nvidia-nim-llama-32-nv-embedqa-1b-v2:
-    enabled: true
+    enabled: false
     replicas: 1
     service:
       name: "nemotron-embedding-ms"
@@ -790,9 +796,9 @@ nimOperator:
         grpcPort: 8001
 
 # subsection: nvidia-nim-llama-nemotron-embed-vl-1b-v2
-# NIM VLM Embedding
+# NIM VLM Embedding (default embedder as of 2.5.1)
   nvidia-nim-llama-nemotron-embed-vl-1b-v2:
-    enabled: false
+    enabled: true
     service:
       name: "nemotron-vlm-embedding-ms"
     image:
@@ -863,13 +869,13 @@ nimOperator:
   # subsection: nim-vlm
   # NIM Vision-Language (VLM)
   nim-vlm:
-    enabled: false
+    enabled: true  # Default for VLM generation as of 2.5.1
     replicas: 1
     service:
       name: "nim-vlm"
     image:
-      repository: nvcr.io/nim/nvidia/nemotron-nano-12b-v2-vl
-      tag: "1.5.0"
+      repository: nvcr.io/nvstaging/nim/nemotron-3-nano-30b-a3b-omni-reasoning
+      tag: "1.7.0-variant-rc2-48948519"
       pullPolicy: IfNotPresent
     resources:
       limits:
@@ -933,8 +939,8 @@ nv-ingest:
     RAY_num_server_call_thread: "1"
     RAY_worker_num_grpc_internal_threads: "1"
     
-    EMBEDDING_NIM_ENDPOINT: "http://nemotron-embedding-ms:8000/v1"
-    EMBEDDING_NIM_MODEL_NAME: "nvidia/llama-nemotron-embed-1b-v2"
+    EMBEDDING_NIM_ENDPOINT: "http://nemotron-vlm-embedding-ms:8000/v1"
+    EMBEDDING_NIM_MODEL_NAME: "nvidia/llama-nemotron-embed-vl-1b-v2"
     MESSAGE_CLIENT_HOST: "rag-redis-master"
     MESSAGE_CLIENT_PORT: 6379
     MESSAGE_CLIENT_TYPE: "redis"
@@ -976,7 +982,7 @@ nv-ingest:
     YOLOX_TABLE_STRUCTURE_INFER_PROTOCOL: grpc
 
     # Captioning
-    VLM_CAPTION_MODEL_NAME: nvidia/nemotron-nano-12b-v2-vl
+    VLM_CAPTION_MODEL_NAME: nvidia/nemotron-3-nano-30b-a3b-omni-reasoning
     VLM_CAPTION_ENDPOINT: http://nim-vlm:8000/v1/chat/completions
 
     # Audio service

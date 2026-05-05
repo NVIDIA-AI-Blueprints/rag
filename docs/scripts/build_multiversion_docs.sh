@@ -24,7 +24,7 @@ cd "${REPO_ROOT}"
 
 DRY_RUN=0
 ALLOW_DIRTY=0
-VERSIONS=(2.3.0 2.4.0 2.5.0)
+VERSIONS=(2.3.0 2.4.0 2.5.0 2.5.1)
 CANONICAL_MANIFEST="${REPO_ROOT}/docs/versions1.json"
 OUTPUT_ROOT="${REPO_ROOT}/docs/_build/multiversion"
 

@@ -141,10 +141,21 @@ class VLM:
 
     @staticmethod
     def init_model(
-        model: str, endpoint: str, api_key: str | None = None, **kwargs: Any
+        model: str,
+        endpoint: str,
+        api_key: str | None = None,
+        enable_thinking: bool = True,
+        thinking_token_budget: int = 0,
+        **kwargs: Any,
     ) -> ChatOpenAI:
         """
         Initialize and return the VLM ChatOpenAI model instance.
+
+        For ``nvidia/nemotron-3-nano-30b-a3b-omni-reasoning``, reasoning is
+        controlled via ``chat_template_kwargs`` in the request body.  When
+        ``enable_thinking=True`` the model separates chain-of-thought into a
+        ``reasoning`` delta field and the final answer into ``content``.
+        An optional ``thinking_token_budget`` caps the reasoning trace length.
 
         Note
         ----
@@ -152,11 +163,18 @@ class VLM:
         limits are enforced earlier when assembling the messages that will be
         sent to the model.
         """
+        extra_body: dict[str, Any] = {
+            "chat_template_kwargs": {"enable_thinking": enable_thinking},
+        }
+        if enable_thinking and thinking_token_budget > 0:
+            extra_body["thinking_token_budget"] = thinking_token_budget
+
         return ChatOpenAI(
             model=model,
             openai_api_key=api_key,
             openai_api_base=endpoint,
             default_headers=NVIDIA_API_DEFAULT_HEADERS,
+            model_kwargs={"extra_body": extra_body},
             **kwargs,
         )
 
@@ -594,7 +612,11 @@ class VLM:
         )
 
         vlm = self.init_model(
-            self.model_name, self.invoke_url, api_key=self.config.vlm.get_api_key()
+            self.model_name,
+            self.invoke_url,
+            api_key=self.config.vlm.get_api_key(),
+            enable_thinking=self.config.vlm.enable_thinking,
+            thinking_token_budget=self.config.vlm.thinking_token_budget,
         )
 
         (
@@ -679,7 +701,11 @@ class VLM:
             )
 
             vlm = self.init_model(
-                self.model_name, self.invoke_url, api_key=self.config.vlm.get_api_key()
+                self.model_name,
+                self.invoke_url,
+                api_key=self.config.vlm.get_api_key(),
+                enable_thinking=self.config.vlm.enable_thinking,
+                thinking_token_budget=self.config.vlm.thinking_token_budget,
             )
 
             (
@@ -703,8 +729,24 @@ class VLM:
             safe_prompt = self._redact_messages_for_logging(lc_messages)
             logger.info("VLM final streaming prompt (images redacted): %s", safe_prompt)
 
-            # Stream response chunks asynchronously
-            idx = 0
+            # Stream response chunks.
+            #
+            # nvidia/nemotron-3-nano-30b-a3b-omni-reasoning separates its output
+            # into two delta fields per chunk:
+            #   • chunk.additional_kwargs["reasoning"] — chain-of-thought tokens
+            #   • chunk.content                        — final answer tokens
+            #
+            # VLM_FILTER_THINK_TOKENS controls what reaches the client:
+            #   true  → forward only content (reasoning hidden, default)
+            #   false → forward reasoning first, then content (both visible)
+            filter_enabled = os.getenv("VLM_FILTER_THINK_TOKENS", "true").lower() == "true"
+            logger.info(
+                "VLM reasoning streaming: enable_thinking=%s filter=%s",
+                self.config.vlm.enable_thinking,
+                filter_enabled,
+            )
+
+            chunk_count = 0
             async for chunk in vlm.astream(
                 lc_messages,
                 temperature=eff_temperature,
@@ -712,19 +754,32 @@ class VLM:
                 max_tokens=eff_max_tokens,
             ):
                 try:
-                    content = getattr(chunk, "content", None)
-                    if isinstance(content, str) and content:
-                        yield content
+                    reasoning: str = (
+                        getattr(chunk, "additional_kwargs", {}).get("reasoning", "") or ""
+                    )
+                    content: str = getattr(chunk, "content", "") or ""
+
+                    if filter_enabled:
+                        # Only the final answer reaches the client
+                        if content:
+                            yield content
+                    else:
+                        # Both reasoning trace and final answer reach the client
+                        if reasoning:
+                            yield reasoning
+                        if content:
+                            yield content
                 except Exception as e:
-                    # Best-effort streaming; log and skip malformed chunks
                     logger.debug(
                         "Skipping malformed VLM stream chunk at index %s: %r; error: %s",
-                        idx,
+                        chunk_count,
                         chunk,
                         e,
                         exc_info=True,
                     )
-                idx += 1
+                chunk_count += 1
+
+            logger.info("VLM streaming processed %d chunks", chunk_count)
         except Exception as e:
             error_type = type(e).__name__
             if (

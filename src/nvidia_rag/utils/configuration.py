@@ -868,6 +868,23 @@ class VLMConfig(_ConfigBase):
         env="APP_VLM_MAX_TOTAL_IMAGES",
         description="Maximum total images sent to VLM per request (query + context)",
     )
+    enable_thinking: bool = Field(
+        default=True,
+        env="APP_VLM_ENABLE_THINKING",
+        description=(
+            "Enable reasoning mode for the VLM (nvidia/nemotron-3-nano-30b-a3b-omni-reasoning). "
+            "When True the model separates chain-of-thought into the 'reasoning' field and the "
+            "final answer into 'content'. Set False to skip reasoning entirely."
+        ),
+    )
+    thinking_token_budget: int = Field(
+        default=0,
+        env="APP_VLM_THINKING_TOKEN_BUDGET",
+        description=(
+            "Maximum tokens the VLM may use for reasoning (0 = no budget cap). "
+            "Only applied when enable_thinking is True."
+        ),
+    )
     api_key: SecretStr | None = Field(
         default=None,
         env="APP_VLM_APIKEY",

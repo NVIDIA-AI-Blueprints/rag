@@ -114,7 +114,7 @@ This modular design ensures efficient query processing, accurate retrieval of in
 
     - [Llama 3.1 NemoGuard 8B Content Safety NIM](https://build.nvidia.com/nvidia/llama-3_1-nemoguard-8b-content-safety)
     - [Llama 3.1 NemoGuard 8B Topic Control NIM](https://build.nvidia.com/nvidia/llama-3_1-nemoguard-8b-topic-control)
-    - [Llama-3.1 Nemotron-nano-12b-v2-vl NIM](https://build.nvidia.com/nvidia/nemotron-nano-12b-v2-vl)
+    - [Nemotron-3-nano-30b-a3b-omni-reasoning NIM](https://build.nvidia.com/nvidia/nemotron-3-nano-30b-a3b-omni-reasoning) (default for VLM generation as of 2.5.1)
     - [NeMo Retriever Parse NIM](https://build.nvidia.com/nvidia/nemoretriever-parse)
     - [PaddleOCR NIM](https://build.nvidia.com/baidu/paddleocr)
     - [llama-3.2-nemoretriever-1b-vlm-embed-v1](https://build.nvidia.com/nvidia/llama-3_2-nemoretriever-1b-vlm-embed-v1) (Early Access)

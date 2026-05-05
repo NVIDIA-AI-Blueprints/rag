@@ -27,14 +27,14 @@ For this feature, use H100 or A100 GPUs instead.
 
 2. Make sure the vlm container is up and running
    ```bash
-   docker ps --filter "name=nemo-vlm-microservice" --format "table {{.ID}}\t{{.Names}}\t{{.Status}}"
+   docker ps --filter "name=nemotron-3-nano-30b-a3b-omni-reasoning" --format "table {{.ID}}\t{{.Names}}\t{{.Status}}"
    ```
 
    *Example Output*
 
    ```output
    NAMES                                   STATUS
-   nemo-vlm-microservice                   Up 5 minutes (healthy)
+   nemotron-3-nano-30b-a3b-omni-reasoning  Up 5 minutes (healthy)
    ```
 
 3. Enable image captioning
@@ -49,7 +49,7 @@ For this feature, use H100 or A100 GPUs instead.
 1. Set caption endpoint and model to API catalog
    ```bash
    export APP_NVINGEST_CAPTIONENDPOINTURL="https://integrate.api.nvidia.com/v1/chat/completions"
-   export APP_NVINGEST_CAPTIONMODELNAME="nvidia/nemotron-nano-12b-v2-vl"
+   export APP_NVINGEST_CAPTIONMODELNAME="nvidia/nemotron-3-nano-30b-a3b-omni-reasoning"
    ```
 
 2. Enable image captioning
@@ -87,7 +87,7 @@ To enable image captioning in Helm-based deployments by using an on-prem VLM mod
        # === Image Captioning ===
        APP_NVINGEST_EXTRACTIMAGES: "True"
        APP_NVINGEST_CAPTIONENDPOINTURL: "http://nim-vlm:8000/v1/chat/completions"
-       APP_NVINGEST_CAPTIONMODELNAME: "nvidia/nemotron-nano-12b-v2-vl"
+       APP_NVINGEST_CAPTIONMODELNAME: "nvidia/nemotron-3-nano-30b-a3b-omni-reasoning"
    ```
 
 2. Apply the updated Helm chart:

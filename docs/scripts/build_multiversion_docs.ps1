@@ -28,7 +28,7 @@
   Requires a clean working tree unless -AllowDirty is used.
 
 .PARAMETER Versions
-  Semver strings without a leading v, e.g. 2.3.0, 2.4.0, 2.5.0
+  Semver strings without a leading v, e.g. 2.3.0, 2.4.0, 2.5.0, 2.5.1
 
 .PARAMETER CanonicalManifest
   Path to the versions1.json to inject on every checkout (default: docs/versions1.json
@@ -39,7 +39,7 @@
   (default: docs/_build/multiversion).
 
 .EXAMPLE
-  .\docs\scripts\build_multiversion_docs.ps1 -Versions @('2.3.0','2.4.0','2.5.0')
+  .\docs\scripts\build_multiversion_docs.ps1 -Versions @('2.3.0','2.4.0','2.5.0','2.5.1')
 
 .EXAMPLE
   .\docs\scripts\build_multiversion_docs.ps1 -DryRun
@@ -48,7 +48,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Position = 0)]
-    [string[]]$Versions = @('2.3.0', '2.4.0', '2.5.0'),
+    [string[]]$Versions = @('2.3.0', '2.4.0', '2.5.0', '2.5.1'),
 
     [string]$CanonicalManifest = '',
 
