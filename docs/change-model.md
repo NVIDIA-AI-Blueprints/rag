@@ -302,6 +302,63 @@ Use this procedure to change models when you are running self-hosted NVIDIA NIM 
 
 
 
+## Switch Back to Nemotron Nano 12B VLM
+
+The default VLM for this blueprint is **Nemotron Omni** (`nvidia/nemotron-3-nano-omni-30b-a3b-reasoning`). If you want to revert to the previous **Nemotron Nano 12B** (`nvidia/nemotron-nano-12b-v2-vl`) model, follow the steps below.
+
+### Docker Compose
+
+1. In `deploy/compose/nims.yaml`, update the `vlm-ms` service image:
+
+   ```yaml
+   vlm-ms:
+     image: nvcr.io/nim/nvidia/nemotron-nano-12b-v2-vl:1.6.0
+   ```
+
+2. Set the model name environment variables before starting services:
+
+   ```bash
+   export APP_VLM_MODELNAME="nvidia/nemotron-nano-12b-v2-vl"
+   export APP_NVINGEST_CAPTIONMODELNAME="nvidia/nemotron-nano-12b-v2-vl"
+   ```
+
+3. Restart the affected services:
+
+   ```bash
+   docker compose -f deploy/compose/nims.yaml --profile vlm-generation up -d
+   docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d
+   docker compose -f deploy/compose/docker-compose-ingestor-server.yaml up -d
+   ```
+
+### Helm
+
+1. In `deploy/helm/nvidia-blueprint-rag/values.yaml`, update the VLM NIM image and model names:
+
+   ```yaml
+   nimOperator:
+     nim-vlm:
+       image:
+         repository: nvcr.io/nim/nvidia/nemotron-nano-12b-v2-vl
+         tag: "1.6.0"
+
+   envVars:
+     APP_VLM_MODELNAME: "nvidia/nemotron-nano-12b-v2-vl"
+
+   ingestor-server:
+     envVars:
+       APP_NVINGEST_CAPTIONMODELNAME: "nvidia/nemotron-nano-12b-v2-vl"
+
+   nv-ingest:
+     envVars:
+       VLM_CAPTION_MODEL_NAME: nvidia/nemotron-nano-12b-v2-vl
+   ```
+
+2. Apply the changes as described in [Change a Deployment](deploy-helm.md#change-a-deployment).
+
+:::{note}
+Nemotron Nano 12B requires 1x H100 GPU for VLM inference. Ensure `APP_VLM_SERVERURL` points to the correct NIM endpoint after switching.
+:::
+
 ## Related Topics
 
 - [Best Practices for Common Settings](accuracy_perf.md).
