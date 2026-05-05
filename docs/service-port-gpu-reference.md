@@ -38,7 +38,7 @@ The following table provides a comprehensive reference of all services, their po
 | Elasticsearch | `elasticsearch` | 9200 | 9200 | N/A (CPU) | N/A | Default |
 | Redis | `compose-redis-1` | 6379 | 6379 | N/A (CPU) | N/A | Task queue |
 | Milvus | `milvus-standalone` | 19530, 9091 | 19530, 9091 | 0 | `VECTORSTORE_GPU_DEVICE_ID` | Vector database (Profile: milvus) |
-| Milvus Object Store | `milvus-seaweedfs` | 9010, 9011 | 9010, 9011 | N/A (CPU) | N/A | SeaweedFS S3-compatible object storage (Profile: milvus) |
+| SeaweedFS Object Store | `seaweedfs` | 9010, 9011 | 9010, 9011 | N/A (CPU) | N/A | S3-compatible object storage |
 | Milvus etcd | `milvus-etcd` | N/A | 2379 | N/A (CPU) | N/A | Metadata storage (Profile: milvus) |
 
 :::{note}

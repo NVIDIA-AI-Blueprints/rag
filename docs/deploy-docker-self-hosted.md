@@ -250,7 +250,7 @@ Use the following procedure to start all containers needed for this blueprint.
     fcc703631b71   ingestor-server                  Up 2 minutes
     77f64a4a5146   compose-redis-1                  Up 2 minutes
     902445432dde   milvus-standalone                Up 3 minutes (healthy)
-    340bc8210a0d   milvus-seaweedfs                 Up 3 minutes (healthy)
+    340bc8210a0d   seaweedfs                        Up 3 minutes (healthy)
     0be702b87ad6   milvus-etcd                      Up 3 minutes (healthy)
     62eabf1d9f65   nim-llm-ms                       Up 10 minutes (healthy)
     fe2751bfa734   nemotron-ranking-ms         Up 10 minutes (healthy)
