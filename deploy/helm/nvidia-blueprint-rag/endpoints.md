@@ -11,6 +11,7 @@ This document describes the configurable endpoints used by the RAG server and it
 
 ### Object Storage
 - **OBJECTSTORE_ENDPOINT**: S3-compatible object-store endpoint for storing multimodal content (default: "rag-seaweedfs-all-in-one:9010")
+- **NVINGEST_OBJECTSTORE_ENDPOINT**: Optional object-store endpoint reachable from the NV-Ingest runtime. Defaults to `OBJECTSTORE_ENDPOINT` when unset.
 
 ## Model Service Endpoints
 

@@ -57,7 +57,7 @@ class TestGetNvIngestClient:
             with pytest.raises(Exception, match="Config error"):
                 get_nv_ingest_client()
 
-    @patch("nv_ingest_api.util.message_brokers.simple_message_broker.SimpleClient")
+    @patch("nvidia_rag.ingestor_server.nvingest.SimpleClient")
     @patch("nvidia_rag.ingestor_server.nvingest.NvIngestClient")
     def test_get_nv_ingest_client_lite_mode(self, mock_nv_ingest_client, mock_simple_client):
         """Test get_nv_ingest_client creates lite client with correct parameters"""
@@ -78,7 +78,7 @@ class TestGetNvIngestClient:
             message_client_hostname="test-host",
         )
 
-    @patch("nv_ingest_api.util.message_brokers.simple_message_broker.SimpleClient")
+    @patch("nvidia_rag.ingestor_server.nvingest.SimpleClient")
     @patch("nvidia_rag.ingestor_server.nvingest.NvIngestClient")
     def test_get_nv_ingest_client_lite_mode_no_api_version(self, mock_nv_ingest_client, mock_simple_client):
         """Test get_nv_ingest_client lite mode does not pass api_version"""
@@ -90,7 +90,7 @@ class TestGetNvIngestClient:
         mock_client = Mock()
         mock_nv_ingest_client.return_value = mock_client
 
-        result = get_nv_ingest_client(mock_config, get_lite_client=True)
+        get_nv_ingest_client(mock_config, get_lite_client=True)
 
         # Verify api_version is not in the call kwargs
         call_kwargs = mock_nv_ingest_client.call_args[1]
@@ -100,7 +100,7 @@ class TestGetNvIngestClient:
         assert call_kwargs["message_client_port"] == 8080
 
     @patch("nvidia_rag.ingestor_server.nvingest.NvidiaRAGConfig")
-    @patch("nv_ingest_api.util.message_brokers.simple_message_broker.SimpleClient")
+    @patch("nvidia_rag.ingestor_server.nvingest.SimpleClient")
     @patch("nvidia_rag.ingestor_server.nvingest.NvIngestClient")
     def test_get_nv_ingest_client_lite_mode_default_config(
         self, mock_nv_ingest_client, mock_simple_client, mock_config_class
@@ -124,7 +124,7 @@ class TestGetNvIngestClient:
             message_client_hostname="default-host",
         )
 
-    @patch("nv_ingest_api.util.message_brokers.simple_message_broker.SimpleClient")
+    @patch("nvidia_rag.ingestor_server.nvingest.SimpleClient")
     @patch("nvidia_rag.ingestor_server.nvingest.NvIngestClient")
     def test_get_nv_ingest_client_standard_vs_lite_mode(
         self, mock_nv_ingest_client, mock_simple_client
@@ -198,6 +198,11 @@ class TestGetNvIngestIngestor:
         mock_ingestor_class.assert_called_once_with(client=self.mock_client)
         mock_ingestor_instance.files.assert_called_once_with(self.filepaths)
         mock_ingestor_instance.store.assert_called_once()
+        store_kwargs = mock_ingestor_instance.store.call_args[1]
+        assert (
+            store_kwargs["storage_options"]["client_kwargs"]["endpoint_url"]
+            == "http://seaweedfs:9010"
+        )
 
     @patch("nvidia_rag.ingestor_server.nvingest.sanitize_nim_url")
     @patch("nvidia_rag.ingestor_server.nvingest.Ingestor")
@@ -627,6 +632,7 @@ class TestGetNvIngestIngestor:
         mock_config.object_store.backend = "s3"
         mock_config.object_store.endpoint = "localhost:9000"
         mock_config.object_store.endpoint_url = "http://localhost:9000"
+        mock_config.object_store.nv_ingest_endpoint_url = "http://seaweedfs:9010"
         mock_config.object_store.storage_root = None
         mock_ak = Mock()
         mock_ak.get_secret_value.return_value = "test-access"

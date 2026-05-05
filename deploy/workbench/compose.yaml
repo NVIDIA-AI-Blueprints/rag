@@ -243,9 +243,9 @@ services:
       COLLECTION_NAME: ${COLLECTION_NAME:-multimodal_data}
 
       ##===Object-store specific configurations===
-      OBJECTSTORE_ENDPOINT: "seaweedfs:9010"
-      OBJECTSTORE_ACCESSKEY: "seaweedfsadmin"
-      OBJECTSTORE_SECRETKEY: "seaweedfsadmin"
+      OBJECTSTORE_ENDPOINT: ${OBJECTSTORE_ENDPOINT:-seaweedfs:9010}
+      OBJECTSTORE_ACCESSKEY: ${OBJECTSTORE_ACCESSKEY:-seaweedfsadmin}
+      OBJECTSTORE_SECRETKEY: ${OBJECTSTORE_SECRETKEY:-seaweedfsadmin}
 
       NGC_API_KEY: ${NGC_API_KEY:?"NGC_API_KEY is required"}
       NVIDIA_API_KEY: ${NGC_API_KEY:?"NGC_API_KEY is required"}
@@ -447,9 +447,9 @@ services:
       PROMPT_CONFIG_FILE: ${PROMPT_CONFIG_FILE:-/prompt.yaml}
 
       ##===Object-store specific configurations which is used to store the multimodal base64 content===
-      OBJECTSTORE_ENDPOINT: "seaweedfs:9010"
-      OBJECTSTORE_ACCESSKEY: "seaweedfsadmin"
-      OBJECTSTORE_SECRETKEY: "seaweedfsadmin"
+      OBJECTSTORE_ENDPOINT: ${OBJECTSTORE_ENDPOINT:-seaweedfs:9010}
+      OBJECTSTORE_ACCESSKEY: ${OBJECTSTORE_ACCESSKEY:-seaweedfsadmin}
+      OBJECTSTORE_SECRETKEY: ${OBJECTSTORE_SECRETKEY:-seaweedfsadmin}
 
       ##===Vector DB specific configurations===
       # URL on which vectorstore is hosted (Milvus: http://milvus:19530 when using --profile vectordb)

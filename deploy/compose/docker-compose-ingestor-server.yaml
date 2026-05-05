@@ -61,9 +61,9 @@ services:
       COLLECTION_NAME: ${COLLECTION_NAME:-multimodal_data}
 
       ##===Object-store specific configurations===
-      OBJECTSTORE_ENDPOINT: "seaweedfs:9010"
-      OBJECTSTORE_ACCESSKEY: "seaweedfsadmin"
-      OBJECTSTORE_SECRETKEY: "seaweedfsadmin"
+      OBJECTSTORE_ENDPOINT: ${OBJECTSTORE_ENDPOINT:-seaweedfs:9010}
+      OBJECTSTORE_ACCESSKEY: ${OBJECTSTORE_ACCESSKEY:-seaweedfsadmin}
+      OBJECTSTORE_SECRETKEY: ${OBJECTSTORE_SECRETKEY:-seaweedfsadmin}
 
       NGC_API_KEY: ${NGC_API_KEY:?"NGC_API_KEY is required"}
       NVIDIA_API_KEY: ${NGC_API_KEY:?"NGC_API_KEY is required"}

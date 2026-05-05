@@ -217,7 +217,7 @@ def make_store_params(config: NvidiaRAGConfig, vdb_op: VDBRag) -> StoreParams:
         ).as_uri()
         storage_options: dict[str, Any] = {}
     else:
-        endpoint_url = config.object_store.endpoint_url
+        endpoint_url = config.object_store.nv_ingest_endpoint_url
         storage_options = {
             "key": config.object_store.access_key.get_secret_value(),
             "secret": config.object_store.secret_key.get_secret_value(),

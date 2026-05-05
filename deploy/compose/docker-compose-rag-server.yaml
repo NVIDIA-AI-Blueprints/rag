@@ -25,9 +25,9 @@ services:
       PROMPT_CONFIG_FILE: ${PROMPT_CONFIG_FILE:-/prompt.yaml}
 
       ##===Object-store configurations used to store multimodal base64 content===
-      OBJECTSTORE_ENDPOINT: "seaweedfs:9010"
-      OBJECTSTORE_ACCESSKEY: "seaweedfsadmin"
-      OBJECTSTORE_SECRETKEY: "seaweedfsadmin"
+      OBJECTSTORE_ENDPOINT: ${OBJECTSTORE_ENDPOINT:-seaweedfs:9010}
+      OBJECTSTORE_ACCESSKEY: ${OBJECTSTORE_ACCESSKEY:-seaweedfsadmin}
+      OBJECTSTORE_SECRETKEY: ${OBJECTSTORE_SECRETKEY:-seaweedfsadmin}
 
       ##===Vector DB specific configurations===
       # URL on which vectorstore is hosted

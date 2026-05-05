@@ -316,7 +316,7 @@ jobs:
         run: |
           echo "=== LOGS FOR RUNNING CONTAINERS ==="
           docker logs --tail 50 elasticsearch || echo "No logs for elasticsearch"
-          docker logs --tail 50 milvus-seaweedfs || echo "No logs for milvus-seaweedfs"
+          docker logs --tail 50 seaweedfs || echo "No logs for seaweedfs"
           docker logs rag-server || echo "No logs for rag-server"
           docker logs ingestor-server || echo "No logs for ingestor-server"
           echo "Deploy stage completed successfully"
@@ -420,7 +420,7 @@ jobs:
           mkdir -p logs/milvus-sequence
           docker logs milvus-standalone > logs/milvus-sequence/milvus.log 2>&1 || true
           docker logs milvus-etcd > logs/milvus-sequence/etcd.log 2>&1 || true
-          docker logs milvus-seaweedfs > logs/milvus-sequence/seaweedfs.log 2>&1 || true
+          docker logs seaweedfs > logs/milvus-sequence/seaweedfs.log 2>&1 || true
           docker logs rag-server > logs/milvus-sequence/rag-server.log 2>&1 || true
           docker logs ingestor-server > logs/milvus-sequence/ingestor-server.log 2>&1 || true
           docker logs compose-nv-ingest-ms-runtime-1 > logs/milvus-sequence/nvingest.log 2>&1 || true
@@ -997,7 +997,7 @@ jobs:
           echo "Checking Milvus logs..."
           docker logs --tail 100 milvus-standalone || true
           docker logs --tail 50 milvus-etcd || true
-          docker logs --tail 50 milvus-seaweedfs || true
+          docker logs --tail 50 seaweedfs || true
       
       - name: Restart services for Milvus VDB auth tests
         env:
@@ -1038,7 +1038,7 @@ jobs:
           docker logs ingestor-server > logs/milvus-vdb-auth/ingestor-server.log 2>&1 || true
           docker logs milvus-standalone > logs/milvus-vdb-auth/milvus.log 2>&1 || true
           docker logs milvus-etcd > logs/milvus-vdb-auth/etcd.log 2>&1 || true
-          docker logs milvus-seaweedfs > logs/milvus-vdb-auth/seaweedfs.log 2>&1 || true
+          docker logs seaweedfs > logs/milvus-vdb-auth/seaweedfs.log 2>&1 || true
           cp tests/integration/integration_test.log logs/milvus-vdb-auth/ 2>/dev/null || true
       
       - name: Revert Milvus VDB auth configurations

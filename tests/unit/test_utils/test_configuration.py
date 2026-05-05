@@ -247,6 +247,8 @@ class TestObjectStoreConfig:
         assert config.backend == "s3"
         assert config.endpoint == "localhost:9010"
         assert config.endpoint_url == "http://localhost:9010"
+        assert config.nv_ingest_endpoint is None
+        assert config.nv_ingest_endpoint_url == "http://localhost:9010"
         assert config.storage_root == Path("/tmp/nvidia-rag-object-store").resolve()
         assert config.access_key.get_secret_value() == "seaweedfsadmin"
         assert config.secret_key.get_secret_value() == "seaweedfsadmin"
@@ -257,7 +259,37 @@ class TestObjectStoreConfig:
 
         assert config.endpoint == "bucket.example:9443"
         assert config.endpoint_url == "https://bucket.example:9443"
+        assert config.nv_ingest_endpoint_url == "https://bucket.example:9443"
         assert config.secure is True
+
+    def test_nv_ingest_endpoint_can_differ_from_host_endpoint(self):
+        config = ObjectStoreConfig(
+            endpoint="localhost:9010",
+            nv_ingest_endpoint="seaweedfs:9010",
+        )
+
+        assert config.endpoint_url == "http://localhost:9010"
+        assert config.nv_ingest_endpoint == "seaweedfs:9010"
+        assert config.nv_ingest_endpoint_url == "http://seaweedfs:9010"
+
+    def test_nv_ingest_endpoint_url_normalizes_https_independently(self):
+        config = ObjectStoreConfig(
+            endpoint="localhost:9010",
+            nv_ingest_endpoint="https://bucket.internal:9443",
+        )
+
+        assert config.endpoint_url == "http://localhost:9010"
+        assert config.nv_ingest_endpoint == "bucket.internal:9443"
+        assert config.nv_ingest_endpoint_url == "https://bucket.internal:9443"
+
+    def test_nv_ingest_endpoint_inherits_primary_secure_without_scheme(self):
+        config = ObjectStoreConfig(
+            endpoint="https://bucket.example:9443",
+            nv_ingest_endpoint="bucket.internal:9443",
+        )
+
+        assert config.endpoint_url == "https://bucket.example:9443"
+        assert config.nv_ingest_endpoint_url == "https://bucket.internal:9443"
 
     @patch.dict(
         os.environ,
@@ -461,6 +493,7 @@ class TestNvidiaRAGConfig:
             "APP_LLM_MODELNAME": "custom/llm-model",
             "ENABLE_RERANKER": "false",
             "OBJECTSTORE_ENDPOINT": "custom-object-store:9000",
+            "NVINGEST_OBJECTSTORE_ENDPOINT": "internal-object-store:9000",
         }
 
         with patch.dict(os.environ, env_vars):
@@ -470,6 +503,7 @@ class TestNvidiaRAGConfig:
             assert config.llm.model_name == "custom/llm-model"
             assert config.ranking.enable_reranker is False
             assert config.object_store.endpoint == "custom-object-store:9000"
+            assert config.object_store.nv_ingest_endpoint == "internal-object-store:9000"
 
     def test_from_dict_nested_structure(self):
         """Test loading from dictionary with nested structure."""

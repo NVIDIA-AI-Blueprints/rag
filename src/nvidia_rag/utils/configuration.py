@@ -997,6 +997,14 @@ class ObjectStoreConfig(_ConfigBase):
         env="OBJECTSTORE_ENDPOINT",
         description="Object-store endpoint in host:port form",
     )
+    nv_ingest_endpoint: str | None = Field(
+        default=None,
+        env="NVINGEST_OBJECTSTORE_ENDPOINT",
+        description=(
+            "Object-store endpoint reachable from the NV-Ingest runtime. "
+            "Defaults to endpoint when unset."
+        ),
+    )
     access_key: SecretStr = Field(
         default=SecretStr("seaweedfsadmin"),
         env="OBJECTSTORE_ACCESSKEY",
@@ -1010,6 +1018,13 @@ class ObjectStoreConfig(_ConfigBase):
     secure: bool = Field(
         default=False,
         description="Whether to use TLS when connecting to the object store",
+    )
+    nv_ingest_secure: bool | None = Field(
+        default=None,
+        description=(
+            "Whether the NV-Ingest runtime should use TLS for object-store access. "
+            "Defaults to secure when unset."
+        ),
     )
     local_path: str = Field(
         default="/tmp/nvidia-rag-object-store",
@@ -1037,10 +1052,10 @@ class ObjectStoreConfig(_ConfigBase):
         return value
 
     @classmethod
-    def _normalize_endpoint(cls, value: str) -> tuple[str, bool]:
+    def _normalize_endpoint(cls, value: str) -> tuple[str, bool | None]:
         normalized = value.strip().strip('"').strip("'")
         if "://" not in normalized:
-            return normalized, False
+            return normalized, None
 
         parsed = urlparse(normalized)
         return parsed.netloc or parsed.path, parsed.scheme == "https"
@@ -1056,14 +1071,32 @@ class ObjectStoreConfig(_ConfigBase):
         if isinstance(endpoint, str) and endpoint:
             normalized_endpoint, secure = cls._normalize_endpoint(endpoint)
             normalized["endpoint"] = normalized_endpoint
-            normalized.setdefault("secure", secure)
+            if secure is not None:
+                normalized.setdefault("secure", secure)
+
+        nv_ingest_endpoint = normalized.get("nv_ingest_endpoint")
+        if isinstance(nv_ingest_endpoint, str) and nv_ingest_endpoint:
+            normalized_endpoint, secure = cls._normalize_endpoint(nv_ingest_endpoint)
+            normalized["nv_ingest_endpoint"] = normalized_endpoint
+            if secure is not None:
+                normalized.setdefault("nv_ingest_secure", secure)
 
         return normalized
 
+    @staticmethod
+    def _endpoint_url(endpoint: str, secure: bool) -> str:
+        scheme = "https" if secure else "http"
+        return f"{scheme}://{endpoint}"
+
     @property
     def endpoint_url(self) -> str:
-        scheme = "https" if self.secure else "http"
-        return f"{scheme}://{self.endpoint}"
+        return self._endpoint_url(self.endpoint, self.secure)
+
+    @property
+    def nv_ingest_endpoint_url(self) -> str:
+        endpoint = self.nv_ingest_endpoint or self.endpoint
+        secure = self.secure if self.nv_ingest_secure is None else self.nv_ingest_secure
+        return self._endpoint_url(endpoint, secure)
 
     @property
     def storage_root(self) -> Path:
