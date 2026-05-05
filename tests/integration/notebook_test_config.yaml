@@ -90,6 +90,7 @@ vlm:
 # Object Store Configuration
 object_store:
   endpoint: "localhost:9010"  # S3-compatible object-store endpoint
+  nv_ingest_endpoint: "seaweedfs:9010"  # Docker-network endpoint used by NV-Ingest
   access_key: "seaweedfsadmin"  # Object-store access key for authentication
   secret_key: "seaweedfsadmin"  # Object-store secret key for authentication
 

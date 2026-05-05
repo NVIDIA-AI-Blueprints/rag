@@ -24,15 +24,15 @@ import time
 from tarfile import tar_filter
 from typing import Any
 
+from nv_ingest_api.util.message_brokers.simple_message_broker import SimpleClient
 from nv_ingest_client.client import Ingestor, NvIngestClient
 
 from nvidia_rag.utils.common import sanitize_nim_url
 from nvidia_rag.utils.configuration import NvidiaRAGConfig
-from nvidia_rag.utils.observability.tracing import get_tracer, trace_function
-from nvidia_rag.utils.vdb.vdb_base import VDBRag
-
 from nvidia_rag.utils.llm import get_prompts
 from nvidia_rag.utils.object_store import DEFAULT_BUCKET_NAME
+from nvidia_rag.utils.observability.tracing import get_tracer, trace_function
+from nvidia_rag.utils.vdb.vdb_base import VDBRag
 
 logger = logging.getLogger(__name__)
 TRACER = get_tracer("nvidia_rag.ingestor.nvingest")
@@ -40,8 +40,8 @@ TRACER = get_tracer("nvidia_rag.ingestor.nvingest")
 
 @trace_function("ingestor.nvingest.get_nv_ingest_client", tracer=TRACER)
 def get_nv_ingest_client(
-    config: NvidiaRAGConfig = None, 
-    get_lite_client: bool = False
+    config: NvidiaRAGConfig = None,
+    get_lite_client: bool = False,
 ) -> NvIngestClient:
     """
     Creates and returns NV-Ingest client
@@ -54,7 +54,6 @@ def get_nv_ingest_client(
         config = NvidiaRAGConfig()
 
     if get_lite_client:
-        from nv_ingest_api.util.message_brokers.simple_message_broker import SimpleClient
         logger.info("== Initializing NV-Ingest client instance for RAG Lite mode ...")
         client = NvIngestClient(
             message_client_allocator=SimpleClient,
@@ -104,7 +103,7 @@ def get_nv_ingest_ingestor(
         - prompts: Prompts dict for captioning (optional)
         - store_images: When True and vdb_op is set, append NV-Ingest ``.store()`` for object storage
             (citation assets). Set False for RAG Lite.
-    
+
     Returns:
         - ingestor: Ingestor - NV-Ingest ingestor instance with configured tasks
     """
@@ -260,7 +259,9 @@ def get_nv_ingest_ingestor(
             storage_options = {
                 "key": config.object_store.access_key.get_secret_value(),
                 "secret": config.object_store.secret_key.get_secret_value(),
-                "client_kwargs": {"endpoint_url": config.object_store.endpoint_url},
+                "client_kwargs": {
+                    "endpoint_url": config.object_store.nv_ingest_endpoint_url
+                },
             }
         logger.info("Storing extracted assets at storage URI: %s", storage_uri)
         ingestor = ingestor.store(

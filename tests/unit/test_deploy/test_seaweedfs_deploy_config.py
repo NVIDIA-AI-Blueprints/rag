@@ -69,6 +69,15 @@ def test_integration_vectordb_uses_same_seaweedfs_bootstrap():
     )
 
 
+def test_notebook_config_uses_host_and_container_seaweedfs_endpoints():
+    notebook_config = load_yaml(REPO_ROOT / "notebooks/config.yaml")
+    integration_config = load_yaml(REPO_ROOT / "tests/integration/notebook_test_config.yaml")
+
+    for config in (notebook_config, integration_config):
+        assert config["object_store"]["endpoint"] == "localhost:9010"
+        assert config["object_store"]["nv_ingest_endpoint"] == "seaweedfs:9010"
+
+
 def test_compose_app_services_default_to_seaweedfs():
     ingestor = load_yaml(
         REPO_ROOT / "deploy/compose/docker-compose-ingestor-server.yaml"
@@ -77,10 +86,17 @@ def test_compose_app_services_default_to_seaweedfs():
 
     assert (
         ingestor["services"]["ingestor-server"]["environment"]["OBJECTSTORE_ENDPOINT"]
-        == "seaweedfs:9010"
+        == "${OBJECTSTORE_ENDPOINT:-seaweedfs:9010}"
     )
     assert rag["services"]["rag-server"]["environment"]["OBJECTSTORE_ENDPOINT"] == (
-        "seaweedfs:9010"
+        "${OBJECTSTORE_ENDPOINT:-seaweedfs:9010}"
+    )
+    assert (
+        ingestor["services"]["ingestor-server"]["environment"]["OBJECTSTORE_ACCESSKEY"]
+        == "${OBJECTSTORE_ACCESSKEY:-seaweedfsadmin}"
+    )
+    assert rag["services"]["rag-server"]["environment"]["OBJECTSTORE_ACCESSKEY"] == (
+        "${OBJECTSTORE_ACCESSKEY:-seaweedfsadmin}"
     )
 
     nv_ingest_env = ingestor["services"]["nv-ingest-ms-runtime"]["environment"]
@@ -96,10 +112,16 @@ def test_workbench_defaults_to_seaweedfs():
 
     assert (
         services["ingestor-server"]["environment"]["OBJECTSTORE_ENDPOINT"]
-        == "seaweedfs:9010"
+        == "${OBJECTSTORE_ENDPOINT:-seaweedfs:9010}"
     )
     assert services["rag-server"]["environment"]["OBJECTSTORE_ENDPOINT"] == (
-        "seaweedfs:9010"
+        "${OBJECTSTORE_ENDPOINT:-seaweedfs:9010}"
+    )
+    assert services["ingestor-server"]["environment"]["OBJECTSTORE_ACCESSKEY"] == (
+        "${OBJECTSTORE_ACCESSKEY:-seaweedfsadmin}"
+    )
+    assert services["rag-server"]["environment"]["OBJECTSTORE_ACCESSKEY"] == (
+        "${OBJECTSTORE_ACCESSKEY:-seaweedfsadmin}"
     )
     assert services["milvus"]["environment"]["MINIO_ADDRESS"] == "seaweedfs:9010"
     assert (

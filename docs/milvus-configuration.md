@@ -190,12 +190,12 @@ When `adapt_for_cpu` is in effect, your search requests must supply an `ef` para
 
 Use this procedure when the RAG stack should talk to a Milvus instance you operate separately (outside the chart’s Milvus subchart), for example a shared cluster or a different namespace.
 
-1. Update the `APP_VECTORSTORE_URL` and `OBJECTSTORE_ENDPOINT` variables in both the RAG server and the ingestor server sections in [values.yaml](../deploy/helm/nvidia-blueprint-rag/values.yaml). Your changes should look similar to the following.
+1. Update the `APP_VECTORSTORE_URL` and `OBJECTSTORE_ENDPOINT` variables in both the RAG server and the ingestor server sections in [values.yaml](../deploy/helm/nvidia-blueprint-rag/values.yaml). The ingestor passes `OBJECTSTORE_ENDPOINT` to NV-Ingest store tasks by default, so set `NVINGEST_OBJECTSTORE_ENDPOINT` only when the NV-Ingest runtime must use a different object-store address.
 
    ```yaml
-     envVars:
-       # ... existing code ...
-       APP_VECTORSTORE_URL: "http://your-custom-milvus-endpoint:19530"
+   envVars:
+     # ... existing code ...
+     APP_VECTORSTORE_URL: "http://your-custom-milvus-endpoint:19530"
      OBJECTSTORE_ENDPOINT: "http://your-custom-object-store-endpoint:9000"
      # ... existing code ...
 
@@ -204,12 +204,8 @@ Use this procedure when the RAG stack should talk to a Milvus instance you opera
        # ... existing code ...
        APP_VECTORSTORE_URL: "http://your-custom-milvus-endpoint:19530"
        OBJECTSTORE_ENDPOINT: "http://your-custom-object-store-endpoint:9000"
-       # ... existing code ...
-
-   nv-ingest:
-     envVars:
-       # ... existing code ...
-       MINIO_INTERNAL_ADDRESS: "http://your-custom-object-store-endpoint:9000"
+       # Optional: only if NV-Ingest needs a different route to the same object store
+       # NVINGEST_OBJECTSTORE_ENDPOINT: "http://your-nv-ingest-object-store-endpoint:9000"
        # ... existing code ...
    ```
 

@@ -122,7 +122,8 @@ class TestMakeCaptionParams:
 class TestMakeStoreParams:
     def test_storage_uri_and_options(self) -> None:
         object_store = ObjectStoreConfig(
-            endpoint="seaweedfs:9010",
+            endpoint="localhost:9010",
+            nv_ingest_endpoint="seaweedfs:9010",
             access_key=SecretStr("ak"),
             secret_key=SecretStr("sk"),
         )
