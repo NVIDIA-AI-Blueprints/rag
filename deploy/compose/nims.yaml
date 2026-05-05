@@ -33,7 +33,7 @@ services:
       interval: 10s
       timeout: 20s
       retries: 100
-    profiles: ["", "rag", "text-rag", "vlm-rag"]
+    profiles: ["", "rag"]
 
   nemotron-embedding-ms:
     container_name: nemotron-embedding-ms
@@ -93,7 +93,7 @@ services:
       timeout: 20s
       retries: 3
       start_period: 10m
-    profiles: ["", "rag", "ingest", "vlm-embed", "vlm-ingest", "vlm-generation"]
+    profiles: ["", "rag", "ingest", "vlm-embed", "vlm-rag", "vlm-generation"]
 
   nemotron-ranking-ms:
     container_name: nemotron-ranking-ms
@@ -150,7 +150,7 @@ services:
       timeout: 20s
       retries: 3
       start_period: 10m
-    profiles: ["vlm-embed", "vlm-rag"]
+    profiles: ["vlm-rerank", "vlm-rag"]
 
   page-elements:
     image: ${YOLOX_IMAGE:-nvcr.io/nim/nvidia/nemotron-page-elements-v3}:${YOLOX_TAG:-1.8.0}
@@ -185,7 +185,7 @@ services:
             - driver: nvidia
               device_ids: ['${YOLOX_MS_GPU_ID:-0}']
               capabilities: [gpu]
-    profiles: ["", "ingest", "vlm-ingest"]
+    profiles: ["", "ingest"]
 
   graphic-elements:
     image: ${YOLOX_GRAPHIC_ELEMENTS_IMAGE:-nvcr.io/nim/nvidia/nemotron-graphic-elements-v1}:${YOLOX_GRAPHIC_ELEMENTS_TAG:-1.8.0}
@@ -210,7 +210,7 @@ services:
             - driver: nvidia
               device_ids: ['${YOLOX_GRAPHICS_MS_GPU_ID:-0}']
               capabilities: [gpu]
-    profiles: ["", "ingest", "vlm-ingest"]
+    profiles: ["", "ingest"]
 
   table-structure:
     image: ${YOLOX_TABLE_STRUCTURE_IMAGE:-nvcr.io/nim/nvidia/nemotron-table-structure-v1}:${YOLOX_TABLE_STRUCTURE_TAG:-1.8.0}
@@ -235,7 +235,7 @@ services:
             - driver: nvidia
               device_ids:  ['${YOLOX_TABLE_MS_GPU_ID:-0}']
               capabilities: [gpu]
-    profiles: ["", "ingest", "vlm-ingest"]
+    profiles: ["", "ingest"]
 
   paddle:
     image: ${PADDLE_IMAGE:-nvcr.io/nim/baidu/paddleocr}:${PADDLE_TAG:-1.5.0}
@@ -283,7 +283,7 @@ services:
             - driver: nvidia
               device_ids: ["${OCR_MS_GPU_ID:-${PADDLE_MS_GPU_ID:-0}}"]
               capabilities: [gpu]
-    profiles: ["", "ingest", "vlm-ingest", "nemotron-ocr"]
+    profiles: ["", "ingest"]
 
   # Optional NIM microservices
   nemotron-parse:
@@ -358,7 +358,7 @@ services:
               # count: ${INFERENCE_GPU_COUNT:-all}
               device_ids: ['${VLM_MS_GPU_ID:-5}']
               capabilities: [gpu]
-    profiles: ["vlm-only", "vlm-generation"]
+    profiles: ["vlm-only", "vlm-generation", "vlm-rag"]
 
 networks:
   default:
