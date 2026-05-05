@@ -1,3 +1,4 @@
+
 # SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -19,15 +20,27 @@
 """
 
 import logging
-from functools import lru_cache
 
 from langchain_core.documents.compressor import BaseDocumentCompressor
 from langchain_nvidia_ai_endpoints import NVIDIARerank
 
 from nvidia_rag.utils.common import NVIDIA_API_DEFAULT_HEADERS, sanitize_nim_url
 from nvidia_rag.utils.configuration import NvidiaRAGConfig
+from nvidia_rag.utils.vlm_reranker import (
+    NVIDIAVLMRerank,
+    _build_vlm_rerank_invoke_url,
+    _is_vlm_reranker_model,
+)
 
 logger = logging.getLogger(__name__)
+
+__all__ = [
+    "NVIDIAVLMRerank",
+    "_build_vlm_rerank_invoke_url",
+    "_is_vlm_reranker_model",
+    "_get_ranking_model",
+    "get_ranking_model",
+]
 
 
 def _get_ranking_model(
@@ -65,6 +78,17 @@ def _get_ranking_model(
 
     if config.ranking.model_engine == "nvidia-ai-endpoints":
         api_key = config.ranking.get_api_key()
+
+        if _is_vlm_reranker_model(model):
+            logger.info("Using VLM ranking model %s", model)
+            return NVIDIAVLMRerank(
+                model=model,
+                url=url,
+                api_key=api_key,
+                top_n=top_n,
+                default_headers=NVIDIA_API_DEFAULT_HEADERS,
+                config=config,
+            )
 
         if url:
             logger.info("Using ranking model hosted at %s", url)

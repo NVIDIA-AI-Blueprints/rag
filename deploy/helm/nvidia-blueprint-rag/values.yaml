@@ -185,8 +185,8 @@ envVars:
 
   ##===Embedding Model specific configurations===
   # URL on which embedding model is hosted. If "", Nvidia hosted API is used
-  APP_EMBEDDINGS_SERVERURL: "nemotron-embedding-ms:8000/v1"
-  APP_EMBEDDINGS_MODELNAME: "nvidia/llama-nemotron-embed-1b-v2"
+  APP_EMBEDDINGS_SERVERURL: "nemotron-vlm-embedding-ms:8000/v1"
+  APP_EMBEDDINGS_MODELNAME: "nvidia/llama-nemotron-embed-vl-1b-v2"
   APP_EMBEDDINGS_DIMENSIONS: "2048"
 
   ##===Reranking Model specific configurations===
@@ -196,12 +196,14 @@ envVars:
   ENABLE_RERANKER: "True"
   # Default score threshold for filtering documents by reranker relevance (0.0 to 1.0)
   RERANKER_SCORE_THRESHOLD: "0.0"
+  # When True, images from retrieved citations are included in VLM reranker passages
+  ENABLE_VLM_RERANKER_IMAGE_INPUT: "False"
 
   ##===VLM Model specific configurations===
-  ENABLE_VLM_INFERENCE: "false"
+  ENABLE_VLM_INFERENCE: "False"
   # When true, allow falling back to LLM flow if no images are present in query/messages/context.
   # When false, always route generation through VLM when ENABLE_VLM_INFERENCE is true.
-  VLM_TO_LLM_FALLBACK: "true"
+  VLM_TO_LLM_FALLBACK: "False"
   # Max images sent to VLM per request (query + context)
   APP_VLM_MAX_TOTAL_IMAGES: "5"
   # VLM generation parameters
@@ -358,8 +360,8 @@ ingestor-server:
     ## APP_EMBEDDINGS_APIKEY and SUMMARY_LLM_APIKEY are loaded from secrets automatically.
 
     # === Embeddings Configurations ===
-    APP_EMBEDDINGS_SERVERURL: "nemotron-embedding-ms:8000/v1"
-    APP_EMBEDDINGS_MODELNAME: "nvidia/llama-nemotron-embed-1b-v2"
+    APP_EMBEDDINGS_SERVERURL: "nemotron-vlm-embedding-ms:8000/v1"
+    APP_EMBEDDINGS_MODELNAME: "nvidia/llama-nemotron-embed-vl-1b-v2"
     APP_EMBEDDINGS_DIMENSIONS: "2048"
 
     # === NV-Ingest Configurations ===
@@ -955,6 +957,40 @@ nimOperator:
         port: 8000
         grpcPort: 8001
 
+# subsection: nvidia-nim-llama-nemotron-rerank-vl-1b-v2
+# NIM VLM Reranking
+  nvidia-nim-llama-nemotron-rerank-vl-1b-v2:
+    enabled: false
+    replicas: 1
+    service:
+      name: "nemotron-ranking-vl-ms"
+    image:
+      repository: nvcr.io/nim/nvidia/llama-nemotron-rerank-vl-1b-v2
+      tag: "1.11.0"
+      pullPolicy: IfNotPresent
+    resources:
+      limits:
+        nvidia.com/gpu: 1
+      requests:
+        nvidia.com/gpu: 1
+    nodeSelector: {}
+    tolerations: []
+#    draResources:
+#      - resourceClaimName: rag-claim
+    storage:
+      pvc:
+        create: true
+        size: "50Gi"
+        volumeAccessMode: ReadWriteOnce
+        storageClass: ""
+    env: []
+    expose:
+      service:
+        name: http
+        type: ClusterIP
+        port: 8000
+        grpcPort: 8001
+
   # subsection: nim-vlm
   # NIM Vision-Language (VLM)
   nim-vlm:
@@ -1030,6 +1066,8 @@ nv-ingest:
     RAY_worker_num_grpc_internal_threads: "1"
     REDIS_POOL_SIZE: "50"
     
+    APP_EMBEDDINGS_SERVERURL: "nemotron-vlm-embedding-ms:8000/v1"
+    APP_EMBEDDINGS_MODELNAME: "nvidia/llama-nemotron-embed-vl-1b-v2"
     EMBEDDING_NIM_ENDPOINT: "http://nemotron-embedding-ms:8000/v1"
     EMBEDDING_NIM_MODEL_NAME: "nvidia/llama-nemotron-embed-1b-v2"
     MESSAGE_CLIENT_HOST: "rag-redis-master"
