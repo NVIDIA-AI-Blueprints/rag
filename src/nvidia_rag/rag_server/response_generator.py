@@ -223,6 +223,12 @@ class SourceResult(BaseModel):
         default="text", description="Type of document content"
     )
     score: float = Field(default=0.0, description="Relevance score of the document")
+    stage: str = Field(
+        default="rag",
+        max_length=100,
+        pattern=r"[\s\S]*",
+        description="Pipeline stage that produced this result (e.g. 'rag', 'initial_retrieval', 'execute', 'verify_execute')",
+    )
 
     metadata: SourceMetadata
 
@@ -263,7 +269,7 @@ class TextContent(BaseModel):
 
     type: Literal["text"] = Field(default="text", description="The type of content")
     text: str = Field(
-        description="The text content", max_length=131072, pattern=r"[\s\S]*"
+        description="The text content", max_length=128000, pattern=r"[\s\S]*"
     )
 
 
@@ -622,6 +628,7 @@ async def generate_answer_async(
     rag_start_time_sec: float | None = None,
     otel_metrics_client: OtelMetrics | None = None,
     token_usage: dict | None = None,
+    citations: Optional["Citations"] = None,
 ):
     """Generate and stream the response to the provided prompt asynchronously.
 
@@ -636,6 +643,9 @@ async def generate_answer_async(
         otel_metrics_client: Optional OpenTelemetry metrics client for updating latency histograms
         token_usage: Optional mutable dict (e.g. {}) that a callback may populate with
             prompt_tokens, completion_tokens, and total_tokens for the final chunk.
+        citations: Optional pre-built Citations object (used by agentic RAG to pass
+            stage-annotated citations collected across pipeline stages). When provided,
+            this takes precedence over building citations from ``contexts``.
     """
     # Choose the citations builder based on ingestion mode.
     # NRL (LanceDB backend) produces text-only flat metadata; nv-ingest
@@ -689,10 +699,13 @@ async def generate_answer_async(
                             "    == RAG Time to First Token (TTFT): %.2f ms ==",
                             rag_ttft_ms,
                         )
-                    chain_response.citations = _citations_fn(
-                        retrieved_documents=contexts,
-                        enable_citations=enable_citations,
-                    )
+                    if citations is not None:
+                        chain_response.citations = citations
+                    else:
+                        chain_response.citations = _citations_fn(
+                            retrieved_documents=contexts,
+                            enable_citations=enable_citations,
+                        )
                     first_chunk = False
                 logger.debug(response_choice)
                 # Send generator with tokens in ChainResponse format

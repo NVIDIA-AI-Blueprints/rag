@@ -591,6 +591,14 @@ class Prompt(BaseModel):
         ge=0,
         le=10,
     )
+    agentic: bool | None = Field(
+        default=CONFIG.enable_agentic_rag,
+        description=(
+            "Route this request through the agentic RAG pipeline (LangGraph plan-and-execute). "
+            "When None (default), the server-level CONFIG.enable_agentic_rag config value is used. "
+            "Explicitly passing True or False overrides the server default for this request."
+        ),
+    )
 
     @model_validator(mode="after")
     def validate_confidence_threshold(cls, values):
@@ -1410,6 +1418,7 @@ async def generate_answer(request: Request, prompt: Prompt) -> StreamingResponse
         "vlm_max_total_images": prompt.vlm_max_total_images,
         "filter_expr": prompt.filter_expr,
         "confidence_threshold": prompt.confidence_threshold,
+        "agentic": prompt.agentic,
     }
     logger.info(
         f"📥 Incoming request to /generate endpoint:\n{json.dumps(request_data, indent=2)}"
@@ -1494,6 +1503,7 @@ async def generate_answer(request: Request, prompt: Prompt) -> StreamingResponse
             confidence_threshold=prompt.confidence_threshold,
             fetch_full_page_context=prompt.fetch_full_page_context,
             fetch_neighboring_pages=prompt.fetch_neighboring_pages,
+            agentic=prompt.agentic,
             rag_start_time_sec=generate_start_time,
             metrics=metrics,
         )

@@ -284,6 +284,10 @@ class NvidiaRAG:
             enable_thinking=self.config.llm.parameters.enable_thinking
         )
 
+        # Agentic RAG agent/graph — built lazily on the first agentic request.
+        self._agentic_agent: Any = None
+        self._agentic_graph: Any = None
+
         if self._init_errors:
             logger.warning(
                 "NvidiaRAG initialization completed with %d unavailable service(s): %s. "
@@ -442,6 +446,7 @@ class NvidiaRAG:
         confidence_threshold: float | None = None,
         fetch_full_page_context: bool | None = None,
         fetch_neighboring_pages: int | None = None,
+        agentic: bool | None = None,
         rag_start_time_sec: float | None = None,
         metrics: OtelMetrics | None = None,
     ) -> AsyncGenerator[str, None]:
@@ -487,7 +492,11 @@ class NvidiaRAG:
         logger.info("  - vdb_top_k: %s, reranker_top_k: %s", vdb_top_k, reranker_top_k)
         logger.info("  - temperature: %s, top_p: %s, max_tokens: %s", temperature, top_p, max_tokens)
         logger.info("  - model: %s", model)
+        logger.info("  - agentic: %s", agentic)
         logger.info("-" * 80)
+
+        # Resolve agentic flag: per-request value takes precedence over global config.
+        agentic = agentic if agentic is not None else self.config.enable_agentic_rag
 
         # Apply defaults from config for None values
         model_params = self.config.llm.get_model_parameters()
@@ -666,6 +675,30 @@ class NvidiaRAG:
         }
 
         if use_knowledge_base:
+            if agentic:
+                return await self._agentic_chain(
+                    query=query,
+                    chat_history=chat_history,
+                    collection_names=collection_names,
+                    enable_query_rewriting=enable_query_rewriting,
+                    enable_reranker=enable_reranker,
+                    reranker_top_k=reranker_top_k,
+                    reranker_model=reranker_model,
+                    reranker_endpoint=reranker_endpoint,
+                    vdb_top_k=vdb_top_k,
+                    vdb_endpoint=vdb_endpoint,
+                    vdb_auth_token=vdb_auth_token,
+                    embedding_model=embedding_model,
+                    embedding_endpoint=embedding_endpoint,
+                    enable_filter_generator=enable_filter_generator,
+                    filter_expr=filter_expr,
+                    confidence_threshold=confidence_threshold,
+                    enable_citations=enable_citations,
+                    model=model,
+                    vdb_op=vdb_op,
+                    rag_start_time_sec=rag_start_time_sec,
+                    metrics=metrics,
+                )
             logger.info("=" * 80)
             logger.info("PIPELINE MODE: RAG Chain (with knowledge base)")
             logger.info("=" * 80)
@@ -731,6 +764,7 @@ class NvidiaRAG:
         filter_expr: str | list[dict[str, Any]] = "",
         confidence_threshold: float | None = None,
         enable_citations: bool | None = None,
+        stage: str = "rag",
     ) -> Citations:
         """Search for the most relevant documents for the given search parameters.
         It's called when the `/search` API is invoked.
@@ -1241,7 +1275,10 @@ class NvidiaRAG:
                     logger.warning(
                         "Could not find sufficiently relevant context after maximum attempts"
                     )
-                return _citations_fn(retrieved_documents=docs, force_citations=True, enable_citations=enable_citations)
+                _cit = _citations_fn(retrieved_documents=docs, force_citations=True, enable_citations=enable_citations)
+                for _r in _cit.results:
+                    _r.stage = stage
+                return _cit
             else:
                 if local_ranker and enable_reranker and not is_image_query:
                     logger.info(
@@ -1322,9 +1359,12 @@ class NvidiaRAG:
                             confidence_threshold=confidence_threshold,
                         )
 
-                    return _citations_fn(
+                    _cit = _citations_fn(
                         retrieved_documents=docs, force_citations=True, enable_citations=enable_citations
                     )
+                    for _r in _cit.results:
+                        _r.stage = stage
+                    return _cit
                 else:
                     # Handle case where reranker is disabled or image query
                     if is_image_query:
@@ -1353,9 +1393,12 @@ class NvidiaRAG:
                             ),
                             otel_ctx=otel_ctx,
                         )
-                    return _citations_fn(
+                    _cit = _citations_fn(
                         retrieved_documents=docs, force_citations=True, enable_citations=enable_citations
                     )
+                    for _r in _cit.results:
+                        _r.stage = stage
+                    return _cit
 
         except APIError:
             # Re-raise APIError as-is to preserve status_code
@@ -2014,6 +2057,186 @@ class NvidiaRAG:
         else:
             # Fallback for any other content type
             return (str(content) if content is not None else ""), is_image_query
+
+    # =========================================================================
+    # AGENTIC RAG
+    # =========================================================================
+
+    async def _ensure_agentic_agent(self) -> tuple[Any, Any]:
+        """Lazily build and cache the AgenticRag and its compiled graph.
+
+        Thread-safe enough for async: concurrent requests that hit the None
+        check simultaneously will both build; the last write wins but both
+        produce equivalent agents so there is no correctness issue.
+        """
+        if self._agentic_agent is None:
+            from nvidia_rag.rag_server.agentic_rag.builder import build_agentic_rag_agent
+
+            logger.info("Building AgenticRag (first agentic request)…")
+            self._agentic_agent, self._agentic_graph = await build_agentic_rag_agent(self)
+        return self._agentic_agent, self._agentic_graph
+
+    async def _agentic_chain(
+        self,
+        query: str | list[dict[str, Any]],
+        chat_history: list[dict[str, Any]],
+        collection_names: list[str],
+        enable_query_rewriting: bool,
+        enable_reranker: bool,
+        reranker_top_k: int,
+        reranker_model: str,
+        reranker_endpoint: str | None,
+        vdb_top_k: int,
+        vdb_endpoint: str | None,
+        vdb_auth_token: str,
+        embedding_model: str | None,
+        embedding_endpoint: str | None,
+        enable_filter_generator: bool,
+        filter_expr: str | list[dict[str, Any]],
+        confidence_threshold: float | None,
+        enable_citations: bool,
+        model: str,
+        vdb_op: VDBRag,
+        rag_start_time_sec: float | None,
+        metrics: Any | None,
+    ) -> RAGResponse:
+        """Orchestrate one agentic RAG request.
+
+        Pre-processing steps (query rewriting, collection validation) match
+        ``_rag_chain`` so both pipelines behave consistently.  All retrieval
+        parameters are forwarded per-request via the ``_agentic_search_params``
+        ContextVar so the cached agent can serve concurrent requests safely.
+        """
+        from nvidia_rag.rag_server.agentic_rag.builder import AgenticSearchParams
+        from nvidia_rag.rag_server.agentic_rag.runner import run_agentic_pipeline
+
+        cfg = self.config.agentic_rag
+
+        # --- Collection validation -------------------------------------------
+        if not collection_names:
+            raise APIError(
+                "Collection names are not provided.", ErrorCodeMapping.BAD_REQUEST
+            )
+        self._validate_collections_exist(collection_names, vdb_op)
+
+        # --- Extract text query for the agent --------------------------------
+        retriever_query, _ = self._build_retriever_query_from_content(query)
+
+        # --- Query rewriting (mirrors _rag_chain logic) ----------------------
+        conversation_history_count = int(os.environ.get("CONVERSATION_HISTORY", 0))
+        if conversation_history_count == 0:
+            chat_history_for_rewrite = []
+            if enable_query_rewriting:
+                logger.warning(
+                    "Query rewriting enabled but CONVERSATION_HISTORY=0; "
+                    "skipping query rewriting for agentic pipeline."
+                )
+        else:
+            history_count = conversation_history_count * 2 * -1
+            chat_history_for_rewrite = chat_history[history_count:]
+
+        if chat_history_for_rewrite and enable_query_rewriting:
+            logger.info("=" * 60)
+            logger.info("AGENTIC STAGE: Query Rewriting")
+            logger.info("=" * 60)
+            if self.query_rewriter_llm is None:
+                raise APIError(
+                    "Query rewriting is enabled but the query rewriter NIM is unavailable. "
+                    f"Please verify the service is running at {self.config.query_rewriter.server_url}.",
+                    ErrorCodeMapping.SERVICE_UNAVAILABLE,
+                )
+
+            contextualize_q_system_prompt = (
+                "Given a chat history and the latest user question "
+                "which might reference context in the chat history, "
+                "formulate a standalone question which can be understood "
+                "without the chat history. Do NOT answer the question, "
+                "just reformulate it if needed and otherwise return it as is."
+            )
+            query_rewriter_prompt_config = self.prompts.get("query_rewriter_prompt", {})
+            system_prompt = query_rewriter_prompt_config.get(
+                "system", contextualize_q_system_prompt
+            )
+            human_prompt = query_rewriter_prompt_config.get("human", "{input}")
+
+            formatted_history = "\n".join(
+                f"{msg.get('role', 'user').capitalize()}: "
+                f"{self._extract_text_from_content(msg.get('content'))}"
+                for msg in chat_history_for_rewrite
+                if msg.get("role") in ("user", "assistant")
+            )
+
+            contextualize_q_prompt = ChatPromptTemplate.from_messages(
+                [("system", system_prompt), ("human", human_prompt)]
+            )
+            q_prompt = (
+                contextualize_q_prompt
+                | self.query_rewriter_llm
+                | self.StreamingFilterThinkParser
+                | StrOutputParser()
+            )
+
+            try:
+                with traced_span("agentic_rag.Query Rewriting.token_usage"):
+                    retriever_query = await q_prompt.ainvoke(
+                        {"input": retriever_query, "chat_history": formatted_history},
+                        config={"run_name": "agentic-query-rewriter"},
+                    )
+            except (ConnectionError, OSError, Exception) as e:
+                if isinstance(e, APIError):
+                    raise
+                query_rewriter_url = self.config.query_rewriter.server_url
+                endpoint_msg = f" at {query_rewriter_url}" if query_rewriter_url else ""
+                raise APIError(
+                    f"Query rewriter LLM NIM unavailable{endpoint_msg}. "
+                    "Please verify the service is running and accessible or disable query rewriting.",
+                    ErrorCodeMapping.SERVICE_UNAVAILABLE,
+                ) from e
+
+            logger.info("Agentic query rewriting: '%s' → '%s'", query, retriever_query)
+
+        # --- Build per-request search params ---------------------------------
+        search_params = AgenticSearchParams(
+            collection_names=collection_names,
+            vdb_top_k=vdb_top_k,
+            vdb_endpoint=vdb_endpoint,
+            vdb_auth_token=vdb_auth_token,
+            reranker_top_k=reranker_top_k,
+            reranker_model=reranker_model,
+            reranker_endpoint=reranker_endpoint,
+            enable_reranker=enable_reranker,
+            embedding_model=embedding_model,
+            embedding_endpoint=embedding_endpoint,
+            enable_query_rewriting=False,  # already done above
+            enable_filter_generator=enable_filter_generator,
+            filter_expr=filter_expr,
+            confidence_threshold=confidence_threshold,
+            enable_citations=enable_citations,
+        )
+
+        # --- Ensure agent is built -------------------------------------------
+        agent, graph = await self._ensure_agentic_agent()
+
+        logger.info("=" * 60)
+        logger.info("PIPELINE MODE: Agentic RAG (LangGraph plan-and-execute)")
+        logger.info("=" * 60)
+        logger.info("  - query: '%s'", retriever_query[:200])
+        logger.info("  - collections: %s", collection_names)
+        logger.info("  - enable_reranker: %s, reranker_top_k: %s", enable_reranker, reranker_top_k)
+
+        return await run_agentic_pipeline(
+            agent=agent,
+            graph=graph,
+            query=retriever_query,
+            cfg=cfg,
+            search_params=search_params,
+            enable_citations=enable_citations,
+            use_nrl_citations=self._is_nrl_mode,
+            model=model,
+            collection_names=collection_names,
+            rag_start_time_sec=rag_start_time_sec,
+            metrics=metrics,
+        )
 
     async def _rag_chain(
         self,

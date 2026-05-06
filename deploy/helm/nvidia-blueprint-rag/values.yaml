@@ -53,6 +53,10 @@ apiKeysSecret:
   vlmApiKey: ""
   summaryLlmApiKey: ""
   reflectionLlmApiKey: ""
+  agenticPlannerLlmApiKey: ""
+  agenticTaskLlmApiKey: ""
+  agenticSeedGenLlmApiKey: ""
+  agenticSynthesisLlmApiKey: ""
 
 # -- RAG server container image
 image:
@@ -167,7 +171,7 @@ envVars:
   APP_LLM_SERVERURL: "nim-llm:8000"
   # LLM model parameters
   # For Nemotron 3 Super on RTX 6000 Pro: uncomment and set to 16256 (reasoning) or 1024 (non-reasoning); comment LLM_MAX_TOKENS above
-  LLM_MAX_TOKENS: "131072" # "16256" for RTX 6000 Pro
+  LLM_MAX_TOKENS: "128000" # "16256" for RTX 6000 Pro
   LLM_TEMPERATURE: "0"
   LLM_TOP_P: "1.0"
 
@@ -275,6 +279,39 @@ envVars:
   ENABLE_QUERY_DECOMPOSITION: "false"
   # maximum recursion depth for iterative query decomposition
   MAX_RECURSION_DEPTH: "3"
+
+  # === Agentic RAG (LangGraph plan-and-execute pipeline) ===
+  # Enable agentic RAG pipeline for knowledge-base queries
+  ENABLE_AGENTIC_RAG: "false"
+
+  ##===Agentic Planner LLM configurations===
+  # URL on which agentic planner LLM is hosted. If "", Nvidia hosted API is used
+  AGENTIC_PLANNER_LLM_SERVERURL: "nim-llm:8000"
+  AGENTIC_PLANNER_LLM_MODEL: "nvidia/nemotron-3-super-120b-a12b"
+
+  ##===Agentic Task LLM configurations===
+  # URL on which agentic task LLM is hosted. If "", Nvidia hosted API is used
+  AGENTIC_TASK_LLM_SERVERURL: "nim-llm:8000"
+  AGENTIC_TASK_LLM_MODEL: "nvidia/nemotron-3-super-120b-a12b"
+
+  ##===Agentic Seed Gen LLM configurations===
+  # URL on which agentic seed-gen LLM is hosted. If "", Nvidia hosted API is used
+  AGENTIC_SEED_GEN_LLM_SERVERURL: "nim-llm:8000"
+  AGENTIC_SEED_GEN_LLM_MODEL: "nvidia/nemotron-3-super-120b-a12b"
+
+  ##===Agentic Synthesis LLM configurations===
+  # URL on which agentic synthesis LLM is hosted. If "", Nvidia hosted API is used
+  AGENTIC_SYNTHESIS_LLM_SERVERURL: "nim-llm:8000"
+  AGENTIC_SYNTHESIS_LLM_MODEL: "nvidia/nemotron-3-super-120b-a12b"
+
+  # Agent behaviour tuning
+  AGENTIC_LOG_LEVEL: "INFO"
+
+  # Verification pass (disabled by default)
+  AGENTIC_VERIFICATION_ENABLED: "false"
+
+  # Context window budget for retrieved chunks
+  AGENTIC_CONTEXT_MAX_TOKENS: "100000"
 
 # -- Ingestor Server
 # subsection: ingestor-server
