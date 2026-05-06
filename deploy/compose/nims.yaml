@@ -14,8 +14,8 @@ services:
     environment:
       NGC_API_KEY: ${NGC_API_KEY}
       NIM_ENABLE_CHUNKED_PREFILL: "1"
-      NIM_KV_CACHE_DTYPE: "fp8"
-      VLLM_ALLOW_LONG_MAX_MODEL_LEN: "1"
+      NCCL_NVLS_ENABLE: "0"
+      VLLM_USE_FLASHINFER_MOE_FP8: "0"
     ulimits:
       nofile:
         soft: 65536
