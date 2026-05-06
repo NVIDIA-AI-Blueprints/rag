@@ -294,6 +294,14 @@ class Message(BaseModel):
         "or an array of content objects for multimodal messages containing text and/or images.",
         default="Hello! What can you help me with?",
     )
+    reasoning_content: str | None = Field(
+        default=None,
+        description="Reasoning trace or intermediate output from the agentic RAG pipeline. "
+        "Populated for streamed chunks whose ``event_type`` indicates a reasoning/intermediate "
+        "event (stage announcements, intermediate-stage reasoning or output tokens, "
+        "final-stage reasoning tokens). The user-facing answer is always streamed via "
+        "``content`` — this field is purely supplementary.",
+    )
 
     @validator("role")
     @classmethod
@@ -381,6 +389,22 @@ class ChainResponse(BaseModel):
     metrics: Metrics | None | None = Field(
         default=Metrics(),
         description="Latency metrics associated with the request",
+    )
+    event_type: str | None = Field(
+        default=None,
+        description="Type of streaming chunk. None for non-streaming and for the regular "
+        "(non-agentic) path's content chunks. Set for agentic-RAG streaming chunks; see "
+        "``nvidia_rag.rag_server.agentic_rag.streaming.EventType`` for the enumerated values "
+        "(e.g. ``stage_start``, ``stage_end``, ``intermediate_reasoning``, "
+        "``intermediate_output``, ``final_reasoning``, ``final_answer``, "
+        "``agent_event``, ``error``).",
+    )
+    stage: str | None = Field(
+        default=None,
+        description="Name of the agentic-RAG graph node that produced this chunk "
+        "(e.g. ``initial_retrieval``, ``plan``, ``execute``, ``synthesize``, ``verify``, "
+        "``verify_execute``). Pairs with ``event_type`` so clients can group reasoning "
+        "by pipeline stage without parsing event_type. None for non-agentic responses.",
     )
 
 
