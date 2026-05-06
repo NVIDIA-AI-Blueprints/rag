@@ -246,6 +246,11 @@ class TestValidateTemperature:
         result = validate_temperature("0.7")
         assert result == 0.7
 
+    def test_validate_temperature_none(self):
+        """Test validating temperature with None"""
+        result = validate_temperature(None)
+        assert result is None
+
     def test_validate_temperature_invalid(self):
         """Test validating temperature with invalid value"""
         with pytest.raises(ValueError, match="temperature must be a valid number"):
@@ -259,6 +264,11 @@ class TestValidateTopP:
         """Test validating top_p with valid value"""
         result = validate_top_p("0.9")
         assert result == 0.9
+
+    def test_validate_top_p_none(self):
+        """Test validating top_p with None"""
+        result = validate_top_p(None)
+        assert result is None
 
     def test_validate_top_p_invalid(self):
         """Test validating top_p with invalid value"""

@@ -191,6 +191,14 @@ def _is_nvidia_endpoint(url: str | None) -> bool:
     return True
 
 
+def _supports_nvidia_generation_params(model: str | None) -> bool:
+    """Detect models that should receive NVIDIA-specific generation parameters."""
+    if not model:
+        return False
+    model_lower = model.lower()
+    return "nvidia" in model_lower or "nemotron" in model_lower
+
+
 def _is_nemotron_3(model: str | None) -> bool:
     """Detect Nemotron 3 model variants by checking for 'nemotron-3' in the model name."""
     if not model:
@@ -359,10 +367,12 @@ def get_llm(config: NvidiaRAGConfig | None = None, **kwargs) -> LLM | SimpleChat
                         "openai_api_base": f"{guardrails_url}/v1/guardrail",
                         "openai_api_key": "dummy-value",
                         "default_headers": default_headers,
-                        "temperature": kwargs.get("temperature", None),
-                        "top_p": kwargs.get("top_p", None),
                         "max_tokens": kwargs.get("max_tokens", None),
                     }
+                    if kwargs.get("temperature") is not None:
+                        openai_kwargs["temperature"] = kwargs["temperature"]
+                    if kwargs.get("top_p") is not None:
+                        openai_kwargs["top_p"] = kwargs["top_p"]
                     if kwargs.get("stop"):
                         openai_kwargs["stop"] = kwargs["stop"]
                     return ChatOpenAI(**openai_kwargs)
@@ -382,6 +392,9 @@ def get_llm(config: NvidiaRAGConfig | None = None, **kwargs) -> LLM | SimpleChat
             api_key = kwargs.get("api_key") or config.llm.get_api_key()
             # Detect endpoint type using URL patterns only
             is_nvidia = _is_nvidia_endpoint(url)
+            supports_nvidia_generation_params = (
+                is_nvidia and _supports_nvidia_generation_params(kwargs.get("model"))
+            )
 
             # Build kwargs dict, only including parameters that are set
             # For non-NVIDIA endpoints, exclude NVIDIA-specific parameters
@@ -401,7 +414,7 @@ def get_llm(config: NvidiaRAGConfig | None = None, **kwargs) -> LLM | SimpleChat
             if kwargs.get("max_tokens") is not None:
                 chat_nvidia_kwargs["max_completion_tokens"] = kwargs["max_tokens"]
             # Only include NVIDIA-specific parameters for NVIDIA endpoints
-            if is_nvidia:
+            if supports_nvidia_generation_params:
                 model_kwargs = {}
                 if kwargs.get("min_tokens") is not None:
                     model_kwargs["min_tokens"] = kwargs["min_tokens"]
@@ -420,21 +433,27 @@ def get_llm(config: NvidiaRAGConfig | None = None, **kwargs) -> LLM | SimpleChat
         api_key = kwargs.get("api_key") or config.llm.get_api_key()
 
         model_kwargs = {}
-        if kwargs.get("min_tokens") is not None:
-            model_kwargs["min_tokens"] = kwargs["min_tokens"]
-        if kwargs.get("ignore_eos") is not None:
-            model_kwargs["ignore_eos"] = kwargs["ignore_eos"]
+        supports_nvidia_generation_params = _supports_nvidia_generation_params(
+            kwargs.get("model")
+        )
+        if supports_nvidia_generation_params:
+            if kwargs.get("min_tokens") is not None:
+                model_kwargs["min_tokens"] = kwargs["min_tokens"]
+            if kwargs.get("ignore_eos") is not None:
+                model_kwargs["ignore_eos"] = kwargs["ignore_eos"]
 
         # Do not pass stop=[] - some Nemotron 3 APIs reject empty stop arrays
         chat_nvidia_kwargs = {
             "model": kwargs.get("model"),
             "api_key": api_key,
-            "temperature": kwargs.get("temperature", None),
-            "top_p": kwargs.get("top_p", None),
             "max_completion_tokens": kwargs.get("max_tokens", None),
             "default_headers": NVIDIA_API_DEFAULT_HEADERS,
             **({"model_kwargs": model_kwargs} if model_kwargs else {}),
         }
+        if kwargs.get("temperature") is not None:
+            chat_nvidia_kwargs["temperature"] = kwargs["temperature"]
+        if kwargs.get("top_p") is not None:
+            chat_nvidia_kwargs["top_p"] = kwargs["top_p"]
         if kwargs.get("stop"):
             chat_nvidia_kwargs["stop"] = kwargs["stop"]
         llm = ChatNVIDIA(**chat_nvidia_kwargs)
@@ -468,7 +487,7 @@ def extract_reasoning_and_content(chunk) -> tuple[str, str]:
     
     Returns:
         tuple: (reasoning_text, content_text) - either may be empty string
-        
+
     Example:
         >>> for chunk in llm.stream([HumanMessage(content="question")]):
         >>>     reasoning, content = extract_reasoning_and_content(chunk)
@@ -930,4 +949,3 @@ def get_streaming_filter_think_parser_async(enable_thinking: bool = False):
     else:
         logger.info("Think token filtering is disabled (async), enable_thinking=%s", enable_thinking)
         return RunnableGenerator(partial(_content_fallback_async, enable_thinking=enable_thinking))
-        

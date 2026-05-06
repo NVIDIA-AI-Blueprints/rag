@@ -128,8 +128,8 @@ class TestLLMConfig:
         assert config.model_engine == "nvidia-ai-endpoints"
         assert isinstance(config.parameters, ModelParametersConfig)
         assert config.parameters.max_tokens == 32768
-        assert config.parameters.temperature == 0
-        assert config.parameters.top_p == 1.0
+        assert config.parameters.temperature is None
+        assert config.parameters.top_p is None
 
     def test_get_model_parameters_default(self):
         """Test get_model_parameters with default model (nemotron pattern)."""
@@ -145,8 +145,8 @@ class TestLLMConfig:
             "low_effort": False,
             "min_thinking_tokens": 0,
             "max_thinking_tokens": 0,
-            "temperature": 0.0,
-            "top_p": 1.0,
+            "temperature": None,
+            "top_p": None,
         }
         assert params == expected
 
@@ -164,8 +164,8 @@ class TestLLMConfig:
             "low_effort": False,
             "min_thinking_tokens": 0,
             "max_thinking_tokens": 0,
-            "temperature": 0.0,
-            "top_p": 1.0,
+            "temperature": None,
+            "top_p": None,
         }
         assert params == expected
 
@@ -768,6 +768,13 @@ class TestModelParametersConfigValidation:
         """Test that zero temperature is allowed."""
         config = ModelParametersConfig(temperature=0.0)
         assert config.temperature == 0.0
+
+    @patch.dict(os.environ, {"LLM_TEMPERATURE": "", "LLM_TOP_P": ""}, clear=True)
+    def test_empty_temperature_and_top_p_env_values_use_none(self):
+        """Test that blank deployment env values preserve provider defaults."""
+        config = ModelParametersConfig()
+        assert config.temperature is None
+        assert config.top_p is None
 
     def test_validate_top_p_out_of_range_raises_error(self):
         """Test that top_p outside [0, 1] raises ValueError."""

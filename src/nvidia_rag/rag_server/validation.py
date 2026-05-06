@@ -112,13 +112,17 @@ def validate_use_knowledge_base(value: Any) -> bool:
     return sanitize_boolean(value, "use_knowledge_base")
 
 
-def validate_temperature(value: Any) -> float:
+def validate_temperature(value: Any) -> float | None:
     """Direct validator for temperature field."""
+    if value is None:
+        return None
     return sanitize_float(value, "temperature")
 
 
-def validate_top_p(value: Any) -> float:
+def validate_top_p(value: Any) -> float | None:
     """Direct validator for top_p field."""
+    if value is None:
+        return None
     return sanitize_float(value, "top_p")
 
 

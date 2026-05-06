@@ -244,7 +244,6 @@ class TestGetLLM:
                 temperature=0.7,
                 top_p=0.9,
                 max_completion_tokens=1024,
-                model_kwargs={"min_tokens": 1024, "ignore_eos": True},
             )
 
     @patch("nvidia_rag.utils.llm.sanitize_nim_url")
@@ -268,8 +267,6 @@ class TestGetLLM:
             mock_chatnvidia.assert_called_once_with(
                 model="test-model",
                 api_key="test-api-key",
-                temperature=None,
-                top_p=None,
                 max_completion_tokens=None,
                 default_headers={"source": "rag-blueprint"},
             )
@@ -321,7 +318,6 @@ class TestGetLLM:
                     openai_api_key="dummy-value",
                     default_headers={"source": "rag-blueprint", "X-Model-Authorization": "test-api-key"},
                     temperature=0.7,
-                    top_p=None,
                     max_tokens=None,
                 )
 
@@ -409,15 +405,11 @@ class TestGetLLM:
             with patch("nvidia_rag.utils.llm.ChatNVIDIA") as mock_chatnvidia:
                 get_llm(**kwargs)
 
-                # When min_tokens is None and ignore_eos is False, model_kwargs is still added with ignore_eos
                 mock_chatnvidia.assert_called_once_with(
                     model="test-model",
                     api_key="test-api-key",
-                    temperature=None,
-                    top_p=None,
                     max_completion_tokens=None,
                     default_headers={"source": "rag-blueprint"},
-                    model_kwargs={"ignore_eos": False},
                 )
 
 
@@ -684,7 +676,6 @@ class TestLLMIntegration:
                     temperature=0.7,
                     top_p=0.9,
                     max_completion_tokens=2048,
-                    model_kwargs={"min_tokens": 2048, "ignore_eos": True},
                 )
 
     @patch("nvidia_rag.utils.llm.sanitize_nim_url")
@@ -759,6 +750,33 @@ class TestLLMIntegration:
             # NVIDIA-specific params are now passed via model_kwargs
             assert call_kwargs["model_kwargs"]["min_tokens"] == 100
             assert call_kwargs["model_kwargs"]["ignore_eos"] is True
+
+    @patch("nvidia_rag.utils.llm.sanitize_nim_url")
+    @patch("nvidia_rag.utils.llm.ChatNVIDIA")
+    @patch.dict(os.environ, {}, clear=True)
+    def test_get_llm_nvidia_endpoint_non_nvidia_model_excludes_nvidia_params(
+        self, mock_chatnvidia, mock_sanitize
+    ):
+        """Test NVIDIA endpoints do not send NIM params for non-NVIDIA model names."""
+        mock_sanitize.return_value = "https://integrate.api.nvidia.com/v1"
+
+        with patch("nvidia_rag.utils.llm.NvidiaRAGConfig") as mock_config_class:
+            mock_config = Mock()
+            mock_config.llm.model_engine = "nvidia-ai-endpoints"
+            mock_config.llm.get_api_key.return_value = "test-api-key"
+            mock_config.enable_guardrails = False
+            mock_config_class.return_value = mock_config
+
+            get_llm(
+                model="meta/llama-3.1-8b-instruct",
+                llm_endpoint="https://integrate.api.nvidia.com/v1",
+                min_tokens=100,
+                ignore_eos=True,
+            )
+
+            call_kwargs = mock_chatnvidia.call_args[1]
+            assert call_kwargs["base_url"] == "https://integrate.api.nvidia.com/v1"
+            assert "model_kwargs" not in call_kwargs
 
     @patch("nvidia_rag.utils.llm.sanitize_nim_url")
     @patch("nvidia_rag.utils.llm.ChatNVIDIA")
