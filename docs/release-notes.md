@@ -14,12 +14,10 @@ This release adds opt-in support for [`nvidia/nemotron-3-nano-omni-30b-a3b-reaso
 
 ### Highlights
 
-- **New opt-in VLM:** `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning` is available as the Vision-Language Model for generation and ingestion captioning. Image: `nvcr.io/nim/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:1.7.0-variant`. Enable by setting `ENABLE_VLM_INFERENCE=True` (default: `False`).
 - **Reasoning streaming:** New `enable_thinking` and `thinking_token_budget` config (mapped to `APP_VLM_ENABLE_THINKING`, `APP_VLM_THINKING_TOKEN_BUDGET`). When enabled, chain-of-thought tokens stream via `additional_kwargs["reasoning"]` and the final answer streams via `content`. Use `VLM_FILTER_THINK_TOKENS=false` to forward both to the client.
 - **VLM generation tuning defaults:** `APP_VLM_MAX_TOKENS=32768`, `APP_VLM_TEMPERATURE=0.6`, `APP_VLM_TOP_P=0.95`. `VLM_TO_LLM_FALLBACK` remains `False`.
 - **Image extraction stays opt-in:** `APP_NVINGEST_EXTRACTIMAGES` default remains `False`. Enable when running the VLM caption pipeline.
 - **Increased shared memory for VLM container:** `vlm-ms.shm_size` raised from 16GB to 32GB to accommodate the new VLM.
-- **Default embedder unchanged:** The default embedding model remains `nvidia/llama-nemotron-embed-1b-v2` (text-only) for backward compatibility with 2.5.0 collections. The VLM embedder `nvidia/llama-nemotron-embed-vl-1b-v2` is opt-in via the `vlm-embed` / `vlm-ingest` compose profiles or by enabling the corresponding helm sub-chart.
 
 ### Known Issues
 

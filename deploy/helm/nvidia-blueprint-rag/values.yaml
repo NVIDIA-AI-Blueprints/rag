@@ -869,7 +869,7 @@ nimOperator:
   # subsection: nim-vlm
   # NIM Vision-Language (VLM)
   nim-vlm:
-    enabled: true  # Default for VLM generation as of 2.5.1
+    enabled: false
     replicas: 1
     service:
       name: "nim-vlm"
