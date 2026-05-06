@@ -59,7 +59,7 @@ services:
       timeout: 20s
       retries: 3
       start_period: 10m
-    profiles: ["text-embed"]
+    profiles: ["", "rag", "ingest", "text-embed", "vlm-generation"]
 
   nemotron-vlm-embedding-ms:
     container_name: nemotron-vlm-embedding-ms
@@ -89,7 +89,7 @@ services:
       timeout: 20s
       retries: 3
       start_period: 10m
-    profiles: ["", "rag", "ingest", "vlm-embed", "vlm-ingest", "vlm-generation"]
+    profiles: ["vlm-embed", "vlm-ingest"]
 
   nemotron-ranking-ms:
     container_name: nemotron-ranking-ms
