@@ -517,27 +517,37 @@ class ModelParametersConfig(_ConfigBase):
         env="LLM_IGNORE_EOS",
         description="Ignore end-of-sequence token during generation",
     )
-    temperature: float = Field(
-        default=0.0,
+    temperature: float | None = Field(
+        default=None,
         env="LLM_TEMPERATURE",
-        description="Sampling temperature for controlling randomness (0.0 = deterministic)",
+        description="Sampling temperature for controlling randomness. If unset, the model/provider default is used.",
     )
-    top_p: float = Field(
-        default=1.0,
+    top_p: float | None = Field(
+        default=None,
         env="LLM_TOP_P",
-        description="Nucleus sampling threshold for token selection",
+        description="Nucleus sampling threshold for token selection. If unset, the model/provider default is used.",
     )
 
-    @field_validator("temperature")
+    @field_validator("temperature", mode="before")
     @classmethod
-    def validate_temperature(cls, v: float) -> float:
+    def validate_temperature(cls, v: Any) -> float | None:
+        if isinstance(v, str) and not v.strip():
+            return None
+        if v is None:
+            return v
+        v = float(v)
         if v < 0.0:
             raise ValueError("Temperature must be non-negative")
         return v
 
-    @field_validator("top_p")
+    @field_validator("top_p", mode="before")
     @classmethod
-    def validate_top_p(cls, v: float) -> float:
+    def validate_top_p(cls, v: Any) -> float | None:
+        if isinstance(v, str) and not v.strip():
+            return None
+        if v is None:
+            return v
+        v = float(v)
         if not (0.0 <= v <= 1.0):
             raise ValueError("top_p must be between 0.0 and 1.0")
         return v

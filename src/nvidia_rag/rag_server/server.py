@@ -385,20 +385,22 @@ class Prompt(BaseModel):
     use_knowledge_base: bool = Field(
         default=True, description="Whether to use a knowledge base"
     )
-    temperature: float = Field(
+    temperature: float | None = Field(
         default_temperature,
         description="The sampling temperature to use for text generation. "
         "The higher the temperature value is, the less deterministic the output text will be. "
+        "If unset, the model/provider default is used. "
         "It is not recommended to modify both temperature and top_p in the same call.",
         ge=0.0,
         le=1.0,
     )
-    top_p: float = Field(
+    top_p: float | None = Field(
         default_top_p,
         description="The top-p sampling mass used for text generation. "
         "The top-p value determines the probability mass that is sampled at sampling time. "
         "For example, if top_p = 0.2, only the most likely tokens "
-        "(summing to 0.2 cumulative probability) will be sampled. "
+        "(summing to 0.2 cumulative probability) will be sampled. If unset, "
+        "the model/provider default is used. "
         "It is not recommended to modify both temperature and top_p in the same call.",
         ge=0.1,
         le=1.0,
@@ -818,10 +820,10 @@ class SummaryResponse(BaseModel):
 class RagConfigurationDefaults(BaseModel):
     """Default values for RAG configuration parameters."""
 
-    temperature: float = Field(
+    temperature: float | None = Field(
         description="Default sampling temperature for generation"
     )
-    top_p: float = Field(description="Default top-p sampling mass")
+    top_p: float | None = Field(description="Default top-p sampling mass")
     max_tokens: int = Field(description="Default maximum tokens to generate")
     vdb_top_k: int = Field(
         description="Default number of documents to retrieve from vector DB"

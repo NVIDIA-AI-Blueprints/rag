@@ -558,7 +558,7 @@ async def _process_single_file_summary(
                 prompts=prompts,
             )
 
-            await _store_summary_in_object_store(summary_doc)
+            await _store_summary_in_object_store(summary_doc, config=config)
 
             SUMMARY_STATUS_HANDLER.update_progress(
                 collection_name=collection_name,
@@ -1073,7 +1073,7 @@ async def _update_file_progress(
     )
 
 
-async def _store_summary_in_object_store(document: Document):
+async def _store_summary_in_object_store(document: Document, config: NvidiaRAGConfig | None = None):
     """Store document summary in object storage."""
     summary = document.metadata["summary"]
     file_name = document.metadata["filename"]
@@ -1086,7 +1086,7 @@ async def _store_summary_in_object_store(document: Document):
         location=[],
     )
 
-    get_object_store_operator_instance().put_payload(
+    get_object_store_operator_instance(config).put_payload(
         payload={
             "summary": summary,
             "file_name": file_name,
