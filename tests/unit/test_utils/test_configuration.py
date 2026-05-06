@@ -776,6 +776,13 @@ class TestModelParametersConfigValidation:
         assert config.temperature is None
         assert config.top_p is None
 
+    @patch.dict(os.environ, {"LLM_TEMPERATURE": "0.5", "LLM_TOP_P": "0.9"}, clear=True)
+    def test_temperature_and_top_p_env_values_override_none_defaults(self):
+        """Test that temperature and top_p env values can be explicitly set."""
+        config = ModelParametersConfig()
+        assert config.temperature == 0.5
+        assert config.top_p == 0.9
+
     def test_validate_top_p_out_of_range_raises_error(self):
         """Test that top_p outside [0, 1] raises ValueError."""
         with pytest.raises(ValidationError) as exc_info:

@@ -481,8 +481,8 @@ services:
 
       # LLM model parameters
       LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-32768}
-      LLM_TEMPERATURE: ${LLM_TEMPERATURE:-}
-      LLM_TOP_P: ${LLM_TOP_P:-}
+      LLM_TEMPERATURE: ${LLM_TEMPERATURE:-0}
+      LLM_TOP_P: ${LLM_TOP_P:-1.0}
 
       ##===Query Rewriter Model specific configurations===
       APP_QUERYREWRITER_MODELNAME: ${APP_QUERYREWRITER_MODELNAME:-"nvidia/nemotron-3-super-120b-a12b"}

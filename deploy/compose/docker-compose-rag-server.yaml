@@ -79,8 +79,8 @@ services:
       APP_LLM_SERVERURL: ${APP_LLM_SERVERURL-"nim-llm:8000"}
       # LLM model parameters
       LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-16256}
-      LLM_TEMPERATURE: ${LLM_TEMPERATURE:-}
-      LLM_TOP_P: ${LLM_TOP_P:-}
+      LLM_TEMPERATURE: ${LLM_TEMPERATURE:-0}
+      LLM_TOP_P: ${LLM_TOP_P:-1.0}
 
       # Reasoning configuration (enabled by default for Nemotron 3 Super)
       LLM_ENABLE_THINKING: ${LLM_ENABLE_THINKING:-true}

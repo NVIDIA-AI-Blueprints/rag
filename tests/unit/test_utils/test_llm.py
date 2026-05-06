@@ -241,8 +241,6 @@ class TestGetLLM:
                 model="test-model",
                 api_key="test-api-key",
                 default_headers={"source": "rag-blueprint"},
-                temperature=0.7,
-                top_p=0.9,
                 max_completion_tokens=1024,
             )
 
@@ -317,7 +315,6 @@ class TestGetLLM:
                     openai_api_base="http://guardrails-service:8080/v1/guardrail",
                     openai_api_key="dummy-value",
                     default_headers={"source": "rag-blueprint", "X-Model-Authorization": "test-api-key"},
-                    temperature=0.7,
                     max_tokens=None,
                 )
 
@@ -673,8 +670,6 @@ class TestLLMIntegration:
                     model="meta/llama-3.1-8b-instruct",
                     api_key="test-api-key",
                     default_headers={"source": "rag-blueprint"},
-                    temperature=0.7,
-                    top_p=0.9,
                     max_completion_tokens=2048,
                 )
 
@@ -710,8 +705,8 @@ class TestLLMIntegration:
 
             # Verify NVIDIA-specific parameters are NOT included
             call_kwargs = mock_chatnvidia.call_args[1]
-            assert call_kwargs["temperature"] == 0.7
-            assert call_kwargs["top_p"] == 0.9
+            assert "temperature" not in call_kwargs
+            assert "top_p" not in call_kwargs
             assert call_kwargs["max_completion_tokens"] == 1024
             assert "min_tokens" not in call_kwargs
             assert "ignore_eos" not in call_kwargs
@@ -739,6 +734,7 @@ class TestLLMIntegration:
                 "model": "nvidia/llama-3.3-nemotron-super-49b-v1.5",
                 "llm_endpoint": "http://localhost:8000",
                 "temperature": 0.7,
+                "top_p": 0.9,
                 "min_tokens": 100,
                 "ignore_eos": True,
             }
@@ -747,6 +743,7 @@ class TestLLMIntegration:
 
             call_kwargs = mock_chatnvidia.call_args[1]
             assert call_kwargs["temperature"] == 0.7
+            assert call_kwargs["top_p"] == 0.9
             # NVIDIA-specific params are now passed via model_kwargs
             assert call_kwargs["model_kwargs"]["min_tokens"] == 100
             assert call_kwargs["model_kwargs"]["ignore_eos"] is True
@@ -770,12 +767,16 @@ class TestLLMIntegration:
             get_llm(
                 model="meta/llama-3.1-8b-instruct",
                 llm_endpoint="https://integrate.api.nvidia.com/v1",
+                temperature=0.7,
+                top_p=0.9,
                 min_tokens=100,
                 ignore_eos=True,
             )
 
             call_kwargs = mock_chatnvidia.call_args[1]
             assert call_kwargs["base_url"] == "https://integrate.api.nvidia.com/v1"
+            assert "temperature" not in call_kwargs
+            assert "top_p" not in call_kwargs
             assert "model_kwargs" not in call_kwargs
 
     @patch("nvidia_rag.utils.llm.sanitize_nim_url")
@@ -795,6 +796,8 @@ class TestLLMIntegration:
             kwargs = {
                 "model": "nvidia/llama-3.3-nemotron-super-49b-v1.5",
                 "llm_endpoint": "",
+                "temperature": 0.7,
+                "top_p": 0.9,
                 "min_tokens": 100,
             }
 
@@ -802,6 +805,8 @@ class TestLLMIntegration:
 
             # Empty URL should default to NVIDIA (API catalog), so min_tokens should be in model_kwargs
             call_kwargs = mock_chatnvidia.call_args[1]
+            assert call_kwargs["temperature"] == 0.7
+            assert call_kwargs["top_p"] == 0.9
             assert call_kwargs["model_kwargs"]["min_tokens"] == 100
 
     def test_is_nvidia_endpoint(self):
@@ -875,6 +880,7 @@ class TestBindReasoningConfigNemotron3Nano:
             call.kwargs.get("chat_template_kwargs", {}).get("enable_thinking") is True
             for call in calls
         )
+        assert bound_llm is mock_llm
 
     def test_bind_reasoning_config_unsupported_model_returns_original(self):
         """Unsupported model returns original LLM without binding."""

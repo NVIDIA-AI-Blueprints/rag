@@ -14,16 +14,17 @@
 # limitations under the License.
 
 import pytest
+
 from nvidia_rag.rag_server.validation import (
+    normalize_model_info,
     sanitize_boolean,
     sanitize_float,
-    normalize_model_info,
-    validate_reranker_top_k,
-    validate_use_knowledge_base,
-    validate_temperature,
-    validate_top_p,
     validate_model_info,
     validate_reranker_k,
+    validate_reranker_top_k,
+    validate_temperature,
+    validate_top_p,
+    validate_use_knowledge_base,
     validate_vdb_top_k,
 )
 

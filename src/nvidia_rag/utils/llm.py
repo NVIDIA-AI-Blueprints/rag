@@ -34,10 +34,10 @@ from typing import Any
 import requests
 import yaml
 from langchain_core.callbacks import BaseCallbackHandler
-from langchain_core.language_models.llms import LLM
 from langchain_core.language_models.chat_models import SimpleChatModel
-from langchain_core.outputs import LLMResult
+from langchain_core.language_models.llms import LLM
 from langchain_core.messages import AIMessageChunk
+from langchain_core.outputs import LLMResult
 from langchain_nvidia_ai_endpoints import ChatNVIDIA
 
 from nvidia_rag.rag_server.response_generator import APIError, ErrorCodeMapping, Usage
@@ -369,9 +369,18 @@ def get_llm(config: NvidiaRAGConfig | None = None, **kwargs) -> LLM | SimpleChat
                         "default_headers": default_headers,
                         "max_tokens": kwargs.get("max_tokens", None),
                     }
-                    if kwargs.get("temperature") is not None:
+                    supports_nvidia_generation_params = (
+                        _supports_nvidia_generation_params(kwargs.get("model"))
+                    )
+                    if (
+                        supports_nvidia_generation_params
+                        and kwargs.get("temperature") is not None
+                    ):
                         openai_kwargs["temperature"] = kwargs["temperature"]
-                    if kwargs.get("top_p") is not None:
+                    if (
+                        supports_nvidia_generation_params
+                        and kwargs.get("top_p") is not None
+                    ):
                         openai_kwargs["top_p"] = kwargs["top_p"]
                     if kwargs.get("stop"):
                         openai_kwargs["stop"] = kwargs["stop"]
@@ -407,9 +416,12 @@ def get_llm(config: NvidiaRAGConfig | None = None, **kwargs) -> LLM | SimpleChat
             }
             if kwargs.get("stop"):
                 chat_nvidia_kwargs["stop"] = kwargs["stop"]
-            if kwargs.get("temperature") is not None:
+            if (
+                supports_nvidia_generation_params
+                and kwargs.get("temperature") is not None
+            ):
                 chat_nvidia_kwargs["temperature"] = kwargs["temperature"]
-            if kwargs.get("top_p") is not None:
+            if supports_nvidia_generation_params and kwargs.get("top_p") is not None:
                 chat_nvidia_kwargs["top_p"] = kwargs["top_p"]
             if kwargs.get("max_tokens") is not None:
                 chat_nvidia_kwargs["max_completion_tokens"] = kwargs["max_tokens"]
@@ -450,9 +462,12 @@ def get_llm(config: NvidiaRAGConfig | None = None, **kwargs) -> LLM | SimpleChat
             "default_headers": NVIDIA_API_DEFAULT_HEADERS,
             **({"model_kwargs": model_kwargs} if model_kwargs else {}),
         }
-        if kwargs.get("temperature") is not None:
+        if (
+            supports_nvidia_generation_params
+            and kwargs.get("temperature") is not None
+        ):
             chat_nvidia_kwargs["temperature"] = kwargs["temperature"]
-        if kwargs.get("top_p") is not None:
+        if supports_nvidia_generation_params and kwargs.get("top_p") is not None:
             chat_nvidia_kwargs["top_p"] = kwargs["top_p"]
         if kwargs.get("stop"):
             chat_nvidia_kwargs["stop"] = kwargs["stop"]
@@ -468,23 +483,23 @@ def get_llm(config: NvidiaRAGConfig | None = None, **kwargs) -> LLM | SimpleChat
 def extract_reasoning_and_content(chunk) -> tuple[str, str]:
     """
     Extract both reasoning and content from a response chunk.
-    
+
     Different models handle reasoning differently:
     - nvidia/nvidia-nemotron-nano-9b-v2: Uses <think> tags in content stream
     - nemotron-3-nano variants: Uses separate reasoning_content field
     - llama-3.3-nemotron-super-49b: Uses <think> tags in content stream (controlled by prompt)
-    
+
     This function is designed to be robust and compatible with future changes:
     - Checks both reasoning_content and content fields
     - Returns whichever field has tokens, regardless of model behavior
     - If both have content, returns both separately
-    
+
     This ensures that if the model server fixes the issue where reasoning is disabled
     but content still goes to reasoning_content, the code will still work correctly.
-    
+
     Args:
         chunk: A response chunk from ChatNVIDIA or similar LLM interface
-    
+
     Returns:
         tuple: (reasoning_text, content_text) - either may be empty string
 
@@ -498,18 +513,18 @@ def extract_reasoning_and_content(chunk) -> tuple[str, str]:
     """
     reasoning = ""
     content = ""
-    
+
     # Check for reasoning_content in additional_kwargs (nemotron-3-nano variants)
     # This field is populated by nemotron-3-nano models for reasoning output
     if hasattr(chunk, 'additional_kwargs') and 'reasoning_content' in chunk.additional_kwargs:
         reasoning = chunk.additional_kwargs.get('reasoning_content', '')
-    
+
     # Check for regular content
     # This field is populated by most models for regular output
     # For nemotron-nano-9b-v2 and llama-49b, this may include <think> tags
     if hasattr(chunk, 'content') and chunk.content:
         content = chunk.content
-    
+
     # Robust fallback: If reasoning field has content but content field is empty,
     # treat reasoning as content. This handles the case where enable_thinking=false
     # but the model still populates reasoning_content instead of content.
@@ -519,7 +534,7 @@ def extract_reasoning_and_content(chunk) -> tuple[str, str]:
         # (occurs when enable_thinking=false but model hasn't been updated)
         # Keep it in reasoning field but also check if it looks like a final answer
         pass  # Keep as-is, let the caller decide how to handle
-    
+
     return reasoning, content
 
 
@@ -938,6 +953,7 @@ def get_streaming_filter_think_parser_async(enable_thinking: bool = False):
         RunnableGenerator: An async parser for filtering or content normalization
     """
     from functools import partial
+
     from langchain_core.runnables import RunnableGenerator, RunnablePassthrough
 
     # Check environment variable
