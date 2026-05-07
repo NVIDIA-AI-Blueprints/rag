@@ -49,10 +49,10 @@ When VLM inference is enabled, the **VLM replaces the traditional LLM** in the R
 
 The VLM feature uses predefined prompts that can be customized in [`src/nvidia_rag/rag_server/prompt.yaml`](../src/nvidia_rag/rag_server/prompt.yaml) under the `vlm_template` section. The `vlm_template` controls how the question, textual context, and cited images are presented to the VLM.
 
-**VLM reasoning vs. non-reasoning mode**: The VLM supports two modes controlled via the `vlm_template`:
+**VLM reasoning vs. non-reasoning mode**: Nemotron Omni supports two modes controlled by the `APP_VLM_ENABLE_THINKING` environment variable:
 
-- **Non-reasoning mode (default)**: Template path ends with `/no_think`. Default parameters: `APP_VLM_TEMPERATURE=0.1`, `APP_VLM_TOP_P=1.0`, `APP_VLM_MAX_TOKENS=8192`.
-- **Reasoning mode (chain-of-thought)**: Change the route in `vlm_template` from `/no_think` to `/think`. Recommended: `APP_VLM_TEMPERATURE=0.3`, `APP_VLM_TOP_P=0.91`, `APP_VLM_MAX_TOKENS=8192`.
+- **Reasoning mode (default)**: `APP_VLM_ENABLE_THINKING=true`. The model produces a chain-of-thought trace before the final answer. Default parameters: `APP_VLM_TEMPERATURE=0.6`, `APP_VLM_TOP_P=0.95`, `APP_VLM_MAX_TOKENS=32768`, `APP_VLM_THINKING_TOKEN_BUDGET=16384`.
+- **Non-reasoning mode**: `APP_VLM_ENABLE_THINKING=false`. The model skips the reasoning trace and returns only the final answer.
 
 Set these parameters via environment variables in your deployment configuration (for example in `docker-compose-rag-server.yaml` or Helm `values.yaml`).
 

@@ -315,11 +315,13 @@ The default VLM for this blueprint is **Nemotron Omni** (`nvidia/nemotron-3-nano
      image: nvcr.io/nim/nvidia/nemotron-nano-12b-v2-vl:1.6.0
    ```
 
-2. Set the model name environment variables before starting services:
+2. Set the model name and disable Omni-specific reasoning knobs before starting services:
 
    ```bash
    export APP_VLM_MODELNAME="nvidia/nemotron-nano-12b-v2-vl"
    export APP_NVINGEST_CAPTIONMODELNAME="nvidia/nemotron-nano-12b-v2-vl"
+   export APP_VLM_ENABLE_THINKING=false
+   export APP_VLM_THINKING_TOKEN_BUDGET=0
    ```
 
 3. Restart the affected services:
@@ -343,6 +345,8 @@ The default VLM for this blueprint is **Nemotron Omni** (`nvidia/nemotron-3-nano
 
    envVars:
      APP_VLM_MODELNAME: "nvidia/nemotron-nano-12b-v2-vl"
+     APP_VLM_ENABLE_THINKING: "false"
+     APP_VLM_THINKING_TOKEN_BUDGET: "0"
 
    ingestor-server:
      envVars:
