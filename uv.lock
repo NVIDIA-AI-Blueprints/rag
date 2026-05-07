@@ -1723,7 +1723,7 @@ wheels = [
 
 [[package]]
 name = "nvidia-rag"
-version = "2.6.0.dev0"
+version = "2.6.0rc1"
 source = { virtual = "." }
 dependencies = [
     { name = "anyio" },
