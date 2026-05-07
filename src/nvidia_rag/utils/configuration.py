@@ -994,6 +994,16 @@ class VLMConfig(_ConfigBase):
             "Only applied when enable_thinking is True."
         ),
     )
+    filter_think_tokens: bool = Field(
+        default=True,
+        env="VLM_FILTER_THINK_TOKENS",
+        description=(
+            "When True (default) the rag-server forwards only the final answer "
+            "to the client; the VLM's reasoning trace is suppressed. When False, "
+            "reasoning is streamed first wrapped in [reasoning]...[/reasoning] "
+            "sentinels, followed by the answer."
+        ),
+    )
     api_key: SecretStr | None = Field(
         default=None,
         env="APP_VLM_APIKEY",

@@ -870,6 +870,10 @@ class VLM:
         max_total_images: int | None = None,
         organize_by_page: bool = False,
         nrl_mode: bool = False,
+        token_usage: dict[str, Any] | None = None,
+        enable_thinking: bool | None = None,
+        thinking_token_budget: int | None = None,
+        filter_think_tokens: bool | None = None,
         **_: Any,
     ) -> AsyncGenerator[str, None]:
         """
@@ -912,9 +916,25 @@ class VLM:
                     self.invoke_url,
                     api_key=self.config.vlm.get_api_key(),
                 )
+                # Resolve reasoning controls: per-request override > config default.
+                eff_enable_thinking = (
+                    enable_thinking
+                    if enable_thinking is not None
+                    else self.config.vlm.enable_thinking
+                )
+                eff_thinking_token_budget = (
+                    thinking_token_budget
+                    if thinking_token_budget is not None
+                    else self.config.vlm.thinking_token_budget
+                )
+                eff_filter_think_tokens = (
+                    filter_think_tokens
+                    if filter_think_tokens is not None
+                    else self.config.vlm.filter_think_tokens
+                )
                 extra_body = self._build_extra_body(
-                    self.config.vlm.enable_thinking,
-                    self.config.vlm.thinking_token_budget,
+                    eff_enable_thinking,
+                    eff_thinking_token_budget,
                 )
 
                 (
@@ -948,12 +968,10 @@ class VLM:
                     "VLM final streaming prompt (images redacted): %s", safe_prompt
                 )
 
-                filter_enabled = (
-                    os.getenv("VLM_FILTER_THINK_TOKENS", "true").lower() == "true"
-                )
+                filter_enabled = eff_filter_think_tokens
                 logger.info(
                     "VLM reasoning streaming: enable_thinking=%s filter=%s",
-                    self.config.vlm.enable_thinking,
+                    eff_enable_thinking,
                     filter_enabled,
                 )
 
@@ -964,12 +982,30 @@ class VLM:
                     top_p=eff_top_p,
                     max_tokens=eff_max_tokens,
                     stream=True,
+                    stream_options={"include_usage": True},
                     extra_body=extra_body,
                 )
 
                 chunk_count = 0
+                # When filter_enabled=False, wrap each reasoning span with
+                # [reasoning]...[/reasoning] sentinels so clients can structurally
+                # separate chain-of-thought from the final answer. Nemotron Omni
+                # emits reasoning in a separate delta field rather than inline
+                # tags, so without a wrapper the streamed text would have no
+                # boundary between deliberation and answer. Square-bracket markers
+                # are used (instead of HTML-style <reasoning>) because the rag
+                # server's response model sanitises Message.content via bleach,
+                # which strips angle-bracket tags.
+                in_reasoning = False
                 async for chunk in stream:
                     try:
+                        # OpenAI emits a final chunk with empty choices and a populated `usage`
+                        # field when stream_options.include_usage=True. Capture it once we see it.
+                        chunk_usage = getattr(chunk, "usage", None)
+                        if chunk_usage is not None and token_usage is not None:
+                            token_usage["prompt_tokens"] = getattr(chunk_usage, "prompt_tokens", 0) or 0
+                            token_usage["completion_tokens"] = getattr(chunk_usage, "completion_tokens", 0) or 0
+                            token_usage["total_tokens"] = getattr(chunk_usage, "total_tokens", 0) or 0
                         if not chunk.choices:
                             chunk_count += 1
                             continue
@@ -988,10 +1024,17 @@ class VLM:
                             if content:
                                 yield content
                         else:
-                            # Both reasoning trace and final answer reach the client
+                            # Both reasoning trace and final answer reach the client,
+                            # with reasoning wrapped in [reasoning]...[/reasoning].
                             if reasoning:
+                                if not in_reasoning:
+                                    yield "[reasoning]"
+                                    in_reasoning = True
                                 yield reasoning
                             if content:
+                                if in_reasoning:
+                                    yield "[/reasoning]"
+                                    in_reasoning = False
                                 yield content
                     except Exception as e:
                         logger.debug(
@@ -1002,6 +1045,13 @@ class VLM:
                             exc_info=True,
                         )
                     chunk_count += 1
+
+                # Close any unterminated reasoning span if the stream ended
+                # before any content delta arrived (e.g. token cap exhausted
+                # while the model was still deliberating).
+                if in_reasoning:
+                    yield "[/reasoning]"
+                    in_reasoning = False
 
                 logger.info("VLM streaming processed %d chunks", chunk_count)
             except Exception as e:
