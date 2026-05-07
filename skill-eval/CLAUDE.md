@@ -16,7 +16,7 @@ export JUDGE_ANTHROPIC_API_KEY="<sk-ant-...>"   # separate from agent auth
 
 cd /home/faaranm/dfw/ragbp/rag/skill-eval
 uvx harbor run \
-  -p datasets/deploy-rag/step-1 datasets/deploy-rag/step-2 \
+  -p datasets/nvidia-hosted/step-1 datasets/nvidia-hosted/step-2 \
   --environment-import-path envs.local_env:LocalEnvironment \
   --agent claude-code --model claude-sonnet-4-6 \
   -o jobs -n 1 --yes
@@ -33,9 +33,9 @@ derived from the spec filename (e.g. `nvidia_hosted.json` → `nvidia-hosted`)
 and used in task names + your chosen output directory:
 
 ```bash
-# Default eval (nvidia_hosted.json):
+# Default eval (nvidia_hosted.json → datasets/nvidia-hosted/):
 python3 adapters/rag-blueprint/generate.py \
-  --output-dir datasets/deploy-rag \
+  --output-dir datasets/nvidia-hosted \
   --skill-dir ../skill-source/.agents/skills/rag-blueprint
 
 # Add a new eval — drop a spec under skill-source/.../eval/ and:
@@ -43,6 +43,7 @@ python3 adapters/rag-blueprint/generate.py \
   --output-dir datasets/helm-deploy \
   --skill-dir ../skill-source/.agents/skills/rag-blueprint \
   --spec ../skill-source/.agents/skills/rag-blueprint/eval/helm_deploy.json
+
 ```
 
 This regenerates `instruction.md`, `task.toml`, `tests/test.sh`, copies the skill, and **strips `allowed-tools:` from the skill's SKILL.md** so the eval agent has unrestricted Bash.
