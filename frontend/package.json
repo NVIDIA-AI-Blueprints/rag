@@ -17,6 +17,8 @@
   "dependencies": {
     "@kui/react": "./src/assets/kui-foundations-react-external-0.504.1.tgz",
     "@tanstack/react-query": "^5.80.7",
+    "@types/dompurify": "^3.0.5",
+    "dompurify": "^3.4.2",
     "lucide-react": "^0.559.0",
     "marked": "^15.0.12",
     "react": "^19.1.0",

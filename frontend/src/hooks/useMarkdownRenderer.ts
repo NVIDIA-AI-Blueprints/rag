@@ -15,6 +15,7 @@
 
 import { useMemo } from "react";
 import { marked } from "marked";
+import DOMPurify from "dompurify";
 
 /**
  * Configuration options for markdown rendering.
@@ -36,13 +37,20 @@ const DEFAULT_OPTIONS: MarkdownOptions = {
 
 /**
  * Custom hook for rendering markdown content to HTML.
- * 
+ *
  * Provides a memoized markdown renderer with configurable options
  * including GitHub Flavored Markdown support and line breaks.
- * 
+ *
+ * The rendered HTML is sanitized with DOMPurify before being returned
+ * to mitigate stored XSS (CWE-79) when the output is injected via
+ * `dangerouslySetInnerHTML`. Markdown content may originate from LLM
+ * responses, retrieved document chunks, or citation snippets — none of
+ * which are trusted, since an attacker can poison the corpus by
+ * uploading a malicious document.
+ *
  * @param options - Markdown rendering configuration options
  * @returns Object with markdown rendering function
- * 
+ *
  * @example
  * ```tsx
  * const { renderMarkdown } = useMarkdownRenderer({ breaks: true });
@@ -55,8 +63,13 @@ export const useMarkdownRenderer = (options: MarkdownOptions = {}) => {
     ...options,
   }), [options]);
 
-  const renderMarkdown = useMemo(() => (content: string) => 
-    marked.parse(content, mergedOptions), [mergedOptions]);
+  const renderMarkdown = useMemo(() => (content: string) => {
+    const rawHtml = marked.parse(content, mergedOptions) as string;
+    // Sanitize the rendered HTML to neutralise any embedded scripts,
+    // event-handler attributes, javascript: URLs, etc. before the
+    // caller passes it to dangerouslySetInnerHTML.
+    return DOMPurify.sanitize(rawHtml);
+  }, [mergedOptions]);
 
   return { renderMarkdown };
-}; 
+};
