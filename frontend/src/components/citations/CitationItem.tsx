@@ -50,7 +50,7 @@ const CitationHeader = ({
 }) => {
   const { getFileIconByExtension } = useFileIcons();
   const { getAbridgedText } = useCitationText();
-  const { formatScore } = useCitationUtils();
+  const { formatScore, formatStage } = useCitationUtils();
 
   // Keyboard accessibility handler
   const handleKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
@@ -116,6 +116,17 @@ const CitationHeader = ({
                   {citation.document_type}
                 </Badge>
               )}
+              {citation.stage && (
+                <Badge
+                  kind="outline"
+                  color="blue"
+                  data-testid="citation-stage-badge"
+                  data-stage={citation.stage}
+                  title={`Pipeline stage: ${citation.stage}`}
+                >
+                  {formatStage(citation.stage)}
+                </Badge>
+              )}
             </Flex>
             {!isExpanded && (
               <Text 
@@ -166,6 +177,7 @@ const CitationContent = ({ citation }: { citation: Citation }) => {
           
           <CitationMetadata 
             source={citation.source} 
+            stage={citation.stage}
           />
         </Stack>
       </Block>

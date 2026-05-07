@@ -15,17 +15,22 @@
 
 import { useCitationUtils } from "../../hooks/useCitationUtils";
 import { Flex, Text, Divider } from "@kui/react";
-import { FileText, TrendingUp } from "lucide-react";
+import { FileText, TrendingUp, Workflow } from "lucide-react";
 
 interface CitationMetadataProps {
   source?: string;
   score?: number;
+  /**
+   * Pipeline stage that produced this citation. Rendered as an opaque,
+   * humanised string so future agentic stages display without code changes.
+   */
+  stage?: string;
 }
 
-export const CitationMetadata = ({ source, score }: CitationMetadataProps) => {
-  const { formatScore } = useCitationUtils();
+export const CitationMetadata = ({ source, score, stage }: CitationMetadataProps) => {
+  const { formatScore, formatStage } = useCitationUtils();
 
-  if (!source && score === undefined) return null;
+  if (!source && score === undefined && !stage) return null;
 
   return (
     <div style={{ paddingTop: 'var(--spacing-density-sm)' }}>
@@ -44,6 +49,14 @@ export const CitationMetadata = ({ source, score }: CitationMetadataProps) => {
             <TrendingUp size={14} style={{ color: 'var(--text-color-subtle)' }} />
             <Text kind="body/regular/sm" style={{ color: 'var(--text-color-subtle)' }}>
               Relevance: {formatScore(score, 3)}
+            </Text>
+          </Flex>
+        )}
+        {stage && (
+          <Flex align="center" gap="density-xs" data-testid="citation-stage-row" data-stage={stage}>
+            <Workflow size={14} style={{ color: 'var(--text-color-subtle)' }} />
+            <Text kind="body/regular/sm" style={{ color: 'var(--text-color-subtle)' }}>
+              Pipeline stage: {formatStage(stage)}
             </Text>
           </Flex>
         )}

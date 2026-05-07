@@ -29,8 +29,12 @@ import type { Collection } from "../types/collections";
 /**
  * Utility function to remove undefined, null, empty string, and empty array values from a request object.
  * This ensures we only send meaningful parameters to the API.
+ *
+ * Exported so the wire-format guarantees (notably: `agentic: false` must be
+ * preserved to override the server default, while `agentic: undefined` must
+ * be omitted) can be unit-tested in isolation.
  */
-function cleanRequestObject(obj: Partial<GenerateRequest>): GenerateRequest {
+export function cleanRequestObject(obj: Partial<GenerateRequest>): GenerateRequest {
   const cleaned: Partial<GenerateRequest> = {};
   
   for (const [key, value] of Object.entries(obj)) {
@@ -50,7 +54,11 @@ function cleanRequestObject(obj: Partial<GenerateRequest>): GenerateRequest {
         'enable_query_rewriting',
         'enable_guardrails',
         'enable_vlm_inference',
-        'enable_filter_generator'
+        'enable_filter_generator',
+        // `agentic: false` must reach the server to force the standard
+        // pipeline; otherwise it would be dropped and CONFIG.enable_agentic_rag
+        // (which may be true) would silently take over.
+        'agentic',
       ];
       if (value === true || alwaysInclude.includes(key)) {
         (cleaned as Record<string, unknown>)[key] = value;
@@ -91,6 +99,15 @@ export const useMessageSubmit = () => {
   const { shouldDisableHealthFeatures, isHealthLoading } = useHealthDependentFeatures();
 
   const createRequest = useCallback((currentMessages: ChatMessage[]) => {
+    // Map the per-request agentic mode to the wire format:
+    //   "auto" -> undefined (omitted; server's CONFIG.enable_agentic_rag decides)
+    //   "on"   -> true      (force agentic LangGraph pipeline)
+    //   "off"  -> false     (force standard RAG pipeline)
+    const agentic =
+      settings.agenticMode === "on" ? true :
+      settings.agenticMode === "off" ? false :
+      undefined;
+
     const rawRequest = {
       messages: currentMessages.map(({ role, content }) => ({ 
         role, 
@@ -120,6 +137,7 @@ export const useMessageSubmit = () => {
       vlm_endpoint: settings.vlmEndpoint,
       stop: settings.stopTokens,
       confidence_threshold: settings.confidenceScoreThreshold,
+      agentic,
       filter_expr: filters.length
         ? filters
             .map((f: Filter, index: number) => {

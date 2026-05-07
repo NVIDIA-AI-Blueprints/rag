@@ -21,6 +21,16 @@ export interface Citation {
   source: string;
   document_type: "text" | "image" | "table" | "chart";
   score?: number | string;
+  /**
+   * Pipeline stage that produced this citation.
+   *
+   * Mirrors `SourceResult.stage` on the server. The server defaults to
+   * `"rag"` for the standard pipeline; the agentic pipeline emits values
+   * like `"initial_retrieval"`, `"execute"`, `"verify_execute"`, and may
+   * add new values over time. Treated as an opaque string so we render
+   * any future stage without code changes.
+   */
+  stage?: string;
 }
 
 /**

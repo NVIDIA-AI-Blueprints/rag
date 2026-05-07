@@ -4,9 +4,11 @@ import { CitationMetadata } from '../CitationMetadata';
 
 // Mock the citation utils hook
 const mockFormatScore = vi.fn();
+const mockFormatStage = vi.fn();
 vi.mock('../../../hooks/useCitationUtils', () => ({
   useCitationUtils: () => ({
-    formatScore: mockFormatScore
+    formatScore: mockFormatScore,
+    formatStage: mockFormatStage,
   })
 }));
 
@@ -14,19 +16,30 @@ describe('CitationMetadata', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockFormatScore.mockReturnValue('0.850');
+    mockFormatStage.mockImplementation((stage: string | undefined) =>
+      stage ? stage.charAt(0).toUpperCase() + stage.slice(1).replace(/_/g, ' ') : ''
+    );
   });
 
   describe('Conditional Rendering', () => {
-    it('renders nothing when no source and no score', () => {
+    it('renders nothing when no source, score, or stage', () => {
       const { container } = render(<CitationMetadata />);
       
       expect(container.firstChild).toBeNull();
     });
 
-    it('renders nothing when source is undefined and score is undefined', () => {
-      const { container } = render(<CitationMetadata source={undefined} score={undefined} />);
+    it('renders nothing when source, score, and stage are all undefined', () => {
+      const { container } = render(
+        <CitationMetadata source={undefined} score={undefined} stage={undefined} />
+      );
       
       expect(container.firstChild).toBeNull();
+    });
+
+    it('renders when only stage is provided', () => {
+      render(<CitationMetadata stage="execute" />);
+      expect(screen.getByTestId('citation-stage-row')).toBeInTheDocument();
+      expect(screen.getByText('Pipeline stage: Execute')).toBeInTheDocument();
     });
 
     it('renders when source is provided', () => {
@@ -123,6 +136,50 @@ describe('CitationMetadata', () => {
       render(<CitationMetadata source="test.pdf" score={0.123456789} />);
       
       expect(mockFormatScore).toHaveBeenCalledWith(0.123456789, 3);
+    });
+
+    it('renders source, score, and stage together', () => {
+      mockFormatScore.mockReturnValue('0.91');
+      render(
+        <CitationMetadata
+          source="combined.pdf"
+          score={0.91}
+          stage="initial_retrieval"
+        />
+      );
+      expect(screen.getByText('Source: combined.pdf')).toBeInTheDocument();
+      expect(screen.getByText('Relevance: 0.91')).toBeInTheDocument();
+      expect(screen.getByText('Pipeline stage: Initial retrieval')).toBeInTheDocument();
+    });
+  });
+
+  describe('Stage Display', () => {
+    it('calls formatStage with the raw stage value', () => {
+      render(<CitationMetadata stage="verify_execute" />);
+      expect(mockFormatStage).toHaveBeenCalledWith('verify_execute');
+    });
+
+    it('does not display stage row when stage is not provided', () => {
+      render(<CitationMetadata source="test.pdf" />);
+      expect(screen.queryByTestId('citation-stage-row')).not.toBeInTheDocument();
+      expect(screen.queryByText(/Pipeline stage:/)).not.toBeInTheDocument();
+    });
+
+    it('renders future / unknown stage values without code changes', () => {
+      // The component must be value-independent: any new server-side stage
+      // value renders sensibly via formatStage.
+      render(<CitationMetadata stage="plan_then_self_critique_v2" />);
+      const row = screen.getByTestId('citation-stage-row');
+      expect(row).toHaveAttribute('data-stage', 'plan_then_self_critique_v2');
+      expect(row).toHaveTextContent('Pipeline stage: Plan then self critique v2');
+    });
+
+    it('exposes the raw stage as a data attribute for styling/testing', () => {
+      render(<CitationMetadata stage="execute" />);
+      expect(screen.getByTestId('citation-stage-row')).toHaveAttribute(
+        'data-stage',
+        'execute'
+      );
     });
   });
 }); 

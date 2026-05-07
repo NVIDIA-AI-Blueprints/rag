@@ -113,11 +113,17 @@ export const useChatStream = () => {
                            typeof src.confidence_score === 'string' || typeof src.confidence_score === 'number' ? src.confidence_score :
                            typeof src.similarity_score === 'string' || typeof src.similarity_score === 'number' ? src.similarity_score :
                            undefined;
+              // `stage` is propagated as an opaque string so future agentic
+              // pipeline stages render without requiring frontend changes.
+              const stage = typeof src.stage === 'string' && src.stage.length > 0
+                ? src.stage
+                : undefined;
               return {
                 text: String(src.content || src.text || ""),
                 source: String(src.document_name || src.source || src.title || "Unknown"),
                 document_type: (src.document_type as Citation["document_type"]) || "text",
                 score,
+                stage,
               };
             });
 

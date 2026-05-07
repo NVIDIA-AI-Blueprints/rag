@@ -21,6 +21,16 @@ import { useServerConfiguration } from "../api/useConfigurationApi";
 import type { ConfigurationResponse } from "../types/api";
 
 /**
+ * Per-request agentic pipeline mode.
+ *
+ * - `"auto"` (default) → omit the `agentic` field from `/generate` and let
+ *   the server's `CONFIG.enable_agentic_rag` decide.
+ * - `"on"` → force the agentic LangGraph plan-and-execute pipeline.
+ * - `"off"` → force the standard RAG pipeline.
+ */
+export type AgenticMode = "auto" | "on" | "off";
+
+/**
  * Interface defining the shape of the settings state.
  * Contains RAG configuration, feature toggles, model settings, and endpoints.
  * Most fields are optional to avoid sending unnecessary defaults in API calls.
@@ -41,6 +51,10 @@ interface SettingsState {
   includeCitations: boolean;
   enableVlmInference?: boolean;
   enableFilterGenerator?: boolean;
+
+  // Agentic pipeline mode - per-request override; defaults to "auto"
+  // ("auto" omits the field so the server's enable_agentic_rag decides)
+  agenticMode: AgenticMode;
   
   // Models - All optional, populated from health endpoint or user input
   model?: string;
@@ -97,6 +111,9 @@ export const useSettingsStore = create<SettingsState>()(
       includeCitations: true,
       enableVlmInference: undefined,
       enableFilterGenerator: undefined,
+
+      // Agentic pipeline mode - default to "auto" (server config decides)
+      agenticMode: "auto" as const,
       
       // Models - All start undefined, will be populated from health endpoint
       model: undefined,

@@ -47,8 +47,8 @@ vi.mock('../CitationTextContent', () => ({
 }));
 
 vi.mock('../CitationMetadata', () => ({
-  CitationMetadata: ({ source, score }: { source: string; score?: string | number }) => (
-    <div data-testid="citation-metadata">{source} - {score}</div>
+  CitationMetadata: ({ source, score, stage }: { source: string; score?: string | number; stage?: string }) => (
+    <div data-testid="citation-metadata" data-stage={stage ?? ''}>{source} - {score}</div>
   )
 }));
 
@@ -84,7 +84,11 @@ describe('CitationItem', () => {
     mockUseCitationUtils.mockReturnValue({
       generateCitationId: mockGenerateCitationId,
       isVisualType: vi.fn().mockReturnValue(false),
-      formatScore: vi.fn().mockReturnValue('0.85')
+      formatScore: vi.fn().mockReturnValue('0.85'),
+      // Echo back a humanised stage so tests can assert against the rendered text.
+      formatStage: vi.fn((stage: string | undefined) =>
+        stage ? stage.charAt(0).toUpperCase() + stage.slice(1).replace(/_/g, ' ') : ''
+      ),
     });
     
     mockUseCitationExpansion.mockReturnValue({
@@ -261,7 +265,8 @@ describe('CitationItem', () => {
       mockUseCitationUtils.mockReturnValue({
         generateCitationId: mockGenerateCitationId,
         isVisualType: vi.fn().mockReturnValue(true),
-        formatScore: vi.fn().mockReturnValue('0.85')
+        formatScore: vi.fn().mockReturnValue('0.85'),
+        formatStage: vi.fn().mockReturnValue(''),
       });
 
       render(<CitationItem citation={mockCitation} index={0} />);
@@ -279,7 +284,8 @@ describe('CitationItem', () => {
       mockUseCitationUtils.mockReturnValue({
         generateCitationId: mockGenerateCitationId,
         isVisualType: vi.fn().mockReturnValue(false),
-        formatScore: vi.fn().mockReturnValue('0.85')
+        formatScore: vi.fn().mockReturnValue('0.85'),
+        formatStage: vi.fn().mockReturnValue(''),
       });
 
       render(<CitationItem citation={mockCitation} index={0} />);
@@ -326,13 +332,50 @@ describe('CitationItem', () => {
     });
   });
 
+  describe('Stage Badge', () => {
+    it('does not render the stage badge when citation has no stage', () => {
+      render(<CitationItem citation={mockCitation} index={0} />);
+      expect(screen.queryByTestId('citation-stage-badge')).not.toBeInTheDocument();
+    });
+
+    it('renders the stage badge in the header when stage is present', () => {
+      const citation: Citation = { ...mockCitation, stage: 'initial_retrieval' };
+      render(<CitationItem citation={citation} index={0} />);
+
+      const badge = screen.getByTestId('citation-stage-badge');
+      expect(badge).toBeInTheDocument();
+      expect(badge).toHaveAttribute('data-stage', 'initial_retrieval');
+      // Humanised label appears
+      expect(badge).toHaveTextContent('Initial retrieval');
+    });
+
+    it('passes the stage through to CitationMetadata when expanded', () => {
+      mockUseCitationExpansion.mockReturnValue({ isExpanded: true, toggle: mockToggle });
+      const citation: Citation = { ...mockCitation, stage: 'verify_execute' };
+
+      render(<CitationItem citation={citation} index={0} />);
+
+      const metadata = screen.getByTestId('citation-metadata');
+      expect(metadata).toHaveAttribute('data-stage', 'verify_execute');
+    });
+
+    it('renders any future stage value without code changes', () => {
+      const citation: Citation = { ...mockCitation, stage: 'plan_then_self_critique_v2' };
+      render(<CitationItem citation={citation} index={0} />);
+
+      const badge = screen.getByTestId('citation-stage-badge');
+      expect(badge).toHaveAttribute('data-stage', 'plan_then_self_critique_v2');
+    });
+  });
+
   describe('Integration with Utils', () => {
     it('passes correct parameters to isVisualType', () => {
       const mockIsVisualType = vi.fn().mockReturnValue(false);
       mockUseCitationUtils.mockReturnValue({
         generateCitationId: mockGenerateCitationId,
         isVisualType: mockIsVisualType,
-        formatScore: vi.fn().mockReturnValue('0.85')
+        formatScore: vi.fn().mockReturnValue('0.85'),
+        formatStage: vi.fn().mockReturnValue(''),
       });
 
       mockUseCitationExpansion.mockReturnValue({
