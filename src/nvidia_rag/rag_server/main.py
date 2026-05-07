@@ -444,6 +444,9 @@ class NvidiaRAG:
         vlm_top_p: float | None = None,
         vlm_max_tokens: int | None = None,
         vlm_max_total_images: int | None = None,
+        vlm_enable_thinking: bool | None = None,
+        vlm_thinking_token_budget: int | None = None,
+        vlm_filter_thinking_tokens: bool | None = None,
         filter_expr: str | list[dict[str, Any]] = "",
         enable_query_decomposition: bool | None = None,
         confidence_threshold: float | None = None,
@@ -685,6 +688,10 @@ class NvidiaRAG:
             "vlm_top_p": vlm_top_p,
             "vlm_max_tokens": vlm_max_tokens,
             "vlm_max_total_images": vlm_max_total_images,
+            # Reasoning controls — None means "use server-side default".
+            "vlm_enable_thinking": vlm_enable_thinking,
+            "vlm_thinking_token_budget": vlm_thinking_token_budget,
+            "vlm_filter_thinking_tokens": vlm_filter_thinking_tokens,
         }
 
         if use_knowledge_base:
@@ -1855,6 +1862,14 @@ class NvidiaRAG:
                 vlm_settings.get("vlm_max_total_images")
                 or self.config.vlm.max_total_images
             )
+            # Per-request reasoning controls (None → server-side default in vlm.py).
+            vlm_enable_thinking_req = vlm_settings.get("vlm_enable_thinking")
+            vlm_thinking_token_budget_req = vlm_settings.get(
+                "vlm_thinking_token_budget"
+            )
+            vlm_filter_thinking_tokens_req = vlm_settings.get(
+                "vlm_filter_thinking_tokens"
+            )
 
             # Extract text from query for logging
             query_text = self._extract_text_from_content(query)
@@ -1897,6 +1912,7 @@ class NvidiaRAG:
             ]
 
             # Stream VLM response (no context documents in direct mode)
+            vlm_token_usage: dict[str, Any] = {}
             vlm_generator = vlm.stream_with_messages(
                 docs=[],  # No context documents
                 messages=vlm_messages,
@@ -1906,6 +1922,10 @@ class NvidiaRAG:
                 top_p=vlm_top_p_cfg,
                 max_tokens=vlm_max_tokens_cfg,
                 max_total_images=vlm_max_total_images_cfg,
+                token_usage=vlm_token_usage,
+                enable_thinking=vlm_enable_thinking_req,
+                thinking_token_budget=vlm_thinking_token_budget_req,
+                filter_think_tokens=vlm_filter_thinking_tokens_req,
             )
 
             # Eagerly prefetch first chunk to catch errors early
@@ -1922,6 +1942,7 @@ class NvidiaRAG:
                     collection_name="",
                     enable_citations=enable_citations,
                     otel_metrics_client=metrics,
+                    token_usage=vlm_token_usage,
                 ),
                 status_code=ErrorCodeMapping.SUCCESS,
             )
@@ -3388,6 +3409,19 @@ class NvidiaRAG:
                             vlm_settings.get("vlm_max_total_images")
                             or self.config.vlm.max_total_images
                         )
+                        # None passes through to vlm.stream_with_messages where
+                        # it falls back to the per-config defaults; using
+                        # `is not None` here so explicit False / 0 from clients
+                        # is preserved.
+                        vlm_enable_thinking_req = vlm_settings.get(
+                            "vlm_enable_thinking"
+                        )
+                        vlm_thinking_token_budget_req = vlm_settings.get(
+                            "vlm_thinking_token_budget"
+                        )
+                        vlm_filter_thinking_tokens_req = vlm_settings.get(
+                            "vlm_filter_thinking_tokens"
+                        )
 
                         logger.info("=" * 80)
                         logger.info("STAGE: VLM Generation (Vision Language Model)")
@@ -3445,6 +3479,7 @@ class NvidiaRAG:
                         )
                         # Always stream VLM response directly using async streaming (reasoning gate deprecated)
                         logger.info("Streaming VLM response directly (async).")
+                        vlm_token_usage: dict[str, Any] = {}
                         vlm_generator = vlm.stream_with_messages(
                             docs=context_to_show,
                             messages=vlm_messages,
@@ -3456,6 +3491,10 @@ class NvidiaRAG:
                             max_tokens=vlm_max_tokens_cfg,
                             max_total_images=vlm_max_total_images_cfg,
                             nrl_mode=self._is_nrl_mode,
+                            token_usage=vlm_token_usage,
+                            enable_thinking=vlm_enable_thinking_req,
+                            thinking_token_budget=vlm_thinking_token_budget_req,
+                            filter_think_tokens=vlm_filter_thinking_tokens_req,
                         )
                         # Eagerly prefetch first chunk to trigger any errors before creating RAGResponse
                         # ensures connection errors are caught early
@@ -3472,12 +3511,13 @@ class NvidiaRAG:
                             generate_answer_async(
                                 prefetched_vlm_stream,
                                 docs_for_citations,
-                                model=model,
+                                model=vlm_model_cfg,
                                 collection_name=validated_collections[0]
                                 if validated_collections
                                 else "",
                                 enable_citations=enable_citations,
                                 use_nrl_citations=self._is_nrl_mode,
+                                token_usage=vlm_token_usage,
                             ),
                             status_code=ErrorCodeMapping.SUCCESS,
                         )

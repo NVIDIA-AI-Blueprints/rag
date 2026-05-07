@@ -372,7 +372,7 @@ class NvIngestConfig(_ConfigBase):
         description="Number of overlapping tokens between chunks",
     )
     caption_model_name: str = Field(
-        default="nvidia/nemotron-nano-12b-v2-vl",
+        default="nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
         env="APP_NVINGEST_CAPTIONMODELNAME",
         description="Model name for generating image captions",
     )
@@ -953,7 +953,7 @@ class VLMConfig(_ConfigBase):
         description="URL endpoint for Vision-Language Model service",
     )
     model_name: str = Field(
-        default="nvidia/nemotron-nano-12b-v2-vl",
+        default="nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
         env="APP_VLM_MODELNAME",
         description="Vision-Language Model for processing images and text",
     )
@@ -976,6 +976,33 @@ class VLMConfig(_ConfigBase):
         default=5,
         env="APP_VLM_MAX_TOTAL_IMAGES",
         description="Maximum total images sent to VLM per request (query + context)",
+    )
+    enable_thinking: bool = Field(
+        default=True,
+        env="APP_VLM_ENABLE_THINKING",
+        description=(
+            "Enable reasoning mode for the VLM (nvidia/nemotron-3-nano-omni-30b-a3b-reasoning). "
+            "When True the model separates chain-of-thought into the 'reasoning' field and the "
+            "final answer into 'content'. Set False to skip reasoning entirely."
+        ),
+    )
+    thinking_token_budget: int = Field(
+        default=0,
+        env="APP_VLM_THINKING_TOKEN_BUDGET",
+        description=(
+            "Maximum tokens the VLM may use for reasoning (0 = no budget cap). "
+            "Only applied when enable_thinking is True."
+        ),
+    )
+    filter_think_tokens: bool = Field(
+        default=True,
+        env="VLM_FILTER_THINK_TOKENS",
+        description=(
+            "When True (default) the rag-server forwards only the final answer "
+            "to the client; the VLM's reasoning trace is suppressed. When False, "
+            "reasoning is streamed first wrapped in [reasoning]...[/reasoning] "
+            "sentinels, followed by the answer."
+        ),
     )
     api_key: SecretStr | None = Field(
         default=None,
