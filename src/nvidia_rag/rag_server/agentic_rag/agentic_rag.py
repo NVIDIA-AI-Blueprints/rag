@@ -48,7 +48,9 @@ from typing import Any
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.prompts.chat import ChatPromptTemplate
+from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END, StateGraph
+from langgraph.types import StreamWriter
 from opentelemetry import trace as otel_trace
 from pydantic import BaseModel, Field
 
@@ -297,6 +299,56 @@ class AgenticRag:
             i += 1
         return "".join(out)
 
+    @staticmethod
+    async def _accumulate_astream(
+        chain: Any,
+        inputs: dict[str, Any],
+        config: RunnableConfig,
+        progress: dict[str, Any],
+    ) -> tuple[str, str, dict[str, int] | None]:
+        """Run ``chain.astream(inputs, config=config)`` to completion and
+        return ``(content, reasoning, usage)``.
+
+        ``progress`` is a caller-owned dict used as a mutable holder so the
+        caller can detect partial progress on TimeoutError (where
+        ``asyncio.wait_for`` cancels this coroutine).  Keys mutated here:
+
+        * ``"first_chunk_emitted"`` — flipped to ``True`` once any chunk has
+          arrived, so the retry loop can suppress mid-stream retries.
+
+        Pulled out as a helper so the calling code in ``_call_llm`` doesn't
+        define a closure inside a retry loop (Ruff B023).
+        """
+        content_parts: list[str] = []
+        reasoning_parts: list[str] = []
+        latest_usage: dict[str, int] | None = None
+
+        async for chunk in chain.astream(inputs, config=config):
+            progress["first_chunk_emitted"] = True
+            delta = getattr(chunk, "content", "") or ""
+            if delta and not isinstance(delta, str):
+                delta = str(delta)
+            if delta:
+                content_parts.append(delta)
+            kw = getattr(chunk, "additional_kwargs", None) or {}
+            rd = kw.get("reasoning_content")
+            if rd:
+                reasoning_parts.append(rd if isinstance(rd, str) else str(rd))
+            cu = getattr(chunk, "usage_metadata", None)
+            if cu:
+                if isinstance(cu, dict):
+                    latest_usage = {
+                        "input_tokens": cu.get("input_tokens", 0) or 0,
+                        "output_tokens": cu.get("output_tokens", 0) or 0,
+                    }
+                else:
+                    latest_usage = {
+                        "input_tokens": getattr(cu, "input_tokens", 0) or 0,
+                        "output_tokens": getattr(cu, "output_tokens", 0) or 0,
+                    }
+
+        return "".join(content_parts), "".join(reasoning_parts), latest_usage
+
     async def _call_llm(
         self,
         llm: BaseChatModel,
@@ -304,32 +356,75 @@ class AgenticRag:
         inputs: dict[str, Any],
         step_name: str = "LLM Call",
         json_mode: bool = False,
+        config: RunnableConfig | None = None,
     ) -> str:
+        """Invoke an LLM chain with retry/timeout/rate-limit semantics.
+
+        When ``config`` is provided, the call uses ``chain.astream(...)`` so that
+        token chunks propagate to LangGraph's ``stream_mode="messages"`` channel
+        (so the streaming translator can forward them to the client).  Tokens
+        are accumulated and the full visible content is returned, matching the
+        legacy ``ainvoke`` contract.  Mid-stream retries are deliberately
+        suppressed: once a chunk has been emitted, the client has already seen
+        partial output and re-streaming would duplicate it.
+
+        When ``config`` is None, behaviour is identical to the legacy
+        ``ainvoke``-based implementation (preserves the non-streaming path).
+        """
         from nvidia_rag.rag_server.agentic_rag.tracing import get_current_trace
 
         if json_mode:
-            model_name = getattr(llm, "model_name", "") or getattr(llm, "model", "") or ""
-            if not any(kw in model_name.lower() for kw in ("claude", "anthropic", "gpt", "gemini")):
+            model_name = (
+                getattr(llm, "model_name", "") or getattr(llm, "model", "") or ""
+            )
+            if not any(
+                kw in model_name.lower()
+                for kw in ("claude", "anthropic", "gpt", "gemini")
+            ):
                 llm = llm.bind(response_format={"type": "json_object"})
 
         chain = prompt | llm
         max_retries = self.llm_cfg.max_retries
         llm_timeout = self.llm_cfg.call_timeout
+        streaming = config is not None
 
         with self._otel.start_as_current_span(f"llm:{step_name}") as ospan:
             ospan.set_attribute("openinference.span.kind", "LLM")
-            ospan.set_attribute("input.value", json.dumps(inputs, indent=2, default=str))
+            ospan.set_attribute(
+                "input.value", json.dumps(inputs, indent=2, default=str)
+            )
             ospan.set_attribute("input.mime_type", "application/json")
             t0 = time.perf_counter()
             final_attempt = 1
 
+            response = None  # for ainvoke path
+            stream_content: str = ""
+            stream_reasoning: str = ""
+            stream_usage: dict[str, int] | None = None
+
             for attempt in range(max_retries + 1):
                 final_attempt = attempt + 1
+                stream_content = ""
+                stream_reasoning = ""
+                stream_usage = None
+                progress: dict[str, Any] = {"first_chunk_emitted": False}
                 try:
                     async with self._semaphore:
-                        response = await asyncio.wait_for(
-                            chain.ainvoke(inputs), timeout=llm_timeout
-                        )
+                        if not streaming:
+                            response = await asyncio.wait_for(
+                                chain.ainvoke(inputs), timeout=llm_timeout
+                            )
+                        else:
+                            (
+                                stream_content,
+                                stream_reasoning,
+                                stream_usage,
+                            ) = await asyncio.wait_for(
+                                self._accumulate_astream(
+                                    chain, inputs, config, progress
+                                ),
+                                timeout=llm_timeout,
+                            )
                     break
                 except TimeoutError:
                     logger.warning(
@@ -340,6 +435,10 @@ class AgenticRag:
                         attempt + 1,
                         max_retries + 1,
                     )
+                    if streaming and progress["first_chunk_emitted"]:
+                        raise TimeoutError(
+                            f"[{step_name}] LLM stream stalled mid-response; cannot retry"
+                        ) from None
                     if attempt < max_retries:
                         continue
                     raise TimeoutError(
@@ -359,6 +458,10 @@ class AgenticRag:
                             "Timeout",
                         )
                     )
+                    # Never retry once the stream has started — partial tokens
+                    # have already reached the client.
+                    if streaming and progress["first_chunk_emitted"]:
+                        raise
                     if is_retryable and attempt < max_retries:
                         wait = 2**attempt * 5
                         logger.warning(
@@ -374,9 +477,19 @@ class AgenticRag:
                     else:
                         raise
 
-            reasoning = getattr(response, "reasoning_content", None)
-            if not reasoning and hasattr(response, "additional_kwargs"):
-                reasoning = (response.additional_kwargs or {}).get("reasoning_content")
+            if streaming:
+                reasoning = stream_reasoning or None
+                response_content = self._filter_think_tokens(stream_content)
+                usage = stream_usage
+            else:
+                reasoning = getattr(response, "reasoning_content", None)
+                if not reasoning and hasattr(response, "additional_kwargs"):
+                    reasoning = (response.additional_kwargs or {}).get(
+                        "reasoning_content"
+                    )
+                response_content = self._filter_think_tokens(str(response.content))
+                usage = getattr(response, "usage_metadata", None)
+
             if reasoning:
                 preview = str(reasoning)[:300].replace("\n", " ")
                 logger.debug(
@@ -387,11 +500,8 @@ class AgenticRag:
                     "..." if len(str(reasoning)) > 300 else "",
                 )
 
-            response_content = self._filter_think_tokens(str(response.content))
-
             # Prefer API-reported token counts; fall back to tiktoken estimate.
             # usage_metadata can be a dict (ChatNVIDIA) or an object (other providers).
-            usage = getattr(response, "usage_metadata", None)
             if usage:
                 if isinstance(usage, dict):
                     input_tokens = usage.get("input_tokens", 0)
@@ -521,7 +631,9 @@ class AgenticRag:
             )
         return chunks
 
-    def _format_chunks_for_prompt(self, chunks: list[dict], max_tokens: int | None = None) -> str:
+    def _format_chunks_for_prompt(
+        self, chunks: list[dict], max_tokens: int | None = None
+    ) -> str:
         """Format chunks as a numbered list sorted by relevance, truncated to token budget."""
         if not chunks:
             return "(no documents)"
@@ -537,7 +649,9 @@ class AgenticRag:
             dtype = c.get("document_type", "text")
             label = {"table": "Table", "chart": "Chart"}.get(dtype, "Chunk")
             doc_name = c.get("doc_name", "")
-            header = f"[{label} {idx}] File: {doc_name}" if doc_name else f"[{label} {idx}]"
+            header = (
+                f"[{label} {idx}] File: {doc_name}" if doc_name else f"[{label} {idx}]"
+            )
             section = f"{header}\n{c['content']}"
 
             section_tokens = self._estimate_tokens(section)
@@ -574,7 +688,9 @@ class AgenticRag:
         for line in lines:
             stripped = line.strip()
             if re.match(r"^(?:[-*+•]\s|\d+[.)]\s)", stripped):
-                content = re.sub(r"^(?:[-*+•]\s|\d+[.)]\s)\s*", "", stripped).rstrip(".;,")
+                content = re.sub(r"^(?:[-*+•]\s|\d+[.)]\s)\s*", "", stripped).rstrip(
+                    ".;,"
+                )
                 if content:
                     bullet_buffer.append(content)
             else:
@@ -624,7 +740,26 @@ class AgenticRag:
         is_scope: bool = False,
         stage: str = "execute",
     ) -> dict:
-        """Execute one task as a mini-agent with seed-query retries and partial-answer merging."""
+        """Execute one task as a mini-agent with seed-query retries and partial-answer merging.
+
+        Streaming note
+        --------------
+        ``execute_node`` runs N copies of this method concurrently via
+        ``asyncio.gather`` (one per task in the plan).  We deliberately
+        invoke ``_call_llm`` **without** the LangGraph runtime ``config``
+        here so the inner ``seed_gen`` and ``task_llm`` calls take the
+        non-streaming ``ainvoke`` path.  Were they to stream, every
+        concurrent task's reasoning + output tokens would push into the
+        shared ``stream_mode="messages"`` queue and arrive on the wire
+        interleaved by chunk-arrival order — making the per-task
+        ``intermediate_reasoning`` panel unreadable.
+
+        Trade-off: the caller (``_execute_plan``) waits for each task's
+        full answer to arrive at once instead of streaming tokens live.
+        Live token streaming is preserved for the single-LLM-call nodes
+        (``plan``, ``verify``, ``synthesize``) where there is no
+        concurrent producer to interleave with.
+        """
         effective_max_retries = (
             self.task_exec_cfg.scope_max_retries
             if is_scope
@@ -670,6 +805,7 @@ class AgenticRag:
                         {"question": question, "tried_queries": tried_summary},
                         step_name=f"Task {tid} seed gen (attempt {attempt + 1})",
                         json_mode=False,
+                        # config intentionally omitted — see method docstring.
                     )
                     seed_result = self._parse_json_response(seed_response)
 
@@ -698,7 +834,11 @@ class AgenticRag:
                     current_query = seed_result.get("seed_query") or query
 
                 logger.debug(
-                    "%s Task %s attempt %d — query: %s", _P, tid, attempt + 1, current_query
+                    "%s Task %s attempt %d — query: %s",
+                    _P,
+                    tid,
+                    attempt + 1,
+                    current_query,
                 )
 
                 with self._otel.start_as_current_span(
@@ -712,7 +852,9 @@ class AgenticRag:
                             raw_context = []
                     except Exception as ex:
                         logger.warning("%s Task %s retrieval failed: %s", _P, tid, ex)
-                        rspan.set_attribute("metadata", json.dumps({"error": str(ex)[:200]}))
+                        rspan.set_attribute(
+                            "metadata", json.dumps({"error": str(ex)[:200]})
+                        )
                         raw_context = []
 
                 chunks = self._extract_chunks(
@@ -720,7 +862,12 @@ class AgenticRag:
                 )
 
                 if not chunks:
-                    logger.debug("%s Task %s attempt %d — no chunks returned", _P, tid, attempt + 1)
+                    logger.debug(
+                        "%s Task %s attempt %d — no chunks returned",
+                        _P,
+                        tid,
+                        attempt + 1,
+                    )
                     result = (
                         {
                             "answer": accumulated_answer,
@@ -728,7 +875,11 @@ class AgenticRag:
                             "attempts": attempt + 1,
                         }
                         if accumulated_answer
-                        else {"answer": "[NO DATA]", "status": "no_data", "attempts": attempt + 1}
+                        else {
+                            "answer": "[NO DATA]",
+                            "status": "no_data",
+                            "attempts": attempt + 1,
+                        }
                     )
                     return _finish_task(result)
 
@@ -750,6 +901,7 @@ class AgenticRag:
                     self.task_answer_prompt,
                     {"question": task_question, "documents": docs_str},
                     step_name=f"Task {tid} answer (attempt {attempt + 1})",
+                    # config intentionally omitted — see method docstring.
                 )
                 parsed = self._parse_task_answer(raw_answer)
 
@@ -782,9 +934,17 @@ class AgenticRag:
 
                 logger.debug("%s Task %s — [NO DATA] from %d docs", _P, tid, n_chunks)
                 result = (
-                    {"answer": accumulated_answer, "status": "answered", "attempts": attempt + 1}
+                    {
+                        "answer": accumulated_answer,
+                        "status": "answered",
+                        "attempts": attempt + 1,
+                    }
                     if accumulated_answer
-                    else {"answer": "[NO DATA]", "status": "no_data", "attempts": attempt + 1}
+                    else {
+                        "answer": "[NO DATA]",
+                        "status": "no_data",
+                        "attempts": attempt + 1,
+                    }
                 )
                 return _finish_task(result)
 
@@ -795,7 +955,11 @@ class AgenticRag:
                     "attempts": effective_max_retries,
                 }
                 if accumulated_answer
-                else {"answer": "[NO DATA]", "status": "no_data", "attempts": effective_max_retries}
+                else {
+                    "answer": "[NO DATA]",
+                    "status": "no_data",
+                    "attempts": effective_max_retries,
+                }
             )
             return _finish_task(result)
 
@@ -805,7 +969,13 @@ class AgenticRag:
         is_scope: bool = False,
         stage: str = "execute",
     ) -> dict[str, dict]:
-        """Execute all tasks in parallel."""
+        """Execute all tasks in parallel.
+
+        Note: this helper does not accept a ``config`` arg even though it is
+        called from inside graph nodes that receive one.  Inner task LLM calls
+        are intentionally non-streaming — see ``_execute_single_task`` for the
+        rationale.
+        """
         levels = self._build_execution_levels(tasks)
         all_results: dict[str, dict] = {}
 
@@ -817,7 +987,10 @@ class AgenticRag:
                 [t["id"] for t in level_tasks],
             )
 
-            coros = [self._execute_single_task(task, is_scope=is_scope, stage=stage) for task in level_tasks]
+            coros = [
+                self._execute_single_task(task, is_scope=is_scope, stage=stage)
+                for task in level_tasks
+            ]
             results = await asyncio.gather(*coros, return_exceptions=True)
 
             for task, result in zip(level_tasks, results, strict=True):
@@ -832,9 +1005,20 @@ class AgenticRag:
     # GRAPH NODES
     # =========================================================================
 
-    async def initial_retrieval_node(self, state: AgenticRAGGraphState) -> dict[str, Any]:
+    async def initial_retrieval_node(
+        self,
+        state: AgenticRAGGraphState,
+        writer: StreamWriter,
+        config: RunnableConfig,
+    ) -> dict[str, Any]:
         """Single-query retrieval using the user's original query."""
+        from nvidia_rag.rag_server.agentic_rag.streaming import (
+            make_stage_end,
+            make_stage_start,
+        )
         from nvidia_rag.rag_server.agentic_rag.tracing import get_current_trace
+
+        writer(make_stage_start("initial_retrieval"))
 
         with self._otel_and_trace("initial_retrieval") as ospan:
             ospan.set_attribute("input.value", state.user_query)
@@ -868,7 +1052,9 @@ class AgenticRag:
                     )
                 except Exception as ex:
                     logger.warning("%s Retrieval failed: %s", _P, ex)
-                    rspan.set_attribute("metadata", json.dumps({"error": str(ex)[:200]}))
+                    rspan.set_attribute(
+                        "metadata", json.dumps({"error": str(ex)[:200]})
+                    )
                     chunks = []
 
             logger.info("%s Retrieval complete: %d chunks", _P, len(chunks))
@@ -884,14 +1070,29 @@ class AgenticRag:
 
             rebuilt_context = [{"results": [self._rebuild_result(c) for c in chunks]}]
 
+            writer(make_stage_end("initial_retrieval", chunks=len(chunks)))
             return {"initial_context": rebuilt_context}
 
-    async def plan_node(self, state: AgenticRAGGraphState) -> dict[str, Any]:
+    async def plan_node(
+        self,
+        state: AgenticRAGGraphState,
+        writer: StreamWriter,
+        config: RunnableConfig,
+    ) -> dict[str, Any]:
         """Create or refine the retrieval plan (called once or twice for scope discovery)."""
+        from nvidia_rag.rag_server.agentic_rag.streaming import (
+            make_stage_end,
+            make_stage_start,
+        )
         from nvidia_rag.rag_server.agentic_rag.tracing import get_current_trace
 
         is_replan = bool(state.scope_results)
         phase = "phase 2 (answer plan)" if is_replan else "phase 1 (scope discovery)"
+        writer(
+            make_stage_start(
+                "plan", key="plan.start.answer" if is_replan else "plan.start.scope"
+            )
+        )
         with self._otel_and_trace(f"plan ({phase})") as ospan:
             current_round = state.scope_rounds
             ospan.set_attribute("input.value", state.user_query)
@@ -899,12 +1100,16 @@ class AgenticRag:
 
             chunks = self._extract_chunks(state.initial_context)
             initial_content = (
-                self._format_chunks_for_prompt(chunks) if chunks else "(no documents retrieved)"
+                self._format_chunks_for_prompt(chunks)
+                if chunks
+                else "(no documents retrieved)"
             )
 
             scope_section = ""
             if is_replan:
-                scope_parts = [f"[{tid}]: {answer}" for tid, answer in state.scope_results.items()]
+                scope_parts = [
+                    f"[{tid}]: {answer}" for tid, answer in state.scope_results.items()
+                ]
                 scope_section = (
                     "\nScope Discovery Results (what actually exists in the database):\n"
                     + "\n".join(scope_parts)
@@ -926,6 +1131,7 @@ class AgenticRag:
                         },
                         step_name=f"Planner ({phase})",
                         json_mode=False,
+                        config=config,
                     )
                     plan = self._parse_json_response(response)
 
@@ -947,7 +1153,9 @@ class AgenticRag:
                         }
                         break
 
-                    is_degenerate = "resolved_query" not in plan and "scope_only" not in plan
+                    is_degenerate = (
+                        "resolved_query" not in plan and "scope_only" not in plan
+                    )
                     if is_degenerate and planner_attempt < planner_max_attempts - 1:
                         logger.warning(
                             "%s Degenerate plan (missing key fields), retrying (%d/%d)",
@@ -963,9 +1171,13 @@ class AgenticRag:
                         malformed_keys = [
                             i
                             for i, t in enumerate(tasks_list)
-                            if not isinstance(t, dict) or not required_keys.issubset(t.keys())
+                            if not isinstance(t, dict)
+                            or not required_keys.issubset(t.keys())
                         ]
-                        if malformed_keys and planner_attempt < planner_max_attempts - 1:
+                        if (
+                            malformed_keys
+                            and planner_attempt < planner_max_attempts - 1
+                        ):
                             issues = []
                             for i in malformed_keys:
                                 t = tasks_list[i]
@@ -1010,7 +1222,11 @@ class AgenticRag:
                         )
                         plan["scope_only"] = False
 
-                new_round = current_round + 1 if plan.get("scope_only", False) else current_round
+                new_round = (
+                    current_round + 1
+                    if plan.get("scope_only", False)
+                    else current_round
+                )
 
                 logger.info(
                     "%s Plan: scope_only=%s, %d tasks, resolved_query=%.80s",
@@ -1019,7 +1235,9 @@ class AgenticRag:
                     len(plan.get("tasks", [])),
                     plan.get("resolved_query", "")[:80],
                 )
-                logger.debug("%s Plan detail: %s", _P, json.dumps(plan, indent=2)[:2000])
+                logger.debug(
+                    "%s Plan detail: %s", _P, json.dumps(plan, indent=2)[:2000]
+                )
 
                 task_ids = [t.get("id", "") for t in plan.get("tasks", [])]
                 plan_json = json.dumps(plan, indent=2)
@@ -1047,6 +1265,16 @@ class AgenticRag:
                         "resolved_query": plan.get("resolved_query", ""),
                     }
 
+                if plan.get("scope_only", False):
+                    end_key = "plan.end.scope"
+                elif task_ids:
+                    end_key = "plan.end.with_tasks"
+                else:
+                    end_key = "plan.end.no_tasks"
+                writer(
+                    make_stage_end("plan", key=end_key, task_count=len(task_ids))
+                )
+
                 return {
                     "retrieval_plan": plan,
                     "needs_replan": False,
@@ -1055,6 +1283,7 @@ class AgenticRag:
 
             except Exception as ex:
                 logger.exception("%s Planning failed: %s", _P, ex)
+                writer(make_stage_end("plan", key="plan.end.failed"))
                 return {
                     "retrieval_plan": {
                         "scope_only": False,
@@ -1066,32 +1295,56 @@ class AgenticRag:
                     "needs_replan": False,
                 }
 
-    async def execute_node(self, state: AgenticRAGGraphState) -> dict[str, Any]:
+    async def execute_node(
+        self,
+        state: AgenticRAGGraphState,
+        writer: StreamWriter,
+        config: RunnableConfig,
+    ) -> dict[str, Any]:
         """Execute all tasks from the current plan."""
+        from nvidia_rag.rag_server.agentic_rag.streaming import (
+            make_stage_end,
+            make_stage_start,
+        )
         from nvidia_rag.rag_server.agentic_rag.tracing import get_current_trace
 
         tasks = state.retrieval_plan.get("tasks", [])
         is_scope_only = state.retrieval_plan.get("scope_only", False)
         exec_label = "scope discovery" if is_scope_only else "answer"
+        writer(
+            make_stage_start(
+                "execute",
+                key="execute.start.scope" if is_scope_only else "execute.start.answer",
+                task_count=len(tasks),
+            )
+        )
         with self._otel_and_trace(f"execute ({exec_label})") as ospan:
             task_ids = [t.get("id", "") for t in tasks]
             ospan.set_attribute("input.value", json.dumps(task_ids))
             ospan.set_attribute("input.mime_type", "application/json")
 
             if not tasks:
-                logger.info("%s Execute: no tasks — synthesizing from initial retrieval", _P)
+                logger.info(
+                    "%s Execute: no tasks — synthesizing from initial retrieval", _P
+                )
+                writer(make_stage_end("execute", key="execute.end.no_tasks"))
                 return {"task_results": {}, "needs_replan": False}
 
             logger.info("%s Executing %d %s tasks", _P, len(tasks), exec_label)
 
             exec_stage = "execute_scope" if is_scope_only else "execute"
-            results = await self._execute_plan(tasks, is_scope=is_scope_only, stage=exec_stage)
+            results = await self._execute_plan(
+                tasks, is_scope=is_scope_only, stage=exec_stage
+            )
 
             statuses = [r.get("status", "unknown") for r in results.values()]
             answered = statuses.count("answered")
             no_data = statuses.count("no_data")
             exec_output = {
-                tid: {"status": r.get("status", "unknown"), "answer": r.get("answer", "")}
+                tid: {
+                    "status": r.get("status", "unknown"),
+                    "answer": r.get("answer", ""),
+                }
                 for tid, r in results.items()
             }
             ospan.set_attribute("output.value", json.dumps(exec_output, indent=2))
@@ -1107,7 +1360,9 @@ class AgenticRag:
                     }
                 ),
             )
-            logger.info("%s Execution complete: %d answered, %d no_data", _P, answered, no_data)
+            logger.info(
+                "%s Execution complete: %d answered, %d no_data", _P, answered, no_data
+            )
             logger.debug(
                 "%s Execution detail: %s",
                 _P,
@@ -1153,6 +1408,7 @@ class AgenticRag:
                         len(scope_answers),
                         len(results),
                     )
+                    writer(make_stage_end("execute", key="execute.end.replan"))
                     return {
                         "task_results": results,
                         "scope_results": scope_answers,
@@ -1171,19 +1427,55 @@ class AgenticRag:
                             }
                         ),
                     )
-                    logger.info("%s Scope: all tasks returned [NO DATA] — no replan", _P)
+                    logger.info(
+                        "%s Scope: all tasks returned [NO DATA] — no replan", _P
+                    )
+                    writer(make_stage_end("execute", key="execute.end.no_data"))
                     return {"task_results": results, "needs_replan": False}
 
+            writer(
+                make_stage_end(
+                    "execute",
+                    key="execute.end.done",
+                    task_count=len(tasks),
+                    answered=answered,
+                )
+            )
             return {"task_results": results, "needs_replan": False}
 
-    async def synthesize_node(self, state: AgenticRAGGraphState) -> dict[str, Any]:
+    async def synthesize_node(
+        self,
+        state: AgenticRAGGraphState,
+        writer: StreamWriter,
+        config: RunnableConfig,
+    ) -> dict[str, Any]:
         """Combine task sub-answers (and optionally verification data) into a final answer."""
+        from nvidia_rag.rag_server.agentic_rag.streaming import (
+            make_final_stage_marker,
+            make_stage_end,
+            make_stage_start,
+        )
+
         is_verification_pass = state.verification_round > 0
         synth_label = (
             f"synthesize (verification pass {state.verification_round})"
             if is_verification_pass
             else "synthesize"
         )
+        # This synthesis is final (i.e. nothing follows in the graph) when:
+        #   - verification is disabled entirely, or
+        #   - we are already in a post-verification pass.
+        # See _route_after_synthesize for the authoritative routing predicate.
+        is_final_synthesis = (
+            not self.verification_cfg.enabled or state.verification_round > 0
+        )
+        writer(
+            make_stage_start(
+                "synthesize",
+                key="synthesize.start.refining" if is_verification_pass else "synthesize.start",
+            )
+        )
+        writer(make_final_stage_marker(is_final=is_final_synthesis))
         with self._otel_and_trace(synth_label) as ospan:
             pass_label = synth_label
             ospan.set_attribute("input.value", state.user_query)
@@ -1211,6 +1503,7 @@ class AgenticRag:
                     _P,
                     pass_label,
                 )
+                writer(make_stage_end("synthesize", key="synthesize.end.unchanged"))
                 return {"final_answer": state.final_answer}
 
             chunks = self._extract_chunks(state.initial_context)
@@ -1218,7 +1511,8 @@ class AgenticRag:
             effective_tasks = [
                 t
                 for t in tasks
-                if task_results.get(t["id"], {}).get("answer", "[NO DATA]") != "[NO DATA]"
+                if task_results.get(t["id"], {}).get("answer", "[NO DATA]")
+                != "[NO DATA]"
             ]
 
             if not effective_tasks and not state.verification_results:
@@ -1228,9 +1522,7 @@ class AgenticRag:
                     }
 
                 docs_str = self._format_chunks_for_prompt(chunks)
-                sub_answers = (
-                    f"[Source documents — synthesize the answer directly from these]\n{docs_str}"
-                )
+                sub_answers = f"[Source documents — synthesize the answer directly from these]\n{docs_str}"
             else:
                 answer_parts = []
 
@@ -1238,8 +1530,12 @@ class AgenticRag:
                     if state.final_answer:
                         answer_parts.append(f"[PREVIOUS ANSWER]: {state.final_answer}")
                     if state.verification_issues:
-                        issues_text = "\n".join(f"- {issue}" for issue in state.verification_issues)
-                        answer_parts.append(f"[GAPS IDENTIFIED IN PREVIOUS ANSWER]:\n{issues_text}")
+                        issues_text = "\n".join(
+                            f"- {issue}" for issue in state.verification_issues
+                        )
+                        answer_parts.append(
+                            f"[GAPS IDENTIFIED IN PREVIOUS ANSWER]:\n{issues_text}"
+                        )
                     synthesis_instruction = (
                         "IMPORTANT: The [PREVIOUS ANSWER] had gaps listed under [GAPS IDENTIFIED IN PREVIOUS ANSWER]. "
                         "Keep the [PREVIOUS ANSWER] as the base. "
@@ -1252,7 +1548,9 @@ class AgenticRag:
                     tid = task["id"]
                     result = task_results.get(tid, {})
                     answer = result.get("answer", "[NO DATA]")
-                    answer_parts.append(f"Task {tid} ({task.get('question', '')}): {answer}")
+                    answer_parts.append(
+                        f"Task {tid} ({task.get('question', '')}): {answer}"
+                    )
 
                 if state.verification_results:
                     v_question_map = {
@@ -1279,7 +1577,8 @@ class AgenticRag:
                     )
 
             resolved_query = (
-                state.retrieval_plan.get("resolved_query", state.user_query) or state.user_query
+                state.retrieval_plan.get("resolved_query", state.user_query)
+                or state.user_query
             )
             resolved_section = ""
             if resolved_query.strip().lower() != state.user_query.strip().lower():
@@ -1300,6 +1599,7 @@ class AgenticRag:
                         "sub_answers": sub_answers,
                     },
                     step_name=pass_label,
+                    config=config,
                 )
                 answer = self._clean_answer(response) if response else ""
 
@@ -1318,10 +1618,12 @@ class AgenticRag:
                 )
                 logger.info("%s %s complete", _P, pass_label)
                 logger.debug("%s Answer preview: %.300s", _P, answer)
+                writer(make_stage_end("synthesize", key="synthesize.end"))
                 return {"final_answer": answer}
 
             except Exception as ex:
                 logger.exception("%s Synthesis failed: %s", _P, ex)
+                writer(make_stage_end("synthesize", key="synthesize.end.failed"))
                 return {"final_answer": "I encountered an error generating the answer."}
 
     def _build_resolved_query_section(self, state: AgenticRAGGraphState) -> str:
@@ -1331,13 +1633,25 @@ class AgenticRag:
             return f"\nDisambiguated Question (implicit or ambiguous references in the original question were resolved from the documents): {resolved}\n"
         return ""
 
-    async def verify_node(self, state: AgenticRAGGraphState) -> dict[str, Any]:
+    async def verify_node(
+        self,
+        state: AgenticRAGGraphState,
+        writer: StreamWriter,
+        config: RunnableConfig,
+    ) -> dict[str, Any]:
         """Check answer completeness and identify retrieval gaps."""
+        from nvidia_rag.rag_server.agentic_rag.streaming import (
+            make_stage_end,
+            make_stage_start,
+        )
         from nvidia_rag.rag_server.agentic_rag.tracing import get_current_trace
 
+        writer(make_stage_start("verify"))
         with self._otel_and_trace("verify") as ospan:
             ospan.set_attribute("input.value", state.final_answer)
-            logger.info("%s Verification started (round %d)", _P, state.verification_round)
+            logger.info(
+                "%s Verification started (round %d)", _P, state.verification_round
+            )
 
             tasks = state.retrieval_plan.get("tasks", [])
             task_summary_parts = []
@@ -1351,7 +1665,9 @@ class AgenticRag:
                     f"- {tid}: {task.get('question', '')} → {status}: {answer_preview}"
                 )
             task_summary = (
-                "\n".join(task_summary_parts) if task_summary_parts else "(no tasks were executed)"
+                "\n".join(task_summary_parts)
+                if task_summary_parts
+                else "(no tasks were executed)"
             )
 
             max_v_tasks = self.verification_cfg.max_tasks
@@ -1362,12 +1678,15 @@ class AgenticRag:
                     self.verification_prompt,
                     {
                         "query": state.user_query,
-                        "resolved_query_section": self._build_resolved_query_section(state),
+                        "resolved_query_section": self._build_resolved_query_section(
+                            state
+                        ),
                         "answer": state.final_answer,
                         "task_summary": task_summary,
                     },
                     step_name="Verification",
                     json_mode=False,
+                    config=config,
                 )
                 result = self._parse_json_response(response)
 
@@ -1394,6 +1713,7 @@ class AgenticRag:
                             "issues": [],
                             "follow_up_tasks": 0,
                         }
+                    writer(make_stage_end("verify", key="verify.end.passed"))
                     return {
                         "verification_tasks": [],
                         "verification_round": state.verification_round + 1,
@@ -1404,7 +1724,9 @@ class AgenticRag:
                     v_tasks = []
                 required_keys = {"id", "question", "query"}
                 v_tasks = [
-                    t for t in v_tasks if isinstance(t, dict) and required_keys.issubset(t.keys())
+                    t
+                    for t in v_tasks
+                    if isinstance(t, dict) and required_keys.issubset(t.keys())
                 ][:max_v_tasks]
 
                 ospan.set_attribute("output.value", json.dumps(result, indent=2))
@@ -1441,6 +1763,14 @@ class AgenticRag:
                         "follow_up_tasks": len(v_tasks),
                     }
 
+                issue_count = len(issues) if isinstance(issues, list) else 0
+                writer(
+                    make_stage_end(
+                        "verify",
+                        key="verify.end.failed" if issue_count > 0 else "verify.end.failed_unspecified",
+                        issues=issue_count,
+                    )
+                )
                 return {
                     "verification_tasks": v_tasks,
                     "verification_issues": issues if isinstance(issues, list) else [],
@@ -1449,22 +1779,37 @@ class AgenticRag:
 
             except Exception as ex:
                 logger.exception("%s Verification failed: %s", _P, ex)
+                writer(make_stage_end("verify", key="verify.end.error"))
                 return {
                     "verification_tasks": [],
                     "verification_round": state.verification_round + 1,
                 }
 
-    async def verify_execute_node(self, state: AgenticRAGGraphState) -> dict[str, Any]:
+    async def verify_execute_node(
+        self,
+        state: AgenticRAGGraphState,
+        writer: StreamWriter,
+        config: RunnableConfig,
+    ) -> dict[str, Any]:
         """Execute verification follow-up tasks (targeted re-retrieval)."""
+        from nvidia_rag.rag_server.agentic_rag.streaming import (
+            make_stage_end,
+            make_stage_start,
+        )
+
+        writer(make_stage_start("verify_execute"))
         with self._otel_and_trace("verify_execute") as ospan:
             v_tasks = state.verification_tasks
             ospan.set_attribute(
                 "input.value", json.dumps([t.get("id", "") for t in (v_tasks or [])])
             )
             if not v_tasks:
+                writer(make_stage_end("verify_execute", key="verify_execute.end.no_tasks"))
                 return {"verification_results": {}}
 
-            logger.info("%s Verify-execute: running %d follow-up tasks", _P, len(v_tasks))
+            logger.info(
+                "%s Verify-execute: running %d follow-up tasks", _P, len(v_tasks)
+            )
             results = await self._execute_plan(v_tasks, stage="verify_execute")
 
             statuses = [r.get("status", "unknown") for r in results.values()]
@@ -1483,6 +1828,13 @@ class AgenticRag:
                 _P,
                 statuses.count("answered"),
                 statuses.count("no_data"),
+            )
+            writer(
+                make_stage_end(
+                    "verify_execute",
+                    key="verify_execute.end",
+                    answered=statuses.count("answered"),
+                )
             )
             return {"verification_results": results}
 

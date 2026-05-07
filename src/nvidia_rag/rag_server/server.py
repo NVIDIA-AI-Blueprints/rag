@@ -601,6 +601,16 @@ class Prompt(BaseModel):
             "Explicitly passing True or False overrides the server default for this request."
         ),
     )
+    enable_streaming: bool = Field(
+        default=True,
+        description=(
+            "Stream intermediate reasoning, stage announcements, and final-answer tokens as "
+            "they are produced. Currently honored by the agentic RAG pipeline; the regular "
+            "(non-agentic) pipeline always streams. When False on the agentic path, the graph "
+            "runs to completion and the full answer is returned as a single SSE chunk "
+            "(legacy behavior)."
+        ),
+    )
 
     @model_validator(mode="after")
     def validate_confidence_threshold(cls, values):
@@ -1506,6 +1516,7 @@ async def generate_answer(request: Request, prompt: Prompt) -> StreamingResponse
             fetch_full_page_context=prompt.fetch_full_page_context,
             fetch_neighboring_pages=prompt.fetch_neighboring_pages,
             agentic=prompt.agentic,
+            enable_streaming=prompt.enable_streaming,
             rag_start_time_sec=generate_start_time,
             metrics=metrics,
         )
