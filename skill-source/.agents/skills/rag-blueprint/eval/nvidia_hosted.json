@@ -20,7 +20,7 @@
         "`curl -sf -o /dev/null -w '%{http_code}' http://localhost:8082/v1/health` outputs 200",
         "`curl -sf -o /dev/null -w '%{http_code}' http://localhost:8090` outputs 200 (frontend served on port 8090)",
         "`docker ps --format '{{.Names}}\\t{{.Status}}' | grep -E '(milvus-standalone|rag-server|ingestor-server)' | grep -v 'Up' | wc -l` outputs 0 (every core container is in 'Up' state)",
-        "The agent's final output enumerates the health-check results for each service (rag-server, ingestor-server, frontend) and explicitly reports HTTP status codes, not just 'looks fine' or 'all services responding'"
+        "The agent's final output reports a per-service health verdict for rag-server, ingestor-server, and the frontend — each service named with a clear status indicator (e.g. 'HTTP 200', 'Healthy', 'Up', or equivalent). A single overall 'all services responding' summary alone is NOT sufficient; per-service breakdown is required (an HTTP code, the word 'Healthy', or an equivalent positive indicator next to each service name counts)."
       ]
     }
   ]
