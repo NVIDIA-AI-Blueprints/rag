@@ -303,9 +303,8 @@ class TestVLM:
 
     @pytest.mark.asyncio
     async def test_stream_with_messages_yields_content_only_when_filter_enabled(
-        self, monkeypatch
+        self,
     ):
-        monkeypatch.setenv("VLM_FILTER_THINK_TOKENS", "true")
         system_message = {"role": "system", "content": "sys"}
         user_message = {"role": "user", "content": [{"type": "text", "text": "ctx"}]}
 
@@ -361,6 +360,7 @@ class TestVLM:
         ):
             self.mock_config.vlm.enable_thinking = True
             self.mock_config.vlm.thinking_token_budget = 0
+            self.mock_config.vlm.filter_think_tokens = True
             self.mock_config.vlm.get_api_key.return_value = None
 
             chunks = []
@@ -375,9 +375,8 @@ class TestVLM:
 
     @pytest.mark.asyncio
     async def test_stream_with_messages_yields_reasoning_when_filter_disabled(
-        self, monkeypatch
+        self,
     ):
-        monkeypatch.setenv("VLM_FILTER_THINK_TOKENS", "false")
         system_message = {"role": "system", "content": "sys"}
         user_message = {"role": "user", "content": [{"type": "text", "text": "ctx"}]}
 
@@ -421,6 +420,7 @@ class TestVLM:
         ):
             self.mock_config.vlm.enable_thinking = True
             self.mock_config.vlm.thinking_token_budget = 0
+            self.mock_config.vlm.filter_think_tokens = False
             self.mock_config.vlm.get_api_key.return_value = None
 
             chunks = []
@@ -430,7 +430,9 @@ class TestVLM:
             ):
                 chunks.append(chunk)
 
-        assert chunks == ["step1", "answer"]
+        # Reasoning is wrapped in [reasoning]...[/reasoning] sentinels so clients
+        # can structurally separate chain-of-thought from the final answer.
+        assert chunks == ["[reasoning]", "step1", "[/reasoning]", "answer"]
 
     @pytest.mark.asyncio
     async def test_stream_with_messages_returns_early_without_messages(self):
