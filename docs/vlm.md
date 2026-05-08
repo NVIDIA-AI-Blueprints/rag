@@ -253,9 +253,6 @@ Covered earlier on this page ([Enable VLM with Docker Compose](#enable-vlm-with-
 
 For an end-to-end deployment that wires up multimodal *queries* (image + text from the user) on top of all three components, see [Multimodal Query Support](multimodal-query.md). It walks through the combined Docker Compose and Helm setups, including the trade-offs around reranking on image queries.
 
-:::{note}
-**GPU planning**: a fully VLM pipeline requires roughly one GPU each for the VLM (generation), the VLM embedder, and the VLM reranker — three GPUs total — unless you use [MIG slicing](mig-deployment.md) to share H100s.
-:::
 
 ## Troubleshooting
 
