@@ -805,6 +805,34 @@ class TestMilvusVDB:
         assert result is True
         assert mock_collection_obj.delete.call_count == 2
 
+    @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.Collection")
+    def test_delete_documents_escapes_filter_injection(self, mock_collection):
+        """Source values containing single quotes must not break out of the
+        Milvus filter expression literal (CWE-89: filter expression injection).
+        """
+        mock_collection_obj = Mock()
+        mock_resp = Mock()
+        mock_resp.delete_count = 1
+        mock_collection_obj.delete.return_value = mock_resp
+        mock_collection.return_value = mock_collection_obj
+
+        vdb = _make_dummy_milvus_vdb_for_delete()
+        # Attempt classic boolean-injection payload
+        malicious = "evil.pdf' or '1'=='1"
+        vdb.delete_documents("test_collection", [malicious])
+
+        # Inspect the filter expression passed to Collection.delete
+        call_args = mock_collection_obj.delete.call_args_list[0]
+        expr = call_args.args[0] if call_args.args else call_args.kwargs.get("expr", "")
+        # The injection fragment must be neutralised by escaping the quote
+        assert " or '1'=='1'" not in expr, (
+            f"delete_documents is vulnerable to filter expression injection: {expr!r}"
+        )
+        # The escaped form must be present
+        assert "evil.pdf\\' or \\'1\\'==\\'1" in expr or                "evil.pdf\' or \'1\'==\'1" in expr, (
+            f"Expected escaped quotes in filter expression, got: {expr!r}"
+        )
+
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.MilvusClient")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
     def test_create_metadata_schema_collection_new(
