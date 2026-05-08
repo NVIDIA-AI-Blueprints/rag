@@ -309,12 +309,22 @@ filter_expression_generator_prompt_elasticsearch:
 
     Emit a single JSON array of Elasticsearch filter clauses (no markdown, no explanations). Each clause is a Query DSL object. Use a top-level `bool` clause for logical composition.
 
+    ### Clause Selection Priority (CRITICAL) ###
+
+    When a user keyword could map to multiple schema fields, **always prefer `term` / `terms` on a categorical field over `wildcard` / `match` on a free-text field like `title` or `description`**.
+
+    - If a keyword names a recognizable category, status, type, or tag, map it to the corresponding schema field with `term` (single value) or `terms` (multiple values), using the `.keyword` sub-field.
+    - Use `wildcard` only when the user explicitly references title/description text (e.g. *"documents whose title mentions X"*, *"reports with 'compliance' in the heading"*). Otherwise do NOT use `wildcard`.
+    - Use `match` / `match_phrase` only for explicit free-text search intents.
+
+    Worked example: for the query *"Show me tech documents"* with a schema containing both `title` and `category`, the correct filter targets the `category` field — `[{{"term": {{"metadata.content_metadata.category.keyword": "tech"}}}}]` — NOT a `wildcard` on `title`.
+
     ### Type → Clause Mapping ###
 
-    1.  **String** — `term`, `terms`, `wildcard`, `match`
+    1.  **String** — `term`, `terms`, `wildcard`, `match` (prefer `term`/`terms` per the priority rule above)
         * `[{{"term": {{"metadata.content_metadata.doc_type.keyword": "report"}}}}]`
         * `[{{"terms": {{"metadata.content_metadata.doc_type.keyword": ["report", "summary"]}}}}]`
-        * `[{{"wildcard": {{"metadata.content_metadata.title": "*compliance*"}}}}]`
+        * `[{{"wildcard": {{"metadata.content_metadata.title": "*compliance*"}}}}]` (only when query explicitly references title text)
     2.  **Integer / Number / Float** — `term`, `range`
         * `[{{"range": {{"metadata.content_metadata.page_count": {{"gt": 10}}}}}}]`
         * `[{{"range": {{"metadata.content_metadata.year": {{"gte": 2024, "lt": 2026}}}}}}]`
