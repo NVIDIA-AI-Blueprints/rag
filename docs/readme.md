@@ -70,6 +70,7 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
 - Common configurations
 
     - [Best Practices for Common Settings](accuracy_perf.md)
+    - [Agentic RAG](agentic-rag.md)
     - [Change the LLM or Embedding Model](change-model.md)
     - [Customize LLM Parameters at Runtime](llm-params.md)
     - [Customize Prompts](prompt-customization.md)
