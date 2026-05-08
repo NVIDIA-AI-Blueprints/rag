@@ -1,0 +1,21 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=schema/plugins.schema.json
+
+schema_version: "1.0"
+
+endpoint:
+  nvidia_rag:
+    class: rag_perf.plugin.nvidia_rag:NvidiaRagEndpoint
+    description: |
+      NVIDIA RAG Blueprint endpoint. Formats requests for POST /v1/generate,
+      injects RAG-specific fields (collection_names, vdb_top_k, reranker_top_k,
+      enable_reranker, enable_citations, use_knowledge_base, confidence_threshold),
+      and extracts server-side stage timing (retrieval, reranking, LLM TTFT)
+      from the SSE metrics payload.
+    metadata:
+      endpoint_path: /v1/generate
+      supports_streaming: true
+      produces_tokens: true
+      tokenizes_input: false
+      metrics_title: NVIDIA RAG Blueprint Metrics
