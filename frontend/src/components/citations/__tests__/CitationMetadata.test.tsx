@@ -4,11 +4,9 @@ import { CitationMetadata } from '../CitationMetadata';
 
 // Mock the citation utils hook
 const mockFormatScore = vi.fn();
-const mockFormatStage = vi.fn();
 vi.mock('../../../hooks/useCitationUtils', () => ({
   useCitationUtils: () => ({
     formatScore: mockFormatScore,
-    formatStage: mockFormatStage,
   })
 }));
 
@@ -16,30 +14,21 @@ describe('CitationMetadata', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockFormatScore.mockReturnValue('0.850');
-    mockFormatStage.mockImplementation((stage: string | undefined) =>
-      stage ? stage.charAt(0).toUpperCase() + stage.slice(1).replace(/_/g, ' ') : ''
-    );
   });
 
   describe('Conditional Rendering', () => {
-    it('renders nothing when no source, score, or stage', () => {
+    it('renders nothing when no source or score', () => {
       const { container } = render(<CitationMetadata />);
       
       expect(container.firstChild).toBeNull();
     });
 
-    it('renders nothing when source, score, and stage are all undefined', () => {
+    it('renders nothing when source and score are both undefined', () => {
       const { container } = render(
-        <CitationMetadata source={undefined} score={undefined} stage={undefined} />
+        <CitationMetadata source={undefined} score={undefined} />
       );
       
       expect(container.firstChild).toBeNull();
-    });
-
-    it('renders when only stage is provided', () => {
-      render(<CitationMetadata stage="execute" />);
-      expect(screen.getByTestId('citation-stage-row')).toBeInTheDocument();
-      expect(screen.getByText('Pipeline stage: Execute')).toBeInTheDocument();
     });
 
     it('renders when source is provided', () => {
@@ -138,48 +127,17 @@ describe('CitationMetadata', () => {
       expect(mockFormatScore).toHaveBeenCalledWith(0.123456789, 3);
     });
 
-    it('renders source, score, and stage together', () => {
-      mockFormatScore.mockReturnValue('0.91');
-      render(
-        <CitationMetadata
-          source="combined.pdf"
-          score={0.91}
-          stage="initial_retrieval"
-        />
-      );
-      expect(screen.getByText('Source: combined.pdf')).toBeInTheDocument();
-      expect(screen.getByText('Relevance: 0.91')).toBeInTheDocument();
-      expect(screen.getByText('Pipeline stage: Initial retrieval')).toBeInTheDocument();
-    });
   });
 
-  describe('Stage Display', () => {
-    it('calls formatStage with the raw stage value', () => {
-      render(<CitationMetadata stage="verify_execute" />);
-      expect(mockFormatStage).toHaveBeenCalledWith('verify_execute');
-    });
-
-    it('does not display stage row when stage is not provided', () => {
+  describe('Stage Display (disabled per #514 review)', () => {
+    // Regression guard: the visual stage row was removed. The data still
+    // exists on Citation.stage; only the rendering was disabled. If a
+    // future change re-adds it, these assertions must be revisited
+    // explicitly rather than slipping through.
+    it('does not render a stage row in any case', () => {
       render(<CitationMetadata source="test.pdf" />);
       expect(screen.queryByTestId('citation-stage-row')).not.toBeInTheDocument();
       expect(screen.queryByText(/Pipeline stage:/)).not.toBeInTheDocument();
-    });
-
-    it('renders future / unknown stage values without code changes', () => {
-      // The component must be value-independent: any new server-side stage
-      // value renders sensibly via formatStage.
-      render(<CitationMetadata stage="plan_then_self_critique_v2" />);
-      const row = screen.getByTestId('citation-stage-row');
-      expect(row).toHaveAttribute('data-stage', 'plan_then_self_critique_v2');
-      expect(row).toHaveTextContent('Pipeline stage: Plan then self critique v2');
-    });
-
-    it('exposes the raw stage as a data attribute for styling/testing', () => {
-      render(<CitationMetadata stage="execute" />);
-      expect(screen.getByTestId('citation-stage-row')).toHaveAttribute(
-        'data-stage',
-        'execute'
-      );
     });
   });
 }); 

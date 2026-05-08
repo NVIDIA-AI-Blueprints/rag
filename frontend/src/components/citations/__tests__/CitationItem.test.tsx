@@ -47,8 +47,8 @@ vi.mock('../CitationTextContent', () => ({
 }));
 
 vi.mock('../CitationMetadata', () => ({
-  CitationMetadata: ({ source, score, stage }: { source: string; score?: string | number; stage?: string }) => (
-    <div data-testid="citation-metadata" data-stage={stage ?? ''}>{source} - {score}</div>
+  CitationMetadata: ({ source, score }: { source: string; score?: string | number }) => (
+    <div data-testid="citation-metadata">{source} - {score}</div>
   )
 }));
 
@@ -85,10 +85,10 @@ describe('CitationItem', () => {
       generateCitationId: mockGenerateCitationId,
       isVisualType: vi.fn().mockReturnValue(false),
       formatScore: vi.fn().mockReturnValue('0.85'),
-      // Echo back a humanised stage so tests can assert against the rendered text.
-      formatStage: vi.fn((stage: string | undefined) =>
-        stage ? stage.charAt(0).toUpperCase() + stage.slice(1).replace(/_/g, ' ') : ''
-      ),
+      // formatStage stays exported by the hook (used by ReasoningPanel
+      // in the agentic streaming path) but is no longer consumed by
+      // CitationItem after the #514 review removed the stage badges.
+      formatStage: vi.fn().mockReturnValue(''),
     });
     
     mockUseCitationExpansion.mockReturnValue({
@@ -332,39 +332,21 @@ describe('CitationItem', () => {
     });
   });
 
-  describe('Stage Badge', () => {
-    it('does not render the stage badge when citation has no stage', () => {
-      render(<CitationItem citation={mockCitation} index={0} />);
+  describe('Stage Badge (disabled per #514 review)', () => {
+    // Regression guard for the visual decision to drop the stage badge.
+    // The data still flows on Citation.stage; only the badge UI was
+    // removed. If a future change adds it back, these assertions must
+    // be revisited explicitly rather than slipping through quietly.
+    it('does not render a stage badge even when citation.stage is present', () => {
+      const citation: Citation = { ...mockCitation, stage: 'initial_retrieval' };
+      render(<CitationItem citation={citation} index={0} />);
       expect(screen.queryByTestId('citation-stage-badge')).not.toBeInTheDocument();
     });
 
-    it('renders the stage badge in the header when stage is present', () => {
-      const citation: Citation = { ...mockCitation, stage: 'initial_retrieval' };
-      render(<CitationItem citation={citation} index={0} />);
-
-      const badge = screen.getByTestId('citation-stage-badge');
-      expect(badge).toBeInTheDocument();
-      expect(badge).toHaveAttribute('data-stage', 'initial_retrieval');
-      // Humanised label appears
-      expect(badge).toHaveTextContent('Initial retrieval');
-    });
-
-    it('passes the stage through to CitationMetadata when expanded', () => {
-      mockUseCitationExpansion.mockReturnValue({ isExpanded: true, toggle: mockToggle });
-      const citation: Citation = { ...mockCitation, stage: 'verify_execute' };
-
-      render(<CitationItem citation={citation} index={0} />);
-
-      const metadata = screen.getByTestId('citation-metadata');
-      expect(metadata).toHaveAttribute('data-stage', 'verify_execute');
-    });
-
-    it('renders any future stage value without code changes', () => {
+    it('does not render a stage badge for any stage value', () => {
       const citation: Citation = { ...mockCitation, stage: 'plan_then_self_critique_v2' };
       render(<CitationItem citation={citation} index={0} />);
-
-      const badge = screen.getByTestId('citation-stage-badge');
-      expect(badge).toHaveAttribute('data-stage', 'plan_then_self_critique_v2');
+      expect(screen.queryByTestId('citation-stage-badge')).not.toBeInTheDocument();
     });
   });
 

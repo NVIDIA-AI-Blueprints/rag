@@ -55,23 +55,27 @@ vi.mock('@kui/react', async () => {
 
 describe('AgenticModeSelector', () => {
   beforeEach(() => {
+    // The store now defaults to "off" (Standard) and the previously-allowed
+    // "auto" value was removed — see the AgenticMode type.
     act(() => {
-      useSettingsStore.setState({ agenticMode: 'auto' });
+      useSettingsStore.setState({ agenticMode: 'off' });
     });
   });
 
   it('renders the current mode in the trigger label', () => {
     render(<AgenticModeSelector />);
     const trigger = screen.getByTestId('agentic-mode-trigger');
-    expect(trigger).toHaveTextContent('Auto');
-    expect(trigger).toHaveAttribute('data-mode', 'auto');
+    expect(trigger).toHaveTextContent('Standard');
+    expect(trigger).toHaveAttribute('data-mode', 'off');
   });
 
-  it('exposes all three modes as dropdown items in a stable order', () => {
+  it('exposes both modes as dropdown items in a stable order (Standard first)', () => {
     render(<AgenticModeSelector />);
-    expect(screen.getByTestId('agentic-mode-option-auto')).toHaveTextContent('Auto');
     expect(screen.getByTestId('agentic-mode-option-off')).toHaveTextContent('Standard');
     expect(screen.getByTestId('agentic-mode-option-on')).toHaveTextContent('Agentic');
+    expect(
+      screen.queryByTestId('agentic-mode-option-auto')
+    ).not.toBeInTheDocument();
   });
 
   it('marks the active option via data-active', () => {
@@ -87,16 +91,11 @@ describe('AgenticModeSelector', () => {
       'data-active',
       'false'
     );
-    expect(screen.getByTestId('agentic-mode-option-auto')).toHaveAttribute(
-      'data-active',
-      'false'
-    );
   });
 
   it.each<[string, AgenticMode]>([
-    ['mock-dropdown-item-0', 'auto'],
-    ['mock-dropdown-item-1', 'off'],
-    ['mock-dropdown-item-2', 'on'],
+    ['mock-dropdown-item-0', 'off'],
+    ['mock-dropdown-item-1', 'on'],
   ])('selecting %s sets agenticMode to %s', (testId, expected) => {
     render(<AgenticModeSelector />);
     fireEvent.click(screen.getByTestId(testId));
@@ -105,7 +104,7 @@ describe('AgenticModeSelector', () => {
 
   it('updates the trigger label after selecting a mode', () => {
     render(<AgenticModeSelector />);
-    fireEvent.click(screen.getByTestId('mock-dropdown-item-2'));
+    fireEvent.click(screen.getByTestId('mock-dropdown-item-1'));
     expect(screen.getByTestId('agentic-mode-trigger')).toHaveTextContent('Agentic');
     expect(screen.getByTestId('agentic-mode-trigger')).toHaveAttribute('data-mode', 'on');
   });
@@ -114,7 +113,7 @@ describe('AgenticModeSelector', () => {
     render(<AgenticModeSelector />);
     expect(screen.getByTestId('agentic-mode-trigger')).toHaveAttribute(
       'aria-label',
-      'Pipeline mode: Auto'
+      'Pipeline mode: Standard'
     );
   });
 });

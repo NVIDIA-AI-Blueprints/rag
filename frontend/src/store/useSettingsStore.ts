@@ -23,12 +23,14 @@ import type { ConfigurationResponse } from "../types/api";
 /**
  * Per-request agentic pipeline mode.
  *
- * - `"auto"` (default) → omit the `agentic` field from `/generate` and let
- *   the server's `CONFIG.enable_agentic_rag` decide.
- * - `"on"` → force the agentic LangGraph plan-and-execute pipeline.
- * - `"off"` → force the standard RAG pipeline.
+ * - `"off"` (default) → force the standard RAG pipeline (`agentic: false`).
+ * - `"on"` → force the agentic LangGraph plan-and-execute pipeline (`agentic: true`).
+ *
+ * The previous `"auto"` mode (omit the field, let the server's
+ * `CONFIG.enable_agentic_rag` decide) was removed per Pranjal's review on
+ * #514: with only two real outcomes the third option is just noise.
  */
-export type AgenticMode = "auto" | "on" | "off";
+export type AgenticMode = "on" | "off";
 
 /**
  * Interface defining the shape of the settings state.
@@ -52,8 +54,8 @@ interface SettingsState {
   enableVlmInference?: boolean;
   enableFilterGenerator?: boolean;
 
-  // Agentic pipeline mode - per-request override; defaults to "auto"
-  // ("auto" omits the field so the server's enable_agentic_rag decides)
+  // Agentic pipeline mode - per-request override; defaults to "off"
+  // (Standard RAG pipeline; users opt in to "on" / Agentic explicitly).
   agenticMode: AgenticMode;
   
   // Models - All optional, populated from health endpoint or user input
@@ -112,8 +114,8 @@ export const useSettingsStore = create<SettingsState>()(
       enableVlmInference: undefined,
       enableFilterGenerator: undefined,
 
-      // Agentic pipeline mode - default to "auto" (server config decides)
-      agenticMode: "auto" as const,
+      // Agentic pipeline mode - default to "off" (Standard RAG pipeline).
+      agenticMode: "off" as const,
       
       // Models - All start undefined, will be populated from health endpoint
       model: undefined,

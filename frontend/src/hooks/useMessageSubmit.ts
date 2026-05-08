@@ -100,13 +100,14 @@ export const useMessageSubmit = () => {
 
   const createRequest = useCallback((currentMessages: ChatMessage[]) => {
     // Map the per-request agentic mode to the wire format:
-    //   "auto" -> undefined (omitted; server's CONFIG.enable_agentic_rag decides)
-    //   "on"   -> true      (force agentic LangGraph pipeline)
-    //   "off"  -> false     (force standard RAG pipeline)
-    const agentic =
-      settings.agenticMode === "on" ? true :
-      settings.agenticMode === "off" ? false :
-      undefined;
+    //   "on"  -> true   (force agentic LangGraph pipeline)
+    //   "off" -> false  (force standard RAG pipeline)
+    // The previous "auto" mode (omit the field, let the server decide) was
+    // dropped per the #514 review — the FE now always pins the choice.
+    // `agentic: false` must still survive `cleanRequestObject` (see the
+    // `alwaysInclude` list there) so the user's "Standard" choice isn't
+    // silently overridden by the server's `CONFIG.enable_agentic_rag`.
+    const agentic = settings.agenticMode === "on";
 
     const rawRequest = {
       messages: currentMessages.map(({ role, content }) => ({ 

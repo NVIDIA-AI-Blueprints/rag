@@ -28,19 +28,14 @@ const MODE_OPTIONS: ReadonlyArray<{
   description: string;
 }> = [
   {
-    id: "auto",
-    label: "Auto",
-    description: "Server decides (default)",
-  },
-  {
     id: "off",
     label: "Standard",
-    description: "Force standard RAG pipeline",
+    description: "Standard RAG pipeline",
   },
   {
     id: "on",
     label: "Agentic",
-    description: "Force LangGraph plan-and-execute",
+    description: "LangGraph plan-and-execute",
   },
 ] as const;
 
@@ -53,12 +48,17 @@ const MODE_LABELS: Record<AgenticMode, string> = MODE_OPTIONS.reduce(
 );
 
 /**
- * Tri-state selector that controls the per-request `agentic` flag on the
+ * Two-state selector that controls the per-request `agentic` flag on the
  * `/generate` endpoint.
  *
- * - `Auto` (default): omit the field; server's `CONFIG.enable_agentic_rag` decides.
- * - `Standard`: force `agentic: false` to bypass the agentic pipeline.
- * - `Agentic`: force `agentic: true` to use the LangGraph plan-and-execute pipeline.
+ * - `Standard` (default): sends `agentic: false` to force the standard
+ *   RAG pipeline.
+ * - `Agentic`: sends `agentic: true` to use the LangGraph plan-and-execute
+ *   pipeline.
+ *
+ * (The previous `Auto` mode — omit the field, let the server decide — was
+ * dropped per the #514 review: with only two real outcomes a third option
+ * was just noise.)
  *
  * The selection is persisted via `useSettingsStore`, matching how every
  * other chat setting is stored.

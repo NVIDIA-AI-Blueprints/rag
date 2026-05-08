@@ -58,7 +58,10 @@ describe('cleanRequestObject', () => {
     expect(cleaned).toHaveProperty('agentic', false);
   });
 
-  it('omits `agentic` when undefined (auto mode → server decides)', () => {
+  it('omits `agentic` when undefined (defensive — FE always sends true/false now)', () => {
+    // Since the "auto" mode was removed (see AgenticMode), the FE never
+    // hands `cleanRequestObject` an `agentic: undefined`. This regression
+    // guard keeps the cleaner honest if a caller ever passes one anyway.
     const cleaned = cleanRequestObject({
       ...baseRequest,
       agentic: undefined,
