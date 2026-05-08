@@ -200,10 +200,19 @@ export const useChatStream = () => {
           const json = JSON.parse(line.slice(6));
           const choice = json.choices?.[0];
           const delta = choice?.delta ?? {};
+          // Standard (non-agentic) responses ship `event_type: null` on
+          // every chunk; we collapse that to `undefined` so the dispatch
+          // below routes them through the legacy path that concatenates
+          // `delta.content` into the assistant message.
+          const rawEventType =
+            (delta.event_type as AgenticEventType | null | undefined) ??
+            (choice?.message?.event_type as
+              | AgenticEventType
+              | null
+              | undefined) ??
+            (json.event_type as AgenticEventType | null | undefined);
           const eventType: AgenticEventType | undefined =
-            (delta.event_type as AgenticEventType | undefined) ??
-            (choice?.message?.event_type as AgenticEventType | undefined) ??
-            (json.event_type as AgenticEventType | undefined);
+            rawEventType ?? undefined;
           const stage: string | undefined =
             (typeof delta.stage === "string" ? delta.stage : undefined) ??
             (typeof choice?.message?.stage === "string"

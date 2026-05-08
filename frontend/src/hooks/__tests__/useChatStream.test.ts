@@ -67,6 +67,33 @@ describe('useChatStream — legacy non-agentic path (regression)', () => {
     expect(last.reasoning_steps).toBeUndefined();
   });
 
+  // Regression: the live BE actually emits `event_type: null` (not omitted)
+  // for every standard (non-agentic) chunk. A `??` chain in the parser
+  // previously left `eventType` as `null` instead of `undefined`, which
+  // routed the chunk into the forward-compat branch and silently dropped
+  // `delta.content`. The bubble showed sources but no answer.
+  it('treats explicit event_type: null as legacy, not as an unknown event', async () => {
+    const { last } = await drain([
+      {
+        choices: [{ delta: { content: 'Hello, ' } }],
+        event_type: null,
+        stage: null,
+      },
+      {
+        choices: [{ delta: { content: 'world.' } }],
+        event_type: null,
+        stage: null,
+      },
+      {
+        choices: [{ delta: {}, finish_reason: 'stop' }],
+        event_type: null,
+        stage: null,
+      },
+    ]);
+    expect(last.content).toBe('Hello, world.');
+    expect(last.reasoning_steps).toBeUndefined();
+  });
+
   it('extracts citations from sources/results without event_type', async () => {
     const { last } = await drain([
       {
