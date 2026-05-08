@@ -617,6 +617,21 @@ class MilvusVDB(VDBRagIngest):
         )
         return documents_list
 
+    @staticmethod
+    def _escape_milvus_string_literal(value: str) -> str:
+        """Escape a value for safe interpolation inside a single-quoted Milvus
+        boolean expression literal (e.g. ``field == '<value>'``).
+
+        Milvus filter expressions are parsed as a small expression language and
+        do not support parameterised queries for ``Collection.delete``. To
+        prevent filter-expression injection (CWE-89-class), escape backslashes
+        first and then single quotes so that user-controlled values cannot
+        break out of the surrounding ``'...'`` literal.
+        """
+        if not isinstance(value, str):
+            value = str(value)
+        return value.replace("\\", "\\\\").replace("'", "\\'")
+
     def delete_documents(
         self,
         collection_name: str,
@@ -634,15 +649,26 @@ class MilvusVDB(VDBRagIngest):
 
         for source_value in source_values:
             doc_name = os.path.basename(source_value)
+            # Escape string literals before interpolating into Milvus filter
+            # expressions to prevent filter-expression injection via document
+            # names that contain single quotes or backslashes.
+            escaped_source_value = self._escape_milvus_string_literal(source_value)
+            escaped_doc_name = self._escape_milvus_string_literal(doc_name)
             logger.info(
                 f"Deleting document {source_value} from collection "
                 f"{collection_name} at {self.vdb_endpoint}"
             )
             try:
-                resp = collection.delete(f"source['source_name'] == '{source_value}'")
+                resp = collection.delete(
+                    f"source['source_name'] == '{escaped_source_value}'"
+                )
                 self._delete_entities(
                     collection_name=DEFAULT_DOCUMENT_INFO_COLLECTION,
-                    filter=f"info_type == 'document' and collection_name == '{collection_name}' and document_name == '{doc_name}'",
+                    filter=(
+                        f"info_type == 'document' and collection_name == "
+                        f"'{collection_name}' and document_name == "
+                        f"'{escaped_doc_name}'"
+                    ),
                 )
             except MilvusException:
                 # Fallback to legacy source field format
@@ -650,7 +676,7 @@ class MilvusVDB(VDBRagIngest):
                     f"Failed to delete document {source_value}, source name might be "
                     "available in the source field"
                 )
-                resp = collection.delete(f"source == '{source_value}'")
+                resp = collection.delete(f"source == '{escaped_source_value}'")
 
             if result_dict is not None:
                 if resp.delete_count == 0:
