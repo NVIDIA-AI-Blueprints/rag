@@ -237,13 +237,13 @@ The pipeline has three independently switchable components, each with its own de
 
 Replace the default text embedder with **`nvidia/llama-nemotron-embed-vl-1b-v2`** so PDF pages, tables, charts, and image elements are embedded by a multimodal model. The same model embeds text + image queries at retrieval time, so no extra rag-server config is needed beyond pointing `APP_EMBEDDINGS_*` at the VLM embedding NIM.
 
-Setup, modality switches (text-only, structured-as-image, page-as-image), and Docker/Helm flows: see [VLM Embedding for Ingestion](vlm-embed.md).
+Setup, modality switches (text-only, structured-as-image, page-as-image), and Docker/Helm flows: see [Multimodal Retriever — Part 1: VLM Embedding for Ingestion](multimodal-retriever.md#part-1--vlm-embedding-for-ingestion-early-access).
 
 ### 2. VLM Reranker (image-aware reranking)
 
 Swap the default text reranker for **`nvidia/llama-nemotron-rerank-vl-1b-v2`** and turn on `ENABLE_VLM_RERANKER_IMAGE_INPUT=True` so the reranker scores passages with awareness of the cited images, not just the surrounding text. This noticeably improves ordering when the most relevant chunk is signalled by its image content.
 
-What the flag does, when to enable it, and Docker/Helm flows: see [VLM Reranker](vlm-reranker.md).
+What the flag does, when to enable it, and Docker/Helm flows: see [Multimodal Retriever — Part 2: VLM Reranker](multimodal-retriever.md#part-2--vlm-reranker).
 
 ### 3. VLM Generation
 
@@ -263,8 +263,7 @@ For an end-to-end deployment that wires up multimodal *queries* (image + text fr
 
 ## Related Topics
 
-- [VLM Embedding for Ingestion](vlm-embed.md)
-- [VLM Reranker](vlm-reranker.md)
+- [Multimodal Retriever (VLM Embedding & VLM Reranker)](multimodal-retriever.md)
 - [Multimodal Query Support](multimodal-query.md)
 - [Change the LLM, Embedding Model, or Reranker](change-model.md)
 - [Release Notes](release-notes.md)

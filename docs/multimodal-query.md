@@ -385,7 +385,7 @@ For a step-by-step guide with code examples covering collection creation, docume
 ## Related Topics
 
 - [Vision-Language Model (VLM) for Generation](vlm.md)
-- [VLM Embedding for Ingestion](vlm-embed.md)
+- [Multimodal Retriever (VLM Embedding & VLM Reranker)](multimodal-retriever.md)
 - [Image Captioning Support](image_captioning.md)
 - [Deploy with Docker (Self-Hosted Models)](deploy-docker-self-hosted.md)
 - [Deploy with Docker (NVIDIA-Hosted Models)](deploy-docker-nvidia-hosted.md)
