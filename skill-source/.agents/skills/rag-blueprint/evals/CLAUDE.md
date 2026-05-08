@@ -127,8 +127,29 @@ to handle:
 
 ## Two known NV-BASE bugs (2.6.0)
 
-- `CLAUDE_CODE_DISABLE_THINKING` is missing from the env allowlist. README § 2
-  patches it. Without the patch, every trial 400s.
+- `CLAUDE_CODE_DISABLE_THINKING` is missing at three filtering points:
+  - `nv-base/.../layer2/harbor/runner.py` host-env allowlist
+  - `astra-skill-eval/.../layer2/harbor/runner.py` host-env allowlist (separate venv)
+  - `harbor/agents/installed/claude_code.py` agent-subprocess env builder
+    (both venvs — nv-base + astra-skill-eval)
+
+  README § 2 has the four-file patch. Patching only the allowlist is **not**
+  enough — harbor's `claude_code.py` rebuilds the agent env from a fixed
+  dict and silently drops anything not explicitly forwarded. Without all
+  patches, every trial fails with
+  `400 {"message":"context_management: Extra inputs are not permitted"}` —
+  zero tool calls, zero scores.
+
+  Quick check:
+  ```bash
+  grep -l CLAUDE_CODE_DISABLE_THINKING \
+    ~/.local/share/uv/tools/nv-base/lib/python3.12/site-packages/layer2/harbor/runner.py \
+    ~/.local/share/uv/tools/astra-skill-eval/lib/python3.12/site-packages/layer2/harbor/runner.py \
+    ~/.local/share/uv/tools/nv-base/lib/python3.12/site-packages/harbor/agents/installed/claude_code.py \
+    ~/.local/share/uv/tools/astra-skill-eval/lib/python3.12/site-packages/harbor/agents/installed/claude_code.py
+  ```
+  All four paths must print.
+
 - NAT mode (`tier=tier3 mode=nat`) has an `EvalOutputItem` import error from
   a version skew between `astra-skill-eval[nat-nemo]` and the `nat` package.
   Stick to Harbor mode (default for `agent-eval`).

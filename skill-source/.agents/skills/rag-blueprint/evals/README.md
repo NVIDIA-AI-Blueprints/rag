@@ -58,29 +58,20 @@ above is on `$PATH` for *every* shell that invokes `nv-base`.
 
 ---
 
-## 2. Apply the one-line patch (currently required)
+## 2. Apply the three patches (currently required)
 
 NV-BASE 2.6.0 forwards the agent run through `inference-api.nvidia.com`, but
 the proxy rejects the `context_management` field that claude-code sends with
-thinking enabled. The fix is to forward `CLAUDE_CODE_DISABLE_THINKING=1` to the
-agent subprocess. NV-BASE's allowlist doesn't include it yet (it has the
-adjacent `CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING`, but that's not the same flag).
+thinking enabled. The fix is to make sure `CLAUDE_CODE_DISABLE_THINKING=1`
+reaches the claude subprocess. The flag has to survive **three** filtering
+points — `nv-base`'s host-env allowlist, `astra-skill-eval`'s host-env
+allowlist (separate Python venv), and `harbor`'s claude-subprocess env
+builder. Patch all three (one line each):
 
-Edit:
+### 2a. nv-base allowlist
 
-```
-~/.local/share/uv/tools/nv-base/lib/python3.12/site-packages/layer2/harbor/runner.py
-```
-
-Find this block (~line 99):
-
-```python
-"CLAUDE_CODE_OAUTH_TOKEN",
-"CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING",
-"CLAUDE_CODE_MAX_OUTPUT_TOKENS",
-```
-
-Add `"CLAUDE_CODE_DISABLE_THINKING"`:
+File: `~/.local/share/uv/tools/nv-base/lib/python3.12/site-packages/layer2/harbor/runner.py`
+(around line 104, in `_LOCAL_MODE_HOST_ENV_ALLOWLIST`)
 
 ```python
 "CLAUDE_CODE_OAUTH_TOKEN",
@@ -89,10 +80,54 @@ Add `"CLAUDE_CODE_DISABLE_THINKING"`:
 "CLAUDE_CODE_MAX_OUTPUT_TOKENS",
 ```
 
-That's all. Without this, every trial fails on the first agent call with
-`400 {"message":"context_management: Extra inputs are not permitted"}` and all
-five evaluator scores go to zero. Once NV-BASE upstreams this fix, the patch
-goes away.
+### 2b. astra-skill-eval allowlist
+
+File: `~/.local/share/uv/tools/astra-skill-eval/lib/python3.12/site-packages/layer2/harbor/runner.py`
+(same block, around line 104). Add the same line — `astra-skill-eval` ships
+its own copy and re-filters env independently:
+
+```python
+"CLAUDE_CODE_OAUTH_TOKEN",
+"CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING",
+"CLAUDE_CODE_DISABLE_THINKING",     # ← add this line
+"CLAUDE_CODE_MAX_OUTPUT_TOKENS",
+```
+
+### 2c. harbor agent env builder
+
+Files (patch **both** copies):
+- `~/.local/share/uv/tools/nv-base/lib/python3.12/site-packages/harbor/agents/installed/claude_code.py`
+- `~/.local/share/uv/tools/astra-skill-eval/lib/python3.12/site-packages/harbor/agents/installed/claude_code.py`
+
+Around line 1110, after the `CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING` block,
+add a parallel block for `CLAUDE_CODE_DISABLE_THINKING`:
+
+```python
+# Disable adaptive thinking if requested
+if os.environ.get("CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING", "").strip() == "1":
+    env["CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING"] = "1"
+if os.environ.get("CLAUDE_CODE_DISABLE_THINKING", "").strip() == "1":   # ← add
+    env["CLAUDE_CODE_DISABLE_THINKING"] = "1"                            # ← add
+```
+
+Without all three patches, every trial fails on the first agent call with
+`400 {"message":"context_management: Extra inputs are not permitted"}` and
+all five evaluator scores go to zero. Patching only the allowlists isn't
+enough — harbor rebuilds the agent env from a fixed dict and silently drops
+flags it doesn't know about. Once NV-BASE upstreams this, the patches go
+away.
+
+### Quick verify
+
+```bash
+grep -l CLAUDE_CODE_DISABLE_THINKING \
+  ~/.local/share/uv/tools/nv-base/lib/python3.12/site-packages/layer2/harbor/runner.py \
+  ~/.local/share/uv/tools/astra-skill-eval/lib/python3.12/site-packages/layer2/harbor/runner.py \
+  ~/.local/share/uv/tools/nv-base/lib/python3.12/site-packages/harbor/agents/installed/claude_code.py \
+  ~/.local/share/uv/tools/astra-skill-eval/lib/python3.12/site-packages/harbor/agents/installed/claude_code.py
+```
+
+All four paths must print.
 
 ---
 
