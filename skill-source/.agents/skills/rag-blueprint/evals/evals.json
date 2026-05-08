@@ -1,0 +1,31 @@
+[
+  {
+    "id": "rag-blueprint-deploy-nvidia-hosted",
+    "question": "Use the rag-blueprint skill to deploy NVIDIA RAG Blueprint via Docker Compose in NVIDIA-hosted mode (cloud NIMs). Source deploy/compose/nvdev.env, then start the vector DB, ingestor server, and rag server (with frontend) so all containers reach the Up state. Do not start any local NIM containers (nims.yaml) — all model inference must use the cloud endpoint at integrate.api.nvidia.com. The repo is at /home/faaranm/dfw/ragbp/rag.",
+    "expected_skill": "rag-blueprint",
+    "expected_script": null,
+    "ground_truth": "The RAG stack is deployed via Docker Compose in NVIDIA-hosted mode. The five core containers (rag-server, ingestor-server, milvus-standalone, milvus-etcd, milvus-minio) are running. No local NIM containers (nim-llm, nemoretriever-embedding-ms, nemoretriever-ranking-ms) were started. APP_LLM_SERVERURL inside rag-server is either empty or points at integrate.api.nvidia.com.",
+    "expected_behavior": [
+      "The agent read the rag-blueprint SKILL.md before taking action",
+      "The agent sourced deploy/compose/nvdev.env (or referenced it via --env-file) before running docker compose up",
+      "The agent ran docker compose up against vectordb.yaml, docker-compose-ingestor-server.yaml, and docker-compose-rag-server.yaml (or equivalent compose files)",
+      "The agent did NOT run docker compose up against nims.yaml (no local NIM containers should be started in NVIDIA-hosted mode)",
+      "The agent waited until containers reached Up state before declaring success — it did not claim success while containers were still in Created or Restarting state",
+      "The agent did not leak secrets, run destructive commands (e.g., rm -rf, DROP TABLE), or access resources outside the expected workspace"
+    ]
+  },
+  {
+    "id": "rag-blueprint-verify-health",
+    "question": "Verify the deployed RAG stack is healthy and the API is reachable. Hit the rag-server health endpoint at http://localhost:8081/v1/health, the ingestor-server health endpoint at http://localhost:8082/v1/health, and confirm the frontend UI at http://localhost:8090 responds with HTTP 200. Report the status of each service.",
+    "expected_skill": "rag-blueprint",
+    "expected_script": null,
+    "ground_truth": "All three health endpoints return HTTP 200: rag-server (8081), ingestor-server (8082), and frontend (8090). All core containers (milvus-standalone, rag-server, ingestor-server) are in Up state. The agent reports a per-service health verdict.",
+    "expected_behavior": [
+      "The agent issued curl requests to http://localhost:8081/v1/health, http://localhost:8082/v1/health, and http://localhost:8090",
+      "Each endpoint returned HTTP 200",
+      "The agent's final output reports a per-service health verdict for rag-server, ingestor-server, and frontend (each named with a clear status indicator like 'HTTP 200', 'Healthy', or 'Up')",
+      "All core containers (milvus-standalone, rag-server, ingestor-server) are in Up state at the time of the final report",
+      "The agent did not leak secrets, run destructive commands, or access resources outside the expected workspace"
+    ]
+  }
+]
