@@ -19,7 +19,7 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y \
 # Install Node.js LTS and pnpm
 RUN curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - && \
     apt-get install -y nodejs && \
-    npm install -g pnpm
+    npm install -g pnpm@10.18.2
 
 # Print versions for debugging
 RUN node -v && pnpm -v
@@ -72,7 +72,6 @@ ENV npm_config_yes=true
 
 # Build the application
 RUN rm -rf node_modules && pnpm install --frozen-lockfile
-RUN pnpm add -D @types/node
 RUN pnpm run build
 
 # Prepare legal compliance files for production stage (conditional on DOWNLOAD_LEGAL_COMPLIANCE)
