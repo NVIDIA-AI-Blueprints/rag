@@ -1,0 +1,22 @@
+# OpenShift overlay for the NVIDIA RAG Blueprint Helm chart.
+# Usage:
+#   helm install rag . -f values.yaml -f values-openshift.yaml -n <namespace>
+
+openshift:
+  enabled: true
+  routes:
+    frontend:
+      enabled: true
+      tls:
+        termination: edge
+        insecureEdgeTerminationPolicy: Redirect
+    ragServer:
+      enabled: true
+      tls:
+        termination: edge
+        insecureEdgeTerminationPolicy: Redirect
+
+# Override default NodePort to ClusterIP — Routes handle external access.
+frontend:
+  service:
+    type: ClusterIP

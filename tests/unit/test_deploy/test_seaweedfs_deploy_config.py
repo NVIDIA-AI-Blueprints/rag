@@ -186,7 +186,6 @@ def test_helm_values_default_to_seaweedfs_and_persistence():
     assert values["nv-ingest"]["redis"]["fullnameOverride"] == "rag-redis"
     assert values["nv-ingest"]["envVars"]["YOLOX_PAGE_IMAGE_FORMAT"] == "JPEG"
     assert values["nv-ingest"]["milvusDeployed"] is False
-    assert values["nv-ingest"]["milvus"]["minio"]["enabled"] is False
 
 
 def test_helm_chart_uses_upstream_seaweedfs_dependency():

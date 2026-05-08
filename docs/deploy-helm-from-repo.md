@@ -80,6 +80,7 @@ If you are working directly with the source Helm chart, and you want to customiz
     helm repo add baidu-nim https://helm.ngc.nvidia.com/nim/baidu --username='$oauthtoken' --password=$NGC_API_KEY
     helm repo add bitnami https://charts.bitnami.com/bitnami
     helm repo add elastic https://helm.elastic.co
+    helm repo add seaweed https://seaweedfs.github.io/seaweedfs/helm
     helm repo add otel https://open-telemetry.github.io/opentelemetry-helm-charts
     helm repo add zipkin https://zipkin.io/zipkin-helm
     helm repo add prometheus https://prometheus-community.github.io/helm-charts
