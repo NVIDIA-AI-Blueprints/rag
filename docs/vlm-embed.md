@@ -22,6 +22,10 @@ Requirements: An NVIDIA GPU and a valid `NGC_API_KEY`.
 **PDF Support Only**: The VLM embedding feature is currently only supported for PDF documents. Other document formats (Word, PowerPoint, etc.) are not supported with VLM embedding.
 :::
 
+:::{tip}
+**Use with the full multimodal pipeline.** The VLM embedder pairs naturally with the [VLM Reranker](vlm-reranker.md) and [VLM-based generation](vlm.md) to give you image-aware retrieval *and* image-aware re-ranking *and* image-aware generation. See [Enabling Full VLM Multimodal RAG Pipeline](vlm.md#enabling-full-vlm-multimodal-rag-pipeline) for the end-to-end picture, and [Multimodal Query Support](multimodal-query.md) for the user-facing image+text query flow.
+:::
+
 ## Limitations
 
 - The VLM embedding feature is experimental and responses may not be accurate.
@@ -224,8 +228,10 @@ nv-ingest:
 ## Related Topics
 
 - [NVIDIA RAG Blueprint Documentation](readme.md)
-- [VLM based inferencing in RAG](vlm.md)
+- [VLM-based Generation](vlm.md)
+- [VLM Reranker](vlm-reranker.md)
 - [Multimodal Query Support](multimodal-query.md)
+- [Change the LLM, Embedding Model, or Reranker](change-model.md)
 - [Best Practices for Common Settings](accuracy_perf.md)
 - [RAG Pipeline Debugging Guide](debugging.md)
 - [Troubleshoot](troubleshooting.md)

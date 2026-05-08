@@ -54,6 +54,11 @@ The VLM feature uses predefined prompts that can be customized in [`src/nvidia_r
 - **Reasoning mode (default)**: `APP_VLM_ENABLE_THINKING=true`. The model produces a chain-of-thought trace before the final answer. Default parameters: `APP_VLM_TEMPERATURE=0.6`, `APP_VLM_TOP_P=0.95`, `APP_VLM_MAX_TOKENS=32768`, `APP_VLM_THINKING_TOKEN_BUDGET=16384`.
 - **Non-reasoning mode**: `APP_VLM_ENABLE_THINKING=false`. The model skips the reasoning trace and returns only the final answer.
 
+**What reaches the streaming client** is controlled by `VLM_FILTER_THINK_TOKENS` on the rag-server:
+
+- `VLM_FILTER_THINK_TOKENS=true` (default): only the final answer (`content`) is forwarded; the reasoning trace is consumed server-side and hidden from the client.
+- `VLM_FILTER_THINK_TOKENS=false`: the reasoning trace streams first, followed by the final answer. Useful for debugging or for UIs that want to display the model's thought process.
+
 Set these parameters via environment variables in your deployment configuration (for example in `docker-compose-rag-server.yaml` or Helm `values.yaml`).
 
 ## Enable VLM with Docker Compose
@@ -222,6 +227,36 @@ nimOperator:
     enabled: true
 ```
 
+## Enabling Full VLM Multimodal RAG Pipeline
+
+The VLM generation path covered above can be combined with the multimodal embedder and a multimodal reranker for a **fully VLM-powered ingestion + retrieval + generation pipeline**. This is the recommended setup when your corpus is image-heavy (PDFs with charts, diagrams, scanned tables) or when end-user queries themselves carry images.
+
+The pipeline has three independently switchable components, each with its own dedicated guide:
+
+### 1. VLM Embedding for ingestion (image modality)
+
+Replace the default text embedder with **`nvidia/llama-nemotron-embed-vl-1b-v2`** so PDF pages, tables, charts, and image elements are embedded by a multimodal model. The same model embeds text + image queries at retrieval time, so no extra rag-server config is needed beyond pointing `APP_EMBEDDINGS_*` at the VLM embedding NIM.
+
+Setup, modality switches (text-only, structured-as-image, page-as-image), and Docker/Helm flows: see [VLM Embedding for Ingestion](vlm-embed.md).
+
+### 2. VLM Reranker (image-aware reranking)
+
+Swap the default text reranker for **`nvidia/llama-nemotron-rerank-vl-1b-v2`** and turn on `ENABLE_VLM_RERANKER_IMAGE_INPUT=True` so the reranker scores passages with awareness of the cited images, not just the surrounding text. This noticeably improves ordering when the most relevant chunk is signalled by its image content.
+
+What the flag does, when to enable it, and Docker/Helm flows: see [VLM Reranker](vlm-reranker.md).
+
+### 3. VLM Generation
+
+Covered earlier on this page ([Enable VLM with Docker Compose](#enable-vlm-with-docker-compose), [Enable VLM with Helm](#enable-vlm-with-helm)). With reasoning mode enabled, the VLM produces a chain-of-thought before the final answer; the rag-server streams either just the answer or both, depending on `VLM_FILTER_THINK_TOKENS`.
+
+### Putting it all together
+
+For an end-to-end deployment that wires up multimodal *queries* (image + text from the user) on top of all three components, see [Multimodal Query Support](multimodal-query.md). It walks through the combined Docker Compose and Helm setups, including the trade-offs around reranking on image queries.
+
+:::{note}
+**GPU planning**: a fully VLM pipeline requires roughly one GPU each for the VLM (generation), the VLM embedder, and the VLM reranker — three GPUs total — unless you use [MIG slicing](mig-deployment.md) to share H100s.
+:::
+
 ## Troubleshooting
 
 - Ensure the VLM NIM is running and reachable at the configured `APP_VLM_SERVERURL`.
@@ -232,7 +267,9 @@ nimOperator:
 ## Related Topics
 
 - [VLM Embedding for Ingestion](vlm-embed.md)
+- [VLM Reranker](vlm-reranker.md)
 - [Multimodal Query Support](multimodal-query.md)
+- [Change the LLM, Embedding Model, or Reranker](change-model.md)
 - [Release Notes](release-notes.md)
 - [Debugging](debugging.md)
 - [Troubleshoot NVIDIA RAG Blueprint](troubleshooting.md)

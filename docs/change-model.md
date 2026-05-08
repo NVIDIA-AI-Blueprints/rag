@@ -302,6 +302,154 @@ Use this procedure to change models when you are running self-hosted NVIDIA NIM 
 
 
 
+## Switch the Text Embedding Model
+
+The default text embedding model is `nvidia/llama-nemotron-embed-1b-v2` (2048 dimensions). Use this section to switch to a different text embedding NIM with both Docker Compose and Helm. Both ingestion and retrieval must use the **same** embedding model and dimensions; if you change either, re-ingest your documents.
+
+:::{tip}
+For the multimodal/VLM embedder, see [VLM Embedding for Ingestion](vlm-embed.md). This section covers text-only embedding NIMs.
+:::
+
+### Docker Compose
+
+1. (Self-hosted only) Update the embedding NIM image in [`deploy/compose/nims.yaml`](../deploy/compose/nims.yaml) under the `nemotron-embedding-ms` service to the image that hosts your target model:
+
+   ```yaml
+   nemotron-embedding-ms:
+     image: nvcr.io/nim/<image>:<tag>
+   ```
+
+   To list available NIM images:
+
+   - Run `ngc registry image list "nim/*"`.
+   - Browse the NGC catalog at <https://catalog.ngc.nvidia.com/containers>.
+
+2. Set the model name, server URL, and (when required) the embedding dimensions before starting services:
+
+   ```bash
+   export APP_EMBEDDINGS_MODELNAME="<embedding-model-name>"
+   # Self-hosted NIM:
+   export APP_EMBEDDINGS_SERVERURL="nemotron-embedding-ms:8000/v1"
+   # Or NVIDIA-hosted:
+   # export APP_EMBEDDINGS_SERVERURL="https://integrate.api.nvidia.com/v1"
+
+   # Some NIMs have fixed output dimensions (e.g. nv-embedqa-e5-v5 = 1024).
+   # Set this to match your model; default is 2048 for llama-nemotron-embed-1b-v2.
+   export APP_EMBEDDINGS_DIMENSIONS="<dimensions>"
+   ```
+
+3. Restart the affected services:
+
+   ```bash
+   docker compose -f deploy/compose/docker-compose-ingestor-server.yaml up -d
+   docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d
+   ```
+
+   :::{warning}
+   Some embedding NIMs reject the `dimensions` field altogether. If you see
+   `This model does not support 'dimensions', but a value of '2048' was provided`,
+   set `APP_EMBEDDINGS_DIMENSIONS` to the model's fixed output size.
+   :::
+
+### Helm
+
+1. In [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml), update the rag-server and ingestor-server env vars:
+
+   ```yaml
+   envVars:
+     APP_EMBEDDINGS_MODELNAME: "<embedding-model-name>"
+     APP_EMBEDDINGS_SERVERURL: "nemotron-embedding-ms:8000/v1"
+     APP_EMBEDDINGS_DIMENSIONS: "<dimensions>"   # match the NIM's output
+
+   ingestor-server:
+     envVars:
+       APP_EMBEDDINGS_MODELNAME: "<embedding-model-name>"
+       APP_EMBEDDINGS_SERVERURL: "nemotron-embedding-ms:8000/v1"
+
+   nv-ingest:
+     envVars:
+       EMBEDDING_NIM_ENDPOINT: "http://nemotron-embedding-ms:8000/v1"
+       EMBEDDING_NIM_MODEL_NAME: "<embedding-model-name>"
+   ```
+
+2. Update the embedding NIM image to the one that hosts your target model:
+
+   ```yaml
+   nimOperator:
+     nvidia-nim-llama-32-nv-embedqa-1b-v2:
+       enabled: true
+       image:
+         repository: nvcr.io/nim/<image>
+         tag: "<tag>"
+   ```
+
+3. Apply the changes as described in [Change a Deployment](deploy-helm.md#change-a-deployment).
+
+:::{warning}
+**Re-ingest after changing embeddings.** Stored vectors from the previous model are not directly compatible with the new model's vector space; retrieval accuracy will degrade until you re-ingest your documents.
+:::
+
+
+
+## Switch to the VLM Reranker
+
+The default reranker is the text reranker `nvidia/llama-nemotron-rerank-1b-v2`. To use a multimodal reranker that can re-rank with awareness of cited images, switch to `nvidia/llama-nemotron-rerank-vl-1b-v2`. The dedicated [VLM Reranker](vlm-reranker.md) doc covers what the multimodal reranker does and the `ENABLE_VLM_RERANKER_IMAGE_INPUT` flag in detail. The steps below cover the model swap.
+
+### Docker Compose
+
+1. Start the VLM reranker NIM (`nemotron-ranking-vl-ms`, defined in [`deploy/compose/nims.yaml`](../deploy/compose/nims.yaml) under the `vlm-rerank` and `vlm-rag` profiles):
+
+   ```bash
+   export USERID=$(id -u)
+   export NGC_API_KEY="nvapi-..."
+   export RANKING_VL_MS_GPU_ID=0   # optional GPU pinning
+
+   docker compose -f deploy/compose/nims.yaml --profile vlm-rerank up -d
+   ```
+
+   Use `--profile vlm-rag` instead if you also want VLM generation and VLM embedding to come up together.
+
+2. Point the rag-server at the VLM reranker and (optionally) enable image input:
+
+   ```bash
+   export ENABLE_RERANKER="True"
+   export APP_RANKING_MODELNAME="nvidia/llama-nemotron-rerank-vl-1b-v2"
+   export APP_RANKING_SERVERURL="nemotron-ranking-vl-ms:8000"
+   export ENABLE_VLM_RERANKER_IMAGE_INPUT="True"   # see vlm-reranker.md
+   docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d
+   ```
+
+   :::{note}
+   The rag-server only follows the multimodal reranker code path when `APP_RANKING_MODELNAME` contains `rerank-vl`. With any other model name, `ENABLE_VLM_RERANKER_IMAGE_INPUT` has no effect.
+   :::
+
+### Helm
+
+1. In [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml), enable the VLM reranker NIM and (optionally) disable the text reranker:
+
+   ```yaml
+   nimOperator:
+     nvidia-nim-llama-nemotron-rerank-vl-1b-v2:
+       enabled: true
+     # Optional: free the text reranker's GPU slot
+     nvidia-nim-llama-32-nv-rerankqa-1b-v2:
+       enabled: false
+   ```
+
+2. Update the rag-server env vars:
+
+   ```yaml
+   envVars:
+     ENABLE_RERANKER: "True"
+     APP_RANKING_MODELNAME: "nvidia/llama-nemotron-rerank-vl-1b-v2"
+     APP_RANKING_SERVERURL: "nemotron-ranking-vl-ms:8000"
+     ENABLE_VLM_RERANKER_IMAGE_INPUT: "True"
+   ```
+
+3. Apply the changes as described in [Change a Deployment](deploy-helm.md#change-a-deployment).
+
+
+
 ## Switch Back to Nemotron Nano 12B VLM
 
 The default VLM for this blueprint is **Nemotron Omni** (`nvidia/nemotron-3-nano-omni-30b-a3b-reasoning`). If you want to revert to the previous **Nemotron Nano 12B** (`nvidia/nemotron-nano-12b-v2-vl`) model, follow the steps below.
