@@ -88,7 +88,7 @@ class _LLMTransportConfig:
 
 @dataclass
 class _VerificationConfig:
-    enabled: bool = True
+    enabled: bool = False # Disabled by default
     max_tasks: int = 3
 
 
