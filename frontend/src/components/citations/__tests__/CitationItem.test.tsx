@@ -84,7 +84,11 @@ describe('CitationItem', () => {
     mockUseCitationUtils.mockReturnValue({
       generateCitationId: mockGenerateCitationId,
       isVisualType: vi.fn().mockReturnValue(false),
-      formatScore: vi.fn().mockReturnValue('0.85')
+      formatScore: vi.fn().mockReturnValue('0.85'),
+      // formatStage stays exported by the hook (used by ReasoningPanel
+      // in the agentic streaming path) but is no longer consumed by
+      // CitationItem after the #514 review removed the stage badges.
+      formatStage: vi.fn().mockReturnValue(''),
     });
     
     mockUseCitationExpansion.mockReturnValue({
@@ -261,7 +265,8 @@ describe('CitationItem', () => {
       mockUseCitationUtils.mockReturnValue({
         generateCitationId: mockGenerateCitationId,
         isVisualType: vi.fn().mockReturnValue(true),
-        formatScore: vi.fn().mockReturnValue('0.85')
+        formatScore: vi.fn().mockReturnValue('0.85'),
+        formatStage: vi.fn().mockReturnValue(''),
       });
 
       render(<CitationItem citation={mockCitation} index={0} />);
@@ -279,7 +284,8 @@ describe('CitationItem', () => {
       mockUseCitationUtils.mockReturnValue({
         generateCitationId: mockGenerateCitationId,
         isVisualType: vi.fn().mockReturnValue(false),
-        formatScore: vi.fn().mockReturnValue('0.85')
+        formatScore: vi.fn().mockReturnValue('0.85'),
+        formatStage: vi.fn().mockReturnValue(''),
       });
 
       render(<CitationItem citation={mockCitation} index={0} />);
@@ -326,13 +332,32 @@ describe('CitationItem', () => {
     });
   });
 
+  describe('Stage Badge (disabled per #514 review)', () => {
+    // Regression guard for the visual decision to drop the stage badge.
+    // The data still flows on Citation.stage; only the badge UI was
+    // removed. If a future change adds it back, these assertions must
+    // be revisited explicitly rather than slipping through quietly.
+    it('does not render a stage badge even when citation.stage is present', () => {
+      const citation: Citation = { ...mockCitation, stage: 'initial_retrieval' };
+      render(<CitationItem citation={citation} index={0} />);
+      expect(screen.queryByTestId('citation-stage-badge')).not.toBeInTheDocument();
+    });
+
+    it('does not render a stage badge for any stage value', () => {
+      const citation: Citation = { ...mockCitation, stage: 'plan_then_self_critique_v2' };
+      render(<CitationItem citation={citation} index={0} />);
+      expect(screen.queryByTestId('citation-stage-badge')).not.toBeInTheDocument();
+    });
+  });
+
   describe('Integration with Utils', () => {
     it('passes correct parameters to isVisualType', () => {
       const mockIsVisualType = vi.fn().mockReturnValue(false);
       mockUseCitationUtils.mockReturnValue({
         generateCitationId: mockGenerateCitationId,
         isVisualType: mockIsVisualType,
-        formatScore: vi.fn().mockReturnValue('0.85')
+        formatScore: vi.fn().mockReturnValue('0.85'),
+        formatStage: vi.fn().mockReturnValue(''),
       });
 
       mockUseCitationExpansion.mockReturnValue({

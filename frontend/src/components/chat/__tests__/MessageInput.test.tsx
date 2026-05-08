@@ -23,6 +23,10 @@ vi.mock('../MessageInputContainer', () => ({
   MessageInputContainer: () => <div data-testid="message-input-container">Message Input Container</div>
 }));
 
+vi.mock('../AgenticModeSelector', () => ({
+  AgenticModeSelector: () => <div data-testid="agentic-mode-selector">Agentic Mode Selector</div>
+}));
+
 vi.mock('../../filtering/SimpleFilterBar', () => ({
   default: ({ filters }: { filters: Filter[] }) => (
     <div data-testid="filter-bar">
@@ -71,8 +75,17 @@ describe('MessageInput', () => {
       render(<MessageInput />);
       
       expect(screen.getByTestId('collection-chips')).toBeInTheDocument();
+      expect(screen.getByTestId('agentic-mode-selector')).toBeInTheDocument();
       expect(screen.getByTestId('filter-bar')).toBeInTheDocument();
       expect(screen.getByTestId('message-input-container')).toBeInTheDocument();
+    });
+
+    it('renders the agentic mode selector even when no collections are selected', () => {
+      mockUseCollectionsStore.mockReturnValue({ selectedCollections: [] });
+
+      render(<MessageInput />);
+
+      expect(screen.getByTestId('agentic-mode-selector')).toBeInTheDocument();
     });
 
     it('renders components in correct order', () => {

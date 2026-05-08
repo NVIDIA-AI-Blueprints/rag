@@ -6,7 +6,7 @@ import { CitationMetadata } from '../CitationMetadata';
 const mockFormatScore = vi.fn();
 vi.mock('../../../hooks/useCitationUtils', () => ({
   useCitationUtils: () => ({
-    formatScore: mockFormatScore
+    formatScore: mockFormatScore,
   })
 }));
 
@@ -17,14 +17,16 @@ describe('CitationMetadata', () => {
   });
 
   describe('Conditional Rendering', () => {
-    it('renders nothing when no source and no score', () => {
+    it('renders nothing when no source or score', () => {
       const { container } = render(<CitationMetadata />);
       
       expect(container.firstChild).toBeNull();
     });
 
-    it('renders nothing when source is undefined and score is undefined', () => {
-      const { container } = render(<CitationMetadata source={undefined} score={undefined} />);
+    it('renders nothing when source and score are both undefined', () => {
+      const { container } = render(
+        <CitationMetadata source={undefined} score={undefined} />
+      );
       
       expect(container.firstChild).toBeNull();
     });
@@ -123,6 +125,19 @@ describe('CitationMetadata', () => {
       render(<CitationMetadata source="test.pdf" score={0.123456789} />);
       
       expect(mockFormatScore).toHaveBeenCalledWith(0.123456789, 3);
+    });
+
+  });
+
+  describe('Stage Display (disabled per #514 review)', () => {
+    // Regression guard: the visual stage row was removed. The data still
+    // exists on Citation.stage; only the rendering was disabled. If a
+    // future change re-adds it, these assertions must be revisited
+    // explicitly rather than slipping through.
+    it('does not render a stage row in any case', () => {
+      render(<CitationMetadata source="test.pdf" />);
+      expect(screen.queryByTestId('citation-stage-row')).not.toBeInTheDocument();
+      expect(screen.queryByText(/Pipeline stage:/)).not.toBeInTheDocument();
     });
   });
 }); 

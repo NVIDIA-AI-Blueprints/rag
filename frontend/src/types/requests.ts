@@ -56,4 +56,16 @@ export interface GenerateRequest {
   // Optional other fields
   filter_expr?: string;
   stop?: string[];
+
+  /**
+   * Route this request through the agentic RAG pipeline.
+   *
+   * - `undefined` / omitted → server decides based on its own configuration
+   *   (`CONFIG.enable_agentic_rag`).
+   * - `true` → force the LangGraph plan-and-execute agentic pipeline.
+   * - `false` → force the standard RAG pipeline.
+   *
+   * Mirrors `Prompt.agentic` on the server (`bool | None`).
+   */
+  agentic?: boolean | null;
 }
