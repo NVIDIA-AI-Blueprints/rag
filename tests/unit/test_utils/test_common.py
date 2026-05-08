@@ -564,6 +564,109 @@ class TestValidateFilterExpr:
         assert result["status"] is False
         assert "Unsupported vector store" in result["error_message"]
 
+    def test_validate_filter_es_schema_aware_valid(self):
+        """ES schema-aware validation passes a well-formed clause."""
+        mock_config = MagicMock()
+        mock_config.vector_store.name = "elasticsearch"
+        mock_config.metadata.allow_partial_filtering = False
+
+        metadata_schemas = {
+            "test": [
+                {"name": "category", "type": "string"},
+                {"name": "year", "type": "integer"},
+            ]
+        }
+        filter_expr = [{"term": {"metadata.content_metadata.category.keyword": "doc"}}]
+        result = validate_filter_expr(
+            filter_expr, ["test"], metadata_schemas, config=mock_config
+        )
+        assert result["status"] is True
+
+    def test_validate_filter_es_schema_aware_unknown_field(self):
+        """ES schema-aware validation rejects unknown field in strict mode."""
+        mock_config = MagicMock()
+        mock_config.vector_store.name = "elasticsearch"
+        mock_config.metadata.allow_partial_filtering = False
+
+        metadata_schemas = {
+            "test": [{"name": "category", "type": "string"}],
+        }
+        filter_expr = [{"term": {"metadata.content_metadata.unknown_field": "x"}}]
+        result = validate_filter_expr(
+            filter_expr, ["test"], metadata_schemas, config=mock_config
+        )
+        assert result["status"] is False
+        assert "unknown_field" in (result.get("error_message") or "") or any(
+            "unknown_field" in d for d in (result.get("details") or [])
+        )
+
+    def test_validate_filter_es_partial_filtering(self):
+        """ES partial filtering returns success when at least one collection passes."""
+        mock_config = MagicMock()
+        mock_config.vector_store.name = "elasticsearch"
+        mock_config.metadata.allow_partial_filtering = True
+
+        metadata_schemas = {
+            "good": [{"name": "category", "type": "string"}],
+            "bad": [{"name": "year", "type": "integer"}],
+        }
+        filter_expr = [{"term": {"metadata.content_metadata.category.keyword": "doc"}}]
+        result = validate_filter_expr(
+            filter_expr, ["good", "bad"], metadata_schemas, config=mock_config
+        )
+        assert result["status"] is True
+        assert "good" in result["validated_collections"]
+        assert "bad" not in result["validated_collections"]
+
+
+class TestProcessFilterEsSchemaAware:
+    """process_filter_expr ES branch with metadata schema."""
+
+    def test_process_filter_es_normalizes_keyword(self):
+        mock_config = MagicMock()
+        mock_config.vector_store.name = "elasticsearch"
+
+        metadata_schema_data = [{"name": "status", "type": "string"}]
+        filter_expr = [{"term": {"metadata.content_metadata.status": "approved"}}]
+        result = process_filter_expr(
+            filter_expr,
+            "test_collection",
+            metadata_schema_data,
+            config=mock_config,
+        )
+        assert isinstance(result, list)
+        assert "metadata.content_metadata.status.keyword" in result[0]["term"]
+
+    def test_process_filter_es_generated_failure_returns_empty(self):
+        mock_config = MagicMock()
+        mock_config.vector_store.name = "elasticsearch"
+
+        metadata_schema_data = [{"name": "status", "type": "string"}]
+        filter_expr = [{"range": {"metadata.content_metadata.status": {"gt": "x"}}}]
+        result = process_filter_expr(
+            filter_expr,
+            "test_collection",
+            metadata_schema_data,
+            is_generated_filter=True,
+            config=mock_config,
+        )
+        assert result == []
+
+    def test_process_filter_es_user_failure_raises(self):
+        mock_config = MagicMock()
+        mock_config.vector_store.name = "elasticsearch"
+
+        metadata_schema_data = [{"name": "status", "type": "string"}]
+        filter_expr = [{"range": {"metadata.content_metadata.status": {"gt": "x"}}}]
+        with pytest.raises(ValueError):
+            process_filter_expr(
+                filter_expr,
+                "test_collection",
+                metadata_schema_data,
+                is_generated_filter=False,
+                config=mock_config,
+            )
+
 
 class TestProcessFilterExpr:
     """Test process_filter_expr function"""
