@@ -878,9 +878,9 @@ nimOperator:
         timeoutSeconds: 5
 
 # subsection: nvidia-nim-llama-32-nv-embedqa-1b-v2
-# NIM Text Embedding
+# NIM Text Embedding (disabled by default; VLM embedding is the default — see nvidia-nim-llama-nemotron-embed-vl-1b-v2 below)
   nvidia-nim-llama-32-nv-embedqa-1b-v2:
-    enabled: true
+    enabled: false
     replicas: 1
     service:
       name: "nemotron-embedding-ms"
@@ -920,9 +920,9 @@ nimOperator:
         grpcPort: 8001
 
 # subsection: nvidia-nim-llama-nemotron-embed-vl-1b-v2
-# NIM VLM Embedding
+# NIM VLM Embedding (default embedding service; aligned with envVars.APP_EMBEDDINGS_SERVERURL)
   nvidia-nim-llama-nemotron-embed-vl-1b-v2:
-    enabled: false
+    enabled: true
     service:
       name: "nemotron-vlm-embedding-ms"
     image:
@@ -1101,8 +1101,8 @@ nv-ingest:
     
     APP_EMBEDDINGS_SERVERURL: "nemotron-vlm-embedding-ms:8000/v1"
     APP_EMBEDDINGS_MODELNAME: "nvidia/llama-nemotron-embed-vl-1b-v2"
-    EMBEDDING_NIM_ENDPOINT: "http://nemotron-embedding-ms:8000/v1"
-    EMBEDDING_NIM_MODEL_NAME: "nvidia/llama-nemotron-embed-1b-v2"
+    EMBEDDING_NIM_ENDPOINT: "http://nemotron-vlm-embedding-ms:8000/v1"
+    EMBEDDING_NIM_MODEL_NAME: "nvidia/llama-nemotron-embed-vl-1b-v2"
     MESSAGE_CLIENT_HOST: "rag-redis-master"
     MESSAGE_CLIENT_PORT: 6379
     MESSAGE_CLIENT_TYPE: "redis"
