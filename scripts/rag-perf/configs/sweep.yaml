@@ -1,0 +1,90 @@
+# rag-perf — Sweep preset
+# -----------------------
+# Multi-point benchmark: profiling pass + aiperf load test at each grid point.
+# By default sweeps concurrency only. Uncomment the entries under `sweep:`
+# below to add `vdb_top_k` and / or `reranker_top_k` as cross-axes — the run
+# will then cover the full Cartesian product.
+#
+# Output: a per-point `<point>/` subdirectory plus an aggregate
+# results.csv / results.json / report.md at the run root, and a comparison
+# table on stdout.
+#
+# Typical runtime: a few minutes per point. A full
+# concurrency × vdb_top_k × reranker_top_k Cartesian sweep is best run
+# overnight — set load.sleep_between_points_s if your server needs time to drain
+# in-flight requests between points.
+#
+#   uv run --project scripts/rag-perf rag-perf -c scripts/rag-perf/configs/sweep.yaml
+
+target:
+  url: "http://localhost:8081"
+  timeout_s: 300
+
+aiperf:
+  enabled: true
+
+load:
+  concurrency: [1, 4, 8, 16, 32] # scalar → single point, list → axis
+  warmup_requests: 10
+  total_requests: 200
+  profile_requests: 20
+  iterations: 1                  # repeat the full grid this many times
+  sleep_between_points_s: 0      # 60 matches blueprint pipeline's SLEEP_TIME default
+
+rag:
+  # Replace <collection_name> with the name of a collection that exists on
+  # the deployed ingestor server (see GET /v1/collections).
+  collection_names: ["<collection_name>"]
+  # Each axis is scalar-or-list — list = sweep, scalar = single value.
+  # Cartesian product across all list axes (here: load.concurrency × vdb_top_k
+  # × reranker_top_k).
+  vdb_top_k: 100                 # try [20, 100] for a 2-value sweep
+  reranker_top_k: 10             # try [4, 10] for a 2-value sweep
+  enable_reranker: true
+  enable_citations: true
+  use_knowledge_base: true
+  confidence_threshold: 0.0
+  fetch_full_page_context: false
+
+generation:
+  max_tokens: 512
+  min_tokens: null           # set equal to max_tokens to pin output length exactly
+  ignore_eos: false          # set true alongside min_tokens to suppress early EOS
+  temperature: 0.0
+
+input:
+  # Set exactly one of `file` or `synthetic` (mutually exclusive).
+  # Sweep defaults to LLM-generated synthetic queries so the same query set
+  # can drive every concurrency / vdb_top_k / reranker_top_k point with a
+  # consistent input length distribution.
+  synthetic:
+    mode: random              # or dataset_based
+    num_queries: 100
+    min_query_tokens: 512
+    generation_concurrency: 16 # parallel LLM calls during query generation
+    temperature: 0.9          # sampling temperature for the generator LLM
+    disable_thinking: true    # inject chat_template_kwargs.enable_thinking=false
+                              # (skip CoT on reasoning models so `content` is
+                              # populated and queries don't leak deliberation)
+    extra_body: null          # escape hatch: dict merged into the LLM payload
+                              # e.g. {top_p: 0.95, presence_penalty: 0.5}
+    llm_url: "http://localhost:8999/v1/chat/completions"
+    llm_model: ""             # empty → auto-discover from /v1/models
+    prompts_file: null        # null → bundled prompts/default_prompts.yaml
+    jsonl_output_path: "./rag-perf-synthetic-queries.jsonl"
+    dataset_file: null        # required for mode: dataset_based
+    dataset_name: null
+  sampling: random
+  seed: 42
+  # To use a static query file instead, comment out the `synthetic:` block
+  # above and uncomment the line below (path can be .jsonl or .csv):
+  # file: "scripts/rag-perf/examples/queries.jsonl"
+
+output:
+  dir: "./rag-perf-results/sweep"
+  formats: [json, csv]
+  markdown_report: true
+  save_responses: false
+  cluster: ""                # e.g. "dgxa100-01" — stamped into artifact dir names
+  gpu: ""                    # e.g. "H100-80GB"
+  experiment_name: ""        # e.g. "baseline-v1"

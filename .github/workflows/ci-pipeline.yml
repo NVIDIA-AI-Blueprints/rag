@@ -97,6 +97,10 @@ jobs:
           . venv-unit/bin/activate
           uv pip install -e .[all]
           uv pip install --no-cache -r tests/unit/requirements-test.txt
+          # rag-perf is a separate package under scripts/rag-perf/. Install its
+          # runtime deps into the same venv so tests/unit/test_rag_perf/ can
+          # import rag_perf.config (which pulls ruamel.yaml, click, pydantic).
+          uv pip install -e ./scripts/rag-perf
 
       - name: Run unit tests with coverage
         run: |
