@@ -14,8 +14,8 @@
 // limitations under the License.
 
 import { useCallback, useEffect, useState } from "react";
-import { Block, Flex, Stack, Text } from "@kui/react";
-import { AlertCircle, Brain, CheckCircle2, ChevronDown, ChevronRight, Loader2 } from "lucide-react";
+import { AnimatedChevron, Block, Flex, Stack, Text } from "@kui/react";
+import { AlertCircle, Brain, CheckCircle2, Loader2 } from "lucide-react";
 import type { ReasoningStep } from "../../types/chat";
 import { useCitationUtils } from "../../hooks/useCitationUtils";
 
@@ -33,7 +33,7 @@ const StepIcon = ({ status }: { status: ReasoningStep["status"] }) => {
         size={14}
         style={{
           color: "var(--text-color-subtle)",
-          animation: "rag-reasoning-spin 1s linear infinite",
+          animation: "var(--animate-spin)",
         }}
         aria-label="Step running"
       />
@@ -43,7 +43,7 @@ const StepIcon = ({ status }: { status: ReasoningStep["status"] }) => {
     return (
       <AlertCircle
         size={14}
-        style={{ color: "var(--color-red-500)" }}
+        style={{ color: "var(--text-color-feedback-danger)" }}
         aria-label="Step errored"
       />
     );
@@ -51,7 +51,7 @@ const StepIcon = ({ status }: { status: ReasoningStep["status"] }) => {
   return (
     <CheckCircle2
       size={14}
-      style={{ color: "var(--text-color-accent-green)" }}
+      style={{ color: "var(--text-color-feedback-success)" }}
       aria-label="Step completed"
     />
   );
@@ -91,7 +91,7 @@ const StepRow = ({
               style={{
                 color: "var(--text-color-subtle)",
                 whiteSpace: "pre-wrap",
-                fontFamily: "var(--font-family-mono, monospace)",
+                fontFamily: "var(--font-mono)",
                 fontSize: "0.85em",
               }}
             >
@@ -104,7 +104,7 @@ const StepRow = ({
               style={{
                 color: "var(--text-color-subtle)",
                 whiteSpace: "pre-wrap",
-                fontFamily: "var(--font-family-mono, monospace)",
+                fontFamily: "var(--font-mono)",
                 fontSize: "0.85em",
               }}
             >
@@ -155,17 +155,14 @@ export const ReasoningPanel = ({ steps, streaming = false }: ReasoningPanelProps
   return (
     <Block
       data-testid="reasoning-panel"
+      data-state={open ? "open" : "closed"}
       data-streaming={streaming ? "true" : "false"}
-      data-open={open ? "true" : "false"}
       style={{
         borderLeft: "2px solid var(--text-color-subtle)",
         paddingLeft: "8px",
         marginBottom: "8px",
       }}
     >
-      <style>{
-        "@keyframes rag-reasoning-spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}"
-      }</style>
       <Flex
         align="center"
         gap="density-xs"
@@ -183,11 +180,7 @@ export const ReasoningPanel = ({ steps, streaming = false }: ReasoningPanelProps
         data-testid="reasoning-panel-toggle"
         style={{ cursor: "pointer", userSelect: "none" }}
       >
-        {open ? (
-          <ChevronDown size={14} style={{ color: "var(--text-color-subtle)" }} />
-        ) : (
-          <ChevronRight size={14} style={{ color: "var(--text-color-subtle)" }} />
-        )}
+        <AnimatedChevron state={open ? "open" : "closed"} />
         <Brain size={14} style={{ color: "var(--text-color-subtle)" }} aria-hidden />
         <Text
           kind="body/bold/sm"

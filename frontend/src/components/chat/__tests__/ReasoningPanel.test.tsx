@@ -81,8 +81,8 @@ describe('ReasoningPanel', () => {
     ];
     render(<ReasoningPanel streaming steps={steps} />);
     expect(screen.getByTestId('reasoning-panel')).toHaveAttribute(
-      'data-open',
-      'true'
+      'data-state',
+      'open'
     );
     expect(screen.getByTestId('reasoning-step-plan')).toHaveTextContent(
       'Step 1: scope.'
@@ -96,13 +96,13 @@ describe('ReasoningPanel', () => {
       />
     );
     expect(screen.getByTestId('reasoning-panel')).toHaveAttribute(
-      'data-open',
-      'false'
+      'data-state',
+      'closed'
     );
     fireEvent.click(screen.getByTestId('reasoning-panel-toggle'));
     expect(screen.getByTestId('reasoning-panel')).toHaveAttribute(
-      'data-open',
-      'true'
+      'data-state',
+      'open'
     );
   });
 
@@ -158,18 +158,18 @@ describe('ReasoningPanel', () => {
     );
     const toggle = screen.getByTestId('reasoning-panel-toggle');
     expect(screen.getByTestId('reasoning-panel')).toHaveAttribute(
-      'data-open',
-      'false'
+      'data-state',
+      'closed'
     );
     fireEvent.keyDown(toggle, { key: 'Enter' });
     expect(screen.getByTestId('reasoning-panel')).toHaveAttribute(
-      'data-open',
-      'true'
+      'data-state',
+      'open'
     );
     fireEvent.keyDown(toggle, { key: ' ' });
     expect(screen.getByTestId('reasoning-panel')).toHaveAttribute(
-      'data-open',
-      'false'
+      'data-state',
+      'closed'
     );
   });
 });
