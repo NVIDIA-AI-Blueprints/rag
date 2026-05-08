@@ -333,11 +333,21 @@ class AgenticRAGConfig(_ConfigBase):
         env="AGENTIC_LOG_LEVEL",
         description="Logging level for the agentic RAG agent (DEBUG/INFO/WARNING/ERROR).",
     )
+    enable_debug_stream: bool = Field(
+        default=False,
+        env="AGENTIC_ENABLE_DEBUG_STREAM",
+        description=(
+            "Forward LangGraph debug-mode events (task_start, task_result, checkpoint) to the "
+            "client as ``event_type='agent_event'`` SSE chunks (with the originating node in "
+            "``stage``). Off by default — debug events are very chatty and are intended for "
+            "development/troubleshooting only. The translator always consumes the debug stream "
+            "so node lifecycle can be logged server-side; this flag only controls whether those "
+            "events reach the wire."
+        ),
+    )
 
     # --- Component sub-configs ----------------------------------------------
-    planner: AgenticPlannerConfig = PydanticField(
-        default_factory=AgenticPlannerConfig
-    )
+    planner: AgenticPlannerConfig = PydanticField(default_factory=AgenticPlannerConfig)
     task_execution: AgenticTaskExecutionConfig = PydanticField(
         default_factory=AgenticTaskExecutionConfig
     )
@@ -347,6 +357,4 @@ class AgenticRAGConfig(_ConfigBase):
     verification: AgenticVerificationConfig = PydanticField(
         default_factory=AgenticVerificationConfig
     )
-    context: AgenticContextConfig = PydanticField(
-        default_factory=AgenticContextConfig
-    )
+    context: AgenticContextConfig = PydanticField(default_factory=AgenticContextConfig)

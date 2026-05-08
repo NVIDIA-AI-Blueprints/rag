@@ -372,6 +372,30 @@
             ],
             "description": "Latency metrics associated with the request",
             "default": {}
+          },
+          "event_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Type",
+            "description": "Type of streaming chunk. None for non-streaming and for the regular (non-agentic) path's content chunks. Set for agentic-RAG streaming chunks; see ``nvidia_rag.rag_server.agentic_rag.streaming.EventType`` for the enumerated values (e.g. ``stage_start``, ``stage_end``, ``intermediate_reasoning``, ``intermediate_output``, ``final_reasoning``, ``final_answer``, ``agent_event``, ``error``)."
+          },
+          "stage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stage",
+            "description": "Name of the agentic-RAG graph node that produced this chunk (e.g. ``initial_retrieval``, ``plan``, ``execute``, ``synthesize``, ``verify``, ``verify_execute``). Pairs with ``event_type`` so clients can group reasoning by pipeline stage without parsing event_type. None for non-agentic responses."
           }
         },
         "type": "object",
@@ -870,6 +894,18 @@
             "title": "Content",
             "description": "The input query/prompt to the pipeline. Can be a string for text-only messages, or an array of content objects for multimodal messages containing text and/or images.",
             "default": "Hello! What can you help me with?"
+          },
+          "reasoning_content": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reasoning Content",
+            "description": "Reasoning trace or intermediate output from the agentic RAG pipeline. Populated for streamed chunks whose ``event_type`` indicates a reasoning/intermediate event (stage announcements, intermediate-stage reasoning or output tokens, final-stage reasoning tokens). The user-facing answer is always streamed via ``content`` — this field is purely supplementary."
           }
         },
         "type": "object",
@@ -911,6 +947,18 @@
             "title": "Content",
             "description": "The input query/prompt to the pipeline. Can be a string for text-only messages, or an array of content objects for multimodal messages containing text and/or images.",
             "default": "Hello! What can you help me with?"
+          },
+          "reasoning_content": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reasoning Content",
+            "description": "Reasoning trace or intermediate output from the agentic RAG pipeline. Populated for streamed chunks whose ``event_type`` indicates a reasoning/intermediate event (stage announcements, intermediate-stage reasoning or output tokens, final-stage reasoning tokens). The user-facing answer is always streamed via ``content`` — this field is purely supplementary."
           }
         },
         "type": "object",
@@ -1120,19 +1168,33 @@
             "default": true
           },
           "temperature": {
-            "type": "number",
-            "maximum": 1,
-            "minimum": 0,
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1,
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Temperature",
-            "description": "The sampling temperature to use for text generation. The higher the temperature value is, the less deterministic the output text will be. It is not recommended to modify both temperature and top_p in the same call.",
+            "description": "The sampling temperature to use for text generation. The higher the temperature value is, the less deterministic the output text will be. If unset, the model/provider default is used. It is not recommended to modify both temperature and top_p in the same call.",
             "default": 0
           },
           "top_p": {
-            "type": "number",
-            "maximum": 1,
-            "minimum": 0.1,
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1,
+                "minimum": 0.1
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Top P",
-            "description": "The top-p sampling mass used for text generation. The top-p value determines the probability mass that is sampled at sampling time. For example, if top_p = 0.2, only the most likely tokens (summing to 0.2 cumulative probability) will be sampled. It is not recommended to modify both temperature and top_p in the same call.",
+            "description": "The top-p sampling mass used for text generation. The top-p value determines the probability mass that is sampled at sampling time. For example, if top_p = 0.2, only the most likely tokens (summing to 0.2 cumulative probability) will be sampled. If unset, the model/provider default is used. It is not recommended to modify both temperature and top_p in the same call.",
             "default": 1
           },
           "min_tokens": {
@@ -1154,7 +1216,7 @@
             "format": "int64",
             "title": "Max Tokens",
             "description": "The maximum number of tokens to generate in any given call. Note that the model is not aware of this value,  and generation will simply stop at the number of tokens specified.",
-            "default": 128000
+            "default": 16256
           },
           "min_thinking_tokens": {
             "type": "integer",
@@ -1413,6 +1475,12 @@
             "title": "Agentic",
             "description": "Route this request through the agentic RAG pipeline (LangGraph plan-and-execute). When None (default), the server-level CONFIG.enable_agentic_rag config value is used. Explicitly passing True or False overrides the server default for this request.",
             "default": false
+          },
+          "enable_streaming": {
+            "type": "boolean",
+            "title": "Enable Streaming",
+            "description": "Stream intermediate reasoning, stage announcements, and final-answer tokens as they are produced. Currently honored by the agentic RAG pipeline; the regular (non-agentic) pipeline always streams. When False on the agentic path, the graph runs to completion and the full answer is returned as a single SSE chunk (legacy behavior).",
+            "default": true
           }
         },
         "type": "object",
@@ -1460,12 +1528,26 @@
       "RagConfigurationDefaults": {
         "properties": {
           "temperature": {
-            "type": "number",
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Temperature",
             "description": "Default sampling temperature for generation"
           },
           "top_p": {
-            "type": "number",
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Top P",
             "description": "Default top-p sampling mass"
           },

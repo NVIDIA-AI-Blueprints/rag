@@ -108,10 +108,7 @@ class TestAgenticRagStaticHelpers:
         assert AgenticRag._filter_think_tokens(text) is text
 
     def test_filter_think_tokens_strips_closed_block(self) -> None:
-        raw = (
-            "<think>ignore</think>"
-            '{"scope_only": false}'
-        )
+        raw = '<think>ignore</think>{"scope_only": false}'
         assert AgenticRag._filter_think_tokens(raw) == '{"scope_only": false}'
 
     def test_filter_think_tokens_truncated_block(self) -> None:
@@ -357,6 +354,8 @@ class TestTracing:
 class TestRunAgenticPipeline:
     @pytest.mark.asyncio
     async def test_success_wraps_final_answer(self) -> None:
+        # Non-streaming path: uses graph.ainvoke and wraps the answer in a
+        # single SSE chunk via generate_answer_async.
         graph = MagicMock()
         graph.ainvoke = AsyncMock(return_value={"final_answer": "synthesized"})
 
@@ -371,6 +370,7 @@ class TestRunAgenticPipeline:
             query="user q",
             cfg=cfg,
             search_params=AgenticSearchParams(),
+            enable_streaming=False,
         )
         assert resp.status_code == ErrorCodeMapping.SUCCESS
         blob = "".join([c async for c in resp.generator])
@@ -392,10 +392,315 @@ class TestRunAgenticPipeline:
             query="q",
             cfg=cfg,
             search_params=AgenticSearchParams(),
+            enable_streaming=False,
         )
         assert resp.status_code == ErrorCodeMapping.INTERNAL_SERVER_ERROR
         text = "".join([c async for c in resp.generator])
         assert "error" in text.lower() or "encountered" in text.lower()
+
+    @pytest.mark.asyncio
+    async def test_streaming_emits_stage_and_final_chunks(self) -> None:
+        """Streaming path: graph.astream events are translated into SSE chunks
+        with the expected ``event_type``/``stage`` fields."""
+
+        class _FakeChunk:
+            def __init__(self, content: str = "", reasoning: str | None = None) -> None:
+                self.content = content
+                self.additional_kwargs = (
+                    {"reasoning_content": reasoning} if reasoning else {}
+                )
+                self.usage_metadata = None
+
+        async def _fake_astream(_state, *, config, stream_mode):  # noqa: ARG001
+            # 1) plan node starts (intermediate)
+            yield (
+                "custom",
+                {
+                    "node": "plan",
+                    "event": "stage_start",
+                    "key": "plan.start.scope",
+                    "params": {},
+                },
+            )
+            yield (
+                "messages",
+                (
+                    _FakeChunk(reasoning="thinking about plan"),
+                    {"langgraph_node": "plan"},
+                ),
+            )
+            yield (
+                "custom",
+                {
+                    "node": "plan",
+                    "event": "stage_end",
+                    "key": "plan.end.with_tasks",
+                    "params": {"task_count": 1},
+                },
+            )
+            # 2) synthesize: mark final, then stream tokens
+            yield (
+                "custom",
+                {"node": "synthesize", "event": "final_stage_marker", "is_final": True},
+            )
+            yield (
+                "messages",
+                (_FakeChunk(content="Hello "), {"langgraph_node": "synthesize"}),
+            )
+            yield (
+                "messages",
+                (_FakeChunk(content="world"), {"langgraph_node": "synthesize"}),
+            )
+
+        graph = MagicMock()
+        graph.astream = _fake_astream
+
+        class _Agent:
+            def __init__(self) -> None:
+                self.metrics = AgentMetrics()
+
+        cfg = AgenticRAGConfig()
+        resp = await run_agentic_pipeline(
+            agent=_Agent(),
+            graph=graph,
+            query="q",
+            cfg=cfg,
+            search_params=AgenticSearchParams(),
+            enable_streaming=True,
+        )
+        assert resp.status_code == ErrorCodeMapping.SUCCESS
+        chunks = [c async for c in resp.generator]
+        assert chunks, "expected at least one SSE chunk"
+
+        # Parse the SSE-encoded ChainResponse JSONs.
+        parsed = [json.loads(c.removeprefix("data: ").strip()) for c in chunks]
+        event_types = [p.get("event_type") for p in parsed]
+        # Expected ordering: stage_start, intermediate_reasoning, stage_end,
+        # final_answer*, then the trailing finish chunk (event_type=None).
+        assert "stage_start" in event_types
+        assert "intermediate_reasoning" in event_types
+        assert "stage_end" in event_types
+        assert event_types.count("final_answer") == 2
+
+        # The final-answer chunks carry tokens in delta.content.
+        final_tokens = [
+            p["choices"][0]["delta"]["content"]
+            for p in parsed
+            if p.get("event_type") == "final_answer"
+        ]
+        assert "".join(final_tokens) == "Hello world"
+
+        # Trailing finish chunk has finish_reason="stop".
+        assert parsed[-1]["choices"][0]["finish_reason"] == "stop"
+
+        # Stage_start / stage_end labels come from USER_FACING_LABELS, not from
+        # the writer payload — assert the dict is the source of truth.
+        from nvidia_rag.rag_server.agentic_rag.streaming import USER_FACING_LABELS
+
+        stage_start_labels = [
+            p["choices"][0]["message"]["reasoning_content"]
+            for p in parsed
+            if p.get("event_type") == "stage_start"
+        ]
+        assert USER_FACING_LABELS["plan.start.scope"] in stage_start_labels
+
+        stage_end_labels = [
+            p["choices"][0]["message"]["reasoning_content"]
+            for p in parsed
+            if p.get("event_type") == "stage_end"
+        ]
+        assert any("1" in lbl for lbl in stage_end_labels), (
+            f"expected substituted task_count, got: {stage_end_labels}"
+        )
+
+
+    @pytest.mark.asyncio
+    async def test_streaming_buffers_parallel_tokens_per_run(self) -> None:
+        """Tokens from parallel-task nodes (execute, verify_execute) must be
+        buffered per run_id and emitted as one consolidated chunk per task at
+        the node's stage_end — preserving information without jumbling.
+        Synthesize-node tokens still stream live (single LLM call)."""
+
+        class _FakeChunk:
+            def __init__(
+                self,
+                content: str = "",
+                reasoning: str | None = None,
+                id: str | None = None,
+            ) -> None:
+                self.content = content
+                self.id = id
+                self.additional_kwargs = (
+                    {"reasoning_content": reasoning} if reasoning else {}
+                )
+                self.usage_metadata = None
+
+        async def _fake_astream(_state, *, config, stream_mode):  # noqa: ARG001
+            yield (
+                "custom",
+                {
+                    "node": "execute",
+                    "event": "stage_start",
+                    "key": "execute.start.answer",
+                    "params": {"task_count": 2},
+                },
+            )
+            # Two parallel tasks emitting interleaved tokens — distinguished
+            # by chunk.id (each LangChain LLM invocation gets its own UUID).
+            # Task A produces reasoning + an answer; Task B does the same.
+            # Tokens are interleaved character-by-character to simulate the
+            # real wire jumble.
+            yield (
+                "messages",
+                (
+                    _FakeChunk(reasoning="lion ", id="run-A"),
+                    {"langgraph_node": "execute"},
+                ),
+            )
+            yield (
+                "messages",
+                (
+                    _FakeChunk(reasoning="hammer ", id="run-B"),
+                    {"langgraph_node": "execute"},
+                ),
+            )
+            yield (
+                "messages",
+                (
+                    _FakeChunk(reasoning="activity", id="run-A"),
+                    {"langgraph_node": "execute"},
+                ),
+            )
+            yield (
+                "messages",
+                (
+                    _FakeChunk(reasoning="cost", id="run-B"),
+                    {"langgraph_node": "execute"},
+                ),
+            )
+            yield (
+                "messages",
+                (
+                    _FakeChunk(content='{"answer": "sun', id="run-A"),
+                    {"langgraph_node": "execute"},
+                ),
+            )
+            yield (
+                "messages",
+                (
+                    _FakeChunk(content='{"answer": "$2', id="run-B"),
+                    {"langgraph_node": "execute"},
+                ),
+            )
+            yield (
+                "messages",
+                (
+                    _FakeChunk(content='screen"}', id="run-A"),
+                    {"langgraph_node": "execute"},
+                ),
+            )
+            yield (
+                "messages",
+                (
+                    _FakeChunk(content='0.00"}', id="run-B"),
+                    {"langgraph_node": "execute"},
+                ),
+            )
+            yield (
+                "custom",
+                {
+                    "node": "execute",
+                    "event": "stage_end",
+                    "key": "execute.end.done",
+                    "params": {"task_count": 2, "answered": 2},
+                },
+            )
+            # Synthesize: single-LLM-call node — tokens stream live.
+            yield (
+                "custom",
+                {"node": "synthesize", "event": "final_stage_marker", "is_final": True},
+            )
+            yield (
+                "messages",
+                (
+                    _FakeChunk(content="final answer", id="run-S"),
+                    {"langgraph_node": "synthesize"},
+                ),
+            )
+
+        graph = MagicMock()
+        graph.astream = _fake_astream
+
+        class _Agent:
+            def __init__(self) -> None:
+                self.metrics = AgentMetrics()
+
+        cfg = AgenticRAGConfig()
+        resp = await run_agentic_pipeline(
+            agent=_Agent(),
+            graph=graph,
+            query="q",
+            cfg=cfg,
+            search_params=AgenticSearchParams(),
+            enable_streaming=True,
+        )
+        assert resp.status_code == ErrorCodeMapping.SUCCESS
+        chunks = [c async for c in resp.generator]
+        parsed = [json.loads(c.removeprefix("data: ").strip()) for c in chunks]
+
+        # Exactly 2 intermediate_reasoning + 2 intermediate_output chunks
+        # from "execute" (one consolidated chunk per run_id).
+        execute_reasoning = [
+            p
+            for p in parsed
+            if p.get("event_type") == "intermediate_reasoning"
+            and p.get("stage") == "execute"
+        ]
+        execute_output = [
+            p
+            for p in parsed
+            if p.get("event_type") == "intermediate_output"
+            and p.get("stage") == "execute"
+        ]
+        assert len(execute_reasoning) == 2, (
+            f"expected 2 consolidated reasoning chunks, got {len(execute_reasoning)}: "
+            f"{[p['choices'][0]['message']['reasoning_content'] for p in execute_reasoning]}"
+        )
+        assert len(execute_output) == 2, (
+            f"expected 2 consolidated output chunks, got {len(execute_output)}: "
+            f"{[p['choices'][0]['message']['reasoning_content'] for p in execute_output]}"
+        )
+
+        # Each consolidated chunk holds ONE task's full text — no cross-task
+        # mixing.  Run A's reasoning is "lion activity"; Run B's is "hammer
+        # cost".  Order between run A and run B follows insertion order
+        # (run A first, since it produced the first chunk).
+        reasoning_texts = [
+            p["choices"][0]["message"]["reasoning_content"] for p in execute_reasoning
+        ]
+        assert reasoning_texts == ["lion activity", "hammer cost"]
+
+        output_texts = [
+            p["choices"][0]["message"]["reasoning_content"] for p in execute_output
+        ]
+        assert output_texts == ['{"answer": "sunscreen"}', '{"answer": "$20.00"}']
+
+        # The consolidated chunks land BEFORE the corresponding stage_end.
+        execute_stage_end_idx = next(
+            i
+            for i, p in enumerate(parsed)
+            if p.get("event_type") == "stage_end" and p.get("stage") == "execute"
+        )
+        for p in execute_reasoning + execute_output:
+            assert parsed.index(p) < execute_stage_end_idx, (
+                "consolidated chunks must precede stage_end"
+            )
+
+        # Synthesize tokens DID pass through (single-LLM-call node, lives on).
+        final_answer_chunks = [
+            p for p in parsed if p.get("event_type") == "final_answer"
+        ]
+        assert final_answer_chunks, "expected final_answer to pass through"
 
 
 class TestBuildAgenticRagAgentSignature:
