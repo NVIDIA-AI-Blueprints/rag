@@ -13,7 +13,7 @@ User wants image understanding, visual content analysis, VLM inference, multimod
 1. Detect the deployment mode (Docker / Helm / Library). Docker: edit the active env file. Helm: edit `values.yaml`. Library: edit `notebooks/config.yaml`
 2. Read the relevant source doc for detailed steps:
    - VLM generation: `docs/vlm.md`
-   - VLM embeddings: `docs/vlm-embed.md`
+   - VLM embeddings: `docs/multimodal-retriever.md`
    - Image captioning: `docs/image_captioning.md`
 3. Start VLM NIM (self-hosted) or configure cloud endpoint (NVIDIA-hosted)
 4. Set the required variables in the active config:
@@ -27,7 +27,7 @@ User wants image understanding, visual content analysis, VLM inference, multimod
 |------|-----------|---------------|-------|
 | VLM replaces LLM | `docs/vlm.md` | `--profile vlm-generation` | LLM not started; set `VLM_TO_LLM_FALLBACK=false` |
 | VLM + LLM fallback | `docs/vlm.md` | `--profile vlm-only` | Needs 3+ GPUs; both VLM and LLM running |
-| VLM embeddings | `docs/vlm-embed.md` | `--profile vlm-embed` | Experimental; requires re-ingestion |
+| VLM embeddings | `docs/multimodal-retriever.md` | `--profile vlm-embed` | Experimental; requires re-ingestion |
 | Image captioning | `docs/image_captioning.md` | `--profile vlm-only` | Requires VLM NIM; Helm: on-prem only |
 | Multimodal query | `docs/multimodal-query.md` | (depends on VLM mode) | Image + text querying |
 
@@ -50,7 +50,7 @@ User wants image understanding, visual content analysis, VLM inference, multimod
 
 ## Source Documentation
 - `docs/vlm.md` — VLM generation (self-hosted, NVIDIA-hosted, Helm, Library)
-- `docs/vlm-embed.md` — VLM embeddings (experimental)
+- `docs/multimodal-retriever.md` — VLM embeddings (experimental)
 - `docs/image_captioning.md` — Image captioning during ingestion
 - `docs/multimodal-query.md` — Image + text querying
 - `docs/service-port-gpu-reference.md` — default GPU assignments for VLM and other NIMs
