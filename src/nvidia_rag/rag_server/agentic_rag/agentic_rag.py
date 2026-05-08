@@ -1451,7 +1451,6 @@ class AgenticRag:
     ) -> dict[str, Any]:
         """Combine task sub-answers (and optionally verification data) into a final answer."""
         from nvidia_rag.rag_server.agentic_rag.streaming import (
-            make_final_stage_marker,
             make_stage_end,
             make_stage_start,
         )
@@ -1462,20 +1461,15 @@ class AgenticRag:
             if is_verification_pass
             else "synthesize"
         )
-        # This synthesis is final (i.e. nothing follows in the graph) when:
-        #   - verification is disabled entirely, or
-        #   - we are already in a post-verification pass.
-        # See _route_after_synthesize for the authoritative routing predicate.
-        is_final_synthesis = (
-            not self.verification_cfg.enabled or state.verification_round > 0
-        )
+        # Whether these tokens stream as ``final_*`` or ``intermediate_*`` is
+        # decided in the translator from ``verification_cfg.enabled`` — see
+        # streaming.translate_graph_stream and the module docstring.
         writer(
             make_stage_start(
                 "synthesize",
                 key="synthesize.start.refining" if is_verification_pass else "synthesize.start",
             )
         )
-        writer(make_final_stage_marker(is_final=is_final_synthesis))
         with self._otel_and_trace(synth_label) as ospan:
             pass_label = synth_label
             ospan.set_attribute("input.value", state.user_query)

@@ -16,9 +16,9 @@
 """Streaming infrastructure for the agentic RAG pipeline.
 
 This module isolates everything needed to translate LangGraph's combined
-``stream_mode=["messages", "custom", "debug"]`` event stream into the
-``ChainResponse`` SSE chunks that the rag-server emits.  Keeping it here
-means ``agentic_rag.py`` and ``runner.py`` stay focused on RAG logic.
+``stream_mode=["messages", "custom", "debug", "values"]`` event stream into
+the ``ChainResponse`` SSE chunks that the rag-server emits.  Keeping it
+here means ``agentic_rag.py`` and ``runner.py`` stay focused on RAG logic.
 
 Public surface
 --------------
@@ -31,23 +31,30 @@ Public surface
 * ``make_stage_end``                — writer payload for node exit (key + params)
 * ``make_agent_event``              — writer payload for mid-stage updates (key + params)
                                        — surfaces on the wire as ``event_type='agent_event'``
-* ``make_final_stage_marker``       — internal routing signal synthesize_node emits
-                                       so the translator knows whether to label its
-                                       subsequent message tokens as ``final_*``
 * ``translate_graph_stream``        — async generator that consumes ``graph.astream(...)``
                                        and yields SSE-formatted ``ChainResponse`` strings
 
 Design notes
 ------------
 * The translator alone formats SSE strings; nodes only emit semantic events via ``writer``.
-* ``synthesize_node`` knows whether it is the *final* synthesize pass (no verification
-  pass will follow) and emits a ``final_stage_marker`` custom event before its LLM call.
-  The translator uses this to route subsequent ``messages``-mode tokens from
-  ``synthesize`` to ``final_answer``/``final_reasoning`` (otherwise ``intermediate_*``).
-* Citations attach to the **first** ``final_answer`` chunk, mirroring
-  ``response_generator.generate_answer_async`` so the existing UI contract is preserved.
-* RAG/LLM TTFT is measured to the first ``final_answer`` content chunk (not to the first
-  reasoning or intermediate chunk).  This matches what users see as "first useful token".
+* Whether synthesize tokens are labeled as ``final_*`` or ``intermediate_*`` is decided
+  statically from the agent's ``verification_cfg.enabled`` flag, which the runner passes
+  to :func:`translate_graph_stream`:
+
+    - **verification disabled**: synthesize is the only LLM-emitting terminal node;
+      its content tokens stream live as ``final_answer`` (in ``delta.content``) and its
+      reasoning tokens as ``final_reasoning``.
+    - **verification enabled**: synthesize may run twice (draft + post-verification
+      revision) and we don't know up front which pass is terminal.  Both passes therefore
+      stream as ``intermediate_output``/``intermediate_reasoning`` so the user sees the
+      agent "thinking", and at stream end we emit ONE ``final_answer`` chunk whose
+      ``delta.content`` is taken from the authoritative ``state.final_answer`` value
+      (captured via ``stream_mode="values"``).
+
+* Citations attach to the first ``final_answer`` chunk — that's the live token chunk when
+  verification is disabled, or the single end-of-stream chunk when verification is enabled.
+* RAG/LLM TTFT is measured to the first ``final_answer`` content chunk in both modes.
+  When verification is enabled this corresponds to "time until the answer is shown".
 """
 
 from __future__ import annotations
@@ -111,9 +118,11 @@ class EventType(StrEnum):
     """Reasoning-content delta from the final synthesize call."""
 
     FINAL_ANSWER = "final_answer"
-    """Visible-content delta from the final synthesize call.  This is the
-    user-facing answer and is mirrored into ``Message.content`` (delta+message).
-    Citations attach to the first chunk of this kind."""
+    """User-facing answer, mirrored into ``Message.content`` (delta+message) and
+    carrying the run's citations.  When verification is disabled this is a
+    stream of token deltas from the (only) synthesize call.  When verification
+    is enabled this is a single chunk emitted at stream end whose content is
+    the authoritative ``state.final_answer`` value."""
 
     # Structured semantic update from any node, plus forwarded LangGraph
     # debug-mode events.  The ``stage`` field discriminates which node
@@ -297,20 +306,6 @@ def make_agent_event(stage: str, *, key: str, **params: Any) -> dict[str, Any]:
     }
 
 
-def make_final_stage_marker(*, is_final: bool) -> dict[str, Any]:
-    """Build a final_stage_marker payload.
-
-    synthesize_node calls this BEFORE its LLM call so the translator knows
-    whether to label subsequent ``synthesize`` token chunks as
-    ``final_*`` (when ``is_final=True``) or ``intermediate_*``.
-    """
-    return {
-        "node": "synthesize",
-        "event": "final_stage_marker",
-        "is_final": is_final,
-    }
-
-
 # =============================================================================
 # SSE CHUNK BUILDERS
 # =============================================================================
@@ -470,48 +465,57 @@ async def translate_graph_stream(
     *,
     model: str,
     recursion_limit: int,
+    verification_enabled: bool,
     citations_provider: Callable[[], Citations | None] | None = None,
     enable_debug_stream: bool = False,
     rag_start_time_sec: float | None = None,
     on_complete: Callable[[str], Awaitable[None]] | None = None,
 ) -> AsyncIterator[str]:
-    """Consume ``graph.astream(stream_mode=["messages","custom","debug"])`` and
-    yield SSE-formatted ``ChainResponse`` strings ready to be streamed to the
-    HTTP client.
+    """Consume ``graph.astream(...)`` and yield SSE-formatted ``ChainResponse``
+    strings ready to be streamed to the HTTP client.
 
     Args:
-        graph:               Compiled LangGraph (must support ``astream``).
-        initial_state:       Initial state for the graph.
-        model:               Model name to stamp on each ChainResponse.
-        recursion_limit:     LangGraph recursion limit.
-        citations_provider:  A zero-arg callable that returns the current
-                             ``Citations | None`` object built up from the
-                             retriever bridge.  Called when the FIRST
-                             ``final_answer`` chunk is about to be emitted.
-                             Pass ``None`` to skip citations.
-        enable_debug_stream: When True, debug-mode events are forwarded to the
-                             client as ``agent_event`` chunks; otherwise they
-                             are only logged server-side.
-        rag_start_time_sec:  Wall-clock start of the request (for RAG TTFT).
-        on_complete:         Optional zero-arg async callable invoked after the
-                             final-answer stream ends.  Useful for the runner
-                             to record the final answer / log metrics without
-                             coupling that logic into this module.
+        graph:                Compiled LangGraph (must support ``astream``).
+        initial_state:        Initial state for the graph.
+        model:                Model name to stamp on each ChainResponse.
+        recursion_limit:      LangGraph recursion limit.
+        verification_enabled: Whether the agent's verification stage is on for
+                              this run.  Controls how synthesize tokens are
+                              labeled — see the module docstring for details.
+        citations_provider:   A zero-arg callable that returns the current
+                              ``Citations | None`` object built up from the
+                              retriever bridge.  Called when the FIRST
+                              ``final_answer`` chunk is about to be emitted.
+                              Pass ``None`` to skip citations.
+        enable_debug_stream:  When True, debug-mode events are forwarded to the
+                              client as ``agent_event`` chunks; otherwise they
+                              are only logged server-side.
+        rag_start_time_sec:   Wall-clock start of the request (for RAG TTFT).
+        on_complete:          Optional async callable invoked after the
+                              final-answer stream ends.  Receives the final
+                              answer string for trace/metrics bookkeeping.
     """
     resp_id = str(uuid4())
     request_start = time.time()
 
     # Per-stream state ---------------------------------------------------------
-    # Tracks whether the next "messages" chunk from synthesize_node should be
-    # treated as final or intermediate.  None = unknown (default to intermediate
-    # so we never accidentally swap delta content for a non-final pass).
-    synthesize_is_final: bool | None = None
-
     first_final_token_seen = False
     first_token_seen = False  # any kind of token; for logging only
     rag_ttft_ms: float | None = None
     llm_ttft_ms: float | None = None
+
+    # Live-streamed final-answer tokens (verify-disabled path only).  When
+    # verification is enabled, synthesize tokens stream as intermediate and
+    # this stays empty — we use ``latest_final_answer`` from the values stream
+    # instead.
     accumulated_final_answer: list[str] = []
+
+    # Latest authoritative ``state.final_answer`` observed via the LangGraph
+    # values stream.  Updated each time a node returns; at stream end this
+    # holds the answer that the synthesize node committed to state — which
+    # is what we emit as the single ``final_answer`` chunk in verify-enabled
+    # runs, and what we report to ``on_complete``.
+    latest_final_answer: str = ""
 
     # Per-run token buffer for parallel-task nodes.  See PARALLEL_TASK_NODES
     # for the rationale.  Shape: {node: {run_id: {"content": [parts],
@@ -523,7 +527,7 @@ async def translate_graph_stream(
         async for mode, data in graph.astream(
             initial_state,
             config={"recursion_limit": recursion_limit},
-            stream_mode=["messages", "custom", "debug"],
+            stream_mode=["messages", "custom", "debug", "values"],
         ):
             # -----------------------------------------------------------------
             # CUSTOM mode — semantic events emitted by node ``writer({...})``.
@@ -531,15 +535,6 @@ async def translate_graph_stream(
             if mode == "custom":
                 event = data.get("event", "")
                 node = data.get("node", "")
-
-                if event == "final_stage_marker":
-                    synthesize_is_final = bool(data.get("is_final", False))
-                    logger.debug(
-                        "[stream] synthesize final_stage_marker: is_final=%s",
-                        synthesize_is_final,
-                    )
-                    # No SSE chunk for this — purely internal routing signal.
-                    continue
 
                 if event in ("stage_start", "stage_end", "agent_event"):
                     # When a parallel-task node closes, drain its per-run
@@ -606,9 +601,13 @@ async def translate_graph_stream(
                         run_buf["content"].append(content_delta)
                     continue
 
-                # Default to intermediate; promote to final only when synthesize
-                # has emitted its is_final marker.
-                is_final_node = node == "synthesize" and synthesize_is_final is True
+                # synthesize streams as ``final_*`` only when verification is
+                # disabled (it's the sole terminal LLM node in that path).
+                # When verification is enabled, both the draft and any
+                # post-verification revision stream as ``intermediate_*``; the
+                # authoritative answer is emitted as a single ``final_answer``
+                # chunk at stream end (see end-of-stream handler below).
+                is_final_node = node == "synthesize" and not verification_enabled
 
                 if not first_token_seen:
                     first_token_seen = True
@@ -695,6 +694,19 @@ async def translate_graph_stream(
                     )
                 continue
 
+            # -----------------------------------------------------------------
+            # VALUES mode — full state snapshot after each node update.  We
+            # only need ``final_answer`` from it; tracking the latest value
+            # here avoids buffering tokens or emitting extra writer events
+            # from the synthesize node.
+            # -----------------------------------------------------------------
+            if mode == "values":
+                if isinstance(data, dict):
+                    val = data.get("final_answer")
+                    if isinstance(val, str) and val:
+                        latest_final_answer = val
+                continue
+
         # ---------------------------------------------------------------------
         # Safety net — flush any parallel-task buffers that didn't get drained
         # by a stage_end (graph crashed mid-execute, node was cancelled, etc.).
@@ -704,6 +716,40 @@ async def translate_graph_stream(
                 parallel_buffers, leftover_node, resp_id=resp_id, model=model
             ):
                 yield sse
+
+        # ---------------------------------------------------------------------
+        # Verify-enabled path — emit the single ``final_answer`` chunk now.
+        # Synthesize tokens streamed earlier as ``intermediate_*``; this is
+        # where the user actually sees the answer.  Citations and TTFT attach
+        # here because this is the first (and only) ``final_answer`` chunk in
+        # this mode.  Skip if no answer was produced (e.g. graph crashed
+        # before synthesize wrote state.final_answer).
+        # ---------------------------------------------------------------------
+        if verification_enabled and latest_final_answer:
+            citations: Citations | None = None
+            llm_ttft_ms = (time.time() - request_start) * 1000
+            if rag_start_time_sec is not None:
+                rag_ttft_ms = (time.time() - rag_start_time_sec) * 1000
+            logger.info(
+                "    == LLM Time to First Token (TTFT): %.2f ms ==", llm_ttft_ms
+            )
+            if rag_ttft_ms is not None:
+                logger.info(
+                    "    == RAG Time to First Token (TTFT): %.2f ms ==", rag_ttft_ms
+                )
+            if citations_provider is not None:
+                try:
+                    citations = citations_provider()
+                except Exception as cex:  # noqa: BLE001
+                    logger.warning("[stream] citations provider failed: %s", cex)
+            yield _build_chunk(
+                resp_id=resp_id,
+                model=model,
+                event_type=EventType.FINAL_ANSWER.value,
+                stage="synthesize",
+                content=latest_final_answer,
+                citations=citations,
+            )
 
         # ---------------------------------------------------------------------
         # Stream finished — emit the trailing finish chunk with metrics, just
@@ -734,8 +780,16 @@ async def translate_graph_stream(
         yield "data: " + finish_response.model_dump_json() + "\n\n"
 
         if on_complete is not None:
+            # Verify-enabled streams emit the answer as a single chunk drawn
+            # from state, not as token deltas, so the accumulator is empty in
+            # that mode — fall back to the values-stream snapshot.
+            shown_final_answer = (
+                latest_final_answer
+                if verification_enabled
+                else "".join(accumulated_final_answer)
+            )
             try:
-                await on_complete("".join(accumulated_final_answer))
+                await on_complete(shown_final_answer)
             except Exception as cex:  # noqa: BLE001
                 logger.warning("[stream] on_complete hook failed: %s", cex)
 

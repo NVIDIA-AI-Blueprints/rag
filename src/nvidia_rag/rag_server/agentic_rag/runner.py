@@ -267,6 +267,7 @@ async def _run_streaming(
     just until this function returns.
     """
     debug_stream = bool(getattr(cfg, "enable_debug_stream", False))
+    verification_enabled = bool(getattr(agent.verification_cfg, "enabled", False))
 
     def _build_citations_now() -> Citations | None:
         if not enable_citations:
@@ -290,6 +291,7 @@ async def _run_streaming(
                     initial_state,
                     model=model,
                     recursion_limit=cfg.recursion_limit,
+                    verification_enabled=verification_enabled,
                     citations_provider=_build_citations_now,
                     enable_debug_stream=debug_stream,
                     rag_start_time_sec=rag_start_time_sec,

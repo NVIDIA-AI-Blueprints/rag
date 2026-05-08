@@ -20,6 +20,7 @@ from __future__ import annotations
 import inspect
 import json
 from collections import OrderedDict
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -400,8 +401,9 @@ class TestRunAgenticPipeline:
 
     @pytest.mark.asyncio
     async def test_streaming_emits_stage_and_final_chunks(self) -> None:
-        """Streaming path: graph.astream events are translated into SSE chunks
-        with the expected ``event_type``/``stage`` fields."""
+        """Verify-disabled streaming path: synthesize tokens stream live as
+        ``final_answer`` chunks; stage_start/stage_end labels come from
+        USER_FACING_LABELS."""
 
         class _FakeChunk:
             def __init__(self, content: str = "", reasoning: str | None = None) -> None:
@@ -438,11 +440,8 @@ class TestRunAgenticPipeline:
                     "params": {"task_count": 1},
                 },
             )
-            # 2) synthesize: mark final, then stream tokens
-            yield (
-                "custom",
-                {"node": "synthesize", "event": "final_stage_marker", "is_final": True},
-            )
+            # 2) synthesize streams tokens — labeled final_answer because the
+            # agent has verification disabled (no draft/revision dance).
             yield (
                 "messages",
                 (_FakeChunk(content="Hello "), {"langgraph_node": "synthesize"}),
@@ -458,6 +457,7 @@ class TestRunAgenticPipeline:
         class _Agent:
             def __init__(self) -> None:
                 self.metrics = AgentMetrics()
+                self.verification_cfg = SimpleNamespace(enabled=False)
 
         cfg = AgenticRAGConfig()
         resp = await run_agentic_pipeline(
@@ -615,11 +615,9 @@ class TestRunAgenticPipeline:
                     "params": {"task_count": 2, "answered": 2},
                 },
             )
-            # Synthesize: single-LLM-call node — tokens stream live.
-            yield (
-                "custom",
-                {"node": "synthesize", "event": "final_stage_marker", "is_final": True},
-            )
+            # Synthesize: single-LLM-call node — tokens stream live.  Verify
+            # is disabled in this test, so synthesize tokens go straight to
+            # ``final_answer`` rather than being held back for end-of-stream.
             yield (
                 "messages",
                 (
@@ -634,6 +632,7 @@ class TestRunAgenticPipeline:
         class _Agent:
             def __init__(self) -> None:
                 self.metrics = AgentMetrics()
+                self.verification_cfg = SimpleNamespace(enabled=False)
 
         cfg = AgenticRAGConfig()
         resp = await run_agentic_pipeline(
@@ -701,6 +700,113 @@ class TestRunAgenticPipeline:
             p for p in parsed if p.get("event_type") == "final_answer"
         ]
         assert final_answer_chunks, "expected final_answer to pass through"
+
+    @pytest.mark.asyncio
+    async def test_streaming_verify_enabled_emits_single_final_chunk(self) -> None:
+        """Verify-enabled streaming path: synthesize tokens stream as
+        ``intermediate_*`` and the user-facing answer is delivered as a single
+        ``final_answer`` chunk at stream end, sourced from ``state.final_answer``
+        captured via ``stream_mode="values"``."""
+
+        class _FakeChunk:
+            def __init__(self, content: str = "") -> None:
+                self.content = content
+                self.additional_kwargs: dict[str, str] = {}
+                self.usage_metadata = None
+
+        async def _fake_astream(_state, *, config, stream_mode):  # noqa: ARG001
+            assert "values" in stream_mode, (
+                "translator must subscribe to values mode to track state.final_answer"
+            )
+            # Initial state snapshot — empty answer, must be ignored.
+            yield ("values", {"final_answer": ""})
+            # First synthesize pass — tokens here would have been labeled as
+            # final_answer in the legacy code, but with verification on they
+            # must surface as intermediate_output (delta.reasoning_content).
+            yield (
+                "messages",
+                (_FakeChunk(content="draft "), {"langgraph_node": "synthesize"}),
+            )
+            yield (
+                "messages",
+                (_FakeChunk(content="answer"), {"langgraph_node": "synthesize"}),
+            )
+            yield ("values", {"final_answer": "draft answer"})
+            # Verification finds gaps -> re-synthesize.  Same intermediate
+            # treatment for these tokens; only state.final_answer matters
+            # for the final emission.
+            yield (
+                "messages",
+                (_FakeChunk(content="revised "), {"langgraph_node": "synthesize"}),
+            )
+            yield (
+                "messages",
+                (_FakeChunk(content="answer"), {"langgraph_node": "synthesize"}),
+            )
+            yield ("values", {"final_answer": "revised answer"})
+
+        graph = MagicMock()
+        graph.astream = _fake_astream
+
+        class _Agent:
+            def __init__(self) -> None:
+                self.metrics = AgentMetrics()
+                self.verification_cfg = SimpleNamespace(enabled=True)
+
+        cfg = AgenticRAGConfig()
+        resp = await run_agentic_pipeline(
+            agent=_Agent(),
+            graph=graph,
+            query="q",
+            cfg=cfg,
+            search_params=AgenticSearchParams(),
+            enable_streaming=True,
+        )
+        assert resp.status_code == ErrorCodeMapping.SUCCESS
+        chunks = [c async for c in resp.generator]
+        parsed = [json.loads(c.removeprefix("data: ").strip()) for c in chunks]
+
+        # No live final_answer tokens during synthesize — only the single
+        # end-of-stream chunk.
+        final_answer_chunks = [
+            p for p in parsed if p.get("event_type") == "final_answer"
+        ]
+        assert len(final_answer_chunks) == 1, (
+            f"expected exactly one final_answer chunk, got {len(final_answer_chunks)}"
+        )
+        assert final_answer_chunks[0]["choices"][0]["delta"]["content"] == (
+            "revised answer"
+        )
+
+        # Synthesize tokens were re-routed to intermediate_output, with the
+        # content riding in delta.reasoning_content (per the agentic protocol).
+        synth_intermediate = [
+            p
+            for p in parsed
+            if p.get("event_type") == "intermediate_output"
+            and p.get("stage") == "synthesize"
+        ]
+        assert len(synth_intermediate) == 4, (
+            f"expected 4 intermediate_output chunks (2 per synthesize pass), "
+            f"got {len(synth_intermediate)}"
+        )
+        assert (
+            "".join(
+                p["choices"][0]["delta"]["reasoning_content"]
+                for p in synth_intermediate
+            )
+            == "draft answerrevised answer"
+        )
+
+        # The single final_answer chunk lands AFTER the last intermediate one.
+        last_intermediate_idx = parsed.index(synth_intermediate[-1])
+        final_idx = parsed.index(final_answer_chunks[0])
+        assert final_idx > last_intermediate_idx, (
+            "final_answer must follow all intermediate synthesize chunks"
+        )
+
+        # Trailing finish chunk still terminates the stream.
+        assert parsed[-1]["choices"][0]["finish_reason"] == "stop"
 
 
 class TestBuildAgenticRagAgentSignature:

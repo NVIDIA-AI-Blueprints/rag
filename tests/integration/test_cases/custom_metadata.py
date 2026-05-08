@@ -100,7 +100,10 @@ class CustomMetadataModule(BaseTestModule):
             {
                 "filename": "multimodal_test.pdf",
                 "metadata": {
-                    "title": "AI Policy Guidelines",
+                    # Title intentionally contains "tech" so the test stays robust
+                    # to LLM clause selection: a `term` on `category="tech"` and a
+                    # `wildcard` on `title="*tech*"` both match this document.
+                    "title": "AI Tech Policy Guidelines",
                     "category": "tech",
                     # 4.8 (not exactly 4.5) so test queries like "rating above 4.5"
                     # and "high rating" produce non-empty matches under strict
