@@ -82,6 +82,8 @@ export const CollectionItem = ({ collection }: CollectionItemProps) => {
           onClick={handleOpenDrawer}
           kind="tertiary"
           size="tiny"
+          data-testid="collection-more-button"
+          aria-label={`Open details for ${collection.collection_name}`}
         >
           <MoreIcon />
         </Button>

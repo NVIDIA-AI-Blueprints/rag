@@ -59,9 +59,10 @@ export default function Header() {
 
   return (
     <AppBar
+      data-testid="app-header"
       slotLeft={
         <Flex align="center" gap="density-md">
-          <div onClick={handleLogoClick} style={{ cursor: 'pointer' }}>
+          <div onClick={handleLogoClick} data-testid="header-logo" role="link" aria-label="Go to home" style={{ cursor: 'pointer' }}>
             <NvidiaLogo height="20px" />
           </div>
           <Text kind="title/xs" onClick={handleLogoClick} style={{ cursor: 'pointer' }}>
@@ -76,6 +77,8 @@ export default function Header() {
             kind="tertiary"
             size="medium"
             onClick={handleSettingsClick}
+            data-testid="settings-toggle"
+            aria-label={location.pathname === "/settings" ? "Close settings" : "Open settings"}
           >
             <ICON_settings />
             <Text kind="body/regular/sm">Settings</Text>

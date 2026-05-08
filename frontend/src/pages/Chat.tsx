@@ -41,6 +41,7 @@ export default function Chat() {
     <>
       <Grid 
         cols={12}
+        data-testid="chat-page"
         style={{ 
           height: "calc(100vh - 48px)",
           backgroundColor: 'var(--background-color-surface-base)'

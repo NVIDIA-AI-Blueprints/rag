@@ -86,35 +86,38 @@ export const MessageTextarea = ({
   };
 
   return (
-    <TextArea
-      placeholder={placeholder}
-      rows={1}
-      value={input}
-      onChange={bridgeChangeEvent(handleChange)}
-      onKeyDown={bridgeKeyboardEvent(handleKeyDown)}
-      onInput={bridgeFormEvent(handleInput)}
-      disabled={isStreaming}
-      size="medium"
-      resizeable="auto"
-      style={{
-        width: '100%',
-        backgroundColor: 'var(--background-color-surface)',
-      }}
-      attributes={{
-        TextAreaElement: {
-          style: {
-            paddingLeft: '78px',
-            paddingRight: '56px',
-            paddingTop: '5px',
-            lineHeight: '22px',
-            border: 'none',
-            outline: 'none',
-            ...getTextareaStyle(),
-            height: '32px',
-            minHeight: '32px'
+    <div data-testid="message-input" style={{ width: '100%' }}>
+      <TextArea
+        placeholder={placeholder}
+        rows={1}
+        value={input}
+        onChange={bridgeChangeEvent(handleChange)}
+        onKeyDown={bridgeKeyboardEvent(handleKeyDown)}
+        onInput={bridgeFormEvent(handleInput)}
+        disabled={isStreaming}
+        size="medium"
+        resizeable="auto"
+        aria-label={placeholder}
+        style={{
+          width: '100%',
+          backgroundColor: 'var(--background-color-surface)',
+        }}
+        attributes={{
+          TextAreaElement: {
+            style: {
+              paddingLeft: '78px',
+              paddingRight: '56px',
+              paddingTop: '5px',
+              lineHeight: '22px',
+              border: 'none',
+              outline: 'none',
+              ...getTextareaStyle(),
+              height: '32px',
+              minHeight: '32px'
+            }
           }
-        }
-      }}
-    />
+        }}
+      />
+    </div>
   );
 }; 

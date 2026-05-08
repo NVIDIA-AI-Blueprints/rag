@@ -13,6 +13,11 @@ dist-ssr
 *.local
 coverage
 
+# Playwright run artifacts (also see e2e/.gitignore)
+blob-report/
+playwright-report/
+test-results/
+
 # Next.js / Build outputs
 .next/
 next-env.d.ts

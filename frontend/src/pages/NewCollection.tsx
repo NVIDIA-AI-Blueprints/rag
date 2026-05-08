@@ -247,6 +247,8 @@ export default function NewCollection() {
                 value={collectionName}
                 onChange={(e) => setCollectionName(e.target.value.replace(/\s+/g, "_"))}
                 onBlur={() => setCollectionNameTouched(true)}
+                data-testid="collection-name-input"
+                aria-label="Collection name"
               />
             </FormField>
 

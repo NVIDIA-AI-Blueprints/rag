@@ -1,0 +1,4 @@
+# Playwright run artifacts — generated each run, never committed.
+playwright-report/
+test-results/
+blob-report/
