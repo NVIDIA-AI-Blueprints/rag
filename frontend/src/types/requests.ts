@@ -53,8 +53,14 @@ export interface GenerateRequest {
   vlm_endpoint?: string;
   vdb_endpoint?: string;
   
-  // Optional other fields
-  filter_expr?: string;
+  // Optional other fields.
+  //
+  // `filter_expr` shape depends on the configured vector store:
+  //  - Milvus  → string expression (`content_metadata["x"] op v`).
+  //  - Elasticsearch → list of dicts (Elasticsearch Query DSL with field
+  //    paths in the form `metadata.content_metadata.<name>.keyword`).
+  // See docs/custom-metadata.md for the full contract.
+  filter_expr?: string | Array<Record<string, unknown>>;
   stop?: string[];
 
   /**
