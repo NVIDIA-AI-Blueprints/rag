@@ -8,6 +8,33 @@ This documentation contains the release notes for [NVIDIA RAG Blueprint](readme.
 
 
 
+## Release 2.6.0 (TBD)
+
+This release updates the default deployment stack to Elasticsearch and SeaweedFS, moves the default model stack to Nemotron 3 Super with VLM embeddings, and adds agentic, context expansion, filtering, and evaluation capabilities.
+
+### Highlights
+
+This release includes the following key updates:
+
+- Changed the default vector database to Elasticsearch. Milvus remains available as an optional vector database backend.
+- Changed the default object store to SeaweedFS.
+- Updated the default LLM to `nvidia/nemotron-3-super-120b-a12b` and enabled Nemotron reasoning by default in deployment configurations.
+- Promoted `nvidia/llama-nemotron-embed-vl-1b-v2` as the default embedding model. The text embedding model `nvidia/llama-nemotron-embed-1b-v2` remains available as an optional configuration.
+- Added VLM reranker.
+- Added Agentic RAG support, including the plan-and-execute pipeline, streaming responses, and RAG UI integration.
+- Added full page context expansion with neighboring page support to improve answer generation from retrieved context.
+- Added dynamic filter expression generation for Elasticsearch.
+- Published RAG performance tooling on GitHub.
+- Published the RAG evaluation framework on GitHub.
+- Updated NV-Ingest to version 26.3.0.
+- Updated OCR NIM naming from `nemoretriever-ocr-v1` to `nemotron-ocr-v1`.
+
+### Fixed Known Issues
+
+The following known issues have been resolved in this release:
+
+- Fixed default LLM sampling parameter handling for non-NVIDIA providers.
+
 ## Release 2.5.0 (2026-03-17)
 
 This release introduces support for the Nemotron-super-3 model, updates NIMs to the latest versions, upgrades NV-Ingest, and adds continuous ingestion along with RTX 6000 MIG support.
