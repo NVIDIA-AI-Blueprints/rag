@@ -102,7 +102,10 @@ class CustomMetadataModule(BaseTestModule):
                 "metadata": {
                     "title": "AI Policy Guidelines",
                     "category": "tech",
-                    "rating": 4.5,
+                    # 4.8 (not exactly 4.5) so test queries like "rating above 4.5"
+                    # and "high rating" produce non-empty matches under strict
+                    # comparison semantics (`gt: 4.5`) on either backend.
+                    "rating": 4.8,
                     "is_public": True,
                     "tags": ["urgent", "policy", "ai"],
                     "created_date": "2024-01-15T10:30:00Z",
@@ -600,32 +603,38 @@ class CustomMetadataModule(BaseTestModule):
 
     @test_case(38, "LLM Filter Generation Test")
     async def test_llm_filter_generation(self) -> bool:
-        """Test LLM filter generation (Milvus) or graceful degradation (Elasticsearch).
+        """Test LLM-based natural-language filter generation against the configured vector store.
 
-        Elasticsearch does not support LLM-based filter generation. For Elasticsearch,
-        this test verifies that enable_filter_generator=True degrades gracefully and
-        that direct Elasticsearch filter expressions work correctly.
+        Both Milvus and Elasticsearch are expected to convert a natural-language
+        query into a backend-appropriate metadata filter when
+        ``enable_filter_generator=true`` is set on ``/search`` or ``/generate``.
+        The four sub-tests below exercise the public API surface only (request
+        body fields, response shape, citation metadata) so the same assertions
+        apply regardless of the underlying backend or filter syntax produced
+        by the LLM. They verify observable behavior, not implementation
+        internals such as the generated expression's textual form.
         """
         logger.info("\n=== Test 38: LLM Filter Generation Test ===")
         test_start = time.time()
 
+        description = (
+            "Test LLM-based filter generation end-to-end via /search and "
+            "/generate with enable_filter_generator=True; backend-agnostic."
+        )
+
         try:
-            if is_elasticsearch_vector_store():
-                logger.info("ℹ️ Elasticsearch does not support LLM filter generation — testing graceful degradation")
-                success = await self._test_es_filter_generation_graceful_degradation()
-            else:
-                success = True
-                success &= await self._test_search_filter_generation()
-                success &= await self._test_natural_language_patterns()
-                success &= await self._test_generate_endpoint_streaming()
-                success &= await self._test_filter_generation_verification()
+            success = True
+            success &= await self._test_search_filter_generation()
+            success &= await self._test_natural_language_patterns()
+            success &= await self._test_generate_endpoint_streaming()
+            success &= await self._test_filter_generation_verification()
 
             test_time = time.time() - test_start
 
             self.add_test_result(
                 38,
                 "LLM Filter Generation Test",
-                "Test LLM filter generation (Milvus) or graceful degradation with enable_filter_generator=True (Elasticsearch)",
+                description,
                 ["POST /generate", "POST /search"],
                 ["messages", "collection_names", "enable_filter_generator", "query"],
                 test_time,
@@ -643,7 +652,7 @@ class CustomMetadataModule(BaseTestModule):
             self.add_test_result(
                 38,
                 "LLM Filter Generation Test",
-                "Test LLM filter generation (Milvus) or graceful degradation with enable_filter_generator=True (Elasticsearch)",
+                description,
                 ["POST /generate", "POST /search"],
                 ["messages", "collection_names", "enable_filter_generator", "query"],
                 test_time,
@@ -651,70 +660,6 @@ class CustomMetadataModule(BaseTestModule):
                 str(e)
             )
             return False
-
-    async def _test_es_filter_generation_graceful_degradation(self) -> bool:
-        """Verify enable_filter_generator=True degrades gracefully on Elasticsearch.
-
-        ES does not support LLM-based filter generation. The server must return valid
-        results without crashing, and direct ES filter expressions must still work.
-        """
-        logger.info("Testing graceful degradation of filter generation with Elasticsearch...")
-
-        # Verify enable_filter_generator=True doesn't crash; returns valid results
-        search_payload = {
-            "query": "Find urgent tech documents with rating above 4.0",
-            "collection_names": [self.metadata_collection],
-            "enable_filter_generator": True,
-            "top_k": 10,
-        }
-
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                f"{self.rag_server_url}/search",
-                json=search_payload,
-            ) as response:
-                result = await response.json()
-                if response.status != 200:
-                    logger.error(f"❌ Search with enable_filter_generator=True failed: {response.status}")
-                    logger.error(f"Response: {json.dumps(result, indent=2)}")
-                    return False
-                logger.info(
-                    f"✅ Search with enable_filter_generator=True returned "
-                    f"{len(result.get('results', []))} results without error"
-                )
-
-        # Verify direct ES filter expressions work (filter_expr as list of dicts)
-        es_filter = [{"term": {"metadata.content_metadata.category.keyword": "tech"}}]
-        search_payload_filtered = {
-            "query": "tech documents",
-            "collection_names": [self.metadata_collection],
-            "enable_filter_generator": False,
-            "filter_expr": es_filter,
-            "top_k": 10,
-        }
-
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                f"{self.rag_server_url}/search",
-                json=search_payload_filtered,
-            ) as response:
-                result = await response.json()
-                if response.status != 200:
-                    logger.error(f"❌ Search with direct ES filter_expr failed: {response.status}")
-                    logger.error(f"Response: {json.dumps(result, indent=2)}")
-                    return False
-                docs = result.get("results", [])
-                logger.info(f"✅ Direct ES filter returned {len(docs)} documents")
-
-                for doc in docs:
-                    metadata = doc.get("metadata", {}).get("content_metadata", {})
-                    category = metadata.get("category", "")
-                    if category and category != "tech":
-                        logger.error(f"❌ Document has wrong category: {category}, expected: tech")
-                        return False
-
-        logger.info("✅ Elasticsearch filter graceful degradation test passed")
-        return True
 
     async def _test_search_filter_generation(self) -> bool:
         """Test search endpoint with filter generation enabled"""
@@ -935,6 +880,7 @@ class CustomMetadataModule(BaseTestModule):
 
         # Test query that should generate a specific filter
         test_query = "Show me tech documents with rating above 4.5"
+        logger.info(f"   └─ Verification query: '{test_query}' (top_k=20)")
 
         # Test 1: With filter generation enabled
         search_payload_with_filter = {
@@ -955,6 +901,9 @@ class CustomMetadataModule(BaseTestModule):
 
                 result_with_filter = await response.json()
                 docs_with_filter = result_with_filter.get("results", [])
+                logger.info(
+                    f"   └─ With enable_filter_generator=True: {len(docs_with_filter)} results"
+                )
 
         # Test 2: Same query without filter generation
         search_payload_without_filter = {
@@ -975,6 +924,9 @@ class CustomMetadataModule(BaseTestModule):
 
                 result_without_filter = await response.json()
                 docs_without_filter = result_without_filter.get("results", [])
+                logger.info(
+                    f"   └─ With enable_filter_generator=False: {len(docs_without_filter)} results"
+                )
 
         # Verification 1: Results should be different if filter generation is working
         if len(docs_with_filter) == len(docs_without_filter):
@@ -984,7 +936,20 @@ class CustomMetadataModule(BaseTestModule):
 
             if with_filter_ids == without_filter_ids:
                 logger.error("❌ Filter generation verification FAILED: Results are identical with and without filter generation")
-                logger.error("   └─ This suggests filter generation is falling back to empty strings")
+                logger.error("   └─ This suggests filter generation is falling back to empty/no-op")
+                logger.error("   └─ Check rag-server logs for 'STAGE: Dynamic Filter Expression Generation' and the generated filter")
+                logger.error(
+                    "   └─ Also confirm ENABLE_FILTER_GENERATOR=true is set on the rag-server "
+                    "and APP_VECTORSTORE_NAME matches the active backend"
+                )
+                logger.error(
+                    "   └─ First 3 with-filter doc IDs: %s",
+                    [(d.get("document_name", ""), d.get("chunk_id", "")) for d in docs_with_filter[:3]],
+                )
+                logger.error(
+                    "   └─ First 3 without-filter doc IDs: %s",
+                    [(d.get("document_name", ""), d.get("chunk_id", "")) for d in docs_without_filter[:3]],
+                )
                 return False
 
         # Verification 2: Documents with filter should match the criteria better

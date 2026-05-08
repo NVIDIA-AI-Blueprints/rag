@@ -41,6 +41,7 @@ from langchain_core.documents import Document
 from langchain_nvidia_ai_endpoints import Model, register_model
 
 from nvidia_rag.utils import configuration
+from nvidia_rag.utils.es_filter_validator import ElasticsearchFilterValidator
 from nvidia_rag.utils.metadata_validation import (
     FilterExpressionParser,
     MetadataField,
@@ -380,10 +381,103 @@ def validate_filter_expr(
                         "error_message": "Elasticsearch filter must be a list of dictionaries",
                         "details": [f"Invalid item type: {type(item)}"],
                     }
-            logger.debug(
-                f"Elasticsearch filter validated successfully: {len(filter_expr)} filter conditions"
-            )
-            return {"status": True, "validated_collections": collection_names}
+
+            # Empty filter list bypasses schema-aware validation.
+            if not filter_expr:
+                logger.debug("Elasticsearch filter is empty, nothing to validate")
+                return {"status": True, "validated_collections": collection_names}
+
+            allow_partial_filtering = config.metadata.allow_partial_filtering
+
+            def validate_es_single_collection(collection_name: str) -> dict[str, Any]:
+                try:
+                    metadata_schema_data = metadata_schemas.get(collection_name)
+                    if not metadata_schema_data:
+                        # No schema registered — fall back to shape-only acceptance
+                        # to preserve current behavior for collections without schemas.
+                        return {
+                            "collection": collection_name,
+                            "valid": True,
+                            "error": None,
+                        }
+
+                    field_definitions = [
+                        MetadataField(**field_data)
+                        for field_data in metadata_schema_data
+                    ]
+                    metadata_schema = MetadataSchema(schema=field_definitions)
+                    validator = ElasticsearchFilterValidator(metadata_schema, config)
+                    result = validator.validate_filter(filter_expr)
+                    if result["status"]:
+                        return {
+                            "collection": collection_name,
+                            "valid": True,
+                            "error": None,
+                        }
+                    return {
+                        "collection": collection_name,
+                        "valid": False,
+                        "error": result.get(
+                            "error_message", "Unknown validation error"
+                        ),
+                    }
+                except Exception as e:
+                    return {
+                        "collection": collection_name,
+                        "valid": False,
+                        "error": str(e),
+                    }
+
+            with ThreadPoolExecutor() as executor:
+                es_results = list(
+                    executor.map(validate_es_single_collection, collection_names)
+                )
+
+            es_validated: list[str] = []
+            es_errors: list[str] = []
+            for r in es_results:
+                if r["valid"]:
+                    es_validated.append(r["collection"])
+                else:
+                    es_errors.append(
+                        f"Collection '{r.get('collection', 'unknown collection')}': "
+                        f"{r.get('error', 'Filter validation failed for this collection.')}"
+                    )
+
+            if allow_partial_filtering:
+                if es_validated:
+                    logger.info(
+                        f"Flexible mode: {len(es_validated)}/{len(collection_names)} ES collections support filter"
+                    )
+                    return {
+                        "status": True,
+                        "validated_collections": es_validated,
+                        "details": es_errors if es_errors else None,
+                    }
+                logger.error("No ES collections support the filter expression")
+                return {
+                    "status": False,
+                    "validated_collections": [],
+                    "error_message": "No collections support the filter expression",
+                    "details": es_errors,
+                }
+
+            if len(es_validated) < len(collection_names):
+                logger.error(
+                    f"Strict mode: {len(collection_names) - len(es_validated)} ES collections do not support filter"
+                )
+                return {
+                    "status": False,
+                    "validated_collections": es_validated,
+                    "error_message": (
+                        f"Filter expression not supported by "
+                        f"{len(collection_names) - len(es_validated)} collections"
+                    ),
+                    "details": es_errors,
+                }
+
+            logger.debug(f"All {len(collection_names)} ES collections support filter")
+            return {"status": True, "validated_collections": es_validated}
         elif isinstance(filter_expr, str):
             logger.warning(
                 f"Elasticsearch expects list of dicts, but received string: {filter_expr}"
@@ -582,10 +676,45 @@ def process_filter_expr(
                         f"Elasticsearch filter must be a list of dicts, found: {type(item)}"
                     )
                     return []
-            logger.debug(
-                f"Elasticsearch filter validated successfully: {len(filter_expr)} filter conditions"
-            )
-            return filter_expr
+
+            # No schema available — fall back to shape-only acceptance to
+            # preserve backwards compatibility for user-supplied filters on
+            # collections without registered schemas.
+            if not metadata_schema_data:
+                logger.debug(
+                    f"Elasticsearch filter accepted without schema validation: "
+                    f"{len(filter_expr)} filter conditions"
+                )
+                return filter_expr
+
+            try:
+                field_definitions = [
+                    MetadataField(**field_data) for field_data in metadata_schema_data
+                ]
+                metadata_schema = MetadataSchema(schema=field_definitions)
+            except Exception as e:
+                logger.error(
+                    f"Failed to convert metadata schema data to MetadataSchema object: {e}"
+                )
+                return filter_expr
+
+            validator = ElasticsearchFilterValidator(metadata_schema, config)
+            result = validator.process_filter(filter_expr)
+
+            if result["status"]:
+                processed = result.get("processed_expression", filter_expr)
+                logger.debug(
+                    f"ES filter expression processed successfully ({len(processed)} clauses)"
+                )
+                return processed
+
+            error_message = result.get("error_message", "Unknown error")
+            if is_generated_filter:
+                logger.warning(
+                    f"Generated ES filter expression processing failed: {error_message}"
+                )
+                return []
+            raise ValueError(error_message)
         elif isinstance(filter_expr, str):
             logger.warning(
                 f"Elasticsearch expects list of dicts, but received string: {filter_expr}"
@@ -646,6 +775,33 @@ def process_filter_expr(
     else:
         logger.error(f"Unsupported vector store: {config.vector_store.name}")
         return filter_expr if isinstance(filter_expr, str) else []
+
+
+_FILTER_LOG_PREVIEW_CHARS = 500
+
+
+def format_filter_for_log(
+    filter_val: str | list[dict[str, Any]] | None,
+) -> str:
+    """Render a filter expression as a single-line preview for logs.
+
+    Backend-agnostic: handles Milvus string filters and Elasticsearch DSL
+    list-of-dicts uniformly. Returns "(empty)" when there is no filter,
+    otherwise a compact JSON or string representation truncated to a
+    fixed preview length.
+    """
+    if filter_val is None or filter_val == "" or filter_val == []:
+        return "(empty)"
+    if isinstance(filter_val, str):
+        rendered = filter_val
+    else:
+        try:
+            rendered = json.dumps(filter_val, separators=(",", ":"))
+        except (TypeError, ValueError):
+            rendered = str(filter_val)
+    if len(rendered) > _FILTER_LOG_PREVIEW_CHARS:
+        return rendered[:_FILTER_LOG_PREVIEW_CHARS] + "..."
+    return rendered
 
 
 # Boolean flags used in document info aggregation

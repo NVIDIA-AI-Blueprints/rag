@@ -362,7 +362,7 @@ class TestNvIngestConfig:
         assert config.tokenizer == "intfloat/e5-large-unsupervised"
         assert config.chunk_size == 1024
         assert config.chunk_overlap == 150
-        assert config.caption_model_name == "nvidia/nemotron-nano-12b-v2-vl"
+        assert config.caption_model_name == "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
         assert (
             config.caption_endpoint_url
             == "https://integrate.api.nvidia.com/v1/chat/completions"

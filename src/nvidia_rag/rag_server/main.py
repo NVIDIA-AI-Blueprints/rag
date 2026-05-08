@@ -82,6 +82,7 @@ from nvidia_rag.rag_server.validation import (
 from nvidia_rag.rag_server.vlm import VLM
 from nvidia_rag.utils.common import (
     filter_documents_by_confidence,
+    format_filter_for_log,
     process_filter_expr,
     validate_filter_expr,
 )
@@ -443,6 +444,9 @@ class NvidiaRAG:
         vlm_top_p: float | None = None,
         vlm_max_tokens: int | None = None,
         vlm_max_total_images: int | None = None,
+        vlm_enable_thinking: bool | None = None,
+        vlm_thinking_token_budget: int | None = None,
+        vlm_filter_thinking_tokens: bool | None = None,
         filter_expr: str | list[dict[str, Any]] = "",
         enable_query_decomposition: bool | None = None,
         confidence_threshold: float | None = None,
@@ -684,6 +688,10 @@ class NvidiaRAG:
             "vlm_top_p": vlm_top_p,
             "vlm_max_tokens": vlm_max_tokens,
             "vlm_max_total_images": vlm_max_total_images,
+            # Reasoning controls — None means "use server-side default".
+            "vlm_enable_thinking": vlm_enable_thinking,
+            "vlm_thinking_token_budget": vlm_thinking_token_budget,
+            "vlm_filter_thinking_tokens": vlm_filter_thinking_tokens,
         }
 
         if use_knowledge_base:
@@ -1166,9 +1174,9 @@ class NvidiaRAG:
                         )
 
             if enable_filter_generator and not is_image_query:
-                if self.config.vector_store.name != "milvus":
+                if self.config.vector_store.name not in ("milvus", "elasticsearch"):
                     logger.warning(
-                        f"Filter expression generator is currently only supported for Milvus. "
+                        f"Filter expression generator is supported for Milvus and Elasticsearch only. "
                         f"Current vector store: {self.config.vector_store.name}. Skipping filter generation."
                     )
                 else:
@@ -1180,9 +1188,41 @@ class NvidiaRAG:
                             ErrorCodeMapping.SERVICE_UNAVAILABLE,
                         )
 
-                    logger.debug(
-                        "Filter expression generator enabled, attempting to generate filter from query"
+                    is_es = self.config.vector_store.name == "elasticsearch"
+                    prompt_key = (
+                        "filter_expression_generator_prompt_elasticsearch"
+                        if is_es
+                        else "filter_expression_generator_prompt_milvus"
                     )
+                    output_format = "json" if is_es else "string"
+                    empty_filter = [] if is_es else ""
+
+                    logger.info("=" * 80)
+                    logger.info("STAGE: Dynamic Filter Expression Generation")
+                    logger.info("=" * 80)
+                    logger.info("Configuration:")
+                    logger.info(
+                        "  - Vector Store: %s", self.config.vector_store.name
+                    )
+                    logger.info("  - Prompt: %s", prompt_key)
+                    logger.info("  - Output Format: %s", output_format)
+                    logger.info(
+                        "  - Model: %s",
+                        self.config.filter_expression_generator.model_name,
+                    )
+                    logger.info(
+                        "  - Endpoint: %s",
+                        self.config.filter_expression_generator.server_url,
+                    )
+                    logger.info("Input:")
+                    logger.info(
+                        "  - Query: '%s'",
+                        processed_query[:200] if processed_query else "",
+                    )
+                    logger.info("  - Collections: %s", validated_collections)
+                    logger.info("Generating filter expressions for collections...")
+                    logger.info("-" * 80)
+
                     try:
 
                         def generate_filter_for_collection(collection_name):
@@ -1196,17 +1236,18 @@ class NvidiaRAG:
                                         user_request=processed_query,
                                         collection_name=collection_name,
                                         metadata_schema=metadata_schema_data,
-                                        prompt_template=self.prompts.get(
-                                            "filter_expression_generator_prompt"
-                                        ),
+                                        prompt_template=self.prompts.get(prompt_key),
                                         llm=self.filter_generator_llm,
                                         existing_filter_expr=filter_expr,
+                                        output_format=output_format,
                                     )
                                 )
 
                                 if generated_filter:
-                                    logger.debug(
-                                        f"Generated filter expression for collection '{collection_name}': {generated_filter}"
+                                    logger.info(
+                                        "Dynamic filter generated for collection '%s': %s",
+                                        collection_name,
+                                        format_filter_for_log(generated_filter),
                                     )
 
                                     processed_filter_expr = process_filter_expr(
@@ -1216,17 +1257,23 @@ class NvidiaRAG:
                                         is_generated_filter=True,
                                         config=self.config,
                                     )
+                                    logger.info(
+                                        "Dynamic filter (post-processing) for collection '%s': %s",
+                                        collection_name,
+                                        format_filter_for_log(processed_filter_expr),
+                                    )
                                     return collection_name, processed_filter_expr
                                 else:
-                                    logger.debug(
-                                        f"No filter expression generated for collection '{collection_name}'"
+                                    logger.info(
+                                        "No dynamic filter generated for collection '%s' (LLM returned empty/NO_FILTER)",
+                                        collection_name,
                                     )
-                                    return collection_name, ""
+                                    return collection_name, empty_filter
                             except Exception as e:
                                 logger.warning(
                                     f"Error generating filter for collection '{collection_name}': {str(e)}"
                                 )
-                                return collection_name, ""
+                                return collection_name, empty_filter
 
                         with ThreadPoolExecutor() as executor:
                             futures = [
@@ -1245,14 +1292,20 @@ class NvidiaRAG:
                         generated_count = len(
                             [f for f in collection_filter_mapping.values() if f]
                         )
-                        if generated_count > 0:
-                            logger.info(
-                                f"Generated filter expressions for {generated_count}/{len(validated_collections)} collections"
-                            )
-                        else:
-                            logger.info(
-                                "No filter expressions generated for any collection"
-                            )
+                        logger.info("Filter Generation Output:")
+                        logger.info(
+                            "  - Successfully generated filters for %d/%d collections",
+                            generated_count,
+                            len(validated_collections),
+                        )
+                        for coll_name, filter_val in collection_filter_mapping.items():
+                            if filter_val:
+                                logger.info(
+                                    "  - Collection '%s': %s",
+                                    coll_name,
+                                    format_filter_for_log(filter_val),
+                                )
+                        logger.info("-" * 80)
 
                     except Exception as e:
                         logger.error(f"Error generating filter expression: {str(e)}")
@@ -1809,6 +1862,14 @@ class NvidiaRAG:
                 vlm_settings.get("vlm_max_total_images")
                 or self.config.vlm.max_total_images
             )
+            # Per-request reasoning controls (None → server-side default in vlm.py).
+            vlm_enable_thinking_req = vlm_settings.get("vlm_enable_thinking")
+            vlm_thinking_token_budget_req = vlm_settings.get(
+                "vlm_thinking_token_budget"
+            )
+            vlm_filter_thinking_tokens_req = vlm_settings.get(
+                "vlm_filter_thinking_tokens"
+            )
 
             # Extract text from query for logging
             query_text = self._extract_text_from_content(query)
@@ -1851,6 +1912,7 @@ class NvidiaRAG:
             ]
 
             # Stream VLM response (no context documents in direct mode)
+            vlm_token_usage: dict[str, Any] = {}
             vlm_generator = vlm.stream_with_messages(
                 docs=[],  # No context documents
                 messages=vlm_messages,
@@ -1860,6 +1922,10 @@ class NvidiaRAG:
                 top_p=vlm_top_p_cfg,
                 max_tokens=vlm_max_tokens_cfg,
                 max_total_images=vlm_max_total_images_cfg,
+                token_usage=vlm_token_usage,
+                enable_thinking=vlm_enable_thinking_req,
+                thinking_token_budget=vlm_thinking_token_budget_req,
+                filter_think_tokens=vlm_filter_thinking_tokens_req,
             )
 
             # Eagerly prefetch first chunk to catch errors early
@@ -1876,6 +1942,7 @@ class NvidiaRAG:
                     collection_name="",
                     enable_citations=enable_citations,
                     otel_metrics_client=metrics,
+                    token_usage=vlm_token_usage,
                 ),
                 status_code=ErrorCodeMapping.SUCCESS,
             )
@@ -2705,9 +2772,9 @@ class NvidiaRAG:
                         )
 
             if enable_filter_generator and not is_image_query:
-                if self.config.vector_store.name != "milvus":
+                if self.config.vector_store.name not in ("milvus", "elasticsearch"):
                     logger.warning(
-                        f"Filter expression generator is currently only supported for Milvus. "
+                        f"Filter expression generator is supported for Milvus and Elasticsearch only. "
                         f"Current vector store: {self.config.vector_store.name}. Skipping filter generation."
                     )
                 else:
@@ -2719,10 +2786,25 @@ class NvidiaRAG:
                             ErrorCodeMapping.SERVICE_UNAVAILABLE,
                         )
 
+                    is_es_agentic = (
+                        self.config.vector_store.name == "elasticsearch"
+                    )
+                    prompt_key_agentic = (
+                        "filter_expression_generator_prompt_elasticsearch"
+                        if is_es_agentic
+                        else "filter_expression_generator_prompt_milvus"
+                    )
+                    output_format_agentic = "json" if is_es_agentic else "string"
+
                     logger.info("=" * 80)
-                    logger.info("STAGE: Filter Expression Generation")
+                    logger.info("STAGE: Dynamic Filter Expression Generation")
                     logger.info("=" * 80)
                     logger.info("Configuration:")
+                    logger.info(
+                        "  - Vector Store: %s", self.config.vector_store.name
+                    )
+                    logger.info("  - Prompt: %s", prompt_key_agentic)
+                    logger.info("  - Output Format: %s", output_format_agentic)
                     logger.info(
                         "  - Model: %s",
                         self.config.filter_expression_generator.model_name,
@@ -2746,6 +2828,9 @@ class NvidiaRAG:
                     }
                     try:
                         with traced_span("rag.Custom Metadata.token_usage") as mf_span:
+                            prompt_key = prompt_key_agentic
+                            output_format = output_format_agentic
+                            empty_filter = [] if is_es_agentic else ""
 
                             def generate_filter_for_collection(collection_name):
                                 try:
@@ -2759,17 +2844,20 @@ class NvidiaRAG:
                                             collection_name=collection_name,
                                             metadata_schema=metadata_schema_data,
                                             prompt_template=self.prompts.get(
-                                                "filter_expression_generator_prompt"
+                                                prompt_key
                                             ),
                                             llm=self.filter_generator_llm,
                                             existing_filter_expr=filter_expr,
                                             run_config=run_config_mf,
+                                            output_format=output_format,
                                         )
                                     )
 
                                     if generated_filter:
                                         logger.info(
-                                            f"Generated filter expression for collection '{collection_name}': {generated_filter}"
+                                            "Dynamic filter generated for collection '%s': %s",
+                                            collection_name,
+                                            format_filter_for_log(generated_filter),
                                         )
                                         processed_filter_expr = process_filter_expr(
                                             generated_filter,
@@ -2778,17 +2866,25 @@ class NvidiaRAG:
                                             is_generated_filter=True,
                                             config=self.config,
                                         )
+                                        logger.info(
+                                            "Dynamic filter (post-processing) for collection '%s': %s",
+                                            collection_name,
+                                            format_filter_for_log(
+                                                processed_filter_expr
+                                            ),
+                                        )
                                         return collection_name, processed_filter_expr
                                     else:
                                         logger.info(
-                                            f"No filter expression generated for collection '{collection_name}'"
+                                            "No dynamic filter generated for collection '%s' (LLM returned empty/NO_FILTER)",
+                                            collection_name,
                                         )
-                                        return collection_name, ""
+                                        return collection_name, empty_filter
                                 except Exception as e:
                                     logger.warning(
                                         f"Error generating filter for collection '{collection_name}': {str(e)}"
                                     )
-                                    return collection_name, ""
+                                    return collection_name, empty_filter
 
                         with ThreadPoolExecutor() as executor:
                             futures = [
@@ -2829,7 +2925,7 @@ class NvidiaRAG:
                                     logger.info(
                                         "  - Collection '%s': %s",
                                         coll_name,
-                                        filter_val[:100],
+                                        format_filter_for_log(filter_val),
                                     )
                         else:
                             logger.info(
@@ -3032,7 +3128,7 @@ class NvidiaRAG:
                     logger.info(
                         "  - Filter Expressions: %s",
                         {
-                            k: v[:50] + "..." if len(v) > 50 else v
+                            k: format_filter_for_log(v)
                             for k, v in collection_filter_mapping.items()
                         },
                     )
@@ -3313,6 +3409,19 @@ class NvidiaRAG:
                             vlm_settings.get("vlm_max_total_images")
                             or self.config.vlm.max_total_images
                         )
+                        # None passes through to vlm.stream_with_messages where
+                        # it falls back to the per-config defaults; using
+                        # `is not None` here so explicit False / 0 from clients
+                        # is preserved.
+                        vlm_enable_thinking_req = vlm_settings.get(
+                            "vlm_enable_thinking"
+                        )
+                        vlm_thinking_token_budget_req = vlm_settings.get(
+                            "vlm_thinking_token_budget"
+                        )
+                        vlm_filter_thinking_tokens_req = vlm_settings.get(
+                            "vlm_filter_thinking_tokens"
+                        )
 
                         logger.info("=" * 80)
                         logger.info("STAGE: VLM Generation (Vision Language Model)")
@@ -3370,6 +3479,7 @@ class NvidiaRAG:
                         )
                         # Always stream VLM response directly using async streaming (reasoning gate deprecated)
                         logger.info("Streaming VLM response directly (async).")
+                        vlm_token_usage: dict[str, Any] = {}
                         vlm_generator = vlm.stream_with_messages(
                             docs=context_to_show,
                             messages=vlm_messages,
@@ -3381,6 +3491,10 @@ class NvidiaRAG:
                             max_tokens=vlm_max_tokens_cfg,
                             max_total_images=vlm_max_total_images_cfg,
                             nrl_mode=self._is_nrl_mode,
+                            token_usage=vlm_token_usage,
+                            enable_thinking=vlm_enable_thinking_req,
+                            thinking_token_budget=vlm_thinking_token_budget_req,
+                            filter_think_tokens=vlm_filter_thinking_tokens_req,
                         )
                         # Eagerly prefetch first chunk to trigger any errors before creating RAGResponse
                         # ensures connection errors are caught early
@@ -3397,12 +3511,13 @@ class NvidiaRAG:
                             generate_answer_async(
                                 prefetched_vlm_stream,
                                 docs_for_citations,
-                                model=model,
+                                model=vlm_model_cfg,
                                 collection_name=validated_collections[0]
                                 if validated_collections
                                 else "",
                                 enable_citations=enable_citations,
                                 use_nrl_citations=self._is_nrl_mode,
+                                token_usage=vlm_token_usage,
                             ),
                             status_code=ErrorCodeMapping.SUCCESS,
                         )

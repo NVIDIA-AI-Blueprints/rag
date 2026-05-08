@@ -1760,6 +1760,7 @@ all = [
     { name = "langchain-openai" },
     { name = "nv-ingest-api" },
     { name = "nv-ingest-client" },
+    { name = "openai" },
     { name = "opentelemetry-api" },
     { name = "opentelemetry-exporter-otlp" },
     { name = "opentelemetry-exporter-prometheus" },
@@ -1782,6 +1783,7 @@ ingest = [
     { name = "langchain-openai" },
     { name = "nv-ingest-api" },
     { name = "nv-ingest-client" },
+    { name = "openai" },
     { name = "opentelemetry-api" },
     { name = "opentelemetry-exporter-otlp" },
     { name = "opentelemetry-exporter-prometheus" },
@@ -1800,6 +1802,7 @@ rag = [
     { name = "azure-core" },
     { name = "azure-storage-blob" },
     { name = "langchain-openai" },
+    { name = "openai" },
     { name = "opentelemetry-api" },
     { name = "opentelemetry-exporter-otlp" },
     { name = "opentelemetry-exporter-prometheus" },
@@ -1858,6 +1861,9 @@ requires-dist = [
     { name = "nv-ingest-api", marker = "extra == 'ingest'", specifier = "==26.3.0" },
     { name = "nv-ingest-client", marker = "extra == 'all'", specifier = "==26.3.0" },
     { name = "nv-ingest-client", marker = "extra == 'ingest'", specifier = "==26.3.0" },
+    { name = "openai", marker = "extra == 'all'", specifier = ">=1.0,<2.0" },
+    { name = "openai", marker = "extra == 'ingest'", specifier = ">=1.0,<2.0" },
+    { name = "openai", marker = "extra == 'rag'", specifier = ">=1.0,<2.0" },
     { name = "opentelemetry-api", marker = "extra == 'all'", specifier = ">=1.29,<2.0" },
     { name = "opentelemetry-api", marker = "extra == 'ingest'", specifier = ">=1.29,<2.0" },
     { name = "opentelemetry-api", marker = "extra == 'rag'", specifier = ">=1.29,<2.0" },
@@ -1967,7 +1973,7 @@ wheels = [
 
 [[package]]
 name = "openai"
-version = "2.15.0"
+version = "1.109.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
@@ -1979,9 +1985,9 @@ dependencies = [
     { name = "tqdm" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/94/f4/4690ecb5d70023ce6bfcfeabfe717020f654bde59a775058ec6ac4692463/openai-2.15.0.tar.gz", hash = "sha256:42eb8cbb407d84770633f31bf727d4ffb4138711c670565a41663d9439174fba", size = 627383, upload-time = "2026-01-09T22:10:08.603Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c6/a1/a303104dc55fc546a3f6914c842d3da471c64eec92043aef8f652eb6c524/openai-1.109.1.tar.gz", hash = "sha256:d173ed8dbca665892a6db099b4a2dfac624f94d20a93f46eb0b56aae940ed869", size = 564133, upload-time = "2025-09-24T13:00:53.075Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/b5/df/c306f7375d42bafb379934c2df4c2fa3964656c8c782bac75ee10c102818/openai-2.15.0-py3-none-any.whl", hash = "sha256:6ae23b932cd7230f7244e52954daa6602716d6b9bf235401a107af731baea6c3", size = 1067879, upload-time = "2026-01-09T22:10:06.446Z" },
+    { url = "https://files.pythonhosted.org/packages/1d/2a/7dd3d207ec669cacc1f186fd856a0f61dbc255d24f6fdc1a6715d6051b0f/openai-1.109.1-py3-none-any.whl", hash = "sha256:6bcaf57086cf59159b8e27447e4e7dd019db5d29a438072fbd49c290c7e65315", size = 948627, upload-time = "2025-09-24T13:00:50.754Z" },
 ]
 
 [[package]]
