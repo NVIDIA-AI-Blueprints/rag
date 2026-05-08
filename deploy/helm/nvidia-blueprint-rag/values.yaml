@@ -124,10 +124,10 @@ envVars:
 
   ##===Vector DB specific configurations===
   # URL on which vectorstore is hosted
-  APP_VECTORSTORE_URL: "http://rag-eck-elasticsearch-es-default:9200" # Use "http://milvus:19530" for Milvus
-  # Type of vectordb used to store embedding supported type "milvus" or "elasticsearch"
+  APP_VECTORSTORE_URL: "http://rag-eck-elasticsearch-es-default:9200"
+  # Type of vectordb used to store embedding
   APP_VECTORSTORE_NAME: "elasticsearch"
-  # Index type (e.g., GPU_CAGRA); Milvus-oriented — Elasticsearch uses its own index mapping
+  # Index type used by the vectorstore (Elasticsearch uses its own index mapping)
   APP_VECTORSTORE_INDEXTYPE: "GPU_CAGRA"
   # Type of vectordb search to be used
   APP_VECTORSTORE_SEARCHTYPE: "dense"
@@ -137,7 +137,7 @@ envVars:
   APP_VECTORSTORE_DENSE_WEIGHT: "0.5"
   # Weight for sparse vector search in case of "weighted" Hybrid Search
   APP_VECTORSTORE_SPARSE_WEIGHT: "0.5"
-  # Enable GPU search. Milvus only — GPU search is not supported by Elasticsearch.
+  # GPU search is not supported by Elasticsearch.
   APP_VECTORSTORE_ENABLEGPUSEARCH: "False"
   # ef: Parameter controlling query time/accuracy trade-off. Higher ef leads to more accurate but slower search.
   APP_VECTORSTORE_EF: "100"
@@ -368,8 +368,8 @@ ingestor-server:
     # Absolute path to custom prompt.yaml file
     PROMPT_CONFIG_FILE: "/prompt.yaml"
     # === Vector Store Configurations ===
-    APP_VECTORSTORE_URL: "http://rag-eck-elasticsearch-es-default:9200" # Use "http://milvus:19530" for Milvus
-    APP_VECTORSTORE_NAME: "elasticsearch" # supported values: "milvus" or "elasticsearch"
+    APP_VECTORSTORE_URL: "http://rag-eck-elasticsearch-es-default:9200"
+    APP_VECTORSTORE_NAME: "elasticsearch"
     APP_VECTORSTORE_SEARCHTYPE: "dense"
     # Type of ranker to use for vector store in case of Hybrid Search
     APP_VECTORSTORE_RANKER_TYPE: "rrf" # Can be "rrf" or "weighted"
@@ -377,9 +377,9 @@ ingestor-server:
     APP_VECTORSTORE_DENSE_WEIGHT: "0.5"
     # Weight for sparse vector search in case of "weighted" Hybrid Search
     APP_VECTORSTORE_SPARSE_WEIGHT: "0.5"
-    # Enable GPU index building. Applies to both Milvus and Elasticsearch (requires GPU-capable image and license for ES).
+    # Enable GPU index building (requires GPU-capable Elasticsearch image and license).
     APP_VECTORSTORE_ENABLEGPUINDEX: "False"
-    # Enable GPU search. Milvus only — GPU search is not supported by Elasticsearch.
+    # GPU search is not supported by Elasticsearch.
     APP_VECTORSTORE_ENABLEGPUSEARCH: "False"
     # Username  for vector store authentication
     APP_VECTORSTORE_USERNAME: ""
@@ -435,7 +435,7 @@ ingestor-server:
 
     # === NV-Ingest save to disk configurations ===
     APP_NVINGEST_SAVETODISK: "False"
-    NVINGEST_OBJECTSTORE_BUCKET: "nv-ingest" # If this value is modified, ensure the corresponding Milvus bucketName is also updated
+    NVINGEST_OBJECTSTORE_BUCKET: "nv-ingest"
 
     # === NV-Ingest performance configurations ===
     APP_NVINGEST_ENABLE_PDF_SPLIT_PROCESSING: "False"
@@ -1150,54 +1150,8 @@ nv-ingest:
     AUDIO_GRPC_ENDPOINT: nv-ingest-riva-nim:50051
     AUDIO_INFER_PROTOCOL: grpc
 
-  # Disable the vendored Milvus dependency entirely for the Elasticsearch + SeaweedFS topology.
-  # NV-Ingest still uses SeaweedFS via MINIO_* env vars for S3-compatible artifact storage.
+  # NV-Ingest uses SeaweedFS via MINIO_* env vars for S3-compatible artifact storage.
   milvusDeployed: false
-  milvus:
-    # Uncomment this section to enable authentication for Milvus
-    # extraConfigFiles:
-    #   user.yaml: |+
-    #     common:
-    #       security:
-    #         authorizationEnabled: true
-    #         defaultRootPassword: Milvus
-    image:
-      all:
-        repository: docker.io/milvusdb/milvus
-        tag: v2.6.5-gpu
-      tools:
-        repository: docker.io/milvusdb/milvus-config-tool
-        tag: v0.1.2
-        pullPolicy: IfNotPresent
-    # These values are retained for reference only while the Milvus dependency is disabled.
-    cluster:
-      enabled: false
-    proxy:
-      enabled: false
-    rootCoordinator:
-      enabled: false
-    queryCoordinator:
-      enabled: false
-    queryNode:
-      enabled: false
-    indexCoordinator:
-      enabled: false
-    indexNode:
-      enabled: false
-    dataCoordinator:
-      enabled: false
-    dataNode:
-      enabled: false
-    etcd:
-      enabled: false
-      image:
-        repository: milvusdb/etcd
-        tag: "3.5.23-r2"
-    minio:
-      enabled: false
-      tls:
-        enabled: false
-    fullnameOverride: milvus
 
   # Redis Master
   redis:
