@@ -6,53 +6,53 @@
 
 ## Overview
 
-Standard Retrieval-Augmented Generation answers a query in a single shot: embed the query, retrieve top-k chunks, and ask an LLM to generate an answer from them. This works well for direct factual questions, but struggles when the query is ambiguous, spans multiple documents, requires combining several facts, or asks for information that needs to be located precisely inside a large or noisy corpus.
+Standard Retrieval-Augmented Generation answers in one pass: embed the query, retrieve top-k chunks, and have an LLM answer from them. That fits direct factual questions but falters when the query is ambiguous, spans documents, needs several facts combined, or targets precise locations in a large or noisy corpus.
 
-Agentic RAG addresses these cases by treating the query as a problem the system must reason about rather than a single retrieval call. Instead of one retrieve-then-generate pass, an LLM-driven agent plans a short sequence of focused sub-questions, executes each one against the retriever, evaluates the partial answers, retries with reformulated queries when results are incomplete, and finally synthesizes everything into a coherent response. An optional verification step inspects the synthesized answer for gaps and triggers targeted re-retrieval when needed.
+Agentic RAG treats the query as something to reason about, not a single retrieval call. Instead of one retrieve-then-generate step, an LLM-driven agent plans short, focused sub-questions, runs each against the retriever, weighs partial answers, retries with reformulated queries when results are thin, then synthesizes a coherent answer. Optional verification checks the synthesis for gaps and triggers targeted re-retrieval when needed.
 
-The [NVIDIA RAG Blueprint](readme.md) implements Agentic RAG as a LangGraph plan-and-execute pipeline that sits alongside the standard RAG chain. It combines:
+The [NVIDIA RAG Blueprint](readme.md) implements Agentic RAG as a LangGraph plan-and-execute pipeline next to the standard RAG chain. It includes:
 
-- **Two-phase planning** — an initial scope-discovery phase explores what the corpus actually contains for ambiguous queries, followed by a targeted answer-planning phase that produces concrete retrieval tasks.
-- **Mini-agent task execution** — each task runs as a small retrieve-answer-retry loop, where a seed-query generator LLM reformulates the search whenever the partial answer indicates missing information.
-- **Synthesis** — task sub-answers and the initial retrieval context are merged into a single final answer.
-- **Optional verification** — a post-synthesis quality gate that detects coverage gaps, vague claims, and wrong-subject drift, then re-retrieves to fill them.
+- **Two-phase planning**—an initial scope-discovery phase learns what the corpus holds for ambiguous queries, then a targeted answer-planning phase yields concrete retrieval tasks.
+- **Mini-agent task execution**—each task runs a small retrieve-answer-retry loop; a seed-query generator LLM reformulates search when the partial answer shows missing information.
+- **Synthesis**—task sub-answers and initial retrieval context merge into one final answer.
+- **Optional verification**—after synthesis, a quality gate flags coverage gaps, vague claims, and wrong-subject drift, then re-retrieves to close them.
 
-The pipeline is disabled by default, since Agentic RAG trades latency and LLM-call count for accuracy. It is best suited to multi-hop questions, ambiguous queries, queries that span multiple documents, and queries that require numeric extraction from tables or charts. It can be enabled globally for a deployment, or selectively per request — see [Enable Agentic RAG](#enable-agentic-rag).
+The pipeline defaults to off because Agentic RAG trades latency and extra LLM calls for accuracy. Use it for multi-hop questions, ambiguity, cross-document queries, and numeric pulls from tables or charts. Enable it for a whole deployment or per request—see [Enable Agentic RAG](#enable-agentic-rag).
 
 ## Key Benefits
 
-- **No dataset-specific configuration.** Auto-adapts to any document collection through scope discovery; no per-corpus rules required.
-- **Resolves ambiguous queries.** Scope discovery explores what data exists in the vector database before planning, so under-specified questions are disambiguated from the corpus itself.
-- **Adaptive cost.** Simple queries are answered directly from the initial retrieval (minimal LLM calls); complex queries get full planning, retries, and verification.
-- **Parallel task execution.** Independent tasks in a plan execute concurrently, minimizing wall time.
-- **Verification gate.** A post-synthesis quality check catches incomplete coverage, vague answers, false negatives, and wrong-subject drift, then re-retrieves to fill gaps.
+- **No dataset-specific configuration.** Scope discovery adapts to any collection; you don't need per-corpus rules.
+- **Handles ambiguous queries.** Scope discovery probes the vector database before planning, so under-specified questions align with what's actually in the corpus.
+- **Adaptive cost.** Simple queries use the initial retrieval only (few LLM calls); complex queries get full planning, retries, and verification.
+- **Parallel tasks.** Independent plan tasks run together to reduce wall time.
+- **Verification gate.** Post-synthesis checks catch incomplete coverage, vague answers, false negatives, and wrong-subject drift, then re-retrieve to fill gaps.
 
 ## Limitations
 
-- Latency and LLM-call count are materially higher than the standard chain. Use the per-request override (see [Enable per request](#enable-per-request)) to apply it selectively rather than globally if you have latency-sensitive paths.
-- The following features are not applied on the agentic path: NeMo Guardrails, Self-Reflection, Query Decomposition, and VLM Inference. Query rewriting, multi-turn chat history, multi-collection retrieval, citations, filter generation, and reranking are supported.
-- Verification is single-pass — there is no nested verification loop.
-- Tasks within a plan execute in a single parallel level; there is no DAG / depends-on construct.
+- Latency and LLM-call count exceed the standard chain. Prefer the per-request override ([Enable per request](#enable-per-request)) over a global default on latency-sensitive paths.
+- The agentic path does not use NeMo Guardrails, Self-Reflection, Query Decomposition, or VLM Inference. Query rewriting, multi-turn history, multi-collection retrieval, citations, filter generation, and reranking are supported.
+- Verification runs once; there's no nested verification loop.
+- Tasks in a plan run at one parallel level; there's no DAG or depends-on construct.
 
 ## Architecture Overview
 
-The pipeline is a LangGraph state machine with five components:
+The pipeline is a LangGraph state machine with five parts:
 
-1. **Initial Retrieval** — runs the user query through the standard `/search` path (vector DB + reranker → top-k chunks) so planning is grounded in what the corpus actually contains.
-2. **Planner (two-phase).** A single LLM decides between three plan shapes:
-   - *Scope discovery plan* — 2–3 discovery tasks that explore what exists in the corpus when the query is ambiguous; the planner is then re-invoked with the discovery results.
-   - *Answer plan* — targeted answer tasks built around what was found.
-   - *Empty plan* — no tasks; the initial retrieval is sufficient and the pipeline goes directly to synthesis (the cheap path for simple queries).
-3. **Task Execute** — each task runs as a mini-agent: retrieve → answer → if partial, the seed-query generator produces a follow-up query targeting what is still missing, and retries. Tasks within a plan execute concurrently.
-4. **Synthesis** — combines task sub-answers, the initial retrieval context, and the resolved query into one coherent answer. Falls back to the initial context if all tasks return `[NO DATA]`.
-5. **Verification (optional)** — inspects the answer for gaps. On `pass`, the answer is final. On `fail`, follow-up tasks run through the same task-execute engine and synthesis is repeated with the gap data.
+1. **Initial Retrieval**—runs the user query through the standard `/search` path (vector DB and reranker to top-k chunks) so planning reflects what's in the corpus.
+2. **Planner (two-phase).** One LLM picks among three plan shapes:
+   - *Scope discovery plan*—two or three discovery tasks probe the corpus when the query is ambiguous; the planner runs again with those results.
+   - *Answer plan*—answer tasks tied to what turned up.
+   - *Empty plan*—no tasks; initial retrieval is enough and synthesis follows directly (the low-cost path for simple queries).
+3. **Task Execute**—each task is a mini-agent: retrieve, answer, and if the answer is partial, the seed-query generator issues a follow-up query for what's missing, then retries. Tasks in a plan run concurrently.
+4. **Synthesis**—merges task sub-answers, initial retrieval context, and the resolved query into one answer. If every task returns `[NO DATA]`, it falls back to the initial context.
+5. **Verification (optional)**—checks the answer for gaps. On `pass`, you're done. On `fail`, follow-up tasks use the same execute engine and synthesis runs again with the gap data.
 
 ## Enable Agentic RAG
 
-### Enable per request (API) - Recommended
+### Enable per request (API) (recommended)
 
-The preferred way to enable Agentic RAG is per request via the `agentic` field in the `/v1/generate` request body.
-The server-level `ENABLE_AGENTIC_RAG` env var controls only the default behavior when `agentic` is omitted.
+Prefer enabling Agentic RAG per request with the `agentic` field in the `/v1/generate` body.
+The server `ENABLE_AGENTIC_RAG` env var only sets the default when `agentic` is omitted.
 
 ```jsonc
 {
@@ -63,21 +63,21 @@ The server-level `ENABLE_AGENTIC_RAG` env var controls only the default behavior
 }
 ```
 
-When `agentic` is omitted or `null`, the server falls back to `ENABLE_AGENTIC_RAG`. Agentic RAG is only applied when `use_knowledge_base=true`. The agentic path also honors `enable_streaming`: when `true` (default), the agent streams stage events and final-answer tokens as Server-Sent Events; when `false`, the graph runs to completion and the full answer is returned in a single chunk. The standard RAG chain always streams.
+When `agentic` is omitted or `null`, the server uses `ENABLE_AGENTIC_RAG`. Agentic RAG applies only if `use_knowledge_base=true`. The agentic path respects `enable_streaming`: when `true` (default), it streams stage events and final tokens as Server-Sent Events; when `false`, the graph finishes and returns the full answer in one chunk. The standard RAG chain always streams.
 
 ### Change the deployment default (environment variable)
 
-Use this when you want to change the default behavior for all requests that do not explicitly set `agentic`.
+Use this to change the default for requests that don't set `agentic`.
 
 ### Docker Deployment
 
-Follow the deployment guide for [Self-Hosted Models](deploy-docker-self-hosted.md) or [NVIDIA-Hosted Models](deploy-docker-nvidia-hosted.md). The reference compose env file (`deploy/compose/nvdev.env`) already contains the agentic LLM settings; only the enable flag needs to be flipped.
+Follow [Self-Hosted Models](deploy-docker-self-hosted.md) or [NVIDIA-Hosted Models](deploy-docker-nvidia-hosted.md). The reference compose env file (`deploy/compose/nvdev.env`) already includes agentic LLM settings; flip the enable flag only.
 
 ```bash
 export ENABLE_AGENTIC_RAG=true
 ```
 
-Then restart the RAG server:
+Restart the RAG server:
 
 ```bash
 docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d
@@ -85,14 +85,14 @@ docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d
 
 ### Helm Deployment
 
-Modify [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml):
+Edit [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml):
 
 ```yaml
 envVars:
   # ... existing configurations ...
   ENABLE_AGENTIC_RAG: "true"
 
-# Optional — per-role API keys (only required when overriding NVIDIA_API_KEY).
+# Optional—per-role API keys (required only when overriding NVIDIA_API_KEY).
 envSecrets:
   agenticPlannerLlmApiKey: ""
   agenticTaskLlmApiKey: ""
@@ -100,33 +100,35 @@ envSecrets:
   agenticSynthesisLlmApiKey: ""
 ```
 
-Apply the changes as described in [Change a Deployment](deploy-helm.md#change-a-deployment).
+Apply changes as in [Change a Deployment](deploy-helm.md#change-a-deployment).
 
 ## Configuration
 
-All agentic RAG behavior is controlled through environment variables exposed by `deploy/compose/docker-compose-rag-server.yaml` and the corresponding Helm `values.yaml`.
+Agentic behavior is driven by environment variables from `deploy/compose/docker-compose-rag-server.yaml` and the matching Helm `values.yaml`.
 
 ### Top-level
 
+The following table summarizes the main toggles:
+
 | Variable | Default | Description |
 | --- | --- | --- |
-| `ENABLE_AGENTIC_RAG` | `false` | Route knowledge-base queries through the agentic pipeline. Can be overridden per request via the `agentic` field. |
-| `AGENTIC_LOG_LEVEL` | `INFO` | Log level for the agent (`DEBUG` / `INFO` / `WARNING` / `ERROR`). |
-| `AGENTIC_VERIFICATION_ENABLED` | `false` | Run the verification gate after first synthesis. Enable for higher accuracy at extra LLM cost. |
-| `AGENTIC_CONTEXT_MAX_TOKENS` | `100000` | Token budget for chunk context inside agent prompts; chunks beyond this are truncated. |
+| `ENABLE_AGENTIC_RAG` | `false` | Route knowledge-base queries through the agentic pipeline. Override per request with the `agentic` field. |
+| `AGENTIC_LOG_LEVEL` | `INFO` | Agent log level (`DEBUG`, `INFO`, `WARNING`, `ERROR`). |
+| `AGENTIC_VERIFICATION_ENABLED` | `false` | Run verification after first synthesis. Improves accuracy at higher LLM cost. |
+| `AGENTIC_CONTEXT_MAX_TOKENS` | `100000` | Token budget for chunk context in agent prompts; chunks beyond this are truncated. |
 
 ### Per-role LLMs
 
-Each LLM role has its own env var prefix. If a role's `MODEL` is left empty, the builder falls back to the planner LLM, so a minimal deployment only needs the four `AGENTIC_PLANNER_LLM_*` variables.
+Each role has its own env prefix. If a role's `MODEL` is empty, the builder uses the planner LLM, so a minimal setup can rely on the four `AGENTIC_PLANNER_LLM_*` variables only.
 
 | Role | Used for | Server URL | Model | API Key |
 | --- | --- | --- | --- | --- |
-| Planner | Scope resolution + task creation + verification | `AGENTIC_PLANNER_LLM_SERVERURL` | `AGENTIC_PLANNER_LLM_MODEL` | `AGENTIC_PLANNER_LLM_APIKEY` |
-| Task | Answering individual sub-questions | `AGENTIC_TASK_LLM_SERVERURL` | `AGENTIC_TASK_LLM_MODEL` | `AGENTIC_TASK_LLM_APIKEY` |
-| Seed-gen | Generating retry follow-up queries | `AGENTIC_SEED_GEN_LLM_SERVERURL` | `AGENTIC_SEED_GEN_LLM_MODEL` | `AGENTIC_SEED_GEN_LLM_APIKEY` |
-| Synthesis | Final answer generation | `AGENTIC_SYNTHESIS_LLM_SERVERURL` | `AGENTIC_SYNTHESIS_LLM_MODEL` | `AGENTIC_SYNTHESIS_LLM_APIKEY` |
+| Planner | Scope resolution, task creation, verification | `AGENTIC_PLANNER_LLM_SERVERURL` | `AGENTIC_PLANNER_LLM_MODEL` | `AGENTIC_PLANNER_LLM_APIKEY` |
+| Task | Answering sub-questions | `AGENTIC_TASK_LLM_SERVERURL` | `AGENTIC_TASK_LLM_MODEL` | `AGENTIC_TASK_LLM_APIKEY` |
+| Seed-gen | Retry follow-up queries | `AGENTIC_SEED_GEN_LLM_SERVERURL` | `AGENTIC_SEED_GEN_LLM_MODEL` | `AGENTIC_SEED_GEN_LLM_APIKEY` |
+| Synthesis | Final answer | `AGENTIC_SYNTHESIS_LLM_SERVERURL` | `AGENTIC_SYNTHESIS_LLM_MODEL` | `AGENTIC_SYNTHESIS_LLM_APIKEY` |
 
-The default `SERVERURL` is `nim-llm:8000` and the default `MODEL` is `nvidia/nemotron-3-super-120b-a12b`. Setting `SERVERURL=""` routes the role to the NVIDIA-hosted API; the `APIKEY` is optional and inherits `NVIDIA_API_KEY` when unset.
+Default `SERVERURL` is `nim-llm:8000` and default `MODEL` is `nvidia/nemotron-3-super-120b-a12b`. Set `SERVERURL=""` to use the NVIDIA-hosted API; `APIKEY` is optional and inherits `NVIDIA_API_KEY` when unset.
 
 ## Related Topics
 
