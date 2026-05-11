@@ -29,10 +29,21 @@ spec:
       affinity:
 {{ toYaml .Values.affinity | nindent 8 }}
       {{- end }}
+      {{- with .Values.initContainers }}
+      initContainers:
+{{ toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: {{ include "nvidia-blueprint-rag.name" . }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- if .Values.preStartScript }}
+          command: ["sh", "-c"]
+          args:
+            - |
+{{ .Values.preStartScript | indent 14 }}
+              exec uvicorn nvidia_rag.rag_server.server:app --port 8081 --host 0.0.0.0 --workers {{ .Values.server.workers }}
+          {{- else }}
           command:
           - "uvicorn"
           - "nvidia_rag.rag_server.server:app"
@@ -42,6 +53,7 @@ spec:
           - "0.0.0.0"
           - "--workers"
           - "{{ .Values.server.workers }}"
+          {{- end }}
           ports:
             - containerPort: 8081
           env:
@@ -118,6 +130,10 @@ spec:
                   key: REFLECTION_LLM_APIKEY
           {{- end }}
           {{- end }}
+          {{- with .Values.envFrom }}
+          envFrom:
+{{ toYaml . | nindent 12 }}
+          {{- end }}
           {{- if .Values.livenessProbe }}
           livenessProbe:
 {{ toYaml .Values.livenessProbe | nindent 12 }}
@@ -134,8 +150,14 @@ spec:
             - name: prompt-volume
               mountPath: /prompt.yaml
               subPath: prompt.yaml
+          {{- if .Values.extraVolumeMounts }}
+{{ toYaml .Values.extraVolumeMounts | nindent 12 }}
+          {{- end }}
       volumes:
         - name: prompt-volume
           configMap:
             name: {{ include "nvidia-blueprint-rag.fullname" . }}-prompt
             defaultMode: 0555
+      {{- if .Values.extraVolumes }}
+{{ toYaml .Values.extraVolumes | nindent 8 }}
+      {{- end }}

@@ -1,0 +1,225 @@
+{{- /*
+  Post-install Job that closes the cuVS integration loop.
+
+  Sequence:
+    1. Wait for oracle-pai-gpu-index Service (OCI internal LB) to get an IP.
+    2. Health-check that IP via /health (HTTP/2 from this Job's pod).
+    3. Patch the oracle-creds Secret so ORACLE_PAI_INDEX_URL points at the
+       VCN-routable LB IP, not the cluster.local DNS placeholder. ADB cannot
+       resolve cluster.local; without this step, the first CREATE VECTOR
+       INDEX with OFFLOAD_URL would fail.
+    4. Trigger a rolling restart of rag-server and ingestor-server so they
+       pick up the new env var via envFrom: oracle-creds.
+
+  Failures here block the install (backoffLimit: 0) so a broken cuVS
+  integration is never silently turned into a CPU-only build.
+*/ -}}
+{{- if and (hasKey .Values "oracle") (default false .Values.oracle.gpuIndexOffload.enabled) }}
+{{- $g := .Values.oracle.gpuIndexOffload -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: oracle-pai-verify
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "5"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 600
+  activeDeadlineSeconds: 900
+  template:
+    spec:
+      serviceAccountName: oracle-pai-verify
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: verify
+          image: {{ (((.Values.oracle).provisioner).image) | default "docker.io/python:3.12-slim" | quote }}
+          imagePullPolicy: {{ (((.Values.oracle).provisioner).imagePullPolicy) | default "IfNotPresent" | quote }}
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          env:
+            - name: NAMESPACE
+              value: {{ .Release.Namespace | quote }}
+            - name: PAI_SERVICE
+              value: "oracle-pai-gpu-index"
+            - name: PAI_PORT
+              value: {{ if (default false $g.https) }}"8443"{{ else }}{{ default 8080 $g.service.port | quote }}{{ end }}
+            - name: ORACLE_CREDS_SECRET
+              value: {{ default "oracle-creds" .Values.oracle.credentials.oracleSecret | quote }}
+            - name: SERVICE_TYPE
+              value: {{ default "LoadBalancer" $g.service.type | quote }}
+            - name: PAI_HTTPS
+              value: {{ ternary "true" "false" (default false $g.https) | quote }}
+            - name: CONSUMER_DEPLOYMENTS
+              value: "rag-server,ingestor-server"
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eu
+              pip install --quiet --no-cache-dir --target=/tmp/pydeps kubernetes==31.0.0 >/dev/null
+              export PYTHONPATH=/tmp/pydeps
+              python <<'PY'
+              import base64, os, sys, time, urllib.request, urllib.error
+              from kubernetes import client, config
+
+              config.load_incluster_config()
+              v1 = client.CoreV1Api()
+              apps = client.AppsV1Api()
+
+              ns = os.environ["NAMESPACE"]
+              svc_name = os.environ["PAI_SERVICE"]
+              port = int(os.environ["PAI_PORT"])
+              secret_name = os.environ["ORACLE_CREDS_SECRET"]
+              svc_type = os.environ["SERVICE_TYPE"]
+              consumers = [d.strip() for d in os.environ["CONSUMER_DEPLOYMENTS"].split(",") if d.strip()]
+
+              # 1. Discover the address ADB will dial.
+              if svc_type == "LoadBalancer":
+                  print(f"Waiting for Service {ns}/{svc_name} (type LoadBalancer) to get an IP ...", flush=True)
+                  endpoint = None
+                  for i in range(60):  # 5 minutes
+                      svc = v1.read_namespaced_service(svc_name, ns)
+                      lb = (svc.status.load_balancer.ingress or []) if svc.status.load_balancer else []
+                      if lb:
+                          endpoint = lb[0].ip or lb[0].hostname
+                          if endpoint:
+                              print(f"  LoadBalancer ingress = {endpoint}", flush=True)
+                              break
+                      time.sleep(5)
+                  if not endpoint:
+                      print("FAIL: OCI internal LoadBalancer never produced an ingress address.")
+                      print("  Check: kubectl describe svc -n {} {}".format(ns, svc_name))
+                      print("  OCI cloud controller events usually show why (e.g. no LB subnet, quota).")
+                      sys.exit(1)
+              else:
+                  # ClusterIP / advanced path: trust the operator wired connectivity
+                  endpoint = f"{svc_name}.{ns}.svc.cluster.local"
+                  print(f"Service type is {svc_type}; using in-cluster DNS {endpoint}.", flush=True)
+                  print("WARN: ADB cannot resolve cluster.local; ensure your override "
+                        "exposes a VCN-routable address.", flush=True)
+
+              scheme = "https" if os.environ.get("PAI_HTTPS", "false").lower() == "true" else "http"
+              base_url = f"{scheme}://{endpoint}:{port}"
+              offload_url = f"{base_url}/v1/index"
+
+              # 2. Health-check via the in-cluster sidecar Service so we don't
+              #    have to hairpin through the LB if it's still warming up.
+              internal_scheme = "https" if os.environ.get("PAI_HTTPS", "false").lower() == "true" else "http"
+              internal_url = f"{internal_scheme}://{svc_name}-internal.{ns}.svc.cluster.local:{port}/health"
+              print(f"Polling {internal_url} ...", flush=True)
+              import ssl
+              ctx = ssl.create_default_context()
+              if internal_scheme == "https":
+                  ctx.check_hostname = False
+                  ctx.verify_mode = ssl.CERT_NONE
+              ok = False
+              for i in range(60):
+                  try:
+                      with urllib.request.urlopen(internal_url, timeout=3, context=ctx) as r:
+                          if r.status < 500:
+                              ok = True
+                              print(f"  PASS: PAI gpu-index responded on attempt {i + 1}.", flush=True)
+                              break
+                  except (urllib.error.URLError, ConnectionError, TimeoutError):
+                      pass
+                  time.sleep(5)
+              if not ok:
+                  print("FAIL: PAI gpu-index /health did not respond within 5 minutes.")
+                  print(f"  kubectl describe pod -n {ns} -l app.kubernetes.io/name=oracle-pai-gpu-index")
+                  print("  Common causes: OCR license not accepted, OCR creds wrong,")
+                  print("  no GPU on matched node, nodeSelector mismatch, image pull throttling.")
+                  sys.exit(1)
+
+              # 3. Patch oracle-creds with the address ADB should use.
+              print(f"Patching {ns}/{secret_name} ORACLE_PAI_INDEX_URL = {offload_url}", flush=True)
+              encoded = base64.b64encode(offload_url.encode()).decode()
+              v1.patch_namespaced_secret(
+                  name=secret_name,
+                  namespace=ns,
+                  body={"data": {"ORACLE_PAI_INDEX_URL": encoded}},
+              )
+
+              # 4. Roll the consumers so envFrom: oracle-creds is re-read.
+              ts = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+              for dep in consumers:
+                  try:
+                      apps.read_namespaced_deployment(dep, ns)
+                  except client.exceptions.ApiException as e:
+                      if e.status == 404:
+                          print(f"  skip {dep} (not deployed in {ns})", flush=True)
+                          continue
+                      raise
+                  patch = {
+                      "spec": {
+                          "template": {
+                              "metadata": {
+                                  "annotations": {
+                                      "oracle-pai/restartedAt": ts,
+                                      "oracle-pai/offload-url": offload_url,
+                                  }
+                              }
+                          }
+                      }
+                  }
+                  apps.patch_namespaced_deployment(dep, ns, patch)
+                  print(f"  rolled {dep}", flush=True)
+
+              # 5. Probe LB connectivity (this validates the in-VCN path the
+              #    ADB private endpoint will take). If the OKE service-LB
+              #    subnet security list does not yet permit the traffic, this
+              #    probe fails and we surface the exact manual fallback.
+              if svc_type == "LoadBalancer":
+                  lb_check_url = f"{base_url}/health"
+                  lb_ok = False
+                  for i in range(12):  # 60 s
+                      try:
+                          with urllib.request.urlopen(lb_check_url, timeout=5) as r:
+                              if r.status < 500:
+                                  lb_ok = True
+                                  break
+                      except (urllib.error.URLError, ConnectionError, TimeoutError):
+                          pass
+                      time.sleep(5)
+              else:
+                  lb_ok = True
+
+              print()
+              print("===========================================================")
+              print(" cuVS GPU index offload is wired end-to-end.")
+              print(f"   Endpoint (ADB will dial): {offload_url}")
+              print(f"   Reached from in-cluster:  {internal_url}")
+              if svc_type == "LoadBalancer":
+                  if lb_ok:
+                      print(f"   LB probe ({base_url}/health):  PASS  -- security path is open")
+                  else:
+                      print(f"   LB probe ({base_url}/health):  WARN  -- LB IP allocated but"
+                            " /health timed out from the verify Job pod.")
+                      print()
+                      print(" The provisioner attempted to add an ingress rule on the OKE")
+                      print(" service-LB subnet; either it lacked IAM permissions or the")
+                      print(" rule has not propagated yet. If the first CREATE VECTOR INDEX")
+                      print(" fails with ORA-29024 / network errors, run:")
+                      print()
+                      port_range = '"min":' + str(port) + ',"max":' + str(port)
+                      tcp_opts = '"tcpOptions":{"destinationPortRange":{' + port_range + '}}'
+                      print("   oci network security-list update \\")
+                      print("     --security-list-id <oke-svclbsubnet-default-sl-ocid> \\")
+                      print("     --ingress-security-rules '[ ...existing rules..., {")
+                      print('       "protocol":"6","source":"<adb_endpoint_subnet_cidr>",')
+                      print('       "sourceType":"CIDR_BLOCK","isStateless":false,')
+                      print('       ' + tcp_opts)
+                      print("     }]'")
+              print("===========================================================")
+              PY
+{{- end }}

@@ -1,0 +1,20 @@
+# Docker Compose existing-ADB path for the Oracle branch.
+# Fill .env from .env.example before starting the full RAG compose stack.
+
+services:
+  oracle-env-check:
+    image: python:3.12-slim
+    env_file:
+      - .env
+    command:
+      - python
+      - -c
+      - |
+        import os
+        missing = [k for k in ("ORACLE_USER", "ORACLE_PASSWORD", "ORACLE_CS", "NGC_API_KEY") if not os.getenv(k)]
+        if missing:
+            raise SystemExit(f"Missing required env vars: {missing}")
+        print("Oracle and NGC environment looks valid.")
+
+  # The full RAG compose stack extends the repository's standard compose file.
+  # RAG services should load this .env file and set APP_VECTORSTORE_NAME=oracle.

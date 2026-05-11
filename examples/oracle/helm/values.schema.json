@@ -1,0 +1,190 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "NVIDIA RAG Blueprint x Oracle 26ai wrapper chart values",
+  "description": "Schema for examples/oracle/helm. Helm validates user-supplied values against this on every `helm install`/`upgrade`, catching typos like `gpuIndexOffload.enable` (vs `enabled`) or `oracle.containerRegistry.user` (vs `username`) before the pre-install hooks run.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "ngcApiSecret": {
+      "type": "object",
+      "required": ["create", "name"],
+      "properties": {
+        "create":   { "type": "boolean" },
+        "name":     { "type": "string", "minLength": 1 },
+        "password": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "imagePullSecret": {
+      "type": "object",
+      "required": ["create", "name"],
+      "properties": {
+        "create":   { "type": "boolean" },
+        "name":     { "type": "string", "minLength": 1 },
+        "registry": { "type": "string" },
+        "username": { "type": "string" },
+        "password": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "oracle": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["create", "existing"],
+          "description": "create: provision a new ADB. existing: BYO ADB (provide oracle-creds Secret beforehand)."
+        },
+        "credentials": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "oracleSecret": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Name of the Kubernetes Secret holding ORACLE_USER/PASSWORD/CS."
+            }
+          }
+        },
+        "containerRegistry": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "create":   { "type": "boolean" },
+            "name":     { "type": "string", "minLength": 1 },
+            "registry": { "type": "string" },
+            "username": { "type": "string" },
+            "password": { "type": "string" }
+          }
+        },
+        "gpuIndexOffload": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Toggle cuVS GPU offload (HNSW only). Default true."
+            },
+            "replicaCount": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 50
+            },
+            "gpuMode": {
+              "type": "string",
+              "enum": ["DETECT", "FORCE", "DISABLE"],
+              "description": "Forwarded as PRIVATE_AI_GPU_MODE."
+            },
+            "service": {
+              "type": "object",
+              "additionalProperties": true,
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": ["LoadBalancer", "ClusterIP", "NodePort"]
+                },
+                "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+                "internal": { "type": "boolean" }
+              }
+            },
+            "image": {
+              "type": "object",
+              "additionalProperties": true,
+              "properties": {
+                "repository": { "type": "string", "minLength": 1 },
+                "tag":        { "type": "string", "minLength": 1 },
+                "pullPolicy": {
+                  "type": "string",
+                  "enum": ["Always", "IfNotPresent", "Never"]
+                }
+              }
+            },
+            "https": { "type": "boolean" },
+            "auth":  { "type": "boolean" },
+            "preflight": {
+              "type": "object",
+              "additionalProperties": true,
+              "properties": {
+                "enabled": { "type": "boolean" }
+              }
+            }
+          }
+        },
+        "createDatabase": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "compartmentId": {
+              "type": "string",
+              "pattern": "^(|ocid1\\.compartment\\.[a-z0-9._-]+)$",
+              "description": "OCID for the OCI compartment to create the ADB in."
+            },
+            "subnetId": {
+              "type": "string",
+              "pattern": "^(|ocid1\\.subnet\\.[a-z0-9._-]+)$"
+            },
+            "vcnId": {
+              "type": "string",
+              "pattern": "^(|ocid1\\.vcn\\.[a-z0-9._-]+)$"
+            },
+            "region":      { "type": "string" },
+            "displayName": { "type": "string" },
+            "dbName":      { "type": "string" },
+            "ecpus":       { "type": "integer", "minimum": 1 },
+            "storageTb":   { "type": "integer", "minimum": 1 }
+          }
+        },
+        "existing": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "user":          { "type": "string" },
+            "password":      { "type": "string" },
+            "connectString": { "type": "string" }
+          }
+        },
+        "importExistingTables": {
+          "type": "array",
+          "description": "BYO data: map customer tables to RAG canonical view shape.",
+          "items": {
+            "type": "object",
+            "required": ["sourceTable", "collectionName", "columns"],
+            "additionalProperties": false,
+            "properties": {
+              "sourceTable":    { "type": "string", "minLength": 1 },
+              "collectionName": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[A-Za-z][A-Za-z0-9_]{0,127}$",
+                "description": "Will be CREATE OR REPLACE VIEW <collectionName> AS …"
+              },
+              "columns": {
+                "type": "object",
+                "required": ["text", "vector"],
+                "additionalProperties": false,
+                "properties": {
+                  "id":              { "type": "string" },
+                  "text":            { "type": "string", "minLength": 1 },
+                  "vector":          { "type": "string", "minLength": 1 },
+                  "source":          { "type": "string" },
+                  "sourceWrapJson":  { "type": ["boolean", "string"] },
+                  "contentMetadata": { "type": "string" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "rag": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "frontend": { "type": "object", "additionalProperties": true },
+    "minio":    { "type": "object", "additionalProperties": true },
+    "operators": { "type": "object", "additionalProperties": true },
+    "gpu-operator": { "type": "object", "additionalProperties": true },
+    "nim-operator": { "type": "object", "additionalProperties": true }
+  }
+}

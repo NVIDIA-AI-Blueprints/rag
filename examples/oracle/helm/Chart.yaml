@@ -1,0 +1,24 @@
+apiVersion: v2
+name: nvidia-rag-oracle
+description: Oracle 26ai wrapper chart for the NVIDIA RAG Blueprint
+type: application
+version: 0.1.0
+appVersion: v2.5.0
+
+dependencies:
+  - name: gpu-operator
+    alias: gpu-operator
+    version: v26.3.1
+    repository: https://helm.ngc.nvidia.com/nvidia
+    condition: operators.gpu.enabled
+  - name: k8s-nim-operator
+    alias: nim-operator
+    version: 3.1.0
+    repository: https://helm.ngc.nvidia.com/nvidia
+    condition: operators.nim.enabled
+  - name: nvidia-blueprint-rag
+    alias: rag
+    version: v2.5.0
+    # Use the local chart from this same branch so Oracle-specific template
+    # additions (envFrom support for oracle-creds, etc.) are picked up.
+    repository: file://../../../deploy/helm/nvidia-blueprint-rag
