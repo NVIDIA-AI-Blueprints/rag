@@ -54,7 +54,7 @@ spec:
             - name: PAI_SERVICE
               value: "oracle-pai-gpu-index"
             - name: PAI_PORT
-              value: {{ default 8080 $g.service.port | quote }}
+              value: {{ if (default false $g.https) }}"8443"{{ else }}{{ default 8080 $g.service.port | quote }}{{ end }}
             - name: ORACLE_CREDS_SECRET
               value: {{ default "oracle-creds" .Values.oracle.credentials.oracleSecret | quote }}
             - name: SERVICE_TYPE
@@ -67,7 +67,8 @@ spec:
           args:
             - |
               set -eu
-              pip install --quiet --no-cache-dir kubernetes==31.0.0 >/dev/null
+              pip install --quiet --no-cache-dir --target=/tmp/pydeps kubernetes==31.0.0 >/dev/null
+              export PYTHONPATH=/tmp/pydeps
               python <<'PY'
               import base64, os, sys, time, urllib.request, urllib.error
               from kubernetes import client, config
@@ -114,12 +115,18 @@ spec:
 
               # 2. Health-check via the in-cluster sidecar Service so we don't
               #    have to hairpin through the LB if it's still warming up.
-              internal_url = f"http://{svc_name}-internal.{ns}.svc.cluster.local:{port}/health"
+              internal_scheme = "https" if os.environ.get("PAI_HTTPS", "false").lower() == "true" else "http"
+              internal_url = f"{internal_scheme}://{svc_name}-internal.{ns}.svc.cluster.local:{port}/health"
               print(f"Polling {internal_url} ...", flush=True)
+              import ssl
+              ctx = ssl.create_default_context()
+              if internal_scheme == "https":
+                  ctx.check_hostname = False
+                  ctx.verify_mode = ssl.CERT_NONE
               ok = False
               for i in range(60):
                   try:
-                      with urllib.request.urlopen(internal_url, timeout=3) as r:
+                      with urllib.request.urlopen(internal_url, timeout=3, context=ctx) as r:
                           if r.status < 500:
                               ok = True
                               print(f"  PASS: PAI gpu-index responded on attempt {i + 1}.", flush=True)

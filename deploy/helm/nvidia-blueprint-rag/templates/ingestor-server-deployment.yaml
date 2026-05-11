@@ -40,6 +40,13 @@ spec:
         - name: {{ $cfg.appName }}
           image: "{{ $cfg.image.repository }}:{{ $cfg.image.tag }}"
           imagePullPolicy: {{ $cfg.image.pullPolicy }}
+          {{- if $cfg.preStartScript }}
+          command: ["sh", "-c"]
+          args:
+            - |
+{{ $cfg.preStartScript | indent 14 }}
+              exec uvicorn nvidia_rag.ingestor_server.server:app --port 8082 --host 0.0.0.0 --workers {{ $cfg.server.workers }}
+          {{- else }}
           command:
           - "uvicorn"
           - "nvidia_rag.ingestor_server.server:app"
@@ -49,6 +56,7 @@ spec:
           - "0.0.0.0"
           - "--workers"
           - "{{ $cfg.server.workers }}"
+          {{- end }}
           ports:
             - containerPort: 8082
           {{- $apiKeysSecretName := include "apiKeysSecretName" . }}

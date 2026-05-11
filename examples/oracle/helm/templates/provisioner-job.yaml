@@ -34,7 +34,8 @@ spec:
               sys.exit(1 if missing else 0)
               PY
               then
-                pip install --no-cache-dir 'oci>=2.173.0,<3' 'oracledb==3.4.2' 'kubernetes>=31.0.0,<36'
+                pip install --no-cache-dir --target=/tmp/pydeps 'oci>=2.173.0,<3' 'oracledb==3.4.2' 'kubernetes>=31.0.0,<36'
+                export PYTHONPATH=/tmp/pydeps
               fi
               EXTRA_ARGS=""
               {{- if not .Values.oracle.createDatabase.autoDiscover }}

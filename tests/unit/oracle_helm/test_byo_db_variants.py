@@ -176,14 +176,12 @@ class TestSameVcnPrivateEndpoint:
                 f"{d['metadata']['name']}"
             )
 
-    def test_https_and_auth_disabled_by_default(self, rendered):
-        """Same VCN: traffic never leaves the VCN, plain HTTP is acceptable.
-        Auth adds operational overhead (API keys on ADB side) with no
-        security benefit inside a private VCN."""
+    def test_https_enabled_by_default(self, rendered):
+        """ADB 26ai requires HTTPS for OFFLOAD_URL (ORA-52346), so HTTPS
+        is always on regardless of VCN topology."""
         docs = _by_kind_and_name(_split_docs(rendered))
         env = _pai_env(docs)
-        assert env.get("PRIVATE_AI_HTTPS_ENABLED") == "false"
-        assert env.get("PRIVATE_AI_AUTHENTICATION_ENABLED") == "false"
+        assert env.get("PRIVATE_AI_HTTPS_ENABLED") == "true"
 
     def test_internal_clusterip_sidecar_exists(self, rendered):
         """The ClusterIP sidecar Service lets the verify Job health-check
@@ -343,12 +341,11 @@ class TestSameVcnPublicEndpoint:
             "service.beta.kubernetes.io/oci-load-balancer-internal"
         ) == "true"
 
-    def test_https_still_off_for_same_vcn(self, rendered):
-        """mTLS is for DB-to-pod auth; the PAI Service carries cuVS traffic
-        inside the VCN, so plain HTTP is still fine for the LB hop."""
+    def test_https_on_for_same_vcn(self, rendered):
+        """ADB 26ai requires HTTPS for OFFLOAD_URL even within the same VCN."""
         docs = _by_kind_and_name(_split_docs(rendered))
         env = _pai_env(docs)
-        assert env.get("PRIVATE_AI_HTTPS_ENABLED") == "false"
+        assert env.get("PRIVATE_AI_HTTPS_ENABLED") == "true"
 
 
 # ===================================================================

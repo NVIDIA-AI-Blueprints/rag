@@ -59,6 +59,8 @@ oracle:
     enabled: false
   credentials:
     oracleSecret: oracle-creds
+  wallet:
+    secretName: oracle-wallet
 
   # cuVS GPU index offload via the Oracle Private AI Services container.
   # Enabled by default for parity with the create-adb path. Customer must
@@ -99,7 +101,7 @@ oracle:
         nvidia.com/gpu: 1
     gpuMode: FORCE
     https: true
-    auth: false
+    auth: true
     extraEnv: []
 
   containerRegistry:
@@ -213,11 +215,18 @@ rag:
     - name: oracle-vdb-code
       configMap:
         name: oracle-vdb-code
+    - name: oracle-wallet
+      secret:
+        secretName: oracle-wallet
+        defaultMode: 0444
   extraVolumeMounts:
     - name: oracle-pip-packages
       mountPath: /opt/oracle-deps
     - name: oracle-vdb-code
       mountPath: /oracle-src
+      readOnly: true
+    - name: oracle-wallet
+      mountPath: /app/wallet
       readOnly: true
   envFrom:
     - secretRef:
@@ -255,6 +264,7 @@ rag:
           value: "131072"
   envVars:
     PYTHONPATH: "/opt/oracle-deps"
+    TNS_ADMIN: "/app/wallet"
     APP_VECTORSTORE_NAME: "oracle"
     APP_VECTORSTORE_SEARCHTYPE: "hybrid"
     APP_VECTORSTORE_INDEXTYPE: "HNSW"
@@ -294,11 +304,18 @@ rag:
       - name: oracle-vdb-code
         configMap:
           name: oracle-vdb-code
+      - name: oracle-wallet
+        secret:
+          secretName: oracle-wallet
+          defaultMode: 0444
     extraVolumeMounts:
       - name: oracle-pip-packages
         mountPath: /opt/oracle-deps
       - name: oracle-vdb-code
         mountPath: /oracle-src
+        readOnly: true
+      - name: oracle-wallet
+        mountPath: /app/wallet
         readOnly: true
     envFrom:
       - secretRef:
@@ -314,6 +331,7 @@ rag:
       MINIO_ACCESSKEY: "minioadmin"
       MINIO_SECRETKEY: "minioadmin"
       PYTHONPATH: "/opt/oracle-deps"
+      TNS_ADMIN: "/app/wallet"
       ORACLE_VECTOR_INDEX_TYPE: "HNSW"
       ORACLE_DISTANCE_METRIC: "COSINE"
       SUMMARY_LLM: "nvidia/nemotron-3-super-120b-a12b"

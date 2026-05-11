@@ -63,11 +63,22 @@ spec:
           env:
             - name: BYO_TABLES_JSON
               value: {{ $byo | toJson | quote }}
+            {{- if (((.Values.oracle).wallet).secretName) }}
+            - name: TNS_ADMIN
+              value: "/app/wallet"
+            {{- end }}
+          {{- if (((.Values.oracle).wallet).secretName) }}
+          volumeMounts:
+            - name: oracle-wallet
+              mountPath: /app/wallet
+              readOnly: true
+          {{- end }}
           command: ["/bin/sh", "-c"]
           args:
             - |
               set -eu
-              pip install --quiet --no-cache-dir 'oracledb==3.4.2' >/dev/null
+              pip install --quiet --no-cache-dir --target=/tmp/pydeps 'oracledb==3.4.2' >/dev/null
+              export PYTHONPATH=/tmp/pydeps
               python <<'PY'
               import json, os, sys
               import oracledb
@@ -78,10 +89,16 @@ spec:
               entries = json.loads(os.environ.get("BYO_TABLES_JSON", "[]") or "[]")
 
               print(f"Connecting to {cs} as {user} ...", flush=True)
-              # Walletless TLS DSN (provisioner emits this format); no wallet
-              # mount needed in BYO mode.
               try:
-                  conn = oracledb.connect(user=user, password=password, dsn=cs)
+                  wallet_kwargs = {}
+                  tns_admin = os.environ.get("TNS_ADMIN")
+                  if tns_admin:
+                      wallet_kwargs["config_dir"] = tns_admin
+                      wallet_kwargs["wallet_location"] = tns_admin
+                  wallet_pw = os.environ.get("ORACLE_WALLET_PASSWORD")
+                  if wallet_pw:
+                      wallet_kwargs["wallet_password"] = wallet_pw
+                  conn = oracledb.connect(user=user, password=password, dsn=cs, **wallet_kwargs)
               except Exception as e:
                   print(f"FAIL: cannot connect to ADB: {e}")
                   print("  Verify oracle-creds Secret values; check the ADB private "
@@ -310,4 +327,11 @@ spec:
               print("   on the next /collections call (no restart required).")
               print("===========================================================")
               PY
+      {{- if (((.Values.oracle).wallet).secretName) }}
+      volumes:
+        - name: oracle-wallet
+          secret:
+            secretName: {{ .Values.oracle.wallet.secretName | quote }}
+            defaultMode: 0444
+      {{- end }}
 {{- end }}

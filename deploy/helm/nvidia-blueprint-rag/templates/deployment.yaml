@@ -37,6 +37,13 @@ spec:
         - name: {{ include "nvidia-blueprint-rag.name" . }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- if .Values.preStartScript }}
+          command: ["sh", "-c"]
+          args:
+            - |
+{{ .Values.preStartScript | indent 14 }}
+              exec uvicorn nvidia_rag.rag_server.server:app --port 8081 --host 0.0.0.0 --workers {{ .Values.server.workers }}
+          {{- else }}
           command:
           - "uvicorn"
           - "nvidia_rag.rag_server.server:app"
@@ -46,6 +53,7 @@ spec:
           - "0.0.0.0"
           - "--workers"
           - "{{ .Values.server.workers }}"
+          {{- end }}
           ports:
             - containerPort: 8081
           env:

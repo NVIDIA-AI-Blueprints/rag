@@ -89,7 +89,7 @@ oracle:
     gpuMode: FORCE
     # In-cluster traffic only -> no TLS / API key. Flip both to true and
     # provide a keystore + api-key secret to expose externally.
-    https: false
+    https: true
     auth: false
     extraEnv: []
 
@@ -183,17 +183,24 @@ rag:
   frontend:
     service:
       type: LoadBalancer
-  # Zero custom images needed. The Oracle Python deps (oracledb +
-  # langchain-oracledb) are pip-installed into an emptyDir volume by an
-  # init container at pod startup. PYTHONPATH makes the main container
-  # see them. ~30s overhead on first pod start.
-  # Oracle Python deps installed at pod startup into stock NGC images.
-  # Pinned to exact versions matching uv.lock for reproducibility.
-  # This becomes unnecessary once official NGC images include --extra oracle.
+  # --- Oracle code overlay (no custom images) ---
+  # 1. Init container: pip-installs oracledb + langchain-oracledb into an emptyDir.
+  # 2. preStartScript: patches the stock image's VDB dispatcher with our Oracle adapter
+  #    before uvicorn starts. Files come from the oracle-vdb-code ConfigMap.
+  # 3. PYTHONPATH=/opt/oracle-deps lets the main container find the pip packages.
+  # ~30s overhead on first pod start. Becomes unnecessary once NGC images include oracle.
+  preStartScript: |
+    VDB=$(python -c "from pathlib import Path; import nvidia_rag; print(Path(nvidia_rag.__file__).parent / 'utils' / 'vdb')")
+    mkdir -p $VDB/oracle
+    cp /oracle-src/vdb_init.py   $VDB/__init__.py
+    cp /oracle-src/oracle_init.py $VDB/oracle/__init__.py
+    cp /oracle-src/oracle_vdb.py  $VDB/oracle/oracle_vdb.py
+    cp /oracle-src/oracle_queries.py $VDB/oracle/oracle_queries.py
+    cp /oracle-src/oracle_errors.py  $VDB/oracle/oracle_errors.py
   initContainers:
     - name: install-oracle-deps
-      image: "nvcr.io/nvidia/blueprint/rag-server:2.5.0"
-      command: ["python", "-m", "pip"]
+      image: "docker.io/python:3.13-slim"
+      command: ["pip"]
       args: ["install", "--target=/opt/oracle-deps", "--no-cache-dir",
              "oracledb==3.4.2", "langchain-oracledb==1.3.0"]
       volumeMounts:
@@ -202,14 +209,28 @@ rag:
   extraVolumes:
     - name: oracle-pip-packages
       emptyDir: {}
+    - name: oracle-vdb-code
+      configMap:
+        name: oracle-vdb-code
   extraVolumeMounts:
     - name: oracle-pip-packages
       mountPath: /opt/oracle-deps
+    - name: oracle-vdb-code
+      mountPath: /oracle-src
+      readOnly: true
   ingestor-server:
+    preStartScript: |
+      VDB=$(python -c "from pathlib import Path; import nvidia_rag; print(Path(nvidia_rag.__file__).parent / 'utils' / 'vdb')")
+      mkdir -p $VDB/oracle
+      cp /oracle-src/vdb_init.py   $VDB/__init__.py
+      cp /oracle-src/oracle_init.py $VDB/oracle/__init__.py
+      cp /oracle-src/oracle_vdb.py  $VDB/oracle/oracle_vdb.py
+      cp /oracle-src/oracle_queries.py $VDB/oracle/oracle_queries.py
+      cp /oracle-src/oracle_errors.py  $VDB/oracle/oracle_errors.py
     initContainers:
       - name: install-oracle-deps
-        image: "nvcr.io/nvidia/blueprint/ingestor-server:2.5.0"
-        command: ["python", "-m", "pip"]
+        image: "docker.io/python:3.13-slim"
+        command: ["pip"]
         args: ["install", "--target=/opt/oracle-deps", "--no-cache-dir",
                "oracledb==3.4.2", "langchain-oracledb==1.3.0"]
         volumeMounts:
@@ -218,9 +239,15 @@ rag:
     extraVolumes:
       - name: oracle-pip-packages
         emptyDir: {}
+      - name: oracle-vdb-code
+        configMap:
+          name: oracle-vdb-code
     extraVolumeMounts:
       - name: oracle-pip-packages
         mountPath: /opt/oracle-deps
+      - name: oracle-vdb-code
+        mountPath: /oracle-src
+        readOnly: true
     envFrom:
       - secretRef:
           name: oracle-creds
@@ -253,6 +280,11 @@ rag:
           nvidia.com/gpu: 2
         requests:
           nvidia.com/gpu: 2
+      storage:
+        pvc:
+          create: true
+          size: "200Gi"
+          volumeAccessMode: ReadWriteOnce
       model:
         engine: vllm
         precision: "fp8"

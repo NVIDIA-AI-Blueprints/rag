@@ -294,7 +294,9 @@ def test_upstream_chart_only_oracle_change_is_envfrom_extravolumes():
     blob = "\n".join(added).lower()
     # Every added line must be related to one of these generic knobs.
     allowed_terms = ("envfrom", "extravolume", "extravolumemount", "tomyaml",
-                     "nindent", "{{", "}}", "secret", ".values", "if")
+                     "nindent", "{{", "}}", "secret", ".values", "if",
+                     "initcontainer", "prestartscript", "command", "args",
+                     "exec ", "defaultmode")
     suspicious = []
     for line in added:
         if not line.strip():

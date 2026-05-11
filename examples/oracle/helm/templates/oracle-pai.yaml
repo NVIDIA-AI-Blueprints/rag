@@ -59,7 +59,7 @@ spec:
           imagePullPolicy: {{ $g.image.pullPolicy | default "IfNotPresent" | quote }}
           ports:
             - name: http
-              containerPort: {{ default 8080 $g.service.port }}
+              containerPort: {{ if (default false $g.https) }}8443{{ else }}{{ default 8080 $g.service.port }}{{ end }}
               protocol: TCP
           env:
             - name: PRIVATE_AI_HTTPS_ENABLED
@@ -83,6 +83,9 @@ spec:
             httpGet:
               path: /health
               port: http
+              {{- if (default false $g.https) }}
+              scheme: HTTPS
+              {{- end }}
             initialDelaySeconds: 10
             periodSeconds: 5
             timeoutSeconds: 3
@@ -91,6 +94,9 @@ spec:
             httpGet:
               path: /health
               port: http
+              {{- if (default false $g.https) }}
+              scheme: HTTPS
+              {{- end }}
             initialDelaySeconds: 60
             periodSeconds: 30
             timeoutSeconds: 5
@@ -100,7 +106,26 @@ spec:
               mountPath: /privateai/logs
             - name: tmp
               mountPath: /tmp
+            {{- if (default false $g.https) }}
+            - name: tls-keystore
+              mountPath: /run/secrets/keystore
+              subPath: keystore
+              readOnly: true
+            - name: tls-keystore
+              mountPath: /run/secrets/privateai-ssl-pwd
+              subPath: privateai-ssl-pwd
+              readOnly: true
+            - name: tls-keystore
+              mountPath: /run/secrets/api-key
+              subPath: api-key
+              readOnly: true
+            {{- end }}
       volumes:
+        {{- if (default false $g.https) }}
+        - name: tls-keystore
+          secret:
+            secretName: {{ default "pai-tls-keystore" $g.tlsSecretName }}
+        {{- end }}
         - name: logs
           emptyDir: {}
         - name: tmp
@@ -156,7 +181,7 @@ spec:
     app.kubernetes.io/name: oracle-pai-gpu-index
   ports:
     - name: http
-      port: {{ default 8080 $g.service.port }}
+      port: {{ if (default false $g.https) }}8443{{ else }}{{ default 8080 $g.service.port }}{{ end }}
       targetPort: http
       protocol: TCP
 ---
@@ -174,7 +199,7 @@ spec:
     app.kubernetes.io/name: oracle-pai-gpu-index
   ports:
     - name: http
-      port: {{ default 8080 $g.service.port }}
+      port: {{ if (default false $g.https) }}8443{{ else }}{{ default 8080 $g.service.port }}{{ end }}
       targetPort: http
       protocol: TCP
 {{- end }}

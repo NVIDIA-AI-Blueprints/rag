@@ -1,0 +1,33 @@
+{{- /*
+  ConfigMap containing the Oracle VDB adapter source code.
+  These files are copied into the stock NGC image's PYTHONPATH at pod
+  startup by the init container, so customers never need custom images.
+
+  The init container creates the directory structure:
+    /opt/oracle-deps/nvidia_rag/utils/vdb/__init__.py     (modified dispatcher)
+    /opt/oracle-deps/nvidia_rag/utils/vdb/oracle/__init__.py
+    /opt/oracle-deps/nvidia_rag/utils/vdb/oracle/oracle_vdb.py
+    /opt/oracle-deps/nvidia_rag/utils/vdb/oracle/oracle_queries.py
+    /opt/oracle-deps/nvidia_rag/utils/vdb/oracle/oracle_errors.py
+
+  PYTHONPATH=/opt/oracle-deps ensures Python finds our modified
+  dispatcher before the stock image's installed copy.
+*/ -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: oracle-vdb-code
+  labels:
+    app.kubernetes.io/name: oracle-vdb-code
+    app.kubernetes.io/part-of: nvidia-rag-oracle
+data:
+  vdb_init.py: |
+{{ .Files.Get "files/vdb/vdb_init.py" | indent 4 }}
+  oracle_init.py: |
+{{ .Files.Get "files/vdb/oracle_init.py" | indent 4 }}
+  oracle_vdb.py: |
+{{ .Files.Get "files/vdb/oracle_vdb.py" | indent 4 }}
+  oracle_queries.py: |
+{{ .Files.Get "files/vdb/oracle_queries.py" | indent 4 }}
+  oracle_errors.py: |
+{{ .Files.Get "files/vdb/oracle_errors.py" | indent 4 }}
