@@ -15,6 +15,7 @@
 
 """Unit tests for elastic VDB functionality."""
 
+import logging
 import os
 import unittest
 from unittest.mock import ANY, MagicMock, Mock, call, patch
@@ -43,6 +44,26 @@ class TestElasticVDB(unittest.TestCase):
         self.meta_fields = ["field1"]
         self.embedding_model = "test_embedding_model"
         self.csv_file_path = "/path/to/test.csv"
+
+    def test_suppresses_elasticsearch_client_info_logs(self):
+        """Test Elasticsearch client request loggers are quiet by default."""
+        es_logger = logging.getLogger("elastic_transport")
+        original_level = es_logger.level
+
+        def restore_logger_levels() -> None:
+            es_logger.setLevel(original_level)
+
+        self.addCleanup(restore_logger_levels)
+        es_logger.setLevel(logging.NOTSET)
+
+        with patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.Elasticsearch"):
+            with patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.VectorStore"):
+                ElasticVDB(
+                    index_name=self.index_name,
+                    es_url=self.es_url,
+                )
+
+        self.assertEqual(es_logger.level, logging.WARNING)
 
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.Elasticsearch")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.VectorStore")
