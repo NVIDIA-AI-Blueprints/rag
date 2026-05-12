@@ -24,7 +24,9 @@ Use this section as a map to the topics below.
 
 - **Port** – Elasticsearch listens on port 9200 by default. Ensure it is available or adjust your configuration.
 
-- **Folder permissions (Docker Compose)** – Elasticsearch data is stored under `volumes/elasticsearch`. Create the directory and set ownership if required:
+- **Elasticsearch data volume (Docker Compose)** – Choose one approach depending on whether you can use `sudo` access on the host.
+
+  **With `sudo` (bind mount)** – The default compose layout stores data under `deploy/compose/volumes/elasticsearch`. Create the directory and set ownership so the container user (UID 1000) can write:
 
     ```bash
     sudo mkdir -p deploy/compose/volumes/elasticsearch/
@@ -32,8 +34,30 @@ Use this section as a map to the topics below.
     ```
 
    :::{note}
-   If the Elasticsearch container fails to start due to permission issues, you may optionally use `sudo chmod -R 777 deploy/compose/volumes/elasticsearch/` for broader access.
+   If Elasticsearch still fails to start due to permissions, you may optionally use `sudo chmod -R 777 deploy/compose/volumes/elasticsearch/` for broader access.
    :::
+
+  **Without `sudo` (named Docker volume)** – Point Elasticsearch at a Docker named volume so data is not bind-mounted from the repo tree and you do not need `mkdir` or `chown` on the host.
+
+    1. In `deploy/compose/vectordb.yaml`, under `services.elasticsearch`, set `volumes` so the data directory uses a named volume instead of `${DOCKER_VOLUME_DIRECTORY:-.}/volumes/elasticsearch:/usr/share/elasticsearch/data`—for example:
+
+       ```yaml
+       services:
+         elasticsearch:
+           volumes:
+             - esdata:/usr/share/elasticsearch/data  # named Docker volume
+       # .... Existing Yaml ....
+       ```
+
+    2. At the root of the same file (as a sibling of `services:`), add a top-level `volumes:` section that declares the name you used—for example:
+
+       ```yaml
+       volumes:
+         esdata:
+           driver: local
+       ```
+
+    The integration compose file `tests/integration/vectordb.yaml` shows the same pattern. On the Docker host, named volumes live under `/var/lib/docker/volumes/`; use `docker volume ls` and `docker volume inspect <volume_name>` to find the exact path.
 
 - **Authentication** – Refer to [Elasticsearch Authentication](elasticsearch-configuration.md#elasticsearch-authentication) for xpack, API keys, and Helm (ECK) credentials.
 

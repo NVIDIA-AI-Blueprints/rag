@@ -130,14 +130,27 @@ Use the following procedure to start all containers needed for this blueprint.
      ```
 
 
-6. Start the vector db containers from the repo root.
+6. (Elasticsearch data directory — default Docker Compose bind mount) When you use the default Elasticsearch layout in `deploy/compose/vectordb.yaml`, data is stored under `deploy/compose/volumes/elasticsearch/`. If you have `sudo` on the host, create that directory and set ownership so the container user (UID 1000) can write before you start the vector database:
+
+   ```bash
+   sudo mkdir -p deploy/compose/volumes/elasticsearch/
+   sudo chown -R 1000:1000 deploy/compose/volumes/elasticsearch/
+   ```
+
+   :::{note}
+   If Elasticsearch still fails to start due to permissions, you may optionally run `sudo chmod -R 777 deploy/compose/volumes/elasticsearch/` for broader access.
+   :::
+
+   If you cannot use `sudo`, configure a Docker named volume instead of a host bind mount; see [Vector database configuration](change-vectordb.md#configuring-elasticsearch) (subsection **Without sudo (named Docker volume)**).
+
+7. Start the vector db containers from the repo root.
 
    ```bash
    docker compose -f deploy/compose/vectordb.yaml up -d
    ```
 
 
-7. Start the ingestion containers from the repo root. This pulls the prebuilt containers from NGC and deploys them on your system.
+8. Start the ingestion containers from the repo root. This pulls the prebuilt containers from NGC and deploys them on your system.
 
    ```bash
    docker compose -f deploy/compose/docker-compose-ingestor-server.yaml up -d
@@ -190,7 +203,7 @@ Use the following procedure to start all containers needed for this blueprint.
     ```
 
 
-8. Start the RAG containers from the repo root. This pulls the prebuilt containers from NGC and deploys them on your system.
+9. Start the RAG containers from the repo root. This pulls the prebuilt containers from NGC and deploys them on your system.
 
     ```bash
     docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d
@@ -234,7 +247,7 @@ Use the following procedure to start all containers needed for this blueprint.
     ```
 
 
-9. Check the status of the deployment by running the following code.
+10. Check the status of the deployment by running the following code.
 
     ```bash
     docker ps --format "table {{.ID}}\t{{.Names}}\t{{.Status}}"
@@ -249,9 +262,8 @@ Use the following procedure to start all containers needed for this blueprint.
     03ff43bd4f53   compose-nv-ingest-ms-runtime-1   Up 2 minutes (healthy)
     fcc703631b71   ingestor-server                  Up 2 minutes
     77f64a4a5146   compose-redis-1                  Up 2 minutes
-    902445432dde   milvus-standalone                Up 3 minutes (healthy)
+    902445432dde   elasticsearch                    Up 3 minutes (healthy)
     340bc8210a0d   seaweedfs                        Up 3 minutes (healthy)
-    0be702b87ad6   milvus-etcd                      Up 3 minutes (healthy)
     62eabf1d9f65   nim-llm-ms                       Up 10 minutes (healthy)
     fe2751bfa734   nemotron-ranking-ms         Up 10 minutes (healthy)
     7b5ddabf8be7   compose-graphic-elements-1       Up 10 minutes

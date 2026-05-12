@@ -163,7 +163,7 @@ To deploy the RAG Blueprint on OpenShift, use the following procedure.
     ```sh
     NAME                                          READY   STATUS    AGE
     ingestor-server-xxxxxxxxx-xxxxx               1/1     Running   5m
-    milvus-standalone-xxxxxxxxx-xxxxx             1/1     Running   5m
+    rag-eck-elasticsearch-es-default-0            1/1     Running   5m
     nemotron-embedding-ms-xxxxxxxxx-xxxxx         1/1     Running   10m
     nemotron-ocr-v1-xxxxxxxxx-xxxxx               1/1     Running   10m
     nemotron-page-elements-v3-xxxxxxxxx-xxxxx     1/1     Running   10m

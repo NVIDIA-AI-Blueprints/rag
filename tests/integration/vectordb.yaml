@@ -91,10 +91,8 @@ services:
     image: "docker.elastic.co/elasticsearch/elasticsearch:9.3.0"
     ports:
       - 9200:9200
-    # Omit bind-mount in CI: avoids host permission issues; data is ephemeral per run.
-    # For persistent local data, uncomment and chown the directory to uid 1000.
-    # volumes:
-    #   - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/elasticsearch:/usr/share/elasticsearch/data
+    volumes: # For persistent local data using named docker volume
+      - esdata:/usr/share/elasticsearch/data
     restart: on-failure
     environment:
       - discovery.type=single-node
@@ -113,6 +111,10 @@ services:
       timeout: 1s
       retries: 10
     profiles: ["", "elasticsearch"]
+
+volumes:
+  esdata:
+    driver: local
 
 networks:
   default:

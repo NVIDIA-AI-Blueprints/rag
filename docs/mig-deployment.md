@@ -246,7 +246,7 @@ You should see output similar to the following.
 ```
 Resource                                    Requested   Limit    Allocatable  Free
 nvidia.com/mig-1g.10gb                      (86%) 6.0   (86%) 6.0     7.0        1.0
-├─ milvus-standalone-...                   1.0     1.0
+├─ rag-eck-elasticsearch-es-default-...    1.0     1.0
 ├─ nemotron-embedding-ms-...          1.0     1.0
 ├─ rag-nv-ingest-...                       1.0     1.0
 ├─ nemoretriever-graphic-elements-v1-...   1.0     1.0

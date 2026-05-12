@@ -95,6 +95,9 @@ services:
     volumes:
       # Run "sudo chown -R 1000:1000 deploy/compose/volumes/elasticsearch/" to fix permissions
       - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/elasticsearch:/usr/share/elasticsearch/data
+      # No sudo on host dirs: use a named volume instead—comment the bind mount above, uncomment below,
+      # and uncomment the top-level `volumes:` block at the bottom of this file.
+      # - esdata:/usr/share/elasticsearch/data
     restart: on-failure
     environment:
       - discovery.type=single-node
@@ -126,6 +129,12 @@ services:
     #           # count: ${INFERENCE_GPU_COUNT:-all}
     #           device_ids: ['${VECTORSTORE_GPU_DEVICE_ID:-0}']
     profiles: ["", "elasticsearch"]
+
+# Named volume for Elasticsearch when you cannot chown host paths (data under /var/lib/docker/volumes/).
+# Uncomment after switching the elasticsearch service to `esdata:/usr/share/elasticsearch/data`.
+# volumes:
+#   esdata:
+#     driver: local
 
 networks:
   default:
