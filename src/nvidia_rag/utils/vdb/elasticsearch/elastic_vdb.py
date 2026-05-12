@@ -63,6 +63,7 @@ import pandas as pd
 import requests
 from elastic_transport import ConnectionError as ESConnectionError
 from elasticsearch import Elasticsearch, ConflictError
+from elasticsearch.helpers import scan
 from elasticsearch.helpers.vectorstore import DenseVectorStrategy, VectorStore
 from langchain_core.documents import Document
 from langchain_core.runnables import RunnableAssign, RunnableLambda
@@ -607,9 +608,24 @@ class ElasticVDB(VDBRagIngest):
         Get the list of documents in a collection.
         """
         metadata_schema = self.get_metadata_schema(collection_name)
-        response = self._es_connection.search(
-            index=collection_name, body=get_unique_sources_query()
-        )
+
+        # Paginate the composite aggregation via after_key so collections with
+        # more unique sources than the per-request bucket limit are fully listed.
+        all_buckets: list[dict[str, Any]] = []
+        after_key: dict | None = None
+        while True:
+            response = self._es_connection.search(
+                index=collection_name,
+                body=get_unique_sources_query(after_key=after_key),
+            )
+            agg = response["aggregations"]["unique_sources"]
+            buckets = agg.get("buckets", [])
+            if not buckets:
+                break
+            all_buckets.extend(buckets)
+            after_key = agg.get("after_key")
+            if after_key is None:
+                break
 
         # Get all document info for the collection
         all_document_info = self._get_all_document_info(collection_name)
@@ -617,7 +633,7 @@ class ElasticVDB(VDBRagIngest):
 
         # Get the list of documents
         documents_list = []
-        for hit in response["aggregations"]["unique_sources"]["buckets"]:
+        for hit in all_buckets:
             source_name = hit["key"]["source_name"]
             metadata = (
                 hit["top_hit"]["hits"]["hits"][0]["_source"]
@@ -747,12 +763,18 @@ class ElasticVDB(VDBRagIngest):
         """
         Get the metadata schema for a collection in the Elasticsearch index.
         """
+        # Sort by _seq_no desc and cap at 1 hit: in case duplicates exist from a
+        # delete-then-insert race in add_metadata_schema, we get the most recent
+        # write deterministically. _seq_no is an ES-maintained per-write counter
+        # — unlike _id, sorting it requires no special cluster setting.
         query = get_metadata_schema_query(collection_name)
+        query["sort"] = [{"_seq_no": {"order": "desc"}}]
+        query["size"] = 1
         response = self._es_connection.search(
             index=DEFAULT_METADATA_SCHEMA_COLLECTION, body=query
         )
         if len(response["hits"]["hits"]) > 0:
-            return response["hits"]["hits"][-1]["_source"]["metadata_schema"]
+            return response["hits"]["hits"][0]["_source"]["metadata_schema"]
         else:
             logging_message = (
                 f"No metadata schema found for the collection: {collection_name}."
@@ -793,13 +815,19 @@ class ElasticVDB(VDBRagIngest):
         Internal function to get the aggregated document info for a collection.
         """
         try:
-            # Get the aggregated document info for the collection
+            # Sort by _seq_no desc and cap at 1 hit: if stale duplicates exist from
+            # a delete-then-insert race in add_document_info, this picks the most
+            # recent write deterministically. _seq_no is an ES-maintained per-write
+            # counter — unlike _id, sorting it needs no special cluster setting.
+            query = get_collection_document_info_query(
+                info_type="collection",
+                collection_name=collection_name,
+            )
+            query["sort"] = [{"_seq_no": {"order": "desc"}}]
+            query["size"] = 1
             response = self._es_connection.search(
                 index=DEFAULT_DOCUMENT_INFO_COLLECTION,
-                body=get_collection_document_info_query(
-                    info_type="collection",
-                    collection_name=collection_name,
-                ),
+                body=query,
             )
             existing_info_value = response["hits"]["hits"][0]["_source"]["info_value"]
         except IndexError:
@@ -861,7 +889,14 @@ class ElasticVDB(VDBRagIngest):
     ) -> dict[str, Any]:
         """Get document info from a Elasticsearch index."""
         try:
+            # Sort by _seq_no desc and cap at 1 hit: if duplicates exist for the
+            # same (info_type, collection_name, document_name) tuple from a delete-
+            # then-insert race, this picks the most recent write deterministically.
+            # _seq_no is ES-maintained — unlike _id, sorting it needs no special
+            # cluster setting.
             query = get_document_info_query(collection_name, document_name, info_type)
+            query["sort"] = [{"_seq_no": {"order": "desc"}}]
+            query["size"] = 1
             response = self._es_connection.search(
                 index=DEFAULT_DOCUMENT_INFO_COLLECTION, body=query
             )
@@ -889,14 +924,17 @@ class ElasticVDB(VDBRagIngest):
                     "Skipping document info retrieval."
                     )
                 return []
+            # scan() pages through all matching hits, bypassing the 10-doc default size cap.
             query = get_all_document_info_query(collection_name)
-            response = self._es_connection.search(
-                index=DEFAULT_DOCUMENT_INFO_COLLECTION, body=query
-            )
-            if len(response["hits"]["hits"]) > 0:
-                return [hit["_source"] for hit in response["hits"]["hits"]]
-            else:
-                return []
+            return [
+                hit["_source"]
+                for hit in scan(
+                    self._es_connection,
+                    index=DEFAULT_DOCUMENT_INFO_COLLECTION,
+                    query=query,
+                    preserve_order=False,
+                )
+            ]
         except Exception as e:
             logger.error(f"Error getting all document info for collection {collection_name}: {e}")
             return []
