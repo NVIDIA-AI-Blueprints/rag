@@ -1,36 +1,49 @@
 ---
 name: rag-perf
-version: "0.1.0"
+version: "2.6.0"
 description: >-
   Performance benchmarking for a deployed NVIDIA RAG Blueprint server: profiling pass + aiperf
   load test driven by a single YAML config. Not for accuracy / RAGAS scoring (use rag-eval) or
   for deploying / repairing services (use rag-blueprint).
-argument-hint: rag-perf | aiperf | TTFT | latency | throughput | concurrency sweep | bottleneck | retrieval / reranker tuning | profile-only | synthetic queries | quick_profile.yaml | single_run.yaml | sweep.yaml | uv run --project scripts/rag-perf
-allowed-tools: Read, Grep, Glob, Bash(ls *), Bash(python3 *), Bash(uv *), Bash(cat *), Bash(curl *), Write, Edit
 license: Apache-2.0
 compatibility: Repository checkout with uv; Python 3.11+; run from repo root; uv sync --project scripts/rag-perf (perf deps live in scripts/rag-perf/pyproject.toml); reachable RAG server (default http://localhost:8081); for synthetic queries an OpenAI-compatible chat-completions endpoint is required (default http://localhost:8999/v1/chat/completions); aiperf load-test phase uses the bundled nvidia_rag endpoint plugin, registered automatically when rag-perf is installed editable.
 metadata:
+  tool-version: "0.1.0"
   author: NVIDIA RAG <foundational-rag-dev@exchange.nvidia.com>
+  github-url: "https://github.com/NVIDIA-AI-Blueprints/rag"
+  endpoint-openapi-schemas:
+    - docs/api_reference/openapi_schema_rag_server.json
+  argument-hint: rag-perf | aiperf | TTFT | latency | throughput | concurrency sweep | bottleneck | retrieval / reranker tuning | profile-only | synthetic queries | quick_profile.yaml | single_run.yaml | sweep.yaml | uv run --project scripts/rag-perf
   tags:
+    - nvidia
+    - blueprint
     - rag
     - performance
     - benchmarking
     - aiperf
     - nvidia-rag-blueprint
+  languages:
+    - python
+    - shell
+  frameworks:
+    - aiperf
+    - fastapi
+  domain: ai-ml
+allowed-tools: Read Grep Glob Bash(ls *) Bash(python3 *) Bash(uv *) Bash(cat *) Bash(curl *) Write Edit
 ---
 
 # RAG-Perf — config-driven perf benchmark CLI
 
 ## Purpose
 
-Drive a deployed NVIDIA RAG Blueprint server with a YAML config, run a server-side **profiling pass** (per-stage timing, citation quality, bottleneck inference) and — unless disabled — an **aiperf load test** (TTFT / E2E / token & request throughput / error rate), and write a unified report. The CLI is intentionally minimal: `rag-perf -c <config>` plus `--help` / `--version`. Behaviour is *fully* config-driven — there are no flag overrides for fields.
+Drive a deployed NVIDIA RAG Blueprint server with a YAML config, run a server-side **profiling pass** (per-stage timing, citation quality, bottleneck inference) and an optional **aiperf load test** (TTFT / E2E / token & request throughput / error rate), and write a unified report. The CLI is intentionally minimal: `rag-perf -c <config>` plus `--help` / `--version`. Behaviour is *fully* config-driven; field variations belong in YAML.
 
-## When not to use
+## Scope
 
 - **Accuracy / RAGAS** scoring of answer quality → use the **rag-eval** skill.
 - **Deploying, repairing, or configuring services** (compose, helm, NIM env vars) → use the **rag-blueprint** skill.
 - **Production monitoring / alerting** — rag-perf is a one-shot benchmark tool.
-- **Anything that doesn't already have a deployed RAG server reachable on the network.** rag-perf does not start services.
+- **Runtime requirement:** a deployed RAG server reachable on the network.
 
 ## Prerequisites
 
@@ -40,16 +53,16 @@ Drive a deployed NVIDIA RAG Blueprint server with a YAML config, run a server-si
 - For unit tests: install dev extras as well — `uv sync --project scripts/rag-perf --extra dev` (otherwise `pytest-asyncio` is missing and async tests error out at collection time).
 - A reachable RAG server (default `http://localhost:8081`). For the aiperf phase, the bundled `nvidia_rag` endpoint plugin must be installed — `pip install -e ./scripts/rag-perf` registers it via the `aiperf.plugins` entry point.
 - For **synthetic** queries: an OpenAI-compatible chat-completions endpoint reachable at `synthetic.llm_url` (default `http://localhost:8999/v1/chat/completions`).
-- **No `NVIDIA_API_KEY` is required** by rag-perf itself (unlike rag-eval). The synthetic LLM endpoint may require its own auth — that's the deployment's concern.
+- rag-perf itself runs without `NVIDIA_API_KEY` (unlike rag-eval). The synthetic LLM endpoint may require its own auth — that's the deployment's concern.
 
 ## Instructions
 
 1. **Pick a preset.** The three under [`scripts/rag-perf/configs/`](../../../../scripts/rag-perf/configs) are:
-   - `quick_profile.yaml` — profile-only, ~30 s. No load test. For fast iteration on retrieval / reranker tuning.
+   - `quick_profile.yaml` — profile-only, ~30 s. Skips load test. For fast iteration on retrieval / reranker tuning.
    - `single_run.yaml` — one concurrency level, profiling + aiperf, ~2 min. Regression checks.
    - `sweep.yaml` — multi-axis sweep. `load.concurrency`, `rag.vdb_top_k`, `rag.reranker_top_k` are all `int | list[int]`; any of them as a list becomes a sweep axis (Cartesian product).
 
-2. **Edit the preset.** **Required:** replace `rag.collection_names: ["<collection_name>"]` with a real collection on the deployed ingestor server. Verify the collection exists via `GET /v1/collections` on the ingestor. The placeholder `<collection_name>` validates fine but every request will fail at retrieval. **Do not** "override" via CLI flags — none exist; copy the preset to a new YAML if you want a variant.
+2. **Edit the preset.** **Required:** replace `rag.collection_names: ["<collection_name>"]` with a real collection on the deployed ingestor server. Verify the collection exists via `GET /v1/collections` on the ingestor. The placeholder `<collection_name>` validates fine but every request will fail at retrieval. Use a copied YAML preset for variants; the CLI surface is intentionally config-only.
 
 3. **Run.** From repo root:
    ```bash
@@ -61,7 +74,7 @@ Drive a deployed NVIDIA RAG Blueprint server with a YAML config, run a server-si
 
 5. **Inspect artifacts.** Layout depends on run shape — flat for single-point + `iterations=1`, nested under `iter_<i>/<point>/...` otherwise. See [`references/output-and-analysis.md`](references/output-and-analysis.md) for the full directory tree, file purposes, and how to parse `results.json` / `results.csv` / `report.md`.
 
-6. **Summarise for the user.** When reporting back, follow the playbook in [`references/output-and-analysis.md#summarising-results-to-the-user`](references/output-and-analysis.md#summarising-results-to-the-user): pick the canonical result file for the run shape, build a headline table (concurrency × top-k axes × TTFT × throughput × bottleneck × citation quality), compute scaling efficiency on sweeps, **always flag** zero citations / non-zero error rate / suspect `llm_ttft_ms` / small-sample p99, and propose a concrete next-experiment YAML — not generic tuning advice.
+6. **Summarise for the user.** When reporting back, follow the playbook in [`references/output-and-analysis.md#summarising-results-to-the-user`](references/output-and-analysis.md#summarising-results-to-the-user): pick the canonical result file for the run shape, build a headline table (concurrency × top-k axes × TTFT × throughput × bottleneck × citation quality), compute scaling efficiency on sweeps, **always flag** zero citations / non-zero error rate / suspect `llm_ttft_ms` / small-sample p99, and propose a concrete next-experiment YAML.
 
 7. **Tune.** Schema is fully documented in [`docs/performance-benchmarking.md`](../../../../docs/performance-benchmarking.md) and the deeper-dive references below. Common knobs: turn `aiperf.enabled: false` for profile-only mode, increase `load.iterations` for variance estimation, set `load.sleep_between_points_s: 60` for overnight Cartesian sweeps.
 
@@ -73,7 +86,7 @@ Drive a deployed NVIDIA RAG Blueprint server with a YAML config, run a server-si
 uv run --project scripts/rag-perf rag-perf -c scripts/rag-perf/configs/quick_profile.yaml
 ```
 
-Output: `rag-perf-results/quick_profile/run_<ts>/{profile_report.md, profile_results.json, profiling/}`. No `aiperf_rag_on/`. Filenames are `profile_*` because `aiperf.enabled: false`.
+Output: `rag-perf-results/quick_profile/run_<ts>/{profile_report.md, profile_results.json, profiling/}`. The `aiperf_rag_on/` directory is omitted. Filenames are `profile_*` because `aiperf.enabled: false`.
 
 **Single benchmark point with full report:**
 
@@ -100,43 +113,43 @@ uv run --project scripts/rag-perf python -m pytest tests/unit/test_rag_perf/
 
 ## Limitations
 
-- The CLI is **config-only**: no field overrides on the command line. Authoring or copying a YAML is the only way to vary a parameter.
-- `load.concurrency` / `rag.vdb_top_k` / `rag.reranker_top_k` accept `int | list[int]`; **duplicates in any of those lists are rejected** by the validator (each value names a unique point dir).
-- `input.file` and `input.synthetic` are **mutually exclusive** — both set fails validation. When neither is set, `synthetic` auto-fills with defaults so a bare config still validates.
+- The CLI is **config-only**: author or copy YAML to vary a parameter.
+- `load.concurrency` / `rag.vdb_top_k` / `rag.reranker_top_k` accept `int | list[int]`; the validator requires unique list values because each value names a unique point dir.
+- `input.file` and `input.synthetic` follow an XOR rule — both set fails validation. When neither is set, `synthetic` auto-fills with defaults so a bare config still validates.
 - File-based input format is **inferred from extension only** (`.jsonl` or `.csv`); other extensions are rejected.
-- Synthetic generation streams each query to disk as it completes (failure-resilient) but **fails fast on the first LLM error** — partial JSONL is preserved, no automatic retry. Re-run after fixing the endpoint.
+- Synthetic generation streams each query to disk as it completes (failure-resilient) but **fails fast on the first LLM error** — partial JSONL is preserved. Re-run after fixing the endpoint.
 - Reasoning models (Nemotron Omni, Qwen-Reasoning) require `synthetic.disable_thinking: true` (the default). Without it the model exhausts the token budget on chain-of-thought and `content` returns empty — the generator now raises with a clear message instead of substituting `reasoning_content` for the answer.
-- aiperf-specific knobs not exposed in the YAML (request rate distribution, GPU telemetry config, etc.) require editing `AiperfRunner._base_aiperf_cmd` in [`scripts/rag-perf/rag_perf/runner.py`](../../../../scripts/rag-perf/rag_perf/runner.py).
+- aiperf-specific knobs outside the YAML surface (request rate distribution, GPU telemetry config, etc.) require editing `AiperfRunner._base_aiperf_cmd` in `scripts/rag-perf/rag_perf/runner.py`.
 - Procedural detail lives under **`references/`** to keep this file concise.
 
 ## Troubleshooting
 
 | Error / signal | Likely cause | What to do |
 |---|---|---|
-| `Configuration errors in <yaml>:  •  input  —  ... mutually exclusive` | Both `input.file` and `input.synthetic` set | Pick one. The XOR validator runs at YAML load time. |
+| `Configuration errors in <yaml>:  •  input  —  ... XOR rule` | Both `input.file` and `input.synthetic` set | Pick one. The XOR validator runs at YAML load time. |
 | `input.file must end in .jsonl or .csv` | Extension other than `.jsonl` / `.csv` | Rename or convert. |
-| `load.concurrency must not contain duplicate values` | e.g. `[2, 2, 4]` | Each concurrency maps to a unique point dir; dedupe. |
+| `load.concurrency has duplicate values` | e.g. `[2, 2, 4]` | Each concurrency maps to a unique point dir; dedupe. |
 | `warmup_requests must be >= 1` | YAML had `warmup_requests: 0` | aiperf rejects warmup=0; minimum is 1. |
 | `LLM returned empty content (reasoning_content was populated — model exhausted its budget on chain-of-thought; raise min_query_tokens or set synthetic.disable_thinking=true).` | Reasoning model used CoT and ran out of tokens | Set `synthetic.disable_thinking: true` (the default) or raise `min_query_tokens`. |
 | `✗ All N profiling requests failed across M point(s).` + exit 1 | Bad URL, server down, wrong collection | Verify `target.url`, `rag.collection_names` (the `<collection_name>` placeholder will hit this). |
 | Per-iteration `⚠ N profiling requests failed` warning, run continues | Some requests timed out / errored mid-run | Check rag-server logs, raise `target.timeout_s`, drop concurrency. |
 | `RuntimeError: Random synthetic query generation failed at query N: ...` | LLM endpoint rejected a request mid-generation | Partial JSONL is at `synthetic.jsonl_output_path`; fix endpoint and re-run with reduced `num_queries`, or point `input.file` at the partial file. |
 | `Citation count (mean): 0` and `Citation relevance score: N/A` for a non-empty deployment | Collection mismatch between `rag.collection_names` and what's actually ingested | Run `curl -s http://<ingestor>:8082/v1/collections` to list real collections. |
-| Tests error with `ModuleNotFoundError: No module named 'pytest_asyncio'` | Dev extras not installed | `uv sync --project scripts/rag-perf --extra dev`. |
-| CI: `ModuleNotFoundError: No module named 'ruamel'` from `tests/unit/test_rag_perf/` | rag-perf package not installed in CI venv | Add `uv pip install -e ./scripts/rag-perf` after the top-level install in the unit-tests job. |
+| Tests error with `ModuleNotFoundError: No module named 'pytest_asyncio'` | Dev extras missing | `uv sync --project scripts/rag-perf --extra dev`. |
+| CI: `ModuleNotFoundError: No module named 'ruamel'` from `tests/unit/test_rag_perf/` | rag-perf package missing from CI venv | Add `uv pip install -e ./scripts/rag-perf` after the top-level install in the unit-tests job. |
 
 ## Gotchas
 
 - **Run from repo root.** Preset configs reference `scripts/rag-perf/examples/queries.jsonl` and `scripts/rag-perf/prompts/default_prompts.yaml` with repo-root-relative paths. Running from inside `scripts/rag-perf/` will fail those file lookups.
-- **CLI is config-only.** No `--url`, `--concurrency`, `--collection`, etc. exist. If a flag isn't `--config`, `--help`, or `--version`, it's not there. Edit the YAML or copy it.
+- **CLI is config-only.** Edit the YAML or copy a preset for URL, concurrency, collection, and similar fields.
 - **Always edit `rag.collection_names` before the first run.** The presets ship with `["<collection_name>"]` as a deliberate placeholder. Validation passes, retrieval fails silently for every request — manifests as `Citation count (mean): 0` everywhere.
 - **`load.concurrency_list`, `rag.vdb_top_k_list`, `rag.reranker_top_k_list`** are read-only properties that normalise scalar-or-list to a list. Use them when reasoning about the grid; the underlying YAML field is whatever the user wrote.
 - **`aiperf.enabled: false` changes filenames.** The top-level outputs become `profile_report.md` / `profile_results.json` / `profile_results.csv`. The aggregate sweep table also suppresses load-test rows and the "Optimal throughput" footer.
 - **Resolved-config dump is verbose** (50+ lines) — expected. It's what makes terminal output a self-contained reproducer; don't filter it out in scripts.
 - **The aiperf shell command is logged before each subprocess.** Look for `\n  $ python -m aiperf profile -m ... --endpoint-type nvidia_rag ...` in stdout — copy-paste runnable for reproducing a single point outside rag-perf.
-- **`--endpoint-type nvidia_rag`** comes from the bundled plugin at [`scripts/rag-perf/rag_perf/plugin/nvidia_rag.py`](../../../../scripts/rag-perf/rag_perf/plugin/nvidia_rag.py). It teaches aiperf about the RAG `/v1/generate` request shape and parses citations + per-stage `metrics` out of the SSE stream. If aiperf can't resolve `nvidia_rag`, rag-perf wasn't installed editable in the venv — re-run `uv sync --project scripts/rag-perf` (or `uv pip install -e ./scripts/rag-perf`).
+- **`--endpoint-type nvidia_rag`** comes from the bundled plugin at `scripts/rag-perf/rag_perf/plugin/nvidia_rag.py`. It teaches aiperf about the RAG `/v1/generate` request shape and parses citations + per-stage `metrics` out of the SSE stream. If aiperf can't resolve `nvidia_rag`, rag-perf needs editable installation in the venv — re-run `uv sync --project scripts/rag-perf` (or `uv pip install -e ./scripts/rag-perf`).
 - **Sweep-mode point-name collision.** When two points differ only in concurrency (e.g. `[1, 4]` × single `vdb_top_k`), the dir name encodes everything: `CR:1_ISL:50_OSL:512_VDB-K:20_RERANKER-K:4_Model:...`. Cluster / GPU / experiment_name (`output.cluster`, `output.gpu`, `output.experiment_name`) are appended too — useful for diff-friendly artifact paths across machines.
-- **`load.iterations > 1` repeats the entire grid**, not individual points. Each repetition writes to its own `iter_<i>/`. Aggregate CSV row count = `n_points × iterations`.
+- **`load.iterations > 1` repeats the entire grid**. Each repetition writes to its own `iter_<i>/`. Aggregate CSV row count = `n_points × iterations`.
 
 ## Source of truth
 

@@ -1,15 +1,61 @@
 ---
 name: rag-blueprint
+version: "2.6.0"
 description: "NVIDIA RAG Blueprint — deploy, configure, troubleshoot, and manage. Handles any RAG action: deploy, install, start, enable, disable, toggle, change, configure, troubleshoot, debug, fix, shutdown, stop, or tear down any RAG feature or service (VLM, guardrails, query rewriting, models, search, ingestion, observability, summarization, and more)."
-argument-hint: deploy RAG | enable feature | disable feature | configure | troubleshoot | shutdown
-allowed-tools: Bash(echo *), Bash(nvidia-smi *), Bash(curl *), Bash(docker ps *), Bash(docker exec *), Bash(docker info *), Bash(docker --version *), Bash(docker compose version *), Bash(docker logs *), Bash(docker system *), Bash(kubectl get *), Bash(kubectl describe *), Bash(kubectl version *), Bash(kubectl logs *), Bash(helm version *), Bash(helm list *), Bash(git rev-parse *), Bash(git describe *), Bash(git status *), Bash(python3 --version *), Bash(pip3 show *), Bash(df *), Bash(du *), Bash(cat /proc/*), Bash(cat /etc/os-release *), Bash(ss *), Bash(netstat *), Bash(ls *), Bash(grep *), Bash(lsof *), Bash(ps aux *), Read, Grep, Glob
 license: Apache-2.0
+compatibility: >-
+  NVIDIA RAG Blueprint repository checkout; Docker/Compose or Kubernetes/Helm
+  for deployments; Python 3.11+ for library workflows; NVIDIA GPU tooling for
+  self-hosted NIM services.
 metadata:
-  author: nvidia-rag-team
-  version: "1.0"
+  author: "NVIDIA RAG <foundational-rag-dev@exchange.nvidia.com>"
+  github-url: "https://github.com/NVIDIA-AI-Blueprints/rag"
+  endpoint-openapi-schemas:
+    - docs/api_reference/openapi_schema_rag_server.json
+    - docs/api_reference/openapi_schema_ingestor_server.json
+  argument-hint: deploy RAG | enable feature | disable feature | configure | troubleshoot | shutdown
+  tags:
+    - nvidia
+    - blueprint
+    - rag
+    - deployment
+    - configuration
+    - troubleshooting
+  languages:
+    - python
+    - typescript
+    - shell
+  frameworks:
+    - fastapi
+    - langchain
+    - react
+    - docker-compose
+    - helm
+  domain: ai-ml
+allowed-tools: Bash(echo *) Bash(nvidia-smi *) Bash(curl *) Bash(docker ps *) Bash(docker exec *) Bash(docker info *) Bash(docker --version *) Bash(docker compose version *) Bash(docker logs *) Bash(docker system *) Bash(kubectl get *) Bash(kubectl describe *) Bash(kubectl version *) Bash(kubectl logs *) Bash(helm version *) Bash(helm list *) Bash(git rev-parse *) Bash(git describe *) Bash(git status *) Bash(python3 --version *) Bash(pip3 show *) Bash(df *) Bash(du *) Bash(cat /proc/*) Bash(cat /etc/os-release *) Bash(ss *) Bash(netstat *) Bash(ls *) Bash(grep *) Bash(lsof *) Bash(ps aux *) Read Grep Glob
 ---
 
 # NVIDIA RAG Blueprint
+
+## Purpose
+
+Use this skill for NVIDIA RAG Blueprint operations: deployment, configuration,
+troubleshooting, shutdown, and feature management across Docker, Helm, and
+library deployments.
+
+## Instructions
+
+1. Match the user request to the intent routing table below.
+2. Read the referenced playbook before making changes.
+3. Use repository docs and deployment config files as the source of truth.
+4. Verify the affected service or workflow after changes.
+
+## Prerequisites
+
+- NVIDIA RAG Blueprint repository checkout.
+- Docker/Compose or Kubernetes/Helm for deployments.
+- Python 3.11+ for library workflows.
+- NVIDIA GPU tooling for self-hosted NIM services.
 
 ## Autonomy Principles
 
@@ -114,6 +160,27 @@ Match the user's request to a reference file, then read and follow it:
    - Library: `curl -s http://localhost:8081/v1/health 2>/dev/null | head -1`
 
 8. If restart fails, read `references/troubleshoot.md`. If multiple features requested, repeat from step 1 for each.
+
+## Examples
+
+- "Deploy RAG" -> route to `references/deploy.md`.
+- "Enable VLM" -> route to `references/configure/vlm.md`.
+- "RAG is unhealthy" -> route to `references/troubleshoot.md`.
+- "Stop RAG" -> route to `references/shutdown.md`.
+
+## Limitations
+
+- Operational guidance only applies to this RAG Blueprint repository.
+- Live deployment changes require a running Docker, Helm, or library target.
+- Secrets such as `NGC_API_KEY` must be supplied by the user environment.
+
+## Troubleshooting
+
+| Error / signal | What to do |
+|----------------|------------|
+| Services are not running | Follow `references/deploy.md` before configuring features. |
+| Restart or health check fails | Follow `references/troubleshoot.md`. |
+| User requests teardown | Follow `references/shutdown.md` and confirm destructive cleanup. |
 
 ### When User Says "Configure" Without Specifics
 
