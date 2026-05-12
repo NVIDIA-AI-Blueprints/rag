@@ -577,12 +577,10 @@ class Prompt(BaseModel):
     vlm_filter_thinking_tokens: bool | None = Field(
         default=None,
         description=(
-            "When True the VLM's reasoning trace is suppressed and only the "
-            "final answer is streamed. When False the reasoning trace is "
-            "streamed first, wrapped in [reasoning]...[/reasoning] sentinels, "
-            "followed by the answer. When omitted, falls back to the "
-            "server-side default (VLM_FILTER_THINK_TOKENS). No-op if "
-            "vlm_enable_thinking is False (nothing to filter)."
+            "Controls legacy VLM reasoning filtering behavior. Reasoning tokens "
+            "are filtered out of the user-facing content stream and surfaced in "
+            "delta.reasoning_content when the model emits them. When omitted, "
+            "falls back to the server-side default (VLM_FILTER_THINK_TOKENS)."
         ),
     )
 

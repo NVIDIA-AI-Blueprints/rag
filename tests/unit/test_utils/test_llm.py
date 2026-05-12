@@ -32,6 +32,7 @@ from nvidia_rag.utils.llm import (
     get_prompts,
     get_streaming_filter_think_parser,
     streaming_filter_think,
+    streaming_split_reasoning_async,
 )
 
 
@@ -632,6 +633,84 @@ class TestGetStreamingFilterThinkParser:
         """Test behavior with invalid environment variable value."""
         get_streaming_filter_think_parser()
         mock_runnable_passthrough.assert_called_once()
+
+
+class TestStreamingSplitReasoningAsync:
+    """Test cases for preserving reasoning in structured chunks."""
+
+    def create_mock_chunk(self, content="", reasoning_content=None, reasoning=None):
+        """Create a mock chunk with content and optional reasoning metadata."""
+        chunk = Mock()
+        chunk.content = content
+        chunk.additional_kwargs = {}
+        if reasoning_content is not None:
+            chunk.additional_kwargs["reasoning_content"] = reasoning_content
+        if reasoning is not None:
+            chunk.additional_kwargs["reasoning"] = reasoning
+        return chunk
+
+    async def _collect(self, chunks):
+        async def gen():
+            for chunk in chunks:
+                yield chunk
+
+        result = []
+        async for chunk in streaming_split_reasoning_async(gen()):
+            result.append(
+                (
+                    chunk.content,
+                    chunk.additional_kwargs.get("reasoning_content"),
+                )
+            )
+        return result
+
+    @pytest.mark.asyncio
+    async def test_reasoning_content_field_is_preserved(self):
+        chunks = [
+            self.create_mock_chunk(reasoning_content="think "),
+            self.create_mock_chunk(content="answer"),
+        ]
+
+        result = await self._collect(chunks)
+
+        assert result == [("", "think "), ("answer", None)]
+
+    @pytest.mark.asyncio
+    async def test_inline_think_block_is_moved_to_reasoning_content(self):
+        chunks = [
+            self.create_mock_chunk("Before <think>hidden</think> after"),
+        ]
+
+        result = await self._collect(chunks)
+
+        assert result == [("Before ", None), ("", "hidden"), (" after", None)]
+
+    @pytest.mark.asyncio
+    async def test_split_think_tags_are_moved_to_reasoning_content(self):
+        chunks = [
+            self.create_mock_chunk("A "),
+            self.create_mock_chunk("<th"),
+            self.create_mock_chunk("ink"),
+            self.create_mock_chunk(">why"),
+            self.create_mock_chunk("</"),
+            self.create_mock_chunk("think"),
+            self.create_mock_chunk("> B"),
+        ]
+
+        result = await self._collect(chunks)
+
+        assert result == [("A ", None), ("", "why"), (" B", None)]
+
+    @pytest.mark.asyncio
+    async def test_plain_content_stays_in_content(self):
+        chunks = [
+            self.create_mock_chunk("Hello "),
+            self.create_mock_chunk("world"),
+        ]
+
+        result = await self._collect(chunks)
+
+        assert result == [("Hello ", None), ("world", None)]
 
 
 class TestLLMIntegration:

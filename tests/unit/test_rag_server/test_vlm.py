@@ -19,8 +19,9 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
-from nvidia_rag.rag_server.vlm import VLM
 from PIL import Image as PILImage
+
+from nvidia_rag.rag_server.vlm import VLM
 
 
 class TestVLM:
@@ -302,14 +303,13 @@ class TestVLM:
         )
 
     @pytest.mark.asyncio
-    async def test_stream_with_messages_yields_content_only_when_filter_enabled(
+    async def test_stream_with_messages_preserves_reasoning_when_filter_enabled(
         self,
     ):
         system_message = {"role": "system", "content": "sys"}
         user_message = {"role": "user", "content": [{"type": "text", "text": "ctx"}]}
 
         async def fake_stream():
-            # Reasoning-only chunk should be hidden when filter is on.
             yield SimpleNamespace(
                 choices=[
                     SimpleNamespace(
@@ -371,10 +371,16 @@ class TestVLM:
             ):
                 chunks.append(chunk)
 
-        assert chunks == ["Hello", "World"]
+        assert [
+            (
+                chunk.content,
+                chunk.additional_kwargs.get("reasoning_content"),
+            )
+            for chunk in chunks
+        ] == [("", "thinking…"), ("Hello", None), ("World", None)]
 
     @pytest.mark.asyncio
-    async def test_stream_with_messages_yields_reasoning_when_filter_disabled(
+    async def test_stream_with_messages_uses_reasoning_content_field(
         self,
     ):
         system_message = {"role": "system", "content": "sys"}
@@ -430,9 +436,13 @@ class TestVLM:
             ):
                 chunks.append(chunk)
 
-        # Reasoning is wrapped in [reasoning]...[/reasoning] sentinels so clients
-        # can structurally separate chain-of-thought from the final answer.
-        assert chunks == ["[reasoning]", "step1", "[/reasoning]", "answer"]
+        assert [
+            (
+                chunk.content,
+                chunk.additional_kwargs.get("reasoning_content"),
+            )
+            for chunk in chunks
+        ] == [("", "step1"), ("answer", None)]
 
     @pytest.mark.asyncio
     async def test_stream_with_messages_returns_early_without_messages(self):
