@@ -1,7 +1,7 @@
 ---
 name: rag-blueprint
-description: "NVIDIA RAG Blueprint — deploy, configure, troubleshoot, and manage. Handles any RAG action: deploy, install, start, enable, disable, toggle, change, configure, troubleshoot, debug, fix, shutdown, stop, or tear down any RAG feature or service (VLM, guardrails, query rewriting, models, search, ingestion, observability, summarization, and more)."
-argument-hint: deploy RAG | enable feature | disable feature | configure | troubleshoot | shutdown
+description: "DEPRECATED legacy NVIDIA RAG Blueprint router. Do not install for new work; use the focused rag-* skills under skills/. Use only when maintaining or migrating an existing rag-blueprint install."
+argument-hint: deprecated; use skills/README.md and focused rag-* skills
 allowed-tools: Bash(echo *), Bash(nvidia-smi *), Bash(curl *), Bash(docker ps *), Bash(docker exec *), Bash(docker info *), Bash(docker --version *), Bash(docker compose version *), Bash(docker logs *), Bash(docker system *), Bash(kubectl get *), Bash(kubectl describe *), Bash(kubectl version *), Bash(kubectl logs *), Bash(helm version *), Bash(helm list *), Bash(git rev-parse *), Bash(git describe *), Bash(git status *), Bash(python3 --version *), Bash(pip3 show *), Bash(df *), Bash(du *), Bash(cat /proc/*), Bash(cat /etc/os-release *), Bash(ss *), Bash(netstat *), Bash(ls *), Bash(grep *), Bash(lsof *), Bash(ps aux *), Read, Grep, Glob
 license: Apache-2.0
 metadata:
@@ -10,6 +10,12 @@ metadata:
 ---
 
 # NVIDIA RAG Blueprint
+
+> Deprecated legacy router. The canonical preview catalog lives under
+> `skills/` with focused `rag-*` skills. Do not install this skill beside the
+> focused catalog because its broad trigger surface conflicts with the split
+> skills. Use this file only as migration source material for existing
+> `rag-blueprint` installs.
 
 ## Autonomy Principles
 

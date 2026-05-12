@@ -162,17 +162,18 @@ The following is a step-by-step explanation of the workflow from the end-user pe
 
 
 
-## AI Agent Skill
+## AI Agent Skills Preview
 
-An agent skill is included that enables AI coding assistants (Claude Code, Cursor, etc.) to deploy, configure, troubleshoot, and manage the RAG Blueprint autonomously.
+Focused preview agent skills are included for AI coding assistants (Claude Code,
+Codex, Cursor, OpenClaw, and other agentskills.io-compatible hosts) to deploy,
+configure, troubleshoot, and manage the RAG Blueprint. The focused catalog is
+the migration target for the legacy all-in-one `rag-blueprint` skill.
 
 ### Install
 
-```bash
-npx skills add .
-```
-
-This installs the `rag-blueprint` skill from `skill-source/`. After installation, the agent handles requests like:
+Ask your coding agent to read [`skills/README.md`](skills/README.md) and install
+the `rag-*` skills with symlinks into the host's skill directory. After
+installation, the agent handles requests like:
 
 - *"Deploy RAG on Docker with NVIDIA-hosted models"*
 - *"Enable VLM image captioning and restart the ingestor"*
@@ -180,9 +181,9 @@ This installs the `rag-blueprint` skill from `skill-source/`. After installation
 - *"Switch from Docker to library mode"*
 - *"Shut down all RAG services"*
 
-> **Note:** If the agent doesn't pick up the skill automatically (e.g., for short or ambiguous queries), invoke it explicitly with `/rag-blueprint <your request>`.
-
-For skill architecture details, see [`skill-source/README.md`](skill-source/README.md).
+The legacy all-in-one `rag-blueprint` skill remains under `skill-source/` as
+migration material. The canonical catalog, playbook, and tracker live under
+[`skills/`](skills/).
 
 
 ## Get Started With NVIDIA RAG Blueprint
@@ -230,4 +231,3 @@ The following models that are built with Llama are governed by the Llama 3.2 Com
 ## Additional Information
 
 The [Llama 3.1 Community License Agreement](https://www.llama.com/llama3_1/license/) for the llama-3.1-nemotron-nano-vl-8b-v1, llama-3.1-nemoguard-8b-content-safety and llama-3.1-nemoguard-8b-topic-control models. The [Llama 3.2 Community License Agreement](https://www.llama.com/llama3_2/license/) for the nvidia/llama-nemotron-embed-1b-v2, nvidia/llama-nemotron-rerank-1b-v2 and llama-3.2-nemoretriever-1b-vlm-embed-v1 models. The [Llama 3.3 Community License Agreement](https://github.com/meta-llama/llama-models/blob/main/models/llama3_3/LICENSE) for the llama-3.3-nemotron-super-49b-v1.5 models. Built with Llama. Apache 2.0 for NVIDIA Ingest and for the nemoretriever-page-elements-v2, nemotron-table-structure-v1, nemotron-graphic-elements-v1, paddleocr and nemoretriever-ocr-v1 models.
-

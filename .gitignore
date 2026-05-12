@@ -31,6 +31,8 @@ docs/_*
 
 # General ignores
 .DS_Store
+~$*.docx
+~$*.xlsx
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

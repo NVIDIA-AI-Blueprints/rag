@@ -1,0 +1,34 @@
+{
+  "id": "nvidia-rag-skills",
+  "name": "NVIDIA RAG Skills",
+  "description": "OpenClaw plugin that exposes the NVIDIA RAG Blueprint focused rag-* skills.",
+  "version": "0.1.0",
+  "skills": [
+    "skills/rag-deploy-blueprint",
+    "skills/rag-ingest-documents",
+    "skills/rag-query-knowledge",
+    "skills/rag-configure-infrastructure",
+    "skills/rag-configure-retrieval",
+    "skills/rag-enable-vlm",
+    "skills/rag-enable-guardrails",
+    "skills/rag-troubleshoot-blueprint",
+    "skills/rag-evaluate-quality",
+    "skills/rag-manage-mcp"
+  ],
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "ragRepoRoot": {
+        "type": "string",
+        "description": "Optional absolute path to the NVIDIA RAG Blueprint repository checkout."
+      }
+    }
+  },
+  "uiHints": {
+    "ragRepoRoot": {
+      "label": "RAG repository root",
+      "placeholder": "/path/to/rag"
+    }
+  }
+}

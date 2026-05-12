@@ -74,11 +74,19 @@ pnpm run test:run                    # Tests
 - Run `pre-commit run --all-files` before submitting.
 - See `CONTRIBUTING.md` for full workflow.
 
-## Operations — `/rag-blueprint` skill
+## Operations — RAG Skills
 
-For any operational task, use the `rag-blueprint` skill (`.agents/skills/rag-blueprint/`).
+For operational tasks, use the focused skills under `skills/` and start with
+`skills/README.md`. The legacy all-in-one skill at
+`skill-source/.agents/skills/rag-blueprint/` is migration material.
 
-- **Deploy** — Docker Compose (standard, retrieval-only, NVIDIA-hosted), Helm, MIG-slicing, library mode
-- **Configure** — VLM, guardrails, query rewriting, ingestion, search & retrieval, models, observability, summarization, multimodal, MCP, evaluation, notebooks, UI, and more
-- **Troubleshoot** — Debug unhealthy services, container errors, GPU issues, connectivity failures
-- **Shutdown** — Stop, tear down, and clean up services
+- **Deploy / shutdown** — `skills/rag-deploy-blueprint/SKILL.md`
+- **Ingest** — `skills/rag-ingest-documents/SKILL.md`
+- **Query** — `skills/rag-query-knowledge/SKILL.md`
+- **Configure infrastructure** — `skills/rag-configure-infrastructure/SKILL.md`
+- **Configure retrieval** — `skills/rag-configure-retrieval/SKILL.md`
+- **VLM** — `skills/rag-enable-vlm/SKILL.md`
+- **Guardrails** — `skills/rag-enable-guardrails/SKILL.md`
+- **Troubleshoot** — `skills/rag-troubleshoot-blueprint/SKILL.md`
+- **Evaluate** — `skills/rag-evaluate-quality/SKILL.md`
+- **MCP** — `skills/rag-manage-mcp/SKILL.md`

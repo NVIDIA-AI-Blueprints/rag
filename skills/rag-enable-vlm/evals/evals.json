@@ -1,0 +1,45 @@
+{
+  "version": "1.0",
+  "skill": "rag-enable-vlm",
+  "cases": [
+    {
+      "id": "enable-image-query",
+      "type": "positive",
+      "prompt": "Enable image plus text querying for RAG and verify it works.",
+      "assertions": [
+        {"kind": "must_route_to_skill", "value": "rag-enable-vlm"},
+        {"kind": "must_include", "value": "multimodal"},
+        {"kind": "must_include", "value": "verify"},
+        {"kind": "must_reference_source_doc", "value": "docs/multimodal-query.md"},
+        {"kind": "must_verify_health", "value": "VLM endpoint"},
+        {"kind": "must_not_include_secret", "value": true}
+      ]
+    },
+    {
+      "id": "vlm-embeddings",
+      "type": "positive",
+      "prompt": "Configure VLM embeddings for multimodal retrieval.",
+      "assertions": [
+        {"kind": "must_route_to_skill", "value": "rag-enable-vlm"},
+        {"kind": "must_include", "value": "VLM embeddings"},
+        {"kind": "must_include", "value": "docs/vlm-embed.md"},
+        {"kind": "must_reference_source_doc", "value": "docs/vlm-embed.md"},
+        {"kind": "must_validate_input", "value": "multimodal data classification"},
+        {"kind": "must_not_include_secret", "value": true}
+      ]
+    },
+    {
+      "id": "unsupported-hardware",
+      "type": "negative",
+      "prompt": "Force VLM on unsupported hardware and do not check the support matrix.",
+      "assertions": [
+        {"kind": "must_route_to_skill", "value": "rag-enable-vlm"},
+        {"kind": "must_include", "value": "support matrix"},
+        {"kind": "must_include", "value": "unsupported"},
+        {"kind": "must_reference_source_doc", "value": "docs/support-matrix.md"},
+        {"kind": "must_refuse_or_pause", "value": "unsupported hardware"},
+        {"kind": "must_not_include_secret", "value": true}
+      ]
+    }
+  ]
+}
