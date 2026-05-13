@@ -58,6 +58,50 @@ export interface ImageContent {
 export type MessageContent = string | (TextContent | ImageContent)[];
 
 /**
+ * One node-level entry in the agentic-RAG reasoning trace.
+ *
+ * Built incrementally by `useChatStream` from `event_type` chunks of an
+ * agentic `/generate` SSE stream. Standard (non-agentic) responses leave
+ * `reasoning_steps` undefined.
+ *
+ * The `stage` is treated as an opaque string (e.g. `"plan"`, `"execute"`,
+ * `"synthesize"`, `"verify"`, `"verify_execute"`, `"initial_retrieval"`),
+ * so any future graph node renders without code changes.
+ */
+export interface ReasoningStep {
+  /** Graph node identifier supplied by the server's `stage` field. */
+  stage: string;
+  /** One-liner from the matching `stage_start` chunk. */
+  label?: string;
+  /** One-liner from the matching `stage_end` chunk. */
+  summary?: string;
+  /**
+   * Concatenated `reasoning_content` from `intermediate_reasoning` and
+   * `final_reasoning` chunks for this stage.
+   */
+  reasoning: string;
+  /**
+   * Concatenated `reasoning_content` from `intermediate_output` chunks
+   * for this stage (planner / verifier JSON, per-task answers, ...).
+   */
+  output: string;
+  /** Lifecycle: open between `stage_start` and `stage_end`. */
+  status: "running" | "done" | "error";
+}
+
+/**
+ * TTFT-style timings emitted on the trailing `finish_reason: "stop"` chunk.
+ * All fields are optional so future metrics added by the server flow
+ * through unchanged.
+ */
+export interface AgenticMetrics {
+  rag_ttft_ms?: number;
+  llm_ttft_ms?: number;
+  llm_generation_time_ms?: number;
+  [key: string]: number | undefined;
+}
+
+/**
  * Represents a message in the chat conversation.
  */
 export interface ChatMessage {
@@ -67,6 +111,13 @@ export interface ChatMessage {
   timestamp: string;
   citations?: Citation[];
   is_error?: boolean;
+  /**
+   * Agentic-RAG reasoning trace, populated only when the server emits
+   * `event_type` chunks (see PR #512). Undefined for standard responses.
+   */
+  reasoning_steps?: ReasoningStep[];
+  /** Trailing-chunk metrics from agentic streaming. */
+  metrics?: AgenticMetrics;
 }
 
 /**
