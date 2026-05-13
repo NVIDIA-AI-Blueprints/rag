@@ -79,6 +79,7 @@ from nvidia_rag.rag_server.response_generator import APIError, ErrorCodeMapping
 from nvidia_rag.utils.common import (
     get_current_timestamp,
     perform_document_info_aggregation,
+    release_nvidia_client_response,
 )
 from nvidia_rag.utils.configuration import NvidiaRAGConfig, SearchType
 from nvidia_rag.utils.health_models import ServiceStatus
@@ -1231,6 +1232,7 @@ class MilvusVDB(VDBRagIngest):
             logger.exception("Connection error in retrieval_langchain: %s", e)
             raise APIError(error_msg, ErrorCodeMapping.SERVICE_UNAVAILABLE) from e
         finally:
+            release_nvidia_client_response(self.embedding_model)
             if token is not None:
                 otel_context.detach(token)
 
@@ -1361,6 +1363,8 @@ class MilvusVDB(VDBRagIngest):
                 exc_info=True,
             )
             return []
+        finally:
+            release_nvidia_client_response(client)
 
         try:
             # ToDo: If no page number is provided, use content of same file (txt file)

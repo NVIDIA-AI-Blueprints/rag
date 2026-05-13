@@ -85,6 +85,7 @@ from nvidia_rag.utils.common import (
     filter_documents_by_confidence,
     format_filter_for_log,
     process_filter_expr,
+    release_nvidia_client_response,
     validate_filter_expr,
 )
 from nvidia_rag.utils.configuration import NvidiaRAGConfig
@@ -1508,6 +1509,8 @@ class NvidiaRAG:
                         raise APIError(
                             error_msg, ErrorCodeMapping.SERVICE_UNAVAILABLE
                         ) from e
+                    finally:
+                        release_nvidia_client_response(local_ranker)
 
                     logger.info(
                         "    == Context reranker time: %.2f ms ==",
@@ -3251,30 +3254,36 @@ class NvidiaRAG:
                     docs = []
                     # Start measuring retrieval latency across collections
                     retrieval_start_time = time.time()
-                    vectorstores = []
-                    for collection_name in validated_collections:
-                        vectorstores.append(
-                            vdb_op.get_langchain_vectorstore(collection_name)
+                    try:
+                        vectorstores = []
+                        for collection_name in validated_collections:
+                            vectorstores.append(
+                                vdb_op.get_langchain_vectorstore(collection_name)
+                            )
+                        with ThreadPoolExecutor() as executor:
+                            futures = [
+                                executor.submit(
+                                    vdb_op.retrieval_langchain,
+                                    query=retriever_query,
+                                    collection_name=collection_name,
+                                    vectorstore=vectorstore,
+                                    top_k=top_k,
+                                    filter_expr=collection_filter_mapping.get(
+                                        collection_name, ""
+                                    ),
+                                    otel_ctx=otel_ctx,
+                                )
+                                for collection_name, vectorstore in zip(
+                                    validated_collections, vectorstores, strict=False
+                                )
+                            ]
+                            for future in futures:
+                                docs.extend(future.result())
+                    finally:
+                        release_nvidia_client_response(
+                            getattr(vdb_op, "embedding_model", None)
+                            or getattr(vdb_op, "_embedding_model", None)
                         )
-                    with ThreadPoolExecutor() as executor:
-                        futures = [
-                            executor.submit(
-                                vdb_op.retrieval_langchain,
-                                query=retriever_query,
-                                collection_name=collection_name,
-                                vectorstore=vectorstore,
-                                top_k=top_k,
-                                filter_expr=collection_filter_mapping.get(
-                                    collection_name, ""
-                                ),
-                                otel_ctx=otel_ctx,
-                            )
-                            for collection_name, vectorstore in zip(
-                                validated_collections, vectorstores, strict=False
-                            )
-                        ]
-                        for future in futures:
-                            docs.extend(future.result())
 
                     retrieval_time_ms = (time.time() - retrieval_start_time) * 1000
                     logger.info("Retrieval Output:")
@@ -3305,6 +3314,8 @@ class NvidiaRAG:
                         raise APIError(
                             error_msg, ErrorCodeMapping.SERVICE_UNAVAILABLE
                         ) from e
+                    finally:
+                        release_nvidia_client_response(ranker)
 
                     context_reranker_time_ms = (
                         time.time() - context_reranker_start_time
@@ -3386,18 +3397,24 @@ class NvidiaRAG:
                         )
                         context_to_show = docs
                     else:
-                        docs = vdb_op.retrieval_langchain(
-                            query=retriever_query,
-                            collection_name=validated_collections[0],
-                            vectorstore=vdb_op.get_langchain_vectorstore(
-                                validated_collections[0]
-                            ),
-                            top_k=top_k,
-                            filter_expr=collection_filter_mapping.get(
-                                validated_collections[0], ""
-                            ),
-                            otel_ctx=otel_ctx,
-                        )
+                        try:
+                            docs = vdb_op.retrieval_langchain(
+                                query=retriever_query,
+                                collection_name=validated_collections[0],
+                                vectorstore=vdb_op.get_langchain_vectorstore(
+                                    validated_collections[0]
+                                ),
+                                top_k=top_k,
+                                filter_expr=collection_filter_mapping.get(
+                                    validated_collections[0], ""
+                                ),
+                                otel_ctx=otel_ctx,
+                            )
+                        finally:
+                            release_nvidia_client_response(
+                                getattr(vdb_op, "embedding_model", None)
+                                or getattr(vdb_op, "_embedding_model", None)
+                            )
                         context_to_show = docs
                     retrieval_time_ms = (time.time() - retrieval_start_time) * 1000
 

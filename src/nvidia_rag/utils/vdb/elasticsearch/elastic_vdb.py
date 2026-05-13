@@ -62,7 +62,7 @@ from typing import Any
 import pandas as pd
 import requests
 from elastic_transport import ConnectionError as ESConnectionError
-from elasticsearch import Elasticsearch, ConflictError
+from elasticsearch import ConflictError, Elasticsearch
 from elasticsearch.helpers import scan
 from elasticsearch.helpers.vectorstore import DenseVectorStrategy, VectorStore
 from langchain_core.documents import Document
@@ -74,17 +74,22 @@ from nvidia_rag.rag_server.response_generator import APIError, ErrorCodeMapping
 from nvidia_rag.utils.common import (
     get_current_timestamp,
     perform_document_info_aggregation,
+    release_nvidia_client_response,
 )
-from nvidia_rag.utils.configuration import NvidiaRAGConfig, SearchType, RankerType
+from nvidia_rag.utils.configuration import NvidiaRAGConfig, RankerType, SearchType
 from nvidia_rag.utils.health_models import ServiceStatus
 from nvidia_rag.utils.vdb import (
     DEFAULT_DOCUMENT_INFO_COLLECTION,
     DEFAULT_METADATA_SCHEMA_COLLECTION,
     SYSTEM_COLLECTIONS,
 )
+from nvidia_rag.utils.vdb.elasticsearch.es_dense_vector_strategy import (
+    DenseVectorStrategyWithIndexOptions,
+)
 from nvidia_rag.utils.vdb.elasticsearch.es_queries import (
     create_document_info_collection_mapping,
     create_metadata_collection_mapping,
+    get_all_document_info_query,
     get_chunks_by_source_and_pages_query,
     get_collection_document_info_query,
     get_delete_docs_query,
@@ -95,10 +100,6 @@ from nvidia_rag.utils.vdb.elasticsearch.es_queries import (
     get_metadata_schema_query,
     get_unique_sources_query,
     get_weighted_hybrid_custom_query,
-    get_all_document_info_query,
-)
-from nvidia_rag.utils.vdb.elasticsearch.es_dense_vector_strategy import (
-    DenseVectorStrategyWithIndexOptions,
 )
 from nvidia_rag.utils.vdb.vdb_ingest_base import VDBRagIngest
 
@@ -226,28 +227,7 @@ class ElasticVDB(VDBRagIngest):
         except Exception:
             logger.debug("Failed to close Elasticsearch connection", exc_info=True)
 
-        # langchain_nvidia_ai_endpoints' _NVIDIAClient pins the most recent
-        # response on `last_response`. One-off embedders should not retain that
-        # response or its transport references after the VDB operator is closed.
-        client = getattr(self._embedding_model, "_client", None)
-        if client is not None:
-            response = getattr(client, "last_response", None)
-            close_response = getattr(response, "close", None)
-            if callable(close_response):
-                try:
-                    close_response()
-                except Exception:
-                    logger.debug(
-                        "Failed to close embedding client response", exc_info=True
-                    )
-
-            for attr in ("last_response", "last_inputs"):
-                try:
-                    setattr(client, attr, None)
-                except Exception:
-                    logger.debug(
-                        "Failed to clear embedding client.%s", attr, exc_info=True
-                    )
+        release_nvidia_client_response(self._embedding_model)
 
     @property
     def collection_name(self) -> str:
@@ -902,7 +882,7 @@ class ElasticVDB(VDBRagIngest):
                     info_type=info_type,
                 ),
             )
-        except ConflictError as e:
+        except ConflictError:
             logger.info(f"Document info not found for collection: {collection_name}, document: {document_name}, info type: {info_type}")
         # Add the document info to the index
         data = {
@@ -1118,6 +1098,7 @@ class ElasticVDB(VDBRagIngest):
             logger.error("Connection error in retrieval_langchain: %s", e)
             raise APIError(error_msg, ErrorCodeMapping.SERVICE_UNAVAILABLE) from e
         finally:
+            release_nvidia_client_response(self._embedding_model)
             if token is not None:
                 otel_context.detach(token)
 
@@ -1209,6 +1190,8 @@ class ElasticVDB(VDBRagIngest):
                 exc_info=True,
             )
             return []
+        finally:
+            release_nvidia_client_response(self._embedding_model)
 
         if not results:
             return []

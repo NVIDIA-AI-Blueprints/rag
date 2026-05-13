@@ -84,6 +84,7 @@ from nvidia_rag.rag_server.response_generator import APIError, ErrorCodeMapping
 from nvidia_rag.utils.common import (
     get_current_timestamp,
     perform_document_info_aggregation,
+    release_nvidia_client_response,
 )
 from nvidia_rag.utils.configuration import NvidiaRAGConfig
 from nvidia_rag.utils.health_models import ServiceStatus
@@ -807,6 +808,8 @@ class LanceDBVDB(VDBRagIngest):
             )
             logger.error("Connection error in retrieval_langchain: %s", e)
             raise APIError(error_msg, ErrorCodeMapping.SERVICE_UNAVAILABLE) from e
+        finally:
+            release_nvidia_client_response(self.embedding_model)
 
     def get_langchain_vectorstore(
         self,
@@ -979,6 +982,8 @@ class LanceDBVDB(VDBRagIngest):
                 exc_info=True,
             )
             return []
+        finally:
+            release_nvidia_client_response(self._embedding_model)
 
         if not results:
             return []
