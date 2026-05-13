@@ -125,7 +125,7 @@ export interface ChatMessage {
  */
 export interface Filter {
   field: string;
-  operator: "=" | "!=" | ">" | "<" | ">=" | "<=" | "in" | "includes" | "does not include" | "like" | "not in" | "before" | "after" | "array_contains" | "array_contains_all" | "array_contains_any";
+  operator: "==" | "=" | "!=" | ">" | "<" | ">=" | "<=" | "in" | "includes" | "does not include" | "like" | "not in" | "before" | "after" | "array_contains" | "array_contains_all" | "array_contains_any";
   value: string | number | boolean | (string | number | boolean)[];
   // Logical operator to join this filter with the previous one (undefined for first filter)
   logicalOperator?: "AND" | "OR";
