@@ -213,6 +213,13 @@ class ElasticVDB(VDBRagIngest):
 
         self._repair_stale_ingest_refresh_settings()
 
+    def close(self) -> None:
+        """Close Elasticsearch transport resources held by this VDB operator."""
+        try:
+            self._es_connection.close()
+        except Exception:
+            logger.debug("Failed to close Elasticsearch connection", exc_info=True)
+
     @property
     def collection_name(self) -> str:
         """Get the collection name."""
