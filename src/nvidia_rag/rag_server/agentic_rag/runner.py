@@ -59,8 +59,10 @@ from typing import TYPE_CHECKING, Any
 
 from nvidia_rag.rag_server.agentic_rag.agentic_rag import AgenticRAGGraphState
 from nvidia_rag.rag_server.agentic_rag.builder import (
+    AgenticLLMOverrides,
     AgenticSearchParams,
     _agentic_all_citations,
+    _agentic_llm_overrides,
     _agentic_search_params,
 )
 from nvidia_rag.rag_server.agentic_rag.streaming import translate_graph_stream
@@ -140,6 +142,9 @@ async def run_agentic_pipeline(
     enable_streaming: bool = True,
     rag_start_time_sec: float | None = None,
     metrics: OtelMetrics | None = None,
+    runtime_model_override: str | None = None,
+    runtime_llm_endpoint_override: str | None = None,
+    runtime_api_key_override: str | None = None,
 ) -> RAGResponse:
     """Run the compiled agentic RAG graph for one request and return a RAGResponse.
 
@@ -191,6 +196,9 @@ async def run_agentic_pipeline(
             collection_name=collection_name,
             rag_start_time_sec=rag_start_time_sec,
             metrics=metrics,
+            runtime_model_override=runtime_model_override,
+            runtime_llm_endpoint_override=runtime_llm_endpoint_override,
+            runtime_api_key_override=runtime_api_key_override,
         )
 
     # ------------------------------------------------------------------
@@ -201,6 +209,15 @@ async def run_agentic_pipeline(
     trace_token = _current_trace.set(trace)
     params_token = _agentic_search_params.set(search_params)
     citations_token = _agentic_all_citations.set(citations_acc)
+    override_token = None
+    if runtime_model_override or runtime_llm_endpoint_override:
+        override_token = _agentic_llm_overrides.set(
+            AgenticLLMOverrides(
+                model=runtime_model_override,
+                llm_endpoint=runtime_llm_endpoint_override,
+                api_key=runtime_api_key_override,
+            )
+        )
 
     try:
         with tracer.start_as_current_span("agentic_rag_query") as root_span:
@@ -272,6 +289,8 @@ async def run_agentic_pipeline(
         _current_trace.reset(trace_token)
         _agentic_search_params.reset(params_token)
         _agentic_all_citations.reset(citations_token)
+        if override_token is not None:
+            _agentic_llm_overrides.reset(override_token)
 
 
 async def _run_streaming(
@@ -289,6 +308,9 @@ async def _run_streaming(
     collection_name: str,
     rag_start_time_sec: float | None,
     metrics: OtelMetrics | None,
+    runtime_model_override: str | None = None,
+    runtime_llm_endpoint_override: str | None = None,
+    runtime_api_key_override: str | None = None,
 ) -> RAGResponse:
     """Build a RAGResponse whose generator delegates to ``translate_graph_stream``.
 
@@ -319,6 +341,15 @@ async def _run_streaming(
         trace_token = _current_trace.set(trace)
         params_token = _agentic_search_params.set(search_params)
         citations_token = _agentic_all_citations.set(citations_acc)
+        override_token = None
+        if runtime_model_override or runtime_llm_endpoint_override:
+            override_token = _agentic_llm_overrides.set(
+                AgenticLLMOverrides(
+                    model=runtime_model_override,
+                    llm_endpoint=runtime_llm_endpoint_override,
+                    api_key=runtime_api_key_override,
+                )
+            )
         try:
             with tracer.start_as_current_span("agentic_rag_query") as root_span:
                 root_span.set_attribute("openinference.span.kind", "CHAIN")
@@ -349,6 +380,8 @@ async def _run_streaming(
                 _current_trace.reset(trace_token)
                 _agentic_search_params.reset(params_token)
                 _agentic_all_citations.reset(citations_token)
+                if override_token is not None:
+                    _agentic_llm_overrides.reset(override_token)
             except Exception as cex:  # noqa: BLE001
                 # Should not happen now that set/reset share a context, but
                 # keep a defensive guard so a stray context mismatch never

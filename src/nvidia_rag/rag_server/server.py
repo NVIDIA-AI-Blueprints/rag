@@ -487,15 +487,30 @@ class Prompt(BaseModel):
         description="Enable or disable automatic filter expression generation from natural language.",
         default=CONFIG.filter_expression_generator.enable_filter_generator,
     )
-    model: str = Field(
-        description="Name of NIM LLM model to be used for inference.",
-        default=CONFIG.llm.model_name.strip('"'),
+    model: str | None = Field(
+        description=(
+            "Name of NIM LLM model to be used for inference. "
+            "When omitted, the server-side default is used (APP_LLM_MODELNAME "
+            "for the standard RAG path, or the AGENTIC_*_LLM_MODEL per-role envs "
+            "for agentic RAG)."
+        ),
+        default=None,
+        # Swagger UI uses the first example as its request-body sample. Without
+        # this, the regex `[\s\S]*` causes Swagger's generator to emit random
+        # characters; with it, users see the currently-configured default.
+        examples=[CONFIG.llm.model_name.strip('"')],
         max_length=4096,
         pattern=r"[\s\S]*",
     )
-    llm_endpoint: str = Field(
-        description="Endpoint URL for the llm model server.",
-        default=CONFIG.llm.server_url.strip('"'),
+    llm_endpoint: str | None = Field(
+        description=(
+            "Endpoint URL for the llm model server. "
+            "When omitted, the server-side default is used (APP_LLM_SERVERURL "
+            "for the standard RAG path, or the AGENTIC_*_LLM_SERVERURL per-role envs "
+            "for agentic RAG)."
+        ),
+        default=None,
+        examples=[CONFIG.llm.server_url.strip('"')],
         max_length=2048,  # URLs can be long, but 4096 is excessive
     )
     embedding_model: str = Field(

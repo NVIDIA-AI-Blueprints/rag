@@ -36,7 +36,9 @@ from nvidia_rag.rag_server.agentic_rag import (
 from nvidia_rag.rag_server.agentic_rag import runner as agentic_runner
 from nvidia_rag.rag_server.agentic_rag.agentic_rag import AgenticRag
 from nvidia_rag.rag_server.agentic_rag.builder import (
+    AgenticLLMOverrides,
     _agentic_all_citations,
+    _agentic_llm_overrides,
     _agentic_search_params,
 )
 from nvidia_rag.rag_server.agentic_rag.prompt import build_prompts
@@ -513,7 +515,6 @@ class TestRunAgenticPipeline:
             f"expected substituted task_count, got: {stage_end_labels}"
         )
 
-
     @pytest.mark.asyncio
     async def test_streaming_buffers_parallel_tokens_per_run(self) -> None:
         """Tokens from parallel-task nodes (execute, verify_execute) must be
@@ -807,6 +808,115 @@ class TestRunAgenticPipeline:
 
         # Trailing finish chunk still terminates the stream.
         assert parsed[-1]["choices"][0]["finish_reason"] == "stop"
+
+
+class TestAgenticLLMOverrides:
+    """Runtime LLM override (FR-1527): model / llm_endpoint passed in the
+    /generate request flow into all 4 agentic role properties via the
+    ``_agentic_llm_overrides`` ContextVar — preserving the cached default
+    LLMs when no override is set and isolating concurrent requests."""
+
+    def test_no_override_returns_cached_default_llms(self) -> None:
+        agent = _minimal_agent()
+        # All 4 role properties return the per-role cached defaults.
+        assert agent.planner_llm is agent._default_planner_llm
+        assert agent.task_llm is agent._default_task_llm
+        assert agent.seed_gen_llm is agent._default_seed_gen_llm
+        assert agent.synthesis_llm is agent._default_synthesis_llm
+
+    def test_override_replaces_all_four_role_llms_with_same_client(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Stub get_llm so we don't touch real LangChain / NIM endpoints.
+        built = MagicMock(name="override-llm")
+        get_llm_calls: list[dict] = []
+
+        def fake_get_llm(**kwargs):
+            get_llm_calls.append(kwargs)
+            return built
+
+        monkeypatch.setattr("nvidia_rag.utils.llm.get_llm", fake_get_llm)
+
+        agent = _minimal_agent()
+        token = _agentic_llm_overrides.set(
+            AgenticLLMOverrides(
+                model="custom/model-x",
+                llm_endpoint="https://endpoint-x:8000",
+                api_key="key-abc",
+            )
+        )
+        try:
+            # All four role properties yield the override-built client …
+            assert agent.planner_llm is built
+            assert agent.task_llm is built
+            assert agent.seed_gen_llm is built
+            assert agent.synthesis_llm is built
+        finally:
+            _agentic_llm_overrides.reset(token)
+
+        # … and the override client is built exactly once per request even
+        # though four roles asked for it (per-request cache on the dataclass).
+        assert len(get_llm_calls) == 1
+        assert get_llm_calls[0]["model"] == "custom/model-x"
+        assert get_llm_calls[0]["llm_endpoint"] == "https://endpoint-x:8000"
+        assert get_llm_calls[0]["api_key"] == "key-abc"
+
+    def test_override_with_empty_fields_falls_back_to_defaults(self) -> None:
+        agent = _minimal_agent()
+        # AgenticLLMOverrides with both fields empty/None is treated as "no
+        # override" — defaults still apply.  Defensive guard for callers that
+        # set the ContextVar unconditionally.
+        token = _agentic_llm_overrides.set(
+            AgenticLLMOverrides(model=None, llm_endpoint=None, api_key="key")
+        )
+        try:
+            assert agent.planner_llm is agent._default_planner_llm
+            assert agent.task_llm is agent._default_task_llm
+        finally:
+            _agentic_llm_overrides.reset(token)
+
+    @pytest.mark.asyncio
+    async def test_concurrent_requests_see_independent_overrides(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Two coroutines on the same event loop, each with its own override,
+        must observe their own client — proves no ContextVar leakage."""
+        import asyncio
+
+        # Per-request, get_llm is called once and returns a unique stub.  We
+        # key the stub by the model name so each coroutine can assert it got
+        # the right one.
+        def fake_get_llm(**kwargs):
+            stub = MagicMock(name=f"llm-{kwargs['model']}")
+            stub.model_name = kwargs["model"]
+            return stub
+
+        monkeypatch.setattr("nvidia_rag.utils.llm.get_llm", fake_get_llm)
+
+        agent = _minimal_agent()
+
+        async def one_request(model_name: str) -> str:
+            token = _agentic_llm_overrides.set(
+                AgenticLLMOverrides(model=model_name, llm_endpoint="https://x")
+            )
+            try:
+                # Yield control so the other coroutine can run with its own
+                # override set — this is the real concurrency stress.
+                await asyncio.sleep(0)
+                # All four roles must see this coroutine's model.
+                assert agent.planner_llm.model_name == model_name
+                assert agent.task_llm.model_name == model_name
+                assert agent.seed_gen_llm.model_name == model_name
+                assert agent.synthesis_llm.model_name == model_name
+                return agent.planner_llm.model_name
+            finally:
+                _agentic_llm_overrides.reset(token)
+
+        results = await asyncio.gather(
+            one_request("model-A"),
+            one_request("model-B"),
+        )
+        assert sorted(results) == ["model-A", "model-B"]
 
 
 class TestBuildAgenticRagAgentSignature:
