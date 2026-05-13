@@ -25,26 +25,34 @@ Provides pre-built query functions for document and metadata management in Elast
 """
 
 
-def get_unique_sources_query():
+def get_unique_sources_query(
+    after_key: dict | None = None,
+    page_size: int = 1000,
+):
     """
-    Generate aggregation query to retrieve all unique document sources.
+    Generate aggregation query to retrieve unique document sources.
+
+    Composite aggregations cap at ``search.max_buckets`` (default 65,536) per
+    request, so callers must paginate by passing the previous response's
+    ``after_key`` to walk past that ceiling.
     """
+    composite: dict = {
+        "size": page_size,
+        "sources": [
+            {
+                "source_name": {
+                    "terms": {"field": "metadata.source.source_name.keyword"}
+                }
+            }
+        ],
+    }
+    if after_key is not None:
+        composite["after"] = after_key
     query_unique_sources = {
         "size": 0,
         "aggs": {
             "unique_sources": {
-                "composite": {
-                    "size": 65536,  # Adjust size depending on number of unique values
-                    "sources": [
-                        {
-                            "source_name": {
-                                "terms": {
-                                    "field": "metadata.source.source_name.keyword"
-                                }
-                            }
-                        }
-                    ],
-                },
+                "composite": composite,
                 "aggs": {
                     "top_hit": {
                         "top_hits": {

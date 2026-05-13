@@ -521,11 +521,12 @@ class TestElasticVDB(unittest.TestCase):
         self.assertEqual(mock_es_connection.delete_by_query.call_count, 4)
         mock_logger.info.assert_called_with(f"Collections deleted: {collection_names}")
 
+    @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.scan")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.Elasticsearch")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.VectorStore")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.get_unique_sources_query")
     def test_get_documents(
-        self, mock_sources_query, mock_vector_store, mock_elasticsearch
+        self, mock_sources_query, mock_vector_store, mock_elasticsearch, mock_scan
     ):
         """Test get_documents method."""
         # Setup mocks
@@ -536,7 +537,8 @@ class TestElasticVDB(unittest.TestCase):
         mock_es_connection = Mock()
         mock_elasticsearch.return_value = mock_es_connection
 
-        # Mock search response
+        # Mock composite-agg pagination: one page with both docs, no after_key
+        # → loop terminates after one iteration.
         mock_search_response = {
             "aggregations": {
                 "unique_sources": {
@@ -579,37 +581,29 @@ class TestElasticVDB(unittest.TestCase):
                             },
                         },
                     ]
+                    # No after_key → pagination loop exits after this page.
                 }
             }
         }
-        mock_document_info_search_response = {
-            "hits": {
-                "hits": [
-                    {
-                        "_source": {
-                            "document_name": "doc1.pdf",
-                            "info_value": {
-                                "total_pages": 5,
-                                "total_chunks": 50,
-                            },
-                        }
-                    },
-                    {
-                        "_source": {
-                            "document_name": "doc2.pdf",
-                            "info_value": {
-                                "total_pages": 10,
-                                "total_chunks": 100,
-                            },
-                        }
-                    },
-                ]
-            }
-        }
-        mock_es_connection.search.side_effect = [
-            mock_search_response,
-            mock_document_info_search_response,
-        ]
+        # _get_all_document_info now uses scan() instead of search(), so we
+        # mock it to yield the per-document info hits.
+        mock_scan.return_value = iter(
+            [
+                {
+                    "_source": {
+                        "document_name": "doc1.pdf",
+                        "info_value": {"total_pages": 5, "total_chunks": 50},
+                    }
+                },
+                {
+                    "_source": {
+                        "document_name": "doc2.pdf",
+                        "info_value": {"total_pages": 10, "total_chunks": 100},
+                    }
+                },
+            ]
+        )
+        mock_es_connection.search.return_value = mock_search_response
         mock_es_connection.indices.exists.return_value = True
         mock_sources_query.return_value = {"query": "test_query"}
 
@@ -637,13 +631,12 @@ class TestElasticVDB(unittest.TestCase):
         ]
 
         self.assertEqual(result, expected_result)
-        self.assertEqual(mock_es_connection.search.call_count, 2)
-        mock_es_connection.search.assert_has_calls(
-            [
-                call(index="test_collection", body={"query": "test_query"}),
-                call(index="document_info", body=ANY),
-            ]
+        # One search call for the composite-agg page; doc-info is fetched via scan().
+        mock_es_connection.search.assert_called_once_with(
+            index="test_collection", body={"query": "test_query"}
         )
+        mock_scan.assert_called_once()
+        mock_sources_query.assert_called_once_with(after_key=None)
 
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.Elasticsearch")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.VectorStore")
@@ -856,8 +849,16 @@ class TestElasticVDB(unittest.TestCase):
         expected_result = [{"name": "title", "type": "string"}]
         self.assertEqual(result, expected_result)
 
+        # get_metadata_schema now sorts by _seq_no desc with size=1 to deterministically
+        # pick the most recent entry if duplicates exist. _seq_no is used instead of
+        # _id because sorting on _id requires indices.id_field_data.enabled.
         mock_es_connection.search.assert_called_once_with(
-            index="metadata_schema", body={"query": "schema_query"}
+            index="metadata_schema",
+            body={
+                "query": "schema_query",
+                "sort": [{"_seq_no": {"order": "desc"}}],
+                "size": 1,
+            },
         )
 
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.Elasticsearch")
@@ -1925,9 +1926,10 @@ class TestEsQueries(unittest.TestCase):
         self.assertIn("composite", unique_sources)
         self.assertIn("aggs", unique_sources)
 
-        # Verify composite aggregation
+        # Verify composite aggregation (paginated, no after_key by default)
         composite = unique_sources["composite"]
-        self.assertEqual(composite["size"], 65536)
+        self.assertEqual(composite["size"], 1000)
+        self.assertNotIn("after", composite)
         self.assertIn("sources", composite)
 
         # Verify source field configuration
@@ -1940,6 +1942,15 @@ class TestEsQueries(unittest.TestCase):
         top_hit = unique_sources["aggs"]["top_hit"]
         self.assertIn("top_hits", top_hit)
         self.assertEqual(top_hit["top_hits"]["size"], 1)
+
+    def test_get_unique_sources_query_with_after_key(self):
+        """after_key threads the composite agg cursor for pagination."""
+        after = {"source_name": "/path/to/last.pdf"}
+        result = es_queries.get_unique_sources_query(after_key=after, page_size=250)
+
+        composite = result["aggs"]["unique_sources"]["composite"]
+        self.assertEqual(composite["size"], 250)
+        self.assertEqual(composite["after"], after)
 
     def test_get_delete_metadata_schema_query(self):
         """Test get_delete_metadata_schema_query function with collection name."""
