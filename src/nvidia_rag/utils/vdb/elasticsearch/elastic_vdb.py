@@ -123,6 +123,8 @@ class ElasticVDB(VDBRagIngest):
         config: NvidiaRAGConfig | None = None,
         auth_token: str | None = None,
     ):
+        logging.getLogger("elastic_transport").setLevel(logging.WARNING)
+
         self.config = config or NvidiaRAGConfig()
         self.index_name = index_name
         self.es_url = es_url
@@ -608,11 +610,11 @@ class ElasticVDB(VDBRagIngest):
         response = self._es_connection.search(
             index=collection_name, body=get_unique_sources_query()
         )
-        
+
         # Get all document info for the collection
         all_document_info = self._get_all_document_info(collection_name)
         all_document_info_map = {doc["document_name"]: doc["info_value"] for doc in all_document_info}
-        
+
         # Get the list of documents
         documents_list = []
         for hit in response["aggregations"]["unique_sources"]["buckets"]:
@@ -873,10 +875,10 @@ class ElasticVDB(VDBRagIngest):
         except Exception as e:
             logger.error(f"Error getting document info for {info_type}, {collection_name}, {document_name}: {e}")
             return {}
-    
+
     def _get_all_document_info(self, collection_name: str) -> list[dict[str, Any]]:
         """Get all document info for a collection.
-        
+
         Returns:
             list[dict[str, Any]]: List of document info for the collection. (hit["_source"])
         """
