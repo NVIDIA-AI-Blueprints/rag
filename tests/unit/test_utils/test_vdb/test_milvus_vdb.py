@@ -1210,6 +1210,7 @@ class TestMilvusVDB:
                 "nvidia_rag.utils.vdb.milvus.milvus_vdb.LangchainMilvus"
             ) as mock_langchain_milvus,
             patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.BM25BuiltInFunction"),
+            patch("nv_ingest_client.util.milvus.Milvus.__init__", return_value=None),
         ):
             vdb = MilvusVDB(
                 embedding_model=Mock(),
@@ -1240,6 +1241,7 @@ class TestMilvusVDB:
             patch(
                 "nvidia_rag.utils.vdb.milvus.milvus_vdb.LangchainMilvus"
             ) as mock_langchain_milvus,
+            patch("nv_ingest_client.util.milvus.Milvus.__init__", return_value=None),
         ):
             vdb = MilvusVDB(
                 embedding_model=Mock(),
@@ -1264,6 +1266,7 @@ class TestMilvusVDB:
 
         with (
             patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"),
+            patch("nv_ingest_client.util.milvus.Milvus.__init__", return_value=None),
         ):
             vdb = MilvusVDB(
                 embedding_model=Mock(),

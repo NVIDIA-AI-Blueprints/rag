@@ -103,6 +103,29 @@ def _collate_citations(
     )
 
 
+def _log_final_response(answer: str) -> None:
+    """Emit the LLM GENERATION COMPLETE / Final LLM Response block.
+
+    Mirrors the Standard RAG log format in
+    ``response_generator.generate_answer_async`` so operators see the same
+    shape of output for both pipelines.
+    """
+    logger.info("=" * 80)
+    logger.info("LLM GENERATION COMPLETE")
+    logger.info("=" * 80)
+    logger.info("Final LLM Response:")
+    logger.info("  - Length: %d characters", len(answer))
+    logger.info(
+        "  - Content Preview (first 500 chars): %s%s",
+        answer[:500],
+        "..." if len(answer) > 500 else "",
+    )
+    if len(answer) > 500:
+        logger.info("  - Full response logged at DEBUG level")
+        logger.debug("Full LLM Response:\n%s", answer)
+    logger.info("-" * 80)
+
+
 async def run_agentic_pipeline(
     *,
     agent: AgenticRag,
@@ -141,15 +164,19 @@ async def run_agentic_pipeline(
     tracer = otel_trace.get_tracer(__name__)
 
     trace = QueryTrace(query_text=query)
-    trace_token = _current_trace.set(trace)
-    params_token = _agentic_search_params.set(search_params)
     citations_acc: OrderedDict[str, list[SourceResult]] = OrderedDict()
-    citations_token = _agentic_all_citations.set(citations_acc)
 
     initial_state = AgenticRAGGraphState(user_query=query)
     collection_name = collection_names[0] if collection_names else ""
 
     if enable_streaming:
+        # ContextVars are bound *inside* the streaming generator (see
+        # ``_run_streaming``) so that ``set()`` and ``reset()`` happen in
+        # the same async-generator context. Binding them here would mint
+        # tokens in the request-handler's context, but the generator's
+        # ``finally`` runs in a different (generator-local) context —
+        # ``ContextVar.reset()`` would then raise "Token was created in a
+        # different Context".
         return await _run_streaming(
             agent=agent,
             graph=graph,
@@ -157,22 +184,24 @@ async def run_agentic_pipeline(
             cfg=cfg,
             tracer=tracer,
             trace=trace,
+            search_params=search_params,
             citations_acc=citations_acc,
             enable_citations=enable_citations,
             model=model,
             collection_name=collection_name,
             rag_start_time_sec=rag_start_time_sec,
             metrics=metrics,
-            cleanup=lambda: (
-                _current_trace.reset(trace_token),
-                _agentic_search_params.reset(params_token),
-                _agentic_all_citations.reset(citations_token),
-            ),
         )
 
     # ------------------------------------------------------------------
-    # Non-streaming path — preserves legacy behaviour.
+    # Non-streaming path — preserves legacy behaviour. set()/reset() are
+    # balanced within this single async frame, so cross-context resets
+    # cannot occur here.
     # ------------------------------------------------------------------
+    trace_token = _current_trace.set(trace)
+    params_token = _agentic_search_params.set(search_params)
+    citations_token = _agentic_all_citations.set(citations_acc)
+
     try:
         with tracer.start_as_current_span("agentic_rag_query") as root_span:
             root_span.set_attribute("openinference.span.kind", "CHAIN")
@@ -195,6 +224,7 @@ async def run_agentic_pipeline(
 
             root_span.set_attribute("output.value", answer)
             logger.info("[AGENTIC_RAG] Query done: %s", trace.one_line_summary())
+            _log_final_response(answer)
             agent.metrics.log_summary()
 
         collated_citations = _collate_citations(_agentic_all_citations.get())
@@ -252,19 +282,22 @@ async def _run_streaming(
     cfg: AgenticRAGConfig,
     tracer: Any,
     trace: QueryTrace,
+    search_params: AgenticSearchParams,
     citations_acc: OrderedDict[str, list[SourceResult]],
     enable_citations: bool,
     model: str,
     collection_name: str,
     rag_start_time_sec: float | None,
     metrics: OtelMetrics | None,
-    cleanup: Any,
 ) -> RAGResponse:
     """Build a RAGResponse whose generator delegates to ``translate_graph_stream``.
 
-    The OTel root span and ContextVar cleanup are owned by the wrapper async
+    The OTel root span and ContextVar binding are owned by the wrapper async
     generator below so they live for the full lifetime of the stream — not
-    just until this function returns.
+    just until this function returns. Binding the ContextVars inside the
+    generator (instead of in the caller) ensures ``set()`` and ``reset()``
+    happen in the same context; otherwise ``reset()`` raises "Token was
+    created in a different Context".
     """
     debug_stream = bool(getattr(cfg, "enable_debug_stream", False))
     verification_enabled = bool(getattr(agent.verification_cfg, "enabled", False))
@@ -279,9 +312,13 @@ async def _run_streaming(
         trace.finalize()
         agent.metrics.update(trace)
         logger.info("[AGENTIC_RAG] Query done: %s", trace.one_line_summary())
+        _log_final_response(final_answer)
         agent.metrics.log_summary()
 
     async def _stream() -> AsyncIterator[str]:
+        trace_token = _current_trace.set(trace)
+        params_token = _agentic_search_params.set(search_params)
+        citations_token = _agentic_all_citations.set(citations_acc)
         try:
             with tracer.start_as_current_span("agentic_rag_query") as root_span:
                 root_span.set_attribute("openinference.span.kind", "CHAIN")
@@ -309,9 +346,14 @@ async def _run_streaming(
             raise
         finally:
             try:
-                cleanup()
+                _current_trace.reset(trace_token)
+                _agentic_search_params.reset(params_token)
+                _agentic_all_citations.reset(citations_token)
             except Exception as cex:  # noqa: BLE001
-                logger.warning("Streaming cleanup failed: %s", cex)
+                # Should not happen now that set/reset share a context, but
+                # keep a defensive guard so a stray context mismatch never
+                # masks the stream's real outcome.
+                logger.debug("Streaming cleanup failed: %s", cex)
             # ``metrics`` is passed in for parity with the non-streaming path;
             # the translator already records TTFT/generation time on the
             # finishing chunk, but we still want OTel histogram updates.
