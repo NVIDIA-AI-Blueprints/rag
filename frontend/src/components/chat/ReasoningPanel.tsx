@@ -20,7 +20,7 @@ import type { ReasoningStep } from "../../types/chat";
 import { useCitationUtils } from "../../hooks/useCitationUtils";
 
 interface ReasoningPanelProps {
-  /** Reasoning trace from the agentic stream. */
+  /** Reasoning trace from the stream. */
   steps: ReasoningStep[];
   /** Whether the parent message is still streaming. */
   streaming?: boolean;
@@ -118,10 +118,10 @@ const StepRow = ({
 };
 
 /**
- * Collapsible "Thinking" panel that renders the agentic-RAG reasoning
- * trace above the assistant's final answer.
+ * Collapsible "Thinking" panel that renders the reasoning trace above
+ * the assistant's final answer.
  *
- * - Hidden when there are no steps (standard non-agentic responses).
+ * - Hidden when there are no steps.
  * - Auto-expanded while the message is streaming so users can watch the
  *   agent work; collapses on completion to a "Thought for N steps" line.
  * - Step labels are formatted via `useCitationUtils.formatStage` so any

@@ -47,6 +47,7 @@ const STAGE_END_EVENT: AgenticEventType = "stage_end";
 const FINAL_ANSWER_EVENT: AgenticEventType = "final_answer";
 const ERROR_EVENT: AgenticEventType = "error";
 const OUTPUT_EVENT: AgenticEventType = "intermediate_output";
+const STANDARD_RAG_STAGE = "rag";
 
 /** Lazy-create or reuse the open step for an incoming chunk's stage. */
 const ensureOpenStep = (
@@ -115,7 +116,8 @@ const parseSources = (raw: unknown): ChatMessage["citations"] => {
  *
  * 1. **Standard / non-agentic** (and `agentic` with `enable_streaming=false`):
  *    chunks have no `event_type`; `delta.content` is concatenated into the
- *    user-facing answer; citations attach on the final chunk.
+ *    user-facing answer; optional `delta.reasoning_content` is captured as a
+ *    single standard RAG reasoning step; citations attach on the final chunk.
  *
  * 2. **Agentic streaming** (PR #512): each chunk carries an `event_type`
  *    that discriminates whether the payload is final-answer text, reasoning
@@ -280,6 +282,10 @@ export const useChatStream = () => {
             }
           } else {
             // Legacy non-agentic chunk: no event_type discriminator.
+            if (reasoningContent) {
+              const step = ensureOpenStep(steps, stage ?? STANDARD_RAG_STAGE);
+              step.reasoning += reasoningContent;
+            }
             if (deltaContent) content += deltaContent;
           }
 

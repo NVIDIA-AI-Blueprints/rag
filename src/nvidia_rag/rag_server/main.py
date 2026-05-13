@@ -48,7 +48,7 @@ from langchain_core.documents import Document
 from langchain_core.output_parsers.string import StrOutputParser
 from langchain_core.prompts import MessagesPlaceholder
 from langchain_core.prompts.chat import ChatPromptTemplate
-from langchain_core.runnables import RunnableAssign
+from langchain_core.runnables import RunnableAssign, RunnablePassthrough
 from opentelemetry import context as otel_context
 from requests import ConnectTimeout
 
@@ -285,6 +285,9 @@ class NvidiaRAG:
         self.vdb_top_k = int(self.config.retriever.vdb_top_k)
         self.StreamingFilterThinkParser = get_streaming_filter_think_parser_async(
             enable_thinking=self.config.llm.parameters.enable_thinking
+        )
+        self.StreamingReasoningParser = get_streaming_filter_think_parser_async(
+            preserve_reasoning_content=True
         )
 
         # Agentic RAG agent/graph — built lazily on the first agentic request.
@@ -1687,8 +1690,8 @@ class NvidiaRAG:
             chain = (
                 prompt_template
                 | llm
-                | self.StreamingFilterThinkParser
-                | StrOutputParser()
+                | self.StreamingReasoningParser
+                | RunnablePassthrough()
             )
             token_usage: dict[str, Any] = {}
             usage_callback = TokenUsageCaptureHandler(token_usage)
@@ -3639,6 +3642,9 @@ class NvidiaRAG:
             logger.info("-" * 80)
 
             chain = prompt | llm | self.StreamingFilterThinkParser | StrOutputParser()
+            streaming_chain = (
+                prompt | llm | self.StreamingReasoningParser | RunnablePassthrough()
+            )
 
             # Check response groundedness when reflection is enabled.
             # Use a separate ReflectionCounter for response groundedness so that
@@ -3770,7 +3776,7 @@ class NvidiaRAG:
                 token_usage_rag: dict[str, Any] = {}
                 usage_callback_rag = TokenUsageCaptureHandler(token_usage_rag)
                 # Create async stream generator (callback captures token usage)
-                stream_gen = chain.astream(
+                stream_gen = streaming_chain.astream(
                     {"question": query, "context": docs},
                     config={
                         "run_name": "llm-stream",

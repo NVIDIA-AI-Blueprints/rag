@@ -54,10 +54,13 @@ The VLM feature uses predefined prompts that can be customized in [`src/nvidia_r
 - **Reasoning mode (default)**: `APP_VLM_ENABLE_THINKING=true`. The model produces a chain-of-thought trace before the final answer. Default parameters: `APP_VLM_TEMPERATURE=0.6`, `APP_VLM_TOP_P=0.95`, `APP_VLM_MAX_TOKENS=32768`, `APP_VLM_THINKING_TOKEN_BUDGET=16384`.
 - **Non-reasoning mode**: `APP_VLM_ENABLE_THINKING=false`. The model skips the reasoning trace and returns only the final answer.
 
-**What reaches the streaming client** is controlled by `VLM_FILTER_THINK_TOKENS` on the rag-server:
+**What reaches the streaming client** is structured by field:
 
-- `VLM_FILTER_THINK_TOKENS=true` (default): only the final answer (`content`) is forwarded; the reasoning trace is consumed server-side and hidden from the client.
-- `VLM_FILTER_THINK_TOKENS=false`: the reasoning trace streams first, followed by the final answer. Useful for debugging or for UIs that want to display the model's thought process.
+- Reasoning is filtered out of user-facing `content` and surfaced in
+  `reasoning_content` when the model emits it.
+- The final answer streams through `content`.
+- `VLM_FILTER_THINK_TOKENS` is retained as a compatibility setting; streamed
+  reasoning is not wrapped or concatenated into `content`.
 
 Set these parameters via environment variables in your deployment configuration (for example in `docker-compose-rag-server.yaml` or Helm `values.yaml`).
 

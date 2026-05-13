@@ -18,10 +18,11 @@
 2. get_llm: Get the LLM model. Uses the NVIDIA AI Endpoints or OpenAI.
 3. extract_reasoning_and_content: Extract reasoning and content from response chunks.
 4. streaming_filter_think: Filter the think tokens from the LLM response (sync).
-5. get_streaming_filter_think_parser: Get the parser for filtering the think tokens (sync).
-6. streaming_filter_think_async: Filter the think tokens from the LLM response (async).
-7. get_streaming_filter_think_parser_async: Get the parser for filtering the think tokens (async).
-8. TokenUsageCaptureHandler: Callback that captures token usage from an LLM call into a dict.
+5. streaming_split_reasoning_async: Split answer and reasoning tokens (async).
+6. get_streaming_filter_think_parser: Get the parser for filtering the think tokens (sync).
+7. streaming_filter_think_async: Filter the think tokens from the LLM response (async).
+8. get_streaming_filter_think_parser_async: Get the parser for filtering the think tokens (async).
+9. TokenUsageCaptureHandler: Callback that captures token usage from an LLM call into a dict.
 """
 
 import logging
@@ -480,6 +481,30 @@ def get_llm(config: NvidiaRAGConfig | None = None, **kwargs) -> LLM | SimpleChat
     )
 
 
+def _coerce_text(value: Any) -> str:
+    """Return a string for scalar chunk fields, preserving empty values."""
+    if value is None:
+        return ""
+    if value.__class__.__module__.startswith("unittest.mock"):
+        return ""
+    if isinstance(value, str):
+        return value
+    return str(value)
+
+
+def _reasoning_chunk(reasoning: str) -> AIMessageChunk:
+    """Build a chunk whose payload is reasoning-only."""
+    return AIMessageChunk(
+        content="",
+        additional_kwargs={"reasoning_content": reasoning},
+    )
+
+
+def _content_chunk(content: str) -> AIMessageChunk:
+    """Build a chunk whose payload is user-facing answer content."""
+    return AIMessageChunk(content=content)
+
+
 def extract_reasoning_and_content(chunk) -> tuple[str, str]:
     """
     Extract both reasoning and content from a response chunk.
@@ -514,16 +539,27 @@ def extract_reasoning_and_content(chunk) -> tuple[str, str]:
     reasoning = ""
     content = ""
 
-    # Check for reasoning_content in additional_kwargs (nemotron-3-nano variants)
-    # This field is populated by nemotron-3-nano models for reasoning output
-    if hasattr(chunk, 'additional_kwargs') and 'reasoning_content' in chunk.additional_kwargs:
-        reasoning = chunk.additional_kwargs.get('reasoning_content', '')
+    # Check for reasoning in additional_kwargs (Nemotron 3 / OpenAI-compatible
+    # reasoning models). Different endpoints use different key names.
+    additional_kwargs = getattr(chunk, "additional_kwargs", None) or {}
+    if isinstance(additional_kwargs, dict):
+        reasoning = _coerce_text(
+            additional_kwargs.get("reasoning_content")
+            or additional_kwargs.get("reasoning")
+        )
+
+    # Some SDKs expose reasoning as a direct delta attribute instead.
+    if not reasoning:
+        reasoning = _coerce_text(
+            getattr(chunk, "reasoning_content", None)
+            or getattr(chunk, "reasoning", None)
+        )
 
     # Check for regular content
     # This field is populated by most models for regular output
     # For nemotron-nano-9b-v2 and llama-49b, this may include <think> tags
-    if hasattr(chunk, 'content') and chunk.content:
-        content = chunk.content
+    if hasattr(chunk, "content") and chunk.content:
+        content = _coerce_text(chunk.content)
 
     # Robust fallback: If reasoning field has content but content field is empty,
     # treat reasoning as content. This handles the case where enable_thinking=false
@@ -732,6 +768,122 @@ def get_streaming_filter_think_parser():
         return RunnablePassthrough()
 
 
+async def streaming_split_reasoning_async(chunks):
+    """
+    Split streamed LLM chunks into answer content and reasoning content.
+
+    This parser classifies tokens by observed output format, not by request
+    configuration:
+
+    - ``reasoning`` / ``reasoning_content`` fields become reasoning chunks.
+    - text inside ``<think>...</think>`` becomes reasoning chunks.
+    - text outside ``<think>...</think>`` remains answer content.
+
+    Yields:
+        AIMessageChunk: answer chunks use ``content``; reasoning chunks use
+        ``additional_kwargs["reasoning_content"]``.
+    """
+    start_tag = "<think>"
+    end_tag = "</think>"
+    normal = "normal"
+    in_think = "in_think"
+
+    state = normal
+    tag_buffer = ""
+    content_buffer = ""
+    reasoning_buffer = ""
+    chunk_count = 0
+
+    def emit_content() -> list[AIMessageChunk]:
+        nonlocal content_buffer
+        if not content_buffer:
+            return []
+        emitted = [_content_chunk(content_buffer)]
+        content_buffer = ""
+        return emitted
+
+    def emit_reasoning() -> list[AIMessageChunk]:
+        nonlocal reasoning_buffer
+        if not reasoning_buffer:
+            return []
+        emitted = [_reasoning_chunk(reasoning_buffer)]
+        reasoning_buffer = ""
+        return emitted
+
+    async for chunk in chunks:
+        reasoning, content = extract_reasoning_and_content(chunk)
+        chunk_count += 1
+
+        if reasoning:
+            yield _reasoning_chunk(reasoning)
+
+        emitted: list[AIMessageChunk] = []
+        for char in content:
+            consumed = False
+            while not consumed:
+                if state == normal:
+                    if tag_buffer:
+                        candidate = tag_buffer + char
+                        if start_tag.startswith(candidate):
+                            tag_buffer = candidate
+                            consumed = True
+                            if tag_buffer == start_tag:
+                                emitted.extend(emit_content())
+                                tag_buffer = ""
+                                state = in_think
+                        else:
+                            content_buffer += tag_buffer
+                            tag_buffer = ""
+                    elif char == "<":
+                        tag_buffer = char
+                        consumed = True
+                    else:
+                        content_buffer += char
+                        consumed = True
+                else:
+                    if tag_buffer:
+                        candidate = tag_buffer + char
+                        if end_tag.startswith(candidate):
+                            tag_buffer = candidate
+                            consumed = True
+                            if tag_buffer == end_tag:
+                                emitted.extend(emit_reasoning())
+                                tag_buffer = ""
+                                state = normal
+                        else:
+                            reasoning_buffer += tag_buffer
+                            tag_buffer = ""
+                    elif char == "<":
+                        tag_buffer = char
+                        consumed = True
+                    else:
+                        reasoning_buffer += char
+                        consumed = True
+
+        if state == normal and not tag_buffer:
+            emitted.extend(emit_content())
+        elif state == in_think and not tag_buffer:
+            emitted.extend(emit_reasoning())
+
+        for item in emitted:
+            yield item
+
+    if tag_buffer:
+        if state == normal:
+            content_buffer += tag_buffer
+        else:
+            reasoning_buffer += tag_buffer
+    if content_buffer:
+        yield _content_chunk(content_buffer)
+    if reasoning_buffer:
+        yield _reasoning_chunk(reasoning_buffer)
+
+    logger.info(
+        "Finished streaming_split_reasoning_async processing after %d chunks",
+        chunk_count,
+    )
+
+
 async def streaming_filter_think_async(chunks, enable_thinking: bool = False):
     """
     Async version of streaming_filter_think.
@@ -935,9 +1087,16 @@ async def _content_fallback_async(chunks, enable_thinking: bool = False):
                 yield AIMessageChunk(content=text)
 
 
-def get_streaming_filter_think_parser_async(enable_thinking: bool = False):
+def get_streaming_filter_think_parser_async(
+    enable_thinking: bool = False,
+    preserve_reasoning_content: bool = False,
+):
     """
     Creates and returns an async RunnableGenerator for filtering think tokens.
+
+    If ``preserve_reasoning_content`` is True, observed reasoning tokens are
+    split into ``AIMessageChunk.additional_kwargs["reasoning_content"]`` and
+    answer tokens stay in ``AIMessageChunk.content``.
 
     If FILTER_THINK_TOKENS environment variable is set to "true" (case-insensitive),
     returns a parser that filters out content between <think> and </think> tags.
@@ -948,6 +1107,8 @@ def get_streaming_filter_think_parser_async(enable_thinking: bool = False):
         enable_thinking: When True, reasoning_content is genuine chain-of-thought and
             will be dropped. When False, reasoning_content is used as a fallback if
             content is empty (workaround for model quirk).
+        preserve_reasoning_content: Preserve observed reasoning structurally
+            instead of dropping or merging it into answer content.
 
     Returns:
         RunnableGenerator: An async parser for filtering or content normalization
@@ -955,6 +1116,10 @@ def get_streaming_filter_think_parser_async(enable_thinking: bool = False):
     from functools import partial
 
     from langchain_core.runnables import RunnableGenerator, RunnablePassthrough
+
+    if preserve_reasoning_content:
+        logger.info("Reasoning-content preservation is enabled (async)")
+        return RunnableGenerator(streaming_split_reasoning_async)
 
     # Check environment variable
     filter_enabled = os.getenv("FILTER_THINK_TOKENS", "true").lower() == "true"

@@ -94,6 +94,50 @@ describe('useChatStream — legacy non-agentic path (regression)', () => {
     expect(last.reasoning_steps).toBeUndefined();
   });
 
+  it('captures standard RAG reasoning_content in the reasoning panel model', async () => {
+    const { last } = await drain([
+      {
+        choices: [
+          {
+            delta: {
+              content: '',
+              reasoning_content: 'I need to inspect the retrieved context. ',
+            },
+          },
+        ],
+        event_type: null,
+        stage: null,
+      },
+      {
+        choices: [
+          {
+            delta: {
+              content: 'The answer is ',
+              reasoning_content: 'The context supports a direct answer.',
+            },
+          },
+        ],
+        event_type: null,
+        stage: null,
+      },
+      {
+        choices: [{ delta: { content: '42.' } }],
+        event_type: null,
+        stage: null,
+      },
+      { choices: [{ delta: {}, finish_reason: 'stop' }] },
+    ]);
+
+    expect(last.content).toBe('The answer is 42.');
+    expect(last.reasoning_steps).toHaveLength(1);
+    expect(last.reasoning_steps?.[0]).toMatchObject({
+      stage: 'rag',
+      reasoning:
+        'I need to inspect the retrieved context. The context supports a direct answer.',
+      status: 'done',
+    });
+  });
+
   it('extracts citations from sources/results without event_type', async () => {
     const { last } = await drain([
       {

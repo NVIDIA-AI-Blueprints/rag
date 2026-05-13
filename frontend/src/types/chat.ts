@@ -58,18 +58,22 @@ export interface ImageContent {
 export type MessageContent = string | (TextContent | ImageContent)[];
 
 /**
- * One node-level entry in the agentic-RAG reasoning trace.
+ * One entry in the streamed reasoning trace.
  *
- * Built incrementally by `useChatStream` from `event_type` chunks of an
- * agentic `/generate` SSE stream. Standard (non-agentic) responses leave
- * `reasoning_steps` undefined.
+ * Built incrementally by `useChatStream` from either agentic `event_type`
+ * chunks or standard RAG chunks that carry `delta.reasoning_content`.
+ * Standard responses without reasoning content leave `reasoning_steps`
+ * undefined.
  *
  * The `stage` is treated as an opaque string (e.g. `"plan"`, `"execute"`,
  * `"synthesize"`, `"verify"`, `"verify_execute"`, `"initial_retrieval"`),
  * so any future graph node renders without code changes.
  */
 export interface ReasoningStep {
-  /** Graph node identifier supplied by the server's `stage` field. */
+  /**
+   * Pipeline stage supplied by the server's `stage` field, or `"rag"` for
+   * standard RAG reasoning.
+   */
   stage: string;
   /** One-liner from the matching `stage_start` chunk. */
   label?: string;
@@ -112,8 +116,8 @@ export interface ChatMessage {
   citations?: Citation[];
   is_error?: boolean;
   /**
-   * Agentic-RAG reasoning trace, populated only when the server emits
-   * `event_type` chunks (see PR #512). Undefined for standard responses.
+   * Reasoning trace, populated when the server emits agentic `event_type`
+   * chunks or standard RAG `delta.reasoning_content` chunks.
    */
   reasoning_steps?: ReasoningStep[];
   /** Trailing-chunk metrics from agentic streaming. */

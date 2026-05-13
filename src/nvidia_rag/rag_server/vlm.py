@@ -38,6 +38,7 @@ from collections.abc import AsyncGenerator
 from logging import getLogger
 from typing import Any
 
+from langchain_core.messages import AIMessageChunk
 from openai import AsyncOpenAI
 from PIL import Image as PILImage
 
@@ -875,7 +876,7 @@ class VLM:
         thinking_token_budget: int | None = None,
         filter_think_tokens: bool | None = None,
         **_: Any,
-    ) -> AsyncGenerator[str, None]:
+    ) -> AsyncGenerator[AIMessageChunk, None]:
         """
         Stream tokens from the VLM asynchronously given full conversation and retrieved context.
         Yields incremental text chunks as they arrive.
@@ -886,8 +887,9 @@ class VLM:
         ``content`` field (final answer). ``VLM_FILTER_THINK_TOKENS`` controls
         what reaches the client:
 
-        - ``true``  (default): forward only ``content`` (reasoning hidden)
-        - ``false``: forward reasoning first, then ``content``
+        Reasoning tokens are filtered out of the user-facing ``content`` stream
+        and forwarded as ``reasoning_content`` metadata chunks. Answer tokens are
+        forwarded as ``content`` chunks.
         """
         if not isinstance(messages, list) or len(messages) == 0:
             logger.warning("No messages provided for VLM streaming.")
@@ -968,11 +970,10 @@ class VLM:
                     "VLM final streaming prompt (images redacted): %s", safe_prompt
                 )
 
-                filter_enabled = eff_filter_think_tokens
                 logger.info(
                     "VLM reasoning streaming: enable_thinking=%s filter=%s",
                     eff_enable_thinking,
-                    filter_enabled,
+                    eff_filter_think_tokens,
                 )
 
                 stream = await client.chat.completions.create(
@@ -987,16 +988,6 @@ class VLM:
                 )
 
                 chunk_count = 0
-                # When filter_enabled=False, wrap each reasoning span with
-                # [reasoning]...[/reasoning] sentinels so clients can structurally
-                # separate chain-of-thought from the final answer. Nemotron Omni
-                # emits reasoning in a separate delta field rather than inline
-                # tags, so without a wrapper the streamed text would have no
-                # boundary between deliberation and answer. Square-bracket markers
-                # are used (instead of HTML-style <reasoning>) because the rag
-                # server's response model sanitises Message.content via bleach,
-                # which strips angle-bracket tags.
-                in_reasoning = False
                 async for chunk in stream:
                     try:
                         # OpenAI emits a final chunk with empty choices and a populated `usage`
@@ -1019,23 +1010,15 @@ class VLM:
                         )
                         content: str = getattr(delta, "content", None) or ""
 
-                        if filter_enabled:
-                            # Only the final answer reaches the client
-                            if content:
-                                yield content
-                        else:
-                            # Both reasoning trace and final answer reach the client,
-                            # with reasoning wrapped in [reasoning]...[/reasoning].
-                            if reasoning:
-                                if not in_reasoning:
-                                    yield "[reasoning]"
-                                    in_reasoning = True
-                                yield reasoning
-                            if content:
-                                if in_reasoning:
-                                    yield "[/reasoning]"
-                                    in_reasoning = False
-                                yield content
+                        if reasoning:
+                            yield AIMessageChunk(
+                                content="",
+                                additional_kwargs={
+                                    "reasoning_content": reasoning,
+                                },
+                            )
+                        if content:
+                            yield AIMessageChunk(content=content)
                     except Exception as e:
                         logger.debug(
                             "Skipping malformed VLM stream chunk at index %s: %r; error: %s",
@@ -1045,13 +1028,6 @@ class VLM:
                             exc_info=True,
                         )
                     chunk_count += 1
-
-                # Close any unterminated reasoning span if the stream ended
-                # before any content delta arrived (e.g. token cap exhausted
-                # while the model was still deliberating).
-                if in_reasoning:
-                    yield "[/reasoning]"
-                    in_reasoning = False
 
                 logger.info("VLM streaming processed %d chunks", chunk_count)
             except Exception as e:
