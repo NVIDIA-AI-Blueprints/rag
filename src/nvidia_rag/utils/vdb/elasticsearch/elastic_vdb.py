@@ -214,11 +214,40 @@ class ElasticVDB(VDBRagIngest):
         self._repair_stale_ingest_refresh_settings()
 
     def close(self) -> None:
-        """Close Elasticsearch transport resources held by this VDB operator."""
+        """Release HTTP and transport resources held by this VDB operator.
+
+        Closes the Elasticsearch transport (which drains the underlying
+        urllib3 connection pool) and best-effort clears the embedding model's
+        pinned last-response handle. Idempotent - safe to call multiple times.
+        Operator must not be used for further operations after close().
+        """
         try:
             self._es_connection.close()
         except Exception:
             logger.debug("Failed to close Elasticsearch connection", exc_info=True)
+
+        # langchain_nvidia_ai_endpoints' _NVIDIAClient pins the most recent
+        # response on `last_response`. One-off embedders should not retain that
+        # response or its transport references after the VDB operator is closed.
+        client = getattr(self._embedding_model, "_client", None)
+        if client is not None:
+            response = getattr(client, "last_response", None)
+            close_response = getattr(response, "close", None)
+            if callable(close_response):
+                try:
+                    close_response()
+                except Exception:
+                    logger.debug(
+                        "Failed to close embedding client response", exc_info=True
+                    )
+
+            for attr in ("last_response", "last_inputs"):
+                try:
+                    setattr(client, attr, None)
+                except Exception:
+                    logger.debug(
+                        "Failed to clear embedding client.%s", attr, exc_info=True
+                    )
 
     @property
     def collection_name(self) -> str:

@@ -127,6 +127,48 @@ class TestElasticVDB(unittest.TestCase):
 
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.Elasticsearch")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.VectorStore")
+    def test_close_releases_es_and_embedding_client_references(
+        self,
+        mock_vector_store,
+        mock_elasticsearch,
+    ):
+        """Test close releases Elasticsearch and pinned embedding response state."""
+        mock_config = Mock()
+        mock_config.embeddings.dimensions = 768
+        mock_config.vector_store.api_key = None
+        mock_config.vector_store.api_key_id = ""
+        mock_config.vector_store.api_key_secret = None
+        mock_config.vector_store.username = ""
+        mock_config.vector_store.password = None
+        mock_config.vector_store.enable_gpu_index = False
+
+        mock_es_connection = Mock()
+        mock_es_connection.options.return_value = mock_es_connection
+        mock_elasticsearch.return_value = mock_es_connection
+
+        mock_response = Mock()
+        mock_client = Mock()
+        mock_client.last_response = mock_response
+        mock_client.last_inputs = {"input": ["query"]}
+        mock_embedding_model = Mock()
+        mock_embedding_model._client = mock_client
+
+        elastic_vdb = ElasticVDB(
+            self.index_name,
+            self.es_url,
+            embedding_model=mock_embedding_model,
+            config=mock_config,
+        )
+
+        elastic_vdb.close()
+
+        mock_es_connection.close.assert_called_once()
+        mock_response.close.assert_called_once()
+        self.assertIsNone(mock_client.last_response)
+        self.assertIsNone(mock_client.last_inputs)
+
+    @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.Elasticsearch")
+    @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.VectorStore")
     def test_check_index_exists(self, mock_vector_store, mock_elasticsearch):
         """Test _check_index_exists method."""
         # Setup mocks
