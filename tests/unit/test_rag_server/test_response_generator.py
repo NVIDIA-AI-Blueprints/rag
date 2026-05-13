@@ -19,6 +19,7 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
+from langchain_core.messages import AIMessageChunk
 from pydantic import ValidationError
 from pymilvus.exceptions import MilvusException, MilvusUnavailableException
 
@@ -831,6 +832,36 @@ class TestGenerateAnswerAsync:
         for chunk in result:
             assert chunk.startswith("data: ")
             assert chunk.endswith("\n\n")
+
+    @pytest.mark.asyncio
+    async def test_generate_answer_async_streams_reasoning_content(self):
+        """Reasoning chunks are serialized in delta.reasoning_content."""
+
+        async def mock_generator():
+            yield AIMessageChunk(
+                content="",
+                additional_kwargs={"reasoning_content": "thinking"},
+            )
+            yield AIMessageChunk(content="answer")
+
+        result = []
+        async for chunk in generate_answer_async(
+            generator=mock_generator(),
+            contexts=[],
+            model="test-model",
+        ):
+            result.append(json.loads(chunk.removeprefix("data: ")))
+
+        token_chunks = [
+            item for item in result if item["choices"][0].get("finish_reason") is None
+        ]
+        assert token_chunks[0]["choices"][0]["delta"]["content"] == ""
+        assert (
+            token_chunks[0]["choices"][0]["delta"]["reasoning_content"]
+            == "thinking"
+        )
+        assert token_chunks[1]["choices"][0]["delta"]["content"] == "answer"
+        assert token_chunks[1]["choices"][0]["delta"]["reasoning_content"] is None
 
     @pytest.mark.asyncio
     async def test_generate_answer_async_no_generator(self):

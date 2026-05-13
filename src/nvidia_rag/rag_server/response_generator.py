@@ -296,11 +296,10 @@ class Message(BaseModel):
     )
     reasoning_content: str | None = Field(
         default=None,
-        description="Reasoning trace or intermediate output from the agentic RAG pipeline. "
-        "Populated for streamed chunks whose ``event_type`` indicates a reasoning/intermediate "
-        "event (stage announcements, intermediate-stage reasoning or output tokens, "
-        "final-stage reasoning tokens). The user-facing answer is always streamed via "
-        "``content`` — this field is purely supplementary.",
+        description="Reasoning trace or intermediate output. Populated for streamed "
+        "reasoning chunks from reasoning-capable models, inline ``<think>`` blocks, "
+        "or agentic RAG events. The user-facing answer is always streamed via "
+        "``content``; this field is supplementary.",
     )
 
     @validator("role")
@@ -451,6 +450,35 @@ def prepare_llm_request(messages: list[dict[str, Any]], **kwargs) -> dict[str, A
     return last_user_message, processed_chat_history
 
 
+def _extract_stream_delta(chunk: Any) -> tuple[str, str]:
+    """Extract answer content and reasoning content from a streamed chunk."""
+    if isinstance(chunk, str):
+        return chunk, ""
+
+    if isinstance(chunk, dict):
+        content = chunk.get("content") or ""
+        reasoning = chunk.get("reasoning_content") or chunk.get("reasoning") or ""
+        return str(content) if content else "", str(reasoning) if reasoning else ""
+
+    content = getattr(chunk, "content", "") or ""
+    additional_kwargs = getattr(chunk, "additional_kwargs", None) or {}
+    reasoning = ""
+    if isinstance(additional_kwargs, dict):
+        reasoning = (
+            additional_kwargs.get("reasoning_content")
+            or additional_kwargs.get("reasoning")
+            or ""
+        )
+    reasoning = (
+        reasoning
+        or getattr(chunk, "reasoning_content", None)
+        or getattr(chunk, "reasoning", None)
+        or ""
+    )
+
+    return str(content) if content else "", str(reasoning) if reasoning else ""
+
+
 def generate_answer(
     generator: "Generator[str]",
     contexts: list[Any],
@@ -497,19 +525,31 @@ def generate_answer(
             llm_generation_time_ms: float | None = None
             accumulated_response = ""  # Track complete response for logging
             for chunk in generator:
-                # Accumulate chunks for final logging
-                accumulated_response += chunk
+                content_delta, reasoning_delta = _extract_stream_delta(chunk)
+                if not content_delta and not reasoning_delta:
+                    continue
+
+                # Accumulate answer chunks for final logging
+                accumulated_response += content_delta
 
                 # TODO: This is a hack to clear contexts if we get an error
                 # response from nemoguardrails
-                if chunk == "I'm sorry, I can't respond to that.":
+                if content_delta == "I'm sorry, I can't respond to that.":
                     # Clear contexts if we get an error response
                     contexts = []
                 chain_response = ChainResponse()
                 response_choice = ChainResponseChoices(
                     index=0,
-                    message=Message(role="assistant", content=chunk),
-                    delta=Message(role=None, content=chunk),
+                    message=Message(
+                        role="assistant",
+                        content=content_delta,
+                        reasoning_content=reasoning_delta or None,
+                    ),
+                    delta=Message(
+                        role=None,
+                        content=content_delta,
+                        reasoning_content=reasoning_delta or None,
+                    ),
                     finish_reason=None,
                 )
                 chain_response.id = resp_id
@@ -690,19 +730,31 @@ async def generate_answer_async(
             llm_generation_time_ms: float | None = None
             accumulated_response = ""  # Track complete response for logging
             async for chunk in generator:
-                # Accumulate chunks for final logging
-                accumulated_response += chunk
+                content_delta, reasoning_delta = _extract_stream_delta(chunk)
+                if not content_delta and not reasoning_delta:
+                    continue
+
+                # Accumulate answer chunks for final logging
+                accumulated_response += content_delta
 
                 # TODO: This is a hack to clear contexts if we get an error
                 # response from nemoguardrails
-                if chunk == "I'm sorry, I can't respond to that.":
+                if content_delta == "I'm sorry, I can't respond to that.":
                     # Clear contexts if we get an error response
                     contexts = []
                 chain_response = ChainResponse()
                 response_choice = ChainResponseChoices(
                     index=0,
-                    message=Message(role="assistant", content=chunk),
-                    delta=Message(role=None, content=chunk),
+                    message=Message(
+                        role="assistant",
+                        content=content_delta,
+                        reasoning_content=reasoning_delta or None,
+                    ),
+                    delta=Message(
+                        role=None,
+                        content=content_delta,
+                        reasoning_content=reasoning_delta or None,
+                    ),
                     finish_reason=None,
                 )
                 chain_response.id = resp_id

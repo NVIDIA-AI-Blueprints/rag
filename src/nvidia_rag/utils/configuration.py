@@ -998,10 +998,9 @@ class VLMConfig(_ConfigBase):
         default=True,
         env="VLM_FILTER_THINK_TOKENS",
         description=(
-            "When True (default) the rag-server forwards only the final answer "
-            "to the client; the VLM's reasoning trace is suppressed. When False, "
-            "reasoning is streamed first wrapped in [reasoning]...[/reasoning] "
-            "sentinels, followed by the answer."
+            "Controls legacy VLM reasoning filtering behavior. Reasoning tokens "
+            "are filtered out of the user-facing content stream and surfaced in "
+            "delta.reasoning_content when the model emits them."
         ),
     )
     api_key: SecretStr | None = Field(

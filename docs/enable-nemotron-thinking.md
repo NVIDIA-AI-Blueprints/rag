@@ -39,7 +39,9 @@ Set the following environment variables on the RAG server container (via Docker 
 : Low-effort reasoning mode for faster, cheaper responses with shorter reasoning. Only used when `LLM_ENABLE_THINKING` is `true`. Default: `false`.
 
 **`FILTER_THINK_TOKENS`**
-: Filter content between `<think>` and `</think>` tags in model responses. Keep `true` for production to return only the final answer. Set `false` to see the full reasoning process. Default: `true`.
+: Filter reasoning out of the user-facing `content` stream. Reasoning emitted
+in `reasoning_content` or inside `<think>...</think>` is surfaced in the
+response's `reasoning_content` field. Default: `true`.
 
 :::{important}
 **Disabling reasoning:** To disable reasoning, set **`LLM_ENABLE_THINKING=false`**. Setting `LLM_REASONING_BUDGET=0` alone does not disable reasoning: when the budget is `0`, the RAG pipeline does not pass it to the LLM, and the model uses its default reasoning behavior. Always set `LLM_ENABLE_THINKING=false` to turn reasoning off.
@@ -116,8 +118,8 @@ The key differences for the 30B model are the following:
 
 - Uses only `max_thinking_tokens` (not `min_thinking_tokens`)
 - Reasoning is available in the model output's `reasoning_content` field (not wrapped in `<think>` tags)
-- The `reasoning_content` field is present in the model output but isn't exposed in the generate API response
-- No filtering is needed because reasoning is already separated from the final answer
+- The `reasoning_content` field is exposed in streamed generate API responses
+- Reasoning is separated from the final answer; clients can decide whether to render it
 :::
 
 ## Enable Reasoning for Nemotron 1.5
@@ -166,13 +168,12 @@ export LLM_TOP_P=0.95
 
 ### Filter Reasoning Tokens
 
-By default, reasoning tokens (shown between `<think>` tags) are filtered out so only the final answer is returned in the model response.
+By default, reasoning tokens (shown between `<think>` tags) are filtered out of
+the user-facing `content` stream and returned in the `reasoning_content` field.
 
-To view the full reasoning process including the `<think>` tags in the model response, use the following code.
-
-```bash
-export FILTER_THINK_TOKENS=false
-```
+Clients that want to render the reasoning process should read
+`choices[].delta.reasoning_content` from the streamed generate response. The
+final answer continues to stream through `choices[].delta.content`.
 
 :::{note}
 For most production use cases, keep `FILTER_THINK_TOKENS=true` (default) to provide cleaner responses to end users.
@@ -224,9 +225,8 @@ The key differences for the 9B model are the following:
 
 
 - Requires both `min_thinking_tokens` and `max_thinking_tokens` parameters
-- Reasoning is available in the model output's `reasoning_content` field (not wrapped in `<think>` tags)
-- The `reasoning_content` field is present in the model output but isn't exposed in the generate API response
-- No filtering is needed because reasoning is already separated from the final answer
+- Reasoning is exposed in streamed generate API responses through the `reasoning_content` field
+- Reasoning is separated from the final answer; clients can decide whether to render it
 :::
 
 ## Deploy with Reasoning Enabled

@@ -18,6 +18,7 @@ import type { ChatMessage, MessageContent as MessageContentType } from "../../ty
 import { useStreamingStore } from "../../store/useStreamingStore";
 import { MessageContent } from "./MessageContent";
 import { StreamingIndicator } from "./StreamingIndicator";
+import { ReasoningPanel } from "./ReasoningPanel";
 import { CitationButton } from "../citations/CitationButton";
 import { 
   Block, 
@@ -93,14 +94,26 @@ const MessageContainer = ({
   </Flex>
 );
 
-const StreamingMessage = ({ content, isError = false }: { content: MessageContentType; isError?: boolean }) => {
-  const textContent = extractTextFromContent(content);
+const StreamingMessage = ({
+  msg,
+  isError = false,
+}: {
+  msg: ChatMessage;
+  isError?: boolean;
+}) => {
+  const textContent = extractTextFromContent(msg.content);
+  const reasoningSteps = msg.reasoning_steps;
   return (
     <MessageContainer role="assistant" isError={isError}>
-      <Flex align="center" gap="2">
-        <MessageContent content={textContent} />
-        {!textContent && <StreamingIndicator />}
-      </Flex>
+      <Stack gap="2">
+        {reasoningSteps && reasoningSteps.length > 0 && (
+          <ReasoningPanel steps={reasoningSteps} streaming />
+        )}
+        <Flex align="center" gap="2">
+          <MessageContent content={textContent} />
+          {!textContent && <StreamingIndicator />}
+        </Flex>
+      </Stack>
     </MessageContainer>
   );
 };
@@ -180,6 +193,9 @@ const RegularMessage = ({ msg }: { msg: ChatMessage }) => {
               ))}
             </Flex>
           )}
+          {msg.role === "assistant" && msg.reasoning_steps && msg.reasoning_steps.length > 0 && (
+            <ReasoningPanel steps={msg.reasoning_steps} />
+          )}
           {/* Always render text content block to maintain structure */}
           <Block>
             <MessageContent content={textContent} />
@@ -208,7 +224,7 @@ export default function ChatMessageBubble({ msg }: ChatMessageBubbleProps) {
   );
 
   if (isThisMessageStreaming) {
-    return <StreamingMessage content={msg.content} isError={msg.is_error} />;
+    return <StreamingMessage msg={msg} isError={msg.is_error} />;
   }
 
   return <RegularMessage msg={msg} />;
