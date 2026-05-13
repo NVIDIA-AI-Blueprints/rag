@@ -168,7 +168,7 @@ To deploy the VLM embedding service with Helm, update the image and model settin
        tag: "1.12.0"
 
    # Optional: disable the default text embedding NIM
-   nvidia-nim-llama-32-nv-embedqa-1b-v2:
+   nvidia-nim-llama-nemotron-embed-1b-v2:
      enabled: false
 
    # Point services to the VLM embedding endpoint and model
@@ -312,7 +312,7 @@ The VLM reranker NIM is defined in [`values.yaml`](../deploy/helm/nvidia-bluepri
      nvidia-nim-llama-nemotron-rerank-vl-1b-v2:
        enabled: true
      # Optional: disable the text reranker NIM to free up its GPU slot
-     nvidia-nim-llama-32-nv-rerankqa-1b-v2:
+     nvidia-nim-llama-nemotron-rerank-1b-v2:
        enabled: false
    ```
 

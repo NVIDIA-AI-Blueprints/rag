@@ -1363,7 +1363,7 @@
             "maxLength": 256,
             "title": "Vlm Model",
             "description": "Name of the VLM model used for inference.",
-            "default": "nvidia/nemotron-nano-12b-v2-vl"
+            "default": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
           },
           "vlm_endpoint": {
             "anyOf": [

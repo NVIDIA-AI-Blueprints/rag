@@ -249,7 +249,7 @@ Original error: Error during NimClient inference [yolox-page-elements, grpc]: [S
 In case you were expecting to use NVIDIA-hosted model for this service, then ensure the corresponding environment variables were set in the same terminal from where you did docker compose up. Following the above example the environment variables which are expected to be set are:
 
 ```output
-   export YOLOX_HTTP_ENDPOINT="https://ai.api.nvidia.com/v1/cv/nvidia/nemoretriever-page-elements-v3"
+   export YOLOX_HTTP_ENDPOINT="https://ai.api.nvidia.com/v1/cv/nvidia/nemotron-page-elements-v3"
    export YOLOX_INFER_PROTOCOL="http"
 ```
 
@@ -309,7 +309,7 @@ If you change the embedding model or dimensions after ingesting documents, you m
 
 
 
-## Error details: [###] Too many open files for llama-3.3-nemotron-super-49b-v1.5 container
+## Error details: [###] Too many open files for nemotron-3-super-120b-a12b container
 source: hyper_util::client::legacy::Error(Connect, ConnectError("dns error", Os { code: 24, kind: Uncategorized, message: "Too many open files" })) })
 
 This error happens because the default number of Open files allowed are 1024 for Containers. Follow the below steps to modify the container configuration to allow more number of open files.
@@ -383,9 +383,9 @@ volumeBindingMode: WaitForFirstConsumer
 If using `local-path` provisioner, it does not support `ReadWriteMany` access mode, which is the default for some NIM Caches.
 **Fix:** Patch the NIMCache resources to use `ReadWriteOnce`:
 ```bash
-kubectl patch nimcache nemoretriever-page-elements-v3 -n rag --type='merge' -p '{"spec":{"storage":{"pvc":{"volumeAccessMode":"ReadWriteOnce"}}}}'
+kubectl patch nimcache nemotron-page-elements-v3 -n rag --type='merge' -p '{"spec":{"storage":{"pvc":{"volumeAccessMode":"ReadWriteOnce"}}}}'
 # Repeat for other affected caches (table-structure-v1, ocr-v1, graphic-elements-v1)
-kubectl delete pvc nemoretriever-page-elements-v3-pvc -n rag --wait=false # Delete pending PVC to trigger recreation
+kubectl delete pvc nemotron-page-elements-v3-pvc -n rag --wait=false # Delete pending PVC to trigger recreation
 ```
 
 ### Ingestor-server out of memory (OOM) with large documents

@@ -803,7 +803,7 @@ nimOperator:
       tag: "1.8.0"
 # -- To switch back to Llama 3.3 Nemotron Super 49B (single GPU), replace the image block above with:
 #    image:
-#      repository: nvcr.io/nim/nvidia/llama-3.3-nemotron-super-49b-v1.5
+#      repository: nvcr.io/nim/nvidia/nemotron-3-super-120b-a12b
 #      pullPolicy: IfNotPresent
 #      tag: "1.14.0"
 # -- and revert resources to 1 GPU and model engine to tensorrt_llm below.
@@ -864,7 +864,7 @@ nimOperator:
       - name: VLLM_USE_FLASHINFER_MOE_FP8
         value: "0"
 # -- To switch back to Llama 3.3 Nemotron Super 49B, replace NIM_SERVED_MODEL_NAME value above with:
-#        value: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+#        value: "nvidia/nemotron-3-super-120b-a12b"
 # -- and remove NIM_ENABLE_CHUNKED_PREFILL/NCCL_NVLS_ENABLE/VLLM_USE_FLASHINFER_MOE_FP8 entries.
     expose:
       service:
@@ -883,9 +883,9 @@ nimOperator:
         failureThreshold: 750
         timeoutSeconds: 5
 
-# subsection: nvidia-nim-llama-32-nv-embedqa-1b-v2
+# subsection: nvidia-nim-llama-nemotron-embed-1b-v2
 # NIM Text Embedding (disabled by default; VLM embedding is the default — see nvidia-nim-llama-nemotron-embed-vl-1b-v2 below)
-  nvidia-nim-llama-32-nv-embedqa-1b-v2:
+  nvidia-nim-llama-nemotron-embed-1b-v2:
     enabled: false
     replicas: 1
     service:
@@ -964,7 +964,7 @@ nimOperator:
         grpcPort: 8001
 # subsection: text-reranking-nim
 # NIM Text Reranking
-  nvidia-nim-llama-32-nv-rerankqa-1b-v2:
+  nvidia-nim-llama-nemotron-rerank-1b-v2:
     enabled: true
     replicas: 1
     service:
@@ -1128,7 +1128,7 @@ nv-ingest:
     OCR_INFER_PROTOCOL: grpc
     OCR_MODEL_NAME: pipeline
 
-    # NeMo Retriever Parse (VLM text extraction)
+    # Nemotron Parse (VLM text extraction)
     NEMOTRON_PARSE_HTTP_ENDPOINT: http://nemotron-parse:8000/v1/chat/completions
     NEMOTRON_PARSE_INFER_PROTOCOL: http
     NEMOTRON_PARSE_MODEL_NAME: nvidia/nemotron-parse

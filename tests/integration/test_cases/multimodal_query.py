@@ -16,7 +16,7 @@ Required Environment Variables:
     APP_EMBEDDINGS_SERVERURL=https://integrate.api.nvidia.com/v1  # or on-prem URL
 
     # VLM Model (for multimodal generation)
-    APP_VLM_MODELNAME=nvidia/nemotron-nano-12b-v2-vl
+    APP_VLM_MODELNAME=nvidia/nemotron-3-nano-omni-30b-a3b-reasoning
     APP_VLM_SERVERURL=https://integrate.api.nvidia.com/v1  # or on-prem URL
     ENABLE_VLM_INFERENCE=true
     VLM_TO_LLM_FALLBACK=false
@@ -54,7 +54,7 @@ Helm Deployment:
             tag: "1.12.0"
 
         # Optional: disable the default text embedding NIM
-        nvidia-nim-llama-32-nv-embedqa-1b-v2:
+        nvidia-nim-llama-nemotron-embed-1b-v2:
           enabled: false
 
         # Disable LLM NIM (VLM handles generation)
@@ -66,7 +66,7 @@ Helm Deployment:
           # VLM inference settings
           ENABLE_VLM_INFERENCE: "true"
           VLM_TO_LLM_FALLBACK: "false"
-          APP_VLM_MODELNAME: "nvidia/nemotron-nano-12b-v2-vl"
+          APP_VLM_MODELNAME: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
           APP_VLM_SERVERURL: "http://nim-vlm:8000/v1"
 
           # VLM embedding settings

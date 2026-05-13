@@ -1252,7 +1252,7 @@ class TestNvidiaRAGPromptProcessingCoverage:
 
         with patch.dict(os.environ, {"ENABLE_NEMOTRON_THINKING": "true"}):
             result = rag._handle_prompt_processing(
-                chat_history, "llama-3.3-nemotron-super-49b-v1", "chat_template"
+                chat_history, "nemotron-3-super-120b-a12b", "chat_template"
             )
 
             assert len(result) == 3

@@ -364,7 +364,7 @@ class TestCheckAllServicesHealth:
         # Ranking config
         config.ranking.enable_reranker = True
         config.ranking.server_url = "http://localhost:8004"
-        config.ranking.model_name = "llama-3.2-nv-rerankqa-1b-v2"
+        config.ranking.model_name = "llama-nemotron-rerank-1b-v2"
 
         # Guardrails config
         config.enable_guardrails = True

@@ -86,7 +86,7 @@ When you install the Helm chart, enable only the following services that are req
 - `rag-server`
 - `ingestor-server`
 - `nv-ingest`
-- `nvidia-nim-llama-32-nv-embedqa-1b-v2`
+- `nvidia-nim-llama-nemotron-embed-1b-v2`
 - `text-reranking-nim`
 - `nim-llm`
 - `milvus`
@@ -118,8 +118,8 @@ helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprin
   --password "${NGC_API_KEY}" \
   --values deploy/helm/nvidia-blueprint-rag/values.yaml \
   --set nimOperator.nim-llm.enabled=true \
-  --set nimOperator.nvidia-nim-llama-32-nv-embedqa-1b-v2.enabled=true \
-  --set nimOperator.nvidia-nim-llama-32-nv-rerankqa-1b-v2.enabled=true \
+  --set nimOperator.nvidia-nim-llama-nemotron-embed-1b-v2.enabled=true \
+  --set nimOperator.nvidia-nim-llama-nemotron-rerank-1b-v2.enabled=true \
   --set ingestor-server.enabled=true \
   --set nv-ingest.enabled=true \
   --set nv-ingest.nimOperator.page_elements.enabled=false \

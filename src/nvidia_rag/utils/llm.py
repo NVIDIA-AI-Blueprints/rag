@@ -512,7 +512,7 @@ def extract_reasoning_and_content(chunk) -> tuple[str, str]:
     Different models handle reasoning differently:
     - nvidia/nvidia-nemotron-nano-9b-v2: Uses <think> tags in content stream
     - nemotron-3-nano variants: Uses separate reasoning_content field
-    - llama-3.3-nemotron-super-49b: Uses <think> tags in content stream (controlled by prompt)
+    - nemotron-3-super-120b-a12b: Uses <think> tags in content stream (controlled by prompt)
 
     This function is designed to be robust and compatible with future changes:
     - Checks both reasoning_content and content fields

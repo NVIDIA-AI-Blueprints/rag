@@ -261,7 +261,7 @@ nvidia-nim-llama-nemotron-embed-vl-1b-v2:
     tag: "1.12.0"
 
 # Optional: disable the default text embedding NIM
-nvidia-nim-llama-32-nv-embedqa-1b-v2:
+nvidia-nim-llama-nemotron-embed-1b-v2:
   enabled: false
 
 # Disable LLM NIM (VLM handles generation)
