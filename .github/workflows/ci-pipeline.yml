@@ -171,7 +171,8 @@ jobs:
     name: Integration Tests
     runs-on: arc-runners-org-nvidia-ai-bp-2-gpu
     # Only run if push to develop OR PR from same repo (not fork) - needs secrets
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' || github.event.pull_request.head.repo.full_name == github.repository
+    # Skip when workflow_dispatch is triggered from feat/nvbase-ci-smoke (nvbase-skill-eval runs instead)
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' || github.event.pull_request.head.repo.full_name == github.repository) && !(github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/feat/nvbase-ci-smoke')
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -973,7 +974,7 @@ jobs:
     name: NV-BASE Tier 3 — RAG Blueprint Skill Eval
     runs-on: arc-runners-org-nvidia-ai-bp-2-gpu
     timeout-minutes: 120
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/feat/nvbase-ci-smoke'
 
     steps:
       - name: Checkout code
