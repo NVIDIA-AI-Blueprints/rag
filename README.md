@@ -103,21 +103,21 @@ This modular design ensures efficient query processing, accurate retrieval of in
 
 - Retriever and Extraction Models
 
-    - [NVIDIA NIM llama-3_2-nv-embedqa-1b-v2](https://build.nvidia.com/nvidia/llama-3_2-nv-embedqa-1b-v2)
-    - [NVIDIA NIM llama-3_2-nv-rerankqa-1b-v2](https://build.nvidia.com/nvidia/llama-3_2-nv-rerankqa-1b-v2)
-    - [NeMo Retriever Page Elements NIM](https://build.nvidia.com/nvidia/nemotron-page-elements-v3)
-    - [NeMo Retriever Table Structure NIM](https://build.nvidia.com/nvidia/nemotron-table-structure-v1)
-    - [NeMo Retriever Graphic Elements NIM](https://build.nvidia.com/nvidia/nemotron-graphic-elements-v1)
-    - [NeMo Retriever OCR NIM](https://build.nvidia.com/nvidia/nemoretriever-ocr)
+    - [NVIDIA NIM llama-nemotron-embed-1b-v2](https://build.nvidia.com/nvidia/llama-nemotron-embed-1b-v2)
+    - [NVIDIA NIM llama-nemotron-rerank-1b-v2](https://build.nvidia.com/nvidia/llama-nemotron-rerank-1b-v2)
+    - [Nemotron Page Elements NIM](https://build.nvidia.com/nvidia/nemotron-page-elements-v3)
+    - [Nemotron Table Structure NIM](https://build.nvidia.com/nvidia/nemotron-table-structure-v1)
+    - [Nemotron Graphic Elements NIM](https://build.nvidia.com/nvidia/nemotron-graphic-elements-v1)
+    - [Nemotron OCR NIM](https://build.nvidia.com/nvidia/nemoretriever-ocr)
 
 - Optional NIMs
 
     - [Llama 3.1 NemoGuard 8B Content Safety NIM](https://build.nvidia.com/nvidia/llama-3_1-nemoguard-8b-content-safety)
     - [Llama 3.1 NemoGuard 8B Topic Control NIM](https://build.nvidia.com/nvidia/llama-3_1-nemoguard-8b-topic-control)
     - [Llama-3.1 Nemotron-nano-12b-v2-vl NIM](https://build.nvidia.com/nvidia/nemotron-nano-12b-v2-vl)
-    - [NeMo Retriever Parse NIM](https://build.nvidia.com/nvidia/nemoretriever-parse)
+    - [Nemotron Parse NIM](https://build.nvidia.com/nvidia/nemotron-parse)
     - [PaddleOCR NIM](https://build.nvidia.com/baidu/paddleocr)
-    - [llama-3.2-nemoretriever-1b-vlm-embed-v1](https://build.nvidia.com/nvidia/llama-3_2-nemoretriever-1b-vlm-embed-v1) (Early Access)
+    - [llama-nemotron-embed-vl-1b-v2](https://build.nvidia.com/nvidia/llama-nemotron-embed-vl-1b-v2)
 
 
  ### Integration and orchestration layer
@@ -225,9 +225,9 @@ Use of the models in this blueprint is governed by the [NVIDIA AI Foundation Mod
 
 ## Terms of Use
 This blueprint is governed by the [NVIDIA Agreements | Enterprise Software | NVIDIA Software License Agreement](https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-software-license-agreement/) and the [NVIDIA Agreements | Enterprise Software | Product Specific Terms for AI Product](https://www.nvidia.com/en-us/agreements/enterprise-software/product-specific-terms-for-ai-products/). The models are governed by the [NVIDIA Agreements | Enterprise Software | NVIDIA Community Model License](https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-community-models-license/) and the [NVIDIA RAG dataset](./data/multimodal/) which is governed by the [NVIDIA Asset License Agreement](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/data/LICENSE.DATA).
-The following models that are built with Llama are governed by the Llama 3.2 Community License Agreement: nvidia/llama-nemotron-embed-1b-v2 and nvidia/llama-nemotron-rerank-1b-v2 and llama-3.2-nemoretriever-1b-vlm-embed-v1.
+The following models that are built with Llama are governed by the Llama 3.2 Community License Agreement: nvidia/llama-nemotron-embed-1b-v2, nvidia/llama-nemotron-rerank-1b-v2, and nvidia/llama-nemotron-embed-vl-1b-v2.
 
 ## Additional Information
 
-The [Llama 3.1 Community License Agreement](https://www.llama.com/llama3_1/license/) for the llama-3.1-nemotron-nano-vl-8b-v1, llama-3.1-nemoguard-8b-content-safety and llama-3.1-nemoguard-8b-topic-control models. The [Llama 3.2 Community License Agreement](https://www.llama.com/llama3_2/license/) for the nvidia/llama-nemotron-embed-1b-v2, nvidia/llama-nemotron-rerank-1b-v2 and llama-3.2-nemoretriever-1b-vlm-embed-v1 models. The [Llama 3.3 Community License Agreement](https://github.com/meta-llama/llama-models/blob/main/models/llama3_3/LICENSE) for the llama-3.3-nemotron-super-49b-v1.5 models. Built with Llama. Apache 2.0 for NVIDIA Ingest and for the nemoretriever-page-elements-v2, nemotron-table-structure-v1, nemotron-graphic-elements-v1, paddleocr and nemoretriever-ocr-v1 models.
+The [Llama 3.1 Community License Agreement](https://www.llama.com/llama3_1/license/) for the llama-3.1-nemotron-nano-vl-8b-v1, llama-3.1-nemoguard-8b-content-safety and llama-3.1-nemoguard-8b-topic-control models. The [Llama 3.2 Community License Agreement](https://www.llama.com/llama3_2/license/) for the nvidia/llama-nemotron-embed-1b-v2, nvidia/llama-nemotron-rerank-1b-v2 and nvidia/llama-nemotron-embed-vl-1b-v2 models. The [Llama 3.3 Community License Agreement](https://github.com/meta-llama/llama-models/blob/main/models/llama3_3/LICENSE) for the llama-3.3-nemotron-super-49b-v1.5 models. Built with Llama. Apache 2.0 for NVIDIA Ingest and for the nemotron-page-elements-v3, nemotron-table-structure-v1, nemotron-graphic-elements-v1, nemotron-parse, paddleocr and nemoretriever-ocr-v1 models.
 

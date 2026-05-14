@@ -62,7 +62,7 @@ embeddings:
 
 # Ranking Configuration
 ranking:
-  model_name: "nvidia/llama-3.2-nv-rerankqa-1b-v2"  # Model for reranking retrieved documents
+  model_name: "nvidia/llama-nemotron-rerank-1b-v2"  # Model for reranking retrieved documents
   server_url: "http://localhost:1976"  # URL endpoint for reranking service (on-prem NIM default)
   enable_reranker: true  # Enable reranking of retrieved documents before generation
   # api_key: ""  # Optional: API key for reranking (overrides NVIDIA_API_KEY environment variable)
