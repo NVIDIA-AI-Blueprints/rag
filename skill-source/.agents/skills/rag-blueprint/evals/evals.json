@@ -1,7 +1,7 @@
 [
   {
     "id": "rag-blueprint-deploy-nvidia-hosted",
-    "question": "Use the rag-blueprint skill to deploy NVIDIA RAG Blueprint via Docker Compose in NVIDIA-hosted mode (cloud NIMs). Source deploy/compose/nvdev.env, then start the vector DB, ingestor server, and rag server (with frontend) so all containers reach the Up state. Do not start any local NIM containers (nims.yaml) — all model inference must use the cloud endpoint at integrate.api.nvidia.com. The repo is at /home/faaranm/dfw/ragbp/rag.",
+    "question": "Use the rag-blueprint skill to deploy NVIDIA RAG Blueprint via Docker Compose in NVIDIA-hosted mode (cloud NIMs). Source deploy/compose/nvdev.env, then start the vector DB, ingestor server, and rag server (with frontend) so all containers reach the Up state. Do not start any local NIM containers (nims.yaml) — all model inference must use the cloud endpoint at integrate.api.nvidia.com. The eval is launched from inside the repository checkout; use git rev-parse --show-toplevel if you need the absolute repo path.",
     "expected_skill": "rag-blueprint",
     "expected_script": null,
     "ground_truth": "The RAG stack is deployed via Docker Compose in NVIDIA-hosted mode. The five core containers (rag-server, ingestor-server, milvus-standalone, milvus-etcd, milvus-minio) are running. No local NIM containers (nim-llm, nemoretriever-embedding-ms, nemoretriever-ranking-ms) were started. APP_LLM_SERVERURL inside rag-server is either empty or points at integrate.api.nvidia.com.",

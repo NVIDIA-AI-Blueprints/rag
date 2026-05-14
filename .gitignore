@@ -84,5 +84,6 @@ tests/data/
 /.agents/
 /.claude/
 skills-lock.json
+skill-source/.agents/skills/rag-blueprint/evals/results/
 
 # Workbench Project Layout
