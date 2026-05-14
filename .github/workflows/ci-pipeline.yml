@@ -163,6 +163,28 @@ jobs:
         run: |
           python ci/check_markdown_links.py --root . --no-external
 
+  nvbase-tier1:
+    name: NV-BASE Tier 1 — Static & Security
+    runs-on: arc-runners-org-nvidia-ai-bp-2-gpu
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' || github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install NV-BASE
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          export PATH="$HOME/.local/bin:$HOME/.local/share/uv/tools/nv-base/bin:$PATH"
+          uv tool install nv-base \
+            --index https://urm.nvidia.com/artifactory/api/pypi/nv-shared-pypi/simple
+
+      - name: Validate skill schema and security
+        run: |
+          export PATH="$HOME/.local/share/uv/tools/nv-base/bin:$PATH"
+          nv-base validate ./skill-source/.agents/skills/rag-blueprint \
+            --no-dedup \
+            --fail-fast
+
   # ============================================================================
   # INTEGRATION TESTS STAGE
   # ============================================================================
