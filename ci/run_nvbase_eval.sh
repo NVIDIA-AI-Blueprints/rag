@@ -77,6 +77,9 @@ echo "==> Apply CLAUDE_CODE_DISABLE_THINKING patch (KI-001)"
 python3 ci/patch_nvbase.py
 
 echo "==> Docker login to nvcr.io"
+# Use a temp Docker config dir so we don't touch the runner's existing credential helper
+export DOCKER_CONFIG=$(mktemp -d)
+echo '{"credsStore":""}' > "$DOCKER_CONFIG/config.json"
 echo "$NGC_API_KEY" | docker login nvcr.io -u '$oauthtoken' --password-stdin
 
 echo "==> Strip allowed-tools from SKILL.md for headless eval (RAG-023)"
