@@ -307,19 +307,19 @@ def test_compose_helm_image_and_env_parity():
             "nemotron-embedding-ms": {
                 "values_image_repo_path": [
                     "nimOperator",
-                    "nvidia-nim-llama-32-nv-embedqa-1b-v2",
+                    "nvidia-nim-llama-nemotron-embed-1b-v2",
                     "image",
                     "repository",
                 ],
                 "values_image_tag_path": [
                     "nimOperator",
-                    "nvidia-nim-llama-32-nv-embedqa-1b-v2",
+                    "nvidia-nim-llama-nemotron-embed-1b-v2",
                     "image",
                     "tag",
                 ],
                 "requires_ngc_api_key_path": [
                     "nimOperator",
-                    "nvidia-nim-llama-32-nv-embedqa-1b-v2",
+                    "nvidia-nim-llama-nemotron-embed-1b-v2",
                     "nim",
                     "ngcAPIKey",
                 ],
@@ -327,19 +327,19 @@ def test_compose_helm_image_and_env_parity():
             "nemotron-ranking-ms": {
                 "values_image_repo_path": [
                     "nimOperator",
-                    "nvidia-nim-llama-32-nv-rerankqa-1b-v2",
+                    "nvidia-nim-llama-nemotron-rerank-1b-v2",
                     "image",
                     "repository",
                 ],
                 "values_image_tag_path": [
                     "nimOperator",
-                    "nvidia-nim-llama-32-nv-rerankqa-1b-v2",
+                    "nvidia-nim-llama-nemotron-rerank-1b-v2",
                     "image",
                     "tag",
                 ],
                 "requires_ngc_api_key_path": [
                     "nimOperator",
-                    "nvidia-nim-llama-32-nv-rerankqa-1b-v2",
+                    "nvidia-nim-llama-nemotron-rerank-1b-v2",
                     "nim",
                     "ngcAPIKey",
                 ],

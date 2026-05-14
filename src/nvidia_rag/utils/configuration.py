@@ -345,9 +345,9 @@ class NvIngestConfig(_ConfigBase):
     )
 
     ocr_invoke_url: str | None = Field(
-        default="https://ai.api.nvidia.com/v1/cv/nvidia/nemoretriever-ocr-v1",
+        default="https://ai.api.nvidia.com/v1/cv/nvidia/nemotron-ocr-v1",
         env="APP_NVINGEST_OCRURL",
-        description="Invoke URL for the OCR NIM (e.g. https://ai.api.nvidia.com/v1/cv/nvidia/nemoretriever-ocr-v1)",
+        description="Invoke URL for the OCR NIM (e.g. https://ai.api.nvidia.com/v1/cv/nvidia/nemotron-ocr-v1)",
     )
 
     table_structure_invoke_url: str | None = Field(

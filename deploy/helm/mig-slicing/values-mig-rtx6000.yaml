@@ -89,7 +89,7 @@ nimOperator:
       gpus:
         - product: "rtx6000_blackwell_sv"
   # Embedding - uses 1g.24gb
-  nvidia-nim-llama-32-nv-embedqa-1b-v2:
+  nvidia-nim-llama-nemotron-embed-1b-v2:
     resources:
       limits:
         nvidia.com/gpu: "0"
@@ -101,7 +101,7 @@ nimOperator:
         pvc:
           storageClass: ""
   # Reranking - uses 1g.24gb
-  nvidia-nim-llama-32-nv-rerankqa-1b-v2:
+  nvidia-nim-llama-nemotron-rerank-1b-v2:
     resources:
       limits:
         nvidia.com/gpu: "0"

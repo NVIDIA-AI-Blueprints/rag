@@ -125,8 +125,8 @@ To deploy the RAG Blueprint on OpenShift, use the following procedure.
       --set imagePullSecret.password="$NGC_API_KEY" \
       --set ngcApiSecret.password="$NGC_API_KEY" \
       --set-json 'nimOperator.nim-llm.tolerations=[{"key":"gpu-taint","operator":"Exists","effect":"NoSchedule"}]' \
-      --set-json 'nimOperator.nvidia-nim-llama-32-nv-embedqa-1b-v2.tolerations=[{"key":"gpu-taint","operator":"Exists","effect":"NoSchedule"}]' \
-      --set-json 'nimOperator.nvidia-nim-llama-32-nv-rerankqa-1b-v2.tolerations=[{"key":"gpu-taint","operator":"Exists","effect":"NoSchedule"}]' \
+      --set-json 'nimOperator.nvidia-nim-llama-nemotron-embed-1b-v2.tolerations=[{"key":"gpu-taint","operator":"Exists","effect":"NoSchedule"}]' \
+      --set-json 'nimOperator.nvidia-nim-llama-nemotron-rerank-1b-v2.tolerations=[{"key":"gpu-taint","operator":"Exists","effect":"NoSchedule"}]' \
       --set-json 'nv-ingest.nimOperator.ocr.tolerations=[{"key":"gpu-taint","operator":"Exists","effect":"NoSchedule"}]' \
       --set-json 'nv-ingest.nimOperator.page_elements.tolerations=[{"key":"gpu-taint","operator":"Exists","effect":"NoSchedule"}]' \
       --timeout 15m
@@ -163,7 +163,7 @@ To deploy the RAG Blueprint on OpenShift, use the following procedure.
     ```sh
     NAME                                          READY   STATUS    AGE
     ingestor-server-xxxxxxxxx-xxxxx               1/1     Running   5m
-    milvus-standalone-xxxxxxxxx-xxxxx             1/1     Running   5m
+    rag-eck-elasticsearch-es-default-0            1/1     Running   5m
     nemotron-embedding-ms-xxxxxxxxx-xxxxx         1/1     Running   10m
     nemotron-ocr-v1-xxxxxxxxx-xxxxx               1/1     Running   10m
     nemotron-page-elements-v3-xxxxxxxxx-xxxxx     1/1     Running   10m

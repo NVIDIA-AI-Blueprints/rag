@@ -59,14 +59,16 @@ Use the following procedure to start all containers needed for this blueprint.
    ```
 
 
-2. Start the vector db containers from the repo root.
+2. Persistent data (Elasticsearch, SeaweedFS, Milvus/etcd, LanceDB, and the ingestor-server scratch dir) is stored in dedicated `rag-vol-*` Docker named volumes, which Docker Compose creates automatically the first time you bring the stack up. For inspection, backup, and reset commands — and for migrating data from the legacy `deploy/compose/volumes/` host directory — see [Manage Persistent Data Volumes](troubleshooting.md#manage-persistent-data-volumes) in the troubleshooting guide.
+
+3. Start the vector db containers from the repo root.
 
    ```bash
    docker compose -f deploy/compose/vectordb.yaml up -d
    ```
 
 
-3. Start the ingestion containers from the repo root. This pulls the prebuilt containers from NGC and deploys it on your system.
+4. Start the ingestion containers from the repo root. This pulls the prebuilt containers from NGC and deploys it on your system.
 
    ```bash
    docker compose -f deploy/compose/docker-compose-ingestor-server.yaml up -d
@@ -127,7 +129,7 @@ Use the following procedure to start all containers needed for this blueprint.
     ```
 
 
-4. Start the rag containers from the repo root. This pulls the prebuilt containers from NGC and deploys it on your system.
+5. Start the rag containers from the repo root. This pulls the prebuilt containers from NGC and deploys it on your system.
 
    ```bash
    docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d
@@ -173,7 +175,7 @@ Use the following procedure to start all containers needed for this blueprint.
     ```
 
 
-5. Check the status of the deployment by running the following code.
+6. Check the status of the deployment by running the following code.
 
    ```bash
    docker ps --format "table {{.ID}}\t{{.Names}}\t{{.Status}}"
@@ -188,9 +190,8 @@ Use the following procedure to start all containers needed for this blueprint.
    compose-redis-1                         Up 5 minutes
    rag-frontend                            Up 9 minutes
    rag-server                              Up 9 minutes
-   milvus-standalone                       Up 36 minutes (healthy)
+   elasticsearch                           Up 36 minutes (healthy)
    seaweedfs                               Up 35 minutes (healthy)
-   milvus-etcd                             Up 35 minutes (healthy)
    ```
 
 

@@ -99,7 +99,7 @@ After starting your ingestion containers, verify these core services are healthy
 **Required Core Services:**
 - `ingestor-server` (Port 8082) - Main ingestion API
 - `nv-ingest-ms-runtime` (Port 7670) - Document processing engine
-- `milvus` (Port 19530) - Vector database
+- `elasticsearch` (Port 9200) - Vector database
 - `redis` (Port 6379) - Task queue
 
 ### 2. Verify Container Status After Deployment
@@ -109,7 +109,7 @@ After starting your ingestion containers, verify these core services are healthy
 docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 
 # Check specifically for ingestion-related containers
-docker ps | grep -E "(ingestor-server|nv-ingest|nemoretriever-embedding|milvus|redis)"
+docker ps | grep -E "(ingestor-server|nv-ingest|nemoretriever-embedding|elasticsearch|redis)"
 ```
 
    *Example Output*
@@ -121,9 +121,8 @@ docker ps | grep -E "(ingestor-server|nv-ingest|nemoretriever-embedding|milvus|r
    compose-redis-1                         Up 5 minutes
    rag-frontend                            Up 9 minutes
    rag-server                              Up 9 minutes
-   milvus-standalone                       Up 36 minutes (healthy)
+   elasticsearch                           Up 36 minutes (healthy)
    seaweedfs                               Up 35 minutes (healthy)
-   milvus-etcd                             Up 35 minutes (healthy)
    nemotron-ranking-ms                Up 38 minutes (healthy)
    compose-page-elements-1                 Up 38 minutes
    compose-nemotron-ocr-1             Up 38 minutes
@@ -172,7 +171,7 @@ After starting your RAG containers, verify these core services are healthy:
 
 **Required Core Services:**
 - `rag-server` (Port 8081) - Main RAG API orchestrator
-- `milvus` (Port 19530) - Vector database
+- `elasticsearch` (Port 9200) - Vector database
 
 ### 2. Test Retrieval Service Health
 
@@ -235,11 +234,11 @@ docker logs nemotron-embedding-ms --tail 100
 
 **Vector Database Connection Issues:**
 ```bash
-# Check Milvus connectivity
-curl -X GET "http://localhost:9091/healthz"
+# Check Elasticsearch cluster health
+curl -s "http://localhost:9200/_cluster/health?pretty"
 
-# Check Milvus logs for database errors
-docker logs milvus-standalone --tail 50
+# Check Elasticsearch logs for database errors
+docker logs elasticsearch --tail 50
 ```
 
 **Embedding Service Issues:**
@@ -314,10 +313,11 @@ docker logs -f nim-llm-ms
 
 **Vector Search Issues:**
 
-Delete the existing volumes directory and retry.
+Wipe the `rag-vol-*` Docker named volumes and retry. This deletes all persisted state (vectors, object store, etcd, LanceDB, ingestor scratch) — see [Manage Persistent Data Volumes](troubleshooting.md#manage-persistent-data-volumes) for selective wipes if you only need to reset one service.
 
 ```bash
-sudo rm -rf deploy/compose/volumes
+docker compose -f deploy/compose/vectordb.yaml down
+docker volume ls -q --filter "name=^rag-vol-" | xargs -r docker volume rm
 ```
 
 ## How to Enable Advanced Debugging

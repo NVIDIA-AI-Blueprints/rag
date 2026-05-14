@@ -15,7 +15,7 @@ services:
       MINIO_ADDRESS: seaweedfs:9010
       KNOWHERE_GPU_MEM_POOL_SIZE: 2048;4096
     volumes:
-      - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/milvus:/var/lib/milvus
+      - rag-vol-milvus:/var/lib/milvus
       # - ${MILVUS_CONFIG_FILE:-./milvus.yaml}:/milvus/configs/milvus.yaml
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
@@ -51,7 +51,7 @@ services:
       - ETCD_QUOTA_BACKEND_BYTES=4294967296
       - ETCD_SNAPSHOT_COUNT=50000
     volumes:
-      - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/etcd:/etcd
+      - rag-vol-etcd:/etcd
     command: etcd -advertise-client-urls=http://127.0.0.1:2379 -listen-client-urls http://0.0.0.0:2379 --data-dir /etcd
     healthcheck:
       test: ["CMD", "etcdctl", "endpoint", "health"]
@@ -70,7 +70,7 @@ services:
       - "9011:9011"
       - "9010:9010"
     volumes:
-      - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/seaweedfs:/data
+      - rag-vol-seaweedfs:/data
       - ../../deploy/compose/seaweedfs-config/s3.json:/etc/seaweedfs/s3.json:ro
     command:
       - server
@@ -91,10 +91,8 @@ services:
     image: "docker.elastic.co/elasticsearch/elasticsearch:9.3.0"
     ports:
       - 9200:9200
-    # Omit bind-mount in CI: avoids host permission issues; data is ephemeral per run.
-    # For persistent local data, uncomment and chown the directory to uid 1000.
-    # volumes:
-    #   - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/elasticsearch:/usr/share/elasticsearch/data
+    volumes:
+      - rag-vol-elasticsearch:/usr/share/elasticsearch/data
     restart: on-failure
     environment:
       - discovery.type=single-node
@@ -113,6 +111,17 @@ services:
       timeout: 1s
       retries: 10
     profiles: ["", "elasticsearch"]
+
+# Per-service named Docker volumes — mirror the production layout in deploy/compose/vectordb.yaml.
+volumes:
+  rag-vol-milvus:
+    name: rag-vol-milvus
+  rag-vol-etcd:
+    name: rag-vol-etcd
+  rag-vol-seaweedfs:
+    name: rag-vol-seaweedfs
+  rag-vol-elasticsearch:
+    name: rag-vol-elasticsearch
 
 networks:
   default:

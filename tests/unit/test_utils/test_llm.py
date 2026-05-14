@@ -806,11 +806,16 @@ class TestLLMIntegration:
             mock_config = Mock()
             mock_config.llm.model_engine = "nvidia-ai-endpoints"
             mock_config.llm.get_api_key.return_value = "test-api-key"
+            mock_config.llm.parameters.enable_thinking = False
+            mock_config.llm.parameters.reasoning_budget = 0
+            mock_config.llm.parameters.low_effort = False
+            mock_config.llm.parameters.min_thinking_tokens = 0
+            mock_config.llm.parameters.max_thinking_tokens = 0
             mock_config.enable_guardrails = False
             mock_config_class.return_value = mock_config
 
             kwargs = {
-                "model": "nvidia/llama-3.3-nemotron-super-49b-v1.5",
+                "model": "nvidia/nemotron-3-super-120b-a12b",
                 "llm_endpoint": "http://localhost:8000",
                 "temperature": 0.7,
                 "top_p": 0.9,
@@ -869,11 +874,16 @@ class TestLLMIntegration:
             mock_config = Mock()
             mock_config.llm.model_engine = "nvidia-ai-endpoints"
             mock_config.llm.get_api_key.return_value = "test-api-key"
+            mock_config.llm.parameters.enable_thinking = False
+            mock_config.llm.parameters.reasoning_budget = 0
+            mock_config.llm.parameters.low_effort = False
+            mock_config.llm.parameters.min_thinking_tokens = 0
+            mock_config.llm.parameters.max_thinking_tokens = 0
             mock_config.enable_guardrails = False
             mock_config_class.return_value = mock_config
 
             kwargs = {
-                "model": "nvidia/llama-3.3-nemotron-super-49b-v1.5",
+                "model": "nvidia/nemotron-3-super-120b-a12b",
                 "llm_endpoint": "",
                 "temperature": 0.7,
                 "top_p": 0.9,

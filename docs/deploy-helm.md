@@ -291,9 +291,9 @@ kubectl delete pvc --all -n rag
 
     - **NIM LLM** – To enable persistence for NIM LLM, refer to [NIM LLM](https://docs.nvidia.com/nim/large-language-models/latest/deploy-helm.html#storage). Update the required fields in the `nim-llm` section of the [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) file.
 
-    - **Nemo Retriever** – To enable persistence for Nemo Retriever embedding, refer to [Nemo Retriever Text Embedding](https://docs.nvidia.com/nim/nemo-retriever/text-embedding/latest/deploying.html#storage). Update the required fields in the `nvidia-nim-llama-32-nv-embedqa-1b-v2` section of the [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) file.
+    - **Nemo Retriever** – To enable persistence for Nemo Retriever embedding, refer to [Nemo Retriever Text Embedding](https://docs.nvidia.com/nim/nemo-retriever/text-embedding/latest/deploying.html#storage). Update the required fields in the `nvidia-nim-llama-nemotron-embed-1b-v2` section of the [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) file.
 
-    - **Nemo Retriever reranking** – To enable persistence for Nemo Retriever reranking, refer to [Nemo Retriever Text Reranking](https://docs.nvidia.com/nim/nemo-retriever/text-reranking/latest/deploying.html#storage). Update the required fields in the `nvidia-nim-llama-32-nv-rerankqa-1b-v2` section of the [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) file.
+    - **Nemo Retriever reranking** – To enable persistence for Nemo Retriever reranking, refer to [Nemo Retriever Text Reranking](https://docs.nvidia.com/nim/nemo-retriever/text-reranking/latest/deploying.html#storage). Update the required fields in the `nvidia-nim-llama-nemotron-rerank-1b-v2` section of the [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) file.
 
 2. Run the code in [Change a Deployment](#change-a-deployment).
 

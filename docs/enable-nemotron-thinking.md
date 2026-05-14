@@ -122,9 +122,9 @@ The key differences for the 30B model are the following:
 - Reasoning is separated from the final answer; clients can decide whether to render it
 :::
 
-## Enable Reasoning for Nemotron 1.5
+## Enable Reasoning for Nemotron 3 Super
 
-Reasoning in Nemotron 1.5 models (such as `nvidia/llama-3.3-nemotron-super-49b-v1.5`) is controlled through system prompts. The model switches between reasoning and non-reasoning modes using `/think` and `/no_think` directives.
+Reasoning in Nemotron 3 Super models (such as `nvidia/nemotron-3-super-120b-a12b`) is controlled through system prompts. The model switches between reasoning and non-reasoning modes using `/think` and `/no_think` directives.
 
 ### Update the System Prompt
 

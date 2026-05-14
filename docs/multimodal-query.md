@@ -226,9 +226,8 @@ ingestor-server                         Up 5 minutes
 compose-redis-1                         Up 5 minutes
 rag-frontend                            Up 9 minutes
 rag-server                              Up 9 minutes
-milvus-standalone                       Up 36 minutes (healthy)
+elasticsearch                           Up 36 minutes (healthy)
 seaweedfs                               Up 35 minutes (healthy)
-milvus-etcd                             Up 35 minutes (healthy)
 ```
 
 
@@ -262,7 +261,7 @@ nvidia-nim-llama-nemotron-embed-vl-1b-v2:
     tag: "1.12.0"
 
 # Optional: disable the default text embedding NIM
-nvidia-nim-llama-32-nv-embedqa-1b-v2:
+nvidia-nim-llama-nemotron-embed-1b-v2:
   enabled: false
 
 # Disable LLM NIM (VLM handles generation)

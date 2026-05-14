@@ -645,7 +645,7 @@ class RunConfig(BaseModel):
             "When empty, aiperf defaults to server-reported token counts. "
             "Set this when the HF tokenizer repo differs from the inference model name "
             "(e.g. 'meta-llama/Llama-3.3-70B-Instruct' for a NIM served as "
-            "'nvidia/llama-3.3-nemotron-super-49b-v1.5')."
+            "'nvidia/nemotron-3-super-120b-a12b')."
         ),
     )
 

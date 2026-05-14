@@ -215,7 +215,7 @@ Use this procedure to change models when you are running self-hosted NVIDIA NIM 
             value: "<llm-model-name>"  # Must match APP_LLM_MODELNAME
 
     # Embedding NIM
-    nvidia-nim-llama-32-nv-embedqa-1b-v2:
+    nvidia-nim-llama-nemotron-embed-1b-v2:
       enabled: true
       replicas: 1
       service:
@@ -237,7 +237,7 @@ Use this procedure to change models when you are running self-hosted NVIDIA NIM 
           value: "1"
 
     # Reranker NIM
-    nvidia-nim-llama-32-nv-rerankqa-1b-v2:
+    nvidia-nim-llama-nemotron-rerank-1b-v2:
       enabled: true
       replicas: 1
       service:
@@ -340,7 +340,7 @@ ingestor-server:
     APP_EMBEDDINGS_MODELNAME: "nvidia/llama-nemotron-embed-1b-v2"
 ```
 
-The text-only embedding NIM (`nvidia-nim-llama-32-nv-embedqa-1b-v2` under `nimOperator`) is already configured in `values.yaml`; no image swap is required. Apply with [Change a Deployment](deploy-helm.md#change-a-deployment).
+The text-only embedding NIM (`nvidia-nim-llama-nemotron-embed-1b-v2` under `nimOperator`) is already configured in `values.yaml`; no image swap is required. Apply with [Change a Deployment](deploy-helm.md#change-a-deployment).
 
 :::{warning}
 **Re-ingest after switching.** Vectors produced by the VLM embedder are not directly comparable to vectors from the text-only embedder; retrieval accuracy will degrade until you re-ingest your corpus.
@@ -389,7 +389,7 @@ The default reranker is the text reranker `nvidia/llama-nemotron-rerank-1b-v2`. 
      nvidia-nim-llama-nemotron-rerank-vl-1b-v2:
        enabled: true
      # Optional: free the text reranker's GPU slot
-     nvidia-nim-llama-32-nv-rerankqa-1b-v2:
+     nvidia-nim-llama-nemotron-rerank-1b-v2:
        enabled: false
    ```
 

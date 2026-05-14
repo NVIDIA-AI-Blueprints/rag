@@ -35,9 +35,7 @@ def test_compose_vectordb_uses_seaweedfs_with_persistent_data_dir():
         "-s3.config=/etc/seaweedfs/s3.json",
         "-master.volumeSizeLimitMB=1024",
     ]
-    assert (
-        "${DOCKER_VOLUME_DIRECTORY:-.}/volumes/seaweedfs:/data" in seaweedfs["volumes"]
-    )
+    assert "rag-vol-seaweedfs:/data" in seaweedfs["volumes"]
     assert (
         "./seaweedfs-config/s3.json:/etc/seaweedfs/s3.json:ro" in seaweedfs["volumes"]
     )

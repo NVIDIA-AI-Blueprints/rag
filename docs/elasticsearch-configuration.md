@@ -66,16 +66,7 @@ deploy:
           device_ids: ["${VECTORSTORE_GPU_DEVICE_ID:-0}"]
 ```
 
-#### 4. Set Up Data Volume Permissions
-
-Elasticsearch data is bind-mounted under `deploy/compose/volumes/elasticsearch`. Ensure the directory exists and is owned by UID/GID 1000:1000:
-
-```bash
-sudo mkdir -p deploy/compose/volumes/elasticsearch/
-sudo chown -R 1000:1000 deploy/compose/volumes/elasticsearch/
-```
-
-#### 5. Start Elasticsearch
+#### 4. Start Elasticsearch
 
 Bring up the Elasticsearch container:
 
@@ -83,7 +74,7 @@ Bring up the Elasticsearch container:
 docker compose -f deploy/compose/vectordb.yaml up -d
 ```
 
-#### 6. Apply the Elastic License
+#### 5. Apply the Elastic License
 
 Once Elasticsearch is reachable on port 9200, install the license file:
 
@@ -101,7 +92,7 @@ curl -X GET "http://localhost:9200/_license"
 
 Confirm the response shows an **Enterprise** (or applicable) tier with an active license state.
 
-#### 7. Enable GPU Indexing in the Ingestor Server
+#### 6. Enable GPU Indexing in the Ingestor Server
 
 Set `APP_VECTORSTORE_ENABLEGPUINDEX=True` before starting the ingestor server. This enables the GPU index strategy (`int8_hnsw`) used during document ingestion:
 

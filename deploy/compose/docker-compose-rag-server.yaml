@@ -15,7 +15,9 @@ services:
     volumes:
       # Mount the prompt.yaml file to the container, path should be absolute
       - ${PROMPT_CONFIG_FILE}:${PROMPT_CONFIG_FILE}
-      - ${LANCEDB_VOLUME_MOUNT:-./volumes/lancedb}:/volumes/lancedb
+      # LanceDB data is shared with the ingestor-server via the `rag-vol-lancedb`
+      # named Docker volume (auto-created on first `docker compose up`).
+      - rag-vol-lancedb:/volumes/lancedb
     # Common customizations to the pipeline can be controlled using env variables
     environment:
       # Path to example directory relative to root
@@ -279,6 +281,13 @@ services:
       VITE_API_VDB_URL: ${VITE_API_VDB_URL:-http://ingestor-server:8082/v1}
     depends_on:
       - rag-server
+
+# Shared LanceDB volume — the same physical Docker volume mounted by
+# docker-compose-ingestor-server.yaml. Explicit `name:` bypasses the compose
+# project prefix so both files resolve to the same volume on the host.
+volumes:
+  rag-vol-lancedb:
+    name: rag-vol-lancedb
 
 networks:
   default:

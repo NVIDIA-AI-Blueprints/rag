@@ -24,16 +24,7 @@ Use this section as a map to the topics below.
 
 - **Port** – Elasticsearch listens on port 9200 by default. Ensure it is available or adjust your configuration.
 
-- **Folder permissions (Docker Compose)** – Elasticsearch data is stored under `volumes/elasticsearch`. Create the directory and set ownership if required:
-
-    ```bash
-    sudo mkdir -p deploy/compose/volumes/elasticsearch/
-    sudo chown -R 1000:1000 deploy/compose/volumes/elasticsearch/
-    ```
-
-   :::{note}
-   If the Elasticsearch container fails to start due to permission issues, you may optionally use `sudo chmod -R 777 deploy/compose/volumes/elasticsearch/` for broader access.
-   :::
+- **Elasticsearch data volume (Docker Compose)** – Elasticsearch persists data in a dedicated `rag-vol-elasticsearch` Docker named volume (host path: `/var/lib/docker/volumes/rag-vol-elasticsearch/_data/`). For inspection, backup, reset, and migration from the legacy `deploy/compose/volumes/` host directory, see [Manage Persistent Data Volumes](troubleshooting.md#manage-persistent-data-volumes) in the troubleshooting guide.
 
 - **Authentication** – Refer to [Elasticsearch Authentication](elasticsearch-configuration.md#elasticsearch-authentication) for xpack, API keys, and Helm (ECK) credentials.
 
