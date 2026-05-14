@@ -77,8 +77,10 @@ echo "==> Apply CLAUDE_CODE_DISABLE_THINKING patch (KI-001)"
 python3 ci/patch_nvbase.py
 
 echo "==> Docker login to nvcr.io"
-# Empty temp dir — Docker creates a fresh config.json with no credential helper
+# Isolated Docker config — no credsStore key means Docker stores auth directly
+# in the temp file. Does not touch the runner's existing ~/.docker/config.json.
 export DOCKER_CONFIG=$(mktemp -d)
+printf '{"auths":{}}' > "$DOCKER_CONFIG/config.json"
 echo "$NGC_API_KEY" | docker login nvcr.io -u '$oauthtoken' --password-stdin
 
 echo "==> Strip allowed-tools from SKILL.md for headless eval (RAG-023)"
