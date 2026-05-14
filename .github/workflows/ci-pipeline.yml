@@ -964,3 +964,105 @@ jobs:
           docker compose -f deploy/compose/docker-compose-rag-server.yaml down -v --remove-orphans --rmi local || true
           docker compose -f tests/integration/vectordb.yaml down -v --remove-orphans --rmi local || true
           echo "Cleanup completed for integration test Docker resources"
+
+  # ============================================================================
+  # NV-BASE TIER 3 — SKILL EVAL (manual trigger only)
+  # ============================================================================
+
+  nvbase-skill-eval:
+    name: NV-BASE Tier 3 — RAG Blueprint Skill Eval
+    runs-on: arc-runners-org-nvidia-ai-bp-2-gpu
+    timeout-minutes: 120
+    if: github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Clean existing Docker state
+        run: |
+          docker info
+          docker compose version
+          docker ps -a || true
+          docker stop $(docker ps -aq) || true
+          docker rm $(docker ps -aq) || true
+
+      - name: Install NV-BASE and Claude Code
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          echo "$HOME/.local/share/uv/tools/nv-base/bin" >> "$GITHUB_PATH"
+          export PATH="$HOME/.local/bin:$HOME/.local/share/uv/tools/nv-base/bin:$PATH"
+          uv tool install nv-base \
+            --index https://urm.nvidia.com/artifactory/api/pypi/nv-shared-pypi/simple
+          npm install -g @anthropic-ai/claude-code
+          nv-base --version
+          nv-base health-check
+          claude --version
+
+      - name: Patch Claude Code env forwarding for NV-BASE 2.6.0 (KI-001)
+        run: python3 ci/patch_nvbase.py
+
+      - name: Docker login to NGC
+        env:
+          NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
+          NVCR_API_KEY: ${{ secrets.CI_NVSTAGING_BLUEPRINT_KEY }}
+        run: |
+          LOGIN_KEY="${NVCR_API_KEY:-$NGC_API_KEY}"
+          echo "$LOGIN_KEY" | docker login nvcr.io -u '$oauthtoken' --password-stdin
+
+      - name: Strip allowed-tools from SKILL.md for headless eval (RAG-023)
+        run: sed -i '/^allowed-tools:/d' skill-source/.agents/skills/rag-blueprint/SKILL.md
+
+      - name: Run NV-BASE Tier 3 eval
+        env:
+          NVIDIA_API_KEY: ${{ secrets.NVBASE_INFERENCE_API_KEY }}
+          NVIDIA_INFERENCE_KEY: ${{ secrets.NVBASE_INFERENCE_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.NVBASE_INFERENCE_API_KEY }}
+          NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
+          CLAUDE_CODE_DISABLE_THINKING: "1"
+        run: |
+          nv-base agent-eval \
+            --env-mode local \
+            -a claude-code \
+            --skip-baseline \
+            -k 1 \
+            ./skill-source/.agents/skills/rag-blueprint \
+            -r html,json \
+            -o ./eval-results/
+
+      - name: Collect Docker logs
+        if: always()
+        run: |
+          mkdir -p nvbase-ci-logs
+          docker ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" > nvbase-ci-logs/docker-ps.log 2>&1 || true
+          for container in rag-server ingestor-server milvus-standalone milvus-etcd milvus-minio; do
+            docker logs "$container" > "nvbase-ci-logs/${container}.log" 2>&1 || true
+          done
+
+      - name: Upload NV-BASE eval artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nvbase-eval-${{ github.sha }}
+          path: |
+            skill-source/.agents/skills/rag-blueprint/evals/results/
+            nvbase-ci-logs/
+          retention-days: 14
+
+      - name: Cleanup Docker resources
+        if: always()
+        run: |
+          docker compose -f deploy/compose/docker-compose-ingestor-server.yaml down -v --remove-orphans --rmi local || true
+          docker compose -f deploy/compose/docker-compose-rag-server.yaml down -v --remove-orphans --rmi local || true
+          docker compose -f deploy/compose/vectordb.yaml down -v --remove-orphans --rmi local || true
