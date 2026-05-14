@@ -49,9 +49,9 @@ class LangchainInstrumentor(BaseInstrumentor):
         metrics = kwargs.get("metrics")
         langchainCallbackHandler = LangchainCallbackHandler(tracer, metrics)
         wrap_function_wrapper(
-            module="langchain_core.callbacks",
-            name="BaseCallbackManager.__init__",
-            wrapper=_BaseCallbackManagerInitWrapper(langchainCallbackHandler),
+            "langchain_core.callbacks",
+            "BaseCallbackManager.__init__",
+            _BaseCallbackManagerInitWrapper(langchainCallbackHandler),
         )
 
     def _uninstrument(self, **kwargs):
