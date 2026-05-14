@@ -98,6 +98,7 @@ echo "==> Run NV-BASE Tier 3 eval"
 nv-base agent-eval \
   --env-mode local \
   -a claude-code \
+  --agent-model "claude-code=anthropic/claude-sonnet-4-6" \
   --skip-baseline \
   -k 1 \
   "$SKILL_DIR" \
