@@ -14,6 +14,7 @@
 - In Docker mode, deploy NVIDIA RAG Blueprint first, then run notebooks against the running services.
 - In library mode, use `rag_library_usage.ipynb` (full) or `rag_library_lite_usage.ipynb` (containerless).
 - The custom VDB operator notebook requires Docker for OpenSearch services.
+- Agentic RAG examples are integrated into `rag_library_usage.ipynb` (library mode, `agentic=True` on `generate()`) and `retriever_api_usage.ipynb` (API streaming). For configuration, see `references/configure/agentic-rag.md`.
 
 ## Notebook Catalog
 
@@ -33,6 +34,7 @@
 | `nb_metadata.ipynb`            | Custom metadata and filtered retrieval |
 | `rag_library_usage.ipynb`      | Full library mode end-to-end           |
 | `rag_library_lite_usage.ipynb` | Lite, containerless library mode       |
+| `langchain_nvidia_retriever.ipynb` | LangChain retriever connector for NVIDIA RAG |
 
 ### Advanced
 | Notebook                          | Topic                               |
@@ -40,6 +42,7 @@
 | `building_rag_vdb_operator.ipynb` | Custom OpenSearch VDB operator      |
 | `mcp_server_usage.ipynb`          | MCP server with transport modes     |
 | `nat_mcp_integration.ipynb`       | NeMo Agent Toolkit plus MCP         |
+| `rag_event_ingest.ipynb`          | Continuous ingestion from object storage |
 
 ### Deployment
 | Notebook           | Topic                 |

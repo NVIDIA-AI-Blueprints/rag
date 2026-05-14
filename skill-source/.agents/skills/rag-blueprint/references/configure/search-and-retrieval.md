@@ -1,7 +1,7 @@
 # Search & Retrieval: Hybrid Search, Multi-Collection, Metadata & Profiles
 
 ## When to Use
-User wants to enable hybrid search, query multiple collections, add custom metadata/filters, tune retrieval performance, configure reranker, enable natural language filter generation, or switch accuracy/performance profiles.
+User wants to enable hybrid search, query multiple collections, add custom metadata/filters, tune retrieval performance, configure reranker, enable natural language filter generation, compile UI filters for Milvus or Elasticsearch, or switch accuracy/performance profiles.
 
 ## Process
 
@@ -16,7 +16,7 @@ User wants to enable hybrid search, query multiple collections, add custom metad
 |------|-----------|-------------|
 | Hybrid search | `docs/hybrid_search.md` | `APP_VECTORSTORE_SEARCHTYPE=hybrid` |
 | Multi-collection | `docs/multi-collection-retrieval.md` | `enable_reranker: True` in API payload |
-| Custom metadata | `docs/custom-metadata.md` | Metadata in upload payload, `vdb_filter_expression` in query |
+| Custom metadata | `docs/custom-metadata.md` | Metadata in upload payload, `filter_expr` in query |
 | Accuracy profile | `docs/accuracy_perf.md` | Copy values from `deploy/compose/accuracy_profile.env` into the active env file |
 | Performance profile | `docs/accuracy_perf.md` | Copy values from `deploy/compose/perf_profile.env` into the active env file |
 | Filter generation | `docs/custom-metadata.md` | `ENABLE_FILTER_GENERATOR=True` |
@@ -26,10 +26,12 @@ User wants to enable hybrid search, query multiple collections, add custom metad
 - Hybrid search requires re-ingesting — existing collections created with `dense` must be re-created
 - Multi-collection: limited to 5 collections per query; reranker is mandatory
 - Multi-collection not supported when `ENABLE_QUERY_DECOMPOSITION=true`
-- Elasticsearch RRF not supported in open-source version — must use `weighted` ranker
+- Elasticsearch is the default vector DB. Milvus is optional and requires re-ingestion when switching.
+- Elasticsearch RRF is not supported in the open-source version — use `weighted` ranker for open-source Elasticsearch hybrid search
 - Ingestor must be restarted alongside RAG server when enabling hybrid search
 - `RERANKER_CONFIDENCE_THRESHOLD` is a legacy alias for `RERANKER_SCORE_THRESHOLD`
 - Recommended `RERANKER_SCORE_THRESHOLD` range: 0.3–0.5 (too high filters out too many chunks)
+- Elasticsearch document enumeration now uses scan/paging to avoid the 10-hit default truncation when listing matching docs.
 
 ### Advanced Tuning (not fully documented elsewhere)
 
@@ -51,9 +53,9 @@ User wants to enable hybrid search, query multiple collections, add custom metad
 
 | Feature | Milvus | Elasticsearch |
 |---------|--------|---------------|
-| NL filter generation | LLM-powered | Not supported (manual DSL) |
-| Filter syntax | String expressions | List of dicts (ES Query DSL) |
-| UI support | Full filtering interface | API only |
+| NL filter generation | LLM emits Milvus string DSL | LLM emits Elasticsearch Query DSL clause list |
+| Filter syntax | String expression, e.g. `content_metadata["x"] == "y"` | List of dicts using `metadata.content_metadata.<field>` paths |
+| UI support | Filter bar compiles Milvus string format | Filter bar compiles Elasticsearch list-of-dicts format from `/health` backend detection |
 
 ## Notebooks
 - `notebooks/retriever_api_usage.ipynb` — RAG retriever API: search and end-to-end queries

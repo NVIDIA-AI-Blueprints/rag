@@ -17,6 +17,7 @@
 - NV-Ingest extraction states: `not_started` → `submitted` → `processing` → `completed` or `failed`
 - Max file size: 400 MB per document
 - Full health check: `GET /v1/health?check_dependencies=true`
+- Streaming `/v1/generate` chunks may include supplementary `reasoning_content`. Agentic RAG streaming chunks also include `event_type` and `stage`; final user-facing answer text remains in `content`.
 
 ## Notebooks
 - `notebooks/ingestion_api_usage.ipynb` — ingestion API usage examples

@@ -36,7 +36,7 @@ docker compose -f deploy/compose/docker-compose-rag-server.yaml down; docker com
 docker compose -f deploy/compose/vectordb.yaml down
 ```
 
-If using Elasticsearch instead of Milvus:
+If a profile-specific vector DB stack was started and containers remain, include the profile explicitly:
 ```bash
 docker compose -f deploy/compose/vectordb.yaml --profile elasticsearch down
 ```
@@ -92,10 +92,11 @@ kubectl delete pods --all -n rag --force --grace-period=0 2>/dev/null
 
 Ask the user if they want to clean up data/volumes:
 
-- **Remove Docker volumes** (deletes ingested data, Milvus indices):
+- **Remove Docker volumes** (deletes ingested data, vector DB indices, object-store data, LanceDB, and ingestor scratch):
   ```bash
-  docker volume prune -f
+  docker volume ls -q --filter "name=^rag-vol-" | xargs -r docker volume rm
   ```
+  These named volumes include Elasticsearch, Milvus/etcd, SeaweedFS, LanceDB, and ingestor scratch data. Prefer deleting only the specific `rag-vol-*` volume the user requested.
 
 - **Remove model cache** (frees 100-200 GB for self-hosted):
   ```bash

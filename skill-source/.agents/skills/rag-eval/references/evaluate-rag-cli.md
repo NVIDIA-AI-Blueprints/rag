@@ -16,7 +16,7 @@ Complete argument tables for `scripts/eval/evaluate_rag.py`. Load this when the 
 
 | Argument | Default | Notes |
 |----------|---------|-------|
-| `--file-type` | `pdf` | Ingestion file type for metrics (e.g. `pdf`, `txt`, `txt,html`). Substring `pdf` enables PDF page counts in ingestion metrics. |
+| `--file-type` | `pdf` | Ingestion file type for metrics (e.g. `pdf`, `txt`, `txt,html`, `mp3` for audio). Substring `pdf` enables PDF page counts in ingestion metrics. |
 | `--ingestor_server_url` | `http://localhost:8082` | Base URL — code appends `/v1/` automatically; do not include `/v1` here. |
 | `--collection` | dataset folder basename | Override collection name for ingest and query. |
 | `--batch_size` | `1000` | Ingestion batch size (server max is 10000). |

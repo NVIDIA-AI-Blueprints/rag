@@ -1,7 +1,7 @@
 # Reasoning, Self-Reflection & Prompt Customization
 
 ## When to Use
-User wants to enable reasoning/thinking mode, configure self-reflection, customize prompts, adjust generation parameters (max tokens, temperature, citations), or understand thinking budget options.
+User wants to enable reasoning/thinking mode, stream or inspect `reasoning_content`, configure self-reflection, customize prompts, adjust generation parameters (max tokens, temperature, citations), or understand thinking budget options.
 
 ## Process
 1. Detect the deployment mode (Docker / Helm / Library). Docker: edit the active env file. Helm: edit `values.yaml`. Library: edit `notebooks/config.yaml`
@@ -14,8 +14,8 @@ User wants to enable reasoning/thinking mode, configure self-reflection, customi
 
 | Goal | Source Doc | Key Action |
 |------|-----------|------------|
-| Enable reasoning (Nemotron 1.5) | `docs/enable-nemotron-thinking.md` | Edit `prompt.yaml`: `/no_think` → `/think`, set temperature |
-| Enable reasoning (Nano 30B) | `docs/enable-nemotron-thinking.md` | `ENABLE_NEMOTRON_3_NANO_THINKING=true` |
+| Enable reasoning (Nemotron 3 / Nano 30B) | `docs/enable-nemotron-thinking.md` | `LLM_ENABLE_THINKING=true`, optionally `LLM_REASONING_BUDGET`, `LLM_LOW_EFFORT` |
+| Enable prompt-directed thinking | `docs/enable-nemotron-thinking.md` | Edit `prompt.yaml`: `/no_think` → `/think`, set temperature/top-p |
 | Self-reflection | `docs/self-reflection.md` | `ENABLE_REFLECTION=true`, set thresholds |
 | Prompt customization | `docs/prompt-customization.md` | `PROMPT_CONFIG_FILE=/path/to/custom.yaml` or edit prompt.yaml |
 | Generation parameters | `docs/llm-params.md` | `LLM_MAX_TOKENS`, `LLM_TEMPERATURE`, `ENABLE_CITATIONS` |
@@ -29,16 +29,18 @@ User wants to enable reasoning/thinking mode, configure self-reflection, customi
 - Helm: only on-premises reflection is supported
 - GPU requirements for reflection: see `docs/self-reflection.md` for optimal GPU configurations
 - Debug reflection: set `LOGLEVEL=INFO` to observe iteration counts
-- `FILTER_THINK_TOKENS=false` to see full reasoning output (filtered by default)
+- `ENABLE_NEMOTRON_3_NANO_THINKING` is deprecated; use `LLM_ENABLE_THINKING`
+- With current streaming responses, reasoning is separated from the user-facing answer: `choices[].delta.reasoning_content` carries reasoning while `choices[].delta.content` carries final answer tokens
+- `FILTER_THINK_TOKENS=true` keeps final-answer content clean but still preserves reasoning structurally in `reasoning_content` when the server is configured to preserve it
 - 18 prompt templates available in `prompt.yaml` — custom file only overrides specified keys
 
 ### Reasoning Model Comparison
 
 | Model | Control | Thinking Budget | Output Format |
 |-------|---------|-----------------|---------------|
-| Nemotron 1.5 | System prompt (`/think`) | None | `<think>` tags (filtered by default) |
+| Nemotron 3 / Nemotron 3 Super | `LLM_ENABLE_THINKING` plus model template args, or prompt `/think` where documented | `LLM_REASONING_BUDGET`, `LLM_LOW_EFFORT` | `reasoning_content` stream or filtered `<think>` blocks |
 | Nemotron-3-Nano 9B | System prompt (`/think`) | `min_thinking_tokens` + `max_thinking_tokens` | `reasoning_content` field |
-| Nemotron-3-Nano 30B | `ENABLE_NEMOTRON_3_NANO_THINKING` env var | `max_thinking_tokens` only | `reasoning_content` field |
+| Nemotron-3-Nano 30B | `LLM_ENABLE_THINKING` env var | `LLM_REASONING_BUDGET` or `max_thinking_tokens` | `reasoning_content` field |
 
 ### Thinking Budget Recommendations
 
