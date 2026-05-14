@@ -91,6 +91,9 @@ echo "==> Clean any existing Docker state"
 docker ps -a --format '{{.ID}}' | xargs -r docker stop >/dev/null 2>&1 || true
 docker ps -a --format '{{.ID}}' | xargs -r docker rm   >/dev/null 2>&1 || true
 
+# Route claude-code agent calls through NVIDIA's inference proxy (sk- key)
+export ANTHROPIC_BASE_URL="https://inference-api.nvidia.com/v1"
+
 echo "==> Run NV-BASE Tier 3 eval"
 nv-base agent-eval \
   --env-mode local \

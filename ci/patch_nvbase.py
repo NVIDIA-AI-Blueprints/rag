@@ -37,13 +37,14 @@ def patch_runner(sp: pathlib.Path) -> bool:
         print(f"  SKIP (anchor not found — fix likely upstreamed): {path}")
         return True
 
-    path.write_text(
-        text.replace(
-            anchor,
-            anchor + '\n        "CLAUDE_CODE_DISABLE_THINKING",',
-            1,
-        )
-    )
+    additions = '\n        "CLAUDE_CODE_DISABLE_THINKING",'
+    # Forward NGC_API_KEY and DOCKER_CONFIG so the agent can pull nvcr.io images
+    if '"NGC_API_KEY"' not in text:
+        additions += '\n        "NGC_API_KEY",'
+    if '"DOCKER_CONFIG"' not in text:
+        additions += '\n        "DOCKER_CONFIG",'
+
+    path.write_text(text.replace(anchor, anchor + additions, 1))
     print(f"  PATCHED: {path}")
     return True
 
