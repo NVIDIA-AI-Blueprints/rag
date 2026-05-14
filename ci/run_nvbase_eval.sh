@@ -18,6 +18,29 @@ LOGS_DIR="./ci-logs"
 
 mkdir -p "$LOGS_DIR"
 
+echo "==> Probe runner environment"
+probe_ok=true
+check() {
+  if eval "$2" >/dev/null 2>&1; then
+    echo "  [OK]    $1: $(eval "$2" 2>&1 | head -1)"
+  else
+    echo "  [MISS]  $1: not found"
+    probe_ok=false
+  fi
+}
+check "python3"        "python3 --version"
+check "docker"         "docker --version"
+check "docker compose" "docker compose version"
+check "node"           "node --version"
+check "npm"            "npm --version"
+echo "  [ENV]   NVIDIA_INFERENCE_KEY: ${NVIDIA_INFERENCE_KEY:+set (${NVIDIA_INFERENCE_KEY:0:4}...)}${NVIDIA_INFERENCE_KEY:-NOT SET}"
+echo "  [ENV]   NGC_API_KEY:          ${NGC_API_KEY:+set (${NGC_API_KEY:0:4}...)}${NGC_API_KEY:-NOT SET}"
+echo "  [ENV]   ANTHROPIC_API_KEY:    ${ANTHROPIC_API_KEY:+set}${ANTHROPIC_API_KEY:-NOT SET}"
+if [ "$probe_ok" = false ]; then
+  echo "  [WARN]  Some dependencies missing — will attempt to install below"
+fi
+echo ""
+
 echo "==> Required env check"
 : "${NVIDIA_INFERENCE_KEY:?Set NVIDIA_INFERENCE_KEY (sk- proxy key) in repo secrets as NVBASE_INFERENCE_API_KEY}"
 : "${NGC_API_KEY:?Set NGC_API_KEY in repo secrets}"
