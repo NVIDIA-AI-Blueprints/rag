@@ -60,8 +60,13 @@ nv-base health-check
 
 echo "==> Install Node.js + Claude Code CLI"
 if ! command -v npm >/dev/null 2>&1; then
-  curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-  sudo apt-get install -y nodejs
+  # Use nvm — no sudo required, installs to user home
+  curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
+  export NVM_DIR="$HOME/.nvm"
+  # shellcheck source=/dev/null
+  [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+  nvm install 20
+  nvm use 20
 fi
 if ! command -v claude >/dev/null 2>&1; then
   npm install -g @anthropic-ai/claude-code
