@@ -40,8 +40,7 @@ Read `docs/support-matrix.md` for current GPU requirements. Feature restrictions
 ## Agent-Specific Notes
 - First run: 15–30 min (model downloads ~100–150 GB, no progress bar); subsequent: 2–5 min
 - Monitor download progress: `du -sh ~/.cache/model-cache/`
-- Persistent Docker data is in named `rag-vol-*` volumes, not `deploy/compose/volumes/`
-- Permission error on model cache → current `nim-llm` runs as `user: "0"`; for other NIMs, try `USERID=0` instead of `USERID=$(id -u)`
+- Permission error on model cache → try `USERID=0` instead of `USERID=$(id -u)`
 - Cloud NIM section in `deploy/compose/.env` must be commented out for self-hosted
 - Rebuild after code changes: add `--build` flag to compose up commands
 

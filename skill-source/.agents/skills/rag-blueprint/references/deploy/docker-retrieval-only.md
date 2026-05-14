@@ -30,8 +30,6 @@
 
 ## Agent-Specific Notes
 - Permission errors on model cache → try `USERID=0` or `chmod -R 755 ~/.cache/model-cache`
-- Self-hosted NIM container names are `nemotron-embedding-ms` and `nemotron-ranking-ms`
-- Persistent vector/object-store data is in named `rag-vol-*` volumes
 - Empty search results → verify documents ingested: `GET http://localhost:8082/v1/documents?collection_name=<name>`
 - Users can send `/search` results to their own external LLM for generation
 

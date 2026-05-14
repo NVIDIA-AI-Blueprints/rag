@@ -1,7 +1,7 @@
 # Models, Vector DB & Service API Keys
 
 ## When to Use
-User wants to change LLM, embedding, or ranking models; switch vector DB (Elasticsearch/Milvus/LanceDB/custom); configure Elasticsearch or Milvus auth, GPU mode, or custom endpoints; set service-specific API keys; or build a custom VDB operator.
+User wants to change LLM, embedding, or ranking models; switch vector DB (Elasticsearch/Milvus); configure Elasticsearch or Milvus auth, GPU mode, or custom endpoints; set service-specific API keys; or build a custom VDB operator.
 
 ## Process
 
@@ -51,7 +51,7 @@ Detect the deployment mode before making changes. Docker: edit the active env fi
 
 ## Agent-Specific Notes
 
-- Current default model family uses `nvidia/nemotron-3-super-120b-a12b`, `nvidia/llama-nemotron-embed-vl-1b-v2` (VLM embedding is the new default in both Docker `.env` and Helm `values.yaml`; the text-only `nvidia/llama-nemotron-embed-1b-v2` ships behind `--profile text-embed`), and `nvidia/llama-nemotron-rerank-1b-v2`; verify exact tags in `deploy/compose/nims.yaml` or Helm `values.yaml`
+- Current default model family uses `nvidia/nemotron-3-super-120b-a12b`, `nvidia/llama-nemotron-embed-vl-1b-v2`, and `nvidia/llama-nemotron-rerank-1b-v2`.
 - Nemotron-3-Nano naming: `nvidia/nemotron-3-nano-30b-a3b` (NVIDIA-hosted) vs `nvidia/nemotron-3-nano` (self-hosted NIM) — same model, different names
 - Helm model changes go in `values.yaml` under `nimOperator` and `envVars` sections
 - Custom VDB operator requires implementing `VDBRag` base class — see `docs/change-vectordb.md` "Custom Vector Database Operator" section

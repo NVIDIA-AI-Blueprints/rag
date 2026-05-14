@@ -41,8 +41,8 @@ If ports are occupied by non-RAG processes, tell the user which ports conflict a
 Check in this order:
 
 1. If `NGC_API_KEY` is set in the shell environment → proceed.
-2. If `NVIDIA_API_KEY` is set (common in library mode) → proceed silently. For Docker or Helm workflows, also run `export NGC_API_KEY="${NGC_API_KEY:-$NVIDIA_API_KEY}"` before commands that require `NGC_API_KEY`.
-3. If `NGC_API_KEY` or a literal `NVIDIA_API_KEY=nvapi-...` value is in `deploy/compose/.env` or `deploy/compose/nvdev.env` (and not the placeholder `nvapi-your-key`) → load the matching env file and proceed. The default `NVIDIA_API_KEY=${NGC_API_KEY}` line is not enough unless `NGC_API_KEY` is also set.
+2. If `NVIDIA_API_KEY` is set (common in library mode) → proceed silently.
+3. If `NGC_API_KEY` is in `deploy/compose/.env` or `deploy/compose/nvdev.env` (and not the placeholder `nvapi-your-key`) → load it and proceed.
 4. If none found → tell the user: "NGC_API_KEY is required. Get one from https://org.ngc.nvidia.com/setup/api-keys and run: `export NGC_API_KEY=\"nvapi-...\"` — then tell me when done."
 5. After user confirms → re-check silently. If still not set, write placeholder to `.env` and tell the user to edit it.
 

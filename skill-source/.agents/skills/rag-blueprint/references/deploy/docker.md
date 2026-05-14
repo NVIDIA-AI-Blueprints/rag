@@ -28,14 +28,8 @@ if [ -n "$NGC_API_KEY" ] || [ -n "$NVIDIA_API_KEY" ]; then echo "ENV_SET"; elif 
 ```
 
 - **ENV_SET**: proceed silently.
-- **DOTENV_SET**: load the env file that contains a literal key and proceed. Do not treat the default `NVIDIA_API_KEY=${NGC_API_KEY}` line as a key by itself.
+- **DOTENV_SET**: load the env file that contains the key and proceed.
 - **NOT_SET**: ask the user to provide it. This is the only thing to ask for.
-
-If only `NVIDIA_API_KEY` is set, mirror it for Docker commands that expect `NGC_API_KEY`:
-
-```bash
-export NGC_API_KEY="${NGC_API_KEY:-$NVIDIA_API_KEY}"
-```
 
 ## Docker Login
 

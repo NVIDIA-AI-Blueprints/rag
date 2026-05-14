@@ -90,11 +90,10 @@ Read `docs/support-matrix.md` for current hardware requirements per mode.
 
 Skills never expose the API key value to the LLM. The approach:
 
-1. Check if `NGC_API_KEY` or `NVIDIA_API_KEY` is set.
-2. If only `NVIDIA_API_KEY` is set, mirror it to `NGC_API_KEY` for Docker/Helm commands that require that variable name.
-3. If neither is set, ask the user to run `export NGC_API_KEY="nvapi-your-key"` in the terminal
-4. For `docker login`, the user runs it themselves (the command expands the key)
-5. As a fallback, offer to write a placeholder to `deploy/compose/.env` for the user to replace
+1. Check if `NGC_API_KEY` is set: `[ -n "$NGC_API_KEY" ] && echo "SET" || echo "NOT_SET"`
+2. If not set, ask the user to run `export NGC_API_KEY="nvapi-your-key"` in the terminal
+3. For `docker login`, the user runs it themselves (the command expands the key)
+4. As a fallback, offer to write a placeholder to `deploy/compose/.env` for the user to replace
 
 ## Notebook Integration
 

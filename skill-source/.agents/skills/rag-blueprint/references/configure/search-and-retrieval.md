@@ -1,7 +1,7 @@
 # Search & Retrieval: Hybrid Search, Multi-Collection, Metadata & Profiles
 
 ## When to Use
-User wants to enable hybrid search, query multiple collections, add custom metadata/filters, tune retrieval performance, configure reranker, enable natural language filter generation, compile UI filters for Milvus or Elasticsearch, or switch accuracy/performance profiles.
+User wants to enable hybrid search, query multiple collections, add custom metadata/filters, tune retrieval performance, configure reranker, enable natural language filter generation, or switch accuracy/performance profiles.
 
 ## Process
 
@@ -31,7 +31,6 @@ User wants to enable hybrid search, query multiple collections, add custom metad
 - Ingestor must be restarted alongside RAG server when enabling hybrid search
 - `RERANKER_CONFIDENCE_THRESHOLD` is a legacy alias for `RERANKER_SCORE_THRESHOLD`
 - Recommended `RERANKER_SCORE_THRESHOLD` range: 0.3–0.5 (too high filters out too many chunks)
-- Elasticsearch document enumeration now uses scan/paging to avoid the 10-hit default truncation when listing matching docs.
 
 ### Advanced Tuning (not fully documented elsewhere)
 

@@ -11,7 +11,6 @@ Use these features when the user wants follow-up questions, conversation-aware r
 ## Restrictions
 - Query rewriting and multi-turn both require `CONVERSATION_HISTORY > 0`; with `0`, query rewriting has no effect.
 - Query decomposition works only when `use_knowledge_base=true` and with a single collection.
-- On Helm, query rewriting is supported only with an on-prem LLM, not cloud-hosted models.
 - Query decomposition is separate from Agentic RAG; do not enable both without reading `docs/agentic-rag.md` and `docs/query_decomposition.md` limitations.
 
 ## Dependencies

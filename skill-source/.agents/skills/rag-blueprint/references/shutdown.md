@@ -92,11 +92,11 @@ kubectl delete pods --all -n rag --force --grace-period=0 2>/dev/null
 
 Ask the user if they want to clean up data/volumes:
 
-- **Remove Docker volumes** (deletes ingested data, vector DB indices, object-store data, LanceDB, and ingestor scratch):
+- **Remove Docker volumes** (deletes ingested data, vector DB indices, object-store data, and ingestor scratch):
   ```bash
   docker volume ls -q --filter "name=^rag-vol-" | xargs -r docker volume rm
   ```
-  These named volumes include Elasticsearch, Milvus/etcd, SeaweedFS, LanceDB, and ingestor scratch data. Prefer deleting only the specific `rag-vol-*` volume the user requested.
+  These named volumes include Elasticsearch, Milvus/etcd, SeaweedFS, and ingestor scratch data. Prefer deleting only the specific `rag-vol-*` volume the user requested.
 
 - **Remove model cache** (frees 100-200 GB for self-hosted):
   ```bash

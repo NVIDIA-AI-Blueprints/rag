@@ -42,11 +42,9 @@ Read `docs/service-port-gpu-reference.md` for the complete port/GPU mapping. Qui
 | Ingestor | `http://localhost:8082/v1/health?check_dependencies=true` | `{"status":"healthy"}` |
 | NV-Ingest | `http://localhost:7670/v1/health/ready` | 200 OK |
 | VLM Embedding NIM (default) | `http://localhost:9081/v1/health/ready` | 200 OK |
-| Text Embedding NIM (`text-embed` profile) | `http://localhost:9080/v1/health/ready` | 200 OK |
 | LLM NIM | `http://localhost:8999/v1/health/ready` | 200 OK |
 | Ranking NIM | `http://localhost:1976/v1/health/ready` | 200 OK |
 | Elasticsearch | `http://localhost:9200/_cluster/health` | `green` or `yellow` |
-| Milvus | `http://localhost:9091/healthz` | 200 OK |
 
 ## Kubernetes Monitoring Commands
 
@@ -78,7 +76,6 @@ Match the symptom from Auto-Triage output, then read `docs/troubleshooting.md` f
 |---------|----------|-----------|
 | NIM container stuck at `(health: starting)` >30min | NIM Startup | Check GPU memory, NGC auth, disk space. First-run model downloads are slow — wait and monitor cache size. |
 | Elasticsearch unhealthy / search returns nothing | Elasticsearch | Restart vectordb compose. Check port 9200, disk, credentials, and `rag-vol-elasticsearch`. |
-| Milvus unhealthy / search returns nothing | Milvus | Restart vectordb compose. Check etcd/SeaweedFS. Port 19530 conflict. Corrupt data → delete `rag-vol-milvus`/`rag-vol-etcd` only after confirmation. |
 | Document upload fails / ingestor health check fails | NV-Ingest | Check Redis, OCR NIMs. Rate limit (429) → reduce batch vars. Large PDFs → reduce batch size. |
 | Chat returns errors / /generate fails | RAG Server | Check LLM NIM health, embedding NIM, cloud API key. Verify `APP_LLM_MODELNAME` matches deployed NIM. |
 | DNS resolution failed for `<service>:<port>` | Networking | Service container not running. Check `docker ps`, restart missing service. |
@@ -108,7 +105,7 @@ Match the symptom from Auto-Triage output, then read `docs/troubleshooting.md` f
 ### Ingestion Checklist
 - [ ] All required containers running (ingestor-server, nv-ingest-ms-runtime, milvus, redis)
 - [ ] Vector database accessible (`curl http://localhost:9200/_cluster/health` for default Elasticsearch, or `curl http://localhost:9091/healthz` for Milvus)
-- [ ] Active embedding service healthy (`curl http://localhost:9081/v1/health/ready` for default VLM embedding, or `curl http://localhost:9080/v1/health/ready` for `text-embed`)
+- [ ] Embedding service healthy (`curl http://localhost:9081/v1/health/ready` for default VLM embedding, or `curl http://localhost:9080/v1/health/ready` for `text-embed`)
 - [ ] File format supported and size <= 400 MB
 - [ ] Sufficient disk space (`df -h /`)
 - [ ] GPU resources available (`nvidia-smi`)

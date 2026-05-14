@@ -4,9 +4,9 @@
 User wants image understanding, visual content analysis, VLM inference, multimodal embeddings, VLM reranking, VLM reasoning output, or image captioning during ingestion.
 
 ## Restrictions
-- Not available on B200 GPUs. Source docs list H100 or A100 for VLM inference and multimodal query; do not recommend RTX PRO 6000 for VLM unless the current model support matrix explicitly confirms it.
+- Not available on B200 GPUs — use H100, A100 SXM 80GB, or RTX PRO 6000.
 - Requires extra GPU (GPU 1+ for 2-GPU systems, GPU 2+ for 3+ GPUs with fallback)
-- VLM embeddings: experimental and PDF-only. `docs/multimodal-retriever.md` says summary generation does not work when VLM embedding is enabled; `docs/multimodal-query.md` includes `SUMMARY_LLM*` examples for deployments without `nim-llm`. If asked about summaries with VLM embeddings, flag this documentation conflict and validate on the target deployment instead of promising support.
+- VLM embeddings: experimental, PDF-only, no summarization, no citations with page-as-image.
 - Image captioning on Helm: on-prem only (modify `values.yaml` to enable)
 
 ## Process
@@ -47,7 +47,6 @@ User wants image understanding, visual content analysis, VLM inference, multimod
 - `ENABLE_VLM_INFERENCE=true` — master toggle
 - `APP_NVINGEST_EXTRACTIMAGES=True` — extract images during ingestion
 - `VLM_MS_GPU_ID=<gpu-id>` — self-hosted GPU assignment
-- `APP_VLM_ENABLE_THINKING`, `APP_VLM_THINKING_TOKEN_BUDGET`, `VLM_FILTER_THINK_TOKENS` — VLM reasoning behavior
 
 ## Notebooks
 - `notebooks/image_input.ipynb` — Multimodal queries with VLM (text + image)

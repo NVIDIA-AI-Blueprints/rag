@@ -9,7 +9,6 @@
 - Reranker must be disabled (`ENABLE_RERANKER=false`)
 - On-prem: requires NVIDIA H100 or A100 SXM 80GB GPU
 - Single-page retrieval only — image queries return content from one page per document
-- If `nim-llm` is disabled and uploads use `generate_summary=true`, `docs/multimodal-query.md` says to configure `SUMMARY_LLM` / `SUMMARY_LLM_SERVERURL`; however `docs/multimodal-retriever.md` says summaries do not work with VLM embedding. Treat this as version-sensitive: configure only when following the multimodal-query path and verify summary status through the API.
 
 ## Process
 1. Detect the deployment mode (Docker / Helm / Library). Docker: edit the active env file. Helm: edit `values.yaml`. Library: edit `notebooks/config.yaml`
@@ -17,8 +16,7 @@
 3. Choose variant: self-hosted (Docker), NVIDIA-hosted (cloud), or Helm
 4. Deploy VLM + VLM Embedding NIMs per source doc instructions
 5. Set VLM env vars in the active config and switch embedding model to VLM embedding
-6. If document summaries are needed, read both `docs/multimodal-query.md` and `docs/multimodal-retriever.md`, explain the current support caveat, then set `SUMMARY_LLM*` before starting ingestor only if the deployment path supports it.
-7. Restart ingestor + RAG server (Docker: add `--build` flag) and verify
+6. Restart ingestor + RAG server (Docker: add `--build` flag) and verify
 
 ## Agent-Specific Notes
 - Must select a collection before querying — queries without collection return no results

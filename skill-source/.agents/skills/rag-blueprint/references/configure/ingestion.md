@@ -36,7 +36,6 @@ User wants to configure ingestion mode (text-only, audio, Nemotron Parse), switc
 - Audio formats supported: `.mp3`, `.wav`, `.mp4`, `.avi`, `.mov`, `.mkv`
 - Riva ASR requires ~8GB VRAM
 - Nemotron OCR is 2x+ faster than Paddle OCR but needs about 8GB vs 3GB VRAM
-- Docker extraction results now use named volume `rag-vol-ingestor`; use `docker run -v rag-vol-ingestor:/src:ro ...` or `docker cp ingestor-server:/data/nv-ingest-results ...` to inspect from the host
 - Batch CLI: `pip install -r scripts/requirements.txt` first; idempotent (skips already-ingested files)
 - MIG deployments: reduce batch sizes for large bulk ingestion jobs
 

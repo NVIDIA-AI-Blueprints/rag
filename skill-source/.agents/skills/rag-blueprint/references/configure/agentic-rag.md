@@ -1,14 +1,13 @@
 # Agentic RAG
 
 ## When to Use
-- User wants the LangGraph agentic pipeline, planning/execution, multi-hop reasoning, ambiguity handling, or verification.
+- User wants the LangGraph agentic pipeline/agentic rag, planning/execution, multi-hop reasoning, ambiguity handling, or verification.
 - User asks about `agentic`, `ENABLE_AGENTIC_RAG`, agentic streaming, stage events, or agentic reasoning traces.
 
 ## Restrictions
 - Requires `use_knowledge_base=true`; otherwise the agentic path is not applied.
 - Higher latency and more LLM calls than standard RAG. Prefer per-request enablement for latency-sensitive deployments.
 - The agentic path does not use NeMo Guardrails, Self-Reflection, Query Decomposition, or VLM Inference.
-- Query rewriting, multi-turn history, multi-collection retrieval, citations, filter generation, and reranking are supported.
 - Verification is single-pass.
 
 ## Process
