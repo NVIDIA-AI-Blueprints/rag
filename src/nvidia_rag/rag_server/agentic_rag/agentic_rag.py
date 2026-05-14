@@ -88,7 +88,7 @@ class _LLMTransportConfig:
 
 @dataclass
 class _VerificationConfig:
-    enabled: bool = False # Disabled by default
+    enabled: bool = False  # Disabled by default
     max_tasks: int = 3
 
 
@@ -163,11 +163,22 @@ class AgenticRag:
         llm_config=None,
         verification_config=None,
         context_config=None,
+        rag_config=None,
     ):
-        self.planner_llm = planner_llm
-        self.task_llm = task_llm
-        self.seed_gen_llm = seed_gen_llm
-        self.synthesis_llm = synthesis_llm
+        # Cached default LLM clients (one per role) built at agent construction
+        # time from the AGENTIC_*_LLM_MODEL / _SERVERURL env-based config. These
+        # are served to every request that does NOT carry a runtime LLM
+        # override; if an override is present, the public role properties below
+        # build a fresh override client per request (cheap — just a LangChain
+        # client constructor, no LangGraph re-compilation).
+        self._default_planner_llm = planner_llm
+        self._default_task_llm = task_llm
+        self._default_seed_gen_llm = seed_gen_llm
+        self._default_synthesis_llm = synthesis_llm
+        # Stashed so per-request runtime-override LLMs can reuse non-model
+        # settings (model_engine, guardrails, parameters) when building a fresh
+        # client via get_llm().
+        self._rag_config = rag_config
         self.retriever_fn = retriever_fn
         self.graph = None
 
@@ -203,6 +214,57 @@ class AgenticRag:
         self._otel = otel_trace.get_tracer("agentic_rag")
 
         logger.info("%s Agent initialized (log_level=%s)", _P, log_level.upper())
+
+    # =========================================================================
+    # PER-REQUEST LLM OVERRIDE (runtime model / endpoint from RAG API)
+    # =========================================================================
+
+    def _resolve_role_llm(self, default_llm: BaseChatModel) -> BaseChatModel:
+        """Return either the per-request override LLM or the cached default.
+
+        Looks up ``_agentic_llm_overrides`` ContextVar (set by main._agentic_chain
+        before graph.ainvoke).  When an override is in effect, all four role
+        properties return the same override-built LLM client — the first access
+        constructs it via get_llm() and caches it on the override dataclass for
+        the remainder of the request.
+
+        ContextVar isolation guarantees concurrent requests see independent
+        override state, so the per-request cache cannot leak across requests.
+        """
+        # Local import: avoids a circular import between agentic_rag and builder
+        # at module load time.
+        from nvidia_rag.rag_server.agentic_rag.builder import _agentic_llm_overrides
+
+        overrides = _agentic_llm_overrides.get()
+        if overrides is None or not (overrides.model or overrides.llm_endpoint):
+            return default_llm
+
+        if overrides._built_llm is None:
+            from nvidia_rag.utils.llm import get_llm
+
+            overrides._built_llm = get_llm(
+                config=self._rag_config,
+                model=overrides.model,
+                llm_endpoint=overrides.llm_endpoint,
+                api_key=overrides.api_key,
+            )
+        return overrides._built_llm
+
+    @property
+    def planner_llm(self) -> BaseChatModel:
+        return self._resolve_role_llm(self._default_planner_llm)
+
+    @property
+    def task_llm(self) -> BaseChatModel:
+        return self._resolve_role_llm(self._default_task_llm)
+
+    @property
+    def seed_gen_llm(self) -> BaseChatModel:
+        return self._resolve_role_llm(self._default_seed_gen_llm)
+
+    @property
+    def synthesis_llm(self) -> BaseChatModel:
+        return self._resolve_role_llm(self._default_synthesis_llm)
 
     @contextmanager
     def _otel_and_trace(self, span_name: str, span_kind: str = "CHAIN"):
@@ -1271,9 +1333,7 @@ class AgenticRag:
                     end_key = "plan.end.with_tasks"
                 else:
                     end_key = "plan.end.no_tasks"
-                writer(
-                    make_stage_end("plan", key=end_key, task_count=len(task_ids))
-                )
+                writer(make_stage_end("plan", key=end_key, task_count=len(task_ids)))
 
                 return {
                     "retrieval_plan": plan,
@@ -1467,7 +1527,9 @@ class AgenticRag:
         writer(
             make_stage_start(
                 "synthesize",
-                key="synthesize.start.refining" if is_verification_pass else "synthesize.start",
+                key="synthesize.start.refining"
+                if is_verification_pass
+                else "synthesize.start",
             )
         )
         with self._otel_and_trace(synth_label) as ospan:
@@ -1761,7 +1823,9 @@ class AgenticRag:
                 writer(
                     make_stage_end(
                         "verify",
-                        key="verify.end.failed" if issue_count > 0 else "verify.end.failed_unspecified",
+                        key="verify.end.failed"
+                        if issue_count > 0
+                        else "verify.end.failed_unspecified",
                         issues=issue_count,
                     )
                 )
@@ -1798,7 +1862,9 @@ class AgenticRag:
                 "input.value", json.dumps([t.get("id", "") for t in (v_tasks or [])])
             )
             if not v_tasks:
-                writer(make_stage_end("verify_execute", key="verify_execute.end.no_tasks"))
+                writer(
+                    make_stage_end("verify_execute", key="verify_execute.end.no_tasks")
+                )
                 return {"verification_results": {}}
 
             logger.info(

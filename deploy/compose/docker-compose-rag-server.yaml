@@ -157,10 +157,10 @@ services:
       APP_VLM_APIKEY: ${APP_VLM_APIKEY:-""}
       SUMMARY_LLM_APIKEY: ${SUMMARY_LLM_APIKEY:-""}
       REFLECTION_LLM_APIKEY: ${REFLECTION_LLM_APIKEY:-""}
-      AGENTIC_PLANNER_LLM_APIKEY: ${AGENTIC_PLANNER_LLM_APIKEY:-""}
-      AGENTIC_TASK_LLM_APIKEY: ${AGENTIC_TASK_LLM_APIKEY:-""}
-      AGENTIC_SEED_GEN_LLM_APIKEY: ${AGENTIC_SEED_GEN_LLM_APIKEY:-""}
-      AGENTIC_SYNTHESIS_LLM_APIKEY: ${AGENTIC_SYNTHESIS_LLM_APIKEY:-""}
+      AGENTIC_PLANNER_LLM_APIKEY: ${AGENTIC_PLANNER_LLM_APIKEY:-${APP_LLM_APIKEY:-""}}
+      AGENTIC_TASK_LLM_APIKEY: ${AGENTIC_TASK_LLM_APIKEY:-${APP_LLM_APIKEY:-""}}
+      AGENTIC_SEED_GEN_LLM_APIKEY: ${AGENTIC_SEED_GEN_LLM_APIKEY:-${APP_LLM_APIKEY:-""}}
+      AGENTIC_SYNTHESIS_LLM_APIKEY: ${AGENTIC_SYNTHESIS_LLM_APIKEY:-${APP_LLM_APIKEY:-""}}
 
       # Number of document chunks to insert in LLM prompt, used only when ENABLE_RERANKER is set to True
       APP_RETRIEVER_TOPK: ${APP_RETRIEVER_TOPK:-10}
@@ -227,21 +227,25 @@ services:
       # === Agentic RAG (LangGraph plan-and-execute pipeline) ===
       ENABLE_AGENTIC_RAG: ${ENABLE_AGENTIC_RAG:-false}
 
+      # Per-role agentic LLM envs fall back through APP_LLM_* so a single
+      # APP_LLM_MODELNAME / APP_LLM_SERVERURL override propagates to all four
+      # roles unless a role-specific value is set. Runtime model / llm_endpoint
+      # in the /generate request overrides everything below.
       ##===Agentic Planner LLM configurations===
-      AGENTIC_PLANNER_LLM_SERVERURL: ${AGENTIC_PLANNER_LLM_SERVERURL-"nim-llm:8000"}
-      AGENTIC_PLANNER_LLM_MODEL: ${AGENTIC_PLANNER_LLM_MODEL:-"nvidia/nemotron-3-super-120b-a12b"}
+      AGENTIC_PLANNER_LLM_SERVERURL: ${AGENTIC_PLANNER_LLM_SERVERURL-${APP_LLM_SERVERURL-"nim-llm:8000"}}
+      AGENTIC_PLANNER_LLM_MODEL: ${AGENTIC_PLANNER_LLM_MODEL:-${APP_LLM_MODELNAME:-"nvidia/nemotron-3-super-120b-a12b"}}
 
       ##===Agentic Task LLM configurations===
-      AGENTIC_TASK_LLM_SERVERURL: ${AGENTIC_TASK_LLM_SERVERURL-"nim-llm:8000"}
-      AGENTIC_TASK_LLM_MODEL: ${AGENTIC_TASK_LLM_MODEL:-"nvidia/nemotron-3-super-120b-a12b"}
+      AGENTIC_TASK_LLM_SERVERURL: ${AGENTIC_TASK_LLM_SERVERURL-${APP_LLM_SERVERURL-"nim-llm:8000"}}
+      AGENTIC_TASK_LLM_MODEL: ${AGENTIC_TASK_LLM_MODEL:-${APP_LLM_MODELNAME:-"nvidia/nemotron-3-super-120b-a12b"}}
 
       ##===Agentic Seed Gen LLM configurations===
-      AGENTIC_SEED_GEN_LLM_SERVERURL: ${AGENTIC_SEED_GEN_LLM_SERVERURL-"nim-llm:8000"}
-      AGENTIC_SEED_GEN_LLM_MODEL: ${AGENTIC_SEED_GEN_LLM_MODEL:-"nvidia/nemotron-3-super-120b-a12b"}
+      AGENTIC_SEED_GEN_LLM_SERVERURL: ${AGENTIC_SEED_GEN_LLM_SERVERURL-${APP_LLM_SERVERURL-"nim-llm:8000"}}
+      AGENTIC_SEED_GEN_LLM_MODEL: ${AGENTIC_SEED_GEN_LLM_MODEL:-${APP_LLM_MODELNAME:-"nvidia/nemotron-3-super-120b-a12b"}}
 
       ##===Agentic Synthesis LLM configurations===
-      AGENTIC_SYNTHESIS_LLM_SERVERURL: ${AGENTIC_SYNTHESIS_LLM_SERVERURL-"nim-llm:8000"}
-      AGENTIC_SYNTHESIS_LLM_MODEL: ${AGENTIC_SYNTHESIS_LLM_MODEL:-"nvidia/nemotron-3-super-120b-a12b"}
+      AGENTIC_SYNTHESIS_LLM_SERVERURL: ${AGENTIC_SYNTHESIS_LLM_SERVERURL-${APP_LLM_SERVERURL-"nim-llm:8000"}}
+      AGENTIC_SYNTHESIS_LLM_MODEL: ${AGENTIC_SYNTHESIS_LLM_MODEL:-${APP_LLM_MODELNAME:-"nvidia/nemotron-3-super-120b-a12b"}}
 
       # Agent behaviour tuning
       AGENTIC_LOG_LEVEL: ${AGENTIC_LOG_LEVEL:-INFO}

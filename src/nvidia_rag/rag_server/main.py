@@ -568,6 +568,11 @@ class NvidiaRAG:
             if enable_filter_generator is not None
             else self.config.filter_expression_generator.enable_filter_generator
         )
+        # Capture raw runtime overrides BEFORE applying config defaults so the
+        # agentic path can distinguish "client omitted the field" (use per-role
+        # env defaults) from "client passed a value" (override all roles).
+        runtime_model_override = model
+        runtime_llm_endpoint_override = llm_endpoint
         model = model if model is not None else self.config.llm.model_name
         llm_endpoint = (
             llm_endpoint if llm_endpoint is not None else self.config.llm.server_url
@@ -722,6 +727,8 @@ class NvidiaRAG:
                     enable_streaming=enable_streaming,
                     rag_start_time_sec=rag_start_time_sec,
                     metrics=metrics,
+                    runtime_model_override=runtime_model_override,
+                    runtime_llm_endpoint_override=runtime_llm_endpoint_override,
                 )
             logger.info("=" * 80)
             logger.info("PIPELINE MODE: RAG Chain (with knowledge base)")
@@ -1204,9 +1211,7 @@ class NvidiaRAG:
                     logger.info("STAGE: Dynamic Filter Expression Generation")
                     logger.info("=" * 80)
                     logger.info("Configuration:")
-                    logger.info(
-                        "  - Vector Store: %s", self.config.vector_store.name
-                    )
+                    logger.info("  - Vector Store: %s", self.config.vector_store.name)
                     logger.info("  - Prompt: %s", prompt_key)
                     logger.info("  - Output Format: %s", output_format)
                     logger.info(
@@ -2221,6 +2226,8 @@ class NvidiaRAG:
         enable_streaming: bool,
         rag_start_time_sec: float | None,
         metrics: Any | None,
+        runtime_model_override: str | None = None,
+        runtime_llm_endpoint_override: str | None = None,
     ) -> RAGResponse:
         """Orchestrate one agentic RAG request.
 
@@ -2350,6 +2357,18 @@ class NvidiaRAG:
             reranker_top_k,
         )
 
+        # Per-request LLM override (FR-1527): forwarded into run_agentic_pipeline
+        # so the ContextVar set lives alongside the other request-scoped
+        # ContextVars (search params, trace, citations) and stays active for the
+        # full lifetime of the streaming RAGResponse generator — not just until
+        # this function returns.
+        if runtime_model_override or runtime_llm_endpoint_override:
+            logger.info(
+                "  - runtime LLM override: model=%s, endpoint=%s",
+                runtime_model_override,
+                runtime_llm_endpoint_override or "(api-catalog)",
+            )
+
         return await run_agentic_pipeline(
             agent=agent,
             graph=graph,
@@ -2363,6 +2382,9 @@ class NvidiaRAG:
             enable_streaming=enable_streaming,
             rag_start_time_sec=rag_start_time_sec,
             metrics=metrics,
+            runtime_model_override=runtime_model_override,
+            runtime_llm_endpoint_override=runtime_llm_endpoint_override,
+            runtime_api_key_override=self.config.llm.get_api_key(),
         )
 
     async def _rag_chain(
@@ -2789,9 +2811,7 @@ class NvidiaRAG:
                             ErrorCodeMapping.SERVICE_UNAVAILABLE,
                         )
 
-                    is_es_agentic = (
-                        self.config.vector_store.name == "elasticsearch"
-                    )
+                    is_es_agentic = self.config.vector_store.name == "elasticsearch"
                     prompt_key_agentic = (
                         "filter_expression_generator_prompt_elasticsearch"
                         if is_es_agentic
@@ -2803,9 +2823,7 @@ class NvidiaRAG:
                     logger.info("STAGE: Dynamic Filter Expression Generation")
                     logger.info("=" * 80)
                     logger.info("Configuration:")
-                    logger.info(
-                        "  - Vector Store: %s", self.config.vector_store.name
-                    )
+                    logger.info("  - Vector Store: %s", self.config.vector_store.name)
                     logger.info("  - Prompt: %s", prompt_key_agentic)
                     logger.info("  - Output Format: %s", output_format_agentic)
                     logger.info(
