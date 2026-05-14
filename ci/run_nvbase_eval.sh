@@ -35,7 +35,11 @@ uv tool install nv-base \
 nv-base --version
 nv-base health-check
 
-echo "==> Install Claude Code CLI"
+echo "==> Install Node.js + Claude Code CLI"
+if ! command -v npm >/dev/null 2>&1; then
+  curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+  sudo apt-get install -y nodejs
+fi
 if ! command -v claude >/dev/null 2>&1; then
   npm install -g @anthropic-ai/claude-code
 fi
