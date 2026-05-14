@@ -455,8 +455,7 @@ If you run into `torch.OutOfMemoryError: CUDA out of memory.` while deploying th
 ## Password Issue Fix
 
 If you encounter any `password authentication failed` issues with the structured retriever container,
-consider removing the volumes directory located at `deploy/compose/volumes`.
-In this case, you may need to reprocess the data ingestion.
+remove the `rag-vol-*` Docker named volumes (`docker volume ls -q --filter name=^rag-vol- | xargs -r docker volume rm`). In this case, you may need to reprocess the data ingestion. See [Manage Persistent Data Volumes](#manage-persistent-data-volumes) for selective wipes if you only need to reset one service.
 
 
 
@@ -471,14 +470,127 @@ This happens when a collection created with vector search type `hybrid` is acces
 
 ## Reset the entire cache
 
-To reset the entire cache, you can run the following command.
-This deletes all the volumes associated with the containers, including the cache.
+To reset the entire cache, stop the stack and remove the `rag-vol-*` Docker named volumes. This deletes **all** persisted state (Elasticsearch / Milvus / etcd / SeaweedFS / LanceDB / ingestor-server scratch).
 
 ```bash
-docker compose down -v
+docker compose -f deploy/compose/docker-compose-rag-server.yaml down
+docker compose -f deploy/compose/docker-compose-ingestor-server.yaml down
+docker compose -f deploy/compose/vectordb.yaml down
+docker volume ls -q --filter "name=^rag-vol-" | xargs -r docker volume rm
 ```
 
+See [Manage Persistent Data Volumes](#manage-persistent-data-volumes) below for backup, selective wipes, and migration from the legacy `deploy/compose/volumes/` host directory.
 
+
+
+## Manage Persistent Data Volumes
+
+All persistent data for the Docker Compose deployment is stored in dedicated Docker named volumes that share the `rag-vol-` prefix. They replace the legacy `deploy/compose/volumes/` host directory tree, and each is auto-created by `docker compose up` on first use — no host `mkdir` / `chown` or manual setup is needed.
+
+| Volume | Service | Mount target inside container |
+|---|---|---|
+| `rag-vol-milvus` | `milvus-standalone` | `/var/lib/milvus` |
+| `rag-vol-etcd` | `milvus-etcd` | `/etcd` |
+| `rag-vol-seaweedfs` | `seaweedfs` | `/data` |
+| `rag-vol-elasticsearch` | `elasticsearch` | `/usr/share/elasticsearch/data` |
+| `rag-vol-ingestor` | `ingestor-server` | `${INGESTOR_SERVER_DATA_DIR:-/data/}` |
+| `rag-vol-lancedb` | `ingestor-server`, `rag-server` | `/volumes/lancedb` |
+
+On the Docker host, each volume lives under `/var/lib/docker/volumes/<name>/_data/`. Every compose file declares the volumes with an explicit `name:` so they bypass the compose-project prefix — that means the `rag-vol-lancedb` mounted by `docker-compose-ingestor-server.yaml` is the same physical volume mounted by `docker-compose-rag-server.yaml`, and so on.
+
+### Inspect
+
+```bash
+# List all rag-* volumes:
+docker volume ls --filter "name=^rag-vol-"
+
+# Where is a specific volume on disk?
+docker volume inspect rag-vol-elasticsearch --format '{{ .Mountpoint }}'
+# → /var/lib/docker/volumes/rag-vol-elasticsearch/_data
+
+# List the contents of a volume (use a throwaway alpine container — the host path is root-owned).
+docker run --rm -v rag-vol-ingestor:/data:ro alpine ls -la /data
+```
+
+### Backup
+
+```bash
+# Snapshot a single volume to a tarball in the current directory:
+docker run --rm -v rag-vol-elasticsearch:/source:ro -v "$PWD":/backup alpine \
+  tar czf /backup/rag-vol-elasticsearch-$(date +%Y%m%d).tgz -C /source .
+
+# Snapshot every rag-vol-* volume in one shot:
+for v in $(docker volume ls -q --filter "name=^rag-vol-"); do
+  docker run --rm -v "$v":/source:ro -v "$PWD":/backup alpine \
+    tar czf "/backup/${v}-$(date +%Y%m%d).tgz" -C /source .
+done
+```
+
+### Restore
+
+```bash
+# Restore a single volume from a backup tarball:
+docker volume create rag-vol-elasticsearch
+docker run --rm -v rag-vol-elasticsearch:/dst -v "$PWD":/backup alpine \
+  tar xzf /backup/rag-vol-elasticsearch-YYYYMMDD.tgz -C /dst
+```
+
+### Reset
+
+Stop the stack first, then either wipe everything or just one volume.
+
+```bash
+# Wipe everything (re-ingestion required):
+docker volume ls -q --filter "name=^rag-vol-" | xargs -r docker volume rm
+
+# Wipe just one service's state (e.g. only Milvus + etcd, keeping ingestor scratch):
+docker volume rm rag-vol-milvus rag-vol-etcd
+```
+
+### Migrating from the legacy `deploy/compose/volumes/` host directory
+
+Earlier releases bind-mounted persistent data from `deploy/compose/volumes/`. If you are upgrading and want to keep that data, copy each subdirectory into its corresponding `rag-vol-*` volume once before bringing the new stack up:
+
+```bash
+# 1. Stop any running compose stacks first so files aren't being written.
+docker compose -f deploy/compose/docker-compose-rag-server.yaml down || true
+docker compose -f deploy/compose/docker-compose-ingestor-server.yaml down || true
+docker compose -f deploy/compose/vectordb.yaml down || true
+
+# 2. For each legacy subdirectory you want to preserve, copy it into the matching
+#    rag-vol-* volume. Adjust the loop if you don't have all six.
+declare -A MAP=(
+  [milvus]=rag-vol-milvus
+  [etcd]=rag-vol-etcd
+  [seaweedfs]=rag-vol-seaweedfs
+  [elasticsearch]=rag-vol-elasticsearch
+  [ingestor-server]=rag-vol-ingestor
+  [lancedb]=rag-vol-lancedb
+)
+for src_dir in "${!MAP[@]}"; do
+  legacy="deploy/compose/volumes/${src_dir}"
+  vol="${MAP[$src_dir]}"
+  [ -d "$legacy" ] || { echo "skip $legacy (not present)"; continue; }
+  docker volume create "$vol" >/dev/null
+  docker run --rm \
+    -v "$PWD/$legacy":/src:ro \
+    -v "$vol":/dst \
+    alpine sh -c "cp -a /src/. /dst/"
+  echo "migrated $legacy → $vol"
+done
+
+# 3. Elasticsearch + ingestor expect UID/GID 1000 ownership inside their volumes.
+docker run --rm -v rag-vol-elasticsearch:/data alpine chown -R 1000:1000 /data
+docker run --rm -v rag-vol-ingestor:/data alpine chown -R 1000:1000 /data
+
+# 4. Spot-check.
+docker volume ls --filter "name=^rag-vol-"
+
+# 5. Once the stack starts and data is intact, you can remove the legacy directory:
+sudo rm -rf deploy/compose/volumes
+```
+
+If you do **not** need to preserve the legacy data, just delete `deploy/compose/volumes/` — Docker will create fresh empty volumes on the first `docker compose up`.
 
 ## Running out of credits
 

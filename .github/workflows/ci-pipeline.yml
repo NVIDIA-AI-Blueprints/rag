@@ -251,12 +251,11 @@ jobs:
           echo "Loading common environment variables..."
           export TAG=$(echo ${GITHUB_REF_NAME} | sed 's/[^a-zA-Z0-9]/-/g')-${GITHUB_SHA::7}
           export NGC_API_KEY=${{ secrets.NGC_API_KEY }}
-          export DOCKER_VOLUME_DIRECTORY=/tmp/milvus-${MILVUS_VERSION}
-          export INGESTOR_SERVER_EXTERNAL_VOLUME_MOUNT=/tmp/ingestor-server-data
           echo "TAG=$TAG" >> $GITHUB_ENV
           echo "NGC_API_KEY=$NGC_API_KEY" >> $GITHUB_ENV
-          echo "DOCKER_VOLUME_DIRECTORY=$DOCKER_VOLUME_DIRECTORY" >> $GITHUB_ENV
-          echo "INGESTOR_SERVER_EXTERNAL_VOLUME_MOUNT=$INGESTOR_SERVER_EXTERNAL_VOLUME_MOUNT" >> $GITHUB_ENV
+          # Persistent data lives in the `rag-vol-*` named Docker volumes
+          # (auto-created by compose). Ensure fresh volumes per CI run.
+          docker volume ls -q --filter "name=^rag-vol-" | xargs -r docker volume rm -f || true
           
           # Load nvdev.env and export all variables to GITHUB_ENV
           if [ -f ./deploy/compose/nvdev.env ]; then
@@ -962,11 +961,10 @@ jobs:
           # Stop and clean up existing Milvus containers and volumes
           echo "Stopping and cleaning up existing Milvus containers..."
           docker compose -f tests/integration/vectordb.yaml down -v || true
-          
-          # Remove the old data directories to ensure clean start with auth
-          echo "Cleaning up old Milvus data directories..."
-          sudo rm -rf /tmp/milvus-${MILVUS_VERSION}/volumes/milvus || true
-          sudo rm -rf /tmp/milvus-${MILVUS_VERSION}/volumes/etcd || true
+
+          # Wipe the rag-vol-* volumes to ensure a clean start under the new auth config.
+          echo "Removing rag-vol-* volumes to clear Milvus/etcd state..."
+          docker volume ls -q --filter "name=^rag-vol-" | xargs -r docker volume rm -f || true
           
           # Ensure milvus.yaml exists in tests/integration by copying from running container
           # Since we stopped the container, we need to start a temporary one to extract config
@@ -987,8 +985,10 @@ jobs:
           echo "Verifying milvus.yaml authentication settings:"
           grep -A2 "security:" tests/integration/milvus.yaml | head -5
           
-          # Update vectordb.yaml to comment out data volume and enable config volume
-          sed -i 's|- \${DOCKER_VOLUME_DIRECTORY:-.}/volumes/milvus:/var/lib/milvus|# - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/milvus:/var/lib/milvus|' tests/integration/vectordb.yaml
+          # Wipe rag-vol-* volumes so Milvus starts with a fresh data dir under the auth config.
+          # (Replaces the previous trick of commenting out the data-volume bind-mount.)
+          docker volume ls -q --filter "name=^rag-vol-" | xargs -r docker volume rm -f || true
+          # Enable the milvus.yaml config file mount in vectordb.yaml
           sed -i 's|# - \${MILVUS_CONFIG_FILE:-./milvus.yaml}:/milvus/configs/milvus.yaml|- ${MILVUS_CONFIG_FILE:-./milvus.yaml}:/milvus/configs/milvus.yaml|' tests/integration/vectordb.yaml
       
       - name: Restart vector database with auth
@@ -1053,15 +1053,14 @@ jobs:
           docker compose -f tests/integration/vectordb.yaml down -v || true
           
           # Clean up auth-specific data to ensure fresh start
-          sudo rm -rf /tmp/milvus-${MILVUS_VERSION}/volumes/milvus || true
-          sudo rm -rf /tmp/milvus-${MILVUS_VERSION}/volumes/etcd || true
-          
+          docker volume ls -q --filter "name=^rag-vol-" | xargs -r docker volume rm -f || true
+
           # Remove the auth config file
           rm -f tests/integration/milvus.yaml || true
-          
-          # Revert vectordb.yaml to original state
+
+          # Revert vectordb.yaml to original state (data-volume mount is unchanged now;
+          # only the milvus.yaml config-file mount needs to be re-commented).
           sed -i 's|- \${MILVUS_CONFIG_FILE:-./milvus.yaml}:/milvus/configs/milvus.yaml|# - ${MILVUS_CONFIG_FILE:-./milvus.yaml}:/milvus/configs/milvus.yaml|' tests/integration/vectordb.yaml
-          sed -i 's|# - \${DOCKER_VOLUME_DIRECTORY:-.}/volumes/milvus:/var/lib/milvus|- \${DOCKER_VOLUME_DIRECTORY:-.}/volumes/milvus:/var/lib/milvus|' tests/integration/vectordb.yaml
           
           # Restart default vector DB stack (Elasticsearch + object store) for end of job
           echo "Restarting vector database stack after Milvus auth tests..."

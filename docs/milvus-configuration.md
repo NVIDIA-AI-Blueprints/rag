@@ -268,17 +268,19 @@ docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d
 ```
 
 :::{important}
-**Set the password before deployment** as it persists in the etcd volume. To change the password after deployment, stop the containers, remove the volumes, and restart:
+**Set the password before deployment** as it persists in the etcd volume. To change the password after deployment, stop the containers, remove the `rag-vol-*` Docker volumes, and restart:
 
 ```bash
 docker compose -f deploy/compose/vectordb.yaml --profile milvus down
-rm -rf deploy/compose/volumes/milvus deploy/compose/volumes/seaweedfs deploy/compose/volumes/etcd
+docker volume rm rag-vol-milvus rag-vol-etcd rag-vol-seaweedfs
 docker compose -f deploy/compose/vectordb.yaml --profile milvus up -d
 ```
+
+For more granular control (for example, wiping only Milvus + etcd and keeping the SeaweedFS object store) see [Manage Persistent Data Volumes](troubleshooting.md#manage-persistent-data-volumes).
 :::
 
 :::{warning}
-**Data Loss Warning:** Removing volumes deletes **all ingested data** (Milvus vectors and object-store files). You must re-ingest all documents afterward. Ensure you have backups before proceeding.
+**Data Loss Warning:** Removing these volumes deletes **all ingested data** (Milvus vectors, object-store files, etcd state). You must re-ingest all documents afterward. Ensure you have backups before proceeding.
 :::
 
 ### Helm Chart
@@ -467,9 +469,9 @@ If you encounter GPU_CAGRA errors that cannot be resolved by when switching to C
    docker compose -f deploy/compose/docker-compose-ingestor-server.yaml down
    ```
 
-2. Delete the Milvus volumes directory:
+2. Delete the Milvus-related `rag-vol-*` Docker volumes (see [Manage Persistent Data Volumes](troubleshooting.md#manage-persistent-data-volumes) for selective wipes):
    ```bash
-   rm -rf deploy/compose/volumes
+   docker volume rm rag-vol-milvus rag-vol-etcd rag-vol-seaweedfs
    ```
 
 3. Restart the services:

@@ -638,7 +638,7 @@ services:
       MINIO_ADDRESS: seaweedfs:9010
       KNOWHERE_GPU_MEM_POOL_SIZE: 2048;4096
     volumes:
-      - ${DOCKER_VOLUME_DIRECTORY:-./volumes/milvus}:/var/lib/milvus
+      - rag-vol-milvus:/var/lib/milvus
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
       interval: 30s
@@ -673,7 +673,7 @@ services:
       - ETCD_QUOTA_BACKEND_BYTES=4294967296
       - ETCD_SNAPSHOT_COUNT=50000
     volumes:
-      - ${DOCKER_VOLUME_DIRECTORY:-./volumes/etcd}:/etcd
+      - rag-vol-etcd:/etcd
     command: etcd -advertise-client-urls=http://127.0.0.1:2379 -listen-client-urls http://0.0.0.0:2379 --data-dir /etcd
     healthcheck:
       test: ["CMD", "etcdctl", "endpoint", "health"]
@@ -692,7 +692,7 @@ services:
       - "9011:9011"
       - "9010:9010"
     volumes:
-      - ${DOCKER_VOLUME_DIRECTORY:-./volumes/seaweedfs}:/data
+      - rag-vol-seaweedfs:/data
       - ../compose/seaweedfs-config/s3.json:/etc/seaweedfs/s3.json:ro
     command:
       - server
@@ -715,7 +715,7 @@ services:
     ports:
       - "9200:9200"
     volumes:
-      - ${DOCKER_VOLUME_DIRECTORY:-./volumes/elasticsearch}:/usr/share/elasticsearch/data
+      - rag-vol-elasticsearch:/usr/share/elasticsearch/data
     restart: on-failure
     environment:
       - discovery.type=single-node
@@ -868,6 +868,16 @@ volumes:
   vectordb:
   nim_cache:
     external: true
+  # Per-service named volumes — same names used by deploy/compose/*.yaml so
+  # workbench-launched stacks and the main compose stacks share data on the host.
+  rag-vol-milvus:
+    name: rag-vol-milvus
+  rag-vol-etcd:
+    name: rag-vol-etcd
+  rag-vol-seaweedfs:
+    name: rag-vol-seaweedfs
+  rag-vol-elasticsearch:
+    name: rag-vol-elasticsearch
 
 networks:
   default:

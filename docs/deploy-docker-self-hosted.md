@@ -130,18 +130,7 @@ Use the following procedure to start all containers needed for this blueprint.
      ```
 
 
-6. (Elasticsearch data directory — default Docker Compose bind mount) When you use the default Elasticsearch layout in `deploy/compose/vectordb.yaml`, data is stored under `deploy/compose/volumes/elasticsearch/`. If you have `sudo` on the host, create that directory and set ownership so the container user (UID 1000) can write before you start the vector database:
-
-   ```bash
-   sudo mkdir -p deploy/compose/volumes/elasticsearch/
-   sudo chown -R 1000:1000 deploy/compose/volumes/elasticsearch/
-   ```
-
-   :::{note}
-   If Elasticsearch still fails to start due to permissions, you may optionally run `sudo chmod -R 777 deploy/compose/volumes/elasticsearch/` for broader access.
-   :::
-
-   If you cannot use `sudo`, configure a Docker named volume instead of a host bind mount; see [Vector database configuration](change-vectordb.md#configuring-elasticsearch) (subsection **Without sudo (named Docker volume)**).
+6. Persistent data (Elasticsearch, SeaweedFS, Milvus/etcd, LanceDB, and the ingestor-server scratch dir) is stored in dedicated `rag-vol-*` Docker named volumes, which Docker Compose creates automatically the first time you bring the stack up. For inspection, backup, and reset commands — and for migrating data from the legacy `deploy/compose/volumes/` host directory — see [Manage Persistent Data Volumes](troubleshooting.md#manage-persistent-data-volumes) in the troubleshooting guide.
 
 7. Start the vector db containers from the repo root.
 

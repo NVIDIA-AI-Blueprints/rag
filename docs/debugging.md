@@ -313,10 +313,11 @@ docker logs -f nim-llm-ms
 
 **Vector Search Issues:**
 
-Delete the existing volumes directory and retry.
+Wipe the `rag-vol-*` Docker named volumes and retry. This deletes all persisted state (vectors, object store, etcd, LanceDB, ingestor scratch) — see [Manage Persistent Data Volumes](troubleshooting.md#manage-persistent-data-volumes) for selective wipes if you only need to reset one service.
 
 ```bash
-sudo rm -rf deploy/compose/volumes
+docker compose -f deploy/compose/vectordb.yaml down
+docker volume ls -q --filter "name=^rag-vol-" | xargs -r docker volume rm
 ```
 
 ## How to Enable Advanced Debugging

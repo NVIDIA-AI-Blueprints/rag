@@ -16,9 +16,11 @@ services:
     volumes:
       # Mount the prompt.yaml file to the container, path should be absolute
       - ${PROMPT_CONFIG_FILE}:${PROMPT_CONFIG_FILE}
-      # Please mount the volume to the container to the path specified here
-      - ${INGESTOR_SERVER_EXTERNAL_VOLUME_MOUNT:-./volumes/ingestor-server}:${INGESTOR_SERVER_DATA_DIR:-/data/}
-      - ${LANCEDB_VOLUME_MOUNT:-./volumes/lancedb}:/volumes/lancedb
+      # Persistent data — `rag-vol-ingestor` for ingestor-server scratch/results,
+      # `rag-vol-lancedb` shared with the RAG server. These replace the legacy
+      # `deploy/compose/volumes/ingestor-server` / `…/lancedb` host directories.
+      - rag-vol-ingestor:${INGESTOR_SERVER_DATA_DIR:-/data/}
+      - rag-vol-lancedb:/volumes/lancedb
 
     # Common customizations to the pipeline can be controlled using env variables
     environment:
@@ -268,6 +270,15 @@ services:
       interval: 10s
       timeout: 5s
       retries: 20
+
+# Per-service named Docker volumes. Explicit `name:` bypasses the compose project
+# prefix so the lancedb volume is the same physical volume as the one mounted by
+# docker-compose-rag-server.yaml (and any future consumers).
+volumes:
+  rag-vol-ingestor:
+    name: rag-vol-ingestor
+  rag-vol-lancedb:
+    name: rag-vol-lancedb
 
 networks:
   default:
