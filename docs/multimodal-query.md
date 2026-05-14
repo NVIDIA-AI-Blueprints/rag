@@ -85,6 +85,11 @@ export APP_VLM_MODELNAME="nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
 export APP_VLM_SERVERURL="http://vlm-ms:8000/v1"
 export APP_LLM_SERVERURL=""
 
+# Optional: use the same VLM for document summaries when no LLM NIM is running.
+# You can also point SUMMARY_LLM* to a separate LLM or NVIDIA-hosted endpoint.
+export SUMMARY_LLM="nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
+export SUMMARY_LLM_SERVERURL="http://vlm-ms:8000/v1"
+
 # Multimodal embedding model configuration
 export APP_EMBEDDINGS_MODELNAME="nvidia/llama-nemotron-embed-vl-1b-v2"
 export APP_EMBEDDINGS_SERVERURL="nemotron-vlm-embedding-ms:8000/v1"
@@ -170,8 +175,13 @@ Then set the VLM configuration:
 ```bash
 # VLM (Vision-Language Model) configuration - cloud hosted
 export APP_VLM_MODELNAME="nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
-export APP_VLM_SERVERURL="https://integrate.api.nvidia.com"
+export APP_VLM_SERVERURL="https://integrate.api.nvidia.com/v1"
 export APP_LLM_SERVERURL=""
+
+# Optional: use the same NVIDIA-hosted VLM for document summaries.
+# You can also leave SUMMARY_LLM* pointing at another supported summarizer.
+export SUMMARY_LLM="nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
+export SUMMARY_LLM_SERVERURL="https://integrate.api.nvidia.com/v1"
 
 # Multimodal embedding model configuration - cloud hosted
 export APP_EMBEDDINGS_MODELNAME="nvidia/llama-nemotron-embed-vl-1b-v2"
@@ -292,6 +302,11 @@ ingestor-server:
     APP_NVINGEST_IMAGE_ELEMENTS_MODALITY: "image"
     APP_NVINGEST_EXTRACTIMAGES: "True"
 
+    # Summary generation settings.
+    # Required for generate_summary=true when nim-llm is disabled.
+    SUMMARY_LLM: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
+    SUMMARY_LLM_SERVERURL: "http://nim-vlm:8000/v1"
+
     # VLM embedding settings for ingestor
     APP_EMBEDDINGS_SERVERURL: "nemotron-vlm-embedding-ms:8000/v1"
     APP_EMBEDDINGS_MODELNAME: "nvidia/llama-nemotron-embed-vl-1b-v2"
@@ -375,11 +390,6 @@ For a step-by-step guide with code examples covering collection creation, docume
 
 - **Reranker not supported**: The reranker must be disabled (`enable_reranker: False`) for multimodal queries.
 - **Single-page retrieval for image queries**: When an image is included in the query, the retrieval results are constrained to content from a single page per document. Multi-page context retrieval is not supported for image-based queries.
-- **Summary generation not supported**: The multimodal query pipeline replaces the LLM with a VLM for response generation, and summary generation does not work with VLMs. If you need summary generation alongside multimodal queries, you must deploy a separate LLM dedicated to `summary generation. For details, see [Summarization](summarization.md).`
-- **Elasticsearch not supported**: Multimodal queries are only supported with Milvus as the vector database. Elasticsearch is not supported for multimodal query workflows.
-
-
-
 
 
 ## Related Topics
