@@ -47,6 +47,13 @@ The pipeline is a LangGraph state machine with five parts:
 4. **Synthesis**—merges task sub-answers, initial retrieval context, and the resolved query into one answer. If every task returns `[NO DATA]`, it falls back to the initial context.
 5. **Verification (optional)**—checks the answer for gaps. On `pass`, you're done. On `fail`, follow-up tasks use the same execute engine and synthesis runs again with the gap data.
 
+The diagram below shows how the stages connect, including the scope-replan loop back into the planner and the verify-replan loop back into task execution.
+
+```{figure} assets/arch_agentic_rag.png
+
+Agentic RAG pipeline — initial retrieval feeds the planner, which emits an empty, answer, or scope-discovery plan; tasks execute with per-task retrieval and optional follow-ups; synthesis produces the answer, and optional verification can trigger a targeted re-plan.
+```
+
 ## Enable Agentic RAG
 
 ### Enable per request (API) (recommended)
@@ -64,6 +71,12 @@ The server `ENABLE_AGENTIC_RAG` env var only sets the default when `agentic` is 
 ```
 
 When `agentic` is omitted or `null`, the server uses `ENABLE_AGENTIC_RAG`. Agentic RAG applies only if `use_knowledge_base=true`. The agentic path respects `enable_streaming`: when `true` (default), it streams stage events and final tokens as Server-Sent Events; when `false`, the graph finishes and returns the full answer in one chunk. The standard RAG chain always streams.
+
+With streaming on (the default), the RAG UI surfaces each stage as the graph runs—initial retrieval, the plan, per-task execution, and synthesis stream in before the final answer.
+
+```{image} assets/ui-agentic-rag-streaming.png
+:width: 750px
+```
 
 ### Change the deployment default (environment variable)
 
