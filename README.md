@@ -13,9 +13,9 @@ The NVIDIA RAG Blueprint is a reference solution and foundational starting point
 for building Retrieval-Augmented Generation (RAG) pipelines with NVIDIA NIM microservices.
 It enables enterprises to deliver natural language question answering grounded in their own data,
 while meeting governance, latency, and scalability requirements.
-Designed to be decomposable and configurable, the blueprint integrates GPU-accelerated components with NeMo Retriever models, Multimodal and Vision Language Models, and guardrailing services,
+Designed to be decomposable and configurable, the blueprint integrates GPU-accelerated components with NeMo Retriever models, Multimodal and Vision Language Models, and guardrails services,
 to provide an enterprise-ready framework.
-With a pre-built reference UI, open-source code, and multiple deployment options — including local docker (with and without NVIDIA Hosted endpoints) and Kubernetes —
+With a pre-built reference UI, open-source code, and multiple deployment options — including local Docker (with and without NVIDIA Hosted endpoints) and Kubernetes —
 it serves as a flexible starting point that developers can adapt and extend to their specific needs.
 
 
@@ -25,7 +25,7 @@ it serves as a flexible starting point that developers can adapt and extend to t
 <details>
     <summary>Data Ingestion</summary>
     <ul>
-        <li>Multimodal content extraction - Documents with text, tables, charts, infographics, and audio. For the full list of supported file types, see [NeMo Retriever Extraction Overview](https://docs.nvidia.com/nemo/retriever/latest/extraction/overview/).</li>
+        <li>Multimodal content extraction - Documents with text, tables, charts, infographics, and audio. For the full list of supported file types, refer to [NeMo Retriever Extraction Overview](https://docs.nvidia.com/nemo/retriever/latest/extraction/overview/).</li>
         <li>Custom metadata support</li>
     </ul>
 </details>
@@ -87,7 +87,7 @@ it serves as a flexible starting point that developers can adapt and extend to t
 The RAG blueprint is built from the following complementary categories of software:
 
 
-- **NVIDIA NIM microservices** – Deliver the core AI functionality. Large-scale inference (e.g. for example, Nemotron LLM models for response generation), retrieval and reranking models, and specialized extractors for text, tables, charts, and graphics. Optional NIMs extend these capabilities with OCR, content safety, topic control, and multimodal embeddings.
+- **NVIDIA NIM microservices** – Deliver the core AI functionality. Large-scale inference (for example, Nemotron LLM models for response generation), retrieval and reranking models, and specialized extractors for text, tables, charts, and graphics. Optional NIMs extend these capabilities with OCR, content safety, topic control, and multimodal embeddings.
 
 - **The integration and orchestration layer** – Acts as the glue that binds the system into a complete solution.
 
@@ -120,13 +120,13 @@ This modular design ensures efficient query processing, accurate retrieval of in
     - [llama-nemotron-embed-vl-1b-v2](https://build.nvidia.com/nvidia/llama-nemotron-embed-vl-1b-v2)
 
 
- ### Integration and orchestration layer
+### Integration and Orchestration Layer
 
 - **RAG Orchestrator Server** – Coordinates interactions between the user, retrievers, vector database, and inference models, ensuring multi-turn and context-aware query handling. This is [LangChain](https://www.langchain.com/)-based.
 
 - **Vector Database (accelerated with NVIDIA cuVS)** – Stores and searches embeddings at scale with GPU-accelerated indexing and retrieval for low-latency performance. You can use [Milvus Vector Database](https://milvus.io/) or [Elasticsearch](https://www.elastic.co/elasticsearch/vector-database).
 
-- **NeMo Retriever Extraction** – A high-performance ingestion microservice for parsing multimodal content. For more information about the ingestion pipeline, see [NeMo Retriever Extraction Overview](https://docs.nvidia.com/nemo/retriever/latest/extraction/overview/)
+- **NeMo Retriever Extraction** – A high-performance ingestion microservice for parsing multimodal content. For more information about the ingestion pipeline, refer to [NeMo Retriever Extraction Overview](https://docs.nvidia.com/nemo/retriever/latest/extraction/overview/).
 
 - **RAG User Interface (rag-frontend)** – A lightweight user interface that demonstrates end-to-end query, retrieval, and response workflows for developers and end users. For more information, refer to [RAG UI](docs/user-interface.md).
 
@@ -138,7 +138,7 @@ This modular design ensures efficient query processing, accurate retrieval of in
 The following image represents the architecture and workflow.
 
   <p align="center">
-  <img src="./docs/assets/arch_diagram.png" width="750">
+  <img src="./docs/assets/arch_diagram.png" width="750" alt="RAG Blueprint architecture: ingestion, retrieval, reranking, LLM inference, and optional guardrails">
   </p>
 
 
@@ -152,11 +152,11 @@ The following is a step-by-step explanation of the workflow from the end-user pe
 
 3. **Query Processing** – The query is processed by the Query Processing service, which may also leverage reflection (an optional LLM step) to improve query understanding or reformulation for better retrieval results.
 
-4. **Retrieval from Enterprise Data** – The processed query is converted into embeddings using NeMo Retriever Embedding and matched against enterprise data stored in a cuVS accelerated Vector Database (CuVS) and associated object store(minIO). Relevant results are identified based on similarity.
+4. **Retrieval from Enterprise Data** – The processed query is converted into embeddings using NeMo Retriever Embedding and matched against enterprise data stored in a cuVS-accelerated vector database and an associated object store (MinIO). Relevant results are identified based on similarity.
 
 5. **Reranking for Precision** – An optional NeMo Retriever Reranker reorders the retrieved passages, ensuring the most relevant chunks are selected to ground the response.
 
-6. **Response Generation** – The selected context is passed into the LLM inference service (e.g., Llama Nemotron models). An optional reflection step can further validate or refine the answer against the retrieved context. Guardrails may also be applied to enforce safety before delivery.
+6. **Response Generation** – The selected context is passed into the LLM inference service (for example, Llama Nemotron models). An optional reflection step can further validate or refine the answer against the retrieved context. Guardrails may also be applied to enforce safety before delivery.
 
 7. **User Response** – The generated, grounded response is sent back to the user interface, often with citations to retrieved documents for transparency.
 
@@ -164,7 +164,7 @@ The following is a step-by-step explanation of the workflow from the end-user pe
 
 ## AI Agent Skill
 
-An agent skill is included that enables AI coding assistants (Claude Code, Cursor, etc.) to deploy, configure, troubleshoot, and manage the RAG Blueprint autonomously.
+An agent skill is included that enables AI coding assistants (Claude Code, Cursor, Codex, and similar tools) to deploy, configure, troubleshoot, and manage the RAG Blueprint autonomously.
 
 ### Install
 
@@ -180,9 +180,9 @@ This installs the `rag-blueprint` skill from `skill-source/`. After installation
 - *"Switch from Docker to library mode"*
 - *"Shut down all RAG services"*
 
-> **Note:** If the agent doesn't pick up the skill automatically (e.g., for short or ambiguous queries), invoke it explicitly with `/rag-blueprint <your request>`.
+> **Note:** If the agent doesn't pick up the skill automatically (for example, for short or ambiguous queries), invoke it explicitly with `/rag-blueprint <your request>`.
 
-For skill architecture details, see [`skill-source/README.md`](skill-source/README.md).
+For skill architecture details, refer to [`skill-source/README.md`](skill-source/README.md).
 
 
 ## Get Started With NVIDIA RAG Blueprint
@@ -211,9 +211,9 @@ Refer to the [full documentation](docs/readme.md) to learn about the following:
 
 ## Inviting the community to contribute
 
-We're posting these examples on GitHub to support the NVIDIA LLM community and facilitate feedback.
+We are posting these examples on GitHub to support the NVIDIA LLM community and facilitate feedback.
 We invite contributions!
-To open a GitHub issue or pull request, see the [contributing guidelines](./CONTRIBUTING.md).
+To open a GitHub issue or pull request, refer to the [contributing guidelines](./CONTRIBUTING.md).
 
 
 ## License

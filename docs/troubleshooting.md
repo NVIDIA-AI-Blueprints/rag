@@ -8,11 +8,11 @@ The following issues might arise when you work with the [NVIDIA RAG Blueprint](r
 
 
 :::{note}
-For the full list of known issues, see [Known Issues](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/CHANGELOG.md#all-known-issues)
+For the full list of known issues, refer to [Known Issues](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/CHANGELOG.md#all-known-issues)
 :::
 
 :::{tip}
-To navigate this page more easily, click the outline button at the top of the page. ![outline-button](assets/outline-button.png)
+To navigate this page more easily, click the outline (table of contents) button at the top of the page. ![Documentation sidebar outline / table-of-contents control](assets/outline-button.png)
 :::
 
 
@@ -57,17 +57,11 @@ The expected timeline for a first-time deployment is the following:
 - **Pod startup:** 5-10 minutes
 
 **Subsequent deployments:**
-The expected timeline for a first-time deployment is the following:
-
-- 60-70 minutes total time 
-- 40-50 minutes for NIM cache downloads 
-- 10-15 minutes for service initialization 
-- 5-10 minutes for Pod startup 
 
 The expected timeline for subsequent deployments is the following:
 
-- 10-15 minutes
-- Much faster because no model downloads are required
+- **Total time:** 10-15 minutes
+- Much faster than the first deployment because NIM caches and container images are already on the cluster
 
 :::{tip}
 If your deployment exceeds these time ranges significantly, check the monitoring commands in the relevant deployment guide or refer to "Monitoring Model Download Progress" in the following section.
@@ -400,7 +394,7 @@ ingestor-server:
       memory: "25Gi"    # adjust as needed for your cluster
 ```
 
-Then upgrade the chart. For more details, see [Change a Deployment](deploy-helm.md#change-a-deployment).
+Then upgrade the chart. For more details, refer to [Change a Deployment](deploy-helm.md#change-a-deployment).
 
 ## Ingestion failures
 
