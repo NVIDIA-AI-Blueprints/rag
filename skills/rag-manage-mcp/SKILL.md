@@ -1,15 +1,10 @@
 ---
 name: rag-manage-mcp
 description: Set up, use, validate, or troubleshoot the NVIDIA RAG Blueprint MCP server, MCP client, and NeMo Agent Toolkit integration. Use when the user asks for RAG MCP tools, agent integration, NAT MCP integration, MCP server examples, or MCP debugging.
-owner: nvidia-rag-team
-service: nvidia-rag-mcp
+author: nvidia-rag-team
 version: "0.1.0"
-reviewed: "2026-05-11"
 license: Apache-2.0
 data_classification: internal
-metadata:
-  github-url: "https://github.com/NVIDIA-AI-Blueprints/rag"
-  tags: "nvidia rag mcp agent-toolkit"
 ---
 
 # RAG Manage MCP

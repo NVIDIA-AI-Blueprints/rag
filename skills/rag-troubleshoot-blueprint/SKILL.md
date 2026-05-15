@@ -1,15 +1,10 @@
 ---
 name: rag-troubleshoot-blueprint
 description: Troubleshoot, debug, diagnose, or fix NVIDIA RAG Blueprint deployments, unhealthy services, failed containers, failed pods, API errors, ingestion failures, query failures, GPU issues, port conflicts, and vector database problems.
-owner: nvidia-rag-team
-service: nvidia-rag-blueprint
+author: nvidia-rag-team
 version: "0.1.0"
-reviewed: "2026-05-11"
 license: Apache-2.0
 data_classification: internal
-metadata:
-  github-url: "https://github.com/NVIDIA-AI-Blueprints/rag"
-  tags: "nvidia rag troubleshoot debug"
 ---
 
 # RAG Troubleshoot Blueprint

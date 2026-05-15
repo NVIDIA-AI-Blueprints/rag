@@ -1,15 +1,10 @@
 ---
 name: rag-evaluate-quality
 description: Evaluate NVIDIA RAG Blueprint answer quality, retrieval recall, RAGAS metrics, accuracy benchmarks, performance benchmarks, and evaluation notebooks. Use when the user asks to run RAG evaluation, score answer quality, measure retrieval recall, compare configurations, or validate accuracy and performance.
-owner: nvidia-rag-team
-service: nvidia-rag-evaluation
+author: nvidia-rag-team
 version: "0.1.0"
-reviewed: "2026-05-11"
 license: Apache-2.0
 data_classification: internal
-metadata:
-  github-url: "https://github.com/NVIDIA-AI-Blueprints/rag"
-  tags: "nvidia rag evaluation quality ragas"
 ---
 
 # RAG Evaluate Quality

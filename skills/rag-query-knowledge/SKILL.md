@@ -1,15 +1,10 @@
 ---
 name: rag-query-knowledge
 description: Query NVIDIA RAG Blueprint collections and produce grounded answers with citations or retrieved chunks. Use when the user asks a question over ingested documents, wants to search a collection, compare answers, inspect citations, use the RAG UI, call the REST API, or use the Python client.
-owner: nvidia-rag-team
-service: nvidia-rag-server
+author: nvidia-rag-team
 version: "0.1.0"
-reviewed: "2026-05-11"
 license: Apache-2.0
 data_classification: internal
-metadata:
-  github-url: "https://github.com/NVIDIA-AI-Blueprints/rag"
-  tags: "nvidia rag query search retrieval"
 ---
 
 # RAG Query Knowledge

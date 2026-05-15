@@ -1,15 +1,10 @@
 ---
 name: rag-configure-retrieval
 description: Configure RAG retrieval, hybrid search, multi-collection retrieval, reranking, metadata filters, natural-language filter generation, retrieval topK, thresholds, and accuracy or performance profiles. Use when the user asks to tune search quality, enable hybrid search, query multiple collections, or fix retrieval relevance.
-owner: nvidia-rag-team
-service: nvidia-rag-server
+author: nvidia-rag-team
 version: "0.1.0"
-reviewed: "2026-05-11"
 license: Apache-2.0
 data_classification: internal
-metadata:
-  github-url: "https://github.com/NVIDIA-AI-Blueprints/rag"
-  tags: "nvidia rag retrieval search metadata"
 ---
 
 # RAG Configure Retrieval

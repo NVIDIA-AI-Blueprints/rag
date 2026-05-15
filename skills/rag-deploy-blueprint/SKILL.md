@@ -1,15 +1,10 @@
 ---
 name: rag-deploy-blueprint
 description: Deploy, start, verify, shut down, or tear down the NVIDIA RAG Blueprint. Use when the user says deploy RAG, start RAG, set up RAG, run RAG on Docker, deploy RAG with Helm, use library mode, stop RAG, or clean up a RAG deployment.
-owner: nvidia-rag-team
-service: nvidia-rag-blueprint
+author: nvidia-rag-team
 version: "0.1.0"
-reviewed: "2026-05-11"
 license: Apache-2.0
 data_classification: internal
-metadata:
-  github-url: "https://github.com/NVIDIA-AI-Blueprints/rag"
-  tags: "nvidia blueprint deployment rag"
 ---
 
 # RAG Deploy Blueprint
