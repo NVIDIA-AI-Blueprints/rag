@@ -79,7 +79,10 @@ PREAMBLE = (
     "You are running inside a non-interactive evaluation harness.\n"
     "You are pre-authorized to deploy and configure services autonomously —\n"
     "do not pause to ask for confirmation on any setup action.\n"
-    f"Run all commands from the repo root: {REPO_ROOT}/"
+    "First command: `cd \"$RAG_REPO_ROOT\"`. Every subsequent command runs\n"
+    "from there. The shell environment already has RAG_REPO_ROOT exported.\n"
+    "Do NOT hardcode an absolute path — the repo location differs between\n"
+    "LocalEnvironment (runner workspace) and BrevEnvironment ($HOME/rag)."
 )
 
 GENERIC_JUDGE = Path(__file__).resolve().parents[2] / "verifiers" / "generic_judge.py"
@@ -314,13 +317,17 @@ def main() -> None:
         print(f"spec not found: {spec_path}", file=sys.stderr)
         sys.exit(1)
 
-    # Substitute path placeholders before parsing so any field referencing
-    # the repo root (env, query, checks) resolves to the current checkout.
-    # Backwards-compat: also rewrite the legacy hardcoded /home/faaranm path
-    # so older specs keep working without an edit.
+    # Keep ${RAG_REPO_ROOT} as a literal — the agent's shell expands it at
+    # exec-time. For LocalEnvironment this resolves to the runner workspace
+    # (script sets RAG_REPO_ROOT); for BrevEnvironment to $HOME/rag (set by
+    # brev_env.py's _stage_repo via the target's ~/.eval_env). Earlier
+    # versions substituted at generate-time, which baked the runner's path
+    # into the prompt and broke remote evals.
+    #
+    # Backwards-compat: still rewrite the legacy hardcoded /home/faaranm
+    # path so older specs work without edits.
     spec_text = spec_path.read_text()
-    spec_text = spec_text.replace("${RAG_REPO_ROOT}", REPO_ROOT)
-    spec_text = spec_text.replace("/home/faaranm/dfw/ragbp/rag", REPO_ROOT)
+    spec_text = spec_text.replace("/home/faaranm/dfw/ragbp/rag", "$RAG_REPO_ROOT")
     spec = json.loads(spec_text)
     spec["_source_path"] = str(spec_path)
     eval_name = args.eval_name or _slug(spec_path.name)

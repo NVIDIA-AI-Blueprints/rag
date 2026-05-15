@@ -144,7 +144,82 @@ class BrevEnvironment(BaseEnvironment):
             "/logs /tests /solution /skills /installed-agent",
             timeout=60,
         )
+
+        # Stage the runner's repo onto the target at $HOME/rag so the deploy
+        # skill has a real codebase to work with. Harbor only uploads task-
+        # local files (skills/, tests/) — the surrounding repo (deploy/,
+        # src/, docs/, etc.) is NOT staged automatically. VSS handles this
+        # by having the deploy skill `git clone` the repo on the target;
+        # we stage from the runner instead to test the exact PR SHA + any
+        # local edits, not whatever's on GitHub HEAD.
+        await self._stage_repo()
+
         self._started = True
+
+    async def _stage_repo(self) -> None:
+        """Tar the runner's repo and stream it to $HOME/rag on the target.
+
+        Repo root comes from $RAG_REPO_ROOT (set by ci/run_skill_eval.sh).
+        We exclude bulky/irrelevant trees (.git is kept so checks that read
+        commit SHA / branch still work).
+        """
+        assert self._instance_name
+        runner_repo = os.environ.get("RAG_REPO_ROOT")
+        if not runner_repo or not Path(runner_repo).is_dir():
+            logger.warning(
+                "RAG_REPO_ROOT not set or not a dir (%r) — skipping repo stage. "
+                "Agent will see an empty workspace on the target.", runner_repo,
+            )
+            return
+
+        logger.info("Staging repo from %s → %s:$HOME/rag",
+                    runner_repo, self._instance_name)
+
+        excludes = [
+            "--exclude=.git/objects",   # huge, not needed for deploy
+            "--exclude=node_modules",
+            "--exclude=data",           # eval data lives elsewhere
+            "--exclude=deploy/compose/volumes",  # docker bind mounts
+            "--exclude=skill-eval/jobs",
+            "--exclude=skill-eval/harbor-workdir",
+            "--exclude=skill-eval/datasets",
+            "--exclude=__pycache__",
+            "--exclude=.venv",
+            "--exclude=venv",
+        ]
+        tar_cmd = ["tar", "-czf", "-", *excludes, "-C", runner_repo, "."]
+        tar_bytes = subprocess.check_output(tar_cmd, timeout=180)
+        logger.info("Repo tarball: %.1f MB", len(tar_bytes) / 1024 / 1024)
+        encoded = base64.b64encode(tar_bytes).decode()
+
+        # Extract on target. mkdir -p is idempotent if the dir exists.
+        result = await _run_brev_exec(
+            self._instance_name,
+            'mkdir -p "$HOME/rag" && '
+            f"echo {shlex.quote(encoded)} | base64 -d | "
+            'tar -xzf - -C "$HOME/rag"',
+            timeout=BREV_COPY_TIMEOUT,
+        )
+        if result.return_code != 0:
+            raise RuntimeError(
+                f"Repo stage to {self._instance_name} failed: {result.stderr}"
+            )
+
+        # Verify the stage and set RAG_REPO_ROOT in the target's profile
+        # so future brev exec calls (and the agent's shell) see it.
+        result = await _run_brev_exec(
+            self._instance_name,
+            'echo "RAG_REPO_ROOT=$HOME/rag" >> "$HOME/.eval_env" && '
+            'grep -q "source ~/.eval_env" "$HOME/.profile" 2>/dev/null || '
+            'echo "source ~/.eval_env 2>/dev/null" >> "$HOME/.profile" && '
+            'ls "$HOME/rag/deploy/compose/" | head -5',
+            timeout=30,
+        )
+        if result.return_code != 0:
+            raise RuntimeError(
+                f"Repo stage verification failed: {result.stderr}"
+            )
+        logger.info("Repo staged successfully. Sample:\n%s", result.stdout)
 
     async def _provision(self, meta: dict) -> None:
         """brev create --type <X> from task.toml metadata.
