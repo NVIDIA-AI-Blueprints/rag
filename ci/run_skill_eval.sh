@@ -62,17 +62,18 @@ python3 adapters/rag-blueprint/generate.py \
   --output-dir "$DATASETS_DIR" \
   --skill-dir "$SKILL_DIR"
 
-echo "==> Run Harbor trials (each step in expects[] becomes a step-N dir)"
+echo "==> Run Harbor trials — one invocation per step (Harbor -p takes a single path)"
 mkdir -p jobs
-STEP_DIRS=()
-while IFS= read -r d; do STEP_DIRS+=("$d"); done < <(find "$DATASETS_DIR" -mindepth 1 -maxdepth 1 -type d | sort)
-uvx harbor run \
-  -p "${STEP_DIRS[@]}" \
-  --environment-import-path envs.local_env:LocalEnvironment \
-  --agent claude-code --model "$ANTHROPIC_MODEL" \
-  --ak api_base="$ANTHROPIC_BASE_URL/v1" \
-  --ae CLAUDE_CODE_DISABLE_THINKING=1 \
-  -o jobs -n 1 --yes
+while IFS= read -r step_dir; do
+  echo "----> harbor run -p $step_dir"
+  uvx harbor run \
+    -p "$step_dir" \
+    --environment-import-path envs.local_env:LocalEnvironment \
+    --agent claude-code --model "$ANTHROPIC_MODEL" \
+    --ak api_base="$ANTHROPIC_BASE_URL/v1" \
+    --ae CLAUDE_CODE_DISABLE_THINKING=1 \
+    -o jobs -n 1 --yes
+done < <(find "$DATASETS_DIR" -mindepth 1 -maxdepth 1 -type d | sort)
 
 echo "==> Summarise results into eval_result.md"
 python3 - <<'PY'
