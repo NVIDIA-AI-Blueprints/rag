@@ -1,21 +1,34 @@
 ---
 name: rag-eval
-version: "1.0.0"
+version: "2.6.0"
 description: >-
   Filesystem RAG benchmarks: corpus/, train.json, evaluate_rag.py (RAGAS, perf). Not for prod
   monitoring or evals outside this repo layout.
-argument-hint: RAGAS eval | evaluate_rag | perf | train.json | corpus | results json | error triage | uv run --project scripts/eval | enable_reranker | query_rewriting | temperature | latency
-allowed-tools: Read, Grep, Glob, Bash(ls *), Bash(python3 *), Bash(uv *), Write, Edit
 license: Apache-2.0
 compatibility: Repository checkout with uv; Python 3.11+; run from repo root; uv sync --project scripts/eval (eval deps live in scripts/eval/pyproject.toml); network to RAG, ingestor, and vdb endpoints; NVIDIA_API_KEY for RAGAS; optional RAG_EVAL_JUDGE_MODEL (default mistralai/mixtral-8x22b-instruct-v0.1).
 metadata:
   author: NVIDIA RAG <foundational-rag-dev@exchange.nvidia.com>
+  github-url: "https://github.com/NVIDIA-AI-Blueprints/rag"
+  endpoint-openapi-schemas:
+    - docs/api_reference/openapi_schema_rag_server.json
+    - docs/api_reference/openapi_schema_ingestor_server.json
+  argument-hint: RAGAS eval | evaluate_rag | perf | train.json | corpus | results json | error triage | uv run --project scripts/eval | enable_reranker | query_rewriting | temperature | latency
   tags:
+    - nvidia
+    - blueprint
     - rag
     - evaluation
     - ragas
     - benchmarking
     - nvidia-rag-blueprint
+  languages:
+    - python
+    - shell
+  frameworks:
+    - ragas
+    - fastapi
+  domain: ai-ml
+allowed-tools: Read Grep Glob Bash(ls *) Bash(python3 *) Bash(uv *) Write Edit
 ---
 
 # On-disk RAG evaluation (`corpus/` + `train.json`)
