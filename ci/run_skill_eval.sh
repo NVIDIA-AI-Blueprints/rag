@@ -39,6 +39,10 @@ RESULTS_DIR="./eval-results"
 LOGS_DIR="./ci-logs"
 mkdir -p "$LOGS_DIR"
 
+# Fix root-owned Docker volume dirs left by previous runs (Milvus etcd/minio)
+# Without this, the runner can't clean up the workspace on the next run
+sudo rm -rf deploy/compose/volumes/ deploy/compose/src/ 2>/dev/null || true
+
 echo "==> Probe runner environment"
 probe_ok=true
 check() {
