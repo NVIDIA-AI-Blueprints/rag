@@ -34,6 +34,7 @@ from nvidia_rag.utils.common import (
     perform_document_info_aggregation,
     prepare_custom_metadata_dataframe,
     process_filter_expr,
+    release_nvidia_client_response,
     sanitize_nim_url,
     utils_cache,
     validate_filter_expr,
@@ -127,6 +128,27 @@ class TestObjectKeyFromStorageUri:
             object_key_from_storage_uri(uri)
             == "ragbattlepacket/tesla-10q.pdf#pages_1-32/106.png"
         )
+
+
+class TestReleaseNvidiaClientResponse:
+    """Test cleanup of retained NVIDIA endpoint client handles."""
+
+    def test_closes_and_clears_client_response(self):
+        response = Mock()
+        client = Mock()
+        client.last_response = response
+        client.last_inputs = {"input": ["query"]}
+        obj = Mock()
+        obj._client = client
+
+        release_nvidia_client_response(obj)
+
+        response.close.assert_called_once()
+        assert client.last_response is None
+        assert client.last_inputs is None
+
+    def test_ignores_objects_without_client(self):
+        release_nvidia_client_response(object())
 
 
 class TestSanitizeNimUrl:

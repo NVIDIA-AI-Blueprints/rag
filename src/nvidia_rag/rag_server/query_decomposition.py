@@ -20,9 +20,9 @@ This module contains the logic for query decomposition.
 import logging
 from typing import Any
 
-from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.documents import Document
 from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import ChatPromptTemplate
 from langchain_nvidia_ai_endpoints import ChatNVIDIA, NVIDIAEmbeddings, NVIDIARerank
 from opentelemetry import context as otel_context
 
@@ -33,6 +33,7 @@ from nvidia_rag.rag_server.response_generator import (
 )
 from nvidia_rag.utils.common import (
     filter_documents_by_confidence,
+    release_nvidia_client_response,
 )
 from nvidia_rag.utils.configuration import NvidiaRAGConfig
 from nvidia_rag.utils.llm import get_llm, get_prompts
@@ -150,7 +151,12 @@ def merge_contexts(
 
     if filter_docs and reranker:
         reranker.top_n = max_documents
-        all_contexts = reranker.compress_documents(query=query, documents=all_contexts)
+        try:
+            all_contexts = reranker.compress_documents(
+                query=query, documents=all_contexts
+            )
+        finally:
+            release_nvidia_client_response(reranker)
         all_contexts = normalize_relevance_scores(all_contexts, filter_docs=False)
 
     return all_contexts
@@ -312,9 +318,12 @@ def retrieve_and_rank_documents(
 
     if ranker and retrieved_docs:
         ranker.top_n = ranker_top_k
-        retrieved_docs = ranker.compress_documents(
-            query=original_query, documents=retrieved_docs
-        )
+        try:
+            retrieved_docs = ranker.compress_documents(
+                query=original_query, documents=retrieved_docs
+            )
+        finally:
+            release_nvidia_client_response(ranker)
         logger.info(f"Reranked to {len(retrieved_docs)} documents")
 
     return retrieved_docs

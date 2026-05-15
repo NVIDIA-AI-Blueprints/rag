@@ -177,6 +177,33 @@ def object_key_from_storage_uri(uri: str) -> str:
     return object_name
 
 
+def release_nvidia_client_response(obj: Any) -> None:
+    """Release response handles retained by langchain-nvidia-ai-endpoints clients.
+
+    The NVIDIA endpoint clients keep the most recent sync/async response on
+    ``_client.last_response`` for debugging. RAG query paths call embedding and
+    reranking clients very frequently, so close and clear that handle once the
+    caller has consumed the response body.
+    """
+    client = getattr(obj, "_client", None)
+    if client is None:
+        return
+
+    response = getattr(client, "last_response", None)
+    close_response = getattr(response, "close", None)
+    if callable(close_response):
+        try:
+            close_response()
+        except Exception:
+            logger.debug("Failed to close NVIDIA client response", exc_info=True)
+
+    for attr in ("last_response", "last_inputs"):
+        try:
+            setattr(client, attr, None)
+        except Exception:
+            logger.debug("Failed to clear NVIDIA client.%s", attr, exc_info=True)
+
+
 def sanitize_nim_url(url: str, model_name: str, model_type: str) -> str:
     """
     Sanitize the NIM URL by adding http(s):// if missing and checking if the URL is hosted on NVIDIA's known endpoints.

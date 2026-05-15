@@ -42,6 +42,7 @@ from langchain_core.runnables import RunnableAssign
 from opentelemetry import context as otel_context
 
 from nvidia_rag.rag_server.response_generator import APIError, ErrorCodeMapping
+from nvidia_rag.utils.common import release_nvidia_client_response
 from nvidia_rag.utils.configuration import NvidiaRAGConfig
 from nvidia_rag.utils.llm import get_llm, get_prompts
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
@@ -267,10 +268,13 @@ async def check_context_relevance(
                 for future in futures:
                     docs.extend(future.result())
 
-            docs = await context_reranker.ainvoke(
-                {"context": docs, "question": current_query},
-                config={"run_name": "context_reranker"},
-            )
+            try:
+                docs = await context_reranker.ainvoke(
+                    {"context": docs, "question": current_query},
+                    config={"run_name": "context_reranker"},
+                )
+            finally:
+                release_nvidia_client_response(ranker)
             original_docs = docs.get("context", [])
         else:
             # Perform sequential retrieval from the first vector store

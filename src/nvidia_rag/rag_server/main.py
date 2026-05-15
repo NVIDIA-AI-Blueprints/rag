@@ -37,6 +37,7 @@ import json
 import logging
 import math
 import os
+import threading
 import time
 from collections.abc import AsyncGenerator, Callable, Generator
 from concurrent.futures import ThreadPoolExecutor
@@ -84,6 +85,7 @@ from nvidia_rag.utils.common import (
     filter_documents_by_confidence,
     format_filter_for_log,
     process_filter_expr,
+    release_nvidia_client_response,
     validate_filter_expr,
 )
 from nvidia_rag.utils.configuration import NvidiaRAGConfig
@@ -164,6 +166,8 @@ class NvidiaRAG:
 
         # Track initialization errors for runtime reporting
         self._init_errors = {}
+        self._default_vdb_op: VDBRag | None = None
+        self._default_vdb_op_lock = threading.Lock()
 
         # Default embedding model
         logger.info(
@@ -370,18 +374,87 @@ class NvidiaRAG:
 
             return self.vdb_op
 
+        resolved_vdb_endpoint = vdb_endpoint or self.config.vector_store.url
+        resolved_embedding_model = embedding_model or self.config.embeddings.model_name
+        resolved_embedding_endpoint = (
+            embedding_endpoint or self.config.embeddings.server_url
+        )
+        is_default_vdb_request = (
+            not vdb_auth_token
+            and resolved_vdb_endpoint == self.config.vector_store.url
+            and resolved_embedding_model == self.config.embeddings.model_name
+            and resolved_embedding_endpoint == self.config.embeddings.server_url
+        )
+
+        if is_default_vdb_request:
+            if self._default_vdb_op is None:
+                with self._default_vdb_op_lock:
+                    if self._default_vdb_op is None:
+                        if self.document_embedder is None:
+                            self.document_embedder = get_embedding_model(
+                                model=self.config.embeddings.model_name,
+                                url=self.config.embeddings.server_url,
+                                config=self.config,
+                            )
+                        self._default_vdb_op = _get_vdb_op(
+                            vdb_endpoint=self.config.vector_store.url,
+                            embedding_model=self.document_embedder,
+                            config=self.config,
+                            vdb_auth_token="",
+                        )
+            return self._default_vdb_op
+
         document_embedder = get_embedding_model(
-            model=embedding_model or self.config.embeddings.model_name,
-            url=embedding_endpoint or self.config.embeddings.server_url,
+            model=resolved_embedding_model,
+            url=resolved_embedding_endpoint,
             config=self.config,
         )
 
         return _get_vdb_op(
-            vdb_endpoint=vdb_endpoint or self.config.vector_store.url,
+            vdb_endpoint=resolved_vdb_endpoint,
             embedding_model=document_embedder,
             config=self.config,
             vdb_auth_token=vdb_auth_token,
         )
+
+    def _is_shared_vdb_op(self, vdb_op: VDBRag | None) -> bool:
+        """Return True for VDB operators owned by the NvidiaRAG instance."""
+        return vdb_op is not None and (
+            vdb_op is self.vdb_op or vdb_op is self._default_vdb_op
+        )
+
+    @staticmethod
+    def _close_vdb_op(vdb_op: VDBRag | None) -> None:
+        """Close one-off VDB operators when the backend exposes a close hook."""
+        if vdb_op is None:
+            return
+        close = getattr(vdb_op, "close", None)
+        if callable(close):
+            try:
+                close()
+            except Exception:
+                logger.debug("Failed to close VDB operator", exc_info=True)
+
+    def _close_vdb_op_if_one_off(self, vdb_op: VDBRag | None) -> None:
+        """Close VDB operators that are not shared across requests."""
+        if not self._is_shared_vdb_op(vdb_op):
+            self._close_vdb_op(vdb_op)
+
+    def _with_vdb_cleanup(self, response: RAGResponse, vdb_op: VDBRag) -> RAGResponse:
+        """Attach cleanup for one-off VDB operators after streaming completes."""
+        if self._is_shared_vdb_op(vdb_op):
+            return response
+
+        response_generator = response.generator
+
+        async def cleanup_generator():
+            try:
+                async for chunk in response_generator:
+                    yield chunk
+            finally:
+                self._close_vdb_op(vdb_op)
+
+        return RAGResponse(cleanup_generator(), status_code=response.status_code)
 
     @property
     def _is_nrl_mode(self) -> bool:
@@ -612,13 +685,6 @@ class NvidiaRAG:
             else self.config.retriever.fetch_neighboring_pages
         )
 
-        vdb_op = self._prepare_vdb_op(
-            vdb_endpoint=vdb_endpoint,
-            embedding_model=embedding_model,
-            embedding_endpoint=embedding_endpoint,
-            vdb_auth_token=vdb_auth_token,
-        )
-
         # Validate boolean and float parameters
         use_knowledge_base = validate_use_knowledge_base(use_knowledge_base)
         temperature = validate_temperature(temperature)
@@ -703,61 +769,77 @@ class NvidiaRAG:
         }
 
         if use_knowledge_base:
+            vdb_op = self._prepare_vdb_op(
+                vdb_endpoint=vdb_endpoint,
+                embedding_model=embedding_model,
+                embedding_endpoint=embedding_endpoint,
+                vdb_auth_token=vdb_auth_token,
+            )
             if agentic:
-                return await self._agentic_chain(
-                    query=query,
-                    chat_history=chat_history,
-                    collection_names=collection_names,
-                    enable_query_rewriting=enable_query_rewriting,
-                    enable_reranker=enable_reranker,
-                    reranker_top_k=reranker_top_k,
-                    reranker_model=reranker_model,
-                    reranker_endpoint=reranker_endpoint,
-                    vdb_top_k=vdb_top_k,
-                    vdb_endpoint=vdb_endpoint,
-                    vdb_auth_token=vdb_auth_token,
-                    embedding_model=embedding_model,
-                    embedding_endpoint=embedding_endpoint,
-                    enable_filter_generator=enable_filter_generator,
-                    filter_expr=filter_expr,
-                    confidence_threshold=confidence_threshold,
-                    enable_citations=enable_citations,
-                    model=model,
-                    vdb_op=vdb_op,
-                    enable_streaming=enable_streaming,
-                    rag_start_time_sec=rag_start_time_sec,
-                    metrics=metrics,
-                    runtime_model_override=runtime_model_override,
-                    runtime_llm_endpoint_override=runtime_llm_endpoint_override,
-                )
+                try:
+                    rag_response = await self._agentic_chain(
+                        query=query,
+                        chat_history=chat_history,
+                        collection_names=collection_names,
+                        enable_query_rewriting=enable_query_rewriting,
+                        enable_reranker=enable_reranker,
+                        reranker_top_k=reranker_top_k,
+                        reranker_model=reranker_model,
+                        reranker_endpoint=reranker_endpoint,
+                        vdb_top_k=vdb_top_k,
+                        vdb_endpoint=vdb_endpoint,
+                        vdb_auth_token=vdb_auth_token,
+                        embedding_model=embedding_model,
+                        embedding_endpoint=embedding_endpoint,
+                        enable_filter_generator=enable_filter_generator,
+                        filter_expr=filter_expr,
+                        confidence_threshold=confidence_threshold,
+                        enable_citations=enable_citations,
+                        model=model,
+                        vdb_op=vdb_op,
+                        enable_streaming=enable_streaming,
+                        rag_start_time_sec=rag_start_time_sec,
+                        metrics=metrics,
+                        runtime_model_override=runtime_model_override,
+                        runtime_llm_endpoint_override=runtime_llm_endpoint_override,
+                    )
+                except Exception:
+                    self._close_vdb_op_if_one_off(vdb_op)
+                    raise
+                return self._with_vdb_cleanup(rag_response, vdb_op)
             logger.info("=" * 80)
             logger.info("PIPELINE MODE: RAG Chain (with knowledge base)")
             logger.info("=" * 80)
-            return await self._rag_chain(
-                llm_settings=llm_settings,
-                query=query,
-                chat_history=chat_history,
-                reranker_top_k=reranker_top_k,
-                vdb_top_k=vdb_top_k,
-                collection_names=collection_names,
-                enable_reranker=enable_reranker,
-                reranker_model=reranker_model,
-                reranker_endpoint=reranker_endpoint,
-                enable_vlm_inference=enable_vlm_inference,
-                vlm_settings=vlm_settings,
-                model=model,
-                enable_query_rewriting=enable_query_rewriting,
-                enable_citations=enable_citations,
-                filter_expr=filter_expr,
-                enable_filter_generator=enable_filter_generator,
-                vdb_op=vdb_op,
-                enable_query_decomposition=enable_query_decomposition,
-                confidence_threshold=confidence_threshold,
-                fetch_full_page_context=fetch_full_page_context,
-                fetch_neighboring_pages=fetch_neighboring_pages,
-                rag_start_time_sec=rag_start_time_sec,
-                metrics=metrics,
-            )
+            try:
+                rag_response = await self._rag_chain(
+                    llm_settings=llm_settings,
+                    query=query,
+                    chat_history=chat_history,
+                    reranker_top_k=reranker_top_k,
+                    vdb_top_k=vdb_top_k,
+                    collection_names=collection_names,
+                    enable_reranker=enable_reranker,
+                    reranker_model=reranker_model,
+                    reranker_endpoint=reranker_endpoint,
+                    enable_vlm_inference=enable_vlm_inference,
+                    vlm_settings=vlm_settings,
+                    model=model,
+                    enable_query_rewriting=enable_query_rewriting,
+                    enable_citations=enable_citations,
+                    filter_expr=filter_expr,
+                    enable_filter_generator=enable_filter_generator,
+                    vdb_op=vdb_op,
+                    enable_query_decomposition=enable_query_decomposition,
+                    confidence_threshold=confidence_threshold,
+                    fetch_full_page_context=fetch_full_page_context,
+                    fetch_neighboring_pages=fetch_neighboring_pages,
+                    rag_start_time_sec=rag_start_time_sec,
+                    metrics=metrics,
+                )
+            except Exception:
+                self._close_vdb_op_if_one_off(vdb_op)
+                raise
+            return self._with_vdb_cleanup(rag_response, vdb_op)
         else:
             logger.info("=" * 80)
             if enable_vlm_inference:
@@ -1427,6 +1509,8 @@ class NvidiaRAG:
                         raise APIError(
                             error_msg, ErrorCodeMapping.SERVICE_UNAVAILABLE
                         ) from e
+                    finally:
+                        release_nvidia_client_response(local_ranker)
 
                     logger.info(
                         "    == Context reranker time: %.2f ms ==",
@@ -1495,6 +1579,8 @@ class NvidiaRAG:
                 f"Failed to search documents. {str(e)}",
                 ErrorCodeMapping.INTERNAL_SERVER_ERROR,
             ) from e
+        finally:
+            self._close_vdb_op_if_one_off(vdb_op)
 
     @staticmethod
     async def get_summary(
@@ -3168,30 +3254,36 @@ class NvidiaRAG:
                     docs = []
                     # Start measuring retrieval latency across collections
                     retrieval_start_time = time.time()
-                    vectorstores = []
-                    for collection_name in validated_collections:
-                        vectorstores.append(
-                            vdb_op.get_langchain_vectorstore(collection_name)
+                    try:
+                        vectorstores = []
+                        for collection_name in validated_collections:
+                            vectorstores.append(
+                                vdb_op.get_langchain_vectorstore(collection_name)
+                            )
+                        with ThreadPoolExecutor() as executor:
+                            futures = [
+                                executor.submit(
+                                    vdb_op.retrieval_langchain,
+                                    query=retriever_query,
+                                    collection_name=collection_name,
+                                    vectorstore=vectorstore,
+                                    top_k=top_k,
+                                    filter_expr=collection_filter_mapping.get(
+                                        collection_name, ""
+                                    ),
+                                    otel_ctx=otel_ctx,
+                                )
+                                for collection_name, vectorstore in zip(
+                                    validated_collections, vectorstores, strict=False
+                                )
+                            ]
+                            for future in futures:
+                                docs.extend(future.result())
+                    finally:
+                        release_nvidia_client_response(
+                            getattr(vdb_op, "embedding_model", None)
+                            or getattr(vdb_op, "_embedding_model", None)
                         )
-                    with ThreadPoolExecutor() as executor:
-                        futures = [
-                            executor.submit(
-                                vdb_op.retrieval_langchain,
-                                query=retriever_query,
-                                collection_name=collection_name,
-                                vectorstore=vectorstore,
-                                top_k=top_k,
-                                filter_expr=collection_filter_mapping.get(
-                                    collection_name, ""
-                                ),
-                                otel_ctx=otel_ctx,
-                            )
-                            for collection_name, vectorstore in zip(
-                                validated_collections, vectorstores, strict=False
-                            )
-                        ]
-                        for future in futures:
-                            docs.extend(future.result())
 
                     retrieval_time_ms = (time.time() - retrieval_start_time) * 1000
                     logger.info("Retrieval Output:")
@@ -3222,6 +3314,8 @@ class NvidiaRAG:
                         raise APIError(
                             error_msg, ErrorCodeMapping.SERVICE_UNAVAILABLE
                         ) from e
+                    finally:
+                        release_nvidia_client_response(ranker)
 
                     context_reranker_time_ms = (
                         time.time() - context_reranker_start_time
@@ -3303,18 +3397,24 @@ class NvidiaRAG:
                         )
                         context_to_show = docs
                     else:
-                        docs = vdb_op.retrieval_langchain(
-                            query=retriever_query,
-                            collection_name=validated_collections[0],
-                            vectorstore=vdb_op.get_langchain_vectorstore(
-                                validated_collections[0]
-                            ),
-                            top_k=top_k,
-                            filter_expr=collection_filter_mapping.get(
-                                validated_collections[0], ""
-                            ),
-                            otel_ctx=otel_ctx,
-                        )
+                        try:
+                            docs = vdb_op.retrieval_langchain(
+                                query=retriever_query,
+                                collection_name=validated_collections[0],
+                                vectorstore=vdb_op.get_langchain_vectorstore(
+                                    validated_collections[0]
+                                ),
+                                top_k=top_k,
+                                filter_expr=collection_filter_mapping.get(
+                                    validated_collections[0], ""
+                                ),
+                                otel_ctx=otel_ctx,
+                            )
+                        finally:
+                            release_nvidia_client_response(
+                                getattr(vdb_op, "embedding_model", None)
+                                or getattr(vdb_op, "_embedding_model", None)
+                            )
                         context_to_show = docs
                     retrieval_time_ms = (time.time() - retrieval_start_time) * 1000
 
