@@ -169,7 +169,11 @@ def _test_sh(step: int, spec_name: str, eval_name: str) -> str:
         f"# Pin cwd to the {SKILL_NAME} repo root so the judge's Bash/grep\n"
         "# probes resolve relative paths against the repo, not the harbor\n"
         "# session workdir.\n"
-        f'REPO_ROOT="${{REPO_ROOT:-{REPO_ROOT}}}"\n'
+        # On BrevEnvironment the runner-side REPO_ROOT path doesn't exist
+        # on the target — fall back to $RAG_REPO_ROOT (set in ~/.eval_env
+        # by brev_env.py) so the judge resolves probes against the staged
+        # repo at $HOME/rag. LocalEnvironment uses the runner path directly.
+        f'REPO_ROOT="${{REPO_ROOT:-${{RAG_REPO_ROOT:-{REPO_ROOT}}}}}"\n'
         'cd "$REPO_ROOT"\n'
         "\n"
         "# Judge uses JUDGE_ANTHROPIC_API_KEY — separate from Claude Code OAuth.\n"

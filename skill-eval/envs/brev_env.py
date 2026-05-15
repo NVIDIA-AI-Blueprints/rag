@@ -381,41 +381,75 @@ class BrevEnvironment(BaseEnvironment):
     async def upload_file(
         self, source_path: Path | str, target_path: str,
     ) -> None:
+        """Copy a single file to the target via `brev copy`.
+
+        Earlier impl base64-encoded the file and passed it as a CLI arg —
+        any file over ~64 KB blew past Linux ARG_MAX. `brev copy` handles
+        arbitrary sizes and is reliable for single files.
+        """
         assert self._instance_name
         src = Path(source_path)
-        # Encode locally, decode on the remote — `brev copy` has flaky
-        # behavior for nested files / special chars.
-        encoded = base64.b64encode(src.read_bytes()).decode()
         target_dir = str(Path(target_path).parent) or "/"
-        result = await _run_brev_exec(
+        # Ensure the target dir exists with the right ownership BEFORE copy.
+        mkdir = await _run_brev_exec(
             self._instance_name,
             f"sudo mkdir -p {shlex.quote(target_dir)} && "
-            f'sudo chown "$(whoami):$(id -gn)" {shlex.quote(target_dir)} && '
-            f"echo {shlex.quote(encoded)} | base64 -d > {shlex.quote(target_path)}",
+            f'sudo chown "$(whoami):$(id -gn)" {shlex.quote(target_dir)}',
+            timeout=60,
+        )
+        if mkdir.return_code != 0:
+            raise RuntimeError(f"upload_file mkdir failed: {mkdir.stderr}")
+        copy = await _run_brev(
+            "copy", str(src), f"{self._instance_name}:{target_path}",
             timeout=BREV_COPY_TIMEOUT,
         )
-        if result.return_code != 0:
-            raise RuntimeError(f"upload_file failed: {result.stderr}")
+        if copy.return_code != 0:
+            raise RuntimeError(f"upload_file copy failed: {copy.stderr}")
 
     async def upload_dir(
         self, source_dir: Path | str, target_dir: str,
     ) -> None:
+        """Copy a directory tree to the target.
+
+        Tarball goes to a local /tmp file → `brev copy` to target → untar.
+        Earlier impl base64-encoded the tarball into a `brev exec` argv,
+        which capped uploads at the OS ARG_MAX (~128 KB) — Harbor's
+        post-trial agent trajectory upload routinely exceeds that, so the
+        trial failed before the verifier ever ran.
+        """
         assert self._instance_name
         src = str(source_dir).rstrip("/")
-        tar_bytes = subprocess.check_output(
-            ["tar", "-czf", "-", "-C", src, "."], timeout=120,
-        )
-        encoded = base64.b64encode(tar_bytes).decode()
-        result = await _run_brev_exec(
-            self._instance_name,
-            f"sudo mkdir -p {shlex.quote(target_dir)} && "
-            f'sudo chown "$(whoami):$(id -gn)" {shlex.quote(target_dir)} && '
-            f"echo {shlex.quote(encoded)} | base64 -d | "
-            f"tar -xzf - -C {shlex.quote(target_dir)}",
-            timeout=BREV_COPY_TIMEOUT,
-        )
-        if result.return_code != 0:
-            raise RuntimeError(f"upload_dir failed: {result.stderr}")
+        local_tar = Path(f"/tmp/harbor-up-{uuid.uuid4().hex[:8]}.tar.gz")
+        try:
+            subprocess.check_call(
+                ["tar", "-czf", str(local_tar), "-C", src, "."], timeout=180,
+            )
+            remote_tar = f"/tmp/harbor-up-{uuid.uuid4().hex[:8]}.tar.gz"
+            # Ensure target_dir exists with proper ownership.
+            mkdir = await _run_brev_exec(
+                self._instance_name,
+                f"sudo mkdir -p {shlex.quote(target_dir)} && "
+                f'sudo chown "$(whoami):$(id -gn)" {shlex.quote(target_dir)}',
+                timeout=60,
+            )
+            if mkdir.return_code != 0:
+                raise RuntimeError(f"upload_dir mkdir failed: {mkdir.stderr}")
+            copy = await _run_brev(
+                "copy", str(local_tar), f"{self._instance_name}:{remote_tar}",
+                timeout=BREV_COPY_TIMEOUT,
+            )
+            if copy.return_code != 0:
+                raise RuntimeError(f"upload_dir copy failed: {copy.stderr}")
+            extract = await _run_brev_exec(
+                self._instance_name,
+                f"tar -xzf {shlex.quote(remote_tar)} -C {shlex.quote(target_dir)} && "
+                f"rm -f {shlex.quote(remote_tar)}",
+                timeout=BREV_COPY_TIMEOUT,
+            )
+            if extract.return_code != 0:
+                raise RuntimeError(f"upload_dir untar failed: {extract.stderr}")
+        finally:
+            local_tar.unlink(missing_ok=True)
 
     async def download_file(
         self, source_path: str, target_path: Path | str,
