@@ -45,17 +45,17 @@ The following known issues have been resolved in this release:
 
 This release adds new features to the RAG pipeline for supporting agent workflows and enhances generations with VLMs augmenting multimodal input.
 
-### Highlights 
+### Highlights
 
 This release contains the following key changes:
 
-- Updated NIMs and code to support  [NeMo Retriever Library 26.01 release](https://docs.nvidia.com/nemo/retriever/latest/extraction/releasenotes-nv-ingest/).
+- Updated NIMs and code to support [NeMo Retriever Library 26.01 release](https://docs.nvidia.com/nemo/retriever/latest/extraction/releasenotes-nv-ingest/).
 - Added support for non-NIM models including OpenAI, models hosted on AWS and Azure, OSS models, and others. Supported through service-specific API keys. For details, refer to [Get an API Key](api-key.md).
 - The RAG Blueprint now uses [nemoretriever-ocr-v1](https://build.nvidia.com/nvidia/nemoretriever-ocr-v1/modelcard) as the default OCR model. For details, refer to [NeMo Retriever Library OCR Configuration Guide](nemoretriever-ocr.md).
 - Improved VLM based generation support. The Vision-Language Model (VLM) inference feature now uses the model [nemotron-nano-12b-v2-vl](https://build.nvidia.com/nvidia/nemotron-nano-12b-v2-vl/modelcard). For details, refer to [VLM for Generation](vlm.md).
 - User interface improvements including catalog display, image and text query, and others. For details, refer to [User Interface](user-interface.md).
 - Added ingestion metrics endpoint support with OpenTelemetry (OTEL) for monitoring document uploads, elements ingested, and pages processed. For details, refer to [Observability](observability.md).
-- Support image and text as input query. For details, refer to [Multimodal Query Support](multimodal-query.md).
+- Added support for image and text as query input. For details, refer to [Multimodal Query Support](multimodal-query.md).
 - Nemotron-3-Nano model support with reasoning budget. For details, refer to [Enable Reasoning](enable-nemotron-thinking.md).
 - Vector Database enhancements including secure database access. For details, refer to [Milvus Configuration](milvus-configuration.md) and [Elasticsearch Configuration](change-vectordb.md).
 - You can now access RAG functionality from a Model Context Protocol (MCP) server for tool integration. For details, refer to [MCP Server and Client Usage](mcp.md).
