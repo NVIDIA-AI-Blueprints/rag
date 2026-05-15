@@ -72,6 +72,21 @@ jobs:
       - uses: actions/setup-python@v3
       - uses: pre-commit/action@v3.0.1
 
+  skills-compliance:
+    name: RAG Skills Compliance
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v3
+        with:
+          python-version: '3.12'
+
+      - name: Validate skills and OpenClaw plugin
+        run: |
+          python3 scripts/skill_compliance_check.py --skills-dir skills --openclaw-dir .openclaw --strict
+
   unit-tests:
     name: Unit Tests
     runs-on: ubuntu-latest
@@ -162,6 +177,27 @@ jobs:
       - name: Run markdown link checker
         run: |
           python ci/check_markdown_links.py --root . --no-external
+
+  nvbase-tier1:
+    name: NV-BASE Tier 1 — Static & Security (all skills)
+    runs-on: blueprints-skills-eval-runner
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' || github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install uv + NV-BASE
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          export PATH="$HOME/.local/bin:$HOME/.local/share/uv/tools/nv-base/bin:$PATH"
+          uv tool install nv-base \
+            --index https://urm.nvidia.com/artifactory/api/pypi/nv-shared-pypi/simple
+          nv-base --version
+
+      - name: Validate all skills — schema, security, quality
+        run: |
+          export PATH="$HOME/.local/share/uv/tools/nv-base/bin:$PATH"
+          nv-base validate ./skills --no-dedup --fail-fast
 
   # ============================================================================
   # INTEGRATION TESTS STAGE
