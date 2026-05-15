@@ -364,7 +364,14 @@ async def _run_brev(*args: str, timeout: int = 30) -> ExecResult:
 
 
 async def _run_brev_exec(instance: str, command: str, timeout: int) -> ExecResult:
-    return await _run_brev("exec", instance, "--", "bash", "-c", command, timeout=timeout)
+    """`brev exec <instance> <command>` — command must be a SINGLE arg.
+
+    Brev's CLI parses every positional arg after the first as another
+    instance name. Passing `--` or `bash -c <cmd>` as separate args makes
+    it try to SSH into "--", "bash", "-c" as instance names. Internally
+    brev wraps the single command string in `bash -c` already.
+    """
+    return await _run_brev("exec", instance, command, timeout=timeout)
 
 
 async def _find_brev_instance(name: str) -> dict | None:
