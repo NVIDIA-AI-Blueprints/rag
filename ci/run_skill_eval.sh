@@ -35,6 +35,13 @@ export ANTHROPIC_BASE_URL="${ANTHROPIC_BASE_URL:-https://inference-api.nvidia.co
 export ANTHROPIC_MODEL="${ANTHROPIC_MODEL:-aws/anthropic/bedrock-claude-sonnet-4-6}"
 export JUDGE_FULL_MODEL="${JUDGE_FULL_MODEL:-aws/anthropic/claude-haiku-4-5-v1}"
 
+# Default eval-target Brev instance. The dispatcher workflow does not
+# expose BREV_INSTANCE as an input — set it here so the script alone
+# controls Phase 1 vs Phase 2 mode. To force LocalEnvironment for a
+# debug run, change this line to `export BREV_INSTANCE=""` or comment
+# it out, then push to the feature branch and re-trigger.
+export BREV_INSTANCE="${BREV_INSTANCE:-rag-eval-target}"
+
 echo "==> Install uv (no-op if already present)"
 if ! command -v uv >/dev/null 2>&1; then
   curl -LsSf https://astral.sh/uv/install.sh | sh
