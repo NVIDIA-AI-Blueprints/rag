@@ -100,6 +100,10 @@ class QueryTrace:
     final_answer: str = ""
     error: str | None = None
 
+    # Time-to-first-token measurements written back by streaming.py.
+    rag_ttft_ms: float | None = None
+    llm_ttft_ms: float | None = None
+
     # ---- recording helpers ------------------------------------------------
 
     def record_llm_call(
@@ -185,6 +189,8 @@ class QueryTrace:
             "task_results_summary": self.task_results_summary,
             "verification": self.verification_outcome,
             "final_answer": self.final_answer,
+            "rag_ttft_ms": self.rag_ttft_ms,
+            "llm_ttft_ms": self.llm_ttft_ms,
         }
 
     def one_line_summary(self) -> str:

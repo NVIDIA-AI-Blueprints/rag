@@ -67,6 +67,9 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
+from opentelemetry import trace as otel_trace
+from opentelemetry.trace import StatusCode
+
 from nvidia_rag.rag_server.agentic_rag.agentic_rag import AgenticRag
 from nvidia_rag.rag_server.response_generator import SourceResult
 
@@ -236,6 +239,9 @@ def make_retriever_fn(
             return citations.model_dump()
         except Exception as ex:
             logger.warning("Agentic retriever failed for query %r: %s", query[:80], ex)
+            _cur = otel_trace.get_current_span()
+            _cur.record_exception(ex)
+            _cur.set_status(StatusCode.ERROR, str(ex)[:200])
             return None
 
     return retriever_fn

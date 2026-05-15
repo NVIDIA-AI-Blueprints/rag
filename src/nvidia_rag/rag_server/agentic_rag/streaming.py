@@ -495,6 +495,8 @@ async def translate_graph_stream(
                               final-answer stream ends.  Receives the final
                               answer string for trace/metrics bookkeeping.
     """
+    from nvidia_rag.rag_server.agentic_rag.tracing import get_current_trace
+
     resp_id = str(uuid4())
     request_start = time.time()
 
@@ -651,6 +653,10 @@ async def translate_graph_stream(
                                     "    == RAG Time to First Token (TTFT): %.2f ms ==",
                                     rag_ttft_ms,
                                 )
+                            _trace = get_current_trace()
+                            if _trace is not None:
+                                _trace.llm_ttft_ms = llm_ttft_ms
+                                _trace.rag_ttft_ms = rag_ttft_ms
                             if citations_provider is not None:
                                 try:
                                     citations = citations_provider()
@@ -737,6 +743,10 @@ async def translate_graph_stream(
                 logger.info(
                     "    == RAG Time to First Token (TTFT): %.2f ms ==", rag_ttft_ms
                 )
+            _trace = get_current_trace()
+            if _trace is not None:
+                _trace.llm_ttft_ms = llm_ttft_ms
+                _trace.rag_ttft_ms = rag_ttft_ms
             if citations_provider is not None:
                 try:
                     citations = citations_provider()
@@ -795,6 +805,9 @@ async def translate_graph_stream(
 
     except asyncio.CancelledError:
         logger.info("[stream] client disconnected — cancelling graph stream")
+        _trace = get_current_trace()
+        if _trace is not None:
+            _trace.error = "client_disconnected"
         raise
     except Exception as ex:  # noqa: BLE001
         logger.exception("[stream] graph stream failed: %s", ex)

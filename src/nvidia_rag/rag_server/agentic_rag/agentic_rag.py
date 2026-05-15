@@ -52,6 +52,7 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END, StateGraph
 from langgraph.types import StreamWriter
 from opentelemetry import trace as otel_trace
+from opentelemetry.trace import StatusCode
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
@@ -268,17 +269,26 @@ class AgenticRag:
 
     @contextmanager
     def _otel_and_trace(self, span_name: str, span_kind: str = "CHAIN"):
-        """Open an OTel span and record QueryTrace node timing together."""
+        """Open an OTel span and record QueryTrace node timing together.
+
+        On unhandled exceptions the span is marked ERROR and the exception is
+        recorded before re-raising, so Zipkin shows the failure correctly.
+        """
         from nvidia_rag.rag_server.agentic_rag.tracing import get_current_trace
 
         trace = get_current_trace()
         with self._otel.start_as_current_span(span_name) as span:
             span.set_attribute("openinference.span.kind", span_kind)
-            if trace:
-                with trace.trace_node(span_name):
+            try:
+                if trace:
+                    with trace.trace_node(span_name):
+                        yield span
+                else:
                     yield span
-            else:
-                yield span
+            except Exception as _exc:
+                span.record_exception(_exc)
+                span.set_status(StatusCode.ERROR, str(_exc)[:200])
+                raise
 
     # =========================================================================
     # TOKEN COUNTING
@@ -471,7 +481,14 @@ class AgenticRag:
                 stream_usage = None
                 progress: dict[str, Any] = {"first_chunk_emitted": False}
                 try:
+                    _sem_t0 = time.perf_counter()
                     async with self._semaphore:
+                        _sem_wait_ms = (time.perf_counter() - _sem_t0) * 1000
+                        if _sem_wait_ms > 10:
+                            ospan.add_event(
+                                "semaphore_acquired",
+                                {"wait_ms": round(_sem_wait_ms, 1)},
+                            )
                         if not streaming:
                             response = await asyncio.wait_for(
                                 chain.ainvoke(inputs), timeout=llm_timeout
@@ -498,14 +515,20 @@ class AgenticRag:
                         max_retries + 1,
                     )
                     if streaming and progress["first_chunk_emitted"]:
-                        raise TimeoutError(
+                        _te = TimeoutError(
                             f"[{step_name}] LLM stream stalled mid-response; cannot retry"
-                        ) from None
+                        )
+                        ospan.record_exception(_te)
+                        ospan.set_status(StatusCode.ERROR, str(_te)[:200])
+                        raise _te from None
                     if attempt < max_retries:
                         continue
-                    raise TimeoutError(
+                    _te = TimeoutError(
                         f"[{step_name}] LLM timed out after {max_retries + 1} attempts"
-                    ) from None
+                    )
+                    ospan.record_exception(_te)
+                    ospan.set_status(StatusCode.ERROR, str(_te)[:200])
+                    raise _te from None
                 except Exception as ex:
                     ex_str = str(ex)
                     is_retryable = any(
@@ -523,6 +546,8 @@ class AgenticRag:
                     # Never retry once the stream has started — partial tokens
                     # have already reached the client.
                     if streaming and progress["first_chunk_emitted"]:
+                        ospan.record_exception(ex)
+                        ospan.set_status(StatusCode.ERROR, ex_str[:200])
                         raise
                     if is_retryable and attempt < max_retries:
                         wait = 2**attempt * 5
@@ -537,6 +562,8 @@ class AgenticRag:
                         )
                         await asyncio.sleep(wait)
                     else:
+                        ospan.record_exception(ex)
+                        ospan.set_status(StatusCode.ERROR, ex_str[:200])
                         raise
 
             if streaming:
@@ -861,14 +888,19 @@ class AgenticRag:
                         f'  {i + 1}. Query: "{e["query"]}" → {e["outcome"]}'
                         for i, e in enumerate(attempt_log)
                     )
-                    seed_response = await self._call_llm(
-                        self.seed_gen_llm,
-                        self.seed_gen_prompt,
-                        {"question": question, "tried_queries": tried_summary},
-                        step_name=f"Task {tid} seed gen (attempt {attempt + 1})",
-                        json_mode=False,
-                        # config intentionally omitted — see method docstring.
-                    )
+                    try:
+                        seed_response = await self._call_llm(
+                            self.seed_gen_llm,
+                            self.seed_gen_prompt,
+                            {"question": question, "tried_queries": tried_summary},
+                            step_name=f"Task {tid} seed gen (attempt {attempt + 1})",
+                            json_mode=False,
+                            # config intentionally omitted — see method docstring.
+                        )
+                    except Exception as _exc:
+                        tspan.record_exception(_exc)
+                        tspan.set_status(StatusCode.ERROR, str(_exc)[:200])
+                        raise
                     seed_result = self._parse_json_response(seed_response)
 
                     if seed_result.get("stop", False):
@@ -914,6 +946,8 @@ class AgenticRag:
                             raw_context = []
                     except Exception as ex:
                         logger.warning("%s Task %s retrieval failed: %s", _P, tid, ex)
+                        rspan.record_exception(ex)
+                        rspan.set_status(StatusCode.ERROR, str(ex)[:200])
                         rspan.set_attribute(
                             "metadata", json.dumps({"error": str(ex)[:200]})
                         )
@@ -958,13 +992,18 @@ class AgenticRag:
                         f"that merges the prior data with any new data you find in these documents."
                     )
 
-                raw_answer = await self._call_llm(
-                    self.task_llm,
-                    self.task_answer_prompt,
-                    {"question": task_question, "documents": docs_str},
-                    step_name=f"Task {tid} answer (attempt {attempt + 1})",
-                    # config intentionally omitted — see method docstring.
-                )
+                try:
+                    raw_answer = await self._call_llm(
+                        self.task_llm,
+                        self.task_answer_prompt,
+                        {"question": task_question, "documents": docs_str},
+                        step_name=f"Task {tid} answer (attempt {attempt + 1})",
+                        # config intentionally omitted — see method docstring.
+                    )
+                except Exception as _exc:
+                    tspan.record_exception(_exc)
+                    tspan.set_status(StatusCode.ERROR, str(_exc)[:200])
+                    raise
                 parsed = self._parse_task_answer(raw_answer)
 
                 if parsed["completeness"] == "complete":
@@ -1058,6 +1097,10 @@ class AgenticRag:
             for task, result in zip(level_tasks, results, strict=True):
                 if isinstance(result, Exception):
                     logger.error("%s Task %s failed: %s", _P, task["id"], result)
+                    otel_trace.get_current_span().add_event(
+                        "task_error",
+                        {"task_id": task["id"], "error": str(result)[:200]},
+                    )
                     result = {"answer": "[NO DATA]", "status": "error", "attempts": 0}
                 all_results[task["id"]] = result
 
@@ -1114,6 +1157,8 @@ class AgenticRag:
                     )
                 except Exception as ex:
                     logger.warning("%s Retrieval failed: %s", _P, ex)
+                    rspan.record_exception(ex)
+                    rspan.set_status(StatusCode.ERROR, str(ex)[:200])
                     rspan.set_attribute(
                         "metadata", json.dumps({"error": str(ex)[:200]})
                     )
@@ -1314,6 +1359,10 @@ class AgenticRag:
                             "task_count": len(task_ids),
                             "task_ids": task_ids,
                             "resolved_query": plan.get("resolved_query", ""),
+                            "planner_attempts": planner_attempt + 1,
+                            "fallback_plan": plan.get("scope_only", False) is False
+                            and not task_ids
+                            and "parsing failed" in plan.get("scope_resolution", "").lower(),
                         }
                     ),
                 )
@@ -1343,6 +1392,8 @@ class AgenticRag:
 
             except Exception as ex:
                 logger.exception("%s Planning failed: %s", _P, ex)
+                ospan.record_exception(ex)
+                ospan.set_status(StatusCode.ERROR, str(ex)[:200])
                 writer(make_stage_end("plan", key="plan.end.failed"))
                 return {
                     "retrieval_plan": {
@@ -1679,6 +1730,8 @@ class AgenticRag:
 
             except Exception as ex:
                 logger.exception("%s Synthesis failed: %s", _P, ex)
+                ospan.record_exception(ex)
+                ospan.set_status(StatusCode.ERROR, str(ex)[:200])
                 writer(make_stage_end("synthesize", key="synthesize.end.failed"))
                 return {"final_answer": "I encountered an error generating the answer."}
 
@@ -1837,6 +1890,8 @@ class AgenticRag:
 
             except Exception as ex:
                 logger.exception("%s Verification failed: %s", _P, ex)
+                ospan.record_exception(ex)
+                ospan.set_status(StatusCode.ERROR, str(ex)[:200])
                 writer(make_stage_end("verify", key="verify.end.error"))
                 return {
                     "verification_tasks": [],

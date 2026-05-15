@@ -414,10 +414,26 @@ class LangchainCallbackHandler(BaseCallbackHandler):
 
     def _end_span(self, span: Span, run_id: UUID) -> None:
         for child_id in self.spans[run_id].children:
-            child_span = self.spans[child_id].span
-            if child_span.end_time is None:  # avoid warning on ended spans
-                child_span.end()
+            child_holder = self.spans.get(child_id)
+            if child_holder is not None:
+                if child_holder.span.end_time is None:  # avoid warning on ended spans
+                    child_holder.span.end()
+                # Detach child context token if it hasn't been detached yet.
+                if child_holder.token is not None:
+                    try:
+                        context_api.detach(child_holder.token)
+                    except Exception:  # noqa: BLE001
+                        pass
+                    child_holder.token = None
         span.end()
+        # Restore the OTel context that was active before this span was created.
+        holder = self.spans.get(run_id)
+        if holder is not None and holder.token is not None:
+            try:
+                context_api.detach(holder.token)
+            except Exception:  # noqa: BLE001
+                pass
+            holder.token = None
 
     def _create_span(
         self,
@@ -452,8 +468,14 @@ class LangchainCallbackHandler(BaseCallbackHandler):
         span.set_attribute(SpanAttributes.TRACELOOP_WORKFLOW_NAME, workflow_name)
         span.set_attribute(SpanAttributes.TRACELOOP_ENTITY_PATH, entity_path)
 
+        # Attach the span into the active OTel context so that code running
+        # inside the LangChain callback (e.g. agentic-RAG node functions) sees
+        # this span as the current span and creates correct child spans.
         token = context_api.attach(
-            context_api.set_value(SUPPRESS_LANGUAGE_MODEL_INSTRUMENTATION_KEY, True)
+            set_span_in_context(
+                span,
+                context_api.set_value(SUPPRESS_LANGUAGE_MODEL_INSTRUMENTATION_KEY, True),
+            )
         )
 
         self.spans[run_id] = SpanHolder(
