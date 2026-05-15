@@ -157,11 +157,14 @@ class BrevEnvironment(BaseEnvironment):
         self._started = True
 
     async def _stage_repo(self) -> None:
-        """Tar the runner's repo and stream it to $HOME/rag on the target.
+        """Tar the runner's repo and ship it to $HOME/rag on the target.
+
+        Uses `brev copy` to upload the tarball as a file — base64-inline
+        via `brev exec` blows past Linux's argv size limit (~128KB) for
+        repos larger than ~96KB encoded.
 
         Repo root comes from $RAG_REPO_ROOT (set by ci/run_skill_eval.sh).
-        We exclude bulky/irrelevant trees (.git is kept so checks that read
-        commit SHA / branch still work).
+        We exclude bulky/irrelevant trees.
         """
         assert self._instance_name
         runner_repo = os.environ.get("RAG_REPO_ROOT")
@@ -187,31 +190,54 @@ class BrevEnvironment(BaseEnvironment):
             "--exclude=.venv",
             "--exclude=venv",
         ]
-        tar_cmd = ["tar", "-czf", "-", *excludes, "-C", runner_repo, "."]
-        tar_bytes = subprocess.check_output(tar_cmd, timeout=180)
-        logger.info("Repo tarball: %.1f MB", len(tar_bytes) / 1024 / 1024)
-        encoded = base64.b64encode(tar_bytes).decode()
-
-        # Extract on target. mkdir -p is idempotent if the dir exists.
-        result = await _run_brev_exec(
-            self._instance_name,
-            'mkdir -p "$HOME/rag" && '
-            f"echo {shlex.quote(encoded)} | base64 -d | "
-            'tar -xzf - -C "$HOME/rag"',
-            timeout=BREV_COPY_TIMEOUT,
-        )
-        if result.return_code != 0:
-            raise RuntimeError(
-                f"Repo stage to {self._instance_name} failed: {result.stderr}"
+        # Write to a local file first, then brev copy it over. brev exec
+        # passes args via argv and our tar is too large for that path.
+        local_tar = Path(f"/tmp/rag-repo-{uuid.uuid4().hex[:8]}.tar.gz")
+        try:
+            subprocess.run(
+                ["tar", "-czf", str(local_tar), *excludes, "-C", runner_repo, "."],
+                check=True, timeout=180,
             )
+            tar_size_mb = local_tar.stat().st_size / 1024 / 1024
+            logger.info("Repo tarball: %.1f MB", tar_size_mb)
 
-        # Verify the stage and set RAG_REPO_ROOT in the target's profile
-        # so future brev exec calls (and the agent's shell) see it.
+            # `brev copy <local> <instance>:<remote>` — single-file copy
+            # works reliably (unlike brev copy on directories).
+            remote_tar = "/tmp/rag-repo.tar.gz"
+            copy = await _run_brev(
+                "copy", str(local_tar), f"{self._instance_name}:{remote_tar}",
+                timeout=BREV_COPY_TIMEOUT,
+            )
+            if copy.return_code != 0:
+                raise RuntimeError(
+                    f"brev copy tarball to {self._instance_name} failed: "
+                    f"{copy.stderr}"
+                )
+
+            # Extract on target.
+            result = await _run_brev_exec(
+                self._instance_name,
+                f'mkdir -p "$HOME/rag" && '
+                f"tar -xzf {shlex.quote(remote_tar)} -C \"$HOME/rag\" && "
+                f"rm -f {shlex.quote(remote_tar)}",
+                timeout=BREV_COPY_TIMEOUT,
+            )
+            if result.return_code != 0:
+                raise RuntimeError(
+                    f"Untar on {self._instance_name} failed: {result.stderr}"
+                )
+        finally:
+            local_tar.unlink(missing_ok=True)
+
+        # Set RAG_REPO_ROOT in the target's profile so every subsequent
+        # `brev exec` (and the agent's shell) sees it. Append-only is
+        # idempotent for re-runs since we use a fresh VM each time.
         result = await _run_brev_exec(
             self._instance_name,
-            'echo "RAG_REPO_ROOT=$HOME/rag" >> "$HOME/.eval_env" && '
-            'grep -q "source ~/.eval_env" "$HOME/.profile" 2>/dev/null || '
-            'echo "source ~/.eval_env 2>/dev/null" >> "$HOME/.profile" && '
+            'echo "export RAG_REPO_ROOT=\\$HOME/rag" >> "$HOME/.eval_env" && '
+            'if ! grep -q "source.*\\.eval_env" "$HOME/.profile" 2>/dev/null; then '
+            '  echo "source ~/.eval_env 2>/dev/null" >> "$HOME/.profile"; '
+            'fi && '
             'ls "$HOME/rag/deploy/compose/" | head -5',
             timeout=30,
         )
