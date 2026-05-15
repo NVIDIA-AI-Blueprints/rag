@@ -181,6 +181,9 @@ for container in rag-server ingestor-server milvus-standalone milvus-etcd milvus
   docker logs "$container" > "$LOGS_DIR/${container}.log" 2>&1 || true
 done
 
+# Fix permissions on Docker-created volumes so artifact upload can read them
+sudo chmod -R a+r deploy/compose/volumes/ 2>/dev/null || true
+
 # ============================================================
 # SUMMARY
 # ============================================================
