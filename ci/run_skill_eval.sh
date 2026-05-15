@@ -52,8 +52,24 @@ echo "==> Docker login to nvcr.io"
 echo "$NGC_API_KEY" | docker login nvcr.io -u '$oauthtoken' --password-stdin
 
 echo "==> Clean any leftover Docker state from prior runs"
-docker ps -a --format '{{.ID}}' | xargs -r docker stop >/dev/null 2>&1 || true
-docker ps -a --format '{{.ID}}' | xargs -r docker rm   >/dev/null 2>&1 || true
+# Tear down compose stacks first (releases volumes cleanly). If a previous
+# run died mid-deploy these may not exist — || true handles that.
+for f in \
+  deploy/compose/docker-compose-rag-server.yaml \
+  deploy/compose/docker-compose-ingestor-server.yaml \
+  deploy/compose/vectordb.yaml \
+  deploy/compose/nims.yaml \
+  deploy/compose/docker-compose-nemo-guardrails.yaml \
+  deploy/compose/observability.yaml; do
+  [ -f "$f" ] && docker compose -f "$f" down -v --remove-orphans >/dev/null 2>&1 || true
+done
+# Belt and suspenders — kill any RAG containers the compose teardown missed.
+docker ps -a --format '{{.Names}}' | \
+  grep -E '(rag|milvus|nim|ingest|redis|nemo|grafana|prometheus|embedding|ranking|vlm|ocr|page-elements|graphic-elements|table-structure|nv-ingest)' | \
+  xargs -r docker rm -f >/dev/null 2>&1 || true
+# Volume bind-mount dirs are owned by root (created by container UIDs).
+# Nuke them with sudo so the next git checkout doesn't fail with EACCES.
+sudo rm -rf deploy/compose/volumes 2>/dev/null || true
 
 echo "==> Generate Harbor task directories from spec"
 cd "$SKILL_EVAL_DIR"
@@ -105,6 +121,16 @@ out = Path("eval_result.md")
 out.write_text("\n".join(lines) + "\n")
 print(out.read_text())
 PY
+
+echo "==> Tear down RAG stack (so next CI run starts clean)"
+cd "$REPO_ROOT"
+for f in \
+  deploy/compose/docker-compose-rag-server.yaml \
+  deploy/compose/docker-compose-ingestor-server.yaml \
+  deploy/compose/vectordb.yaml; do
+  [ -f "$f" ] && docker compose -f "$f" down -v --remove-orphans >/dev/null 2>&1 || true
+done
+sudo rm -rf deploy/compose/volumes 2>/dev/null || true
 
 echo "==> Stage outputs to eval-results/ for artifact upload"
 # The dispatcher workflow's upload-artifact step looks for paths
