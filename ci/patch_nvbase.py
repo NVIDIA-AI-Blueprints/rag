@@ -10,7 +10,6 @@ Patches 4 files across 2 Python venvs (nv-base + astra-skill-eval):
 """
 
 import pathlib
-import sys
 
 
 def find_site_packages(tool: str) -> pathlib.Path:
