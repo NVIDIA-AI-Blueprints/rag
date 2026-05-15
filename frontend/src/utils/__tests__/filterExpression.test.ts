@@ -183,18 +183,18 @@ describe("compileElasticsearchFilter", () => {
     ["<", "lt"],
     ["<=", "lte"],
   ] as const)(
-    "maps numeric comparison %s to range.%s",
+    "maps numeric comparison %s to range.%s without .keyword (range never carries .keyword)",
     (operator, esKey) => {
       const result = compileElasticsearchFilter([
         { field: "priority", operator, value: 5 },
       ]);
       expect(result).toEqual([
-        { range: { "metadata.content_metadata.priority.keyword": { [esKey]: 5 } } },
+        { range: { "metadata.content_metadata.priority": { [esKey]: 5 } } },
       ]);
     }
   );
 
-  it("maps relative datetime operators to range with gt/lt", () => {
+  it("maps relative datetime operators to range with gt/lt, bare path", () => {
     expect(
       compileElasticsearchFilter([
         { field: "created", operator: "after", value: "2025-01-01" },
@@ -202,7 +202,7 @@ describe("compileElasticsearchFilter", () => {
     ).toEqual([
       {
         range: {
-          "metadata.content_metadata.created.keyword": { gt: "2025-01-01" },
+          "metadata.content_metadata.created": { gt: "2025-01-01" },
         },
       },
     ]);
@@ -213,7 +213,7 @@ describe("compileElasticsearchFilter", () => {
     ).toEqual([
       {
         range: {
-          "metadata.content_metadata.created.keyword": { lt: "2025-01-01" },
+          "metadata.content_metadata.created": { lt: "2025-01-01" },
         },
       },
     ]);
@@ -357,7 +357,7 @@ describe("compileElasticsearchFilter", () => {
       { term: { "metadata.content_metadata.category.keyword": "AI" } },
       {
         range: {
-          "metadata.content_metadata.priority.keyword": { gt: 5 },
+          "metadata.content_metadata.priority": { gt: 5 },
         },
       },
     ]);
@@ -409,5 +409,144 @@ describe("compileElasticsearchFilter", () => {
         },
       },
     ]);
+  });
+
+  // --- Type-aware path selection ------------------------------------------
+  // `.keyword` is an ES multi-field that only exists on string mappings.
+  // Targeting `<numeric_field>.keyword` returns zero hits silently. The
+  // compiler must consult the schema and omit `.keyword` for non-string
+  // fields. Regression coverage for the case reported by the user where
+  // an integer `priority` filter from the UI matched nothing.
+
+  describe("type-aware field paths from schema", () => {
+    it("omits .keyword for integer term equality (the reported bug)", () => {
+      const types = buildFieldTypeMap([
+        [{ name: "priority", type: "integer" }],
+      ]);
+      const result = compileElasticsearchFilter(
+        [{ field: "priority", operator: "==", value: 2 }],
+        types
+      );
+      expect(result).toEqual([
+        { term: { "metadata.content_metadata.priority": 2 } },
+      ]);
+    });
+
+    it("omits .keyword for float term equality", () => {
+      const types = buildFieldTypeMap([
+        [{ name: "rating", type: "float" }],
+      ]);
+      const result = compileElasticsearchFilter(
+        [{ field: "rating", operator: "==", value: 4.5 }],
+        types
+      );
+      expect(result).toEqual([
+        { term: { "metadata.content_metadata.rating": 4.5 } },
+      ]);
+    });
+
+    it("omits .keyword for boolean term equality", () => {
+      const types = buildFieldTypeMap([
+        [{ name: "is_public", type: "boolean" }],
+      ]);
+      const result = compileElasticsearchFilter(
+        [{ field: "is_public", operator: "==", value: true }],
+        types
+      );
+      expect(result).toEqual([
+        { term: { "metadata.content_metadata.is_public": true } },
+      ]);
+    });
+
+    it("omits .keyword for datetime range", () => {
+      const types = buildFieldTypeMap([
+        [{ name: "created_at", type: "datetime" }],
+      ]);
+      const result = compileElasticsearchFilter(
+        [{ field: "created_at", operator: "after", value: "2025-01-01" }],
+        types
+      );
+      expect(result).toEqual([
+        {
+          range: {
+            "metadata.content_metadata.created_at": { gt: "2025-01-01" },
+          },
+        },
+      ]);
+    });
+
+    it("omits .keyword for integer terms (in)", () => {
+      const types = buildFieldTypeMap([
+        [{ name: "year", type: "integer" }],
+      ]);
+      const result = compileElasticsearchFilter(
+        [{ field: "year", operator: "in", value: [2024, 2025] }],
+        types
+      );
+      expect(result).toEqual([
+        {
+          terms: {
+            "metadata.content_metadata.year": [2024, 2025],
+          },
+        },
+      ]);
+    });
+
+    it("keeps .keyword for string term equality when schema is known", () => {
+      const types = buildFieldTypeMap([
+        [{ name: "status", type: "string" }],
+      ]);
+      const result = compileElasticsearchFilter(
+        [{ field: "status", operator: "==", value: "approved" }],
+        types
+      );
+      expect(result).toEqual([
+        { term: { "metadata.content_metadata.status.keyword": "approved" } },
+      ]);
+    });
+
+    it("keeps .keyword for array<string> terms (in)", () => {
+      const types = buildFieldTypeMap([
+        [{ name: "tags", type: "array", array_type: "string" }],
+      ]);
+      const result = compileElasticsearchFilter(
+        [{ field: "tags", operator: "in", value: ["ai", "ml"] }],
+        types
+      );
+      expect(result).toEqual([
+        {
+          terms: { "metadata.content_metadata.tags.keyword": ["ai", "ml"] },
+        },
+      ]);
+    });
+
+    it("omits .keyword for array<integer> terms (in)", () => {
+      const types = buildFieldTypeMap([
+        [{ name: "scores", type: "array", array_type: "integer" }],
+      ]);
+      const result = compileElasticsearchFilter(
+        [{ field: "scores", operator: "in", value: [1, 2, 3] }],
+        types
+      );
+      expect(result).toEqual([
+        { terms: { "metadata.content_metadata.scores": [1, 2, 3] } },
+      ]);
+    });
+
+    it("defaults to string-like (keep .keyword) when the field is missing from the schema", () => {
+      // Back-compat: the BE normalizer will strip .keyword server-side if
+      // the field turns out to be non-string. This preserves the wire
+      // format for installs that don't register metadata schemas.
+      const types = buildFieldTypeMap([
+        [{ name: "other_field", type: "string" }],
+      ]);
+      const result = compileElasticsearchFilter(
+        [{ field: "unregistered", operator: "==", value: "x" }],
+        types
+      );
+      expect(result).toEqual([
+        { term: { "metadata.content_metadata.unregistered.keyword": "x" } },
+      ]);
+    });
   });
 });

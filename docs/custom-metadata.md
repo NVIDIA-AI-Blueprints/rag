@@ -491,9 +491,11 @@ For Elasticsearch, filters must be provided as a list of dictionaries using Elas
 
 ```python
 # Elasticsearch filter example
+# `.keyword` is appended only for exact-match clauses on string fields;
+# numeric/datetime/boolean fields and `range` clauses use the bare path.
 filter_expr = [
     {"term": {"metadata.content_metadata.category.keyword": "AI"}},
-    {"range": {"metadata.content_metadata.priority.keyword": {"gt": 5}}}
+    {"range": {"metadata.content_metadata.priority": {"gt": 5}}}
 ]
 ```
 
