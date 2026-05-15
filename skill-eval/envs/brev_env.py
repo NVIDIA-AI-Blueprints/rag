@@ -285,6 +285,26 @@ class BrevEnvironment(BaseEnvironment):
             )
         logger.info("Repo staged + env forwarded. Sample:\n%s", result.stdout)
 
+        # Install uv on the target if missing. The verifier (tests/test.sh)
+        # invokes `uvx --with anthropic,claude-agent-sdk python ...` to run
+        # the LLM-as-judge. Without uv, test.sh errors with
+        # `uvx: command not found` and writes no /logs/verifier/reward.txt,
+        # so Harbor's reward-read step fails with RewardFileNotFoundError.
+        # Idempotent: only installs if uvx isn't already on PATH (warm pool).
+        uv_install = await _run_brev_exec(
+            self._instance_name,
+            'if ! command -v uvx >/dev/null 2>&1 && ! [ -x "$HOME/.local/bin/uvx" ]; then '
+            '  curl -LsSf https://astral.sh/uv/install.sh | sh 2>&1 | tail -2; '
+            'fi; '
+            '"$HOME/.local/bin/uvx" --version 2>&1 | head -1',
+            timeout=180,
+        )
+        if uv_install.return_code != 0:
+            logger.warning("uv install/check failed on target: %s",
+                           uv_install.stderr)
+        else:
+            logger.info("uvx on target: %s", uv_install.stdout.strip())
+
         # Pre-authenticate docker on the target so the agent's
         # `docker compose up` can pull from nvcr.io.
         ngc = os.environ.get("NGC_API_KEY")
