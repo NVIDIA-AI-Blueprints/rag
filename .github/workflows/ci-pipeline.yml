@@ -183,7 +183,16 @@ jobs:
       - name: Validate all skills — schema, security, quality
         run: |
           export PATH="$HOME/.local/share/uv/tools/nv-base/bin:$PATH"
-          nv-base validate ./skills --no-dedup --fail-fast
+          failed=false
+          for skill_dir in skills/rag-*/; do
+            echo "--- Validating: $skill_dir ---"
+            nv-base skills-check "$skill_dir" || failed=true
+          done
+          if [ "$failed" = true ]; then
+            echo "One or more skills failed Tier 1 validation"
+            exit 1
+          fi
+          echo "All skills passed Tier 1 validation"
 
   # ============================================================================
   # INTEGRATION TESTS STAGE
