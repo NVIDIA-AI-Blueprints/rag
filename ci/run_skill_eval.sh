@@ -103,6 +103,9 @@ docker ps -a --format '{{.ID}}' | xargs -r docker rm   >/dev/null 2>&1 || true
 export ANTHROPIC_BASE_URL="https://inference-api.nvidia.com/v1"
 
 echo "==> Run NV-BASE Tier 1 — static + security validation"
+echo "--- skills-check (detailed schema output) ---"
+nv-base skills-check "$SKILL_DIR" || true
+echo "--- full validate ---"
 nv-base validate "$SKILL_DIR" --no-dedup --fail-fast
 echo "  Tier 1 passed"
 
