@@ -229,23 +229,53 @@ class BrevEnvironment(BaseEnvironment):
         finally:
             local_tar.unlink(missing_ok=True)
 
-        # Set RAG_REPO_ROOT in the target's profile so every subsequent
-        # `brev exec` (and the agent's shell) sees it. Append-only is
-        # idempotent for re-runs since we use a fresh VM each time.
-        result = await _run_brev_exec(
-            self._instance_name,
-            'echo "export RAG_REPO_ROOT=\\$HOME/rag" >> "$HOME/.eval_env" && '
-            'if ! grep -q "source.*\\.eval_env" "$HOME/.profile" 2>/dev/null; then '
-            '  echo "source ~/.eval_env 2>/dev/null" >> "$HOME/.profile"; '
-            'fi && '
-            'ls "$HOME/rag/deploy/compose/" | head -5',
-            timeout=30,
+        # Forward env vars that the deploy needs into ~/.eval_env on the
+        # target. The runner's shell has these (CI Pipeline sets them);
+        # without forwarding, the agent's fresh shell on the target
+        # doesn't see them and Milvus tries to use the (non-existent) GPU.
+        env_lines = [
+            'export RAG_REPO_ROOT="$HOME/rag"',
+            # NVIDIA-hosted CPU mode — these force Milvus off GPU code paths.
+            'export APP_VECTORSTORE_ENABLEGPUSEARCH=False',
+            'export APP_VECTORSTORE_ENABLEGPUINDEX=False',
+            # NGC token forwarded so `docker login nvcr.io` works on the target
+            # when the skill needs to pull NIM containers.
+        ]
+        for var in ("NGC_API_KEY", "NVIDIA_API_KEY", "NVIDIA_INFERENCE_KEY"):
+            val = os.environ.get(var)
+            if val:
+                env_lines.append(f'export {var}={shlex.quote(val)}')
+
+        env_block = "\n".join(env_lines)
+        bootstrap = (
+            f'cat > "$HOME/.eval_env" <<\'__HARBOR_EOF__\'\n'
+            f"{env_block}\n"
+            f"__HARBOR_EOF__\n"
+            f'if ! grep -q "source.*\\.eval_env" "$HOME/.profile" 2>/dev/null; then '
+            f'  echo "source ~/.eval_env 2>/dev/null" >> "$HOME/.profile"; '
+            f"fi\n"
+            f"ls \"$HOME/rag/deploy/compose/\" | head -5"
         )
+        result = await _run_brev_exec(self._instance_name, bootstrap, timeout=30)
         if result.return_code != 0:
             raise RuntimeError(
                 f"Repo stage verification failed: {result.stderr}"
             )
-        logger.info("Repo staged successfully. Sample:\n%s", result.stdout)
+        logger.info("Repo staged + env forwarded. Sample:\n%s", result.stdout)
+
+        # Pre-authenticate docker on the target so the agent's
+        # `docker compose up` can pull from nvcr.io.
+        ngc = os.environ.get("NGC_API_KEY")
+        if ngc:
+            login_result = await _run_brev_exec(
+                self._instance_name,
+                f"echo {shlex.quote(ngc)} | "
+                "docker login nvcr.io -u '$oauthtoken' --password-stdin",
+                timeout=60,
+            )
+            if login_result.return_code != 0:
+                logger.warning("docker login nvcr.io failed on target: %s",
+                               login_result.stderr)
 
     async def _provision(self, meta: dict) -> None:
         """brev create --type <X> from task.toml metadata.
