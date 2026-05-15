@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# NV-BASE Tier 3 skill eval for focused rag-* skills.
+# NV-BASE Tier 1 + Tier 3 skill eval for all focused rag-* skills.
 #
 # Invoked by .github/workflows/run-branch-script.yml on the self-hosted runner.
 # Expects these env vars from the workflow:
@@ -8,16 +8,35 @@
 #   NGC_API_KEY             nvapi-... NGC key for docker login
 #   CLAUDE_CODE_DISABLE_THINKING=1
 #
-# SKILL env var selects which skill to eval (default: rag-query-knowledge)
-# Output: ./eval-results/ (uploaded by the workflow as an artifact)
+# Skills are evaluated in dependency order:
+#   1. rag-deploy-blueprint      (deploys RAG stack — no GPU, must run first)
+#   2. rag-ingest-documents      (needs running stack)
+#   3. rag-query-knowledge       (needs running stack + ingested docs)
+#   4. rag-troubleshoot-blueprint (needs running stack)
+#   5. rag-configure-retrieval   (needs running stack)
+#   6. rag-enable-guardrails     (needs running stack)
+#   7. rag-manage-mcp            (needs running stack)
+#   8. rag-configure-infrastructure (needs running stack)
+#
+# GPU skills (rag-enable-vlm, rag-evaluate-quality) run via separate Brev job.
+# Output: ./eval-results/<skill>/ uploaded as artifact.
 
 set -euo pipefail
 
-SKILL="${SKILL:-rag-query-knowledge}"
-SKILL_DIR="./skills/${SKILL}"
+# No-GPU skills in dependency order — deploy must be first
+NO_GPU_SKILLS=(
+  "rag-deploy-blueprint"
+  "rag-ingest-documents"
+  "rag-query-knowledge"
+  "rag-troubleshoot-blueprint"
+  "rag-configure-retrieval"
+  "rag-enable-guardrails"
+  "rag-manage-mcp"
+  "rag-configure-infrastructure"
+)
+
 RESULTS_DIR="./eval-results"
 LOGS_DIR="./ci-logs"
-
 mkdir -p "$LOGS_DIR"
 
 echo "==> Probe runner environment"
@@ -35,27 +54,14 @@ check "docker"         "docker --version"
 check "docker compose" "docker compose version"
 check "node"           "node --version"
 check "npm"            "npm --version"
-echo "  [ENV]   SKILL:                ${SKILL}"
 echo "  [ENV]   NVIDIA_INFERENCE_KEY: ${NVIDIA_INFERENCE_KEY:+set (${NVIDIA_INFERENCE_KEY:0:4}...)}${NVIDIA_INFERENCE_KEY:-NOT SET}"
 echo "  [ENV]   NGC_API_KEY:          ${NGC_API_KEY:+set (${NGC_API_KEY:0:4}...)}${NGC_API_KEY:-NOT SET}"
 echo "  [ENV]   ANTHROPIC_API_KEY:    ${ANTHROPIC_API_KEY:+set}${ANTHROPIC_API_KEY:-NOT SET}"
+echo "  [ENV]   Skills to evaluate:   ${NO_GPU_SKILLS[*]}"
 if [ "$probe_ok" = false ]; then
   echo "  [WARN]  Some dependencies missing — will attempt to install below"
 fi
 echo ""
-
-echo "==> Validate skill directory"
-if [ ! -d "$SKILL_DIR" ]; then
-  echo "ERROR: Skill directory not found: $SKILL_DIR"
-  echo "Available skills: $(ls ./skills/ | grep rag-)"
-  exit 1
-fi
-if [ ! -f "$SKILL_DIR/evals/evals.json" ]; then
-  echo "ERROR: evals.json not found at $SKILL_DIR/evals/evals.json"
-  exit 1
-fi
-echo "  Skill: $SKILL"
-echo "  Cases: $(python3 -c "import json; d=json.load(open('$SKILL_DIR/evals/evals.json')); print(len(d))")"
 
 echo "==> Required env check"
 : "${NVIDIA_INFERENCE_KEY:?Set NVIDIA_INFERENCE_KEY (sk- proxy key) in repo secrets as NVBASE_INFERENCE_API_KEY}"
@@ -102,28 +108,81 @@ docker ps -a --format '{{.ID}}' | xargs -r docker rm   >/dev/null 2>&1 || true
 
 export ANTHROPIC_BASE_URL="https://inference-api.nvidia.com/v1"
 
-echo "==> Run NV-BASE Tier 1 — static + security validation"
-echo "--- skills-check (detailed schema output) ---"
-nv-base skills-check "$SKILL_DIR" || true
-echo "--- full validate ---"
-nv-base validate "$SKILL_DIR" --no-dedup --fail-fast
-echo "  Tier 1 passed"
+# ============================================================
+# TIER 1 — Validate all no-GPU skills upfront (fast, ~30s)
+# ============================================================
+echo ""
+echo "==> NV-BASE Tier 1 — validating all ${#NO_GPU_SKILLS[@]} skills"
+tier1_failed=false
+for skill in "${NO_GPU_SKILLS[@]}"; do
+  echo "  Checking: $skill"
+  nv-base skills-check "./skills/$skill" >/dev/null 2>&1 && \
+    echo "  [PASS] $skill" || \
+    { echo "  [FAIL] $skill — Tier 1 schema error"; tier1_failed=true; }
+done
+if [ "$tier1_failed" = true ]; then
+  echo "Tier 1 failed for one or more skills — fix schema errors before Tier 3"
+  exit 1
+fi
+echo "  All Tier 1 checks passed"
 
-echo "==> Run NV-BASE Tier 3 — live agent eval"
-nv-base agent-eval \
-  --env-mode local \
-  -a claude-code \
-  --skip-baseline \
-  --timeout-multiplier 3 \
-  -k 1 \
-  "$SKILL_DIR" \
-  -r html,json \
-  -o "$RESULTS_DIR"
+# ============================================================
+# TIER 3 — Evaluate skills in dependency order
+# Docker state persists between skills (--env-mode local)
+# ============================================================
+echo ""
+echo "==> NV-BASE Tier 3 — evaluating ${#NO_GPU_SKILLS[@]} skills in dependency order"
 
+tier3_results=()
+
+for skill in "${NO_GPU_SKILLS[@]}"; do
+  skill_dir="./skills/$skill"
+  skill_results="$RESULTS_DIR/$skill"
+  mkdir -p "$skill_results"
+
+  echo ""
+  echo "  ---- Evaluating: $skill ----"
+  nv-base agent-eval \
+    --env-mode local \
+    -a claude-code \
+    --skip-baseline \
+    --timeout-multiplier 3 \
+    -k 1 \
+    "$skill_dir" \
+    -r html,json \
+    -o "$skill_results" && \
+    tier3_results+=("PASS:$skill") || \
+    tier3_results+=("FAIL:$skill")
+done
+
+# ============================================================
+# COLLECT DOCKER LOGS
+# ============================================================
+echo ""
 echo "==> Collect Docker logs"
 docker ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" > "$LOGS_DIR/docker-ps.log" 2>&1 || true
 for container in rag-server ingestor-server milvus-standalone milvus-etcd milvus-minio; do
   docker logs "$container" > "$LOGS_DIR/${container}.log" 2>&1 || true
 done
 
-echo "==> Eval complete for skill: $SKILL"
+# ============================================================
+# SUMMARY
+# ============================================================
+echo ""
+echo "==> Eval summary"
+all_passed=true
+for result in "${tier3_results[@]}"; do
+  status="${result%%:*}"
+  skill="${result##*:}"
+  echo "  [$status] $skill"
+  [ "$status" = "FAIL" ] && all_passed=false
+done
+
+if [ "$all_passed" = false ]; then
+  echo ""
+  echo "One or more skills failed Tier 3 evaluation"
+  exit 1
+fi
+
+echo ""
+echo "==> All evals complete"
