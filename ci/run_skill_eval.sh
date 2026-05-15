@@ -83,23 +83,40 @@ else
   echo "Local mode (BREV_INSTANCE unset): RAG will deploy on this runner VM"
 fi
 
-echo "==> Clean leftover Docker state from prior LOCAL runs"
-# Only needed when LocalEnvironment is in use — Brev runs deploy on a
-# separate VM that's freshly created (or torn down) per run.
+echo "==> Clean leftover Docker state from prior runs (one-shot, before any trial)"
+# This runs ONCE per CI run — never between trials — so step-1's deploy
+# survives long enough for step-2's judge probes. Targets:
+#   - LocalEnvironment: this runner VM is also the deploy host.
+#   - BrevEnvironment: tear down the warm-pool target's containers,
+#     leaving the docker image cache (nv-ingest ~11 GB) intact.
+COMPOSE_FILES=(
+  deploy/compose/docker-compose-rag-server.yaml
+  deploy/compose/docker-compose-ingestor-server.yaml
+  deploy/compose/vectordb.yaml
+  deploy/compose/nims.yaml
+  deploy/compose/docker-compose-nemo-guardrails.yaml
+  deploy/compose/observability.yaml
+)
 if [ "$ENV_IMPORT" = "envs.local_env:LocalEnvironment" ]; then
-  for f in \
-    deploy/compose/docker-compose-rag-server.yaml \
-    deploy/compose/docker-compose-ingestor-server.yaml \
-    deploy/compose/vectordb.yaml \
-    deploy/compose/nims.yaml \
-    deploy/compose/docker-compose-nemo-guardrails.yaml \
-    deploy/compose/observability.yaml; do
+  for f in "${COMPOSE_FILES[@]}"; do
     [ -f "$f" ] && docker compose -f "$f" down -v --remove-orphans >/dev/null 2>&1 || true
   done
   docker ps -a --format '{{.Names}}' | \
     grep -E '(rag|milvus|nim|ingest|redis|nemo|grafana|prometheus|embedding|ranking|vlm|ocr|page-elements|graphic-elements|table-structure|nv-ingest)' | \
     xargs -r docker rm -f >/dev/null 2>&1 || true
   sudo rm -rf deploy/compose/volumes 2>/dev/null || true
+elif brev ls 2>/dev/null | awk -v n="$BREV_INSTANCE" '$1==n {found=1} END{exit !found}'; then
+  # Brev mode AND the warm-pool VM exists. Run the same down sequence
+  # against the target's $HOME/rag/deploy/compose tree. Repo gets re-
+  # staged by brev_env.start() right after this. Image cache preserved.
+  for f in "${COMPOSE_FILES[@]}"; do
+    brev exec "$BREV_INSTANCE" \
+      "[ -f \"\$HOME/rag/$f\" ] && docker compose -f \"\$HOME/rag/$f\" down -v --remove-orphans >/dev/null 2>&1 || true" \
+      2>/dev/null || true
+  done
+  brev exec "$BREV_INSTANCE" \
+    "docker network rm nvidia-rag >/dev/null 2>&1 || true; docker ps -a --format '{{.Names}}' | grep -E '(rag|milvus|nim|ingest|redis|nemo)' | xargs -r docker rm -f >/dev/null 2>&1 || true" \
+    2>/dev/null || true
 fi
 
 echo "==> Generate Harbor task directories from spec"

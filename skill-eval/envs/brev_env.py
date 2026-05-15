@@ -154,11 +154,11 @@ class BrevEnvironment(BaseEnvironment):
         # local edits, not whatever's on GitHub HEAD.
         await self._stage_repo()
 
-        # Warm-pool cleanup: a reused VM may still have containers, networks,
-        # or bind-mount volumes from the previous run. `docker compose down`
-        # removes those without touching the image cache (so the ~11 GB
-        # nv-ingest pull survives). Image-prune would defeat the warm pool.
-        await self._clean_prior_deploy()
+        # NOTE: prior-deploy cleanup is NOT done here. Harbor calls start()
+        # per trial, but trials within one eval run share a deploy (step-1
+        # deploys, step-2 probes). Tearing down between trials breaks that.
+        # The script (ci/run_skill_eval.sh) runs the cleanup once, before
+        # the harbor loop, so a reused warm-pool VM starts clean.
 
         self._started = True
 
