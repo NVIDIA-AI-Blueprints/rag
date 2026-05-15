@@ -75,23 +75,24 @@ while IFS= read -r step_dir; do
     -o jobs -n 1 --yes
 done < <(find "$DATASETS_DIR" -mindepth 1 -maxdepth 1 -type d | sort)
 
-echo "==> Summarise results into eval_result.md"
+echo "==> Summarise results into eval_result.md (walks ALL job dirs)"
 python3 - <<'PY'
 import json
 from pathlib import Path
 
-jobs = sorted(Path("jobs").iterdir(), key=lambda p: p.stat().st_mtime)
-if not jobs:
+jobs_root = Path("jobs")
+if not jobs_root.exists() or not any(jobs_root.iterdir()):
     raise SystemExit("no Harbor jobs produced")
-latest = jobs[-1]
 
-lines = ["# Skill-eval results", "", f"Run: `{latest.name}`", ""]
+lines = ["# Skill-eval results", ""]
 total, passed = 0, 0
-for reward_file in sorted(latest.rglob("reward.txt")):
+for reward_file in sorted(jobs_root.rglob("reward.txt")):
     r = float(reward_file.read_text().strip() or 0)
     judge = reward_file.parent / "judge.json"
-    name = reward_file.parents[1].name
-    line = f"- **{name}**: reward `{r:.2f}`"
+    # parents: reward.txt → verifier → step-N__XXX → <timestamp>
+    step_name = reward_file.parents[1].name
+    run_name = reward_file.parents[2].name
+    line = f"- **{run_name} / {step_name}**: reward `{r:.2f}`"
     if judge.exists():
         j = json.loads(judge.read_text())
         passed += j.get("passed", 0)
@@ -104,5 +105,20 @@ out = Path("eval_result.md")
 out.write_text("\n".join(lines) + "\n")
 print(out.read_text())
 PY
+
+echo "==> Stage outputs to eval-results/ for artifact upload"
+# The dispatcher workflow's upload-artifact step looks for paths
+# `eval-results/`, `**/evals/results/`, `ci-logs/`. The latter glob
+# recurses everywhere and chokes on docker-volume dirs owned by root
+# (e.g. deploy/compose/volumes/etcd/member → EACCES). Stage our results
+# under a clean eval-results/ directory at the repo root so the action
+# uploads exactly what we want without needing to crawl docker volumes.
+STAGE="$REPO_ROOT/eval-results"
+rm -rf "$STAGE"
+mkdir -p "$STAGE"
+cp -a "$SKILL_EVAL_DIR/jobs" "$STAGE/jobs"
+cp "$SKILL_EVAL_DIR/eval_result.md" "$STAGE/eval_result.md"
+echo "Staged artifact tree:"
+find "$STAGE" -maxdepth 3 | head -40
 
 echo "==> Eval complete"
