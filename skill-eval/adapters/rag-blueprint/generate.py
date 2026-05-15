@@ -59,15 +59,19 @@ DEFAULT_SPEC = "nvidia_hosted.json"
 # task.toml [metadata] at provision time. Mirrors the VSS PLATFORMS dict
 # pattern in their deploy adapter.
 PLATFORMS: dict[str, dict[str, str]] = {
+    # `brev_type` maps to `brev create --type <type>` (Brev CLI v0.6.324+).
+    # Older versions used `--cpu 4x16` / `--gpu <name:gpu:count>` — that
+    # syntax was removed. Use `brev search cpu --json` to discover types.
     "cpu": {
-        "brev_cpu": "4x16",
-        "description": "CPU instance, no GPU. Used for NVIDIA-hosted "
-                       "(cloud-NIM) RAG evals — no local inference.",
+        "brev_type": "n2d-standard-4",
+        "description": "GCP n2d-standard-4 (4 vCPU, 16 GB). Matches the "
+                       "runner VM shape — enough for NVIDIA-hosted RAG "
+                       "(8 Docker containers, no local inference).",
     },
-    # Future: GPU platforms when we add self-hosted / VLM specs.
-    # "L40S": {
-    #     "brev_gpu": "n1-highmem-4:nvidia-tesla-l40s:2",
-    #     "description": "2x L40S 48 GB",
+    # Future: GPU platforms — pick a type via `brev search gpu --gpu-name H100`.
+    # "H100": {
+    #     "brev_type": "<exact-type-from-brev-search>",
+    #     "description": "...",
     # },
 }
 

@@ -147,25 +147,29 @@ class BrevEnvironment(BaseEnvironment):
         self._started = True
 
     async def _provision(self, meta: dict) -> None:
-        """brev create with --cpu/--gpu flags from task.toml metadata."""
-        flags: list[str] = []
-        if meta.get("brev_cpu"):
-            flags = ["--cpu", str(meta["brev_cpu"])]
-        elif meta.get("brev_gpu"):
-            flags = ["--gpu", str(meta["brev_gpu"])]
-        else:
-            # Fallback for tasks without resource metadata.
-            logger.warning("No brev_cpu / brev_gpu in task.toml — using --cpu 4x16")
-            flags = ["--cpu", "4x16"]
+        """brev create --type <X> from task.toml metadata.
 
-        logger.info("Creating Brev instance %s %s", self._instance_name, flags)
+        Brev CLI v0.6.324+ removed --cpu/--gpu shape flags. Instance type
+        names (e.g. `n2d-standard-4`, `g5.xlarge`) are passed via --type.
+        Use `brev search cpu` / `brev search gpu` to discover types.
+        """
+        brev_type = meta.get("brev_type")
+        if not brev_type:
+            logger.warning(
+                "No brev_type in task.toml — falling back to n2d-standard-4"
+            )
+            brev_type = "n2d-standard-4"
+
+        logger.info("Creating Brev instance %s --type %s",
+                    self._instance_name, brev_type)
         create = await _run_brev(
-            "create", self._instance_name, "--detached", *flags,
+            "create", self._instance_name, "--type", brev_type, "--detached",
             timeout=BREV_CREATE_TIMEOUT,
         )
         if create.return_code != 0:
             raise RuntimeError(
-                f"brev create {self._instance_name} failed: {create.stderr}"
+                f"brev create {self._instance_name} --type {brev_type} "
+                f"failed: {create.stderr}"
             )
         await _wait_for_running(self._instance_name)
 
