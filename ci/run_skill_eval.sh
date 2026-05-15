@@ -69,22 +69,14 @@ if [ -n "${BREV_INSTANCE:-}" ]; then
     echo "brev not authenticated. Run: brev login --auth nvidia"
     exit 1
   }
-  # Clear any leftover eval-target from a prior run that died mid-way
-  # (DELETING/STOPPED/whatever state). brev delete is async — poll until
-  # the instance is fully GONE before letting brev_env try to provision.
+  # Warm-pool mode (mirrors VSS): if $BREV_INSTANCE already exists, reuse
+  # it so docker image cache (notably nv-ingest, ~11 GB) survives between
+  # runs. brev_env.start() handles container/network cleanup on the target
+  # without nuking the image cache. Only auto-provision if missing.
   if brev ls 2>/dev/null | awk -v n="$BREV_INSTANCE" '$1==n {found=1} END{exit !found}'; then
-    echo "Stale $BREV_INSTANCE found — deleting before fresh provision"
-    brev delete "$BREV_INSTANCE" 2>&1 | tail -3 || true
-    # Wait up to 5 min for the delete to complete (instance row disappears
-    # from `brev ls`). A DELETING-state row is NOT gone yet — brev_env will
-    # mis-handle it.
-    for i in $(seq 1 30); do
-      if ! brev ls 2>/dev/null | awk -v n="$BREV_INSTANCE" '$1==n {found=1} END{exit !found}'; then
-        echo "$BREV_INSTANCE fully removed"
-        break
-      fi
-      sleep 10
-    done
+    echo "Reusing warm $BREV_INSTANCE"
+  else
+    echo "No existing $BREV_INSTANCE — brev_env will auto-provision"
   fi
 else
   ENV_IMPORT="envs.local_env:LocalEnvironment"
@@ -164,11 +156,12 @@ PY
 echo "==> Tear down eval target (next CI run starts clean)"
 cd "$REPO_ROOT"
 if [ "$ENV_IMPORT" = "envs.brev_env:BrevEnvironment" ]; then
-  # In Brev mode, BrevEnvironment.stop() leaves the named pool VM alive
-  # between trials so step-2 can reuse step-1's deploy. Delete it now
-  # that all steps are done.
-  echo "Deleting Brev eval-target $BREV_INSTANCE"
-  brev delete "$BREV_INSTANCE" 2>&1 | tail -5 || true
+  # Warm-pool mode: leave $BREV_INSTANCE running so its docker image cache
+  # (notably nv-ingest, ~11 GB) survives for the next run. brev_env.start()
+  # of the next run will `docker compose down` the RAG stacks without
+  # touching the image cache. To force a fresh VM, run `brev delete
+  # $BREV_INSTANCE` manually before the next CI trigger.
+  echo "Leaving Brev eval-target $BREV_INSTANCE running (warm pool)"
 else
   # LocalEnvironment — clean up docker state the agent created on the runner.
   for f in \

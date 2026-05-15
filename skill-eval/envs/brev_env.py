@@ -154,6 +154,12 @@ class BrevEnvironment(BaseEnvironment):
         # local edits, not whatever's on GitHub HEAD.
         await self._stage_repo()
 
+        # Warm-pool cleanup: a reused VM may still have containers, networks,
+        # or bind-mount volumes from the previous run. `docker compose down`
+        # removes those without touching the image cache (so the ~11 GB
+        # nv-ingest pull survives). Image-prune would defeat the warm pool.
+        await self._clean_prior_deploy()
+
         self._started = True
 
     async def _stage_repo(self) -> None:
@@ -276,6 +282,47 @@ class BrevEnvironment(BaseEnvironment):
             if login_result.return_code != 0:
                 logger.warning("docker login nvcr.io failed on target: %s",
                                login_result.stderr)
+
+    async def _clean_prior_deploy(self) -> None:
+        """Tear down RAG compose stacks on a reused VM, keep image cache.
+
+        Run from start() after _stage_repo. No-op on a fresh VM (no
+        containers to remove). Failures are logged but not fatal — the
+        agent's own `docker compose up` will surface real conflicts.
+        """
+        assert self._instance_name
+        compose_files = [
+            "deploy/compose/docker-compose-rag-server.yaml",
+            "deploy/compose/docker-compose-ingestor-server.yaml",
+            "deploy/compose/vectordb.yaml",
+            "deploy/compose/nims.yaml",
+            "deploy/compose/docker-compose-nemo-guardrails.yaml",
+            "deploy/compose/observability.yaml",
+        ]
+        down_cmds = " ; ".join(
+            f'[ -f "$HOME/rag/{f}" ] && '
+            f'docker compose -f "$HOME/rag/{f}" down -v --remove-orphans '
+            f'>/dev/null 2>&1 || true'
+            for f in compose_files
+        )
+        # Also remove the `nvidia-rag` network if it survived (compose down
+        # skips it when no compose file references it on this invocation).
+        cleanup = (
+            f"{down_cmds} ; "
+            f"docker network rm nvidia-rag >/dev/null 2>&1 || true ; "
+            f"docker ps -a --format '{{{{.Names}}}}' | "
+            f"grep -E '(milvus|nv-ingest|rag-server|ingestor|redis|nemo)' | "
+            f"xargs -r docker rm -f >/dev/null 2>&1 || true ; "
+            f"echo cleanup-done"
+        )
+        logger.info("Cleaning prior deploy on %s (image cache preserved)",
+                    self._instance_name)
+        result = await _run_brev_exec(
+            self._instance_name, cleanup, timeout=120,
+        )
+        if result.return_code != 0:
+            logger.warning("Prior-deploy cleanup returned rc=%s stderr=%s",
+                           result.return_code, result.stderr)
 
     async def _provision(self, meta: dict) -> None:
         """brev create --type <X> from task.toml metadata.
