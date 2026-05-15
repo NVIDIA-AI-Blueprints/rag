@@ -25,6 +25,7 @@ on:
           - blueprints-skills-eval-runner
           - sonarqube-workflows-bp-sre
           - arc-runners-org-nvidia-ai-bp-2-gpu
+          - rag-eval
 
 permissions:
   contents: read
