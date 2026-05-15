@@ -62,7 +62,6 @@ Forwarded verbatim into the `/v1/generate` request body. **Per-query overrides**
 | `enable_citations` | `true` | Whether server returns citation chunks. |
 | `use_knowledge_base` | `true` | False = bypass retrieval entirely. |
 | `confidence_threshold` | `0.0` (`0–1`) | Minimum relevance score for retained chunks. |
-| `fetch_full_page_context` | `false` | PDF-centric: pull all chunks from each retrieved page. |
 
 **Helpers:** `RagParams.vdb_top_k_list`, `RagParams.reranker_top_k_list` mirror the `concurrency_list` pattern.
 
