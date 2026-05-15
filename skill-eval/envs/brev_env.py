@@ -247,7 +247,23 @@ class BrevEnvironment(BaseEnvironment):
             # NGC token forwarded so `docker login nvcr.io` works on the target
             # when the skill needs to pull NIM containers.
         ]
-        for var in ("NGC_API_KEY", "NVIDIA_API_KEY", "NVIDIA_INFERENCE_KEY"):
+        # NGC for docker login; NVIDIA_* for cloud NIM auth; the rest are
+        # for the verifier (tests/test.sh → generic_judge.py), which uses
+        # `set -uo pipefail` and dies on the first unset judge var. On
+        # LocalEnvironment these come from the runner's shell; on Brev
+        # the target only sees what we explicitly forward here.
+        for var in (
+            "NGC_API_KEY",
+            "NVIDIA_API_KEY",
+            "NVIDIA_INFERENCE_KEY",
+            "JUDGE_ANTHROPIC_API_KEY",
+            "ANTHROPIC_API_KEY",
+            "ANTHROPIC_BASE_URL",
+            "ANTHROPIC_MODEL",
+            "JUDGE_FULL_MODEL",
+            "JUDGE_MODEL",
+            "CLAUDE_CODE_DISABLE_THINKING",
+        ):
             val = os.environ.get(var)
             if val:
                 env_lines.append(f'export {var}={shlex.quote(val)}')
