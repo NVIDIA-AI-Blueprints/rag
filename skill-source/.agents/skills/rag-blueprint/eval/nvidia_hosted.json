@@ -1,5 +1,6 @@
 {
   "skills": ["rag-blueprint"],
+  "platforms": ["cpu"],
   "env": "A Linux host with Docker + Docker Compose plugin installed and running. NVIDIA-hosted deployment — no local GPU required; all model inference goes to https://integrate.api.nvidia.com/v1. Required env var: NGC_API_KEY (valid NGC PAT with nvcr.io pull access). cwd is the repo root: ${RAG_REPO_ROOT}/. Use the env file deploy/compose/nvdev.env which is pre-configured for cloud endpoints (APP_LLM_SERVERURL points at integrate.api.nvidia.com, APP_LLM_MODELNAME=nvidia/llama-3.3-nemotron-super-49b-v1.5).",
   "expects": [
     {

@@ -53,6 +53,24 @@ REPO_ROOT = os.environ.get("RAG_REPO_ROOT") or str(
 )
 DEFAULT_SPEC = "nvidia_hosted.json"
 
+# Spec `platforms` field → Brev create flags for the eval-target instance.
+# Spec authors write platform NAMES (`cpu`, `L40S`, `H100`); this adapter
+# translates them to Brev shape strings that BrevEnvironment reads from
+# task.toml [metadata] at provision time. Mirrors the VSS PLATFORMS dict
+# pattern in their deploy adapter.
+PLATFORMS: dict[str, dict[str, str]] = {
+    "cpu": {
+        "brev_cpu": "4x16",
+        "description": "CPU instance, no GPU. Used for NVIDIA-hosted "
+                       "(cloud-NIM) RAG evals — no local inference.",
+    },
+    # Future: GPU platforms when we add self-hosted / VLM specs.
+    # "L40S": {
+    #     "brev_gpu": "n1-highmem-4:nvidia-tesla-l40s:2",
+    #     "description": "2x L40S 48 GB",
+    # },
+}
+
 PREAMBLE = (
     "You are running inside a non-interactive evaluation harness.\n"
     "You are pre-authorized to deploy and configure services autonomously —\n"
@@ -95,22 +113,42 @@ def _instruction_md(step: int, total: int, query: str, env: str) -> str:
     )
 
 
-def _task_toml(step: int, total: int, check_count: int, eval_name: str) -> str:
-    return (
-        "[task]\n"
-        f'name = "{TASK_PREFIX}/{eval_name}-step-{step}"\n'
-        f'description = "{eval_name} step {step}/{total}"\n'
-        "\n"
-        "[environment]\n"
-        'skills_dir = "/skills"\n'
-        "\n"
-        "[metadata]\n"
-        f'skill = "{SKILL_NAME}"\n'
-        f'eval_name = "{eval_name}"\n'
-        f"step_index = {step}\n"
-        f"step_count = {total}\n"
-        f"check_count = {check_count}\n"
-    )
+def _task_toml(
+    step: int,
+    total: int,
+    check_count: int,
+    eval_name: str,
+    platform: str | None,
+    platform_meta: dict[str, str],
+) -> str:
+    """Generate task.toml for one step.
+
+    `platform` and `platform_meta` are the user-facing platform name (e.g.
+    `cpu`) and the resolved hardware mapping (e.g. {"brev_cpu": "4x16"}).
+    BrevEnvironment reads these from [metadata] at provision time.
+    """
+    lines = [
+        "[task]",
+        f'name = "{TASK_PREFIX}/{eval_name}-step-{step}"',
+        f'description = "{eval_name} step {step}/{total}"',
+        "",
+        "[environment]",
+        'skills_dir = "/skills"',
+        "",
+        "[metadata]",
+        f'skill = "{SKILL_NAME}"',
+        f'eval_name = "{eval_name}"',
+        f"step_index = {step}",
+        f"step_count = {total}",
+        f"check_count = {check_count}",
+    ]
+    if platform:
+        lines.append(f'platform = "{platform}"')
+    for key, val in platform_meta.items():
+        # description is for humans; everything else (brev_cpu, brev_gpu,
+        # etc.) is consumed by BrevEnvironment.
+        lines.append(f'{key} = "{val}"')
+    return "\n".join(lines) + "\n"
 
 
 def _test_sh(step: int, spec_name: str, eval_name: str) -> str:
@@ -169,6 +207,22 @@ def generate(spec: dict, output_root: Path, skill_dir: Path, eval_name: str) -> 
     total = len(expects)
     env_note = spec.get("env", "")
 
+    # Resolve the eval-target platform. Spec carries a list of platform
+    # names; for Phase 2 we pick the first one. (Future multi-platform
+    # specs will fan out into separate task dirs per platform.)
+    platforms = spec.get("platforms") or []
+    platform = platforms[0] if platforms else None
+    if platform and platform not in PLATFORMS:
+        print(
+            f"  WARN  platform '{platform}' not in PLATFORMS dict — "
+            f"BrevEnvironment will fall back to its default shape",
+            file=sys.stderr,
+        )
+    platform_meta = {
+        k: v for k, v in (PLATFORMS.get(platform) or {}).items()
+        if k != "description"
+    }
+
     for idx, expect in enumerate(expects, 1):
         step_dir = output_root / f"step-{idx}"
         step_dir.mkdir(parents=True, exist_ok=True)
@@ -179,7 +233,7 @@ def generate(spec: dict, output_root: Path, skill_dir: Path, eval_name: str) -> 
 
         checks = expect.get("checks") or []
         (step_dir / "task.toml").write_text(
-            _task_toml(idx, total, len(checks), eval_name)
+            _task_toml(idx, total, len(checks), eval_name, platform, platform_meta)
         )
 
         env_dir = step_dir / "environment"

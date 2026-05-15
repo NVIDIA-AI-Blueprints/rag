@@ -51,25 +51,40 @@ claude --version
 echo "==> Docker login to nvcr.io"
 echo "$NGC_API_KEY" | docker login nvcr.io -u '$oauthtoken' --password-stdin
 
-echo "==> Clean any leftover Docker state from prior runs"
-# Tear down compose stacks first (releases volumes cleanly). If a previous
-# run died mid-deploy these may not exist — || true handles that.
-for f in \
-  deploy/compose/docker-compose-rag-server.yaml \
-  deploy/compose/docker-compose-ingestor-server.yaml \
-  deploy/compose/vectordb.yaml \
-  deploy/compose/nims.yaml \
-  deploy/compose/docker-compose-nemo-guardrails.yaml \
-  deploy/compose/observability.yaml; do
-  [ -f "$f" ] && docker compose -f "$f" down -v --remove-orphans >/dev/null 2>&1 || true
-done
-# Belt and suspenders — kill any RAG containers the compose teardown missed.
-docker ps -a --format '{{.Names}}' | \
-  grep -E '(rag|milvus|nim|ingest|redis|nemo|grafana|prometheus|embedding|ranking|vlm|ocr|page-elements|graphic-elements|table-structure|nv-ingest)' | \
-  xargs -r docker rm -f >/dev/null 2>&1 || true
-# Volume bind-mount dirs are owned by root (created by container UIDs).
-# Nuke them with sudo so the next git checkout doesn't fail with EACCES.
-sudo rm -rf deploy/compose/volumes 2>/dev/null || true
+echo "==> Pick Harbor environment (Brev remote target vs local host)"
+if [ -n "${BREV_INSTANCE:-}" ]; then
+  ENV_IMPORT="envs.brev_env:BrevEnvironment"
+  echo "Brev mode: BREV_INSTANCE=$BREV_INSTANCE"
+  command -v brev >/dev/null || { echo "brev CLI missing on runner"; exit 1; }
+  echo "Brev CLI version: $(brev --version 2>&1 | head -1)"
+  # Pre-flight: confirm we can list instances (i.e. authed).
+  brev ls >/dev/null 2>&1 || {
+    echo "brev not authenticated. Run: brev login --auth nvidia"
+    exit 1
+  }
+else
+  ENV_IMPORT="envs.local_env:LocalEnvironment"
+  echo "Local mode (BREV_INSTANCE unset): RAG will deploy on this runner VM"
+fi
+
+echo "==> Clean leftover Docker state from prior LOCAL runs"
+# Only needed when LocalEnvironment is in use — Brev runs deploy on a
+# separate VM that's freshly created (or torn down) per run.
+if [ "$ENV_IMPORT" = "envs.local_env:LocalEnvironment" ]; then
+  for f in \
+    deploy/compose/docker-compose-rag-server.yaml \
+    deploy/compose/docker-compose-ingestor-server.yaml \
+    deploy/compose/vectordb.yaml \
+    deploy/compose/nims.yaml \
+    deploy/compose/docker-compose-nemo-guardrails.yaml \
+    deploy/compose/observability.yaml; do
+    [ -f "$f" ] && docker compose -f "$f" down -v --remove-orphans >/dev/null 2>&1 || true
+  done
+  docker ps -a --format '{{.Names}}' | \
+    grep -E '(rag|milvus|nim|ingest|redis|nemo|grafana|prometheus|embedding|ranking|vlm|ocr|page-elements|graphic-elements|table-structure|nv-ingest)' | \
+    xargs -r docker rm -f >/dev/null 2>&1 || true
+  sudo rm -rf deploy/compose/volumes 2>/dev/null || true
+fi
 
 echo "==> Generate Harbor task directories from spec"
 cd "$SKILL_EVAL_DIR"
@@ -84,7 +99,7 @@ while IFS= read -r step_dir; do
   echo "----> harbor run -p $step_dir"
   uvx harbor run \
     -p "$step_dir" \
-    --environment-import-path envs.local_env:LocalEnvironment \
+    --environment-import-path "$ENV_IMPORT" \
     --agent claude-code --model "$ANTHROPIC_MODEL" \
     --ak api_base="$ANTHROPIC_BASE_URL/v1" \
     --ae CLAUDE_CODE_DISABLE_THINKING=1 \
@@ -122,15 +137,19 @@ out.write_text("\n".join(lines) + "\n")
 print(out.read_text())
 PY
 
-echo "==> Tear down RAG stack (so next CI run starts clean)"
+echo "==> Tear down RAG stack (next CI run starts clean)"
 cd "$REPO_ROOT"
-for f in \
-  deploy/compose/docker-compose-rag-server.yaml \
-  deploy/compose/docker-compose-ingestor-server.yaml \
-  deploy/compose/vectordb.yaml; do
-  [ -f "$f" ] && docker compose -f "$f" down -v --remove-orphans >/dev/null 2>&1 || true
-done
-sudo rm -rf deploy/compose/volumes 2>/dev/null || true
+# Only do local docker teardown when we deployed locally. In Brev mode
+# the eval-target VM was deleted by BrevEnvironment.stop() already.
+if [ "$ENV_IMPORT" = "envs.local_env:LocalEnvironment" ]; then
+  for f in \
+    deploy/compose/docker-compose-rag-server.yaml \
+    deploy/compose/docker-compose-ingestor-server.yaml \
+    deploy/compose/vectordb.yaml; do
+    [ -f "$f" ] && docker compose -f "$f" down -v --remove-orphans >/dev/null 2>&1 || true
+  done
+  sudo rm -rf deploy/compose/volumes 2>/dev/null || true
+fi
 
 echo "==> Stage outputs to eval-results/ for artifact upload"
 # The dispatcher workflow's upload-artifact step looks for paths
