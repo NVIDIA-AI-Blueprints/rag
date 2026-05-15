@@ -1,9 +1,14 @@
 ---
 name: rag-enable-vlm
 description: Enable, configure, or verify RAG Vision Language Model support, VLM embeddings, multimodal query, and image captioning. Use when the user asks to query images, use VLM embeddings, caption images, process multimodal PDFs, or enable image plus text retrieval in the RAG Blueprint.
+version: "1.0.0"
 license: Apache-2.0
 metadata:
   author: Vidushi Gupta <vidushig@nvidia.com>
+  tags:
+    - rag
+    - vlm
+    - multimodal
 ---
 
 # RAG Enable VLM

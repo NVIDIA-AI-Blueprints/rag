@@ -1,9 +1,14 @@
 ---
 name: rag-enable-guardrails
 description: Enable, configure, or verify NeMo Guardrails for NVIDIA RAG Blueprint queries and responses. Use when the user asks to add guardrails, content safety, topic control, policy checks, safe responses, or guardrail policy validation.
+version: "1.0.0"
 license: Apache-2.0
 metadata:
   author: Vidushi Gupta <vidushig@nvidia.com>
+  tags:
+    - rag
+    - guardrails
+    - safety
 ---
 
 # RAG Enable Guardrails

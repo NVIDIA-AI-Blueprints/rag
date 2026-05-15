@@ -1,9 +1,14 @@
 ---
 name: rag-ingest-documents
 description: Ingest documents, folders, PDFs, text files, audio or video files, mounted volumes, and batch inputs into NVIDIA RAG Blueprint collections. Use when the user asks to upload documents, ingest a corpus, add files to a collection, run batch ingestion, or configure ingestion options.
+version: "1.0.0"
 license: Apache-2.0
 metadata:
   author: Vidushi Gupta <vidushig@nvidia.com>
+  tags:
+    - rag
+    - ingestion
+    - documents
 ---
 
 # RAG Ingest Documents
