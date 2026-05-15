@@ -69,6 +69,13 @@ if [ -n "${BREV_INSTANCE:-}" ]; then
     echo "brev not authenticated. Run: brev login --auth nvidia"
     exit 1
   }
+  # Clear any leftover eval-target from a prior run that died mid-way
+  # (DELETING/STOPPED/whatever state). Safe to ignore "not found" errors.
+  if brev ls 2>/dev/null | awk -v n="$BREV_INSTANCE" '$1==n {found=1} END{exit !found}'; then
+    echo "Stale $BREV_INSTANCE found — deleting before fresh provision"
+    brev delete "$BREV_INSTANCE" 2>&1 | tail -3 || true
+    sleep 10
+  fi
 else
   ENV_IMPORT="envs.local_env:LocalEnvironment"
   echo "Local mode (BREV_INSTANCE unset): RAG will deploy on this runner VM"
@@ -144,11 +151,16 @@ out.write_text("\n".join(lines) + "\n")
 print(out.read_text())
 PY
 
-echo "==> Tear down RAG stack (next CI run starts clean)"
+echo "==> Tear down eval target (next CI run starts clean)"
 cd "$REPO_ROOT"
-# Only do local docker teardown when we deployed locally. In Brev mode
-# the eval-target VM was deleted by BrevEnvironment.stop() already.
-if [ "$ENV_IMPORT" = "envs.local_env:LocalEnvironment" ]; then
+if [ "$ENV_IMPORT" = "envs.brev_env:BrevEnvironment" ]; then
+  # In Brev mode, BrevEnvironment.stop() leaves the named pool VM alive
+  # between trials so step-2 can reuse step-1's deploy. Delete it now
+  # that all steps are done.
+  echo "Deleting Brev eval-target $BREV_INSTANCE"
+  brev delete "$BREV_INSTANCE" 2>&1 | tail -5 || true
+else
+  # LocalEnvironment — clean up docker state the agent created on the runner.
   for f in \
     deploy/compose/docker-compose-rag-server.yaml \
     deploy/compose/docker-compose-ingestor-server.yaml \

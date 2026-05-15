@@ -180,16 +180,25 @@ class BrevEnvironment(BaseEnvironment):
     async def stop(self, delete: bool) -> None:
         if not self._instance_name:
             return
-        # Always delete what we created. For reused warm-pool instances
-        # ($BREV_INSTANCE pointing to an existing VM), only delete if the
-        # caller asked for it.
-        should_delete = self._created_by_us or delete
+        # When $BREV_INSTANCE is set the instance name belongs to the
+        # caller (warm-pool semantics) — don't delete between trials even
+        # if we just created it, so the next harbor invocation can reuse
+        # the same VM. The caller (ci/run_skill_eval.sh) explicitly
+        # deletes after all trials complete.
+        #
+        # When $BREV_INSTANCE is unset we're in ephemeral mode
+        # (rag-harbor-<uuid>) — each trial owns its own VM and should
+        # clean up.
+        is_named_pool = bool(DEFAULT_INSTANCE)
+        should_delete = (
+            (self._created_by_us and not is_named_pool) or delete
+        )
         if should_delete:
             logger.info("Deleting Brev instance %s", self._instance_name)
             await _run_brev("delete", self._instance_name, timeout=120)
         else:
-            logger.info("Leaving Brev instance %s running (reused, not ours)",
-                        self._instance_name)
+            logger.info("Leaving Brev instance %s alive (named pool — "
+                        "script handles cleanup)", self._instance_name)
 
     # -----------------------------------------------------------------------
     # File transfer
