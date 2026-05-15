@@ -263,7 +263,6 @@ Forwarded verbatim to `POST /v1/generate`. Any field can be overridden per-query
 | `enable_citations` | bool | `true` | Whether the server returns citation chunks. |
 | `use_knowledge_base` | bool | `true` | False = skip retrieval, send query bare to the LLM. |
 | `confidence_threshold` | float (0–1) | `0.0` | Minimum relevance score for retrieved chunks. |
-| `fetch_full_page_context` | bool | `false` | Fetch all chunks from each retrieved page (PDF use cases). |
 
 ### `generation`
 

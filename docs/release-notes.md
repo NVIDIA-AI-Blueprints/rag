@@ -10,7 +10,7 @@ This documentation contains the release notes for [NVIDIA RAG Blueprint](readme.
 
 ## Release 2.6.0 (TBD)
 
-This release updates the default deployment stack to Elasticsearch and SeaweedFS, moves the default model stack to Nemotron 3 Super with VLM embeddings, and adds agentic, context expansion, filtering, and evaluation capabilities.
+This release updates the default deployment stack to Elasticsearch and SeaweedFS, moves the default model stack to Nemotron 3 Super with VLM embeddings, and adds agentic, filtering, and evaluation capabilities.
 
 ### Highlights
 
@@ -22,7 +22,6 @@ This release includes the following key updates:
 - Promoted `nvidia/llama-nemotron-embed-vl-1b-v2` as the default embedding model. The text embedding model `nvidia/llama-nemotron-embed-1b-v2` remains available as an optional configuration.
 - Added VLM reranker.
 - Added Agentic RAG support, including the plan-and-execute pipeline, streaming responses, and RAG UI integration.
-- Added full page context expansion with neighboring page support to improve answer generation from retrieved context.
 - Added dynamic filter expression generation for Elasticsearch.
 - Published RAG performance tooling on GitHub.
 - Published the RAG evaluation framework on GitHub.

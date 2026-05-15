@@ -1449,20 +1449,6 @@
             "description": "Minimum confidence score threshold for filtering chunks. Only chunks with relevance scores >= this threshold will be included. Range: 0.0 to 1.0. Default: 0.0 (no filtering). Note: Requires enable_reranker=True to generate relevance scores.",
             "default": 0
           },
-          "fetch_full_page_context": {
-            "type": "boolean",
-            "title": "Fetch Full Page Context",
-            "description": "Fetch ALL chunks for retrieved pages and organize context by page. When True, enables page-based grouping for LLM/VLM.",
-            "default": false
-          },
-          "fetch_neighboring_pages": {
-            "type": "integer",
-            "maximum": 10,
-            "minimum": 0,
-            "title": "Fetch Neighboring Pages",
-            "description": "N pages before/after each retrieved page (0=disabled, 1=+/-1 page).",
-            "default": 0
-          },
           "agentic": {
             "anyOf": [
               {

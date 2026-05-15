@@ -160,14 +160,6 @@ class RagParams(BaseModel):
             "Maps to ``confidence_threshold``."
         ),
     )
-    fetch_full_page_context: bool = Field(
-        default=False,
-        description=(
-            "Fetch all chunks from each retrieved page (PDF-centric use cases). "
-            "Maps to ``fetch_full_page_context``."
-        ),
-    )
-
     @model_validator(mode="after")
     def _validate_top_k_axes(self) -> RagParams:
         for name, value, lo, hi in (

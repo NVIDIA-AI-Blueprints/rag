@@ -626,17 +626,6 @@ class Prompt(BaseModel):
         ge=0.0,
         le=1.0,
     )
-    fetch_full_page_context: bool = Field(
-        default=CONFIG.retriever.fetch_full_page_context,
-        description="Fetch ALL chunks for retrieved pages and organize context by page. "
-        "When True, enables page-based grouping for LLM/VLM.",
-    )
-    fetch_neighboring_pages: int = Field(
-        default=CONFIG.retriever.fetch_neighboring_pages,
-        description="N pages before/after each retrieved page (0=disabled, 1=+/-1 page).",
-        ge=0,
-        le=10,
-    )
     agentic: bool | None = Field(
         default=CONFIG.enable_agentic_rag,
         description=(
@@ -1563,8 +1552,6 @@ async def generate_answer(request: Request, prompt: Prompt) -> StreamingResponse
             vlm_max_total_images=prompt.vlm_max_total_images,
             filter_expr=prompt.filter_expr,
             confidence_threshold=prompt.confidence_threshold,
-            fetch_full_page_context=prompt.fetch_full_page_context,
-            fetch_neighboring_pages=prompt.fetch_neighboring_pages,
             agentic=prompt.agentic,
             enable_streaming=prompt.enable_streaming,
             rag_start_time_sec=generate_start_time,

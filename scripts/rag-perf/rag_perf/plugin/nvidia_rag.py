@@ -56,8 +56,6 @@ _RAG_SPECIFIC_FIELDS: frozenset[str] = frozenset(
         "enable_reranker",
         "enable_citations",
         "confidence_threshold",
-        "fetch_full_page_context",
-        "fetch_neighboring_pages",
         "vdb_endpoint",
         "enable_query_rewriting",
         "enable_guardrails",
