@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import shutil
 import sys
@@ -44,7 +45,12 @@ from pathlib import Path
 
 SKILL_NAME = "rag-blueprint"
 TASK_PREFIX = "rag"
-REPO_ROOT = "/home/faaranm/dfw/ragbp/rag"
+# Resolved at generation time. Priority: $RAG_REPO_ROOT > path inferred
+# from this file's location. Set RAG_REPO_ROOT in CI to the checkout root
+# (e.g. $GITHUB_WORKSPACE) for predictable output across hosts.
+REPO_ROOT = os.environ.get("RAG_REPO_ROOT") or str(
+    Path(__file__).resolve().parents[3]
+)
 DEFAULT_SPEC = "nvidia_hosted.json"
 
 PREAMBLE = (
@@ -187,11 +193,11 @@ def generate(spec: dict, output_root: Path, skill_dir: Path, eval_name: str) -> 
             shutil.copy(GENERIC_JUDGE, tests_dir / "generic_judge.py")
         else:
             print(f"  WARN  generic_judge.py not found at {GENERIC_JUDGE}", file=sys.stderr)
-        spec_src = skill_dir / "eval" / spec_name
-        if spec_src.exists():
-            shutil.copy(spec_src, tests_dir / spec_name)
-        else:
-            (tests_dir / spec_name).write_text(json.dumps(spec, indent=2))
+        # Write the substituted spec (with REPO_ROOT resolved) into the task
+        # dir so the judge reads the real path, not the ${RAG_REPO_ROOT}
+        # placeholder. _source_path is internal-only and excluded.
+        substituted = {k: v for k, v in spec.items() if k != "_source_path"}
+        (tests_dir / spec_name).write_text(json.dumps(substituted, indent=2))
 
         solution_dir = step_dir / "solution"
         solution_dir.mkdir(exist_ok=True)
@@ -250,7 +256,14 @@ def main() -> None:
         print(f"spec not found: {spec_path}", file=sys.stderr)
         sys.exit(1)
 
-    spec = json.loads(spec_path.read_text())
+    # Substitute path placeholders before parsing so any field referencing
+    # the repo root (env, query, checks) resolves to the current checkout.
+    # Backwards-compat: also rewrite the legacy hardcoded /home/faaranm path
+    # so older specs keep working without an edit.
+    spec_text = spec_path.read_text()
+    spec_text = spec_text.replace("${RAG_REPO_ROOT}", REPO_ROOT)
+    spec_text = spec_text.replace("/home/faaranm/dfw/ragbp/rag", REPO_ROOT)
+    spec = json.loads(spec_text)
     spec["_source_path"] = str(spec_path)
     eval_name = args.eval_name or _slug(spec_path.name)
 
