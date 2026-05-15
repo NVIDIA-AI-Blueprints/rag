@@ -1,10 +1,9 @@
 ---
 name: rag-configure-infrastructure
 description: Configure RAG infrastructure settings: LLM, embedding, reranking, OCR, parse, vector database, endpoints, model profiles, GPU assignment, ports, and API key wiring. Use when the user asks to change models, switch hosted/local NIMs, configure Milvus or Elasticsearch, update model profiles, or tune service endpoints.
-author: nvidia-rag-team
-version: "0.1.0"
 license: Apache-2.0
-data_classification: internal
+metadata:
+  author: Vidushi Gupta <vidushig@nvidia.com>
 ---
 
 # RAG Configure Infrastructure
