@@ -19,9 +19,10 @@ on:
       runner:
         description: 'Runner label to use'
         required: true
-        default: 'sonarqube-workflows-bp-sre'
+        default: 'blueprints-skills-eval-runner'
         type: choice
         options:
+          - blueprints-skills-eval-runner
           - sonarqube-workflows-bp-sre
           - arc-runners-org-nvidia-ai-bp-2-gpu
 
