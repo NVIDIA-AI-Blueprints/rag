@@ -526,9 +526,19 @@ def _extract_between_markers(stdout: str, marker: str) -> str:
 
 
 async def _run_brev(*args: str, timeout: int = 30) -> ExecResult:
-    """Invoke `brev <args>` as a subprocess and return its result."""
+    """Invoke `brev <args>` as a subprocess and return its result.
+
+    Stdin is closed via DEVNULL. `brev create` reads piped stdin as a
+    fallback list of instance types (`brev search | brev create ...`).
+    Without DEVNULL, brev inherits whatever's on our stdin — and our
+    caller (ci/run_skill_eval.sh) runs harbor inside a `while read ...
+    done < <(find ...)` loop, leaving the rest of the find output on
+    stdin. brev parses that as bogus "next type" fallbacks and the
+    create command fails on transient API errors instead of retrying.
+    """
     proc = await asyncio.create_subprocess_exec(
         "brev", *args,
+        stdin=asyncio.subprocess.DEVNULL,
         stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
     )
     try:
