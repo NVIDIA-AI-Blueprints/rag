@@ -142,6 +142,19 @@ for skill in "${NO_GPU_SKILLS[@]}"; do
 
   echo ""
   echo "  ---- Evaluating: $skill ----"
+
+  # Stream Harbor agent logs to stdout while eval runs
+  (
+    HARBOR_RESULTS="$skill_dir/evals/results"
+    while true; do
+      sleep 5
+      find "$HARBOR_RESULTS" -name "claude-code.txt" 2>/dev/null | while read -r f; do
+        tail -n +1 "$f" 2>/dev/null | sed "s/^/  [harbor] /"
+      done
+    done
+  ) &
+  LOG_STREAMER_PID=$!
+
   nv-base agent-eval \
     --env-mode local \
     -a claude-code \
@@ -153,6 +166,9 @@ for skill in "${NO_GPU_SKILLS[@]}"; do
     -o "$skill_results" && \
     tier3_results+=("PASS:$skill") || \
     tier3_results+=("FAIL:$skill")
+
+  # Stop log streamer
+  kill "$LOG_STREAMER_PID" 2>/dev/null || true
 done
 
 # ============================================================
