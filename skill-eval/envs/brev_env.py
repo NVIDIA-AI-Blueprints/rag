@@ -255,25 +255,21 @@ class BrevEnvironment(BaseEnvironment):
     async def stop(self, delete: bool) -> None:
         if not self._instance_name:
             return
-        # When $BREV_INSTANCE is set the instance name belongs to the
-        # caller (warm-pool semantics) — don't delete between trials even
-        # if we just created it, so the next harbor invocation can reuse
-        # the same VM. The caller (ci/run_skill_eval.sh) explicitly
-        # deletes after all trials complete.
-        #
-        # When $BREV_INSTANCE is unset we're in ephemeral mode
-        # (rag-harbor-<uuid>) — each trial owns its own VM and should
-        # clean up.
-        is_named_pool = bool(DEFAULT_INSTANCE)
-        should_delete = (
-            (self._created_by_us and not is_named_pool) or delete
-        )
-        if should_delete:
+        # Named-pool mode ($BREV_INSTANCE set): NEVER delete here, even
+        # when Harbor passes delete=True between trials. The named VM
+        # must survive across step-N invocations so step-2 can probe the
+        # RAG deployment that step-1 brought up. The caller
+        # (ci/run_skill_eval.sh) explicitly deletes after all trials.
+        if DEFAULT_INSTANCE:
+            logger.info("Named pool %s — stop() is a no-op (script "
+                        "handles cleanup after all trials)",
+                        self._instance_name)
+            return
+        # Ephemeral mode (rag-harbor-<uuid>): each trial owns its own VM
+        # and should clean up. Honour Harbor's delete flag.
+        if self._created_by_us or delete:
             logger.info("Deleting Brev instance %s", self._instance_name)
             await _run_brev("delete", self._instance_name, timeout=120)
-        else:
-            logger.info("Leaving Brev instance %s alive (named pool — "
-                        "script handles cleanup)", self._instance_name)
 
     # -----------------------------------------------------------------------
     # File transfer

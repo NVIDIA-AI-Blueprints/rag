@@ -70,11 +70,21 @@ if [ -n "${BREV_INSTANCE:-}" ]; then
     exit 1
   }
   # Clear any leftover eval-target from a prior run that died mid-way
-  # (DELETING/STOPPED/whatever state). Safe to ignore "not found" errors.
+  # (DELETING/STOPPED/whatever state). brev delete is async — poll until
+  # the instance is fully GONE before letting brev_env try to provision.
   if brev ls 2>/dev/null | awk -v n="$BREV_INSTANCE" '$1==n {found=1} END{exit !found}'; then
     echo "Stale $BREV_INSTANCE found — deleting before fresh provision"
     brev delete "$BREV_INSTANCE" 2>&1 | tail -3 || true
-    sleep 10
+    # Wait up to 5 min for the delete to complete (instance row disappears
+    # from `brev ls`). A DELETING-state row is NOT gone yet — brev_env will
+    # mis-handle it.
+    for i in $(seq 1 30); do
+      if ! brev ls 2>/dev/null | awk -v n="$BREV_INSTANCE" '$1==n {found=1} END{exit !found}'; then
+        echo "$BREV_INSTANCE fully removed"
+        break
+      fi
+      sleep 10
+    done
   fi
 else
   ENV_IMPORT="envs.local_env:LocalEnvironment"
