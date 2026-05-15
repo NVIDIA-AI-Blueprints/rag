@@ -137,9 +137,16 @@ class BrevEnvironment(BaseEnvironment):
 
         # Pre-create the harbor-expected directories with the user's ownership
         # so the trial agent and verifier can write to them without sudo.
+        # LocalEnvironment pre-creates logs/agent/sessions, logs/verifier,
+        # logs/artifacts under its workdir. We mirror that on the target so
+        # tests/test.sh (which writes $VERIFIER_DIR/reward.txt with default
+        # $VERIFIER_DIR=/logs/verifier) finds the dir already present —
+        # otherwise uvx errors writing to a non-existent path and Harbor
+        # downloads an empty verifier dir → RewardFileNotFoundError.
         await _run_brev_exec(
             self._instance_name,
-            "sudo mkdir -p /logs /tests /solution /skills /installed-agent && "
+            "sudo mkdir -p /logs/agent/sessions /logs/verifier "
+            "/logs/artifacts /tests /solution /skills /installed-agent && "
             'sudo chown -R "$(whoami):$(id -gn)" '
             "/logs /tests /solution /skills /installed-agent",
             timeout=60,
