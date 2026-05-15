@@ -44,7 +44,6 @@ rag:
   enable_citations: true
   use_knowledge_base: true
   confidence_threshold: 0.0
-  fetch_full_page_context: false
 
 generation:
   max_tokens: 512
