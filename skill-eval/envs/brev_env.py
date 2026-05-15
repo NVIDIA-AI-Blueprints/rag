@@ -364,24 +364,47 @@ async def _run_brev_exec(instance: str, command: str, timeout: int) -> ExecResul
 
 
 async def _find_brev_instance(name: str) -> dict | None:
-    """Return the instance row from `brev ls` or None if not found."""
+    """Return the instance row from `brev ls` or None if not found.
+
+    `brev ls` is human-formatted (no --json flag in current CLI).
+    Column layout: NAME STATUS BUILD SHELL ID MACHINE
+    """
     result = await _run_brev("ls", timeout=30)
     if result.return_code != 0:
         return None
-    # `brev ls` is human-formatted, not JSON. Parse table rows.
     for line in (result.stdout or "").splitlines():
         cols = line.split()
-        if len(cols) >= 2 and cols[0] == name:
-            return {"name": cols[0], "status": cols[1]}
+        if len(cols) >= 4 and cols[0] == name:
+            return {
+                "name": cols[0],
+                "status": cols[1],   # RUNNING / STOPPED / DEPLOYING / ...
+                "build": cols[2],    # COMPLETED / BUILDING / ...
+                "shell": cols[3],    # READY / NOT_READY / ...
+            }
     return None
 
 
 async def _wait_for_running(name: str, timeout: int = BREV_CREATE_TIMEOUT) -> None:
-    """Poll `brev ls` until the named instance is RUNNING (or timeout)."""
+    """Poll `brev ls` until status=RUNNING AND shell=READY.
+
+    Just checking `status=RUNNING` isn't enough — the VM can flip to RUNNING
+    while the SSH daemon / brev shell layer is still initializing, causing
+    the first `brev exec` to fail with "command not found" or hang. VSS
+    polls both columns; we mirror that.
+    """
     deadline = asyncio.get_event_loop().time() + timeout
+    last_state = None
     while asyncio.get_event_loop().time() < deadline:
         inst = await _find_brev_instance(name)
-        if inst and inst.get("status") == "RUNNING":
-            return
+        if inst:
+            state = (inst.get("status"), inst.get("shell"))
+            if state != last_state:
+                logger.info("brev %s: status=%s shell=%s", name, *state)
+                last_state = state
+            if state == ("RUNNING", "READY"):
+                return
         await asyncio.sleep(10)
-    raise RuntimeError(f"Brev instance {name} did not reach RUNNING within {timeout}s")
+    raise RuntimeError(
+        f"Brev instance {name} did not reach RUNNING+READY within {timeout}s "
+        f"(last state: {last_state})"
+    )
