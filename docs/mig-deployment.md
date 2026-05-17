@@ -111,11 +111,10 @@ For monitoring deployment progress, refer to [Deploy on Kubernetes with Helm](./
 ## Step 2: Apply the MIG configuration
 
 Edit the MIG configuration file [`mig-config-h100.yaml`](../deploy/helm/mig-slicing/mig-config-h100.yaml) to adjust the slicing pattern as needed.
-The following example enables a custom configuration with mixed MIG slice sizes on the same GPU.
-
+The default configuration assumes a 4×H100 80GB node and reserves two full GPUs for the LLM while MIG-slicing the rest for the smaller NIMs.
 
 :::{note}
-This example uses a custom slicing strategy: 7 slices of 1g.10gb on GPU 0, mixed slices (2x 1g.20gb + 1x 3g.40gb) on GPU 1, and 1 slice of 7g.80gb on GPU 3. This demonstrates the ability to combine different MIG slice sizes on a single GPU for optimal resource utilization.
+The default LLM `nemotron-3-super-120b-a12b` runs with vLLM and `tensorParallelism=2`, which needs two physical GPUs with NVLink. Those two GPUs are kept MIG-disabled. The remaining two GPUs are MIG-sliced: GPU 2 hosts the ingest NIMs (OCR + page/graphic/table), and GPU 3 hosts the embedding-VLM and reranker. This requires the `mixed` MIG strategy (already set in Step 1) so the node advertises both `nvidia.com/gpu` and `nvidia.com/mig-*` resources.
 :::
 
 ```yaml
@@ -131,20 +130,19 @@ data:
         - devices: all
           mig-enabled: false
 
-      custom-7x1g10-2x1g20-1x3g40-1x7g80:
-        - devices: [0]
+      custom-h100-llm2full-1x3g40-4x1g10-1x3g40-2x1g20:
+        - devices: [0, 1]
+          mig-enabled: false
+        - devices: [2]
           mig-enabled: true
           mig-devices:
-            "1g.10gb": 7
-        - devices: [1]
-          mig-enabled: true
-          mig-devices:
-            "1g.20gb": 2
             "3g.40gb": 1
+            "1g.10gb": 4
         - devices: [3]
           mig-enabled: true
           mig-devices:
-            "7g.80gb": 1
+            "3g.40gb": 1
+            "1g.20gb": 2
 ```
 
 Apply the custom MIG configuration configMap to the node and update the ClusterPolicy, by running the following code.
@@ -159,20 +157,20 @@ kubectl patch clusterpolicies.nvidia.com/cluster-policy \
 Label the node with MIG configuration, by running the following code.
 
 ```bash
-kubectl label nodes <node-name> nvidia.com/mig.config=custom-7x1g10-2x1g20-1x3g40-1x7g80 --overwrite
+kubectl label nodes <node-name> nvidia.com/mig.config=custom-h100-llm2full-1x3g40-4x1g10-1x3g40-2x1g20 --overwrite
 ```
 
 :::{important}
 **For NVIDIA RTX6000 Pro Deployments:**
 
-Use [`mig-config-rtx6000.yaml`](../deploy/helm/mig-slicing/mig-config-rtx6000.yaml) instead:
+Use [`mig-config-rtx6000.yaml`](../deploy/helm/mig-slicing/mig-config-rtx6000.yaml) instead. The same "two full GPUs for LLM + MIG-slice the rest" pattern applies, mapped onto the RTX PRO 6000 Blackwell MIG profiles. This path is a logical mirror of the H100 layout and has not been hardware-verified.
 
 ```bash
 kubectl apply -n nvidia-gpu-operator -f mig-slicing/mig-config-rtx6000.yaml
 kubectl patch clusterpolicies.nvidia.com/cluster-policy \
   --type='json' \
   -p='[{"op":"replace", "path":"/spec/migManager/config/name", "value":"custom-mig-config"}]'
-kubectl label nodes <node-name> nvidia.com/mig.config=custom-rtx6000-4x1g24-2x1g24-1x2g48-1x4g96 --overwrite
+kubectl label nodes <node-name> nvidia.com/mig.config=custom-rtx6000-llm2full-1x2g48-2x1g24-4x1g24 --overwrite
 ```
 :::
 
@@ -186,10 +184,10 @@ You should see output similar to the following.
 
 ```json
 "nvidia.com/mig.config.state": "success"
-"nvidia.com/mig-1g.10gb.count": "7"
+"nvidia.com/gpu.count": "2"
+"nvidia.com/mig-1g.10gb.count": "4"
 "nvidia.com/mig-1g.20gb.count": "2"
-"nvidia.com/mig-3g.40gb.count": "1"
-"nvidia.com/mig-7g.80gb.count": "1"
+"nvidia.com/mig-3g.40gb.count": "2"
 ```
 
 
@@ -245,23 +243,20 @@ You should see output similar to the following.
 
 ```
 Resource                                    Requested   Limit    Allocatable  Free
-nvidia.com/mig-1g.10gb                      (86%) 6.0   (86%) 6.0     7.0        1.0
-├─ rag-eck-elasticsearch-es-default-...    1.0     1.0
-├─ nemotron-embedding-ms-...          1.0     1.0
-├─ rag-nv-ingest-...                       1.0     1.0
-├─ nemotron-graphic-elements-v1-...   1.0     1.0
-├─ nemotron-page-elements-v3-...      1.0     1.0
-└─ nemotron-table-structure-v1-...    1.0     1.0
+nvidia.com/gpu                              (100%) 2.0  (100%) 2.0     2.0        0.0
+└─ nim-llm-...                             2.0     2.0
 
-nvidia.com/mig-1g.20gb                      (100%) 2.0  (100%) 2.0     2.0        0.0
-├─ nemotron-ranking-ms-...            1.0     1.0
-└─ <other-workload>                        1.0     1.0
+nvidia.com/mig-1g.10gb                      (75%) 3.0   (75%) 3.0     4.0        1.0
+├─ nemotron-graphic-elements-v1-...        1.0     1.0
+├─ nemotron-page-elements-v3-...           1.0     1.0
+└─ nemotron-table-structure-v1-...         1.0     1.0
 
-nvidia.com/mig-3g.40gb                      (100%) 1.0  (100%) 1.0     1.0        0.0
-└─ nemotron-ocr-v1-...                1.0     1.0
+nvidia.com/mig-1g.20gb                      (50%) 1.0   (50%) 1.0     2.0        1.0
+└─ nemotron-ranking-ms-...                 1.0     1.0
 
-nvidia.com/mig-7g.80gb                      (100%) 1.0  (100%) 1.0     1.0        0.0
-└─ nim-llm-...                             1.0     1.0
+nvidia.com/mig-3g.40gb                      (100%) 2.0  (100%) 2.0     2.0        0.0
+├─ nemotron-ocr-v1-...                     1.0     1.0
+└─ nemotron-vlm-embedding-ms-...           1.0     1.0
 ```
 
 
@@ -279,20 +274,20 @@ You should see output similar to the following.
 
 ```
 GPU 0: NVIDIA H100 80GB HBM3 (UUID: ...)
-  MIG 1g.10gb     Device 0: ...
+GPU 1: NVIDIA H100 80GB HBM3 (UUID: ...)
+GPU 2: NVIDIA H100 80GB HBM3 (UUID: ...)
+  MIG 3g.40gb     Device 0: ...
   MIG 1g.10gb     Device 1: ...
   MIG 1g.10gb     Device 2: ...
   MIG 1g.10gb     Device 3: ...
   MIG 1g.10gb     Device 4: ...
-  MIG 1g.10gb     Device 5: ...
-  MIG 1g.10gb     Device 6: ...
-GPU 1: NVIDIA H100 80GB HBM3 (UUID: ...)
-  MIG 1g.20gb     Device 0: ...
-  MIG 1g.20gb     Device 1: ...
-  MIG 3g.40gb     Device 2: ...
 GPU 3: NVIDIA H100 80GB HBM3 (UUID: ...)
-  MIG 7g.80gb     Device 0: ...
+  MIG 3g.40gb     Device 0: ...
+  MIG 1g.20gb     Device 1: ...
+  MIG 1g.20gb     Device 2: ...
 ```
+
+GPUs 0 and 1 are reported as whole devices because MIG is disabled on them — they are reserved for `nim-llm` (vLLM tp=2).
 
 
 
