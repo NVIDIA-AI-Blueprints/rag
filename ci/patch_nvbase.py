@@ -1,12 +1,19 @@
 #!/usr/bin/env python3
 """
-Patch NV-BASE to forward CLAUDE_CODE_DISABLE_THINKING to the Harbor Claude
-subprocess. Written for 2.6.0; safe to run on newer versions — if the anchor
-strings are missing the fix was likely upstreamed and the script exits 0.
+Patch NV-BASE/astra-skill-eval for two known issues:
 
-Patches 4 files across 2 Python venvs (nv-base + astra-skill-eval):
-  - layer2/harbor/runner.py                    (host-env allowlist)
-  - harbor/agents/installed/claude_code.py     (agent env builder)
+1. CLAUDE_CODE_DISABLE_THINKING (KI-001): harbor filters env vars before
+   forwarding to the Claude subprocess. Patch runner.py allowlist and
+   claude_code.py env builder to forward the flag.
+   Files: layer2/harbor/runner.py, harbor/agents/installed/claude_code.py
+
+2. VerifierResult type mismatch (astra-skill-eval 0.7.6 / harbor 0.7.0):
+   verifier.py calls VerifierResult(rewards=rewards) where rewards is a
+   dict with string/nested-dict values, but VerifierResult.rewards is typed
+   as dict[str, float | int] — causing 8 pydantic validation errors per
+   trial and marking every Harbor run Invalid.
+   Fix: relax the type annotation to dict so any values are accepted.
+   File: harbor/models/verifier/result.py (in astra-skill-eval venv)
 """
 
 import pathlib
@@ -95,6 +102,37 @@ def verify() -> bool:
     return True
 
 
+def patch_verifier_result() -> None:
+    """Fix VerifierResult rewards type: dict[str, float|int] → dict.
+
+    astra-skill-eval 0.7.6 ships harbor 0.7.0 which changed VerifierResult
+    to rewards: dict[str, float | int]. The verifier passes a dict with
+    string keys mapped to strings, nested dicts, and floats — the strict
+    type causes 8 pydantic validation errors per trial.
+    """
+    venv = pathlib.Path.home() / ".local" / "share" / "astra-skill-eval" / "venv"
+    candidates = list(venv.glob("lib/python*/site-packages"))
+    if not candidates:
+        print("  SKIP: astra-skill-eval venv not found")
+        return
+    sp = candidates[0]
+    path = sp / "harbor" / "models" / "verifier" / "result.py"
+    if not path.exists():
+        print(f"  SKIP (not found): {path}")
+        return
+    text = path.read_text()
+    old = "rewards: dict[str, float | int] | None = None"
+    new = "rewards: dict | None = None  # patched: relaxed from dict[str, float|int]"
+    if new in text or "# patched:" in text:
+        print(f"  ALREADY PATCHED: {path}")
+        return
+    if old not in text:
+        print(f"  SKIP (anchor not found — may be fixed upstream): {path}")
+        return
+    path.write_text(text.replace(old, new, 1))
+    print(f"  PATCHED: {path}")
+
+
 def main() -> None:
     for tool in ["nv-base", "astra-skill-eval"]:
         print(f"\nPatching {tool}...")
@@ -105,6 +143,9 @@ def main() -> None:
         except FileNotFoundError as e:
             # astra-skill-eval may be bundled inside nv-base in newer versions
             print(f"  SKIP ({e})")
+
+    print("\nPatching VerifierResult type mismatch...")
+    patch_verifier_result()
 
     print("\nVerifying...")
     verify()
