@@ -19,6 +19,49 @@ set -euo pipefail
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 export RAG_REPO_ROOT="$REPO_ROOT"
+
+# Cleanup runs on EVERY exit path (success, set -e abort, signal). It
+# captures target-VM debug state BEFORE tearing down RAG stacks, so the
+# uploaded artifact still has enough to post-mortem even when CI fails
+# mid-script. The VM itself stays running (warm pool — see Q1 decision).
+cleanup() {
+  local rc=$?
+  set +e   # don't let cleanup steps themselves abort early
+  echo "==> Cleanup (rc=$rc, BREV_INSTANCE=${BREV_INSTANCE:-})"
+  if [ -n "${BREV_INSTANCE:-}" ] && command -v brev >/dev/null 2>&1; then
+    local dbg_dir="$REPO_ROOT/eval-results/debug"
+    mkdir -p "$dbg_dir"
+    local dbg="$dbg_dir/target-state-$(date +%Y%m%d-%H%M%S).txt"
+    {
+      echo "=== docker ps -a ==="
+      brev exec "$BREV_INSTANCE" "docker ps -a 2>&1"
+      echo
+      echo "=== docker logs (tail 100 per container) ==="
+      brev exec "$BREV_INSTANCE" \
+        'for c in $(docker ps -a --format "{{.Names}}"); do echo === $c ===; docker logs --tail 100 $c 2>&1 | head -120; done'
+      echo
+      echo "=== /logs/agent/setup ==="
+      brev exec "$BREV_INSTANCE" "ls -la /logs/agent/setup/ 2>&1; for f in /logs/agent/setup/*; do echo --- \$f ---; cat \"\$f\"; done" 2>&1 | head -200
+    } > "$dbg" 2>&1 || true
+    echo "Debug dump → $dbg"
+    # docker compose down on RAG stacks (keeps image cache, warm pool stays warm).
+    for f in \
+      deploy/compose/docker-compose-rag-server.yaml \
+      deploy/compose/docker-compose-ingestor-server.yaml \
+      deploy/compose/vectordb.yaml \
+      deploy/compose/nims.yaml \
+      deploy/compose/docker-compose-nemo-guardrails.yaml \
+      deploy/compose/observability.yaml; do
+      brev exec "$BREV_INSTANCE" \
+        "[ -f \"\$HOME/rag/$f\" ] && docker compose -f \"\$HOME/rag/$f\" down -v --remove-orphans >/dev/null 2>&1 || true" \
+        >/dev/null 2>&1 || true
+    done
+    echo "VM $BREV_INSTANCE left running (warm pool); containers torn down."
+  fi
+  exit $rc
+}
+trap cleanup EXIT
+
 # Branch the Brev target will git-clone (VSS-style fresh tree per run).
 # Prefer the locally-checked-out branch — actions/checkout sets HEAD to
 # the dispatcher's `ref` input (e.g. feat/skill-eval-ci). $GITHUB_REF_NAME
@@ -134,15 +177,22 @@ python3 adapters/rag-blueprint/generate.py \
 
 echo "==> Run Harbor trials — one invocation per step (Harbor -p takes a single path)"
 mkdir -p jobs
+# Count harbor invocations that crashed (vs. ran-with-failing-checks).
+# `set -e` doesn't propagate from inside a `while` loop body, so we have
+# to track this ourselves and decide at the end.
+HARBOR_CRASHES=0
 while IFS= read -r step_dir; do
   echo "----> harbor run -p $step_dir"
-  uvx harbor run \
-    -p "$step_dir" \
-    --environment-import-path "$ENV_IMPORT" \
-    --agent claude-code --model "$ANTHROPIC_MODEL" \
-    --ak api_base="$ANTHROPIC_BASE_URL/v1" \
-    --ae CLAUDE_CODE_DISABLE_THINKING=1 \
-    -o jobs -n 1 --yes
+  if ! uvx harbor run \
+       -p "$step_dir" \
+       --environment-import-path "$ENV_IMPORT" \
+       --agent claude-code --model "$ANTHROPIC_MODEL" \
+       --ak api_base="$ANTHROPIC_BASE_URL/v1" \
+       --ae CLAUDE_CODE_DISABLE_THINKING=1 \
+       -o jobs -n 1 --yes; then
+    HARBOR_CRASHES=$((HARBOR_CRASHES + 1))
+    echo "harbor run exited non-zero for $step_dir"
+  fi
 done < <(find "$DATASETS_DIR" -mindepth 1 -maxdepth 1 -type d | sort)
 
 echo "==> Summarise results into eval_result.md (walks ALL job dirs)"
@@ -173,20 +223,23 @@ for reward_file in sorted(jobs_root.rglob("reward.txt")):
 lines.insert(2, f"**Overall:** {passed}/{total} checks passed\n")
 out = Path("eval_result.md")
 out.write_text("\n".join(lines) + "\n")
+# Expose totals to the surrounding shell for the CI exit-code decision.
+Path(".eval_total.txt").write_text(f"{total}\n")
+Path(".eval_passed.txt").write_text(f"{passed}\n")
 print(out.read_text())
 PY
 
+EVAL_TOTAL=$(cat "$SKILL_EVAL_DIR/.eval_total.txt" 2>/dev/null || echo 0)
+EVAL_PASSED=$(cat "$SKILL_EVAL_DIR/.eval_passed.txt" 2>/dev/null || echo 0)
+echo "==> CI exit decision (VSS pattern):"
+echo "    HARBOR_CRASHES=$HARBOR_CRASHES  EVAL_TOTAL=$EVAL_TOTAL  EVAL_PASSED=$EVAL_PASSED"
+
 echo "==> Tear down eval target (next CI run starts clean)"
 cd "$REPO_ROOT"
-if [ "$ENV_IMPORT" = "envs.brev_env:BrevEnvironment" ]; then
-  # Warm-pool mode: leave $BREV_INSTANCE running so its docker image cache
-  # (notably nv-ingest, ~11 GB) survives for the next run. brev_env.start()
-  # of the next run will `docker compose down` the RAG stacks without
-  # touching the image cache. To force a fresh VM, run `brev delete
-  # $BREV_INSTANCE` manually before the next CI trigger.
-  echo "Leaving Brev eval-target $BREV_INSTANCE running (warm pool)"
-else
-  # LocalEnvironment — clean up docker state the agent created on the runner.
+# Brev cleanup is handled by the EXIT trap — runs even on script failure.
+# LocalEnvironment doesn't get a trap because the runner IS the deploy host
+# and we want to leave its state inspectable for debugging.
+if [ "$ENV_IMPORT" = "envs.local_env:LocalEnvironment" ]; then
   for f in \
     deploy/compose/docker-compose-rag-server.yaml \
     deploy/compose/docker-compose-ingestor-server.yaml \
@@ -212,3 +265,17 @@ echo "Staged artifact tree:"
 find "$STAGE" -maxdepth 3 | head -40
 
 echo "==> Eval complete"
+
+# VSS exit-code pattern: CI is red ONLY when the harness itself broke.
+# Individual eval-check failures (low reward) stay green — the verdict
+# is in the uploaded artifact (eval_result.md + judge.json).
+#
+# Red signals:
+#   - HARBOR_CRASHES > 0  → at least one trial errored (e.g. brev_env,
+#     RewardFileNotFoundError) — pipeline didn't run end-to-end
+#   - EVAL_TOTAL == 0     → no checks produced — config or harness broken
+if [ "$HARBOR_CRASHES" -gt 0 ] || [ "$EVAL_TOTAL" -eq 0 ]; then
+  echo "FAIL: pipeline broken — HARBOR_CRASHES=$HARBOR_CRASHES, EVAL_TOTAL=$EVAL_TOTAL"
+  exit 1
+fi
+echo "PASS: pipeline ran end-to-end. Eval verdict: $EVAL_PASSED/$EVAL_TOTAL checks passed (see artifact)."
