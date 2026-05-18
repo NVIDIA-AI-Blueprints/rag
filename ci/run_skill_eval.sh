@@ -171,13 +171,21 @@ deploy_stack() {
   echo "  Stopping any existing containers..."
   docker compose -f deploy/compose/docker-compose-rag-server.yaml down --remove-orphans 2>/dev/null || true
   docker compose -f deploy/compose/docker-compose-ingestor-server.yaml down --remove-orphans 2>/dev/null || true
+  # Stop using both the GPU and CPU vectordb compose files
   docker compose -f deploy/compose/vectordb.yaml down --remove-orphans 2>/dev/null || true
-  # Swap deploy/compose/vectordb.yaml with CPU version so the agent's
-  # `docker compose -f deploy/compose/vectordb.yaml up -d` uses CPU image.
-  # COMPOSE_FILE env var doesn't work when agent explicitly passes -f.
-  cp deploy/compose/vectordb.yaml deploy/compose/vectordb.yaml.gpu-bak
+  docker compose -f ci/vectordb-cpu.yaml down --remove-orphans 2>/dev/null || true
+  # Remove root-owned volume dirs before starting fresh
+  if [ -d "deploy/compose/volumes" ]; then
+    docker run --rm -v "$(pwd)/deploy/compose/volumes:/target" alpine \
+      sh -c "rm -rf /target/*" 2>/dev/null || true
+    rm -rf deploy/compose/volumes/ 2>/dev/null || true
+  fi
+  # Swap deploy/compose/vectordb.yaml with CPU version — persists for whole CI run
+  # so agent's `docker compose -f deploy/compose/vectordb.yaml up -d` uses CPU image
+  [ -f deploy/compose/vectordb.yaml.gpu-bak ] || \
+    cp deploy/compose/vectordb.yaml deploy/compose/vectordb.yaml.gpu-bak
   cp ci/vectordb-cpu.yaml deploy/compose/vectordb.yaml
-  echo "  Starting vector DB (CPU-only, swapped vectordb.yaml)..."
+  echo "  Starting vector DB (CPU-only, volumes at /dockerroot/nvbase-milvus)..."
   docker compose -f deploy/compose/vectordb.yaml up -d
   echo "  Starting ingestor server..."
   docker compose -f deploy/compose/docker-compose-ingestor-server.yaml up -d
@@ -244,6 +252,7 @@ run_eval() {
     --agent-model "claude-code=aws/anthropic/bedrock-claude-sonnet-4-6" \
     --skip-baseline \
     --timeout-multiplier 3 \
+    --parallel 1 \
     -k 1 \
     "$skill_dir" \
     -r html,json \
