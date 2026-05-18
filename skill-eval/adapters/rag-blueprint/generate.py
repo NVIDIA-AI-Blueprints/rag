@@ -79,29 +79,34 @@ PLATFORMS: dict[str, dict[str, str | int]] = {
                        "runner VM shape — enough for NVIDIA-hosted RAG "
                        "(8 Docker containers, no local inference).",
     },
-    # Uncomment + adjust when adding GPU evals. Each entry below is a
-    # complete, validated template — copy the pattern, run
-    # `brev search gpu --gpu-name <name> --json` to find brev_type, and
-    # check `nvidia-smi` minimums for your RAG version.
+    # GPU platforms (active — referenced when an eval spec declares one).
+    # Hardware floors below come from docs/support-matrix.md (driver 560+,
+    # 80 GB VRAM on H100-80GB, etc.) — the same line the human-facing docs
+    # commit to. If support-matrix.md changes, update here too.
     #
-    # "H100_x2": {
-    #     "brev_type": "dmz.h100x2.pcie",   # from `brev search gpu --gpu-name H100`
-    #     "description": "H100 x2 PCIe, ~160 GB VRAM total. For local-NIM RAG.",
-    #     "gpu_type": "H100",
-    #     "gpu_count": 2,
-    #     "min_vram_gb_per_gpu": 80,
-    #     "min_root_disk_gb": 500,
-    #     "min_gpu_driver_version": "535.0",
-    # },
-    # "L40S": {
-    #     "brev_type": "g7e.12xlarge",
-    #     "description": "L40S 1x48GB. For lighter local-NIM modes.",
-    #     "gpu_type": "L40S",
-    #     "gpu_count": 1,
-    #     "min_vram_gb_per_gpu": 48,
-    #     "min_root_disk_gb": 300,
-    #     "min_gpu_driver_version": "535.0",
-    # },
+    # `brev_type` values follow VSS's naming; if you hit "type not found"
+    # at provision time, run `brev search gpu --gpu-name H100 --json` on
+    # the runner and substitute the actual catalog name.
+    "H100_x2": {
+        "brev_type": "dmz.h100x2.pcie",
+        "description": "2x H100 80 GB PCIe. Default self-hosted Docker "
+                       "configuration per docs/support-matrix.md.",
+        "gpu_type": "H100",
+        "gpu_count": 2,
+        "min_vram_gb_per_gpu": 80,
+        "min_root_disk_gb": 500,
+        "min_gpu_driver_version": "560.0",
+    },
+    "RTX_PRO_6000_x2": {
+        "brev_type": "rtx-pro-6000-x2",   # verify via `brev search gpu`
+        "description": "2x RTX PRO 6000. Alternative self-hosted Docker "
+                       "configuration per docs/support-matrix.md.",
+        "gpu_type": "RTX",
+        "gpu_count": 2,
+        "min_vram_gb_per_gpu": 48,         # RTX PRO 6000 Blackwell ~48 GB
+        "min_root_disk_gb": 500,
+        "min_gpu_driver_version": "560.0",
+    },
 }
 
 PREAMBLE = (
