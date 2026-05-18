@@ -170,17 +170,22 @@ def patch_n_concurrent() -> None:
 
 
 def patch_taskgroup_sequential() -> None:
-    """Patch harbor/job.py to run trials sequentially when n_concurrent=1.
+    """Patch harbor/job.py to run trials sequentially and return results correctly.
 
-    harbor/job.py uses asyncio.TaskGroup to run all trials concurrently.
-    Python 3.12's TaskGroup cancels ALL tasks when any task raises an
-    uncaught exception. When trial 1 finishes and its cleanup triggers
-    RuntimeError: Event loop is closed, TaskGroup cancels the other 3 trials.
+    harbor/job.py uses asyncio.TaskGroup to run all trials concurrently:
 
-    Fix: when n_concurrent_trials==1, run trials sequentially via await
-    instead of TaskGroup to avoid the cancellation cascade.
+        async with asyncio.TaskGroup() as tg:
+            tasks = [tg.create_task(coro) for coro in coros]
+        return [t.result() for t in tasks]
 
-    Lines patched: harbor/job.py ~855-858 in astra-skill-eval venv.
+    Two bugs with harbor 0.7.0 / Python 3.12:
+    1. TaskGroup cancels ALL tasks when any task raises (cascading cancellation).
+    2. The return statement references `tasks` (asyncio.Task list from TaskGroup).
+       Removing TaskGroup without fixing the return causes NameError on `tasks`,
+       which collapses harbor's cleanup and produces RuntimeError: Event loop is closed.
+
+    Fix: replace both the TaskGroup block AND the return statement with sequential
+    result collection so each trial runs independently and results are returned.
     """
     venv = pathlib.Path.home() / ".local" / "share" / "astra-skill-eval" / "venv"
     candidates = list(venv.glob("lib/python*/site-packages"))
@@ -194,27 +199,182 @@ def patch_taskgroup_sequential() -> None:
         return
 
     text = path.read_text()
-    old = (
-        "        async with asyncio.TaskGroup() as tg:\n"
-        "            tasks = [tg.create_task(coro) for coro in coros]"
-    )
-    new = (
-        "        # patched: always run trials sequentially to fix Python 3.12\n"
-        "        # TaskGroup cascading cancellation on event loop error.\n"
-        "        # asyncio.TaskGroup cancels ALL tasks when any task raises,\n"
-        "        # but sequential await isolates each trial independently.\n"
-        "        for coro in coros:\n"
-        "            await coro"
-    )
 
-    if "# patched: always run trials sequentially" in text:
+    if "# patched: run trials sequentially; collect results directly" in text:
         print(f"  ALREADY PATCHED: {path}")
         return
+
+    old = (
+        "        async with asyncio.TaskGroup() as tg:\n"
+        "            tasks = [tg.create_task(coro) for coro in coros]\n"
+        "\n"
+        "        return [t.result() for t in tasks]"
+    )
+    new = (
+        "        # patched: run trials sequentially; collect results directly\n"
+        "        # (TaskGroup tasks list no longer exists in sequential mode)\n"
+        "        results = []\n"
+        "        for coro in coros:\n"
+        "            results.append(await coro)\n"
+        "        return results"
+    )
+
     if old not in text:
         print(f"  SKIP (anchor not found — may be fixed upstream): {path}")
         return
 
     path.write_text(text.replace(old, new, 1))
+    # Clear compiled bytecode so Python picks up the patched source immediately
+    pyc = path.parent / "__pycache__" / f"{path.stem}.cpython-312.pyc"
+    pyc.unlink(missing_ok=True)
+    print(f"  PATCHED: {path}")
+
+
+def patch_reward_stats_hashable() -> None:
+    """Patch harbor/models/job/result.py to handle unhashable reward values.
+
+    harbor's JobStats.increment() iterates over VerifierResult.rewards and
+    uses each value as a dict key in reward_stats. When the LLM judge returns
+    nested dicts as reward values (e.g. {"score": 1.0, "reasoning": "..."}),
+    Python raises TypeError: unhashable type: 'dict', which crashes the END
+    hook for trial 1 before trials 2-4 can run.
+
+    Fix: convert any non-hashable reward value to its string representation
+    before using it as a dict key. Scalar values (str, int, float, bool, None)
+    pass through unchanged so existing grouping logic is unaffected.
+    """
+    venv = pathlib.Path.home() / ".local" / "share" / "astra-skill-eval" / "venv"
+    candidates = list(venv.glob("lib/python*/site-packages"))
+    if not candidates:
+        print("  SKIP: astra-skill-eval venv not found")
+        return
+    sp = candidates[0]
+    path = sp / "harbor" / "models" / "job" / "result.py"
+    if not path.exists():
+        print(f"  SKIP (not found): {path}")
+        return
+
+    text = path.read_text()
+
+    if "# patched: reward values may be dicts" in text:
+        print(f"  ALREADY PATCHED: {path}")
+        return
+
+    old = (
+        "                reward_stats = eval_stats.reward_stats.setdefault(key, {})\n"
+        "                reward_stats.setdefault(value, []).append(trial_result.trial_name)"
+    )
+    new = (
+        "                reward_stats = eval_stats.reward_stats.setdefault(key, {})\n"
+        "                # patched: reward values may be dicts (unhashable); convert to str\n"
+        "                _reward_key = value if isinstance(value, (str, int, float, bool, type(None))) else str(value)\n"
+        "                reward_stats.setdefault(_reward_key, []).append(trial_result.trial_name)"
+    )
+
+    if old not in text:
+        print(f"  SKIP (anchor not found — may be fixed upstream): {path}")
+        return
+
+    path.write_text(text.replace(old, new, 1))
+    pyc = path.parent / "__pycache__" / f"{path.stem}.cpython-312.pyc"
+    pyc.unlink(missing_ok=True)
+    print(f"  PATCHED: {path}")
+
+
+def patch_aggregate_reward_dicts() -> None:
+    """Patch harbor/metrics/base.py to handle non-numeric reward values.
+
+    The LLM judge verifier returns rewards where values can be nested dicts
+    (e.g. {"score": 1.0, "reasoning": "..."}). harbor's aggregate_reward_dicts
+    calls sum(values) which raises TypeError when values contains dicts.
+
+    Fix: add _coerce_numeric() helper that extracts the "score" key from dict
+    values (or returns 0.0 for anything else non-numeric), and use it in both
+    branches of aggregate_reward_dicts.
+    """
+    venv = pathlib.Path.home() / ".local" / "share" / "astra-skill-eval" / "venv"
+    candidates = list(venv.glob("lib/python*/site-packages"))
+    if not candidates:
+        print("  SKIP: astra-skill-eval venv not found")
+        return
+    sp = candidates[0]
+    path = sp / "harbor" / "metrics" / "base.py"
+    if not path.exists():
+        print(f"  SKIP (not found): {path}")
+        return
+
+    text = path.read_text()
+
+    if "# patched: coerce non-numeric reward values" in text:
+        print(f"  ALREADY PATCHED: {path}")
+        return
+
+    old = (
+        "def aggregate_reward_dicts(\n"
+        "    rewards: list[RewardDict | None],\n"
+        "    metric_name: str,\n"
+        "    aggregate: Callable[[list[NumericReward]], NumericReward],\n"
+        ") -> RewardDict:\n"
+        "    reward_keys = sorted(\n"
+        "        {key for reward in rewards if reward is not None for key in reward}\n"
+        "    )\n"
+        "\n"
+        "    if len(reward_keys) <= 1:\n"
+        "        values = [\n"
+        "            0 if reward is None else next(iter(reward.values()), 0)\n"
+        "            for reward in rewards\n"
+        "        ]\n"
+        "        return {metric_name: aggregate(values)}\n"
+        "\n"
+        "    return {\n"
+        "        key: aggregate(\n"
+        "            [0 if reward is None else reward.get(key, 0) for reward in rewards]\n"
+        "        )\n"
+        "        for key in reward_keys\n"
+        "    }"
+    )
+    new = (
+        "# patched: coerce non-numeric reward values (LLM judge returns nested dicts)\n"
+        "def _coerce_numeric(v: object) -> float:\n"
+        "    if isinstance(v, (int, float)):\n"
+        "        return float(v)\n"
+        "    if isinstance(v, dict):\n"
+        "        s = v.get('score', v.get('value', 0))\n"
+        "        return float(s) if isinstance(s, (int, float)) else 0.0\n"
+        "    return 0.0\n"
+        "\n"
+        "\n"
+        "def aggregate_reward_dicts(\n"
+        "    rewards: list[RewardDict | None],\n"
+        "    metric_name: str,\n"
+        "    aggregate: Callable[[list[NumericReward]], NumericReward],\n"
+        ") -> RewardDict:\n"
+        "    reward_keys = sorted(\n"
+        "        {key for reward in rewards if reward is not None for key in reward}\n"
+        "    )\n"
+        "\n"
+        "    if len(reward_keys) <= 1:\n"
+        "        values = [\n"
+        "            0.0 if reward is None else _coerce_numeric(next(iter(reward.values()), 0))\n"
+        "            for reward in rewards\n"
+        "        ]\n"
+        "        return {metric_name: aggregate(values)}\n"
+        "\n"
+        "    return {\n"
+        "        key: aggregate(\n"
+        "            [0.0 if reward is None else _coerce_numeric(reward.get(key, 0)) for reward in rewards]\n"
+        "        )\n"
+        "        for key in reward_keys\n"
+        "    }"
+    )
+
+    if old not in text:
+        print(f"  SKIP (anchor not found — may be fixed upstream): {path}")
+        return
+
+    path.write_text(text.replace(old, new, 1))
+    pyc = path.parent / "__pycache__" / f"{path.stem}.cpython-312.pyc"
+    pyc.unlink(missing_ok=True)
     print(f"  PATCHED: {path}")
 
 
@@ -237,6 +397,12 @@ def main() -> None:
 
     print("\nPatching TaskGroup sequential execution (Python 3.12 cascade fix)...")
     patch_taskgroup_sequential()
+
+    print("\nPatching reward_stats unhashable dict values...")
+    patch_reward_stats_hashable()
+
+    print("\nPatching aggregate_reward_dicts non-numeric values...")
+    patch_aggregate_reward_dicts()
 
     print("\nVerifying...")
     verify()
