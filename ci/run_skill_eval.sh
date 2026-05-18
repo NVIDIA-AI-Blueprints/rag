@@ -94,11 +94,7 @@ nv-base --version
 nv-base health-check
 
 echo "==> Update astra-skill-eval to latest"
-# Pin to 0.7.5: harbor 0.7.0 (shipped in 0.7.6) collapsed VerifierResult from 8 explicit
-# fields to a single rewards dict, but the agent Docker image still writes result.json in
-# the old flat-field format. TrialResult.model_validate_json() fails with 8 validation
-# errors on every trial. Unpin once the Docker image is updated to harbor 0.7.0+.
-curl -fsSL https://urm.nvidia.com/artifactory/it-automation-generic/astra-skill-eval/0.7.5/install.sh | bash || true
+curl -fsSL https://urm.nvidia.com/artifactory/it-automation-generic/astra-skill-eval/latest/install.sh | bash || true
 astra-skill-eval --version || true
 
 echo "==> Install Node.js + Claude Code CLI"
@@ -160,8 +156,8 @@ export MILVUS_VERSION="${MILVUS_VERSION:-v2.6.5}"
 export DOCKER_VOLUME_DIRECTORY="/dockerroot/nvbase-milvus"
 export INGESTOR_SERVER_EXTERNAL_VOLUME_MOUNT="/dockerroot/nvbase-ingestor"
 
-echo "  Starting vector DB..."
-docker compose -f deploy/compose/vectordb.yaml up -d
+echo "  Starting vector DB (CPU-only image, no GPU required)..."
+docker compose -f ci/vectordb-cpu.yaml up -d
 echo "  Starting ingestor server..."
 docker compose -f deploy/compose/docker-compose-ingestor-server.yaml up -d
 echo "  Starting RAG server..."
@@ -261,7 +257,7 @@ done
 # Stop containers FIRST then remove all root-owned dirs before artifact upload
 docker compose -f deploy/compose/docker-compose-rag-server.yaml down -v --remove-orphans 2>/dev/null || true
 docker compose -f deploy/compose/docker-compose-ingestor-server.yaml down -v --remove-orphans 2>/dev/null || true
-docker compose -f deploy/compose/vectordb.yaml down -v --remove-orphans 2>/dev/null || true
+docker compose -f ci/vectordb-cpu.yaml down -v --remove-orphans 2>/dev/null || true
 sleep 5
 # Force-remove root-owned bind-mount volumes using Docker (no sudo needed)
 # etcd and minio containers write as root — Docker can remove what sudo can't
