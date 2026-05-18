@@ -25,3 +25,11 @@ def test_transformers_not_vulnerable_cve_2026_1839() -> None:
 
 def test_python_multipart_not_vulnerable_cve_2026_42561() -> None:
     assert Version(version("python-multipart")) >= Version("0.0.27")
+
+
+def test_orjson_not_vulnerable_ghsa_hx9q_6w63_j58v() -> None:
+    assert Version(version("orjson")) >= Version("3.11.6")
+
+
+def test_langsmith_not_vulnerable_ghsa_3644_q5cj_c5c7() -> None:
+    assert Version(version("langsmith")) >= Version("0.8.0")
