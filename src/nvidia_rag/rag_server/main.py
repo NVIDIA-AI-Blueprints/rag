@@ -4089,12 +4089,12 @@ class NvidiaRAG:
     def _log_retrieved_pages(
         self, docs: list[Document], prefix: str = "Retrieved pages"
     ) -> None:
-        """Log page number for every retrieved doc (no dedup), so redundant pages are visible."""
+        """Log displayable page numbers for every retrieved doc."""
         if not docs:
             logger.info("  [%s] (none)", prefix)
             return
         by_source: dict[str, list[int]] = {}
-        no_page_count = 0
+        no_page_by_source: dict[str, int] = {}
         for doc in docs:
             meta = getattr(doc, "metadata", {}) or {}
             content_md = meta.get("content_metadata", {}) or {}
@@ -4104,30 +4104,36 @@ class NvidiaRAG:
                 source.get("source_name", "") if isinstance(source, dict) else source
             )
             name = os.path.basename(str(source_path)) if source_path else "unknown"
-            if page_num is not None:
+            try:
+                page = int(page_num) if page_num is not None else None
+            except (TypeError, ValueError):
+                page = None
+            if page is not None and page > 0:
                 if name not in by_source:
                     by_source[name] = []
-                by_source[name].append(int(page_num))
+                by_source[name].append(page)
             else:
-                no_page_count += 1
+                no_page_by_source[name] = no_page_by_source.get(name, 0) + 1
         # Keep full list in doc order (no set/sort) so user can confirm each chunk's page
         parts = [
             f"{name} -> {len(pages)} chunks: {','.join(map(str, pages))}"
             for name, pages in sorted(by_source.items())
         ]
-        if no_page_count:
-            parts.append(f"(no page: {no_page_count} chunks)")
+        parts.extend(
+            f"{name} -> {count} chunks: no page"
+            for name, count in sorted(no_page_by_source.items())
+        )
         logger.info("  [%s] %s", prefix, "; ".join(parts))
 
     def _log_expanded_context_layout(
         self, docs: list[Document], prefix: str = "Context layout"
     ) -> None:
-        """Log how context is arranged after expansion: chunks per (source, page)."""
+        """Log how context is arranged after expansion."""
         if not docs:
             logger.info("  [%s] (none)", prefix)
             return
         grouped: dict[tuple[str, int], int] = {}
-        no_page_count = 0
+        no_page_by_source: dict[str, int] = {}
         for doc in docs:
             meta = getattr(doc, "metadata", {}) or {}
             content_md = meta.get("content_metadata", {}) or {}
@@ -4137,16 +4143,22 @@ class NvidiaRAG:
                 source.get("source_name", "") if isinstance(source, dict) else source
             )
             name = os.path.basename(str(source_path)) if source_path else "unknown"
-            if page_num is not None:
-                key = (name, int(page_num))
+            try:
+                page = int(page_num) if page_num is not None else None
+            except (TypeError, ValueError):
+                page = None
+            if page is not None and page > 0:
+                key = (name, page)
                 grouped[key] = grouped.get(key, 0) + 1
             else:
-                no_page_count += 1
+                no_page_by_source[name] = no_page_by_source.get(name, 0) + 1
         parts = [
             f"{name} p{p} -> {c} chunk(s)" for (name, p), c in sorted(grouped.items())
         ]
-        if no_page_count:
-            parts.append(f"(no page: {no_page_count} chunks)")
+        parts.extend(
+            f"{name} -> {count} chunk(s), no page"
+            for name, count in sorted(no_page_by_source.items())
+        )
         logger.info("  [%s] %s", prefix, "; ".join(parts))
 
     def _log_context_structure(
