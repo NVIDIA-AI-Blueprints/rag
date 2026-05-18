@@ -129,6 +129,56 @@ docker ps -a --format '{{.ID}}' | xargs -r docker rm   >/dev/null 2>&1 || true
 
 export ANTHROPIC_BASE_URL="https://inference-api.nvidia.com/v1"
 
+# ============================================================
+# PRE-DEPLOY — bring up RAG stack in NVIDIA-hosted mode
+# All skills 2-8 require a running stack. Deploy once here
+# so every eval runs against a known-good environment.
+# ============================================================
+echo ""
+echo "==> Pre-deploy RAG stack (NVIDIA-hosted mode)"
+
+# Source nvdev.env so all compose files pick up cloud NIM endpoints
+set -a
+source deploy/compose/nvdev.env
+set +a
+
+# Disable GPU-backed vector search (not available on CPU runner)
+export APP_VECTORSTORE_ENABLEGPUSEARCH=False
+export APP_VECTORSTORE_ENABLEGPUINDEX=False
+export MILVUS_VERSION="${MILVUS_VERSION:-v2.6.5}"
+export DOCKER_VOLUME_DIRECTORY="${DOCKER_VOLUME_DIRECTORY:-/tmp/nvbase-milvus}"
+export INGESTOR_SERVER_EXTERNAL_VOLUME_MOUNT="${INGESTOR_SERVER_EXTERNAL_VOLUME_MOUNT:-/tmp/nvbase-ingestor}"
+
+echo "  Starting vector DB..."
+docker compose -f deploy/compose/vectordb.yaml up -d
+echo "  Starting ingestor server..."
+docker compose -f deploy/compose/docker-compose-ingestor-server.yaml up -d
+echo "  Starting RAG server..."
+docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d
+
+echo "  Waiting for services to be healthy..."
+TIMEOUT=300
+ELAPSED=0
+while [ $ELAPSED -lt $TIMEOUT ]; do
+  RAG_OK=$(curl -sf -o /dev/null -w "%{http_code}" http://localhost:8081/v1/health 2>/dev/null || echo "0")
+  ING_OK=$(curl -sf -o /dev/null -w "%{http_code}" http://localhost:8082/v1/health 2>/dev/null || echo "0")
+  if [ "$RAG_OK" = "200" ] && [ "$ING_OK" = "200" ]; then
+    echo "  [OK] RAG server (8081) and ingestor (8082) are healthy"
+    break
+  fi
+  sleep 10
+  ELAPSED=$((ELAPSED + 10))
+  echo "  Waiting... (${ELAPSED}s) rag=${RAG_OK} ingestor=${ING_OK}"
+done
+
+if [ "$RAG_OK" != "200" ] || [ "$ING_OK" != "200" ]; then
+  echo "  [WARN] RAG stack not fully healthy after ${TIMEOUT}s — continuing anyway"
+  docker ps
+fi
+
+echo "  Pre-deploy complete. Running containers:"
+docker ps --format "  {{.Names}}\t{{.Status}}"
+
 # Use sonnet for the LLM-as-judge to avoid saturating the opus endpoint.
 # The agent model (sonnet, set via --agent-model) and the judge model are
 # separate — --agent-model does not affect the judge. Opus is the hardcoded
