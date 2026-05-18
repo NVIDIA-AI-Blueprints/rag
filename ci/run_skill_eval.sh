@@ -154,8 +154,11 @@ set +a
 export APP_VECTORSTORE_ENABLEGPUSEARCH=False
 export APP_VECTORSTORE_ENABLEGPUINDEX=False
 export MILVUS_VERSION="${MILVUS_VERSION:-v2.6.5}"
-export DOCKER_VOLUME_DIRECTORY="${DOCKER_VOLUME_DIRECTORY:-/tmp/nvbase-milvus}"
-export INGESTOR_SERVER_EXTERNAL_VOLUME_MOUNT="${INGESTOR_SERVER_EXTERNAL_VOLUME_MOUNT:-/tmp/nvbase-ingestor}"
+# Store volumes OUTSIDE the git workspace so runner can always clean the checkout.
+# If volumes live inside deploy/compose/volumes/ Docker writes them as root and
+# the next run's git clean fails with EACCES before the script even starts.
+export DOCKER_VOLUME_DIRECTORY="/dockerroot/nvbase-milvus"
+export INGESTOR_SERVER_EXTERNAL_VOLUME_MOUNT="/dockerroot/nvbase-ingestor"
 
 echo "  Starting vector DB..."
 docker compose -f deploy/compose/vectordb.yaml up -d
