@@ -39,10 +39,18 @@ RESULTS_DIR="./eval-results"
 LOGS_DIR="./ci-logs"
 mkdir -p "$LOGS_DIR"
 
-# Fix root-owned dirs left by previous runs (Milvus volumes, Harbor job dirs)
-# Without this, the runner can't clean the workspace on the next run
-sudo rm -rf deploy/compose/volumes/ deploy/compose/src/ 2>/dev/null || true
-sudo rm -rf skills/*/evals/results/ 2>/dev/null || true
+# Fix root-owned dirs left by previous runs using Docker (no sudo needed)
+# etcd/minio containers write as root — Docker alpine can remove what sudo can't
+if [ -d "deploy/compose/volumes" ]; then
+  docker run --rm -v "$(pwd)/deploy/compose/volumes:/target" alpine \
+    sh -c "rm -rf /target/*" 2>/dev/null || true
+  rm -rf deploy/compose/volumes/ 2>/dev/null || true
+fi
+if find skills -path "*/evals/results" -mindepth 3 -maxdepth 3 -type d -quit 2>/dev/null; then
+  docker run --rm -v "$(pwd)/skills:/target" alpine \
+    sh -c "find /target -path '*/evals/results' -type d -exec rm -rf {} + 2>/dev/null; exit 0" \
+    2>/dev/null || true
+fi
 
 echo "==> Probe runner environment"
 probe_ok=true
