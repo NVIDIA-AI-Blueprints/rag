@@ -85,6 +85,10 @@ uv tool install nv-base \
 nv-base --version
 nv-base health-check
 
+echo "==> Update astra-skill-eval to latest"
+curl -fsSL https://urm.nvidia.com/artifactory/it-automation-generic/astra-skill-eval/latest/install.sh | bash || true
+astra-skill-eval --version || true
+
 echo "==> Install Node.js + Claude Code CLI"
 if ! command -v npm >/dev/null 2>&1; then
   curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
@@ -163,6 +167,7 @@ for skill in "${NO_GPU_SKILLS[@]}"; do
   nv-base agent-eval \
     --env-mode local \
     -a claude-code \
+    --agent-model "claude-code=aws/anthropic/bedrock-claude-opus-4-7" \
     --skip-baseline \
     --timeout-multiplier 3 \
     -k 1 \
@@ -186,13 +191,13 @@ for container in rag-server ingestor-server milvus-standalone milvus-etcd milvus
   docker logs "$container" > "$LOGS_DIR/${container}.log" 2>&1 || true
 done
 
-# Stop containers and tear down volumes so artifact upload can access all files
+# Stop containers FIRST then remove volumes — must happen before artifact upload
 docker compose -f deploy/compose/docker-compose-rag-server.yaml down -v --remove-orphans 2>/dev/null || true
 docker compose -f deploy/compose/docker-compose-ingestor-server.yaml down -v --remove-orphans 2>/dev/null || true
 docker compose -f deploy/compose/vectordb.yaml down -v --remove-orphans 2>/dev/null || true
-# Force-remove any root-owned volume dirs left behind
+sleep 3
+# Force-remove root-owned volume dirs after containers are fully stopped
 sudo rm -rf deploy/compose/volumes/ 2>/dev/null || true
-sudo rm -rf skills/*/evals/results/*/_ 2>/dev/null || true
 
 # ============================================================
 # SUMMARY
