@@ -41,11 +41,14 @@ mkdir -p "$LOGS_DIR"
 
 # Fix root-owned dirs left by previous runs using Docker (no sudo needed)
 # etcd/minio containers write as root — Docker alpine can remove what sudo can't
-if [ -d "deploy/compose/volumes" ]; then
-  docker run --rm -v "$(pwd)/deploy/compose/volumes:/target" alpine \
-    sh -c "rm -rf /target/*" 2>/dev/null || true
-  rm -rf deploy/compose/volumes/ 2>/dev/null || true
-fi
+# deploy/compose/src/ is created by ingestor server bind mount as root
+for root_dir in deploy/compose/volumes deploy/compose/src; do
+  if [ -d "$root_dir" ]; then
+    docker run --rm -v "$(pwd)/${root_dir}:/target" alpine \
+      sh -c "rm -rf /target/*" 2>/dev/null || true
+    rm -rf "$root_dir" 2>/dev/null || true
+  fi
+done
 if find skills -path "*/evals/results" -mindepth 3 -maxdepth 3 -type d -quit 2>/dev/null; then
   docker run --rm -v "$(pwd)/skills:/target" alpine \
     sh -c "find /target -path '*/evals/results' -type d -exec rm -rf {} + 2>/dev/null; exit 0" \
@@ -168,9 +171,14 @@ deploy_stack() {
   echo "  Stopping any existing containers..."
   docker compose -f deploy/compose/docker-compose-rag-server.yaml down --remove-orphans 2>/dev/null || true
   docker compose -f deploy/compose/docker-compose-ingestor-server.yaml down --remove-orphans 2>/dev/null || true
-  docker compose -f ci/vectordb-cpu.yaml down --remove-orphans 2>/dev/null || true
-  echo "  Starting vector DB (CPU-only, no GPU required)..."
-  docker compose -f ci/vectordb-cpu.yaml up -d
+  docker compose -f deploy/compose/vectordb.yaml down --remove-orphans 2>/dev/null || true
+  # Swap deploy/compose/vectordb.yaml with CPU version so the agent's
+  # `docker compose -f deploy/compose/vectordb.yaml up -d` uses CPU image.
+  # COMPOSE_FILE env var doesn't work when agent explicitly passes -f.
+  cp deploy/compose/vectordb.yaml deploy/compose/vectordb.yaml.gpu-bak
+  cp ci/vectordb-cpu.yaml deploy/compose/vectordb.yaml
+  echo "  Starting vector DB (CPU-only, swapped vectordb.yaml)..."
+  docker compose -f deploy/compose/vectordb.yaml up -d
   echo "  Starting ingestor server..."
   docker compose -f deploy/compose/docker-compose-ingestor-server.yaml up -d
   echo "  Starting RAG server..."
@@ -309,6 +317,11 @@ fi
 if find skills -path "*/evals/results" -type d -quit 2>/dev/null; then
   docker run --rm -v "$(pwd)/skills:/target" alpine \
     sh -c "find /target -path '*/evals/results' -type d -exec rm -rf {} + 2>/dev/null; exit 0" 2>/dev/null || true
+fi
+
+# Restore original GPU vectordb.yaml
+if [ -f deploy/compose/vectordb.yaml.gpu-bak ]; then
+  mv deploy/compose/vectordb.yaml.gpu-bak deploy/compose/vectordb.yaml
 fi
 
 # ============================================================
