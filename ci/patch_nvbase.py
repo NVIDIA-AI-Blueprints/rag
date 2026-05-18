@@ -169,6 +169,57 @@ def patch_n_concurrent() -> None:
     print(f"  PATCHED: {path}")
 
 
+def patch_taskgroup_sequential() -> None:
+    """Patch harbor/job.py to run trials sequentially when n_concurrent=1.
+
+    harbor/job.py uses asyncio.TaskGroup to run all trials concurrently.
+    Python 3.12's TaskGroup cancels ALL tasks when any task raises an
+    uncaught exception. When trial 1 finishes and its cleanup triggers
+    RuntimeError: Event loop is closed, TaskGroup cancels the other 3 trials.
+
+    Fix: when n_concurrent_trials==1, run trials sequentially via await
+    instead of TaskGroup to avoid the cancellation cascade.
+
+    Lines patched: harbor/job.py ~855-858 in astra-skill-eval venv.
+    """
+    venv = pathlib.Path.home() / ".local" / "share" / "astra-skill-eval" / "venv"
+    candidates = list(venv.glob("lib/python*/site-packages"))
+    if not candidates:
+        print("  SKIP: astra-skill-eval venv not found")
+        return
+    sp = candidates[0]
+    path = sp / "harbor" / "job.py"
+    if not path.exists():
+        print(f"  SKIP (not found): {path}")
+        return
+
+    text = path.read_text()
+    old = (
+        "        async with asyncio.TaskGroup() as tg:\n"
+        "            tasks = [tg.create_task(coro) for coro in coros]"
+    )
+    new = (
+        "        # patched: run sequentially when n_concurrent==1 to avoid\n"
+        "        # Python 3.12 TaskGroup cascading cancellation on event loop error\n"
+        "        if self.config.n_concurrent_trials == 1:\n"
+        "            for coro in coros:\n"
+        "                await coro\n"
+        "        else:\n"
+        "            async with asyncio.TaskGroup() as tg:\n"
+        "                tasks = [tg.create_task(coro) for coro in coros]"
+    )
+
+    if "# patched: run sequentially" in text:
+        print(f"  ALREADY PATCHED: {path}")
+        return
+    if old not in text:
+        print(f"  SKIP (anchor not found — may be fixed upstream): {path}")
+        return
+
+    path.write_text(text.replace(old, new, 1))
+    print(f"  PATCHED: {path}")
+
+
 def main() -> None:
     for tool in ["nv-base", "astra-skill-eval"]:
         print(f"\nPatching {tool}...")
@@ -185,6 +236,9 @@ def main() -> None:
 
     print("\nPatching n-concurrent (Harbor trial serialization)...")
     patch_n_concurrent()
+
+    print("\nPatching TaskGroup sequential execution (Python 3.12 cascade fix)...")
+    patch_taskgroup_sequential()
 
     print("\nVerifying...")
     verify()
