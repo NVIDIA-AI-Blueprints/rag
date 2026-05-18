@@ -3,6 +3,7 @@
 
 """Unit tests for page context organization in RAG server."""
 
+import logging
 from unittest.mock import MagicMock
 
 from langchain_core.documents import Document
@@ -107,6 +108,68 @@ class TestExtractPageSet:
         page_set = rag._extract_page_set_from_docs(docs)
 
         assert len(page_set) == 0
+
+
+class TestPageLogging:
+    """Test cases for retrieved-page log formatting."""
+
+    def test_log_retrieved_pages_uses_no_page_for_negative_page_numbers(self, caplog):
+        """Test text-file sentinel page numbers are not displayed as real pages."""
+        rag = NvidiaRAG()
+        docs = [
+            Document(
+                page_content="PDF page content",
+                metadata={
+                    "source": {"source_name": "/path/to/manual.pdf"},
+                    "content_metadata": {"page_number": 2},
+                },
+            ),
+            Document(
+                page_content="Markdown content",
+                metadata={
+                    "source": {"source_name": "/path/to/notes.md"},
+                    "content_metadata": {"page_number": -1},
+                },
+            ),
+        ]
+
+        caplog.clear()
+        with caplog.at_level(logging.INFO):
+            rag._log_retrieved_pages(docs)
+
+        assert "manual.pdf -> 1 chunks: 2" in caplog.text
+        assert "notes.md -> 1 chunks: no page" in caplog.text
+        assert "notes.md -> 1 chunks: -1" not in caplog.text
+
+    def test_log_expanded_context_layout_uses_no_page_for_negative_page_numbers(
+        self, caplog
+    ):
+        """Test context layout logs do not display sentinel pages."""
+        rag = NvidiaRAG()
+        docs = [
+            Document(
+                page_content="PDF page content",
+                metadata={
+                    "source": {"source_name": "/path/to/manual.pdf"},
+                    "content_metadata": {"page_number": 2},
+                },
+            ),
+            Document(
+                page_content="Markdown content",
+                metadata={
+                    "source": {"source_name": "/path/to/notes.md"},
+                    "content_metadata": {"page_number": -1},
+                },
+            ),
+        ]
+
+        caplog.clear()
+        with caplog.at_level(logging.INFO):
+            rag._log_expanded_context_layout(docs)
+
+        assert "manual.pdf p2 -> 1 chunk(s)" in caplog.text
+        assert "notes.md -> 1 chunk(s), no page" in caplog.text
+        assert "notes.md p-1" not in caplog.text
 
 
 class TestExpandPageSetWithNeighbors:
