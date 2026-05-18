@@ -588,6 +588,15 @@ class NvidiaRAG:
         # Resolve agentic flag: per-request value takes precedence over global config.
         agentic = agentic if agentic is not None else self.config.enable_agentic_rag
 
+        # Capture raw runtime generation-param overrides BEFORE applying config
+        # defaults so the agentic path can distinguish "client omitted the field"
+        # (use per-role agentic env defaults) from "client passed a value"
+        # (override all roles). Mirrors the existing model / llm_endpoint capture
+        # below for FR-1527 parity.
+        runtime_temperature_override = temperature
+        runtime_top_p_override = top_p
+        runtime_max_tokens_override = max_tokens
+
         # Apply defaults from config for None values
         model_params = self.config.llm.get_model_parameters()
         temperature = (
@@ -802,6 +811,9 @@ class NvidiaRAG:
                         metrics=metrics,
                         runtime_model_override=runtime_model_override,
                         runtime_llm_endpoint_override=runtime_llm_endpoint_override,
+                        runtime_temperature_override=runtime_temperature_override,
+                        runtime_top_p_override=runtime_top_p_override,
+                        runtime_max_tokens_override=runtime_max_tokens_override,
                     )
                 except Exception:
                     self._close_vdb_op_if_one_off(vdb_op)
@@ -2314,6 +2326,9 @@ class NvidiaRAG:
         metrics: Any | None,
         runtime_model_override: str | None = None,
         runtime_llm_endpoint_override: str | None = None,
+        runtime_temperature_override: float | None = None,
+        runtime_top_p_override: float | None = None,
+        runtime_max_tokens_override: int | None = None,
     ) -> RAGResponse:
         """Orchestrate one agentic RAG request.
 
@@ -2448,11 +2463,21 @@ class NvidiaRAG:
         # ContextVars (search params, trace, citations) and stays active for the
         # full lifetime of the streaming RAGResponse generator — not just until
         # this function returns.
-        if runtime_model_override or runtime_llm_endpoint_override:
+        if (
+            runtime_model_override
+            or runtime_llm_endpoint_override
+            or runtime_temperature_override is not None
+            or runtime_top_p_override is not None
+            or runtime_max_tokens_override is not None
+        ):
             logger.info(
-                "  - runtime LLM override: model=%s, endpoint=%s",
+                "  - runtime LLM override: model=%s, endpoint=%s, "
+                "temperature=%s, top_p=%s, max_tokens=%s",
                 runtime_model_override,
                 runtime_llm_endpoint_override or "(api-catalog)",
+                runtime_temperature_override,
+                runtime_top_p_override,
+                runtime_max_tokens_override,
             )
 
         return await run_agentic_pipeline(
@@ -2471,6 +2496,9 @@ class NvidiaRAG:
             runtime_model_override=runtime_model_override,
             runtime_llm_endpoint_override=runtime_llm_endpoint_override,
             runtime_api_key_override=self.config.llm.get_api_key(),
+            runtime_temperature_override=runtime_temperature_override,
+            runtime_top_p_override=runtime_top_p_override,
+            runtime_max_tokens_override=runtime_max_tokens_override,
         )
 
     async def _rag_chain(

@@ -145,6 +145,9 @@ async def run_agentic_pipeline(
     runtime_model_override: str | None = None,
     runtime_llm_endpoint_override: str | None = None,
     runtime_api_key_override: str | None = None,
+    runtime_temperature_override: float | None = None,
+    runtime_top_p_override: float | None = None,
+    runtime_max_tokens_override: int | None = None,
 ) -> RAGResponse:
     """Run the compiled agentic RAG graph for one request and return a RAGResponse.
 
@@ -199,6 +202,9 @@ async def run_agentic_pipeline(
             runtime_model_override=runtime_model_override,
             runtime_llm_endpoint_override=runtime_llm_endpoint_override,
             runtime_api_key_override=runtime_api_key_override,
+            runtime_temperature_override=runtime_temperature_override,
+            runtime_top_p_override=runtime_top_p_override,
+            runtime_max_tokens_override=runtime_max_tokens_override,
         )
 
     # ------------------------------------------------------------------
@@ -210,12 +216,22 @@ async def run_agentic_pipeline(
     params_token = _agentic_search_params.set(search_params)
     citations_token = _agentic_all_citations.set(citations_acc)
     override_token = None
-    if runtime_model_override or runtime_llm_endpoint_override:
+    has_runtime_override = (
+        runtime_model_override is not None
+        or runtime_llm_endpoint_override is not None
+        or runtime_temperature_override is not None
+        or runtime_top_p_override is not None
+        or runtime_max_tokens_override is not None
+    )
+    if has_runtime_override:
         override_token = _agentic_llm_overrides.set(
             AgenticLLMOverrides(
                 model=runtime_model_override,
                 llm_endpoint=runtime_llm_endpoint_override,
                 api_key=runtime_api_key_override,
+                temperature=runtime_temperature_override,
+                top_p=runtime_top_p_override,
+                max_tokens=runtime_max_tokens_override,
             )
         )
 
@@ -311,6 +327,9 @@ async def _run_streaming(
     runtime_model_override: str | None = None,
     runtime_llm_endpoint_override: str | None = None,
     runtime_api_key_override: str | None = None,
+    runtime_temperature_override: float | None = None,
+    runtime_top_p_override: float | None = None,
+    runtime_max_tokens_override: int | None = None,
 ) -> RAGResponse:
     """Build a RAGResponse whose generator delegates to ``translate_graph_stream``.
 
@@ -342,12 +361,22 @@ async def _run_streaming(
         params_token = _agentic_search_params.set(search_params)
         citations_token = _agentic_all_citations.set(citations_acc)
         override_token = None
-        if runtime_model_override or runtime_llm_endpoint_override:
+        has_runtime_override = (
+            runtime_model_override is not None
+            or runtime_llm_endpoint_override is not None
+            or runtime_temperature_override is not None
+            or runtime_top_p_override is not None
+            or runtime_max_tokens_override is not None
+        )
+        if has_runtime_override:
             override_token = _agentic_llm_overrides.set(
                 AgenticLLMOverrides(
                     model=runtime_model_override,
                     llm_endpoint=runtime_llm_endpoint_override,
                     api_key=runtime_api_key_override,
+                    temperature=runtime_temperature_override,
+                    top_p=runtime_top_p_override,
+                    max_tokens=runtime_max_tokens_override,
                 )
             )
         try:

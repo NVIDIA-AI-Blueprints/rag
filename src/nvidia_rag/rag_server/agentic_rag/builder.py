@@ -87,9 +87,10 @@ logger = logging.getLogger(__name__)
 class AgenticLLMOverrides:
     """Per-request LLM overrides applied across all 4 agentic roles.
 
-    When the /generate API receives a non-None ``model`` or ``llm_endpoint``,
-    the value is propagated to planner / task / seed_gen / synthesis LLMs via
-    this dataclass on the ``_agentic_llm_overrides`` ContextVar.
+    When the /generate API receives a non-None ``model``, ``llm_endpoint``,
+    ``temperature``, ``top_p``, or ``max_tokens``, the value is propagated to
+    planner / task / seed_gen / synthesis LLMs via this dataclass on the
+    ``_agentic_llm_overrides`` ContextVar.
 
     ``_built_llm`` is a per-request cache: the first role-property access builds
     the override LLM client; subsequent accesses (other roles, same request)
@@ -100,8 +101,31 @@ class AgenticLLMOverrides:
     model: str | None = None
     llm_endpoint: str | None = None
     api_key: str | None = None
-    # Mutable cache slot; not part of equality / hashing.
-    _built_llm: Any = field(default=None, repr=False, compare=False)
+    temperature: float | None = None
+    top_p: float | None = None
+    max_tokens: int | None = None
+    # Per-request cache: maps cache key → built LLM client. Key is "__shared__"
+    # when model/endpoint is overridden (all 4 roles collapse to one client);
+    # otherwise it's the role name (planner / task / seed_gen / synthesis) so
+    # each role gets its own client with that role's configured model/endpoint
+    # but the request-provided generation params applied.
+    # Mutable; not part of equality / hashing.
+    _built_llms: dict[str, Any] = field(
+        default_factory=dict, repr=False, compare=False
+    )
+
+    def has_any_override(self) -> bool:
+        """True if at least one non-None override is set."""
+        return any(
+            v is not None
+            for v in (
+                self.model,
+                self.llm_endpoint,
+                self.temperature,
+                self.top_p,
+                self.max_tokens,
+            )
+        )
 
 
 # ContextVar holding per-request LLM overrides.
@@ -246,6 +270,26 @@ def make_retriever_fn(
 # =============================================================================
 
 
+def _resolve_role_generation_param(
+    role_cfg: AgenticAnyLLMConfig,
+    fallback_cfg: AgenticAnyLLMConfig,
+    rag_config: NvidiaRAGConfig,
+    field_name: str,
+) -> Any:
+    """Resolve one generation parameter (temperature / top_p / max_tokens).
+
+    Per-field fallback chain: role_cfg → fallback_cfg (planner) → rag_config.llm.parameters.
+    A value of ``None`` at any level is treated as "not set" and skipped.
+    """
+    role_val = getattr(role_cfg, field_name, None)
+    if role_val is not None:
+        return role_val
+    fallback_val = getattr(fallback_cfg, field_name, None)
+    if fallback_val is not None:
+        return fallback_val
+    return getattr(rag_config.llm.parameters, field_name, None)
+
+
 def _make_role_llm(
     role_cfg: AgenticAnyLLMConfig,
     fallback_cfg: AgenticAnyLLMConfig,
@@ -257,6 +301,11 @@ def _make_role_llm(
       1. role_cfg (if model_name is non-empty)
       2. fallback_cfg (planner LLM config)
       3. rag_config.llm (main RAG LLM config)
+
+    Resolution order for temperature / top_p / max_tokens (per-field):
+      1. role_cfg (if the field is non-None)
+      2. fallback_cfg (planner LLM config) (if non-None)
+      3. rag_config.llm.parameters (main RAG LLM parameters)
     """
     from nvidia_rag.utils.llm import get_llm
 
@@ -266,10 +315,23 @@ def _make_role_llm(
     server_url = cfg.server_url or rag_config.llm.server_url
     api_key = cfg.get_api_key() or rag_config.llm.get_api_key()
 
+    temperature = _resolve_role_generation_param(
+        role_cfg, fallback_cfg, rag_config, "temperature"
+    )
+    top_p = _resolve_role_generation_param(
+        role_cfg, fallback_cfg, rag_config, "top_p"
+    )
+    max_tokens = _resolve_role_generation_param(
+        role_cfg, fallback_cfg, rag_config, "max_tokens"
+    )
+
     logger.debug(
-        "Creating agentic LLM: model=%s, url=%s",
+        "Creating agentic LLM: model=%s, url=%s, temperature=%s, top_p=%s, max_tokens=%s",
         model_name,
         server_url or "(api-catalog)",
+        temperature,
+        top_p,
+        max_tokens,
     )
 
     return get_llm(
@@ -277,6 +339,9 @@ def _make_role_llm(
         model=model_name,
         llm_endpoint=server_url,
         api_key=api_key,
+        temperature=temperature,
+        top_p=top_p,
+        max_tokens=max_tokens,
     )
 
 
