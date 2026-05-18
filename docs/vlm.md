@@ -238,7 +238,7 @@ The pipeline has three independently switchable components, each with its own de
 
 ### 1. VLM Embedding for ingestion (image modality)
 
-Replace the default text embedder with **`nvidia/llama-nemotron-embed-vl-1b-v2`** so PDF pages, tables, charts, and image elements are embedded by a multimodal model. The same model embeds text + image queries at retrieval time, so no extra rag-server config is needed beyond pointing `APP_EMBEDDINGS_*` at the VLM embedding NIM.
+The default embedder is **`nvidia/llama-nemotron-embed-vl-1b-v2`**, so PDF pages, tables, charts, and image elements are embedded by a multimodal model. The same model embeds text + image queries at retrieval time, so no extra rag-server config is needed beyond pointing `APP_EMBEDDINGS_*` at the VLM embedding NIM.
 
 Setup, modality switches (text-only, structured-as-image, page-as-image), and Docker/Helm flows: see [Multimodal Retriever — Part 1: VLM Embedding for Ingestion](multimodal-retriever.md#part-1--vlm-embedding-for-ingestion-early-access).
 

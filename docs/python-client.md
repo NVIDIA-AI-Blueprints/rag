@@ -363,7 +363,7 @@ from nvidia_rag.utils.configuration import NvidiaRAGConfig
 #         "server_url": "",
 #     },
 #     "embeddings": {
-#         "model_name": "nvidia/llama-nemotron-embed-1b-v2",
+#         "model_name": "nvidia/llama-nemotron-embed-vl-1b-v2",
 #         "server_url": "https://integrate.api.nvidia.com/v1",
 #     },
 #     "ranking": {

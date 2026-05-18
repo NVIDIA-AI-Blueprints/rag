@@ -35,7 +35,7 @@ Examples
 
 - Generate using a raw JSON payload string:
   python scripts/retriever_api_usage.py \
-    --payload-json '{"messages":[{"role":"user","content":"Your query here"}],"use_knowledge_base":true,"temperature":0.2,"top_p":0.7,"max_tokens":1024,"reranker_top_k":2,"vdb_top_k":10,"vdb_endpoint":"http://milvus:19530","collection_names":["multimodal_data"],"enable_query_rewriting":true,"enable_reranker":true,"enable_citations":true,"stop":[],"filter_expr":""}'
+    --payload-json '{"messages":[{"role":"user","content":"Your query here"}],"use_knowledge_base":true,"temperature":0.2,"top_p":0.7,"max_tokens":1024,"reranker_top_k":2,"vdb_top_k":10,"collection_names":["multimodal_data"],"enable_query_rewriting":true,"enable_reranker":true,"enable_citations":true,"stop":[],"filter_expr":""}'
 
 - Search using a payload file and save output to JSON:
   python scripts/retriever_api_usage.py \
@@ -153,7 +153,6 @@ def build_generate_payload(query: str) -> dict[str, Any]:
         "max_tokens": 1024,
         "reranker_top_k": 2,
         "vdb_top_k": 10,
-        "vdb_endpoint": "http://milvus:19530",
         "collection_names": ["multimodal_data"],
         "enable_query_rewriting": True,
         "enable_reranker": True,
@@ -169,7 +168,6 @@ def build_search_payload(query: str) -> dict[str, Any]:
         "query": query,
         "reranker_top_k": 2,
         "vdb_top_k": 10,
-        "vdb_endpoint": "http://milvus:19530",
         "collection_names": ["multimodal_data"],
         "messages": [],
         "enable_query_rewriting": False,

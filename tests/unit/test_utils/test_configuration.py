@@ -202,7 +202,7 @@ class TestEmbeddingConfig:
         """Test default configuration values."""
         config = EmbeddingConfig()
 
-        assert config.model_name == "nvidia/llama-nemotron-embed-1b-v2"
+        assert config.model_name == "nvidia/llama-nemotron-embed-vl-1b-v2"
         assert config.model_engine == "nvidia-ai-endpoints"
         assert config.dimensions == 2048
         assert config.server_url == ""

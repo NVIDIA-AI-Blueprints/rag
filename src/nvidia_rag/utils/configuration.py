@@ -734,9 +734,9 @@ class EmbeddingConfig(_ConfigBase):
     """Embedding configuration."""
 
     model_name: str = Field(
-        default="nvidia/llama-nemotron-embed-1b-v2",
+        default="nvidia/llama-nemotron-embed-vl-1b-v2",
         env="APP_EMBEDDINGS_MODELNAME",
-        description="Model for generating text embeddings",
+        description="Model for generating embeddings",
     )
     model_engine: str = Field(
         default="nvidia-ai-endpoints",

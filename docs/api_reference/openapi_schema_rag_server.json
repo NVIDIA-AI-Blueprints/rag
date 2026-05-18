@@ -648,7 +648,7 @@
             "maxLength": 256,
             "title": "Embedding Model",
             "description": "Name of the embedding model used for vectorization.",
-            "default": "nvidia/llama-nemotron-embed-1b-v2"
+            "default": "nvidia/llama-nemotron-embed-vl-1b-v2"
           },
           "embedding_endpoint": {
             "type": "string",
@@ -1321,7 +1321,7 @@
             "maxLength": 256,
             "title": "Embedding Model",
             "description": "Name of the embedding model used for vectorization.",
-            "default": "nvidia/llama-nemotron-embed-1b-v2"
+            "default": "nvidia/llama-nemotron-embed-vl-1b-v2"
           },
           "embedding_endpoint": {
             "anyOf": [
