@@ -199,14 +199,12 @@ def patch_taskgroup_sequential() -> None:
         "            tasks = [tg.create_task(coro) for coro in coros]"
     )
     new = (
-        "        # patched: run sequentially when n_concurrent==1 to avoid\n"
-        "        # Python 3.12 TaskGroup cascading cancellation on event loop error\n"
-        "        if self.config.n_concurrent_trials == 1:\n"
-        "            for coro in coros:\n"
-        "                await coro\n"
-        "        else:\n"
-        "            async with asyncio.TaskGroup() as tg:\n"
-        "                tasks = [tg.create_task(coro) for coro in coros]"
+        "        # patched: always run trials sequentially to fix Python 3.12\n"
+        "        # TaskGroup cascading cancellation on event loop error.\n"
+        "        # asyncio.TaskGroup cancels ALL tasks when any task raises,\n"
+        "        # but sequential await isolates each trial independently.\n"
+        "        for coro in coros:\n"
+        "            await coro"
     )
 
     if "# patched: run sequentially" in text:
