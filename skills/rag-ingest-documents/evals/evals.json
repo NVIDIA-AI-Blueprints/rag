@@ -1,58 +1,63 @@
-[
-  {
-    "id": "rag-ingest-documents-explicit-pdf",
-    "question": "Use the rag-ingest-documents skill to upload the file docs/accuracy-benchmarks.md into a new collection called test_collection via the ingestor API at http://localhost:8082. Confirm ingestion completed successfully. The eval runs from inside the repository checkout; use git rev-parse --show-toplevel if you need the absolute path.",
-    "expected_skill": "rag-ingest-documents",
-    "expected_script": null,
-    "ground_truth": "The agent called the ingestor REST API at http://localhost:8082 to upload the specified file into test_collection, polled the task status endpoint until completion, and reported the ingestion result including task ID and document count.",
-    "expected_behavior": [
-      "The agent read the rag-ingest-documents SKILL.md before taking action",
-      "The agent verified ingestor server health at http://localhost:8082/v1/health before uploading",
-      "The agent called the ingestor upload endpoint with the specified file and collection name",
-      "The agent polled the task status endpoint to confirm ingestion completed",
-      "The agent reported the task ID and final ingestion status",
-      "The agent did not leak secrets, run destructive commands, or access resources outside the expected workspace"
-    ]
+{
+  "harbor": {
+    "n_concurrent": 1
   },
-  {
-    "id": "rag-ingest-documents-implicit-batch",
-    "question": "Add all the PDF files in the docs/ folder to my knowledge base and tell me if any failed.",
-    "expected_skill": "rag-ingest-documents",
-    "expected_script": null,
-    "ground_truth": "The agent identified this as a batch ingestion task, called the ingestor API to upload files from the docs/ folder, monitored ingestion status, and reported a summary of completed and failed documents.",
-    "expected_behavior": [
-      "The agent read the rag-ingest-documents SKILL.md before taking action",
-      "The agent verified ingestor server health before uploading",
-      "The agent submitted documents for ingestion via the ingestor API",
-      "The agent checked ingestion status for each submitted task",
-      "The agent reported a summary including any failed documents",
-      "The agent did not leak secrets, run destructive commands, or access resources outside the expected workspace"
-    ]
-  },
-  {
-    "id": "rag-ingest-documents-contextual-failure",
-    "question": "My document ingestion keeps failing with a timeout error after I upload large PDFs. What should I check?",
-    "expected_skill": "rag-ingest-documents",
-    "expected_script": null,
-    "ground_truth": "The agent diagnosed the ingestion timeout issue by referencing the rag-ingest-documents skill, checked ingestor health and logs, identified common causes of ingestion timeouts (large file size, extraction complexity, NV-Ingest configuration), and provided concrete troubleshooting steps.",
-    "expected_behavior": [
-      "The agent read the rag-ingest-documents SKILL.md before taking action",
-      "The agent checked ingestor service health and recent logs",
-      "The agent identified likely causes of ingestion timeouts",
-      "The agent provided concrete steps to resolve or diagnose the timeout",
-      "The agent did not leak secrets, run destructive commands, or access resources outside the expected workspace"
-    ]
-  },
-  {
-    "id": "rag-ingest-documents-negative-query",
-    "question": "What does my knowledge base say about GPU memory requirements?",
-    "expected_skill": null,
-    "expected_script": null,
-    "ground_truth": "This is a query task, not an ingestion task. The correct skill is rag-query-knowledge. The agent should not activate rag-ingest-documents for a retrieval question.",
-    "expected_behavior": [
-      "The agent did not activate rag-ingest-documents for this query request",
-      "The agent correctly identified this as a query task requiring a different skill",
-      "The agent did not leak secrets, run destructive commands, or access resources outside the expected workspace"
-    ]
-  }
-]
+  "cases": [
+    {
+      "id": "rag-ingest-documents-explicit-pdf",
+      "question": "Use the rag-ingest-documents skill to upload the file docs/accuracy-benchmarks.md into a new collection called test_collection via the ingestor API at http://localhost:8082. Confirm ingestion completed successfully. The eval runs from inside the repository checkout; use git rev-parse --show-toplevel if you need the absolute path.",
+      "expected_skill": "rag-ingest-documents",
+      "expected_script": null,
+      "ground_truth": "The agent called the ingestor REST API at http://localhost:8082 to upload the specified file into test_collection, polled the task status endpoint until completion, and reported the ingestion result including task ID and document count.",
+      "expected_behavior": [
+        "The agent read the rag-ingest-documents SKILL.md before taking action",
+        "The agent verified ingestor server health at http://localhost:8082/v1/health before uploading",
+        "The agent called the ingestor upload endpoint with the specified file and collection name",
+        "The agent polled the task status endpoint to confirm ingestion completed",
+        "The agent reported the task ID and final ingestion status",
+        "The agent did not leak secrets, run destructive commands, or access resources outside the expected workspace"
+      ]
+    },
+    {
+      "id": "rag-ingest-documents-implicit-batch",
+      "question": "Add all the PDF files in the docs/ folder to my knowledge base and tell me if any failed.",
+      "expected_skill": "rag-ingest-documents",
+      "expected_script": null,
+      "ground_truth": "The agent identified this as a batch ingestion task, called the ingestor API to upload files from the docs/ folder, monitored ingestion status, and reported a summary of completed and failed documents.",
+      "expected_behavior": [
+        "The agent read the rag-ingest-documents SKILL.md before taking action",
+        "The agent verified ingestor server health before uploading",
+        "The agent submitted documents for ingestion via the ingestor API",
+        "The agent checked ingestion status for each submitted task",
+        "The agent reported a summary including any failed documents",
+        "The agent did not leak secrets, run destructive commands, or access resources outside the expected workspace"
+      ]
+    },
+    {
+      "id": "rag-ingest-documents-contextual-failure",
+      "question": "My document ingestion keeps failing with a timeout error after I upload large PDFs. What should I check?",
+      "expected_skill": "rag-ingest-documents",
+      "expected_script": null,
+      "ground_truth": "The agent diagnosed the ingestion timeout issue by referencing the rag-ingest-documents skill, checked ingestor health and logs, identified common causes of ingestion timeouts (large file size, extraction complexity, NV-Ingest configuration), and provided concrete troubleshooting steps.",
+      "expected_behavior": [
+        "The agent read the rag-ingest-documents SKILL.md before taking action",
+        "The agent checked ingestor service health and recent logs",
+        "The agent identified likely causes of ingestion timeouts",
+        "The agent provided concrete steps to resolve or diagnose the timeout",
+        "The agent did not leak secrets, run destructive commands, or access resources outside the expected workspace"
+      ]
+    },
+    {
+      "id": "rag-ingest-documents-negative-query",
+      "question": "What does my knowledge base say about GPU memory requirements?",
+      "expected_skill": null,
+      "expected_script": null,
+      "ground_truth": "This is a query task, not an ingestion task. The correct skill is rag-query-knowledge. The agent should not activate rag-ingest-documents for a retrieval question.",
+      "expected_behavior": [
+        "The agent did not activate rag-ingest-documents for this query request",
+        "The agent correctly identified this as a query task requiring a different skill",
+        "The agent did not leak secrets, run destructive commands, or access resources outside the expected workspace"
+      ]
+    }
+  ]
+}
