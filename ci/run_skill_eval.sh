@@ -196,11 +196,18 @@ docker compose -f deploy/compose/docker-compose-rag-server.yaml down -v --remove
 docker compose -f deploy/compose/docker-compose-ingestor-server.yaml down -v --remove-orphans 2>/dev/null || true
 docker compose -f deploy/compose/vectordb.yaml down -v --remove-orphans 2>/dev/null || true
 sleep 5
-# Force-remove root-owned bind-mount volumes (etcd/minio write as root)
-sudo rm -rf deploy/compose/volumes/ 2>/dev/null || true
-# Remove Harbor job dirs inside evals/results — also contain root-owned Milvus volumes
-# The artifact upload **/evals/results/ glob scans these and hits EACCES
-find skills -path "*/evals/results" -type d -exec sudo rm -rf {} + 2>/dev/null || true
+# Force-remove root-owned bind-mount volumes using Docker (no sudo needed)
+# etcd and minio containers write as root — Docker can remove what sudo can't
+if [ -d "deploy/compose/volumes" ]; then
+  docker run --rm -v "$(pwd)/deploy/compose/volumes:/target" alpine \
+    sh -c "rm -rf /target/*" 2>/dev/null || true
+  rm -rf deploy/compose/volumes/ 2>/dev/null || true
+fi
+# Remove Harbor job dirs that also contain root-owned Milvus volumes
+if find skills -path "*/evals/results" -type d -quit 2>/dev/null; then
+  docker run --rm -v "$(pwd)/skills:/target" alpine \
+    sh -c "find /target -path '*/evals/results' -type d -exec rm -rf {} + 2>/dev/null; exit 0" 2>/dev/null || true
+fi
 
 # ============================================================
 # SUMMARY
