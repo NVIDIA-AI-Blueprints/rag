@@ -55,23 +55,52 @@ DEFAULT_SPEC = "nvidia_hosted.json"
 
 # Spec `platforms` field → Brev create flags for the eval-target instance.
 # Spec authors write platform NAMES (`cpu`, `L40S`, `H100`); this adapter
-# translates them to Brev shape strings that BrevEnvironment reads from
-# task.toml [metadata] at provision time. Mirrors the VSS PLATFORMS dict
-# pattern in their deploy adapter.
-PLATFORMS: dict[str, dict[str, str]] = {
-    # `brev_type` maps to `brev create --type <type>` (Brev CLI v0.6.324+).
-    # Older versions used `--cpu 4x16` / `--gpu <name:gpu:count>` — that
-    # syntax was removed. Use `brev search cpu --json` to discover types.
+# translates them to fields under task.toml [metadata] which BrevEnvironment
+# reads at provision time. Mirrors the VSS PLATFORMS dict pattern.
+#
+# Recognised metadata keys (all optional; absent = no validation):
+#   brev_type                — `brev create --type` argument (CLI v0.6.324+)
+#   description              — human note; written to [metadata] but unused
+#   gpu_type                 — substring matched against brev's gpu_name
+#                              (e.g. "H100" matches "H100-SXM-80GB")
+#   gpu_count                — minimum count required
+#   min_vram_gb_per_gpu      — per-GPU floor (e.g. 80)
+#   min_root_disk_gb         — root-fs floor (catches providers that mount
+#                              the big disk on /ephemeral, leaving / small)
+#   min_gpu_driver_version   — dotted version floor (e.g. "535.0")
+#
+# BrevEnvironment._check_instance_matches + _check_live_resources read
+# these from task.toml [metadata]. CPU evals declare none → validators
+# no-op. GPU evals declare the relevant subset → fast-fail on mismatch.
+PLATFORMS: dict[str, dict[str, str | int]] = {
     "cpu": {
         "brev_type": "n2d-standard-4",
         "description": "GCP n2d-standard-4 (4 vCPU, 16 GB). Matches the "
                        "runner VM shape — enough for NVIDIA-hosted RAG "
                        "(8 Docker containers, no local inference).",
     },
-    # Future: GPU platforms — pick a type via `brev search gpu --gpu-name H100`.
-    # "H100": {
-    #     "brev_type": "<exact-type-from-brev-search>",
-    #     "description": "...",
+    # Uncomment + adjust when adding GPU evals. Each entry below is a
+    # complete, validated template — copy the pattern, run
+    # `brev search gpu --gpu-name <name> --json` to find brev_type, and
+    # check `nvidia-smi` minimums for your RAG version.
+    #
+    # "H100_x2": {
+    #     "brev_type": "dmz.h100x2.pcie",   # from `brev search gpu --gpu-name H100`
+    #     "description": "H100 x2 PCIe, ~160 GB VRAM total. For local-NIM RAG.",
+    #     "gpu_type": "H100",
+    #     "gpu_count": 2,
+    #     "min_vram_gb_per_gpu": 80,
+    #     "min_root_disk_gb": 500,
+    #     "min_gpu_driver_version": "535.0",
+    # },
+    # "L40S": {
+    #     "brev_type": "g7e.12xlarge",
+    #     "description": "L40S 1x48GB. For lighter local-NIM modes.",
+    #     "gpu_type": "L40S",
+    #     "gpu_count": 1,
+    #     "min_vram_gb_per_gpu": 48,
+    #     "min_root_disk_gb": 300,
+    #     "min_gpu_driver_version": "535.0",
     # },
 }
 

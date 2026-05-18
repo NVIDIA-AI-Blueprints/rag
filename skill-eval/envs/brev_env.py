@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import json
 import logging
 import os
 import re
@@ -134,6 +135,32 @@ class BrevEnvironment(BaseEnvironment):
                 f"Cannot reach Brev instance '{self._instance_name}': "
                 f"rc={result.return_code} stderr={result.stderr!r}"
             )
+
+        # Hardware validation against task.toml [metadata] floors. Each
+        # check is a no-op if its key is absent — current CPU evals
+        # (nvidia-hosted) declare none, so this is fully passthrough until
+        # we add a GPU eval (vlm.json, helm_h100.json, etc.). When GPU
+        # evals land, this catches "wrong instance type" / "insufficient
+        # VRAM" / "old driver" in ~2s instead of in a confused docker
+        # compose failure ~5 min into the deploy.
+        req = {
+            "gpu_type": meta.get("gpu_type"),
+            "gpu_count": meta.get("gpu_count"),
+            "min_vram_gb_per_gpu": meta.get("min_vram_gb_per_gpu"),
+            "min_root_disk_gb": meta.get("min_root_disk_gb"),
+            "min_gpu_driver_version": meta.get("min_gpu_driver_version"),
+        }
+        if any(req.values()):
+            inst_json = await _find_brev_instance_json(self._instance_name)
+            if inst_json:
+                _check_instance_matches(inst_json, req)
+            else:
+                logger.warning(
+                    "Couldn't fetch JSON instance metadata for %s — skipping "
+                    "static GPU validation; live checks still run.",
+                    self._instance_name,
+                )
+            await _check_live_resources(self._instance_name, req)
 
         # Pre-create the harbor-expected directories with the user's ownership
         # so the trial agent and verifier can write to them without sudo.
@@ -638,6 +665,153 @@ async def _find_brev_instance(name: str) -> dict | None:
                 "shell": cols[3],    # READY / NOT_READY / ...
             }
     return None
+
+
+async def _find_brev_instance_json(name: str) -> dict | None:
+    """Return the full instance row from `brev ls --json` or None.
+
+    Used only for hardware validation (gpu_name, gpu_count, gpu_memory_gb,
+    machine_type). The text `brev ls` doesn't expose those columns.
+
+    Tolerates missing/old CLI by returning None on any parse failure —
+    caller skips static validation and falls back to live checks.
+    """
+    result = await _run_brev("ls", "--json", timeout=30)
+    if result.return_code != 0:
+        return None
+    try:
+        payload = json.loads(result.stdout or "null")
+    except json.JSONDecodeError:
+        return None
+    # Older CLIs return a bare list; newer wrap in {"instances": [...]}.
+    rows = payload if isinstance(payload, list) else payload.get("instances", [])
+    for row in rows or []:
+        if isinstance(row, dict) and row.get("name") == name:
+            return row
+    return None
+
+
+def _version_lt(a: str, b: str) -> bool:
+    """Loose version compare: True if a < b. Dotted ints; ignores suffixes."""
+    def _parts(s: str) -> list[int]:
+        out: list[int] = []
+        for tok in re.split(r"[^\d]+", s or ""):
+            if tok:
+                out.append(int(tok))
+        return out
+    pa, pb = _parts(a), _parts(b)
+    n = max(len(pa), len(pb))
+    pa += [0] * (n - len(pa))
+    pb += [0] * (n - len(pb))
+    return pa < pb
+
+
+def _check_instance_matches(instance: dict, req: dict) -> None:
+    """Validate that a Brev instance row meets task requirements.
+
+    Reads from instance row (from `brev ls --json`):
+      - gpu_name (e.g. "H100-SXM-80GB" — substring-matched)
+      - gpu_count (int)
+      - gpu_memory_gb (per-GPU VRAM)
+
+    Compares against req dict from task.toml [metadata]:
+      - gpu_type — substring match, case-insensitive ("H100" matches "H100-SXM-80GB")
+      - gpu_count — instance must have at least this many
+      - min_vram_gb_per_gpu — instance must have at least this much per GPU
+
+    Each check skipped if its req key is absent. If the instance JSON is
+    missing the matching field (older brev CLI, registered node), log
+    warning and skip — live checks will catch real mismatches.
+
+    Raises RuntimeError with a clear message on the first concrete mismatch.
+    """
+    name = instance.get("name") or "<unnamed>"
+
+    req_gpu_type = req.get("gpu_type")
+    if req_gpu_type:
+        inst_gpu = instance.get("gpu_name")
+        if inst_gpu is None:
+            logger.warning(
+                "Instance %s has no 'gpu_name' in JSON — skipping static "
+                "gpu_type check (live validation still runs).", name,
+            )
+        elif req_gpu_type.lower() not in (inst_gpu or "").lower():
+            raise RuntimeError(
+                f"Brev instance '{name}' has gpu_name={inst_gpu!r}, "
+                f"task requires gpu_type containing {req_gpu_type!r}"
+            )
+
+    req_count = int(req.get("gpu_count") or 0)
+    if req_count:
+        inst_count = int(instance.get("gpu_count") or 0)
+        if inst_count and inst_count < req_count:
+            raise RuntimeError(
+                f"Brev instance '{name}' has gpu_count={inst_count}, "
+                f"task requires at least {req_count}"
+            )
+
+    req_vram = int(req.get("min_vram_gb_per_gpu") or 0)
+    if req_vram:
+        inst_vram = int(instance.get("gpu_memory_gb") or 0)
+        if inst_vram and inst_vram < req_vram:
+            raise RuntimeError(
+                f"Brev instance '{name}' has gpu_memory_gb={inst_vram} per GPU, "
+                f"task requires at least {req_vram}"
+            )
+
+
+async def _check_live_resources(instance_name: str, req: dict) -> None:
+    """Probe the target VM for disk + GPU driver against task floors.
+
+    Each check skipped if its req key is absent. Raises RuntimeError on
+    mismatch with the actual probed value in the message.
+
+    Catches provider quirks `brev ls --json` doesn't surface — e.g. some
+    providers list disk_min_gb=1600 but mount the big volume on
+    /ephemeral, leaving / at ~100 GB → docker pull OOMs on NIM images.
+    """
+    min_disk = int(req.get("min_root_disk_gb") or 0)
+    if min_disk:
+        r = await _run_brev_exec(
+            instance_name,
+            "df -BG / | tail -1 | awk '{print $2}' | tr -d 'G'",
+            timeout=60,
+        )
+        if r.return_code == 0:
+            try:
+                disk_gb = int((r.stdout or "0").strip())
+            except ValueError:
+                disk_gb = 0
+            if disk_gb and disk_gb < min_disk:
+                raise RuntimeError(
+                    f"Brev instance '{instance_name}' root disk is {disk_gb}G, "
+                    f"task requires at least {min_disk}G (NIM images need this)"
+                )
+
+    min_driver = req.get("min_gpu_driver_version")
+    if min_driver:
+        r = await _run_brev_exec(
+            instance_name,
+            "nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>&1 "
+            "| head -1",
+            timeout=60,
+        )
+        if r.return_code == 0:
+            actual_lines = (r.stdout or "").strip().splitlines()
+            actual = actual_lines[0].strip() if actual_lines else ""
+            # nvidia-smi missing → message contains 'command not found' or similar
+            looks_like_version = bool(re.match(r"^\d+\.\d+", actual))
+            if looks_like_version and _version_lt(actual, min_driver):
+                raise RuntimeError(
+                    f"Brev instance '{instance_name}' nvidia driver is "
+                    f"{actual}, task requires at least {min_driver}"
+                )
+            if not looks_like_version:
+                logger.warning(
+                    "nvidia-smi on %s returned %r — skipping driver-version "
+                    "check (probably no GPU or driver missing).",
+                    instance_name, actual,
+                )
 
 
 async def _wait_for_running(name: str, timeout: int = BREV_CREATE_TIMEOUT) -> None:
