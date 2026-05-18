@@ -86,7 +86,11 @@ nv-base --version
 nv-base health-check
 
 echo "==> Update astra-skill-eval to latest"
-curl -fsSL https://urm.nvidia.com/artifactory/it-automation-generic/astra-skill-eval/latest/install.sh | bash || true
+# Pin to 0.7.5: harbor 0.7.0 (shipped in 0.7.6) collapsed VerifierResult from 8 explicit
+# fields to a single rewards dict, but the agent Docker image still writes result.json in
+# the old flat-field format. TrialResult.model_validate_json() fails with 8 validation
+# errors on every trial. Unpin once the Docker image is updated to harbor 0.7.0+.
+curl -fsSL https://urm.nvidia.com/artifactory/it-automation-generic/astra-skill-eval/0.7.5/install.sh | bash || true
 astra-skill-eval --version || true
 
 echo "==> Install Node.js + Claude Code CLI"
@@ -116,6 +120,14 @@ docker ps -a --format '{{.ID}}' | xargs -r docker stop >/dev/null 2>&1 || true
 docker ps -a --format '{{.ID}}' | xargs -r docker rm   >/dev/null 2>&1 || true
 
 export ANTHROPIC_BASE_URL="https://inference-api.nvidia.com/v1"
+
+# Use sonnet for the LLM-as-judge to avoid saturating the opus endpoint.
+# The agent model (sonnet, set via --agent-model) and the judge model are
+# separate — --agent-model does not affect the judge. Opus is the hardcoded
+# default in layer2/eval_core/llm_judge.py and runs out of capacity when
+# 8 skills × 4 eval cases are judged back-to-back, causing 429s that
+# default accuracy/goal_accuracy scores to 0 and produce false failures.
+export LLM_JUDGE_MODEL="aws/anthropic/bedrock-claude-sonnet-4-6"
 
 # ============================================================
 # TIER 1 — Validate all no-GPU skills upfront (fast, ~30s)

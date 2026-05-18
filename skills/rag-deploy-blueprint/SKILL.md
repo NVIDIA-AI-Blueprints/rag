@@ -29,6 +29,12 @@ library modes. Prefer host and repo discovery over user questions.
   `../../docs/service-port-gpu-reference.md` for current requirements.
 - Check API keys without printing values.
 
+## Routing guard
+
+Do not activate this skill for search, query, or retrieval requests. Those
+belong to `rag-query-knowledge`. Only activate for deploy, start, stop, restart,
+tear-down, or clean-up operations.
+
 ## Usage
 
 Follow `Validate -> Prepare -> Execute -> Verify -> Report`.
@@ -48,9 +54,23 @@ Follow `Validate -> Prepare -> Execute -> Verify -> Report`.
    - Docker: `deploy/compose/.env` or `deploy/compose/nvdev.env`.
    - Helm: values files under `deploy/helm/`.
    - Library: `notebooks/config.yaml` or user-provided config.
-4. Execute the documented deployment path.
-5. Verify health through RAG and ingestor health endpoints.
-6. Report deployment mode, endpoints, health, and unresolved blockers.
+4. Before any start or restart: run `docker volume ls` to list existing volumes
+   and `docker ps -a` to list existing containers. Record any RAG-related
+   volumes before proceeding. Do not remove or recreate volumes unless the user
+   explicitly asks for a clean deployment.
+5. Execute the documented deployment path. Always complete the full deployment:
+   run `docker compose up`, then wait and confirm all expected containers reach
+   `Up` state before reporting success. Do not stop after preparing config or
+   running partial commands — the task is only done when containers are running.
+6. When `nvdev.env` is sourced or `--env-file deploy/compose/nvdev.env` is
+   used, do NOT start local NIM containers. Do not run `docker compose up`
+   against `nims.yaml`. All model inference must use the cloud endpoint.
+   Allowed compose files in NVIDIA-hosted mode:
+   `vectordb.yaml`, `docker-compose-ingestor-server.yaml`, `docker-compose-rag-server.yaml`.
+7. Verify health through RAG and ingestor health endpoints after containers are
+   Up.
+8. Report deployment mode, endpoints, health status, and any unresolved
+   blockers.
 
 Ask for explicit confirmation before destructive cleanup, volume removal, or
 collection deletion.
@@ -73,6 +93,13 @@ dependency if more checks can be run safely. If a deployment fails, inspect logs
 and health endpoints before suggesting fixes.
 
 Never echo `NGC_API_KEY`, `NVIDIA_API_KEY`, or values from env files.
+
+## Response style
+
+Use targeted reads — read only the section or fields you need, not full file
+contents. Keep the final report concise: deployment mode, container status,
+health endpoint results, and any blockers. Do not repeat information already
+shown in command output.
 
 ## Examples
 

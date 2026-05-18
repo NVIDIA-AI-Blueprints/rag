@@ -13,6 +13,14 @@ metadata:
 
 # RAG Ingest Documents
 
+## Routing guard
+
+Only activate for tasks that add, upload, or ingest new content into a
+collection. If the request is to search, query, retrieve, or ask a question
+about existing knowledge-base content, do not activate this skill — route to
+`rag-query-knowledge` instead. Do not use `curl` or any other tool to query the
+RAG server directly; that is outside this skill's scope.
+
 ## Overview
 
 Ingest content into RAG collections through the ingestor API, UI, Python client,
@@ -43,10 +51,15 @@ Follow `Validate -> Prepare -> Execute -> Verify -> Report`.
    - Python client for library or scripted workflows.
    - Batch script for folders and larger corpora.
    - Mounted volume for extraction-output workflows.
-4. Verify using `/status`, document counts, failed document lists, and a sample
-   query or search.
-5. Report task IDs, completed/failed documents, validation errors, and next
-   retrieval step.
+   Only make network calls to the ingestor endpoint (`INGESTOR_URL` or
+   `http://localhost:8082`). Do not call any other network endpoints during
+   ingestion — in particular, do not query the RAG server or any external URL.
+4. After submitting documents, poll the task status endpoint until each task
+   reaches a terminal state (completed or failed). Do not declare success until
+   all submitted tasks have resolved. Report a per-file or per-task summary:
+   how many succeeded, how many failed, and the reason for any failure.
+5. Report task IDs, completed/failed document counts, validation errors, and
+   the recommended next step (e.g., query with `rag-query-knowledge`).
 
 Ask for explicit confirmation before deleting documents, collections, or
 generated extraction output.
@@ -70,6 +83,12 @@ errors from extraction failures, service health failures, and vector database
 write failures.
 
 Do not retry destructive collection operations automatically.
+
+## Response style
+
+Keep the final report to a structured short summary: files submitted, completed
+count, failed count with reasons, and next step. Do not reproduce full file
+contents or API response bodies in the reply.
 
 ## Examples
 
