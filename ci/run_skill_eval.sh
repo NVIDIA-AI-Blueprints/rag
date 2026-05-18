@@ -19,6 +19,12 @@ set -euo pipefail
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 export RAG_REPO_ROOT="$REPO_ROOT"
+# Branch the Brev target will git-clone (VSS-style fresh tree per run).
+# Prefer the locally-checked-out branch — actions/checkout sets HEAD to
+# the dispatcher's `ref` input (e.g. feat/skill-eval-ci). $GITHUB_REF_NAME
+# is the *workflow's* ref (always 'main' for our dispatcher) so it's the
+# wrong source. Final fallback is 'main' for local runs.
+export EVAL_TARGET_BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo main)"
 SKILL_EVAL_DIR="$REPO_ROOT/skill-eval"
 SKILL_DIR="$REPO_ROOT/skill-source/.agents/skills/rag-blueprint"
 EVAL_NAME="nvidia-hosted"

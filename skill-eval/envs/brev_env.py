@@ -152,14 +152,14 @@ class BrevEnvironment(BaseEnvironment):
             timeout=60,
         )
 
-        # Stage the runner's repo onto the target at $HOME/rag so the deploy
-        # skill has a real codebase to work with. Harbor only uploads task-
-        # local files (skills/, tests/) — the surrounding repo (deploy/,
-        # src/, docs/, etc.) is NOT staged automatically. VSS handles this
-        # by having the deploy skill `git clone` the repo on the target;
-        # we stage from the runner instead to test the exact PR SHA + any
-        # local edits, not whatever's on GitHub HEAD.
-        await self._stage_repo()
+        # Get the repo onto the target at $HOME/rag via git clone (VSS
+        # pattern). Harbor only uploads task-local files (skills/, tests/),
+        # not the surrounding repo. A fresh clone per run wipes any stale
+        # files from prior trials on warm-pool VMs — no orphan-file class
+        # of bugs to worry about. Trade-off: we test what's been pushed to
+        # the branch, not uncommitted runner state. For PR-driven CI that's
+        # always already pushed, this is fine.
+        await self._clone_repo()
 
         # NOTE: prior-deploy cleanup is NOT done here. Harbor calls start()
         # per trial, but trials within one eval run share a deploy (step-1
@@ -169,78 +169,48 @@ class BrevEnvironment(BaseEnvironment):
 
         self._started = True
 
-    async def _stage_repo(self) -> None:
-        """Tar the runner's repo and ship it to $HOME/rag on the target.
+    async def _clone_repo(self) -> None:
+        """Fresh `git clone` of the eval branch into $HOME/rag on target.
 
-        Uses `brev copy` to upload the tarball as a file — base64-inline
-        via `brev exec` blows past Linux's argv size limit (~128KB) for
-        repos larger than ~96KB encoded.
+        Mirrors VSS's pattern. `rm -rf` first so warm-pool runs don't
+        accumulate orphan files. Shallow clone (--depth 1) for speed.
 
-        Repo root comes from $RAG_REPO_ROOT (set by ci/run_skill_eval.sh).
-        We exclude bulky/irrelevant trees.
+        Branch comes from $EVAL_TARGET_BRANCH (set by run_skill_eval.sh
+        from `git rev-parse --abbrev-ref HEAD` on the runner — i.e. the
+        ref that GitHub's `actions/checkout` materialised). Repo URL
+        defaults to the upstream blueprint; override with $RAG_REPO_URL.
+        For private repos, pass $GITHUB_TOKEN — embedded into the URL.
         """
         assert self._instance_name
-        runner_repo = os.environ.get("RAG_REPO_ROOT")
-        if not runner_repo or not Path(runner_repo).is_dir():
-            logger.warning(
-                "RAG_REPO_ROOT not set or not a dir (%r) — skipping repo stage. "
-                "Agent will see an empty workspace on the target.", runner_repo,
-            )
-            return
+        branch = os.environ.get("EVAL_TARGET_BRANCH", "main")
+        repo_url = os.environ.get(
+            "RAG_REPO_URL",
+            "https://github.com/NVIDIA-AI-Blueprints/rag.git",
+        )
+        gh_token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
 
-        logger.info("Staging repo from %s → %s:$HOME/rag",
-                    runner_repo, self._instance_name)
-
-        excludes = [
-            "--exclude=.git/objects",   # huge, not needed for deploy
-            "--exclude=node_modules",
-            "--exclude=data",           # eval data lives elsewhere
-            "--exclude=deploy/compose/volumes",  # docker bind mounts
-            "--exclude=skill-eval/jobs",
-            "--exclude=skill-eval/harbor-workdir",
-            "--exclude=skill-eval/datasets",
-            "--exclude=__pycache__",
-            "--exclude=.venv",
-            "--exclude=venv",
-        ]
-        # Write to a local file first, then brev copy it over. brev exec
-        # passes args via argv and our tar is too large for that path.
-        local_tar = Path(f"/tmp/rag-repo-{uuid.uuid4().hex[:8]}.tar.gz")
-        try:
-            subprocess.run(
-                ["tar", "-czf", str(local_tar), *excludes, "-C", runner_repo, "."],
-                check=True, timeout=180,
+        # Token-embedded URL for private repos. Public repo works without.
+        clone_url = repo_url
+        if gh_token and repo_url.startswith("https://github.com/"):
+            clone_url = repo_url.replace(
+                "https://", f"https://x-access-token:{gh_token}@",
             )
-            tar_size_mb = local_tar.stat().st_size / 1024 / 1024
-            logger.info("Repo tarball: %.1f MB", tar_size_mb)
 
-            # `brev copy <local> <instance>:<remote>` — single-file copy
-            # works reliably (unlike brev copy on directories).
-            remote_tar = "/tmp/rag-repo.tar.gz"
-            copy = await _run_brev(
-                "copy", str(local_tar), f"{self._instance_name}:{remote_tar}",
-                timeout=BREV_COPY_TIMEOUT,
-            )
-            if copy.return_code != 0:
-                raise RuntimeError(
-                    f"brev copy tarball to {self._instance_name} failed: "
-                    f"{copy.stderr}"
-                )
+        logger.info("Cloning %s @ %s → %s:$HOME/rag",
+                    repo_url, branch, self._instance_name)
 
-            # Extract on target.
-            result = await _run_brev_exec(
-                self._instance_name,
-                f'mkdir -p "$HOME/rag" && '
-                f"tar -xzf {shlex.quote(remote_tar)} -C \"$HOME/rag\" && "
-                f"rm -f {shlex.quote(remote_tar)}",
-                timeout=BREV_COPY_TIMEOUT,
+        clone_cmd = (
+            f'rm -rf "$HOME/rag" && '
+            f"git clone --depth 1 --branch {shlex.quote(branch)} "
+            f"{shlex.quote(clone_url)} \"$HOME/rag\""
+        )
+        result = await _run_brev_exec(
+            self._instance_name, clone_cmd, timeout=BREV_COPY_TIMEOUT,
+        )
+        if result.return_code != 0:
+            raise RuntimeError(
+                f"git clone on {self._instance_name} failed: {result.stderr}"
             )
-            if result.return_code != 0:
-                raise RuntimeError(
-                    f"Untar on {self._instance_name} failed: {result.stderr}"
-                )
-        finally:
-            local_tar.unlink(missing_ok=True)
 
         # Forward env vars that the deploy needs into ~/.eval_env on the
         # target. The runner's shell has these (CI Pipeline sets them);
