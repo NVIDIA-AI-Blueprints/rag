@@ -3,7 +3,7 @@ services:
   # Main ingestor server which is responsible for ingestion
   ingestor-server:
     container_name: ingestor-server
-    image: nvcr.io/nvstaging/blueprint/ingestor-server:${TAG:-2.6.0.rc1}
+    image: nvcr.io/nvstaging/blueprint/ingestor-server:${TAG:-2.6.0.rc2}
     build:
       # Set context to repo's root directory
       context: ../../
@@ -174,7 +174,7 @@ services:
     shm_size: 12gb
 
   redis:
-    image: "dockerhub.nvidia.com/redis/redis-stack:7.2.0-v18"
+    image: "redis/redis-stack:7.2.0-v18"
     ports:
       - "6379:6379"
 
