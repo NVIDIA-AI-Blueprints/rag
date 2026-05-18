@@ -1038,7 +1038,6 @@ class TestElasticVDB(unittest.TestCase):
             embedding_model=mock_embedding_model,
             config=mock_config,
         )
-        elastic_vdb.embedding_model = mock_embedding_model
 
         mock_vectorstore = Mock()
         mock_retriever = Mock()
@@ -1082,6 +1081,7 @@ class TestElasticVDB(unittest.TestCase):
                 context.exception.status_code, ErrorCodeMapping.SERVICE_UNAVAILABLE
             )
             self.assertIn("Embedding NIM unavailable", context.exception.message)
+            self.assertIn("http://embedding:8080", context.exception.message)
 
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.Elasticsearch")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.VectorStore")
@@ -1410,7 +1410,7 @@ class TestElasticVDB(unittest.TestCase):
         mock_elasticsearch,
     ):
         """Test retrieval_langchain with hybrid search and weighted ranker."""
-        from nvidia_rag.utils.configuration import SearchType, RankerType
+        from nvidia_rag.utils.configuration import RankerType, SearchType
 
         # Setup mocks
         mock_config = Mock()
@@ -1495,7 +1495,7 @@ class TestElasticVDB(unittest.TestCase):
         mock_elasticsearch,
     ):
         """Test retrieval_langchain with hybrid search and RRF ranker (no custom query)."""
-        from nvidia_rag.utils.configuration import SearchType, RankerType
+        from nvidia_rag.utils.configuration import RankerType, SearchType
 
         # Setup mocks
         mock_config = Mock()

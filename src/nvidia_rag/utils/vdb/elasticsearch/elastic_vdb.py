@@ -1089,10 +1089,9 @@ class ElasticVDB(VDBRagIngest):
 
             return self._add_collection_name_to_retreived_docs(docs, collection_name)
         except (requests.exceptions.ConnectionError, ConnectionError, OSError) as e:
+            embedding_client = getattr(self._embedding_model, "_client", None)
             embedding_url = (
-                self.embedding_model._client.base_url
-                if hasattr(self.embedding_model, "_client")
-                else "configured endpoint"
+                getattr(embedding_client, "base_url", None) or "configured endpoint"
             )
             error_msg = f"Embedding NIM unavailable at {embedding_url}. Please verify the service is running and accessible."
             logger.error("Connection error in retrieval_langchain: %s", e)
