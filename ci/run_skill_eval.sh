@@ -133,14 +133,6 @@ export CLAUDE_CODE_MAX_OUTPUT_TOKENS=4096
 # biggest token cost. Haiku is ~10x cheaper than Sonnet for this scoring task.
 export LLM_JUDGE_MODEL="aws/anthropic/claude-haiku-4-5-v1"
 
-# ============================================================
-# PRE-DEPLOY — bring up RAG stack in NVIDIA-hosted mode
-# All skills 2-8 require a running stack. Deploy once here
-# so every eval runs against a known-good environment.
-# ============================================================
-echo ""
-echo "==> Pre-deploy RAG stack (NVIDIA-hosted mode)"
-
 # Source nvdev.env so all compose files pick up cloud NIM endpoints
 set -a
 source deploy/compose/nvdev.env
@@ -150,41 +142,41 @@ set +a
 export APP_VECTORSTORE_ENABLEGPUSEARCH=False
 export APP_VECTORSTORE_ENABLEGPUINDEX=False
 export MILVUS_VERSION="${MILVUS_VERSION:-v2.6.5}"
-# Store volumes OUTSIDE the git workspace so runner can always clean the checkout.
-# If volumes live inside deploy/compose/volumes/ Docker writes them as root and
-# the next run's git clean fails with EACCES before the script even starts.
+# Store volumes OUTSIDE the git workspace so runner can always clean the checkout
 export DOCKER_VOLUME_DIRECTORY="/dockerroot/nvbase-milvus"
 export INGESTOR_SERVER_EXTERNAL_VOLUME_MOUNT="/dockerroot/nvbase-ingestor"
 
-echo "  Starting vector DB (CPU-only image, no GPU required)..."
-docker compose -f ci/vectordb-cpu.yaml up -d
-echo "  Starting ingestor server..."
-docker compose -f deploy/compose/docker-compose-ingestor-server.yaml up -d
-echo "  Starting RAG server..."
-docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d
+# Helper: wait for RAG stack health endpoints
+wait_for_stack() {
+  local TIMEOUT=300 ELAPSED=0
+  while [ $ELAPSED -lt $TIMEOUT ]; do
+    RAG_OK=$(curl -sf -o /dev/null -w "%{http_code}" http://localhost:8081/v1/health 2>/dev/null || echo "0")
+    ING_OK=$(curl -sf -o /dev/null -w "%{http_code}" http://localhost:8082/v1/health 2>/dev/null || echo "0")
+    if [ "$RAG_OK" = "200" ] && [ "$ING_OK" = "200" ]; then
+      echo "  [OK] RAG server (8081) and ingestor (8082) healthy"
+      return 0
+    fi
+    sleep 10; ELAPSED=$((ELAPSED + 10))
+    echo "  Waiting... (${ELAPSED}s) rag=${RAG_OK} ingestor=${ING_OK}"
+  done
+  echo "  [WARN] Stack not healthy after ${TIMEOUT}s"
+  return 1
+}
 
-echo "  Waiting for services to be healthy..."
-TIMEOUT=300
-ELAPSED=0
-while [ $ELAPSED -lt $TIMEOUT ]; do
-  RAG_OK=$(curl -sf -o /dev/null -w "%{http_code}" http://localhost:8081/v1/health 2>/dev/null || echo "0")
-  ING_OK=$(curl -sf -o /dev/null -w "%{http_code}" http://localhost:8082/v1/health 2>/dev/null || echo "0")
-  if [ "$RAG_OK" = "200" ] && [ "$ING_OK" = "200" ]; then
-    echo "  [OK] RAG server (8081) and ingestor (8082) are healthy"
-    break
-  fi
-  sleep 10
-  ELAPSED=$((ELAPSED + 10))
-  echo "  Waiting... (${ELAPSED}s) rag=${RAG_OK} ingestor=${ING_OK}"
-done
-
-if [ "$RAG_OK" != "200" ] || [ "$ING_OK" != "200" ]; then
-  echo "  [WARN] RAG stack not fully healthy after ${TIMEOUT}s — continuing anyway"
-  docker ps
-fi
-
-echo "  Pre-deploy complete. Running containers:"
-docker ps --format "  {{.Names}}\t{{.Status}}"
+# Helper: deploy RAG stack from scratch
+deploy_stack() {
+  echo "  Stopping any existing containers..."
+  docker compose -f deploy/compose/docker-compose-rag-server.yaml down --remove-orphans 2>/dev/null || true
+  docker compose -f deploy/compose/docker-compose-ingestor-server.yaml down --remove-orphans 2>/dev/null || true
+  docker compose -f ci/vectordb-cpu.yaml down --remove-orphans 2>/dev/null || true
+  echo "  Starting vector DB (CPU-only, no GPU required)..."
+  docker compose -f ci/vectordb-cpu.yaml up -d
+  echo "  Starting ingestor server..."
+  docker compose -f deploy/compose/docker-compose-ingestor-server.yaml up -d
+  echo "  Starting RAG server..."
+  docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d
+  docker ps --format "  {{.Names}}\t{{.Status}}"
+}
 
 # Use sonnet for the LLM-as-judge to avoid saturating the opus endpoint.
 # The agent model (sonnet, set via --agent-model) and the judge model are
@@ -213,22 +205,31 @@ fi
 echo "  All Tier 1 checks passed"
 
 # ============================================================
-# TIER 3 — Evaluate skills in dependency order
-# Docker state persists between skills (--env-mode local)
+# TIER 3 — E2E evaluation: skill deploys env, then skills run
+# against the real deployed stack.
+#
+# Phase A: rag-deploy-blueprint
+#   - Clean Docker state so agent must actually deploy
+#   - Run sequentially (--parallel 1) to avoid trial conflicts
+#   - Verify stack is up after skill completes
+#   - Fail fast if agent couldn't deploy
+#
+# Phase B: remaining 7 skills
+#   - Run against the live stack the agent deployed
+#   - This proves skills work against a real RAG environment
 # ============================================================
 echo ""
-echo "==> NV-BASE Tier 3 — evaluating ${#NO_GPU_SKILLS[@]} skills in dependency order"
+echo "==> NV-BASE Tier 3 — E2E evaluation (8 skills)"
 
 tier3_results=()
 
-for skill in "${NO_GPU_SKILLS[@]}"; do
-  skill_dir="./skills/$skill"
-  skill_results="$RESULTS_DIR/$skill"
+run_eval() {
+  local skill="$1"
+  local skill_dir="./skills/$skill"
+  local skill_results="$RESULTS_DIR/$skill"
   mkdir -p "$skill_results"
-
   echo ""
   echo "  ---- Evaluating: $skill ----"
-
   nv-base agent-eval \
     --env-mode local \
     -a claude-code \
@@ -241,7 +242,45 @@ for skill in "${NO_GPU_SKILLS[@]}"; do
     -o "$skill_results" && \
     tier3_results+=("PASS:$skill") || \
     tier3_results+=("FAIL:$skill")
+}
 
+# ── Phase A: rag-deploy-blueprint ──────────────────────────
+# Clean Docker first so agent must deploy from scratch.
+# Run trials one at a time (--parallel 1 in nv-base config)
+# to prevent 4 simultaneous agents conflicting on Docker.
+echo ""
+echo "==> Phase A: evaluating rag-deploy-blueprint (clean Docker state)"
+deploy_stack        # bring up fresh stack for the deploy eval to test against
+run_eval "rag-deploy-blueprint"
+
+# After deploy eval, verify the stack is actually running.
+# The deploy skill's job is to leave containers up — check it did.
+echo ""
+echo "==> Verifying RAG stack is up after rag-deploy-blueprint eval..."
+if ! wait_for_stack; then
+  echo "  Stack not healthy after deploy skill — deploying fallback for remaining skills"
+  deploy_stack
+  wait_for_stack || { echo "  [FATAL] Cannot bring up RAG stack"; exit 1; }
+fi
+echo "  Stack confirmed healthy — proceeding with remaining skills"
+
+# ── Phase B: remaining 7 skills ───────────────────────────
+# These skills run against the stack the agent deployed above.
+# This proves the skills work against a real live RAG environment.
+DEPENDENT_SKILLS=(
+  "rag-ingest-documents"
+  "rag-query-knowledge"
+  "rag-troubleshoot-blueprint"
+  "rag-configure-retrieval"
+  "rag-enable-guardrails"
+  "rag-manage-mcp"
+  "rag-configure-infrastructure"
+)
+
+echo ""
+echo "==> Phase B: evaluating ${#DEPENDENT_SKILLS[@]} skills against live RAG stack"
+for skill in "${DEPENDENT_SKILLS[@]}"; do
+  run_eval "$skill"
 done
 
 # ============================================================
