@@ -191,13 +191,16 @@ for container in rag-server ingestor-server milvus-standalone milvus-etcd milvus
   docker logs "$container" > "$LOGS_DIR/${container}.log" 2>&1 || true
 done
 
-# Stop containers FIRST then remove volumes — must happen before artifact upload
+# Stop containers FIRST then remove all root-owned dirs before artifact upload
 docker compose -f deploy/compose/docker-compose-rag-server.yaml down -v --remove-orphans 2>/dev/null || true
 docker compose -f deploy/compose/docker-compose-ingestor-server.yaml down -v --remove-orphans 2>/dev/null || true
 docker compose -f deploy/compose/vectordb.yaml down -v --remove-orphans 2>/dev/null || true
-sleep 3
-# Force-remove root-owned volume dirs after containers are fully stopped
+sleep 5
+# Force-remove root-owned bind-mount volumes (etcd/minio write as root)
 sudo rm -rf deploy/compose/volumes/ 2>/dev/null || true
+# Remove Harbor job dirs inside evals/results — also contain root-owned Milvus volumes
+# The artifact upload **/evals/results/ glob scans these and hits EACCES
+find skills -path "*/evals/results" -type d -exec sudo rm -rf {} + 2>/dev/null || true
 
 # ============================================================
 # SUMMARY
