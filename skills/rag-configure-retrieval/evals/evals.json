@@ -1,62 +1,57 @@
-{
-  "harbor": {
-    "n_concurrent": 1
+[
+  {
+    "id": "rag-configure-retrieval-explicit-hybrid",
+    "question": "Use the rag-configure-retrieval skill to enable hybrid search on the running RAG deployment. Tell me whether existing documents need to be re-ingested after this change. The eval runs from inside the repository checkout; use git rev-parse --show-toplevel if you need the absolute path.",
+    "expected_skill": "rag-configure-retrieval",
+    "expected_script": null,
+    "ground_truth": "The agent enabled hybrid search by updating the relevant configuration (APP_ENABLE_MULTITURN or equivalent hybrid search setting), restarted the affected RAG service, verified the change took effect, and clearly stated whether re-ingestion is required for the current vector database configuration.",
+    "expected_behavior": [
+      "The agent read the rag-configure-retrieval SKILL.md before taking action",
+      "The agent identified the active deployment config file before making changes",
+      "The agent enabled hybrid search in the configuration",
+      "The agent restarted the affected service after the config change",
+      "The agent stated whether re-ingestion is required",
+      "The agent did not leak secrets, run destructive commands, or access resources outside the expected workspace"
+    ]
   },
-  "cases": [
-    {
-      "id": "rag-configure-retrieval-explicit-hybrid",
-      "question": "Use the rag-configure-retrieval skill to enable hybrid search on the running RAG deployment. Tell me whether existing documents need to be re-ingested after this change. The eval runs from inside the repository checkout; use git rev-parse --show-toplevel if you need the absolute path.",
-      "expected_skill": "rag-configure-retrieval",
-      "expected_script": null,
-      "ground_truth": "The agent enabled hybrid search by updating the relevant configuration (APP_ENABLE_MULTITURN or equivalent hybrid search setting), restarted the affected RAG service, verified the change took effect, and clearly stated whether re-ingestion is required for the current vector database configuration.",
-      "expected_behavior": [
-        "The agent read the rag-configure-retrieval SKILL.md before taking action",
-        "The agent identified the active deployment config file before making changes",
-        "The agent enabled hybrid search in the configuration",
-        "The agent restarted the affected service after the config change",
-        "The agent stated whether re-ingestion is required",
-        "The agent did not leak secrets, run destructive commands, or access resources outside the expected workspace"
-      ]
-    },
-    {
-      "id": "rag-configure-retrieval-implicit-multicollection",
-      "question": "I want to query across multiple document collections at the same time and rank the results. How do I set this up?",
-      "expected_skill": "rag-configure-retrieval",
-      "expected_script": null,
-      "ground_truth": "The agent identified this as a multi-collection retrieval configuration task, read the relevant references, explained how to configure multi-collection retrieval with reranking in the RAG Blueprint, and provided the specific config changes or API parameters needed.",
-      "expected_behavior": [
-        "The agent read the rag-configure-retrieval SKILL.md before taking action",
-        "The agent referenced the multi-collection retrieval documentation",
-        "The agent provided specific configuration steps for enabling multi-collection retrieval",
-        "The agent explained reranking configuration alongside multi-collection setup",
-        "The agent did not leak secrets, run destructive commands, or access resources outside the expected workspace"
-      ]
-    },
-    {
-      "id": "rag-configure-retrieval-contextual-poor-relevance",
-      "question": "My RAG search results are returning documents that don't seem relevant to the query at all. The collection has documents but the answers are off-topic.",
-      "expected_skill": "rag-configure-retrieval",
-      "expected_script": null,
-      "ground_truth": "The agent diagnosed the retrieval relevance issue by checking current retrieval settings (topK, search mode, reranker state), running a test query to inspect returned chunks, and providing specific configuration changes to improve retrieval quality such as enabling reranking, adjusting topK, or switching search modes.",
-      "expected_behavior": [
-        "The agent read the rag-configure-retrieval SKILL.md before taking action",
-        "The agent checked current retrieval configuration settings",
-        "The agent ran a test query to inspect retrieved context quality",
-        "The agent identified specific configuration changes to improve relevance",
-        "The agent did not leak secrets, run destructive commands, or access resources outside the expected workspace"
-      ]
-    },
-    {
-      "id": "rag-configure-retrieval-negative-deployment",
-      "question": "Deploy the RAG Blueprint on this machine with Docker Compose.",
-      "expected_skill": null,
-      "expected_script": null,
-      "ground_truth": "This is a deployment task, not a retrieval configuration task. The correct skill is rag-deploy-blueprint. The agent should not activate rag-configure-retrieval for a deployment request.",
-      "expected_behavior": [
-        "The agent did not activate rag-configure-retrieval for this deployment request",
-        "The agent correctly identified this as a deployment task requiring a different skill",
-        "The agent did not leak secrets, run destructive commands, or access resources outside the expected workspace"
-      ]
-    }
-  ]
-}
+  {
+    "id": "rag-configure-retrieval-implicit-multicollection",
+    "question": "I want to query across multiple document collections at the same time and rank the results. How do I set this up?",
+    "expected_skill": "rag-configure-retrieval",
+    "expected_script": null,
+    "ground_truth": "The agent identified this as a multi-collection retrieval configuration task, read the relevant references, explained how to configure multi-collection retrieval with reranking in the RAG Blueprint, and provided the specific config changes or API parameters needed.",
+    "expected_behavior": [
+      "The agent read the rag-configure-retrieval SKILL.md before taking action",
+      "The agent referenced the multi-collection retrieval documentation",
+      "The agent provided specific configuration steps for enabling multi-collection retrieval",
+      "The agent explained reranking configuration alongside multi-collection setup",
+      "The agent did not leak secrets, run destructive commands, or access resources outside the expected workspace"
+    ]
+  },
+  {
+    "id": "rag-configure-retrieval-contextual-poor-relevance",
+    "question": "My RAG search results are returning documents that don't seem relevant to the query at all. The collection has documents but the answers are off-topic.",
+    "expected_skill": "rag-configure-retrieval",
+    "expected_script": null,
+    "ground_truth": "The agent diagnosed the retrieval relevance issue by checking current retrieval settings (topK, search mode, reranker state), running a test query to inspect returned chunks, and providing specific configuration changes to improve retrieval quality such as enabling reranking, adjusting topK, or switching search modes.",
+    "expected_behavior": [
+      "The agent read the rag-configure-retrieval SKILL.md before taking action",
+      "The agent checked current retrieval configuration settings",
+      "The agent ran a test query to inspect retrieved context quality",
+      "The agent identified specific configuration changes to improve relevance",
+      "The agent did not leak secrets, run destructive commands, or access resources outside the expected workspace"
+    ]
+  },
+  {
+    "id": "rag-configure-retrieval-negative-deployment",
+    "question": "Deploy the RAG Blueprint on this machine with Docker Compose.",
+    "expected_skill": null,
+    "expected_script": null,
+    "ground_truth": "This is a deployment task, not a retrieval configuration task. The correct skill is rag-deploy-blueprint. The agent should not activate rag-configure-retrieval for a deployment request.",
+    "expected_behavior": [
+      "The agent did not activate rag-configure-retrieval for this deployment request",
+      "The agent correctly identified this as a deployment task requiring a different skill",
+      "The agent did not leak secrets, run destructive commands, or access resources outside the expected workspace"
+    ]
+  }
+]
