@@ -207,7 +207,7 @@ def patch_taskgroup_sequential() -> None:
         "            await coro"
     )
 
-    if "# patched: run sequentially" in text:
+    if "# patched: always run trials sequentially" in text:
         print(f"  ALREADY PATCHED: {path}")
         return
     if old not in text:
