@@ -38,9 +38,7 @@ Start the Milvus vector database service:
 docker compose -f deploy/compose/vectordb.yaml up -d
 ```
 
-### 2. Deploy the VLM and VLM Embedding NIMs
-
-Deploy the Vision-Language Model and multimodal embedding services.
+### 2. Deploy the Ingestion and VLM RAG NIMs
 
 Set your NGC API key (replace with your actual key):
 
@@ -59,8 +57,8 @@ export MODEL_DIRECTORY=~/.cache/model-cache
 # Use `nvidia-smi` to check available GPUs and set the desired GPU ID
 export VLM_MS_GPU_ID=1  # Default is GPU 5; change to use a different GPU
 
-# Deploy NIMs with VLM and VLM embedding profiles
-USERID=$(id -u) docker compose --profile vlm-ingest --profile vlm-only -f deploy/compose/nims.yaml up -d
+# Deploy ingestion NIMs plus the VLM RAG NIMs.
+USERID=$(id -u) docker compose --profile ingest --profile vlm-rag -f deploy/compose/nims.yaml up -d
 ```
 
 :::{warning}
@@ -107,7 +105,8 @@ export APP_NVINGEST_STRUCTURED_ELEMENTS_MODALITY=""
 export APP_NVINGEST_IMAGE_ELEMENTS_MODALITY="image"
 export APP_NVINGEST_EXTRACTIMAGES="True"
 
-# Disable reranker (not supported with multimodal queries)
+# Disable reranker for image-query requests. Image queries use the multimodal
+# vector retrieval path directly and bypass reranking.
 export ENABLE_RERANKER="false"
 export APP_RANKING_SERVERURL=""
 ```
@@ -368,14 +367,30 @@ For details, see [User Interface for NVIDIA RAG Blueprint](user-interface.md).
 
 ### Python Client
 
-When using the Python client, always specify `collection_names` in your query:
+When using the Python client, pass image input using the OpenAI vision content
+format and always specify `collection_names` in your query:
 
 ```python
-# Example: Multimodal query with collection specified
+import base64
+from pathlib import Path
+
+image_b64 = base64.b64encode(Path("Creme_clutch_purse1-small.jpg").read_bytes()).decode()
+image_query = [
+    {"type": "text", "text": "What material is this made of?"},
+    {
+        "type": "image_url",
+        "image_url": {
+            "url": f"data:image/png;base64,{image_b64}",
+            "detail": "auto",
+        },
+    },
+]
+
 await rag.generate(
-    messages=[{"role": "user", "content": "What is this product?"}],
+    messages=[{"role": "user", "content": image_query}],
     use_knowledge_base=True,
-    collection_names=["your_collection_name"],  # Required: specify your collection
+    collection_names=["your_collection_name"],
+    enable_reranker=False,
 )
 ```
 
@@ -387,7 +402,9 @@ For a step-by-step guide with code examples covering collection creation, docume
 
 ## Limitations
 
-- **Reranker not supported**: The reranker must be disabled (`enable_reranker: False`) for multimodal queries.
+- **Image-query reranking is bypassed**: When the user query includes an image,
+  use `enable_reranker: False`. Image queries use the multimodal vector
+  retrieval path directly.
 - **Single-page retrieval for image queries**: When an image is included in the query, the retrieval results are constrained to content from a single page per document. Multi-page context retrieval is not supported for image-based queries.
 
 
