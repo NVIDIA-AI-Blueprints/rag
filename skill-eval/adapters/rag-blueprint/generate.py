@@ -19,12 +19,17 @@ Adding a new eval for the rag-blueprint skill:
              --spec ../../../skill-source/.agents/skills/rag-blueprint/eval/helm_deploy.json
     3. Run Harbor against `datasets/helm-deploy/step-{1,N}` as usual.
 
-Adding evaluations for a different skill:
-    Copy this directory to `adapters/<new-skill-name>/`, edit:
-      - SKILL_NAME constant (also drives the SKILL.md copy path)
-      - REPO_ROOT constant (cwd pinned for the judge's probes)
-      - PREAMBLE / instruction template wording if needed
-      - Default spec filename in the CLI
+Adding evaluations for a different rag-* skill (e.g. rag-enable-vlm):
+    Run with `--skill-name <new-skill> --skill-dir <path-to-its-source>`.
+    All references to the skill (slash-command, task.toml metadata, SKILL.md
+    copy path, verifier headers) are derived from `--skill-name`. The
+    DEFAULT_SKILL_NAME constant is just the default for backwards-compat
+    with the rag-blueprint pipeline.
+
+    If the new skill needs a different REPO_ROOT, PREAMBLE wording, or
+    PLATFORMS entries, copy this directory to `adapters/<skill-family>/`
+    and edit those — but most rag-* skills should share this single
+    adapter.
     The shared `envs/local_env.py` and `verifiers/generic_judge.py` work
     unchanged.
 """
@@ -43,7 +48,11 @@ from pathlib import Path
 # different skill).
 # ---------------------------------------------------------------------------
 
-SKILL_NAME = "rag-blueprint"
+# Default skill — overridable via `--skill-name` CLI flag. Threaded through
+# generate() + helpers so this adapter generates task dirs for any
+# rag-* skill (rag-blueprint today, rag-enable-vlm / rag-enable-guardrails
+# / etc. when their specs land), not just the original rag-blueprint.
+DEFAULT_SKILL_NAME = "rag-blueprint"
 TASK_PREFIX = "rag"
 # Resolved at generation time. Priority: $RAG_REPO_ROOT > path inferred
 # from this file's location. Set RAG_REPO_ROOT in CI to the checkout root
@@ -136,11 +145,12 @@ def _slug(name: str) -> str:
 # Per-step artifact templates
 # ---------------------------------------------------------------------------
 
-def _instruction_md(step: int, total: int, query: str, env: str) -> str:
+def _instruction_md(step: int, total: int, query: str, env: str,
+                    skill_name: str = DEFAULT_SKILL_NAME) -> str:
     return (
         f"{PREAMBLE}\n"
         "\n"
-        f"Use the `/{SKILL_NAME}` skill to complete the following task.\n"
+        f"Use the `/{skill_name}` skill to complete the following task.\n"
         "\n"
         f"## Task {step} of {total}\n"
         "\n"
@@ -161,6 +171,7 @@ def _task_toml(
     eval_name: str,
     platform: str | None,
     platform_meta: dict[str, str],
+    skill_name: str = DEFAULT_SKILL_NAME,
 ) -> str:
     """Generate task.toml for one step.
 
@@ -177,7 +188,7 @@ def _task_toml(
         'skills_dir = "/skills"',
         "",
         "[metadata]",
-        f'skill = "{SKILL_NAME}"',
+        f'skill = "{skill_name}"',
         f'eval_name = "{eval_name}"',
         f"step_index = {step}",
         f"step_count = {total}",
@@ -192,15 +203,16 @@ def _task_toml(
     return "\n".join(lines) + "\n"
 
 
-def _test_sh(step: int, spec_name: str, eval_name: str) -> str:
+def _test_sh(step: int, spec_name: str, eval_name: str,
+             skill_name: str = DEFAULT_SKILL_NAME) -> str:
     return (
         "#!/bin/bash\n"
-        f"# {SKILL_NAME} verifier ({eval_name} step {step}): "
+        f"# {skill_name} verifier ({eval_name} step {step}): "
         "delegates to generic LLM-as-judge.\n"
         "set -uo pipefail\n"
         "\n"
         'TEST_DIR="$(cd "$(dirname "$0")" && pwd)"\n'
-        f"# Pin cwd to the {SKILL_NAME} repo root so the judge's Bash/grep\n"
+        f"# Pin cwd to the {skill_name} repo root so the judge's Bash/grep\n"
         "# probes resolve relative paths against the repo, not the harbor\n"
         "# session workdir.\n"
         # On BrevEnvironment the runner-side REPO_ROOT path doesn't exist
@@ -246,7 +258,8 @@ def _solve_sh(step: int, eval_name: str) -> str:
 # Main generation
 # ---------------------------------------------------------------------------
 
-def generate(spec: dict, output_root: Path, skill_dir: Path, eval_name: str) -> None:
+def generate(spec: dict, output_root: Path, skill_dir: Path, eval_name: str,
+             skill_name: str = DEFAULT_SKILL_NAME) -> None:
     expects = spec.get("expects") or []
     spec_name = Path(spec.get("_source_path", DEFAULT_SPEC)).name
     total = len(expects)
@@ -273,12 +286,14 @@ def generate(spec: dict, output_root: Path, skill_dir: Path, eval_name: str) -> 
         step_dir.mkdir(parents=True, exist_ok=True)
 
         (step_dir / "instruction.md").write_text(
-            _instruction_md(idx, total, expect.get("query", ""), env_note)
+            _instruction_md(idx, total, expect.get("query", ""), env_note,
+                            skill_name)
         )
 
         checks = expect.get("checks") or []
         (step_dir / "task.toml").write_text(
-            _task_toml(idx, total, len(checks), eval_name, platform, platform_meta)
+            _task_toml(idx, total, len(checks), eval_name, platform,
+                       platform_meta, skill_name)
         )
 
         env_dir = step_dir / "environment"
@@ -287,7 +302,7 @@ def generate(spec: dict, output_root: Path, skill_dir: Path, eval_name: str) -> 
 
         tests_dir = step_dir / "tests"
         tests_dir.mkdir(exist_ok=True)
-        (tests_dir / "test.sh").write_text(_test_sh(idx, spec_name, eval_name))
+        (tests_dir / "test.sh").write_text(_test_sh(idx, spec_name, eval_name, skill_name))
         if GENERIC_JUDGE.exists():
             shutil.copy(GENERIC_JUDGE, tests_dir / "generic_judge.py")
         else:
@@ -303,7 +318,7 @@ def generate(spec: dict, output_root: Path, skill_dir: Path, eval_name: str) -> 
         (solution_dir / "solve.sh").write_text(_solve_sh(idx, eval_name))
 
         if skill_dir.exists():
-            dst = step_dir / "skills" / SKILL_NAME
+            dst = step_dir / "skills" / skill_name
             if dst.exists():
                 shutil.rmtree(dst)
             shutil.copytree(skill_dir, dst)
@@ -335,9 +350,18 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--output-dir", required=True,
-                        help=f"Dataset output root (e.g. skill-eval/datasets/<eval-name>)")
+                        help="Dataset output root (e.g. skill-eval/datasets/<eval-name>)")
+    parser.add_argument("--skill-name", default=DEFAULT_SKILL_NAME,
+                        help=f"Name of the rag-* skill being evaluated. "
+                             f"Drives the /<skill-name> slash-command in the "
+                             f"agent prompt, the SKILL.md copy path, the "
+                             f"skill = ... field in task.toml metadata, and "
+                             f"default verifier headers. Default: "
+                             f"{DEFAULT_SKILL_NAME}.")
     parser.add_argument("--skill-dir", required=True,
-                        help=f"Path to skill-source/.agents/skills/{SKILL_NAME}")
+                        help="Path to the source skill folder containing "
+                             "SKILL.md (e.g. skill-source/.agents/skills/"
+                             "<skill-name>).")
     parser.add_argument("--spec", default=None,
                         help=f"Path to eval spec JSON "
                              f"(default: <skill-dir>/eval/{DEFAULT_SPEC})")
@@ -349,6 +373,7 @@ def main() -> None:
 
     output_root = Path(args.output_dir)
     skill_dir = Path(args.skill_dir)
+    skill_name = args.skill_name
     spec_path = Path(args.spec) if args.spec else (skill_dir / "eval" / DEFAULT_SPEC)
 
     if not spec_path.exists():
@@ -371,7 +396,7 @@ def main() -> None:
     eval_name = args.eval_name or _slug(spec_path.name)
 
     print("=== Inputs ===")
-    print(f"  skill      : {SKILL_NAME}")
+    print(f"  skill      : {skill_name}")
     print(f"  eval_name  : {eval_name}")
     print(f"  output_dir : {output_root}")
     print(f"  skill_dir  : {skill_dir}")
@@ -381,7 +406,7 @@ def main() -> None:
     print(f"  checks     : {total_checks}")
     print()
 
-    generate(spec, output_root, skill_dir, eval_name)
+    generate(spec, output_root, skill_dir, eval_name, skill_name)
 
     print()
     print(f"Generated {len(spec.get('expects', []))} step(s) under {output_root}/")
