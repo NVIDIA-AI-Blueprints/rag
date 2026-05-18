@@ -129,6 +129,14 @@ docker ps -a --format '{{.ID}}' | xargs -r docker rm   >/dev/null 2>&1 || true
 
 export ANTHROPIC_BASE_URL="https://inference-api.nvidia.com/v1"
 
+# Token optimisation
+# Agent output cap — most tool calls use <30 tokens; 4096 gives safe headroom
+# for final summaries without letting the model dump huge file contents
+export CLAUDE_CODE_MAX_OUTPUT_TOKENS=4096
+# Use Haiku for LLM-as-judge — reads the full ATIF trajectory which is the
+# biggest token cost. Haiku is ~10x cheaper than Sonnet for this scoring task.
+export LLM_JUDGE_MODEL="aws/anthropic/claude-haiku-4-5-v1"
+
 # ============================================================
 # PRE-DEPLOY — bring up RAG stack in NVIDIA-hosted mode
 # All skills 2-8 require a running stack. Deploy once here
