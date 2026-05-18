@@ -125,7 +125,7 @@ export PROMPT_CONFIG_FILE=$(pwd)/deploy/compose/nemotron3-super-prompt.yaml
 From the repository root, run:
 
 ```bash
-helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.5.0.tgz \
+helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.5.1.tgz \
   --username '$oauthtoken' \
   --password "${NGC_API_KEY}" \
   --set imagePullSecret.password=$NGC_API_KEY \
@@ -156,7 +156,7 @@ The prompt file `deploy/compose/nemotron3-super-prompt.yaml` is tuned for `nemot
 3. From the repository root, run:
 
    ```bash
-   helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.5.0.tgz \
+   helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.5.1.tgz \
      --username '$oauthtoken' \
      --password "${NGC_API_KEY}" \
      --set imagePullSecret.password=$NGC_API_KEY \

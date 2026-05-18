@@ -8,6 +8,21 @@ This documentation contains the release notes for [NVIDIA RAG Blueprint](readme.
 
 
 
+## Release 2.5.1 (2026-04-29)
+
+This release adds opt-in support for [`nvidia/nemotron-3-nano-omni-30b-a3b-reasoning`](https://build.nvidia.com/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning/modelcard) as the Vision-Language Model and ships first-class support for VLM reasoning streams. Defaults are unchanged from 2.5.0 (text-only embedder, VLM inference disabled); the new VLM is opt-in via `ENABLE_VLM_INFERENCE=True`. Tracked under [BCS-445](https://jirasw.nvidia.com/browse/BCS-445).
+
+### Highlights
+
+- **Reasoning streaming:** New `enable_thinking` and `thinking_token_budget` config (mapped to `APP_VLM_ENABLE_THINKING`, `APP_VLM_THINKING_TOKEN_BUDGET`). When enabled, chain-of-thought tokens stream via `additional_kwargs["reasoning"]` and the final answer streams via `content`. Use `VLM_FILTER_THINK_TOKENS=false` to forward both to the client.
+- **VLM generation tuning defaults:** `APP_VLM_MAX_TOKENS=32768`, `APP_VLM_TEMPERATURE=0.6`, `APP_VLM_TOP_P=0.95`. `VLM_TO_LLM_FALLBACK` remains `False`.
+- **Image extraction stays opt-in:** `APP_NVINGEST_EXTRACTIMAGES` default remains `False`. Enable when running the VLM caption pipeline.
+- **Increased shared memory for VLM container:** `vlm-ms.shm_size` raised from 16GB to 32GB to accommodate the new VLM.
+
+### Known Issues
+
+- None at GA. The VLM image is published to the public NGC registry at `nvcr.io/nim/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:1.7.0-variant`.
+
 ## Release 2.5.0 (2026-03-17)
 
 This release introduces support for the Nemotron-super-3 model, updates NIMs to the latest versions, upgrades NV-Ingest, and adds continuous ingestion along with RTX 6000 MIG support.

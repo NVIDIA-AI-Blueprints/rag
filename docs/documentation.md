@@ -74,7 +74,7 @@ Preview which refs will be used (no git or build):
 Full build (requires a clean working tree, or pass `-AllowDirty`):
 
 ```powershell
-.\docs\scripts\build_multiversion_docs.ps1 -Versions @('2.3.0','2.4.0','2.5.0')
+.\docs\scripts\build_multiversion_docs.ps1 -Versions @('2.3.0','2.4.0','2.5.0','2.5.1')
 ```
 
 On Linux or macOS:
@@ -82,7 +82,7 @@ On Linux or macOS:
 ```sh
 chmod +x docs/scripts/build_multiversion_docs.sh
 ./docs/scripts/build_multiversion_docs.sh --dry-run
-./docs/scripts/build_multiversion_docs.sh --versions 2.3.0,2.4.0,2.5.0
+./docs/scripts/build_multiversion_docs.sh --versions 2.3.0,2.4.0,2.5.0,2.5.1
 ```
 
 Serve the result locally, for example: `python -m http.server 8080 --directory docs/_build/multiversion` and open `http://localhost:8080/2.5.0/` to confirm the switcher.

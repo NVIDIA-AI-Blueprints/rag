@@ -1,6 +1,6 @@
 [project]
 name = "nvidia_rag"
-version = "2.5.0.dev"
+version = "2.5.1"
 description = "This blueprint serves as a reference solution for a foundational Retrieval Augmented Generation (RAG) pipeline."
 readme = "README.md"
 license = "Apache-2.0"
@@ -32,7 +32,7 @@ dependencies = [
     "python-multipart>=0.0.22,<1.0",
     "pyyaml>=6.0,<7.0",
     "uvicorn[standard]>=0.32,<1.0",
-    "langchain-core>=1.0.0",
+    "langchain-core>=1.2.22",
     "redis>=4.3.4",
     "protobuf>=6.33.5",
     "lark>=1.2.2",
@@ -109,8 +109,12 @@ elasticsearch = [
 nvidia-rag = { workspace = true }
 
 [tool.uv]
-# Pillow 12.x required for containers; moviepy pins pillow<12 so override needed for resolution
-override-dependencies = ["pillow>=12.1.0"]
+# Pillow >=12.2.0 fixes GHSA-whj4-6x5x-4v2j (CVE-2026-40192 FITS GZIP decomp bomb); moviepy pins pillow<12 so override needed
+# orjson >=3.11.6 fixes GHSA-hx9q-6w63-j58v (CVE-2025-67221 deep-recursion DoS) — transitive via langchain stack
+override-dependencies = [
+    "pillow>=12.2.0",
+    "orjson>=3.11.6",
+]
 
 [tool.setuptools]
 package-dir = {"" = "src"}
