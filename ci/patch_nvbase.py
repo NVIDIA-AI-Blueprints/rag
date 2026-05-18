@@ -134,51 +134,35 @@ def patch_verifier_result() -> None:
 
 
 def patch_n_concurrent() -> None:
-    """Inject --n-concurrent 1 into the astra-skill-eval command built by nv-base.
+    """Change _run_harbor() default n_concurrent from 4 to 1 in nv-base.
 
-    nv-base 2.9.1 reads harbor.n_concurrent from evals.json and stores it
-    internally but never forwards it to astra-skill-eval as --n-concurrent.
-    harbor 0.7.0 runs all 4 eval trials in parallel which causes:
-      1. Event loop closure after first trial completes — 3 trials cancelled
-      2. Rate limiting on integrate.api.nvidia.com when 4 agents call
-         the RAG LLM endpoint simultaneously
+    layer2/harbor/runner.py (_run_harbor) has n_concurrent: int = 4 which
+    makes Harbor run all 4 eval trials in parallel. This causes:
+      1. harbor 0.7.0 event loop closure after first trial — 3 cancelled
+      2. Rate limiting on integrate.api.nvidia.com (4 parallel LLM calls)
 
-    Fix: find where layer2 builds the astra-skill-eval command args list
-    and inject --n-concurrent 1 so Harbor runs trials sequentially.
+    Fix: change the default to 1 so trials run sequentially.
+    Same file as KI-001 patch: layer2/harbor/runner.py
     """
     sp = find_site_packages("nv-base")
-    # Search for the file in layer2 that builds the astra-skill-eval invocation
-    layer2 = sp / "layer2"
-    if not layer2.exists():
-        print(f"  SKIP (layer2 not found at {layer2})")
+    path = sp / "layer2" / "harbor" / "runner.py"
+    if not path.exists():
+        print(f"  SKIP (not found): {path}")
         return
 
-    patched = False
-    for pyfile in layer2.rglob("*.py"):
-        text = pyfile.read_text()
-        # Look for where --n-attempts is added to the astra-skill-eval command
-        # and inject --n-concurrent 1 right after it
-        if '"--n-attempts"' in text and '"--n-concurrent"' not in text:
-            new_text = text.replace(
-                '"--n-attempts"',
-                '"--n-concurrent", "1", "--n-attempts"',
-                1,
-            )
-            if new_text != text:
-                pyfile.write_text(new_text)
-                print(f"  PATCHED (n-concurrent): {pyfile}")
-                patched = True
-                break
+    text = path.read_text()
+    old = "n_concurrent: int = 4,"
+    new = "n_concurrent: int = 1,  # patched: sequential trials"
 
-    if not patched:
-        # Also check for list-based command construction
-        for pyfile in layer2.rglob("*.py"):
-            text = pyfile.read_text()
-            if "n_attempts" in text and "n_concurrent" not in text and "astra" in text.lower():
-                print(f"  NOTE: candidate file found but anchor not matched: {pyfile}")
-                break
-        if not patched:
-            print("  SKIP (n-concurrent anchor not found — may be fixed upstream)")
+    if "n_concurrent: int = 1," in text:
+        print(f"  ALREADY PATCHED: {path}")
+        return
+    if old not in text:
+        print(f"  SKIP (anchor not found — may be fixed upstream): {path}")
+        return
+
+    path.write_text(text.replace(old, new, 1))
+    print(f"  PATCHED: {path}")
 
 
 def main() -> None:
