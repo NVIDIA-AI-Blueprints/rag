@@ -1,0 +1,356 @@
+#!/usr/bin/env bash
+# NV-BASE Tier 1 + Tier 3 skill eval for all focused rag-* skills.
+#
+# Invoked by .github/workflows/run-branch-script.yml on the self-hosted runner.
+# Expects these env vars from the workflow:
+#   NVIDIA_INFERENCE_KEY    sk-... NV inference proxy key
+#   ANTHROPIC_API_KEY       same as above
+#   NGC_API_KEY             nvapi-... NGC key for docker login
+#   CLAUDE_CODE_DISABLE_THINKING=1
+#
+# Skills are evaluated in dependency order:
+#   1. rag-deploy-blueprint      (deploys RAG stack — no GPU, must run first)
+#   2. rag-ingest-documents      (needs running stack)
+#   3. rag-query-knowledge       (needs running stack + ingested docs)
+#   4. rag-troubleshoot-blueprint (needs running stack)
+#   5. rag-configure-retrieval   (needs running stack)
+#   6. rag-enable-guardrails     (needs running stack)
+#   7. rag-manage-mcp            (needs running stack)
+#   8. rag-configure-infrastructure (needs running stack)
+#
+# GPU skills (rag-enable-vlm, rag-evaluate-quality) run via separate Brev job.
+# Output: ./eval-results/<skill>/ uploaded as artifact.
+
+set -euo pipefail
+
+# No-GPU skills in dependency order — deploy must be first
+NO_GPU_SKILLS=(
+  "rag-deploy-blueprint"
+  "rag-ingest-documents"
+  "rag-query-knowledge"
+  "rag-troubleshoot-blueprint"
+  "rag-configure-retrieval"
+  "rag-enable-guardrails"
+  "rag-manage-mcp"
+  "rag-configure-infrastructure"
+)
+
+RESULTS_DIR="./eval-results"
+LOGS_DIR="./ci-logs"
+mkdir -p "$LOGS_DIR"
+
+# Fix root-owned dirs left by previous runs using Docker (no sudo needed)
+# etcd/minio containers write as root — Docker alpine can remove what sudo can't
+# deploy/compose/src/ is created by ingestor server bind mount as root
+for root_dir in deploy/compose/volumes deploy/compose/src; do
+  if [ -d "$root_dir" ]; then
+    docker run --rm -v "$(pwd)/${root_dir}:/target" alpine \
+      sh -c "rm -rf /target/*" 2>/dev/null || true
+    rm -rf "$root_dir" 2>/dev/null || true
+  fi
+done
+if find skills -path "*/evals/results" -mindepth 3 -maxdepth 3 -type d -quit 2>/dev/null; then
+  docker run --rm -v "$(pwd)/skills:/target" alpine \
+    sh -c "find /target -path '*/evals/results' -type d -exec rm -rf {} + 2>/dev/null; exit 0" \
+    2>/dev/null || true
+fi
+
+echo "==> Probe runner environment"
+probe_ok=true
+check() {
+  if eval "$2" >/dev/null 2>&1; then
+    echo "  [OK]    $1: $(eval "$2" 2>&1 | head -1)"
+  else
+    echo "  [MISS]  $1: not found"
+    probe_ok=false
+  fi
+}
+check "python3"        "python3 --version"
+check "docker"         "docker --version"
+check "docker compose" "docker compose version"
+check "node"           "node --version"
+check "npm"            "npm --version"
+echo "  [ENV]   NVIDIA_INFERENCE_KEY: ${NVIDIA_INFERENCE_KEY:+set (${NVIDIA_INFERENCE_KEY:0:4}...)}${NVIDIA_INFERENCE_KEY:-NOT SET}"
+echo "  [ENV]   NGC_API_KEY:          ${NGC_API_KEY:+set (${NGC_API_KEY:0:4}...)}${NGC_API_KEY:-NOT SET}"
+echo "  [ENV]   ANTHROPIC_API_KEY:    ${ANTHROPIC_API_KEY:+set}${ANTHROPIC_API_KEY:-NOT SET}"
+echo "  [ENV]   Skills to evaluate:   ${NO_GPU_SKILLS[*]}"
+if [ "$probe_ok" = false ]; then
+  echo "  [WARN]  Some dependencies missing — will attempt to install below"
+fi
+echo ""
+
+echo "==> Required env check"
+: "${NVIDIA_INFERENCE_KEY:?Set NVIDIA_INFERENCE_KEY (sk- proxy key) in repo secrets as NVBASE_INFERENCE_API_KEY}"
+: "${NGC_API_KEY:?Set NGC_API_KEY in repo secrets}"
+export CLAUDE_CODE_DISABLE_THINKING="${CLAUDE_CODE_DISABLE_THINKING:-1}"
+
+echo "==> Install uv"
+if ! command -v uv >/dev/null 2>&1; then
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+fi
+export PATH="$HOME/.local/bin:$HOME/.local/share/uv/tools/nv-base/bin:$PATH"
+
+echo "==> Install NV-BASE"
+uv tool install nv-base \
+  --index https://urm.nvidia.com/artifactory/api/pypi/nv-shared-pypi/simple
+nv-base --version
+nv-base health-check
+
+echo "==> Update astra-skill-eval to latest"
+curl -fsSL https://urm.nvidia.com/artifactory/it-automation-generic/astra-skill-eval/latest/install.sh | bash || true
+astra-skill-eval --version || true
+
+echo "==> Install Node.js + Claude Code CLI"
+if ! command -v npm >/dev/null 2>&1; then
+  curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
+  export NVM_DIR="$HOME/.nvm"
+  [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+  nvm install 20
+  nvm use 20
+fi
+if ! command -v claude >/dev/null 2>&1; then
+  npm install -g @anthropic-ai/claude-code
+fi
+claude --version
+
+echo "==> Apply CLAUDE_CODE_DISABLE_THINKING patch (KI-001)"
+python3 ci/patch_nvbase.py
+
+echo "==> Docker credentials for nvcr.io"
+export DOCKER_CONFIG=$(mktemp -d)
+NVCR_AUTH=$(printf '$oauthtoken:%s' "$NGC_API_KEY" | base64 -w 0)
+printf '{"auths":{"nvcr.io":{"auth":"%s"}}}' "$NVCR_AUTH" > "$DOCKER_CONFIG/config.json"
+echo "  Docker credentials written"
+
+echo "==> Clean any existing Docker state"
+docker ps -a --format '{{.ID}}' | xargs -r docker stop >/dev/null 2>&1 || true
+docker ps -a --format '{{.ID}}' | xargs -r docker rm   >/dev/null 2>&1 || true
+
+export ANTHROPIC_BASE_URL="https://inference-api.nvidia.com/v1"
+
+# Token optimisation
+# Agent output cap — most tool calls use <30 tokens; 4096 gives safe headroom
+# for final summaries without letting the model dump huge file contents
+export CLAUDE_CODE_MAX_OUTPUT_TOKENS=4096
+# Use Haiku for LLM-as-judge — reads the full ATIF trajectory which is the
+# biggest token cost. Haiku is ~10x cheaper than Sonnet for this scoring task.
+export LLM_JUDGE_MODEL="aws/anthropic/claude-haiku-4-5-v1"
+
+# Source nvdev.env so all compose files pick up cloud NIM endpoints
+set -a
+source deploy/compose/nvdev.env
+set +a
+
+# Disable GPU-backed vector search (not available on CPU runner)
+export APP_VECTORSTORE_ENABLEGPUSEARCH=False
+export APP_VECTORSTORE_ENABLEGPUINDEX=False
+export MILVUS_VERSION="${MILVUS_VERSION:-v2.6.5}"
+# Store volumes OUTSIDE the git workspace so runner can always clean the checkout
+export DOCKER_VOLUME_DIRECTORY="/dockerroot/nvbase-milvus"
+export INGESTOR_SERVER_EXTERNAL_VOLUME_MOUNT="/dockerroot/nvbase-ingestor"
+
+# Helper: wait for RAG stack health endpoints
+wait_for_stack() {
+  local TIMEOUT=300 ELAPSED=0
+  while [ $ELAPSED -lt $TIMEOUT ]; do
+    RAG_OK=$(curl -sf -o /dev/null -w "%{http_code}" http://localhost:8081/v1/health 2>/dev/null || echo "0")
+    ING_OK=$(curl -sf -o /dev/null -w "%{http_code}" http://localhost:8082/v1/health 2>/dev/null || echo "0")
+    if [ "$RAG_OK" = "200" ] && [ "$ING_OK" = "200" ]; then
+      echo "  [OK] RAG server (8081) and ingestor (8082) healthy"
+      return 0
+    fi
+    sleep 10; ELAPSED=$((ELAPSED + 10))
+    echo "  Waiting... (${ELAPSED}s) rag=${RAG_OK} ingestor=${ING_OK}"
+  done
+  echo "  [WARN] Stack not healthy after ${TIMEOUT}s"
+  return 1
+}
+
+# Helper: deploy RAG stack from scratch
+deploy_stack() {
+  echo "  Stopping any existing containers..."
+  docker compose -f deploy/compose/docker-compose-rag-server.yaml down --remove-orphans 2>/dev/null || true
+  docker compose -f deploy/compose/docker-compose-ingestor-server.yaml down --remove-orphans 2>/dev/null || true
+  # Stop using both the GPU and CPU vectordb compose files
+  docker compose -f deploy/compose/vectordb.yaml down --remove-orphans 2>/dev/null || true
+  docker compose -f ci/vectordb-cpu.yaml down --remove-orphans 2>/dev/null || true
+  # Remove root-owned volume dirs before starting fresh
+  if [ -d "deploy/compose/volumes" ]; then
+    docker run --rm -v "$(pwd)/deploy/compose/volumes:/target" alpine \
+      sh -c "rm -rf /target/*" 2>/dev/null || true
+    rm -rf deploy/compose/volumes/ 2>/dev/null || true
+  fi
+  # Swap deploy/compose/vectordb.yaml with CPU version — persists for whole CI run
+  # so agent's `docker compose -f deploy/compose/vectordb.yaml up -d` uses CPU image
+  [ -f deploy/compose/vectordb.yaml.gpu-bak ] || \
+    cp deploy/compose/vectordb.yaml deploy/compose/vectordb.yaml.gpu-bak
+  cp ci/vectordb-cpu.yaml deploy/compose/vectordb.yaml
+  echo "  Starting vector DB (CPU-only, volumes at /dockerroot/nvbase-milvus)..."
+  docker compose -f deploy/compose/vectordb.yaml up -d
+  echo "  Starting ingestor server..."
+  docker compose -f deploy/compose/docker-compose-ingestor-server.yaml up -d
+  echo "  Starting RAG server..."
+  docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d
+  docker ps --format "  {{.Names}}\t{{.Status}}"
+}
+
+# Use sonnet for the LLM-as-judge to avoid saturating the opus endpoint.
+# The agent model (sonnet, set via --agent-model) and the judge model are
+# separate — --agent-model does not affect the judge. Opus is the hardcoded
+# default in layer2/eval_core/llm_judge.py and runs out of capacity when
+# 8 skills × 4 eval cases are judged back-to-back, causing 429s that
+# default accuracy/goal_accuracy scores to 0 and produce false failures.
+export LLM_JUDGE_MODEL="aws/anthropic/bedrock-claude-sonnet-4-6"
+
+# ============================================================
+# TIER 1 — Validate all no-GPU skills upfront (fast, ~30s)
+# ============================================================
+echo ""
+echo "==> NV-BASE Tier 1 — validating all ${#NO_GPU_SKILLS[@]} skills"
+tier1_failed=false
+for skill in "${NO_GPU_SKILLS[@]}"; do
+  echo "  Checking: $skill"
+  nv-base skills-check "./skills/$skill" >/dev/null 2>&1 && \
+    echo "  [PASS] $skill" || \
+    { echo "  [FAIL] $skill — Tier 1 schema error"; tier1_failed=true; }
+done
+if [ "$tier1_failed" = true ]; then
+  echo "Tier 1 failed for one or more skills — fix schema errors before Tier 3"
+  exit 1
+fi
+echo "  All Tier 1 checks passed"
+
+# ============================================================
+# TIER 3 — E2E evaluation: skill deploys env, then skills run
+# against the real deployed stack.
+#
+# Phase A: rag-deploy-blueprint
+#   - Clean Docker state so agent must actually deploy
+#   - Run sequentially (--parallel 1) to avoid trial conflicts
+#   - Verify stack is up after skill completes
+#   - Fail fast if agent couldn't deploy
+#
+# Phase B: remaining 7 skills
+#   - Run against the live stack the agent deployed
+#   - This proves skills work against a real RAG environment
+# ============================================================
+echo ""
+echo "==> NV-BASE Tier 3 — E2E evaluation (8 skills)"
+
+tier3_results=()
+
+run_eval() {
+  local skill="$1"
+  local skill_dir="./skills/$skill"
+  local skill_results="$RESULTS_DIR/$skill"
+  mkdir -p "$skill_results"
+  echo ""
+  echo "  ---- Evaluating: $skill ----"
+  nv-base agent-eval \
+    --env-mode local \
+    -a claude-code \
+    --agent-model "claude-code=aws/anthropic/bedrock-claude-sonnet-4-6" \
+    --skip-baseline \
+    --timeout-multiplier 3 \
+    --parallel 1 \
+    -k 1 \
+    "$skill_dir" \
+    -r html,json \
+    -o "$skill_results" && \
+    tier3_results+=("PASS:$skill") || \
+    tier3_results+=("FAIL:$skill")
+}
+
+# ── Phase A: rag-deploy-blueprint ──────────────────────────
+# Clean Docker first so agent must deploy from scratch.
+# Run trials one at a time (--parallel 1 in nv-base config)
+# to prevent 4 simultaneous agents conflicting on Docker.
+echo ""
+echo "==> Phase A: evaluating rag-deploy-blueprint (clean Docker state)"
+deploy_stack        # bring up fresh stack for the deploy eval to test against
+run_eval "rag-deploy-blueprint"
+
+# After deploy eval, verify the stack is actually running.
+# The deploy skill's job is to leave containers up — check it did.
+echo ""
+echo "==> Verifying RAG stack is up after rag-deploy-blueprint eval..."
+if ! wait_for_stack; then
+  echo "  Stack not healthy after deploy skill — deploying fallback for remaining skills"
+  deploy_stack
+  wait_for_stack || { echo "  [FATAL] Cannot bring up RAG stack"; exit 1; }
+fi
+echo "  Stack confirmed healthy — proceeding with remaining skills"
+
+# ── Phase B: remaining 7 skills ───────────────────────────
+# These skills run against the stack the agent deployed above.
+# This proves the skills work against a real live RAG environment.
+DEPENDENT_SKILLS=(
+  "rag-ingest-documents"
+  "rag-query-knowledge"
+  "rag-troubleshoot-blueprint"
+  "rag-configure-retrieval"
+  "rag-enable-guardrails"
+  "rag-manage-mcp"
+  "rag-configure-infrastructure"
+)
+
+echo ""
+echo "==> Phase B: evaluating ${#DEPENDENT_SKILLS[@]} skills against live RAG stack"
+for skill in "${DEPENDENT_SKILLS[@]}"; do
+  run_eval "$skill"
+done
+
+# ============================================================
+# COLLECT DOCKER LOGS
+# ============================================================
+echo ""
+echo "==> Collect Docker logs"
+docker ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" > "$LOGS_DIR/docker-ps.log" 2>&1 || true
+for container in rag-server ingestor-server milvus-standalone milvus-etcd milvus-minio; do
+  docker logs "$container" > "$LOGS_DIR/${container}.log" 2>&1 || true
+done
+
+# Stop containers FIRST then remove all root-owned dirs before artifact upload
+docker compose -f deploy/compose/docker-compose-rag-server.yaml down -v --remove-orphans 2>/dev/null || true
+docker compose -f deploy/compose/docker-compose-ingestor-server.yaml down -v --remove-orphans 2>/dev/null || true
+docker compose -f ci/vectordb-cpu.yaml down -v --remove-orphans 2>/dev/null || true
+sleep 5
+# Force-remove root-owned bind-mount volumes using Docker (no sudo needed)
+# etcd and minio containers write as root — Docker can remove what sudo can't
+if [ -d "deploy/compose/volumes" ]; then
+  docker run --rm -v "$(pwd)/deploy/compose/volumes:/target" alpine \
+    sh -c "rm -rf /target/*" 2>/dev/null || true
+  rm -rf deploy/compose/volumes/ 2>/dev/null || true
+fi
+# Remove Harbor job dirs that also contain root-owned Milvus volumes
+if find skills -path "*/evals/results" -type d -quit 2>/dev/null; then
+  docker run --rm -v "$(pwd)/skills:/target" alpine \
+    sh -c "find /target -path '*/evals/results' -type d -exec rm -rf {} + 2>/dev/null; exit 0" 2>/dev/null || true
+fi
+
+# Restore original GPU vectordb.yaml
+if [ -f deploy/compose/vectordb.yaml.gpu-bak ]; then
+  mv deploy/compose/vectordb.yaml.gpu-bak deploy/compose/vectordb.yaml
+fi
+
+# ============================================================
+# SUMMARY
+# ============================================================
+echo ""
+echo "==> Eval summary"
+all_passed=true
+for result in "${tier3_results[@]}"; do
+  status="${result%%:*}"
+  skill="${result##*:}"
+  echo "  [$status] $skill"
+  [ "$status" = "FAIL" ] && all_passed=false
+done
+
+if [ "$all_passed" = false ]; then
+  echo ""
+  echo "One or more skills failed Tier 3 evaluation"
+  exit 1
+fi
+
+echo ""
+echo "==> All evals complete"
