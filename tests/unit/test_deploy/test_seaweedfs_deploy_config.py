@@ -1,3 +1,5 @@
+import json
+import re
 from pathlib import Path
 
 import yaml
@@ -74,6 +76,86 @@ def test_notebook_config_uses_host_and_container_seaweedfs_endpoints():
     for config in (notebook_config, integration_config):
         assert config["object_store"]["endpoint"] == "localhost:9010"
         assert config["object_store"]["nv_ingest_endpoint"] == "seaweedfs:9010"
+
+
+def test_vdb_operator_notebook_references_valid_vectordb_profile():
+    # Regression guard for NVBug 6180813: the building_rag_vdb_operator.ipynb
+    # notebook previously invoked `docker compose -f .../vectordb.yaml --profile minio`,
+    # but `minio` is not a defined profile in vectordb.yaml — the object store is
+    # SeaweedFS. Assert any vectordb.yaml --profile reference in this notebook
+    # names a profile that actually exists in vectordb.yaml.
+    notebook_path = REPO_ROOT / "notebooks/building_rag_vdb_operator.ipynb"
+    notebook = json.loads(notebook_path.read_text(encoding="utf-8"))
+
+    compose = load_yaml(REPO_ROOT / "deploy/compose/vectordb.yaml")
+    valid_profiles: set[str] = set()
+    for service in compose["services"].values():
+        for profile in service.get("profiles", []):
+            if profile:
+                valid_profiles.add(profile)
+
+    pattern = re.compile(
+        r"docker\s+compose\s+-f\s+\S*vectordb\.yaml\s+--profile\s+(\S+)"
+    )
+    found = []
+    for cell in notebook["cells"]:
+        if cell.get("cell_type") != "code":
+            continue
+        source = cell["source"]
+        text = "".join(source) if isinstance(source, list) else source
+        for match in pattern.finditer(text):
+            found.append(match.group(1))
+
+    assert found, (
+        "Expected at least one `docker compose -f .../vectordb.yaml --profile <p>` "
+        "invocation in building_rag_vdb_operator.ipynb; none were found."
+    )
+    for profile in found:
+        assert profile in valid_profiles, (
+            f"Notebook references --profile {profile!r}, but vectordb.yaml only "
+            f"defines profiles {sorted(valid_profiles)!r}"
+        )
+
+
+def test_vdb_operator_notebook_get_documents_matches_vdb_interface():
+    # The library calls custom VDB operators with
+    # ``get_documents(collection_name, force_get_metadata=...)``. Keep the
+    # notebook implementation aligned so it works with current library mode.
+    notebook_path = REPO_ROOT / "notebooks/building_rag_vdb_operator.ipynb"
+    notebook = json.loads(notebook_path.read_text(encoding="utf-8"))
+
+    code = "\n".join(
+        "".join(cell["source"])
+        for cell in notebook["cells"]
+        if cell.get("cell_type") == "code"
+    )
+
+    assert re.search(
+        r"def\s+get_documents\s*\([^)]*force_get_metadata\s*:\s*bool\s*=\s*False",
+        code,
+        flags=re.DOTALL,
+    ), "Notebook OpenSearchVDB.get_documents must accept force_get_metadata."
+
+
+def test_vdb_operator_notebook_cloud_mode_uses_hosted_summarizer():
+    # The notebook config defaults summarizer.server_url to localhost for on-prem.
+    # In cloud mode, summary generation runs through NvidiaRAGIngestor and must
+    # clear that endpoint so get_llm uses the hosted NVIDIA API catalog.
+    notebook_path = REPO_ROOT / "notebooks/building_rag_vdb_operator.ipynb"
+    notebook = json.loads(notebook_path.read_text(encoding="utf-8"))
+
+    code = "\n".join(
+        "".join(cell["source"])
+        for cell in notebook["cells"]
+        if cell.get("cell_type") == "code"
+    )
+
+    assert re.search(
+        r'if\s+DEPLOYMENT_MODE\s*==\s*"cloud"\s*:'
+        r'.*config_ingestor\.summarizer\.server_url\s*=\s*""',
+        code,
+        flags=re.DOTALL,
+    ), "Notebook cloud mode must clear config_ingestor.summarizer.server_url."
 
 
 def test_compose_app_services_default_to_seaweedfs():
