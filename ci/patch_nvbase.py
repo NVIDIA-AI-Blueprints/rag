@@ -151,13 +151,17 @@ def patch_n_concurrent() -> None:
         return
 
     text = path.read_text()
-    old = "n_concurrent: int = 4,"
-    new = "n_concurrent: int = 1,  # patched: sequential trials"
+    # Target: run_harbor_eval() resolves n_concurrent with default 4
+    # This is the actual function nv-base calls for --env-mode local
+    old = '_resolve_config_value("n_concurrent", n_concurrent, 4)'
+    new = '_resolve_config_value("n_concurrent", n_concurrent, 1)  # patched: sequential trials'
 
-    if "n_concurrent: int = 1," in text:
+    if "n_concurrent, 1)  # patched" in text:
         print(f"  ALREADY PATCHED: {path}")
         return
     if old not in text:
+        # Previous wrong patch may have been applied (n_concurrent: int = 1)
+        # but the real fix is the _resolve_config_value default
         print(f"  SKIP (anchor not found — may be fixed upstream): {path}")
         return
 
