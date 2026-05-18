@@ -199,8 +199,13 @@ class BrevEnvironment(BaseEnvironment):
         logger.info("Cloning %s @ %s → %s:$HOME/rag",
                     repo_url, branch, self._instance_name)
 
+        # `sudo` because docker-compose volumes (e.g. milvus/rdb_data_meta_kv/*)
+        # are owned by root — Milvus's container writes them as root via the
+        # bind mount, and the ubuntu user can't rm them. Without sudo the
+        # rm errors out before git clone, the agent never sees a repo, and
+        # both trials raise RuntimeError in start().
         clone_cmd = (
-            f'rm -rf "$HOME/rag" && '
+            f'sudo rm -rf "$HOME/rag" && '
             f"git clone --depth 1 --branch {shlex.quote(branch)} "
             f"{shlex.quote(clone_url)} \"$HOME/rag\""
         )
