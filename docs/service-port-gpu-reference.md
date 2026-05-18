@@ -20,8 +20,8 @@ The following table provides a comprehensive reference of all services, their po
 | Service | Container Name | Host Port(s) | Container Port(s) | Default GPU ID | Environment Variable | Notes |
 |---------|---------------|--------------|-------------------|----------------|---------------------|-------|
 | LLM | `nim-llm-ms` | 8999 | 8000 | 1 | `LLM_MS_GPU_ID` | Main language model |
-| Embedding | `nemotron-embedding-ms` | 9080 | 8000 | 0 | `EMBEDDING_MS_GPU_ID` | Text embeddings |
-| VLM Embedding | `nemotron-vlm-embedding-ms` | 9081 | 8000 | 0 | `VLM_EMBEDDING_MS_GPU_ID` | Vision-language embeddings (opt-in, profile: vlm-embed) |
+| Text Embedding | `nemotron-embedding-ms` | 9080 | 8000 | 0 | `EMBEDDING_MS_GPU_ID` | Optional text embeddings (profile: text-embed) |
+| VLM Embedding | `nemotron-vlm-embedding-ms` | 9081 | 8000 | 0 | `VLM_EMBEDDING_MS_GPU_ID` | Default vision-language embeddings |
 | Ranking | `nemotron-ranking-ms` | 1976 | 8000 | 0 | `RANKING_MS_GPU_ID` | Reranking model |
 | VLM | `nemotron-3-nano-omni-30b-a3b-reasoning` | 1977 | 8000 | 5 | `VLM_MS_GPU_ID` | Vision-language model (opt-in, profile: vlm-only, vlm-generation) |
 | Nemotron Parse | `compose-nemotron-parse-1` | 8015, 8016, 8017 | 8000, 8001, 8002 | 1 | `NEMOTRON_PARSE_MS_GPU_ID` | PDF parsing (opt-in, profile: nemotron-parse) |
@@ -45,7 +45,6 @@ The following table provides a comprehensive reference of all services, their po
 **Opt-in NIM Services:**
 
 The following NIM services are opt-in and require explicit Docker Compose profile activation:
-- **VLM Embedding** (`nemotron-vlm-embedding-ms`): Use profile `vlm-embed` for vision-language embeddings
 - **VLM** (`nemotron-3-nano-omni-30b-a3b-reasoning`): Use profile `vlm-only` or `vlm-generation` for vision-language model
 - **Nemotron Parse** (`compose-nemotron-parse-1`): Use profile `nemotron-parse` for advanced PDF parsing
 - **RIVA ASR** (`compose-audio-1`): Use profile `audio` for audio speech recognition

@@ -31,13 +31,13 @@ services:
       retries: 100
     profiles: ["local"]
 
-  nemotron-embedding-ms:
-    container_name: nemotron-embedding-ms
-    image: nvcr.io/nim/nvidia/llama-nemotron-embed-1b-v2:1.13.0
+  nemotron-vlm-embedding-ms:
+    container_name: nemotron-vlm-embedding-ms
+    image: nvcr.io/nim/nvidia/llama-nemotron-embed-vl-1b-v2:1.12.0
     volumes:
     - ${MODEL_DIRECTORY:-/tmp}:/opt/nim/.cache
     ports:
-    - "9080:8000"
+    - "9081:8000"
     expose:
     - "8000"
     environment:
@@ -51,7 +51,7 @@ services:
           devices:
             - driver: nvidia
               # count: ${INFERENCE_GPU_COUNT:-all}
-              device_ids: ['${EMBEDDING_MS_GPU_ID:-0}']
+              device_ids: ['${VLM_EMBEDDING_MS_GPU_ID:-0}']
               capabilities: [gpu]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/v1/health/ready"]
@@ -252,8 +252,8 @@ services:
 
       ##===Embedding Model specific configurations===
       # url on which embedding model is hosted. If "", Nvidia hosted API is used
-      APP_EMBEDDINGS_SERVERURL: ${APP_EMBEDDINGS_SERVERURL-"nemotron-embedding-ms:8000/v1"}
-      APP_EMBEDDINGS_MODELNAME: ${APP_EMBEDDINGS_MODELNAME:-nvidia/llama-nemotron-embed-1b-v2}
+      APP_EMBEDDINGS_SERVERURL: ${APP_EMBEDDINGS_SERVERURL-"nemotron-vlm-embedding-ms:8000/v1"}
+      APP_EMBEDDINGS_MODELNAME: ${APP_EMBEDDINGS_MODELNAME:-nvidia/llama-nemotron-embed-vl-1b-v2}
       APP_EMBEDDINGS_DIMENSIONS: ${APP_EMBEDDINGS_DIMENSIONS:-2048}
 
       ##===NV-Ingest Connection Configurations=======
@@ -491,8 +491,8 @@ services:
 
       ##===Embedding Model specific configurations===
       # url on which embedding model is hosted. If "", Nvidia hosted API is used
-      APP_EMBEDDINGS_SERVERURL: ${APP_EMBEDDINGS_SERVERURL-"nemotron-embedding-ms:8000/v1"}
-      APP_EMBEDDINGS_MODELNAME: ${APP_EMBEDDINGS_MODELNAME:-nvidia/llama-nemotron-embed-1b-v2}
+      APP_EMBEDDINGS_SERVERURL: ${APP_EMBEDDINGS_SERVERURL-"nemotron-vlm-embedding-ms:8000/v1"}
+      APP_EMBEDDINGS_MODELNAME: ${APP_EMBEDDINGS_MODELNAME:-nvidia/llama-nemotron-embed-vl-1b-v2}
 
       ##===Reranking Model specific configurations===
       # url on which ranking model is hosted. If "", Nvidia hosted API is used

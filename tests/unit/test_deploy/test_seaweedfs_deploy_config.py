@@ -5,6 +5,10 @@ from pathlib import Path
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
+DEFAULT_LLM_MODEL = "nvidia/nemotron-3-super-120b-a12b"
+DEFAULT_VLM_MODEL = "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
+DEFAULT_EMBEDDING_MODEL = "nvidia/llama-nemotron-embed-vl-1b-v2"
+DEFAULT_RANKING_MODEL = "nvidia/llama-nemotron-rerank-1b-v2"
 
 
 def load_yaml(path: Path) -> dict[str, object]:
@@ -76,6 +80,43 @@ def test_notebook_config_uses_host_and_container_seaweedfs_endpoints():
     for config in (notebook_config, integration_config):
         assert config["object_store"]["endpoint"] == "localhost:9010"
         assert config["object_store"]["nv_ingest_endpoint"] == "seaweedfs:9010"
+
+
+def test_notebook_configs_use_current_default_llm_and_vlm_models():
+    notebook_config = load_yaml(REPO_ROOT / "notebooks/config.yaml")
+    integration_config = load_yaml(REPO_ROOT / "tests/integration/notebook_test_config.yaml")
+
+    for config in (notebook_config, integration_config):
+        assert config["llm"]["model_name"] == DEFAULT_LLM_MODEL
+        assert config["query_rewriter"]["model_name"] == DEFAULT_LLM_MODEL
+        assert (
+            config["filter_expression_generator"]["model_name"] == DEFAULT_LLM_MODEL
+        )
+        assert config["summarizer"]["model_name"] == DEFAULT_LLM_MODEL
+        assert config["reflection"]["model_name"] == DEFAULT_LLM_MODEL
+
+        assert config["vlm"]["model_name"] == DEFAULT_VLM_MODEL
+        assert config["nv_ingest"]["caption_model_name"] == DEFAULT_VLM_MODEL
+
+    agentic_config = notebook_config["agentic_rag"]
+    for role in ("planner_llm", "task_llm", "seed_gen_llm", "synthesis_llm"):
+        assert agentic_config[role]["model_name"] == DEFAULT_LLM_MODEL
+
+
+def test_notebook_configs_use_current_retrieval_defaults():
+    notebook_config = load_yaml(REPO_ROOT / "notebooks/config.yaml")
+    integration_config = load_yaml(REPO_ROOT / "tests/integration/notebook_test_config.yaml")
+
+    for config in (notebook_config, integration_config):
+        assert config["vector_store"]["name"] == "elasticsearch"
+        assert config["vector_store"]["url"] == "http://localhost:9200"
+        assert config["vector_store"]["search_type"] == "dense"
+        assert config["object_store"]["endpoint"] == "localhost:9010"
+        assert config["object_store"]["nv_ingest_endpoint"] == "seaweedfs:9010"
+        assert config["embeddings"]["model_name"] == DEFAULT_EMBEDDING_MODEL
+        assert config["embeddings"]["server_url"] == "http://localhost:9081/v1"
+        assert config["ranking"]["model_name"] == DEFAULT_RANKING_MODEL
+        assert config["ranking"]["server_url"] == "http://localhost:1976"
 
 
 def test_vdb_operator_notebook_references_valid_vectordb_profile():
