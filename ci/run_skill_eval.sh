@@ -167,7 +167,7 @@ for skill in "${NO_GPU_SKILLS[@]}"; do
   nv-base agent-eval \
     --env-mode local \
     -a claude-code \
-    --agent-model "claude-code=aws/anthropic/bedrock-claude-opus-4-7" \
+    --agent-model "claude-code=aws/anthropic/bedrock-claude-sonnet-4-6" \
     --skip-baseline \
     --timeout-multiplier 3 \
     -k 1 \
