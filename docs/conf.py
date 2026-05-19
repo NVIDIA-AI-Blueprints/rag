@@ -26,7 +26,7 @@ import sys
 project = " NVIDIA RAG blueprint"
 copyright = "2025-%Y, NVIDIA Corporation"
 author = "NVIDIA Corporation"
-release = "2.5.0"
+release = "2.5.1"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration

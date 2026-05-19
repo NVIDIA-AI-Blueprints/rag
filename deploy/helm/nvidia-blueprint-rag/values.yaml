@@ -57,7 +57,7 @@ apiKeysSecret:
 # -- RAG server container image
 image:
   repository: nvcr.io/nvidia/blueprint/rag-server
-  tag: "2.5.0"
+  tag: "2.5.1"
   pullPolicy: Always
 
 # -- RAG server service configuration
@@ -192,20 +192,26 @@ envVars:
   RERANKER_SCORE_THRESHOLD: "0.0"
 
   ##===VLM Model specific configurations===
-  ENABLE_VLM_INFERENCE: "false"
+  ENABLE_VLM_INFERENCE: "False"
   # When true, allow falling back to LLM flow if no images are present in query/messages/context.
   # When false, always route generation through VLM when ENABLE_VLM_INFERENCE is true.
-  VLM_TO_LLM_FALLBACK: "true"
+  VLM_TO_LLM_FALLBACK: "False"
   # Max images sent to VLM per request (query + context)
   APP_VLM_MAX_TOTAL_IMAGES: "5"
+  # Whether to filter out reasoning tokens from VLM responses (stream only content, not reasoning)
+  VLM_FILTER_THINK_TOKENS: "true"
+  # Enable reasoning mode for Nemotron 3 nano omni reasoning model
+  APP_VLM_ENABLE_THINKING: "true"
+  # Max reasoning tokens for VLM (0 = no cap); only applied when enable_thinking is true
+  APP_VLM_THINKING_TOKEN_BUDGET: "0"
   # VLM generation parameters
-  APP_VLM_MAX_TOKENS: "8192"
-  APP_VLM_TEMPERATURE: "0.1"
-  APP_VLM_TOP_P: "1.0"
+  APP_VLM_MAX_TOKENS: "32768"
+  APP_VLM_TEMPERATURE: "0.6"
+  APP_VLM_TOP_P: "0.95"
   # VLM server URL
   APP_VLM_SERVERURL: "http://nim-vlm:8000/v1"
   # VLM model name
-  APP_VLM_MODELNAME: "nvidia/nemotron-nano-12b-v2-vl"
+  APP_VLM_MODELNAME: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
 
   # === Text Splitter ===
   APP_TEXTSPLITTER_CHUNKSIZE: "2000"
@@ -365,14 +371,14 @@ ingestor-server:
     APP_NVINGEST_EXTRACTINFOGRAPHICS: "False"  # Enable infographic extraction
     APP_NVINGEST_EXTRACTTABLES: "True"  # Enable table extraction
     APP_NVINGEST_EXTRACTCHARTS: "True"  # Enable chart extraction
-    APP_NVINGEST_EXTRACTIMAGES: "False"  # Enable image extraction
+    APP_NVINGEST_EXTRACTIMAGES: "False"  # Enable image extraction (opt-in for VLM caption pipeline)
     APP_NVINGEST_EXTRACTPAGEASIMAGE: "False"  # Extracts each page as image if enabled
     APP_NVINGEST_STRUCTURED_ELEMENTS_MODALITY: ""  # "image", "text_image"
     APP_NVINGEST_IMAGE_ELEMENTS_MODALITY: ""  # "image"
     APP_NVINGEST_TEXTDEPTH: "page"  # Extract text by "page" or "document"
 
     # === NV-Ingest caption configurations ===
-    APP_NVINGEST_CAPTIONMODELNAME: "nvidia/nemotron-nano-12b-v2-vl"  # Model name for captioning
+    APP_NVINGEST_CAPTIONMODELNAME: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"  # Model name for captioning
     APP_NVINGEST_CAPTIONENDPOINTURL: ""  # Endpoint URL for captioning model
 
     # === NV-Ingest save to disk configurations ===
@@ -790,7 +796,7 @@ nimOperator:
         grpcPort: 8001
 
 # subsection: nvidia-nim-llama-nemotron-embed-vl-1b-v2
-# NIM VLM Embedding
+# NIM VLM Embedding (opt-in)
   nvidia-nim-llama-nemotron-embed-vl-1b-v2:
     enabled: false
     service:
@@ -868,8 +874,8 @@ nimOperator:
     service:
       name: "nim-vlm"
     image:
-      repository: nvcr.io/nim/nvidia/nemotron-nano-12b-v2-vl
-      tag: "1.5.0"
+      repository: nvcr.io/nim/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning
+      tag: "1.7.0-variant"
       pullPolicy: IfNotPresent
     resources:
       limits:
@@ -976,7 +982,7 @@ nv-ingest:
     YOLOX_TABLE_STRUCTURE_INFER_PROTOCOL: grpc
 
     # Captioning
-    VLM_CAPTION_MODEL_NAME: nvidia/nemotron-nano-12b-v2-vl
+    VLM_CAPTION_MODEL_NAME: nvidia/nemotron-3-nano-omni-30b-a3b-reasoning
     VLM_CAPTION_ENDPOINT: http://nim-vlm:8000/v1/chat/completions
 
     # Audio service
