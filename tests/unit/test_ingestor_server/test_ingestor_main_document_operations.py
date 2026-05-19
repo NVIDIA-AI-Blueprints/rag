@@ -306,6 +306,9 @@ class TestNvidiaRAGIngestorCoverageImprovement:
         mock_vdb_op.create_collection.return_value = {"status": "success"}
         mock_vdb_op.get_metadata_schema.return_value = []
         mock_vdb_op.create_metadata_schema_collection.return_value = None
+        # check_collection_exists is the dedup chokepoint; return False so
+        # the request hits the create branch instead of short-circuiting.
+        mock_vdb_op.check_collection_exists.return_value = False
         mock_vdb_op.get_collection.return_value = []
         mock_vdb_op.add_metadata_schema.return_value = None
 
@@ -334,6 +337,9 @@ class TestNvidiaRAGIngestorCoverageImprovement:
         mock_vdb_op.create_collection.side_effect = Exception("Test error")
         mock_vdb_op.get_metadata_schema.return_value = []
         mock_vdb_op.create_metadata_schema_collection.return_value = None
+        # The error path requires reaching create_collection — make sure the
+        # dedup short-circuit (check_collection_exists) does not fire first.
+        mock_vdb_op.check_collection_exists.return_value = False
         mock_vdb_op.get_collection.return_value = []
 
         ingestor = NvidiaRAGIngestor(mode=Mode.LIBRARY)
@@ -705,6 +711,8 @@ class TestNvidiaRAGIngestorCoverageImprovement:
         mock_vdb_op.create_collection.side_effect = Exception("Database error")
         mock_vdb_op.get_metadata_schema.return_value = []
         mock_vdb_op.create_metadata_schema_collection.return_value = None
+        # Avoid the dedup short-circuit so create_collection is invoked.
+        mock_vdb_op.check_collection_exists.return_value = False
         mock_vdb_op.get_collection.return_value = []
 
         ingestor = NvidiaRAGIngestor(mode=Mode.LIBRARY)
