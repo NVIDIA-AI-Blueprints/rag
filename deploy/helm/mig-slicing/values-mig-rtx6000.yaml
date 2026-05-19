@@ -9,7 +9,6 @@
 # Requires GPU Operator mig-strategy=mixed so the node advertises both
 # nvidia.com/gpu and nvidia.com/mig-* resources simultaneously.
 #
-# NOTE: not verified on hardware — logical update mirroring the H100 file.
 
 # Ingestor Server — reduce concurrency for MIG
 ingestor-server:
