@@ -195,25 +195,28 @@ if [ -n "${BREV_INSTANCE:-}" ]; then
   if brev ls 2>/dev/null | awk -v n="$BREV_INSTANCE" '$1==n {found=1} END{exit !found}'; then
     echo "Reusing existing $BREV_INSTANCE (operator pre-provisioned)"
   else
-    # Resolve brev_type from the adapter-written task.toml. Same lookup
-    # as the EXIT trap (step-N share the same brev_type).
-    BREV_TYPE=$(grep -hoE 'brev_type[[:space:]]*=[[:space:]]*"[^"]+"' \
-      "$DATASETS_DIR"/step-*/task.toml 2>/dev/null | head -1 \
-      | sed 's/.*"\([^"]*\)".*/\1/')
-    if [ -z "$BREV_TYPE" ]; then
-      # Task dirs not generated yet (we're before the adapter call) — read
-      # straight from the spec.
-      BREV_TYPE=$(python3 -c "
-import json,sys
-spec=json.load(open('$SPEC_FILE'))
-plats=spec.get('resources',{}).get('platforms',{})
-for p in spec.get('platforms',[]):
-    if p in plats and plats[p].get('brev_type'):
-        print(plats[p]['brev_type']); sys.exit(0)
-" 2>/dev/null)
+    # Resolve brev_type from the spec directly. We're before the adapter
+    # runs (task.toml isn't written yet), so the spec JSON is the source
+    # of truth. Falls back to "" if the spec lacks an explicit brev_type
+    # under resources.platforms.<plat> — in which case we abort with a
+    # clear message (caller must set it explicitly for now; the runtime
+    # search path in brev_env._find_cheapest_matching_type is unverified).
+    if [ ! -f "$SPEC_FILE" ]; then
+      echo "Spec file not found: $SPEC_FILE"
+      exit 1
     fi
+    BREV_TYPE=$(python3 - <<PY 2>/dev/null || true
+import json, sys
+spec = json.load(open("$SPEC_FILE"))
+plats = (spec.get("resources") or {}).get("platforms") or {}
+for p in spec.get("platforms", []):
+    cfg = plats.get(p) or {}
+    if cfg.get("brev_type"):
+        print(cfg["brev_type"]); sys.exit(0)
+PY
+)
     if [ -z "$BREV_TYPE" ]; then
-      echo "Cannot determine brev_type for $EVAL_NAME — set 'brev_type' in spec resources.platforms.* or in task.toml"
+      echo "Cannot determine brev_type for $EVAL_NAME — set 'brev_type' in spec resources.platforms.<name>"
       exit 1
     fi
     echo "==> Pre-provisioning $BREV_INSTANCE type=$BREV_TYPE (up to ${BREV_PROVISION_TIMEOUT:-1800}s)"
