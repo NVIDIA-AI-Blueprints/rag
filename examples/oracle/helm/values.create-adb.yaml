@@ -1,0 +1,329 @@
+# Oracle branch default Helm values: create a fresh Oracle Autonomous AI
+# Database 26ai, bootstrap RAG_APP, then deploy RAG configured to use Oracle.
+
+oracle:
+  mode: create
+  createDatabase:
+    enabled: true
+    autoDiscover: true
+    compartmentId: "" # optional override
+    subnetId: ""      # optional override; private subnet recommended
+    nsgIds: []
+    # Empty by default: provisioner generates a stable, unique name from
+    # Helm release + namespace (for example ragbp1a2b3c). Override only if you
+    # intentionally want a specific database name.
+    dbName: ""
+    displayName: ""
+    reuseExisting: false
+    # Developer ADB: low-cost, fixed-shape (2 ECPU), same 26ai engine.
+    # All features work: cuVS GPU offload, hybrid search, VECTOR type.
+    # Set to false for full production ADB with auto-scaling.
+    developer: true
+    ecpus: 2
+    storageTb: 1
+    # OCI API enum: LH = Lakehouse (analytics + AI), OLTP = Transaction
+    # Processing, AJD = JSON, APEX = APEX.
+    workloadType: LH
+    deleteOnUninstall: false
+  auth:
+    method: oci_cli_config
+    ociConfigSecret: oci-config
+    profile: DEFAULT
+  credentials:
+    oracleSecret: oracle-creds
+  provisioner:
+    # Uses Python image + pip installs OCI/oracledb/kubernetes in the hook Job.
+    # For production, publish examples/oracle/provisioner/Dockerfile and set
+    # image to that prebuilt image to avoid pip install during helm install.
+    image: docker.io/python:3.12-slim
+    imagePullPolicy: IfNotPresent
+
+  # cuVS-accelerated vector index build via the Oracle Private AI Services
+  # container (gpu-index variant). Default ON: every Oracle deployment gets
+  # GPU-accelerated CREATE VECTOR INDEX out of the box. Opt out with
+  # `--set oracle.gpuIndexOffload.enabled=false` if you want CPU-only.
+  gpuIndexOffload:
+    enabled: true
+    image:
+      repository: container-registry.oracle.com/database/private-ai
+      tag: gpu-index-26.1.0.0.0
+      pullPolicy: IfNotPresent
+    replicaCount: 1
+    # Pre-install hook that pulls the PAI image onto a GPU node BEFORE
+    # the long-running ADB provisioner kicks off.  Catches missing GPU
+    # nodes, missing OCR auth, unaccepted licenses, and image-tag typos
+    # in ~30s instead of 30 minutes. Set to false to skip.
+    preflight:
+      enabled: true
+    service:
+      # ADB is a managed OCI service in your VCN; it has no path to cluster.local
+      # DNS or to a ClusterIP. The default LoadBalancer (with the OCI internal
+      # annotation) gets a stable VCN-routable IP that ADB can dial during
+      # CREATE VECTOR INDEX. Override to ClusterIP only for advanced setups
+      # where another mechanism (e.g. a service mesh, manual DNS) bridges
+      # ADB-to-pod connectivity.
+      type: LoadBalancer
+      internal: true
+      port: 8080
+      # Optional pinning for the LB; leave empty to use the OKE service-LB defaults
+      shape: ""        # e.g. "flexible" or "10Mbps"
+      subnetId: ""     # OCID of an internal LB subnet, defaults to OKE service subnet
+      nsgIds: []       # list of NSG OCIDs to attach to the LB
+      annotations: {}  # extra service annotations (passthrough)
+    # cuVS works on any NVIDIA GPU with compute capability >= 7.5 (Turing or
+    # newer). Default to no nodeSelector so the scheduler picks any GPU node
+    # the device plugin advertises. Override to pin to a specific shape:
+    #   --set oracle.gpuIndexOffload.nodeSelector."nvidia\.com/gpu\.product"=NVIDIA-H100-80GB-HBM3
+    nodeSelector: {}
+    tolerations: []
+    resources:
+      requests:
+        cpu: "2"
+        memory: 4Gi
+        nvidia.com/gpu: 1
+      limits:
+        cpu: "8"
+        memory: 16Gi
+        nvidia.com/gpu: 1
+    # Forwarded as PRIVATE_AI_GPU_MODE. DETECT (default) | FORCE | DISABLE.
+    gpuMode: FORCE
+    # In-cluster traffic only -> no TLS / API key. Flip both to true and
+    # provide a keystore + api-key secret to expose externally.
+    https: true
+    auth: false
+    extraEnv: []
+
+  # Oracle Container Registry credentials. Same UX as NGC: pass via --set,
+  # the chart materializes a docker-registry secret that the PAI Deployment
+  # uses for image pulls. If you already have a docker-registry secret in the
+  # namespace, set create=false and `name` to the existing secret.
+  containerRegistry:
+    create: true
+    name: oracle-pull-secret
+    server: container-registry.oracle.com
+    username: ""   # Oracle SSO email
+    password: ""   # Auth token from container-registry.oracle.com profile
+
+  # Bring-Your-Own data: expose pre-existing Oracle tables to the frontend.
+  # Mostly relevant in oracle.mode=existing, but also valid for create-adb
+  # when seeding a fresh ADB with data restored from a backup. Same
+  # semantics as in values.existing-adb.yaml.
+  #
+  # importExistingTables:
+  #   - sourceTable: KB_USER.MY_DOCS
+  #     collectionName: my_kb_view
+  #     columns:
+  #       text: content
+  #       vector: embedding
+  #       source: source_url           # optional; wrapped into JSON
+  #       contentMetadata: meta_json   # optional
+  importExistingTables: []
+
+operators:
+  # Install the NVIDIA GPU Operator as part of the Oracle wrapper so a clean
+  # OKE cluster can go from zero to serving NIMs without a separate operator
+  # pre-install step. Set false if your cluster already manages GPU drivers.
+  gpu:
+    enabled: true
+  # Install NIM Operator so the RAG chart's NIMService/NIMCache resources
+  # reconcile into pods and model-cache PVCs.
+  nim:
+    enabled: true
+
+# GPU Operator defaults. The upstream chart ships the sensible defaults; this
+# section exists so users can override if their cluster already has drivers,
+# toolkit, or device plugin installed.
+gpu-operator:
+  driver:
+    enabled: false
+  toolkit:
+    enabled: true
+  # Upstream NFD subchart (gpu-operator dep) ships a post-delete prune Job
+  # whose pod-spec puts `resources` at the wrong YAML level (pod-spec
+  # instead of container-spec). That fails admission on any 1.27+ cluster,
+  # which would block `helm uninstall`. Disabling postDeleteCleanup
+  # suppresses the broken Job; the only side-effect is leftover NFD node
+  # labels after uninstall, which is acceptable for an enterprise cluster.
+  # TODO(upstream): track NFD chart fix and re-enable.
+  node-feature-discovery:
+    postDeleteCleanup: false
+
+nim-operator: {}
+
+# Match the stock NVIDIA RAG chart UX:
+#   --set imagePullSecret.password=$NGC_API_KEY
+#   --set ngcApiSecret.password=$NGC_API_KEY
+#
+# If `create=false`, the chart assumes the named secrets already exist. This
+# is how AI Pack / ORM deployments can supply platform-managed secrets without
+# asking the Helm user for the key.
+imagePullSecret:
+  create: true
+  name: ngc-secret
+  registry: nvcr.io
+  username: "$oauthtoken"
+  password: ""
+
+ngcApiSecret:
+  create: true
+  name: ngc-api
+  password: ""
+
+frontend:
+  service:
+    type: LoadBalancer
+
+rag:
+  imagePullSecret:
+    create: false
+    name: ngc-secret
+  ngcApiSecret:
+    create: false
+    name: ngc-api
+  frontend:
+    service:
+      type: LoadBalancer
+  # --- Oracle code overlay (no custom images) ---
+  # 1. Init container: pip-installs oracledb + langchain-oracledb into an emptyDir.
+  # 2. preStartScript: patches the stock image's VDB dispatcher with our Oracle adapter
+  #    before uvicorn starts. Files come from the oracle-vdb-code ConfigMap.
+  # 3. PYTHONPATH=/opt/oracle-deps lets the main container find the pip packages.
+  # ~30s overhead on first pod start. Becomes unnecessary once NGC images include oracle.
+  preStartScript: |
+    VDB=$(python -c "from pathlib import Path; import nvidia_rag; print(Path(nvidia_rag.__file__).parent / 'utils' / 'vdb')")
+    mkdir -p $VDB/oracle
+    cp /oracle-src/vdb_init.py   $VDB/__init__.py
+    cp /oracle-src/oracle_init.py $VDB/oracle/__init__.py
+    cp /oracle-src/oracle_vdb.py  $VDB/oracle/oracle_vdb.py
+    cp /oracle-src/oracle_queries.py $VDB/oracle/oracle_queries.py
+    cp /oracle-src/oracle_errors.py  $VDB/oracle/oracle_errors.py
+  initContainers:
+    - name: install-oracle-deps
+      image: "docker.io/python:3.13-slim"
+      command: ["pip"]
+      args: ["install", "--target=/opt/oracle-deps", "--no-cache-dir",
+             "oracledb==3.4.2", "langchain-oracledb==1.3.0"]
+      volumeMounts:
+        - name: oracle-pip-packages
+          mountPath: /opt/oracle-deps
+  extraVolumes:
+    - name: oracle-pip-packages
+      emptyDir: {}
+    - name: oracle-vdb-code
+      configMap:
+        name: oracle-vdb-code
+  extraVolumeMounts:
+    - name: oracle-pip-packages
+      mountPath: /opt/oracle-deps
+    - name: oracle-vdb-code
+      mountPath: /oracle-src
+      readOnly: true
+  ingestor-server:
+    preStartScript: |
+      VDB=$(python -c "from pathlib import Path; import nvidia_rag; print(Path(nvidia_rag.__file__).parent / 'utils' / 'vdb')")
+      mkdir -p $VDB/oracle
+      cp /oracle-src/vdb_init.py   $VDB/__init__.py
+      cp /oracle-src/oracle_init.py $VDB/oracle/__init__.py
+      cp /oracle-src/oracle_vdb.py  $VDB/oracle/oracle_vdb.py
+      cp /oracle-src/oracle_queries.py $VDB/oracle/oracle_queries.py
+      cp /oracle-src/oracle_errors.py  $VDB/oracle/oracle_errors.py
+    initContainers:
+      - name: install-oracle-deps
+        image: "docker.io/python:3.13-slim"
+        command: ["pip"]
+        args: ["install", "--target=/opt/oracle-deps", "--no-cache-dir",
+               "oracledb==3.4.2", "langchain-oracledb==1.3.0"]
+        volumeMounts:
+          - name: oracle-pip-packages
+            mountPath: /opt/oracle-deps
+    extraVolumes:
+      - name: oracle-pip-packages
+        emptyDir: {}
+      - name: oracle-vdb-code
+        configMap:
+          name: oracle-vdb-code
+    extraVolumeMounts:
+      - name: oracle-pip-packages
+        mountPath: /opt/oracle-deps
+      - name: oracle-vdb-code
+        mountPath: /oracle-src
+        readOnly: true
+    envFrom:
+      - secretRef:
+          name: oracle-creds
+    envVars:
+      APP_VECTORSTORE_NAME: oracle
+      APP_VECTORSTORE_SEARCHTYPE: hybrid
+      APP_VECTORSTORE_INDEXTYPE: HNSW
+      APP_VECTORSTORE_ENABLEGPUSEARCH: "False"
+      APP_VECTORSTORE_URL: ""
+      ENABLE_MINIO: "true"
+      MINIO_ENDPOINT: "rag-minio:9000"
+      MINIO_ACCESSKEY: "minioadmin"
+      MINIO_SECRETKEY: "minioadmin"
+      PYTHONPATH: "/opt/oracle-deps"
+      ORACLE_VECTOR_INDEX_TYPE: HNSW
+      ORACLE_DISTANCE_METRIC: COSINE
+      SUMMARY_LLM: "nvidia/nemotron-3-super-120b-a12b"
+  # Nemotron 3 Super 120B as the standard LLM.
+  # To switch to the 49B variant, override:
+  #   --set rag.envVars.APP_LLM_MODELNAME=nvidia/llama-3.3-nemotron-super-49b-v1.5
+  #   --set rag.nimOperator.nim-llm.image.repository=nvcr.io/nim/nvidia/llama-3.3-nemotron-super-49b-v1.5
+  nimOperator:
+    nim-llm:
+      image:
+        repository: nvcr.io/nim/nvidia/nemotron-3-super-120b-a12b
+        pullPolicy: IfNotPresent
+        tag: "1.8.0"
+      resources:
+        limits:
+          nvidia.com/gpu: 2
+        requests:
+          nvidia.com/gpu: 2
+      storage:
+        pvc:
+          create: true
+          size: "200Gi"
+          volumeAccessMode: ReadWriteOnce
+      model:
+        engine: vllm
+        precision: "fp8"
+        tensorParallelism: "2"
+      env:
+        - name: NIM_HTTP_API_PORT
+          value: "8000"
+        - name: NIM_SERVED_MODEL_NAME
+          value: "nvidia/nemotron-3-super-120b-a12b"
+        - name: NIM_MAX_MODEL_LEN
+          value: "131072"
+  envFrom:
+    - secretRef:
+        name: oracle-creds
+  # Oracle replaces Milvus. Disable bundled Milvus.
+  milvusDeployed: false
+  nv-ingest:
+    milvusDeployed: false
+  envVars:
+    PYTHONPATH: "/opt/oracle-deps"
+    APP_VECTORSTORE_NAME: oracle
+    APP_VECTORSTORE_SEARCHTYPE: hybrid
+    APP_VECTORSTORE_INDEXTYPE: HNSW
+    APP_VECTORSTORE_ENABLEGPUSEARCH: "False"
+    APP_VECTORSTORE_URL: ""
+    ENABLE_MINIO: "true"
+    MINIO_ENDPOINT: "rag-minio:9000"
+    MINIO_ACCESSKEY: "minioadmin"
+    MINIO_SECRETKEY: "minioadmin"
+    ORACLE_VECTOR_INDEX_TYPE: HNSW
+    ORACLE_DISTANCE_METRIC: COSINE
+    APP_LLM_MODELNAME: "nvidia/nemotron-3-super-120b-a12b"
+    APP_QUERYREWRITER_MODELNAME: "nvidia/nemotron-3-super-120b-a12b"
+    APP_FILTEREXPRESSIONGENERATOR_MODELNAME: "nvidia/nemotron-3-super-120b-a12b"
+    REFLECTION_LLM: "nvidia/nemotron-3-super-120b-a12b"
+
+minio:
+  enabled: true
+  image: docker.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
+  accessKey: minioadmin
+  secretKey: minioadmin
+  storage: 50Gi

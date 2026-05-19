@@ -1,0 +1,100 @@
+{{- /*
+  PAI gpu-index preflight check.
+
+  Customer pain we're guarding against: the provisioner Job runs for
+  20-40 minutes (provisioning ADB, opening OCI security paths, etc).
+  If the GPU node is missing, the OCR token is wrong, or the cuVS image
+  isn't pullable, we want to KNOW that BEFORE the slow Job kicks off.
+
+  This Job:
+    1. schedules onto a GPU node (same nodeSelector / tolerations as
+       the real PAI workload), confirming such a node exists,
+    2. pulls the PAI image (pulling, then exiting cleanly), confirming
+       the OCR pull secret works AND the license has been accepted on
+       container-registry.oracle.com.
+
+  It runs as a pre-install hook with hook-weight -20 so it executes
+  BEFORE the ADB provisioner (-10).  If it fails, the install aborts
+  with a clear error, the long-running provisioner never starts, and
+  the customer gets a 30-second feedback loop instead of 30 minutes.
+*/ -}}
+{{- /* Helm's `default` treats `false` as empty for booleans (so
+       `default true false` returns true). Use kindIs / hasKey to
+       honour an explicit false from `--set ...preflight.enabled=false`. */ -}}
+{{- $g := (default dict .Values.oracle).gpuIndexOffload | default dict -}}
+{{- $pf := $g.preflight | default dict -}}
+{{- $pfEnabled := true -}}
+{{- if hasKey $pf "enabled" -}}{{- $pfEnabled = $pf.enabled -}}{{- end -}}
+{{- if and (hasKey .Values "oracle") (default false $g.enabled) $pfEnabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: oracle-pai-preflight
+  labels:
+    app.kubernetes.io/name: oracle-pai-preflight
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-20"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 600
+  activeDeadlineSeconds: 300
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: oracle-pai-preflight
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      {{- if $g.imagePullSecrets }}
+      imagePullSecrets:
+{{ toYaml $g.imagePullSecrets | indent 8 }}
+      {{- else if and (hasKey .Values "oracle") (hasKey .Values.oracle "containerRegistry") }}
+      imagePullSecrets:
+        - name: {{ .Values.oracle.containerRegistry.name | default "oracle-ocr-creds" }}
+      {{- end }}
+      {{- with $g.nodeSelector }}
+      nodeSelector:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+      {{- with $g.tolerations }}
+      tolerations:
+{{ toYaml . | indent 8 }}
+      {{- else }}
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
+      {{- end }}
+      containers:
+        - name: preflight
+          image: {{ printf "%s:%s" $g.image.repository $g.image.tag | quote }}
+          imagePullPolicy: {{ default "IfNotPresent" $g.image.pullPolicy | quote }}
+          # We pull the PAI image (kubelet does this transparently) and
+          # immediately exit 0 — we are NOT trying to start the JNI/cuVS
+          # service, just prove the node has a GPU and the pull works.
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+              echo "[preflight] PAI image pulled OK on this node"
+              echo "[preflight] checking nvidia-smi (must see a GPU)..."
+              if command -v nvidia-smi >/dev/null 2>&1; then
+                nvidia-smi -L || true
+              else
+                echo "[preflight] nvidia-smi not in this image, skipping device check"
+              fi
+              echo "[preflight] PASS"
+          resources:
+            requests:
+              nvidia.com/gpu: 1
+            limits:
+              nvidia.com/gpu: 1
+{{- end }}

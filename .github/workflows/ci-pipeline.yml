@@ -83,7 +83,24 @@ jobs:
 
       - name: Install system dependencies
         run: |
-          apt-get update && apt-get install -y gcc && rm -rf /var/lib/apt/lists/*
+          apt-get update && apt-get install -y gcc curl && rm -rf /var/lib/apt/lists/*
+
+      - name: Install Helm (required by tests/unit/oracle_helm/)
+        run: |
+          curl -fsSL https://get.helm.sh/helm-v3.18.1-linux-amd64.tar.gz \
+            | tar -xz -C /tmp
+          install /tmp/linux-amd64/helm /usr/local/bin/helm
+          helm version --short
+
+      - name: Fetch Helm chart dependencies
+        # We do not redistribute third-party charts in this repo (per upstream
+        # review). `helm dep update` materialises them from public registries
+        # before pytest runs the chart-rendering tests. The upstream chart is
+        # done first because `helm dep update` is not recursive across the
+        # `file://` reference from the Oracle wrapper chart.
+        run: |
+          helm dependency update deploy/helm/nvidia-blueprint-rag
+          helm dependency update examples/oracle/helm
 
       - name: Install package with dependencies
         run: |

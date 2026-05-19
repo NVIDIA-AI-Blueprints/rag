@@ -1,0 +1,58 @@
+{{- /*
+  RBAC for the post-install oracle-pai-verify Job:
+
+  The Job needs to:
+    - read Service objects (to discover the OCI internal LoadBalancer IP)
+    - patch the oracle-creds Secret (to stamp the resolved URL)
+    - patch Deployments (to roll rag-server / ingestor-server so they pick
+      up the new env var via envFrom)
+
+  Scoped to the release namespace; the Role does NOT grant cluster-wide
+  permissions.
+*/ -}}
+{{- if and (hasKey .Values "oracle") (default false .Values.oracle.gpuIndexOffload.enabled) }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: oracle-pai-verify
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": before-hook-creation
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: oracle-pai-verify
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": before-hook-creation
+rules:
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "patch", "update"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: oracle-pai-verify
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": before-hook-creation
+subjects:
+  - kind: ServiceAccount
+    name: oracle-pai-verify
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  kind: Role
+  name: oracle-pai-verify
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}

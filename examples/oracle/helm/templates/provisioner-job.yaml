@@ -1,0 +1,113 @@
+{{- if and (eq .Values.oracle.mode "create") .Values.oracle.createDatabase.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: oracle-adb-provisioner
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-10"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 1
+  ttlSecondsAfterFinished: 3600
+  activeDeadlineSeconds: 1800
+  template:
+    spec:
+      serviceAccountName: oracle-adb-provisioner
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: provisioner
+          image: {{ .Values.oracle.provisioner.image | quote }}
+          imagePullPolicy: {{ .Values.oracle.provisioner.imagePullPolicy | default "IfNotPresent" | quote }}
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -euo pipefail
+              if ! python - <<'PY'
+              import importlib.util, sys
+              missing=[m for m in ("oci","oracledb","kubernetes") if importlib.util.find_spec(m) is None]
+              sys.exit(1 if missing else 0)
+              PY
+              then
+                pip install --no-cache-dir --target=/tmp/pydeps 'oci>=2.173.0,<3' 'oracledb==3.4.2' 'kubernetes>=31.0.0,<36'
+                export PYTHONPATH=/tmp/pydeps
+              fi
+              EXTRA_ARGS=""
+              {{- if not .Values.oracle.createDatabase.autoDiscover }}
+              EXTRA_ARGS="$EXTRA_ARGS --no-auto-discover"
+              {{- end }}
+              {{- if .Values.oracle.createDatabase.reuseExisting }}
+              EXTRA_ARGS="$EXTRA_ARGS --reuse-existing"
+              {{- end }}
+              {{- if default false .Values.oracle.createDatabase.developer }}
+              EXTRA_ARGS="$EXTRA_ARGS --developer"
+              {{- end }}
+              {{- if and (hasKey .Values "oracle") (default false .Values.oracle.gpuIndexOffload.enabled) }}
+              # GPU offload is enabled. The provisioner opens the OCI security
+              # path (ingress rule on the OKE service-LB subnet) so ADB can
+              # dial the Oracle PAI LoadBalancer. The verify Job (post-install)
+              # patches the actual LB IP onto oracle-creds once OKE has
+              # provisioned the LB; we don't pre-stamp a cluster.local URL
+              # because ADB cannot resolve cluster.local.
+              EXTRA_ARGS="$EXTRA_ARGS --pai-offload-enabled"
+              {{- end }}
+              python /app/provision_adb.py create \
+                --namespace {{ .Release.Namespace | quote }} \
+                --k8s-secret {{ .Values.oracle.credentials.oracleSecret | quote }} \
+                --db-name {{ .Values.oracle.createDatabase.dbName | quote }} \
+                --display-name {{ .Values.oracle.createDatabase.displayName | quote }} \
+                --workload-type {{ .Values.oracle.createDatabase.workloadType | quote }} \
+                --ecpus {{ .Values.oracle.createDatabase.ecpus }} \
+                --storage-tb {{ .Values.oracle.createDatabase.storageTb }} \
+                --wait-seconds 1500 \
+                $EXTRA_ARGS
+          env:
+            {{- if eq .Values.oracle.auth.method "oci_cli_config" }}
+            - name: OCI_CLI_CONFIG_FILE
+              value: /root/.oci/config
+            - name: OCI_CLI_PROFILE
+              value: {{ .Values.oracle.auth.profile | default "DEFAULT" | quote }}
+            {{- end }}
+            - name: OCI_AUTH
+              value: {{ .Values.oracle.auth.method | quote }}
+            - name: HELM_RELEASE_NAME
+              value: {{ .Release.Name | quote }}
+            - name: HELM_NAMESPACE
+              value: {{ .Release.Namespace | quote }}
+            - name: OCI_COMPARTMENT_OCID
+              value: {{ .Values.oracle.createDatabase.compartmentId | quote }}
+            - name: OCI_SUBNET_OCID
+              value: {{ .Values.oracle.createDatabase.subnetId | quote }}
+            {{- with .Values.oracle.createDatabase.vcnId }}
+            - name: OCI_VCN_OCID
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.oracle.createDatabase.region }}
+            - name: OCI_REGION
+              value: {{ . | quote }}
+            {{- end }}
+          volumeMounts:
+            - name: provisioner-code
+              mountPath: /app/provision_adb.py
+              subPath: provision_adb.py
+            {{- if eq .Values.oracle.auth.method "oci_cli_config" }}
+            - name: oci-config
+              mountPath: /root/.oci
+              readOnly: true
+            {{- end }}
+      volumes:
+        - name: provisioner-code
+          configMap:
+            name: oracle-adb-provisioner
+            defaultMode: 0755
+        {{- if eq .Values.oracle.auth.method "oci_cli_config" }}
+        - name: oci-config
+          secret:
+            secretName: {{ .Values.oracle.auth.ociConfigSecret | quote }}
+        {{- end }}
+{{- end }}
