@@ -84,12 +84,23 @@ export ANTHROPIC_BASE_URL="${ANTHROPIC_BASE_URL:-https://inference-api.nvidia.co
 export ANTHROPIC_MODEL="${ANTHROPIC_MODEL:-aws/anthropic/bedrock-claude-sonnet-4-6}"
 export JUDGE_FULL_MODEL="${JUDGE_FULL_MODEL:-aws/anthropic/claude-haiku-4-5-v1}"
 
-# Default eval-target Brev instance. The dispatcher workflow does not
-# expose BREV_INSTANCE as an input — set it here so the script alone
-# controls Phase 1 vs Phase 2 mode. To force LocalEnvironment for a
-# debug run, change this line to `export BREV_INSTANCE=""` or comment
-# it out, then push to the feature branch and re-trigger.
-export BREV_INSTANCE="${BREV_INSTANCE:-rag-eval-target}"
+# Runtime topology — controlled by whether BREV_INSTANCE is set.
+#
+#   - CPU evals  (default — most rag-* skills):
+#         BREV_INSTANCE unset  →  LocalEnvironment
+#         Runner deploys RAG locally on itself (runner == target).
+#         No separate Brev VM, no cross-VM `brev exec` plumbing.
+#
+#   - GPU evals  (rag-enable-vlm, rag-enable-guardrails):
+#         Workflow / invoker sets BREV_INSTANCE=rag-eval-gpu-<uuid>
+#         →  BrevEnvironment in ephemeral-provisioning mode (Item C)
+#         Runner uses `brev create` to spin a fresh GPU VM, drives
+#         deploy + judge via `brev exec`, and `brev delete`s the VM
+#         in the EXIT trap (Item E).
+#
+# To force a manual override (e.g. debug a Brev VM end-to-end without
+# the CI flow), export BREV_INSTANCE=<name> before invoking the script.
+export BREV_INSTANCE="${BREV_INSTANCE:-}"
 
 echo "==> Install uv (no-op if already present)"
 if ! command -v uv >/dev/null 2>&1; then
@@ -147,6 +158,9 @@ COMPOSE_FILES=(
   deploy/compose/observability.yaml
 )
 if [ "$ENV_IMPORT" = "envs.local_env:LocalEnvironment" ]; then
+  # Runner is the eval target — clean any leftover docker state from
+  # prior CI runs on this same VM. Image cache is preserved (warm pool
+  # benefit on the runner itself).
   for f in "${COMPOSE_FILES[@]}"; do
     [ -f "$f" ] && docker compose -f "$f" down -v --remove-orphans >/dev/null 2>&1 || true
   done
@@ -154,19 +168,10 @@ if [ "$ENV_IMPORT" = "envs.local_env:LocalEnvironment" ]; then
     grep -E '(rag|milvus|nim|ingest|redis|nemo|grafana|prometheus|embedding|ranking|vlm|ocr|page-elements|graphic-elements|table-structure|nv-ingest)' | \
     xargs -r docker rm -f >/dev/null 2>&1 || true
   sudo rm -rf deploy/compose/volumes 2>/dev/null || true
-elif brev ls 2>/dev/null | awk -v n="$BREV_INSTANCE" '$1==n {found=1} END{exit !found}'; then
-  # Brev mode AND the warm-pool VM exists. Run the same down sequence
-  # against the target's $HOME/rag/deploy/compose tree. Repo gets re-
-  # staged by brev_env.start() right after this. Image cache preserved.
-  for f in "${COMPOSE_FILES[@]}"; do
-    brev exec "$BREV_INSTANCE" \
-      "[ -f \"\$HOME/rag/$f\" ] && docker compose -f \"\$HOME/rag/$f\" down -v --remove-orphans >/dev/null 2>&1 || true" \
-      2>/dev/null || true
-  done
-  brev exec "$BREV_INSTANCE" \
-    "docker network rm nvidia-rag >/dev/null 2>&1 || true; docker ps -a --format '{{.Names}}' | grep -E '(rag|milvus|nim|ingest|redis|nemo)' | xargs -r docker rm -f >/dev/null 2>&1 || true" \
-    2>/dev/null || true
 fi
+# GPU pre-flight (BrevEnvironment mode) is handled inside brev_env.start()
+# — the VM is provisioned fresh per CI run, so there's no prior-state
+# cleanup to do from the runner side.
 
 echo "==> Generate Harbor task directories from spec"
 cd "$SKILL_EVAL_DIR"
