@@ -105,9 +105,14 @@ trap cleanup EXIT
 # wrong source. Final fallback is 'main' for local runs.
 export EVAL_TARGET_BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo main)"
 SKILL_EVAL_DIR="$REPO_ROOT/skill-eval"
-SKILL_DIR="$REPO_ROOT/skill-source/.agents/skills/rag-blueprint"
-EVAL_NAME="nvidia-hosted"
-DATASETS_DIR="$SKILL_EVAL_DIR/datasets/$EVAL_NAME"
+SKILLS_ROOT="$REPO_ROOT/skills"
+
+# Profile routing — filename drives which runner is required:
+#   nvidia_hosted.json → LocalEnvironment (cpu, no GPU)
+#   h100.json          → BrevEnvironment  (H100_x2, GPU)
+# EVAL_PROFILE controls which profile this invocation runs.
+# Default: nvidia_hosted (cpu). Set EVAL_PROFILE=h100 for GPU skills.
+EVAL_PROFILE="${EVAL_PROFILE:-nvidia_hosted}"
 
 echo "==> Required env check"
 : "${NVIDIA_INFERENCE_KEY:?Set NVBASE_INFERENCE_API_KEY secret (sk- inference proxy key)}"
@@ -118,6 +123,10 @@ export CLAUDE_CODE_DISABLE_THINKING="${CLAUDE_CODE_DISABLE_THINKING:-1}"
 # NVIDIA proxy needs fully-qualified Anthropic model ids.
 export ANTHROPIC_BASE_URL="${ANTHROPIC_BASE_URL:-https://inference-api.nvidia.com}"
 export ANTHROPIC_MODEL="${ANTHROPIC_MODEL:-aws/anthropic/bedrock-claude-sonnet-4-6}"
+# Pin Milvus volumes outside the workspace so docker compose (run from ci/)
+# doesn't write root-owned etcd/minio dirs into ci/volumes/ and break the
+# artifact upload step (EACCES on scandir ci/volumes/etcd/member).
+export DOCKER_VOLUME_DIRECTORY="${DOCKER_VOLUME_DIRECTORY:-/tmp/milvus-eval}"
 export JUDGE_FULL_MODEL="${JUDGE_FULL_MODEL:-aws/anthropic/claude-haiku-4-5-v1}"
 
 # Runtime topology — controlled by whether BREV_INSTANCE is set.
@@ -209,32 +218,53 @@ fi
 # — the VM is provisioned fresh per CI run, so there's no prior-state
 # cleanup to do from the runner side.
 
-echo "==> Generate Harbor task directories from spec"
+echo "==> Auto-discover skills with eval/$EVAL_PROFILE.json and run Harbor trials"
 cd "$SKILL_EVAL_DIR"
-rm -rf "$DATASETS_DIR"
-python3 adapters/rag-blueprint/generate.py \
-  --output-dir "$DATASETS_DIR" \
-  --skill-dir "$SKILL_DIR"
-
-echo "==> Run Harbor trials — one invocation per step (Harbor -p takes a single path)"
 mkdir -p jobs
-# Count harbor invocations that crashed (vs. ran-with-failing-checks).
-# `set -e` doesn't propagate from inside a `while` loop body, so we have
-# to track this ourselves and decide at the end.
 HARBOR_CRASHES=0
-while IFS= read -r step_dir; do
-  echo "----> harbor run -p $step_dir"
-  if ! uvx harbor run \
-       -p "$step_dir" \
-       --environment-import-path "$ENV_IMPORT" \
-       --agent claude-code --model "$ANTHROPIC_MODEL" \
-       --ak api_base="$ANTHROPIC_BASE_URL/v1" \
-       --ae CLAUDE_CODE_DISABLE_THINKING=1 \
-       -o jobs -n 1 --yes; then
-    HARBOR_CRASHES=$((HARBOR_CRASHES + 1))
-    echo "harbor run exited non-zero for $step_dir"
-  fi
-done < <(find "$DATASETS_DIR" -mindepth 1 -maxdepth 1 -type d | sort)
+
+# Find every skill that ships a spec for the current profile.
+# Adding a new skill with eval/<profile>.json is all that's needed —
+# no script changes required.
+while IFS= read -r spec_file; do
+  SKILL_NAME="$(basename "$(dirname "$(dirname "$spec_file")")")"
+  SKILL_DIR="$SKILLS_ROOT/$SKILL_NAME"
+  DATASETS_DIR="$SKILL_EVAL_DIR/datasets/$SKILL_NAME"
+
+  echo ""
+  echo "==> [$SKILL_NAME] Generating task directories"
+  rm -rf "$DATASETS_DIR"
+  python3 adapters/rag-blueprint/generate.py \
+    --output-dir "$DATASETS_DIR" \
+    --skill-dir  "$SKILL_DIR" \
+    --skill-name "$SKILL_NAME" \
+    --spec       "$spec_file"
+
+  echo "==> [$SKILL_NAME] Running Harbor trials"
+  while IFS= read -r step_dir; do
+    echo "  ----> harbor run -p $step_dir"
+    if ! uvx --with boto3 harbor run \
+         -p "$step_dir" \
+         --environment-import-path "$ENV_IMPORT" \
+         --agent claude-code --model "$ANTHROPIC_MODEL" \
+         --ak api_base="$ANTHROPIC_BASE_URL/v1" \
+         --ae CLAUDE_CODE_DISABLE_THINKING=1 \
+         --environment-build-timeout-multiplier 3.0 \
+         --agent-timeout-multiplier 3.0 \
+         --verifier-timeout-multiplier 3.0 \
+         --max-retries 0 -n 1 --yes; then
+      HARBOR_CRASHES=$((HARBOR_CRASHES + 1))
+      echo "  harbor run exited non-zero for $step_dir"
+    fi
+  done < <(find "$DATASETS_DIR" -mindepth 1 -maxdepth 1 -type d | sort)
+done < <(
+  # rag-deploy-blueprint must run first — it deploys the RAG stack that
+  # all other skills test against. Remaining skills run alphabetically.
+  deploy_spec="$SKILLS_ROOT/rag-deploy-blueprint/eval/${EVAL_PROFILE}.json"
+  [ -f "$deploy_spec" ] && echo "$deploy_spec"
+  find "$SKILLS_ROOT" -path "*/eval/${EVAL_PROFILE}.json" \
+    ! -path "*/rag-deploy-blueprint/*" | sort
+)
 
 echo "==> Summarise results into eval_result.md (walks ALL job dirs)"
 python3 - <<'PY'

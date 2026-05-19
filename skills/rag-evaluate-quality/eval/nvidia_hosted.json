@@ -1,0 +1,37 @@
+{
+  "skills": [
+    "rag-evaluate-quality"
+  ],
+  "platforms": [
+    "cpu"
+  ],
+  "resources": {
+    "platforms": {
+      "cpu": {
+        "brev_type": "n2d-standard-4",
+        "description": "GCP n2d-standard-4 (4 vCPU, 16 GB). RAG stack running with documents ingested."
+      }
+    }
+  },
+  "env": "Linux host with Docker + Docker Compose plugin. RAG stack is running: rag-server at http://localhost:8081. Documents are ingested. Evaluation scripts are at notebooks/ and scripts/eval/. NGC_API_KEY is set. cwd: ${RAG_REPO_ROOT}/.",
+  "expects": [
+    {
+      "query": "Use the rag-evaluate-quality skill to run RAGAS evaluation on the deployed RAG system using the evaluation dataset in scripts/eval/. Report the faithfulness, context relevancy, and answer correctness scores. The eval runs from inside the repository checkout; use git rev-parse --show-toplevel if you need the absolute path.",
+      "checks": [
+        "The agent's trajectory shows it read the rag-evaluate-quality SKILL.md before taking action",
+        "The agent's trajectory shows it identified the correct evaluation script or notebook to use",
+        "The agent's trajectory shows it confirmed the dataset and ground truth are available before running",
+        "The agent's final response reports faithfulness, context relevancy, and answer correctness scores"
+      ]
+    },
+    {
+      "query": "My RAG system seems to be giving inaccurate answers. How do I measure how good the responses actually are?",
+      "checks": [
+        "The agent's trajectory shows it read the rag-evaluate-quality SKILL.md before taking action",
+        "The agent's final response explains available quality metrics (faithfulness, context relevancy, recall)",
+        "The agent's final response explains how to prepare a ground truth dataset for evaluation",
+        "The agent's final response provides steps to run quality evaluation"
+      ]
+    }
+  ]
+}
