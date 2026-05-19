@@ -407,9 +407,31 @@ The default reranker is the text reranker `nvidia/llama-nemotron-rerank-1b-v2`. 
 
 
 
-## Switch Back to Nemotron Nano 12B VLM
+## VLM Selection for Generation vs. Image Captioning
 
-The default VLM for this blueprint is **Nemotron Omni** (`nvidia/nemotron-3-nano-omni-30b-a3b-reasoning`). If you want to revert to the previous **Nemotron Nano 12B** (`nvidia/nemotron-nano-12b-v2-vl`) model, follow the steps below.
+This blueprint uses two separate VLM NIMs by default:
+
+- **Generation (chat / RAG answering)** — Nemotron Omni (`nvidia/nemotron-3-nano-omni-30b-a3b-reasoning`), served by the `vlm-ms` service.
+- **Ingestion-time image captioning** — Nemotron Nano 12B v2-VL (`nvidia/nemotron-nano-12b-v2-vl`), served by the dedicated `vlm-captioning-ms` service.
+
+### Why two services?
+
+Nemotron Omni produces strong VLM generation results but its reasoning behavior is currently unregulated — for some images it returns only `reasoning_content` with an empty `response_content`, which surfaces in the pipeline as missing captions. NV-Ingest does not yet expose knobs to cap the reasoning budget on the captioning task (tracked as bug **6130091**). Until that lands, captioning runs on Nemotron Nano 12B, which produces stable captions across a wide range of images.
+
+You can opt in to using Nemotron Omni for captioning if you accept that some images may end up with empty captions. Set:
+
+```bash
+export APP_NVINGEST_CAPTIONMODELNAME="nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
+export APP_NVINGEST_CAPTIONENDPOINTURL="http://vlm-ms:8000/v1/chat/completions"
+export VLM_CAPTION_MODEL_NAME="nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
+export VLM_CAPTION_ENDPOINT="http://vlm-ms:8000/v1/chat/completions"
+```
+
+In that mode you can stop the standalone `vlm-captioning-ms` to free its GPU.
+
+## Switch Back to Nemotron Nano 12B for Generation
+
+The default generation VLM is **Nemotron Omni**. If you want generation to use **Nemotron Nano 12B** as well (so a single VLM handles both generation and captioning), follow the steps below.
 
 ### Docker Compose
 
@@ -424,9 +446,15 @@ The default VLM for this blueprint is **Nemotron Omni** (`nvidia/nemotron-3-nano
 
    ```bash
    export APP_VLM_MODELNAME="nvidia/nemotron-nano-12b-v2-vl"
-   export APP_NVINGEST_CAPTIONMODELNAME="nvidia/nemotron-nano-12b-v2-vl"
    export APP_VLM_ENABLE_THINKING=false
    export APP_VLM_THINKING_TOKEN_BUDGET=0
+   ```
+
+   Captioning is already on Nemotron Nano 12B via `vlm-captioning-ms`, so no captioning-side env changes are needed. If you'd like a single shared VLM container instead, point captioning at `vlm-ms` and stop `vlm-captioning-ms`:
+
+   ```bash
+   export APP_NVINGEST_CAPTIONENDPOINTURL="http://vlm-ms:8000/v1/chat/completions"
+   export VLM_CAPTION_ENDPOINT="http://vlm-ms:8000/v1/chat/completions"
    ```
 
 3. Restart the affected services:
@@ -439,7 +467,7 @@ The default VLM for this blueprint is **Nemotron Omni** (`nvidia/nemotron-3-nano
 
 ### Helm
 
-1. In `deploy/helm/nvidia-blueprint-rag/values.yaml`, update the VLM NIM image and model names:
+1. In `deploy/helm/nvidia-blueprint-rag/values.yaml`, point the generation VLM at Nemotron Nano 12B (captioning is already on `nim-vlm-captioning`, so it stays put):
 
    ```yaml
    nimOperator:
@@ -452,14 +480,22 @@ The default VLM for this blueprint is **Nemotron Omni** (`nvidia/nemotron-3-nano
      APP_VLM_MODELNAME: "nvidia/nemotron-nano-12b-v2-vl"
      APP_VLM_ENABLE_THINKING: "false"
      APP_VLM_THINKING_TOKEN_BUDGET: "0"
+   ```
+
+   If you want a single shared VLM container for both generation and captioning, disable the dedicated captioning service and re-point the captioning endpoints at `nim-vlm`:
+
+   ```yaml
+   nimOperator:
+     nim-vlm-captioning:
+       enabled: false
 
    ingestor-server:
      envVars:
-       APP_NVINGEST_CAPTIONMODELNAME: "nvidia/nemotron-nano-12b-v2-vl"
+       APP_NVINGEST_CAPTIONENDPOINTURL: "http://nim-vlm:8000/v1/chat/completions"
 
    nv-ingest:
      envVars:
-       VLM_CAPTION_MODEL_NAME: nvidia/nemotron-nano-12b-v2-vl
+       VLM_CAPTION_ENDPOINT: http://nim-vlm:8000/v1/chat/completions
    ```
 
 2. Apply the changes as described in [Change a Deployment](deploy-helm.md#change-a-deployment).

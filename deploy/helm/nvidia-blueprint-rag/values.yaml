@@ -424,8 +424,8 @@ ingestor-server:
     APP_NVINGEST_TEXTDEPTH: "page"  # Extract text by "page" or "document"
 
     # === NV-Ingest caption configurations ===
-    APP_NVINGEST_CAPTIONMODELNAME: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"  # Model name for captioning
-    APP_NVINGEST_CAPTIONENDPOINTURL: ""  # Endpoint URL for captioning model
+    APP_NVINGEST_CAPTIONMODELNAME: "nvidia/nemotron-nano-12b-v2-vl"  # Model name for captioning
+    APP_NVINGEST_CAPTIONENDPOINTURL: "http://nim-vlm-captioning:8000/v1/chat/completions"  # Endpoint URL for captioning model
 
     # NeMo Retriever invoke URLs (HTTP) for local NIMs (see rag-nv-ingest YOLOX_*_HTTP_ENDPOINT)
     APP_NVINGEST_PAGEELEMENTSURL: "http://nemotron-page-elements-v3:8000/v1/infer"
@@ -1025,7 +1025,7 @@ nimOperator:
         grpcPort: 8001
 
   # subsection: nim-vlm
-  # NIM Vision-Language (VLM)
+  # Nemotron Omni — used for generation.
   nim-vlm:
     enabled: false
     replicas: 1
@@ -1044,6 +1044,38 @@ nimOperator:
     tolerations: []
 #    draResources:
 #      - resourceClaimName: rag-claim
+    storage:
+      pvc:
+        create: true
+        size: "50Gi"
+        volumeAccessMode: ReadWriteOnce
+        storageClass: ""
+    env: []
+    expose:
+      service:
+        name: http
+        type: ClusterIP
+        port: 8000
+        grpcPort: 8001
+
+  # subsection: nim-vlm-captioning
+  # Nemotron Nano 12B — used for image captioning.
+  nim-vlm-captioning:
+    enabled: false
+    replicas: 1
+    service:
+      name: "nim-vlm-captioning"
+    image:
+      repository: nvcr.io/nim/nvidia/nemotron-nano-12b-v2-vl
+      tag: "1.6.0"
+      pullPolicy: IfNotPresent
+    resources:
+      limits:
+        nvidia.com/gpu: 1
+      requests:
+        nvidia.com/gpu: 1
+    nodeSelector: {}
+    tolerations: []
     storage:
       pvc:
         create: true
@@ -1143,8 +1175,8 @@ nv-ingest:
     YOLOX_TABLE_STRUCTURE_INFER_PROTOCOL: grpc
 
     # Captioning
-    VLM_CAPTION_MODEL_NAME: nvidia/nemotron-3-nano-omni-30b-a3b-reasoning
-    VLM_CAPTION_ENDPOINT: http://nim-vlm:8000/v1/chat/completions
+    VLM_CAPTION_MODEL_NAME: nvidia/nemotron-nano-12b-v2-vl
+    VLM_CAPTION_ENDPOINT: http://nim-vlm-captioning:8000/v1/chat/completions
 
     # Audio service
     AUDIO_GRPC_ENDPOINT: nv-ingest-riva-nim:50051
