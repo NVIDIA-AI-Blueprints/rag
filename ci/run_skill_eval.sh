@@ -224,13 +224,16 @@ mkdir -p jobs
 HARBOR_CRASHES=0
 while IFS= read -r step_dir; do
   echo "----> harbor run -p $step_dir"
-  if ! uvx harbor run \
+  if ! uvx --with boto3 harbor run \
        -p "$step_dir" \
        --environment-import-path "$ENV_IMPORT" \
        --agent claude-code --model "$ANTHROPIC_MODEL" \
        --ak api_base="$ANTHROPIC_BASE_URL/v1" \
        --ae CLAUDE_CODE_DISABLE_THINKING=1 \
-       -o jobs -n 1 --yes; then
+       --environment-build-timeout-multiplier 3.0 \
+       --agent-timeout-multiplier 3.0 \
+       --verifier-timeout-multiplier 3.0 \
+       --max-retries 0 -n 1 --yes; then
     HARBOR_CRASHES=$((HARBOR_CRASHES + 1))
     echo "harbor run exited non-zero for $step_dir"
   fi
