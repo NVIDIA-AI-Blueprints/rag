@@ -43,7 +43,7 @@ from pathlib import Path
 # different skill).
 # ---------------------------------------------------------------------------
 
-SKILL_NAME = "rag-blueprint"
+SKILL_NAME = "rag-deploy-blueprint"
 TASK_PREFIX = "rag"
 # Resolved at generation time. Priority: $RAG_REPO_ROOT > path inferred
 # from this file's location. Set RAG_REPO_ROOT in CI to the checkout root

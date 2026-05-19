@@ -175,7 +175,6 @@ rm -rf "$DATASETS_DIR"
 python3 adapters/rag-blueprint/generate.py \
   --output-dir "$DATASETS_DIR" \
   --skill-dir "$SKILL_DIR" \
-  --skill-name "$SKILL_NAME" \
   --spec "$SKILL_DIR/eval/$EVAL_NAME.json"
 
 echo "==> Run Harbor trials — one invocation per step (Harbor -p takes a single path)"
