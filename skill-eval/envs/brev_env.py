@@ -1,29 +1,24 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
-"""Harbor environment provider for Brev VMs (hybrid mode).
+"""Harbor environment provider for Brev VMs (GPU-only, ephemeral per CI run).
+
+CPU evals use envs.local_env:LocalEnvironment (runner == target). This
+module is engaged when the workflow sets $BREV_INSTANCE=rag-eval-gpu-<uuid>
+for a GPU eval; the named-pool `rag-eval-target` model is gone.
 
 Lifecycle:
-    start()    → resolve/create instance, smoke-test exec
+    start()    → provision fresh VM, clone repo, smoke-test exec
     exec()     → brev exec <instance> -- <command>
     upload()   → tar | base64 | brev exec (brev copy has nesting bugs)
     download() → brev exec | base64 -d | tar
-    stop()     → brev delete <instance>
+    stop()     → no-op (ci/run_skill_eval.sh trap owns teardown)
 
-Two ways to pick the instance name:
-
-1. Reuse via $BREV_INSTANCE (warm-pool style, e.g. rag-eval-target).
-   If the instance exists, use it as-is. If it doesn't, create it.
-
-2. Auto-generate `rag-harbor-<uuid>` when $BREV_INSTANCE unset.
-   Ephemeral — always created fresh, always deleted on stop().
-
-Hardware comes from task.toml [metadata]:
-    brev_cpu = "4x16"   → brev create --cpu 4x16
-    brev_gpu = "..."    → brev create --gpu ...
-
-Adapter (generate.py) writes these from its PLATFORMS dict, keyed off
-the user-friendly platform name in the eval spec.
+Provision picks the cheapest cloud type matching task.toml [metadata]
+GPU requirements via `brev search --json`, then `brev create` with the
+type fed via stdin. Trials within one eval share a deploy (step-1
+deploys, step-2 probes), so stop() never tears down — the script's
+EXIT trap handles brev delete/stop after both trials finish.
 """
 from __future__ import annotations
 
@@ -103,28 +98,19 @@ class BrevEnvironment(BaseEnvironment):
             return
 
         meta = self._read_task_metadata()
-        # Pick instance name: $BREV_INSTANCE > task.toml override > uuid.
+        # Always ephemeral: the workflow passes $BREV_INSTANCE=rag-eval-gpu-<uuid>
+        # per CI run (fresh each invocation), or we auto-generate. No reuse
+        # branch — ci/run_skill_eval.sh's EXIT trap ensures the prior run's
+        # VM is already deleted by the time a fresh name lands here.
         self._instance_name = (
             DEFAULT_INSTANCE
             or meta.get("brev_instance")
             or f"rag-harbor-{uuid.uuid4().hex[:8]}"
         )
-        logger.info("Brev target: %s", self._instance_name)
+        logger.info("Brev target: %s (ephemeral)", self._instance_name)
 
-        existing = await _find_brev_instance(self._instance_name)
-        if existing is None:
-            await self._provision(meta)
-            self._created_by_us = True
-        elif existing.get("status") != "RUNNING":
-            logger.info("Instance %s exists but status=%s — starting",
-                        self._instance_name, existing.get("status"))
-            start_result = await _run_brev("start", self._instance_name, timeout=300)
-            if start_result.return_code != 0:
-                raise RuntimeError(
-                    f"brev start {self._instance_name} failed: {start_result.stderr}"
-                )
-        else:
-            logger.info("Reusing existing running instance %s", self._instance_name)
+        await self._provision(meta)
+        self._created_by_us = True
 
         # Smoke test: confirm we can exec on the instance.
         result = await _run_brev_exec(
@@ -187,12 +173,6 @@ class BrevEnvironment(BaseEnvironment):
         # the branch, not uncommitted runner state. For PR-driven CI that's
         # always already pushed, this is fine.
         await self._clone_repo()
-
-        # NOTE: prior-deploy cleanup is NOT done here. Harbor calls start()
-        # per trial, but trials within one eval run share a deploy (step-1
-        # deploys, step-2 probes). Tearing down between trials breaks that.
-        # The script (ci/run_skill_eval.sh) runs the cleanup once, before
-        # the harbor loop, so a reused warm-pool VM starts clean.
 
         self._started = True
 
@@ -328,70 +308,48 @@ class BrevEnvironment(BaseEnvironment):
                 logger.warning("docker login nvcr.io failed on target: %s",
                                login_result.stderr)
 
-    async def _clean_prior_deploy(self) -> None:
-        """Tear down RAG compose stacks on a reused VM, keep image cache.
-
-        Run from start() after _stage_repo. No-op on a fresh VM (no
-        containers to remove). Failures are logged but not fatal — the
-        agent's own `docker compose up` will surface real conflicts.
-        """
-        assert self._instance_name
-        compose_files = [
-            "deploy/compose/docker-compose-rag-server.yaml",
-            "deploy/compose/docker-compose-ingestor-server.yaml",
-            "deploy/compose/vectordb.yaml",
-            "deploy/compose/nims.yaml",
-            "deploy/compose/docker-compose-nemo-guardrails.yaml",
-            "deploy/compose/observability.yaml",
-        ]
-        down_cmds = " ; ".join(
-            f'[ -f "$HOME/rag/{f}" ] && '
-            f'docker compose -f "$HOME/rag/{f}" down -v --remove-orphans '
-            f'>/dev/null 2>&1 || true'
-            for f in compose_files
-        )
-        # Also remove the `nvidia-rag` network if it survived (compose down
-        # skips it when no compose file references it on this invocation).
-        cleanup = (
-            f"{down_cmds} ; "
-            f"docker network rm nvidia-rag >/dev/null 2>&1 || true ; "
-            f"docker ps -a --format '{{{{.Names}}}}' | "
-            f"grep -E '(milvus|nv-ingest|rag-server|ingestor|redis|nemo)' | "
-            f"xargs -r docker rm -f >/dev/null 2>&1 || true ; "
-            f"echo cleanup-done"
-        )
-        logger.info("Cleaning prior deploy on %s (image cache preserved)",
-                    self._instance_name)
-        result = await _run_brev_exec(
-            self._instance_name, cleanup, timeout=120,
-        )
-        if result.return_code != 0:
-            logger.warning("Prior-deploy cleanup returned rc=%s stderr=%s",
-                           result.return_code, result.stderr)
-
     async def _provision(self, meta: dict) -> None:
-        """brev create --type <X> from task.toml metadata.
+        """brev create — type from task.toml [metadata] or catalog search.
 
-        Brev CLI v0.6.324+ removed --cpu/--gpu shape flags. Instance type
-        names (e.g. `n2d-standard-4`, `g5.xlarge`) are passed via --type.
-        Use `brev search cpu` / `brev search gpu` to discover types.
+        Type resolution:
+          - `brev_type` in metadata → use directly (CPU + explicit GPU specs).
+          - else → `brev search --json` cheapest match on gpu_type /
+            gpu_count / min_vram_gb_per_gpu / min_root_disk_gb.
+
+        Type is fed via stdin (not `--type`). The `--type` path still
+        reads stdin as a fallback type list — that caused the stdin-leak
+        bug in run 25925485685 where harbor's `find` loop left extra
+        instance names on stdin. VSS uses stdin exclusively; we mirror.
         """
         brev_type = meta.get("brev_type")
         if not brev_type:
-            logger.warning(
-                "No brev_type in task.toml — falling back to n2d-standard-4"
-            )
-            brev_type = "n2d-standard-4"
+            requirements = {
+                "brev_search": meta.get("brev_search") or meta.get("gpu_type"),
+                "gpu_type": meta.get("gpu_type"),
+                "gpu_count": int(meta.get("gpu_count") or 1),
+                "min_vram_gb_per_gpu": int(meta.get("min_vram_gb_per_gpu") or 0),
+                "min_root_disk_gb": int(meta.get("min_root_disk_gb") or 0),
+            }
+            brev_type = await _find_cheapest_matching_type(requirements)
+            if not brev_type:
+                raise RuntimeError(
+                    "Cannot provision: no Brev cloud type matches "
+                    f"requirements {requirements}. Set `brev_type` in "
+                    "task.toml [metadata] explicitly or adjust gpu_type / "
+                    "min_vram_gb_per_gpu."
+                )
+            logger.info("Resolved cheapest matching type: %s", brev_type)
 
-        logger.info("Creating Brev instance %s --type %s",
+        logger.info("Creating Brev instance %s type=%s",
                     self._instance_name, brev_type)
         create = await _run_brev(
-            "create", self._instance_name, "--type", brev_type, "--detached",
+            "create", self._instance_name, "--detached",
+            stdin_data=brev_type,
             timeout=BREV_CREATE_TIMEOUT,
         )
         if create.return_code != 0:
             raise RuntimeError(
-                f"brev create {self._instance_name} --type {brev_type} "
+                f"brev create {self._instance_name} (type={brev_type}) "
                 f"failed: {create.stderr}"
             )
         await _wait_for_running(self._instance_name)
@@ -401,23 +359,22 @@ class BrevEnvironment(BaseEnvironment):
     # -----------------------------------------------------------------------
 
     async def stop(self, delete: bool) -> None:
+        """No-op — ci/run_skill_eval.sh's EXIT trap owns teardown.
+
+        Trials within one eval share a deploy (step-1 deploys, step-2
+        probes), so the VM must survive across step boundaries even
+        though Harbor passes delete=True between them. The script trap
+        routes to `brev delete` or `brev stop` after both trials finish,
+        based on the provider's lifecycle. Matches VSS pattern exactly.
+        """
         if not self._instance_name:
             return
-        # Named-pool mode ($BREV_INSTANCE set): NEVER delete here, even
-        # when Harbor passes delete=True between trials. The named VM
-        # must survive across step-N invocations so step-2 can probe the
-        # RAG deployment that step-1 brought up. The caller
-        # (ci/run_skill_eval.sh) explicitly deletes after all trials.
-        if DEFAULT_INSTANCE:
-            logger.info("Named pool %s — stop() is a no-op (script "
-                        "handles cleanup after all trials)",
-                        self._instance_name)
-            return
-        # Ephemeral mode (rag-harbor-<uuid>): each trial owns its own VM
-        # and should clean up. Honour Harbor's delete flag.
-        if self._created_by_us or delete:
-            logger.info("Deleting Brev instance %s", self._instance_name)
-            await _run_brev("delete", self._instance_name, timeout=120)
+        logger.info(
+            "Leaving Brev instance %s running — script trap owns teardown "
+            "(Harbor delete=%s ignored)",
+            self._instance_name, delete,
+        )
+        self._started = False
 
     # -----------------------------------------------------------------------
     # File transfer
@@ -604,25 +561,31 @@ def _extract_between_markers(stdout: str, marker: str) -> str:
     )
 
 
-async def _run_brev(*args: str, timeout: int = 30) -> ExecResult:
+async def _run_brev(
+    *args: str, timeout: int = 30, stdin_data: str | None = None,
+) -> ExecResult:
     """Invoke `brev <args>` as a subprocess and return its result.
 
-    Stdin is closed via DEVNULL. `brev create` reads piped stdin as a
-    fallback list of instance types (`brev search | brev create ...`).
-    Without DEVNULL, brev inherits whatever's on our stdin — and our
-    caller (ci/run_skill_eval.sh) runs harbor inside a `while read ...
-    done < <(find ...)` loop, leaving the rest of the find output on
-    stdin. brev parses that as bogus "next type" fallbacks and the
-    create command fails on transient API errors instead of retrying.
+    Stdin handling:
+      - default (stdin_data=None) → write a single newline. The CLI's
+        interactive walkthrough reads stdin; supplying empty input makes
+        it bail cleanly instead of hanging on a TTY prompt. We don't use
+        DEVNULL because `brev create` reads its instance type from stdin
+        as the canonical input path (per VSS pattern).
+      - stdin_data="<type>" → fed to `brev create`'s instance-type prompt.
+        Avoids the `--type` flag stdin-inherit bug seen in run 25925485685
+        where harbor's `find` loop left extra lines on stdin and brev
+        parsed them as bogus fallback types.
     """
     proc = await asyncio.create_subprocess_exec(
         "brev", *args,
-        stdin=asyncio.subprocess.DEVNULL,
+        stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
     )
     try:
         stdout_b, stderr_b = await asyncio.wait_for(
-            proc.communicate(), timeout=timeout,
+            proc.communicate(input=(stdin_data or "").encode() + b"\n"),
+            timeout=timeout,
         )
     except asyncio.TimeoutError:
         proc.kill()
@@ -812,6 +775,67 @@ async def _check_live_resources(instance_name: str, req: dict) -> None:
                     "check (probably no GPU or driver missing).",
                     instance_name, actual,
                 )
+
+
+async def _find_cheapest_matching_type(req: dict) -> str | None:
+    """Pick the cheapest `brev search --json` type matching GPU requirements.
+
+    Filters the catalog by gpu_name substring (brev_search or gpu_type),
+    gpu_count, per-GPU VRAM, and disk_min_gb floor. Sorts surviving
+    candidates by price_per_hour and returns the cheapest type slug
+    (e.g. "dmz.h100x2.pcie", "gcpx2-rtx-pro-6000-blackwell-server").
+    Returns None if no candidates match — caller raises with the req
+    dict so the user sees what to relax.
+
+    Tolerates the older brev CLI variant that prints walkthrough text
+    after the JSON array — strip everything past the last `]`.
+
+    Ported from VSS (vss-feat-skill-eval/.github/skill-eval/envs/brev_env.py).
+    """
+    result = await _run_brev("search", "--json", timeout=30)
+    search = (req.get("brev_search") or req.get("gpu_type") or "").lower()
+    required_count = int(req.get("gpu_count") or 1)
+    required_vram = int(req.get("min_vram_gb_per_gpu") or 0)
+    required_disk = int(req.get("min_root_disk_gb") or 0)
+
+    raw = result.stdout or ""
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError:
+        last_bracket = raw.rfind("]")
+        if last_bracket < 0:
+            return None
+        try:
+            payload = json.loads(raw[: last_bracket + 1])
+        except json.JSONDecodeError:
+            return None
+    if isinstance(payload, dict):
+        payload = payload.get("instances") or []
+
+    candidates = []
+    for inst in payload or []:
+        if not isinstance(inst, dict):
+            continue
+        gpu_name = (inst.get("gpu_name") or "").lower()
+        gpu_count = int(inst.get("gpu_count") or 0)
+        total_vram = float(inst.get("total_vram_gb") or 0)
+        disk_min_gb = int(inst.get("disk_min_gb") or 0)
+        if search and search not in gpu_name:
+            continue
+        if gpu_count < required_count:
+            continue
+        if required_vram and (total_vram / max(gpu_count, 1)) < required_vram:
+            continue
+        # disk_min_gb is a pre-filter only — some providers (e.g. hyperstack)
+        # misreport this; the authoritative check is _check_live_resources
+        # after the VM is up.
+        if required_disk and disk_min_gb and disk_min_gb < required_disk:
+            continue
+        candidates.append(inst)
+    if not candidates:
+        return None
+    candidates.sort(key=lambda x: float(x.get("price_per_hour") or 0))
+    return candidates[0].get("type")
 
 
 async def _wait_for_running(name: str, timeout: int = BREV_CREATE_TIMEOUT) -> None:
