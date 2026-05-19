@@ -145,6 +145,26 @@ export JUDGE_FULL_MODEL="${JUDGE_FULL_MODEL:-aws/anthropic/claude-haiku-4-5-v1}"
 #
 # To force a manual override (e.g. debug a Brev VM end-to-end without
 # the CI flow), export BREV_INSTANCE=<name> before invoking the script.
+#
+# ============================================================================
+# >>> GPU TESTING PATCH (Option B) <<<
+# This block exists to validate H100×2 self-hosted CI end-to-end via the
+# existing dispatcher workflow (no YAML changes needed on main). It's
+# production-safe: only fires when EVAL_PROFILE matches a GPU pattern;
+# the CPU default (nvidia_hosted) is unaffected.
+# Companion files in this patch:
+#   ci/run_skill_eval_h100.sh                       (wrapper)
+#   skills/rag-deploy-blueprint/eval/h100.json      (deploy spec)
+# Keep after validation — generalises to any future GPU profile.
+# ============================================================================
+# Auto-pick: if EVAL_PROFILE matches a GPU pattern (h100*, l40s*, rtx*,
+# gpu_*), generate a fresh BREV_INSTANCE so brev_env enters ephemeral-
+# provision mode. CPU profiles (nvidia_hosted) leave BREV_INSTANCE empty
+# → LocalEnvironment. Caller can still override BREV_INSTANCE explicitly.
+case "$EVAL_PROFILE" in
+  h100*|l40s*|rtx*|gpu_*)
+    : "${BREV_INSTANCE:=rag-eval-gpu-$(date +%s | tail -c 8)}" ;;
+esac
 export BREV_INSTANCE="${BREV_INSTANCE:-}"
 
 echo "==> Install uv (no-op if already present)"
