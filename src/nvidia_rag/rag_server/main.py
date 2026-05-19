@@ -970,6 +970,10 @@ class NvidiaRAG:
             else self.config.enable_citations
         )
 
+        # Validate top_k parameters before constructing service clients.
+        vdb_top_k = validate_vdb_top_k(vdb_top_k)
+        reranker_top_k = validate_reranker_k(reranker_top_k, vdb_top_k)
+
         vdb_op = self._prepare_vdb_op(
             vdb_endpoint=vdb_endpoint,
             embedding_model=embedding_model,
@@ -981,10 +985,6 @@ class NvidiaRAG:
             messages = []
         if collection_names is None:
             collection_names = [self.config.vector_store.default_collection_name]
-
-        # Validate top_k parameters
-        vdb_top_k = validate_vdb_top_k(vdb_top_k)
-        reranker_top_k = validate_reranker_k(reranker_top_k, vdb_top_k)
 
         # Normalize all model and endpoint values using validation functions
         reranker_model, reranker_endpoint = (
