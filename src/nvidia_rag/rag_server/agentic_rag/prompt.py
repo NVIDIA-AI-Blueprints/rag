@@ -60,15 +60,52 @@ Think through these steps:
 5. SYNTHESIS INSTRUCTION: Describe how to combine all task answers into a final response. Leave empty ("") if scope_only=true or if there are no tasks.
 
 Rules:
-- Each task needs a question and a retrieval query (10-20 words using natural vocabulary likely in source documents).
+- Each task object MUST contain ALL THREE fields: `id`, `question`, `query`. Omitting ANY field makes the output invalid.
+- `id`: a short unique identifier for the task (e.g. "t1", "t2", "disc1").
+- `question`: a specific sub-question in natural language describing what you want answered.
+- `query`: a SEPARATE 10-20 word retrieval query using natural vocabulary likely to appear in source documents. The `query` is sent to semantic search; the `question` is sent to the answering LLM. They serve different purposes and BOTH are required for every task.
 - For answer tasks (scope_only=false): the retrieval query MUST reference the same subject/entity as the question. For scope discovery tasks (scope_only=true): the query may be broader to explore what data exists.
 - Keep retrieval queries SHORT and NATURAL — use key entity names, time periods, and topic words. Avoid long formal document-title phrasing. Shorter queries with key terms match better in semantic search.
 - Documents may label the same concept differently — consider alternate terminology when writing queries.
 - If a requested metric is not directly available as a named entry, it may need to be derived from component values. Create tasks for the components.
 - Do not add tasks for information the query did not ask about.
 
-Output JSON only:
-{{"scope_only": true/false, "scope_resolution": "<what was resolved or needs discovery>", "resolved_query": "<resolved question>", "tasks": [{{"id": "<short_id>", "question": "<specific sub-question>", "query": "<10-20 word retrieval query>"}}], "synthesis_instruction": "<how to combine task answers; empty string if scope_only or no tasks>"}}"""
+Output JSON only — schema (every task object must contain id AND question AND query):
+{{
+  "scope_only": true | false,
+  "scope_resolution": "<what was resolved or needs discovery>",
+  "resolved_query": "<resolved question>",
+  "tasks": [
+    {{
+      "id": "<short id>",
+      "question": "<specific sub-question>",
+      "query": "<10-20 word retrieval query>"
+    }}
+  ],
+  "synthesis_instruction": "<how to combine task answers; empty string if scope_only or no tasks>"
+}}
+
+Example of a valid plan with two answer tasks (every task has all three fields):
+{{
+  "scope_only": false,
+  "scope_resolution": "Compare the key architectural features of the NVIDIA Blackwell and Hopper GPU architectures.",
+  "resolved_query": "How do the key architectural features of NVIDIA's Blackwell GPU architecture compare to those of the Hopper architecture?",
+  "tasks": [
+    {{
+      "id": "t1",
+      "question": "What are the key architectural features of the NVIDIA Blackwell GPU architecture?",
+      "query": "NVIDIA Blackwell GPU architecture key features"
+    }},
+    {{
+      "id": "t2",
+      "question": "What are the key architectural features of the NVIDIA Hopper GPU architecture?",
+      "query": "NVIDIA Hopper GPU architecture key features"
+    }}
+  ],
+  "synthesis_instruction": "Summarize the key architectural features of Blackwell and Hopper, then contrast them side by side."
+}}
+
+REMEMBER: every task object must include id AND question AND query. A task missing any of these fields is invalid."""
 
 PLANNER_USER_PROMPT = """User Question: {query}
 {scope_section}
@@ -227,9 +264,26 @@ Retrieval query rules (applies to all tasks you create):
 - Keep each query SHORT and NATURAL — use key entity names, time periods, and topic words only. Avoid long formal phrases, document-type identifiers, or packing multiple constraints into one query. Shorter queries with key terms match better in semantic search.
 - Each query must target ONE specific piece of missing information — do not combine multiple search intents into one query.
 
+Every task object (when status is "fail") MUST contain ALL THREE fields: `id` (short identifier), `question` (specific sub-question to answer), and `query` (8-15 word retrieval query for semantic search). Omitting any field is invalid output.
+
 Output JSON only:
-If adequate: {{"status": "pass", "reasoning": "<brief explanation>"}}
-If gaps found: {{"status": "fail", "issues": ["<issue 1>", ...], "tasks": [{{"id": "<short_id>", "question": "<specific sub-question>", "query": "<8-15 word retrieval query>"}}]}}
+If adequate:
+{{
+  "status": "pass",
+  "reasoning": "<brief explanation>"
+}}
+If gaps found (every task must have id AND question AND query):
+{{
+  "status": "fail",
+  "issues": ["<issue 1>", "<issue 2>"],
+  "tasks": [
+    {{
+      "id": "<short id>",
+      "question": "<specific sub-question>",
+      "query": "<8-15 word retrieval query>"
+    }}
+  ]
+}}
 Maximum {max_verification_tasks} tasks. Only create tasks for parts of the question that were silently omitted."""
 
 VERIFICATION_USER_PROMPT = """Original Question: {query}

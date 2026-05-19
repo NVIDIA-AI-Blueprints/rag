@@ -134,11 +134,57 @@ class AgenticContextConfig(_ConfigBase):
 # =============================================================================
 
 
+def _normalize_role_url(v: Any) -> Any:
+    """Shared server_url normalizer for per-role agentic LLM configs."""
+    if isinstance(v, str):
+        v = v.strip().strip('"').strip("'")
+        if v and not v.startswith(("http://", "https://")):
+            return f"http://{v}"
+    return v
+
+
+def _validate_role_temperature(v: Any) -> float | None:
+    """Coerce empty strings / None to None; validate non-negative."""
+    if isinstance(v, str) and not v.strip():
+        return None
+    if v is None:
+        return v
+    v = float(v)
+    if v < 0.0:
+        raise ValueError("Temperature must be non-negative")
+    return v
+
+
+def _validate_role_top_p(v: Any) -> float | None:
+    """Coerce empty strings / None to None; validate in [0.0, 1.0]."""
+    if isinstance(v, str) and not v.strip():
+        return None
+    if v is None:
+        return v
+    v = float(v)
+    if not (0.0 <= v <= 1.0):
+        raise ValueError("top_p must be between 0.0 and 1.0")
+    return v
+
+
+def _validate_role_max_tokens(v: Any) -> int | None:
+    """Coerce empty strings / None to None; validate positive integer."""
+    if isinstance(v, str) and not v.strip():
+        return None
+    if v is None:
+        return v
+    v = int(v)
+    if v <= 0:
+        raise ValueError("max_tokens must be a positive integer")
+    return v
+
+
 class AgenticPlannerLLMConfig(_ConfigBase):
     """LLM config for the planner role (scope resolution + task creation).
 
     Env vars: AGENTIC_PLANNER_LLM_SERVERURL, AGENTIC_PLANNER_LLM_MODEL,
-              AGENTIC_PLANNER_LLM_APIKEY
+              AGENTIC_PLANNER_LLM_APIKEY, AGENTIC_PLANNER_LLM_TEMPERATURE,
+              AGENTIC_PLANNER_LLM_TOP_P, AGENTIC_PLANNER_LLM_MAX_TOKENS
     """
 
     server_url: str = Field(
@@ -156,22 +202,52 @@ class AgenticPlannerLLMConfig(_ConfigBase):
         env="AGENTIC_PLANNER_LLM_APIKEY",
         description="API key for the planner LLM (overrides global NVIDIA_API_KEY).",
     )
+    temperature: float | None = Field(
+        default=0.1,
+        env="AGENTIC_PLANNER_LLM_TEMPERATURE",
+        description=(
+            "Sampling temperature for the planner LLM. Default 0.1 (slight randomness "
+            "is intentional for planning). Set to a number or leave at default."
+        ),
+    )
+    top_p: float | None = Field(
+        default=1.0,
+        env="AGENTIC_PLANNER_LLM_TOP_P",
+        description="Nucleus-sampling top_p for the planner LLM. Default 1.0.",
+    )
+    max_tokens: int | None = Field(
+        default=32768,
+        env="AGENTIC_PLANNER_LLM_MAX_TOKENS",
+        description="Max generated tokens for the planner LLM. Default 32768.",
+    )
 
     @field_validator("server_url", mode="before")
     @classmethod
     def normalize_url(cls, v: Any) -> Any:
-        if isinstance(v, str):
-            v = v.strip().strip('"').strip("'")
-            if v and not v.startswith(("http://", "https://")):
-                return f"http://{v}"
-        return v
+        return _normalize_role_url(v)
+
+    @field_validator("temperature", mode="before")
+    @classmethod
+    def _validate_temperature(cls, v: Any) -> float | None:
+        return _validate_role_temperature(v)
+
+    @field_validator("top_p", mode="before")
+    @classmethod
+    def _validate_top_p(cls, v: Any) -> float | None:
+        return _validate_role_top_p(v)
+
+    @field_validator("max_tokens", mode="before")
+    @classmethod
+    def _validate_max_tokens(cls, v: Any) -> int | None:
+        return _validate_role_max_tokens(v)
 
 
 class AgenticTaskLLMConfig(_ConfigBase):
     """LLM config for the task role (answering individual sub-questions).
 
     Env vars: AGENTIC_TASK_LLM_SERVERURL, AGENTIC_TASK_LLM_MODEL,
-              AGENTIC_TASK_LLM_APIKEY
+              AGENTIC_TASK_LLM_APIKEY, AGENTIC_TASK_LLM_TEMPERATURE,
+              AGENTIC_TASK_LLM_TOP_P, AGENTIC_TASK_LLM_MAX_TOKENS
     """
 
     server_url: str = Field(
@@ -189,22 +265,49 @@ class AgenticTaskLLMConfig(_ConfigBase):
         env="AGENTIC_TASK_LLM_APIKEY",
         description="API key for the task LLM (overrides global NVIDIA_API_KEY).",
     )
+    temperature: float | None = Field(
+        default=0.0,
+        env="AGENTIC_TASK_LLM_TEMPERATURE",
+        description="Sampling temperature for the task LLM. Default 0.0 (deterministic).",
+    )
+    top_p: float | None = Field(
+        default=1.0,
+        env="AGENTIC_TASK_LLM_TOP_P",
+        description="Nucleus-sampling top_p for the task LLM. Default 1.0.",
+    )
+    max_tokens: int | None = Field(
+        default=32768,
+        env="AGENTIC_TASK_LLM_MAX_TOKENS",
+        description="Max generated tokens for the task LLM. Default 32768.",
+    )
 
     @field_validator("server_url", mode="before")
     @classmethod
     def normalize_url(cls, v: Any) -> Any:
-        if isinstance(v, str):
-            v = v.strip().strip('"').strip("'")
-            if v and not v.startswith(("http://", "https://")):
-                return f"http://{v}"
-        return v
+        return _normalize_role_url(v)
+
+    @field_validator("temperature", mode="before")
+    @classmethod
+    def _validate_temperature(cls, v: Any) -> float | None:
+        return _validate_role_temperature(v)
+
+    @field_validator("top_p", mode="before")
+    @classmethod
+    def _validate_top_p(cls, v: Any) -> float | None:
+        return _validate_role_top_p(v)
+
+    @field_validator("max_tokens", mode="before")
+    @classmethod
+    def _validate_max_tokens(cls, v: Any) -> int | None:
+        return _validate_role_max_tokens(v)
 
 
 class AgenticSeedGenLLMConfig(_ConfigBase):
     """LLM config for the seed-gen role (retry seed query generation).
 
     Env vars: AGENTIC_SEED_GEN_LLM_SERVERURL, AGENTIC_SEED_GEN_LLM_MODEL,
-              AGENTIC_SEED_GEN_LLM_APIKEY
+              AGENTIC_SEED_GEN_LLM_APIKEY, AGENTIC_SEED_GEN_LLM_TEMPERATURE,
+              AGENTIC_SEED_GEN_LLM_TOP_P, AGENTIC_SEED_GEN_LLM_MAX_TOKENS
     """
 
     server_url: str = Field(
@@ -222,22 +325,52 @@ class AgenticSeedGenLLMConfig(_ConfigBase):
         env="AGENTIC_SEED_GEN_LLM_APIKEY",
         description="API key for the seed-gen LLM (overrides global NVIDIA_API_KEY).",
     )
+    temperature: float | None = Field(
+        default=0.1,
+        env="AGENTIC_SEED_GEN_LLM_TEMPERATURE",
+        description=(
+            "Sampling temperature for the seed-gen LLM. Default 0.1 (slight randomness "
+            "is intentional for retry seed diversity)."
+        ),
+    )
+    top_p: float | None = Field(
+        default=1.0,
+        env="AGENTIC_SEED_GEN_LLM_TOP_P",
+        description="Nucleus-sampling top_p for the seed-gen LLM. Default 1.0.",
+    )
+    max_tokens: int | None = Field(
+        default=32768,
+        env="AGENTIC_SEED_GEN_LLM_MAX_TOKENS",
+        description="Max generated tokens for the seed-gen LLM. Default 32768.",
+    )
 
     @field_validator("server_url", mode="before")
     @classmethod
     def normalize_url(cls, v: Any) -> Any:
-        if isinstance(v, str):
-            v = v.strip().strip('"').strip("'")
-            if v and not v.startswith(("http://", "https://")):
-                return f"http://{v}"
-        return v
+        return _normalize_role_url(v)
+
+    @field_validator("temperature", mode="before")
+    @classmethod
+    def _validate_temperature(cls, v: Any) -> float | None:
+        return _validate_role_temperature(v)
+
+    @field_validator("top_p", mode="before")
+    @classmethod
+    def _validate_top_p(cls, v: Any) -> float | None:
+        return _validate_role_top_p(v)
+
+    @field_validator("max_tokens", mode="before")
+    @classmethod
+    def _validate_max_tokens(cls, v: Any) -> int | None:
+        return _validate_role_max_tokens(v)
 
 
 class AgenticSynthesisLLMConfig(_ConfigBase):
     """LLM config for the synthesis role (final answer generation).
 
     Env vars: AGENTIC_SYNTHESIS_LLM_SERVERURL, AGENTIC_SYNTHESIS_LLM_MODEL,
-              AGENTIC_SYNTHESIS_LLM_APIKEY
+              AGENTIC_SYNTHESIS_LLM_APIKEY, AGENTIC_SYNTHESIS_LLM_TEMPERATURE,
+              AGENTIC_SYNTHESIS_LLM_TOP_P, AGENTIC_SYNTHESIS_LLM_MAX_TOKENS
     """
 
     server_url: str = Field(
@@ -255,15 +388,41 @@ class AgenticSynthesisLLMConfig(_ConfigBase):
         env="AGENTIC_SYNTHESIS_LLM_APIKEY",
         description="API key for the synthesis LLM (overrides global NVIDIA_API_KEY).",
     )
+    temperature: float | None = Field(
+        default=0.0,
+        env="AGENTIC_SYNTHESIS_LLM_TEMPERATURE",
+        description="Sampling temperature for the synthesis LLM. Default 0.0 (deterministic).",
+    )
+    top_p: float | None = Field(
+        default=1.0,
+        env="AGENTIC_SYNTHESIS_LLM_TOP_P",
+        description="Nucleus-sampling top_p for the synthesis LLM. Default 1.0.",
+    )
+    max_tokens: int | None = Field(
+        default=32768,
+        env="AGENTIC_SYNTHESIS_LLM_MAX_TOKENS",
+        description="Max generated tokens for the synthesis LLM. Default 32768.",
+    )
 
     @field_validator("server_url", mode="before")
     @classmethod
     def normalize_url(cls, v: Any) -> Any:
-        if isinstance(v, str):
-            v = v.strip().strip('"').strip("'")
-            if v and not v.startswith(("http://", "https://")):
-                return f"http://{v}"
-        return v
+        return _normalize_role_url(v)
+
+    @field_validator("temperature", mode="before")
+    @classmethod
+    def _validate_temperature(cls, v: Any) -> float | None:
+        return _validate_role_temperature(v)
+
+    @field_validator("top_p", mode="before")
+    @classmethod
+    def _validate_top_p(cls, v: Any) -> float | None:
+        return _validate_role_top_p(v)
+
+    @field_validator("max_tokens", mode="before")
+    @classmethod
+    def _validate_max_tokens(cls, v: Any) -> int | None:
+        return _validate_role_max_tokens(v)
 
 
 # Union type used for type hints in builder.py.

@@ -924,3 +924,437 @@ class TestBuildAgenticRagAgentSignature:
 
     def test_build_agentic_rag_agent_is_coroutine_function(self) -> None:
         assert inspect.iscoroutinefunction(build_agentic_rag_agent)
+
+
+class TestAgenticRoleGenerationParamFallback:
+    """Per-role generation-param fallback in builder._make_role_llm.
+
+    Covers Case 2 of the FR (no /generate override): each role's LLM is built
+    with temperature / top_p / max_tokens resolved via
+        role_cfg → planner_cfg → rag_config.llm.parameters.
+    """
+
+    def _build_rag_config(
+        self,
+        *,
+        main_temperature: float | None = None,
+        main_top_p: float | None = None,
+        main_max_tokens: int = 32768,
+        planner_overrides: dict | None = None,
+        task_overrides: dict | None = None,
+    ):
+        """Construct a minimal NvidiaRAGConfig and patch in role overrides."""
+        from nvidia_rag.utils.configuration import NvidiaRAGConfig
+
+        cfg = NvidiaRAGConfig()
+        # Force main-LLM generation params explicitly (cls defaults read env).
+        cfg.llm.parameters.temperature = main_temperature
+        cfg.llm.parameters.top_p = main_top_p
+        cfg.llm.parameters.max_tokens = main_max_tokens
+
+        for field_name, value in (planner_overrides or {}).items():
+            setattr(cfg.agentic_rag.planner_llm, field_name, value)
+        for field_name, value in (task_overrides or {}).items():
+            setattr(cfg.agentic_rag.task_llm, field_name, value)
+        return cfg
+
+    def test_role_value_wins_over_planner_and_main(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        calls: list[dict] = []
+
+        def fake_get_llm(**kwargs):
+            calls.append(kwargs)
+            return MagicMock()
+
+        monkeypatch.setattr("nvidia_rag.utils.llm.get_llm", fake_get_llm)
+        from nvidia_rag.rag_server.agentic_rag.builder import _make_role_llm
+
+        cfg = self._build_rag_config(
+            main_temperature=0.9,
+            main_top_p=0.99,
+            main_max_tokens=8000,
+            planner_overrides={
+                "model_name": "planner/model",
+                "temperature": 0.5,
+                "top_p": 0.7,
+                "max_tokens": 4000,
+            },
+            task_overrides={
+                "model_name": "task/model",
+                "temperature": 0.1,
+                "top_p": 0.3,
+                "max_tokens": 1000,
+            },
+        )
+
+        _make_role_llm(cfg.agentic_rag.task_llm, cfg.agentic_rag.planner_llm, cfg)
+        assert calls, "get_llm must have been invoked"
+        kw = calls[-1]
+        assert kw["temperature"] == 0.1
+        assert kw["top_p"] == 0.3
+        assert kw["max_tokens"] == 1000
+        assert kw["model"] == "task/model"
+
+    def test_planner_value_wins_when_role_gen_params_explicitly_none(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """When a role's gen-param fields are explicitly set to None (rare —
+        the role defaults are non-None — but valid via the typing), the
+        fallback chain hops to the planner role's values."""
+        calls: list[dict] = []
+
+        def fake_get_llm(**kwargs):
+            calls.append(kwargs)
+            return MagicMock()
+
+        monkeypatch.setattr("nvidia_rag.utils.llm.get_llm", fake_get_llm)
+        from nvidia_rag.rag_server.agentic_rag.builder import _make_role_llm
+
+        cfg = self._build_rag_config(
+            main_temperature=0.9,
+            main_top_p=0.99,
+            main_max_tokens=8000,
+            planner_overrides={
+                "model_name": "planner/model",
+                "temperature": 0.5,
+                "top_p": 0.7,
+                "max_tokens": 4000,
+            },
+            # task role leaves model_name empty AND explicitly nulls gen params
+            # so the fallback to planner fires.
+            task_overrides={
+                "temperature": None,
+                "top_p": None,
+                "max_tokens": None,
+            },
+        )
+
+        _make_role_llm(cfg.agentic_rag.task_llm, cfg.agentic_rag.planner_llm, cfg)
+        kw = calls[-1]
+        # Per-role model_name is empty → falls back to planner's model.
+        assert kw["model"] == "planner/model"
+        # Generation params fall back to planner's values.
+        assert kw["temperature"] == 0.5
+        assert kw["top_p"] == 0.7
+        assert kw["max_tokens"] == 4000
+
+    def test_main_rag_config_value_wins_when_role_and_planner_gen_params_none(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """When BOTH the role and the planner have None gen params, the chain
+        falls all the way through to ``rag_config.llm.parameters``."""
+        calls: list[dict] = []
+
+        def fake_get_llm(**kwargs):
+            calls.append(kwargs)
+            return MagicMock()
+
+        monkeypatch.setattr("nvidia_rag.utils.llm.get_llm", fake_get_llm)
+        from nvidia_rag.rag_server.agentic_rag.builder import _make_role_llm
+
+        # Planner has a model_name (so a model can be resolved) but nulled
+        # gen params; task likewise nulled.
+        cfg = self._build_rag_config(
+            main_temperature=0.42,
+            main_top_p=0.55,
+            main_max_tokens=12345,
+            planner_overrides={
+                "model_name": "planner/model",
+                "temperature": None,
+                "top_p": None,
+                "max_tokens": None,
+            },
+            task_overrides={
+                "temperature": None,
+                "top_p": None,
+                "max_tokens": None,
+            },
+        )
+
+        _make_role_llm(cfg.agentic_rag.task_llm, cfg.agentic_rag.planner_llm, cfg)
+        kw = calls[-1]
+        # All gen params fall through to rag_config.llm.parameters.
+        assert kw["temperature"] == 0.42
+        assert kw["top_p"] == 0.55
+        assert kw["max_tokens"] == 12345
+
+    def test_role_defaults_used_when_no_overrides_set(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Each role's built-in defaults (planner/seed_gen=0.1, task/synthesis=0.0,
+        top_p=1.0, max_tokens=32768) are applied when no env vars are set."""
+        from nvidia_rag.utils.configuration import NvidiaRAGConfig
+
+        calls: list[dict] = []
+
+        def fake_get_llm(**kwargs):
+            calls.append(kwargs)
+            return MagicMock()
+
+        monkeypatch.setattr("nvidia_rag.utils.llm.get_llm", fake_get_llm)
+        from nvidia_rag.rag_server.agentic_rag.builder import _make_role_llm
+
+        cfg = NvidiaRAGConfig()
+        # Give planner a model_name so a model can be resolved; leave gen
+        # params at their built-in defaults.
+        cfg.agentic_rag.planner_llm.model_name = "planner/m"
+
+        for role_name, expected_temp in [
+            ("planner_llm", 0.1),
+            ("task_llm", 0.0),
+            ("seed_gen_llm", 0.1),
+            ("synthesis_llm", 0.0),
+        ]:
+            calls.clear()
+            role_cfg = getattr(cfg.agentic_rag, role_name)
+            _make_role_llm(role_cfg, cfg.agentic_rag.planner_llm, cfg)
+            kw = calls[-1]
+            assert kw["temperature"] == expected_temp, (
+                f"{role_name} expected temperature={expected_temp}, got "
+                f"{kw['temperature']}"
+            )
+            assert kw["top_p"] == 1.0, (
+                f"{role_name} expected top_p=1.0, got {kw['top_p']}"
+            )
+            assert kw["max_tokens"] == 32768, (
+                f"{role_name} expected max_tokens=32768, got {kw['max_tokens']}"
+            )
+
+
+class TestAgenticRuntimeGenerationParamOverrides:
+    """Per-request /generate overrides for temperature / top_p / max_tokens.
+
+    Covers Case 1 of the FR: values passed at request time take precedence
+    over every env-var level and are applied to every role's LLM.
+    """
+
+    def test_temperature_only_override_keeps_role_models_but_applies_temp(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """No model/endpoint override → each role keeps its configured model,
+        but the request-provided temperature is applied to all roles.
+        """
+        from nvidia_rag.utils.configuration import NvidiaRAGConfig
+
+        calls: list[dict] = []
+
+        def fake_get_llm(**kwargs):
+            stub = MagicMock(name=f"role-{kwargs.get('model')}")
+            stub.model = kwargs.get("model")
+            stub.temperature = kwargs.get("temperature")
+            calls.append(kwargs)
+            return stub
+
+        monkeypatch.setattr("nvidia_rag.utils.llm.get_llm", fake_get_llm)
+
+        cfg = NvidiaRAGConfig()
+        cfg.agentic_rag.planner_llm.model_name = "planner/m"
+        cfg.agentic_rag.task_llm.model_name = "task/m"
+        cfg.agentic_rag.seed_gen_llm.model_name = "seed/m"
+        cfg.agentic_rag.synthesis_llm.model_name = "synth/m"
+
+        agent = AgenticRag(
+            planner_llm=MagicMock(),
+            task_llm=MagicMock(),
+            seed_gen_llm=MagicMock(),
+            synthesis_llm=MagicMock(),
+            retriever_fn=AsyncMock(return_value=None),
+            log_level="WARNING",
+            concurrency_limit=2,
+            rag_config=cfg,
+        )
+
+        token = _agentic_llm_overrides.set(
+            AgenticLLMOverrides(temperature=0.77)
+        )
+        try:
+            # Each role builds its own client because model/endpoint are NOT
+            # overridden — generation-param-only override doesn't collapse roles.
+            llms = [
+                agent.planner_llm,
+                agent.task_llm,
+                agent.seed_gen_llm,
+                agent.synthesis_llm,
+            ]
+        finally:
+            _agentic_llm_overrides.reset(token)
+
+        # 4 distinct clients, one per role.
+        assert len({id(x) for x in llms}) == 4
+        assert len(calls) == 4
+        # All four carry the override temperature.
+        assert all(c["temperature"] == 0.77 for c in calls)
+        # Each role still uses its own configured model.
+        models = sorted(c["model"] for c in calls)
+        assert models == ["planner/m", "seed/m", "synth/m", "task/m"]
+
+    def test_model_override_collapses_all_roles_to_one_client_with_gen_params(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Model + temperature overridden together → exactly one shared client
+        is built, used by all 4 roles, with the request temperature applied.
+        """
+        from nvidia_rag.utils.configuration import NvidiaRAGConfig
+
+        calls: list[dict] = []
+        built = MagicMock(name="shared-override-llm")
+
+        def fake_get_llm(**kwargs):
+            calls.append(kwargs)
+            return built
+
+        monkeypatch.setattr("nvidia_rag.utils.llm.get_llm", fake_get_llm)
+
+        cfg = NvidiaRAGConfig()
+        cfg.agentic_rag.planner_llm.model_name = "planner/m"
+
+        agent = AgenticRag(
+            planner_llm=MagicMock(),
+            task_llm=MagicMock(),
+            seed_gen_llm=MagicMock(),
+            synthesis_llm=MagicMock(),
+            retriever_fn=AsyncMock(return_value=None),
+            log_level="WARNING",
+            concurrency_limit=2,
+            rag_config=cfg,
+        )
+
+        token = _agentic_llm_overrides.set(
+            AgenticLLMOverrides(
+                model="runtime/model",
+                llm_endpoint="https://runtime",
+                temperature=0.33,
+                top_p=0.66,
+                max_tokens=999,
+            )
+        )
+        try:
+            assert agent.planner_llm is built
+            assert agent.task_llm is built
+            assert agent.seed_gen_llm is built
+            assert agent.synthesis_llm is built
+        finally:
+            _agentic_llm_overrides.reset(token)
+
+        # Single shared client → get_llm called exactly once.
+        assert len(calls) == 1
+        kw = calls[0]
+        assert kw["model"] == "runtime/model"
+        assert kw["llm_endpoint"] == "https://runtime"
+        assert kw["temperature"] == 0.33
+        assert kw["top_p"] == 0.66
+        assert kw["max_tokens"] == 999
+
+    def test_partial_gen_param_override_falls_back_per_field(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Only temperature passed at request time → top_p uses task role's
+        configured value; max_tokens falls all the way through to the main RAG
+        LLM (per-field fallback)."""
+        from nvidia_rag.utils.configuration import NvidiaRAGConfig
+
+        calls: list[dict] = []
+
+        def fake_get_llm(**kwargs):
+            calls.append(kwargs)
+            return MagicMock()
+
+        monkeypatch.setattr("nvidia_rag.utils.llm.get_llm", fake_get_llm)
+
+        cfg = NvidiaRAGConfig()
+        cfg.llm.parameters.temperature = 0.99
+        cfg.llm.parameters.top_p = 0.88
+        cfg.llm.parameters.max_tokens = 7777
+        cfg.agentic_rag.planner_llm.model_name = "planner/m"
+        # Null out planner gen params so the chain can fall through them.
+        cfg.agentic_rag.planner_llm.temperature = None
+        cfg.agentic_rag.planner_llm.top_p = None
+        cfg.agentic_rag.planner_llm.max_tokens = None
+        # task_llm role has top_p set but not temperature/max_tokens.
+        cfg.agentic_rag.task_llm.model_name = "task/m"
+        cfg.agentic_rag.task_llm.temperature = None
+        cfg.agentic_rag.task_llm.top_p = 0.42
+        cfg.agentic_rag.task_llm.max_tokens = None
+
+        agent = AgenticRag(
+            planner_llm=MagicMock(),
+            task_llm=MagicMock(),
+            seed_gen_llm=MagicMock(),
+            synthesis_llm=MagicMock(),
+            retriever_fn=AsyncMock(return_value=None),
+            log_level="WARNING",
+            concurrency_limit=2,
+            rag_config=cfg,
+        )
+
+        token = _agentic_llm_overrides.set(
+            AgenticLLMOverrides(temperature=0.05)
+        )
+        try:
+            _ = agent.task_llm
+        finally:
+            _agentic_llm_overrides.reset(token)
+
+        # The single task-role build call should carry:
+        # temperature → override value
+        # top_p → task role's configured value (0.42)
+        # max_tokens → main RAG LLM value (7777, not set on task or planner)
+        task_calls = [c for c in calls if c.get("model") == "task/m"]
+        assert task_calls, "expected get_llm call with task/m model"
+        kw = task_calls[0]
+        assert kw["temperature"] == 0.05
+        assert kw["top_p"] == 0.42
+        assert kw["max_tokens"] == 7777
+
+    def test_runtime_overrides_take_precedence_over_role_env_values(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """When the per-role agentic env vars are set AND request-time
+        gen-param overrides are also passed, the request values win."""
+        from nvidia_rag.utils.configuration import NvidiaRAGConfig
+
+        calls: list[dict] = []
+
+        def fake_get_llm(**kwargs):
+            calls.append(kwargs)
+            return MagicMock()
+
+        monkeypatch.setattr("nvidia_rag.utils.llm.get_llm", fake_get_llm)
+
+        cfg = NvidiaRAGConfig()
+        cfg.agentic_rag.planner_llm.model_name = "planner/m"
+        cfg.agentic_rag.task_llm.model_name = "task/m"
+        cfg.agentic_rag.task_llm.temperature = 0.1
+        cfg.agentic_rag.task_llm.top_p = 0.2
+        cfg.agentic_rag.task_llm.max_tokens = 1000
+
+        agent = AgenticRag(
+            planner_llm=MagicMock(),
+            task_llm=MagicMock(),
+            seed_gen_llm=MagicMock(),
+            synthesis_llm=MagicMock(),
+            retriever_fn=AsyncMock(return_value=None),
+            log_level="WARNING",
+            concurrency_limit=2,
+            rag_config=cfg,
+        )
+
+        token = _agentic_llm_overrides.set(
+            AgenticLLMOverrides(
+                temperature=0.9,
+                top_p=0.95,
+                max_tokens=5000,
+            )
+        )
+        try:
+            _ = agent.task_llm
+        finally:
+            _agentic_llm_overrides.reset(token)
+
+        task_calls = [c for c in calls if c.get("model") == "task/m"]
+        assert task_calls
+        kw = task_calls[0]
+        assert kw["temperature"] == 0.9
+        assert kw["top_p"] == 0.95
+        assert kw["max_tokens"] == 5000

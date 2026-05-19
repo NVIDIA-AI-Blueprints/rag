@@ -219,14 +219,28 @@ class AgenticRag:
     # PER-REQUEST LLM OVERRIDE (runtime model / endpoint from RAG API)
     # =========================================================================
 
-    def _resolve_role_llm(self, default_llm: BaseChatModel) -> BaseChatModel:
+    def _resolve_role_llm(
+        self, role_name: str, default_llm: BaseChatModel
+    ) -> BaseChatModel:
         """Return either the per-request override LLM or the cached default.
 
         Looks up ``_agentic_llm_overrides`` ContextVar (set by main._agentic_chain
-        before graph.ainvoke).  When an override is in effect, all four role
-        properties return the same override-built LLM client — the first access
-        constructs it via get_llm() and caches it on the override dataclass for
-        the remainder of the request.
+        before graph.ainvoke).
+
+        Override behavior:
+          - When **model** or **llm_endpoint** is overridden, all four roles
+            share a single override-built LLM client (cached under the
+            ``__shared__`` key) — preserving the FR-1527 semantics of "runtime
+            model applies to every agentic LLM".
+          - When only generation params (**temperature** / **top_p** /
+            **max_tokens**) are overridden, each role keeps its own configured
+            model / endpoint and gets a freshly built client with those
+            generation params applied (cached per-role).
+          - When no override is set, the cached default LLM is returned.
+
+        Missing override fields fall through per-field:
+            override → per-role agentic cfg → planner agentic cfg → main RAG
+            LLM config (``rag_config.llm`` or ``rag_config.llm.parameters``).
 
         ContextVar isolation guarantees concurrent requests see independent
         override state, so the per-request cache cannot leak across requests.
@@ -236,35 +250,151 @@ class AgenticRag:
         from nvidia_rag.rag_server.agentic_rag.builder import _agentic_llm_overrides
 
         overrides = _agentic_llm_overrides.get()
-        if overrides is None or not (overrides.model or overrides.llm_endpoint):
+        if overrides is None or not overrides.has_any_override():
             return default_llm
 
-        if overrides._built_llm is None:
-            from nvidia_rag.utils.llm import get_llm
+        model_or_endpoint_overridden = (
+            overrides.model is not None or overrides.llm_endpoint is not None
+        )
+        cache_key = "__shared__" if model_or_endpoint_overridden else role_name
 
-            overrides._built_llm = get_llm(
-                config=self._rag_config,
-                model=overrides.model,
-                llm_endpoint=overrides.llm_endpoint,
-                api_key=overrides.api_key,
+        cache = overrides._built_llms
+        if cache_key in cache:
+            return cache[cache_key]
+
+        # Resolve per-role / planner agentic cfgs defensively — _rag_config may be
+        # None in unit tests that don't supply a full NvidiaRAGConfig.
+        agentic_cfg = (
+            getattr(self._rag_config, "agentic_rag", None)
+            if self._rag_config is not None
+            else None
+        )
+        role_cfg = (
+            getattr(agentic_cfg, f"{role_name}_llm", None)
+            if agentic_cfg is not None
+            else None
+        )
+        planner_cfg = (
+            getattr(agentic_cfg, "planner_llm", None)
+            if agentic_cfg is not None
+            else None
+        )
+        # When sharing one client across all roles (model/endpoint overridden),
+        # use planner as the role-level fallback for generation params — it's the
+        # canonical fallback already used elsewhere for missing per-role values.
+        effective_role_cfg = planner_cfg if model_or_endpoint_overridden else role_cfg
+
+        rag_llm = (
+            getattr(self._rag_config, "llm", None)
+            if self._rag_config is not None
+            else None
+        )
+        rag_llm_params = (
+            getattr(rag_llm, "parameters", None) if rag_llm is not None else None
+        )
+
+        def _resolve_gen(field_name: str, override_val: Any) -> Any:
+            if override_val is not None:
+                return override_val
+            if effective_role_cfg is not None:
+                role_val = getattr(effective_role_cfg, field_name, None)
+                if role_val is not None:
+                    return role_val
+            if planner_cfg is not None:
+                planner_val = getattr(planner_cfg, field_name, None)
+                if planner_val is not None:
+                    return planner_val
+            if rag_llm_params is not None:
+                return getattr(rag_llm_params, field_name, None)
+            return None
+
+        # Resolve model / endpoint / api_key.
+        if model_or_endpoint_overridden:
+            # Force model/endpoint to override values; api_key falls back through
+            # planner cfg → main RAG LLM cfg.
+            model = overrides.model
+            if model is None:
+                if planner_cfg is not None and planner_cfg.model_name:
+                    model = planner_cfg.model_name
+                elif rag_llm is not None:
+                    model = rag_llm.model_name
+            server_url = overrides.llm_endpoint
+            if server_url is None:
+                if planner_cfg is not None and planner_cfg.server_url:
+                    server_url = planner_cfg.server_url
+                elif rag_llm is not None:
+                    server_url = rag_llm.server_url
+            api_key = overrides.api_key
+            if api_key is None and planner_cfg is not None:
+                api_key = planner_cfg.get_api_key()
+            if api_key is None and rag_llm is not None:
+                api_key = rag_llm.get_api_key()
+        else:
+            # Only generation params overridden — keep this role's model/endpoint.
+            cfg = (
+                role_cfg
+                if (role_cfg is not None and role_cfg.model_name)
+                else planner_cfg
             )
-        return overrides._built_llm
+            model = None
+            server_url = None
+            api_key = None
+            if cfg is not None:
+                model = cfg.model_name or None
+                server_url = cfg.server_url or None
+                api_key = cfg.get_api_key()
+            if not model and rag_llm is not None:
+                model = rag_llm.model_name
+            if not server_url and rag_llm is not None:
+                server_url = rag_llm.server_url
+            if api_key is None and rag_llm is not None:
+                api_key = rag_llm.get_api_key()
+
+        temperature = _resolve_gen("temperature", overrides.temperature)
+        top_p = _resolve_gen("top_p", overrides.top_p)
+        max_tokens = _resolve_gen("max_tokens", overrides.max_tokens)
+
+        logger.info(
+            "Creating override agentic LLM (cache_key=%s, role=%s): "
+            "model=%s, url=%s, temperature=%s, top_p=%s, max_tokens=%s",
+            cache_key,
+            role_name,
+            model,
+            server_url or "(api-catalog)",
+            temperature,
+            top_p,
+            max_tokens,
+        )
+
+        from nvidia_rag.utils.llm import get_llm
+
+        built = get_llm(
+            config=self._rag_config,
+            model=model,
+            llm_endpoint=server_url,
+            api_key=api_key,
+            temperature=temperature,
+            top_p=top_p,
+            max_tokens=max_tokens,
+        )
+        cache[cache_key] = built
+        return built
 
     @property
     def planner_llm(self) -> BaseChatModel:
-        return self._resolve_role_llm(self._default_planner_llm)
+        return self._resolve_role_llm("planner", self._default_planner_llm)
 
     @property
     def task_llm(self) -> BaseChatModel:
-        return self._resolve_role_llm(self._default_task_llm)
+        return self._resolve_role_llm("task", self._default_task_llm)
 
     @property
     def seed_gen_llm(self) -> BaseChatModel:
-        return self._resolve_role_llm(self._default_seed_gen_llm)
+        return self._resolve_role_llm("seed_gen", self._default_seed_gen_llm)
 
     @property
     def synthesis_llm(self) -> BaseChatModel:
-        return self._resolve_role_llm(self._default_synthesis_llm)
+        return self._resolve_role_llm("synthesis", self._default_synthesis_llm)
 
     @contextmanager
     def _otel_and_trace(self, span_name: str, span_kind: str = "CHAIN"):
@@ -866,7 +996,7 @@ class AgenticRag:
                         self.seed_gen_prompt,
                         {"question": question, "tried_queries": tried_summary},
                         step_name=f"Task {tid} seed gen (attempt {attempt + 1})",
-                        json_mode=False,
+                        json_mode=True,
                         # config intentionally omitted — see method docstring.
                     )
                     seed_result = self._parse_json_response(seed_response)
@@ -964,6 +1094,7 @@ class AgenticRag:
                     {"question": task_question, "documents": docs_str},
                     step_name=f"Task {tid} answer (attempt {attempt + 1})",
                     # config intentionally omitted — see method docstring.
+                    json_mode=True,
                 )
                 parsed = self._parse_task_answer(raw_answer)
 
@@ -1192,7 +1323,7 @@ class AgenticRag:
                             "scope_section": scope_section,
                         },
                         step_name=f"Planner ({phase})",
-                        json_mode=False,
+                        json_mode=True,
                         config=config,
                     )
                     plan = self._parse_json_response(response)
@@ -1741,7 +1872,7 @@ class AgenticRag:
                         "task_summary": task_summary,
                     },
                     step_name="Verification",
-                    json_mode=False,
+                    json_mode=True,
                     config=config,
                 )
                 result = self._parse_json_response(response)
