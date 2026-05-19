@@ -187,6 +187,105 @@ Continue with [Deploy with Docker (NVIDIA-Hosted Models)](deploy-docker-nvidia-h
    Keep user questions as self-contained as possible, especially in long-running conversations. Use retrieval and prompt tuning to focus the most relevant context for the VLM.
    :::
 
+## Separate VLMs for Generation and Captioning
+
+This blueprint uses two distinct VLM NIMs by default — one for chat / RAG answering and one for ingestion-time image captioning. The two services are configured independently so each can be scaled, replaced, or pointed at a different endpoint without affecting the other.
+
+| Role | Default model | Compose service | Helm chart key |
+|------|---------------|-----------------|----------------|
+| Generation (chat / RAG answering) | `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning` | `vlm-ms` | `nimOperator.nim-vlm` |
+| Ingestion-time image captioning | `nvidia/nemotron-nano-12b-v2-vl` | `vlm-captioning-ms` | `nimOperator.nim-vlm-captioning` |
+
+### Configure the generation VLM
+
+Set the generation VLM via `APP_VLM_MODELNAME` and `APP_VLM_SERVERURL`. With Docker Compose:
+
+```bash
+export APP_VLM_MODELNAME="nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
+export APP_VLM_SERVERURL="http://vlm-ms:8000/v1"
+docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d
+```
+
+With Helm, in `values.yaml`:
+
+```yaml
+envVars:
+  APP_VLM_MODELNAME: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
+  APP_VLM_SERVERURL: "http://nim-vlm:8000/v1"
+
+nimOperator:
+  nim-vlm:
+    enabled: true
+```
+
+### Configure the captioning VLM
+
+The captioning model is consumed by both the ingestor-server and the upstream `nv-ingest-ms-runtime`, so set both pairs of env vars to the same values.
+
+With Docker Compose:
+
+```bash
+export APP_NVINGEST_CAPTIONMODELNAME="nvidia/nemotron-nano-12b-v2-vl"
+export APP_NVINGEST_CAPTIONENDPOINTURL="http://vlm-captioning-ms:8000/v1/chat/completions"
+export VLM_CAPTION_MODEL_NAME="nvidia/nemotron-nano-12b-v2-vl"
+export VLM_CAPTION_ENDPOINT="http://vlm-captioning-ms:8000/v1/chat/completions"
+docker compose -f deploy/compose/nims.yaml --profile vlm-rag up -d   # starts vlm-captioning-ms
+docker compose -f deploy/compose/docker-compose-ingestor-server.yaml up -d
+```
+
+With Helm, in `values.yaml`:
+
+```yaml
+nimOperator:
+  nim-vlm-captioning:
+    enabled: true
+
+ingestor-server:
+  envVars:
+    APP_NVINGEST_CAPTIONMODELNAME: "nvidia/nemotron-nano-12b-v2-vl"
+    APP_NVINGEST_CAPTIONENDPOINTURL: "http://nim-vlm-captioning:8000/v1/chat/completions"
+
+nv-ingest:
+  envVars:
+    VLM_CAPTION_MODEL_NAME: nvidia/nemotron-nano-12b-v2-vl
+    VLM_CAPTION_ENDPOINT: http://nim-vlm-captioning:8000/v1/chat/completions
+```
+
+### Use a single shared VLM for both roles
+
+If you want to run only one VLM container and use it for both generation and captioning, point the captioning endpoints at the generation service and disable the dedicated captioning NIM.
+
+With Docker Compose:
+
+```bash
+export APP_NVINGEST_CAPTIONENDPOINTURL="http://vlm-ms:8000/v1/chat/completions"
+export VLM_CAPTION_ENDPOINT="http://vlm-ms:8000/v1/chat/completions"
+# Bring up generation only (skip the vlm-captioning-ms profile)
+docker compose -f deploy/compose/nims.yaml --profile vlm-generation up -d
+```
+
+With Helm, in `values.yaml`:
+
+```yaml
+nimOperator:
+  nim-vlm-captioning:
+    enabled: false
+
+ingestor-server:
+  envVars:
+    APP_NVINGEST_CAPTIONENDPOINTURL: "http://nim-vlm:8000/v1/chat/completions"
+
+nv-ingest:
+  envVars:
+    VLM_CAPTION_ENDPOINT: http://nim-vlm:8000/v1/chat/completions
+```
+
+In this mode set `APP_NVINGEST_CAPTIONMODELNAME` and `VLM_CAPTION_MODEL_NAME` to whatever model the generation NIM serves.
+
+### NVIDIA-hosted endpoints
+
+To use NVIDIA-hosted endpoints for either role, point the corresponding `*_SERVERURL` / `*_ENDPOINTURL` at `https://integrate.api.nvidia.com/v1` (chat completions: `https://integrate.api.nvidia.com/v1/chat/completions`). Both `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning` and `nvidia/nemotron-nano-12b-v2-vl` are available there.
+
 ## VLM to LLM Fallback (Optional)
 
 By default, with VLM enabled, the RAG server uses VLM for all generation tasks. The `VLM_TO_LLM_FALLBACK` environment variable controls behavior for text-only queries (no images in query, messages, or retrieved context).
