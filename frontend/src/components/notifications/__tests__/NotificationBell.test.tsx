@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
 import { render, screen } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import NotificationBell from '../NotificationBell';
