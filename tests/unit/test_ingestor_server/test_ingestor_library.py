@@ -307,6 +307,9 @@ class TestNvidiaRAGIngestor:
         """Test successful collection creation."""
         # Mock collection operations
         ingestor.vdb_op.collection_name = "test_collection"
+        # check_collection_exists is the dedup chokepoint — return False so
+        # the request takes the create branch instead of short-circuiting.
+        ingestor.vdb_op.check_collection_exists.return_value = False
         ingestor.vdb_op.get_collection.return_value = []
         ingestor.vdb_op.create_collection.return_value = None
         ingestor.vdb_op.create_metadata_schema_collection.return_value = None
@@ -332,9 +335,10 @@ class TestNvidiaRAGIngestor:
     def test_create_collection_already_exists(self, ingestor):
         """Test collection creation when collection already exists."""
         ingestor.vdb_op.collection_name = "test_collection"
-        ingestor.vdb_op.get_collection.return_value = [
-            {"collection_name": "test_collection"}
-        ]
+        # The dedup short-circuit is driven by check_collection_exists; the
+        # fixture defaults it to True so the request returns the "already
+        # exists" branch.
+        ingestor.vdb_op.check_collection_exists.return_value = True
 
         result = ingestor.create_collection()
 
@@ -344,6 +348,9 @@ class TestNvidiaRAGIngestor:
     def test_create_collection_invalid_metadata_schema(self, ingestor):
         """Test collection creation with invalid metadata schema."""
         ingestor.vdb_op.collection_name = "test_collection"
+        # Make sure the request takes the create branch (the create branch is
+        # where metadata fields are validated).
+        ingestor.vdb_op.check_collection_exists.return_value = False
         ingestor.vdb_op.get_collection.return_value = []
 
         invalid_schema = [

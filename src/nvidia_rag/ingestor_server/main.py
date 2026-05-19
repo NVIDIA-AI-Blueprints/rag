@@ -1290,8 +1290,13 @@ class NvidiaRAGIngestor:
             vdb_op.create_metadata_schema_collection()
             vdb_op.create_document_info_collection()
 
-            existing_collections = vdb_op.get_collection()
-            if collection_name in [f["collection_name"] for f in existing_collections]:
+            # Use check_collection_exists for the dedup short-circuit: it
+            # routes through the backend's canonical-name handling (e.g.
+            # Elasticsearch lowercases index names), so a second POST with
+            # the same mixed-case collection_name does not bypass the
+            # already-exists branch and re-run add_metadata_schema /
+            # add_document_info on top of an existing collection.
+            if vdb_op.check_collection_exists(collection_name):
                 return {
                     "message": f"Collection {collection_name} already exists.",
                     "collection_name": collection_name,

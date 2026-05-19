@@ -128,7 +128,12 @@ class ElasticVDB(VDBRagIngest):
         logging.getLogger("elastic_transport").setLevel(logging.WARNING)
 
         self.config = config or NvidiaRAGConfig()
-        self.index_name = index_name
+        # Elasticsearch rejects index names containing uppercase characters
+        # (invalid_index_name_exception, HTTP 400). Lowercase at construction
+        # so every downstream operation (existence checks, deletes, document
+        # listings, metadata / document-info writes) references the same
+        # canonical index name as the one actually created in ES.
+        self.index_name = self._normalize_index_name(index_name)
         self.es_url = es_url
         # Prefer Bearer token when provided; then API key; otherwise fall back to basic auth.
         resolved_api_key: str | tuple[str, str] | None = None
@@ -229,6 +234,22 @@ class ElasticVDB(VDBRagIngest):
 
         release_nvidia_client_response(self._embedding_model)
 
+    @staticmethod
+    def _normalize_index_name(name: str | None) -> str | None:
+        """Return the Elasticsearch-canonical (lowercase) form of an index name.
+
+        Elasticsearch rejects index names containing uppercase characters
+        with ``invalid_index_name_exception`` (HTTP 400). Routing every
+        entry point through this helper keeps the actual stored index,
+        sibling operations (existence checks, deletes, document listings)
+        and metadata / document-info keys in sync — even when callers
+        supply mixed case. ``None`` and the empty string are returned
+        unchanged so ``bypass_validation``-style paths behave as before.
+        """
+        if not name:
+            return name
+        return name.lower()
+
     @property
     def collection_name(self) -> str:
         """Get the collection name."""
@@ -237,7 +258,7 @@ class ElasticVDB(VDBRagIngest):
     @collection_name.setter
     def collection_name(self, collection_name: str) -> None:
         """Set the collection name."""
-        self.index_name = collection_name
+        self.index_name = self._normalize_index_name(collection_name)
 
     def _get_retrieval_strategy(self, hybrid: bool = False) -> DenseVectorStrategy:
         """Return the appropriate retrieval strategy based on GPU config."""
@@ -268,7 +289,9 @@ class ElasticVDB(VDBRagIngest):
         """
         Check if the index exists in Elasticsearch.
         """
-        return self._es_connection.indices.exists(index=index_name)
+        return self._es_connection.indices.exists(
+            index=self._normalize_index_name(index_name)
+        )
 
     def _repair_stale_ingest_refresh_settings(self) -> None:
         """
@@ -490,8 +513,17 @@ class ElasticVDB(VDBRagIngest):
         """
         Create a new collection in the Elasticsearch index.
         """
+        normalized_name = self._normalize_index_name(collection_name)
+        if normalized_name != collection_name:
+            logger.info(
+                "Normalizing collection name %r to lowercase %r for "
+                "Elasticsearch (uppercase letters are not permitted in index "
+                "names)",
+                collection_name,
+                normalized_name,
+            )
         es_store = self._get_es_store(
-            index_name=collection_name,
+            index_name=normalized_name,
             dimensions=dimension,
             hybrid=self.hybrid,
         )
@@ -499,14 +531,14 @@ class ElasticVDB(VDBRagIngest):
 
         # Wait for the index to be ready
         self._es_connection.cluster.health(
-            index=collection_name, wait_for_status="yellow", timeout="5s"
+            index=normalized_name, wait_for_status="yellow", timeout="5s"
         )
 
     def check_collection_exists(self, collection_name: str) -> bool:
         """
         Check if a collection exists in the Elasticsearch index.
         """
-        return self._check_index_exists(collection_name)
+        return self._check_index_exists(self._normalize_index_name(collection_name))
 
     def get_collection(self):
         """Get the list of collections in the Elasticsearch index."""
@@ -552,6 +584,9 @@ class ElasticVDB(VDBRagIngest):
         deleted_collections = []
         failed_collections = []
 
+        collection_names = [
+            self._normalize_index_name(name) for name in collection_names
+        ]
         for collection_name in collection_names:
             try:
                 # Check if collection exists before attempting deletion
@@ -623,6 +658,7 @@ class ElasticVDB(VDBRagIngest):
         """
         Get the list of documents in a collection.
         """
+        collection_name = self._normalize_index_name(collection_name)
         metadata_schema = self.get_metadata_schema(collection_name)
 
         # Paginate the composite aggregation via after_key so collections with
@@ -679,6 +715,7 @@ class ElasticVDB(VDBRagIngest):
         """
         Delete documents from a collection by source values.
         """
+        collection_name = self._normalize_index_name(collection_name)
         if result_dict is not None:
             result_dict["deleted"] = []
             result_dict["not_found"] = []
@@ -757,6 +794,7 @@ class ElasticVDB(VDBRagIngest):
         """
         Add metadata schema to a elasticsearch index.
         """
+        collection_name = self._normalize_index_name(collection_name)
         # Delete the metadata schema from the index
         _ = self._es_connection.delete_by_query(
             index=DEFAULT_METADATA_SCHEMA_COLLECTION,
@@ -779,6 +817,7 @@ class ElasticVDB(VDBRagIngest):
         """
         Get the metadata schema for a collection in the Elasticsearch index.
         """
+        collection_name = self._normalize_index_name(collection_name)
         # Sort by _seq_no desc and cap at 1 hit: in case duplicates exist from a
         # delete-then-insert race in add_metadata_schema, we get the most recent
         # write deterministically. _seq_no is an ES-maintained per-write counter
@@ -865,6 +904,7 @@ class ElasticVDB(VDBRagIngest):
         """
         Add document info to a collection.
         """
+        collection_name = self._normalize_index_name(collection_name)
         # Since collection may have pre-ingested documents, we need to get the aggregated document info
         if info_type == "collection":
             info_value = self._get_aggregated_document_info(
@@ -904,6 +944,7 @@ class ElasticVDB(VDBRagIngest):
         document_name: str,
     ) -> dict[str, Any]:
         """Get document info from a Elasticsearch index."""
+        collection_name = self._normalize_index_name(collection_name)
         try:
             # Sort by _seq_no desc and cap at 1 hit: if duplicates exist for the
             # same (info_type, collection_name, document_name) tuple from a delete-
@@ -933,6 +974,7 @@ class ElasticVDB(VDBRagIngest):
         Returns:
             list[dict[str, Any]]: List of document info for the collection. (hit["_source"])
         """
+        collection_name = self._normalize_index_name(collection_name)
         try:
             if not self._check_index_exists(index_name=DEFAULT_DOCUMENT_INFO_COLLECTION):
                 logger.warning(
@@ -1030,6 +1072,7 @@ class ElasticVDB(VDBRagIngest):
         otel_ctx: Any | None = None,
     ) -> list[dict[str, Any]]:
         """Retrieve documents from a collection using langchain."""
+        collection_name = self._normalize_index_name(collection_name)
         logger.info(
             "Elasticsearch Retrieval: Retrieving documents from index: %s, search type: '%s'",
             collection_name,
@@ -1116,6 +1159,7 @@ class ElasticVDB(VDBRagIngest):
         if not page_numbers:
             return []
 
+        collection_name = self._normalize_index_name(collection_name)
         try:
             query = get_chunks_by_source_and_pages_query(source_name, page_numbers)
             query["size"] = min(limit, 10000)  # Elasticsearch default max
@@ -1172,6 +1216,7 @@ class ElasticVDB(VDBRagIngest):
         Note: Uses the embedding_model provided during initialization.
         """
         final_limit = reranker_top_k if reranker_top_k is not None else top_k
+        collection_name = self._normalize_index_name(collection_name)
 
         if vectorstore is None:
             vectorstore = self.get_langchain_vectorstore(collection_name)
@@ -1218,6 +1263,7 @@ class ElasticVDB(VDBRagIngest):
         Get the vectorstore for a collection.
         Uses the same authentication priority: bearer token -> API key -> basic auth
         """
+        collection_name = self._normalize_index_name(collection_name)
         vectorstore_params: dict[str, Any] = {
             "index_name": collection_name,
             "es_url": self.es_url,
