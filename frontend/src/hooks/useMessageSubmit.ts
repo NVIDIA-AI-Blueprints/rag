@@ -69,7 +69,10 @@ export function buildFilterExpression(
 
   const backend = vectorStoreFromHealthService(healthServiceLabel) ?? "milvus";
   if (backend === "elasticsearch") {
-    return compileElasticsearchFilter(filters);
+    // Pass `fieldTypes` so non-string-typed fields (integer / float /
+    // datetime / boolean) get the bare field path. Appending `.keyword`
+    // to those targets a non-existent ES sub-field and returns zero hits.
+    return compileElasticsearchFilter(filters, fieldTypes);
   }
   return compileMilvusFilter(filters, fieldTypes);
 }

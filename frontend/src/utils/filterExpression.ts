@@ -146,15 +146,61 @@ export const compileMilvusFilter = (
 // =============================================================================
 // ELASTICSEARCH FILTER COMPILER
 // =============================================================================
-// ES filter_expr is a list of dicts using Elasticsearch Query DSL with field
-// paths in the form `metadata.content_metadata.<name>.keyword`. See
+// ES filter_expr is a list of dicts using Elasticsearch Query DSL. Field paths
+// are `metadata.content_metadata.<name>`, with a `.keyword` suffix appended
+// only for exact-match clauses (`term`/`terms`/`prefix`) on string-typed
+// fields. Numeric, datetime, and boolean fields use the bare path because
+// `.keyword` only exists as a multi-field on string mappings — appending it
+// elsewhere targets a non-existent field and silently returns zero hits. See
 // docs/custom-metadata.md#elasticsearch-filter-example.
 
 /** ES Query DSL clause. Kept loose because ES accepts arbitrary shapes. */
 export type ESClause = Record<string, unknown>;
 
-const esField = (name: string): string =>
-  `metadata.content_metadata.${name}.keyword`;
+/** Schema types that support a `.keyword` multi-field in ES mappings. */
+const STRING_FIELD_TYPES = new Set(["string"]);
+
+const isStringLikeField = (
+  field: string,
+  fieldTypes: FieldTypeMap
+): boolean => {
+  const t = fieldTypes.fieldType.get(field);
+  if (!t) {
+    // Unknown field (no schema loaded for the selected collection). Default
+    // to string-like to preserve the previous wire format for installs
+    // without registered schemas. The backend normalizer will strip
+    // `.keyword` server-side if the field turns out to be non-string.
+    return true;
+  }
+  if (STRING_FIELD_TYPES.has(t)) return true;
+  if (t === "array") {
+    const elem = fieldTypes.arrayElementType.get(field);
+    return elem !== undefined && STRING_FIELD_TYPES.has(elem);
+  }
+  return false;
+};
+
+/**
+ * Clause kinds we care about for the `.keyword` decision:
+ * - "exact"   → `term` / `terms` / `prefix` / `wildcard` / `match`: append
+ *   `.keyword` when the field is string-like (that's where the ES multi-field
+ *   exists). For non-string fields these clauses either don't apply or work
+ *   on the native field type, so use the bare path.
+ * - "range"  → never `.keyword`. String fields don't support range queries
+ *   server-side, and on numeric/datetime fields the keyword sub-field
+ *   doesn't exist.
+ */
+type EsClauseKind = "exact" | "range";
+
+const esField = (
+  name: string,
+  clauseKind: EsClauseKind,
+  fieldTypes: FieldTypeMap
+): string => {
+  const base = `metadata.content_metadata.${name}`;
+  if (clauseKind === "range") return base;
+  return isStringLikeField(name, fieldTypes) ? `${base}.keyword` : base;
+};
 
 /** Convert Milvus-style `%` wildcards to ES `*`/`?`. */
 const milvusLikeToEsWildcard = (pattern: string): string =>
@@ -164,57 +210,58 @@ const negate = (clause: ESClause): ESClause => ({
   bool: { must_not: [clause] },
 });
 
-const compileEsClause = (f: Filter): ESClause => {
-  const path = esField(f.field);
+const compileEsClause = (f: Filter, fieldTypes: FieldTypeMap): ESClause => {
+  const exactPath = esField(f.field, "exact", fieldTypes);
+  const rangePath = esField(f.field, "range", fieldTypes);
 
   switch (f.operator) {
     case "=":
     case "==":
-      return { term: { [path]: f.value } };
+      return { term: { [exactPath]: f.value } };
 
     case "!=":
-      return negate({ term: { [path]: f.value } });
+      return negate({ term: { [exactPath]: f.value } });
 
     case ">":
-      return { range: { [path]: { gt: f.value } } };
+      return { range: { [rangePath]: { gt: f.value } } };
     case ">=":
-      return { range: { [path]: { gte: f.value } } };
+      return { range: { [rangePath]: { gte: f.value } } };
     case "<":
-      return { range: { [path]: { lt: f.value } } };
+      return { range: { [rangePath]: { lt: f.value } } };
     case "<=":
-      return { range: { [path]: { lte: f.value } } };
+      return { range: { [rangePath]: { lte: f.value } } };
 
     case "after":
-      return { range: { [path]: { gt: f.value } } };
+      return { range: { [rangePath]: { gt: f.value } } };
     case "before":
-      return { range: { [path]: { lt: f.value } } };
+      return { range: { [rangePath]: { lt: f.value } } };
 
     case "in":
       return {
-        terms: { [path]: Array.isArray(f.value) ? f.value : [f.value] },
+        terms: { [exactPath]: Array.isArray(f.value) ? f.value : [f.value] },
       };
     case "not in":
       return negate({
-        terms: { [path]: Array.isArray(f.value) ? f.value : [f.value] },
+        terms: { [exactPath]: Array.isArray(f.value) ? f.value : [f.value] },
       });
 
     case "like":
       return {
         wildcard: {
-          [path]: milvusLikeToEsWildcard(String(f.value)),
+          [exactPath]: milvusLikeToEsWildcard(String(f.value)),
         },
       };
 
     // ES `term` already does set-membership for stored arrays, so a single
     // value matches any element of the array.
     case "array_contains":
-      return { term: { [path]: f.value } };
+      return { term: { [exactPath]: f.value } };
 
     // "all of" — emit one `term` per requested value, ANDed together.
     case "array_contains_all": {
       const values = Array.isArray(f.value) ? f.value : [f.value];
       return {
-        bool: { must: values.map((v) => ({ term: { [path]: v } })) },
+        bool: { must: values.map((v) => ({ term: { [exactPath]: v } })) },
       };
     }
 
@@ -222,11 +269,11 @@ const compileEsClause = (f: Filter): ESClause => {
     case "array_contains_any":
     case "includes":
       return {
-        terms: { [path]: Array.isArray(f.value) ? f.value : [f.value] },
+        terms: { [exactPath]: Array.isArray(f.value) ? f.value : [f.value] },
       };
     case "does not include":
       return negate({
-        terms: { [path]: Array.isArray(f.value) ? f.value : [f.value] },
+        terms: { [exactPath]: Array.isArray(f.value) ? f.value : [f.value] },
       });
 
     default: {
@@ -235,7 +282,7 @@ const compileEsClause = (f: Filter): ESClause => {
       // fall back to a `term` query so we still produce a valid request.
       const _exhaustive: never = f.operator;
       void _exhaustive;
-      return { term: { [path]: f.value } };
+      return { term: { [exactPath]: f.value } };
     }
   }
 };
@@ -252,9 +299,19 @@ const compileEsClause = (f: Filter): ESClause => {
  *   together via a single top-level `bool.should` envelope.
  *
  * Returns `undefined` for empty input (so the caller can omit the field).
+ *
+ * `fieldTypes` carries the schema-derived type info needed to decide whether
+ * `.keyword` should be appended for a given clause/field pair. When a field
+ * is missing from `fieldTypes` (e.g. no schema is registered), we default to
+ * the previous string-like behavior and rely on the backend normalizer to
+ * strip `.keyword` if the field is actually non-string.
  */
 export const compileElasticsearchFilter = (
-  filters: Filter[]
+  filters: Filter[],
+  fieldTypes: FieldTypeMap = {
+    fieldType: new Map(),
+    arrayElementType: new Map(),
+  }
 ): ESClause[] | undefined => {
   if (filters.length === 0) return undefined;
 
@@ -267,7 +324,7 @@ export const compileElasticsearchFilter = (
     if (op === "OR" && groups[groups.length - 1].length > 0) {
       groups.push([]);
     }
-    groups[groups.length - 1].push(compileEsClause(f));
+    groups[groups.length - 1].push(compileEsClause(f, fieldTypes));
   });
 
   if (groups.length === 1) {

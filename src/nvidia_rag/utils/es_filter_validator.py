@@ -108,14 +108,30 @@ class ElasticsearchFilterValidator:
             return {"status": False, "error_message": str(e)}
 
     def process_filter(self, filter_clauses: list[dict[str, Any]]) -> dict[str, Any]:
-        """Validate and normalize ES DSL clauses (e.g. add `.keyword` where needed)."""
+        """Validate and normalize ES DSL clauses (e.g. add `.keyword` where needed).
+
+        Emits a WARNING listing every field-path change. Logged at WARNING
+        (not INFO) because we are silently rewriting user-supplied input —
+        the caller should fix the source so the rewrite eventually goes
+        away.
+        """
         try:
             normalized = copy.deepcopy(filter_clauses)
-            self._walk_clauses(normalized, normalize=True)
+            changes: list[tuple[str, str]] = []
+            self._walk_clauses(normalized, normalize=True, changes=changes)
+            if changes:
+                rewrites = ", ".join(f"{old} -> {new}" for old, new in changes)
+                logger.warning(
+                    "[ES Filter] Rewrote %d path(s): %s "
+                    "(`.keyword` is only valid on string fields).",
+                    len(changes),
+                    rewrites,
+                )
             return {
                 "status": True,
                 "processed_expression": normalized,
                 "message": "Filter clauses processed successfully",
+                "normalization_changes": changes,
             }
         except (FilterSyntaxError, FilterSemanticError) as e:
             return {"status": False, "error_message": str(e)}
@@ -131,6 +147,7 @@ class ElasticsearchFilterValidator:
         normalize: bool,
         depth: int = 0,
         clause_count: list[int] | None = None,
+        changes: list[tuple[str, str]] | None = None,
     ) -> None:
         if clause_count is None:
             clause_count = [0]
@@ -152,7 +169,11 @@ class ElasticsearchFilterValidator:
                     f"Filter contains more than {_MAX_CLAUSES} clauses."
                 )
             self._walk_clause(
-                clause, normalize=normalize, depth=depth, clause_count=clause_count
+                clause,
+                normalize=normalize,
+                depth=depth,
+                clause_count=clause_count,
+                changes=changes,
             )
 
     def _walk_clause(
@@ -162,6 +183,7 @@ class ElasticsearchFilterValidator:
         normalize: bool,
         depth: int,
         clause_count: list[int],
+        changes: list[tuple[str, str]] | None = None,
     ) -> None:
         if not isinstance(clause, dict) or len(clause) != 1:
             raise FilterSyntaxError(
@@ -173,7 +195,11 @@ class ElasticsearchFilterValidator:
 
         if clause_type in _BOOL_CLAUSE_TYPES:
             self._walk_bool(
-                body, normalize=normalize, depth=depth + 1, clause_count=clause_count
+                body,
+                normalize=normalize,
+                depth=depth + 1,
+                clause_count=clause_count,
+                changes=changes,
             )
             return
 
@@ -183,7 +209,9 @@ class ElasticsearchFilterValidator:
                 f"{sorted(_LEAF_CLAUSE_TYPES | _BOOL_CLAUSE_TYPES)}."
             )
 
-        self._validate_leaf(clause, clause_type, body, normalize=normalize)
+        self._validate_leaf(
+            clause, clause_type, body, normalize=normalize, changes=changes
+        )
 
     def _walk_bool(
         self,
@@ -192,6 +220,7 @@ class ElasticsearchFilterValidator:
         normalize: bool,
         depth: int,
         clause_count: list[int],
+        changes: list[tuple[str, str]] | None = None,
     ) -> None:
         if not isinstance(body, dict):
             raise FilterSyntaxError(
@@ -227,6 +256,7 @@ class ElasticsearchFilterValidator:
                 normalize=normalize,
                 depth=depth,
                 clause_count=clause_count,
+                changes=changes,
             )
 
     # ------------------------------------------------------------------
@@ -240,6 +270,7 @@ class ElasticsearchFilterValidator:
         body: Any,
         *,
         normalize: bool,
+        changes: list[tuple[str, str]] | None = None,
     ) -> None:
         # `exists` body is `{"field": "<path>"}`; others are `{"<path>": <value>}`.
         if clause_type == "exists":
@@ -252,9 +283,17 @@ class ElasticsearchFilterValidator:
                 raise FilterSyntaxError(
                     "'exists' clause 'field' value must be a string."
                 )
-            field_name, _ = self._strip_field_path(field_path)
+            field_name, had_keyword = self._strip_field_path(field_path)
             field_def = self._lookup_field(field_name)
             self._assert_clause_compatible(field_def, clause_type)
+            if normalize:
+                normalized_path = self._normalize_field_path(
+                    field_def, clause_type, field_name, had_keyword
+                )
+                if normalized_path != field_path:
+                    clause[clause_type] = {"field": normalized_path}
+                    if changes is not None:
+                        changes.append((field_path, normalized_path))
             return
 
         if not isinstance(body, dict) or len(body) != 1:
@@ -278,13 +317,17 @@ class ElasticsearchFilterValidator:
             if not isinstance(value, list):
                 raise FilterSyntaxError("'terms' clause value must be an array.")
 
-        # Normalization: ensure `.keyword` suffix where appropriate.
+        # Normalization: ensure `.keyword` suffix where appropriate, and strip
+        # it from non-string-like fields where it would target a non-existent
+        # ES sub-field.
         if normalize:
             normalized_path = self._normalize_field_path(
                 field_def, clause_type, field_name, had_keyword
             )
             if normalized_path != field_path:
                 clause[clause_type] = {normalized_path: value}
+                if changes is not None:
+                    changes.append((field_path, normalized_path))
 
     # ------------------------------------------------------------------
     # Helpers
@@ -374,20 +417,30 @@ class ElasticsearchFilterValidator:
 
         - Always prefixes with `metadata.content_metadata.`.
         - Adds `.keyword` for exact-match clauses on string-like fields.
+        - Strips a caller-supplied `.keyword` for non-string-like fields.
+          Rationale: `.keyword` is an Elasticsearch text multi-field — it only
+          exists on `string`-typed fields. Targeting `<numeric_field>.keyword`
+          points at a non-existent mapping and silently returns zero hits
+          (which previously broke UI-issued filters such as
+          `term: {priority.keyword: 2}` on an integer `priority`).
         """
         path = f"{_METADATA_PREFIX}{field_name}"
 
-        wants_keyword = clause_type in {"term", "terms", "prefix"} and (
-            field_def.type == MetadataType.STRING.value
-            or (
-                field_def.type == MetadataType.ARRAY.value
-                and field_def.array_type == MetadataType.STRING.value
-            )
+        is_string_like = field_def.type == MetadataType.STRING.value or (
+            field_def.type == MetadataType.ARRAY.value
+            and field_def.array_type == MetadataType.STRING.value
         )
-        if wants_keyword or had_keyword:
-            if wants_keyword:
-                path = f"{path}{_KEYWORD_SUFFIX}"
-            elif had_keyword:
-                # Preserve user intent
-                path = f"{path}{_KEYWORD_SUFFIX}"
+        # `term`/`terms`/`prefix` need `.keyword` on string-like fields to do
+        # exact (non-analyzed) matching. Other clause types either don't apply
+        # to strings or work on the analyzed text directly.
+        wants_keyword = clause_type in {"term", "terms", "prefix"} and is_string_like
+
+        if wants_keyword:
+            path = f"{path}{_KEYWORD_SUFFIX}"
+        elif had_keyword and is_string_like:
+            # Preserve user intent for string-like fields with non-default
+            # clauses (e.g. `wildcard` / `match` on the keyword sub-field).
+            path = f"{path}{_KEYWORD_SUFFIX}"
+        # else: caller supplied `.keyword` on a non-string field — drop it.
+
         return path

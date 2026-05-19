@@ -57,8 +57,12 @@ export interface GenerateRequest {
   //
   // `filter_expr` shape depends on the configured vector store:
   //  - Milvus  → string expression (`content_metadata["x"] op v`).
-  //  - Elasticsearch → list of dicts (Elasticsearch Query DSL with field
-  //    paths in the form `metadata.content_metadata.<name>.keyword`).
+  //  - Elasticsearch → list of dicts (Elasticsearch Query DSL). Field paths
+  //    are `metadata.content_metadata.<name>`. A `.keyword` suffix is
+  //    appended ONLY for exact-match clauses (term/terms/prefix/wildcard/
+  //    match) on string-typed (or array<string>) fields — `.keyword` only
+  //    exists as a multi-field on string mappings. Numeric, datetime,
+  //    and boolean fields, plus all `range` clauses, use the bare path.
   // See docs/custom-metadata.md for the full contract.
   filter_expr?: string | Array<Record<string, unknown>>;
   stop?: string[];

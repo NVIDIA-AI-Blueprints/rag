@@ -302,8 +302,19 @@ filter_expression_generator_prompt_elasticsearch:
     ### Field Path Convention ###
 
     - Always prefix field names with `metadata.content_metadata.` — e.g. for schema field `status`, target `metadata.content_metadata.status`.
-    - For `string` fields used in exact-match clauses (`term`, `terms`), append `.keyword` — e.g. `metadata.content_metadata.status.keyword`.
-    - Do NOT append `.keyword` for `wildcard`, `match`, `range`, or numeric/datetime/boolean fields.
+    - For `string` (or `array<string>`) fields used in exact-match clauses (`term`, `terms`, `prefix`), append `.keyword` — e.g. `metadata.content_metadata.status.keyword`.
+    - **Do NOT append `.keyword` for `wildcard`, `match`, `match_phrase`, `range`, or for any non-string field type (`integer`, `float`, `number`, `datetime`, `boolean`).**
+      The `.keyword` sub-field only exists on string-typed fields. Appending it to a numeric, datetime, or boolean field targets a non-existent ES mapping and silently returns zero hits.
+
+    #### Correct vs. incorrect — non-string fields ####
+
+    | Field type | ✅ Correct | ❌ Incorrect |
+    | --- | --- | --- |
+    | `integer` (e.g. `priority`) | `{{"term": {{"metadata.content_metadata.priority": 2}}}}` | `{{"term": {{"metadata.content_metadata.priority.keyword": 2}}}}` |
+    | `integer` range (e.g. `year`) | `{{"range": {{"metadata.content_metadata.year": {{"gte": 2024}}}}}}` | `{{"range": {{"metadata.content_metadata.year.keyword": {{"gte": 2024}}}}}}` |
+    | `datetime` (e.g. `created_at`) | `{{"range": {{"metadata.content_metadata.created_at": {{"gte": "2024-01-01T00:00:00"}}}}}}` | `{{"range": {{"metadata.content_metadata.created_at.keyword": {{...}}}}}}` |
+    | `boolean` (e.g. `is_public`) | `{{"term": {{"metadata.content_metadata.is_public": true}}}}` | `{{"term": {{"metadata.content_metadata.is_public.keyword": true}}}}` |
+    | `string` (e.g. `status`) | `{{"term": {{"metadata.content_metadata.status.keyword": "approved"}}}}` | `{{"term": {{"metadata.content_metadata.status": "approved"}}}}` (missing `.keyword`) |
 
     ### Output Format ###
 

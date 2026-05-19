@@ -215,6 +215,130 @@ class TestProcessFilter:
         validator.process_filter(clauses)
         assert clauses == snapshot
 
+    # --- Regression: `.keyword` on non-string fields must be stripped ---
+    # See _normalize_field_path. Caller-supplied `.keyword` targets a
+    # non-existent ES sub-field on numeric/datetime/boolean fields and would
+    # silently return zero hits without this normalization.
+
+    def test_strips_keyword_from_integer_term(self, validator):
+        clauses = [{"term": {"metadata.content_metadata.year.keyword": 2024}}]
+        result = validator.process_filter(clauses)
+        assert result["status"] is True
+        path = next(iter(result["processed_expression"][0]["term"].keys()))
+        assert path == "metadata.content_metadata.year"
+        assert result["normalization_changes"] == [
+            (
+                "metadata.content_metadata.year.keyword",
+                "metadata.content_metadata.year",
+            )
+        ]
+
+    def test_strips_keyword_from_float_term(self, validator):
+        clauses = [{"term": {"metadata.content_metadata.rating.keyword": 4.5}}]
+        result = validator.process_filter(clauses)
+        assert result["status"] is True
+        path = next(iter(result["processed_expression"][0]["term"].keys()))
+        assert path == "metadata.content_metadata.rating"
+
+    def test_strips_keyword_from_boolean_term(self, validator):
+        clauses = [{"term": {"metadata.content_metadata.is_public.keyword": True}}]
+        result = validator.process_filter(clauses)
+        assert result["status"] is True
+        path = next(iter(result["processed_expression"][0]["term"].keys()))
+        assert path == "metadata.content_metadata.is_public"
+
+    def test_strips_keyword_from_integer_terms(self, validator):
+        clauses = [{"terms": {"metadata.content_metadata.year.keyword": [2024, 2025]}}]
+        result = validator.process_filter(clauses)
+        assert result["status"] is True
+        path = next(iter(result["processed_expression"][0]["terms"].keys()))
+        assert path == "metadata.content_metadata.year"
+
+    def test_strips_keyword_from_datetime_range(self, validator):
+        clauses = [
+            {
+                "range": {
+                    "metadata.content_metadata.created_at.keyword": {
+                        "gte": "2024-01-01T00:00:00"
+                    }
+                }
+            }
+        ]
+        result = validator.process_filter(clauses)
+        assert result["status"] is True
+        path = next(iter(result["processed_expression"][0]["range"].keys()))
+        assert path == "metadata.content_metadata.created_at"
+
+    def test_strips_keyword_from_integer_range(self, validator):
+        clauses = [
+            {"range": {"metadata.content_metadata.year.keyword": {"gt": 2020}}}
+        ]
+        result = validator.process_filter(clauses)
+        assert result["status"] is True
+        path = next(iter(result["processed_expression"][0]["range"].keys()))
+        assert path == "metadata.content_metadata.year"
+
+    def test_preserves_keyword_on_string_wildcard(self, validator):
+        # `wildcard` on a string field can validly target `.keyword`; preserve
+        # the user's choice rather than rewriting it.
+        clauses = [
+            {"wildcard": {"metadata.content_metadata.status.keyword": "appr*"}}
+        ]
+        result = validator.process_filter(clauses)
+        assert result["status"] is True
+        path = next(iter(result["processed_expression"][0]["wildcard"].keys()))
+        assert path == "metadata.content_metadata.status.keyword"
+
+    def test_strips_keyword_inside_bool_must(self, validator):
+        # Normalization must recurse into bool composition.
+        clauses = [
+            {
+                "bool": {
+                    "must": [
+                        {"term": {"metadata.content_metadata.year.keyword": 2024}},
+                        {
+                            "term": {
+                                "metadata.content_metadata.status.keyword": "approved"
+                            }
+                        },
+                    ]
+                }
+            }
+        ]
+        result = validator.process_filter(clauses)
+        assert result["status"] is True
+        must = result["processed_expression"][0]["bool"]["must"]
+        # Integer year: keyword stripped.
+        assert "metadata.content_metadata.year" in must[0]["term"]
+        # String status: keyword preserved.
+        assert "metadata.content_metadata.status.keyword" in must[1]["term"]
+
+    def test_emits_warning_when_normalization_occurs(self, validator, caplog):
+        import logging as _logging
+
+        clauses = [{"term": {"metadata.content_metadata.year.keyword": 2024}}]
+        with caplog.at_level(
+            _logging.WARNING, logger="nvidia_rag.utils.es_filter_validator"
+        ):
+            validator.process_filter(clauses)
+        warnings = [r for r in caplog.records if r.levelno == _logging.WARNING]
+        assert any(
+            "[ES Filter]" in r.message
+            and "metadata.content_metadata.year.keyword" in r.message
+            for r in warnings
+        )
+
+    def test_no_log_when_no_changes(self, validator, caplog):
+        import logging as _logging
+
+        # A clean filter that the normalizer leaves untouched.
+        clauses = [{"term": {"metadata.content_metadata.year": 2024}}]
+        with caplog.at_level(
+            _logging.WARNING, logger="nvidia_rag.utils.es_filter_validator"
+        ):
+            validator.process_filter(clauses)
+        assert not any("[ES Filter]" in r.message for r in caplog.records)
+
 
 class TestDepthAndCount:
     def test_deeply_nested_bool_rejected(self, validator):
