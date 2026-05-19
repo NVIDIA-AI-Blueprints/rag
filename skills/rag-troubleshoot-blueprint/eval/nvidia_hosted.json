@@ -1,0 +1,52 @@
+{
+  "skills": ["rag-troubleshoot-blueprint"],
+  "platforms": ["cpu"],
+  "resources": {
+    "platforms": {
+      "cpu": {
+        "brev_type": "n2d-standard-4",
+        "description": "GCP n2d-standard-4 (4 vCPU, 16 GB). RAG stack running (possibly with issues)."
+      }
+    }
+  },
+  "env": "Linux host with Docker + Docker Compose plugin. RAG stack containers may be running or unhealthy. Health endpoints: rag-server at http://localhost:8081/v1/health, ingestor at http://localhost:8082/v1/health. NGC_API_KEY is set. cwd: ${RAG_REPO_ROOT}/.",
+  "expects": [
+    {
+      "query": "Use the rag-troubleshoot-blueprint skill to diagnose why the RAG stack is unhealthy. Check the health endpoints at http://localhost:8081/v1/health and http://localhost:8082/v1/health, inspect container logs, and report what is broken with a root cause. The eval runs from inside the repository checkout; use git rev-parse --show-toplevel if you need the absolute path.",
+      "checks": [
+        "The agent's trajectory shows it read the rag-troubleshoot-blueprint SKILL.md before taking action",
+        "The agent's trajectory shows it checked health endpoints at http://localhost:8081/v1/health and http://localhost:8082/v1/health",
+        "The agent's trajectory shows it inspected Docker container states using docker ps",
+        "The agent's trajectory shows it inspected logs for unhealthy containers using docker logs",
+        "The agent's final response reports a specific root cause with evidence from logs or container status"
+      ]
+    },
+    {
+      "query": "My RAG system keeps giving me answers that have nothing to do with my uploaded documents. What is wrong?",
+      "checks": [
+        "The agent's trajectory shows it read the rag-troubleshoot-blueprint SKILL.md before taking action",
+        "The agent's trajectory shows it checked whether documents exist in the target collection",
+        "The agent's trajectory shows it tested a sample query to inspect retrieved context quality",
+        "The agent's final response identifies the root cause of irrelevant answers"
+      ]
+    },
+    {
+      "query": "The ingestor-server container keeps restarting every few minutes. I need to figure out why.",
+      "checks": [
+        "The agent's trajectory shows it read the rag-troubleshoot-blueprint SKILL.md before taking action",
+        "The agent's trajectory shows it ran docker logs ingestor-server to inspect recent crash logs",
+        "The agent's trajectory shows it ran docker inspect or docker ps to check container restart count",
+        "The agent's final response identifies the specific cause of the restart loop",
+        "The agent's final response provides concrete steps to fix the restart issue"
+      ]
+    },
+    {
+      "query": "Upload the quarterly report PDF to my knowledge base.",
+      "checks": [
+        "The agent's trajectory does NOT include any invocation of /rag-troubleshoot-blueprint (this is an ingestion task)",
+        "The agent's trajectory shows it identified this as an ingestion task requiring a different skill (rag-ingest-documents)",
+        "The agent's trajectory does NOT include any docker logs or health endpoint checks"
+      ]
+    }
+  ]
+}

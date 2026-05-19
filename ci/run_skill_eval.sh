@@ -105,7 +105,7 @@ trap cleanup EXIT
 # wrong source. Final fallback is 'main' for local runs.
 export EVAL_TARGET_BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo main)"
 SKILL_EVAL_DIR="$REPO_ROOT/skill-eval"
-SKILL_DIR="$REPO_ROOT/skill-source/.agents/skills/rag-blueprint"
+SKILL_DIR="$REPO_ROOT/skills/rag-deploy-blueprint"
 EVAL_NAME="nvidia-hosted"
 DATASETS_DIR="$SKILL_EVAL_DIR/datasets/$EVAL_NAME"
 

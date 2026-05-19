@@ -1,0 +1,57 @@
+{
+  "skills": ["rag-enable-guardrails"],
+  "platforms": ["H100_x2"],
+  "resources": {
+    "platforms": {
+      "H100_x2": {
+        "brev_type": "dmz.h100x2.pcie",
+        "gpu_type": "H100",
+        "gpu_count": 2,
+        "min_vram_gb_per_gpu": 80,
+        "min_root_disk_gb": 500,
+        "min_gpu_driver_version": "560.0",
+        "description": "2x H100 80GB PCIe. Required for NeMo Guardrails microservice per docs/nemo-guardrails.md."
+      }
+    }
+  },
+  "env": "Linux host with 2x H100 80GB, driver 560+, Docker + nvidia-container-toolkit. RAG stack is running. NeMo Guardrails microservice is configured via deploy/compose/docker-compose-nemo-guardrails.yaml. Policy files are in deploy/config/guardrails/. See docs/nemo-guardrails.md for configuration. cwd: ${RAG_REPO_ROOT}/.",
+  "expects": [
+    {
+      "query": "Use the rag-enable-guardrails skill to enable NeMo Guardrails on the running RAG deployment. Start the guardrails service, verify it is running, and test that an allowed prompt returns a response and that a clearly off-topic prompt is blocked. The eval runs from inside the repository checkout; use git rev-parse --show-toplevel if you need the absolute path.",
+      "checks": [
+        "The agent's trajectory shows it read the rag-enable-guardrails SKILL.md before taking action",
+        "The agent's trajectory shows it started the NeMo Guardrails service using the correct compose file",
+        "The agent's trajectory shows it verified guardrails service health",
+        "The agent's trajectory shows it tested an allowed prompt and confirmed it received a valid response",
+        "The agent's trajectory shows it tested a blocked prompt and confirmed it was rejected"
+      ]
+    },
+    {
+      "query": "I need to prevent my RAG system from answering questions about topics outside my company's domain. How do I add content filtering?",
+      "checks": [
+        "The agent's trajectory shows it read the rag-enable-guardrails SKILL.md before taking action",
+        "The agent's trajectory shows it referenced the NeMo Guardrails documentation",
+        "The agent's final response explains how to configure topic-based content policies",
+        "The agent's final response provides specific configuration steps for enabling guardrails"
+      ]
+    },
+    {
+      "query": "Guardrails is enabled but users are still getting responses to prompts that should be blocked. The policy file looks correct but something is wrong.",
+      "checks": [
+        "The agent's trajectory shows it read the rag-enable-guardrails SKILL.md before taking action",
+        "The agent's trajectory shows it checked guardrails service health and running state",
+        "The agent's trajectory shows it reviewed guardrails policy configuration",
+        "The agent's trajectory shows it inspected guardrails service logs for errors",
+        "The agent's final response identifies the specific cause of the policy bypass"
+      ]
+    },
+    {
+      "query": "Search my knowledge base for information about content moderation policies.",
+      "checks": [
+        "The agent's trajectory does NOT include any invocation of /rag-enable-guardrails (this is a query task)",
+        "The agent's trajectory shows it identified this as a query task requiring a different skill (rag-query-knowledge)",
+        "The agent's trajectory does NOT include any guardrails service start or policy configuration"
+      ]
+    }
+  ]
+}

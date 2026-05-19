@@ -1,0 +1,51 @@
+{
+  "skills": ["rag-configure-retrieval"],
+  "platforms": ["cpu"],
+  "resources": {
+    "platforms": {
+      "cpu": {
+        "brev_type": "n2d-standard-4",
+        "description": "GCP n2d-standard-4 (4 vCPU, 16 GB). RAG stack running with documents ingested."
+      }
+    }
+  },
+  "env": "Linux host with Docker + Docker Compose plugin. RAG stack is running: rag-server at http://localhost:8081. Documents are ingested. Retrieval config is controlled via environment variables in deploy/compose/nvdev.env (APP_ENABLE_MULTITURN, APP_RETRIEVER_TOPK, etc.). cwd: ${RAG_REPO_ROOT}/.",
+  "expects": [
+    {
+      "query": "Use the rag-configure-retrieval skill to enable hybrid search on the running RAG deployment. Tell me whether existing documents need to be re-ingested after this change. The eval runs from inside the repository checkout; use git rev-parse --show-toplevel if you need the absolute path.",
+      "checks": [
+        "The agent's trajectory shows it read the rag-configure-retrieval SKILL.md before taking action",
+        "The agent's trajectory shows it identified the active deployment config file before making changes",
+        "The agent's trajectory shows it enabled hybrid search in the configuration",
+        "The agent's trajectory shows it restarted the affected service after the config change",
+        "The agent's final response states whether re-ingestion is required"
+      ]
+    },
+    {
+      "query": "I want to query across multiple document collections at the same time and rank the results. How do I set this up?",
+      "checks": [
+        "The agent's trajectory shows it read the rag-configure-retrieval SKILL.md before taking action",
+        "The agent's trajectory shows it referenced the multi-collection retrieval documentation",
+        "The agent's final response provides specific configuration steps for enabling multi-collection retrieval",
+        "The agent's final response explains reranking configuration alongside multi-collection setup"
+      ]
+    },
+    {
+      "query": "My RAG search results are returning documents that don't seem relevant to the query at all. The collection has documents but the answers are off-topic.",
+      "checks": [
+        "The agent's trajectory shows it read the rag-configure-retrieval SKILL.md before taking action",
+        "The agent's trajectory shows it checked current retrieval configuration settings",
+        "The agent's trajectory shows it ran a test query to inspect retrieved context quality",
+        "The agent's final response provides specific configuration changes to improve relevance (reranking, topK, search mode)"
+      ]
+    },
+    {
+      "query": "Deploy the RAG Blueprint on this machine with Docker Compose.",
+      "checks": [
+        "The agent's trajectory does NOT include any invocation of /rag-configure-retrieval (this is a deployment task)",
+        "The agent's trajectory shows it identified this as a deployment task requiring a different skill (rag-deploy-blueprint)",
+        "The agent's trajectory does NOT include any retrieval configuration changes"
+      ]
+    }
+  ]
+}

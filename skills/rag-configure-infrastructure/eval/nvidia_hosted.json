@@ -1,0 +1,51 @@
+{
+  "skills": ["rag-configure-infrastructure"],
+  "platforms": ["cpu"],
+  "resources": {
+    "platforms": {
+      "cpu": {
+        "brev_type": "n2d-standard-4",
+        "description": "GCP n2d-standard-4 (4 vCPU, 16 GB). RAG stack running in NVIDIA-hosted mode."
+      }
+    }
+  },
+  "env": "Linux host with Docker + Docker Compose plugin. RAG stack is running in NVIDIA-hosted mode. Config source-of-truth is deploy/compose/nvdev.env. NGC_API_KEY is set. cwd: ${RAG_REPO_ROOT}/. Restarting services is done via docker compose down/up against the relevant compose files.",
+  "expects": [
+    {
+      "query": "Use the rag-configure-infrastructure skill to switch the RAG LLM endpoint from self-hosted to NVIDIA-hosted APIs (integrate.api.nvidia.com). Update the configuration, restart the RAG server, and verify it is healthy. The eval runs from inside the repository checkout; use git rev-parse --show-toplevel if you need the absolute path.",
+      "checks": [
+        "The agent's trajectory shows it read the rag-configure-infrastructure SKILL.md before taking action",
+        "The agent's trajectory shows it detected the active deployment mode and config file location",
+        "The agent's trajectory shows it updated the LLM endpoint configuration without printing secret values",
+        "The agent's trajectory shows it restarted the RAG server after the config change",
+        "`curl -sf -o /dev/null -w '%{http_code}' http://localhost:8081/v1/health` outputs 200"
+      ]
+    },
+    {
+      "query": "I want to use a different embedding model for my RAG deployment. How do I change it?",
+      "checks": [
+        "The agent's trajectory shows it read the rag-configure-infrastructure SKILL.md before taking action",
+        "The agent's trajectory shows it referenced the model configuration documentation",
+        "The agent's final response explains which configuration file controls the embedding model",
+        "The agent's final response notes that re-ingestion is required when changing embedding models"
+      ]
+    },
+    {
+      "query": "My RAG server won't start because something else is already using port 8081. How do I change the port?",
+      "checks": [
+        "The agent's trajectory shows it read the rag-configure-infrastructure SKILL.md before taking action",
+        "The agent's trajectory shows it identified the configuration parameter controlling the RAG server port",
+        "The agent's trajectory shows it updated the port configuration in the correct config file",
+        "The agent's final response explains how to verify the server is reachable on the new port"
+      ]
+    },
+    {
+      "query": "What do my documents say about infrastructure configuration best practices?",
+      "checks": [
+        "The agent's trajectory does NOT include any invocation of /rag-configure-infrastructure (this is a query task)",
+        "The agent's trajectory shows it identified this as a document query task requiring a different skill (rag-query-knowledge)",
+        "The agent's trajectory does NOT include any docker compose restart or config file modification"
+      ]
+    }
+  ]
+}
