@@ -36,7 +36,7 @@ When building a CLI eval bundle from a public benchmark, materialize `corpus/` a
 | `scripts/eval/README.md` | Dataset contract, flags, outputs |
 | `skill-source/.agents/skills/rag-eval/SKILL.md` | Router: layout, `train.json`, run/triage playbook |
 | `skill-source/.agents/skills/rag-eval/references/dataset-and-conversion.md` | External → `corpus/` + `train.json` |
-| `skill-source/.agents/skills/rag-eval/references/benchmark-execution.md` | Command examples, perf flags, errors, credential hygiene |
+| `skill-source/.agents/skills/rag-eval/references/benchmark-execution.md` | Command examples, quality flags, errors, credential hygiene |
 | `skill-source/.agents/skills/rag-eval/references/evaluate-rag-cli.md` | Flag-level CLI detail |
 | `skill-source/.agents/skills/rag-eval/references/result-analysis.md` | Parsing summaries and metrics JSON |
 

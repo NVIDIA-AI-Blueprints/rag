@@ -2,8 +2,8 @@
 name: rag-eval
 version: "2.6.0"
 description: >-
-  Filesystem RAG benchmarks: corpus/, train.json, evaluate_rag.py (RAGAS, perf). Not for prod
-  monitoring or evals outside this repo layout.
+  Filesystem RAG benchmarks: corpus/, train.json, evaluate_rag.py (RAGAS quality). Not for prod
+  monitoring, latency/throughput benchmarking (use rag-perf), or evals outside this repo layout.
 license: Apache-2.0
 compatibility: Repository checkout with uv; Python 3.11+; run from repo root; uv sync --project scripts/eval (eval deps live in scripts/eval/pyproject.toml); network to RAG, ingestor, and vdb endpoints; NVIDIA_API_KEY for RAGAS; optional RAG_EVAL_JUDGE_MODEL (default mistralai/mixtral-8x22b-instruct-v0.1).
 metadata:
@@ -12,7 +12,7 @@ metadata:
   endpoint-openapi-schemas:
     - docs/api_reference/openapi_schema_rag_server.json
     - docs/api_reference/openapi_schema_ingestor_server.json
-  argument-hint: RAGAS eval | evaluate_rag | perf | train.json | corpus | results json | error triage | uv run --project scripts/eval | enable_reranker | query_rewriting | temperature | latency
+  argument-hint: RAGAS eval | evaluate_rag | train.json | corpus | results json | error triage | uv run --project scripts/eval | enable_reranker | query_rewriting | temperature | skip_ingestion
   tags:
     - nvidia
     - blueprint
@@ -35,11 +35,13 @@ allowed-tools: Read Grep Glob Bash(ls *) Bash(python3 *) Bash(uv *) Write Edit
 
 ## Purpose
 
-Guide agents through NVIDIA RAG Blueprint **filesystem** benchmarks: preparing `corpus/` and `train.json`, running `scripts/eval/evaluate_rag.py`, tuning retrieval/generation flags, interpreting JSON outputs, and triaging failures (HTTP/stream errors, empty contexts, collection mismatch, judge API).
+Guide agents through NVIDIA RAG Blueprint **filesystem** benchmarks: preparing `corpus/` and `train.json`, running `scripts/eval/evaluate_rag.py`, tuning retrieval and generation flags for **quality** comparisons, interpreting RAGAS JSON outputs, and triaging failures (HTTP/stream errors, empty contexts, collection mismatch, judge API).
+
+For **latency, throughput, and load testing**, use the **rag-perf** skill (`scripts/rag-perf`, `docs/performance-benchmarking.md`) — not this skill.
 
 ## When not to use
 
-Do **not** use this skill for: deploying or repairing services (use rag-blueprint); evaluating APIs without the `corpus/` + `train.json` layout; general ML experimentation unrelated to this evaluator; or replacing production monitoring/alerting.
+Do **not** use this skill for: deploying or repairing services (use rag-blueprint); evaluating APIs without the `corpus/` + `train.json` layout; general ML experimentation unrelated to this evaluator; production monitoring/alerting; or latency/throughput benchmarking (use **rag-perf**).
 
 ## Prerequisites
 
@@ -52,9 +54,9 @@ Do **not** use this skill for: deploying or repairing services (use rag-blueprin
 ## Instructions
 
 1. **Prepare data** — Ensure each dataset directory matches the layout and `train.json` rules in [`references/dataset-and-conversion.md`](references/dataset-and-conversion.md). When sources arrive as public links (sites or dataset pages), materialize documents under `corpus/`—prefer **PDF** for multimodal content so **images stay embedded**; convert CSV/JSONL/etc. using the patterns there.
-2. **Run eval** — `uv run --project scripts/eval python scripts/eval/evaluate_rag.py` with `--dataset-paths`, `--host`, and `--port`. See [`references/benchmark-execution.md`](references/benchmark-execution.md) for full command examples, outputs, and perf flags. Use [`references/evaluate-rag-cli.md`](references/evaluate-rag-cli.md) for flag-level detail.
-3. **Tune performance** — Adjust `--thread`, `--timeout`, `--batch_size`, `--top_k` / `--vdb_top_k`, reranker and query-rewriting toggles, and generation overrides as documented in [`references/benchmark-execution.md`](references/benchmark-execution.md). For a lighter timing probe, use a one-row `train.json` and the patterns in that doc.
-4. **Analyze results** — Use [`references/result-analysis.md`](references/result-analysis.md) for scripts; scan `rag_*_evaluation_summary.json` for headline metrics.
+2. **Run eval** — `uv run --project scripts/eval python scripts/eval/evaluate_rag.py` with `--dataset-paths`, `--host`, and `--port`. See [`references/benchmark-execution.md`](references/benchmark-execution.md) for command examples, outputs, and errors. Use [`references/evaluate-rag-cli.md`](references/evaluate-rag-cli.md) for flag-level detail.
+3. **Tune quality** — Adjust `--top_k` / `--vdb_top_k`, reranker and query-rewriting toggles, and generation overrides (`--temperature`, `--top-p`, `--max-tokens`) as documented in [`references/benchmark-execution.md`](references/benchmark-execution.md) when comparing retrieval/generation configs for RAGAS scores.
+4. **Analyze results** — Use [`references/result-analysis.md`](references/result-analysis.md) for scripts; scan `rag_*_evaluation_summary.json` for headline RAGAS metrics.
 5. **Triage errors** — Use the [error signal table](references/benchmark-execution.md#common-error-cases-and-signals) and the **Troubleshooting** section below.
 
 ## Examples
@@ -77,7 +79,7 @@ uv run --project scripts/eval python scripts/eval/evaluate_rag.py \
 python3 -m json.tool results/my_dataset/rag_my_dataset_evaluation_summary.json
 ```
 
-More examples (skip ingestion, perf sweeps, smoke tests): [`references/benchmark-execution.md`](references/benchmark-execution.md).
+More examples (skip ingestion, quality sweeps): [`references/benchmark-execution.md`](references/benchmark-execution.md).
 
 ## Limitations
 
@@ -92,7 +94,7 @@ More examples (skip ingestion, perf sweeps, smoke tests): [`references/benchmark
 |----------------|--------------|------------|
 | Immediate exit mentioning `NVIDIA_API_KEY` | Missing or invalid key | Set key via secure channel; see credential hygiene in [`references/benchmark-execution.md`](references/benchmark-execution.md). |
 | `train.json must be a JSON array` | Wrong JSON shape | Top-level array of objects; validate per [`references/dataset-and-conversion.md`](references/dataset-and-conversion.md). |
-| Fewer rows in `evaluation_data.json` than `train.json` | Per-query failures | Check stderr: timeouts, network, stream JSON errors; increase `--timeout`. |
+| Fewer rows in `evaluation_data.json` than `train.json` | Per-query failures | Check stderr: network or stream JSON errors; see error table in benchmark-execution. |
 | Empty `generated_contexts` everywhere | Retrieval gap | Verify collection, ingestion, `top_k` / `vdb_top_k`, and `ingestor_server_url` **without** `/v1` suffix. |
 | Ingestor 404 on upload | Bad ingestor base URL | Pass `http://host:port` only — code appends `/v1/`. |
 
@@ -104,7 +106,7 @@ Full signal table: [`references/benchmark-execution.md#common-error-cases-and-si
 - **`--ingestor_server_url`**: pass `http://host:port` without `/v1`—the code appends `/v1/` automatically. Including `/v1` causes 404s on ingestor calls.
 - **Vector DB / embedding settings**: not set by this CLI; configure via the deployed ingestor and RAG server env vars (e.g. `APP_VECTORSTORE_URL`, embedding model).
 - **`--model` / `--llm_endpoint`**: forwarded verbatim only when explicitly set; omit to keep the server's configured LLM.
-- **Stale collections**: a previous run's ingested data persists unless you use `--force_ingestion`. Use `--collection` with a unique name for clean perf comparisons across runs.
+- **Stale collections**: a previous run's ingested data persists unless you use `--force_ingestion`. Use `--collection` with a unique name when comparing quality across isolated runs.
 - **Empty context metrics**: if all `generated_contexts` are empty, RAGAS scores only `nv_accuracy` and leaves the other two metrics blank—this is not a silent success.
 
 ## Source of truth
@@ -115,13 +117,14 @@ Full signal table: [`references/benchmark-execution.md#common-error-cases-and-si
 | Human README (always in-repo) | `scripts/eval/README.md` |
 | Full CLI (flags, defaults) | `scripts/eval/evaluate_rag.py --help`; [`references/evaluate-rag-cli.md`](references/evaluate-rag-cli.md) |
 | Dataset / conversion | [`references/dataset-and-conversion.md`](references/dataset-and-conversion.md) |
-| Runs, outputs, perf, errors | [`references/benchmark-execution.md`](references/benchmark-execution.md) |
+| Runs, outputs, errors | [`references/benchmark-execution.md`](references/benchmark-execution.md) |
 | Result analysis scripts | [`references/result-analysis.md`](references/result-analysis.md) |
+| Latency / throughput | **rag-perf** skill, `docs/performance-benchmarking.md` |
 
 ## Agent playbook
 
 1. **Run eval** — `uv sync --project scripts/eval` then `uv run --project scripts/eval python scripts/eval/evaluate_rag.py` with required `--dataset-paths`, `--host`, and `--port` (and env `NVIDIA_API_KEY`). Argument `--ingestor_server_url` is optional (defaults to `http://localhost:8082`); pass it only when overriding the ingestor endpoint.
-2. **Performance tuning** — See [`references/benchmark-execution.md`](references/benchmark-execution.md): `--thread`, `--timeout`, `--batch_size`, `--top_k`/`--vdb_top_k`, reranker and query-rewriting toggles, `--temperature`, `--top-p`, `--max-tokens`, and the lightweight latency section there.
+2. **Quality tuning** — See [`references/benchmark-execution.md`](references/benchmark-execution.md): `--top_k`/`--vdb_top_k`, reranker and query-rewriting toggles, `--temperature`, `--top-p`, `--max-tokens`.
 3. **Data conversion** — Follow [`references/dataset-and-conversion.md`](references/dataset-and-conversion.md).
 4. **Analyze results** — [`references/result-analysis.md`](references/result-analysis.md); quick scan: `python3 -m json.tool results/<dataset>/rag_<dataset>_evaluation_summary.json`.
 5. **Error triage** — [`references/benchmark-execution.md#common-error-cases-and-signals`](references/benchmark-execution.md#common-error-cases-and-signals).

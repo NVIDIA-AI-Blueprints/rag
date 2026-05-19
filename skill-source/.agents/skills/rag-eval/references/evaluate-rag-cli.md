@@ -2,6 +2,8 @@
 
 Complete argument tables for `scripts/eval/evaluate_rag.py`. Load this when the user asks about a specific flag, its default value, or fixed evaluator behavior not covered in the main skill.
 
+For **latency, throughput, and load testing**, use the **rag-perf** skill — not the `--thread` / `--timeout` knobs here (they exist on the CLI for operational reliability only).
+
 ## Arguments
 
 ### Required
@@ -16,7 +18,7 @@ Complete argument tables for `scripts/eval/evaluate_rag.py`. Load this when the 
 
 | Argument | Default | Notes |
 |----------|---------|-------|
-| `--file-type` | `pdf` | Ingestion file type for metrics (e.g. `pdf`, `txt`, `txt,html`, `mp3` for audio). Substring `pdf` enables PDF page counts in ingestion metrics. |
+| `--file-type` | `pdf` | Ingestion file type (e.g. `pdf`, `txt`, `txt,html`, `mp3` for audio). Substring `pdf` enables PDF page counts in ingestion metadata. |
 | `--ingestor_server_url` | `http://localhost:8082` | Base URL — code appends `/v1/` automatically; do not include `/v1` here. |
 | `--collection` | dataset folder basename | Override collection name for ingest and query. |
 | `--batch_size` | `1000` | Ingestion batch size (server max is 10000). |
@@ -53,14 +55,14 @@ Omitting either pair entirely does not send the field — the RAG server uses it
 | `--top-p` | (omitted) | Top-p forwarded to `/v1/generate`; omit to use the server default. |
 | `--max-tokens` | (omitted) | Max tokens forwarded to `/v1/generate`; omit to use the server default. |
 
-### Performance and output
+### Output and run control
 
 | Argument | Default | Notes |
 |----------|---------|-------|
-| `--thread` | `4` | Number of parallel workers for query generation. |
-| `--timeout` | `180` | RAG HTTP request timeout in seconds. Increase for slow models. |
 | `--output_dir` | `results` | Root output directory; each dataset gets a subdirectory named after the dataset basename. |
 | `--verbose` | flag | Enable verbose output. |
+| `--thread` | `4` | Parallel workers for query generation (operational; not for latency benchmarking). |
+| `--timeout` | `180` | Per-request HTTP timeout in seconds when queries fail to complete. |
 
 ## Fixed behavior (not CLI flags)
 

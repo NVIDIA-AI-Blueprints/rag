@@ -1,6 +1,8 @@
-# Benchmark runs, outputs, performance, and error signals
+# Benchmark runs, outputs, and error signals
 
-Load this for full command examples, artifact descriptions, tuning flags, and the error-signal table.
+Load this for full command examples, artifact descriptions, quality interpretation, retrieval/generation flags, and the error-signal table.
+
+For **latency, throughput, and load testing**, use the **rag-perf** skill — not this document.
 
 ## Credential hygiene (`NVIDIA_API_KEY`)
 
@@ -16,18 +18,18 @@ Under `--output_dir` (default `results`), each dataset gets a subdirectory named
 
 | File | Purpose |
 |------|---------|
-| `rag_<label>_evaluation_data.json` | **Per query:** `question`, `answer`, `generated_answer`, `generated_contexts`, `retrieved_docs`, `usage` (if streamed). Written before RAGAS. Use for forensics and failure patterns. |
-| `rag_<label>_evaluation_summary.json` | **Headline means:** `nv_accuracy_mean`, `nv_context_relevance_mean`, `nv_response_groundedness_mean`, and `token_usage` when present. Fast pass/fail. |
-| `rag_<label>_evaluation_results.json` | **RAGAS vectors:** per-sample score lists under `nv_accuracy`, `nv_context_relevance`, `nv_response_groundedness`, plus `token_usage` / `token_usage_per_sample` when available. |
-| `rag_<label>_evaluation_metrics.json` | **Structured roll-up:** `ingestion_metrics_list`, `evaluation_metrics`, `token_usage` (model dump of `RagEvaluationMetrics`). |
+| `rag_<label>_evaluation_data.json` | **Per query:** `question`, `answer`, `generated_answer`, `generated_contexts`, `retrieved_docs`. Written before RAGAS. Use for forensics and failure patterns. |
+| `rag_<label>_evaluation_summary.json` | **Headline means:** `nv_accuracy_mean`, `nv_context_relevance_mean`, `nv_response_groundedness_mean`. Fast pass/fail. |
+| `rag_<label>_evaluation_results.json` | **RAGAS vectors:** per-sample score lists under `nv_accuracy`, `nv_context_relevance`, `nv_response_groundedness`. |
+| `rag_<label>_evaluation_metrics.json` | **Structured roll-up:** `ingestion_metrics_list`, `evaluation_metrics` (model dump of `RagEvaluationMetrics`). |
 
 **Analysis tips:** If `evaluation_data` has fewer rows than `train.json`, some queries failed (exceptions print during the run). After drops, use `id` / `query_id` to align rows rather than positional index. For "worst questions," pair index `i` in `evaluation_results` score lists with the `i`th object in `evaluation_data`.
 
-## Quality vs performance metrics (interpreting runs)
+## Interpreting RAGAS quality metrics
 
-- **Quality (RAGAS):** `nv_accuracy` (answer accuracy), `nv_context_relevance` and `nv_response_groundedness` when retrieved contexts exist. If no non-empty `generated_contexts` are present across the run, the code scores **answer accuracy only**—do not treat empty context metrics as a silent success.
-- **Ingestion (perf / scale):** `ingestion_metrics_list` in `evaluation_metrics.json` — time, `pages_per_second` (for PDFs), file counts. Useful for batch and corpus-size planning.
-- **Token usage (cost / perf):** From stream `usage` chunks; aggregated in `summary` / `results` / `evaluation_metrics`. Use means for comparisons across configs.
+- **`nv_accuracy`** — answer accuracy (LLM judge vs ground-truth `answer`).
+- **`nv_context_relevance`** and **`nv_response_groundedness`** — scored when retrieved contexts exist.
+- If no non-empty `generated_contexts` are present across the run, the code scores **answer accuracy only**—do not treat empty context metrics as a silent success.
 
 ## Running the benchmark
 
@@ -78,9 +80,9 @@ uv run --project scripts/eval python scripts/eval/evaluate_rag.py \
   --force_ingestion
 ```
 
-## Performance tuning
+## Retrieval and generation options (quality comparisons)
 
-Performance runs follow the same `evaluate_rag.py` invocation but layer on flags that control the pipeline stages and generation.
+Use these flags when comparing pipeline configs for RAGAS scores. Omit any flag to leave the RAG server default.
 
 ### Retrieval depth
 
@@ -105,19 +107,12 @@ Omitting these flags does not send the field—the RAG server uses its own confi
 ```bash
 --temperature 0.0    # deterministic output for repeatable benchmarks
 --top-p 0.95
---max-tokens 512     # cap answer length; affects both quality and token cost
+--max-tokens 512     # cap answer length
 ```
 
 These are forwarded verbatim to `/v1/generate`; omit to use the server default.
 
-### Parallelism and timeout
-
-```bash
---thread 8       # concurrent query workers (default 4); raise for higher throughput
---timeout 300    # seconds per RAG HTTP request (default 180); raise for slow models
-```
-
-### Combined perf comparison example
+### Example: quality comparison across configs
 
 ```bash
 uv run --project scripts/eval python scripts/eval/evaluate_rag.py \
@@ -129,13 +124,14 @@ uv run --project scripts/eval python scripts/eval/evaluate_rag.py \
   --disable-query-rewriting \
   --temperature 0.0 \
   --max-tokens 512 \
-  --thread 8 \
-  --output_dir results/perf_baseline
+  --output_dir results/baseline_no_rerank
 ```
+
+Use a distinct `--collection` or `--force_ingestion` when you need an isolated corpus for each config.
 
 ## Result analysis
 
-For ready-to-run Python scripts, read [`result-analysis.md`](result-analysis.md). It contains: per-query worst-accuracy table, CSV export, markdown report table, and token usage summary.
+For ready-to-run Python scripts, read [`result-analysis.md`](result-analysis.md). It contains: per-query worst-accuracy table, CSV export, and markdown report table.
 
 Quick headline scan:
 
@@ -151,10 +147,10 @@ Rows with `has_context=N` and low `nv_accuracy` signal retrieval problems (inges
 |--------|------------------------|---------------|
 | Script exits immediately on `NVIDIA_API_KEY` | Judge cannot run | Export a valid key; optional `RAG_EVAL_JUDGE_MODEL` for an available catalog model. |
 | `train.json must be a JSON array` / validation errors | Bad JSON shape | Top-level **array** of objects, not a single object or multiline records without array wrapper. |
-| Fewer rows in `evaluation_data.json` than in `train.json` | Per-query exception | Stderr during run: network, timeout, or JSON decode on stream. |
+| Fewer rows in `evaluation_data.json` than in `train.json` | Per-query exception | Stderr during run: network or JSON decode on stream. |
 | Row has `generated_answer: ""` and `generated_contexts: []` | RAG returned no content | Retrieval returned nothing: collection exists and is populated? `top_k`/`vdb_top_k` too low? |
 | `Response contained error message` / answers matching the server's error sentinel | RAG returned an error string | RAG server logs, collection existence, `collection_names` vs ingested data. |
-| `Failed to get response from rag-server` / timeouts | HTTP or network | `--host`/`--port`, firewall, RAG up; increase `--timeout` for slow models. |
+| `Failed to get response from rag-server` | HTTP or network | `--host`/`--port`, firewall, RAG server health and logs. |
 | Ingestor or collection errors | 4xx/5xx on ingestor | `ingestor_server_url` base without `/v1`, credentials, disk, ingestor logs. |
 | `nv_context_relevance` / `nv_response_groundedness` empty with empty `generated_contexts` | No usable retrieved text for context metrics | Ingestion, `collection_name` alignment, `top_k` / retrieval config. |
 | >50% failures warning in stdout | `error_count` high | Systematic config issue (wrong collection, RAG down, or streaming parse errors). |
@@ -167,4 +163,4 @@ Rows with `has_context=N` and low `nv_accuracy` signal retrieval problems (inges
 2. `train.json`: top-level array of objects (dict-shaped root is rejected). Run the quick validation in [`dataset-and-conversion.md`](dataset-and-conversion.md) after any conversion.
 3. Rows include `question` and `answer` for meaningful RAGAS scores.
 4. `NVIDIA_API_KEY` available before invoking the script (optional `RAG_EVAL_JUDGE_MODEL` if not using the default judge).
-5. For perf comparison runs: fix `--collection` to a stable name and use `--force_ingestion` or `--skip_ingestion` to control whether corpus is re-uploaded between runs.
+5. For config comparisons: use a distinct `--collection` or `--force_ingestion` / `--skip_ingestion` so each run sees the intended corpus state.
