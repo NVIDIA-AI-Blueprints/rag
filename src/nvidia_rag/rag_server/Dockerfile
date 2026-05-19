@@ -1,5 +1,5 @@
 ARG BASE_IMAGE_URL=nvcr.io/nvidia/base/ubuntu
-ARG BASE_IMAGE_TAG=jammy-20251013
+ARG BASE_IMAGE_TAG=jammy-20260217
 ARG DOWNLOAD_LEGAL_COMPLIANCE=false
 
 # -------- Stage 1: Build Stage --------
