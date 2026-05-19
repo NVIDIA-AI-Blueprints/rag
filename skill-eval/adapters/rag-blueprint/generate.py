@@ -270,16 +270,37 @@ def generate(spec: dict, output_root: Path, skill_dir: Path, eval_name: str,
     # specs will fan out into separate task dirs per platform.)
     platforms = spec.get("platforms") or []
     platform = platforms[0] if platforms else None
-    if platform and platform not in PLATFORMS:
-        print(
-            f"  WARN  platform '{platform}' not in PLATFORMS dict — "
-            f"BrevEnvironment will fall back to its default shape",
-            file=sys.stderr,
-        )
+
+    # Hardware metadata resolution — VSS pattern: prefer the spec's own
+    # `resources.platforms.<name>` block when present (each spec is
+    # self-contained for hardware). Fall back to the PLATFORMS dict in
+    # this adapter when the spec doesn't carry resources inline — keeps
+    # backward compatibility with older specs (our `nvidia_hosted.json`
+    # ships today without a `resources` block).
+    spec_resources = (spec.get("resources") or {}).get("platforms") or {}
+    if platform and platform in spec_resources:
+        source = spec_resources[platform]
+        meta_origin = f"spec.resources.platforms.{platform}"
+    elif platform and platform in PLATFORMS:
+        source = PLATFORMS[platform]
+        meta_origin = f"adapter PLATFORMS[{platform!r}] (fallback)"
+    else:
+        source = {}
+        meta_origin = "none (no platform resolution)"
+        if platform:
+            print(
+                f"  WARN  platform '{platform}' not in spec.resources "
+                f"nor adapter PLATFORMS dict — BrevEnvironment will "
+                f"fall back to its default shape",
+                file=sys.stderr,
+            )
+
     platform_meta = {
-        k: v for k, v in (PLATFORMS.get(platform) or {}).items()
+        k: v for k, v in source.items()
         if k != "description"
     }
+    if platform_meta:
+        print(f"  HW    platform={platform} source={meta_origin}", file=sys.stderr)
 
     for idx, expect in enumerate(expects, 1):
         step_dir = output_root / f"step-{idx}"
