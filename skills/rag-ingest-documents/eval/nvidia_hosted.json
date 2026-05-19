@@ -1,10 +1,6 @@
 {
-  "skills": [
-    "rag-ingest-documents"
-  ],
-  "platforms": [
-    "cpu"
-  ],
+  "skills": ["rag-ingest-documents"],
+  "platforms": ["cpu"],
   "resources": {
     "platforms": {
       "cpu": {
@@ -13,26 +9,26 @@
       }
     }
   },
-  "env": "Linux host with Docker + Docker Compose plugin. RAG stack is already running: ingestor server at http://localhost:8082, rag-server at http://localhost:8081. NGC_API_KEY is set. cwd: ${RAG_REPO_ROOT}/. The ingestor REST API accepts file uploads at POST /v1/ingest/files and exposes task status at GET /v1/ingest/tasks/{task_id}.",
+  "env": "Linux host with Docker + Docker Compose plugin. RAG stack is running: ingestor server at http://localhost:8082, rag-server at http://localhost:8081. NGC_API_KEY is set. cwd: ${RAG_REPO_ROOT}/. The docs/ directory contains markdown files (not PDFs). The ingestor REST API accepts file uploads at POST /v1/ingest/files and exposes task status at GET /v1/ingest/tasks/{task_id}.",
   "expects": [
     {
-      "query": "Use the rag-ingest-documents skill to upload the file docs/accuracy-benchmarks.md into a new collection called test_collection via the ingestor API at http://localhost:8082. Confirm ingestion completed successfully. The eval runs from inside the repository checkout; use git rev-parse --show-toplevel if you need the absolute path.",
+      "query": "Use the rag-ingest-documents skill to upload the file docs/accuracy-benchmarks.md into a collection called test_collection via the ingestor API at http://localhost:8082. Confirm ingestion completed successfully. The eval runs from inside the repository checkout; use git rev-parse --show-toplevel if you need the absolute path.",
       "checks": [
         "The agent's trajectory shows it read the rag-ingest-documents SKILL.md before taking action",
         "`curl -sf -o /dev/null -w '%{http_code}' http://localhost:8082/v1/health` outputs 200",
-        "The agent's trajectory shows it called the ingestor upload endpoint with the specified file and collection name test_collection",
+        "The agent's trajectory shows it called the ingestor upload endpoint with docs/accuracy-benchmarks.md and collection name test_collection",
         "The agent's trajectory shows it polled the task status endpoint to confirm ingestion completed",
-        "The agent's trajectory shows it reported the final ingestion status"
+        "The agent's final response reports the ingestion task ID and final status"
       ]
     },
     {
-      "query": "Add all the PDF files in the docs/ folder to my knowledge base and tell me if any failed.",
+      "query": "Add the markdown files from the docs/ folder to my knowledge base and tell me how many were successfully ingested.",
       "checks": [
         "The agent's trajectory shows it read the rag-ingest-documents SKILL.md before taking action",
         "The agent's trajectory shows it verified ingestor server health before uploading",
-        "The agent's trajectory shows it submitted documents for ingestion via the ingestor API",
+        "The agent's trajectory shows it submitted at least one file from the docs/ directory for ingestion",
         "The agent's trajectory shows it checked ingestion status for submitted tasks",
-        "The agent's trajectory shows it reported a summary including any failed documents"
+        "The agent's final response reports how many files were successfully ingested"
       ]
     }
   ]
