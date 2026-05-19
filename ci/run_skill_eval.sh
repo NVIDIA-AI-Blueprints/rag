@@ -257,7 +257,14 @@ while IFS= read -r spec_file; do
       echo "  harbor run exited non-zero for $step_dir"
     fi
   done < <(find "$DATASETS_DIR" -mindepth 1 -maxdepth 1 -type d | sort)
-done < <(find "$SKILLS_ROOT" -path "*/eval/${EVAL_PROFILE}.json" | sort)
+done < <(
+  # rag-deploy-blueprint must run first — it deploys the RAG stack that
+  # all other skills test against. Remaining skills run alphabetically.
+  deploy_spec="$SKILLS_ROOT/rag-deploy-blueprint/eval/${EVAL_PROFILE}.json"
+  [ -f "$deploy_spec" ] && echo "$deploy_spec"
+  find "$SKILLS_ROOT" -path "*/eval/${EVAL_PROFILE}.json" \
+    ! -path "*/rag-deploy-blueprint/*" | sort
+)
 
 echo "==> Summarise results into eval_result.md (walks ALL job dirs)"
 python3 - <<'PY'
