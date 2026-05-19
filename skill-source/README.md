@@ -86,6 +86,16 @@ Read `docs/support-matrix.md` for current hardware requirements per mode.
 | Library (full) | Yes (backend) | Python API with Docker backend services |
 | Library (lite) | No | Milvus Lite + cloud APIs, zero infrastructure |
 
+## OpenClaw (RAG Claw plugin)
+
+To use these skills with [OpenClaw](https://github.com/openclaw/openclaw), install the plugin from the repo root:
+
+```bash
+openclaw plugins install ./.openclaw/
+```
+
+See [`.openclaw/README.md`](../.openclaw/README.md) for prerequisites, verification, and trigger phrases.
+
 ## NGC_API_KEY Handling
 
 Skills never expose the API key value to the LLM. The approach:
