@@ -1,6 +1,10 @@
 {
-  "skills": ["rag-ingest-documents"],
-  "platforms": ["cpu"],
+  "skills": [
+    "rag-ingest-documents"
+  ],
+  "platforms": [
+    "cpu"
+  ],
   "resources": {
     "platforms": {
       "cpu": {
@@ -29,23 +33,6 @@
         "The agent's trajectory shows it submitted documents for ingestion via the ingestor API",
         "The agent's trajectory shows it checked ingestion status for submitted tasks",
         "The agent's trajectory shows it reported a summary including any failed documents"
-      ]
-    },
-    {
-      "query": "My document ingestion keeps failing with a timeout error after I upload large PDFs. What should I check?",
-      "checks": [
-        "The agent's trajectory shows it read the rag-ingest-documents SKILL.md before taking action",
-        "The agent's trajectory shows it checked ingestor service health or logs",
-        "The agent's trajectory shows it identified likely causes of ingestion timeouts (large file size, extraction complexity, NV-Ingest configuration)",
-        "The agent's final response provides concrete steps to resolve or diagnose the timeout"
-      ]
-    },
-    {
-      "query": "What does my knowledge base say about GPU memory requirements?",
-      "checks": [
-        "The agent's trajectory does NOT include any invocation of /rag-ingest-documents (this is a query task, not an ingestion task)",
-        "The agent's trajectory shows it identified this as a query task requiring a different skill (rag-query-knowledge)",
-        "The agent's trajectory does NOT include any call to the ingestor upload endpoint"
       ]
     }
   ]

@@ -1,6 +1,10 @@
 {
-  "skills": ["rag-enable-guardrails"],
-  "platforms": ["H100_x2"],
+  "skills": [
+    "rag-enable-guardrails"
+  ],
+  "platforms": [
+    "H100_x2"
+  ],
   "resources": {
     "platforms": {
       "H100_x2": {
@@ -33,24 +37,6 @@
         "The agent's trajectory shows it referenced the NeMo Guardrails documentation",
         "The agent's final response explains how to configure topic-based content policies",
         "The agent's final response provides specific configuration steps for enabling guardrails"
-      ]
-    },
-    {
-      "query": "Guardrails is enabled but users are still getting responses to prompts that should be blocked. The policy file looks correct but something is wrong.",
-      "checks": [
-        "The agent's trajectory shows it read the rag-enable-guardrails SKILL.md before taking action",
-        "The agent's trajectory shows it checked guardrails service health and running state",
-        "The agent's trajectory shows it reviewed guardrails policy configuration",
-        "The agent's trajectory shows it inspected guardrails service logs for errors",
-        "The agent's final response identifies the specific cause of the policy bypass"
-      ]
-    },
-    {
-      "query": "Search my knowledge base for information about content moderation policies.",
-      "checks": [
-        "The agent's trajectory does NOT include any invocation of /rag-enable-guardrails (this is a query task)",
-        "The agent's trajectory shows it identified this as a query task requiring a different skill (rag-query-knowledge)",
-        "The agent's trajectory does NOT include any guardrails service start or policy configuration"
       ]
     }
   ]

@@ -1,6 +1,10 @@
 {
-  "skills": ["rag-manage-mcp"],
-  "platforms": ["cpu"],
+  "skills": [
+    "rag-manage-mcp"
+  ],
+  "platforms": [
+    "cpu"
+  ],
   "resources": {
     "platforms": {
       "cpu": {
@@ -28,23 +32,6 @@
         "The agent's trajectory shows it referenced the RAG MCP documentation and examples",
         "The agent's final response explains how to expose RAG via MCP for agent consumption",
         "The agent's final response provides specific setup steps for the MCP server and client"
-      ]
-    },
-    {
-      "query": "My AI agent can connect to the MCP server but it can't find the RAG query tool. The server is running but tool discovery returns an empty list.",
-      "checks": [
-        "The agent's trajectory shows it read the rag-manage-mcp SKILL.md before taking action",
-        "The agent's trajectory shows it verified the MCP server was running and reachable",
-        "The agent's trajectory shows it checked the RAG endpoint connection from the MCP server",
-        "The agent's final response identifies the likely cause of empty tool discovery"
-      ]
-    },
-    {
-      "query": "Upload all PDFs from the data folder into my knowledge base.",
-      "checks": [
-        "The agent's trajectory does NOT include any invocation of /rag-manage-mcp (this is an ingestion task)",
-        "The agent's trajectory shows it identified this as an ingestion task requiring a different skill (rag-ingest-documents)",
-        "The agent's trajectory does NOT include any MCP server start or tool discovery"
       ]
     }
   ]

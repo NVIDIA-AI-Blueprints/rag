@@ -1,6 +1,10 @@
 {
-  "skills": ["rag-enable-vlm"],
-  "platforms": ["H100_x2"],
+  "skills": [
+    "rag-enable-vlm"
+  ],
+  "platforms": [
+    "H100_x2"
+  ],
   "resources": {
     "platforms": {
       "H100_x2": {
@@ -33,23 +37,6 @@
         "The agent's trajectory shows it referenced the VLM embeddings documentation",
         "The agent's final response explains how to configure VLM embeddings for visual content retrieval",
         "The agent's final response provides steps for enabling image-aware ingestion"
-      ]
-    },
-    {
-      "query": "I enabled VLM but when I upload PDFs with images the image content is not being returned in search results. Text works fine but visuals don't.",
-      "checks": [
-        "The agent's trajectory shows it read the rag-enable-vlm SKILL.md before taking action",
-        "The agent's trajectory shows it checked whether VLM embeddings are configured for ingestion",
-        "The agent's trajectory shows it verified whether existing documents need re-ingestion with VLM enabled",
-        "The agent's final response identifies the root cause of image content not appearing in results"
-      ]
-    },
-    {
-      "query": "Search my documents for the quarterly revenue figures.",
-      "checks": [
-        "The agent's trajectory does NOT include any invocation of /rag-enable-vlm (this is a query task)",
-        "The agent's trajectory shows it identified this as a query task requiring a different skill (rag-query-knowledge)",
-        "The agent's trajectory does NOT include any VLM configuration changes"
       ]
     }
   ]

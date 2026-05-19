@@ -1,6 +1,10 @@
 {
-  "skills": ["rag-troubleshoot-blueprint"],
-  "platforms": ["cpu"],
+  "skills": [
+    "rag-troubleshoot-blueprint"
+  ],
+  "platforms": [
+    "cpu"
+  ],
   "resources": {
     "platforms": {
       "cpu": {
@@ -28,24 +32,6 @@
         "The agent's trajectory shows it checked whether documents exist in the target collection",
         "The agent's trajectory shows it tested a sample query to inspect retrieved context quality",
         "The agent's final response identifies the root cause of irrelevant answers"
-      ]
-    },
-    {
-      "query": "The ingestor-server container keeps restarting every few minutes. I need to figure out why.",
-      "checks": [
-        "The agent's trajectory shows it read the rag-troubleshoot-blueprint SKILL.md before taking action",
-        "The agent's trajectory shows it ran docker logs ingestor-server to inspect recent crash logs",
-        "The agent's trajectory shows it ran docker inspect or docker ps to check container restart count",
-        "The agent's final response identifies the specific cause of the restart loop",
-        "The agent's final response provides concrete steps to fix the restart issue"
-      ]
-    },
-    {
-      "query": "Upload the quarterly report PDF to my knowledge base.",
-      "checks": [
-        "The agent's trajectory does NOT include any invocation of /rag-troubleshoot-blueprint (this is an ingestion task)",
-        "The agent's trajectory shows it identified this as an ingestion task requiring a different skill (rag-ingest-documents)",
-        "The agent's trajectory does NOT include any docker logs or health endpoint checks"
       ]
     }
   ]

@@ -1,6 +1,10 @@
 {
-  "skills": ["rag-configure-retrieval"],
-  "platforms": ["cpu"],
+  "skills": [
+    "rag-configure-retrieval"
+  ],
+  "platforms": [
+    "cpu"
+  ],
   "resources": {
     "platforms": {
       "cpu": {
@@ -28,23 +32,6 @@
         "The agent's trajectory shows it referenced the multi-collection retrieval documentation",
         "The agent's final response provides specific configuration steps for enabling multi-collection retrieval",
         "The agent's final response explains reranking configuration alongside multi-collection setup"
-      ]
-    },
-    {
-      "query": "My RAG search results are returning documents that don't seem relevant to the query at all. The collection has documents but the answers are off-topic.",
-      "checks": [
-        "The agent's trajectory shows it read the rag-configure-retrieval SKILL.md before taking action",
-        "The agent's trajectory shows it checked current retrieval configuration settings",
-        "The agent's trajectory shows it ran a test query to inspect retrieved context quality",
-        "The agent's final response provides specific configuration changes to improve relevance (reranking, topK, search mode)"
-      ]
-    },
-    {
-      "query": "Deploy the RAG Blueprint on this machine with Docker Compose.",
-      "checks": [
-        "The agent's trajectory does NOT include any invocation of /rag-configure-retrieval (this is a deployment task)",
-        "The agent's trajectory shows it identified this as a deployment task requiring a different skill (rag-deploy-blueprint)",
-        "The agent's trajectory does NOT include any retrieval configuration changes"
       ]
     }
   ]

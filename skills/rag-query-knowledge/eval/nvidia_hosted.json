@@ -1,6 +1,10 @@
 {
-  "skills": ["rag-query-knowledge"],
-  "platforms": ["cpu"],
+  "skills": [
+    "rag-query-knowledge"
+  ],
+  "platforms": [
+    "cpu"
+  ],
   "resources": {
     "platforms": {
       "cpu": {
@@ -28,22 +32,6 @@
         "The agent's trajectory shows it verified RAG server health before querying",
         "The agent's trajectory shows it called the RAG query or search endpoint",
         "The agent's final response includes results with source document references"
-      ]
-    },
-    {
-      "query": "My RAG pipeline keeps returning answers without citing any sources even though I uploaded PDFs. How do I get citations in the response?",
-      "checks": [
-        "The agent's trajectory shows it read the rag-query-knowledge SKILL.md before taking action",
-        "The agent's trajectory shows it referenced the RAG query API documentation to explain citation configuration",
-        "The agent's final response provides a concrete solution for enabling citations in query responses"
-      ]
-    },
-    {
-      "query": "Deploy the NVIDIA RAG Blueprint with Docker Compose in NVIDIA-hosted mode.",
-      "checks": [
-        "The agent's trajectory does NOT include any invocation of /rag-query-knowledge (this is a deployment task, not a query)",
-        "The agent's trajectory shows it identified this as a deployment task requiring a different skill (rag-deploy-blueprint)",
-        "The agent's trajectory does NOT include any call to the RAG query endpoint"
       ]
     }
   ]

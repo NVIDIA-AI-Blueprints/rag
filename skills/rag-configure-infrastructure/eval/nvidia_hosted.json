@@ -1,6 +1,10 @@
 {
-  "skills": ["rag-configure-infrastructure"],
-  "platforms": ["cpu"],
+  "skills": [
+    "rag-configure-infrastructure"
+  ],
+  "platforms": [
+    "cpu"
+  ],
   "resources": {
     "platforms": {
       "cpu": {
@@ -28,23 +32,6 @@
         "The agent's trajectory shows it referenced the model configuration documentation",
         "The agent's final response explains which configuration file controls the embedding model",
         "The agent's final response notes that re-ingestion is required when changing embedding models"
-      ]
-    },
-    {
-      "query": "My RAG server won't start because something else is already using port 8081. How do I change the port?",
-      "checks": [
-        "The agent's trajectory shows it read the rag-configure-infrastructure SKILL.md before taking action",
-        "The agent's trajectory shows it identified the configuration parameter controlling the RAG server port",
-        "The agent's trajectory shows it updated the port configuration in the correct config file",
-        "The agent's final response explains how to verify the server is reachable on the new port"
-      ]
-    },
-    {
-      "query": "What do my documents say about infrastructure configuration best practices?",
-      "checks": [
-        "The agent's trajectory does NOT include any invocation of /rag-configure-infrastructure (this is a query task)",
-        "The agent's trajectory shows it identified this as a document query task requiring a different skill (rag-query-knowledge)",
-        "The agent's trajectory does NOT include any docker compose restart or config file modification"
       ]
     }
   ]

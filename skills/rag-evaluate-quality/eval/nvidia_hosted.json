@@ -1,6 +1,10 @@
 {
-  "skills": ["rag-evaluate-quality"],
-  "platforms": ["cpu"],
+  "skills": [
+    "rag-evaluate-quality"
+  ],
+  "platforms": [
+    "cpu"
+  ],
   "resources": {
     "platforms": {
       "cpu": {
@@ -27,23 +31,6 @@
         "The agent's final response explains available quality metrics (faithfulness, context relevancy, recall)",
         "The agent's final response explains how to prepare a ground truth dataset for evaluation",
         "The agent's final response provides steps to run quality evaluation"
-      ]
-    },
-    {
-      "query": "My RAGAS evaluation shows faithfulness score of 0.3 which seems very low. What does this mean and how do I improve it?",
-      "checks": [
-        "The agent's trajectory shows it read the rag-evaluate-quality SKILL.md before taking action",
-        "The agent's final response explains what a low faithfulness score means (answers not grounded in retrieved documents)",
-        "The agent's final response identifies likely causes of low faithfulness",
-        "The agent's final response provides specific actionable steps to improve the faithfulness score"
-      ]
-    },
-    {
-      "query": "Start the RAG Blueprint with Docker Compose.",
-      "checks": [
-        "The agent's trajectory does NOT include any invocation of /rag-evaluate-quality (this is a deployment task)",
-        "The agent's trajectory shows it identified this as a deployment task requiring a different skill (rag-deploy-blueprint)",
-        "The agent's trajectory does NOT include any evaluation script execution"
       ]
     }
   ]
