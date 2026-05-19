@@ -439,14 +439,14 @@ class Prompt(BaseModel):
     reranker_top_k: int = Field(
         description="The maximum number of documents to return in the response.",
         default=CONFIG.retriever.top_k,
-        ge=0,
+        ge=1,
         le=25,
         format="int64",
     )
     vdb_top_k: int = Field(
         description="Number of top results to retrieve from the vector database.",
         default=CONFIG.retriever.vdb_top_k,
-        ge=0,
+        ge=1,
         le=400,
         format="int64",
     )
@@ -679,14 +679,14 @@ class DocumentSearch(BaseModel):
     reranker_top_k: int = Field(
         description="Number of document chunks to retrieve.",
         default=int(CONFIG.retriever.top_k),
-        ge=0,
+        ge=1,
         le=25,
         format="int64",
     )
     vdb_top_k: int = Field(
         description="Number of top results to retrieve from the vector database.",
         default=CONFIG.retriever.vdb_top_k,
-        ge=0,
+        ge=1,
         le=400,
         format="int64",
     )
@@ -1766,6 +1766,12 @@ async def document_search(
         return JSONResponse(
             content={"message": "Request was cancelled by the client."},
             status_code=ErrorCodeMapping.CLIENT_CLOSED_REQUEST,
+        )
+    except ValueError as e:
+        logger.warning("Validation error in /search endpoint: %s", e)
+        return JSONResponse(
+            content={"message": str(e)},
+            status_code=ErrorCodeMapping.BAD_REQUEST,
         )
     except APIError as e:
         status_code = getattr(e, "status_code", ErrorCodeMapping.INTERNAL_SERVER_ERROR)

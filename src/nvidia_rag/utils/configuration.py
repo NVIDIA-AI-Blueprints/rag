@@ -15,6 +15,7 @@
 """Simple configuration for NVIDIA RAG."""
 
 import json
+import logging
 import os
 from enum import StrEnum
 from pathlib import Path
@@ -25,6 +26,8 @@ import yaml
 from pydantic import BaseModel, ConfigDict, SecretStr, field_validator, model_validator
 from pydantic import Field as PydanticField
 from pydantic.fields import FieldInfo
+
+logger = logging.getLogger(__name__)
 
 
 def Field(default=None, *, env: str = None, description: str = None, **kwargs):
@@ -875,6 +878,14 @@ class RetrieverConfig(_ConfigBase):
             raise ValueError(
                 f"vdb_top_k must be greater than 0, got {v}. "
                 "Please provide a positive integer for the number of documents to retrieve from the vector database."
+            )
+        if v > 400:
+            logger.warning(
+                "VECTOR_DB_TOPK=%s is outside the request limit of 1..400. "
+                "The server will start so the value can be corrected from the UI "
+                "or environment, but /v1/generate and /v1/search requests using "
+                "this value will be rejected.",
+                v,
             )
         return v
 

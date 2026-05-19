@@ -362,7 +362,9 @@ class TestNvIngestConfig:
         assert config.tokenizer == "intfloat/e5-large-unsupervised"
         assert config.chunk_size == 1024
         assert config.chunk_overlap == 150
-        assert config.caption_model_name == "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
+        assert (
+            config.caption_model_name == "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
+        )
         assert (
             config.caption_endpoint_url
             == "https://integrate.api.nvidia.com/v1/chat/completions"
@@ -503,7 +505,9 @@ class TestNvidiaRAGConfig:
             assert config.llm.model_name == "custom/llm-model"
             assert config.ranking.enable_reranker is False
             assert config.object_store.endpoint == "custom-object-store:9000"
-            assert config.object_store.nv_ingest_endpoint == "internal-object-store:9000"
+            assert (
+                config.object_store.nv_ingest_endpoint == "internal-object-store:9000"
+            )
 
     def test_from_dict_nested_structure(self):
         """Test loading from dictionary with nested structure."""
@@ -926,6 +930,29 @@ class TestRetrieverConfigValidation:
             RetrieverConfig(vdb_top_k=-1)
 
         assert "vdb_top_k must be greater than 0" in str(exc_info.value)
+
+    def test_validate_vdb_top_k_at_max_boundary(self):
+        """Test that vdb_top_k == 400 is valid (matches Prompt/DocumentSearch le=400)."""
+        config = RetrieverConfig(vdb_top_k=400, top_k=10)
+        assert config.vdb_top_k == 400
+
+    def test_validate_vdb_top_k_exceeds_max_warns_without_startup_failure(
+        self, caplog
+    ):
+        """Out-of-range env defaults should not prevent server startup."""
+        config = RetrieverConfig(vdb_top_k=401)
+
+        assert config.vdb_top_k == 401
+        assert "outside the request limit of 1..400" in caplog.text
+
+    def test_validate_vdb_top_k_far_above_max_warns_without_startup_failure(
+        self, caplog
+    ):
+        """Keep startup alive for the bug report's VECTOR_DB_TOPK=410 case."""
+        config = RetrieverConfig(vdb_top_k=410)
+
+        assert config.vdb_top_k == 410
+        assert "outside the request limit of 1..400" in caplog.text
 
     def test_validate_reranker_top_k_exceeds_vdb_top_k(self):
         """Test that top_k > vdb_top_k raises ValueError."""
