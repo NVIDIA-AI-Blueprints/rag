@@ -184,14 +184,62 @@ if [ -n "${BREV_INSTANCE:-}" ]; then
     echo "brev not authenticated. Run: brev login --auth nvidia"
     exit 1
   }
-  # Warm-pool mode (mirrors VSS): if $BREV_INSTANCE already exists, reuse
-  # it so docker image cache (notably nv-ingest, ~11 GB) survives between
-  # runs. brev_env.start() handles container/network cleanup on the target
-  # without nuking the image cache. Only auto-provision if missing.
+  # Pre-provision the GPU VM HERE — not inside brev_env. Harbor's
+  # environment-start timeout is hard-coded to 600s in trial.py, and a
+  # cold H100×2 cloud provision routinely takes 10-15 min on Brev. If
+  # brev_env.start() does brev-create + wait-for-ready, harbor times out
+  # before the VM is up (validated in run 26086408091: 15m47s →
+  # EnvironmentStartTimeoutError). VSS solves this by provisioning out-
+  # of-band; we mirror that here. brev_env.start() then just smoke-tests
+  # + clones (fast, finishes well under 600s).
   if brev ls 2>/dev/null | awk -v n="$BREV_INSTANCE" '$1==n {found=1} END{exit !found}'; then
-    echo "Reusing warm $BREV_INSTANCE"
+    echo "Reusing existing $BREV_INSTANCE (operator pre-provisioned)"
   else
-    echo "No existing $BREV_INSTANCE — brev_env will auto-provision"
+    # Resolve brev_type from the adapter-written task.toml. Same lookup
+    # as the EXIT trap (step-N share the same brev_type).
+    BREV_TYPE=$(grep -hoE 'brev_type[[:space:]]*=[[:space:]]*"[^"]+"' \
+      "$DATASETS_DIR"/step-*/task.toml 2>/dev/null | head -1 \
+      | sed 's/.*"\([^"]*\)".*/\1/')
+    if [ -z "$BREV_TYPE" ]; then
+      # Task dirs not generated yet (we're before the adapter call) — read
+      # straight from the spec.
+      BREV_TYPE=$(python3 -c "
+import json,sys
+spec=json.load(open('$SPEC_FILE'))
+plats=spec.get('resources',{}).get('platforms',{})
+for p in spec.get('platforms',[]):
+    if p in plats and plats[p].get('brev_type'):
+        print(plats[p]['brev_type']); sys.exit(0)
+" 2>/dev/null)
+    fi
+    if [ -z "$BREV_TYPE" ]; then
+      echo "Cannot determine brev_type for $EVAL_NAME — set 'brev_type' in spec resources.platforms.* or in task.toml"
+      exit 1
+    fi
+    echo "==> Pre-provisioning $BREV_INSTANCE type=$BREV_TYPE (up to ${BREV_PROVISION_TIMEOUT:-1800}s)"
+    if ! echo "$BREV_TYPE" | brev create "$BREV_INSTANCE" --detached 2>&1 | tail -5; then
+      echo "brev create failed"
+      exit 1
+    fi
+    # Poll until RUNNING+READY. Default 30 min — H100 on cold capacity
+    # can spend 10-15 min just on cloud provisioning before ssh comes up.
+    deadline=$(($(date +%s) + ${BREV_PROVISION_TIMEOUT:-1800}))
+    last_state=""
+    while [ $(date +%s) -lt $deadline ]; do
+      state=$(brev ls 2>/dev/null | awk -v n="$BREV_INSTANCE" \
+        '$1==n {print $2"+"$4; exit}')
+      if [ -n "$state" ] && [ "$state" != "$last_state" ]; then
+        echo "  $(date -u +%H:%M:%SZ) $BREV_INSTANCE: $state"
+        last_state="$state"
+      fi
+      [ "$state" = "RUNNING+READY" ] && break
+      sleep 15
+    done
+    if [ "$last_state" != "RUNNING+READY" ]; then
+      echo "Pre-provision timed out — last state: $last_state"
+      exit 1
+    fi
+    echo "==> $BREV_INSTANCE ready"
   fi
 else
   ENV_IMPORT="envs.local_env:LocalEnvironment"

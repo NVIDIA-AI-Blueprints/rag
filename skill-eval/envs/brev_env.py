@@ -99,18 +99,33 @@ class BrevEnvironment(BaseEnvironment):
 
         meta = self._read_task_metadata()
         # Always ephemeral: the workflow passes $BREV_INSTANCE=rag-eval-gpu-<uuid>
-        # per CI run (fresh each invocation), or we auto-generate. No reuse
-        # branch — ci/run_skill_eval.sh's EXIT trap ensures the prior run's
-        # VM is already deleted by the time a fresh name lands here.
+        # per CI run (fresh each invocation), or we auto-generate. The
+        # script (ci/run_skill_eval.sh) pre-provisions the VM out-of-band
+        # before invoking harbor — necessary because harbor's environment-
+        # start timeout is hardcoded to 600s in trial.py, but cold H100×2
+        # provisioning routinely takes 10-15 min on Brev. We mirror VSS's
+        # pattern: script provisions, harbor inherits a ready VM.
         self._instance_name = (
             DEFAULT_INSTANCE
             or meta.get("brev_instance")
             or f"rag-harbor-{uuid.uuid4().hex[:8]}"
         )
-        logger.info("Brev target: %s (ephemeral)", self._instance_name)
-
-        await self._provision(meta)
-        self._created_by_us = True
+        existing = await _find_brev_instance(self._instance_name)
+        if existing and existing.get("status") == "RUNNING":
+            logger.info(
+                "Brev target: %s (pre-provisioned by script)",
+                self._instance_name,
+            )
+            self._created_by_us = False  # script owns lifecycle
+        else:
+            logger.info(
+                "Brev target: %s (no pre-provision — provisioning now; "
+                "expect timeout if harbor's 600s start budget is short for "
+                "the platform)",
+                self._instance_name,
+            )
+            await self._provision(meta)
+            self._created_by_us = True
 
         # Smoke test: confirm we can exec on the instance.
         result = await _run_brev_exec(
