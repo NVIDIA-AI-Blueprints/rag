@@ -61,6 +61,58 @@ class TestNvidiaRAGIngestorInit:
         ):
             NvidiaRAGIngestor(config=config)
 
+    def test_init_lite_mode_overrides_non_milvus_backend(self, caplog):
+        """Regression for bug 6180805: lite mode must force vector_store.name='milvus'
+        even when the underlying config (e.g. notebooks/config.yaml) defaults to a
+        different backend like 'elasticsearch'. Without this override, create_collection
+        instantiates the wrong VDB backend with a milvus-lite.db file URL."""
+        config = NvidiaRAGConfig.from_dict(
+            {"vector_store": {"name": "elasticsearch", "url": "./milvus-lite.db"}}
+        )
+
+        with (
+            patch("nvidia_rag.ingestor_server.main.get_nv_ingest_client"),
+            caplog.at_level("WARNING", logger="nvidia_rag.ingestor_server.main"),
+        ):
+            ingestor = NvidiaRAGIngestor(config=config, mode=Mode.LITE)
+
+        assert ingestor.config.vector_store.name == "milvus"
+        assert any(
+            "Lite mode requires the Milvus backend" in rec.message
+            for rec in caplog.records
+        )
+
+    def test_init_lite_mode_keeps_milvus_backend_silently(self, caplog):
+        """When the caller already set vector_store.name='milvus', lite mode should
+        leave it alone and not emit an override warning."""
+        config = NvidiaRAGConfig.from_dict(
+            {"vector_store": {"name": "milvus", "url": "./milvus-lite.db"}}
+        )
+
+        with (
+            patch("nvidia_rag.ingestor_server.main.get_nv_ingest_client"),
+            caplog.at_level("WARNING", logger="nvidia_rag.ingestor_server.main"),
+        ):
+            ingestor = NvidiaRAGIngestor(config=config, mode=Mode.LITE)
+
+        assert ingestor.config.vector_store.name == "milvus"
+        assert not any(
+            "Lite mode requires the Milvus backend" in rec.message
+            for rec in caplog.records
+        )
+
+    def test_init_library_mode_preserves_non_milvus_backend(self):
+        """Non-lite modes must not touch vector_store.name — the override is
+        scoped to Mode.LITE only."""
+        config = NvidiaRAGConfig.from_dict(
+            {"vector_store": {"name": "elasticsearch"}}
+        )
+
+        with patch("nvidia_rag.ingestor_server.main.get_nv_ingest_client"):
+            ingestor = NvidiaRAGIngestor(config=config, mode=Mode.LIBRARY)
+
+        assert ingestor.config.vector_store.name == "elasticsearch"
+
     def test_init_with_valid_vdb_op(self):
         """Test initialization with valid VDBRag instance."""
         mock_vdb_op = Mock(spec=VDBRag)

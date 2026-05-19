@@ -152,6 +152,15 @@ class NvidiaRAGIngestor:
         # Track background summary tasks to prevent garbage collection
         self._background_tasks = set()
         self.config = config or NvidiaRAGConfig()
+        if self.mode == Mode.LITE:
+            current_backend = (self.config.vector_store.name or "").lower()
+            if current_backend and current_backend != "milvus":
+                logger.warning(
+                    "Lite mode requires the Milvus backend; overriding "
+                    "vector_store.name=%r to 'milvus'.",
+                    self.config.vector_store.name,
+                )
+            self.config.vector_store.name = "milvus"
         if (
             self.config.vector_store.name.lower() == "lancedb"
             and self.config.nv_ingest.backend.lower() != "nrl"
