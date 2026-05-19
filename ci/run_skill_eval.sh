@@ -123,6 +123,10 @@ export CLAUDE_CODE_DISABLE_THINKING="${CLAUDE_CODE_DISABLE_THINKING:-1}"
 # NVIDIA proxy needs fully-qualified Anthropic model ids.
 export ANTHROPIC_BASE_URL="${ANTHROPIC_BASE_URL:-https://inference-api.nvidia.com}"
 export ANTHROPIC_MODEL="${ANTHROPIC_MODEL:-aws/anthropic/bedrock-claude-sonnet-4-6}"
+# Pin Milvus volumes outside the workspace so docker compose (run from ci/)
+# doesn't write root-owned etcd/minio dirs into ci/volumes/ and break the
+# artifact upload step (EACCES on scandir ci/volumes/etcd/member).
+export DOCKER_VOLUME_DIRECTORY="${DOCKER_VOLUME_DIRECTORY:-/tmp/milvus-eval}"
 export JUDGE_FULL_MODEL="${JUDGE_FULL_MODEL:-aws/anthropic/claude-haiku-4-5-v1}"
 
 # Runtime topology — controlled by whether BREV_INSTANCE is set.
