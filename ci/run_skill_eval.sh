@@ -17,6 +17,12 @@
 
 set -euo pipefail
 
+# ============================================================================
+# TEST BRANCH ONLY (test/h100-smoke): forces GPU eval against H100×2.
+# Remove this line before merging back to feat/skill-eval-ci.
+# ============================================================================
+export EVAL_NAME="${EVAL_NAME:-h100_selfhosted}"
+
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 export RAG_REPO_ROOT="$REPO_ROOT"
 
@@ -106,7 +112,11 @@ trap cleanup EXIT
 export EVAL_TARGET_BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo main)"
 SKILL_EVAL_DIR="$REPO_ROOT/skill-eval"
 SKILL_DIR="$REPO_ROOT/skill-source/.agents/skills/rag-blueprint"
-EVAL_NAME="nvidia-hosted"
+# Which eval spec to run. Override via $EVAL_NAME from the workflow (or
+# inline). Spec file resolves to $SKILL_DIR/eval/<EVAL_NAME-with-dashes-as-_>.json
+# unless $SPEC_FILE is set explicitly. Dataset output dir mirrors EVAL_NAME.
+EVAL_NAME="${EVAL_NAME:-nvidia-hosted}"
+SPEC_FILE="${SPEC_FILE:-$SKILL_DIR/eval/${EVAL_NAME//-/_}.json}"
 DATASETS_DIR="$SKILL_EVAL_DIR/datasets/$EVAL_NAME"
 
 echo "==> Required env check"
@@ -136,6 +146,15 @@ export JUDGE_FULL_MODEL="${JUDGE_FULL_MODEL:-aws/anthropic/claude-haiku-4-5-v1}"
 #
 # To force a manual override (e.g. debug a Brev VM end-to-end without
 # the CI flow), export BREV_INSTANCE=<name> before invoking the script.
+#
+# Auto-pick: EVAL_NAME starting with `h100`, `l40s`, `rtx`, `gpu_` (or
+# containing `_h100`, `_l40s`, `_rtx`) implies a GPU eval — auto-generate
+# a fresh BREV_INSTANCE name so brev_env enters ephemeral-provision mode.
+# CPU evals (nvidia-hosted, etc.) leave BREV_INSTANCE empty → LocalEnvironment.
+case "$EVAL_NAME" in
+  h100*|l40s*|rtx*|gpu_*|*_h100|*_l40s|*_rtx|*_selfhosted)
+    : "${BREV_INSTANCE:=rag-eval-gpu-$(date +%s | tail -c 8)}" ;;
+esac
 export BREV_INSTANCE="${BREV_INSTANCE:-}"
 
 echo "==> Install uv (no-op if already present)"
@@ -209,12 +228,13 @@ fi
 # — the VM is provisioned fresh per CI run, so there's no prior-state
 # cleanup to do from the runner side.
 
-echo "==> Generate Harbor task directories from spec"
+echo "==> Generate Harbor task directories from spec ($EVAL_NAME → $SPEC_FILE)"
 cd "$SKILL_EVAL_DIR"
 rm -rf "$DATASETS_DIR"
 python3 adapters/rag-blueprint/generate.py \
   --output-dir "$DATASETS_DIR" \
-  --skill-dir "$SKILL_DIR"
+  --skill-dir "$SKILL_DIR" \
+  --spec "$SPEC_FILE"
 
 echo "==> Run Harbor trials — one invocation per step (Harbor -p takes a single path)"
 mkdir -p jobs

@@ -1,0 +1,41 @@
+{
+  "skills": ["rag-blueprint"],
+  "platforms": ["H100_x2"],
+  "resources": {
+    "platforms": {
+      "H100_x2": {
+        "brev_type": "dmz.h100x2.pcie",
+        "brev_search": "H100",
+        "gpu_type": "H100",
+        "gpu_count": 2,
+        "min_vram_gb_per_gpu": 80,
+        "min_root_disk_gb": 500,
+        "min_gpu_driver_version": "560.0",
+        "description": "2x H100 80GB PCIe per docs/support-matrix.md — self-hosted Docker Compose default."
+      }
+    }
+  },
+  "env": "A Linux host with 2x NVIDIA H100 80GB GPUs, nvidia-container-toolkit installed, Docker + Docker Compose plugin running. Self-hosted deployment — all NIM containers (LLM, embedding, ranking, ingestion) run locally on the H100s using deploy/compose/.env. Required env: NGC_API_KEY (nvapi-) for nvcr.io pulls. cwd is ${RAG_REPO_ROOT}. Source deploy/compose/.env (NOT nvdev.env). Bring up vectordb, local NIMs (nims.yaml), ingestor server, and rag server.",
+  "expects": [
+    {
+      "query": "Deploy NVIDIA RAG Blueprint in self-hosted Docker Compose mode on the local H100 GPUs. Source deploy/compose/.env, then start the vector DB (vectordb.yaml), the local NIMs (nims.yaml — LLM + embedding + ranking + ingestion), the ingestor server (docker-compose-ingestor-server.yaml), and the rag server (docker-compose-rag-server.yaml). All model inference must use the local NIM containers — do NOT use cloud endpoints (integrate.api.nvidia.com).",
+      "checks": [
+        "`docker ps --format '{{.Names}}' | grep -E '^(rag-server|ingestor-server|milvus-standalone)$' | wc -l` outputs 3",
+        "`docker ps --format '{{.Names}}' | grep -E '^(nim-llm|nemoretriever-embedding-ms|nemoretriever-ranking-ms)' | wc -l` outputs a number greater than or equal to 3",
+        "`nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits | awk '{s+=$1} END{print s}'` outputs a number greater than 5000 (NIMs have loaded weights into GPU memory, total >5 GB across GPUs)",
+        "`docker exec rag-server env 2>/dev/null | grep -E '^APP_LLM_SERVERURL='` outputs a line that does NOT contain integrate.api.nvidia.com (must point at a local NIM endpoint or be unset, never the cloud endpoint)",
+        "The agent's final output claims the deployment succeeded AND lists or references the running local NIM containers (nim-llm or nemoretriever-*) — a deploy success message that omits any mention of local NIMs is NOT acceptable for self-hosted mode"
+      ]
+    },
+    {
+      "query": "Verify the deployed self-hosted RAG stack is healthy. Hit the rag-server health endpoint, the ingestor-server health endpoint, and confirm at least one local NIM container reports a healthy status. Report each.",
+      "checks": [
+        "`curl -sf -o /dev/null -w '%{http_code}' http://localhost:8081/v1/health` outputs 200",
+        "`curl -sf -o /dev/null -w '%{http_code}' http://localhost:8082/v1/health` outputs 200",
+        "`docker ps --format '{{.Names}}\\t{{.Status}}' | grep -E '(nim-llm|nemoretriever-embedding-ms|nemoretriever-ranking-ms)' | grep -v 'Up' | wc -l` outputs 0 (every running NIM container is in 'Up' state — none Restarting / Created / Exited)",
+        "`docker ps --format '{{.Names}}\\t{{.Status}}' | grep -E '(milvus-standalone|rag-server|ingestor-server)' | grep -v 'Up' | wc -l` outputs 0 (every core service container is in 'Up' state)",
+        "The agent's final output reports a per-service health verdict for rag-server, ingestor-server, and at least one local NIM, each with a clear status indicator (HTTP 200, 'Healthy', 'Up', or equivalent). A single overall summary alone is NOT sufficient — per-service breakdown is required"
+      ]
+    }
+  ]
+}
