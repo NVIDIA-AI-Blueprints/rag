@@ -9,14 +9,14 @@
       }
     }
   },
-  "env": "Linux host with Docker + Docker Compose plugin installed and running. NVIDIA-hosted deployment — no local GPU required; all model inference goes to https://integrate.api.nvidia.com/v1. Required env var: NGC_API_KEY (valid NGC PAT with nvcr.io pull access). cwd is repo root: ${RAG_REPO_ROOT}/. Use deploy/compose/nvdev.env which is pre-configured for cloud endpoints (APP_LLM_SERVERURL=https://integrate.api.nvidia.com/v1, APP_LLM_MODELNAME=nvidia/llama-3.3-nemotron-super-49b-v1.5).",
+  "env": "Linux host with Docker + Docker Compose plugin installed and running. CPU-only runner — no NVIDIA GPU or driver present. NVIDIA-hosted deployment: all model inference goes to https://integrate.api.nvidia.com/v1. Required env var: NGC_API_KEY (valid NGC PAT with nvcr.io pull access). cwd is repo root: ${RAG_REPO_ROOT}/. Use deploy/compose/nvdev.env which is pre-configured for cloud endpoints. IMPORTANT: the default deploy/compose/vectordb.yaml uses a GPU Milvus image that will fail on this runner. Use ci/vectordb-cpu.yaml instead for the vector database — it is identical except it uses the CPU Milvus image (milvusdb/milvus:v2.6.5) and omits the GPU device reservation.",
   "expects": [
     {
       "query": "Use the rag-deploy-blueprint skill to deploy NVIDIA RAG Blueprint via Docker Compose in NVIDIA-hosted mode (cloud NIMs). Source deploy/compose/nvdev.env, then start the vector DB, ingestor server, and rag server so all containers reach the Up state. Do not start any local NIM containers — all model inference must use the cloud endpoint. The eval runs from inside the repository checkout; use git rev-parse --show-toplevel if you need the absolute path.",
       "checks": [
         "The agent's trajectory shows it read the rag-deploy-blueprint SKILL.md before any deployment commands",
         "The agent's trajectory shows it sourced deploy/compose/nvdev.env or used --env-file nvdev.env before running docker compose up",
-        "The agent's trajectory shows it ran docker compose up against vectordb.yaml, docker-compose-ingestor-server.yaml, and docker-compose-rag-server.yaml — and did NOT run docker compose up against nims.yaml",
+        "The agent's trajectory shows it ran docker compose up against ci/vectordb-cpu.yaml (or vectordb.yaml), docker-compose-ingestor-server.yaml, and docker-compose-rag-server.yaml — and did NOT run docker compose up against nims.yaml",
         "`docker ps --format '{{.Names}}' | grep -E '^(rag-server|ingestor-server|milvus-standalone|milvus-etcd|milvus-minio)$' | wc -l` outputs a number greater than or equal to 5",
         "`docker ps --format '{{.Names}}\\t{{.Status}}' | grep -E '(rag-server|ingestor-server|milvus-standalone)' | grep -v 'Up' | wc -l` outputs 0",
         "`docker ps --format '{{.Names}}'` does NOT include any container whose name starts with 'nim-llm', 'nemoretriever-embedding-ms', or 'nemoretriever-ranking-ms'"

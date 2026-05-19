@@ -69,10 +69,21 @@ trap cleanup EXIT
 # wrong source. Final fallback is 'main' for local runs.
 export EVAL_TARGET_BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo main)"
 SKILL_EVAL_DIR="$REPO_ROOT/skill-eval"
-SKILL_NAME="${SKILL_NAME:-rag-deploy-blueprint}"
-SKILL_DIR="$REPO_ROOT/skills/$SKILL_NAME"
 EVAL_NAME="${EVAL_NAME:-nvidia_hosted}"
-DATASETS_DIR="$SKILL_EVAL_DIR/datasets/$SKILL_NAME-$EVAL_NAME"
+
+# Skills to evaluate — cpu/cloud-NIM skills only (no GPU required).
+# rag-enable-vlm and rag-evaluate-quality need H100s; run separately.
+# Order matters: rag-deploy-blueprint must be first (deploys the stack).
+SKILLS=(
+  rag-deploy-blueprint
+  rag-ingest-documents
+  rag-query-knowledge
+  rag-troubleshoot-blueprint
+  rag-configure-retrieval
+  rag-configure-infrastructure
+  rag-manage-mcp
+  rag-evaluate-quality
+)
 
 echo "==> Required env check"
 : "${NVIDIA_INFERENCE_KEY:?Set NVBASE_INFERENCE_API_KEY secret (sk- inference proxy key)}"
@@ -84,6 +95,9 @@ export CLAUDE_CODE_DISABLE_THINKING="${CLAUDE_CODE_DISABLE_THINKING:-1}"
 export ANTHROPIC_BASE_URL="${ANTHROPIC_BASE_URL:-https://inference-api.nvidia.com}"
 export ANTHROPIC_MODEL="${ANTHROPIC_MODEL:-aws/anthropic/bedrock-claude-sonnet-4-6}"
 export JUDGE_FULL_MODEL="${JUDGE_FULL_MODEL:-aws/anthropic/claude-haiku-4-5-v1}"
+# CPU runner — disable GPU-backed vector search/index so Milvus starts without CUDA
+export APP_VECTORSTORE_ENABLEGPUSEARCH=False
+export APP_VECTORSTORE_ENABLEGPUINDEX=False
 
 # Default eval-target Brev instance. The dispatcher workflow does not
 # expose BREV_INSTANCE as an input — set it here so the script alone
@@ -169,33 +183,45 @@ elif brev ls 2>/dev/null | awk -v n="$BREV_INSTANCE" '$1==n {found=1} END{exit !
     2>/dev/null || true
 fi
 
-echo "==> Generate Harbor task directories from spec"
+echo "==> Generate Harbor task directories and run trials for all skills"
 cd "$SKILL_EVAL_DIR"
-rm -rf "$DATASETS_DIR"
-python3 adapters/rag-blueprint/generate.py \
-  --output-dir "$DATASETS_DIR" \
-  --skill-dir "$SKILL_DIR" \
-  --spec "$SKILL_DIR/eval/$EVAL_NAME.json"
-
-echo "==> Run Harbor trials — one invocation per step (Harbor -p takes a single path)"
 mkdir -p jobs
-# Count harbor invocations that crashed (vs. ran-with-failing-checks).
-# `set -e` doesn't propagate from inside a `while` loop body, so we have
-# to track this ourselves and decide at the end.
 HARBOR_CRASHES=0
-while IFS= read -r step_dir; do
-  echo "----> harbor run -p $step_dir"
-  if ! uvx harbor run \
-       -p "$step_dir" \
-       --environment-import-path "$ENV_IMPORT" \
-       --agent claude-code --model "$ANTHROPIC_MODEL" \
-       --ak api_base="$ANTHROPIC_BASE_URL/v1" \
-       --ae CLAUDE_CODE_DISABLE_THINKING=1 \
-       -o jobs -n 1 --yes; then
-    HARBOR_CRASHES=$((HARBOR_CRASHES + 1))
-    echo "harbor run exited non-zero for $step_dir"
+
+for SKILL_NAME in "${SKILLS[@]}"; do
+  SKILL_DIR="$REPO_ROOT/skills/$SKILL_NAME"
+  DATASETS_DIR="$SKILL_EVAL_DIR/datasets/$SKILL_NAME-$EVAL_NAME"
+  SPEC="$SKILL_DIR/eval/$EVAL_NAME.json"
+
+  if [ ! -f "$SPEC" ]; then
+    echo "  SKIP  $SKILL_NAME — no Harbor spec at $SPEC"
+    continue
   fi
-done < <(find "$DATASETS_DIR" -mindepth 1 -maxdepth 1 -type d | sort)
+
+  echo ""
+  echo "==> [$SKILL_NAME] Generating task directories"
+  rm -rf "$DATASETS_DIR"
+  python3 adapters/rag-blueprint/generate.py \
+    --output-dir "$DATASETS_DIR" \
+    --skill-dir "$SKILL_DIR" \
+    --skill-name "$SKILL_NAME" \
+    --spec "$SPEC"
+
+  echo "==> [$SKILL_NAME] Running Harbor trials"
+  while IFS= read -r step_dir; do
+    echo "  ----> harbor run -p $step_dir"
+    if ! uvx harbor run \
+         -p "$step_dir" \
+         --environment-import-path "$ENV_IMPORT" \
+         --agent claude-code --model "$ANTHROPIC_MODEL" \
+         --ak api_base="$ANTHROPIC_BASE_URL/v1" \
+         --ae CLAUDE_CODE_DISABLE_THINKING=1 \
+         -o jobs -n 1 --yes; then
+      HARBOR_CRASHES=$((HARBOR_CRASHES + 1))
+      echo "  harbor run exited non-zero for $step_dir"
+    fi
+  done < <(find "$DATASETS_DIR" -mindepth 1 -maxdepth 1 -type d | sort)
+done
 
 echo "==> Summarise results into eval_result.md (walks ALL job dirs)"
 python3 - <<'PY'
