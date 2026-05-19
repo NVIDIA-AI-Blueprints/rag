@@ -23,7 +23,15 @@ export RAG_REPO_ROOT="$REPO_ROOT"
 # Cleanup runs on EVERY exit path (success, set -e abort, signal). It
 # captures target-VM debug state BEFORE tearing down RAG stacks, so the
 # uploaded artifact still has enough to post-mortem even when CI fails
-# mid-script. The VM itself stays running (warm pool — see Q1 decision).
+# mid-script.
+#
+# Brev teardown is platform-routed (VSS pattern, memory note
+# project-pending-gpu-cleanup): most GPU providers cannot be `brev stop`-ped
+# — only `brev delete` ends billing — so the trap reads `brev_type` from
+# the generated task.toml and chooses stop / delete / keep accordingly.
+# CPU evals run on LocalEnvironment (BREV_INSTANCE unset) so this whole
+# block is skipped for them; the runner's docker state is cleaned in the
+# success-path teardown lower in the script.
 cleanup() {
   local rc=$?
   set +e   # don't let cleanup steps themselves abort early
@@ -44,7 +52,9 @@ cleanup() {
       brev exec "$BREV_INSTANCE" "ls -la /logs/agent/setup/ 2>&1; for f in /logs/agent/setup/*; do echo --- \$f ---; cat \"\$f\"; done" 2>&1 | head -200
     } > "$dbg" 2>&1 || true
     echo "Debug dump → $dbg"
-    # docker compose down on RAG stacks (keeps image cache, warm pool stays warm).
+    # docker compose down on RAG stacks (target side). Cheap; keeps the VM
+    # in a known state for the `action=stop` and `action=keep` paths. On
+    # `action=delete` it's redundant but harmless — the VM is about to go.
     for f in \
       deploy/compose/docker-compose-rag-server.yaml \
       deploy/compose/docker-compose-ingestor-server.yaml \
@@ -56,7 +66,33 @@ cleanup() {
         "[ -f \"\$HOME/rag/$f\" ] && docker compose -f \"\$HOME/rag/$f\" down -v --remove-orphans >/dev/null 2>&1 || true" \
         >/dev/null 2>&1 || true
     done
-    echo "VM $BREV_INSTANCE left running (warm pool); containers torn down."
+
+    # Pick teardown action by provider lifecycle. Match against the
+    # adapter-emitted `brev_type` in task.toml (any step-N — all share
+    # the same value). Lowercase before matching so we tolerate type
+    # slugs like "dmz.H100x2.pcie".
+    local brev_type=""
+    if [ -n "${DATASETS_DIR:-}" ] && [ -d "$DATASETS_DIR" ]; then
+      brev_type=$(grep -hoE 'brev_type[[:space:]]*=[[:space:]]*"[^"]+"' \
+        "$DATASETS_DIR"/step-*/task.toml 2>/dev/null | head -1 \
+        | sed 's/.*"\([^"]*\)".*/\1/' \
+        | tr '[:upper:]' '[:lower:]')
+    fi
+    local action="keep"
+    case "$brev_type" in
+      *h100*|*massedcompute*|*scaleway*|*hyperstack*|*nebius*|*oci*|*latitude*)
+        action="delete" ;;
+      *l40s*|*rtx*|*g7e*|*g6e*|*crusoe*)
+        action="stop" ;;
+    esac
+    if [ "$action" != "keep" ]; then
+      local cooldown="${COOLDOWN_SEC:-300}"
+      echo "==> Brev teardown: $BREV_INSTANCE (type=$brev_type) → $action after ${cooldown}s cooldown"
+      sleep "$cooldown"
+      brev "$action" "$BREV_INSTANCE" 2>&1 | tail -5 || true
+    else
+      echo "VM $BREV_INSTANCE left running (no platform match for type=${brev_type:-<unknown>})."
+    fi
   fi
   exit $rc
 }
