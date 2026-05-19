@@ -1,7 +1,7 @@
 ---
 name: rag-blueprint
 version: "2.6.0"
-description: "NVIDIA RAG Blueprint — deploy, configure, troubleshoot, and manage. Handles any RAG action: deploy, install, start, enable, disable, toggle, change, configure, troubleshoot, debug, fix, shutdown, stop, or tear down any RAG feature or service (VLM, guardrails, query rewriting, models, search, ingestion, observability, summarization, and more)."
+description: "NVIDIA RAG Blueprint — deploy, configure, troubleshoot, and manage. Handles any RAG action: deploy, install, start, enable, disable, toggle, change, configure, troubleshoot, debug, fix, shutdown, stop, or tear down any RAG feature or service (Agentic RAG, VLM, guardrails, query rewriting, models, search, ingestion, observability, summarization, reasoning, and more)."
 license: Apache-2.0
 compatibility: >-
   NVIDIA RAG Blueprint repository checkout; Docker/Compose or Kubernetes/Helm
@@ -32,7 +32,7 @@ metadata:
     - docker-compose
     - helm
   domain: ai-ml
-allowed-tools: Bash(echo *) Bash(nvidia-smi *) Bash(curl *) Bash(docker ps *) Bash(docker exec *) Bash(docker info *) Bash(docker --version *) Bash(docker compose version *) Bash(docker logs *) Bash(docker system *) Bash(kubectl get *) Bash(kubectl describe *) Bash(kubectl version *) Bash(kubectl logs *) Bash(helm version *) Bash(helm list *) Bash(git rev-parse *) Bash(git describe *) Bash(git status *) Bash(python3 --version *) Bash(pip3 show *) Bash(df *) Bash(du *) Bash(cat /proc/*) Bash(cat /etc/os-release *) Bash(ss *) Bash(netstat *) Bash(ls *) Bash(grep *) Bash(lsof *) Bash(ps aux *) Read Grep Glob
+allowed-tools: Bash(echo *) Bash(nvidia-smi *) Bash(curl --version *) Bash(docker ps *) Bash(docker info *) Bash(docker --version *) Bash(docker version *) Bash(docker logs *) Bash(docker inspect *) Bash(docker stats *) Bash(docker compose ps *) Bash(docker compose logs *) Bash(docker compose config *) Bash(docker compose version *) Bash(kubectl get *) Bash(kubectl describe *) Bash(kubectl version *) Bash(kubectl logs *) Bash(kubectl api-resources *) Bash(kubectl rollout status *) Bash(helm version *) Bash(helm list *) Bash(helm status *) Bash(oc get *) Bash(oc describe *) Bash(oc logs *) Bash(oc whoami *) Bash(oc version *) Bash(git rev-parse *) Bash(git describe *) Bash(git status *) Bash(python3 --version *) Bash(pip3 show *) Bash(df *) Bash(du *) Bash(cat /proc/*) Bash(cat /etc/os-release *) Bash(ss *) Bash(netstat *) Bash(ls *) Bash(grep *) Bash(lsof *) Bash(ps aux *) Read Grep Glob
 ---
 
 # NVIDIA RAG Blueprint
@@ -89,16 +89,17 @@ Match the user's request to a reference file, then read and follow it:
 |-----------------|-----------|
 | VLM, VLM embeddings, image captioning | `references/configure/vlm.md` |
 | NeMo Guardrails | `references/configure/guardrails.md` |
+| Agentic RAG, planning/execution agent, agentic streaming, stage events | `references/configure/agentic-rag.md` |
 | Query rewriting, decomposition, multi-turn | `references/configure/query-and-conversation.md` |
 | Ingestion (text-only, audio, Nemotron Parse, OCR, batch CLI, NV-Ingest, volume mount, performance) | `references/configure/ingestion.md` |
-| Search, retrieval, hybrid search, multi-collection, metadata, filters, reranker, topK, accuracy/performance | `references/configure/search-and-retrieval.md` |
+| Search, retrieval, hybrid search, multi-collection, metadata, filters, Elasticsearch filters, reranker, topK, accuracy/performance | `references/configure/search-and-retrieval.md` |
 | LLM/embedding/ranking model changes, vector DB, Milvus/Elasticsearch auth, service keys, model profiles, ports/GPU | `references/configure/models-and-infrastructure.md` |
-| Reasoning, self-reflection, prompts, generation params (tokens, temperature, citations), per-request LLM params | `references/configure/reasoning-and-generation.md` |
+| Reasoning, thinking mode, `reasoning_content`, self-reflection, prompts, generation params (tokens, temperature, citations), per-request LLM params | `references/configure/reasoning-and-generation.md` |
 | Summarization | `references/configure/summarization.md` |
 | Observability (tracing, Zipkin, Grafana, Prometheus) | `references/configure/observability.md` |
 | Multimodal query (image + text) | `references/configure/multimodal-query.md` |
 | Data catalog (collection/document metadata) | `references/configure/data-catalog.md` |
-| User interface (UI settings) | `references/configure/user-interface.md` |
+| User interface (UI settings, reasoning panel, metadata filters) | `references/configure/user-interface.md` |
 | API reference (endpoints, schemas) | `references/configure/api-reference.md` |
 | Evaluation (RAGAS metrics) | `references/configure/evaluation.md` (and skill `rag-eval`) |
 | MCP server & client, agent toolkit | `references/configure/mcp.md` |
@@ -111,7 +112,7 @@ Match the user's request to a reference file, then read and follow it:
 
 2. Detect what's running:
    ```bash
-   echo "=== NIM ===" && docker ps --format '{{.Names}}' 2>/dev/null | grep -iE '(nim-llm|nemoretriever-embedding|nemoretriever-ranking|nemo-vlm|nemotron-vlm)' || echo "NO_LOCAL_NIMS"; echo "=== RAG ===" && docker ps --format '{{.Names}}' 2>/dev/null | grep -iE '(rag-server|ingestor-server|milvus)' || echo "NO_DOCKER_RAG"; echo "=== K8S ===" && kubectl get pods -n rag 2>/dev/null | head -5 || echo "NO_K8S"; echo "=== LIBRARY ===" && ps aux 2>/dev/null | grep -E '(nvidia_rag|uvicorn.*rag)' | grep -v grep || echo "NO_LIBRARY"
+   echo "=== NIM ===" && docker ps --format '{{.Names}}' 2>/dev/null | grep -iE '(nim-llm|nemotron-(vlm-)?embedding|nemotron-ranking|nemotron-vlm|nemotron-3-nano-omni|page-elements|graphic-elements|table-structure|nemotron-ocr)' || echo "NO_LOCAL_NIMS"; echo "=== RAG ===" && docker ps --format '{{.Names}}' 2>/dev/null | grep -iE '(rag-server|ingestor-server|elasticsearch|milvus|seaweedfs|lancedb)' || echo "NO_DOCKER_RAG"; echo "=== K8S ===" && kubectl get pods -n rag 2>/dev/null | head -5 || echo "NO_K8S"; echo "=== LIBRARY ===" && ps aux 2>/dev/null | grep -E '(nvidia_rag|uvicorn.*rag)' | grep -v grep || echo "NO_LIBRARY"
    ```
 
 3. Use this table to determine platform, deployment type, and where config lives:
@@ -125,7 +126,7 @@ Match the user's request to a reference file, then read and follow it:
    | — | Library processes | Library mode | `notebooks/config.yaml` |
    | No | No | Not running | Deploy first via `references/deploy.md` |
 
-   Tell the user what you detected and ask to confirm. Example: "I see local NIM containers running (nim-llm-ms, nemoretriever-embedding-ms) — this is a self-hosted deployment. Config file is `deploy/compose/.env`. Correct?"
+   Tell the user what you detected and ask to confirm. Example: "I see local NIM containers running (nim-llm-ms, nemotron-vlm-embedding-ms) — this is a self-hosted deployment. Config file is `deploy/compose/.env`. Correct?"
 
 4. Check current feature state before changing anything — read the config location from step 3, then cross-check the live service:
    - Docker: `docker exec rag-server env 2>/dev/null | grep -E "<VAR_NAME>"`
@@ -147,8 +148,8 @@ Match the user's request to a reference file, then read and follow it:
      |---------|-------------|
      | rag-server | `docker-compose-rag-server.yaml` |
      | ingestor-server | `docker-compose-ingestor-server.yaml` |
-     | milvus, etcd, minio | `vectordb.yaml` |
-     | NIM containers (LLM, embedding, ranking, VLM, OCR) | `nims.yaml` |
+     | Elasticsearch, Milvus, etcd, SeaweedFS | `vectordb.yaml` |
+     | NIM containers (LLM, embedding, ranking, VLM, OCR, parse, audio, extraction) | `nims.yaml` |
      | guardrails | `docker-compose-nemo-guardrails.yaml` |
      | observability (Grafana, Prometheus, Zipkin) | `observability.yaml` |
    - Helm: edit `values.yaml`, then upgrade: `helm upgrade rag <chart> -n rag -f values.yaml`

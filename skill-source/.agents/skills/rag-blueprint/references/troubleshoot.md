@@ -5,7 +5,7 @@
 Start with this diagnostic sweep:
 
 ```bash
-echo "=== CONTAINERS ===" && docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null | grep -E "(rag|milvus|nim|ingest|redis|etcd|minio)" | head -20; echo "=== HEALTH ===" && curl -s http://localhost:8081/v1/health?check_dependencies=true 2>/dev/null || echo "RAG_UNREACHABLE"; curl -s http://localhost:8082/v1/health?check_dependencies=true 2>/dev/null || echo "INGESTOR_UNREACHABLE"; echo "=== LOGS ===" && for svc in rag-server ingestor-server nim-llm-ms nemoretriever-embedding-ms nemoretriever-ranking-ms; do echo "--- $svc ---"; docker logs --tail 20 "$svc" 2>/dev/null | grep -iE "(error|fail|exception|timeout|oom)" || echo "OK"; done; echo "=== GPU ===" && nvidia-smi 2>/dev/null | head -20 || echo "NO_GPU"; echo "=== DISK ===" && df -h / | tail -1; echo "=== DOCKER_DISK ===" && docker system df 2>/dev/null; echo "=== K8S ===" && kubectl get pods -n rag 2>/dev/null | head -20 || echo "NOT_K8S"
+echo "=== CONTAINERS ===" && docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null | grep -E "(rag|elasticsearch|milvus|seaweedfs|nim|ingest|redis|etcd|embedding|ranking)" | head -25; echo "=== HEALTH ===" && curl -s http://localhost:8081/v1/health?check_dependencies=true 2>/dev/null || echo "RAG_UNREACHABLE"; curl -s http://localhost:8082/v1/health?check_dependencies=true 2>/dev/null || echo "INGESTOR_UNREACHABLE"; echo "=== LOGS ===" && for svc in rag-server ingestor-server nim-llm-ms nemotron-vlm-embedding-ms nemotron-embedding-ms nemotron-ranking-ms elasticsearch seaweedfs; do echo "--- $svc ---"; docker logs --tail 20 "$svc" 2>/dev/null | grep -iE "(error|fail|exception|timeout|oom|permission)" || echo "OK"; done; echo "=== GPU ===" && nvidia-smi 2>/dev/null | head -20 || echo "NO_GPU"; echo "=== DISK ===" && df -h / | tail -1; echo "=== DOCKER_DISK ===" && docker system df 2>/dev/null; echo "=== VOLUMES ===" && docker volume ls --filter "name=^rag-vol-" 2>/dev/null; echo "=== K8S ===" && kubectl get pods -n rag 2>/dev/null | head -20 || echo "NOT_K8S"
 ```
 
 Analyze all output, then diagnose and fix. If Auto-Triage doesn't reveal the cause, dig deeper into the specific failing service's logs (`docker logs <service> --tail 100` or `kubectl logs <pod> -n rag --tail 100`).
@@ -41,10 +41,10 @@ Read `docs/service-port-gpu-reference.md` for the complete port/GPU mapping. Qui
 | RAG Server | `http://localhost:8081/v1/health?check_dependencies=true` | `{"status":"healthy"}` |
 | Ingestor | `http://localhost:8082/v1/health?check_dependencies=true` | `{"status":"healthy"}` |
 | NV-Ingest | `http://localhost:7670/v1/health/ready` | 200 OK |
-| Embedding NIM | `http://localhost:9080/v1/health/ready` | 200 OK |
+| VLM Embedding NIM (default) | `http://localhost:9081/v1/health/ready` | 200 OK |
 | LLM NIM | `http://localhost:8999/v1/health/ready` | 200 OK |
 | Ranking NIM | `http://localhost:1976/v1/health/ready` | 200 OK |
-| Milvus | `http://localhost:9091/healthz` | 200 OK |
+| Elasticsearch | `http://localhost:9200/_cluster/health` | `green` or `yellow` |
 
 ## Kubernetes Monitoring Commands
 
@@ -75,7 +75,7 @@ Match the symptom from Auto-Triage output, then read `docs/troubleshooting.md` f
 | Symptom | Category | Quick Fix |
 |---------|----------|-----------|
 | NIM container stuck at `(health: starting)` >30min | NIM Startup | Check GPU memory, NGC auth, disk space. First-run model downloads are slow — wait and monitor cache size. |
-| Milvus unhealthy / search returns nothing | Milvus | Restart vectordb compose. Check etcd/MinIO. Port 19530 conflict. Corrupt data → `down -v` (destroys data). |
+| Elasticsearch unhealthy / search returns nothing | Elasticsearch | Restart vectordb compose. Check port 9200, disk, credentials, and `rag-vol-elasticsearch`. |
 | Document upload fails / ingestor health check fails | NV-Ingest | Check Redis, OCR NIMs. Rate limit (429) → reduce batch vars. Large PDFs → reduce batch size. |
 | Chat returns errors / /generate fails | RAG Server | Check LLM NIM health, embedding NIM, cloud API key. Verify `APP_LLM_MODELNAME` matches deployed NIM. |
 | DNS resolution failed for `<service>:<port>` | Networking | Service container not running. Check `docker ps`, restart missing service. |
@@ -89,6 +89,7 @@ Match the symptom from Auto-Triage output, then read `docs/troubleshooting.md` f
 | `ProvisioningFailed` access mode mismatch | Helm | Patch NIMCache to `ReadWriteOnce`. |
 | Ingestor OOMKilled | Helm | Increase memory limits in values.yaml. Set `SUMMARY_MAX_PARALLELIZATION=1`. |
 | Elasticsearch timeout during ingestion | Elasticsearch | Increase `ES_REQUEST_TIMEOUT` (default 600s). |
+| Need to inspect or reset persisted Docker data | Volumes | Use `docker volume ls --filter "name=^rag-vol-"`; see `docs/troubleshooting.md#manage-persistent-data-volumes`. |
 | Hallucination / out-of-context responses | Quality | Add missing-info handling to prompt in `prompt.yaml`. |
 | Embedding dimensions mismatch | Models | Set `APP_EMBEDDINGS_DIMENSIONS` to match model output. Re-ingest. |
 | Hybrid/dense search type mismatch | Search | Align `APP_VECTORSTORE_SEARCHTYPE` on ingestor and rag-server. Re-ingest. |
@@ -103,8 +104,8 @@ Match the symptom from Auto-Triage output, then read `docs/troubleshooting.md` f
 
 ### Ingestion Checklist
 - [ ] All required containers running (ingestor-server, nv-ingest-ms-runtime, milvus, redis)
-- [ ] Vector database accessible (`curl http://localhost:9091/healthz`)
-- [ ] Embedding service healthy (`curl http://localhost:9080/v1/health/ready`)
+- [ ] Vector database accessible (`curl http://localhost:9200/_cluster/health` for default Elasticsearch, or `curl http://localhost:9091/healthz` for Milvus)
+- [ ] Embedding service healthy (`curl http://localhost:9081/v1/health/ready` for default VLM embedding, or `curl http://localhost:9080/v1/health/ready` for `text-embed`)
 - [ ] File format supported and size <= 400 MB
 - [ ] Sufficient disk space (`df -h /`)
 - [ ] GPU resources available (`nvidia-smi`)
@@ -137,10 +138,11 @@ docker compose -f deploy/compose/docker-compose-nemo-guardrails.yaml down 2>/dev
 docker compose -f deploy/compose/observability.yaml down 2>/dev/null
 docker compose -f deploy/compose/docker-compose-rag-server.yaml down 2>/dev/null
 docker compose -f deploy/compose/docker-compose-ingestor-server.yaml down 2>/dev/null
-docker compose -f deploy/compose/vectordb.yaml down -v 2>/dev/null
+docker compose -f deploy/compose/vectordb.yaml down 2>/dev/null
 docker compose -f deploy/compose/nims.yaml down 2>/dev/null
 
-docker system prune -af --volumes
+docker volume ls -q --filter "name=^rag-vol-" | xargs -r docker volume rm
+docker system prune -af
 ```
 
 Then deploy fresh using the deploy workflow.

@@ -132,7 +132,7 @@ The following table summarizes the main toggles:
 
 ### Per-role LLMs
 
-Each role has its own env prefix. If a role's `MODEL` is empty, the builder uses the planner LLM, so a minimal setup can rely on the four `AGENTIC_PLANNER_LLM_*` variables only.
+Each role has its own env prefix. Docker Compose chains these role-specific settings through the main `APP_LLM_*` settings, so one `APP_LLM_MODELNAME`, `APP_LLM_SERVERURL`, and `APP_LLM_APIKEY` configuration applies to every agentic role unless a role-specific `AGENTIC_*_LLM_*` value is set. If a role's `MODEL` is empty, the builder uses the planner LLM, then the main RAG LLM.
 
 | Role | Used for | Server URL | Model | API Key |
 | --- | --- | --- | --- | --- |
@@ -141,7 +141,9 @@ Each role has its own env prefix. If a role's `MODEL` is empty, the builder uses
 | Seed-gen | Retry follow-up queries | `AGENTIC_SEED_GEN_LLM_SERVERURL` | `AGENTIC_SEED_GEN_LLM_MODEL` | `AGENTIC_SEED_GEN_LLM_APIKEY` |
 | Synthesis | Final answer | `AGENTIC_SYNTHESIS_LLM_SERVERURL` | `AGENTIC_SYNTHESIS_LLM_MODEL` | `AGENTIC_SYNTHESIS_LLM_APIKEY` |
 
-Default `SERVERURL` is `nim-llm:8000` and default `MODEL` is `nvidia/nemotron-3-super-120b-a12b`. Set `SERVERURL=""` to use the NVIDIA-hosted API; `APIKEY` is optional and inherits `NVIDIA_API_KEY` when unset.
+Default Compose values come from the main LLM config: `APP_LLM_SERVERURL` defaults to `nim-llm:8000` and `APP_LLM_MODELNAME` defaults to `nvidia/nemotron-3-super-120b-a12b`. Set `SERVERURL=""` to use the NVIDIA-hosted API. API keys fall back through the role-specific value, `APP_LLM_APIKEY`, and the usual NVIDIA-hosted defaults.
+
+Per-request `/v1/generate` `model` and `llm_endpoint` values override every agentic role for that request. Omit those fields to use the deployment or role-specific configuration.
 
 ## Related Topics
 

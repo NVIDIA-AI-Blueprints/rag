@@ -23,15 +23,16 @@
 | Goal | Key Action |
 |------|------------|
 | Standard cloud deployment | Use `nvdev.env` (pre-configured for cloud) |
-| Zero-GPU (no Milvus GPU) | Also switch Milvus image to CPU-only |
+| Zero-GPU | Use default Elasticsearch; only switch Milvus to CPU if the user explicitly chooses Milvus |
 | Large file ingestion | Reduce batch/concurrency settings to avoid 429s |
 | Maximum throughput | Use self-hosted deployment instead |
 
 ## Agent-Specific Notes
 - First run: 5–10 min (image pulls only); subsequent: 1–2 min
 - No `nims.yaml` startup — all model inference is cloud-hosted
+- Persistent Docker data is in named `rag-vol-*` volumes, created automatically
 - All subsequent configure/restart operations should source the same env file used for the initial deploy (`deploy/compose/nvdev.env`)
-- For zero-GPU: switch Milvus to CPU-only by changing the GPU image tag to the equivalent non-GPU tag and setting `APP_VECTORSTORE_ENABLEGPUSEARCH=False`. See `docs/deploy-docker-nvidia-hosted.md` for the current image tags
+- For zero-GPU with Milvus specifically: switch Milvus to CPU-only by changing the GPU image tag to the equivalent non-GPU tag and setting `APP_VECTORSTORE_ENABLEGPUSEARCH=False`. Default Elasticsearch does not require this.
 - Rate limit mitigation for large ingestions: reduce `NV_INGEST_FILES_PER_BATCH`, `NV_INGEST_CONCURRENT_BATCHES`, `MAX_INGEST_PROCESS_WORKERS`, `NV_INGEST_MAX_UTIL` to minimum values
 
 ## Source Documentation

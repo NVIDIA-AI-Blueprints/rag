@@ -1,6 +1,6 @@
-# RAG Blueprint Agent Skill
+# RAG Blueprint Agent Skills
 
-A single agent skill that enables AI coding assistants (Claude Code, Cursor, Codex, etc.) to deploy, configure, troubleshoot, and manage the NVIDIA RAG Blueprint autonomously.
+Agent skills that enable AI coding assistants (Claude Code, Cursor, Codex, etc.) to operate, evaluate, and benchmark the NVIDIA RAG Blueprint.
 
 ## Installation
 
@@ -8,7 +8,11 @@ A single agent skill that enables AI coding assistants (Claude Code, Cursor, Cod
 npx skills add .
 ```
 
-Select **rag-blueprint** — it includes all capabilities (deploy, configure, shutdown, troubleshoot) in one skill.
+Select the skill that matches the task:
+
+- **rag-blueprint** — deploy, configure, shutdown, troubleshoot, and manage RAG services.
+- **rag-eval** — filesystem RAGAS-style quality benchmarks with `scripts/eval/evaluate_rag.py`.
+- **rag-perf** — config-driven performance benchmarks with `scripts/rag-perf`.
 
 ## Architecture: Skills = Process, Docs = Truth
 
@@ -42,6 +46,7 @@ skill-source/.agents/skills/rag-blueprint/
     configure/
       vlm.md                            ← VLM, VLM embeddings, image captioning
       guardrails.md                     ← NeMo Guardrails
+      agentic-rag.md                    ← LangGraph Agentic RAG
       query-and-conversation.md         ← Query rewriting, decomposition, multi-turn
       ingestion.md                      ← Text-only, audio, Nemotron Parse, OCR, batch CLI
       search-and-retrieval.md           ← Hybrid search, multi-collection, metadata, filters
@@ -92,7 +97,7 @@ Skills never expose the API key value to the LLM. The approach:
 
 ## Notebook Integration
 
-All 13 notebooks are referenced from relevant reference files:
+Notebooks are referenced from relevant reference files:
 
 | Notebook | Referenced In |
 |----------|--------------|
@@ -103,9 +108,11 @@ All 13 notebooks are referenced from relevant reference files:
 | `evaluation_01_ragas.ipynb` | `references/configure/evaluation.md` |
 | `evaluation_02_recall.ipynb` | `references/configure/evaluation.md` |
 | `nb_metadata.ipynb` | `references/configure/search-and-retrieval.md` |
+| `langchain_nvidia_retriever.ipynb` | `references/configure/notebooks.md` |
 | `rag_library_usage.ipynb` | `references/deploy/library-full.md` |
 | `rag_library_lite_usage.ipynb` | `references/deploy/library-lite.md` |
 | `building_rag_vdb_operator.ipynb` | `references/configure/models-and-infrastructure.md` |
 | `mcp_server_usage.ipynb` | `references/configure/mcp.md` |
 | `nat_mcp_integration.ipynb` | `references/configure/mcp.md` |
+| `rag_event_ingest.ipynb` | `references/configure/notebooks.md` |
 | `launchable.ipynb` | `SKILL.md` |

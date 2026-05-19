@@ -7,14 +7,14 @@ If routed here from the deploy workflow, the mode (self-hosted, nvidia-hosted, o
 If invoked directly without a mode, auto-detect:
 
 ```bash
-echo "=== COMPOSE ===" && docker compose version 2>/dev/null || echo "NO_COMPOSE"; echo "=== GPU ===" && nvidia-smi --query-gpu=name,memory.total --format=csv,noheader 2>/dev/null || echo "NO_GPU"; echo "=== DISK ===" && df -h --output=avail / | tail -1; echo "=== RUNNING ===" && docker ps --format "{{.Names}}" 2>/dev/null | grep -E "(rag-server|ingestor-server|nim-llm|milvus)" | head -10 || echo "NONE_RUNNING"
+echo "=== COMPOSE ===" && docker compose version 2>/dev/null || echo "NO_COMPOSE"; echo "=== GPU ===" && nvidia-smi --query-gpu=name,memory.total --format=csv,noheader 2>/dev/null || echo "NO_GPU"; echo "=== DISK ===" && df -h --output=avail / | tail -1; echo "=== RUNNING ===" && docker ps --format "{{.Names}}" 2>/dev/null | grep -E "(rag-server|ingestor-server|nim-llm|nemotron-vlm-embedding|elasticsearch|milvus)" | head -10 || echo "NONE_RUNNING"
 ```
 
 If NO_COMPOSE: stop and tell the user to install Docker Compose (see `docs/support-matrix.md` for minimum version).
 
 Read `docs/support-matrix.md` ("Hardware Requirements (Docker)" section) for current GPU requirements, then:
 - GPU count/type meets self-hosted requirements from the support matrix, and 200+ GB free disk → **self-hosted**
-- Any GPU or no GPU with ≥50 GB free disk → **nvidia-hosted**
+- Any GPU or no GPU with ≥50 GB free disk → **nvidia-hosted** (default Elasticsearch does not require a GPU)
 - User explicitly says "retrieval only" / "no LLM" / "search only" → **retrieval-only**
 
 Auto-route based on hardware. Only ask if two modes are equally valid and the user's intent is ambiguous.
@@ -24,7 +24,7 @@ Auto-route based on hardware. Only ask if two modes are equally valid and the us
 Auto-check all possible locations before asking:
 
 ```bash
-[ -n "$NGC_API_KEY" ] && echo "ENV_SET" || (grep -qr "NGC_API_KEY=" deploy/compose/.env deploy/compose/nvdev.env 2>/dev/null | grep -qv "nvapi-your-key" && echo "DOTENV_SET" || echo "NOT_SET")
+if [ -n "$NGC_API_KEY" ] || [ -n "$NVIDIA_API_KEY" ]; then echo "ENV_SET"; elif grep -Eh '^(export[[:space:]]+)?(NGC_API_KEY|NVIDIA_API_KEY)=' deploy/compose/.env deploy/compose/nvdev.env 2>/dev/null | grep -v "nvapi-your-key" | grep -q "nvapi-"; then echo "DOTENV_SET"; else echo "NOT_SET"; fi
 ```
 
 - **ENV_SET**: proceed silently.
@@ -55,12 +55,14 @@ Based on the mode, read and follow the appropriate reference:
 - **NVIDIA-hosted**: read and follow `docker-nvidia-hosted.md`
 - **Retrieval-only**: read and follow `docker-retrieval-only.md`
 
+Docker Compose persistent data is stored in named `rag-vol-*` volumes. Do not look for new data under the legacy `deploy/compose/volumes/` tree unless the user is migrating old data.
+
 ## Post-Deploy Verification
 
 Run health checks:
 
 ```bash
-sleep 5; echo "=== RAG ===" && curl -s http://localhost:8081/v1/health?check_dependencies=true 2>/dev/null || echo "RAG_NOT_READY"; echo "=== INGESTOR ===" && curl -s http://localhost:8082/v1/health?check_dependencies=true 2>/dev/null || echo "INGESTOR_NOT_READY"; echo "=== CONTAINERS ===" && docker ps --format "table {{.Names}}\t{{.Status}}" 2>/dev/null | grep -E "(rag|milvus|nim|ingest)" | head -15
+sleep 5; echo "=== RAG ===" && curl -s http://localhost:8081/v1/health?check_dependencies=true 2>/dev/null || echo "RAG_NOT_READY"; echo "=== INGESTOR ===" && curl -s http://localhost:8082/v1/health?check_dependencies=true 2>/dev/null || echo "INGESTOR_NOT_READY"; echo "=== CONTAINERS ===" && docker ps --format "table {{.Names}}\t{{.Status}}" 2>/dev/null | grep -E "(rag|elasticsearch|milvus|seaweedfs|nim|ingest|embedding|ranking)" | head -20
 ```
 
 If services are still initializing, automatically poll every 30 seconds:

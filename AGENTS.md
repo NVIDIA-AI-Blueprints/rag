@@ -78,11 +78,11 @@ pnpm run test:run                    # Tests
 
 ## Operations — `rag-blueprint` skill
 
-For any operational task — deploying, configuring, troubleshooting, or shutting down the RAG Blueprint — read and follow the skill at `.agents/skills/rag-blueprint/SKILL.md`.
+For any operational task — deploying, configuring, troubleshooting, or shutting down the RAG Blueprint — read and follow the repo skill at `skill-source/.agents/skills/rag-blueprint/SKILL.md`. If the skills have been installed into the working tree, `.agents/skills/rag-blueprint/SKILL.md` is also valid, but this checkout keeps the source copy under `skill-source/`.
 
 The skill handles:
 
 - **Deploy** — Docker Compose (standard, retrieval-only, NVIDIA-hosted), Helm, MIG-slicing, library mode
-- **Configure** — VLM, guardrails, query rewriting, ingestion, search & retrieval, models, observability, summarization, multimodal, MCP, evaluation, notebooks, UI, and more
+- **Configure** — Agentic RAG, VLM, guardrails, query rewriting, ingestion, search & retrieval, models, observability, summarization, reasoning, multimodal, MCP, evaluation, notebooks, UI, and more
 - **Troubleshoot** — Debug unhealthy services, container errors, GPU issues, connectivity failures
 - **Shutdown** — Stop, tear down, and clean up services
