@@ -9,18 +9,22 @@ data:
       all-disabled:
         - devices: all
           mig-enabled: false
-      
-      custom-7x1g10-2x1g20-1x3g40-1x7g80:
-        - devices: [0]
+
+      # RAG MIG layout for a 4×H100 80GB node.
+      # GPUs 0,1 are MIG-disabled and pass through as full devices so that
+      # nim-llm (nemotron-3-super-120b-a12b, vLLM + tensorParallelism=2) gets
+      # two physical GPUs with full NVLink for NCCL collectives.
+      # GPUs 2,3 are MIG-sliced for the smaller ingest / embedding / rerank NIMs.
+      custom-h100-llm2full-1x3g40-4x1g10-1x3g40-2x1g20:
+        - devices: [0, 1]
+          mig-enabled: false
+        - devices: [2]
           mig-enabled: true
           mig-devices:
-            "1g.10gb": 7
-        - devices: [1]
-          mig-enabled: true
-          mig-devices:
-            "1g.20gb": 2
             "3g.40gb": 1
+            "1g.10gb": 4
         - devices: [3]
           mig-enabled: true
           mig-devices:
-            "7g.80gb": 1
+            "3g.40gb": 1
+            "1g.20gb": 2
