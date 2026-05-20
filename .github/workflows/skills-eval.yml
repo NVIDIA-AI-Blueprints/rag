@@ -77,7 +77,7 @@ jobs:
             if [ -d "$TARGET" ]; then
               echo "Cleaning $TARGET"
               docker run --rm -v "$TARGET:/target" alpine \
-                sh -c "rm -rf /target" 2>/dev/null || true
+                sh -c "rm -rf /target/* /target/.??* 2>/dev/null; exit 0" || true
               rm -rf "$TARGET" 2>/dev/null || true
             fi
           done
