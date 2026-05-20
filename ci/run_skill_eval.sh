@@ -251,11 +251,24 @@ print(spec.get('platforms', ['cpu'])[0])
 
   case "$SPEC_PLATFORM" in
     cpu)
-      SPEC_ENV_IMPORT="envs.local_env:LocalEnvironment"
+      # Use rag-eval-target (existing warm n2d-standard-4 CPU VM) via
+      # BrevEnvironment — keeps Docker off the runner itself, avoids
+      # root-owned volume accumulation on the runner machine.
+      SPEC_ENV_IMPORT="envs.brev_env:BrevEnvironment"
       SPEC_TIMEOUT_MULT="1.5"
-      # Swap GPU Milvus image for CPU variant (no NVIDIA driver required)
-      cp deploy/compose/vectordb.yaml deploy/compose/vectordb.yaml.gpu-bak
-      cp ci/vectordb-cpu.yaml deploy/compose/vectordb.yaml
+      export BREV_INSTANCE="rag-eval-target"
+      # Verify rag-eval-target is RUNNING+READY before handing off to harbor
+      STATE=$(brev ls 2>/dev/null | awk -v n="rag-eval-target" '$1==n {print $2"+"$4}')
+      if [ "$STATE" != "RUNNING+READY" ]; then
+        echo "  WARN  rag-eval-target is $STATE — waiting up to 10 min"
+        DEADLINE=$(( $(date +%s) + 600 ))
+        while [ "$(date +%s)" -lt "$DEADLINE" ]; do
+          STATE=$(brev ls 2>/dev/null | awk -v n="rag-eval-target" '$1==n {print $2"+"$4}')
+          [ "$STATE" = "RUNNING+READY" ] && break
+          sleep 15
+        done
+      fi
+      echo "  rag-eval-target: $STATE"
       ;;
     H100_x2|h100*)
       SPEC_ENV_IMPORT="envs.brev_env:BrevEnvironment"
@@ -325,10 +338,24 @@ print(plats.get(p, {}).get('brev_type', 'dmz.h100x2.pcie'))
     mv deploy/compose/vectordb.yaml.gpu-bak deploy/compose/vectordb.yaml || true
 
 done < <(
-  # Discover all specs under skill-source. Platform routing (cpu/gpu)
-  # is determined per-spec from the platforms[] field — no filter needed.
+  # Discover all specs — cpu specs first, then gpu.
+  # CPU (nvidia_hosted) runs first: faster, cheaper, no Brev provisioning.
+  # GPU (h100) runs after: Brev VM provisioning only needed if cpu passes.
   find "$REPO_ROOT/skill-source/.agents/skills" \
-    -path "*/eval/*.json" 2>/dev/null | sort
+    -path "*/eval/*.json" 2>/dev/null \
+  | python3 -c "
+import sys
+files = sys.stdin.read().splitlines()
+import json
+def platform_key(f):
+    try:
+        p = json.load(open(f)).get('platforms', ['cpu'])[0]
+        return (0 if p == 'cpu' else 1, f)
+    except Exception:
+        return (0, f)
+for f in sorted(files, key=platform_key):
+    print(f)
+"
 )
 
 echo "==> Summarise results into eval_result.md (walks ALL job dirs)"
