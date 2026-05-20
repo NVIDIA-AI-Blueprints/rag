@@ -12,6 +12,14 @@ vi.mock('../../store/useNotificationStore', () => ({
   })
 }));
 
+// Mock the toast store
+const mockShowToast = vi.fn();
+vi.mock('../../store/useToastStore', () => ({
+  useToastStore: () => ({
+    showToast: mockShowToast
+  })
+}));
+
 // Mock fetch globally
 global.fetch = vi.fn();
 
@@ -79,29 +87,158 @@ describe('useUploadDocuments', () => {
 
     const { result } = renderHook(() => useUploadDocuments());
     const onError = vi.fn();
-    
+
     // Start upload
     act(() => {
       result.current.mutate(
-        { 
-          files: [new File(['content'], 'test.txt', { type: 'text/plain' })], 
-          metadata: { collection_name: 'test-collection' } 
+        {
+          files: [new File(['content'], 'test.txt', { type: 'text/plain' })],
+          metadata: { collection_name: 'test-collection' }
         },
         { onError }
       );
     });
-    
+
     // Should be pending
     expect(result.current.isPending).toBe(true);
-    
+
     // Wait for async operation to complete
     await act(async () => {
       await new Promise(resolve => setTimeout(resolve, 0));
     });
-    
+
     // Should no longer be pending after error
     expect(result.current.isPending).toBe(false);
     expect(onError).toHaveBeenCalledWith(mockError);
+    expect(mockShowToast).toHaveBeenCalledWith('Upload failed', 'error');
+  });
+
+  it('surfaces backend message field as toast on HTTP 503 (e.g., Elasticsearch unavailable)', async () => {
+    const mockResponse = {
+      ok: false,
+      status: 503,
+      json: () => Promise.resolve({
+        message: 'Vector database (Elasticsearch) is unavailable at http://elasticsearch:9200. Please verify Elasticsearch is running and accessible.'
+      })
+    };
+    mockFetch.mockResolvedValueOnce(mockResponse);
+
+    const { result } = renderHook(() => useUploadDocuments());
+    const onError = vi.fn();
+
+    act(() => {
+      result.current.mutate(
+        {
+          files: [new File(['content'], 'test.txt', { type: 'text/plain' })],
+          metadata: { collection_name: 'test-collection' }
+        },
+        { onError }
+      );
+    });
+
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 0));
+    });
+
+    expect(mockShowToast).toHaveBeenCalledWith(
+      'Vector database (Elasticsearch) is unavailable at http://elasticsearch:9200. Please verify Elasticsearch is running and accessible.',
+      'error'
+    );
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect((onError.mock.calls[0][0] as Error).message).toBe(
+      'Vector database (Elasticsearch) is unavailable at http://elasticsearch:9200. Please verify Elasticsearch is running and accessible.'
+    );
+  });
+
+  it('surfaces backend message field as toast on HTTP 500 (e.g., missing collection)', async () => {
+    const mockResponse = {
+      ok: false,
+      status: 500,
+      json: () => Promise.resolve({
+        message: 'Ingestion of files failed with error: Collection test_collection does not exist. Ensure a collection is created using POST /collection endpoint first.'
+      })
+    };
+    mockFetch.mockResolvedValueOnce(mockResponse);
+
+    const { result } = renderHook(() => useUploadDocuments());
+    const onError = vi.fn();
+
+    act(() => {
+      result.current.mutate(
+        {
+          files: [new File(['content'], 'test.txt')],
+          metadata: { collection_name: 'test_collection' }
+        },
+        { onError }
+      );
+    });
+
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 0));
+    });
+
+    expect(mockShowToast).toHaveBeenCalledWith(
+      expect.stringContaining('Collection test_collection does not exist'),
+      'error'
+    );
+  });
+
+  it('extracts Pydantic detail[0].msg and strips "Value error, " prefix on HTTP 422', async () => {
+    const mockResponse = {
+      ok: false,
+      status: 422,
+      json: () => Promise.resolve({
+        detail: [{ msg: "Value error, Collection name must be lowercase", type: 'value_error', loc: ['body'] }]
+      })
+    };
+    mockFetch.mockResolvedValueOnce(mockResponse);
+
+    const { result } = renderHook(() => useUploadDocuments());
+    const onError = vi.fn();
+
+    act(() => {
+      result.current.mutate(
+        {
+          files: [new File(['content'], 'test.txt')],
+          metadata: { collection_name: 'BadName' }
+        },
+        { onError }
+      );
+    });
+
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 0));
+    });
+
+    expect(mockShowToast).toHaveBeenCalledWith('Collection name must be lowercase', 'error');
+  });
+
+  it('falls back to default message when error response body cannot be parsed', async () => {
+    const mockResponse = {
+      ok: false,
+      status: 500,
+      json: () => Promise.reject(new Error('Not JSON'))
+    };
+    mockFetch.mockResolvedValueOnce(mockResponse);
+
+    const { result } = renderHook(() => useUploadDocuments());
+    const onError = vi.fn();
+
+    act(() => {
+      result.current.mutate(
+        {
+          files: [new File(['content'], 'test.txt')],
+          metadata: { collection_name: 'c' }
+        },
+        { onError }
+      );
+    });
+
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 0));
+    });
+
+    expect(mockShowToast).toHaveBeenCalledWith('Failed to upload documents', 'error');
   });
 
   it('should handle multiple concurrent uploads correctly', async () => {

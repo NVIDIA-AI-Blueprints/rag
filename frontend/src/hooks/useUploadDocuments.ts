@@ -16,10 +16,12 @@
 import { useState } from "react";
 import { useNotificationStore } from "../store/useNotificationStore";
 import { useCollectionConfigStore } from "../store/useCollectionConfigStore";
+import { useToastStore } from "../store/useToastStore";
 
 export function useUploadDocuments() {
   const { addTaskNotification } = useNotificationStore();
   const { getConfig } = useCollectionConfigStore();
+  const { showToast } = useToastStore();
   const [isPending, setIsPending] = useState(false);
 
   const mutate = (data: { files: File[]; metadata: Record<string, unknown> }, options: { onSuccess?: (data: unknown) => void; onError?: (error: Error) => void }) => {
@@ -28,11 +30,11 @@ export function useUploadDocuments() {
     data.files.forEach((file) => {
       formData.append("documents", file);
     });
-    
+
     // Get collection-specific config for summarization setting
     const collectionName = String(data.metadata.collection_name);
     const collectionConfig = getConfig(collectionName);
-    
+
     formData.append("data", JSON.stringify({ ...data.metadata, generate_summary: collectionConfig.generateSummary }));
 
     fetch(`/api/documents?blocking=false`, {
@@ -40,9 +42,25 @@ export function useUploadDocuments() {
       body: formData,
     })
       .then(async (res) => {
-        if (!res.ok) throw new Error("Failed to upload documents");
+        if (!res.ok) {
+          let errorMessage = "Failed to upload documents";
+          try {
+            const errorData = await res.json();
+            if (Array.isArray(errorData.detail)) {
+              const msg = errorData.detail[0]?.msg || errorMessage;
+              errorMessage = msg.replace(/^Value error, /, "");
+            } else if (errorData.detail) {
+              errorMessage = errorData.detail;
+            } else if (errorData.message) {
+              errorMessage = errorData.message;
+            }
+          } catch {
+            // Keep default error message if parsing fails
+          }
+          throw new Error(errorMessage);
+        }
         const responseData = await res.json();
-        
+
         if (responseData?.task_id) {
           const taskData = {
             id: responseData.task_id,
@@ -51,13 +69,15 @@ export function useUploadDocuments() {
             state: "PENDING" as const,
             created_at: new Date().toISOString(),
           };
-          
+
           addTaskNotification(taskData);
         }
-        
+
         options.onSuccess?.(responseData);
       })
       .catch((error) => {
+        const errorMessage = error instanceof Error ? error.message : "Failed to upload documents";
+        showToast(errorMessage, "error");
         options.onError?.(error);
       })
       .finally(() => {

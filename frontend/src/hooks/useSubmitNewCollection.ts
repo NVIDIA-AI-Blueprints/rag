@@ -18,6 +18,7 @@ import { useNewCollectionStore } from "../store/useNewCollectionStore";
 import { useCreateCollection } from "../api/useCollectionsApi";
 import { useNotificationStore } from "../store/useNotificationStore";
 import { useSettingsStore } from "../store/useSettingsStore";
+import { useToastStore } from "../store/useToastStore";
 import { openNotificationPanel } from "../components/notifications/NotificationBell";
 import { useQueryClient } from "@tanstack/react-query";
 import type { APIMetadataField } from "../types/collections";
@@ -41,6 +42,7 @@ export function useSubmitNewCollection() {
   } = useNewCollectionStore();
 
   const { addTaskNotification } = useNotificationStore();
+  const { showToast } = useToastStore();
   const createCollection = useCreateCollection();
 
   const submit = async () => {
@@ -207,7 +209,23 @@ export function useSubmitNewCollection() {
           body: formData,
         });
 
-        if (!res.ok) throw new Error("Failed to upload documents");
+        if (!res.ok) {
+          let errorMessage = "Failed to upload documents";
+          try {
+            const errorData = await res.json();
+            if (Array.isArray(errorData.detail)) {
+              const msg = errorData.detail[0]?.msg || errorMessage;
+              errorMessage = msg.replace(/^Value error, /, "");
+            } else if (errorData.detail) {
+              errorMessage = errorData.detail;
+            } else if (errorData.message) {
+              errorMessage = errorData.message;
+            }
+          } catch {
+            // Keep default error message if parsing fails
+          }
+          throw new Error(errorMessage);
+        }
 
         const data = await res.json();
         console.log("📤 Upload response:", data);
@@ -240,7 +258,9 @@ export function useSubmitNewCollection() {
       navigate("/");
     } catch (err: unknown) {
       console.error("💥 Collection submission failed:", err);
-      setError(err instanceof Error ? err.message : "Failed to create collection");
+      const errorMessage = err instanceof Error ? err.message : "Failed to create collection";
+      setError(errorMessage);
+      showToast(errorMessage, "error");
     } finally {
       setIsLoading(false);
     }
