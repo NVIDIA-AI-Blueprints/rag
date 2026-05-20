@@ -175,22 +175,24 @@ class TestSummaryEndpointTimeoutValidation:
         response_data = response.json()
         assert "message" in response_data
         assert "Invalid timeout value" in response_data["message"]
-        assert "non-negative integer" in response_data["message"]
+        assert "positive integer" in response_data["message"]
+        assert response_data["status"] == "FAILED"
         assert "error" in response_data
         assert response_data["error"] == "Provided timeout value: -1"
 
-    def test_zero_timeout_is_valid(self, client, valid_summary_params):
-        """Test that zero timeout is valid (edge case)"""
-        mock_nvidia_rag_summary.set_get_summary_success()
-
+    def test_zero_timeout_returns_400(self, client, valid_summary_params):
+        """Test that zero timeout values return 400 Bad Request"""
         params = valid_summary_params.copy()
         params["timeout"] = 0
 
         response = client.get("/v1/summary", params=params)
 
-        assert response.status_code == ErrorCodeMapping.SUCCESS
+        assert response.status_code == ErrorCodeMapping.BAD_REQUEST
         response_data = response.json()
-        assert response_data["status"] == "SUCCESS"
+        assert "Invalid timeout value" in response_data["message"]
+        assert "positive integer" in response_data["message"]
+        assert response_data["status"] == "FAILED"
+        assert response_data["error"] == "Provided timeout value: 0"
 
     def test_default_timeout_is_valid(self, client, valid_summary_params):
         """Test that default timeout (300) is valid"""

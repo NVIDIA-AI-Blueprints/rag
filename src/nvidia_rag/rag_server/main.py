@@ -1602,6 +1602,13 @@ class NvidiaRAG:
         timeout: int = 300,
     ) -> dict[str, Any]:
         """Get the summary of a document."""
+        from nvidia_rag.rag_server.validation import (
+            invalid_summary_timeout_response,
+            is_invalid_summary_timeout,
+        )
+
+        if is_invalid_summary_timeout(timeout):
+            return invalid_summary_timeout_response(timeout)
 
         summary_response = await retrieve_summary(
             collection_name=collection_name,

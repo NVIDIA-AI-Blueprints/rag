@@ -384,6 +384,24 @@ class TestNvidiaRAGGetSummaryWorking:
                 timeout=600,
             )
 
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("timeout", [-3, 0])
+    async def test_get_summary_rejects_invalid_timeout(self, timeout):
+        """Test get_summary returns FAILED for non-positive timeout values."""
+        rag = NvidiaRAG()
+
+        with patch("nvidia_rag.rag_server.main.retrieve_summary") as mock_retrieve:
+            result = await rag.get_summary(
+                "test_collection", "test_document", timeout=timeout
+            )
+
+        assert result["status"] == "FAILED"
+        assert result["message"] == (
+            "Invalid timeout value. Timeout must be a positive integer."
+        )
+        assert result["error"] == f"Provided timeout value: {timeout}"
+        mock_retrieve.assert_not_called()
+
 
 class TestNvidiaRAGPrivateMethodsWorking:
     """Working test cases for private methods in NvidiaRAG class."""

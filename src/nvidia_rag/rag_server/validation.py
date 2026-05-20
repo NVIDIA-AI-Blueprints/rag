@@ -162,3 +162,22 @@ def validate_vdb_top_k(vdb_top_k: int) -> int:
             f"The /v1/generate and /v1/search request schemas enforce the same upper bound."
         )
     return vdb_top_k
+
+
+SUMMARY_TIMEOUT_INVALID_MESSAGE = (
+    "Invalid timeout value. Timeout must be a positive integer."
+)
+
+
+def invalid_summary_timeout_response(timeout: int) -> dict[str, str]:
+    """Build the standard FAILED response for invalid get_summary timeout values."""
+    return {
+        "message": SUMMARY_TIMEOUT_INVALID_MESSAGE,
+        "status": "FAILED",
+        "error": f"Provided timeout value: {timeout}",
+    }
+
+
+def is_invalid_summary_timeout(timeout: int) -> bool:
+    """Return True when timeout is zero or negative."""
+    return timeout <= 0
