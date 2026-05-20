@@ -12,6 +12,6 @@ auto_sync_ready: true
 # NVIDIA employees with write access are auto-vetters.
 # List additional vetters here if needed (e.g. contractors, cross-team reviewers).
 additional_vetters:
-  - vidushig
+  - vidushig-nv
   - faaranm
   - ricsingh
