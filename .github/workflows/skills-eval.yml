@@ -1,0 +1,168 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Tier 3 Harbor eval for rag-* skills.
+# Three triggers:
+#   1. push to pull-request/*  → diff-based: only eval skills changed in the PR
+#   2. schedule (nightly)      → all skills including cve-fix
+#   3. workflow_dispatch        → manual trigger with skill selector
+#
+# Uses dorny/paths-filter for cumulative PR diff (not per-push) — same
+# reason as skills-nv-base.yml. copy-pr-bot merge commits don't always
+# touch skills/ even when the PR does.
+
+name: Skills Eval
+
+on:
+  push:
+    branches:
+      - "pull-request/[0-9]+"
+  schedule:
+    - cron: '0 2 * * *'    # 2am UTC nightly — covers cve-fix + all cpu skills
+  workflow_dispatch:
+    inputs:
+      skills:
+        description: "Skill to eval (* for all, or pick one)"
+        required: false
+        default: "*"
+        type: choice
+        options:
+          - "*"
+          - rag-deploy-blueprint
+          - rag-ingest-documents
+          - rag-query-knowledge
+          - rag-configure-infrastructure
+          - rag-configure-retrieval
+          - rag-evaluate-quality
+          - rag-manage-mcp
+          - rag-troubleshoot-blueprint
+          - rag-enable-vlm
+          - rag-enable-guardrails
+          - cve-fix
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: skills-eval-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  eval:
+    name: Eval changed skills against PR
+    runs-on: [self-hosted, rag-skill-validator]
+
+    # 4-hour cap: 8 cpu skills × ~15 min each = 2h max with 1.5x timeouts.
+    # Nightly runs all skills; PR runs only changed ones so usually much faster.
+    timeout-minutes: 240
+
+    if: startsWith(github.ref, 'refs/heads/pull-request/') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract PR number + base
+        id: pr
+        if: github.event_name == 'push'
+        run: |
+          REF="${{ github.ref_name }}"
+          PR="${REF##pull-request/}"
+          BASE=$(gh pr view "$PR" --json baseRefName --jq .baseRefName)
+          echo "number=$PR" >> "$GITHUB_OUTPUT"
+          echo "base=$BASE" >> "$GITHUB_OUTPUT"
+          echo "PR #$PR, base=$BASE"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Detect skills/ changes vs PR base
+        id: changes
+        if: github.event_name == 'push'
+        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d
+        with:
+          base: ${{ steps.pr.outputs.base }}
+          filters: |
+            relevant:
+              - 'skills/**'
+              - '.github/skill-eval/**'
+              - '.github/workflows/skills-eval.yml'
+              - 'ci/run_skill_eval.sh'
+
+      - name: Load coordinator env
+        if: github.event_name != 'push' || steps.changes.outputs.relevant == 'true'
+        run: |
+          # Secrets stored in /home/ubuntu/eval-coordinator/.env on the runner.
+          # Contains: NVIDIA_INFERENCE_KEY, NGC_API_KEY, NSPECT_API_KEY (for cve-fix)
+          set -a
+          source /home/ubuntu/eval-coordinator/.env
+          set +a
+          printf "COORDINATOR_ENV=loaded\n" >> "$GITHUB_ENV"
+          printf "CLAUDE_CODE_DISABLE_THINKING=1\n" >> "$GITHUB_ENV"
+
+      - name: Run skill eval
+        id: eval
+        if: github.event_name != 'push' || steps.changes.outputs.relevant == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_CONFIG_DIR: ${{ runner.temp }}/gh-skill-eval-${{ github.run_id }}
+          INPUT_SKILLS: ${{ inputs.skills }}
+        run: |
+          mkdir -p "$GH_CONFIG_DIR"
+          set -a
+          source /home/ubuntu/eval-coordinator/.env
+          set +a
+
+          # Nightly and manual: run all skills (or selected skill)
+          # PR push: run only changed skills (diff-based via CHANGED_SKILLS)
+          if [ "${{ github.event_name }}" = "push" ]; then
+            # Build list of changed skill names from the PR diff
+            CHANGED=$(git diff origin/${{ steps.pr.outputs.base }}...HEAD --name-only \
+              | grep '^skills/' | cut -d/ -f2 | sort -u | tr '\n' ',')
+            export CHANGED_SKILLS="${CHANGED%,}"
+            echo "Changed skills: $CHANGED_SKILLS"
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${INPUT_SKILLS}" != "*" ]; then
+            export CHANGED_SKILLS="${INPUT_SKILLS}"
+          fi
+          # CHANGED_SKILLS empty = run all (nightly + manual *)
+          export PR_NUMBER="${{ steps.pr.outputs.number }}"
+          export PR_BASE="${{ steps.pr.outputs.base }}"
+          export PR_HEAD_SHA="${{ github.sha }}"
+          export PR_REPO="${{ github.repository }}"
+          export GITHUB_RUN_ID="${{ github.run_id }}"
+          bash ci/run_skill_eval.sh
+
+      - name: Post results as PR comment
+        if: github.event_name == 'push' && (steps.changes.outputs.relevant == 'true') && always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ -f eval-results/eval_result.md ]; then
+            gh pr comment ${{ steps.pr.outputs.number }} \
+              --body-file eval-results/eval_result.md \
+              --repo ${{ github.repository }} || true
+          fi
+
+      - name: Upload results artifact
+        if: always() && (github.event_name != 'push' || steps.changes.outputs.relevant == 'true')
+        uses: actions/upload-artifact@v4
+        with:
+          name: >-
+            ${{ github.event_name == 'schedule'
+              && format('skills-eval-nightly-{0}', github.run_id)
+              || github.event_name == 'workflow_dispatch'
+              && format('skills-eval-manual-{0}', github.run_id)
+              || format('skills-eval-pr-{0}-{1}', steps.pr.outputs.number, github.run_id) }}
+          path: eval-results/
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Skip note when no skills/ changes
+        if: github.event_name == 'push' && steps.changes.outputs.relevant != 'true'
+        run: echo "::notice::No skills/ changes in this PR; eval skipped."

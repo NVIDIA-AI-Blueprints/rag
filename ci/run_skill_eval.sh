@@ -327,8 +327,20 @@ HARBOR_CRASHES=0
 # Find every skill that ships a spec for the current profile.
 # Adding a new skill with eval/<profile>.json is all that's needed —
 # no script changes required.
+#
+# CHANGED_SKILLS (optional, set by skills-eval.yml on PR runs):
+#   comma-separated list of skill names that changed in the PR.
+#   When set, only those skills are evaluated (diff-based selection).
+#   When empty, all skills run (nightly + manual dispatch).
 while IFS= read -r spec_file; do
   SKILL_NAME="$(basename "$(dirname "$(dirname "$spec_file")")")"
+  # Diff-based filter: skip skills not in CHANGED_SKILLS (PR runs only)
+  if [ -n "${CHANGED_SKILLS:-}" ]; then
+    if ! echo ",$CHANGED_SKILLS," | grep -q ",$SKILL_NAME,"; then
+      echo "  SKIP  $SKILL_NAME (not in PR diff)"
+      continue
+    fi
+  fi
   SKILL_DIR="$SKILLS_ROOT/$SKILL_NAME"
   DATASETS_DIR="$SKILL_EVAL_DIR/datasets/$SKILL_NAME"
 
@@ -344,15 +356,24 @@ while IFS= read -r spec_file; do
   echo "==> [$SKILL_NAME] Running Harbor trials"
   while IFS= read -r step_dir; do
     echo "  ----> harbor run -p $step_dir"
+    # Timeout multipliers: 3.0x for Brev GPU (VM provision + cold docker pulls).
+    # LocalEnvironment (cpu) uses 1.5x — no VM provisioning, agents should
+    # complete in under 10 min. Prevents runaway agents from eating the
+    # 2h job budget.
+    if [ "$ENV_IMPORT" = "envs.brev_env:BrevEnvironment" ]; then
+      TIMEOUT_MULT="3.0"
+    else
+      TIMEOUT_MULT="1.5"
+    fi
     if ! uvx --with boto3 harbor run \
          -p "$step_dir" \
          --environment-import-path "$ENV_IMPORT" \
          --agent claude-code --model "$ANTHROPIC_MODEL" \
          --ak api_base="$ANTHROPIC_BASE_URL/v1" \
          --ae CLAUDE_CODE_DISABLE_THINKING=1 \
-         --environment-build-timeout-multiplier 3.0 \
-         --agent-timeout-multiplier 3.0 \
-         --verifier-timeout-multiplier 3.0 \
+         --environment-build-timeout-multiplier "$TIMEOUT_MULT" \
+         --agent-timeout-multiplier "$TIMEOUT_MULT" \
+         --verifier-timeout-multiplier "$TIMEOUT_MULT" \
          --max-retries 0 -n 1 --yes; then
       HARBOR_CRASHES=$((HARBOR_CRASHES + 1))
       echo "  harbor run exited non-zero for $step_dir"
