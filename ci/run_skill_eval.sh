@@ -107,13 +107,6 @@ export EVAL_TARGET_BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo
 SKILL_EVAL_DIR="$REPO_ROOT/skill-eval"
 SKILLS_ROOT="$REPO_ROOT/skills"
 
-# Profile routing — filename drives which runner is required:
-#   nvidia_hosted.json → LocalEnvironment (cpu, no GPU)
-#   h100.json          → BrevEnvironment  (H100_x2, GPU)
-# EVAL_PROFILE controls which profile this invocation runs.
-# Default: nvidia_hosted (cpu). Set EVAL_PROFILE=h100 for GPU skills.
-EVAL_PROFILE="${EVAL_PROFILE:-nvidia_hosted}"
-
 echo "==> Required env check"
 : "${NVIDIA_INFERENCE_KEY:?Set NVBASE_INFERENCE_API_KEY secret (sk- inference proxy key)}"
 : "${NGC_API_KEY:?Set NGC_API_KEY secret (nvapi-)}"
@@ -161,15 +154,6 @@ export JUDGE_FULL_MODEL="${JUDGE_FULL_MODEL:-aws/anthropic/claude-haiku-4-5-v1}"
 #   skills/rag-deploy-blueprint/eval/h100.json      (deploy spec)
 # Keep after validation — generalises to any future GPU profile.
 # ============================================================================
-# Auto-pick: if EVAL_PROFILE matches a GPU pattern (h100*, l40s*, rtx*,
-# gpu_*), generate a fresh BREV_INSTANCE so brev_env enters ephemeral-
-# provision mode. CPU profiles (nvidia_hosted) leave BREV_INSTANCE empty
-# → LocalEnvironment. Caller can still override BREV_INSTANCE explicitly.
-case "$EVAL_PROFILE" in
-  h100*|l40s*|rtx*|gpu_*)
-    : "${BREV_INSTANCE:=rag-eval-gpu-$(date +%s | tail -c 8)}" ;;
-esac
-export BREV_INSTANCE="${BREV_INSTANCE:-}"
 
 echo "==> Install uv (no-op if already present)"
 if ! command -v uv >/dev/null 2>&1; then
@@ -187,111 +171,8 @@ claude --version
 echo "==> Docker login to nvcr.io"
 echo "$NGC_API_KEY" | docker login nvcr.io -u '$oauthtoken' --password-stdin
 
-echo "==> Pick Harbor environment (Brev remote target vs local host)"
-if [ -n "${BREV_INSTANCE:-}" ]; then
-  ENV_IMPORT="envs.brev_env:BrevEnvironment"
-  echo "Brev mode: BREV_INSTANCE=$BREV_INSTANCE"
-  command -v brev >/dev/null || { echo "brev CLI missing on runner"; exit 1; }
-  echo "Brev CLI version: $(brev --version 2>&1 | head -1)"
-  # Pre-flight: confirm we can list instances (i.e. authed).
-  brev ls >/dev/null 2>&1 || {
-    echo "brev not authenticated. Run: brev login --auth nvidia"
-    exit 1
-  }
-  # ==========================================================================
-  # >>> VSS-style pre-provision (Mode-1 pattern) <<<
-  # Provision the Brev VM HERE, not inside brev_env. VSS's architecture
-  # (vss-feat-skill-eval/.github/skill-eval/skills_eval_agent.py + AGENTS.md)
-  # has the coordinator do `brev create` BEFORE invoking harbor, then
-  # harbor's brev_env enters Mode 1 (validate-only). We mirror that with
-  # bash here.
-  #
-  # Two reasons this lives in the script, not in brev_env:
-  #   1. EOF resilience: when Brev's control plane has transient hiccups
-  #      (observed multiple times in run 26142225004:
-  #      "unexpected EOF" from brevapi.us-west-2-prod.control-plane.brev.dev),
-  #      `brev create` can return non-zero even when the workspace was
-  #      actually created server-side. Bash with retries handles this
-  #      cleanly; inside brev_env it would cascade-fail 6 trials.
-  #   2. Concentration: one create attempt per CI run, not one per
-  #      harbor trial — failures are isolated to the orchestrator layer.
-  # ==========================================================================
-
-  # If $BREV_INSTANCE is already present (operator pre-provisioned, or
-  # leftover from a prior run), reuse it. Otherwise create + wait.
-  if brev ls 2>/dev/null | awk -v n="$BREV_INSTANCE" '$1==n {found=1} END{exit !found}'; then
-    echo "Found existing $BREV_INSTANCE — reusing (skipping create)"
-  else
-    # Resolve brev_type from the spec JSON (task.toml isn't written yet,
-    # we're before the adapter call).
-    SPEC_FILE_FOR_TYPE="$SKILLS_ROOT/rag-deploy-blueprint/eval/${EVAL_PROFILE}.json"
-    if [ ! -f "$SPEC_FILE_FOR_TYPE" ]; then
-      echo "Spec file not found for $EVAL_PROFILE: $SPEC_FILE_FOR_TYPE"
-      exit 1
-    fi
-    BREV_TYPE=$(python3 - <<PY 2>/dev/null || true
-import json, sys
-spec = json.load(open("$SPEC_FILE_FOR_TYPE"))
-plats = (spec.get("resources") or {}).get("platforms") or {}
-for p in spec.get("platforms", []):
-    cfg = plats.get(p) or {}
-    if cfg.get("brev_type"):
-        print(cfg["brev_type"]); sys.exit(0)
-PY
-)
-    if [ -z "$BREV_TYPE" ]; then
-      echo "Cannot determine brev_type from $SPEC_FILE_FOR_TYPE — set resources.platforms.<name>.brev_type"
-      exit 1
-    fi
-    # Create with EOF-retry loop. Brev's API has been observed to return
-    # `unexpected EOF` to `brev create` even after server-side success
-    # (run 26142225004's trial-1 traceback). After each attempt, check
-    # whether the workspace was actually created — if so, the EOF was a
-    # response-truncation, not a real failure.
-    echo "==> Pre-provisioning $BREV_INSTANCE type=$BREV_TYPE (up to ${BREV_PROVISION_RETRIES:-5} create attempts)"
-    created=0
-    for attempt in $(seq 1 "${BREV_PROVISION_RETRIES:-5}"); do
-      echo "  attempt $attempt: brev create $BREV_INSTANCE type=$BREV_TYPE"
-      echo "$BREV_TYPE" | brev create "$BREV_INSTANCE" --detached 2>&1 | tail -10
-      # Whether the CLI reported success or failure, verify reality:
-      if brev ls 2>/dev/null | awk -v n="$BREV_INSTANCE" '$1==n {found=1} END{exit !found}'; then
-        echo "  → workspace $BREV_INSTANCE exists after attempt $attempt"
-        created=1
-        break
-      fi
-      echo "  → workspace not present after attempt $attempt; sleeping 15s before retry"
-      sleep 15
-    done
-    if [ "$created" -ne 1 ]; then
-      echo "brev create failed permanently after ${BREV_PROVISION_RETRIES:-5} attempts"
-      exit 1
-    fi
-  fi
-
-  # Poll until RUNNING+READY (whether we just created or are reusing).
-  # H100 cold-boot on Brev can take 10-15 min. Budget 30 min default.
-  echo "==> Waiting for $BREV_INSTANCE to reach RUNNING+READY (up to ${BREV_PROVISION_TIMEOUT:-1800}s)"
-  deadline=$(($(date +%s) + ${BREV_PROVISION_TIMEOUT:-1800}))
-  last_state=""
-  while [ $(date +%s) -lt $deadline ]; do
-    state=$(brev ls 2>/dev/null | awk -v n="$BREV_INSTANCE" \
-      '$1==n {print $2"+"$4; exit}')
-    if [ -n "$state" ] && [ "$state" != "$last_state" ]; then
-      echo "  $(date -u +%H:%M:%SZ) $BREV_INSTANCE: $state"
-      last_state="$state"
-    fi
-    [ "$state" = "RUNNING+READY" ] && break
-    sleep 15
-  done
-  if [ "$last_state" != "RUNNING+READY" ]; then
-    echo "Pre-provision timed out — last state: $last_state"
-    exit 1
-  fi
-  echo "==> $BREV_INSTANCE ready — handing off to harbor (will use Mode 1, no re-provision)"
-else
-  ENV_IMPORT="envs.local_env:LocalEnvironment"
-  echo "Local mode (BREV_INSTANCE unset): RAG will deploy on this runner VM"
-fi
+# ENV_IMPORT default — used by teardown. Overridden per-spec inside the loop.
+ENV_IMPORT="envs.local_env:LocalEnvironment"
 
 echo "==> Clean leftover Docker state from prior runs (one-shot, before any trial)"
 # This runs ONCE per CI run — never between trials — so step-1's deploy
@@ -333,7 +214,7 @@ fi
 # — the VM is provisioned fresh per CI run, so there's no prior-state
 # cleanup to do from the runner side.
 
-echo "==> Auto-discover skills with eval/$EVAL_PROFILE.json and run Harbor trials"
+echo "==> Auto-discover all skill eval specs and run Harbor trials"
 cd "$SKILL_EVAL_DIR"
 mkdir -p jobs
 HARBOR_CRASHES=0
@@ -356,11 +237,64 @@ while IFS= read -r spec_file; do
     fi
   fi
   # SKILL_DIR is the skill folder containing SKILL.md
-  # spec path: skill-source/.agents/skills/<skill>/eval/<profile>.json
   SKILL_DIR="$(dirname "$(dirname "$spec_file")")"
   DATASETS_DIR="$SKILL_EVAL_DIR/datasets/$SKILL_NAME"
 
+  # Route per-spec: read platforms[0] from the spec JSON.
+  # cpu  → LocalEnvironment  (runner deploys Docker directly, no Brev VM)
+  # H100_x2 → BrevEnvironment (pre-provision ephemeral H100 Brev VM)
+  SPEC_PLATFORM=$(python3 -c "
+import json, sys
+spec = json.load(open('$spec_file'))
+print(spec.get('platforms', ['cpu'])[0])
+" 2>/dev/null || echo "cpu")
+
+  case "$SPEC_PLATFORM" in
+    cpu)
+      SPEC_ENV_IMPORT="envs.local_env:LocalEnvironment"
+      SPEC_TIMEOUT_MULT="1.5"
+      # Swap GPU Milvus image for CPU variant (no NVIDIA driver required)
+      cp deploy/compose/vectordb.yaml deploy/compose/vectordb.yaml.gpu-bak
+      cp ci/vectordb-cpu.yaml deploy/compose/vectordb.yaml
+      ;;
+    H100_x2|h100*)
+      SPEC_ENV_IMPORT="envs.brev_env:BrevEnvironment"
+      SPEC_TIMEOUT_MULT="3.0"
+      # Ensure GPU Milvus is in place (restore if previously swapped)
+      [ -f deploy/compose/vectordb.yaml.gpu-bak ] && \
+        mv deploy/compose/vectordb.yaml.gpu-bak deploy/compose/vectordb.yaml || true
+      # Pre-provision Brev VM for this GPU spec
+      BREV_TYPE=$(python3 -c "
+import json, sys
+spec = json.load(open('$spec_file'))
+plats = (spec.get('resources') or {}).get('platforms') or {}
+p = spec.get('platforms', [])[0] if spec.get('platforms') else ''
+print(plats.get(p, {}).get('brev_type', 'dmz.h100x2.pcie'))
+" 2>/dev/null || echo "dmz.h100x2.pcie")
+      export BREV_INSTANCE="rag-eval-gpu-$(date +%s | tail -c 8)"
+      echo "==> Pre-provisioning $BREV_INSTANCE ($BREV_TYPE) for $SKILL_NAME"
+      for attempt in $(seq 1 5); do
+        echo "$BREV_TYPE" | brev create "$BREV_INSTANCE" --detached 2>&1 | tail -5
+        brev ls 2>/dev/null | awk -v n="$BREV_INSTANCE" '$1==n {found=1} END{exit !found}' && break
+        sleep 15
+      done
+      DEADLINE=$(( $(date +%s) + 1800 ))
+      while [ "$(date +%s)" -lt "$DEADLINE" ]; do
+        STATE=$(brev ls 2>/dev/null | awk -v n="$BREV_INSTANCE" '$1==n {print $2"+"$4}')
+        [ "$STATE" = "RUNNING+READY" ] && break
+        sleep 15
+      done
+      mkdir -p /tmp/brev
+      echo "$BREV_INSTANCE" >> "/tmp/brev/started-by-${GITHUB_RUN_ID:-local}.txt"
+      ;;
+    *)
+      echo "  WARN  Unknown platform '$SPEC_PLATFORM' in $spec_file — skipping"
+      continue
+      ;;
+  esac
+
   echo ""
+  echo "==> [$SKILL_NAME] platform=$SPEC_PLATFORM env=$SPEC_ENV_IMPORT"
   echo "==> [$SKILL_NAME] Generating task directories"
   rm -rf "$DATASETS_DIR"
   python3 adapters/rag-blueprint/generate.py \
@@ -372,35 +306,29 @@ while IFS= read -r spec_file; do
   echo "==> [$SKILL_NAME] Running Harbor trials"
   while IFS= read -r step_dir; do
     echo "  ----> harbor run -p $step_dir"
-    # Timeout multipliers: 3.0x for Brev GPU (VM provision + cold docker pulls).
-    # LocalEnvironment (cpu) uses 1.5x — no VM provisioning, agents should
-    # complete in under 10 min. Prevents runaway agents from eating the
-    # 2h job budget.
-    if [ "$ENV_IMPORT" = "envs.brev_env:BrevEnvironment" ]; then
-      TIMEOUT_MULT="3.0"
-    else
-      TIMEOUT_MULT="1.5"
-    fi
     if ! uvx --with boto3 harbor run \
          -p "$step_dir" \
-         --environment-import-path "$ENV_IMPORT" \
+         --environment-import-path "$SPEC_ENV_IMPORT" \
          --agent claude-code --model "$ANTHROPIC_MODEL" \
          --ak api_base="$ANTHROPIC_BASE_URL/v1" \
          --ae CLAUDE_CODE_DISABLE_THINKING=1 \
-         --environment-build-timeout-multiplier "$TIMEOUT_MULT" \
-         --agent-timeout-multiplier "$TIMEOUT_MULT" \
-         --verifier-timeout-multiplier "$TIMEOUT_MULT" \
+         --environment-build-timeout-multiplier "$SPEC_TIMEOUT_MULT" \
+         --agent-timeout-multiplier "$SPEC_TIMEOUT_MULT" \
+         --verifier-timeout-multiplier "$SPEC_TIMEOUT_MULT" \
          --max-retries 0 -n 1 --yes; then
       HARBOR_CRASHES=$((HARBOR_CRASHES + 1))
       echo "  harbor run exited non-zero for $step_dir"
     fi
   done < <(find "$DATASETS_DIR" -mindepth 1 -maxdepth 1 -type d | sort)
+  # Restore vectordb.yaml if it was swapped for this cpu spec
+  [ -f deploy/compose/vectordb.yaml.gpu-bak ] && \
+    mv deploy/compose/vectordb.yaml.gpu-bak deploy/compose/vectordb.yaml || true
+
 done < <(
-  # skill-source is the primary eval target — the monolithic rag-blueprint
-  # skill is the production skill installed via npx skills add .
-  # skills/ (10 decomposed skills) are skipped for now.
+  # Discover all specs under skill-source. Platform routing (cpu/gpu)
+  # is determined per-spec from the platforms[] field — no filter needed.
   find "$REPO_ROOT/skill-source/.agents/skills" \
-    -path "*/eval/${EVAL_PROFILE}.json" 2>/dev/null | sort
+    -path "*/eval/*.json" 2>/dev/null | sort
 )
 
 echo "==> Summarise results into eval_result.md (walks ALL job dirs)"
@@ -462,6 +390,10 @@ if [ "$ENV_IMPORT" = "envs.local_env:LocalEnvironment" ]; then
     fi
   done
   rm -rf /tmp/milvus-eval /tmp/ingestor-server-data 2>/dev/null || true
+  # Restore original vectordb.yaml (was swapped for cpu variant at start)
+  if [ -f deploy/compose/vectordb.yaml.gpu-bak ]; then
+    mv deploy/compose/vectordb.yaml.gpu-bak deploy/compose/vectordb.yaml
+  fi
 fi
 
 echo "==> Stage outputs to eval-results/ for artifact upload"
