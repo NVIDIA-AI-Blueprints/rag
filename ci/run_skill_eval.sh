@@ -355,12 +355,9 @@ while IFS= read -r spec_file; do
       continue
     fi
   fi
-  # Resolve SKILL_DIR: spec may be under skills/ or skill-source/.agents/skills/
-  if [[ "$spec_file" == *"skill-source"* ]]; then
-    SKILL_DIR="$(dirname "$(dirname "$spec_file")")"
-  else
-    SKILL_DIR="$SKILLS_ROOT/$SKILL_NAME"
-  fi
+  # SKILL_DIR is the skill folder containing SKILL.md
+  # spec path: skill-source/.agents/skills/<skill>/eval/<profile>.json
+  SKILL_DIR="$(dirname "$(dirname "$spec_file")")"
   DATASETS_DIR="$SKILL_EVAL_DIR/datasets/$SKILL_NAME"
 
   echo ""
@@ -399,15 +396,9 @@ while IFS= read -r spec_file; do
     fi
   done < <(find "$DATASETS_DIR" -mindepth 1 -maxdepth 1 -type d | sort)
 done < <(
-  # rag-deploy-blueprint must run first — it deploys the RAG stack that
-  # all other skills test against. Remaining skills run alphabetically.
-  # Also scans skill-source/.agents/skills/*/eval/ for the monolithic
-  # rag-blueprint skill (the production skill installed via npx skills add .)
-  deploy_spec="$SKILLS_ROOT/rag-deploy-blueprint/eval/${EVAL_PROFILE}.json"
-  [ -f "$deploy_spec" ] && echo "$deploy_spec"
-  find "$SKILLS_ROOT" -path "*/eval/${EVAL_PROFILE}.json" \
-    ! -path "*/rag-deploy-blueprint/*" | sort
-  # skill-source monolithic skills (rag-blueprint et al.)
+  # skill-source is the primary eval target — the monolithic rag-blueprint
+  # skill is the production skill installed via npx skills add .
+  # skills/ (10 decomposed skills) are skipped for now.
   find "$REPO_ROOT/skill-source/.agents/skills" \
     -path "*/eval/${EVAL_PROFILE}.json" 2>/dev/null | sort
 )
