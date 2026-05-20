@@ -67,6 +67,21 @@ jobs:
     if: startsWith(github.ref, 'refs/heads/pull-request/') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
 
     steps:
+      - name: Pre-checkout cleanup — remove root-owned Docker volumes
+        # Must run BEFORE checkout. Root-owned Milvus/MinIO/etcd files from
+        # prior runs block git clean. Docker alpine removes them without sudo.
+        run: |
+          WORKSPACE="${GITHUB_WORKSPACE:-/home/ubuntu/actions-runner/_work/rag/rag}"
+          for vol_dir in deploy/compose/volumes ci/volumes; do
+            TARGET="$WORKSPACE/$vol_dir"
+            if [ -d "$TARGET" ]; then
+              echo "Cleaning $TARGET"
+              docker run --rm -v "$TARGET:/target" alpine \
+                sh -c "rm -rf /target" 2>/dev/null || true
+              rm -rf "$TARGET" 2>/dev/null || true
+            fi
+          done
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
@@ -109,48 +124,30 @@ jobs:
           printf "COORDINATOR_ENV=loaded\n" >> "$GITHUB_ENV"
           printf "CLAUDE_CODE_DISABLE_THINKING=1\n" >> "$GITHUB_ENV"
 
-      - name: Run skill eval
-        id: eval
+      - name: Run skills eval agent
+        id: agent
         if: github.event_name != 'push' || steps.changes.outputs.relevant == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           GH_CONFIG_DIR: ${{ runner.temp }}/gh-skill-eval-${{ github.run_id }}
           INPUT_SKILLS: ${{ inputs.skills }}
         run: |
-          mkdir -p "$GH_CONFIG_DIR"
+          mkdir -p "$GH_CONFIG_DIR" /tmp/brev /tmp/skill-eval
           set -a
           source /home/ubuntu/eval-coordinator/.env
           set +a
-
-          # Nightly and manual: run all skills (or selected skill)
-          # PR push: run only changed skills (diff-based via CHANGED_SKILLS)
-          if [ "${{ github.event_name }}" = "push" ]; then
-            # Build list of changed skill names from the PR diff
-            CHANGED=$(git diff origin/${{ steps.pr.outputs.base }}...HEAD --name-only \
-              | grep '^skills/' | cut -d/ -f2 | sort -u | tr '\n' ',')
-            export CHANGED_SKILLS="${CHANGED%,}"
-            echo "Changed skills: $CHANGED_SKILLS"
-          elif [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${INPUT_SKILLS}" != "*" ]; then
-            export CHANGED_SKILLS="${INPUT_SKILLS}"
-          fi
-          # CHANGED_SKILLS empty = run all (nightly + manual *)
           export PR_NUMBER="${{ steps.pr.outputs.number }}"
           export PR_BASE="${{ steps.pr.outputs.base }}"
           export PR_HEAD_SHA="${{ github.sha }}"
           export PR_REPO="${{ github.repository }}"
           export GITHUB_RUN_ID="${{ github.run_id }}"
-          bash ci/run_skill_eval.sh
-
-      - name: Post results as PR comment
-        if: github.event_name == 'push' && (steps.changes.outputs.relevant == 'true') && always()
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          if [ -f eval-results/eval_result.md ]; then
-            gh pr comment ${{ steps.pr.outputs.number }} \
-              --body-file eval-results/eval_result.md \
-              --repo ${{ github.repository }} || true
+          # PYTHONPATH lets uvx harbor resolve envs.*:*Environment from skill-eval/
+          export PYTHONPATH="${GITHUB_WORKSPACE}/skill-eval:${PYTHONPATH:-}"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            export MANUAL_FULL_SWEEP=1
+            export MANUAL_SKILLS_FILTER="${INPUT_SKILLS}"
           fi
+          python3 .github/skill-eval/skills_eval_agent.py
 
       - name: Upload results artifact
         if: always() && (github.event_name != 'push' || steps.changes.outputs.relevant == 'true')
