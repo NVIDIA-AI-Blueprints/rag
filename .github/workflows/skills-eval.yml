@@ -77,13 +77,13 @@ jobs:
             if [ -d "$TARGET" ]; then
               echo "Cleaning $TARGET"
               docker run --rm -v "$TARGET:/target" alpine \
-                sh -c "rm -rf /target/* /target/.??* 2>/dev/null; exit 0" || true
+                sh -c "rm -rf /target" 2>/dev/null || true
               rm -rf "$TARGET" 2>/dev/null || true
             fi
           done
 
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -109,7 +109,6 @@ jobs:
           filters: |
             relevant:
               - 'skills/**'
-              - 'skill-source/**'
               - '.github/skill-eval/**'
               - '.github/workflows/skills-eval.yml'
               - 'ci/run_skill_eval.sh'
@@ -152,7 +151,7 @@ jobs:
 
       - name: Upload results artifact
         if: always() && (github.event_name != 'push' || steps.changes.outputs.relevant == 'true')
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v4
         with:
           name: >-
             ${{ github.event_name == 'schedule'
