@@ -4,8 +4,12 @@
 # Tier 3 Harbor eval for rag-* skills.
 # Three triggers:
 #   1. push to pull-request/*  → diff-based: only eval skills changed in the PR
-#   2. schedule (nightly)      → all skills including cve-fix
+#   2. schedule (nightly)      → all rag-* cpu skills
 #   3. workflow_dispatch        → manual trigger with skill selector
+#
+# Note: cve-fix skill requires NSPect (NVIDIA internal tool) — GitHub Actions
+# runners cannot reach it (not security approved). cve-fix runs via GitLab CI
+# on the mirror repo (gitlab-master.nvidia.com/chat-labs/OpenSource/rag).
 #
 # Uses dorny/paths-filter for cumulative PR diff (not per-push) — same
 # reason as skills-nv-base.yml. copy-pr-bot merge commits don't always
@@ -18,7 +22,7 @@ on:
     branches:
       - "pull-request/[0-9]+"
   schedule:
-    - cron: '0 2 * * *'    # 2am UTC nightly — covers cve-fix + all cpu skills
+    - cron: '0 2 * * *'    # 2am UTC nightly — all rag-* cpu skills
   workflow_dispatch:
     inputs:
       skills:
@@ -38,7 +42,6 @@ on:
           - rag-troubleshoot-blueprint
           - rag-enable-vlm
           - rag-enable-guardrails
-          - cve-fix
 
 permissions:
   contents: write

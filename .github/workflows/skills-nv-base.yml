@@ -32,7 +32,6 @@ on:
           - rag-troubleshoot-blueprint
           - rag-enable-vlm
           - rag-enable-guardrails
-          - cve-fix
 
 permissions:
   contents: read
@@ -105,7 +104,7 @@ jobs:
             nv-base skills-check "skills/${INPUT_SKILLS}"
           else
             failed=false
-            for skill_dir in skills/rag-*/ skills/cve-fix/ 2>/dev/null; do
+            for skill_dir in skills/rag-*/ 2>/dev/null; do
               [ -d "$skill_dir" ] || continue
               echo "--- Checking: $skill_dir ---"
               nv-base skills-check "$skill_dir" || failed=true
