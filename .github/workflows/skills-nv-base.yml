@@ -1,0 +1,126 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Tier 1 skills validation: schema, security, PII, naming, frontmatter.
+# Runs on every PR mirror branch push that touches skills/.
+# Uses dorny/paths-filter for cumulative diff (PR base ↔ HEAD) — GitHub's
+# top-level paths: filter evaluates per-push diff and misses copy-pr-bot
+# merge commits that don't themselves touch skills/.
+
+name: Skills NV-BASE
+
+on:
+  push:
+    branches:
+      - "pull-request/[0-9]+"
+  workflow_dispatch:
+    inputs:
+      skills:
+        description: "Skill to check (* for all)"
+        required: false
+        default: "*"
+        type: choice
+        options:
+          - "*"
+          - rag-deploy-blueprint
+          - rag-ingest-documents
+          - rag-query-knowledge
+          - rag-configure-infrastructure
+          - rag-configure-retrieval
+          - rag-evaluate-quality
+          - rag-manage-mcp
+          - rag-troubleshoot-blueprint
+          - rag-enable-vlm
+          - rag-enable-guardrails
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: skills-nv-base-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  skills-check:
+    name: skills-check
+    runs-on: [self-hosted, rag-skill-validator]
+    timeout-minutes: 20
+
+    # Tier 1 disabled — nv-base requires pre-installation on the runner
+    # (urm.nvidia.com/artifactory access needed). Re-enable once runner
+    # admin has installed nv-base at /opt/nvbase-venv/bin/nv-base.
+    if: false
+
+    steps:
+      - name: Checkout mirror head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract PR number + base
+        id: pr
+        if: github.event_name == 'push'
+        run: |
+          REF="${{ github.ref_name }}"
+          PR="${REF##pull-request/}"
+          BASE=$(gh pr view "$PR" --json baseRefName --jq .baseRefName)
+          echo "number=$PR" >> "$GITHUB_OUTPUT"
+          echo "base=$BASE" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Detect skills/ changes vs PR base
+        id: changes
+        if: github.event_name == 'push'
+        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d
+        with:
+          base: ${{ steps.pr.outputs.base }}
+          filters: |
+            relevant:
+              - 'skills/**'
+              - '.github/workflows/skills-nv-base.yml'
+
+      - name: Install uv + nv-base
+        if: github.event_name == 'workflow_dispatch' || steps.changes.outputs.relevant == 'true'
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          export PATH="$HOME/.local/bin:$PATH"
+          uv tool install nv-base \
+            --index https://urm.nvidia.com/artifactory/api/pypi/nv-shared-pypi/simple
+          nv-base --version
+
+      - name: Run nv-base skills-check
+        if: github.event_name == 'workflow_dispatch' || steps.changes.outputs.relevant == 'true'
+        env:
+          INPUT_SKILLS: ${{ inputs.skills }}
+        run: |
+          export PATH="$HOME/.local/bin:$HOME/.local/share/uv/tools/nv-base/bin:$PATH"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${INPUT_SKILLS}" != "*" ]; then
+            nv-base skills-check "skills/${INPUT_SKILLS}"
+          else
+            failed=false
+            for skill_dir in skills/rag-*/ 2>/dev/null; do
+              [ -d "$skill_dir" ] || continue
+              echo "--- Checking: $skill_dir ---"
+              nv-base skills-check "$skill_dir" || failed=true
+            done
+            [ "$failed" = true ] && exit 1
+            echo "All skills passed Tier 1 validation"
+          fi
+
+      - name: Post findings as PR comment
+        if: github.event_name == 'push' && steps.changes.outputs.relevant == 'true' && !cancelled()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+        run: |
+          echo "Skills NV-BASE check complete for PR #${PR_NUMBER}" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Skip note when no skills/ changes
+        if: github.event_name == 'push' && steps.changes.outputs.relevant != 'true'
+        run: echo "::notice::No skills/ changes in this PR; NV-BASE check skipped."
