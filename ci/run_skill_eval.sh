@@ -127,6 +127,10 @@ export ANTHROPIC_MODEL="${ANTHROPIC_MODEL:-aws/anthropic/bedrock-claude-sonnet-4
 # doesn't write root-owned etcd/minio dirs into ci/volumes/ and break the
 # artifact upload step (EACCES on scandir ci/volumes/etcd/member).
 export DOCKER_VOLUME_DIRECTORY="${DOCKER_VOLUME_DIRECTORY:-/tmp/milvus-eval}"
+# Ingestor server writes to INGESTOR_SERVER_EXTERNAL_VOLUME_MOUNT as root.
+# Default is ./volumes/ingestor-server (relative to compose file dir = ci/).
+# Redirect outside workspace to prevent EACCES on next checkout.
+export INGESTOR_SERVER_EXTERNAL_VOLUME_MOUNT="${INGESTOR_SERVER_EXTERNAL_VOLUME_MOUNT:-/tmp/ingestor-server-data}"
 export JUDGE_FULL_MODEL="${JUDGE_FULL_MODEL:-aws/anthropic/claude-haiku-4-5-v1}"
 
 # Runtime topology — controlled by whether BREV_INSTANCE is set.
@@ -313,7 +317,7 @@ if [ "$ENV_IMPORT" = "envs.local_env:LocalEnvironment" ]; then
   docker ps -a --format '{{.Names}}' | \
     grep -E '(rag|milvus|nim|ingest|redis|nemo|grafana|prometheus|embedding|ranking|vlm|ocr|page-elements|graphic-elements|table-structure|nv-ingest)' | \
     xargs -r docker rm -f >/dev/null 2>&1 || true
-  sudo rm -rf deploy/compose/volumes 2>/dev/null || true
+  sudo rm -rf deploy/compose/volumes /tmp/milvus-eval /tmp/ingestor-server-data 2>/dev/null || true
 fi
 # GPU pre-flight (BrevEnvironment mode) is handled inside brev_env.start()
 # — the VM is provisioned fresh per CI run, so there's no prior-state
@@ -439,7 +443,7 @@ if [ "$ENV_IMPORT" = "envs.local_env:LocalEnvironment" ]; then
     deploy/compose/vectordb.yaml; do
     [ -f "$f" ] && docker compose -f "$f" down -v --remove-orphans >/dev/null 2>&1 || true
   done
-  sudo rm -rf deploy/compose/volumes 2>/dev/null || true
+  sudo rm -rf deploy/compose/volumes /tmp/milvus-eval /tmp/ingestor-server-data 2>/dev/null || true
 fi
 
 echo "==> Stage outputs to eval-results/ for artifact upload"
