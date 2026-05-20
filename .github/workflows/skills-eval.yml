@@ -102,7 +102,7 @@ jobs:
         if: github.event_name != 'push' || steps.changes.outputs.relevant == 'true'
         run: |
           # Secrets stored in /home/ubuntu/eval-coordinator/.env on the runner.
-          # Contains: NVIDIA_INFERENCE_KEY, NGC_API_KEY, NSPECT_API_KEY (for cve-fix)
+          # Contains: NVIDIA_INFERENCE_KEY, NGC_API_KEY
           set -a
           source /home/ubuntu/eval-coordinator/.env
           set +a
