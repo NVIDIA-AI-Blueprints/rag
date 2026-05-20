@@ -52,7 +52,10 @@ jobs:
     runs-on: [self-hosted, rag-skill-validator]
     timeout-minutes: 20
 
-    if: startsWith(github.ref, 'refs/heads/pull-request/') || github.event_name == 'workflow_dispatch'
+    # Tier 1 disabled — nv-base requires pre-installation on the runner
+    # (urm.nvidia.com/artifactory access needed). Re-enable once runner
+    # admin has installed nv-base at /opt/nvbase-venv/bin/nv-base.
+    if: false
 
     steps:
       - name: Checkout mirror head
