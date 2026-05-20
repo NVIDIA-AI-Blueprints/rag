@@ -355,7 +355,12 @@ while IFS= read -r spec_file; do
       continue
     fi
   fi
-  SKILL_DIR="$SKILLS_ROOT/$SKILL_NAME"
+  # Resolve SKILL_DIR: spec may be under skills/ or skill-source/.agents/skills/
+  if [[ "$spec_file" == *"skill-source"* ]]; then
+    SKILL_DIR="$(dirname "$(dirname "$spec_file")")"
+  else
+    SKILL_DIR="$SKILLS_ROOT/$SKILL_NAME"
+  fi
   DATASETS_DIR="$SKILL_EVAL_DIR/datasets/$SKILL_NAME"
 
   echo ""
@@ -396,10 +401,15 @@ while IFS= read -r spec_file; do
 done < <(
   # rag-deploy-blueprint must run first — it deploys the RAG stack that
   # all other skills test against. Remaining skills run alphabetically.
+  # Also scans skill-source/.agents/skills/*/eval/ for the monolithic
+  # rag-blueprint skill (the production skill installed via npx skills add .)
   deploy_spec="$SKILLS_ROOT/rag-deploy-blueprint/eval/${EVAL_PROFILE}.json"
   [ -f "$deploy_spec" ] && echo "$deploy_spec"
   find "$SKILLS_ROOT" -path "*/eval/${EVAL_PROFILE}.json" \
     ! -path "*/rag-deploy-blueprint/*" | sort
+  # skill-source monolithic skills (rag-blueprint et al.)
+  find "$REPO_ROOT/skill-source/.agents/skills" \
+    -path "*/eval/${EVAL_PROFILE}.json" 2>/dev/null | sort
 )
 
 echo "==> Summarise results into eval_result.md (walks ALL job dirs)"
