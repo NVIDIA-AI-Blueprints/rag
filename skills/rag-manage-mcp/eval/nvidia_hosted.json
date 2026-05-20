@@ -26,7 +26,7 @@
       ]
     },
     {
-      "query": "I want to use my RAG knowledge base from an AI agent. How do I connect them?",
+      "query": "Explain how to connect my RAG knowledge base to an AI agent using MCP. I don't need you to actually set it up — just walk me through the steps and what files to use.",
       "checks": [
         "The agent's trajectory shows it read the rag-manage-mcp SKILL.md before taking action",
         "The agent's trajectory shows it referenced the RAG MCP documentation and examples",
