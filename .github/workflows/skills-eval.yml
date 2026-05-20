@@ -106,47 +106,42 @@ jobs:
           printf "COORDINATOR_ENV=loaded\n" >> "$GITHUB_ENV"
           printf "CLAUDE_CODE_DISABLE_THINKING=1\n" >> "$GITHUB_ENV"
 
-      - name: Run skill eval
-        id: eval
+      - name: Run skills eval agent
+        id: agent
         if: github.event_name != 'push' || steps.changes.outputs.relevant == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           GH_CONFIG_DIR: ${{ runner.temp }}/gh-skill-eval-${{ github.run_id }}
           INPUT_SKILLS: ${{ inputs.skills }}
         run: |
-          mkdir -p "$GH_CONFIG_DIR"
+          mkdir -p "$GH_CONFIG_DIR" /tmp/brev /tmp/skill-eval
           set -a
           source /home/ubuntu/eval-coordinator/.env
           set +a
-
-          # Nightly and manual: run all skills (or selected skill)
-          # PR push: run only changed skills (diff-based via CHANGED_SKILLS)
-          if [ "${{ github.event_name }}" = "push" ]; then
-            # Build list of changed skill names from the PR diff
-            CHANGED=$(git diff origin/${{ steps.pr.outputs.base }}...HEAD --name-only \
-              | grep '^skills/' | cut -d/ -f2 | sort -u | tr '\n' ',')
-            export CHANGED_SKILLS="${CHANGED%,}"
-            echo "Changed skills: $CHANGED_SKILLS"
-          elif [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${INPUT_SKILLS}" != "*" ]; then
-            export CHANGED_SKILLS="${INPUT_SKILLS}"
-          fi
-          # CHANGED_SKILLS empty = run all (nightly + manual *)
           export PR_NUMBER="${{ steps.pr.outputs.number }}"
           export PR_BASE="${{ steps.pr.outputs.base }}"
           export PR_HEAD_SHA="${{ github.sha }}"
           export PR_REPO="${{ github.repository }}"
           export GITHUB_RUN_ID="${{ github.run_id }}"
-          bash ci/run_skill_eval.sh
+          # PYTHONPATH lets uvx harbor resolve envs.*:*Environment from skill-eval/
+          export PYTHONPATH="${GITHUB_WORKSPACE}/skill-eval:${PYTHONPATH:-}"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            export MANUAL_FULL_SWEEP=1
+            export MANUAL_SKILLS_FILTER="${INPUT_SKILLS}"
+          fi
+          python3 .github/skill-eval/skills_eval_agent.py
 
-      - name: Post results as PR comment
-        if: github.event_name == 'push' && (steps.changes.outputs.relevant == 'true') && always()
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Collect results for artifact
+        if: always() && (github.event_name != 'push' || steps.changes.outputs.relevant == 'true')
         run: |
-          if [ -f eval-results/eval_result.md ]; then
-            gh pr comment ${{ steps.pr.outputs.number }} \
-              --body-file eval-results/eval_result.md \
-              --repo ${{ github.repository }} || true
+          if [ ! -d /tmp/skill-eval/results ]; then
+            echo "no results dir — agent blocked before running trials"
+            exit 0
+          fi
+          RESULTS=$(find /tmp/skill-eval/results -maxdepth 3 -name "result.json" 2>/dev/null | head -50 || true)
+          if [ -n "$RESULTS" ]; then
+            tar czf /tmp/skills-eval-results.tar.gz -C /tmp/skill-eval results
+            echo "archived $(echo "$RESULTS" | wc -l) result.json files"
           fi
 
       - name: Upload results artifact
@@ -159,7 +154,7 @@ jobs:
               || github.event_name == 'workflow_dispatch'
               && format('skills-eval-manual-{0}', github.run_id)
               || format('skills-eval-pr-{0}-{1}', steps.pr.outputs.number, github.run_id) }}
-          path: eval-results/
+          path: /tmp/skills-eval-results.tar.gz
           if-no-files-found: ignore
           retention-days: 7
 
