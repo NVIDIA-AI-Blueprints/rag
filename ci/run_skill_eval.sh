@@ -194,15 +194,96 @@ if [ -n "${BREV_INSTANCE:-}" ]; then
     echo "brev not authenticated. Run: brev login --auth nvidia"
     exit 1
   }
-  # Warm-pool mode (mirrors VSS): if $BREV_INSTANCE already exists, reuse
-  # it so docker image cache (notably nv-ingest, ~11 GB) survives between
-  # runs. brev_env.start() handles container/network cleanup on the target
-  # without nuking the image cache. Only auto-provision if missing.
+  # ==========================================================================
+  # >>> VSS-style pre-provision (Mode-1 pattern) <<<
+  # Provision the Brev VM HERE, not inside brev_env. VSS's architecture
+  # (vss-feat-skill-eval/.github/skill-eval/skills_eval_agent.py + AGENTS.md)
+  # has the coordinator do `brev create` BEFORE invoking harbor, then
+  # harbor's brev_env enters Mode 1 (validate-only). We mirror that with
+  # bash here.
+  #
+  # Two reasons this lives in the script, not in brev_env:
+  #   1. EOF resilience: when Brev's control plane has transient hiccups
+  #      (observed multiple times in run 26142225004:
+  #      "unexpected EOF" from brevapi.us-west-2-prod.control-plane.brev.dev),
+  #      `brev create` can return non-zero even when the workspace was
+  #      actually created server-side. Bash with retries handles this
+  #      cleanly; inside brev_env it would cascade-fail 6 trials.
+  #   2. Concentration: one create attempt per CI run, not one per
+  #      harbor trial — failures are isolated to the orchestrator layer.
+  # ==========================================================================
+
+  # If $BREV_INSTANCE is already present (operator pre-provisioned, or
+  # leftover from a prior run), reuse it. Otherwise create + wait.
   if brev ls 2>/dev/null | awk -v n="$BREV_INSTANCE" '$1==n {found=1} END{exit !found}'; then
-    echo "Reusing warm $BREV_INSTANCE"
+    echo "Found existing $BREV_INSTANCE — reusing (skipping create)"
   else
-    echo "No existing $BREV_INSTANCE — brev_env will auto-provision"
+    # Resolve brev_type from the spec JSON (task.toml isn't written yet,
+    # we're before the adapter call).
+    SPEC_FILE_FOR_TYPE="$SKILLS_ROOT/rag-deploy-blueprint/eval/${EVAL_PROFILE}.json"
+    if [ ! -f "$SPEC_FILE_FOR_TYPE" ]; then
+      echo "Spec file not found for $EVAL_PROFILE: $SPEC_FILE_FOR_TYPE"
+      exit 1
+    fi
+    BREV_TYPE=$(python3 - <<PY 2>/dev/null || true
+import json, sys
+spec = json.load(open("$SPEC_FILE_FOR_TYPE"))
+plats = (spec.get("resources") or {}).get("platforms") or {}
+for p in spec.get("platforms", []):
+    cfg = plats.get(p) or {}
+    if cfg.get("brev_type"):
+        print(cfg["brev_type"]); sys.exit(0)
+PY
+)
+    if [ -z "$BREV_TYPE" ]; then
+      echo "Cannot determine brev_type from $SPEC_FILE_FOR_TYPE — set resources.platforms.<name>.brev_type"
+      exit 1
+    fi
+    # Create with EOF-retry loop. Brev's API has been observed to return
+    # `unexpected EOF` to `brev create` even after server-side success
+    # (run 26142225004's trial-1 traceback). After each attempt, check
+    # whether the workspace was actually created — if so, the EOF was a
+    # response-truncation, not a real failure.
+    echo "==> Pre-provisioning $BREV_INSTANCE type=$BREV_TYPE (up to ${BREV_PROVISION_RETRIES:-5} create attempts)"
+    created=0
+    for attempt in $(seq 1 "${BREV_PROVISION_RETRIES:-5}"); do
+      echo "  attempt $attempt: brev create $BREV_INSTANCE type=$BREV_TYPE"
+      echo "$BREV_TYPE" | brev create "$BREV_INSTANCE" --detached 2>&1 | tail -10
+      # Whether the CLI reported success or failure, verify reality:
+      if brev ls 2>/dev/null | awk -v n="$BREV_INSTANCE" '$1==n {found=1} END{exit !found}'; then
+        echo "  → workspace $BREV_INSTANCE exists after attempt $attempt"
+        created=1
+        break
+      fi
+      echo "  → workspace not present after attempt $attempt; sleeping 15s before retry"
+      sleep 15
+    done
+    if [ "$created" -ne 1 ]; then
+      echo "brev create failed permanently after ${BREV_PROVISION_RETRIES:-5} attempts"
+      exit 1
+    fi
   fi
+
+  # Poll until RUNNING+READY (whether we just created or are reusing).
+  # H100 cold-boot on Brev can take 10-15 min. Budget 30 min default.
+  echo "==> Waiting for $BREV_INSTANCE to reach RUNNING+READY (up to ${BREV_PROVISION_TIMEOUT:-1800}s)"
+  deadline=$(($(date +%s) + ${BREV_PROVISION_TIMEOUT:-1800}))
+  last_state=""
+  while [ $(date +%s) -lt $deadline ]; do
+    state=$(brev ls 2>/dev/null | awk -v n="$BREV_INSTANCE" \
+      '$1==n {print $2"+"$4; exit}')
+    if [ -n "$state" ] && [ "$state" != "$last_state" ]; then
+      echo "  $(date -u +%H:%M:%SZ) $BREV_INSTANCE: $state"
+      last_state="$state"
+    fi
+    [ "$state" = "RUNNING+READY" ] && break
+    sleep 15
+  done
+  if [ "$last_state" != "RUNNING+READY" ]; then
+    echo "Pre-provision timed out — last state: $last_state"
+    exit 1
+  fi
+  echo "==> $BREV_INSTANCE ready — handing off to harbor (will use Mode 1, no re-provision)"
 else
   ENV_IMPORT="envs.local_env:LocalEnvironment"
   echo "Local mode (BREV_INSTANCE unset): RAG will deploy on this runner VM"

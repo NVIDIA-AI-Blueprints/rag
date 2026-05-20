@@ -98,40 +98,44 @@ class BrevEnvironment(BaseEnvironment):
             return
 
         meta = self._read_task_metadata()
-        # The workflow passes $BREV_INSTANCE=rag-eval-gpu-<uuid> per CI run;
-        # ci/run_skill_eval.sh's EXIT trap deletes the VM after all trials
-        # finish, so the name should be fresh at the start of each CI run.
+        # VSS Mode-1 pattern (reference:
+        # vss-feat-skill-eval/.github/skill-eval/envs/brev_env.py:115-145).
+        # The VM is pre-provisioned BY THE SCRIPT (ci/run_skill_eval.sh) —
+        # not by this Python class — so we just validate it exists and is
+        # reachable. Putting `brev create` inside this start() caused two
+        # problems we hit in CI:
+        #   - cascade-fail across 6 trials when API EOFs (run 26142225004)
+        #   - "duplicate workspace" on trials 2-6 (run 26139804030)
+        # By keeping create in bash (with retries), failures are isolated
+        # to the orchestrator and trials get a ready VM. _provision() is
+        # still defined below as a fallback for manual harbor invocations
+        # outside the script, but start() never calls it automatically.
         self._instance_name = (
             DEFAULT_INSTANCE
             or meta.get("brev_instance")
             or f"rag-harbor-{uuid.uuid4().hex[:8]}"
         )
-
-        # Multi-trial reuse — VSS Mode-1 pattern (reference:
-        # vss-feat-skill-eval/.github/skill-eval/envs/brev_env.py:132).
-        # Harbor instantiates a fresh BrevEnvironment per trial within
-        # one CI run; self._started always resets to False. Without the
-        # existence check below, every trial after the first calls
-        # `brev create <same_name>` and crashes with "duplicate workspace"
-        # (gpucreate.go:1008 — observed in run 26139804030, all 5 non-
-        # first trials died this way). Check externally: if the named
-        # instance is already RUNNING (from trial 1 in this CI run),
-        # reuse it instead of re-provisioning.
         existing = await _find_brev_instance(self._instance_name)
-        if existing and existing.get("status") == "RUNNING":
-            logger.info(
-                "Brev target: %s (already RUNNING — reusing across trials, "
-                "skipping _provision)",
-                self._instance_name,
+        if existing is None:
+            raise RuntimeError(
+                f"Brev instance '{self._instance_name}' not found. "
+                f"The script (ci/run_skill_eval.sh) should have pre-provisioned "
+                f"this VM. If you're running harbor manually outside the script, "
+                f"create the VM first or set DEFAULT_INSTANCE to an existing one."
             )
-            self._created_by_us = False  # script trap owns lifecycle
+        status = existing.get("status", "")
+        if status != "RUNNING":
+            # VM exists but in transitional state (STARTING, BUILDING,
+            # DEPLOYING, etc.) — wait for it to become READY.
+            logger.info(
+                "Brev target: %s (status=%s, waiting for RUNNING+READY)",
+                self._instance_name, status,
+            )
+            await _wait_for_running(self._instance_name)
         else:
-            logger.info(
-                "Brev target: %s (no existing instance — provisioning)",
-                self._instance_name,
-            )
-            await self._provision(meta)
-            self._created_by_us = True
+            logger.info("Brev target: %s (RUNNING, validated)",
+                        self._instance_name)
+        self._created_by_us = False  # script trap owns lifecycle
 
         # Smoke test: confirm we can exec on the instance.
         result = await _run_brev_exec(
