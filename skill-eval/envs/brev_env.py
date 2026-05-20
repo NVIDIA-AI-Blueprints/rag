@@ -191,13 +191,37 @@ class BrevEnvironment(BaseEnvironment):
         )
 
         # Get the repo onto the target at $HOME/rag via git clone (VSS
-        # pattern). Harbor only uploads task-local files (skills/, tests/),
-        # not the surrounding repo. A fresh clone per run wipes any stale
-        # files from prior trials on warm-pool VMs — no orphan-file class
-        # of bugs to worry about. Trade-off: we test what's been pushed to
-        # the branch, not uncommitted runner state. For PR-driven CI that's
+        # pattern). A fresh clone per run wipes any stale files from
+        # prior trials. Trade-off: we test what's been pushed to the
+        # branch, not uncommitted runner state. For PR-driven CI that's
         # always already pushed, this is fine.
         await self._clone_repo()
+
+        # Upload the task's skills/ subdir to /skills on the VM.
+        # Mirrors VSS (vss-feat-skill-eval/.github/skill-eval/envs/
+        # brev_env.py:263-270). Harbor's claude_code agent expects
+        # /skills/* to exist so its `cp -r /skills/* $CLAUDE_CONFIG_DIR
+        # /skills/` setup step (harbor/agents/installed/claude_code.py:
+        # _build_register_skills_command) populates the Skill tool's
+        # registry. Without this, claude-code's Skill tool returns
+        # "Unknown skill: <name>" for every invocation on Brev —
+        # observed across runs 26139804030 and 26143101237.
+        # LocalEnvironment doesn't need this because mounted=True there
+        # makes the task dir's skills/ accessible to the agent directly.
+        task_dir = self.environment_dir.parent
+        task_skills_dir = task_dir / "skills"
+        if task_skills_dir.is_dir():
+            logger.info(
+                "Uploading skills from %s to /skills on instance",
+                task_skills_dir,
+            )
+            await self.upload_dir(str(task_skills_dir), "/skills")
+        else:
+            logger.warning(
+                "No skills/ subdir at %s — agent's Skill tool will "
+                "fall back to manual Read (less reliable)",
+                task_skills_dir,
+            )
 
         self._started = True
 
