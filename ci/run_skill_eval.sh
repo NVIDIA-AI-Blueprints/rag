@@ -338,15 +338,21 @@ print(plats.get(p, {}).get('brev_type', 'dmz.h100x2.pcie'))
     mv deploy/compose/vectordb.yaml.gpu-bak deploy/compose/vectordb.yaml || true
 
 done < <(
-  # Discover all specs — cpu specs first, then gpu.
-  # CPU (nvidia_hosted) runs first: faster, cheaper, no Brev provisioning.
-  # GPU (h100) runs after: Brev VM provisioning only needed if cpu passes.
-  find "$REPO_ROOT/skill-source/.agents/skills" \
-    -path "*/eval/*.json" 2>/dev/null \
-  | python3 -c "
-import sys
+  # Discover specs under skill-source. Platform routing (cpu/gpu) is
+  # determined per-spec from platforms[].
+  # EVAL_PROFILE (optional): if set, only discover specs whose filename
+  # stem matches (e.g. EVAL_PROFILE=h100 → only h100.json specs).
+  # When unset, all specs run; cpu sorts before gpu.
+  _profile_filter="${EVAL_PROFILE:-}"
+  if [ -n "$_profile_filter" ]; then
+    find "$REPO_ROOT/skill-source/.agents/skills" \
+      -path "*/eval/${_profile_filter}.json" 2>/dev/null | sort
+  else
+    find "$REPO_ROOT/skill-source/.agents/skills" \
+      -path "*/eval/*.json" 2>/dev/null \
+    | python3 -c "
+import sys, json
 files = sys.stdin.read().splitlines()
-import json
 def platform_key(f):
     try:
         p = json.load(open(f)).get('platforms', ['cpu'])[0]
@@ -356,6 +362,7 @@ def platform_key(f):
 for f in sorted(files, key=platform_key):
     print(f)
 "
+  fi
 )
 
 echo "==> Summarise results into eval_result.md (walks ALL job dirs)"
