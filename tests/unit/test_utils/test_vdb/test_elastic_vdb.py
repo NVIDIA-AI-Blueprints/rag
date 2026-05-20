@@ -24,12 +24,11 @@ import pandas as pd
 import pytest
 import requests
 from langchain_core.documents import Document
-from opentelemetry import context as otel_context
-from pydantic import SecretStr
-
 from nvidia_rag.rag_server.response_generator import APIError, ErrorCodeMapping
 from nvidia_rag.utils.vdb.elasticsearch import es_queries
 from nvidia_rag.utils.vdb.elasticsearch.elastic_vdb import ElasticVDB
+from opentelemetry import context as otel_context
+from pydantic import SecretStr
 
 
 class TestElasticVDB(unittest.TestCase):
@@ -1399,7 +1398,9 @@ class TestElasticVDB(unittest.TestCase):
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.ElasticsearchStore")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.time")
     @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.otel_context")
-    @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.get_weighted_hybrid_custom_query")
+    @patch(
+        "nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.get_weighted_hybrid_custom_query"
+    )
     def test_retrieval_langchain_hybrid_weighted_ranker(
         self,
         mock_custom_query,
@@ -1650,7 +1651,9 @@ class TestElasticVDB(unittest.TestCase):
             },
         )
         mock_vectorstore = Mock()
-        mock_vectorstore.similarity_search_by_vector_with_relevance_scores.return_value = [(top_doc, 0.9)]
+        mock_vectorstore.similarity_search_by_vector_with_relevance_scores.return_value = [
+            (top_doc, 0.9)
+        ]
 
         # Chunks returned by the page-level filter query
         page_chunk1 = Document(
@@ -1729,7 +1732,9 @@ class TestElasticVDB(unittest.TestCase):
             },
         )
         mock_vectorstore = Mock()
-        mock_vectorstore.similarity_search_by_vector_with_relevance_scores.return_value = [(top_doc, 0.9)]
+        mock_vectorstore.similarity_search_by_vector_with_relevance_scores.return_value = [
+            (top_doc, 0.9)
+        ]
 
         captured = {}
 
@@ -1780,7 +1785,9 @@ class TestElasticVDB(unittest.TestCase):
             },
         )
         mock_vectorstore = Mock()
-        mock_vectorstore.similarity_search_by_vector_with_relevance_scores.return_value = [(top_doc, 0.9)]
+        mock_vectorstore.similarity_search_by_vector_with_relevance_scores.return_value = [
+            (top_doc, 0.9)
+        ]
 
         captured = {}
 
@@ -1901,7 +1908,9 @@ class TestElasticVDB(unittest.TestCase):
             metadata={"source": {}, "content_metadata": {}},
         )
         mock_vectorstore = Mock()
-        mock_vectorstore.similarity_search_by_vector_with_relevance_scores.return_value = [(bad_doc, 0.9)]
+        mock_vectorstore.similarity_search_by_vector_with_relevance_scores.return_value = [
+            (bad_doc, 0.9)
+        ]
 
         result = elastic_vdb.retrieval_image_langchain(
             query="img",
@@ -1949,6 +1958,117 @@ class TestElasticVDB(unittest.TestCase):
 
         # ElasticsearchStore must have been constructed (via get_langchain_vectorstore)
         mock_es_store_class.assert_called_once()
+
+
+class TestElasticVDBIndexNameNormalization(unittest.TestCase):
+    """Regression tests for NVBug 6189901 / PR #572 — Elasticsearch index
+    names containing uppercase characters previously caused
+    ``BadRequestError(400, 'invalid_index_name_exception', 'Invalid index
+    name [<Name>], must be lowercase')``. The fix routes every entry point
+    through ``ElasticVDB._normalize_index_name``.
+    """
+
+    def test_normalize_index_name_uppercase(self):
+        """Uppercase name from the original bug report is lowercased."""
+        self.assertEqual(
+            ElasticVDB._normalize_index_name("BulkIngestion"), "bulkingestion"
+        )
+
+    def test_normalize_index_name_all_caps(self):
+        """All-caps name is lowercased."""
+        self.assertEqual(ElasticVDB._normalize_index_name("ALLCAPS"), "allcaps")
+
+    def test_normalize_index_name_already_lowercase(self):
+        """Already-lowercase name is returned unchanged (idempotent)."""
+        self.assertEqual(
+            ElasticVDB._normalize_index_name("already_lower"), "already_lower"
+        )
+
+    def test_normalize_index_name_mixed_with_digits_and_underscore(self):
+        """Digits and underscores are preserved; only letter case is changed."""
+        self.assertEqual(
+            ElasticVDB._normalize_index_name("Test123_Collection"),
+            "test123_collection",
+        )
+
+    def test_normalize_index_name_none_is_passthrough(self):
+        """``None`` is returned unchanged so bypass_validation paths still work."""
+        self.assertIsNone(ElasticVDB._normalize_index_name(None))
+
+    def test_normalize_index_name_empty_string_is_passthrough(self):
+        """Empty string is returned unchanged (mirrors the ``None`` contract)."""
+        self.assertEqual(ElasticVDB._normalize_index_name(""), "")
+
+    def test_normalize_index_name_is_idempotent(self):
+        """Applying the helper twice yields the same canonical form."""
+        once = ElasticVDB._normalize_index_name("MiXeD_CaSe")
+        twice = ElasticVDB._normalize_index_name(once)
+        self.assertEqual(once, twice)
+        self.assertEqual(once, "mixed_case")
+
+    @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.Elasticsearch")
+    @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.VectorStore")
+    def test_constructor_normalizes_index_name(
+        self, mock_vector_store, mock_elasticsearch
+    ):
+        """Constructor stores ``self.index_name`` as the lowercase form so
+        every later operation references the same canonical index that
+        Elasticsearch actually creates.
+        """
+        mock_config = Mock()
+        mock_config.embeddings.dimensions = 768
+        mock_config.vector_store.api_key = None
+        mock_config.vector_store.api_key_id = ""
+        mock_config.vector_store.api_key_secret = None
+        mock_config.vector_store.username = ""
+        mock_config.vector_store.password = None
+        mock_config.vector_store.enable_gpu_index = False
+
+        mock_es_connection = Mock()
+        mock_es_connection.options.return_value = mock_es_connection
+        mock_elasticsearch.return_value = mock_es_connection
+        mock_vector_store.return_value = Mock()
+
+        vdb = ElasticVDB(
+            index_name="BulkIngestion",
+            es_url="http://localhost:9200",
+            config=mock_config,
+        )
+
+        self.assertEqual(vdb.index_name, "bulkingestion")
+        self.assertEqual(vdb.collection_name, "bulkingestion")
+
+    @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.Elasticsearch")
+    @patch("nvidia_rag.utils.vdb.elasticsearch.elastic_vdb.VectorStore")
+    def test_collection_name_setter_normalizes(
+        self, mock_vector_store, mock_elasticsearch
+    ):
+        """Assigning a mixed-case name through the ``collection_name`` setter
+        also routes through normalization.
+        """
+        mock_config = Mock()
+        mock_config.embeddings.dimensions = 768
+        mock_config.vector_store.api_key = None
+        mock_config.vector_store.api_key_id = ""
+        mock_config.vector_store.api_key_secret = None
+        mock_config.vector_store.username = ""
+        mock_config.vector_store.password = None
+        mock_config.vector_store.enable_gpu_index = False
+
+        mock_es_connection = Mock()
+        mock_es_connection.options.return_value = mock_es_connection
+        mock_elasticsearch.return_value = mock_es_connection
+        mock_vector_store.return_value = Mock()
+
+        vdb = ElasticVDB(
+            index_name="initial_lower",
+            es_url="http://localhost:9200",
+            config=mock_config,
+        )
+        vdb.collection_name = "ResetWithCaps"
+
+        self.assertEqual(vdb.index_name, "resetwithcaps")
+        self.assertEqual(vdb.collection_name, "resetwithcaps")
 
 
 class TestEsQueries(unittest.TestCase):
