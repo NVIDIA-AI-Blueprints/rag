@@ -41,7 +41,7 @@ logger = logging.getLogger(__name__)
 DEFAULT_INSTANCE = os.environ.get("BREV_INSTANCE")
 BREV_EXEC_TIMEOUT = int(os.environ.get("BREV_EXEC_TIMEOUT", "1800"))
 BREV_COPY_TIMEOUT = int(os.environ.get("BREV_COPY_TIMEOUT", "300"))
-BREV_CREATE_TIMEOUT = int(os.environ.get("BREV_CREATE_TIMEOUT", "600"))
+BREV_CREATE_TIMEOUT = int(os.environ.get("BREV_CREATE_TIMEOUT", "1800"))
 
 
 class BrevEnvironmentType(str, Enum):
