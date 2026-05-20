@@ -327,8 +327,20 @@ HARBOR_CRASHES=0
 # Find every skill that ships a spec for the current profile.
 # Adding a new skill with eval/<profile>.json is all that's needed —
 # no script changes required.
+#
+# CHANGED_SKILLS (optional, set by skills-eval.yml on PR runs):
+#   comma-separated list of skill names that changed in the PR.
+#   When set, only those skills are evaluated (diff-based selection).
+#   When empty, all skills run (nightly + manual dispatch).
 while IFS= read -r spec_file; do
   SKILL_NAME="$(basename "$(dirname "$(dirname "$spec_file")")")"
+  # Diff-based filter: skip skills not in CHANGED_SKILLS (PR runs only)
+  if [ -n "${CHANGED_SKILLS:-}" ]; then
+    if ! echo ",$CHANGED_SKILLS," | grep -q ",$SKILL_NAME,"; then
+      echo "  SKIP  $SKILL_NAME (not in PR diff)"
+      continue
+    fi
+  fi
   SKILL_DIR="$SKILLS_ROOT/$SKILL_NAME"
   DATASETS_DIR="$SKILL_EVAL_DIR/datasets/$SKILL_NAME"
 
