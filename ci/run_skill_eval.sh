@@ -317,7 +317,17 @@ if [ "$ENV_IMPORT" = "envs.local_env:LocalEnvironment" ]; then
   docker ps -a --format '{{.Names}}' | \
     grep -E '(rag|milvus|nim|ingest|redis|nemo|grafana|prometheus|embedding|ranking|vlm|ocr|page-elements|graphic-elements|table-structure|nv-ingest)' | \
     xargs -r docker rm -f >/dev/null 2>&1 || true
-  sudo rm -rf deploy/compose/volumes /tmp/milvus-eval /tmp/ingestor-server-data 2>/dev/null || true
+  # Remove root-owned volume dirs using Docker (no sudo needed).
+  # Containers write as root; only another root process can delete them.
+  # docker run --rm with alpine does the job without requiring sudo on the host.
+  for vol_dir in deploy/compose/volumes ci/volumes; do
+    if [ -d "$vol_dir" ]; then
+      docker run --rm -v "$(pwd)/${vol_dir}:/target" alpine \
+        sh -c "rm -rf /target/*" 2>/dev/null || true
+      rm -rf "$vol_dir" 2>/dev/null || true
+    fi
+  done
+  rm -rf /tmp/milvus-eval /tmp/ingestor-server-data 2>/dev/null || true
 fi
 # GPU pre-flight (BrevEnvironment mode) is handled inside brev_env.start()
 # — the VM is provisioned fresh per CI run, so there's no prior-state
@@ -443,7 +453,14 @@ if [ "$ENV_IMPORT" = "envs.local_env:LocalEnvironment" ]; then
     deploy/compose/vectordb.yaml; do
     [ -f "$f" ] && docker compose -f "$f" down -v --remove-orphans >/dev/null 2>&1 || true
   done
-  sudo rm -rf deploy/compose/volumes /tmp/milvus-eval /tmp/ingestor-server-data 2>/dev/null || true
+  for vol_dir in deploy/compose/volumes ci/volumes; do
+    if [ -d "$vol_dir" ]; then
+      docker run --rm -v "$(pwd)/${vol_dir}:/target" alpine \
+        sh -c "rm -rf /target/*" 2>/dev/null || true
+      rm -rf "$vol_dir" 2>/dev/null || true
+    fi
+  done
+  rm -rf /tmp/milvus-eval /tmp/ingestor-server-data 2>/dev/null || true
 fi
 
 echo "==> Stage outputs to eval-results/ for artifact upload"
