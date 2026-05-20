@@ -329,6 +329,7 @@ services:
               capabilities: [gpu]
     profiles: ["audio"]
 
+  # Nemotron Omni — used for generation.
   vlm-ms:
     container_name: nemotron-3-nano-omni-30b-a3b-reasoning
     image: nvcr.io/nim/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:1.7.0-variant
@@ -359,6 +360,37 @@ services:
               device_ids: ['${VLM_MS_GPU_ID:-5}']
               capabilities: [gpu]
     profiles: ["vlm-only", "vlm-generation", "vlm-rag"]
+
+  # Nemotron Nano 12B — used for image captioning.
+  vlm-captioning-ms:
+    container_name: nemotron-nano-12b-v2-vl
+    image: nvcr.io/nim/nvidia/nemotron-nano-12b-v2-vl:${VLM_CAPTIONING_TAG:-1.6.0}
+    volumes:
+    - ${MODEL_DIRECTORY:-./}:/opt/nim/.cache
+    ports:
+    - "1978:8000"
+    expose:
+    - "8000"
+    environment:
+      NGC_API_KEY: ${NGC_API_KEY}
+      NIM_HTTP_API_PORT: 8000
+      NIM_TRITON_LOG_VERBOSE: 1
+      CUDA_VISIBLE_DEVICES: 0
+    user: "0"
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import requests; requests.get('http://localhost:8000/v1/health/ready')"]
+      interval: 10s
+      timeout: 20s
+      retries: 100
+    shm_size: 32GB
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ['${VLM_CAPTIONING_MS_GPU_ID:-6}']
+              capabilities: [gpu]
+    profiles: ["ingest", "vlm-rag", "vlm-generation"]
 
 networks:
   default:
