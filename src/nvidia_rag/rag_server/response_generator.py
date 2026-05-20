@@ -37,6 +37,7 @@ from uuid import uuid4
 
 import bleach
 from langchain_core.documents import Document
+from minio.error import S3Error
 from pydantic import BaseModel, Field, validator
 from pymilvus.exceptions import MilvusException, MilvusUnavailableException
 
@@ -46,6 +47,22 @@ from nvidia_rag.utils.object_store import (
     get_unique_thumbnail_id,
 )
 from nvidia_rag.utils.observability.otel_metrics import OtelMetrics
+
+
+def _is_missing_object_error(exc: BaseException) -> bool:
+    """Return True when ``exc`` represents 'object key not present in storage'.
+
+    The intermittent ES/object-store desync described in NVBug 6191270 produces an
+    expected NoSuchKey for S3 backends (and FileNotFoundError for the filesystem
+    backend). Callers downgrade the log for this case so the noisy stack trace
+    does not mask other failures (auth, network, etc.).
+    """
+    if isinstance(exc, FileNotFoundError):
+        return True
+    if isinstance(exc, S3Error) and getattr(exc, "code", None) == "NoSuchKey":
+        return True
+    return False
+
 
 logger = logging.getLogger(__name__)
 
@@ -993,9 +1010,16 @@ def prepare_citations(
                             content_metadata=doc.metadata.get("content_metadata"),
                         )
                 except Exception as e:
-                    logger.exception(
-                        f"Error pulling content from object storage for image/table/chart for citations: {e}"
-                    )
+                    if _is_missing_object_error(e):
+                        logger.warning(
+                            "Object not found in object storage for image/table/chart "
+                            "citation; skipping citation. source_location=%s",
+                            source_location,
+                        )
+                    else:
+                        logger.exception(
+                            f"Error pulling content from object storage for image/table/chart for citations: {e}"
+                        )
                     content = ""
                     source_metadata = SourceMetadata(
                         description=doc.page_content,
@@ -1135,12 +1159,19 @@ def prepare_citations_nrl(
                     )
                     content = base64.b64encode(raw_bytes).decode("ascii")
                 except Exception as exc:
-                    logger.exception(
-                        "[Prepare Citations NRL] Failed to fetch asset from object storage"
-                        " (uri=%s): %s",
-                        stored_image_uri,
-                        exc,
-                    )
+                    if _is_missing_object_error(exc):
+                        logger.warning(
+                            "[Prepare Citations NRL] Object not found in object "
+                            "storage; skipping chunk. uri=%s",
+                            stored_image_uri,
+                        )
+                    else:
+                        logger.exception(
+                            "[Prepare Citations NRL] Failed to fetch asset from object storage"
+                            " (uri=%s): %s",
+                            stored_image_uri,
+                            exc,
+                        )
                     content = ""
             # When citations are disabled, content stays empty and the chunk
             # is skipped by the guard below, so no object-store call is made.

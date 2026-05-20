@@ -20,6 +20,7 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 from langchain_core.messages import AIMessageChunk
+from minio.error import S3Error
 from pydantic import ValidationError
 from pymilvus.exceptions import MilvusException, MilvusUnavailableException
 
@@ -46,6 +47,7 @@ from nvidia_rag.rag_server.response_generator import (
     generate_answer,
     generate_answer_async,
     prepare_citations,
+    prepare_citations_nrl,
     prepare_llm_request,
     retrieve_summary,
 )
@@ -1138,6 +1140,77 @@ class TestPrepareCitationsErrorHandling:
             # When object-store fetch fails, content is empty, so citation is not added
             assert result.total_results == 0
 
+    # UNVERIFIED: could not run live; recommended fix only.
+    # Tracks the log-level demotion from NVBug 6191270 — the underlying ES /
+    # object-store desync is intermittent and was not live-reproduced in the
+    # docker NVIDIA-Hosted deployment used for this run.
+    def test_prepare_citations_nosuchkey_is_warning_not_error(self, caplog):
+        """NoSuchKey from S3 must log at WARNING (not ERROR) — NVBug 6191270."""
+        mock_doc = Mock()
+        mock_doc.page_content = "Test content"
+        mock_doc.metadata = {
+            "source": {
+                "source_id": "test.pdf",
+                "source_location": "s3://default-bucket/coll/file.pdf/43.png",
+            },
+            "content_metadata": {
+                "type": "structured",
+                "subtype": "chart",
+                "page_number": 43,
+                "location": [],
+            },
+            "collection_name": "test_collection",
+        }
+
+        not_found = S3Error(
+            code="NoSuchKey",
+            message="The specified key does not exist.",
+            resource="/default-bucket/coll/file.pdf/43.png",
+            request_id="req-1",
+            host_id=None,
+            response=Mock(),
+            bucket_name="default-bucket",
+            object_name="coll/file.pdf/43.png",
+        )
+
+        with patch(
+            "nvidia_rag.rag_server.response_generator.get_object_store_operator_instance"
+        ) as mock_object_store_getter:
+            mock_object_store = Mock()
+            mock_object_store.get_object_from_uri.side_effect = not_found
+            mock_object_store_getter.return_value = mock_object_store
+
+            with caplog.at_level(
+                "WARNING", logger="nvidia_rag.rag_server.response_generator"
+            ):
+                result = prepare_citations([mock_doc], enable_citations=True)
+
+            assert isinstance(result, Citations)
+            # Drop-on-empty-content behavior is preserved (intentional per the
+            # inline comment in prepare_citations to avoid UI errors).
+            assert result.total_results == 0
+
+            # The whole point of the fix: NoSuchKey is a WARNING, not an ERROR.
+            error_records = [
+                r
+                for r in caplog.records
+                if r.name == "nvidia_rag.rag_server.response_generator"
+                and r.levelname == "ERROR"
+            ]
+            warning_records = [
+                r
+                for r in caplog.records
+                if r.name == "nvidia_rag.rag_server.response_generator"
+                and r.levelname == "WARNING"
+            ]
+            assert not error_records, (
+                "NoSuchKey citation miss must not log at ERROR; got: "
+                f"{[r.getMessage() for r in error_records]}"
+            )
+            assert (
+                warning_records
+            ), "NoSuchKey citation miss must log at WARNING; no warning emitted"
+
     def test_prepare_citations_with_document_type_audio(self):
         """Test prepare_citations with audio document type"""
         mock_doc = Mock()
@@ -1152,6 +1225,75 @@ class TestPrepareCitationsErrorHandling:
         assert isinstance(result, Citations)
         assert result.total_results == 1
         assert result.results[0].document_type == "audio"
+
+    # UNVERIFIED: could not run live; recommended fix only.
+    # Mirrors test_prepare_citations_nosuchkey_is_warning_not_error for the
+    # NRL/LanceDB ingestion code path, which has the same log-level demotion
+    # applied per NVBug 6191270.
+    def test_prepare_citations_nrl_nosuchkey_is_warning_not_error(self, caplog):
+        """NoSuchKey from S3 must log at WARNING (not ERROR) — NRL variant."""
+        mock_doc = Mock()
+        mock_doc.page_content = "Visual asset fallback text"
+        mock_doc.metadata = {
+            "stored_image_uri": "s3://default-bucket/coll/file.pdf/43.png",
+            "content_type": "chart",
+            "filename": "file.pdf",
+            "path": "/tmp/file.pdf",
+            "source": "/tmp/file.pdf",
+            "source_id": "file.pdf",
+            "page_number": 43,
+            "pdf_page": "file_43",
+            "pdf_basename": "file",
+            "bbox_xyxy_norm": "[0,0,1,1]",
+            "metadata": {},
+        }
+
+        not_found = S3Error(
+            code="NoSuchKey",
+            message="The specified key does not exist.",
+            resource="/default-bucket/coll/file.pdf/43.png",
+            request_id="req-1",
+            host_id=None,
+            response=Mock(),
+            bucket_name="default-bucket",
+            object_name="coll/file.pdf/43.png",
+        )
+
+        with patch(
+            "nvidia_rag.rag_server.response_generator.get_object_store_operator_instance"
+        ) as mock_object_store_getter:
+            mock_object_store = Mock()
+            mock_object_store.get_object_from_uri.side_effect = not_found
+            mock_object_store_getter.return_value = mock_object_store
+
+            with caplog.at_level(
+                "WARNING", logger="nvidia_rag.rag_server.response_generator"
+            ):
+                result = prepare_citations_nrl([mock_doc], enable_citations=True)
+
+            assert isinstance(result, Citations)
+            # NRL also drops chunks with empty content; preserved behavior.
+            assert result.total_results == 0
+
+            error_records = [
+                r
+                for r in caplog.records
+                if r.name == "nvidia_rag.rag_server.response_generator"
+                and r.levelname == "ERROR"
+            ]
+            warning_records = [
+                r
+                for r in caplog.records
+                if r.name == "nvidia_rag.rag_server.response_generator"
+                and r.levelname == "WARNING"
+            ]
+            assert not error_records, (
+                "NRL NoSuchKey miss must not log at ERROR; got: "
+                f"{[r.getMessage() for r in error_records]}"
+            )
+            assert (
+                warning_records
+            ), "NRL NoSuchKey miss must log at WARNING; no warning emitted"
 
 
 class TestRetrieveSummaryEdgeCases:
