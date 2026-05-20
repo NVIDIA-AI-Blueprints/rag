@@ -2166,7 +2166,8 @@ async def vector_store_search(
             "content": {
                 "application/json": {
                     "example": {
-                        "message": "Invalid timeout value. Timeout must be a non-negative integer.",
+                        "message": "Invalid timeout value. Timeout must be a positive integer.",
+                        "status": "FAILED",
                         "error": "Provided timeout value: -1",
                     }
                 }
@@ -2224,14 +2225,16 @@ async def get_summary(
 ) -> JSONResponse:
     "Retrieve document summary from the collection. Fetches pre-generated summaries with support for both blocking and non-blocking modes."
 
-    # Convert float timeout to int and validate to avoid negative values
+    from nvidia_rag.rag_server.validation import (
+        invalid_summary_timeout_response,
+        is_invalid_summary_timeout,
+    )
+
+    # Convert float timeout to int and validate positive values
     timeout = int(timeout)
-    if timeout < 0:
+    if is_invalid_summary_timeout(timeout):
         return JSONResponse(
-            content={
-                "message": "Invalid timeout value. Timeout must be a non-negative integer.",
-                "error": f"Provided timeout value: {timeout}",
-            },
+            content=invalid_summary_timeout_response(timeout),
             status_code=ErrorCodeMapping.BAD_REQUEST,
         )
 
