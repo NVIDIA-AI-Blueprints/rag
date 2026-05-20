@@ -124,6 +124,10 @@ override-dependencies = [
     "langsmith>=0.8.0",
     "langchain-text-splitters>=1.1.2",
     "transformers>=5.1.0",
+    "idna>=3.15",
+    "pygments>=2.20.0",
+    "python-dotenv>=1.2.2",
+    "requests>=2.33.0",
 ]
 
 [tool.setuptools]
