@@ -44,7 +44,7 @@ For monitoring deployment progress, refer to [Deploy on Kubernetes with Helm](./
 
 1. [Get an API Key](api-key.md).
 
-2. Install Docker Engine and Docker Compose. Ensure Docker Compose version is 2.29.1 or later.
+2. Install Docker Engine 24.0 or later and Docker Compose version 2.29.1 or later. Docker Engine 29.5.x is not supported for this release because it can fail to pull required NGC images.
 
 3. Authenticate Docker with NGC:
 
