@@ -109,6 +109,7 @@ jobs:
           filters: |
             relevant:
               - 'skills/**'
+              - 'skill-source/**'
               - '.github/skill-eval/**'
               - '.github/workflows/skills-eval.yml'
               - 'ci/run_skill_eval.sh'
