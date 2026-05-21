@@ -1,4 +1,4 @@
-# Build stage - OSRB approved Ubuntu base (Bug 3840915)
+# Build stage
 FROM nvcr.io/nvidia/base/ubuntu:jammy-20260217 AS builder
 
 ARG DOWNLOAD_LEGAL_COMPLIANCE=false
@@ -92,8 +92,7 @@ RUN if [ "$DOWNLOAD_LEGAL_COMPLIANCE" = "true" ] && [ -d /legal ]; then \
     fi
 
 # Production stage - NVIDIA distroless (pre-approved)
-# Updated to latest version to address CVE-2025-9230 (libssl3)
-FROM nvcr.io/nvidia/distroless/node:24-v4.0.6
+FROM nvcr.io/nvidia/distroless/node:24-v4.0.7
 
 # Copy built application and config for production preview
 WORKDIR /app/frontend
