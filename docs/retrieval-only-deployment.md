@@ -229,32 +229,73 @@ python scripts/retriever_api_usage.py \
 
 Use the same cluster prerequisites as a full Helm deployment, including the ECK operator for the default Elasticsearch vector database—refer to [Deploy on Kubernetes with Helm](deploy-helm.md#prerequisites).
 
-For Kubernetes deployments, configure the Helm chart to disable the LLM NIM:
+In the v2.6.0 chart, the embedding and reranking NIMs are enabled by default; the LLM NIM (`nim-llm`) is also enabled by default and must be disabled for retrieval-only mode. The VLM generation (`nim-vlm`) and VLM captioning (`nim-vlm-captioning`) services are disabled by default and require no action.
+
+| Component | v2.6.0 default | Retrieval-only |
+|-----------|----------------|----------------|
+| `nim-llm` (LLM) | enabled | **set to `false`** |
+| `nvidia-nim-llama-nemotron-embed-vl-1b-v2` (VLM embedder) | enabled | leave enabled |
+| `nvidia-nim-llama-nemotron-rerank-1b-v2` (text reranker) | enabled | leave enabled |
+| `nim-vlm`, `nim-vlm-captioning` | disabled | leave disabled |
+
+### Option A: --set flag
 
 ```bash
-helm upgrade --install rag nvidia-blueprint-rag \
-  --namespace rag \
+helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.6.0.tgz \
+  --username '$oauthtoken' \
+  --password "${NGC_API_KEY}" \
   --set nimOperator.nim-llm.enabled=false \
-  --set nimOperator.nvidia-nim-llama-nemotron-embed-1b-v2.enabled=true \
-  --set nimOperator.nvidia-nim-llama-nemotron-rerank-1b-v2.enabled=true \
   --set imagePullSecret.password=$NGC_API_KEY \
   --set ngcApiSecret.password=$NGC_API_KEY
 ```
 
-Or modify `values.yaml`:
+### Option B: values.yaml override
 
 ```yaml
-# Disable LLM NIM for retrieval-only deployment
+# Disable LLM NIM for retrieval-only deployment.
+# VLM embedder + text reranker stay on chart defaults (enabled).
 nimOperator:
   nim-llm:
     enabled: false
+```
 
-  # Keep embedding and reranking NIMs enabled
+### (Optional) Use the text embedder instead of the VLM embedder
+
+If you don't want to pull the VLM embedding NIM, switch to the text embedder by flipping the two embedder enable flags and pointing the embedding env vars at the text NIM:
+
+```yaml
+nimOperator:
+  nim-llm:
+    enabled: false
+  nvidia-nim-llama-nemotron-embed-vl-1b-v2:
+    enabled: false
   nvidia-nim-llama-nemotron-embed-1b-v2:
     enabled: true
 
-  nvidia-nim-llama-nemotron-rerank-1b-v2:
-    enabled: true
+envVars:
+  APP_EMBEDDINGS_MODELNAME: "nvidia/llama-nemotron-embed-1b-v2"
+  APP_EMBEDDINGS_SERVERURL: "nemotron-embedding-ms:8000/v1"
+
+ingestor-server:
+  envVars:
+    APP_EMBEDDINGS_MODELNAME: "nvidia/llama-nemotron-embed-1b-v2"
+    APP_EMBEDDINGS_SERVERURL: "nemotron-embedding-ms:8000/v1"
+
+nv-ingest:
+  envVars:
+    EMBEDDING_NIM_ENDPOINT: "http://nemotron-embedding-ms:8000/v1"
+    EMBEDDING_NIM_MODEL_NAME: "nvidia/llama-nemotron-embed-1b-v2"
+```
+
+Apply the chart with the values override:
+
+```bash
+helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.6.0.tgz \
+  --username '$oauthtoken' \
+  --password "${NGC_API_KEY}" \
+  --set imagePullSecret.password=$NGC_API_KEY \
+  --set ngcApiSecret.password=$NGC_API_KEY \
+  -f values.yaml
 ```
 
 

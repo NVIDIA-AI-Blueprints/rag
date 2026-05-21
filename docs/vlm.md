@@ -143,7 +143,17 @@ Continue with [Deploy with Docker (NVIDIA-Hosted Models)](deploy-docker-nvidia-h
    APP_VLM_SERVERURL: "http://nim-vlm:8000/v1"
    ```
 
-2. Enable `nim-vlm` and disable `nim-llm` (VLM replaces LLM for generation):
+2. Enable image extraction (and the captioning that runs alongside it) for ingestion. Under `ingestor-server.envVars`, set:
+
+   ```yaml
+   ingestor-server:
+     envVars:
+       APP_NVINGEST_EXTRACTIMAGES: "True"
+   ```
+
+   Image captioning is recommended when running VLM generation so that ingested images are indexed with their captions and surface as citations at query time.
+
+3. Enable `nim-vlm` and disable `nim-llm` (VLM replaces LLM for generation):
 
    ```yaml
    nimOperator:
@@ -157,9 +167,9 @@ Continue with [Deploy with Docker (NVIDIA-Hosted Models)](deploy-docker-nvidia-h
    By disabling `nim-llm` and enabling `nim-vlm`, the VLM uses the GPU resources normally allocated to the LLM, so no additional hardware is required.
    :::
 
-3. Apply the changes as described in [Change a Deployment](deploy-helm.md#change-a-deployment). For full steps, see [Deploy with Helm](deploy-helm.md).
+4. Apply the changes as described in [Change a Deployment](deploy-helm.md#change-a-deployment). For full steps, see [Deploy with Helm](deploy-helm.md).
 
-4. Verify the VLM pod is running. A pod with the name `nim-vlm-*` will start (the `nim-llm` pod will not be created when it is disabled). Example status:
+5. Verify the VLM pod is running. A pod with the name `nim-vlm-*` will start (the `nim-llm` pod will not be created when it is disabled). Example status:
 
    ```text
    rag       nim-vlm-f4c446cbf-ffzm7       1/1     Running   0          22m
