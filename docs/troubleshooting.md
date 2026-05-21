@@ -222,6 +222,15 @@ To resolve this issue, upgrade Docker Compose to version `v2.29.0` or later.
 * error decoding 'Deploy.Resources.Reservations.devices[0]': invalid string value for 'count' (the only value allowed is 'all')
 ```
 
+## NGC image pull error with Docker Engine 29.5.x
+
+You might encounter the following error while Docker pulls required NGC images.
+
+```bash
+error from registry: Incorrect Repository Format
+```
+
+This is known to occur with Docker Engine 29.5.x. Use a different Docker Engine version, such as 29.4.3.
 
 
 ## Device error

@@ -12,7 +12,7 @@ Continuous ingestion from object storage connects the [RAG blueprint](readme.md)
 |-------------|---------|
 | **GPU** | 2x RTX PRO 6000 Blackwell or 2x H100 |
 | **OS** | Ubuntu 22.04 or later |
-| **Docker** | Docker 24.0+ with Docker Compose v2 |
+| **Docker** | Docker 24.0+ with Docker Compose v2. Docker Engine 29.5.x is not supported. |
 | **NVIDIA Driver** | 570+ |
 | **NVIDIA Container Toolkit** | Required |
 
