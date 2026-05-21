@@ -16,6 +16,16 @@ on:
         description: 'Script path relative to repo root'
         required: true
         default: 'ci/run_nvbase_eval.sh'
+      runner:
+        description: 'Runner label to use'
+        required: true
+        default: 'blueprints-skills-eval-runner'
+        type: choice
+        options:
+          - blueprints-skills-eval-runner
+          - sonarqube-workflows-bp-sre
+          - arc-runners-org-nvidia-ai-bp-2-gpu
+          - rag-eval
 
 permissions:
   contents: read
@@ -27,7 +37,7 @@ concurrency:
 jobs:
   run:
     name: Run ${{ inputs.script }} on ${{ inputs.ref }}
-    runs-on: arc-runners-org-nvidia-ai-bp-2-gpu
+    runs-on: ${{ inputs.runner }}
     timeout-minutes: 120
 
     steps:
