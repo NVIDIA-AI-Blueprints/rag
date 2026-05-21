@@ -1,6 +1,6 @@
 # Result analysis scripts
 
-Ready-to-run Python patterns for analyzing `evaluate_rag.py` outputs. Load when the user wants per-row queries, worst-accuracy tables, CSV export, or token usage summaries.
+Ready-to-run Python patterns for analyzing `evaluate_rag.py` RAGAS outputs. Load when the user wants per-row queries, worst-accuracy tables, or CSV export.
 
 All paths assume default `--output_dir results`; substitute your actual dataset basename for `my_dataset`.
 
@@ -72,17 +72,4 @@ for acc, d in pairs[:5]:
     q = d["question"][:60].replace("|", "\\|")
     a = d.get("generated_answer", "")[:80].replace("|", "\\|")
     print(f"| {d.get('id','')} | {acc:.2f} | {q} | {a} |")
-```
-
-## Token usage summary
-
-```python
-import json
-
-m = json.load(open("results/my_dataset/rag_my_dataset_evaluation_metrics.json"))
-tu = m.get("token_usage", {})
-print(f"Total tokens:              {tu.get('total_tokens', 0)}")
-print(f"Mean prompt tokens/query:  {tu.get('mean_prompt_tokens', 0):.1f}")
-print(f"Mean completion tokens:    {tu.get('mean_completion_tokens', 0):.1f}")
-print(f"Samples with usage data:   {tu.get('sample_count', 0)}")
 ```

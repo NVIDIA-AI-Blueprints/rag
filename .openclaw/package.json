@@ -1,0 +1,40 @@
+{
+  "name": "@nvidia/openclaw-rag",
+  "version": "2.6.0",
+  "description": "RAG Claw — NVIDIA RAG Blueprint agent for OpenClaw",
+  "type": "module",
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "peerDependencies": {
+    "openclaw": ">=2026.5.17"
+  },
+  "keywords": [
+    "openclaw",
+    "openclaw-plugin",
+    "rag",
+    "nvidia",
+    "retrieval-augmented-generation"
+  ],
+  "main": "./dist/index.js",
+  "files": [
+    "dist/",
+    "skills/",
+    "workspace/",
+    "openclaw.plugin.json",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "npm run build:skills && tsc",
+    "build:skills": "test -e skills || cp -r ../skill-source/.agents/skills skills",
+    "prepack": "if [ -e skills ]; then echo 'ERROR: .openclaw/skills/ exists; refusing to overwrite (remove it or rename before npm pack)' >&2; exit 1; fi; npm run build && : > .skills.staged",
+    "postpack": "if [ -f .skills.staged ]; then rm -rf skills .skills.staged; fi"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "typescript": "^5.8.3"
+  },
+  "openclaw": {
+    "extensions": ["./dist/index.js"]
+  }
+}
