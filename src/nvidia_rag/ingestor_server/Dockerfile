@@ -31,14 +31,23 @@ RUN if [ "$DOWNLOAD_LEGAL_COMPLIANCE" = "true" ]; then \
         apt list --installed 2>/dev/null | tail -n +2 | sed 's|/.*||' | sort -u > /tmp/packages-before.txt; \
     fi
 
-# Install required ubuntu packages for setting up python 3.13
-# Update all packages to address security vulnerabilities including CVE-2025-68973 (gpgv)
+# Install required ubuntu packages for setting up python 3.13 (3.13.13+ for CVE-2026-6100/7210/3298/4786)
 RUN apt update && \
     apt upgrade -y && \
-    apt install -y curl software-properties-common libgl1 libglib2.0-0 libmagic1 file build-essential && \
+    apt install -y curl software-properties-common libgl1 libglib2.0-0 libmagic1 file build-essential wget ca-certificates && \
     add-apt-repository ppa:deadsnakes/ppa && \
-    apt update && apt upgrade -y && apt install -y python3.13 python3.13-dev && \
+    apt update && apt upgrade -y && \
+    apt install -y python3.13 python3.13-dev python3.13-venv && \
+    python3.13 --version | grep -Eq 'Python 3\.13\.(1[3-9]|[2-9][0-9])' && \
     apt-get clean
+
+# libexpat 2.8.0+ required with Python 3.13.13 for CVE-2026-7210 (jammy ships 2.4.x)
+RUN cd /tmp && \
+    curl -fsSL https://github.com/libexpat/libexpat/releases/download/R_2_8_0/expat-2.8.0.tar.xz -o expat.tar.xz && \
+    tar xf expat.tar.xz && cd expat-2.8.0 && \
+    ./configure --prefix=/usr/local --without-docbook && \
+    make -j"$(nproc)" && make install && \
+    rm -rf /tmp/expat*
 
 # Download ONLY sources for packages WE installed (conditional on DOWNLOAD_LEGAL_COMPLIANCE)
 RUN if [ "$DOWNLOAD_LEGAL_COMPLIANCE" = "true" ]; then \
@@ -118,12 +127,14 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV DEBIAN_FRONTEND noninteractive
 
 # Install ONLY the essential runtime libraries (no build tools, no Python installation process)
-# Update all packages to address CVE-2025-68973 (gpgv) and other security vulnerabilities
-RUN apt update
-RUN apt upgrade -y
-RUN apt install -y libexpat1 && \
+RUN apt update && \
+    apt upgrade -y && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
+
+# Patched libexpat for CVE-2026-7210 (not provided by jammy base libexpat1)
+COPY --from=python-env /usr/local/lib/libexpat.so* /usr/local/lib/
+ENV LD_LIBRARY_PATH=/usr/local/lib:${LD_LIBRARY_PATH}
 
 # Copy MPL-licensed CA Bundle from python-env stage
 COPY --from=python-env /etc/ssl/certs/cacert.pem /etc/ssl/certs/cacert.pem

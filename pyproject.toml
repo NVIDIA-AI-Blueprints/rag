@@ -122,6 +122,7 @@ override-dependencies = [
     "aiohttp>=3.13.4",
     "orjson>=3.11.6",
     "langsmith>=0.8.0",
+    "langchain-classic>=1.0.7",
     "langchain-text-splitters>=1.1.2",
     "transformers>=5.1.0",
     "idna>=3.15",
