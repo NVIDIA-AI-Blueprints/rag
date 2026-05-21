@@ -296,11 +296,21 @@ print(plats.get(p, {}).get('brev_type', 'dmz.h100x2.pcie'))
         sleep 15
       done
       DEADLINE=$(( $(date +%s) + 1800 ))
+      last_state=""
       while [ "$(date +%s)" -lt "$DEADLINE" ]; do
         STATE=$(brev ls 2>/dev/null | awk -v n="$BREV_INSTANCE" '$1==n {print $2"+"$4}')
+        if [ -n "$STATE" ] && [ "$STATE" != "$last_state" ]; then
+          echo "  $(date -u +%H:%M:%SZ) $BREV_INSTANCE: $STATE"
+          last_state="$STATE"
+        fi
         [ "$STATE" = "RUNNING+READY" ] && break
         sleep 15
       done
+      if [ "$last_state" != "RUNNING+READY" ]; then
+        echo "Pre-provision timed out — last state: ${last_state:-unknown}"
+        exit 1
+      fi
+      echo "==> $BREV_INSTANCE ready"
       mkdir -p /tmp/brev
       echo "$BREV_INSTANCE" >> "/tmp/brev/started-by-${GITHUB_RUN_ID:-local}.txt"
       ;;
