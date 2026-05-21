@@ -10,23 +10,26 @@ This documentation contains the release notes for [NVIDIA RAG Blueprint](readme.
 
 ## Release 2.6.0 (TBD)
 
-This release updates the default deployment stack to Elasticsearch and SeaweedFS, moves the default model stack to Nemotron 3 Super with VLM embeddings, and adds agentic, filtering, and evaluation capabilities to the RAG pipeline.
+This release adds [Agentic RAG](./agentic-rag.md) support with plan-and-execute pipelines, streaming responses, and UI integration; changes the default vector database to Elasticsearch and the default object store to SeaweedFS; and introduces new [agent skills](../skill-source/README.md) for deployment, evaluation, and performance tooling.
 
 ### Highlights
 
 This release includes the following key updates:
 
 - [Added Agentic RAG support](./agentic-rag.md), including the plan-and-execute pipeline, streaming responses, and RAG UI integration.
-- Changed the default vector database to Elasticsearch. Milvus remains available as an optional vector database backend.
+- Changed the default vector database to Elasticsearch. 
+  - [GPU accelerated support needs enterprise access](./elasticsearch-configuration.md) and is disabled by default.
+  - [Milvus](./change-vectordb.md) remains available as an optional vector database backend.
 - Changed the default object store to SeaweedFS from MinIO.
 - Updated the default LLM to `nvidia/nemotron-3-super-120b-a12b` and enabled Nemotron reasoning by default in deployment configurations.
-- Promoted `nvidia/llama-nemotron-embed-vl-1b-v2` as the default embedding model. The text embedding model `nvidia/llama-nemotron-embed-1b-v2` remains available as an optional configuration.
-- Added VLM reranker support as an opt-in.
+- Promoted `nvidia/llama-nemotron-embed-vl-1b-v2` as the default embedding model. The text embedding model `nvidia/llama-nemotron-embed-1b-v2` remains available as [an optional configuration](./change-model.md#switch-from-the-vlm-embedder-to-the-text-only-embedder).
+- Added [VLM reranker support](./change-model.md#switch-to-the-vlm-reranker) as an opt-in.
 - Added dynamic filter expression generation for Elasticsearch.
-- Published RAG performance tooling on GitHub.
-- Published the RAG evaluation framework on GitHub.
+- Published [RAG performance tooling](../scripts/rag-perf/) and [skills](../skill-source/README.md) to use it easily.
+- Published the [RAG evaluation framework](../scripts/eval/README.md) and [skills](../skill-source/README.md) to use it easily.
 - Updated NV-Ingest to version 26.3.0.
 - Updated OCR NIM naming from `nemoretriever-ocr-v1` to `nemotron-ocr-v1`.
+- Added OpenClaw plugin for agent-driven deploy/configure/eval workflows.
 
 ### Fixed Known Issues
 
