@@ -1,0 +1,33 @@
+{
+  "skills": ["rag-evaluate-quality"],
+  "platforms": ["cpu"],
+  "resources": {
+    "platforms": {
+      "cpu": {
+        "brev_type": "n2d-standard-4",
+        "description": "GCP n2d-standard-4 (4 vCPU, 16 GB). RAG stack running with documents ingested."
+      }
+    }
+  },
+  "env": "Linux host with Docker + Docker Compose plugin. RAG stack is running: rag-server at http://localhost:8081. The rag-evaluate-quality skill explains evaluation approaches and guides the user through quality measurement — it does not require pre-existing RAGAS datasets to answer advisory questions. cwd: ${RAG_REPO_ROOT}/.",
+  "expects": [
+    {
+      "query": "My RAG system seems to be giving inaccurate answers. How do I measure how good the responses actually are? What metrics should I track and how do I set up evaluation?",
+      "checks": [
+        "The agent's trajectory shows it read the rag-evaluate-quality SKILL.md before taking action",
+        "The agent's final response explains available quality metrics such as faithfulness, context relevancy, or answer correctness",
+        "The agent's final response explains how to prepare a ground truth dataset for evaluation",
+        "The agent's final response provides concrete steps to run quality evaluation against the deployed RAG system"
+      ]
+    },
+    {
+      "query": "My RAGAS evaluation shows a faithfulness score of 0.3 which seems very low. What does this mean and how do I improve it?",
+      "checks": [
+        "The agent's trajectory shows it read the rag-evaluate-quality SKILL.md before taking action",
+        "The agent's final response explains what a low faithfulness score means — answers not grounded in retrieved documents",
+        "The agent's final response identifies at least one likely cause of low faithfulness such as high topK, poor retrieval, or LLM hallucination",
+        "The agent's final response provides at least one specific actionable step to improve the faithfulness score"
+      ]
+    }
+  ]
+}

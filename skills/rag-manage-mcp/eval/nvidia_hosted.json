@@ -1,0 +1,38 @@
+{
+  "skills": [
+    "rag-manage-mcp"
+  ],
+  "platforms": [
+    "cpu"
+  ],
+  "resources": {
+    "platforms": {
+      "cpu": {
+        "brev_type": "n2d-standard-4",
+        "description": "GCP n2d-standard-4 (4 vCPU, 16 GB). RAG stack running with MCP server example available."
+      }
+    }
+  },
+  "env": "Linux host with Docker + Docker Compose plugin. RAG stack is running: rag-server at http://localhost:8081. MCP server example is at examples/nvidia_rag_mcp/mcp_server.py. NGC_API_KEY is set. cwd: ${RAG_REPO_ROOT}/.",
+  "expects": [
+    {
+      "query": "Use the rag-manage-mcp skill to start the RAG MCP server and verify a client can discover the available RAG tools. The eval runs from inside the repository checkout; use git rev-parse --show-toplevel if you need the absolute path.",
+      "checks": [
+        "The agent's trajectory shows it read the rag-manage-mcp SKILL.md before taking action",
+        "The agent's trajectory shows it started the RAG MCP server",
+        "The agent's trajectory shows it verified the MCP server was reachable",
+        "The agent's trajectory shows it used a client to discover available RAG tools",
+        "The agent's final response reports the discovered tool names"
+      ]
+    },
+    {
+      "query": "Explain how to connect my RAG knowledge base to an AI agent using MCP. I don't need you to actually set it up — just walk me through the steps and what files to use.",
+      "checks": [
+        "The agent's trajectory shows it read the rag-manage-mcp SKILL.md before taking action",
+        "The agent's trajectory shows it referenced the RAG MCP documentation and examples",
+        "The agent's final response explains how to expose RAG via MCP for agent consumption",
+        "The agent's final response provides specific setup steps for the MCP server and client"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "_note": ">>> GPU TESTING PATCH (Option B) <<< — H100×2 self-hosted deploy spec. Provides the deploy step that rag-enable-vlm and rag-enable-guardrails (downstream h100 skills) need a running RAG stack against. Trigger via ci/run_skill_eval_h100.sh. The adapter (skill-eval/adapters/rag-blueprint/generate.py) ignores unknown top-level fields like _note, so this is purely a marker for humans reading the file.",
+  "skills": [
+    "rag-deploy-blueprint"
+  ],
+  "platforms": [
+    "H100_x2"
+  ],
+  "resources": {
+    "platforms": {
+      "H100_x2": {
+        "brev_type": "dmz.h100x2.pcie",
+        "gpu_type": "H100",
+        "gpu_count": 2,
+        "min_vram_gb_per_gpu": 80,
+        "min_root_disk_gb": 500,
+        "min_gpu_driver_version": "560.0",
+        "description": "2x H100 80GB PCIe per docs/support-matrix.md — self-hosted Docker Compose default. Required so rag-enable-vlm and rag-enable-guardrails (downstream h100 skills) have a deployed RAG stack to run against."
+      }
+    }
+  },
+  "env": "Linux host with 2x NVIDIA H100 80GB GPUs, driver 560+, nvidia-container-toolkit installed, Docker + Docker Compose plugin running. Self-hosted deployment — all NIM containers (LLM + embedding + ranking + ingestion) run locally on the H100s using deploy/compose/.env (NOT nvdev.env). Required env var: NGC_API_KEY (nvapi-) for nvcr.io pulls. cwd: ${RAG_REPO_ROOT}/. Bring up the vector DB (vectordb.yaml), local NIMs (nims.yaml), ingestor server, and rag server. All model inference must use the local NIM containers — do NOT use cloud endpoints (integrate.api.nvidia.com).",
+  "expects": [
+    {
+      "query": "Use the rag-deploy-blueprint skill to deploy NVIDIA RAG Blueprint in self-hosted Docker Compose mode on the local H100 GPUs. Source deploy/compose/.env, then start the vector DB (vectordb.yaml), local NIMs (nims.yaml), ingestor server (docker-compose-ingestor-server.yaml), and rag server (docker-compose-rag-server.yaml). All inference must use the local NIM containers — not cloud endpoints. The eval runs from inside the repository checkout; use git rev-parse --show-toplevel if you need the absolute path.",
+      "checks": [
+        "The agent's trajectory shows it read the rag-deploy-blueprint SKILL.md before any deployment commands",
+        "The agent's trajectory shows it sourced deploy/compose/.env (NOT nvdev.env) before running docker compose up — verifiable via a `source` of .env or `--env-file deploy/compose/.env` in a docker compose invocation",
+        "`docker ps --format '{{.Names}}' | grep -E '^(rag-server|ingestor-server|milvus-standalone)$' | wc -l` outputs 3",
+        "`docker ps --format '{{.Names}}' | grep -E '^(nim-llm-ms|nemo(tron|retriever)-(embedding|ranking)-ms)$' | wc -l` outputs a number greater than or equal to 3 (the canonical local-NIM trio per deploy/compose/nims.yaml; the regex accepts both nemotron-* and nemoretriever-* prefix variants in case of future renames)",
+        "`nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits | awk '{s+=$1} END{print s}'` outputs a number greater than 5000 (NIMs have loaded weights into GPU memory, >5 GB total across the 2 H100s)"
+      ]
+    },
+    {
+      "query": "Verify the self-hosted RAG stack is healthy and the local NIMs are reachable. Hit the rag-server and ingestor-server health endpoints, and confirm the local NIM containers are Up. Report per-service status.",
+      "checks": [
+        "`curl --max-time 10 -sf -o /dev/null -w '%{http_code}' http://localhost:8081/v1/health` outputs 200",
+        "`curl --max-time 10 -sf -o /dev/null -w '%{http_code}' http://localhost:8082/v1/health` outputs 200",
+        "`docker exec rag-server env 2>/dev/null | grep -E '^APP_LLM_SERVERURL='` outputs a line that does NOT contain integrate.api.nvidia.com (must point at a local NIM endpoint, never the cloud endpoint)",
+        "`docker ps --format '{{.Names}}\\t{{.Status}}' | grep -E '^(nim-llm-ms|nemo(tron|retriever)-(embedding|ranking)-ms)\\b' | grep -v 'Up' | wc -l` outputs 0 (every running local-NIM container is in 'Up' state — none Restarting / Created / Exited)",
+        "The agent's final response reports a per-service health verdict for rag-server, ingestor-server, and at least one local NIM (nim-llm-ms or nemotron-*-ms / nemoretriever-*-ms), each with a clear status indicator (HTTP 200, 'Healthy', 'Up', or equivalent). A single overall summary alone is NOT sufficient — per-service breakdown is required"
+      ]
+    }
+  ]
+}
