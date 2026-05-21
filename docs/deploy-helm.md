@@ -14,7 +14,6 @@ The following are the core services that you install:
 
 - RAG server
 - Ingestor server
-- NeMo Retriever Library
 
 
 ## Prerequisites
@@ -99,7 +98,7 @@ To deploy End-to-End RAG Server and Ingestor Server, use the following procedure
 2. Install the Helm chart by running the following command.
 
     ```sh
-    helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.6.0-rc1.tgz \
+    helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.6.0.tgz \
     --username '$oauthtoken' \
     --password "${NGC_API_KEY}" \
     --set imagePullSecret.password=$NGC_API_KEY \
@@ -124,7 +123,7 @@ To deploy End-to-End RAG Server and Ingestor Server, use the following procedure
    
    Then install using the modified values.yaml:
    ```sh
-   helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.6.0-rc1.tgz \
+   helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.6.0.tgz \
      --username '$oauthtoken' \
      --password "${NGC_API_KEY}" \
      --set imagePullSecret.password=$NGC_API_KEY \
@@ -261,7 +260,7 @@ Port-forwarding is provided as a quick method to try out the UI. However, large 
 To change an existing deployment, after you modify the [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) file, run the following code.
 
 ```sh
-helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.6.0-rc1.tgz \
+helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.6.0.tgz \
 --username '$oauthtoken' \
 --password "${NGC_API_KEY}" \
 --set imagePullSecret.password=$NGC_API_KEY \
