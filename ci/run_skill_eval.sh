@@ -285,9 +285,13 @@ p = spec.get('platforms', [])[0] if spec.get('platforms') else ''
 print(plats.get(p, {}).get('brev_type', 'dmz.h100x2.pcie'))
 " 2>/dev/null || echo "dmz.h100x2.pcie")
       export BREV_INSTANCE="rag-eval-gpu-$(date +%s | tail -c 8)"
-      echo "==> Pre-provisioning $BREV_INSTANCE ($BREV_TYPE) for $SKILL_NAME"
+      # Fallback chain per VSS AGENTS.md — tries each type in order if
+      # the primary is at capacity. brev create --type accepts comma-separated
+      # fallback list natively.
+      BREV_FALLBACKS="${BREV_TYPE},scaleway_H100x2,gpu-h100-sxm.1gpu-16vcpu-200gb"
+      echo "==> Pre-provisioning $BREV_INSTANCE (trying: $BREV_FALLBACKS) for $SKILL_NAME"
       for attempt in $(seq 1 5); do
-        echo "$BREV_TYPE" | brev create "$BREV_INSTANCE" --detached 2>&1 | tail -5
+        brev create "$BREV_INSTANCE" --type "$BREV_FALLBACKS" --detached 2>&1 | tail -5
         brev ls 2>/dev/null | awk -v n="$BREV_INSTANCE" '$1==n {found=1} END{exit !found}' && break
         sleep 15
       done
