@@ -16,12 +16,12 @@
 """Unit tests for Milvus VDB functionality."""
 
 import os
+from contextlib import ExitStack
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 import requests
 from langchain_core.documents import Document
-from opentelemetry import context as otel_context
 from pydantic import SecretStr
 from pymilvus import MilvusException
 
@@ -56,16 +56,35 @@ class TestMilvusVDB:
 
     @pytest.fixture(autouse=True)
     def _patch_milvus_client(self):
-        """Prevent real MilvusClient TCP/gRPC connections in every test.
+        """Prevent real Milvus / NV-Ingest network I/O in every test.
 
-        Tests that already carry their own @patch("...MilvusClient") decorator
-        will shadow this fixture's mock with their own, so their behaviour is
-        unchanged.  Tests that do NOT patch MilvusClient individually will use
-        this mock, which stops MilvusVDB.__init__ from attempting a real
-        connection to localhost:19530 (unavailable in CI).
+        MilvusVDB.__init__ opens MilvusClient, may call pymilvus connections.connect,
+        and (when nv-ingest-client is installed, as in CI) constructs NvIngestMilvus.
+        Without these patches those calls can block on localhost:19530 and flake/hang.
+
+        Also clears the class-level connection refcount after each test so GC/teardown
+        does not interact with the next test's __init__.
         """
-        with patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.MilvusClient"):
+        with ExitStack() as stack:
+            mock_mc = stack.enter_context(
+                patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.MilvusClient")
+            )
+            mock_conn = stack.enter_context(
+                patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
+            )
+            try:
+                import nv_ingest_client  # noqa: F401
+            except ImportError:
+                pass
+            else:
+                stack.enter_context(patch("nv_ingest_client.util.milvus.Milvus"))
+
+            mock_mc.return_value._using = "milvus_unit_test_alias"
+            mock_mc.return_value.close = Mock()
+            mock_conn.has_connection.return_value = True
+            mock_conn.connect = Mock()
             yield
+            MilvusVDB._conn_refcount.clear()
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.MilvusClient")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
@@ -894,9 +913,13 @@ class TestMilvusVDB:
         # First call returns Executing, second returns Completed
         vdb._client.get_compaction_state.side_effect = ["Executing", "Completed"]
 
-        vdb._compact_and_wait("test_collection", timeout=5.0)
+        with patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.time") as mock_time:
+            mock_time.monotonic.side_effect = [0.0, 0.6, 1.2, 30.0]
+            mock_time.sleep = Mock()
+            vdb._compact_and_wait("test_collection", timeout=5.0)
 
         assert vdb._client.get_compaction_state.call_count == 2
+        assert mock_time.sleep.call_count >= 2
 
     def test_compact_and_wait_timeout_does_not_raise(self):
         """_compact_and_wait should log a warning and return on timeout, not raise."""
@@ -904,8 +927,11 @@ class TestMilvusVDB:
         vdb._client.compact.return_value = 99
         vdb._client.get_compaction_state.return_value = "Executing"  # never completes
 
-        # Use a very short timeout so the test is fast
-        vdb._compact_and_wait("test_collection", timeout=0.1)
+        # Patch sleep/monotonic so CI never blocks on real 0.5s compaction polls.
+        with patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.time") as mock_time:
+            mock_time.monotonic.side_effect = [0.0, 0.6, 30.0]
+            mock_time.sleep = Mock()
+            vdb._compact_and_wait("test_collection", timeout=0.1)
         # Should return without raising
 
     def test_compact_and_wait_exception_does_not_raise(self):
@@ -1063,65 +1089,39 @@ class TestMilvusVDB:
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.time")
-    def test_retrieval_langchain(self, mock_time, mock_connections):
-        """Test retrieval_langchain method."""
+    @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.otel_context")
+    def test_retrieval_langchain(
+        self, mock_otel, mock_time, mock_connections
+    ):
+        """Test retrieval_langchain method (real LCEL chain, mocked retriever only)."""
         mock_config = Mock()
-        mock_time.time.side_effect = [0.0, 1.5]  # start and end times
+        mock_time.time.side_effect = [0.0, 1.5]
 
         mock_vectorstore = Mock()
         mock_retriever = Mock()
         mock_vectorstore.as_retriever.return_value = mock_retriever
-        mock_vectorstore.collection_name = "test_collection"
-        # The actual code accesses retriever.vectorstore.collection_name, so we need to set that
         mock_retriever.vectorstore.collection_name = "test_collection"
 
         mock_docs = [
             Document(page_content="doc1", metadata={"source": "file1.txt"}),
             Document(page_content="doc2", metadata={"source": "file2.txt"}),
         ]
+        mock_retriever.invoke.return_value = mock_docs
 
-        with (
-            patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"),
-        ):
+        mock_token = Mock()
+        mock_otel.attach.return_value = mock_token
+        mock_ctx = Mock()
+
+        with patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"):
             vdb = MilvusVDB(
                 embedding_model=Mock(),
                 milvus_uri="http://localhost:19530",
                 collection_name="test_collection",
                 config=mock_config,
             )
-
-            with (
-                patch.object(
-                    vdb, "get_langchain_vectorstore", return_value=mock_vectorstore
-                ) as mock_get_vs,
-                patch(
-                    "nvidia_rag.utils.vdb.milvus.milvus_vdb.RunnableLambda"
-                ) as mock_runnable_lambda,
-                patch(
-                    "nvidia_rag.utils.vdb.milvus.milvus_vdb.RunnableAssign"
-                ) as mock_runnable_assign,
-                patch(
-                    "nvidia_rag.utils.vdb.milvus.milvus_vdb.otel_context"
-                ) as mock_otel,
-            ):
-                # Create a mock chain that will be returned from the | operation
-                mock_chain = Mock()
-                mock_chain.invoke.return_value = {"context": mock_docs}
-
-                # Mock RunnableAssign to properly handle the __ror__ method (when dict | RunnableAssign)
-                mock_assign_instance = Mock()
-                mock_assign_instance.__ror__ = Mock(return_value=mock_chain)
-                mock_runnable_assign.return_value = mock_assign_instance
-
-                # Mock RunnableLambda
-                mock_lambda_instance = Mock()
-                mock_runnable_lambda.return_value = mock_lambda_instance
-
-                # Mock otel context
-                mock_token = Mock()
-                mock_otel.attach.return_value = mock_token
-                mock_ctx = Mock()
-
+            with patch.object(
+                vdb, "get_langchain_vectorstore", return_value=mock_vectorstore
+            ) as mock_get_vs:
                 result = vdb.retrieval_langchain(
                     query="test query",
                     collection_name="test_collection",
@@ -1130,73 +1130,50 @@ class TestMilvusVDB:
                     otel_ctx=mock_ctx,
                 )
 
-                # Verify the results have collection_name added to metadata
-                assert len(result) == 2
-                for doc in result:
-                    assert doc.metadata["collection_name"] == "test_collection"
-
-                mock_get_vs.assert_called_once_with("test_collection")
-                mock_otel.attach.assert_called_once_with(mock_ctx)
-                mock_otel.detach.assert_called_once_with(mock_token)
+        assert len(result) == 2
+        for doc in result:
+            assert doc.metadata["collection_name"] == "test_collection"
+        mock_get_vs.assert_called_once_with("test_collection")
+        mock_retriever.invoke.assert_called_once()
+        mock_otel.attach.assert_called_once_with(mock_ctx)
+        mock_otel.detach.assert_called_once_with(mock_token)
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
     def test_retrieval_langchain_connection_error(self, mock_connections):
-        """Test retrieval_langchain raises APIError on connection error"""
+        """Test retrieval_langchain raises APIError on connection error."""
         mock_config = Mock()
         mock_embedding_model = Mock()
         mock_embedding_model._client = Mock()
         mock_embedding_model._client.base_url = "http://embedding:8080"
 
-        with (
-            patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"),
-            patch("nv_ingest_client.util.milvus.Milvus.__init__", return_value=None),
-        ):
+        mock_vectorstore = Mock()
+        mock_retriever = Mock()
+        mock_vectorstore.as_retriever.return_value = mock_retriever
+        mock_retriever.vectorstore.collection_name = "test_collection"
+        mock_retriever.invoke.side_effect = requests.exceptions.ConnectionError(
+            "Connection failed"
+        )
+
+        with patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"):
             vdb = MilvusVDB(
                 embedding_model=mock_embedding_model,
                 milvus_uri="http://localhost:19530",
                 collection_name="test_collection",
                 config=mock_config,
             )
-
-            mock_vectorstore = Mock()
-            mock_retriever = Mock()
-            mock_vectorstore.as_retriever.return_value = mock_retriever
-            mock_retriever.vectorstore.collection_name = "test_collection"
-
             with patch.object(
                 vdb, "get_langchain_vectorstore", return_value=mock_vectorstore
             ):
-                mock_chain = Mock()
-                mock_chain.invoke.side_effect = requests.exceptions.ConnectionError(
-                    "Connection failed"
-                )
-
-                mock_assign_instance = Mock()
-                mock_assign_instance.__ror__ = Mock(return_value=mock_chain)
-
-                with (
-                    patch(
-                        "nvidia_rag.utils.vdb.milvus.milvus_vdb.RunnableLambda",
-                        return_value=Mock(),
-                    ),
-                    patch(
-                        "nvidia_rag.utils.vdb.milvus.milvus_vdb.RunnableAssign",
-                        return_value=mock_assign_instance,
-                    ),
-                    patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.otel_context"),
-                ):
-                    with pytest.raises(APIError) as exc_info:
-                        vdb.retrieval_langchain(
-                            query="test query",
-                            collection_name="test_collection",
-                            top_k=5,
-                        )
-
-                    assert (
-                        exc_info.value.status_code
-                        == ErrorCodeMapping.SERVICE_UNAVAILABLE
+                with pytest.raises(APIError) as exc_info:
+                    vdb.retrieval_langchain(
+                        query="test query",
+                        collection_name="test_collection",
+                        top_k=5,
                     )
-                    assert "Embedding NIM unavailable" in exc_info.value.message
+
+        assert exc_info.value.status_code == ErrorCodeMapping.SERVICE_UNAVAILABLE
+        assert "Embedding NIM unavailable" in exc_info.value.message
+        assert "http://embedding:8080" in exc_info.value.message
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
     def test_get_langchain_vectorstore_hybrid(self, mock_connections):
@@ -1210,7 +1187,6 @@ class TestMilvusVDB:
                 "nvidia_rag.utils.vdb.milvus.milvus_vdb.LangchainMilvus"
             ) as mock_langchain_milvus,
             patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.BM25BuiltInFunction"),
-            patch("nv_ingest_client.util.milvus.Milvus.__init__", return_value=None),
         ):
             vdb = MilvusVDB(
                 embedding_model=Mock(),
@@ -1241,7 +1217,6 @@ class TestMilvusVDB:
             patch(
                 "nvidia_rag.utils.vdb.milvus.milvus_vdb.LangchainMilvus"
             ) as mock_langchain_milvus,
-            patch("nv_ingest_client.util.milvus.Milvus.__init__", return_value=None),
         ):
             vdb = MilvusVDB(
                 embedding_model=Mock(),
@@ -1264,10 +1239,7 @@ class TestMilvusVDB:
         mock_config = Mock()
         mock_config.vector_store.search_type = "invalid"
 
-        with (
-            patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"),
-            patch("nv_ingest_client.util.milvus.Milvus.__init__", return_value=None),
-        ):
+        with patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"):
             vdb = MilvusVDB(
                 embedding_model=Mock(),
                 milvus_uri="http://localhost:19530",
@@ -1316,72 +1288,35 @@ class TestMilvusVDB:
             Document(page_content="doc1", metadata={"source": "file1.txt"}),
             Document(page_content="doc2", metadata={"source": "file2.txt"}),
         ]
+        mock_retriever.invoke.return_value = mock_docs
 
-        with (
-            patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"),
-        ):
+        with patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"):
             vdb = MilvusVDB(
                 embedding_model=Mock(),
                 milvus_uri="http://localhost:19530",
                 collection_name="test_collection",
                 config=mock_config,
             )
-
-            with (
-                patch.object(
-                    vdb, "get_langchain_vectorstore", return_value=mock_vectorstore
-                ) as mock_get_vs,
-                patch(
-                    "nvidia_rag.utils.vdb.milvus.milvus_vdb.RunnableLambda"
-                ) as mock_runnable_lambda,
-                patch(
-                    "nvidia_rag.utils.vdb.milvus.milvus_vdb.RunnableAssign"
-                ) as mock_runnable_assign,
-                patch(
-                    "nvidia_rag.utils.vdb.milvus.milvus_vdb.otel_context"
-                ) as mock_otel,
-            ):
-                mock_chain = Mock()
-                mock_chain.invoke.return_value = {"context": mock_docs}
-
-                mock_assign_instance = Mock()
-                mock_assign_instance.__ror__ = Mock(return_value=mock_chain)
-                mock_runnable_assign.return_value = mock_assign_instance
-
-                mock_lambda_instance = Mock()
-                mock_runnable_lambda.return_value = mock_lambda_instance
-
-                mock_token = Mock()
-                mock_otel.attach.return_value = mock_token
-                mock_ctx = Mock()
-
+            with patch.object(
+                vdb, "get_langchain_vectorstore", return_value=mock_vectorstore
+            ) as mock_get_vs:
                 result = vdb.retrieval_langchain(
                     query="test query",
                     collection_name="test_collection",
                     top_k=5,
                     filter_expr="filter",
-                    otel_ctx=mock_ctx,
                 )
 
-                # Verify results
-                assert len(result) == 2
-                for doc in result:
-                    assert doc.metadata["collection_name"] == "test_collection"
-
-                # Verify RunnableLambda was called
-                assert mock_runnable_lambda.called
-
-                # Create a mock retriever with invoke method to test the lambda
-                test_retriever = Mock()
-                test_retriever.invoke = Mock(return_value=mock_docs)
-
-                # Temporarily replace the retriever in the lambda's closure
-                # and call the lambda to verify it passes ranker params
-                with patch.object(mock_retriever, "invoke", return_value=mock_docs):
-                    # We can't easily test the lambda directly, but we verified it's created correctly
-                    pass
-
-                mock_get_vs.assert_called_once_with("test_collection")
+        assert len(result) == 2
+        for doc in result:
+            assert doc.metadata["collection_name"] == "test_collection"
+        mock_get_vs.assert_called_once_with("test_collection")
+        mock_retriever.invoke.assert_called_once_with(
+            "test query",
+            expr="filter",
+            ranker_type=RankerType.WEIGHTED,
+            ranker_params={"weights": [0.7, 0.3]},
+        )
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.time")
@@ -1402,53 +1337,32 @@ class TestMilvusVDB:
         mock_docs = [
             Document(page_content="doc1", metadata={"source": "file1.txt"}),
         ]
+        mock_retriever.invoke.return_value = mock_docs
 
-        with (
-            patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"),
-        ):
+        with patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"):
             vdb = MilvusVDB(
                 embedding_model=Mock(),
                 milvus_uri="http://localhost:19530",
                 collection_name="test_collection",
                 config=mock_config,
             )
-
-            with (
-                patch.object(
-                    vdb, "get_langchain_vectorstore", return_value=mock_vectorstore
-                ),
-                patch(
-                    "nvidia_rag.utils.vdb.milvus.milvus_vdb.RunnableLambda"
-                ) as mock_runnable_lambda,
-                patch(
-                    "nvidia_rag.utils.vdb.milvus.milvus_vdb.RunnableAssign"
-                ) as mock_runnable_assign,
-                patch(
-                    "nvidia_rag.utils.vdb.milvus.milvus_vdb.otel_context"
-                ),
+            with patch.object(
+                vdb, "get_langchain_vectorstore", return_value=mock_vectorstore
             ):
-                mock_chain = Mock()
-                mock_chain.invoke.return_value = {"context": mock_docs}
-
-                mock_assign_instance = Mock()
-                mock_assign_instance.__ror__ = Mock(return_value=mock_chain)
-                mock_runnable_assign.return_value = mock_assign_instance
-
-                mock_lambda_instance = Mock()
-                mock_runnable_lambda.return_value = mock_lambda_instance
-
                 result = vdb.retrieval_langchain(
                     query="test query",
                     collection_name="test_collection",
                     top_k=5,
                 )
 
-                # Verify results
-                assert len(result) == 1
-                assert result[0].metadata["collection_name"] == "test_collection"
-
-                # Verify RunnableLambda was called for hybrid search
-                assert mock_runnable_lambda.called
+        assert len(result) == 1
+        assert result[0].metadata["collection_name"] == "test_collection"
+        mock_retriever.invoke.assert_called_once_with(
+            "test query",
+            expr="",
+            ranker_type=RankerType.RRF,
+            ranker_params={"weights": [0.5, 0.5]},
+        )
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.time")
@@ -1466,50 +1380,24 @@ class TestMilvusVDB:
         mock_docs = [
             Document(page_content="doc1", metadata={"source": "file1.txt"}),
         ]
+        mock_retriever.invoke.return_value = mock_docs
 
-        with (
-            patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"),
-        ):
+        with patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.urlparse"):
             vdb = MilvusVDB(
                 embedding_model=Mock(),
                 milvus_uri="http://localhost:19530",
                 collection_name="test_collection",
                 config=mock_config,
             )
-
-            with (
-                patch.object(
-                    vdb, "get_langchain_vectorstore", return_value=mock_vectorstore
-                ),
-                patch(
-                    "nvidia_rag.utils.vdb.milvus.milvus_vdb.RunnableLambda"
-                ) as mock_runnable_lambda,
-                patch(
-                    "nvidia_rag.utils.vdb.milvus.milvus_vdb.RunnableAssign"
-                ) as mock_runnable_assign,
-                patch(
-                    "nvidia_rag.utils.vdb.milvus.milvus_vdb.otel_context"
-                ),
+            with patch.object(
+                vdb, "get_langchain_vectorstore", return_value=mock_vectorstore
             ):
-                mock_chain = Mock()
-                mock_chain.invoke.return_value = {"context": mock_docs}
-
-                mock_assign_instance = Mock()
-                mock_assign_instance.__ror__ = Mock(return_value=mock_chain)
-                mock_runnable_assign.return_value = mock_assign_instance
-
-                mock_lambda_instance = Mock()
-                mock_runnable_lambda.return_value = mock_lambda_instance
-
                 result = vdb.retrieval_langchain(
                     query="test query",
                     collection_name="test_collection",
                     top_k=5,
                 )
 
-                # Verify results
-                assert len(result) == 1
-                assert result[0].metadata["collection_name"] == "test_collection"
-
-                # Verify RunnableLambda was called (dense search uses else branch)
-                assert mock_runnable_lambda.called
+        assert len(result) == 1
+        assert result[0].metadata["collection_name"] == "test_collection"
+        mock_retriever.invoke.assert_called_once_with("test query", expr="")
