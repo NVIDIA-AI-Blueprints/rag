@@ -38,10 +38,10 @@ jobs:
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' || github.event.pull_request.head.repo.full_name == github.repository
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Helm
-        uses: azure/setup-helm@v4
+        uses: azure/setup-helm@v5
         with:
           version: 'latest'
 
@@ -67,7 +67,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - uses: actions/setup-python@v3
       - uses: pre-commit/action@v3.0.1
@@ -79,7 +79,7 @@ jobs:
       image: python:3.12-slim
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install system dependencies
         run: |
@@ -112,7 +112,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -152,7 +152,7 @@ jobs:
           pnpm test:coverage
 
       - name: Upload coverage artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         if: always()
         with:
           name: frontend-coverage-${{ steps.sanitize.outputs.ref_name }}-${{ github.sha }}
@@ -166,7 +166,7 @@ jobs:
       image: python:3.12-slim
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install required packages
         run: |
@@ -192,7 +192,7 @@ jobs:
       ENABLE_NRL_INTEGRATION_TESTS: "false"
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install NGC CLI
         env:          
@@ -1264,7 +1264,7 @@ jobs:
           echo "ref_name=$SANITIZED_REF" >> $GITHUB_OUTPUT
 
       - name: Upload all integration test logs
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         if: always()
         with:
           name: integration-tests-logs-${{ steps.sanitize.outputs.ref_name }}-${{ github.sha }}
