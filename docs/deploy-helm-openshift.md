@@ -52,20 +52,88 @@ Ensure you have at least 200GB of available disk space per node where NIMs will 
 
     For details, see [NIM Operator installation guide](https://docs.nvidia.com/nim-operator/latest/install.html).
 
-7. Verify that a **default StorageClass** with dynamic provisioning is available (e.g., `gp3-csi` on AWS):
+7. Install the **Elastic Cloud on Kubernetes (ECK) operator**. Elasticsearch is the default vector database for this chart, and the chart provisions an Elasticsearch CR that requires the ECK operator to reconcile it:
+
+    ```sh
+    helm repo add elastic https://helm.elastic.co
+    helm repo update
+    helm install elastic-operator elastic/eck-operator -n elastic-system --create-namespace
+    ```
+
+    If you plan to replace Elasticsearch with Milvus or another backend and disable the chart-managed Elasticsearch, skip this step. See [Vector database configuration](change-vectordb.md).
+
+8. Verify that a **default StorageClass** with dynamic provisioning is available (e.g., `gp3-csi` on AWS):
 
     ```sh
     oc get storageclass
     ```
 
-8. Check GPU node taints. GPU nodes on OpenShift clusters typically have taints that prevent non-GPU workloads from scheduling on them. You need the taint keys for the tolerations configuration:
+    :::{note}
+    If your cluster does not have a default dynamic StorageClass available (common on bare-metal OpenShift installations), install the OpenEBS Dynamic LocalPV Provisioner to satisfy the chart's PVC requirements:
+
+    ```sh
+    # Add the OpenEBS Helm repository
+    helm repo add openebs https://openebs.github.io/openebs
+    helm repo update
+
+    # Create the openebs namespace
+    kubectl create namespace openebs
+
+    # Install only the LocalPV provisioner; disable other storage engines
+    helm install openebs openebs/openebs \
+      --namespace openebs \
+      --set engines.replicated.mayastor.enabled=false \
+      --set engines.local.lvm.enabled=false \
+      --set engines.local.zfs.enabled=false
+
+    # OpenShift requires the privileged SCC for the provisioner service account
+    oc adm policy add-scc-to-user privileged -z openebs-localpv-provisioner -n openebs
+
+    # Mark openebs-hostpath as the default StorageClass
+    kubectl patch storageclass openebs-hostpath \
+      -p '{"metadata": {"annotations": {"storageclass.kubernetes.io/is-default-class": "true"}}}'
+    ```
+
+    Verify that the provisioner pods are running and the StorageClass is configured as default:
+
+    ```sh
+    kubectl get pods -n openebs
+    kubectl get sc
+    ```
+    :::
+
+9. Check GPU node taints. GPU nodes on OpenShift clusters typically have taints that prevent non-GPU workloads from scheduling on them. You need the taint keys for the tolerations configuration:
 
     ```sh
     oc get nodes -l nvidia.com/gpu.present=true \
       -o custom-columns="NODE:.metadata.name,TAINTS:.spec.taints[*].key"
     ```
 
-9. Accept NIM licenses. Each NIM container image on NGC requires individually accepting a license agreement before your API key can pull it. Accept licenses for each NIM at [build.nvidia.com](https://build.nvidia.com/).
+10. Verify the kubelet `podPidsLimit` is at least `16384`. The `rag-nv-ingest` pod, along with the reranker and other NIMs, collectively spawn several thousand threads at steady state. The OpenShift default of `4096` is insufficient and surfaces as `pthread_create failed: Resource temporarily unavailable` errors during ingestion and reranking.
+
+    Inspect the current value on any worker node:
+
+    ```sh
+    oc get --raw /api/v1/nodes/<node-name>/proxy/configz \
+      | jq '.kubeletconfig.podPidsLimit'
+    ```
+
+    If the value is below `16384`, apply the following `KubeletConfig` (cluster-admin access required). The Machine Config Operator will roll the affected nodes:
+
+    ```yaml
+    apiVersion: machineconfiguration.openshift.io/v1
+    kind: KubeletConfig
+    metadata:
+      name: rag-pod-pids-limit
+    spec:
+      machineConfigPoolSelector:
+        matchLabels:
+          pools.operator.machineconfiguration.openshift.io/worker: ""
+      kubeletConfig:
+        podPidsLimit: 16384
+    ```
+
+11. Accept NIM licenses. Each NIM container image on NGC requires individually accepting a license agreement before your API key can pull it. Accept licenses for each NIM at [build.nvidia.com](https://build.nvidia.com/).
 
 
 ## Deploy the RAG Helm Chart
@@ -93,6 +161,53 @@ To deploy the RAG Blueprint on OpenShift, use the following procedure.
 
     helm dependency build
     ```
+
+    :::{note}
+    The OpenShift overlay passes values through the `nv-ingest` subchart's
+    `extraVolumes` / `extraVolumeMounts` keys. With the currently pinned
+    `nv-ingest` 26.3.0, those values need a small indent adjustment in the
+    pulled chart before `helm upgrade` will render valid YAML. Re-apply this
+    after every `helm dependency build` or `helm dependency update`:
+
+    ```sh
+    mkdir -p /tmp/nvi && \
+      tar xzf charts/nv-ingest-26.3.0.tgz -C /tmp/nvi && \
+      sed -i '/toYaml $v | nindent 12/s/nindent 12/nindent 14/' \
+        /tmp/nvi/nv-ingest/templates/deployment.yaml && \
+      tar czf charts/nv-ingest-26.3.0.tgz -C /tmp/nvi nv-ingest && \
+      rm -rf /tmp/nvi
+    ```
+    :::
+
+    :::{note}
+    **Alternative — installing from the NGC chart URL**
+
+    If you prefer the install-from-NGC pattern shown in [Deploy on Kubernetes with Helm](deploy-helm.md) instead of cloning this repo, pull the chart locally first. Helm cannot patch a chart it streams directly from a remote URL, so the indent adjustment must be applied to a local copy before install:
+
+    ```sh
+    # Pull and untar the chart from NGC
+    helm pull https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.6.0-rc1.tgz \
+      --username '$oauthtoken' --password "$NGC_API_KEY" \
+      --untar --untardir /tmp
+
+    # Apply the indent adjustment to the bundled nv-ingest subchart
+    mkdir -p /tmp/nvi && \
+      tar xzf /tmp/nvidia-blueprint-rag/charts/nv-ingest-26.3.0.tgz -C /tmp/nvi && \
+      sed -i '/toYaml $v | nindent 12/s/nindent 12/nindent 14/' \
+        /tmp/nvi/nv-ingest/templates/deployment.yaml && \
+      tar czf /tmp/nvidia-blueprint-rag/charts/nv-ingest-26.3.0.tgz -C /tmp/nvi nv-ingest && \
+      rm -rf /tmp/nvi
+
+    # Install from the patched local directory
+    helm upgrade --install rag -n $NAMESPACE /tmp/nvidia-blueprint-rag \
+      -f /tmp/nvidia-blueprint-rag/values-openshift.yaml \
+      --set imagePullSecret.password="$NGC_API_KEY" \
+      --set ngcApiSecret.password="$NGC_API_KEY" \
+      --timeout 15m
+    ```
+
+    This replaces steps 2 and 4 of the procedure above; steps 3 and 5 are unchanged.
+    :::
 
 3. Create a namespace.
 
@@ -165,17 +280,21 @@ To deploy the RAG Blueprint on OpenShift, use the following procedure.
     ingestor-server-xxxxxxxxx-xxxxx               1/1     Running   5m
     rag-eck-elasticsearch-es-default-0            1/1     Running   5m
     nemotron-embedding-ms-xxxxxxxxx-xxxxx         1/1     Running   10m
+    nemotron-graphic-elements-v1-xxxxxxxxx-xxxxx  1/1     Running   10m
     nemotron-ocr-v1-xxxxxxxxx-xxxxx               1/1     Running   10m
     nemotron-page-elements-v3-xxxxxxxxx-xxxxx     1/1     Running   10m
     nemotron-ranking-ms-xxxxxxxxx-xxxxx           1/1     Running   10m
+    nemotron-table-structure-v1-xxxxxxxxx-xxxxx   1/1     Running   10m
     nim-llm-xxxxxxxxx-xxxxx                       1/1     Running   15m
-    rag-etcd-0                                    1/1     Running   5m
     rag-frontend-xxxxxxxxx-xxxxx                  1/1     Running   5m
-    rag-minio-xxxxxxxxx-xxxxx                     1/1     Running   5m
     rag-nv-ingest-xxxxxxxxx-xxxxx                 1/1     Running   5m
     rag-redis-master-0                            1/1     Running   5m
+    rag-redis-replicas-0                          1/1     Running   5m
+    rag-seaweedfs-all-in-one-xxxxxxxxx-xxxxx      1/1     Running   5m
     rag-server-xxxxxxxxx-xxxxx                    1/1     Running   5m
     ```
+
+    If you have enabled Milvus instead of the default Elasticsearch vector database (see [Vector database configuration](change-vectordb.md)), the list also includes `rag-etcd-0` and `rag-minio-xxx` pods.
 
    :::{note}
    Model downloads do not show detailed progress indicators in pod status. Pods may appear in "ContainerCreating" or "Init" state for extended periods while models download in the background.
@@ -301,6 +420,48 @@ oc delete namespace $NAMESPACE
 oc adm policy add-scc-to-user anyuid -z default -n $NAMESPACE
 ```
 
+### nv-ingest Ray Worker Failures on Clusters with Low `podPidsLimit`
+
+**Symptom**: The `rag-nv-ingest` pod restarts repeatedly with `pthread_create failed: Resource temporarily unavailable` in its logs. Ingestion tasks remain in the `pending` state and the Redis queue (`LLEN ingest_task_queue`) does not drain.
+
+**Why**: The pod's cgroup `cpuset.cpus` reflects the full host CPU set (for example, `0-255`), so Ray detects all host CPUs and prestarts an equally large Python worker pool. Each worker spawns several gRPC threads during initialization. On clusters where the kubelet enforces the default `podPidsLimit` of 4096, the cumulative thread count exceeds the cgroup's PID ceiling, and worker processes are terminated before they can register with the raylet.
+
+**Recommended fix**: Raise the kubelet `podPidsLimit` to `16384` via a `KubeletConfig` custom resource. See Prerequisites step 10 for the manifest. This is the cluster-level change that addresses the root cause.
+
+**Workaround when the cluster `podPidsLimit` cannot be raised**: The `values-openshift.yaml` overlay enables a `sitecustomize.py` ConfigMap (`nv-ingest.pyPatches.enabled: true`) that overrides `os.cpu_count` and `psutil.cpu_count` to return the value of `RAG_NV_INGEST_DETECTED_CPUS` (default `4`). The overlay also sets `MAX_INGEST_PROCESS_WORKERS=4` to cap the number of Ray actor replicas per pipeline stage. Together, these settings keep the pod's steady-state PID count well below the cgroup limit at the cost of slower per-document throughput.
+
+**Tuning the worker count**: To change the worker count, update the values in `values-openshift.yaml` and re-run `helm upgrade`:
+
+```yaml
+nv-ingest:
+  envVars:
+    RAG_NV_INGEST_DETECTED_CPUS: "8"   # increase to improve throughput
+    MAX_INGEST_PROCESS_WORKERS: "8"    # keep aligned with the value above
+```
+
+Alternatively, override the values on the command line without editing the file:
+
+```sh
+helm upgrade --install rag -n $NAMESPACE . \
+  -f values-openshift.yaml \
+  --set 'nv-ingest.envVars.RAG_NV_INGEST_DETECTED_CPUS=8' \
+  --set 'nv-ingest.envVars.MAX_INGEST_PROCESS_WORKERS=8' \
+  --set imagePullSecret.password="$NGC_API_KEY" \
+  --set ngcApiSecret.password="$NGC_API_KEY"
+```
+
+Higher values reduce per-document ingestion latency but increase the pod's PID consumption. Values above `8` are not recommended unless the kubelet `podPidsLimit` has first been raised (typically to `16384`) via the `KubeletConfig` manifest in Prerequisites step 10.
+
+### Reranker HTTP 500 Errors from Thread Pool Initialization Failure
+
+**Symptom**: The `rag-server` logs report `[500] Unknown Error` during query generation. The `nemotron-ranking-ms` pod logs contain `ThreadPoolBuildError { kind: IOError(Os { code: 11, kind: WouldBlock }) }` originating in the HuggingFace tokenizer path.
+
+**Why**: The reranker NIM's Rust/Rayon thread pool defaults to one thread per host CPU. On nodes that expose the full host cpuset, initialization exceeds the kubelet `podPidsLimit` and the NIM returns HTTP 500. The base chart sets thread caps on the OCR and YOLOX NIMs but not on the reranker.
+
+**Recommended fix**: Raise the kubelet `podPidsLimit` to `16384` via a `KubeletConfig` custom resource. See Prerequisites step 10 for the manifest.
+
+**Workaround when the cluster `podPidsLimit` cannot be raised**: The `values-openshift.yaml` overlay sets `RAYON_NUM_THREADS=4` and `TOKENIZERS_PARALLELISM=false` on the reranker NIM. To adjust the cap, edit the value in `values-openshift.yaml` and re-run `helm upgrade`.
+
 ### GPU Node Scheduling and Tolerations
 
 **Symptom**: NIM pods stay in `Pending` state.
@@ -339,6 +500,9 @@ Set matching tolerations for each NIM component via `--set-json` or a values ove
 | PVC `Pending` | StorageClass not found | Set correct `storageClass` in values or use `""` for default |
 | `504 Gateway Timeout` | Route timeout too low | Annotate route with `haproxy.router.openshift.io/timeout=300s` |
 | NIMCache `ImagePullBackOff` | Pull secret not linked to `nim-cache-sa` | Run `oc secrets link nim-cache-sa ngc-secret --for=pull` |
+| Ingest tasks stuck `pending` | nv-ingest Ray workers hit `podPidsLimit` | See [nv-ingest Ray Worker Failures](#nv-ingest-ray-worker-failures-on-clusters-with-low-podpidslimit) |
+| Reranker returns HTTP 500 with `ThreadPoolBuildError` | Rust/Rayon thread pool exceeds pod PID limit | See [Reranker HTTP 500 Errors](#reranker-http-500-errors-from-thread-pool-initialization-failure) |
+| `helm upgrade` fails with `yaml: ... did not find expected '-' indicator` | Indent adjustment needed in pulled `nv-ingest` 26.3.0 chart | Re-apply the post-`dependency build` step in [Deploy step 2](#deploy-the-rag-helm-chart) |
 
 
 ## Troubleshooting Helm Issues

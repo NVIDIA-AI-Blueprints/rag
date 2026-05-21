@@ -31,6 +31,8 @@ Initial deployment typically takes 5-10 minutes as container images are pulled a
 
 2. Install Docker Engine. For more information, see [Ubuntu](https://docs.docker.com/engine/install/ubuntu/).
 
+   a. Use Docker Engine 24.0 or later. Docker Engine 29.5.x is not supported for this release because it can fail to pull required NGC images.
+
 3. Install Docker Compose. For more information, see [install the Compose plugin](https://docs.docker.com/compose/install/linux/).
 
    a. Ensure the Docker Compose plugin version is 2.29.1 or later.
