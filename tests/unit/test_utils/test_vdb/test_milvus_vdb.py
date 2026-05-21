@@ -16,6 +16,7 @@
 """Unit tests for Milvus VDB functionality."""
 
 import os
+from contextlib import ExitStack
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
@@ -60,16 +61,30 @@ class TestMilvusVDB:
         MilvusVDB.__init__ opens MilvusClient, may call pymilvus connections.connect,
         and (when nv-ingest-client is installed, as in CI) constructs NvIngestMilvus.
         Without these patches those calls can block on localhost:19530 and flake/hang.
-        Tests with their own @patch decorators stack on top of this fixture.
+
+        Also clears the class-level connection refcount after each test so GC/teardown
+        does not interact with the next test's __init__.
         """
-        with (
-            patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.MilvusClient") as mock_mc,
-            patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections") as mock_conn,
-            patch("nv_ingest_client.util.milvus.Milvus"),
-        ):
+        with ExitStack() as stack:
+            mock_mc = stack.enter_context(
+                patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.MilvusClient")
+            )
+            mock_conn = stack.enter_context(
+                patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
+            )
+            try:
+                import nv_ingest_client  # noqa: F401
+            except ImportError:
+                pass
+            else:
+                stack.enter_context(patch("nv_ingest_client.util.milvus.Milvus"))
+
             mock_mc.return_value._using = "milvus_unit_test_alias"
+            mock_mc.return_value.close = Mock()
             mock_conn.has_connection.return_value = True
+            mock_conn.connect = Mock()
             yield
+            MilvusVDB._conn_refcount.clear()
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.MilvusClient")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
@@ -898,9 +913,13 @@ class TestMilvusVDB:
         # First call returns Executing, second returns Completed
         vdb._client.get_compaction_state.side_effect = ["Executing", "Completed"]
 
-        vdb._compact_and_wait("test_collection", timeout=5.0)
+        with patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.time") as mock_time:
+            mock_time.monotonic.side_effect = [0.0, 0.6, 1.2, 30.0]
+            mock_time.sleep = Mock()
+            vdb._compact_and_wait("test_collection", timeout=5.0)
 
         assert vdb._client.get_compaction_state.call_count == 2
+        assert mock_time.sleep.call_count >= 2
 
     def test_compact_and_wait_timeout_does_not_raise(self):
         """_compact_and_wait should log a warning and return on timeout, not raise."""

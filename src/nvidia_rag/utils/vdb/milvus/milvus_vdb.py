@@ -112,7 +112,8 @@ class MilvusVDB(VDBRagIngest):
     # ConnectionManager) don't race each other when one is GC'd while the other is
     # still in flight.  _client.close() is deferred until the last holder releases.
     _conn_refcount: ClassVar[dict[str, int]] = {}
-    _conn_refcount_lock: ClassVar[threading.Lock] = threading.Lock()
+    # RLock: __del__ can run (same thread) during __init__ while this lock is held.
+    _conn_refcount_lock: ClassVar[threading.RLock] = threading.RLock()
 
     def __init__(
         self,
