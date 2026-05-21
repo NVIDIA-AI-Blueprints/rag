@@ -1282,7 +1282,7 @@ wheels = [
 
 [[package]]
 name = "langchain-nvidia-ai-endpoints"
-version = "1.2.1"
+version = "1.4.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp" },
@@ -1290,9 +1290,9 @@ dependencies = [
     { name = "langchain-core" },
     { name = "requests" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f0/d5/5d70c7b7a66dfabc4c355e408a066e8bef7d2715f3b7854ce44704886119/langchain_nvidia_ai_endpoints-1.2.1.tar.gz", hash = "sha256:055d2511fa7374da65e5d3dd1705fb09125620a124c6247212d661286f64fa8d", size = 57520, upload-time = "2026-03-16T16:42:34.682Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/8b/30/4acdd906ab2c5da2066d5951ee4fd60fc3a070395c4179b958d7945c543a/langchain_nvidia_ai_endpoints-1.4.0.tar.gz", hash = "sha256:dc43f907c32f5ce559718be1f80789ab84c570fff0e7ee1a50aa71f0424b574b", size = 58038, upload-time = "2026-05-21T03:45:22.316Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/c7/b7/99f72331842b0f62da891411c5590ff7fab70a1a753a9a1be9348921995e/langchain_nvidia_ai_endpoints-1.2.1-py3-none-any.whl", hash = "sha256:eafb2186dea25d163089552c062274664540f2cbe251861c515700645fbf256d", size = 61820, upload-time = "2026-03-16T16:42:33.657Z" },
+    { url = "https://files.pythonhosted.org/packages/15/fa/f1aeaff47e6e98dde9f8c3e1b63607f97d4e0d6f2df6d52ee18b399bb5e2/langchain_nvidia_ai_endpoints-1.4.0-py3-none-any.whl", hash = "sha256:9557eda9d794373a601afbb9a74d15d650f0c8543d544d81f984bfc89b82d52f", size = 63146, upload-time = "2026-05-21T03:45:21.35Z" },
 ]
 
 [[package]]
@@ -1883,7 +1883,7 @@ requires-dist = [
     { name = "langchain-elasticsearch", marker = "extra == 'all'", specifier = ">=0.3" },
     { name = "langchain-elasticsearch", marker = "extra == 'elasticsearch'", specifier = ">=0.3" },
     { name = "langchain-milvus", specifier = ">=0.3.0" },
-    { name = "langchain-nvidia-ai-endpoints", specifier = ">=1.2.1" },
+    { name = "langchain-nvidia-ai-endpoints", specifier = ">=1.4.0" },
     { name = "langchain-openai", marker = "extra == 'all'", specifier = ">=0.2,<1.1.9" },
     { name = "langchain-openai", marker = "extra == 'ingest'", specifier = ">=0.2,<1.1.9" },
     { name = "langchain-openai", marker = "extra == 'rag'", specifier = ">=0.2,<1.1.9" },
