@@ -101,8 +101,8 @@ mkdir -p /tmp/skill-eval/datasets /tmp/skill-eval/results
      Brev VM needed. The runner IS the deploy host.
 
    - **`H100_x2` platform** (`h100.json` specs) → `BrevEnvironment`.
-     Pre-provision an ephemeral Brev VM, run Harbor against it,
-     delete it after. See § GPU provisioning below.
+     Pre-provision ONE ephemeral Brev VM for all H100 specs in this run
+     (see § GPU provisioning). Run all H100 trials against that single VM.
 
    For **cpu skills**, clean any leftover Docker state first:
 
@@ -118,6 +118,21 @@ mkdir -p /tmp/skill-eval/datasets /tmp/skill-eval/results
    Always run **rag-deploy-blueprint first** when it is in the changed
    skills set — it deploys the RAG stack that all other skills test
    against. Then run remaining cpu skills in any order.
+
+   **GPU pre-flight (automatic, no action required from skill authors):**
+   Before running ANY H100 spec for any skill, check if the RAG stack is
+   already running on the Brev VM:
+
+   ```bash
+   brev exec "$BREV_INSTANCE" "curl -sf http://localhost:8081/v1/health" \
+     2>/dev/null && RAG_RUNNING=true || RAG_RUNNING=false
+   ```
+
+   If `RAG_RUNNING=false` and `rag-blueprint/eval/h100.json` exists in
+   the repo, run it first to deploy the self-hosted RAG stack. This
+   happens automatically regardless of which skills are in the PR diff —
+   skill authors do NOT need to declare this dependency in their specs.
+   Once deployed, all subsequent H100 specs reuse the running stack.
 
    Use the canonical Harbor invocation from § Harbor invocation below.
    One step at a time, in order. Skip remaining steps if a step's
@@ -153,15 +168,28 @@ mkdir -p /tmp/skill-eval/datasets /tmp/skill-eval/results
 
 ## GPU provisioning (H100_x2 specs only)
 
-For specs with `platforms: ["H100_x2"]`:
+**One VM per platform per run.** If multiple skills have `H100_x2` specs
+(e.g. rag-eval/h100.json + rag-perf/h100.json), provision ONE Brev VM at
+the start and run ALL H100 trials against it sequentially. Do NOT provision
+a new VM per spec — that wastes 13+ min provisioning time and doubles cost.
+
+**Before processing specs**, collect all unique platforms needed:
+```bash
+# Scan all changed skill specs for their platform requirements
+GPU_PLATFORMS_NEEDED=$(...)  # e.g. "H100_x2"
+```
+
+Then provision once per platform, store the instance name, reuse it for
+all specs of that platform:
 
 ```bash
-BREV_TYPE="dmz.h100x2.pcie"
+# Provision ONCE for all H100_x2 specs in this run
+BREV_TYPE="dmz.h100x2,scaleway_H100x2,gpu-h100-sxm.1gpu-16vcpu-200gb"
 BREV_INSTANCE="rag-eval-gpu-$(date +%s | tail -c 8)"
 
-# Create with retry
+# Create with retry + fallback types
 for attempt in $(seq 1 5); do
-  echo "$BREV_TYPE" | brev create "$BREV_INSTANCE" --detached 2>&1 | tail -5
+  brev create "$BREV_INSTANCE" --type "$BREV_TYPE" --detached 2>&1 | tail -5
   brev ls 2>/dev/null | awk -v n="$BREV_INSTANCE" '$1==n {found=1} END{exit !found}' \
     && break
   sleep 15
@@ -169,18 +197,20 @@ done
 
 # Wait for RUNNING+READY (up to 30 min)
 DEADLINE=$(( $(date +%s) + 1800 ))
+last_state=""
 while [ "$(date +%s)" -lt "$DEADLINE" ]; do
   STATE=$(brev ls 2>/dev/null | awk -v n="$BREV_INSTANCE" '$1==n {print $2"+"$4}')
+  [ -n "$STATE" ] && [ "$STATE" != "$last_state" ] && echo "  $(date -u +%H:%M:%SZ) $BREV_INSTANCE: $STATE" && last_state="$STATE"
   [ "$STATE" = "RUNNING+READY" ] && break
   sleep 15
 done
-[ "$STATE" = "RUNNING+READY" ] || { echo "BLOCKED: H100 VM never reached RUNNING+READY"; exit 1; }
+[ "$last_state" = "RUNNING+READY" ] || { echo "BLOCKED: H100 VM never reached RUNNING+READY"; exit 1; }
 
-# Record for cleanup
+# Record for cleanup — workflow step deletes after 5-min cooldown
 mkdir -p /tmp/brev
 echo "$BREV_INSTANCE" >> "/tmp/brev/started-by-${GITHUB_RUN_ID}.txt"
 
-export BREV_INSTANCE
+export BREV_INSTANCE  # reuse this for ALL H100_x2 specs below
 ```
 
 ---
