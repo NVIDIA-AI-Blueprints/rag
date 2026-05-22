@@ -76,7 +76,7 @@ npm run build
 openclaw plugins install --link /path/to/rag/.openclaw/
 ```
 
-Use an **absolute path** to `.openclaw/` (as above). `npm run build` compiles `index.ts` → `dist/index.js` and copies skills from `skill-source/.agents/skills/` into `skills/`.
+Use an **absolute path** to `.openclaw/` (as above). `npm run build` compiles `index.ts` → `dist/index.js` and copies skills from the repo-root `skills/` into `.openclaw/skills/`.
 
 Do **not** use a bare copy install (`openclaw plugins install /path/to/rag/.openclaw/` or `openclaw plugins install ./` from inside `.openclaw/`) unless you are using a packaged OpenClaw install that can symlink the `openclaw` peer dependency. On many systems that fails with:
 
@@ -192,7 +192,7 @@ OpenClaw CLI reference: [docs.openclaw.ai/cli](https://docs.openclaw.ai/cli)
 | `rag-eval` | "run RAGAS eval", "evaluate_rag", "benchmark dataset", "parse eval results" |
 | `rag-perf` | "rag perf", "aiperf", "latency benchmark", "throughput test" |
 
-Skill source of truth: `skill-source/.agents/skills/` in this repository.
+Skill source of truth: `skills/` at the repo root.
 
 ---
 

@@ -352,17 +352,17 @@ print(plats.get(p, {}).get('brev_type', 'dmz.h100x2.pcie'))
     mv deploy/compose/vectordb.yaml.gpu-bak deploy/compose/vectordb.yaml || true
 
 done < <(
-  # Discover specs under skill-source. Platform routing (cpu/gpu) is
+  # Discover specs under skills/. Platform routing (cpu/gpu) is
   # determined per-spec from platforms[].
   # EVAL_PROFILE (optional): if set, only discover specs whose filename
   # stem matches (e.g. EVAL_PROFILE=h100 → only h100.json specs).
   # When unset, all specs run; cpu sorts before gpu.
   _profile_filter="${EVAL_PROFILE:-}"
   if [ -n "$_profile_filter" ]; then
-    find "$REPO_ROOT/skill-source/.agents/skills" \
+    find "$REPO_ROOT/skills" \
       -path "*/eval/${_profile_filter}.json" 2>/dev/null | sort
   else
-    find "$REPO_ROOT/skill-source/.agents/skills" \
+    find "$REPO_ROOT/skills" \
       -path "*/eval/*.json" 2>/dev/null \
     | python3 -c "
 import sys, json

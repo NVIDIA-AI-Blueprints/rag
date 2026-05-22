@@ -19,7 +19,7 @@ SEMVER_RE = re.compile(r"^(\d+)\.(\d+)\.(\d+)$")
 SOFTWARE_VERSION_RE = re.compile(
     r"^(\d+)\.(\d+)\.(\d+)(?:[.-]?(?:a|b|rc|dev|post)\d*)?$"
 )
-DEFAULT_SKILLS_DIR = Path("skill-source/.agents/skills")
+DEFAULT_SKILLS_DIR = Path("skills")
 
 
 @dataclass(frozen=True)
@@ -138,13 +138,13 @@ def main() -> int:
         "--repo-root",
         type=Path,
         default=_repo_root_from_script(),
-        help="Repository root. Defaults to the parent of skill-source/.",
+        help="Repository root. Defaults to the parent of scripts/.",
     )
     parser.add_argument(
         "--skills-dir",
         type=Path,
         default=None,
-        help="Skill directory root. Defaults to skill-source/.agents/skills.",
+        help="Skill directory root. Defaults to skills/ at the repo root.",
     )
     args = parser.parse_args()
 

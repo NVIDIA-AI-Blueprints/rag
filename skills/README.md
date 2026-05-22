@@ -27,8 +27,10 @@ The SKILL.md detects user intent and routes to the correct reference file. Refer
 
 ## Skill Structure
 
+Skill content lives at `skills/<skill-name>/` at the repo root (canonical per the [agentskills.io](https://agentskills.io/specification) spec).
+
 ```
-skill-source/.agents/skills/rag-blueprint/
+skills/rag-blueprint/
   SKILL.md                              ← Single entry point (intent router)
   references/
     deploy.md                           ← Deployment: env analysis, NGC key, routing

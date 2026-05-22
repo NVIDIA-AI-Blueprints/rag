@@ -10,7 +10,7 @@ This documentation contains the release notes for [NVIDIA RAG Blueprint](readme.
 
 ## Release 2.6.0 (TBD)
 
-This release adds [Agentic RAG](./agentic-rag.md) support with plan-and-execute pipelines, streaming responses, and UI integration; changes the default vector database to Elasticsearch and the default object store to SeaweedFS; and introduces new [agent skills](../skill-source/README.md) for deployment, evaluation, and performance tooling.
+This release adds [Agentic RAG](./agentic-rag.md) support with plan-and-execute pipelines, streaming responses, and UI integration; changes the default vector database to Elasticsearch and the default object store to SeaweedFS; and introduces new [agent skills](../skills/README.md) for deployment, evaluation, and performance tooling.
 
 ### Highlights
 
@@ -25,8 +25,8 @@ This release includes the following key updates:
 - Promoted `nvidia/llama-nemotron-embed-vl-1b-v2` as the default embedding model. The text embedding model `nvidia/llama-nemotron-embed-1b-v2` remains available as [an optional configuration](./change-model.md#switch-from-the-vlm-embedder-to-the-text-only-embedder).
 - Added [VLM reranker support](./change-model.md#switch-to-the-vlm-reranker) as an opt-in.
 - Added dynamic filter expression generation for Elasticsearch.
-- Published [RAG performance tooling](../scripts/rag-perf/) and [skills](../skill-source/README.md) to use it easily.
-- Published the [RAG evaluation framework](../scripts/eval/README.md) and [skills](../skill-source/README.md) to use it easily.
+- Published [RAG performance tooling](../scripts/rag-perf/) and [skills](../skills/README.md) to use it easily.
+- Published the [RAG evaluation framework](../scripts/eval/README.md) and [skills](../skills/README.md) to use it easily.
 - Updated NV-Ingest to version 26.3.0.
 - Updated OCR NIM naming from `nemoretriever-ocr-v1` to `nemotron-ocr-v1`.
 - Added OpenClaw plugin for agent-driven deploy/configure/eval workflows.
@@ -59,7 +59,7 @@ This release includes the following key updates:
 - **Added MIG support for RTX 6000.** For details, refer to [MIG Deployment](mig-deployment.md) and use `values-mig-rtx6000.yaml` and `mig-config-rtx6000.yaml`.
 - Added documentation for the experimental Nemotron-parse-only ingestion pipeline. This configuration allows you to perform extraction using only Nemotron Parse through NV-Ingest, without relying on OCR, page-elements, graphic-elements, or table-structure NIMs. For more information, refer to [nemotron-parse-extraction.md](nemotron-parse-extraction.md#experimental-nemotron-parse-only-extraction).
 - Several bug fixes, including frontend CVE resolutions, improved multimodal content concatenation for VLM embeddings, enhanced VDB serialization for high-concurrency parallel ingestion, and updates to observability and NeMo Guardrails configurations.
-- Added agentic skills support: the `rag-blueprint` skill enables AI coding assistants (Claude Code, Cursor, Codex, etc.) to deploy, configure, troubleshoot, and manage the RAG Blueprint autonomously. For details, refer to [RAG Blueprint Agent Skill](../skill-source/README.md).
+- Added agentic skills support: the `rag-blueprint` skill enables AI coding assistants (Claude Code, Cursor, Codex, etc.) to deploy, configure, troubleshoot, and manage the RAG Blueprint autonomously. For details, refer to [RAG Blueprint Agent Skill](../skills/README.md).
 - Added [accuracy benchmark results](accuracy-benchmarks.md) across seven public datasets (RagBattlepacket, KG-RAG, Financebench, DC767, HotPotQA, Google Frames, and Vidore), comparing LLM and VLM configurations with reasoning on/off. Benchmarks use the NVIDIA Answer Accuracy metric from RAGAS.
 
 ### Fixed Known Issues
