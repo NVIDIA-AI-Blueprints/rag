@@ -1,0 +1,37 @@
+{
+  "skills": ["rag-perf"],
+  "platforms": ["H100_x2"],
+  "resources": {
+    "platforms": {
+      "H100_x2": {
+        "brev_type": "dmz.h100x2.pcie",
+        "gpu_type": "H100",
+        "gpu_count": 2,
+        "min_vram_gb_per_gpu": 80,
+        "min_root_disk_gb": 500,
+        "min_gpu_driver_version": "560.0",
+        "description": "2x H100 80GB PCIe. Self-hosted RAG stack — performance benchmarking against local NIMs gives GPU-accurate TTFT and throughput numbers."
+      }
+    }
+  },
+  "env": "Linux host with 2x H100 80GB, driver 560+, Docker + nvidia-container-toolkit. Self-hosted RAG stack running with local NIMs at http://localhost:8081. uv and Python 3.11+ available. Perf deps installed via: uv sync --project scripts/rag-perf. cwd is repo root: ${RAG_REPO_ROOT}/.",
+  "expects": [
+    {
+      "query": "Use the rag-perf skill to run a performance benchmark against the self-hosted RAG server at http://localhost:8081. Configure it for concurrency=4 and report TTFT, throughput, and any identified bottleneck.",
+      "checks": [
+        "The agent's trajectory shows it read the rag-perf SKILL.md before taking action",
+        "The agent's trajectory shows it verified the RAG server is reachable before starting the benchmark",
+        "The agent's final response includes the rag-perf command or config YAML with host=localhost:8081 and concurrency settings",
+        "The agent's final response reports or explains where to find TTFT and throughput metrics in the output"
+      ]
+    },
+    {
+      "query": "My self-hosted RAG benchmark shows TTFT p99 of 8.2 seconds at concurrency=8. Use the rag-perf skill to explain whether this is a GPU bottleneck or retrieval bottleneck, and what to try next.",
+      "checks": [
+        "The agent's trajectory shows it read the rag-perf SKILL.md before responding",
+        "The agent's final response distinguishes between LLM NIM latency and retrieval/embedding latency as separate bottleneck candidates",
+        "The agent's final response suggests at least one concrete experiment to isolate the bottleneck such as reducing concurrency, checking GPU utilization, or running retrieval-only mode"
+      ]
+    }
+  ]
+}
