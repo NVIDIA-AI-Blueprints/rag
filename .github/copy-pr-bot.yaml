@@ -1,14 +1,13 @@
 # copy-pr-bot configuration for NVIDIA-AI-Blueprints/rag
 # Docs: https://docs.gha-runners.nvidia.com/platform/apps/copy-pr-bot/
 #
-# All NVIDIA org members with write access are auto-trusted and auto-vetters.
-# No individual names needed — scales to any number of contributors.
-# Commit signing required for trusted-change classification.
-# See: https://docs.github.com/en/authentication/managing-commit-signature-verification
-#
-# Only add to additional_vetters if someone needs vetting rights
-# but has read-only repo access (rare for internal repos).
+# additional_trustees: users explicitly trusted even if not org members.
+# Needed when author_association is CONTRIBUTOR (not MEMBER of NVIDIA-AI-Blueprints org).
 
 enabled: true
 auto_sync_draft: false
 auto_sync_ready: true
+
+additional_trustees:
+  - vidushig-nv
+  - richa-nvidia
