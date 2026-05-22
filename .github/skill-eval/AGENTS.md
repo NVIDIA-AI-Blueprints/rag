@@ -101,8 +101,8 @@ mkdir -p /tmp/skill-eval/datasets /tmp/skill-eval/results
      Brev VM needed. The runner IS the deploy host.
 
    - **`H100_x2` platform** (`h100.json` specs) → `BrevEnvironment`.
-     Pre-provision an ephemeral Brev VM, run Harbor against it,
-     delete it after. See § GPU provisioning below.
+     Pre-provision ONE ephemeral Brev VM for all H100 specs in this run
+     (see § GPU provisioning). Run all H100 trials against that single VM.
 
    For **cpu skills**, clean any leftover Docker state first:
 
@@ -118,6 +118,21 @@ mkdir -p /tmp/skill-eval/datasets /tmp/skill-eval/results
    Always run **rag-deploy-blueprint first** when it is in the changed
    skills set — it deploys the RAG stack that all other skills test
    against. Then run remaining cpu skills in any order.
+
+   **GPU pre-flight (automatic, no action required from skill authors):**
+   Before running ANY H100 spec for any skill, check if the RAG stack is
+   already running on the Brev VM:
+
+   ```bash
+   brev exec "$BREV_INSTANCE" "curl -sf http://localhost:8081/v1/health" \
+     2>/dev/null && RAG_RUNNING=true || RAG_RUNNING=false
+   ```
+
+   If `RAG_RUNNING=false` and `rag-blueprint/eval/h100.json` exists in
+   the repo, run it first to deploy the self-hosted RAG stack. This
+   happens automatically regardless of which skills are in the PR diff —
+   skill authors do NOT need to declare this dependency in their specs.
+   Once deployed, all subsequent H100 specs reuse the running stack.
 
    Use the canonical Harbor invocation from § Harbor invocation below.
    One step at a time, in order. Skip remaining steps if a step's
