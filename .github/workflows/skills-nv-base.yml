@@ -2,17 +2,13 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Tier 1 skills validation: schema, security, PII, naming, frontmatter.
-# Runs on every PR mirror branch push that touches skills/.
-# Uses dorny/paths-filter for cumulative diff (PR base ↔ HEAD) — GitHub's
-# top-level paths: filter evaluates per-push diff and misses copy-pr-bot
-# merge commits that don't themselves touch skills/.
+# push: trigger removed — job is if: false (nv-base requires NVIDIA internal
+# network, unavailable on external runners). Keeping only workflow_dispatch
+# so the "Run workflow" button appears in the Actions UI for future use.
 
 name: Skills NV-BASE
 
 on:
-  push:
-    branches:
-      - "pull-request/[0-9]+"
   workflow_dispatch:
     inputs:
       skills:
@@ -48,7 +44,7 @@ defaults:
 jobs:
   skills-check:
     name: skills-check
-    runs-on: [self-hosted, rag-skill-validator]
+    runs-on: [self-hosted, rag-eval]
     timeout-minutes: 20
 
     # Tier 1 disabled — nv-base requires pre-installation on the runner

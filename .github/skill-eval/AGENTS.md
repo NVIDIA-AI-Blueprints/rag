@@ -22,6 +22,18 @@ find /tmp/skill-eval/results -mindepth 1 -maxdepth 1 -type d \
   ! -name "${GITHUB_RUN_ID}" -exec rm -rf {} + 2>/dev/null || true
 
 mkdir -p /tmp/skill-eval/datasets /tmp/skill-eval/results
+
+# Log exact image digests for traceability (resolve :latest to sha256)
+echo "=== Image digests (for traceability) ==="
+for img in \
+  nvcr.io/nvstaging/blueprint/rag-server:${TAG:-latest} \
+  nvcr.io/nvstaging/blueprint/ingestor-server:${TAG:-latest}; do
+  digest=$(docker inspect "$img" --format '{{index .RepoDigests 0}}' 2>/dev/null \
+    || docker pull "$img" -q 2>/dev/null \
+    && docker inspect "$img" --format '{{index .RepoDigests 0}}' 2>/dev/null \
+    || echo "$img — not yet pulled")
+  echo "  $img → $digest"
+done
 ```
 
 ## Your job, in order
@@ -54,7 +66,7 @@ mkdir -p /tmp/skill-eval/datasets /tmp/skill-eval/results
 
    Skills with no `eval/` dir are not yet migrated — skip them.
 
-3. **Check the shared adapter.** All rag-* skills use a single adapter
+3. **Check the shared adapter.** All rag-\* skills use a single adapter
    at `skill-eval/adapters/rag-blueprint/generate.py` with
    `--skill-name <skill>`. Verify it accepts `--skill-name`:
 
@@ -68,7 +80,7 @@ mkdir -p /tmp/skill-eval/datasets /tmp/skill-eval/results
    § 3c) with the fix and emit `BLOCKED: adapter missing --skill-name`.
 
    Unlike VSS, you do NOT create per-skill adapters — one shared
-   adapter serves all rag-* skills. If a skill genuinely needs custom
+   adapter serves all rag-\* skills. If a skill genuinely needs custom
    adapter logic (different PREAMBLE, non-standard platform), note it
    in the PR comment and raise a bot PR adding
    `skill-eval/adapters/<skill>/generate.py`.
@@ -78,8 +90,8 @@ mkdir -p /tmp/skill-eval/datasets /tmp/skill-eval/results
    is the spec filename without `.json`.
 
    Resolve `SKILL_DIR` based on where the skill lives:
-   - Decomposed skills:  `SKILL_DIR="$REPO_ROOT/skills/<skill>"`
-   - Monolithic skills:  `SKILL_DIR="$REPO_ROOT/skill-source/.agents/skills/<skill>"`
+   - Decomposed skills: `SKILL_DIR="$REPO_ROOT/skills/<skill>"`
+   - Monolithic skills: `SKILL_DIR="$REPO_ROOT/skill-source/.agents/skills/<skill>"`
 
    ```bash
    cd "$REPO_ROOT/skill-eval"
@@ -95,14 +107,13 @@ mkdir -p /tmp/skill-eval/datasets /tmp/skill-eval/results
    generation fails, read the traceback, fix the adapter, rerun.
 
 5. **Run Harbor trials.** Platform routing:
-
    - **`cpu` platform** (`nvidia_hosted.json` specs) → `LocalEnvironment`.
      Docker runs directly on the `rag-skill-validator` runner — no
      Brev VM needed. The runner IS the deploy host.
 
    - **`H100_x2` platform** (`h100.json` specs) → `BrevEnvironment`.
-     Pre-provision an ephemeral Brev VM, run Harbor against it,
-     delete it after. See § GPU provisioning below.
+     Pre-provision ONE ephemeral Brev VM for all H100 specs in this run
+     (see § GPU provisioning). Run all H100 trials against that single VM.
 
    For **cpu skills**, clean any leftover Docker state first:
 
@@ -118,6 +129,30 @@ mkdir -p /tmp/skill-eval/datasets /tmp/skill-eval/results
    Always run **rag-deploy-blueprint first** when it is in the changed
    skills set — it deploys the RAG stack that all other skills test
    against. Then run remaining cpu skills in any order.
+
+   **GPU pre-flight (automatic, no action required from skill authors):**
+   Before running ANY H100 spec for any skill, first sync the Brev VM's repo
+   to the PR base branch so compose files, env files, and skill docs all match
+   the branch under test (Harbor clones the default branch — main — not the PR):
+
+   ```bash
+   brev exec "$BREV_INSTANCE" -- \
+     "cd /home/nvidia/rag && git fetch origin ${PR_BASE} && git checkout ${PR_BASE} && git pull origin ${PR_BASE}" \
+     2>/dev/null || true
+   ```
+
+   Then check if the RAG stack is already running on the Brev VM:
+
+   ```bash
+   brev exec "$BREV_INSTANCE" "curl -sf http://localhost:8081/v1/health" \
+     2>/dev/null && RAG_RUNNING=true || RAG_RUNNING=false
+   ```
+
+   If `RAG_RUNNING=false` and `rag-blueprint/eval/h100.json` exists in
+   the repo, run it first to deploy the self-hosted RAG stack. This
+   happens automatically regardless of which skills are in the PR diff —
+   skill authors do NOT need to declare this dependency in their specs.
+   Once deployed, all subsequent H100 specs reuse the running stack.
 
    Use the canonical Harbor invocation from § Harbor invocation below.
    One step at a time, in order. Skip remaining steps if a step's
@@ -153,15 +188,29 @@ mkdir -p /tmp/skill-eval/datasets /tmp/skill-eval/results
 
 ## GPU provisioning (H100_x2 specs only)
 
-For specs with `platforms: ["H100_x2"]`:
+**One VM per platform per run.** If multiple skills have `H100_x2` specs
+(e.g. rag-eval/h100.json + rag-perf/h100.json), provision ONE Brev VM at
+the start and run ALL H100 trials against it sequentially. Do NOT provision
+a new VM per spec — that wastes 13+ min provisioning time and doubles cost.
+
+**Before processing specs**, collect all unique platforms needed:
 
 ```bash
-BREV_TYPE="dmz.h100x2.pcie"
+# Scan all changed skill specs for their platform requirements
+GPU_PLATFORMS_NEEDED=$(...)  # e.g. "H100_x2"
+```
+
+Then provision once per platform, store the instance name, reuse it for
+all specs of that platform:
+
+```bash
+# Provision ONCE for all H100_x2 specs in this run
+BREV_TYPE="dmz.h100x2,scaleway_H100x2,gpu-h100-sxm.1gpu-16vcpu-200gb"
 BREV_INSTANCE="rag-eval-gpu-$(date +%s | tail -c 8)"
 
-# Create with retry
+# Create with retry + fallback types
 for attempt in $(seq 1 5); do
-  echo "$BREV_TYPE" | brev create "$BREV_INSTANCE" --detached 2>&1 | tail -5
+  brev create "$BREV_INSTANCE" --type "$BREV_TYPE" --detached 2>&1 | tail -5
   brev ls 2>/dev/null | awk -v n="$BREV_INSTANCE" '$1==n {found=1} END{exit !found}' \
     && break
   sleep 15
@@ -169,18 +218,20 @@ done
 
 # Wait for RUNNING+READY (up to 30 min)
 DEADLINE=$(( $(date +%s) + 1800 ))
+last_state=""
 while [ "$(date +%s)" -lt "$DEADLINE" ]; do
   STATE=$(brev ls 2>/dev/null | awk -v n="$BREV_INSTANCE" '$1==n {print $2"+"$4}')
+  [ -n "$STATE" ] && [ "$STATE" != "$last_state" ] && echo "  $(date -u +%H:%M:%SZ) $BREV_INSTANCE: $STATE" && last_state="$STATE"
   [ "$STATE" = "RUNNING+READY" ] && break
   sleep 15
 done
-[ "$STATE" = "RUNNING+READY" ] || { echo "BLOCKED: H100 VM never reached RUNNING+READY"; exit 1; }
+[ "$last_state" = "RUNNING+READY" ] || { echo "BLOCKED: H100 VM never reached RUNNING+READY"; exit 1; }
 
-# Record for cleanup
+# Record for cleanup — workflow step deletes after 5-min cooldown
 mkdir -p /tmp/brev
 echo "$BREV_INSTANCE" >> "/tmp/brev/started-by-${GITHUB_RUN_ID}.txt"
 
-export BREV_INSTANCE
+export BREV_INSTANCE  # reuse this for ALL H100_x2 specs below
 ```
 
 ---
@@ -248,15 +299,23 @@ done
 ```
 
 **Never background harbor and poll.** Use foreground blocking calls only.
+`harbor run` MUST be called directly in a Bash tool call and allowed to block
+until it exits. Do NOT use TaskCreate, background processes (`&`), `nohup`,
+`Monitor`, or any other mechanism to run harbor asynchronously — not even
+wrapped in a shell script. The Bash tool call itself must block until harbor
+exits. The call will block for up to 90 minutes on GPU specs — that is
+expected and correct. Do NOT check on it with sleep loops, Read, or Monitor.
+Just wait. Violating this rule causes the agent to exit without DONE:/BLOCKED:
+(exit 4). This has happened multiple times — do not repeat the mistake.
 
 ---
 
 ## Platform topology
 
-| Platform | `spec.platforms` value | Environment | Instance | After run |
-|---|---|---|---|---|
-| CPU / cloud NIMs | `cpu` | LocalEnvironment | `rag-skill-validator` runner | docker down + volume cleanup |
-| 2× H100 80GB | `H100_x2` | BrevEnvironment | `rag-eval-gpu-<ts>` (`dmz.h100x2.pcie`) | workflow step deletes after 5-min cooldown |
+| Platform         | `spec.platforms` value | Environment      | Instance                                | After run                                  |
+| ---------------- | ---------------------- | ---------------- | --------------------------------------- | ------------------------------------------ |
+| CPU / cloud NIMs | `cpu`                  | LocalEnvironment | `rag-skill-validator` runner            | docker down + volume cleanup               |
+| 2× H100 80GB     | `H100_x2`              | BrevEnvironment  | `rag-eval-gpu-<ts>` (`dmz.h100x2.pcie`) | workflow step deletes after 5-min cooldown |
 
 `rag-skill-validator` is the CI runner host — **never** provision Brev against it.
 
@@ -270,10 +329,10 @@ done
 Head: `<short-sha>` · spec `<spec-sha>`
 First started: `<utc>` · Last finished: `<utc>` · Total: `<Xhr Ymin>`
 
-| Platform | Step | Query | Result | Reward | Duration | Turns |
-|---|---|---|---|---|---|---|
-| cpu | step-1 | Deploy via Docker Compose... | ✅ 1.0 (6/6) | 1.0 | 4m 29s | 18 |
-| cpu | step-2 | Get RAG Blueprint running... | ✅ 1.0 (5/5) | 1.0 | 1m 23s | 9 |
+| Platform | Step   | Query                        | Result       | Reward | Duration | Turns |
+| -------- | ------ | ---------------------------- | ------------ | ------ | -------- | ----- |
+| cpu      | step-1 | Deploy via Docker Compose... | ✅ 1.0 (6/6) | 1.0    | 4m 29s   | 18    |
+| cpu      | step-2 | Get RAG Blueprint running... | ✅ 1.0 (5/5) | 1.0    | 1m 23s   | 9     |
 
 ### Failing checks
 
@@ -320,6 +379,7 @@ END=$(jq -r '.trial_finished_at'  "$RESULTS"/*/*/step-${STEP}__*/result.json 2>/
 ## Manual full-sweep mode
 
 When `MANUAL_FULL_SWEEP=1` (workflow_dispatch):
+
 - **Step 1 override:** skip diff. Enumerate `skills/*/eval/*.json`;
   filter by `MANUAL_SKILLS_FILTER` (`*` = all skills).
 - **Step 3 override:** no bot-PR flow. Record missing adapter as

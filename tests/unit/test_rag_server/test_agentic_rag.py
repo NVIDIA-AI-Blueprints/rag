@@ -117,12 +117,6 @@ class TestAgenticRagStaticHelpers:
     def test_filter_think_tokens_truncated_block(self) -> None:
         assert AgenticRag._filter_think_tokens("<think>no close") == ""
 
-    def test_sanitize_json_string_escapes_newlines_in_strings(self) -> None:
-        dirty = '{"x": "line1\nline2"}'
-        clean = AgenticRag._sanitize_json_string(dirty)
-        assert "\n" not in clean.split('"x":')[1]
-        assert json.loads(clean)["x"] == "line1\nline2"
-
     def test_rebuild_result_text_vs_chart(self) -> None:
         text_chunk = {
             "doc_name": "a.pdf",
@@ -163,17 +157,6 @@ class TestAgenticRagStaticHelpers:
 
 
 class TestAgenticRagInstanceHelpers:
-    def test_parse_json_response_direct_and_embedded(self) -> None:
-        agent = _minimal_agent()
-        assert agent._parse_json_response('{"k": 1}') == {"k": 1}
-        wrapped = 'prefix {"k": 2} suffix'
-        assert agent._parse_json_response(wrapped) == {"k": 2}
-
-    def test_parse_json_response_invalid_returns_error_dict(self) -> None:
-        agent = _minimal_agent()
-        out = agent._parse_json_response("not json at all")
-        assert out.get("error") == "Failed to parse JSON"
-
     def test_extract_chunks_from_model_dump_shape(self) -> None:
         agent = _minimal_agent()
         dumped = {

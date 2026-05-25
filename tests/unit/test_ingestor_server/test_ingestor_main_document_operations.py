@@ -550,6 +550,7 @@ class TestNvidiaRAGIngestorCoverageImprovement:
         # Test __prepare_vdb_op_and_collection_name
         with patch("nvidia_rag.ingestor_server.main._get_vdb_op") as mock_get_vdb:
             mock_vdb_instance = Mock(spec=VDBRag)
+            mock_vdb_instance.collection_name = "test_collection"
             mock_get_vdb.return_value = mock_vdb_instance
 
             vdb_op, collection_name = (

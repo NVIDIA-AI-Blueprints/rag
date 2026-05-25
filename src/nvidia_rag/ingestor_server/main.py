@@ -275,7 +275,10 @@ class NvidiaRAGIngestor:
                 config=self.config,
                 vdb_auth_token=vdb_auth_token,
             )
-            return vdb_op, collection_name
+            # Return the backend-canonicalized name (e.g. Elasticsearch
+            # lowercases index names) so downstream summary keys in Redis
+            # and object storage align with what GET /collections reports.
+            return vdb_op, vdb_op.collection_name
 
         if not bypass_validation and (collection_name or custom_metadata):
             raise ValueError(

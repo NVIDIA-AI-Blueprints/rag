@@ -22,7 +22,7 @@ on:
     branches:
       - "pull-request/[0-9]+"
   schedule:
-    - cron: '0 2 * * *'    # 2am UTC nightly — all rag-* cpu skills
+    - cron: "0 2 * * *" # 2am UTC nightly — all rag-* cpu skills
   workflow_dispatch:
     inputs:
       skills:
@@ -58,7 +58,7 @@ defaults:
 jobs:
   eval:
     name: Eval changed skills against PR
-    runs-on: [self-hosted, rag-skill-validator]
+    runs-on: [self-hosted, rag-eval]
 
     # 4-hour cap: 8 cpu skills × ~15 min each = 2h max with 1.5x timeouts.
     # Nightly runs all skills; PR runs only changed ones so usually much faster.
@@ -114,17 +114,6 @@ jobs:
               - '.github/workflows/skills-eval.yml'
               - 'ci/run_skill_eval.sh'
 
-      - name: Load coordinator env
-        if: github.event_name != 'push' || steps.changes.outputs.relevant == 'true'
-        run: |
-          # Secrets stored in /home/ubuntu/eval-coordinator/.env on the runner.
-          # Contains: NVIDIA_INFERENCE_KEY, NGC_API_KEY
-          set -a
-          source /home/ubuntu/eval-coordinator/.env
-          set +a
-          printf "COORDINATOR_ENV=loaded\n" >> "$GITHUB_ENV"
-          printf "CLAUDE_CODE_DISABLE_THINKING=1\n" >> "$GITHUB_ENV"
-
       - name: Run skills eval agent
         id: agent
         if: github.event_name != 'push' || steps.changes.outputs.relevant == 'true'
@@ -132,11 +121,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_CONFIG_DIR: ${{ runner.temp }}/gh-skill-eval-${{ github.run_id }}
           INPUT_SKILLS: ${{ inputs.skills }}
+          ANTHROPIC_API_KEY: ${{ secrets.NVBASE_INFERENCE_API_KEY }}
+          ANTHROPIC_BASE_URL: https://inference-api.nvidia.com
+          ANTHROPIC_MODEL: aws/anthropic/bedrock-claude-sonnet-4-6
+          NVIDIA_INFERENCE_KEY: ${{ secrets.NVBASE_INFERENCE_API_KEY }}
+          NVIDIA_API_KEY: ${{ secrets.NVBASE_INFERENCE_API_KEY }}
+          NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
+          CLAUDE_CODE_DISABLE_THINKING: "1"
+          TAG: latest
         run: |
           mkdir -p "$GH_CONFIG_DIR" /tmp/brev /tmp/skill-eval
-          set -a
-          source /home/ubuntu/eval-coordinator/.env
-          set +a
           export PR_NUMBER="${{ steps.pr.outputs.number }}"
           export PR_BASE="${{ steps.pr.outputs.base }}"
           export PR_HEAD_SHA="${{ github.sha }}"
@@ -150,6 +144,21 @@ jobs:
           fi
           python3 .github/skill-eval/skills_eval_agent.py
 
+      - name: Collect results for artifact
+        if: always() && (github.event_name != 'push' || steps.changes.outputs.relevant == 'true')
+        run: |
+          if [ ! -d /tmp/skill-eval/results ]; then
+            echo "no results dir — agent blocked before running trials"
+            exit 0
+          fi
+          RESULTS=$(find /tmp/skill-eval/results -maxdepth 3 -name "result.json" 2>/dev/null | head -50 || true)
+          if [ -n "$RESULTS" ]; then
+            tar czf /tmp/skills-eval-results.tar.gz -C /tmp/skill-eval results
+            echo "archived $(echo "$RESULTS" | wc -l) result.json files"
+          else
+            echo "results dir exists but empty — nothing to archive"
+          fi
+
       - name: Upload results artifact
         if: always() && (github.event_name != 'push' || steps.changes.outputs.relevant == 'true')
         uses: actions/upload-artifact@v5
@@ -160,7 +169,7 @@ jobs:
               || github.event_name == 'workflow_dispatch'
               && format('skills-eval-manual-{0}', github.run_id)
               || format('skills-eval-pr-{0}-{1}', steps.pr.outputs.number, github.run_id) }}
-          path: eval-results/
+          path: /tmp/skills-eval-results.tar.gz
           if-no-files-found: ignore
           retention-days: 7
 

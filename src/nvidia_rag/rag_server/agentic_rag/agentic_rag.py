@@ -54,6 +54,8 @@ from langgraph.types import StreamWriter
 from opentelemetry import trace as otel_trace
 from pydantic import BaseModel, Field
 
+from nvidia_rag.rag_server.agentic_rag.response_parser import parse_json_response
+
 logger = logging.getLogger(__name__)
 
 _P = "[AGENTIC_RAG]"
@@ -454,44 +456,6 @@ class AgenticRag:
         return ""
 
     @staticmethod
-    def _sanitize_json_string(raw: str) -> str:
-        """Escape unescaped control characters inside JSON string values."""
-        out: list[str] = []
-        in_string = False
-        i = 0
-        length = len(raw)
-        while i < length:
-            ch = raw[i]
-            if ch == "\\" and in_string:
-                out.append(ch)
-                if i + 1 < length:
-                    i += 1
-                    out.append(raw[i])
-                i += 1
-                continue
-            if ch == '"':
-                in_string = not in_string
-                out.append(ch)
-                i += 1
-                continue
-            if in_string:
-                if ch == "\n":
-                    out.append("\\n")
-                    i += 1
-                    continue
-                if ch == "\r":
-                    out.append("\\r")
-                    i += 1
-                    continue
-                if ch == "\t":
-                    out.append("\\t")
-                    i += 1
-                    continue
-            out.append(ch)
-            i += 1
-        return "".join(out)
-
-    @staticmethod
     async def _accumulate_astream(
         chain: Any,
         inputs: dict[str, Any],
@@ -746,37 +710,6 @@ class AgenticRag:
             return response_content
 
     # =========================================================================
-    # JSON PARSING
-    # =========================================================================
-
-    def _parse_json_response(self, response: str) -> dict[str, Any]:
-        """Parse a JSON object from an LLM response, with fallback sanitization."""
-        try:
-            return json.loads(response)
-        except json.JSONDecodeError:
-            pass
-
-        start = response.find("{")
-        end = response.rfind("}") + 1
-        if start == -1 or end <= start:
-            logger.warning("%s No JSON object found in response: %.200s", _P, response)
-            return {"error": "Failed to parse JSON", "raw_response": response}
-
-        json_str = response[start:end]
-        try:
-            return json.loads(json_str)
-        except json.JSONDecodeError:
-            pass
-
-        try:
-            return json.loads(self._sanitize_json_string(json_str))
-        except json.JSONDecodeError:
-            pass
-
-        logger.warning("%s JSON parse failed: %.200s", _P, response)
-        return {"error": "Failed to parse JSON", "raw_response": response}
-
-    # =========================================================================
     # CONTENT HELPERS
     # =========================================================================
 
@@ -913,7 +846,7 @@ class AgenticRag:
         if not raw_answer:
             return {"completeness": "none", "answer": "[NO DATA]", "missing": ""}
 
-        parsed = self._parse_json_response(raw_answer)
+        parsed = parse_json_response(raw_answer)
         if parsed and "completeness" in parsed:
             return {
                 "completeness": parsed.get("completeness", "complete"),
@@ -999,7 +932,7 @@ class AgenticRag:
                         json_mode=True,
                         # config intentionally omitted — see method docstring.
                     )
-                    seed_result = self._parse_json_response(seed_response)
+                    seed_result = parse_json_response(seed_response)
 
                     if seed_result.get("stop", False):
                         logger.debug(
@@ -1094,7 +1027,7 @@ class AgenticRag:
                     {"question": task_question, "documents": docs_str},
                     step_name=f"Task {tid} answer (attempt {attempt + 1})",
                     # config intentionally omitted — see method docstring.
-                    json_mode=True,
+                    json_mode=False,
                 )
                 parsed = self._parse_task_answer(raw_answer)
 
@@ -1326,7 +1259,7 @@ class AgenticRag:
                         json_mode=True,
                         config=config,
                     )
-                    plan = self._parse_json_response(response)
+                    plan = parse_json_response(response)
 
                     if "error" in plan:
                         logger.warning(
@@ -1875,7 +1808,7 @@ class AgenticRag:
                     json_mode=True,
                     config=config,
                 )
-                result = self._parse_json_response(response)
+                result = parse_json_response(response)
 
                 passed = result.get("status") == "pass"
                 issues = result.get("issues", [])

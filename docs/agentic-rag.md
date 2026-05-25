@@ -33,6 +33,7 @@ The pipeline defaults to off because Agentic RAG trades latency and extra LLM ca
 - The agentic path does not use NeMo Guardrails, Self-Reflection, Query Decomposition, or VLM Inference. Query rewriting, multi-turn history, multi-collection retrieval, citations, filter generation, and reranking are supported.
 - Verification runs once; there's no nested verification loop.
 - Tasks in a plan run at one parallel level; there's no DAG or depends-on construct.
+- Per-response retrieval metrics are not emitted. The agentic pipeline issues multiple retrieval calls across initial retrieval, per-task execution, and verification re-retrieval, so the single `metrics` block returned by the standard chain is not populated for agentic requests.
 
 ## Architecture Overview
 
