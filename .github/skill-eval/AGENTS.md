@@ -278,6 +278,11 @@ done
 ```
 
 **Never background harbor and poll.** Use foreground blocking calls only.
+`harbor run` MUST be called directly in a Bash tool call and allowed to block
+until it exits. Do NOT use TaskCreate, background processes (`&`), `nohup`,
+`Monitor`, or any other mechanism to run harbor asynchronously. The call will
+block for up to 90 minutes on GPU specs — that is expected and correct.
+Violating this rule causes the agent to exit without DONE:/BLOCKED: (exit 4).
 
 ---
 
