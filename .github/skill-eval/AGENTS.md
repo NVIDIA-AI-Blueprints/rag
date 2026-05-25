@@ -184,7 +184,7 @@ all specs of that platform:
 
 ```bash
 # Provision ONCE for all H100_x2 specs in this run
-BREV_TYPE="dmz.h100x2,scaleway_H100x2,gpu-h100-sxm.1gpu-16vcpu-200gb"
+BREV_TYPE="dmz.h100x2,dmz.h100x2.pcie"
 BREV_INSTANCE="rag-eval-gpu-$(date +%s | tail -c 8)"
 
 # Create with retry + fallback types
@@ -243,6 +243,7 @@ uvx --with boto3 harbor run \
   --model "$ANTHROPIC_MODEL" \
   --ak api_base="$ANTHROPIC_BASE_URL/v1" \
   --ae CLAUDE_CODE_DISABLE_THINKING=1 \
+  --ae TAG=latest \
   --environment-build-timeout-multiplier 3.0 \
   --agent-timeout-multiplier 3.0 \
   --verifier-timeout-multiplier 3.0 \
