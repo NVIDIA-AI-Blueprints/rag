@@ -1,5 +1,6 @@
 {
   "skills": ["rag-eval"],
+  "version": "1",
   "platforms": ["H100_x2"],
   "resources": {
     "platforms": {
