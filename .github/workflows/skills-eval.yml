@@ -58,7 +58,7 @@ defaults:
 jobs:
   eval:
     name: Eval changed skills against PR
-    runs-on: [self-hosted, rag-skill-validator]
+    runs-on: [self-hosted, rag-eval]
 
     # 4-hour cap: 8 cpu skills × ~15 min each = 2h max with 1.5x timeouts.
     # Nightly runs all skills; PR runs only changed ones so usually much faster.
