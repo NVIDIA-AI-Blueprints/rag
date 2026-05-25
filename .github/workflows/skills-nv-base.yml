@@ -48,7 +48,7 @@ defaults:
 jobs:
   skills-check:
     name: skills-check
-    runs-on: [self-hosted, rag-skill-validator]
+    runs-on: [self-hosted, rag-eval]
     timeout-minutes: 20
 
     # Tier 1 disabled — nv-base requires pre-installation on the runner
