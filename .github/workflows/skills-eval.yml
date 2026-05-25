@@ -150,6 +150,21 @@ jobs:
           fi
           python3 .github/skill-eval/skills_eval_agent.py
 
+      - name: Collect results for artifact
+        if: always() && (github.event_name != 'push' || steps.changes.outputs.relevant == 'true')
+        run: |
+          if [ ! -d /tmp/skill-eval/results ]; then
+            echo "no results dir — agent blocked before running trials"
+            exit 0
+          fi
+          RESULTS=$(find /tmp/skill-eval/results -maxdepth 3 -name "result.json" 2>/dev/null | head -50 || true)
+          if [ -n "$RESULTS" ]; then
+            tar czf /tmp/skills-eval-results.tar.gz -C /tmp/skill-eval results
+            echo "archived $(echo "$RESULTS" | wc -l) result.json files"
+          else
+            echo "results dir exists but empty — nothing to archive"
+          fi
+
       - name: Upload results artifact
         if: always() && (github.event_name != 'push' || steps.changes.outputs.relevant == 'true')
         uses: actions/upload-artifact@v5
@@ -160,7 +175,7 @@ jobs:
               || github.event_name == 'workflow_dispatch'
               && format('skills-eval-manual-{0}', github.run_id)
               || format('skills-eval-pr-{0}-{1}', steps.pr.outputs.number, github.run_id) }}
-          path: eval-results/
+          path: /tmp/skills-eval-results.tar.gz
           if-no-files-found: ignore
           retention-days: 7
 
