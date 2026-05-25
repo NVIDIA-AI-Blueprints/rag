@@ -114,17 +114,6 @@ jobs:
               - '.github/workflows/skills-eval.yml'
               - 'ci/run_skill_eval.sh'
 
-      - name: Load coordinator env
-        if: github.event_name != 'push' || steps.changes.outputs.relevant == 'true'
-        run: |
-          # Secrets stored in /home/ubuntu/eval-coordinator/.env on the runner.
-          # Contains: NVIDIA_INFERENCE_KEY, NGC_API_KEY
-          set -a
-          source /home/ubuntu/eval-coordinator/.env
-          set +a
-          printf "COORDINATOR_ENV=loaded\n" >> "$GITHUB_ENV"
-          printf "CLAUDE_CODE_DISABLE_THINKING=1\n" >> "$GITHUB_ENV"
-
       - name: Run skills eval agent
         id: agent
         if: github.event_name != 'push' || steps.changes.outputs.relevant == 'true'
@@ -132,11 +121,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_CONFIG_DIR: ${{ runner.temp }}/gh-skill-eval-${{ github.run_id }}
           INPUT_SKILLS: ${{ inputs.skills }}
+          ANTHROPIC_API_KEY: ${{ secrets.NVBASE_INFERENCE_API_KEY }}
+          NVIDIA_INFERENCE_KEY: ${{ secrets.NVBASE_INFERENCE_API_KEY }}
+          NVIDIA_API_KEY: ${{ secrets.NVBASE_INFERENCE_API_KEY }}
+          NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
+          TAG: latest
         run: |
           mkdir -p "$GH_CONFIG_DIR" /tmp/brev /tmp/skill-eval
-          set -a
-          source /home/ubuntu/eval-coordinator/.env
-          set +a
           export PR_NUMBER="${{ steps.pr.outputs.number }}"
           export PR_BASE="${{ steps.pr.outputs.base }}"
           export PR_HEAD_SHA="${{ github.sha }}"
