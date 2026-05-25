@@ -122,6 +122,7 @@ jobs:
           GH_CONFIG_DIR: ${{ runner.temp }}/gh-skill-eval-${{ github.run_id }}
           INPUT_SKILLS: ${{ inputs.skills }}
           ANTHROPIC_API_KEY: ${{ secrets.NVBASE_INFERENCE_API_KEY }}
+          ANTHROPIC_BASE_URL: https://inference-api.nvidia.com
           NVIDIA_INFERENCE_KEY: ${{ secrets.NVBASE_INFERENCE_API_KEY }}
           NVIDIA_API_KEY: ${{ secrets.NVBASE_INFERENCE_API_KEY }}
           NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
