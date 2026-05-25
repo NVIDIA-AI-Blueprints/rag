@@ -127,6 +127,8 @@ jobs:
           NVIDIA_INFERENCE_KEY: ${{ secrets.NVBASE_INFERENCE_API_KEY }}
           NVIDIA_API_KEY: ${{ secrets.NVBASE_INFERENCE_API_KEY }}
           NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
+          JUDGE_ANTHROPIC_API_KEY: ${{ secrets.NVBASE_INFERENCE_API_KEY }}
+          JUDGE_FULL_MODEL: aws/anthropic/claude-haiku-4-5-v1
           CLAUDE_CODE_DISABLE_THINKING: "1"
           TAG: latest
         run: |

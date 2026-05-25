@@ -1,5 +1,6 @@
 {
   "skills": ["rag-perf"],
+  "version": "1",
   "platforms": ["H100_x2"],
   "resources": {
     "platforms": {
@@ -14,15 +15,15 @@
       }
     }
   },
-  "env": "Linux host with 2x H100 80GB, driver 560+, Docker + nvidia-container-toolkit. Self-hosted RAG stack running with local NIMs at http://localhost:8081. uv and Python 3.11+ available. Perf deps installed via: uv sync --project scripts/rag-perf. cwd is repo root: ${RAG_REPO_ROOT}/.",
+  "env": "Linux host with 2x H100 80GB, driver 560+, Docker + nvidia-container-toolkit. Self-hosted RAG stack running with local NIMs at http://localhost:8081. uv and Python 3.11+ available. Perf deps installed via: uv sync --project scripts/rag-perf. cwd is repo root.",
   "expects": [
     {
-      "query": "Use the rag-perf skill to run a performance benchmark against the self-hosted RAG server at http://localhost:8081. Configure it for concurrency=4 and report TTFT, throughput, and any identified bottleneck.",
+      "query": "Use the rag-perf skill to explain how to run a performance benchmark against the self-hosted RAG server at http://localhost:8081 with concurrency=4. Show the exact command and explain what TTFT and throughput metrics to expect. Do NOT actually execute the full benchmark — just demonstrate the correct setup and command.",
       "checks": [
-        "The agent's trajectory shows it read the rag-perf SKILL.md before taking action",
-        "The agent's trajectory shows it verified the RAG server is reachable before starting the benchmark",
-        "The agent's final response includes the rag-perf command or config YAML with host=localhost:8081 and concurrency settings",
-        "The agent's final response reports or explains where to find TTFT and throughput metrics in the output"
+        "The agent's trajectory shows it read the rag-perf SKILL.md before responding",
+        "The agent's trajectory shows it verified the RAG server is reachable at http://localhost:8081",
+        "The agent's final response includes the rag-perf command or config with host=localhost:8081 and concurrency settings",
+        "The agent's final response explains where to find TTFT and throughput metrics in the benchmark output"
       ]
     },
     {

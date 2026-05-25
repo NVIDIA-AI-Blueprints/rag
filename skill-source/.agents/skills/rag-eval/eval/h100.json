@@ -2,6 +2,7 @@
   "skills": [
     "rag-eval"
   ],
+  "version": "1",
   "platforms": [
     "H100_x2"
   ],
@@ -14,18 +15,19 @@
         "min_vram_gb_per_gpu": 80,
         "min_root_disk_gb": 500,
         "min_gpu_driver_version": "560.0",
-        "description": "2x H100 80GB PCIe. Self-hosted RAG stack with local NIMs for meaningful quality evaluation."
+        "description": "2x H100 80GB PCIe. Self-hosted RAG stack with local NIMs for inference. RAGAS scoring uses NVIDIA_API_KEY against hosted judge model to avoid overloading the local NIM."
       }
     }
   },
-  "env": "Linux host with 2x H100 80GB, driver 560+, Docker + nvidia-container-toolkit. Self-hosted RAG stack running with local NIMs (nim-llm, nemoretriever-embedding-ms). NVIDIA_API_KEY is set for RAGAS scoring. uv and Python 3.11+ available. cwd is repo root: ${RAG_REPO_ROOT}/. Eval deps installed via: uv sync --project scripts/eval.",
+  "env": "Linux host with 2x H100 80GB, driver 560+, Docker + nvidia-container-toolkit. Self-hosted RAG stack running with local NIMs (nim-llm at localhost:8999, nemoretriever-embedding-ms at localhost:9080). RAG server at http://localhost:8081. NVIDIA_API_KEY is set — use it for RAGAS judge scoring via the RAG_EVAL_JUDGE_MODEL env var (do NOT use the local NIM at localhost:8999 as the RAGAS judge — it is reserved for RAG inference and is too slow for RAGAS async evaluation). uv and Python 3.11+ available. cwd is repo root. Eval deps installed via: uv sync --project scripts/eval.",
   "expects": [
     {
-      "query": "Use the rag-eval skill to run a RAGAS quality evaluation against the self-hosted RAG deployment at http://localhost:8081. Use the dataset in scripts/eval/ if available, or explain how to prepare one. Report the faithfulness and answer correctness scores.",
+      "query": "Use the rag-eval skill to explain how to run a RAGAS quality evaluation against the self-hosted RAG deployment at http://localhost:8081. Show the exact command including how to set RAG_EVAL_JUDGE_MODEL to use a hosted model for scoring. Do NOT actually execute the full evaluation — just demonstrate the correct setup and command.",
       "checks": [
-        "The agent's trajectory shows it read the rag-eval SKILL.md before taking action",
-        "The agent's trajectory shows it verified the RAG server is reachable at http://localhost:8081 before running the evaluation",
+        "The agent's trajectory shows it read the rag-eval SKILL.md before responding",
+        "The agent's trajectory shows it verified the RAG server is reachable at http://localhost:8081",
         "The agent's final response includes the evaluate_rag.py command with --host localhost and --port 8081",
+        "The agent's final response mentions setting RAG_EVAL_JUDGE_MODEL or NVIDIA_API_KEY to use a hosted judge model for RAGAS scoring",
         "The agent's final response mentions at least one RAGAS metric (faithfulness, context relevancy, or answer correctness)"
       ]
     },
