@@ -303,6 +303,7 @@ class TestNvidiaRAGIngestorPrepareVDBOp:
     def test_prepare_vdb_op_without_vdb_op_with_collection_name(self, mock_get_vdb):
         """Test __prepare_vdb_op without vdb_op but with collection_name."""
         mock_vdb_op = Mock(spec=VDBRag)
+        mock_vdb_op.collection_name = "test_collection"
         mock_get_vdb.return_value = mock_vdb_op
 
         ingestor = NvidiaRAGIngestor()
@@ -315,9 +316,29 @@ class TestNvidiaRAGIngestorPrepareVDBOp:
         mock_get_vdb.assert_called_once()
 
     @patch("nvidia_rag.ingestor_server.main._get_vdb_op")
+    def test_prepare_vdb_op_returns_backend_canonicalized_name(self, mock_get_vdb):
+        """Backends that normalize (e.g. Elasticsearch lowercases index names) must
+        have their canonical name flow back to the caller so downstream summary
+        keys in Redis and object storage align with what GET /collections reports.
+        Regression guard for bug 6206269.
+        """
+        mock_vdb_op = Mock(spec=VDBRag)
+        mock_vdb_op.collection_name = "mycollection"
+        mock_get_vdb.return_value = mock_vdb_op
+
+        ingestor = NvidiaRAGIngestor()
+
+        result = ingestor._NvidiaRAGIngestor__prepare_vdb_op_and_collection_name(
+            collection_name="MyCollection"
+        )
+
+        assert result == (mock_vdb_op, "mycollection")
+
+    @patch("nvidia_rag.ingestor_server.main._get_vdb_op")
     def test_prepare_vdb_op_bypass_validation(self, mock_get_vdb):
         """Test __prepare_vdb_op with bypass_validation=True."""
         mock_vdb_op = Mock(spec=VDBRag)
+        mock_vdb_op.collection_name = None
         mock_get_vdb.return_value = mock_vdb_op
 
         ingestor = NvidiaRAGIngestor()
