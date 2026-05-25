@@ -176,6 +176,22 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+      - name: Delete GPU Brev VMs on success
+        if: success() && (github.event_name != 'push' || steps.changes.outputs.skills == 'true')
+        run: |
+          RECORD="/tmp/brev/started-by-${{ github.run_id }}.txt"
+          if [ ! -f "$RECORD" ]; then
+            echo "No GPU VMs to clean up."
+            exit 0
+          fi
+          echo "Waiting 5 min cooldown before deleting VMs..."
+          sleep 300
+          sort -u "$RECORD" | while read -r INSTANCE; do
+            [ -z "$INSTANCE" ] && continue
+            echo "Deleting Brev VM: $INSTANCE"
+            brev delete "$INSTANCE" 2>/dev/null && echo "Deleted $INSTANCE" || echo "Could not delete $INSTANCE (may already be gone)"
+          done
+
       - name: Skip note when no skills/ changes
         if: github.event_name == 'push' && steps.changes.outputs.skills != 'true'
         run: echo "::notice::No skills/ changes in this PR; eval skipped."

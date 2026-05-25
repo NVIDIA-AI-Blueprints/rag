@@ -233,15 +233,16 @@ else
   done
   [ "$last_state" = "RUNNING+READY" ] || { echo "BLOCKED: H100 VM never reached RUNNING+READY"; exit 1; }
 
-  # Record for cleanup — workflow step deletes after 5-min cooldown
-  # Only record VMs we provisioned, not reused ones
+  # Record for cleanup — workflow deletes on success after 5-min cooldown
   mkdir -p /tmp/brev
   echo "$BREV_INSTANCE" >> "/tmp/brev/started-by-${GITHUB_RUN_ID}.txt"
 fi
 
-export BREV_INSTANCE  # reuse for ALL H100_x2 specs below
+# Always record VM for cleanup regardless of provisioned vs reused
+mkdir -p /tmp/brev
+echo "$BREV_INSTANCE" >> "/tmp/brev/started-by-${GITHUB_RUN_ID}.txt"
 
-export BREV_INSTANCE  # reuse this for ALL H100_x2 specs below
+export BREV_INSTANCE  # reuse for ALL H100_x2 specs below
 ```
 
 ---

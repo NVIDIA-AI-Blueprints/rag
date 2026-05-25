@@ -34,8 +34,8 @@
     {
       "query": "I ran RAGAS evaluation against my self-hosted RAG stack and got faithfulness=0.45 and answer_correctness=0.6. Use the rag-eval skill to explain what these scores mean for a self-hosted deployment and what I should tune first.",
       "checks": [
-        "The agent's trajectory shows it read the rag-eval SKILL.md before responding",
         "The agent's final response explains the meaning of faithfulness score in the context of the LLM NIM generating grounded answers",
+        "The agent's final response explains the meaning of answer_correctness score",
         "The agent's final response provides at least one self-hosted specific tuning suggestion such as adjusting top_k, switching NIM model, or checking embedding quality"
       ]
     }

@@ -29,9 +29,9 @@
     {
       "query": "My self-hosted RAG benchmark shows TTFT p99 of 8.2 seconds at concurrency=8. Use the rag-perf skill to explain whether this is a GPU bottleneck or retrieval bottleneck, and what to try next.",
       "checks": [
-        "The agent's trajectory shows it read the rag-perf SKILL.md before responding",
         "The agent's final response distinguishes between LLM NIM latency and retrieval/embedding latency as separate bottleneck candidates",
-        "The agent's final response suggests at least one concrete experiment to isolate the bottleneck such as reducing concurrency, checking GPU utilization, or running retrieval-only mode"
+        "The agent's final response suggests at least one concrete experiment to isolate the bottleneck such as reducing concurrency, checking GPU utilization, or running retrieval-only mode",
+        "The agent's final response mentions that 8.2s TTFT p99 at concurrency=8 indicates a likely LLM NIM bottleneck rather than a retrieval bottleneck"
       ]
     }
   ]
