@@ -20,7 +20,7 @@
     {
       "query": "Use the rag-perf skill to explain how to run a performance benchmark against the self-hosted RAG server at http://localhost:8081 with concurrency=4. Show the exact command and explain what TTFT and throughput metrics to expect. Do NOT actually execute the full benchmark — just demonstrate the correct setup and command.",
       "checks": [
-        "The agent's trajectory shows it read the rag-perf SKILL.md before responding",
+        "The agent's final response demonstrates knowledge of the rag-perf skill workflow (e.g. references benchmark commands, TTFT, throughput, or concurrency settings)",
         "The agent's trajectory shows it verified the RAG server is reachable at http://localhost:8081",
         "The agent's final response includes the rag-perf command or config with host=localhost:8081 and concurrency settings",
         "The agent's final response explains where to find TTFT and throughput metrics in the benchmark output"

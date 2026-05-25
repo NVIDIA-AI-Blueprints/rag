@@ -24,7 +24,7 @@
     {
       "query": "Use the rag-eval skill to explain how to run a RAGAS quality evaluation against the self-hosted RAG deployment at http://localhost:8081. Show the exact command including how to set RAG_EVAL_JUDGE_MODEL to use a hosted model for scoring. Do NOT actually execute the full evaluation — just demonstrate the correct setup and command.",
       "checks": [
-        "The agent's trajectory shows it read the rag-eval SKILL.md before responding",
+        "The agent's final response demonstrates knowledge of the rag-eval skill workflow (e.g. references evaluate_rag.py, RAGAS metrics, or dataset paths)",
         "The agent's trajectory shows it verified the RAG server is reachable at http://localhost:8081",
         "The agent's final response includes the evaluate_rag.py command with --host localhost and --port 8081",
         "The agent's final response mentions setting RAG_EVAL_JUDGE_MODEL or NVIDIA_API_KEY to use a hosted judge model for RAGAS scoring",

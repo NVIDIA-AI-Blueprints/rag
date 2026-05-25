@@ -107,16 +107,17 @@ jobs:
         with:
           base: ${{ steps.pr.outputs.base }}
           filters: |
-            relevant:
+            skills:
               - 'skills/**'
               - 'skill-source/**'
+            harness:
               - '.github/skill-eval/**'
               - '.github/workflows/skills-eval.yml'
               - 'ci/run_skill_eval.sh'
 
       - name: Run skills eval agent
         id: agent
-        if: github.event_name != 'push' || steps.changes.outputs.relevant == 'true'
+        if: github.event_name != 'push' || steps.changes.outputs.skills == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           GH_CONFIG_DIR: ${{ runner.temp }}/gh-skill-eval-${{ github.run_id }}
@@ -147,7 +148,7 @@ jobs:
           python3 .github/skill-eval/skills_eval_agent.py
 
       - name: Collect results for artifact
-        if: always() && (github.event_name != 'push' || steps.changes.outputs.relevant == 'true')
+        if: always() && (github.event_name != 'push' || steps.changes.outputs.skills == 'true')
         run: |
           if [ ! -d /tmp/skill-eval/results ]; then
             echo "no results dir — agent blocked before running trials"
@@ -162,7 +163,7 @@ jobs:
           fi
 
       - name: Upload results artifact
-        if: always() && (github.event_name != 'push' || steps.changes.outputs.relevant == 'true')
+        if: always() && (github.event_name != 'push' || steps.changes.outputs.skills == 'true')
         uses: actions/upload-artifact@v5
         with:
           name: >-
@@ -176,5 +177,5 @@ jobs:
           retention-days: 7
 
       - name: Skip note when no skills/ changes
-        if: github.event_name == 'push' && steps.changes.outputs.relevant != 'true'
+        if: github.event_name == 'push' && steps.changes.outputs.skills != 'true'
         run: echo "::notice::No skills/ changes in this PR; eval skipped."

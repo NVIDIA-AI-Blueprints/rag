@@ -305,7 +305,10 @@ for STEP in $(seq 1 "$STEP_COUNT"); do
 
   REWARD=$(cat "$RESULTS"/*/*/step-${STEP}__*/verifier/reward.txt \
     2>/dev/null | tail -1)
-  awk -v r="${REWARD:-0}" 'BEGIN { exit !(r+0 < 1.0) }' && PRIOR_FAIL=1
+  # Skip subsequent steps only on complete failure (reward=0), not partial.
+  # Partial scores (0 < reward < 1) mean the step ran but some checks failed —
+  # subsequent steps can still provide useful signal independently.
+  awk -v r="${REWARD:-0}" 'BEGIN { exit !(r+0 == 0) }' && PRIOR_FAIL=1
 done
 ```
 
