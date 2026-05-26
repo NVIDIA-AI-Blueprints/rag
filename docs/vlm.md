@@ -143,15 +143,19 @@ Continue with [Deploy with Docker (NVIDIA-Hosted Models)](deploy-docker-nvidia-h
    APP_VLM_SERVERURL: "http://nim-vlm:8000/v1"
    ```
 
-2. Enable image extraction (and the captioning that runs alongside it) for ingestion. Under `ingestor-server.envVars`, set:
+2. Enable image extraction and captioning for ingestion. Image captioning is recommended when running VLM generation so that ingested images are indexed with their captions and surface as citations at query time. The captioning model is served by a dedicated `nim-vlm-captioning` NIM (see [Separate VLMs for Generation and Captioning](#separate-vlms-for-generation-and-captioning)). Under `nimOperator` and `ingestor-server.envVars`, set:
 
    ```yaml
+   nimOperator:
+     nim-vlm-captioning:
+       enabled: true
+
    ingestor-server:
      envVars:
        APP_NVINGEST_EXTRACTIMAGES: "True"
+       APP_NVINGEST_CAPTIONENDPOINTURL: "http://nim-vlm-captioning:8000/v1/chat/completions"
+       APP_NVINGEST_CAPTIONMODELNAME: "nvidia/nemotron-nano-12b-v2-vl"
    ```
-
-   Image captioning is recommended when running VLM generation so that ingested images are indexed with their captions and surface as citations at query time.
 
 3. Enable `nim-vlm` and disable `nim-llm` (VLM replaces LLM for generation):
 
