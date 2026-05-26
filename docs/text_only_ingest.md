@@ -8,13 +8,14 @@ You can enable text-only ingestion for the [NVIDIA RAG Blueprint](readme.md). Fo
 
 1. Follow the [deployment guide](deploy-docker-self-hosted.md) up to and including the step labelled "Start all required NIMs."
 
-2. Set the environment variables to enable text-only extraction mode:
+2. Set the environment variables to enable text-only extraction mode. `COMPONENTS_TO_READY_CHECK` must be set to an empty string so the nv-ingest readiness probe does not wait for the disabled extraction NIMs (the compose default in [docker-compose-ingestor-server.yaml](../deploy/compose/docker-compose-ingestor-server.yaml) is `ALL`):
 
    ```bash
    export APP_NVINGEST_EXTRACTTEXT=True
    export APP_NVINGEST_EXTRACTINFOGRAPHICS=False
    export APP_NVINGEST_EXTRACTTABLES=False
    export APP_NVINGEST_EXTRACTCHARTS=False
+   export COMPONENTS_TO_READY_CHECK=""
    ```
 
    Then deploy the ingestor-server:
@@ -120,6 +121,12 @@ Additionally, disable **table extraction**, **chart extraction**, and **image ex
        APP_NVINGEST_EXTRACTINFOGRAPHICS: "False"
        APP_NVINGEST_EXTRACTTABLES: "False"
        APP_NVINGEST_EXTRACTCHARTS: "False"
+
+       # Health check: skip readiness on disabled extraction NIMs.
+       # The chart default in values.yaml is "ALL"; with table / chart / image
+       # extraction turned off, nv-ingest readiness would otherwise wait
+       # indefinitely for NIMs that are not deployed.
+       COMPONENTS_TO_READY_CHECK: ""
    ```
 
 2. Apply the chart with the modified values, disabling the nv-ingest CV NIMs you no longer need:

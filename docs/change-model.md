@@ -279,7 +279,7 @@ Use this procedure to change models when you are running self-hosted NVIDIA NIM 
       list-model-profiles
     ```
     
-    If only `vllm` profile is available, you must use the **vLLM engine** and add these specific configurations:
+    If only `vllm` profile is available, you must use the **vLLM engine** with single-GPU (`tensorParallelism: "1"`) configuration. The default values.yaml ships the Nemotron 3 Super profile (`engine: vllm`, `tensorParallelism: "2"`, 2 GPUs); when switching to a Nemotron Nano model, override both the profile and the GPU resources to 1:
     
     ```yaml
     nimOperator:
@@ -287,8 +287,15 @@ Use this procedure to change models when you are running self-hosted NVIDIA NIM 
         image:
           repository: nvcr.io/nim/nvidia/nvidia-nemotron-nano-9b-v2
           tag: "latest"
+        resources:
+          limits:
+            nvidia.com/gpu: 1
+          requests:
+            nvidia.com/gpu: 1
         model:
           engine: vllm  # Required: use vLLM instead of tensorrt_llm
+          precision: "fp8"
+          tensorParallelism: "1"  # Nemotron Nano models run on a single GPU
         env:
           - name: NIM_SERVED_MODEL_NAME
             value: "nvidia/nvidia-nemotron-nano-9b-v2"  # Must match APP_LLM_MODELNAME
@@ -329,18 +336,34 @@ The text-only embedding NIM (`nemotron-embedding-ms` in [`deploy/compose/nims.ya
 
 ### Helm
 
-In [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml), set the model name in the rag-server and ingestor-server env-var blocks (search for the existing `llama-nemotron-embed-vl-1b-v2` references):
+In [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml), enable the text embedder NIM, disable the VLM embedder NIM, and repoint the embedding env vars (model name and server URL) at the text endpoint in all three places (rag-server `envVars`, `ingestor-server.envVars`, and `nv-ingest.envVars`). Without flipping the `nimOperator` enable flags the text-embedder pod is not deployed, and without updating `APP_EMBEDDINGS_SERVERURL` / `EMBEDDING_NIM_ENDPOINT` traffic still goes to the VLM embedder:
 
 ```yaml
+nimOperator:
+  # Disable VLM embedder, enable text embedder
+  nvidia-nim-llama-nemotron-embed-vl-1b-v2:
+    enabled: false
+  nvidia-nim-llama-nemotron-embed-1b-v2:
+    enabled: true
+
+# rag-server: point at the text embedder
 envVars:
   APP_EMBEDDINGS_MODELNAME: "nvidia/llama-nemotron-embed-1b-v2"
+  APP_EMBEDDINGS_SERVERURL: "nemotron-embedding-ms:8000/v1"
 
 ingestor-server:
   envVars:
     APP_EMBEDDINGS_MODELNAME: "nvidia/llama-nemotron-embed-1b-v2"
+    APP_EMBEDDINGS_SERVERURL: "nemotron-embedding-ms:8000/v1"
+
+nv-ingest:
+  envVars:
+    # Embedding target for the nv-ingest runtime
+    EMBEDDING_NIM_ENDPOINT: "http://nemotron-embedding-ms:8000/v1"
+    EMBEDDING_NIM_MODEL_NAME: "nvidia/llama-nemotron-embed-1b-v2"
 ```
 
-The text-only embedding NIM (`nvidia-nim-llama-nemotron-embed-1b-v2` under `nimOperator`) is already configured in `values.yaml`; no image swap is required. Apply with [Change a Deployment](deploy-helm.md#change-a-deployment).
+Apply with [Change a Deployment](deploy-helm.md#change-a-deployment).
 
 :::{warning}
 **Re-ingest after switching.** Vectors produced by the VLM embedder are not directly comparable to vectors from the text-only embedder; retrieval accuracy will degrade until you re-ingest your corpus.
