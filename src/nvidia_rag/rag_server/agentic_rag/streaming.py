@@ -68,6 +68,7 @@ from enum import StrEnum
 from typing import Any
 from uuid import uuid4
 
+from nvidia_rag.rag_server.agentic_rag.tracing import get_current_trace
 from nvidia_rag.rag_server.response_generator import (
     ChainResponse,
     ChainResponseChoices,
@@ -798,6 +799,10 @@ async def translate_graph_stream(
         raise
     except Exception as ex:  # noqa: BLE001
         logger.exception("[stream] graph stream failed: %s", ex)
+        trace = get_current_trace()
+        if trace is not None and trace.end_time is None:
+            trace.error = str(ex)[:500]
+            trace.finalize()
         # Surface the error to the client so it doesn't hang on a half-stream.
         yield _build_chunk(
             resp_id=resp_id,

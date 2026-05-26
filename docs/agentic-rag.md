@@ -33,7 +33,13 @@ The pipeline defaults to off because Agentic RAG trades latency and extra LLM ca
 - The agentic path does not use NeMo Guardrails, Self-Reflection, Query Decomposition, or VLM Inference. Query rewriting, multi-turn history, multi-collection retrieval, citations, filter generation, and reranking are supported.
 - Verification runs once; there's no nested verification loop.
 - Tasks in a plan run at one parallel level; there's no DAG or depends-on construct.
-- Per-response retrieval metrics are not emitted. The agentic pipeline issues multiple retrieval calls across initial retrieval, per-task execution, and verification re-retrieval, so the single `metrics` block returned by the standard chain is not populated for agentic requests.
+- Response metadata that is specific to the Standard RAG single-pass pipeline can be omitted or returned empty for Agentic RAG when it does not map cleanly to the multi-step agentic flow.
+
+## Observability
+
+When observability is enabled, Agentic RAG exports aggregate `agentic_` Prometheus metrics for retrieval calls, task outcomes, stage latency, LLM usage, and verification behavior. These metrics are separate from the Standard RAG dashboard because Agentic RAG can issue multiple retrieval and LLM calls across initial retrieval, task execution, retries, synthesis, and verification.
+
+Use `deploy/config/agentic-rag-metrics-dashboard.json` to view these metrics in Grafana. See [Observability Setup](observability.md#view-metrics-in-grafana) for dashboard import steps.
 
 ## Architecture Overview
 
