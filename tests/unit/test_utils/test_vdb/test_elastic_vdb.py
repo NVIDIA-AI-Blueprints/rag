@@ -842,7 +842,9 @@ class TestElasticVDB(unittest.TestCase):
         }
 
         mock_es_connection.delete_by_query.assert_called_once_with(
-            index="metadata_schema", body={"query": "delete_query"}
+            index="metadata_schema",
+            body={"query": "delete_query"},
+            conflicts="proceed",
         )
         mock_es_connection.index.assert_called_once_with(
             index="metadata_schema", body=expected_data
