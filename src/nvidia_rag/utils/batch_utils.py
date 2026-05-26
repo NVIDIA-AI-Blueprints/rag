@@ -47,6 +47,27 @@ TEXT_ALLOWED_BATCH_SIZES = [16, 32, 64, 128, 250] # Allowed batch sizes for text
 # Threshold percentage to determine if workload is text-heavy
 TEXT_FILE_PERCENTAGE_THRESHOLD = 50.0 # Threshold percentage to determine if workload is text file heavy
 
+# Size-aware batching for non-text-like (multimodal) workloads.
+#
+# When the workload is dominated by complex files (pptx, pdf, images, media)
+# the prior fallback returned the unmodified configured defaults
+# (files_per_batch / concurrent_batches). With heterogeneous datasets containing
+# one or more very large files (e.g. a 100+MB multimodal PDF whose summary or
+# multimodal extraction can take 10+ minutes) a single slow file pins every
+# other file in its batch behind it, and because per-batch VDB writes are
+# serialized the slowdown blocks sibling batches as well. The result observed
+# in NVBug 6191293 was a 53-file bulk ingest staying "pending" past 30 minutes.
+#
+# To address this without changing the public API or batching architecture, we
+# extend the non-text-like fallback to consider file sizes (max + average) and
+# automatically reduce files_per_batch when very large files are present. This
+# matches the "File sizes and complexity" future-enhancement note already in
+# the docstring of calculate_dynamic_batch_parameters().
+MULTIMODAL_VERY_LARGE_FILE_MB = 100.0  # Any single file above this MB triggers aggressive batch reduction
+MULTIMODAL_LARGE_FILE_MB = 50.0        # Any single file above this MB triggers moderate batch reduction
+MULTIMODAL_AVG_LARGE_FILE_MB = 25.0    # Average size above this MB triggers moderate batch reduction
+MULTIMODAL_MIN_FILES_PER_BATCH = 2     # Floor when shrinking batches automatically
+
 
 def calculate_dynamic_batch_parameters(
     filepaths: list[str],
@@ -55,14 +76,16 @@ def calculate_dynamic_batch_parameters(
     """
     Calculate optimal batch parameters dynamically based on file characteristics.
 
-    Analyzes file extensions to determine optimal batching strategy:
+    Analyzes file extensions and sizes to determine optimal batching strategy:
     - Text-like files (html, json, md, sh, txt): Faster processing, larger batches with less concurrency
       Uses files_per_batch={TEXT_FILE_BATCH_SIZE}, concurrent_batches={TEXT_FILE_CONCURRENT_BATCHES}
-    - Complex files (pdf, images, docx, pptx, media): Smaller batches with higher concurrency
-      Uses default configured values
+    - Complex files (pdf, images, docx, pptx, media): Starts from configured defaults, then
+      automatically reduces files_per_batch when one or more files are large (max > 50/100 MB
+      or average > 25 MB) so that a single slow file does not pin its whole batch and stall
+      sibling batches via VDB write serialization (see MULTIMODAL_* constants above).
 
     The function can be enhanced in the future with additional factors:
-    - File sizes and complexity (number of pages, resolution, etc.)
+    - File complexity beyond raw size (number of pages, resolution, etc.)
     - Available system resources (memory, CPU)
     - Historical performance metrics
     - Target latency and throughput requirements
@@ -125,16 +148,115 @@ def calculate_dynamic_batch_parameters(
             f"files_per_batch={files_per_batch}, concurrent_batches={concurrent_batches}"
         )
     else:
-        # Use default configuration for other files (PDFs, images, media, etc.)
+        # Use default configuration as the starting point for non-text-like
+        # (multimodal) workloads, then apply size-aware adjustments below.
         files_per_batch = config.nv_ingest.files_per_batch
         concurrent_batches = config.nv_ingest.concurrent_batches
-        logger.info(
-            f"Dynamic batching: Detected {text_file_percentage:.1f}% text-like files. "
-            f"Using default configuration parameters for files processing: "
-            f"files_per_batch={files_per_batch}, concurrent_batches={concurrent_batches}"
+
+        # Size-aware adjustment: if any file in the workload is very large, or
+        # the average file size is large, shrink files_per_batch so a single
+        # slow file does not pin too many siblings.  This addresses the long
+        # "pending" stall observed in NVBug 6191293, where one 100+MB
+        # multimodal PDF in a 16-file batch blocked the entire ingest task.
+        adjusted_files_per_batch = calculate_multimodal_size_aware_batch_size(
+            filepaths=filepaths,
+            default_files_per_batch=files_per_batch,
         )
 
+        if adjusted_files_per_batch != files_per_batch:
+            logger.info(
+                f"Dynamic batching: Detected {text_file_percentage:.1f}% text-like files "
+                f"with large multimodal content. Reducing files_per_batch from "
+                f"{files_per_batch} to {adjusted_files_per_batch} to limit the impact "
+                f"of slow per-file processing on sibling files in the same batch. "
+                f"concurrent_batches={concurrent_batches}"
+            )
+            files_per_batch = adjusted_files_per_batch
+        else:
+            logger.info(
+                f"Dynamic batching: Detected {text_file_percentage:.1f}% text-like files. "
+                f"Using default configuration parameters for files processing: "
+                f"files_per_batch={files_per_batch}, concurrent_batches={concurrent_batches}"
+            )
+
     return files_per_batch, concurrent_batches
+
+
+def calculate_multimodal_size_aware_batch_size(
+    filepaths: list[str],
+    default_files_per_batch: int,
+) -> int:
+    """
+    Compute a size-aware ``files_per_batch`` for non-text-like (multimodal)
+    workloads.
+
+    When the workload contains very large files, a single slow file can pin
+    every other file in its batch behind it. Combined with the existing VDB
+    write serialization, that pin-blocks sibling batches as well. This helper
+    inspects the actual on-disk file sizes and proposes a smaller
+    ``files_per_batch`` when the workload looks risky:
+
+    - Any single file > MULTIMODAL_VERY_LARGE_FILE_MB (100 MB):
+      shrink aggressively (``default // 4``, floor MULTIMODAL_MIN_FILES_PER_BATCH).
+    - Any single file > MULTIMODAL_LARGE_FILE_MB (50 MB) OR average size >
+      MULTIMODAL_AVG_LARGE_FILE_MB (25 MB): shrink moderately
+      (``default // 2``, floor MULTIMODAL_MIN_FILES_PER_BATCH).
+    - Otherwise leave ``files_per_batch`` unchanged.
+
+    Args:
+        filepaths: List of file paths actually on disk (already validated by
+            the ingestor server before this is called).
+        default_files_per_batch: The configured ``files_per_batch`` to start
+            from.
+
+    Returns:
+        The (possibly reduced) files_per_batch. Never returns less than
+        ``MULTIMODAL_MIN_FILES_PER_BATCH``; never returns more than
+        ``default_files_per_batch``.
+    """
+    if not filepaths:
+        return default_files_per_batch
+
+    sizes_bytes: list[int] = []
+    for filepath in filepaths:
+        try:
+            sizes_bytes.append(os.path.getsize(filepath))
+        except OSError as exc:
+            # Stay conservative: if we cannot stat a file, skip it for the
+            # size computation rather than aborting the batching decision.
+            logger.debug(
+                "calculate_multimodal_size_aware_batch_size: could not stat "
+                "%s (%s); skipping for size analysis",
+                filepath,
+                exc,
+            )
+
+    if not sizes_bytes:
+        return default_files_per_batch
+
+    bytes_per_mb = 1024 * 1024
+    max_size_mb = max(sizes_bytes) / bytes_per_mb
+    avg_size_mb = (sum(sizes_bytes) / len(sizes_bytes)) / bytes_per_mb
+
+    logger.debug(
+        "Multimodal size analysis: max_size_mb=%.2f, avg_size_mb=%.2f, "
+        "num_files=%d, default_files_per_batch=%d",
+        max_size_mb,
+        avg_size_mb,
+        len(sizes_bytes),
+        default_files_per_batch,
+    )
+
+    if max_size_mb > MULTIMODAL_VERY_LARGE_FILE_MB:
+        return max(MULTIMODAL_MIN_FILES_PER_BATCH, default_files_per_batch // 4)
+
+    if (
+        max_size_mb > MULTIMODAL_LARGE_FILE_MB
+        or avg_size_mb > MULTIMODAL_AVG_LARGE_FILE_MB
+    ):
+        return max(MULTIMODAL_MIN_FILES_PER_BATCH, default_files_per_batch // 2)
+
+    return default_files_per_batch
 
 
 def calculate_text_like_batch_params(

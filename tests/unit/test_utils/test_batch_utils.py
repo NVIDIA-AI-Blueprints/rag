@@ -18,7 +18,12 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from nvidia_rag.utils.batch_utils import (
+    MULTIMODAL_AVG_LARGE_FILE_MB,
+    MULTIMODAL_LARGE_FILE_MB,
+    MULTIMODAL_MIN_FILES_PER_BATCH,
+    MULTIMODAL_VERY_LARGE_FILE_MB,
     calculate_dynamic_batch_parameters,
+    calculate_multimodal_size_aware_batch_size,
     calculate_text_like_batch_params,
 )
 
@@ -820,3 +825,234 @@ class TestCalculateTextLikeBatchParams:
 
         assert files_per_batch in (16, 32, 64, 128, 250)
         assert concurrent_batches == 4
+
+
+# ------------------------------------------------------------------ #
+# UNVERIFIED: could not run live; recommended fix only.
+# These tests cover the size-aware multimodal batching introduced for
+# NVBug 6191293 (Track B agentic-bug-fix). They have been linted and
+# are expected to pass under `uv run pytest tests/unit/`, but no live
+# bulk-ingestion run has confirmed the end-to-end behavior on Helm.
+# ------------------------------------------------------------------ #
+
+
+class TestCalculateMultimodalSizeAwareBatchSize:
+    """Direct tests for calculate_multimodal_size_aware_batch_size."""
+
+    @patch("nvidia_rag.utils.batch_utils.os.path.getsize")
+    def test_small_files_returns_default_unchanged(self, mock_getsize):
+        """Workload of small files: should leave files_per_batch alone."""
+        # 5 MB each — well below all thresholds
+        mock_getsize.return_value = 5 * 1024 * 1024
+        filepaths = [f"file{i}.pdf" for i in range(20)]
+
+        result = calculate_multimodal_size_aware_batch_size(
+            filepaths, default_files_per_batch=16
+        )
+
+        assert result == 16
+
+    @patch("nvidia_rag.utils.batch_utils.os.path.getsize")
+    def test_one_very_large_file_shrinks_aggressively(self, mock_getsize):
+        """A single file >100 MB should trigger default // 4 (floor 2)."""
+        # First file is 150 MB, rest are 5 MB
+        sizes = [150 * 1024 * 1024] + [5 * 1024 * 1024] * 15
+        mock_getsize.side_effect = sizes
+        filepaths = [f"file{i}.pdf" for i in range(16)]
+
+        result = calculate_multimodal_size_aware_batch_size(
+            filepaths, default_files_per_batch=16
+        )
+
+        # 16 // 4 = 4, max(2, 4) = 4
+        assert result == 4
+
+    @patch("nvidia_rag.utils.batch_utils.os.path.getsize")
+    def test_one_large_file_shrinks_moderately(self, mock_getsize):
+        """A single file >50 MB (but <=100 MB) should trigger default // 2."""
+        sizes = [70 * 1024 * 1024] + [5 * 1024 * 1024] * 15
+        mock_getsize.side_effect = sizes
+        filepaths = [f"file{i}.pdf" for i in range(16)]
+
+        result = calculate_multimodal_size_aware_batch_size(
+            filepaths, default_files_per_batch=16
+        )
+
+        # 16 // 2 = 8, max(2, 8) = 8
+        assert result == 8
+
+    @patch("nvidia_rag.utils.batch_utils.os.path.getsize")
+    def test_high_average_size_shrinks_moderately(self, mock_getsize):
+        """All files ~30 MB (avg > 25 MB) should trigger default // 2."""
+        mock_getsize.return_value = 30 * 1024 * 1024
+        filepaths = [f"file{i}.pdf" for i in range(16)]
+
+        result = calculate_multimodal_size_aware_batch_size(
+            filepaths, default_files_per_batch=16
+        )
+
+        assert result == 8
+
+    @patch("nvidia_rag.utils.batch_utils.os.path.getsize")
+    def test_min_floor_is_enforced(self, mock_getsize):
+        """default=4 with a >100 MB file would naively be 1; floor is 2."""
+        sizes = [200 * 1024 * 1024] + [5 * 1024 * 1024] * 3
+        mock_getsize.side_effect = sizes
+        filepaths = [f"file{i}.pdf" for i in range(4)]
+
+        result = calculate_multimodal_size_aware_batch_size(
+            filepaths, default_files_per_batch=4
+        )
+
+        # 4 // 4 = 1, max(MULTIMODAL_MIN_FILES_PER_BATCH=2, 1) = 2
+        assert result == MULTIMODAL_MIN_FILES_PER_BATCH
+
+    @patch("nvidia_rag.utils.batch_utils.os.path.getsize")
+    def test_unreadable_files_fall_back_to_default(self, mock_getsize):
+        """If all os.path.getsize calls raise OSError, return default unchanged."""
+        mock_getsize.side_effect = OSError("no such file")
+        filepaths = [f"file{i}.pdf" for i in range(8)]
+
+        result = calculate_multimodal_size_aware_batch_size(
+            filepaths, default_files_per_batch=16
+        )
+
+        # No size data → conservative: keep default behavior
+        assert result == 16
+
+    def test_empty_filepaths_returns_default(self):
+        """Empty list short-circuits to default."""
+        result = calculate_multimodal_size_aware_batch_size(
+            [], default_files_per_batch=16
+        )
+
+        assert result == 16
+
+    @patch("nvidia_rag.utils.batch_utils.os.path.getsize")
+    def test_partially_unreadable_uses_available_sizes(self, mock_getsize):
+        """If some files are unstattable, decide using the readable ones."""
+
+        def _getsize(path):
+            if path == "missing.pdf":
+                raise OSError("gone")
+            return 60 * 1024 * 1024  # 60 MB — above LARGE threshold
+
+        mock_getsize.side_effect = _getsize
+        filepaths = ["missing.pdf", "ok1.pdf", "ok2.pdf", "ok3.pdf"]
+
+        result = calculate_multimodal_size_aware_batch_size(
+            filepaths, default_files_per_batch=16
+        )
+
+        # max_size_mb = 60 > LARGE_FILE_MB (50) → shrink moderately
+        assert result == 8
+
+
+class TestCalculateDynamicBatchParametersSizeAware:
+    """End-to-end behavior of calculate_dynamic_batch_parameters with size data."""
+
+    @patch("nvidia_rag.utils.batch_utils.os.path.getsize")
+    def test_multimodal_workload_with_huge_file_reduces_batch(
+        self, mock_getsize, caplog
+    ):
+        """Reproduces the NVBug 6191293 scenario: 53 multimodal files including
+        one 100+MB PDF should shrink files_per_batch from 16 to 4."""
+        # First file 110 MB, rest 4 MB
+        sizes = [110 * 1024 * 1024] + [4 * 1024 * 1024] * 52
+        mock_getsize.side_effect = sizes
+
+        mock_config = MagicMock()
+        mock_config.nv_ingest.enable_dynamic_batching = True
+        mock_config.nv_ingest.files_per_batch = 16
+        mock_config.nv_ingest.concurrent_batches = 4
+
+        # All non-text-like (mix of pdf + pptx, matching the bug input)
+        filepaths = (
+            [f"big{i}.pdf" for i in range(1)]
+            + [f"deck{i}.pptx" for i in range(26)]
+            + [f"doc{i}.pdf" for i in range(26)]
+        )
+
+        with caplog.at_level("INFO"):
+            files_per_batch, concurrent_batches = calculate_dynamic_batch_parameters(
+                filepaths, mock_config
+            )
+
+        # 16 // 4 = 4 (very-large path)
+        assert files_per_batch == 4
+        # concurrent_batches preserved — VDB serialization concern is separate
+        assert concurrent_batches == 4
+        assert any(
+            "Reducing files_per_batch from 16 to 4" in record.message
+            for record in caplog.records
+        )
+
+    @patch("nvidia_rag.utils.batch_utils.os.path.getsize")
+    def test_multimodal_workload_with_small_files_preserves_defaults(
+        self, mock_getsize, caplog
+    ):
+        """A workload of small multimodal files keeps the default batching."""
+        mock_getsize.return_value = 2 * 1024 * 1024  # 2 MB each
+
+        mock_config = MagicMock()
+        mock_config.nv_ingest.enable_dynamic_batching = True
+        mock_config.nv_ingest.files_per_batch = 16
+        mock_config.nv_ingest.concurrent_batches = 4
+
+        filepaths = [f"file{i}.pdf" for i in range(20)]
+
+        with caplog.at_level("INFO"):
+            files_per_batch, concurrent_batches = calculate_dynamic_batch_parameters(
+                filepaths, mock_config
+            )
+
+        assert files_per_batch == 16
+        assert concurrent_batches == 4
+        # Default log path emitted, not the "Reducing" one
+        assert any(
+            "Using default configuration parameters" in record.message
+            for record in caplog.records
+        )
+        assert not any(
+            "Reducing files_per_batch" in record.message for record in caplog.records
+        )
+
+    @patch("nvidia_rag.utils.batch_utils.os.path.getsize")
+    def test_text_heavy_workload_bypasses_size_check(self, mock_getsize):
+        """When text-like > 50%, the size-aware path must not run; the
+        existing text-like batch logic owns sizing for that case."""
+        # If text_file_percentage > 50, calculate_text_like_batch_params is
+        # called instead. We patch it to verify we never hit the multimodal
+        # path even with huge files mocked.
+        mock_getsize.return_value = 200 * 1024 * 1024  # would shrink if reached
+
+        mock_config = MagicMock()
+        mock_config.nv_ingest.enable_dynamic_batching = True
+        mock_config.nv_ingest.files_per_batch = 16
+        mock_config.nv_ingest.concurrent_batches = 4
+
+        # 60% text-like
+        filepaths = (
+            [f"file{i}.txt" for i in range(6)]
+            + [f"file{i}.pdf" for i in range(4)]
+        )
+
+        with patch(
+            "nvidia_rag.utils.batch_utils.calculate_text_like_batch_params",
+            return_value=(64, 4),
+        ):
+            files_per_batch, concurrent_batches = calculate_dynamic_batch_parameters(
+                filepaths, mock_config
+            )
+
+        # Text-like branch wins
+        assert files_per_batch == 64
+        assert concurrent_batches == 4
+
+    def test_thresholds_are_exposed_constants(self):
+        """The size-aware thresholds are module-level constants so they can
+        be referenced from tests and (in future) promoted to config."""
+        assert MULTIMODAL_VERY_LARGE_FILE_MB == 100.0
+        assert MULTIMODAL_LARGE_FILE_MB == 50.0
+        assert MULTIMODAL_AVG_LARGE_FILE_MB == 25.0
+        assert MULTIMODAL_MIN_FILES_PER_BATCH == 2
