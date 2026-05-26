@@ -23,17 +23,7 @@ find /tmp/skill-eval/results -mindepth 1 -maxdepth 1 -type d \
 
 mkdir -p /tmp/skill-eval/datasets /tmp/skill-eval/results
 
-# Log exact image digests for traceability (resolve :latest to sha256)
-echo "=== Image digests (for traceability) ==="
-for img in \
-  nvcr.io/nvstaging/blueprint/rag-server:${TAG:-latest} \
-  nvcr.io/nvstaging/blueprint/ingestor-server:${TAG:-latest}; do
-  digest=$(docker inspect "$img" --format '{{index .RepoDigests 0}}' 2>/dev/null \
-    || docker pull "$img" -q 2>/dev/null \
-    && docker inspect "$img" --format '{{index .RepoDigests 0}}' 2>/dev/null \
-    || echo "$img — not yet pulled")
-  echo "  $img → $digest"
-done
+mkdir -p /tmp/skill-eval/datasets /tmp/skill-eval/results
 ```
 
 ## Your job, in order
@@ -144,8 +134,19 @@ done
    Then check if the RAG stack is already running on the Brev VM:
 
    ```bash
-   brev exec "$BREV_INSTANCE" "curl -sf http://localhost:8081/v1/health" \
+   brev exec "$BREV_INSTANCE" -- "curl -sf http://localhost:8081/v1/health" \
      2>/dev/null && RAG_RUNNING=true || RAG_RUNNING=false
+   ```
+
+   After confirming or deploying the stack, log image digests for traceability:
+
+   ```bash
+   echo "=== Image digests (for traceability) ==="
+   for container in rag-server ingestor-server; do
+     brev exec "$BREV_INSTANCE" -- \
+       "docker inspect $container --format '{{.Config.Image}} → sha256:{{.Image}}' 2>/dev/null" \
+       || echo "$container — not running"
+   done
    ```
 
    If `RAG_RUNNING=false` and `rag-blueprint/eval/h100.json` exists in
