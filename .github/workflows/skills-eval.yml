@@ -107,16 +107,17 @@ jobs:
         with:
           base: ${{ steps.pr.outputs.base }}
           filters: |
-            relevant:
+            skills:
               - 'skills/**'
               - 'skill-source/**'
+            harness:
               - '.github/skill-eval/**'
               - '.github/workflows/skills-eval.yml'
               - 'ci/run_skill_eval.sh'
 
       - name: Run skills eval agent
         id: agent
-        if: github.event_name != 'push' || steps.changes.outputs.relevant == 'true'
+        if: github.event_name != 'push' || steps.changes.outputs.skills == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           GH_CONFIG_DIR: ${{ runner.temp }}/gh-skill-eval-${{ github.run_id }}
@@ -127,6 +128,8 @@ jobs:
           NVIDIA_INFERENCE_KEY: ${{ secrets.NVBASE_INFERENCE_API_KEY }}
           NVIDIA_API_KEY: ${{ secrets.NVBASE_INFERENCE_API_KEY }}
           NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
+          JUDGE_ANTHROPIC_API_KEY: ${{ secrets.NVBASE_INFERENCE_API_KEY }}
+          JUDGE_FULL_MODEL: aws/anthropic/claude-haiku-4-5-v1
           CLAUDE_CODE_DISABLE_THINKING: "1"
           TAG: latest
         run: |
@@ -145,7 +148,7 @@ jobs:
           python3 .github/skill-eval/skills_eval_agent.py
 
       - name: Collect results for artifact
-        if: always() && (github.event_name != 'push' || steps.changes.outputs.relevant == 'true')
+        if: always() && (github.event_name != 'push' || steps.changes.outputs.skills == 'true')
         run: |
           if [ ! -d /tmp/skill-eval/results ]; then
             echo "no results dir — agent blocked before running trials"
@@ -160,7 +163,7 @@ jobs:
           fi
 
       - name: Upload results artifact
-        if: always() && (github.event_name != 'push' || steps.changes.outputs.relevant == 'true')
+        if: always() && (github.event_name != 'push' || steps.changes.outputs.skills == 'true')
         uses: actions/upload-artifact@v5
         with:
           name: >-
@@ -173,6 +176,22 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+      - name: Delete GPU Brev VMs on success
+        if: success() && (github.event_name != 'push' || steps.changes.outputs.skills == 'true')
+        run: |
+          RECORD="/tmp/brev/started-by-${{ github.run_id }}.txt"
+          if [ ! -f "$RECORD" ]; then
+            echo "No GPU VMs to clean up."
+            exit 0
+          fi
+          echo "Waiting 5 min cooldown before deleting VMs..."
+          sleep 300
+          sort -u "$RECORD" | while read -r INSTANCE; do
+            [ -z "$INSTANCE" ] && continue
+            echo "Deleting Brev VM: $INSTANCE"
+            brev delete "$INSTANCE" 2>/dev/null && echo "Deleted $INSTANCE" || echo "Could not delete $INSTANCE (may already be gone)"
+          done
+
       - name: Skip note when no skills/ changes
-        if: github.event_name == 'push' && steps.changes.outputs.relevant != 'true'
+        if: github.event_name == 'push' && steps.changes.outputs.skills != 'true'
         run: echo "::notice::No skills/ changes in this PR; eval skipped."

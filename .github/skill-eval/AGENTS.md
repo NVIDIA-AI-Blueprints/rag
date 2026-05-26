@@ -200,38 +200,49 @@ a new VM per spec — that wastes 13+ min provisioning time and doubles cost.
 GPU_PLATFORMS_NEEDED=$(...)  # e.g. "H100_x2"
 ```
 
-Then provision once per platform, store the instance name, reuse it for
-all specs of that platform:
+Then reuse an existing warm VM if available, otherwise provision a new one:
 
 ```bash
-# Provision ONCE for all H100_x2 specs in this run
-BREV_TYPE="dmz.h100x2,scaleway_H100x2,gpu-h100-sxm.1gpu-16vcpu-200gb"
-BREV_INSTANCE="rag-eval-gpu-$(date +%s | tail -c 8)"
+# Reuse existing rag-eval-gpu-* VM if RUNNING+READY — saves 15-30 min
+BREV_INSTANCE=$(brev ls 2>/dev/null \
+  | awk '$1 ~ /^rag-eval-gpu-/ && $2=="RUNNING" && $4=="READY" {print $1; exit}')
 
-# Create with retry + fallback types
-for attempt in $(seq 1 5); do
-  brev create "$BREV_INSTANCE" --type "$BREV_TYPE" --detached 2>&1 | tail -5
-  brev ls 2>/dev/null | awk -v n="$BREV_INSTANCE" '$1==n {found=1} END{exit !found}' \
-    && break
-  sleep 15
-done
+if [ -n "$BREV_INSTANCE" ]; then
+  echo "Reusing existing VM: $BREV_INSTANCE"
+else
+  # No warm VM — provision a fresh one
+  BREV_TYPE="dmz.h100x2,dmz.h100x2.pcie"
+  BREV_INSTANCE="rag-eval-gpu-$(date +%s | tail -c 8)"
 
-# Wait for RUNNING+READY (up to 30 min)
-DEADLINE=$(( $(date +%s) + 1800 ))
-last_state=""
-while [ "$(date +%s)" -lt "$DEADLINE" ]; do
-  STATE=$(brev ls 2>/dev/null | awk -v n="$BREV_INSTANCE" '$1==n {print $2"+"$4}')
-  [ -n "$STATE" ] && [ "$STATE" != "$last_state" ] && echo "  $(date -u +%H:%M:%SZ) $BREV_INSTANCE: $STATE" && last_state="$STATE"
-  [ "$STATE" = "RUNNING+READY" ] && break
-  sleep 15
-done
-[ "$last_state" = "RUNNING+READY" ] || { echo "BLOCKED: H100 VM never reached RUNNING+READY"; exit 1; }
+  # Create with retry + fallback types
+  for attempt in $(seq 1 5); do
+    brev create "$BREV_INSTANCE" --type "$BREV_TYPE" --detached 2>&1 | tail -5
+    brev ls 2>/dev/null | awk -v n="$BREV_INSTANCE" '$1==n {found=1} END{exit !found}' \
+      && break
+    sleep 15
+  done
 
-# Record for cleanup — workflow step deletes after 5-min cooldown
+  # Wait for RUNNING+READY (up to 30 min)
+  DEADLINE=$(( $(date +%s) + 1800 ))
+  last_state=""
+  while [ "$(date +%s)" -lt "$DEADLINE" ]; do
+    STATE=$(brev ls 2>/dev/null | awk -v n="$BREV_INSTANCE" '$1==n {print $2"+"$4}')
+    [ -n "$STATE" ] && [ "$STATE" != "$last_state" ] && echo "  $(date -u +%H:%M:%SZ) $BREV_INSTANCE: $STATE" && last_state="$STATE"
+    [ "$STATE" = "RUNNING+READY" ] && break
+    sleep 15
+  done
+  [ "$last_state" = "RUNNING+READY" ] || { echo "BLOCKED: H100 VM never reached RUNNING+READY"; exit 1; }
+
+  # Record for cleanup — workflow deletes on success after 5-min cooldown
+  mkdir -p /tmp/brev
+  echo "$BREV_INSTANCE" >> "/tmp/brev/started-by-${GITHUB_RUN_ID}.txt"
+fi
+
+# Always record VM for cleanup regardless of provisioned vs reused
 mkdir -p /tmp/brev
 echo "$BREV_INSTANCE" >> "/tmp/brev/started-by-${GITHUB_RUN_ID}.txt"
 
-export BREV_INSTANCE  # reuse this for ALL H100_x2 specs below
+export BREV_INSTANCE  # reuse for ALL H100_x2 specs below
 ```
 
 ---
@@ -264,6 +275,7 @@ uvx --with boto3 harbor run \
   --model "$ANTHROPIC_MODEL" \
   --ak api_base="$ANTHROPIC_BASE_URL/v1" \
   --ae CLAUDE_CODE_DISABLE_THINKING=1 \
+  --ae TAG=latest \
   --environment-build-timeout-multiplier 3.0 \
   --agent-timeout-multiplier 3.0 \
   --verifier-timeout-multiplier 3.0 \
@@ -294,19 +306,21 @@ for STEP in $(seq 1 "$STEP_COUNT"); do
 
   REWARD=$(cat "$RESULTS"/*/*/step-${STEP}__*/verifier/reward.txt \
     2>/dev/null | tail -1)
-  awk -v r="${REWARD:-0}" 'BEGIN { exit !(r+0 < 1.0) }' && PRIOR_FAIL=1
+  # Skip subsequent steps only on complete failure (reward=0), not partial.
+  # Partial scores (0 < reward < 1) mean the step ran but some checks failed —
+  # subsequent steps can still provide useful signal independently.
+  awk -v r="${REWARD:-0}" 'BEGIN { exit !(r+0 == 0) }' && PRIOR_FAIL=1
 done
 ```
 
-**Never background harbor and poll.** Use foreground blocking calls only.
-`harbor run` MUST be called directly in a Bash tool call and allowed to block
-until it exits. Do NOT use TaskCreate, background processes (`&`), `nohup`,
-`Monitor`, or any other mechanism to run harbor asynchronously — not even
-wrapped in a shell script. The Bash tool call itself must block until harbor
-exits. The call will block for up to 90 minutes on GPU specs — that is
-expected and correct. Do NOT check on it with sleep loops, Read, or Monitor.
-Just wait. Violating this rule causes the agent to exit without DONE:/BLOCKED:
-(exit 4). This has happened multiple times — do not repeat the mistake.
+**Harbor execution — wait via TaskOutput, never poll.**
+The Bash tool may automatically background long-running `harbor run` commands.
+If harbor runs as a background task, use `TaskOutput` ONCE to wait for it —
+then proceed immediately when it completes. Do NOT poll with sleep loops,
+Monitor, or repeated Bash/Read calls while harbor is running. Do NOT check
+intermediate state. Just call `TaskOutput` and wait for the completion signal.
+Harbor runs up to 90 minutes on GPU specs — waiting is correct and expected.
+Burning turns polling intermediate state is what causes exit-4 failures.
 
 ---
 
