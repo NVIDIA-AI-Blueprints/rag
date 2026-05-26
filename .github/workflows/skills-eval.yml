@@ -12,7 +12,7 @@
 # on the mirror repo (gitlab-master.nvidia.com/chat-labs/OpenSource/rag).
 #
 # Uses dorny/paths-filter for cumulative PR diff (not per-push) — same
-# reason as skills-nv-base.yml. copy-pr-bot merge commits don't always
+# reason as skills-eval.yml. copy-pr-bot merge commits don't always
 # touch skills/ even when the PR does.
 
 name: Skills Eval

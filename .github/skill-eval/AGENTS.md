@@ -64,10 +64,10 @@ mkdir -p /tmp/skill-eval/datasets /tmp/skill-eval/results
    ```
 
    If `--skill-name` is missing, the adapter is stale. Raise a bot PR
-   against the contributor's source branch (same bot-PR flow as VSS
-   § 3c) with the fix and emit `BLOCKED: adapter missing --skill-name`.
+   against the contributor's source branch with the fix and emit
+   `BLOCKED: adapter missing --skill-name`.
 
-   Unlike VSS, you do NOT create per-skill adapters — one shared
+   Do NOT create per-skill adapters — one shared
    adapter serves all rag-\* skills. If a skill genuinely needs custom
    adapter logic (different PREAMBLE, non-standard platform), note it
    in the PR comment and raise a bot PR adding
