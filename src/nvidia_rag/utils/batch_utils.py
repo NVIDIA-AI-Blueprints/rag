@@ -19,8 +19,8 @@ This module provides utilities for calculating optimal batch parameters
 based on file characteristics and system resources.
 """
 
-import os
 import logging
+import os
 from pathlib import Path
 
 from nvidia_rag.utils.configuration import NvidiaRAGConfig
@@ -30,22 +30,36 @@ logger = logging.getLogger(__name__)
 
 # Text-like file extensions that process quickly
 # These are mapped to TXT or HTML in EXTENSION_TO_DOCUMENT_TYPE
-TEXT_LIKE_EXTENSIONS = frozenset({
-    "txt",
-    "md",
-    "json",
-    "sh",
-    "html",
-})
+TEXT_LIKE_EXTENSIONS = frozenset(
+    {
+        "txt",
+        "md",
+        "json",
+        "sh",
+        "html",
+    }
+)
 
 # Optimal batch parameters for text-like files
 # Text files process quickly, so we use larger batches with sequential processing
-TEXT_FILE_CONCURRENT_BATCHES = 4 # Fixed number of concurrent batches for text-like files
-TEXT_FILE_MEMORY_OVERHEAD_FACTOR = 2.0 # Factor to account for memory overhead of other file types
-TEXT_ALLOWED_BATCH_SIZES = [16, 32, 64, 128, 250] # Allowed batch sizes for text-like files
+TEXT_FILE_CONCURRENT_BATCHES = (
+    4  # Fixed number of concurrent batches for text-like files
+)
+TEXT_FILE_MEMORY_OVERHEAD_FACTOR = (
+    2.0  # Factor to account for memory overhead of other file types
+)
+TEXT_ALLOWED_BATCH_SIZES = [
+    16,
+    32,
+    64,
+    128,
+    250,
+]  # Allowed batch sizes for text-like files
 
 # Threshold percentage to determine if workload is text-heavy
-TEXT_FILE_PERCENTAGE_THRESHOLD = 50.0 # Threshold percentage to determine if workload is text file heavy
+TEXT_FILE_PERCENTAGE_THRESHOLD = (
+    50.0  # Threshold percentage to determine if workload is text file heavy
+)
 
 # Size-aware batching for non-text-like (multimodal) workloads.
 #
@@ -63,10 +77,41 @@ TEXT_FILE_PERCENTAGE_THRESHOLD = 50.0 # Threshold percentage to determine if wor
 # automatically reduce files_per_batch when very large files are present. This
 # matches the "File sizes and complexity" future-enhancement note already in
 # the docstring of calculate_dynamic_batch_parameters().
-MULTIMODAL_VERY_LARGE_FILE_MB = 100.0  # Any single file above this MB triggers aggressive batch reduction
-MULTIMODAL_LARGE_FILE_MB = 50.0        # Any single file above this MB triggers moderate batch reduction
-MULTIMODAL_AVG_LARGE_FILE_MB = 25.0    # Average size above this MB triggers moderate batch reduction
-MULTIMODAL_MIN_FILES_PER_BATCH = 2     # Floor when shrinking batches automatically
+MULTIMODAL_VERY_LARGE_FILE_MB = (
+    100.0  # Any single file above this MB triggers aggressive batch reduction
+)
+MULTIMODAL_LARGE_FILE_MB = (
+    50.0  # Any single file above this MB triggers moderate batch reduction
+)
+MULTIMODAL_AVG_LARGE_FILE_MB = (
+    25.0  # Average size above this MB triggers moderate batch reduction
+)
+MULTIMODAL_MIN_FILES_PER_BATCH = 2  # Floor when shrinking batches automatically
+
+# Many-small-files trigger (RECOMMENDATION for NVBug 6191293; UNVERIFIED end-to-end).
+# The originally merged fix targeted the "one very large file pins the whole batch"
+# failure mode, but the bug's reported workload is 53 PPTX decks (per-file size on
+# the qvsfilestore dataset was not directly inspected; locally reproduced with
+# synthesized ~30 KB decks). For that workload no single file is large, so every
+# prior size threshold (50/100/25 MB) returned the unchanged default
+# (files_per_batch=16, concurrent_batches=4) — matching the static log line
+# captured in /tmp/ingestor-server-helm.log just before the 29-minute stall.
+#
+# HYPOTHESIS (NOT live-measured): at default files_per_batch=16 a multimodal-pptx
+# batch's serialized VDB write must wait for extraction of all 16 files before
+# any sibling batch's write can proceed, and we believe that interacts poorly
+# with nv-ingest worker-pool saturation under bulk load. Shrinking files_per_batch
+# is a *progress-visibility* heuristic — it makes per-batch wall time shorter
+# and VDB writes more frequent. End-to-end >30-min latency was NOT measured in
+# the Docker reproduction (the embedding NIM returned 403 before ingestion
+# completed) and was NOT re-validated against the Helm deployment where the bug
+# was originally reported. Live validation in Helm is required before claiming
+# the >30-min stall is resolved. Thresholds are intentionally conservative to
+# avoid colliding with workloads that are already well-batched at the default.
+MULTIMODAL_MANY_SMALL_FILES_AVG_MB = (
+    1.0  # Avg below this AND count >= threshold triggers shrink
+)
+MULTIMODAL_MANY_SMALL_FILES_COUNT_THRESHOLD = 32  # 2x default files_per_batch (16)
 
 
 def calculate_dynamic_batch_parameters(
@@ -82,7 +127,14 @@ def calculate_dynamic_batch_parameters(
     - Complex files (pdf, images, docx, pptx, media): Starts from configured defaults, then
       automatically reduces files_per_batch when one or more files are large (max > 50/100 MB
       or average > 25 MB) so that a single slow file does not pin its whole batch and stall
-      sibling batches via VDB write serialization (see MULTIMODAL_* constants above).
+      sibling batches via VDB write serialization (see MULTIMODAL_* constants above). Also
+      reduces files_per_batch when the workload is many small non-text files (count >=
+      MULTIMODAL_MANY_SMALL_FILES_COUNT_THRESHOLD and avg <
+      MULTIMODAL_MANY_SMALL_FILES_AVG_MB). The many-small-files branch is a
+      progress-visibility heuristic added per the NVBug 6191293 recommendation (workload
+      reported as 53 PPTX files; per-file size on the qvsfilestore dataset not directly
+      inspected — locally reproduced with synthesized ~30 KB decks). End-to-end latency
+      relief is HYPOTHESIZED, not live-measured — see module-level comment.
 
     The function can be enhanced in the future with additional factors:
     - File complexity beyond raw size (number of pages, resolution, etc.)
@@ -121,16 +173,18 @@ def calculate_dynamic_batch_parameters(
     for filepath in filepaths:
         # Extract extension (lowercase, without dot)
         ext = Path(filepath).suffix.lstrip(".").lower()
-        
+
         # Track extension distribution
         extension_counts[ext] = extension_counts.get(ext, 0) + 1
-        
+
         # Check if it's a text-like file
         if ext in TEXT_LIKE_EXTENSIONS:
             text_file_count += 1
 
     # Calculate percentage of text-like files
-    text_file_percentage = (text_file_count / total_files) * 100 if total_files > 0 else 0
+    text_file_percentage = (
+        (text_file_count / total_files) * 100 if total_files > 0 else 0
+    )
 
     # Log file distribution for debugging
     logger.debug(
@@ -141,7 +195,9 @@ def calculate_dynamic_batch_parameters(
 
     # Decision logic: If majority (>TEXT_FILE_PERCENTAGE_THRESHOLD%) are text-like files, optimize for them
     if text_file_percentage > TEXT_FILE_PERCENTAGE_THRESHOLD:
-        files_per_batch, concurrent_batches = calculate_text_like_batch_params(filepaths, config)
+        files_per_batch, concurrent_batches = calculate_text_like_batch_params(
+            filepaths, config
+        )
         logger.info(
             f"Dynamic batching: Detected {text_file_percentage:.1f}% text-like files. "
             f"Using optimized parameters for text processing: "
@@ -165,10 +221,11 @@ def calculate_dynamic_batch_parameters(
 
         if adjusted_files_per_batch != files_per_batch:
             logger.info(
-                f"Dynamic batching: Detected {text_file_percentage:.1f}% text-like files "
-                f"with large multimodal content. Reducing files_per_batch from "
+                f"Dynamic batching: Detected {text_file_percentage:.1f}% text-like files; "
+                f"size-aware adjustment applied. Reducing files_per_batch from "
                 f"{files_per_batch} to {adjusted_files_per_batch} to limit the impact "
-                f"of slow per-file processing on sibling files in the same batch. "
+                f"of slow per-file processing on sibling files in the same batch and "
+                f"keep VDB-write progress signal frequent. "
                 f"concurrent_batches={concurrent_batches}"
             )
             files_per_batch = adjusted_files_per_batch
@@ -201,6 +258,10 @@ def calculate_multimodal_size_aware_batch_size(
     - Any single file > MULTIMODAL_LARGE_FILE_MB (50 MB) OR average size >
       MULTIMODAL_AVG_LARGE_FILE_MB (25 MB): shrink moderately
       (``default // 2``, floor MULTIMODAL_MIN_FILES_PER_BATCH).
+    - File count >= MULTIMODAL_MANY_SMALL_FILES_COUNT_THRESHOLD (32) AND average
+      size < MULTIMODAL_MANY_SMALL_FILES_AVG_MB (1 MB): shrink moderately
+      (``default // 2``, floor MULTIMODAL_MIN_FILES_PER_BATCH). This addresses
+      the "many small files stall" failure mode reported in NVBug 6191293.
     - Otherwise leave ``files_per_batch`` unchanged.
 
     Args:
@@ -256,6 +317,22 @@ def calculate_multimodal_size_aware_batch_size(
     ):
         return max(MULTIMODAL_MIN_FILES_PER_BATCH, default_files_per_batch // 2)
 
+    # Many-small-files trigger (NVBug 6191293 recommendation, UNVERIFIED).
+    # Falls through when no single file is large, but the workload's static
+    # batching signature still matches the failure observed in the bug
+    # (default fallback returning unchanged (16, 4) for a 53-pptx workload).
+    # Halving files_per_batch yields more, shorter batches. Mechanism
+    # UNVERIFIED end-to-end: this is the *static decision change only* —
+    # the assumption that smaller batches relieve the stall depends on
+    # VDB-write cadence and nv-ingest worker-pool behavior that were not
+    # measured in the Docker reproduction (embedding NIM 403'd before
+    # completion) nor re-validated on Helm.
+    if (
+        len(sizes_bytes) >= MULTIMODAL_MANY_SMALL_FILES_COUNT_THRESHOLD
+        and avg_size_mb < MULTIMODAL_MANY_SMALL_FILES_AVG_MB
+    ):
+        return max(MULTIMODAL_MIN_FILES_PER_BATCH, default_files_per_batch // 2)
+
     return default_files_per_batch
 
 
@@ -279,11 +356,15 @@ def calculate_text_like_batch_params(
     )
 
     # Calculate memory required per file
-    memory_per_file_bytes = (avg_file_size_bytes + avg_embedding_size_bytes) * TEXT_FILE_MEMORY_OVERHEAD_FACTOR
+    memory_per_file_bytes = (
+        avg_file_size_bytes + avg_embedding_size_bytes
+    ) * TEXT_FILE_MEMORY_OVERHEAD_FACTOR
 
     # Calculate max concurrent files in a single ingestion job (i.e batch size x concurrent batches)
-    max_concurrent_files = config.nv_ingest.max_memory_budget_mb * 1024 * 1024 // memory_per_file_bytes
-    
+    max_concurrent_files = (
+        config.nv_ingest.max_memory_budget_mb * 1024 * 1024 // memory_per_file_bytes
+    )
+
     logger.debug(
         f"Text-like file batching parameters: "
         f"avg_file_size_bytes={avg_file_size_bytes}, "
@@ -308,6 +389,7 @@ def calculate_average_file_size(filepaths: list[str]) -> int:
     for filepath in filepaths:
         total_size += os.path.getsize(filepath)
     return total_size // len(filepaths)
+
 
 def calculate_average_embedding_size(
     avg_file_size_bytes: int,

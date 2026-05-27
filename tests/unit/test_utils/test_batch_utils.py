@@ -20,6 +20,8 @@ import pytest
 from nvidia_rag.utils.batch_utils import (
     MULTIMODAL_AVG_LARGE_FILE_MB,
     MULTIMODAL_LARGE_FILE_MB,
+    MULTIMODAL_MANY_SMALL_FILES_AVG_MB,
+    MULTIMODAL_MANY_SMALL_FILES_COUNT_THRESHOLD,
     MULTIMODAL_MIN_FILES_PER_BATCH,
     MULTIMODAL_VERY_LARGE_FILE_MB,
     calculate_dynamic_batch_parameters,
@@ -73,7 +75,10 @@ class TestCalculateDynamicBatchParameters:
             for record in caplog.records
         )
 
-    @patch("nvidia_rag.utils.batch_utils.calculate_text_like_batch_params", return_value=(64, 4))
+    @patch(
+        "nvidia_rag.utils.batch_utils.calculate_text_like_batch_params",
+        return_value=(64, 4),
+    )
     def test_all_text_like_files(self, mock_text_batch_params, caplog):
         """Test with 100% text-like files - should optimize for text processing"""
         mock_config = MagicMock()
@@ -104,7 +109,10 @@ class TestCalculateDynamicBatchParameters:
             for record in caplog.records
         )
 
-    @patch("nvidia_rag.utils.batch_utils.calculate_text_like_batch_params", return_value=(64, 4))
+    @patch(
+        "nvidia_rag.utils.batch_utils.calculate_text_like_batch_params",
+        return_value=(64, 4),
+    )
     def test_majority_text_like_files(self, mock_text_batch_params, caplog):
         """Test with >50% text-like files - should optimize for text processing"""
         mock_config = MagicMock()
@@ -133,7 +141,9 @@ class TestCalculateDynamicBatchParameters:
 
         assert files_per_batch == 64
         assert concurrent_batches == 4
-        assert any("60.0% text-like files" in record.message for record in caplog.records)
+        assert any(
+            "60.0% text-like files" in record.message for record in caplog.records
+        )
 
     def test_exactly_fifty_percent_text_files(self, caplog):
         """Test with exactly 50% text-like files - should use default config"""
@@ -163,7 +173,9 @@ class TestCalculateDynamicBatchParameters:
 
         assert files_per_batch == 50
         assert concurrent_batches == 3
-        assert any("50.0% text-like files" in record.message for record in caplog.records)
+        assert any(
+            "50.0% text-like files" in record.message for record in caplog.records
+        )
         assert any(
             "default configuration parameters" in record.message
             for record in caplog.records
@@ -197,7 +209,9 @@ class TestCalculateDynamicBatchParameters:
 
         assert files_per_batch == 50
         assert concurrent_batches == 3
-        assert any("20.0% text-like files" in record.message for record in caplog.records)
+        assert any(
+            "20.0% text-like files" in record.message for record in caplog.records
+        )
 
     def test_no_text_like_files(self, caplog):
         """Test with 0% text-like files - should use default config"""
@@ -221,9 +235,14 @@ class TestCalculateDynamicBatchParameters:
 
         assert files_per_batch == 50
         assert concurrent_batches == 3
-        assert any("0.0% text-like files" in record.message for record in caplog.records)
+        assert any(
+            "0.0% text-like files" in record.message for record in caplog.records
+        )
 
-    @patch("nvidia_rag.utils.batch_utils.calculate_text_like_batch_params", return_value=(64, 4))
+    @patch(
+        "nvidia_rag.utils.batch_utils.calculate_text_like_batch_params",
+        return_value=(64, 4),
+    )
     def test_case_insensitive_extension_handling(self, mock_text_batch_params):
         """Test that file extensions are handled case-insensitively"""
         mock_config = MagicMock()
@@ -272,7 +291,10 @@ class TestCalculateDynamicBatchParameters:
         assert files_per_batch == 50
         assert concurrent_batches == 3
 
-    @patch("nvidia_rag.utils.batch_utils.calculate_text_like_batch_params", return_value=(64, 4))
+    @patch(
+        "nvidia_rag.utils.batch_utils.calculate_text_like_batch_params",
+        return_value=(64, 4),
+    )
     def test_files_with_multiple_dots(self, mock_text_batch_params):
         """Test handling of files with multiple dots in filename"""
         mock_config = MagicMock()
@@ -295,7 +317,10 @@ class TestCalculateDynamicBatchParameters:
         assert files_per_batch == 64
         assert concurrent_batches == 4
 
-    @patch("nvidia_rag.utils.batch_utils.calculate_text_like_batch_params", return_value=(16, 4))
+    @patch(
+        "nvidia_rag.utils.batch_utils.calculate_text_like_batch_params",
+        return_value=(16, 4),
+    )
     def test_single_file_text(self, mock_text_batch_params):
         """Test with single text-like file"""
         mock_config = MagicMock()
@@ -330,7 +355,10 @@ class TestCalculateDynamicBatchParameters:
         assert files_per_batch == 50
         assert concurrent_batches == 3
 
-    @patch("nvidia_rag.utils.batch_utils.calculate_text_like_batch_params", return_value=(64, 4))
+    @patch(
+        "nvidia_rag.utils.batch_utils.calculate_text_like_batch_params",
+        return_value=(64, 4),
+    )
     def test_full_file_paths(self, mock_text_batch_params):
         """Test with full file paths including directories"""
         mock_config = MagicMock()
@@ -353,7 +381,10 @@ class TestCalculateDynamicBatchParameters:
         assert files_per_batch == 64
         assert concurrent_batches == 4
 
-    @patch("nvidia_rag.utils.batch_utils.calculate_text_like_batch_params", return_value=(64, 4))
+    @patch(
+        "nvidia_rag.utils.batch_utils.calculate_text_like_batch_params",
+        return_value=(64, 4),
+    )
     def test_relative_file_paths(self, mock_text_batch_params):
         """Test with relative file paths"""
         mock_config = MagicMock()
@@ -452,7 +483,10 @@ class TestCalculateDynamicBatchParameters:
         assert files_per_batch == 50
         assert concurrent_batches == 3
 
-    @patch("nvidia_rag.utils.batch_utils.calculate_text_like_batch_params", return_value=(64, 4))
+    @patch(
+        "nvidia_rag.utils.batch_utils.calculate_text_like_batch_params",
+        return_value=(64, 4),
+    )
     def test_large_batch_of_text_files(self, mock_text_batch_params):
         """Test with a large number of text-like files"""
         mock_config = MagicMock()
@@ -487,7 +521,10 @@ class TestCalculateDynamicBatchParameters:
         assert files_per_batch == 50
         assert concurrent_batches == 3
 
-    @patch("nvidia_rag.utils.batch_utils.calculate_text_like_batch_params", return_value=(64, 4))
+    @patch(
+        "nvidia_rag.utils.batch_utils.calculate_text_like_batch_params",
+        return_value=(64, 4),
+    )
     def test_boundary_case_51_percent_text(self, mock_text_batch_params):
         """Test boundary case with just over 50% text files"""
         mock_config = MagicMock()
@@ -526,7 +563,10 @@ class TestCalculateDynamicBatchParameters:
         assert files_per_batch == 50
         assert concurrent_batches == 3
 
-    @patch("nvidia_rag.utils.batch_utils.calculate_text_like_batch_params", return_value=(64, 4))
+    @patch(
+        "nvidia_rag.utils.batch_utils.calculate_text_like_batch_params",
+        return_value=(64, 4),
+    )
     def test_all_text_like_extension_types(self, mock_text_batch_params):
         """Test that all defined text-like extensions are recognized"""
         mock_config = MagicMock()
@@ -774,9 +814,7 @@ class TestCalculateTextLikeBatchParams:
             "Text-like file batching parameters" in record.message
             for record in caplog.records
         )
-        assert any(
-            "avg_file_size_bytes" in record.message for record in caplog.records
-        )
+        assert any("avg_file_size_bytes" in record.message for record in caplog.records)
         assert any(
             "max_concurrent_files" in record.message for record in caplog.records
         )
@@ -1032,10 +1070,9 @@ class TestCalculateDynamicBatchParametersSizeAware:
         mock_config.nv_ingest.concurrent_batches = 4
 
         # 60% text-like
-        filepaths = (
-            [f"file{i}.txt" for i in range(6)]
-            + [f"file{i}.pdf" for i in range(4)]
-        )
+        filepaths = [f"file{i}.txt" for i in range(6)] + [
+            f"file{i}.pdf" for i in range(4)
+        ]
 
         with patch(
             "nvidia_rag.utils.batch_utils.calculate_text_like_batch_params",
@@ -1056,3 +1093,136 @@ class TestCalculateDynamicBatchParametersSizeAware:
         assert MULTIMODAL_LARGE_FILE_MB == 50.0
         assert MULTIMODAL_AVG_LARGE_FILE_MB == 25.0
         assert MULTIMODAL_MIN_FILES_PER_BATCH == 2
+        # Many-small-files trigger (NVBug 6191293 recommendation)
+        assert MULTIMODAL_MANY_SMALL_FILES_AVG_MB == 1.0
+        assert MULTIMODAL_MANY_SMALL_FILES_COUNT_THRESHOLD == 32
+
+
+class TestManySmallFilesTrigger:
+    """Tests for the many-small-files branch added per NVBug 6191293
+    recommendation. The reported workload was 53 ~30 KB PPTX files; none of
+    the prior size thresholds (50/100/25 MB) fired for that workload so the
+    batching decision fell through to the default (16, 4). This branch is
+    UNVERIFIED end-to-end: could not measure >30 min ingestion live (Helm
+    environment unavailable; Docker NVIDIA-hosted run hit a separate 403 on
+    the embedding NIM). Tests cover the static batching decision only."""
+
+    # UNVERIFIED: could not run live; recommended fix only
+    @patch("nvidia_rag.utils.batch_utils.os.path.getsize")
+    def test_53_small_pptx_shrinks_files_per_batch_to_8(self, mock_getsize):
+        """Reproduces the static side of NVBug 6191293: 53 small PPTX files
+        (~30 KB each) should now trigger the many-small-files branch and
+        shrink files_per_batch from 16 to 8. Prior to the fix this returned
+        the unchanged default 16."""
+        mock_getsize.return_value = 30 * 1024  # 30 KB
+        filepaths = [f"deck_{i:03d}.pptx" for i in range(53)]
+
+        result = calculate_multimodal_size_aware_batch_size(
+            filepaths, default_files_per_batch=16
+        )
+
+        # 16 // 2 = 8 (many-small-files path)
+        assert result == 8
+
+    # UNVERIFIED: could not run live; recommended fix only
+    @patch("nvidia_rag.utils.batch_utils.os.path.getsize")
+    def test_below_count_threshold_preserves_default(self, mock_getsize):
+        """Workloads below the count threshold are left at the default — we
+        do not want to fragment small workloads where batch overhead matters."""
+        mock_getsize.return_value = 30 * 1024  # 30 KB
+        filepaths = [
+            f"deck_{i:03d}.pptx"
+            for i in range(MULTIMODAL_MANY_SMALL_FILES_COUNT_THRESHOLD - 1)
+        ]
+
+        result = calculate_multimodal_size_aware_batch_size(
+            filepaths, default_files_per_batch=16
+        )
+
+        assert result == 16
+
+    # UNVERIFIED: could not run live; recommended fix only
+    @patch("nvidia_rag.utils.batch_utils.os.path.getsize")
+    def test_above_avg_threshold_preserves_default(self, mock_getsize):
+        """Workloads where avg file size is at/above the threshold do not
+        trigger the new branch. This is the guard that protects existing
+        scenarios like 20 × 2 MB PDFs (test_multimodal_workload_with_small_
+        files_preserves_defaults) from being unintentionally shrunk."""
+        mock_getsize.return_value = 2 * 1024 * 1024  # 2 MB
+        filepaths = [f"file_{i:03d}.pdf" for i in range(53)]
+
+        result = calculate_multimodal_size_aware_batch_size(
+            filepaths, default_files_per_batch=16
+        )
+
+        # avg = 2 MB > MULTIMODAL_MANY_SMALL_FILES_AVG_MB (1 MB) → default kept
+        assert result == 16
+
+    # UNVERIFIED: could not run live; recommended fix only
+    @patch("nvidia_rag.utils.batch_utils.os.path.getsize")
+    def test_many_small_files_floor_protected(self, mock_getsize):
+        """Even at the smallest sensible non-text-like default, the result
+        never goes below MULTIMODAL_MIN_FILES_PER_BATCH (2)."""
+        mock_getsize.return_value = 30 * 1024  # 30 KB
+        filepaths = [f"deck_{i:03d}.pptx" for i in range(50)]
+
+        result = calculate_multimodal_size_aware_batch_size(
+            filepaths, default_files_per_batch=3
+        )
+
+        # 3 // 2 = 1; floor protects → MULTIMODAL_MIN_FILES_PER_BATCH (2)
+        assert result == MULTIMODAL_MIN_FILES_PER_BATCH
+
+    # UNVERIFIED: could not run live; recommended fix only
+    @patch("nvidia_rag.utils.batch_utils.os.path.getsize")
+    def test_large_file_path_wins_over_many_small_path(self, mock_getsize):
+        """If a single very large file is present alongside many small ones,
+        the existing 'very large file' aggressive shrink (default // 4) still
+        wins. The many-small-files branch only fires when no single file is
+        large."""
+        # 1 file at 110 MB + 100 tiny files
+        sizes = [110 * 1024 * 1024] + [30 * 1024] * 100
+        mock_getsize.side_effect = sizes
+        filepaths = ["huge.pdf"] + [f"deck_{i:03d}.pptx" for i in range(100)]
+
+        result = calculate_multimodal_size_aware_batch_size(
+            filepaths, default_files_per_batch=16
+        )
+
+        # Very-large path: 16 // 4 = 4
+        assert result == 4
+
+
+class TestCalculateDynamicBatchParametersManySmallFiles:
+    """End-to-end coverage of calculate_dynamic_batch_parameters for the
+    NVBug 6191293 small-pptx scenario. UNVERIFIED: static-only — could not
+    measure >30 min ingestion live."""
+
+    # UNVERIFIED: could not run live; recommended fix only
+    @patch("nvidia_rag.utils.batch_utils.os.path.getsize")
+    def test_many_small_pptx_workload_triggers_shrink_and_logs(
+        self, mock_getsize, caplog
+    ):
+        """Exact NVBug 6191293 input shape: 53 small PPTX files. End-to-end
+        calculate_dynamic_batch_parameters should now return (8, 4) instead
+        of the (16, 4) default and emit the size-aware-adjustment log line."""
+        mock_getsize.return_value = 30 * 1024  # 30 KB
+
+        mock_config = MagicMock()
+        mock_config.nv_ingest.enable_dynamic_batching = True
+        mock_config.nv_ingest.files_per_batch = 16
+        mock_config.nv_ingest.concurrent_batches = 4
+
+        filepaths = [f"deck_{i:03d}.pptx" for i in range(53)]
+
+        with caplog.at_level("INFO"):
+            files_per_batch, concurrent_batches = calculate_dynamic_batch_parameters(
+                filepaths, mock_config
+            )
+
+        assert files_per_batch == 8
+        assert concurrent_batches == 4
+        assert any(
+            "Reducing files_per_batch from 16 to 8" in record.message
+            for record in caplog.records
+        )
