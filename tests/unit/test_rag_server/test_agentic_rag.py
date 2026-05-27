@@ -46,6 +46,7 @@ from nvidia_rag.rag_server.agentic_rag.tracing import (
     AgentMetrics,
     LLMCallRecord,
     QueryTrace,
+    RetrievalRecord,
     get_current_trace,
 )
 from nvidia_rag.rag_server.response_generator import (
@@ -336,6 +337,46 @@ class TestTracing:
     def test_get_current_trace_default_none(self) -> None:
         assert get_current_trace() is None
 
+    def test_query_trace_serializes_retrieval_calls(self) -> None:
+        tr = QueryTrace(query_text="z")
+        tr.retrieval_calls.append(
+            RetrievalRecord(
+                stage="initial_retrieval",
+                chunks=3,
+                duration_ms=12.34,
+                error=False,
+            )
+        )
+        data = tr.to_dict()
+        assert data["retrieval_calls"] == [
+            {
+                "stage": "initial_retrieval",
+                "chunks": 3,
+                "duration_ms": 12.3,
+                "error": False,
+            }
+        ]
+
+
+class _DummyOtelMetrics:
+    def __init__(self) -> None:
+        self.agentic_calls = []
+        self.latency_updates = []
+
+    def record_agentic_query_trace(
+        self, trace, *, status: str, verification_enabled: bool
+    ) -> None:
+        self.agentic_calls.append(
+            {
+                "trace": trace,
+                "status": status,
+                "verification_enabled": verification_enabled,
+            }
+        )
+
+    def update_latency_metrics(self, payload: dict) -> None:
+        self.latency_updates.append(payload)
+
 
 class TestRunAgenticPipeline:
     @pytest.mark.asyncio
@@ -383,6 +424,101 @@ class TestRunAgenticPipeline:
         assert resp.status_code == ErrorCodeMapping.INTERNAL_SERVER_ERROR
         text = "".join([c async for c in resp.generator])
         assert "error" in text.lower() or "encountered" in text.lower()
+
+    @pytest.mark.asyncio
+    async def test_non_streaming_records_agentic_metrics(self) -> None:
+        graph = MagicMock()
+        graph.ainvoke = AsyncMock(return_value={"final_answer": "synthesized"})
+        metrics = _DummyOtelMetrics()
+
+        class _Agent:
+            def __init__(self) -> None:
+                self.metrics = AgentMetrics()
+                self.verification_cfg = SimpleNamespace(enabled=True)
+
+        cfg = AgenticRAGConfig()
+        resp = await run_agentic_pipeline(
+            agent=_Agent(),
+            graph=graph,
+            query="user q",
+            cfg=cfg,
+            search_params=AgenticSearchParams(),
+            enable_streaming=False,
+            metrics=metrics,
+        )
+
+        assert resp.status_code == ErrorCodeMapping.SUCCESS
+        assert len(metrics.agentic_calls) == 1
+        assert metrics.agentic_calls[0]["status"] == "success"
+        assert metrics.agentic_calls[0]["verification_enabled"] is True
+
+    @pytest.mark.asyncio
+    async def test_streaming_records_agentic_metrics(self) -> None:
+        class _FakeChunk:
+            def __init__(self, content: str = "") -> None:
+                self.content = content
+                self.additional_kwargs = {}
+
+        async def _fake_astream(_state, *, config, stream_mode):  # noqa: ARG001
+            yield (
+                "messages",
+                (_FakeChunk(content="done"), {"langgraph_node": "synthesize"}),
+            )
+
+        graph = MagicMock()
+        graph.astream = _fake_astream
+        metrics = _DummyOtelMetrics()
+
+        class _Agent:
+            def __init__(self) -> None:
+                self.metrics = AgentMetrics()
+                self.verification_cfg = SimpleNamespace(enabled=False)
+
+        resp = await run_agentic_pipeline(
+            agent=_Agent(),
+            graph=graph,
+            query="q",
+            cfg=AgenticRAGConfig(),
+            search_params=AgenticSearchParams(),
+            enable_streaming=True,
+            metrics=metrics,
+        )
+        chunks = [c async for c in resp.generator]
+
+        assert chunks
+        assert len(metrics.agentic_calls) == 1
+        assert metrics.agentic_calls[0]["status"] == "success"
+        assert metrics.agentic_calls[0]["verification_enabled"] is False
+
+    @pytest.mark.asyncio
+    async def test_streaming_error_records_agentic_metrics(self) -> None:
+        async def _fake_astream(_state, *, config, stream_mode):  # noqa: ARG001
+            raise RuntimeError("boom")
+            yield  # pragma: no cover
+
+        graph = MagicMock()
+        graph.astream = _fake_astream
+        metrics = _DummyOtelMetrics()
+
+        class _Agent:
+            def __init__(self) -> None:
+                self.metrics = AgentMetrics()
+                self.verification_cfg = SimpleNamespace(enabled=False)
+
+        resp = await run_agentic_pipeline(
+            agent=_Agent(),
+            graph=graph,
+            query="q",
+            cfg=AgenticRAGConfig(),
+            search_params=AgenticSearchParams(),
+            enable_streaming=True,
+            metrics=metrics,
+        )
+        chunks = [json.loads(c.removeprefix("data: ")) async for c in resp.generator]
+
+        assert chunks[-1]["event_type"] == "error"
+        assert len(metrics.agentic_calls) == 1
+        assert metrics.agentic_calls[0]["status"] == "error"
 
     @pytest.mark.asyncio
     async def test_streaming_emits_stage_and_final_chunks(self) -> None:

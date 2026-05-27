@@ -74,6 +74,16 @@ class NodeTiming:
     duration_ms: float
 
 
+@dataclass
+class RetrievalRecord:
+    """Single retrieval call summary."""
+
+    stage: str
+    chunks: int
+    duration_ms: float | None = None
+    error: bool = False
+
+
 # ---------------------------------------------------------------------------
 # QueryTrace — per-query collector
 # ---------------------------------------------------------------------------
@@ -91,6 +101,7 @@ class QueryTrace:
 
     llm_calls: list[LLMCallRecord] = field(default_factory=list)
     node_timings: list[NodeTiming] = field(default_factory=list)
+    retrieval_calls: list[RetrievalRecord] = field(default_factory=list)
 
     retrieval_stats: dict[str, Any] = field(default_factory=dict)
     plan_summary: dict[str, Any] = field(default_factory=dict)
@@ -132,6 +143,22 @@ class QueryTrace:
 
     # ---- properties -------------------------------------------------------
 
+    def record_retrieval_call(
+        self,
+        stage: str,
+        chunks: int,
+        duration_ms: float | None = None,
+        error: bool = False,
+    ) -> None:
+        self.retrieval_calls.append(
+            RetrievalRecord(
+                stage=stage,
+                chunks=chunks,
+                duration_ms=duration_ms,
+                error=error,
+            )
+        )
+
     @property
     def total_llm_calls(self) -> int:
         return len(self.llm_calls)
@@ -169,6 +196,17 @@ class QueryTrace:
             "node_timings": [
                 {"node": nt.node_name, "duration_ms": round(nt.duration_ms, 1)}
                 for nt in self.node_timings
+            ],
+            "retrieval_calls": [
+                {
+                    "stage": rc.stage,
+                    "chunks": rc.chunks,
+                    "duration_ms": round(rc.duration_ms, 1)
+                    if rc.duration_ms is not None
+                    else None,
+                    "error": rc.error,
+                }
+                for rc in self.retrieval_calls
             ],
             "llm_calls": [
                 {

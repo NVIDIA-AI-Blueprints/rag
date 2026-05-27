@@ -55,6 +55,7 @@ from opentelemetry import trace as otel_trace
 from pydantic import BaseModel, Field
 
 from nvidia_rag.rag_server.agentic_rag.response_parser import parse_json_response
+from nvidia_rag.rag_server.agentic_rag.tracing import get_current_trace
 
 logger = logging.getLogger(__name__)
 
@@ -971,6 +972,8 @@ class AgenticRag:
                 ) as rspan:
                     rspan.set_attribute("openinference.span.kind", "RETRIEVER")
                     rspan.set_attribute("input.value", current_query or "")
+                    retrieval_start = time.perf_counter()
+                    retrieval_error = False
                     try:
                         raw_context = await self.retriever_fn(current_query, stage)
                         if raw_context is None:
@@ -981,10 +984,22 @@ class AgenticRag:
                             "metadata", json.dumps({"error": str(ex)[:200]})
                         )
                         raw_context = []
+                        retrieval_error = True
+                    retrieval_duration_ms = (
+                        time.perf_counter() - retrieval_start
+                    ) * 1000
 
                 chunks = self._extract_chunks(
                     raw_context if isinstance(raw_context, list) else [raw_context]
                 )
+                trace = get_current_trace()
+                if trace:
+                    trace.record_retrieval_call(
+                        stage,
+                        len(chunks),
+                        duration_ms=retrieval_duration_ms,
+                        error=retrieval_error,
+                    )
 
                 if not chunks:
                     logger.debug(
@@ -1153,6 +1168,8 @@ class AgenticRag:
             with self._otel.start_as_current_span("retrieve:original") as rspan:
                 rspan.set_attribute("openinference.span.kind", "RETRIEVER")
                 rspan.set_attribute("input.value", state.user_query)
+                retrieval_start = time.perf_counter()
+                retrieval_error = False
                 try:
                     raw = await self.retriever_fn(state.user_query, "initial_retrieval")
                     if raw is None:
@@ -1182,6 +1199,8 @@ class AgenticRag:
                         "metadata", json.dumps({"error": str(ex)[:200]})
                     )
                     chunks = []
+                    retrieval_error = True
+                retrieval_duration_ms = (time.perf_counter() - retrieval_start) * 1000
 
             logger.info("%s Retrieval complete: %d chunks", _P, len(chunks))
 
@@ -1193,6 +1212,12 @@ class AgenticRag:
             trace = get_current_trace()
             if trace:
                 trace.retrieval_stats = stats
+                trace.record_retrieval_call(
+                    "initial_retrieval",
+                    len(chunks),
+                    duration_ms=retrieval_duration_ms,
+                    error=retrieval_error,
+                )
 
             rebuilt_context = [{"results": [self._rebuild_result(c) for c in chunks]}]
 

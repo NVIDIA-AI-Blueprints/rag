@@ -105,6 +105,23 @@ def _collate_citations(
     )
 
 
+def _record_agentic_query_metrics(
+    metrics: Any | None,
+    trace: QueryTrace,
+    *,
+    status: str,
+    verification_enabled: bool,
+) -> None:
+    if metrics is None:
+        return
+    try:
+        metrics.record_agentic_query_trace(
+            trace, status=status, verification_enabled=verification_enabled
+        )
+    except Exception as mex:  # noqa: BLE001
+        logger.debug("Agentic RAG metrics update failed: %s", mex)
+
+
 def _log_final_response(answer: str) -> None:
     """Emit the LLM GENERATION COMPLETE / Final LLM Response block.
 
@@ -176,6 +193,9 @@ async def run_agentic_pipeline(
 
     initial_state = AgenticRAGGraphState(user_query=query)
     collection_name = collection_names[0] if collection_names else ""
+    verification_enabled = bool(
+        getattr(getattr(agent, "verification_cfg", None), "enabled", False)
+    )
 
     if enable_streaming:
         # ContextVars are bound *inside* the streaming generator (see
@@ -254,6 +274,12 @@ async def run_agentic_pipeline(
             trace.final_answer = answer
             trace.finalize()
             agent.metrics.update(trace)
+            _record_agentic_query_metrics(
+                metrics,
+                trace,
+                status="success",
+                verification_enabled=verification_enabled,
+            )
 
             root_span.set_attribute("output.value", answer)
             logger.info("[AGENTIC_RAG] Query done: %s", trace.one_line_summary())
@@ -282,6 +308,12 @@ async def run_agentic_pipeline(
         trace.error = str(ex)[:500]
         trace.finalize()
         agent.metrics.update(trace)
+        _record_agentic_query_metrics(
+            metrics,
+            trace,
+            status="error",
+            verification_enabled=verification_enabled,
+        )
         logger.info("[AGENTIC_RAG] Query failed: %s", trace.one_line_summary())
         agent.metrics.log_summary()
 
@@ -341,7 +373,10 @@ async def _run_streaming(
     created in a different Context".
     """
     debug_stream = bool(getattr(cfg, "enable_debug_stream", False))
-    verification_enabled = bool(getattr(agent.verification_cfg, "enabled", False))
+    verification_enabled = bool(
+        getattr(getattr(agent, "verification_cfg", None), "enabled", False)
+    )
+    metrics_recorded = False
 
     def _build_citations_now() -> Citations | None:
         if not enable_citations:
@@ -349,14 +384,23 @@ async def _run_streaming(
         return _collate_citations(citations_acc)
 
     async def _on_complete(final_answer: str) -> None:
+        nonlocal metrics_recorded
         trace.final_answer = final_answer
         trace.finalize()
         agent.metrics.update(trace)
+        _record_agentic_query_metrics(
+            metrics,
+            trace,
+            status="success",
+            verification_enabled=verification_enabled,
+        )
+        metrics_recorded = True
         logger.info("[AGENTIC_RAG] Query done: %s", trace.one_line_summary())
         _log_final_response(final_answer)
         agent.metrics.log_summary()
 
     async def _stream() -> AsyncIterator[str]:
+        nonlocal metrics_recorded
         trace_token = _current_trace.set(trace)
         params_token = _agentic_search_params.set(search_params)
         citations_token = _agentic_all_citations.set(citations_acc)
@@ -401,6 +445,13 @@ async def _run_streaming(
             trace.error = str(ex)[:500]
             trace.finalize()
             agent.metrics.update(trace)
+            _record_agentic_query_metrics(
+                metrics,
+            trace,
+            status="error",
+            verification_enabled=verification_enabled,
+            )
+            metrics_recorded = True
             logger.info("[AGENTIC_RAG] Query failed: %s", trace.one_line_summary())
             agent.metrics.log_summary()
             raise
@@ -416,20 +467,15 @@ async def _run_streaming(
                 # keep a defensive guard so a stray context mismatch never
                 # masks the stream's real outcome.
                 logger.debug("Streaming cleanup failed: %s", cex)
-            # ``metrics`` is passed in for parity with the non-streaming path;
-            # the translator already records TTFT/generation time on the
-            # finishing chunk, but we still want OTel histogram updates.
-            if metrics is not None:
-                try:
-                    payload = {
-                        "rag_ttft_ms": getattr(trace, "rag_ttft_ms", None),
-                        "llm_ttft_ms": getattr(trace, "llm_ttft_ms", None),
-                    }
-                    payload = {k: v for k, v in payload.items() if v is not None}
-                    if payload:
-                        metrics.update_latency_metrics(payload)
-                except Exception as mex:  # noqa: BLE001
-                    logger.debug("OTel latency update failed: %s", mex)
+            if not metrics_recorded and trace.end_time is not None:
+                agent.metrics.update(trace)
+                _record_agentic_query_metrics(
+                    metrics,
+                    trace,
+                    status="error" if trace.error else "success",
+                    verification_enabled=verification_enabled,
+                )
+                agent.metrics.log_summary()
 
     # collection_name not currently surfaced in streaming chunks, but kept in
     # signature for parity with the non-streaming branch.

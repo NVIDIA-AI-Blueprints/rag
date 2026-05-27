@@ -54,33 +54,18 @@ Open the Zipkin UI at: **http://localhost:9411**
 
 ## View Metrics in Grafana
 
-As part of the tracing, the RAG service also exports metrics like API request counts, LLM prompt and completion token count and words per chunk.
+Metrics are exposed at **http://localhost:8889/metrics** and can be viewed in Grafana.
 
-These metrics are exposed on the metrics endpoint exposed by Otel collector at **http://localhost:8889/metrics**
-
-You can open Grafana UI and visualize these metrics on a dashboard by selecting data source as Prometheus and putting prometheus URL as **http://prometheus:9090**
-
-Open the Grafana UI at **http://localhost:3000**
-
-
-### Create a Dashboard in Grafana
-
-To create a dashboard in [Grafana](https://grafana.com/) use the following procedure.
-
-1. Navigate to the Grafana UI at `http://localhost:3000`.
-
-2. Log in with the default credentials (`admin`/`admin`).
-
-3. Go to the **Dashboards** section and click **Import**.
-
-4. Upload the JSON file located in the `deploy/config` directory.
-
-5. Select the data source for the dashboard. Ensure that the data source is correctly configured to pull metrics from your Prometheus instance.
-
-6. Save the dashboard.
-
-7. View your metrics and traces.
-
+1. Open Grafana:
+   - Docker Compose: <http://localhost:3000>
+   - Helm: port-forward Grafana and open <http://localhost:3001>.
+2. Log in with `admin` / `admin`, unless you changed the Grafana credentials.
+3. If the Prometheus data source is not configured, add it with URL `http://prometheus:9090`.
+4. Go to **Dashboards** > **Import**.
+5. Upload the dashboard JSON file:
+   - Standard RAG: `deploy/config/rag-metrics-dashboard.json`
+   - Agentic RAG: `deploy/config/agentic-rag-metrics-dashboard.json`
+6. Select the `Prometheus` data source, then select **Import**.
 
 ## Query-to-Answer Pipeline and Studying Time Spent
 
