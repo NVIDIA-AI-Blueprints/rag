@@ -65,7 +65,7 @@ For NVIDIA API Catalog models, you can pass `--auth-choice nvidia-api-key` durin
 
 ## 2. Install the RAG Claw Plugin
 
-OpenClaw loads **compiled** JavaScript from `dist/`. Build the plugin from the RAG repo before installing.
+OpenClaw loads **compiled** JavaScript from `dist/`. Build the plugin from the RAG repo, then install with **`--link`** so OpenClaw uses your checkout in place (recommended for development and for machines where a copy install fails peer-dependency linking).
 
 **From the cloned RAG repo:**
 
@@ -73,16 +73,18 @@ OpenClaw loads **compiled** JavaScript from `dist/`. Build the plugin from the R
 cd /path/to/rag/.openclaw
 npm install
 npm run build
-openclaw plugins install /path/to/rag/.openclaw/
+openclaw plugins install --link /path/to/rag/.openclaw/
 ```
 
-`npm run build` compiles `index.ts` → `dist/index.js` and copies skills from `skill-source/.agents/skills/` into `skills/`.
+Use an **absolute path** to `.openclaw/` (as above). `npm run build` compiles `index.ts` → `dist/index.js` and copies skills from `skill-source/.agents/skills/` into `skills/`.
 
-**From npm (after publishing):**
+Do **not** use a bare copy install (`openclaw plugins install /path/to/rag/.openclaw/` or `openclaw plugins install ./` from inside `.openclaw/`) unless you are using a packaged OpenClaw install that can symlink the `openclaw` peer dependency. On many systems that fails with:
 
-```bash
-openclaw plugins install @nvidia/openclaw-rag
+```text
+Installed plugin openclaw-rag declares openclaw as a peer dependency, but OpenClaw could not create a plugin-local node_modules/openclaw link.
 ```
+
+`@nvidia/openclaw-rag` is **not published to npm** yet. Do not run `openclaw plugins install @nvidia/openclaw-rag` until the package is available on the registry.
 
 Restart the gateway after install so the plugin loads:
 
@@ -203,3 +205,16 @@ Skill source of truth: `skill-source/.agents/skills/` in this repository.
 | Web UI | 8090 |
 
 See `docs/service-port-gpu-reference.md` for the full port and GPU map.
+
+---
+
+## Troubleshooting plugin install
+
+| Error | Cause | Fix |
+|-------|-------|-----|
+| `could not create a plugin-local node_modules/openclaw link` | Copy install (`plugins install` without `--link`) | `openclaw plugins install --link /path/to/rag/.openclaw/` after `npm run build` |
+| `Package not found on npm: @nvidia/openclaw-rag` | Package not published | Install from the repo with `--link` (see above) |
+| `package.json missing openclaw.hooks` | OpenClaw also tried hook-pack install | Ignore if the native plugin install succeeded; use `--link` on the `.openclaw/` directory |
+| Skills missing after install | `dist/` or `skills/` not built | `cd /path/to/rag/.openclaw && npm install && npm run build`, then reinstall with `--link` |
+
+OpenClaw plugin install reference: [docs.openclaw.ai/tools/plugin](https://docs.openclaw.ai/tools/plugin) (local checkouts: `openclaw plugins install --link ./my-plugin`).

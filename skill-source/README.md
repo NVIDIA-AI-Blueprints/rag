@@ -88,13 +88,14 @@ Read `docs/support-matrix.md` for current hardware requirements per mode.
 
 ## OpenClaw (RAG Claw plugin)
 
-To use these skills with [OpenClaw](https://github.com/openclaw/openclaw), install the plugin from the repo root:
+To use these skills with [OpenClaw](https://github.com/openclaw/openclaw), build and link the plugin from the RAG repo (use an absolute path):
 
 ```bash
-openclaw plugins install ./.openclaw/
+cd /path/to/rag/.openclaw && npm install && npm run build
+openclaw plugins install --link /path/to/rag/.openclaw/
 ```
 
-See [`.openclaw/README.md`](../.openclaw/README.md) for prerequisites, verification, and trigger phrases.
+See [`.openclaw/README.md`](../.openclaw/README.md) for prerequisites, verification, troubleshooting, and trigger phrases.
 
 ## NGC_API_KEY Handling
 
