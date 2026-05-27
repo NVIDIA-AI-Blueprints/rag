@@ -80,11 +80,17 @@ Ensure you have at least 200GB of available disk space per node where NIMs will 
     kubectl create namespace openebs
 
     # Install only the LocalPV provisioner; disable other storage engines
+    # On OpenShift, also disable the bundled minio/loki/alloy subcharts —
+    # their pods violate the restricted PodSecurity policy and the
+    # `openebs-minio-post-job` fails with BackoffLimitExceeded otherwise.
     helm install openebs openebs/openebs \
       --namespace openebs \
       --set engines.replicated.mayastor.enabled=false \
       --set engines.local.lvm.enabled=false \
-      --set engines.local.zfs.enabled=false
+      --set engines.local.zfs.enabled=false \
+      --set minio.enabled=false \
+      --set loki.enabled=false \
+      --set alloy.enabled=false
 
     # OpenShift requires the privileged SCC for the provisioner service account
     oc adm policy add-scc-to-user privileged -z openebs-localpv-provisioner -n openebs
@@ -185,18 +191,16 @@ To deploy the RAG Blueprint on OpenShift, use the following procedure.
     If you prefer the install-from-NGC pattern shown in [Deploy on Kubernetes with Helm](deploy-helm.md) instead of cloning this repo, pull the chart locally first. Helm cannot patch a chart it streams directly from a remote URL, so the indent adjustment must be applied to a local copy before install:
 
     ```sh
-    # Pull and untar the chart from NGC
+    # Pull and untar the chart from NGC. The NGC package ships with the
+    # nv-ingest subchart already extracted under charts/nv-ingest/, so the
+    # sed below can edit the template file in place.
     helm pull https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.6.0.tgz \
       --username '$oauthtoken' --password "$NGC_API_KEY" \
       --untar --untardir /tmp
 
     # Apply the indent adjustment to the bundled nv-ingest subchart
-    mkdir -p /tmp/nvi && \
-      tar xzf /tmp/nvidia-blueprint-rag/charts/nv-ingest-26.3.0.tgz -C /tmp/nvi && \
-      sed -i '/toYaml $v | nindent 12/s/nindent 12/nindent 14/' \
-        /tmp/nvi/nv-ingest/templates/deployment.yaml && \
-      tar czf /tmp/nvidia-blueprint-rag/charts/nv-ingest-26.3.0.tgz -C /tmp/nvi nv-ingest && \
-      rm -rf /tmp/nvi
+    sed -i '/toYaml $v | nindent 12/s/nindent 12/nindent 14/' \
+      /tmp/nvidia-blueprint-rag/charts/nv-ingest/templates/deployment.yaml
 
     # Install from the patched local directory
     helm upgrade --install rag -n $NAMESPACE /tmp/nvidia-blueprint-rag \
