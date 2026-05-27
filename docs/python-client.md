@@ -81,7 +81,7 @@ Launch dependent services and NIMs. For more information, refer to [Docker prere
    import os
    from getpass import getpass
 
-   # del os.environ['NVIDIA_API_KEY']  ## delete key and reset if needed
+   # del os.environ['NGC_API_KEY']  ## delete key and reset if needed
    if os.environ.get("NGC_API_KEY", "").startswith("nvapi-"):
        print("Valid NGC_API_KEY already in environment. Delete to reset")
    else:
