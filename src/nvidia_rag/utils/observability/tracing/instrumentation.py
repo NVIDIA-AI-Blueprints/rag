@@ -285,7 +285,11 @@ def instrument(app: FastAPI, settings, service_name: str = "rag"):
                 exporter_http, skip_predicates=span_filters
             )
 
-        span_processor = BatchSpanProcessor(exporter_http)
+        span_processor = BatchSpanProcessor(
+            exporter_http,
+            max_export_batch_size=32,
+            max_queue_size=512
+        )
         trace.get_tracer_provider().add_span_processor(
             BaggageSpanProcessor(ALLOW_ALL_BAGGAGE_KEYS)
         )
