@@ -37,6 +37,7 @@ from uuid import uuid4
 
 import bleach
 from langchain_core.documents import Document
+from minio.error import S3Error
 from pydantic import BaseModel, Field, validator
 from pymilvus.exceptions import MilvusException, MilvusUnavailableException
 
@@ -992,6 +993,35 @@ def prepare_citations(
                             description=doc.page_content,
                             content_metadata=doc.metadata.get("content_metadata"),
                         )
+                except S3Error as e:
+                    # Missing-object errors are an expected condition when the
+                    # vector store retains a citation reference whose backing
+                    # object has been removed from object storage (e.g. after a
+                    # helm uninstall that retained the vector-store PVC but
+                    # cleared the object-store bucket). The request itself is
+                    # not failing — the citation is gracefully skipped by the
+                    # downstream `if content and document_type in [...]` filter
+                    # — so log at WARNING without a traceback to avoid polluting
+                    # rag-server logs with spurious ERROR-level noise.
+                    if e.code in ("NoSuchKey", "NoSuchBucket"):
+                        logger.warning(
+                            "Skipping citation: object missing in object storage "
+                            "(code=%s, resource=%s). The citation will be omitted "
+                            "from the response.",
+                            e.code,
+                            getattr(e, "resource", "<unknown>"),
+                        )
+                    else:
+                        logger.exception(
+                            "Error pulling content from object storage for "
+                            "image/table/chart for citations: %s",
+                            e,
+                        )
+                    content = ""
+                    source_metadata = SourceMetadata(
+                        description=doc.page_content,
+                        content_metadata=doc.metadata.get("content_metadata", {}),
+                    )
                 except Exception as e:
                     logger.exception(
                         f"Error pulling content from object storage for image/table/chart for citations: {e}"
@@ -1134,6 +1164,31 @@ def prepare_citations_nrl(
                         )
                     )
                     content = base64.b64encode(raw_bytes).decode("ascii")
+                except S3Error as exc:
+                    # Mirror the prepare_citations() behavior: missing-object
+                    # errors are an expected condition (vector store retains a
+                    # citation reference whose backing object has been removed
+                    # from object storage). Log at WARNING without a traceback
+                    # so rag-server logs stay clean; downstream guard drops the
+                    # citation via the empty-content check. Other S3Error codes
+                    # still surface at ERROR level so real backend problems are
+                    # not silently downgraded. (NVBug 6191270.)
+                    if exc.code in ("NoSuchKey", "NoSuchBucket"):
+                        logger.warning(
+                            "[Prepare Citations NRL] Skipping citation: object"
+                            " missing in object storage (code=%s, uri=%s)."
+                            " The citation will be omitted from the response.",
+                            exc.code,
+                            stored_image_uri,
+                        )
+                    else:
+                        logger.exception(
+                            "[Prepare Citations NRL] Failed to fetch asset"
+                            " from object storage (uri=%s): %s",
+                            stored_image_uri,
+                            exc,
+                        )
+                    content = ""
                 except Exception as exc:
                     logger.exception(
                         "[Prepare Citations NRL] Failed to fetch asset from object storage"

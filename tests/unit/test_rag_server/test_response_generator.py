@@ -20,6 +20,7 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 from langchain_core.messages import AIMessageChunk
+from minio.error import S3Error
 from pydantic import ValidationError
 from pymilvus.exceptions import MilvusException, MilvusUnavailableException
 
@@ -46,6 +47,7 @@ from nvidia_rag.rag_server.response_generator import (
     generate_answer,
     generate_answer_async,
     prepare_citations,
+    prepare_citations_nrl,
     prepare_llm_request,
     retrieve_summary,
 )
@@ -856,10 +858,7 @@ class TestGenerateAnswerAsync:
             item for item in result if item["choices"][0].get("finish_reason") is None
         ]
         assert token_chunks[0]["choices"][0]["delta"]["content"] == ""
-        assert (
-            token_chunks[0]["choices"][0]["delta"]["reasoning_content"]
-            == "thinking"
-        )
+        assert token_chunks[0]["choices"][0]["delta"]["reasoning_content"] == "thinking"
         assert token_chunks[1]["choices"][0]["delta"]["content"] == "answer"
         assert token_chunks[1]["choices"][0]["delta"]["reasoning_content"] is None
 
@@ -1152,6 +1151,217 @@ class TestPrepareCitationsErrorHandling:
         assert isinstance(result, Citations)
         assert result.total_results == 1
         assert result.results[0].document_type == "audio"
+
+    @pytest.mark.parametrize("missing_code", ["NoSuchKey", "NoSuchBucket"])
+    def test_prepare_citations_object_store_missing_object_logged_as_warning(
+        self, missing_code, caplog
+    ):
+        """Regression for NVBug 6191270 — when the object-store key/bucket is missing
+        (a routine condition when the vector store retains citation references whose
+        backing object has been cleared, e.g. helm uninstall without deleting only the
+        object-store PVC), the citation must be gracefully skipped AND the rag-server
+        log must NOT contain an ERROR-level traceback. The QA expectation in the bug
+        report is explicit: "answer should come without any s3 error in rag-server
+        logs"."""
+        mock_doc = Mock()
+        mock_doc.page_content = "Test content"
+        mock_doc.metadata = {
+            "source": {
+                "source_id": "test.pdf",
+                "source_location": "s3://default-bucket/test_collection/test.pdf/1.png",
+            },
+            "content_metadata": {
+                "type": "image",
+                "subtype": "image",
+                "page_number": 1,
+                "location": [],
+            },
+            "collection_name": "test_collection",
+        }
+
+        s3_error = S3Error(
+            code=missing_code,
+            message="The specified key does not exist.",
+            resource="/default-bucket/test_collection/test.pdf/1.png",
+            request_id="test-request-id",
+            host_id=None,
+            response=None,
+            bucket_name="default-bucket",
+            object_name="test_collection/test.pdf/1.png",
+        )
+
+        with patch(
+            "nvidia_rag.rag_server.response_generator.get_object_store_operator_instance"
+        ) as mock_object_store_getter:
+            mock_object_store = Mock()
+            mock_object_store.get_object_from_uri.side_effect = s3_error
+            mock_object_store_getter.return_value = mock_object_store
+
+            with caplog.at_level(
+                "WARNING", logger="nvidia_rag.rag_server.response_generator"
+            ):
+                result = prepare_citations([mock_doc], enable_citations=True)
+
+        # Behavior preserved: missing object → content empty → citation dropped.
+        assert isinstance(result, Citations)
+        assert result.total_results == 0
+
+        # Log discipline: the handler must emit exactly one WARNING for this code
+        # path, and must NOT emit any ERROR-level record.
+        records = [
+            r
+            for r in caplog.records
+            if r.name == "nvidia_rag.rag_server.response_generator"
+        ]
+        warnings = [r for r in records if r.levelname == "WARNING"]
+        errors = [r for r in records if r.levelname == "ERROR"]
+
+        assert errors == [], (
+            "Missing-object S3Error must NOT be logged at ERROR level: "
+            f"got {[r.getMessage() for r in errors]}"
+        )
+        assert len(warnings) == 1, (
+            "Expected exactly one WARNING-level log for the missing object, "
+            f"got {len(warnings)}: {[r.getMessage() for r in warnings]}"
+        )
+        assert missing_code in warnings[0].getMessage()
+        # Per logger.warning() contract — no exception info should be attached
+        # to the record, so there's no traceback rendered for the expected case.
+        assert warnings[0].exc_info is None
+
+    def test_prepare_citations_object_store_other_s3_error_still_logged_as_error(
+        self, caplog
+    ):
+        """Regression guard for NVBug 6191270 fix — non-missing-object S3Error subclasses
+        (e.g. AccessDenied, InternalError) MUST continue to log at ERROR with traceback
+        so real backend problems are not silently downgraded."""
+        mock_doc = Mock()
+        mock_doc.page_content = "Test content"
+        mock_doc.metadata = {
+            "source": {
+                "source_id": "test.pdf",
+                "source_location": "s3://default-bucket/test_collection/test.pdf/1.png",
+            },
+            "content_metadata": {
+                "type": "image",
+                "subtype": "image",
+                "page_number": 1,
+                "location": [],
+            },
+            "collection_name": "test_collection",
+        }
+
+        s3_error = S3Error(
+            code="AccessDenied",
+            message="Access denied.",
+            resource="/default-bucket/test_collection/test.pdf/1.png",
+            request_id="test-request-id",
+            host_id=None,
+            response=None,
+            bucket_name="default-bucket",
+            object_name="test_collection/test.pdf/1.png",
+        )
+
+        with patch(
+            "nvidia_rag.rag_server.response_generator.get_object_store_operator_instance"
+        ) as mock_object_store_getter:
+            mock_object_store = Mock()
+            mock_object_store.get_object_from_uri.side_effect = s3_error
+            mock_object_store_getter.return_value = mock_object_store
+
+            with caplog.at_level(
+                "ERROR", logger="nvidia_rag.rag_server.response_generator"
+            ):
+                result = prepare_citations([mock_doc], enable_citations=True)
+
+        assert isinstance(result, Citations)
+        assert result.total_results == 0
+
+        errors = [
+            r
+            for r in caplog.records
+            if r.name == "nvidia_rag.rag_server.response_generator"
+            and r.levelname == "ERROR"
+        ]
+        assert len(errors) == 1, (
+            "Unexpected S3Error (AccessDenied) MUST still log at ERROR. Got "
+            f"{[r.getMessage() for r in errors]}"
+        )
+        # logger.exception() must attach exc_info so operators see the
+        # traceback for real backend problems — this is the contract the
+        # WARNING path explicitly does NOT honor for missing-object errors.
+        assert errors[0].exc_info is not None, (
+            "logger.exception() must attach exc_info for non-missing S3Errors"
+        )
+
+    @pytest.mark.parametrize("missing_code", ["NoSuchKey", "NoSuchBucket"])
+    def test_prepare_citations_nrl_object_store_missing_object_logged_as_warning(
+        self, missing_code, caplog
+    ):
+        """Regression for NVBug 6191270 (NRL/LanceDB code path) — the same
+        missing-object S3 condition must be demoted from ERROR+traceback to a
+        single WARNING in the NRL citation builder, mirroring prepare_citations.
+        Both code paths fetch from object storage via the same operator and
+        therefore share the same QA expectation: "answer should come without
+        any s3 error in rag-server logs"."""
+        mock_doc = Mock()
+        mock_doc.page_content = "Test NRL chart content"
+        mock_doc.metadata = {
+            "stored_image_uri": (
+                "s3://default-bucket/nrl_collection/test.pdf/page-3.png"
+            ),
+            "content_type": "chart",
+            "filename": "test.pdf",
+            "page_number": 3,
+            "metadata": {"has_text": False},
+        }
+
+        s3_error = S3Error(
+            code=missing_code,
+            message="The specified key does not exist.",
+            resource="/default-bucket/nrl_collection/test.pdf/page-3.png",
+            request_id="test-nrl-request-id",
+            host_id=None,
+            response=None,
+            bucket_name="default-bucket",
+            object_name="nrl_collection/test.pdf/page-3.png",
+        )
+
+        with patch(
+            "nvidia_rag.rag_server.response_generator.get_object_store_operator_instance"
+        ) as mock_object_store_getter:
+            mock_object_store = Mock()
+            mock_object_store.get_object_from_uri.side_effect = s3_error
+            mock_object_store_getter.return_value = mock_object_store
+
+            with caplog.at_level(
+                "WARNING", logger="nvidia_rag.rag_server.response_generator"
+            ):
+                result = prepare_citations_nrl([mock_doc], enable_citations=True)
+
+        # Behavior preserved: missing object → empty content → citation dropped
+        # by the `if not content: continue` guard.
+        assert isinstance(result, Citations)
+        assert result.total_results == 0
+
+        records = [
+            r
+            for r in caplog.records
+            if r.name == "nvidia_rag.rag_server.response_generator"
+        ]
+        warnings = [r for r in records if r.levelname == "WARNING"]
+        errors = [r for r in records if r.levelname == "ERROR"]
+
+        assert errors == [], (
+            "NRL citation builder must NOT emit ERROR for missing objects: "
+            f"got {[r.getMessage() for r in errors]}"
+        )
+        assert len(warnings) == 1, (
+            f"Expected exactly one WARNING, got {len(warnings)}: "
+            f"{[r.getMessage() for r in warnings]}"
+        )
+        assert missing_code in warnings[0].getMessage()
+        assert warnings[0].exc_info is None
 
 
 class TestRetrieveSummaryEdgeCases:
