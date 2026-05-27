@@ -795,11 +795,22 @@ class ElasticVDB(VDBRagIngest):
         Add metadata schema to a elasticsearch index.
         """
         collection_name = self._normalize_index_name(collection_name)
-        # Delete the metadata schema from the index
-        _ = self._es_connection.delete_by_query(
-            index=DEFAULT_METADATA_SCHEMA_COLLECTION,
-            body=get_delete_metadata_schema_query(collection_name),
-        )
+        # Delete the metadata schema from the index.
+        # conflicts="proceed" skips docs whose seq_no/primary_term changed between the
+        # search and delete phases of delete_by_query, which races when two
+        # create_collection calls for the same collection run concurrently. Any stale
+        # doc left behind is harmless because get_metadata_schema reads the most
+        # recent write via _seq_no desc sort.
+        try:
+            _ = self._es_connection.delete_by_query(
+                index=DEFAULT_METADATA_SCHEMA_COLLECTION,
+                body=get_delete_metadata_schema_query(collection_name),
+                conflicts="proceed",
+            )
+        except ConflictError:
+            logger.info(
+                f"Metadata schema delete_by_query saw a version conflict for collection: {collection_name}; proceeding to re-index."
+            )
         # Add the metadata schema to the index
         data = {
             "collection_name": collection_name,
@@ -912,7 +923,9 @@ class ElasticVDB(VDBRagIngest):
                 info_value=info_value,
             )
 
-        # Delete the document info from the index
+        # Delete the document info from the index.
+        # conflicts="proceed" prevents the same delete_by_query race seen in
+        # add_metadata_schema from surfacing as a 409 to callers.
         try:
             _ = self._es_connection.delete_by_query(
                 index=DEFAULT_DOCUMENT_INFO_COLLECTION,
@@ -921,9 +934,10 @@ class ElasticVDB(VDBRagIngest):
                     document_name=document_name,
                     info_type=info_type,
                 ),
+                conflicts="proceed",
             )
         except ConflictError:
-            logger.info(f"Document info not found for collection: {collection_name}, document: {document_name}, info type: {info_type}")
+            logger.info(f"Document info delete_by_query saw a version conflict for collection: {collection_name}, document: {document_name}, info type: {info_type}; proceeding to re-index.")
         # Add the document info to the index
         data = {
             "collection_name": collection_name,
