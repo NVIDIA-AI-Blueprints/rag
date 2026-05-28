@@ -111,10 +111,10 @@ For monitoring deployment progress, refer to [Deploy on Kubernetes with Helm](./
 ## Step 2: Apply the MIG configuration
 
 Edit the MIG configuration file [`mig-config-h100.yaml`](../deploy/helm/mig-slicing/mig-config-h100.yaml) to adjust the slicing pattern as needed.
-The default configuration assumes a 4×H100 80GB node and reserves two full GPUs for the LLM while MIG-slicing the rest for the smaller NIMs.
+The default configuration assumes a 5×H100 80GB node and reserves three full GPUs (two for the LLM and one for the embedding-VLM) while MIG-slicing the rest for the smaller NIMs.
 
 :::{note}
-The default LLM `nemotron-3-super-120b-a12b` runs with vLLM and `tensorParallelism=2`, which needs two physical GPUs with NVLink. Those two GPUs are kept MIG-disabled. GPU 3 is also MIG-disabled and dedicated as a full GPU to the embedding-VLM NIM for higher throughput on the vision tower. GPU 2 is MIG-sliced to host OCR + page/graphic/table + the reranker. This requires the `mixed` MIG strategy (already set in Step 1) so the node advertises both `nvidia.com/gpu` and `nvidia.com/mig-*` resources.
+The default LLM `nemotron-3-super-120b-a12b` runs with vLLM and `tensorParallelism=2`, which needs two physical GPUs with NVLink. Those two GPUs (GPU 0,1) are kept MIG-disabled. GPU 3 is also MIG-disabled and dedicated as a full GPU to the embedding-VLM NIM for higher throughput on the vision tower. GPU 2 is MIG-sliced to host OCR + page/graphic/table, and GPU 4 is MIG-sliced to host the reranker. This requires the `mixed` MIG strategy (already set in Step 1) so the node advertises both `nvidia.com/gpu` and `nvidia.com/mig-*` resources.
 :::
 
 ```yaml
@@ -130,17 +130,21 @@ data:
         - devices: all
           mig-enabled: false
 
-      custom-h100-llm2full-embed1full-1x2g20-3x1g10-1x1g20:
+      custom-h100-5gpu-llm2full-embed1full:
         - devices: [0, 1]
           mig-enabled: false
         - devices: [2]
           mig-enabled: true
           mig-devices:
-            "2g.20gb": 1
-            "1g.10gb": 3
-            "1g.20gb": 1
+            "3g.40gb": 1
+            "1g.10gb": 4
         - devices: [3]
           mig-enabled: false
+        - devices: [4]
+          mig-enabled: true
+          mig-devices:
+            "3g.40gb": 1
+            "1g.20gb": 2
 ```
 
 Apply the custom MIG configuration configMap to the node and update the ClusterPolicy, by running the following code.
@@ -155,7 +159,7 @@ kubectl patch clusterpolicies.nvidia.com/cluster-policy \
 Label the node with MIG configuration, by running the following code.
 
 ```bash
-kubectl label nodes <node-name> nvidia.com/mig.config=custom-h100-llm2full-embed1full-1x2g20-3x1g10-1x1g20 --overwrite
+kubectl label nodes <node-name> nvidia.com/mig.config=custom-h100-5gpu-llm2full-embed1full --overwrite
 ```
 
 :::{important}
@@ -183,9 +187,9 @@ You should see output similar to the following.
 ```json
 "nvidia.com/mig.config.state": "success"
 "nvidia.com/gpu.count": "3"
-"nvidia.com/mig-2g.20gb.count": "1"
-"nvidia.com/mig-1g.10gb.count": "3"
-"nvidia.com/mig-1g.20gb.count": "1"
+"nvidia.com/mig-3g.40gb.count": "2"
+"nvidia.com/mig-1g.10gb.count": "4"
+"nvidia.com/mig-1g.20gb.count": "2"
 ```
 
 
@@ -245,15 +249,15 @@ nvidia.com/gpu                              (100%) 3.0  (100%) 3.0     3.0      
 ├─ nim-llm-...                             2.0     2.0
 └─ nemotron-vlm-embedding-ms-...           1.0     1.0
 
-nvidia.com/mig-2g.20gb                      (100%) 1.0  (100%) 1.0     1.0        0.0
+nvidia.com/mig-3g.40gb                      (50%) 1.0   (50%) 1.0     2.0        1.0
 └─ nemotron-ocr-v1-...                     1.0     1.0
 
-nvidia.com/mig-1g.10gb                      (100%) 3.0  (100%) 3.0     3.0        0.0
+nvidia.com/mig-1g.10gb                      (75%) 3.0   (75%) 3.0     4.0        1.0
 ├─ nemotron-graphic-elements-v1-...        1.0     1.0
 ├─ nemotron-page-elements-v3-...           1.0     1.0
 └─ nemotron-table-structure-v1-...         1.0     1.0
 
-nvidia.com/mig-1g.20gb                      (100%) 1.0  (100%) 1.0     1.0        0.0
+nvidia.com/mig-1g.20gb                      (50%) 1.0   (50%) 1.0     2.0        1.0
 └─ nemotron-ranking-ms-...                 1.0     1.0
 ```
 
@@ -274,15 +278,19 @@ You should see output similar to the following.
 GPU 0: NVIDIA H100 80GB HBM3 (UUID: ...)
 GPU 1: NVIDIA H100 80GB HBM3 (UUID: ...)
 GPU 2: NVIDIA H100 80GB HBM3 (UUID: ...)
-  MIG 2g.20gb     Device 0: ...
+  MIG 3g.40gb     Device 0: ...
   MIG 1g.10gb     Device 1: ...
   MIG 1g.10gb     Device 2: ...
   MIG 1g.10gb     Device 3: ...
-  MIG 1g.20gb     Device 4: ...
+  MIG 1g.10gb     Device 4: ...
 GPU 3: NVIDIA H100 80GB HBM3 (UUID: ...)
+GPU 4: NVIDIA H100 80GB HBM3 (UUID: ...)
+  MIG 3g.40gb     Device 0: ...
+  MIG 1g.20gb     Device 1: ...
+  MIG 1g.20gb     Device 2: ...
 ```
 
-GPUs 0, 1, and 3 are reported as whole devices because MIG is disabled on them — GPUs 0 and 1 are reserved for `nim-llm` (vLLM tp=2), and GPU 3 is dedicated to the embedding-VLM NIM.
+GPUs 0, 1, and 3 are reported as whole devices because MIG is disabled on them — GPUs 0 and 1 are reserved for `nim-llm` (vLLM tp=2), and GPU 3 is dedicated to the embedding-VLM NIM. GPU 4 is MIG-sliced and currently hosts only the reranker (1× 1g.20gb); the remaining 3g.40gb and second 1g.20gb slices are spare capacity for future workloads.
 
 
 
