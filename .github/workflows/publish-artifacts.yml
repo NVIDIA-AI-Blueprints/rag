@@ -439,15 +439,42 @@ jobs:
           cd deploy/helm
           CHART_TGZ="nvidia-blueprint-rag-${{ env.HELM_CHART_VERSION }}.tgz"
           TARGET="nvstaging/blueprint/nvidia-blueprint-rag:${{ env.HELM_CHART_VERSION }}"
+          SHORT_TARGET="nvidia-blueprint-rag:${{ env.HELM_CHART_VERSION }}"
+
+          chart_exists() {
+            ngc registry chart info "$TARGET" >/dev/null 2>&1 \
+              || ngc registry chart info "$SHORT_TARGET" --org nvstaging --team blueprint >/dev/null 2>&1
+          }
+
           remove_chart_version() {
             # Try both target styles for compatibility across NGC CLI versions.
-            ngc registry chart remove "$TARGET" -y >/dev/null 2>&1 \
-              || ngc registry chart remove "nvidia-blueprint-rag:${{ env.HELM_CHART_VERSION }}" --org nvstaging --team blueprint -y >/dev/null 2>&1 \
+            ngc registry chart remove "$TARGET" -y \
+              || ngc registry chart remove "$SHORT_TARGET" --org nvstaging --team blueprint -y \
               || true
           }
 
+          ensure_chart_removed() {
+            ATTEMPT=1
+            while [ "$ATTEMPT" -le 3 ]; do
+              if chart_exists; then
+                echo "Chart version exists; remove attempt $ATTEMPT/3 for $TARGET"
+                remove_chart_version
+                sleep 3
+              else
+                return 0
+              fi
+              ATTEMPT=$((ATTEMPT + 1))
+            done
+
+            if chart_exists; then
+              echo "Unable to remove existing chart version: $TARGET"
+              echo "NGC appears to retain this version; publish cannot overwrite immutable versions."
+              return 1
+            fi
+          }
+
           # Remove existing version to overwrite (ignore error if version does not exist).
-          remove_chart_version
+          ensure_chart_removed
 
           # Push once; if NGC still reports "already exists", remove and retry once.
           set +e
@@ -460,7 +487,7 @@ jobs:
             case "$PUSH_OUTPUT" in
               *"already exists"*)
                 echo "Chart version still exists after pre-delete; retrying once..."
-                remove_chart_version
+                ensure_chart_removed
                 ngc registry chart push "$TARGET" --source "$CHART_TGZ" --org nvstaging
                 ;;
               *)
