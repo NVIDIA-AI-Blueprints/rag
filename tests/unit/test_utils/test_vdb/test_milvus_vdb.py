@@ -906,6 +906,22 @@ class TestMilvusVDB:
         assert result is True
         assert vdb._client.delete.call_count == 2
 
+    def test_delete_documents_pk_list_response(self):
+        """MilvusClient.delete returns a list of PKs against older Milvus cores
+        (incl. milvus-lite). The count derivation must treat that as a success,
+        not as 'not found'."""
+        vdb = _make_dummy_milvus_vdb_for_delete()
+        vdb._client.delete.return_value = [101, 102, 103]
+
+        result_dict: dict = {}
+        result = vdb.delete_documents(
+            "test_collection", ["file1.txt"], result_dict=result_dict
+        )
+
+        assert result is True
+        assert result_dict["deleted"] == ["file1.txt"]
+        assert result_dict["not_found"] == []
+
     def test_compact_and_wait_retries_until_completed(self):
         """_compact_and_wait should poll until the job reaches Completed."""
         vdb = _make_dummy_milvus_vdb_for_delete()
