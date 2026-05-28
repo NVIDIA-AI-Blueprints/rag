@@ -68,16 +68,18 @@ Set these parameters via environment variables in your deployment configuration 
 
 NVIDIA RAG uses the **Nemotron Omni** (`nvidia/nemotron-3-nano-omni-30b-a3b-reasoning`) Vision-Language Model by default, provided as the `vlm-ms` service in `deploy/compose/nims.yaml`.
 
-The `vlm-generation` profile in `deploy/compose/nims.yaml` is designed for VLM-based generation on **2xH100 GPUs**. It skips the NIM LLM deployment (VLM replaces LLM), deploys the VLM service (`vlm-ms`), and deploys embedding and reranker microservices.
+The `vlm-generation` profile in `deploy/compose/nims.yaml` is designed for VLM-based generation on **2xH100 GPUs**. It skips the NIM LLM deployment (VLM replaces LLM), deploys the VLM service (`vlm-ms`), and deploys embedding and reranker microservices. The `ingest` profile (combined below) additionally starts the ingestion-extraction NIMs (`page-elements`, `graphic-elements`, `table-structure`, `nemotron-ocr`) and the captioning VLM (`vlm-captioning-ms`) — without these, ingestion of PDFs and image-bearing documents will fail to extract tables, charts, and OCR text.
 
 **GPU allocation for 2xH100**: GPU 0 for Embedding and Reranker; GPU 1 for VLM (replaces LLM). You must set `VLM_MS_GPU_ID=1`.
 
-1. Set the VLM GPU assignment and start VLM and supporting services (skips nim-llm):
+1. Set the VLM GPU assignment and start the VLM generation services together with the ingestion-extraction NIMs (skips `nim-llm`):
 
    ```bash
    export VLM_MS_GPU_ID=1
-   USERID=$(id -u) docker compose -f deploy/compose/nims.yaml --profile vlm-generation up -d
+   USERID=$(id -u) docker compose -f deploy/compose/nims.yaml --profile vlm-generation --profile ingest up -d
    ```
+
+   Combining `--profile vlm-generation` with `--profile ingest` is equivalent to "start everything in `nims.yaml` except `nim-llm`" — the LLM container is intentionally omitted because VLM replaces it. You can confirm the exact service set with `docker compose -f deploy/compose/nims.yaml --profile vlm-generation --profile ingest config --services`.
 
    :::{warning}
    Only change `VLM_MS_GPU_ID` for systems with 3+ GPUs.
@@ -87,7 +89,7 @@ The `vlm-generation` profile in `deploy/compose/nims.yaml` is designed for VLM-b
 
    ```bash
    export VLM_MS_GPU_ID=3
-   USERID=$(id -u) docker compose -f deploy/compose/nims.yaml --profile vlm-generation up -d
+   USERID=$(id -u) docker compose -f deploy/compose/nims.yaml --profile vlm-generation --profile ingest up -d
    ```
 
 2. Enable image extraction and captioning for ingestion. In `deploy/compose/docker-compose-ingestor-server.yaml`, under the `ingestor-server` service, set `APP_NVINGEST_EXTRACTIMAGES` to `True` so images are extracted and stored (disabled by default). Image captioning is enabled by default: `APP_NVINGEST_CAPTIONMODELNAME` is set to `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning` and `APP_NVINGEST_CAPTIONENDPOINTURL` points to the `vlm-ms` service. Override via environment variables if needed:
