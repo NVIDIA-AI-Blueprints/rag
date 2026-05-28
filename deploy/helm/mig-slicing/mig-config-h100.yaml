@@ -10,12 +10,16 @@ data:
         - devices: all
           mig-enabled: false
 
-      # RAG MIG layout for a 4×H100 80GB node.
+      # RAG MIG layout for a 5×H100 80GB node.
       # GPUs 0,1 are MIG-disabled and pass through as full devices so that
       # nim-llm (nemotron-3-super-120b-a12b, vLLM + tensorParallelism=2) gets
       # two physical GPUs with full NVLink for NCCL collectives.
-      # GPUs 2,3 are MIG-sliced for the smaller ingest / embedding / rerank NIMs.
-      custom-h100-llm2full-1x3g40-4x1g10-1x3g40-2x1g20:
+      # GPU 3 is MIG-disabled and dedicated to the embedding-VLM NIM, which
+      # benefits from a full H100 for higher throughput on the vision tower.
+      # GPU 2 is MIG-sliced for OCR + the small ingest NIMs.
+      # GPU 4 is MIG-sliced for the reranker (with spare slices reserved
+      # for future workloads).
+      custom-h100-5gpu-llm2full-embed1full:
         - devices: [0, 1]
           mig-enabled: false
         - devices: [2]
@@ -24,6 +28,8 @@ data:
             "3g.40gb": 1
             "1g.10gb": 4
         - devices: [3]
+          mig-enabled: false
+        - devices: [4]
           mig-enabled: true
           mig-devices:
             "3g.40gb": 1
