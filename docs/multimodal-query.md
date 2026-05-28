@@ -277,6 +277,11 @@ nvidia-nim-llama-nemotron-embed-1b-v2:
 nim-llm:
   enabled: false
 
+# Enable dedicated VLM captioning NIM (image-cap model changed after RC1)
+nimOperator:
+  nim-vlm-captioning:
+    enabled: true
+
 # Configure environment variables
 envVars:
   # VLM inference settings
@@ -303,7 +308,7 @@ ingestor-server:
     # Summary generation settings.
     # Required for generate_summary=true when nim-llm is disabled.
     SUMMARY_LLM: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
-    SUMMARY_LLM_SERVERURL: "http://nim-vlm:8000/v1"
+    SUMMARY_LLM_SERVERURL: "nim-vlm:8000"
 
     # VLM embedding settings for ingestor
     APP_EMBEDDINGS_SERVERURL: "nemotron-vlm-embedding-ms:8000/v1"
