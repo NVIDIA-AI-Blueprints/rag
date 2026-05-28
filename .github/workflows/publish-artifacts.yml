@@ -132,22 +132,49 @@ jobs:
           # Extract just the filename for display
           WHEEL_FILENAME=$(basename "$WHEEL_FILE")
           echo "Wheel filename: $WHEEL_FILENAME"
+          TARGET="nvstaging/blueprint/nvidia_rag:$ARTIFACTORY_VERSION"
+          SHORT_TARGET="blueprint/nvidia_rag:$ARTIFACTORY_VERSION"
+
+          wheel_exists() {
+            ngc registry resource info "$TARGET" >/dev/null 2>&1 \
+              || ngc registry resource info "$SHORT_TARGET" --org nvstaging >/dev/null 2>&1
+          }
 
           remove_wheel_version() {
             # Try both target styles for compatibility across NGC CLI versions.
-            ngc registry resource remove-version "nvstaging/blueprint/nvidia_rag:$ARTIFACTORY_VERSION" -y >/dev/null 2>&1 \
-              || ngc registry resource remove-version "blueprint/nvidia_rag:$ARTIFACTORY_VERSION" --org nvstaging -y >/dev/null 2>&1 \
+            ngc registry resource remove-version "$TARGET" -y \
+              || ngc registry resource remove-version "$SHORT_TARGET" --org nvstaging -y \
               || true
           }
 
-          # Remove existing version to overwrite (ignore error if version does not exist).
-          remove_wheel_version
+          ensure_wheel_removed() {
+            ATTEMPT=1
+            while [ "$ATTEMPT" -le 3 ]; do
+              if wheel_exists; then
+                echo "Wheel version exists; remove attempt $ATTEMPT/3 for $TARGET"
+                remove_wheel_version
+                sleep 3
+              else
+                return 0
+              fi
+              ATTEMPT=$((ATTEMPT + 1))
+            done
+
+            if wheel_exists; then
+              echo "Unable to remove existing wheel version: $TARGET"
+              echo "NGC appears to retain this version; publish cannot overwrite immutable versions."
+              return 1
+            fi
+          }
+
+          # Remove existing version to overwrite.
+          ensure_wheel_removed
 
           # Publish to NGC. If an old version still exists, remove and retry once.
-          echo "Publishing wheel to NGC: nvstaging/blueprint/nvidia_rag:$ARTIFACTORY_VERSION"
+          echo "Publishing wheel to NGC: $TARGET"
           set +e
           UPLOAD_OUTPUT=$(ngc registry resource upload-version \
-            "nvstaging/blueprint/nvidia_rag:$ARTIFACTORY_VERSION" \
+            "$TARGET" \
             --source "$WHEEL_FILE" \
             --org nvstaging 2>&1)
           UPLOAD_EXIT_CODE=$?
@@ -158,9 +185,9 @@ jobs:
             case "$UPLOAD_OUTPUT" in
               *"already exists"*|*"already present"*)
                 echo "Wheel version still exists after pre-delete; retrying once..."
-                remove_wheel_version
+                ensure_wheel_removed
                 ngc registry resource upload-version \
-                  "nvstaging/blueprint/nvidia_rag:$ARTIFACTORY_VERSION" \
+                  "$TARGET" \
                   --source "$WHEEL_FILE" \
                   --org nvstaging
                 ;;
@@ -171,7 +198,7 @@ jobs:
           fi
           
           echo "Wheel published to NGC successfully"
-          echo "NGC Resource: nvstaging/blueprint/nvidia_rag:$ARTIFACTORY_VERSION"
+          echo "NGC Resource: $TARGET"
 
   # ============================================================================
   # PUBLISH RAG SERVER CONTAINER
