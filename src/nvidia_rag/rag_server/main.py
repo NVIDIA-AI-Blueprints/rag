@@ -1697,15 +1697,36 @@ class NvidiaRAG:
         Raises:
             APIError: If images are present in the query but VLM inference is not enabled.
         """
-        # Check for images in query
+        # Check for images in query and chat history
         has_images_in_query = self._contains_images(query)
+        has_images_in_history = any(
+            self._contains_images(m.get("content")) for m in chat_history or []
+        )
+        has_images_in_messages = has_images_in_query or has_images_in_history
+
+        # Control whether we are allowed to silently fall back to LLM when no
+        # images are present. Mirrors the behavior of the RAG chain path so
+        # that `enable_vlm_inference=True` on a text-only query does not blindly
+        # hit the VLM endpoint (which can fail with 403/4xx for text-only
+        # payloads on some hosted VLM deployments).
+        vlm_to_llm_fallback = getattr(self.config, "vlm_to_llm_fallback", True)
 
         # Decision logic: VLM vs LLM vs Error
-        # 1. If enable_vlm_inference=True -> Use VLM (with or without images)
-        # 2. If has_images but VLM not enabled -> Error
-        # 3. Otherwise -> Use LLM
-        if enable_vlm_inference:
-            # Use VLM for generation (works with or without images)
+        # 1. If enable_vlm_inference=True AND (images present OR fallback disabled)
+        #    -> Use VLM
+        # 2. If enable_vlm_inference=True AND no images AND fallback enabled
+        #    -> Fall through to LLM path (documented vlm_to_llm_fallback behavior)
+        # 3. If has_images but VLM not enabled -> Error
+        # 4. Otherwise -> Use LLM
+        if enable_vlm_inference and (has_images_in_messages or not vlm_to_llm_fallback):
+            # Use VLM for generation (with or without images, depending on
+            # whether the fallback is disabled).
+            logger.info(
+                "VLM routing decision: calling VLM "
+                "(has_images_in_messages=%s, vlm_to_llm_fallback=%s)",
+                has_images_in_messages,
+                vlm_to_llm_fallback,
+            )
             return await self._vlm_direct_chain(
                 query=query,
                 chat_history=chat_history,
@@ -1714,7 +1735,13 @@ class NvidiaRAG:
                 metrics=metrics,
                 vlm_settings=vlm_settings,
             )
-        elif has_images_in_query:
+        if enable_vlm_inference and not has_images_in_messages and vlm_to_llm_fallback:
+            logger.info(
+                "VLM routing decision: enable_vlm_inference=True but no images "
+                "found in query/history and vlm_to_llm_fallback=True; falling "
+                "back to LLM path."
+            )
+        if has_images_in_query and not enable_vlm_inference:
             error_message = (
                 "Visual Q&A is not supported without VLM inference enabled. "
                 "Image-based queries require 'enable_vlm_inference' to be True. "
