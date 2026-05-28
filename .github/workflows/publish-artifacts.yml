@@ -153,18 +153,21 @@ jobs:
           UPLOAD_EXIT_CODE=$?
           set -e
 
-          if [ $UPLOAD_EXIT_CODE -ne 0 ]; then
+          if [ "$UPLOAD_EXIT_CODE" -ne 0 ]; then
             echo "$UPLOAD_OUTPUT"
-            if [[ "$UPLOAD_OUTPUT" == *"already exists"* ]] || [[ "$UPLOAD_OUTPUT" == *"already present"* ]]; then
-              echo "Wheel version still exists after pre-delete; retrying once..."
-              remove_wheel_version
-              ngc registry resource upload-version \
-                "nvstaging/blueprint/nvidia_rag:$ARTIFACTORY_VERSION" \
-                --source "$WHEEL_FILE" \
-                --org nvstaging
-            else
-              exit $UPLOAD_EXIT_CODE
-            fi
+            case "$UPLOAD_OUTPUT" in
+              *"already exists"*|*"already present"*)
+                echo "Wheel version still exists after pre-delete; retrying once..."
+                remove_wheel_version
+                ngc registry resource upload-version \
+                  "nvstaging/blueprint/nvidia_rag:$ARTIFACTORY_VERSION" \
+                  --source "$WHEEL_FILE" \
+                  --org nvstaging
+                ;;
+              *)
+                exit "$UPLOAD_EXIT_CODE"
+                ;;
+            esac
           fi
           
           echo "Wheel published to NGC successfully"
@@ -452,14 +455,17 @@ jobs:
           PUSH_EXIT_CODE=$?
           set -e
 
-          if [ $PUSH_EXIT_CODE -ne 0 ]; then
+          if [ "$PUSH_EXIT_CODE" -ne 0 ]; then
             echo "$PUSH_OUTPUT"
-            if [[ "$PUSH_OUTPUT" == *"already exists"* ]]; then
-              echo "Chart version still exists after pre-delete; retrying once..."
-              remove_chart_version
-              ngc registry chart push "$TARGET" --source "$CHART_TGZ" --org nvstaging
-            else
-              exit $PUSH_EXIT_CODE
-            fi
+            case "$PUSH_OUTPUT" in
+              *"already exists"*)
+                echo "Chart version still exists after pre-delete; retrying once..."
+                remove_chart_version
+                ngc registry chart push "$TARGET" --source "$CHART_TGZ" --org nvstaging
+                ;;
+              *)
+                exit "$PUSH_EXIT_CODE"
+                ;;
+            esac
           fi
           echo "Helm chart published to NGC: $TARGET"
