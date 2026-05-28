@@ -15,6 +15,7 @@
 
 """Unit tests for VLM direct chain functionality (VLM query without collection)."""
 
+import logging
 import os
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -978,9 +979,12 @@ class TestGenerateMethodVLMIntegration:
         rag.config.vlm.top_p = 0.9
         rag.config.vlm.max_tokens = 100
         rag.config.vlm.max_total_images = 5
+        # Text-only query: force VLM path so the mocked _vlm_direct_chain is used.
+        rag.config.vlm_to_llm_fallback = False
 
         with patch.object(rag, "_vlm_direct_chain") as mock_vlm_chain:
             with patch("nvidia_rag.rag_server.main.logger") as mock_logger:
+                mock_logger.getEffectiveLevel.return_value = logging.INFO
                 mock_vlm_chain.return_value = Mock(
                     generator=async_gen_from_list(["vlm response"]), status_code=200
                 )
