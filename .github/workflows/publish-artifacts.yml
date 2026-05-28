@@ -112,7 +112,7 @@ jobs:
           NGC_API_KEY: ${{ secrets.CI_NVSTAGING_BLUEPRINT_KEY }}
         run: |
           echo "Installing NGC CLI..."
-          wget --content-disposition https://api.ngc.nvidia.com/v2/resources/nvidia/ngc-apps/ngc_cli/versions/4.9.10/files/ngccli_linux.zip -O ngccli_linux.zip
+          wget --content-disposition https://api.ngc.nvidia.com/v2/resources/nvidia/ngc-apps/ngc_cli/versions/4.18.0/files/ngccli_linux.zip -O ngccli_linux.zip
           unzip -o ngccli_linux.zip
           chmod u+x ngc-cli/ngc
           
@@ -132,16 +132,40 @@ jobs:
           # Extract just the filename for display
           WHEEL_FILENAME=$(basename "$WHEEL_FILE")
           echo "Wheel filename: $WHEEL_FILENAME"
-          
-          # Remove existing version to overwrite (ignore error if version does not exist)
-          ngc registry resource remove-version "nvstaging/blueprint/nvidia_rag:$ARTIFACTORY_VERSION" --org nvstaging -y 2>/dev/null || true
 
-          # Publish to NGC
+          remove_wheel_version() {
+            # Try both target styles for compatibility across NGC CLI versions.
+            ngc registry resource remove-version "nvstaging/blueprint/nvidia_rag:$ARTIFACTORY_VERSION" -y >/dev/null 2>&1 \
+              || ngc registry resource remove-version "blueprint/nvidia_rag:$ARTIFACTORY_VERSION" --org nvstaging -y >/dev/null 2>&1 \
+              || true
+          }
+
+          # Remove existing version to overwrite (ignore error if version does not exist).
+          remove_wheel_version
+
+          # Publish to NGC. If an old version still exists, remove and retry once.
           echo "Publishing wheel to NGC: nvstaging/blueprint/nvidia_rag:$ARTIFACTORY_VERSION"
-          ngc registry resource upload-version \
+          set +e
+          UPLOAD_OUTPUT=$(ngc registry resource upload-version \
             "nvstaging/blueprint/nvidia_rag:$ARTIFACTORY_VERSION" \
             --source "$WHEEL_FILE" \
-            --org nvstaging
+            --org nvstaging 2>&1)
+          UPLOAD_EXIT_CODE=$?
+          set -e
+
+          if [ $UPLOAD_EXIT_CODE -ne 0 ]; then
+            echo "$UPLOAD_OUTPUT"
+            if [[ "$UPLOAD_OUTPUT" == *"already exists"* ]] || [[ "$UPLOAD_OUTPUT" == *"already present"* ]]; then
+              echo "Wheel version still exists after pre-delete; retrying once..."
+              remove_wheel_version
+              ngc registry resource upload-version \
+                "nvstaging/blueprint/nvidia_rag:$ARTIFACTORY_VERSION" \
+                --source "$WHEEL_FILE" \
+                --org nvstaging
+            else
+              exit $UPLOAD_EXIT_CODE
+            fi
+          fi
           
           echo "Wheel published to NGC successfully"
           echo "NGC Resource: nvstaging/blueprint/nvidia_rag:$ARTIFACTORY_VERSION"
@@ -348,7 +372,7 @@ jobs:
           NGC_API_KEY: ${{ secrets.CI_NVSTAGING_BLUEPRINT_KEY }}
         run: |
           echo "Installing NGC CLI..."
-          wget --content-disposition https://api.ngc.nvidia.com/v2/resources/nvidia/ngc-apps/ngc_cli/versions/4.9.10/files/ngccli_linux.zip -O ngccli_linux.zip
+          wget --content-disposition https://api.ngc.nvidia.com/v2/resources/nvidia/ngc-apps/ngc_cli/versions/4.18.0/files/ngccli_linux.zip -O ngccli_linux.zip
           unzip -o ngccli_linux.zip
           chmod u+x ngc-cli/ngc
           echo "$(pwd)/ngc-cli" >> $GITHUB_PATH
@@ -412,7 +436,30 @@ jobs:
           cd deploy/helm
           CHART_TGZ="nvidia-blueprint-rag-${{ env.HELM_CHART_VERSION }}.tgz"
           TARGET="nvstaging/blueprint/nvidia-blueprint-rag:${{ env.HELM_CHART_VERSION }}"
-          # Remove existing version to overwrite (ignore error if version does not exist)
-          ngc registry chart remove "$TARGET" --org nvstaging -y 2>/dev/null || true
-          ngc registry chart push "$TARGET" --source "$CHART_TGZ" --org nvstaging
+          remove_chart_version() {
+            # Try both target styles for compatibility across NGC CLI versions.
+            ngc registry chart remove "$TARGET" -y >/dev/null 2>&1 \
+              || ngc registry chart remove "nvidia-blueprint-rag:${{ env.HELM_CHART_VERSION }}" --org nvstaging --team blueprint -y >/dev/null 2>&1 \
+              || true
+          }
+
+          # Remove existing version to overwrite (ignore error if version does not exist).
+          remove_chart_version
+
+          # Push once; if NGC still reports "already exists", remove and retry once.
+          set +e
+          PUSH_OUTPUT=$(ngc registry chart push "$TARGET" --source "$CHART_TGZ" --org nvstaging 2>&1)
+          PUSH_EXIT_CODE=$?
+          set -e
+
+          if [ $PUSH_EXIT_CODE -ne 0 ]; then
+            echo "$PUSH_OUTPUT"
+            if [[ "$PUSH_OUTPUT" == *"already exists"* ]]; then
+              echo "Chart version still exists after pre-delete; retrying once..."
+              remove_chart_version
+              ngc registry chart push "$TARGET" --source "$CHART_TGZ" --org nvstaging
+            else
+              exit $PUSH_EXIT_CODE
+            fi
+          fi
           echo "Helm chart published to NGC: $TARGET"
