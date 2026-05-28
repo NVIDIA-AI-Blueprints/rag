@@ -18,6 +18,7 @@
 import os
 from contextlib import ExitStack
 from unittest.mock import MagicMock, Mock, patch
+from urllib.parse import urlparse
 
 import pytest
 import requests
@@ -44,6 +45,7 @@ def _make_dummy_milvus_vdb_for_delete():
     vdb = object.__new__(MilvusVDB)
     vdb.connection_alias = "milvus_dummy_test"
     vdb.vdb_endpoint = "http://localhost:19530"
+    vdb.url = urlparse(vdb.vdb_endpoint)
     vdb._client = Mock()
     vdb._client.compact.return_value = 12345
     vdb._client.get_compaction_state.return_value = "Completed"
@@ -906,6 +908,22 @@ class TestMilvusVDB:
         assert result is True
         assert vdb._client.delete.call_count == 2
 
+    def test_delete_documents_pk_list_response(self):
+        """MilvusClient.delete returns a list of PKs against older Milvus cores
+        (incl. milvus-lite). The count derivation must treat that as a success,
+        not as 'not found'."""
+        vdb = _make_dummy_milvus_vdb_for_delete()
+        vdb._client.delete.return_value = [101, 102, 103]
+
+        result_dict: dict = {}
+        result = vdb.delete_documents(
+            "test_collection", ["file1.txt"], result_dict=result_dict
+        )
+
+        assert result is True
+        assert result_dict["deleted"] == ["file1.txt"]
+        assert result_dict["not_found"] == []
+
     def test_compact_and_wait_retries_until_completed(self):
         """_compact_and_wait should poll until the job reaches Completed."""
         vdb = _make_dummy_milvus_vdb_for_delete()
@@ -955,6 +973,18 @@ class TestMilvusVDB:
 
         # First sleep is the initial one before any poll
         mock_time.sleep.assert_called_with(0.5)
+
+    def test_compact_and_wait_skips_on_milvus_lite(self):
+        """_compact_and_wait must skip ManualCompaction on milvus-lite endpoints
+        (file URIs with no URL scheme), since the RPC is unimplemented there."""
+        vdb = _make_dummy_milvus_vdb_for_delete()
+        vdb.vdb_endpoint = "./milvus-lite.db"
+        vdb.url = urlparse(vdb.vdb_endpoint)
+
+        vdb._compact_and_wait("test_collection")
+
+        vdb._client.compact.assert_not_called()
+        vdb._client.get_compaction_state.assert_not_called()
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.MilvusClient")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
