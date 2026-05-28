@@ -52,7 +52,22 @@ mkdir -p /tmp/skill-eval/datasets /tmp/skill-eval/results
    If a spec lacks `resources.platforms`, post a
    `missing_platforms_declaration` blocker comment and skip it.
 
-   Skills with no `eval/` dir are not yet migrated — skip them.
+   Skills with no `eval/` dir are missing required eval coverage — post a
+   `missing_eval_specs` blocker comment on the PR and emit
+   `BLOCKED: <skill> has no eval/ directory`. Every skill that is changed
+   in a PR must have at least one eval spec. This enforces that skill authors
+   add eval cases as part of skill maintenance.
+
+   Example blocker comment:
+   ```
+   ## ❌ Missing eval specs — `<skill>`
+
+   This PR modifies `skill-source/.agents/skills/<skill>/` but the skill
+   has no `eval/` directory. Every changed skill must ship at least one
+   eval spec (`eval/nvidia_hosted.json` for CPU or `eval/h100.json` for GPU).
+
+   Please add an eval spec before this PR can be merged.
+   ```
 
 3. **Check the shared adapter.** All rag-\* skills use a single adapter
    at `skill-eval/adapters/rag-blueprint/generate.py` with
