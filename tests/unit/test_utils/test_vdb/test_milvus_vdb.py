@@ -18,6 +18,7 @@
 import os
 from contextlib import ExitStack
 from unittest.mock import MagicMock, Mock, patch
+from urllib.parse import urlparse
 
 import pytest
 import requests
@@ -44,6 +45,7 @@ def _make_dummy_milvus_vdb_for_delete():
     vdb = object.__new__(MilvusVDB)
     vdb.connection_alias = "milvus_dummy_test"
     vdb.vdb_endpoint = "http://localhost:19530"
+    vdb.url = urlparse(vdb.vdb_endpoint)
     vdb._client = Mock()
     vdb._client.compact.return_value = 12345
     vdb._client.get_compaction_state.return_value = "Completed"
@@ -971,6 +973,18 @@ class TestMilvusVDB:
 
         # First sleep is the initial one before any poll
         mock_time.sleep.assert_called_with(0.5)
+
+    def test_compact_and_wait_skips_on_milvus_lite(self):
+        """_compact_and_wait must skip ManualCompaction on milvus-lite endpoints
+        (file URIs with no URL scheme), since the RPC is unimplemented there."""
+        vdb = _make_dummy_milvus_vdb_for_delete()
+        vdb.vdb_endpoint = "./milvus-lite.db"
+        vdb.url = urlparse(vdb.vdb_endpoint)
+
+        vdb._compact_and_wait("test_collection")
+
+        vdb._client.compact.assert_not_called()
+        vdb._client.get_compaction_state.assert_not_called()
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.MilvusClient")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
