@@ -40,6 +40,10 @@ spec:
   env:
 {{ toYaml $nimVlmCaptioning.env | nindent 4 }}
   replicas: {{ $nimVlmCaptioning.replicas | default 1 }}
+  {{- with $nimVlmCaptioning.podAnnotations }}
+  podAnnotations:
+{{ toYaml . | nindent 4 }}
+  {{- end }}
   {{- with $nimVlmCaptioning.nodeSelector }}
   nodeSelector:
 {{ toYaml . | nindent 4 }}
