@@ -72,6 +72,10 @@ To deploy all guardrails services on your own dedicated hardware, use the follow
    # export NIM_ENDPOINT_URL=<your-custom-nim-endpoint-url>
    ```
 
+   If the RAG server uses a custom on-prem LLM endpoint through
+   `APP_LLM_SERVERURL`, set `NIM_ENDPOINT_URL` for the Guardrails microservice to
+   the same OpenAI-compatible base URL ending in `/v1`.
+
 2. Set the environment variable to enable guardrails by running the following code.
 
     ```bash
@@ -202,6 +206,37 @@ If you are using notebooks or APIs to interact directly with `rag-server`, set `
 
 
 ## Troubleshooting
+
+### `stream_async()` Error with Output Rails
+
+The RAG server streams responses by default. If NeMo Guardrails is enabled with
+output rails, the active Guardrails configuration must also enable streaming for
+output rails. Otherwise, the Guardrails microservice can log the following error:
+
+```text
+stream_async() cannot be used when output rails are configured but rails.output.streaming.enabled is False
+```
+
+For self-hosted Guardrails, verify that
+`deploy/compose/nemoguardrails/config-store/nemoguard/config.yml` includes:
+
+```yaml
+rails:
+  output:
+    streaming:
+      enabled: true
+```
+
+After updating the file, restart the Guardrails microservice:
+
+```bash
+docker compose -f deploy/compose/docker-compose-nemo-guardrails.yaml up -d --no-deps nemo-guardrails-microservice
+```
+
+The `Failed to export traces to localhost:4317` messages are OpenTelemetry
+export warnings. They do not cause the `stream_async()` failure. Start the
+observability profile or disable trace export if you want to remove those
+warnings.
 
 ### GPU Device ID Issues
 
