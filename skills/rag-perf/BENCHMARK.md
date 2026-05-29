@@ -1,66 +1,64 @@
-# BENCHMARK.md — `rag-perf`
+# Evaluation Report
 
-This document summarizes how the `rag-perf` skill is evaluated. Format follows the [Skills Publishing Onboarding Guide](https://docs.google.com/document/d/1SNFRQCv0_p3DC2a_IWIf0cB3c49tSE1d/) (Step 2 — *Reporting: BENCHMARK.md*).
+Evaluation of the `rag-perf` skill before publication through NVSkills-Eval.
 
-## What this skill is graded on
+This benchmark summarizes 3-Tier Evaluation from NVSkills-Eval results for the skill. The goal is to document whether the skill is safe, discoverable, effective, and useful for agents before it is published for broader workflow use.
 
-`rag-perf` routes the agent to the `scripts/rag-perf` tool for latency/throughput benchmarking of a deployed RAG server. Evaluation checks whether the agent loads the right SKILL.md, surfaces the YAML-config + aiperf workflow, names the right perf metrics (TTFT, throughput, concurrency, stage breakdown), and provides actionable triage advice for a high-TTFT scenario.
+## Evaluation Summary
 
-## Harness
+- Skill: `rag-perf`
+- Evaluation date: 2026-05-29
+- NVSkills-Eval profile: `external`
+- Overall verdict: PASS
+- Tier 3 live agent evaluation: not available in this report
 
-| Item | Value |
-|------|-------|
-| Eval framework | [Harbor](https://github.com/harbor-eval/harbor) (Tier 3) via [`skill-eval/`](../../skill-eval/) |
-| Adapter | `skill-eval/adapters/rag-blueprint/generate.py` (shared, invoked with `--skill-name rag-perf`) |
-| Coordinator | `.github/workflows/skills-eval.yml` (PR, nightly cron, manual dispatch) |
-| Runner | self-hosted `rag-skill-validator` (cpu profile — GCP `n2d-standard-4`) |
-| Agent under test | `claude-code` |
-| Agent model | `claude-sonnet-4-6` |
-| Judge model | `aws/anthropic/claude-haiku-4-5-v1` |
-| Parallelism | up to 4 concurrent checks per task |
+## Agents Used
 
-## Eval specs
+- Tier 3 agent details were not available in this report.
 
-| Spec | Platform | Tasks |
-|------|----------|-------|
-| [`eval/nvidia_hosted.json`](eval/nvidia_hosted.json) | cpu | 2 |
+## Metrics Used
 
-Tasks exercise:
-1. Explaining how to run a performance benchmark via the YAML-driven `rag-perf` command (config shape, metric set named).
-2. Triaging high TTFT under load — identifying whether the bottleneck is LLM NIM, embedding NIM, or retrieval using the stage breakdown table.
+Reported benchmark dimensions:
 
-## Metrics
+- Security: checks whether skill-assisted execution avoids unsafe behavior such as secret leakage, destructive commands, or unauthorized access.
+- Correctness: checks whether the agent follows the expected workflow and produces the correct final output.
+- Discoverability: checks whether the agent loads the skill when relevant and avoids using it when irrelevant.
+- Effectiveness: checks whether the agent performs measurably better with the skill than without it.
+- Efficiency: checks whether the agent uses fewer tokens and avoids redundant work.
 
-Each task scores the agent's trajectory against a list of natural-language checks via `skill-eval/verifiers/generic_judge.py`. Reward is mean per-check pass rate.
+Underlying evaluation signals used in this run:
 
-The five NV-ACES rollup dimensions are not yet computed — see [`skills/PUBLISHING_COMPLIANCE.md`](../PUBLISHING_COMPLIANCE.md).
+- No Tier 3 evaluation signal details were available in this report.
 
-## Current results
+## Test Tasks
 
-| Spec | Task | With skill | Without skill (baseline) |
-|------|------|------------|--------------------------|
-| `nvidia_hosted.json` | Perf-benchmark explanation | _populated by Harbor_ | _TODO — pending NV-ACES integration_ |
-| `nvidia_hosted.json` | High-TTFT bottleneck triage | _populated by Harbor_ | _TODO — pending NV-ACES integration_ |
+Tier 3 evaluation task details were not available in this report.
 
-## How to reproduce a run locally
+## Results
 
-```bash
-cd skill-eval
-python3 adapters/rag-blueprint/generate.py \
-  --output-dir datasets/rag-perf-nvidia-hosted \
-  --skill-dir ../skills/rag-perf \
-  --skill-name rag-perf \
-  --spec ../skills/rag-perf/eval/nvidia_hosted.json
+Tier 3 dimension rollup was not available in this report.
 
-uvx harbor run \
-  -p datasets/rag-perf-nvidia-hosted/step-1 datasets/rag-perf-nvidia-hosted/step-2 \
-  --environment-import-path envs.local_env:LocalEnvironment \
-  --agent claude-code --model claude-sonnet-4-6 \
-  -o jobs -n 1 --yes
-```
+## Tier 1: Static Validation Summary
 
-Required env: `JUDGE_ANTHROPIC_API_KEY`. For synthetic queries, an OpenAI-compatible chat-completions endpoint must be reachable (default `http://localhost:8999/v1/chat/completions`).
+Tier 1 validation passed with observations. NVSkills-Eval ran 9 checks and found 5 total findings.
 
-## Drift handling
+Top findings:
 
-Skill semver pinned to RAG software semver via `scripts/validate_skill_versions.py`. The aiperf endpoint plugin (`scripts/rag-perf` editable install) is exercised by the bundled `nvidia_rag` aiperf endpoint — drift between SKILL.md and the actual `rag-perf` CLI surface will surface in the unit test under `tests/unit/test_skills/`.
+- MEDIUM PII/phone_numbers: US phone number pattern (`references/synthetic-generation.md:85`)
+- MEDIUM QUALITY/quality_efficiency: Deeply nested references in config-schema.md (`skills/rag-perf/SKILL.md`)
+- LOW QUALITY/quality_discoverability: Description very long (241 chars, recommend 50-150) (`skills/rag-perf/SKILL.md`)
+- LOW SCHEMA/unexpected_file: Unexpected 'BENCHMARK.md' in skill root (`skills/rag-perf/BENCHMARK.md`)
+- LOW SCHEMA/unexpected_file: Unexpected 'eval' in skill root (`skills/rag-perf/eval`)
+
+## Tier 2: Deduplication Summary
+
+Tier 2 validation passed. NVSkills-Eval ran 2 checks and found 0 total findings.
+
+Notable observations:
+
+- Context Deduplication: Collected 4 file(s)
+- Inter-Skill Deduplication: Parsed skill 'rag-perf': 241 char description
+
+## Publication Recommendation
+
+The skill is suitable to proceed toward NVSkills-Eval publication based on this benchmark. Skill owners should keep this file with the skill and refresh it when the evaluation dataset, skill behavior, or target agents materially change.

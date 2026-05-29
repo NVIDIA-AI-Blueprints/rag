@@ -1,56 +1,82 @@
-# BENCHMARK.md — `rag-blueprint`
+# Evaluation Report
 
-This document summarizes how the `rag-blueprint` skill is evaluated. The format follows the [Skills Publishing Onboarding Guide](https://docs.google.com/document/d/1SNFRQCv0_p3DC2a_IWIf0cB3c49tSE1d/) (Step 2 — *Self-Check with NV-BASE → Reporting: BENCHMARK.md*).
+Evaluation of the `rag-blueprint` skill before publication through NVSkills-Eval.
 
-## What this skill is graded on
+This benchmark summarizes 3-Tier Evaluation from NVSkills-Eval results for the skill. The goal is to document whether the skill is safe, discoverable, effective, and useful for agents before it is published for broader workflow use.
 
-The skill drives an AI coding agent end-to-end through a RAG Blueprint deployment scenario (Docker Compose, with self-hosted or NVIDIA-hosted NIMs) and the resulting system must pass a list of natural-language checks evaluated by an LLM judge.
+## Evaluation Summary
 
-## Harness
+- Skill: `rag-blueprint`
+- Evaluation date: 2026-05-29
+- NVSkills-Eval profile: `external`
+- Overall verdict: FAIL
+- Tier 3 live agent evaluation: not available in this report
 
-| Item | Value |
-|------|-------|
-| Eval framework | [Harbor](https://github.com/harbor-eval/harbor) (Tier 3) via [`skill-eval/`](../../skill-eval/) |
-| Adapter | `skill-eval/adapters/rag-blueprint/generate.py` |
-| Coordinator | `.github/workflows/skills-eval.yml` (PR, nightly cron, manual dispatch) |
-| Runner | self-hosted `rag-skill-validator` (2× H100 80GB PCIe for `h100.json`; cpu-only for `nvidia_hosted.json`) |
-| Agent under test | `claude-code` |
-| Agent model | `claude-sonnet-4-6` (current default; CI may override via `JUDGE_MODEL`) |
-| Judge model | `aws/anthropic/claude-haiku-4-5-v1` (Anthropic Claude Haiku 4.5 routed through `inference-api.nvidia.com`) |
-| Parallelism | up to 4 concurrent checks per task (`JUDGE_PARALLELISM=4`) |
+## Agents Used
 
-## Eval specs
+- Tier 3 agent details were not available in this report.
 
-The skill ships two Harbor specs under `eval/`. Each spec is a `(skills, platforms, resources.platforms, env, expects[])` tuple per the convention in `.github/skill-eval/AGENTS.md`.
+## Metrics Used
 
-| Spec | Platform | Mode | Tasks |
-|------|----------|------|-------|
-| [`eval/nvidia_hosted.json`](eval/nvidia_hosted.json) | cpu (GCP `n2d-standard-4`) | NVIDIA-hosted (cloud NIMs) | 2 |
-| [`eval/h100.json`](eval/h100.json) | gpu (`H100_x2`) | Self-hosted (local NIMs) | 2 |
+Reported benchmark dimensions:
 
-## Metrics
+- Security: checks whether skill-assisted execution avoids unsafe behavior such as secret leakage, destructive commands, or unauthorized access.
+- Correctness: checks whether the agent follows the expected workflow and produces the correct final output.
+- Discoverability: checks whether the agent loads the skill when relevant and avoids using it when irrelevant.
+- Effectiveness: checks whether the agent performs measurably better with the skill than without it.
+- Efficiency: checks whether the agent uses fewer tokens and avoids redundant work.
 
-Per-task scoring is produced by the generic LLM judge in `skill-eval/verifiers/generic_judge.py`. Each task contributes a list of natural-language checks against (a) the agent's trajectory and (b) the live system state via Bash probes. Reward is a float in `[0, 1]` per check; per-task reward is the mean.
+Underlying evaluation signals used in this run:
 
-The five NV-ACES rollup dimensions (Security / Correctness / Discoverability / Effectiveness / Efficiency) are not yet computed for this skill — Tier 1 NV-BASE is currently disabled in `.github/workflows/skills-nv-base.yml` pending runner install of `nv-base` (see [`skills/PUBLISHING_COMPLIANCE.md`](../PUBLISHING_COMPLIANCE.md)). Migration to NV-ACES `evals.json` schema with the deterministic `skill_execution` / `skill_efficiency` evaluators is tracked there.
+- No Tier 3 evaluation signal details were available in this report.
 
-## Current results
+## Test Tasks
 
-Populated from the most recent successful run of `.github/workflows/skills-eval.yml` against `develop`. Update on every release.
+Tier 3 evaluation task details were not available in this report.
 
-| Spec | Task | With skill | Without skill (baseline) |
-|------|------|------------|--------------------------|
-| `nvidia_hosted.json` | Deploy RAG (NVIDIA-hosted Docker) | _populated by Harbor_ | _TODO — baseline pending NV-ACES integration_ |
-| `nvidia_hosted.json` | Verify stack health | _populated by Harbor_ | _TODO — baseline pending NV-ACES integration_ |
-| `h100.json` | Deploy RAG (self-hosted H100x2 Docker) | _populated by Harbor_ | _TODO — baseline pending NV-ACES integration_ |
-| `h100.json` | Verify stack health (local NIMs) | _populated by Harbor_ | _TODO — baseline pending NV-ACES integration_ |
+## Results
 
-Per the publishing guide: "BENCHMARK.md can be auto-generated from NV-ACES output OR filled in manually after team-owned evaluation." Without-skill baselines will land when NV-ACES integration ships; until then the with-skill column from Harbor is the available signal.
+Tier 3 dimension rollup was not available in this report.
 
-## How to reproduce a run locally
+## Tier 1: Static Validation Summary
 
-See `skill-eval/README.md` and `skill-eval/CLAUDE.md` for the exact `harbor run` invocation and required environment variables (`NGC_API_KEY`, `JUDGE_ANTHROPIC_API_KEY`).
+Tier 1 validation passed with observations. NVSkills-Eval ran 9 checks and found 5 total findings.
 
-## Drift handling
+Top findings:
 
-SKILL.md is hand-authored and version-pinned to the RAG software version (`pyproject.toml:project.version`). The validator at `scripts/validate_skill_versions.py` (exercised by `tests/unit/test_skills/`) blocks merges where the skill semver drifts from the software semver. This catches the publishing guide's stated drift risk: "NV-BASE catches security and spec issues but does NOT detect SKILL.md drift (skill says X, product now does Y). Teams own product-drift management."
+- LOW QUALITY/quality_discoverability: Description very long (368 chars, recommend 50-150) (`skills/rag-blueprint/SKILL.md`)
+- LOW QUALITY/quality_discoverability: Description doesn't mention WHEN to use this skill (`skills/rag-blueprint/SKILL.md`)
+- LOW QUALITY/quality_discoverability: Broad description without negative triggers may cause over-triggering (`skills/rag-blueprint/SKILL.md`)
+- LOW SCHEMA/unexpected_file: Unexpected 'BENCHMARK.md' in skill root (`skills/rag-blueprint/BENCHMARK.md`)
+- LOW SCHEMA/unexpected_file: Unexpected 'eval' in skill root (`skills/rag-blueprint/eval`)
+
+## Tier 2: Deduplication Summary
+
+Tier 2 validation reported findings. NVSkills-Eval ran 2 checks and found 6 total findings.
+
+Top findings:
+
+- HIGH DUPLICATE/duplicate: Duplicate content found across references/configure/query-and-conversation.md and references/configure/reasoning-and-generation.md:
+  "## Process" in references/configure/query-and-conversation.md (lines 23-28)
+  vs "## Process" in references/configure/reasoning-and-generation.md (lines 6-12) (`references/configure/query-and-conversation.md:23`)
+- HIGH DUPLICATE/duplicate: Duplicate content found across references/configure/notebooks.md and references/deploy.md:
+  "### Deployment" in references/configure/notebooks.md (lines 47-51)
+  vs "## Notebooks" in references/deploy.md (lines 114-116) (`references/configure/notebooks.md:47`)
+- HIGH DUPLICATE/duplicate: Duplicate content found across references/configure/multimodal-query.md and references/configure/vlm.md:
+  "## When to Use" in references/configure/multimodal-query.md (lines 3-7)
+  vs "## Notebooks" in references/configure/multimodal-query.md (lines 31-33)
+  vs "## When to Use" in references/configure/vlm.md (lines 3-5)
+  vs "## Notebooks" in references/configure/vlm.md (lines 51-53) (`references/configure/multimodal-query.md:3`)
+- HIGH DUPLICATE/duplicate: Duplicate content found across references/deploy/library-full.md and references/deploy/library-lite.md and references/deploy/library.md:
+  "## Source Documentation" in references/deploy/library-full.md (lines 42-43)
+  vs "## Source Documentation" in references/deploy/library-lite.md (lines 36-37)
+  vs "## Source Documentation" in references/deploy/library.md (lines 53-54) (`references/deploy/library-full.md:42`)
+- HIGH DUPLICATE/duplicate: Duplicate content found across references/configure/models-and-infrastructure.md and references/deploy.md and references/deploy/docker.md and references/deploy/library.md:
+  "### API Keys" in references/configure/models-and-infrastructure.md (lines 31-35)
+  vs "## Verify NGC_API_KEY" in references/deploy/docker.md (lines 22-33)
+  vs "## Verify NGC_API_KEY" in references/deploy/library.md (lines 18-27)
+  vs "## Phase 2: NGC_API_KEY Handling" in references/deploy.md (lines 39-48) (`references/configure/models-and-infrastructure.md:31`)
+
+## Publication Recommendation
+
+The skill should be reviewed before NVSkills-Eval publication. Skill owners should address the findings above and rerun NVSkills-Eval to refresh this benchmark.
