@@ -789,6 +789,12 @@ nimOperator:
   nim-llm:
     enabled: true
     replicas: 1
+    # -- Annotations applied to NIM pods (propagated via NIMService.spec.podAnnotations).
+    # Useful for integrations like Runai fractional GPUs, e.g.:
+    #   podAnnotations:
+    #     gpu-fraction: "0.25"
+    #     gpu-fraction-num-devices: "1"
+    podAnnotations: {}
     service:
       name: "nim-llm"
     image:
@@ -882,6 +888,9 @@ nimOperator:
   nvidia-nim-llama-nemotron-embed-1b-v2:
     enabled: false
     replicas: 1
+    # -- Annotations applied to NIM pods (propagated via NIMService.spec.podAnnotations).
+    # See nim-llm.podAnnotations above for a Runai fractional GPU example.
+    podAnnotations: {}
     service:
       name: "nemotron-embedding-ms"
     image:
@@ -923,6 +932,9 @@ nimOperator:
 # NIM VLM Embedding (default embedding service; aligned with envVars.APP_EMBEDDINGS_SERVERURL)
   nvidia-nim-llama-nemotron-embed-vl-1b-v2:
     enabled: true
+    # -- Annotations applied to NIM pods (propagated via NIMService.spec.podAnnotations).
+    # See nim-llm.podAnnotations above for a Runai fractional GPU example.
+    podAnnotations: {}
     service:
       name: "nemotron-vlm-embedding-ms"
     image:
@@ -961,6 +973,9 @@ nimOperator:
   nvidia-nim-llama-nemotron-rerank-1b-v2:
     enabled: true
     replicas: 1
+    # -- Annotations applied to NIM pods (propagated via NIMService.spec.podAnnotations).
+    # See nim-llm.podAnnotations above for a Runai fractional GPU example.
+    podAnnotations: {}
     service:
       name: "nemotron-ranking-ms"
     image:
@@ -995,6 +1010,9 @@ nimOperator:
   nvidia-nim-llama-nemotron-rerank-vl-1b-v2:
     enabled: false
     replicas: 1
+    # -- Annotations applied to NIM pods (propagated via NIMService.spec.podAnnotations).
+    # See nim-llm.podAnnotations above for a Runai fractional GPU example.
+    podAnnotations: {}
     service:
       name: "nemotron-ranking-vl-ms"
     image:
@@ -1029,6 +1047,9 @@ nimOperator:
   nim-vlm:
     enabled: false
     replicas: 1
+    # -- Annotations applied to NIM pods (propagated via NIMService.spec.podAnnotations).
+    # See nim-llm.podAnnotations above for a Runai fractional GPU example.
+    podAnnotations: {}
     service:
       name: "nim-vlm"
     image:
@@ -1063,6 +1084,9 @@ nimOperator:
   nim-vlm-captioning:
     enabled: false
     replicas: 1
+    # -- Annotations applied to NIM pods (propagated via NIMService.spec.podAnnotations).
+    # See nim-llm.podAnnotations above for a Runai fractional GPU example.
+    podAnnotations: {}
     service:
       name: "nim-vlm-captioning"
     image:

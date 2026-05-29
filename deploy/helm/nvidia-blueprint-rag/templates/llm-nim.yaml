@@ -43,6 +43,10 @@ spec:
   env:
 {{ toYaml $nimLlm.env | nindent 4 }}
   replicas: {{ $nimLlm.replicas | default 1 }}
+  {{- with $nimLlm.podAnnotations }}
+  podAnnotations:
+{{ toYaml . | nindent 4 }}
+  {{- end }}
   {{- with $nimLlm.nodeSelector }}
   nodeSelector:
 {{ toYaml . | nindent 4 }}
