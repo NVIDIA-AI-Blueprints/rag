@@ -172,7 +172,7 @@ An agent skill is included that enables AI coding assistants (Claude Code, Curso
 npx skills add .
 ```
 
-This installs the `rag-blueprint` skill from `skill-source/`. After installation, the agent handles requests like:
+This installs the `rag-blueprint` skill from `skills/`. After installation, the agent handles requests like:
 
 - *"Deploy RAG on Docker with NVIDIA-hosted models"*
 - *"Enable VLM image captioning and restart the ingestor"*
@@ -182,7 +182,7 @@ This installs the `rag-blueprint` skill from `skill-source/`. After installation
 
 > **Note:** If the agent doesn't pick up the skill automatically (e.g., for short or ambiguous queries), invoke it explicitly with `/rag-blueprint <your request>`.
 
-For skill architecture details, see [`skill-source/README.md`](skill-source/README.md).
+For skill architecture details, see [`skills/README.md`](skills/README.md). Skill content lives under [`skills/`](skills/) at the repo root (canonical path per the [agentskills.io](https://agentskills.io/specification) spec).
 
 
 ## Get Started With NVIDIA RAG Blueprint

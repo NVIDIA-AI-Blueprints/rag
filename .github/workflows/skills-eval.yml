@@ -109,8 +109,8 @@ jobs:
           filters: |
             skills:
               - 'skills/**'
-              - 'skill-source/**'
             harness:
+              - 'scripts/validate_skill_versions.py'
               - '.github/skill-eval/**'
               - '.github/workflows/skills-eval.yml'
               - 'ci/run_skill_eval.sh'

@@ -1,6 +1,6 @@
 # Output layout and result analysis
 
-Load this when the user asks where artifacts went, how to interpret a metric, or what a column in `results.csv` means. Driver code: [`scripts/rag-perf/rag_perf/runner.py`](../../../../../scripts/rag-perf/rag_perf/runner.py) (`BenchmarkRunner.run`, `_write_aggregate_outputs`) and [`scripts/rag-perf/rag_perf/reporting.py`](../../../../../scripts/rag-perf/rag_perf/reporting.py) (`MetricsAggregator`, `Reporter`, `RagMetricsSummary`).
+Load this when the user asks where artifacts went, how to interpret a metric, or what a column in `results.csv` means. Driver code: [`scripts/rag-perf/rag_perf/runner.py`](../../../scripts/rag-perf/rag_perf/runner.py) (`BenchmarkRunner.run`, `_write_aggregate_outputs`) and [`scripts/rag-perf/rag_perf/reporting.py`](../../../scripts/rag-perf/rag_perf/reporting.py) (`MetricsAggregator`, `Reporter`, `RagMetricsSummary`).
 
 ## Stdout sequence (in order)
 
@@ -72,7 +72,7 @@ run_<ts>/
 
 ## `RagMetricsSummary` fields (results.json / results.csv)
 
-Defined in [`scripts/rag-perf/rag_perf/reporting.py`](../../../../../scripts/rag-perf/rag_perf/reporting.py).
+Defined in [`scripts/rag-perf/rag_perf/reporting.py`](../../../scripts/rag-perf/rag_perf/reporting.py).
 
 ### Stage breakdown (profiling pass)
 

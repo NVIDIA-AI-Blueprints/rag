@@ -27,21 +27,18 @@ mkdir -p /tmp/skill-eval/datasets /tmp/skill-eval/results
 ## Your job, in order
 
 1. **Diff against the PR's base branch** (`$PR_BASE`, never hardcode
-   `develop`). Find files changed under `skills/<skill>/` OR
-   `skill-source/.agents/skills/<skill>/`.
+   `develop`). Find files changed under `skills/<skill>/`.
 
    ```bash
    gh api "repos/$PR_REPO/compare/${PR_BASE}...pull-request/${PR_NUMBER}" \
      --jq '.files[].filename'
    ```
 
-   Group by skill directory from both locations:
-   - `skills/<skill>/` → decomposed skills, skill dir is `$REPO_ROOT/skills/<skill>`
-   - `skill-source/.agents/skills/<skill>/` → monolithic production skill,
-     skill dir is `$REPO_ROOT/skill-source/.agents/skills/<skill>`
+   Group by skill directory: `skills/<skill>/` → skill dir is
+   `$REPO_ROOT/skills/<skill>`.
 
-   If nothing under either `skills/` or `skill-source/` changed,
-   emit `BLOCKED: no skill files changed` and exit. No PR comment.
+   If nothing under `skills/` changed, emit `BLOCKED: no skill files
+   changed` and exit. No PR comment.
 
 2. **For each changed skill, find dispatchable eval specs** — any
    `eval/<name>.json` under the skill directory. A skill can ship
@@ -92,9 +89,7 @@ mkdir -p /tmp/skill-eval/datasets /tmp/skill-eval/results
    `/tmp/skill-eval/datasets/<skill>/<spec_stem>/` where `<spec_stem>`
    is the spec filename without `.json`.
 
-   Resolve `SKILL_DIR` based on where the skill lives:
-   - Decomposed skills: `SKILL_DIR="$REPO_ROOT/skills/<skill>"`
-   - Monolithic skills: `SKILL_DIR="$REPO_ROOT/skill-source/.agents/skills/<skill>"`
+   Resolve `SKILL_DIR="$REPO_ROOT/skills/<skill>"`.
 
    ```bash
    cd "$REPO_ROOT/skill-eval"

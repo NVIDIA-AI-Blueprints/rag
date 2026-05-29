@@ -2,7 +2,7 @@
 
 Load this when `input.synthetic` is in play, when reasoning-model query leakage is suspected, when generation fails midway, or when the user wants to reproduce a query set across runs.
 
-Implementation lives in [`scripts/rag-perf/rag_perf/query.py`](../../../../../scripts/rag-perf/rag_perf/query.py) (`SyntheticQueryGenerator`). Default prompts are in [`scripts/rag-perf/prompts/default_prompts.yaml`](../../../../../scripts/rag-perf/prompts/default_prompts.yaml).
+Implementation lives in [`scripts/rag-perf/rag_perf/query.py`](../../../scripts/rag-perf/rag_perf/query.py) (`SyntheticQueryGenerator`). Default prompts are in [`scripts/rag-perf/prompts/default_prompts.yaml`](../../../scripts/rag-perf/prompts/default_prompts.yaml).
 
 ## Pipeline
 
@@ -80,7 +80,7 @@ Recovery options:
 
 ## Prompt templates
 
-Default templates ([`prompts/default_prompts.yaml`](../../../../../scripts/rag-perf/prompts/default_prompts.yaml)) are deliberately strict to keep `content` clean: forbid markdown, numbering, "Question:" / "Here is" / "Sure," prefixes, planning/thinking text, restating instructions. They require exactly one `?` at the end.
+Default templates ([`prompts/default_prompts.yaml`](../../../scripts/rag-perf/prompts/default_prompts.yaml)) are deliberately strict to keep `content` clean: forbid markdown, numbering, "Question:" / "Here is" / "Sure," prefixes, planning/thinking text, restating instructions. They require exactly one `?` at the end.
 
 If swapping in custom prompts via `synthetic.prompts_file`, **preserve the same output discipline** or expect leaked planning text in the JSONL — the rag-perf side does only minimal cleanup (`q.lstrip("0123456789.). ").strip()` to drop leading numbering).
 
