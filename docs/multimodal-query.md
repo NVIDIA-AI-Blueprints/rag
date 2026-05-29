@@ -58,7 +58,8 @@ export MODEL_DIRECTORY=~/.cache/model-cache
 export VLM_MS_GPU_ID=1  # Default is GPU 5; change to use a different GPU
 
 # Deploy ingestion NIMs plus the VLM RAG NIMs.
-USERID=$(id -u) docker compose --profile ingest --profile vlm-rag -f deploy/compose/nims.yaml up -d
+# Multimodal query disables reranking, so skip the VLM reranker service.
+USERID=$(id -u) docker compose --profile ingest --profile vlm-rag -f deploy/compose/nims.yaml up -d --scale nemotron-ranking-vl-ms=0
 ```
 
 :::{warning}
