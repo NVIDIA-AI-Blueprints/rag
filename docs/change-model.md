@@ -377,7 +377,7 @@ The default reranker is the text reranker `nvidia/llama-nemotron-rerank-1b-v2`. 
 
 ### Docker Compose
 
-1. Start the VLM reranker NIM (`nemotron-ranking-vl-ms`, defined in [`deploy/compose/nims.yaml`](../deploy/compose/nims.yaml) under the `vlm-rerank` and `vlm-rag` profiles):
+1. Start the VLM reranker NIM (`nemotron-ranking-vl-ms`, defined in [`deploy/compose/nims.yaml`](../deploy/compose/nims.yaml) under the `vlm-rerank` and `vlm-rag` profiles). Docker Compose publishes it on host port `1979`, while Docker-internal callers use `nemotron-ranking-vl-ms:8000`:
 
    ```bash
    export USERID=$(id -u)
