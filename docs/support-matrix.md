@@ -64,7 +64,7 @@ To install the default RAG Blueprint Helm chart on Kubernetes, you need one of t
 - 8 x H100-80GB
 - 8 x B200
 - 8 x RTX PRO 6000
-- 3 x H100 (with [Multi-Instance GPU](./mig-deployment.md))
+- 5 x H100-80GB (with [Multi-Instance GPU](./mig-deployment.md))
 
 Optional GPU-backed services increase the requirement. Plan for one additional GPU for each optional service that you enable, such as VLM generation, VLM captioning, VLM reranking, Nemotron Parse, or audio processing, unless you use MIG slicing or another explicit sharing strategy.
 
