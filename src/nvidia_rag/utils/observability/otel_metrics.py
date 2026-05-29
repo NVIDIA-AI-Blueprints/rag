@@ -19,6 +19,8 @@ import logging
 
 from opentelemetry import metrics
 
+from nvidia_rag.utils.observability.agentic_metrics import AgenticRAGMetrics
+
 
 class OtelMetrics:
     """Encapsulates OpenTelemetry Metrics for API tracking."""
@@ -99,6 +101,9 @@ class OtelMetrics:
         self.avg_words_per_chunk_gauge = instruments["avg_words_per_chunk_gauge"]
         self.token_usage_histogram = instruments["token_usage_histogram"]
         self.latency_hists = instruments["latency_hists"]
+        self.agentic = AgenticRAGMetrics(
+            service_name=self.service_name, meter=self.meter
+        )
 
         logging.info("OpenTelemetry Metrics Initialized")
 
@@ -124,6 +129,7 @@ class OtelMetrics:
                 "avg_words_per_chunk_gauge"
             ]
             self._otlp_latency_hists = otlp_instruments["latency_hists"]
+            self.agentic.setup_otlp_meter(self._otlp_meter)
 
             logging.info(
                 "OTLP meter configured for dual export with cached instruments"
@@ -188,6 +194,18 @@ class OtelMetrics:
                     and name in self._otlp_latency_hists
                 ):
                     self._otlp_latency_hists[name].record(value)
+
+    def record_agentic_query_trace(
+        self,
+        trace,
+        *,
+        status: str,
+        verification_enabled: bool,
+    ) -> None:
+        """Record aggregate metrics for one Agentic RAG query."""
+        self.agentic.record_query_trace(
+            trace, status=status, verification_enabled=verification_enabled
+        )
 
 
 # Singleton factory to reuse a single OtelMetrics instance per process

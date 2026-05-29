@@ -1,5 +1,5 @@
-# Build stage - OSRB approved Ubuntu base (Bug 3840915)
-FROM nvcr.io/nvidia/base/ubuntu:jammy-20251013 AS builder
+# Build stage
+FROM nvcr.io/nvidia/base/ubuntu:jammy-20260217 AS builder
 
 ARG DOWNLOAD_LEGAL_COMPLIANCE=false
 
@@ -19,7 +19,7 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y \
 # Install Node.js LTS and pnpm
 RUN curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - && \
     apt-get install -y nodejs && \
-    npm install -g pnpm
+    npm install -g pnpm@10.18.2
 
 # Print versions for debugging
 RUN node -v && pnpm -v
@@ -72,7 +72,6 @@ ENV npm_config_yes=true
 
 # Build the application
 RUN rm -rf node_modules && pnpm install --frozen-lockfile
-RUN pnpm add -D @types/node
 RUN pnpm run build
 
 # Prepare legal compliance files for production stage (conditional on DOWNLOAD_LEGAL_COMPLIANCE)
@@ -93,8 +92,7 @@ RUN if [ "$DOWNLOAD_LEGAL_COMPLIANCE" = "true" ] && [ -d /legal ]; then \
     fi
 
 # Production stage - NVIDIA distroless (pre-approved)
-# Updated to latest version to address CVE-2025-9230 (libssl3)
-FROM nvcr.io/nvidia/distroless/node:24-v4.0.2
+FROM nvcr.io/nvidia/distroless/node:24-v4.0.7
 
 # Copy built application and config for production preview
 WORKDIR /app/frontend

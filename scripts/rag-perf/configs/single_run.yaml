@@ -1,0 +1,49 @@
+# rag-perf — Single-point benchmark preset
+# ----------------------------------------
+# One concurrency level, profiling pass + aiperf load test, full report.
+# Use this when you want a single benchmark point — for example a regression
+# check at a known-good concurrency, or a quick sanity verification before
+# launching a larger sweep.
+#
+# Typical runtime: ~2 minutes for 100 requests at concurrency 8.
+#
+#   uv run --project scripts/rag-perf rag-perf -c scripts/rag-perf/configs/single_run.yaml
+
+target:
+  url: "http://localhost:8081"
+  timeout_s: 300
+
+aiperf:
+  enabled: true            # default; profiling pass + aiperf load test
+
+load:
+  concurrency: 8           # scalar → single benchmark point
+  warmup_requests: 10
+  total_requests: 100
+  profile_requests: 20
+
+rag:
+  # Replace <collection_name> with the name of a collection that exists on
+  # the deployed ingestor server (see GET /v1/collections).
+  collection_names: ["<collection_name>"]
+  vdb_top_k: 20
+  reranker_top_k: 4
+  enable_reranker: true
+  enable_citations: true
+  use_knowledge_base: true
+
+generation:
+  max_tokens: 512
+  temperature: 0.0
+
+input:
+  # Set exactly one of `file` or `synthetic` (mutually exclusive).
+  # `file` accepts .jsonl or .csv (format auto-detected from extension).
+  file: "scripts/rag-perf/examples/queries.jsonl"
+  sampling: random
+  seed: 42
+
+output:
+  dir: "./rag-perf-results/single_run"
+  formats: [json, csv]
+  markdown_report: true

@@ -14,16 +14,17 @@
 # limitations under the License.
 
 import pytest
+
 from nvidia_rag.rag_server.validation import (
+    normalize_model_info,
     sanitize_boolean,
     sanitize_float,
-    normalize_model_info,
-    validate_reranker_top_k,
-    validate_use_knowledge_base,
-    validate_temperature,
-    validate_top_p,
     validate_model_info,
     validate_reranker_k,
+    validate_reranker_top_k,
+    validate_temperature,
+    validate_top_p,
+    validate_use_knowledge_base,
     validate_vdb_top_k,
 )
 
@@ -53,32 +54,44 @@ class TestSanitizeBoolean:
 
     def test_sanitize_boolean_with_whitespace(self):
         """Test sanitizing boolean with whitespace"""
-        with pytest.raises(ValueError, match="test_field must be a boolean value \\(True/False\\)"):
+        with pytest.raises(
+            ValueError, match="test_field must be a boolean value \\(True/False\\)"
+        ):
             sanitize_boolean("  True  ", "test_field")
 
     def test_sanitize_boolean_with_quotes(self):
         """Test sanitizing boolean with quotes"""
-        with pytest.raises(ValueError, match="test_field must be a boolean value \\(True/False\\)"):
+        with pytest.raises(
+            ValueError, match="test_field must be a boolean value \\(True/False\\)"
+        ):
             sanitize_boolean('"True"', "test_field")
 
     def test_sanitize_boolean_invalid_value(self):
         """Test sanitizing boolean with invalid value raises ValueError"""
-        with pytest.raises(ValueError, match="test_field must be a boolean value \\(True/False\\)"):
+        with pytest.raises(
+            ValueError, match="test_field must be a boolean value \\(True/False\\)"
+        ):
             sanitize_boolean("invalid", "test_field")
 
     def test_sanitize_boolean_none_value(self):
         """Test sanitizing boolean with None value raises ValueError"""
-        with pytest.raises(ValueError, match="test_field must be a boolean value \\(True/False\\)"):
+        with pytest.raises(
+            ValueError, match="test_field must be a boolean value \\(True/False\\)"
+        ):
             sanitize_boolean(None, "test_field")
 
     def test_sanitize_boolean_empty_string(self):
         """Test sanitizing boolean with empty string raises ValueError"""
-        with pytest.raises(ValueError, match="test_field must be a boolean value \\(True/False\\)"):
+        with pytest.raises(
+            ValueError, match="test_field must be a boolean value \\(True/False\\)"
+        ):
             sanitize_boolean("", "test_field")
 
     def test_sanitize_boolean_case_sensitive(self):
         """Test sanitizing boolean is case sensitive"""
-        with pytest.raises(ValueError, match="test_field must be a boolean value \\(True/False\\)"):
+        with pytest.raises(
+            ValueError, match="test_field must be a boolean value \\(True/False\\)"
+        ):
             sanitize_boolean("true", "test_field")
 
     def test_sanitize_boolean_with_html_tags(self):
@@ -205,17 +218,24 @@ class TestValidateRerankerTopK:
 
     def test_validate_reranker_top_k_invalid_case(self):
         """Test validating reranker_top_k when it's greater than vdb_top_k raises ValueError"""
-        with pytest.raises(ValueError, match="reranker_top_k\\(15\\) must be less than or equal to vdb_top_k \\(10\\)\\. Please check your settings and try again\\."):
+        with pytest.raises(
+            ValueError,
+            match="reranker_top_k\\(15\\) must be less than or equal to vdb_top_k \\(10\\)\\. Please check your settings and try again\\.",
+        ):
             validate_reranker_top_k(15, 10, "reranker_top_k")
 
     def test_validate_reranker_top_k_zero_values(self):
         """Test validating reranker_top_k with zero value raises ValueError"""
-        with pytest.raises(ValueError, match="reranker_top_k must be greater than 0, got 0"):
+        with pytest.raises(
+            ValueError, match="reranker_top_k must be greater than 0, got 0"
+        ):
             validate_reranker_top_k(0, 10, "reranker_top_k")
 
     def test_validate_reranker_top_k_negative_values(self):
         """Test validating reranker_top_k with negative value raises ValueError"""
-        with pytest.raises(ValueError, match="reranker_top_k must be greater than 0, got -5"):
+        with pytest.raises(
+            ValueError, match="reranker_top_k must be greater than 0, got -5"
+        ):
             validate_reranker_top_k(-5, 10, "reranker_top_k")
 
 
@@ -234,7 +254,10 @@ class TestValidateUseKnowledgeBase:
 
     def test_validate_use_knowledge_base_invalid(self):
         """Test validating use_knowledge_base with invalid value"""
-        with pytest.raises(ValueError, match="use_knowledge_base must be a boolean value \\(True/False\\)"):
+        with pytest.raises(
+            ValueError,
+            match="use_knowledge_base must be a boolean value \\(True/False\\)",
+        ):
             validate_use_knowledge_base("invalid")
 
 
@@ -245,6 +268,11 @@ class TestValidateTemperature:
         """Test validating temperature with valid value"""
         result = validate_temperature("0.7")
         assert result == 0.7
+
+    def test_validate_temperature_none(self):
+        """Test validating temperature with None"""
+        result = validate_temperature(None)
+        assert result is None
 
     def test_validate_temperature_invalid(self):
         """Test validating temperature with invalid value"""
@@ -259,6 +287,11 @@ class TestValidateTopP:
         """Test validating top_p with valid value"""
         result = validate_top_p("0.9")
         assert result == 0.9
+
+    def test_validate_top_p_none(self):
+        """Test validating top_p with None"""
+        result = validate_top_p(None)
+        assert result is None
 
     def test_validate_top_p_invalid(self):
         """Test validating top_p with invalid value"""
@@ -290,7 +323,10 @@ class TestValidateRerankerK:
 
     def test_validate_reranker_k_invalid(self):
         """Test validating reranker_k with invalid values"""
-        with pytest.raises(ValueError, match="reranker_top_k\\(15\\) must be less than or equal to vdb_top_k \\(10\\)\\. Please check your settings and try again\\."):
+        with pytest.raises(
+            ValueError,
+            match="reranker_top_k\\(15\\) must be less than or equal to vdb_top_k \\(10\\)\\. Please check your settings and try again\\.",
+        ):
             validate_reranker_k(15, 10)
 
 
@@ -309,10 +345,35 @@ class TestValidateVdbTopK:
 
     def test_validate_vdb_top_k_zero(self):
         """Test validating vdb_top_k with zero raises ValueError"""
-        with pytest.raises(ValueError, match="vdb_top_k must be greater than 0, got 0\\. Please provide a positive integer for the number of documents to retrieve from the vector database\\."):
+        with pytest.raises(
+            ValueError,
+            match="vdb_top_k must be greater than 0, got 0\\. Please provide a positive integer for the number of documents to retrieve from the vector database\\.",
+        ):
             validate_vdb_top_k(0)
 
     def test_validate_vdb_top_k_negative(self):
         """Test validating vdb_top_k with negative value raises ValueError"""
-        with pytest.raises(ValueError, match="vdb_top_k must be greater than 0, got -5\\. Please provide a positive integer for the number of documents to retrieve from the vector database\\."):
+        with pytest.raises(
+            ValueError,
+            match="vdb_top_k must be greater than 0, got -5\\. Please provide a positive integer for the number of documents to retrieve from the vector database\\.",
+        ):
             validate_vdb_top_k(-5)
+
+    def test_validate_vdb_top_k_at_max_boundary(self):
+        """Test validating vdb_top_k == 400 (matches Prompt/DocumentSearch le=400)"""
+        result = validate_vdb_top_k(400)
+        assert result == 400
+
+    def test_validate_vdb_top_k_exceeds_max(self):
+        """Test validating vdb_top_k == 401 raises ValueError (NVBug 6181473)."""
+        with pytest.raises(
+            ValueError, match="vdb_top_k must be less than or equal to 400, got 401\\."
+        ):
+            validate_vdb_top_k(401)
+
+    def test_validate_vdb_top_k_far_above_max(self):
+        """Test validating vdb_top_k == 410 raises ValueError (the value reported in NVBug 6181473)."""
+        with pytest.raises(
+            ValueError, match="vdb_top_k must be less than or equal to 400, got 410\\."
+        ):
+            validate_vdb_top_k(410)

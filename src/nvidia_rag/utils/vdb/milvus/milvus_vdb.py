@@ -55,8 +55,9 @@ Retrieval Operations:
 
 import logging
 import os
+import threading
 import time
-from typing import Any
+from typing import Any, ClassVar
 from urllib.parse import urlparse
 from uuid import uuid4
 
@@ -67,12 +68,10 @@ from langchain_milvus import BM25BuiltInFunction
 from langchain_milvus import Milvus as LangchainMilvus
 from opentelemetry import context as otel_context
 from pymilvus import (
-    Collection,
     DataType,
     MilvusClient,
     MilvusException,
     connections,
-    utility,
 )
 from pymilvus.orm.types import CONSISTENCY_STRONG
 
@@ -80,6 +79,7 @@ from nvidia_rag.rag_server.response_generator import APIError, ErrorCodeMapping
 from nvidia_rag.utils.common import (
     get_current_timestamp,
     perform_document_info_aggregation,
+    release_nvidia_client_response,
 )
 from nvidia_rag.utils.configuration import NvidiaRAGConfig, SearchType
 from nvidia_rag.utils.health_models import ServiceStatus
@@ -92,6 +92,10 @@ from nvidia_rag.utils.vdb.vdb_ingest_base import VDBRagIngest
 
 logger = logging.getLogger(__name__)
 
+# Above this many document-info entries, get_documents skips Milvus query iteration
+# and omits per-document metadata in the response.
+BYPASS_METADATA_THRESHOLD = 1000
+
 
 class MilvusVDB(VDBRagIngest):
     """
@@ -103,14 +107,22 @@ class MilvusVDB(VDBRagIngest):
     - For ingestion operations: Requires nv_ingest_client (pip install nvidia-rag[ingest])
     """
 
+    # Reference-count connections by "endpoint|token" so that two MilvusVDB instances
+    # sharing the same underlying pymilvus handler (2.6.9 deterministic hash, 2.6.10+
+    # ConnectionManager) don't race each other when one is GC'd while the other is
+    # still in flight.  _client.close() is deferred until the last holder releases.
+    _conn_refcount: ClassVar[dict[str, int]] = {}
+    # RLock: __del__ can run (same thread) during __init__ while this lock is held.
+    _conn_refcount_lock: ClassVar[threading.RLock] = threading.RLock()
+
     def __init__(
         self,
         collection_name: str,
         milvus_uri: str,
         embedding_model: Any,
         config: NvidiaRAGConfig | None = None,
-        # Minio configurations
-        minio_endpoint: str | None = None,
+        # Object-store configuration for Milvus / NV-Ingest integrations.
+        object_store_endpoint: str | None = None,
         access_key: str | None = None,
         secret_key: str | None = None,
         bucket_name: str = "nv-ingest",
@@ -139,10 +151,10 @@ class MilvusVDB(VDBRagIngest):
             milvus_uri: URI endpoint for Milvus server
             embedding_model: Embedding model instance for retrieval
             config: NvidiaRAGConfig instance (optional, creates default if None)
-            minio_endpoint: MinIO endpoint for object storage
-            access_key: MinIO access key
-            secret_key: MinIO secret key
-            bucket_name: MinIO bucket name (default: "nv-ingest")
+            object_store_endpoint: S3-compatible object-store endpoint
+            access_key: Object-store access key
+            secret_key: Object-store secret key
+            bucket_name: Object-store bucket name (default: "nv-ingest")
             sparse: Enable sparse/hybrid search
             enable_images: Enable image extraction and storage
             recreate: Whether to recreate the collection if it exists
@@ -163,21 +175,26 @@ class MilvusVDB(VDBRagIngest):
         self._collection_name = collection_name
         self.csv_file_path = meta_dataframe
 
-        # Get the connection alias from the url
+        # Get the connection alias from the url (kept for logging/identification)
         self.url = urlparse(self.vdb_endpoint)
-        self.connection_alias = (
-            f"milvus_{self.url.hostname}_{self.url.port}_{str(uuid4())[:8]}"
-        )
+        self.connection_alias = f"milvus_{self.url.hostname}_{self.url.port}"
 
         # Get credentials from parameters or fall back to environment variables
         username = username or os.environ.get("VECTOR_STORE_USERNAME", "")
         password = password or os.environ.get("VECTOR_STORE_PASSWORD", "")
 
-        # Establish a single persistent connection for the lifetime of this instance
+        # Sentinel for __del__ safety: set before _client is created so that a
+        # partially-constructed instance never tries to decrement a counter it never
+        # incremented.
+        self._connection_key: str | None = None
+
+        # Establish a single persistent MilvusClient for the lifetime of this instance.
+        # MilvusClient is the modern pymilvus API; the legacy ORM connections.connect()
+        # is avoided here to ensure compatibility with pymilvus 2.6.10+ where ORM is
+        # being deprecated.
         try:
-            connections.connect(
-                self.connection_alias,
-                uri=self.vdb_endpoint,
+            self._client = MilvusClient(
+                self.vdb_endpoint,
                 token=self._get_milvus_token(),
             )
             self._connected = True
@@ -190,16 +207,56 @@ class MilvusVDB(VDBRagIngest):
                 ErrorCodeMapping.SERVICE_UNAVAILABLE,
             ) from e
 
+        # Register in the class-level refcount AFTER a successful connection so that
+        # close()/__del__ only decrements for instances that actually connected.
+        conn_key = f"{self.vdb_endpoint}|{self._get_milvus_token()}"
+        self._connection_key = conn_key
+        with MilvusVDB._conn_refcount_lock:
+            MilvusVDB._conn_refcount[conn_key] = (
+                MilvusVDB._conn_refcount.get(conn_key, 0) + 1
+            )
+
+        # Register the MilvusClient's internal alias in the ORM connections registry.
+        # langchain_milvus.Milvus still uses ORM-style Collection/utility internally and
+        # needs the alias present in the ORM connections singleton.
+        #
+        # pymilvus version behaviour:
+        #   2.6.7-2.6.8: _using = uuid4().hex → auto-registered in ORM by _create_connection()
+        #   2.6.9:       _using = deterministic URI+token hash → auto-registered by create_connection()
+        #   2.6.10+:     _using = "cm-{id(handler)}" → NOT auto-registered; uses ConnectionManager
+        #
+        # For 2.6.7-2.6.9 has_connection() returns True immediately, so the block is skipped.
+        # For 2.6.10+ we register a dedicated ORM connection under this alias so that
+        # langchain_milvus's utility.has_collection(using=alias) / Collection(using=alias)
+        # calls succeed.  get_langchain_vectorstore() must use the SAME token so that
+        # ConnectionManager deduplicates and returns the same handler (same cm-id) as here.
+        self._langchain_compat_alias = self._client._using
+        if not connections.has_connection(self._langchain_compat_alias):
+            logger.debug(
+                "Registering MilvusClient alias %r in ORM connections for "
+                "LangchainMilvus compatibility (pymilvus 2.6.10+)",
+                self._langchain_compat_alias,
+            )
+            connections.connect(
+                self._langchain_compat_alias,
+                uri=self.vdb_endpoint,
+                token=self._get_milvus_token(),
+            )
+
         # Try to create nv_ingest Milvus instance for ingestion support
         # This is optional - only needed for ingestion operations
         self._nv_milvus = None
         try:
             from nv_ingest_client.util.milvus import Milvus as NvIngestMilvus
 
+            minio_endpoint = self._normalize_minio_endpoint(object_store_endpoint)
+
             # Build kwargs for NvIngestMilvus - match all supported parameters
             nv_milvus_kwargs = {
                 "collection_name": collection_name,
                 "milvus_uri": milvus_uri,
+                # nv_ingest_client still exposes this S3-compatible endpoint
+                # argument with a MinIO-specific name.
                 "minio_endpoint": minio_endpoint,
                 "access_key": access_key,
                 "secret_key": secret_key,
@@ -230,13 +287,40 @@ class MilvusVDB(VDBRagIngest):
                 "nvidia-rag[ingest] to be installed"
             )
 
+    def _release_connection(self) -> None:
+        """Decrement the shared refcount and close _client only when this is the last holder.
+
+        Must NOT raise — called from both close() and __del__.
+        Do NOT call connections.disconnect(): the ORM alias is shared across all
+        MilvusVDB/LangchainMilvus instances using the same ConnectionManager handler.
+        """
+        conn_key = getattr(self, "_connection_key", None)
+        client = getattr(self, "_client", None)
+        try:
+            if conn_key:
+                with MilvusVDB._conn_refcount_lock:
+                    count = MilvusVDB._conn_refcount.get(conn_key, 0)
+                    if count <= 1:
+                        MilvusVDB._conn_refcount.pop(conn_key, None)
+                        if client is not None and hasattr(client, "close"):
+                            client.close()
+                    else:
+                        MilvusVDB._conn_refcount[conn_key] = count - 1
+            else:
+                # Partially-constructed instance (init failed before key was set) —
+                # close directly without touching the refcount.
+                if client is not None and hasattr(client, "close"):
+                    client.close()
+        except Exception:
+            pass
+        self._connected = False
+
     def close(self):
         """Close the Milvus connection."""
         if self._connected:
             try:
-                connections.disconnect(self.connection_alias)
+                self._release_connection()
                 logger.debug(f"Disconnected from Milvus at {self.vdb_endpoint}")
-                self._connected = False
             except Exception as e:
                 logger.warning(f"Error disconnecting from Milvus: {e}")
 
@@ -247,6 +331,25 @@ class MilvusVDB(VDBRagIngest):
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Exit the runtime context."""
         self.close()
+
+    def __del__(self):
+        """Disconnect when the instance is garbage-collected (safety net if close() not used)."""
+        if getattr(self, "_connected", False):
+            self._release_connection()  # never raises
+
+    @staticmethod
+    def _normalize_minio_endpoint(endpoint: str | None) -> str | None:
+        """Return a MinIO SDK endpoint in host:port form."""
+        if not endpoint:
+            return endpoint
+
+        if "://" not in endpoint:
+            return endpoint
+
+        parsed = urlparse(endpoint)
+        if parsed.scheme:
+            return parsed.netloc or parsed.path
+        return endpoint
 
     @property
     def collection_name(self) -> str:
@@ -307,7 +410,7 @@ class MilvusVDB(VDBRagIngest):
             start_time = time.time()
 
             # Test basic operation - list collections
-            collections = utility.list_collections(using=self.connection_alias)
+            collections = self._client.list_collections()
 
             status["status"] = ServiceStatus.HEALTHY.value
             status["latency_ms"] = round((time.time() - start_time) * 1000, 2)
@@ -355,7 +458,7 @@ class MilvusVDB(VDBRagIngest):
         """
         Check if a collection exists in the Milvus index.
         """
-        if not utility.has_collection(collection_name, using=self.connection_alias):
+        if not self._client.has_collection(collection_name):
             return False
         return True
 
@@ -363,12 +466,8 @@ class MilvusVDB(VDBRagIngest):
         """
         Get the metadata schema for a collection in the Milvus index.
         """
-        client = MilvusClient(
-            self.vdb_endpoint,
-            token=self._get_milvus_token(),
-        )
-        entities = client.query(
-            collection_name=collection_name, filter=filter, limit=1000
+        entities = self._client.query(
+            collection_name=collection_name, filter=filter, limit=16384
         )
 
         if len(entities) == 0:
@@ -385,14 +484,14 @@ class MilvusVDB(VDBRagIngest):
         Get the list of collections in the Milvus index without metadata schema.
         """
         # Get list of collections
-        collections = utility.list_collections(using=self.connection_alias)
+        collections = self._client.list_collections()
 
         # Get document count for each collection
         collection_info = []
         for collection in collections:
             if collection not in SYSTEM_COLLECTIONS:
-                collection_obj = Collection(collection, using=self.connection_alias)
-                num_entities = collection_obj.num_entities
+                stats = self._client.get_collection_stats(collection)
+                num_entities = stats.get("row_count", 0)
                 collection_info.append(
                     {"collection_name": collection, "num_entities": num_entities}
                 )
@@ -454,8 +553,8 @@ class MilvusVDB(VDBRagIngest):
 
         for collection in collection_names:
             try:
-                if utility.has_collection(collection, using=self.connection_alias):
-                    utility.drop_collection(collection, using=self.connection_alias)
+                if self._client.has_collection(collection):
+                    self._client.drop_collection(collection)
                     deleted_collections.append(collection)
                     logger.info(f"Deleted collection: {collection}")
                 else:
@@ -475,16 +574,74 @@ class MilvusVDB(VDBRagIngest):
         logger.info(f"Collections deleted: {deleted_collections}")
         return deleted_collections, failed_collections
 
+    def _compact_and_wait(self, collection_name: str, timeout: float = 30.0) -> None:
+        """Trigger Milvus compaction and block until it completes.
+
+        After soft-deleting rows, Milvus's indexed_rows count still includes the
+        deleted rows until compaction physically removes them. Without compaction,
+        nvingest's wait_for_index calculates expected_rows using the stale (inflated)
+        count and the new rows can never reach that count, causing ingestion to fail.
+
+        This is a blocking (non-async) method. Callers in an async context must
+        dispatch it via asyncio.to_thread to avoid blocking the event loop.
+        """
+        # milvus-lite does not implement ManualCompaction (the RPC returns
+        # UNIMPLEMENTED). Calling it surfaces a pymilvus error log and our own
+        # warning even though the failure is benign. Lite endpoints are file
+        # URIs with no URL scheme, so skip the call up front.
+        if not self.url.scheme:
+            logger.debug(
+                "Skipping compaction on milvus-lite endpoint %s; ManualCompaction "
+                "is unimplemented in lite mode.",
+                self.vdb_endpoint,
+            )
+            return
+        try:
+            job_id = self._client.compact(collection_name)
+            logger.debug(
+                "Started compaction job %s for collection %s", job_id, collection_name
+            )
+            time.sleep(0.5)  # compaction never completes instantly; avoid a wasted poll
+            deadline = time.monotonic() + timeout
+            while time.monotonic() < deadline:
+                state = self._client.get_compaction_state(job_id)
+                if state == "Completed":
+                    logger.debug(
+                        "Compaction job %s completed for collection %s",
+                        job_id,
+                        collection_name,
+                    )
+                    return
+                time.sleep(0.5)
+            logger.warning(
+                "Compaction job %s for collection %s did not complete within %ss",
+                job_id,
+                collection_name,
+                timeout,
+            )
+        except Exception as e:
+            logger.warning(
+                "Compaction failed for collection %s: %s", collection_name, e
+            )
+
+    async def compact_and_wait_async(
+        self, collection_name: str, timeout: float = 30.0
+    ) -> None:
+        """Async wrapper for _compact_and_wait — safe to call from async contexts.
+
+        Dispatches the blocking compaction poll to a thread so the asyncio event
+        loop is not stalled while waiting.
+        """
+        import asyncio
+
+        await asyncio.to_thread(self._compact_and_wait, collection_name, timeout)
+
     def _delete_entities(self, collection_name: str, filter: str = ""):
         """
         Delete the metadata schema from the collection.
         """
-        client = MilvusClient(
-            self.vdb_endpoint,
-            token=self._get_milvus_token(),
-        )
-        if client.has_collection(collection_name):
-            client.delete(collection_name=collection_name, filter=filter)
+        if self._client.has_collection(collection_name):
+            self._client.delete(collection_name=collection_name, filter=filter)
         else:
             logger.warning(
                 f"Collection {collection_name} does not exist. Skipping deletion for filter {filter}"
@@ -533,22 +690,56 @@ class MilvusVDB(VDBRagIngest):
             return os.path.basename(metadata["source"]["source_name"])
         return None
 
+    @staticmethod
+    def _get_documents_list_bypass_from_document_info_map(
+        document_name_to_document_info_map: dict[str, dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """Return document list from document info only (no metadata, no Milvus scan)."""
+        return [
+            {
+                "document_name": name,
+                "metadata": {},
+                "document_info": info,
+            }
+            for name, info in document_name_to_document_info_map.items()
+        ]
+
     def _get_documents_list(
         self,
         collection_name: str,
         metadata_schema: list[dict[str, Any]],
         document_name_to_document_info_map: dict[str, dict[str, Any]],
+        force_get_metadata: bool = False,
     ) -> list[dict[str, Any]]:
         """
         Get the list of documents in a collection.
         """
-        collection = Collection(collection_name, using=self.connection_alias)
-        if not collection:
+        if not self._client.has_collection(collection_name):
             logger.warning(f"Collection {collection_name} not found.")
             return []
 
-        query_iterator = collection.query_iterator(
-            batch_size=1000, output_fields=["source", "content_metadata"], expr=""
+        if (len(document_name_to_document_info_map) > BYPASS_METADATA_THRESHOLD) and (
+            not force_get_metadata
+        ):
+            logger.warning(
+                "Document info entry count (%d) exceeds BYPASS_METADATA_THRESHOLD "
+                "(%d); skipping Milvus query iteration and returning documents from "
+                "the document info map only for collection %s. "
+                "Set force_get_metadata=True to run the Milvus iterator and "
+                "populate per-document metadata.",
+                len(document_name_to_document_info_map),
+                BYPASS_METADATA_THRESHOLD,
+                collection_name,
+            )
+            return self._get_documents_list_bypass_from_document_info_map(
+                document_name_to_document_info_map
+            )
+
+        query_iterator = self._client.query_iterator(
+            collection_name,
+            batch_size=1000,
+            output_fields=["source", "content_metadata"],
+            filter="",
         )
         filepaths_added = set()
         documents_list = []
@@ -595,16 +786,34 @@ class MilvusVDB(VDBRagIngest):
 
         return documents_list
 
-    def get_documents(self, collection_name: str) -> list[dict[str, Any]]:
+    def get_documents(
+        self,
+        collection_name: str,
+        *,
+        force_get_metadata: bool = False,
+    ) -> list[dict[str, Any]]:
         """
         Get the list of documents in a collection.
         """
         metadata_schema = self.get_metadata_schema(collection_name)
         # Get document info for each document in the collection
-        entities = self._get_milvus_entities(
-            DEFAULT_DOCUMENT_INFO_COLLECTION,
-            filter=f"info_type == 'document' and collection_name == '{collection_name}'",
-        )
+        try:
+            if not self.check_collection_exists(DEFAULT_DOCUMENT_INFO_COLLECTION):
+                logger.warning(
+                    f"Document info collection {DEFAULT_DOCUMENT_INFO_COLLECTION} does not exist."
+                    "Skipping document info retrieval."
+                )
+                entities = []
+            else:
+                entities = self._get_milvus_entities(
+                    DEFAULT_DOCUMENT_INFO_COLLECTION,
+                    filter=f"info_type == 'document' and collection_name == '{collection_name}'",
+                )
+        except Exception as e:
+            logger.error(
+                f"Error getting document info for collection {collection_name}: {e}"
+            )
+            entities = []
         document_name_to_document_info_map = {}
         for entity in entities:
             document_name_to_document_info_map[entity["document_name"]] = entity[
@@ -614,6 +823,7 @@ class MilvusVDB(VDBRagIngest):
             collection_name=collection_name,
             metadata_schema=metadata_schema,
             document_name_to_document_info_map=document_name_to_document_info_map,
+            force_get_metadata=force_get_metadata,
         )
         return documents_list
 
@@ -626,8 +836,6 @@ class MilvusVDB(VDBRagIngest):
         """
         Delete documents from a collection by source values.
         """
-        collection = Collection(collection_name, using=self.connection_alias)
-
         if result_dict is not None:
             result_dict["deleted"] = []
             result_dict["not_found"] = []
@@ -639,7 +847,10 @@ class MilvusVDB(VDBRagIngest):
                 f"{collection_name} at {self.vdb_endpoint}"
             )
             try:
-                resp = collection.delete(f"source['source_name'] == '{source_value}'")
+                resp = self._client.delete(
+                    collection_name=collection_name,
+                    filter=f"source['source_name'] == '{source_value}'",
+                )
                 self._delete_entities(
                     collection_name=DEFAULT_DOCUMENT_INFO_COLLECTION,
                     filter=f"info_type == 'document' and collection_name == '{collection_name}' and document_name == '{doc_name}'",
@@ -650,17 +861,30 @@ class MilvusVDB(VDBRagIngest):
                     f"Failed to delete document {source_value}, source name might be "
                     "available in the source field"
                 )
-                resp = collection.delete(f"source == '{source_value}'")
+                resp = self._client.delete(
+                    collection_name=collection_name,
+                    filter=f"source == '{source_value}'",
+                )
 
             if result_dict is not None:
-                if resp.delete_count == 0:
+                # MilvusClient.delete returns either a dict {"delete_count": N, ...}
+                # or, against older Milvus cores (including milvus-lite), the list
+                # of primary keys that were removed. Handle both so the lite path
+                # doesn't falsely report a successful delete as "not found".
+                if isinstance(resp, dict):
+                    delete_count = resp.get("delete_count", 0)
+                elif isinstance(resp, list):
+                    delete_count = len(resp)
+                else:
+                    delete_count = getattr(resp, "delete_count", 0)
+                if delete_count == 0:
                     logger.info(f"File {doc_name} does not exist in the vectorstore")
                     result_dict["not_found"].append(doc_name)
                 else:
                     result_dict["deleted"].append(doc_name)
 
         if source_values:
-            collection.flush()
+            self._client.flush(collection_name=collection_name)
 
         return True
 
@@ -681,11 +905,7 @@ class MilvusVDB(VDBRagIngest):
         schema.add_field(field_name="metadata_schema", datatype=DataType.JSON)
 
         # Check if the metadata schema collection exists
-        client = MilvusClient(
-            self.vdb_endpoint,
-            token=self._get_milvus_token(),
-        )
-        if not client.has_collection(DEFAULT_METADATA_SCHEMA_COLLECTION):
+        if not self._client.has_collection(DEFAULT_METADATA_SCHEMA_COLLECTION):
             # Create the metadata schema collection
             index_params = MilvusClient.prepare_index_params()
             index_params.add_index(
@@ -694,7 +914,7 @@ class MilvusVDB(VDBRagIngest):
                 index_type="FLAT",
                 metric_type="L2",
             )
-            client.create_collection(
+            self._client.create_collection(
                 collection_name=DEFAULT_METADATA_SCHEMA_COLLECTION,
                 schema=schema,
                 index_params=index_params,
@@ -710,13 +930,8 @@ class MilvusVDB(VDBRagIngest):
         """
         Add metadata schema to a collection.
         """
-        client = MilvusClient(
-            self.vdb_endpoint,
-            token=self._get_milvus_token(),
-        )
-
         # Delete the metadata schema from the collection
-        client.delete(
+        self._client.delete(
             collection_name=DEFAULT_METADATA_SCHEMA_COLLECTION,
             filter=f"collection_name == '{collection_name}'",
         )
@@ -727,7 +942,9 @@ class MilvusVDB(VDBRagIngest):
             "vector": [0.0] * 2,
             "metadata_schema": metadata_schema,
         }
-        client.insert(collection_name=DEFAULT_METADATA_SCHEMA_COLLECTION, data=data)
+        self._client.insert(
+            collection_name=DEFAULT_METADATA_SCHEMA_COLLECTION, data=data
+        )
         logger.info(
             f"Metadata schema added to the collection {collection_name}. "
             f"Metadata schema: {metadata_schema}"
@@ -775,11 +992,7 @@ class MilvusVDB(VDBRagIngest):
         schema.add_field(field_name="vector", datatype=DataType.FLOAT_VECTOR, dim=2)
 
         # Check if the document info collection exists
-        client = MilvusClient(
-            self.vdb_endpoint,
-            token=self._get_milvus_token(),
-        )
-        if not client.has_collection(DEFAULT_DOCUMENT_INFO_COLLECTION):
+        if not self._client.has_collection(DEFAULT_DOCUMENT_INFO_COLLECTION):
             # Create the document info collection
             index_params = MilvusClient.prepare_index_params()
             index_params.add_index(
@@ -788,7 +1001,7 @@ class MilvusVDB(VDBRagIngest):
                 index_type="FLAT",
                 metric_type="L2",
             )
-            client.create_collection(
+            self._client.create_collection(
                 collection_name=DEFAULT_DOCUMENT_INFO_COLLECTION,
                 schema=schema,
                 index_params=index_params,
@@ -828,16 +1041,17 @@ class MilvusVDB(VDBRagIngest):
         """
         Add document info to a collection.
         """
-        client = MilvusClient(
-            self.vdb_endpoint,
-            token=self._get_milvus_token(),
-        )
-
         # Since collection may have pre-ingested documents, we need to get the aggregated document info
         if info_type == "collection":
             info_value = self._get_aggregated_document_info(
                 collection_name=collection_name,
                 info_value=info_value,
+            )
+
+            # Delete the existing document info from the collection
+            self._client.delete(
+                collection_name=DEFAULT_DOCUMENT_INFO_COLLECTION,
+                filter=f"info_type == '{info_type}' and collection_name == '{collection_name}' and document_name == '{document_name}'",
             )
 
         # Add the document info to the collection
@@ -848,7 +1062,7 @@ class MilvusVDB(VDBRagIngest):
             "info_value": info_value,
             "vector": [0.0] * 2,
         }
-        client.insert(collection_name=DEFAULT_DOCUMENT_INFO_COLLECTION, data=data)
+        self._client.insert(collection_name=DEFAULT_DOCUMENT_INFO_COLLECTION, data=data)
         logger.debug(
             f"Document info added to the collection {collection_name}. "
             f"Document info: {info_type}, {document_name}, {info_value}"
@@ -861,13 +1075,21 @@ class MilvusVDB(VDBRagIngest):
         document_name: str,
     ) -> dict[str, Any]:
         """Get document info from a collection."""
-        filter = f"info_type == '{info_type}' and collection_name == '{collection_name}' and document_name == '{document_name}'"
-        entities = self._get_milvus_entities(DEFAULT_DOCUMENT_INFO_COLLECTION, filter)
-        if len(entities) > 0:
-            return entities[0]["info_value"]
-        else:
-            logger.debug(
-                f"No document info found for: {info_type}, {collection_name}, {document_name}"
+        try:
+            filter = f"info_type == '{info_type}' and collection_name == '{collection_name}' and document_name == '{document_name}'"
+            entities = self._get_milvus_entities(
+                DEFAULT_DOCUMENT_INFO_COLLECTION, filter
+            )
+            if len(entities) > 0:
+                return entities[0]["info_value"]
+            else:
+                logger.debug(
+                    f"No document info found for: {info_type}, {collection_name}, {document_name}"
+                )
+                return {}
+        except Exception as e:
+            logger.error(
+                f"Error getting document info for {info_type}, {collection_name}, {document_name}: {e}"
             )
             return {}
 
@@ -980,7 +1202,7 @@ class MilvusVDB(VDBRagIngest):
                                 self.config.vector_store.dense_weight,
                                 self.config.vector_store.sparse_weight,
                             ],
-                        }
+                        },
                     )
                 )
             else:
@@ -993,7 +1215,9 @@ class MilvusVDB(VDBRagIngest):
             retriever_chain = {"context": retriever_lambda} | RunnableAssign(
                 {"context": lambda input: input["context"]}
             )
-            logger.info("  [VDB Search] Performing vector similarity search in collection...")
+            logger.info(
+                "  [VDB Search] Performing vector similarity search in collection..."
+            )
             retriever_docs = retriever_chain.invoke(
                 query, config={"run_name": "retriever"}
             )
@@ -1002,8 +1226,14 @@ class MilvusVDB(VDBRagIngest):
 
             end_time = time.time()
             latency = end_time - start_time
-            logger.info("  [VDB Search] Retrieved %d documents from collection '%s'", len(docs), collection_name)
-            logger.info("  [VDB Search] Total VDB operation latency: %.4f seconds", latency)
+            logger.info(
+                "  [VDB Search] Retrieved %d documents from collection '%s'",
+                len(docs),
+                collection_name,
+            )
+            logger.info(
+                "  [VDB Search] Total VDB operation latency: %.4f seconds", latency
+            )
 
             return self._add_collection_name_to_retreived_docs(docs, collection_name)
         except (requests.exceptions.ConnectionError, ConnectionError, OSError) as e:
@@ -1019,6 +1249,7 @@ class MilvusVDB(VDBRagIngest):
             logger.exception("Connection error in retrieval_langchain: %s", e)
             raise APIError(error_msg, ErrorCodeMapping.SERVICE_UNAVAILABLE) from e
         finally:
+            release_nvidia_client_response(self.embedding_model)
             if token is not None:
                 otel_context.detach(token)
 
@@ -1039,19 +1270,22 @@ class MilvusVDB(VDBRagIngest):
             # ef is required for CPU search
             search_params.update({"ef": self.config.vector_store.ef})
 
-        password = (
-            self.config.vector_store.password.get_secret_value()
-            if self.config.vector_store.password is not None
-            else ""
-        )
+        # Use the same token derivation as __init__ so that pymilvus ConnectionManager
+        # deduplicates the connection (key = "address|token") and returns the same
+        # GrpcHandler.  Both MilvusClient instances will then share the same
+        # _using = "cm-{id(handler)}" alias, which is already registered in the ORM
+        # connections registry by the compat block in __init__.  A mismatched token
+        # (e.g. "" vs ":") would produce a different key, a different handler, and a
+        # different cm-alias that is NOT in the ORM registry, causing
+        # ConnectionNotExistException when langchain_milvus calls
+        # utility.has_collection(using=self.alias).
+        token = self._get_milvus_token()
         if self.config.vector_store.search_type == SearchType.HYBRID:
             vectorstore = LangchainMilvus(
                 self.embedding_model,
                 connection_args={
                     "uri": self.vdb_endpoint,
-                    "token": self._auth_token
-                    if self._auth_token
-                    else f"{self.config.vector_store.username}:{password}",
+                    "token": token,
                 },
                 builtin_function=BM25BuiltInFunction(
                     output_field_names="sparse", enable_match=True
@@ -1071,9 +1305,7 @@ class MilvusVDB(VDBRagIngest):
                 self.embedding_model,
                 connection_args={
                     "uri": self.vdb_endpoint,
-                    "token": self._auth_token
-                    if self._auth_token
-                    else f"{self.config.vector_store.username}:{password}",
+                    "token": token,
                 },
                 collection_name=collection_name,
                 index_params={
@@ -1143,9 +1375,13 @@ class MilvusVDB(VDBRagIngest):
             )
         except Exception as e:
             logger.error(
-                "Error generating embeddings or performing similarity search: %s", e
+                "Error generating embeddings or performing similarity search: %s",
+                e,
+                exc_info=True,
             )
             return []
+        finally:
+            release_nvidia_client_response(client)
 
         try:
             # ToDo: If no page number is provided, use content of same file (txt file)
@@ -1161,13 +1397,9 @@ class MilvusVDB(VDBRagIngest):
             f'source["source_name"] like "%{source_name}%"'
         )
         try:
-            milvus_client = MilvusClient(
-                self.vdb_endpoint,
-                token=self._get_milvus_token(),
-            )
             # Limit query results to reranker_top_k to avoid returning too many chunks
             # for pages with lots of content (e.g., text files or dense pages)
-            entities = milvus_client.query(
+            entities = self._client.query(
                 collection_name=collection_name,
                 filter=filter_expr_partial,
                 limit=final_limit,
@@ -1177,6 +1409,48 @@ class MilvusVDB(VDBRagIngest):
             return []
 
         # Convert Milvus entities to LangChain Document objects
+        docs: list[Document] = []
+        for item in entities:
+            page_content = item.get("text") or item.get("chunk") or ""
+            metadata = {
+                "source": item.get("source"),
+                "content_metadata": item.get("content_metadata", {}),
+            }
+            docs.append(Document(page_content=page_content, metadata=metadata))
+
+        return self._add_collection_name_to_retreived_docs(docs, collection_name)
+
+    def retrieve_chunks_by_filter(
+        self,
+        collection_name: str,
+        source_name: str,
+        page_numbers: list[int],
+        limit: int = 1000,
+    ) -> list[Document]:
+        """Retrieve ALL chunks matching (source, page_numbers) via filter-only query.
+
+        No semantic search - used for page context expansion when
+        fetch_full_page_context is enabled.
+        """
+        if not page_numbers:
+            return []
+
+        try:
+            # Build filter: page_number in [x,y,z] and source matches
+            page_list_str = ", ".join(str(p) for p in page_numbers)
+            filter_expr = (
+                f'content_metadata["page_number"] in [{page_list_str}] and '
+                f'source["source_name"] == "{source_name}"'
+            )
+            entities = self._client.query(
+                collection_name=collection_name,
+                filter=filter_expr,
+                limit=limit,
+            )
+        except Exception as e:
+            logger.error("Error in retrieve_chunks_by_filter: %s", e)
+            return []
+
         docs: list[Document] = []
         for item in entities:
             page_content = item.get("text") or item.get("chunk") or ""

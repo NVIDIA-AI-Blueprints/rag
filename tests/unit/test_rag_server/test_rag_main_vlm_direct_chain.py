@@ -15,6 +15,7 @@
 
 """Unit tests for VLM direct chain functionality (VLM query without collection)."""
 
+import logging
 import os
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -151,10 +152,117 @@ class TestLLMChainWithVLMInference:
                                 assert hasattr(result, "status_code")
 
     @pytest.mark.asyncio
-    async def test_llm_chain_routes_to_vlm_when_enabled(self):
-        """Test that _llm_chain routes to _vlm_direct_chain when VLM enabled."""
+    async def test_llm_chain_routes_to_vlm_when_enabled_with_images(self):
+        """Test that _llm_chain routes to _vlm_direct_chain when VLM enabled
+        and the query contains an image (default `vlm_to_llm_fallback=True`).
+        """
         mock_vdb_op = Mock(spec=VDBRag)
         rag = NvidiaRAG(vdb_op=mock_vdb_op)
+        # Default config (vlm_to_llm_fallback defaults to True).
+
+        llm_settings = {}
+        vlm_settings = {"vlm_model": "test_vlm"}
+        image_query = [
+            {"type": "text", "text": "Describe this image"},
+            {"type": "image_url", "image_url": {"url": "http://example.com/i.jpg"}},
+        ]
+
+        with patch.object(rag, "_vlm_direct_chain") as mock_vlm_chain:
+            mock_vlm_chain.return_value = Mock(
+                generator=async_gen_from_list(["vlm response"]), status_code=200
+            )
+
+            await rag._llm_chain(
+                llm_settings=llm_settings,
+                query=image_query,
+                chat_history=[],
+                model="test_model",
+                enable_citations=True,
+                enable_vlm_inference=True,  # VLM enabled, images present
+                vlm_settings=vlm_settings,
+            )
+
+            # Verify _vlm_direct_chain was called for an image-bearing query
+            mock_vlm_chain.assert_called_once()
+            call_kwargs = mock_vlm_chain.call_args[1]
+            assert call_kwargs["vlm_settings"] == vlm_settings
+            assert call_kwargs["query"] == image_query
+
+    @pytest.mark.asyncio
+    async def test_llm_chain_text_only_with_vlm_enabled_falls_back_to_llm(self):
+        """Regression for NVBug 6229403: when ``enable_vlm_inference=True`` but the
+        query and chat history contain no images, the documented
+        ``vlm_to_llm_fallback=True`` config (default) must route the request to
+        the LLM path instead of blindly calling the VLM endpoint.
+        """
+        mock_vdb_op = Mock(spec=VDBRag)
+        rag = NvidiaRAG(vdb_op=mock_vdb_op)
+        rag.config.vlm_to_llm_fallback = True  # explicit, matches default
+        rag.StreamingFilterThinkParser = Mock()
+
+        llm_settings = {
+            "model": "test_model",
+            "llm_endpoint": "http://test.com",
+            "temperature": 0.7,
+            "top_p": 0.9,
+            "max_tokens": 100,
+            "enable_guardrails": False,
+            "stop": [],
+        }
+
+        with patch.object(rag, "_vlm_direct_chain") as mock_vlm_chain, patch.object(
+            rag, "_handle_prompt_processing"
+        ) as mock_handle_prompt, patch(
+            "nvidia_rag.rag_server.main.get_llm"
+        ) as mock_get_llm, patch(
+            "nvidia_rag.rag_server.main.ChatPromptTemplate"
+        ) as mock_prompt_template, patch(
+            "nvidia_rag.rag_server.main.StrOutputParser"
+        ), patch(
+            "nvidia_rag.rag_server.main.generate_answer_async"
+        ) as mock_generate_answer, patch.dict(
+            os.environ, {"CONVERSATION_HISTORY": "0"}
+        ):
+            mock_handle_prompt.return_value = (
+                [("system", "test system")],
+                [],
+                [("user", "What is 2+2?")],
+            )
+            mock_prompt = Mock()
+            mock_prompt_template.from_messages.return_value = mock_prompt
+            mock_get_llm.return_value = Mock()
+            mock_chain = Mock()
+            mock_chain.stream.return_value = iter(["response"])
+            mock_prompt.__or__ = Mock(return_value=Mock())
+            mock_prompt.__or__.return_value.__or__ = Mock(return_value=Mock())
+            mock_prompt.__or__.return_value.__or__.return_value.__or__ = Mock(
+                return_value=mock_chain
+            )
+            mock_generate_answer.return_value = async_gen_from_list(["4"])
+
+            result = await rag._llm_chain(
+                llm_settings=llm_settings,
+                query="What is 2+2?",
+                chat_history=[],
+                model="test_model",
+                enable_citations=True,
+                enable_vlm_inference=True,  # VLM enabled but no images
+                vlm_settings={"vlm_model": "test_vlm"},
+            )
+
+            # VLM must NOT be called for text-only when fallback is enabled.
+            mock_vlm_chain.assert_not_called()
+            assert hasattr(result, "generator")
+            assert hasattr(result, "status_code")
+
+    @pytest.mark.asyncio
+    async def test_llm_chain_text_only_vlm_called_when_fallback_disabled(self):
+        """When ``vlm_to_llm_fallback=False`` (opt-out), VLM is called even on
+        a text-only query — preserves the explicit override semantics.
+        """
+        mock_vdb_op = Mock(spec=VDBRag)
+        rag = NvidiaRAG(vdb_op=mock_vdb_op)
+        rag.config.vlm_to_llm_fallback = False
 
         llm_settings = {}
         vlm_settings = {"vlm_model": "test_vlm"}
@@ -164,21 +272,58 @@ class TestLLMChainWithVLMInference:
                 generator=async_gen_from_list(["vlm response"]), status_code=200
             )
 
-            result = await rag._llm_chain(
+            await rag._llm_chain(
                 llm_settings=llm_settings,
-                query="test query",
+                query="text-only query",
                 chat_history=[],
                 model="test_model",
                 enable_citations=True,
-                enable_vlm_inference=True,  # VLM enabled
+                enable_vlm_inference=True,
                 vlm_settings=vlm_settings,
             )
 
-            # Verify _vlm_direct_chain was called
+            # Fallback explicitly disabled -> VLM must be called.
             mock_vlm_chain.assert_called_once()
-            call_kwargs = mock_vlm_chain.call_args[1]
-            assert call_kwargs["vlm_settings"] == vlm_settings
-            assert call_kwargs["query"] == "test query"
+            assert mock_vlm_chain.call_args[1]["query"] == "text-only query"
+
+    @pytest.mark.asyncio
+    async def test_llm_chain_routes_to_vlm_when_history_has_images(self):
+        """When the current query is text-only but chat history contains an
+        image, VLM should still be called (matches `_rag_chain` semantics).
+        """
+        mock_vdb_op = Mock(spec=VDBRag)
+        rag = NvidiaRAG(vdb_op=mock_vdb_op)
+        rag.config.vlm_to_llm_fallback = True  # default
+
+        history = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "Earlier turn"},
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": "http://example.com/prev.jpg"},
+                    },
+                ],
+            }
+        ]
+
+        with patch.object(rag, "_vlm_direct_chain") as mock_vlm_chain:
+            mock_vlm_chain.return_value = Mock(
+                generator=async_gen_from_list(["vlm response"]), status_code=200
+            )
+
+            await rag._llm_chain(
+                llm_settings={},
+                query="follow-up question",
+                chat_history=history,
+                model="test_model",
+                enable_citations=True,
+                enable_vlm_inference=True,
+                vlm_settings={"vlm_model": "test_vlm"},
+            )
+
+            mock_vlm_chain.assert_called_once()
 
 
 class TestVLMDirectChain:
@@ -834,9 +979,12 @@ class TestGenerateMethodVLMIntegration:
         rag.config.vlm.top_p = 0.9
         rag.config.vlm.max_tokens = 100
         rag.config.vlm.max_total_images = 5
+        # Text-only query: force VLM path so the mocked _vlm_direct_chain is used.
+        rag.config.vlm_to_llm_fallback = False
 
         with patch.object(rag, "_vlm_direct_chain") as mock_vlm_chain:
             with patch("nvidia_rag.rag_server.main.logger") as mock_logger:
+                mock_logger.getEffectiveLevel.return_value = logging.INFO
                 mock_vlm_chain.return_value = Mock(
                     generator=async_gen_from_list(["vlm response"]), status_code=200
                 )

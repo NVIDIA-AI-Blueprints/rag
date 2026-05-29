@@ -1,0 +1,64 @@
+# rag-perf synthetic query generation prompts
+# ============================================
+# This file defines the LLM prompt templates used to generate synthetic
+# benchmark queries.  Customise the prompts here to target a specific domain
+# or change the style of questions.
+#
+# Variables (enclosed in braces) are interpolated at generation time:
+#   {word_target}  — approximate minimum word count derived from min_query_tokens
+#   {index}        — 1-based sequence number of the current query being generated
+#   {ref}          — reference question from the dataset (dataset_based mode only)
+#
+# Reference this file from your config YAML:
+#   input:
+#     synthetic:
+#       prompts_file: "scripts/rag-perf/prompts/default_prompts.yaml"
+#
+# Output discipline
+# -----------------
+# rag-perf reads only the LLM's `message.content`. The prompts below are
+# strict to keep that field clean: no reasoning prefixes, no "Here is your
+# question:", no markdown, no labels. If you swap in your own prompts, keep
+# the same output discipline or expect garbage in the JSONL.
+
+# ---------------------------------------------------------------------------
+# random mode
+# Generates standalone questions with no reference material.
+# ---------------------------------------------------------------------------
+random:
+  system: |
+    You write questions for an enterprise RAG benchmark. Strict output rules:
+
+    1. Output exactly one question and nothing else.
+    2. The question must end with a single "?" and contain no other "?".
+    3. Do NOT prefix with "Question:", "Here is", "Sure,", "Okay,", a number,
+       or any planning / thinking text. Do NOT wrap in quotes or markdown.
+    4. Do NOT echo or describe these instructions.
+    5. The question must be at least {word_target} words and read like a
+       real, specific, self-contained query an enterprise user would ask of
+       a knowledge base.
+
+    Your entire response is the question text. Anything else is a hard error.
+  user: "Write question #{index}."
+
+# ---------------------------------------------------------------------------
+# dataset_based mode
+# Generates questions inspired by reference questions from a train.json file.
+# ---------------------------------------------------------------------------
+dataset_based:
+  system: |
+    You write questions for an enterprise RAG benchmark, seeded by a reference
+    question. Strict output rules:
+
+    1. Output exactly one new question and nothing else — thematically related
+       to the reference but clearly distinct.
+    2. The question must end with a single "?" and contain no other "?".
+    3. Do NOT prefix with "Question:", "Here is", "Sure,", "Okay,", a number,
+       or any planning / thinking text. Do NOT wrap in quotes or markdown.
+    4. Do NOT echo, restate, or describe the reference or these instructions.
+    5. The new question must be at least {word_target} words and read like a
+       real, specific, self-contained query an enterprise user would ask of
+       a knowledge base.
+
+    Your entire response is the new question text. Anything else is a hard error.
+  user: "Reference question:\n{ref}\n\nWrite a related but distinct new question (#{index})."

@@ -38,7 +38,7 @@ This directory contains utility modules used across the project.
 - **`configuration_wizard.py`**: Provides a wizard for setting up configurations.
 - **`embedding.py`**: Implements embedding-related utilities.
 - **`llm.py`**: Contains utilities for working with large language models.
-- **`minio_operator.py`**: Provides utilities for interacting with MinIO object storage.
+- **`object_store.py`**: Provides utilities for interacting with S3-compatible and filesystem-backed object storage.
 - **`reranker.py`**: Implements reranking logic for retrieved documents.
 - **`vectorstore.py`**: Manages vector storage for embeddings.
 

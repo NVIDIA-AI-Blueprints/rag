@@ -11,17 +11,17 @@ This guide explains the OCR (Optical Character Recognition) services available i
 
 The NVIDIA RAG Blueprint supports two OCR services:
 
-1. **NeMo Retriever Library OCR** (Default) - High-performance OCR service offering 2x+ faster performance
+1. **Nemotron OCR** (Default) - High-performance OCR service offering 2x+ faster performance
 2. **Paddle OCR** (Legacy) - General-purpose OCR service maintained for compatibility
 
 :::{tip}
-**NeMo Retriever Library OCR is now the default OCR service** and is recommended for all new deployments due to its superior performance and efficiency.
+**Nemotron OCR is now the default OCR service** and is recommended for all new deployments due to its superior performance and efficiency.
 :::
 
 
-## NeMo Retriever Library OCR (Default)
+## Nemotron OCR (Default)
 
-NeMo Retriever Library OCR is the default and recommended OCR service for the NVIDIA RAG Blueprint, providing:
+Nemotron OCR is the default and recommended OCR service for the NVIDIA RAG Blueprint, providing:
 
 - **2x+ faster performance** compared to Paddle OCR
 - Optimized text extraction from documents and images
@@ -38,24 +38,24 @@ NeMo Retriever Library OCR is the default and recommended OCR service for the NV
 
 ### Default Configuration
 
-By default, the NVIDIA RAG Blueprint is configured to use NeMo Retriever Library OCR with the following settings:
+By default, the NVIDIA RAG Blueprint is configured to use Nemotron OCR with the following settings. For Nemotron OCR, use `OCR_MODEL_NAME=pipeline` (the previous default `scene_text_ensemble` applied to the legacy NeMo Retriever OCR service).
 
 | Variable | Default Value | Description |
 |----------|---------------|-------------|
-| `OCR_GRPC_ENDPOINT` | `nemoretriever-ocr:8001` | gRPC endpoint for OCR service |
-| `OCR_HTTP_ENDPOINT` | `http://nemoretriever-ocr:8000/v1/infer` | HTTP endpoint for OCR service |
+| `OCR_GRPC_ENDPOINT` | `nemotron-ocr:8001` | gRPC endpoint for OCR service |
+| `OCR_HTTP_ENDPOINT` | `http://nemotron-ocr:8000/v1/infer` | HTTP endpoint for OCR service |
 | `OCR_INFER_PROTOCOL` | `grpc` | Communication protocol (grpc or http) |
-| `OCR_MODEL_NAME` | `scene_text_ensemble` | OCR model to use |
+| `OCR_MODEL_NAME` | `pipeline` | OCR model to use (use `pipeline` for Nemotron OCR; legacy `scene_text_ensemble` was used with NeMo Retriever OCR) |
 
 ### Hardware Requirements
 
-For detailed hardware requirements and GPU support, refer to the [NeMo Retriever Library OCR Support Matrix](https://docs.nvidia.com/nim/ingestion/image-ocr/1.2.0/support-matrix.html).
+For detailed hardware requirements and GPU support, refer to the [Nemotron OCR Support Matrix](https://docs.nvidia.com/nim/ingestion/image-ocr/1.3.0/support-matrix.html).
 
 ### Docker Configuration
 
-The NeMo Retriever Library OCR service is configured in the Docker Compose file with the following key settings:
+The Nemotron OCR service is configured in the Docker Compose file with the following key settings:
 
-- **Image**: `nvcr.io/nim/nvidia/nemoretriever-ocr-v1:1.2.0`
+- **Image**: `nvcr.io/nim/nvidia/nemotron-ocr-v1:1.3.0`
 - **GPU Memory**: 8192 MB (default)
 - **Max Batch Size**: 32 (default)
 - **Ports**: 8012 (HTTP), 8013 (gRPC), 8014 (Metrics)
@@ -72,7 +72,7 @@ export OCR_OMP_NUM_THREADS=8  # Set OpenMP threads
 
 ## Paddle OCR (Legacy)
 
-Paddle OCR is maintained as a legacy option for compatibility with existing workflows. While still functional, it is recommended to migrate to NeMo Retriever Library OCR for better performance.
+Paddle OCR is maintained as a legacy option for compatibility with existing workflows. While still functional, it is recommended to migrate to Nemotron OCR for better performance.
 
 ### When to Use Paddle OCR
 
@@ -92,7 +92,7 @@ The Paddle OCR service configuration:
 - **Ports**: 8009 (HTTP), 8010 (gRPC), 8011 (Metrics)
 
 :::{note}
-**Legacy Service**: Paddle OCR is maintained as a legacy option. For new deployments, we recommend using the default NeMo Retriever Library OCR service for better performance.
+**Legacy Service**: Paddle OCR is maintained as a legacy option. For new deployments, we recommend using the default Nemotron OCR service for better performance.
 :::
 
 
@@ -100,9 +100,9 @@ The Paddle OCR service configuration:
 
 ### Docker Compose Deployment
 
-#### Using NeMo Retriever Library OCR (Default)
+#### Using Nemotron OCR (Default)
 
-NeMo Retriever Library OCR is deployed by default when you follow the standard deployment guide. No additional configuration is required.
+Nemotron OCR is deployed by default when you follow the standard deployment guide. No additional configuration is required.
 
 1. **Prerequisites**: Follow the [deployment guide](deploy-docker-self-hosted.md) for standard setup.
 
@@ -112,7 +112,7 @@ NeMo Retriever Library OCR is deployed by default when you follow the standard d
    ```
 
    :::{tip}
-   NeMo Retriever Library OCR is included in the default profile and will start automatically.
+   Nemotron OCR is included in the default profile and will start automatically.
    :::
 
 3. **Verify Service Status**:
@@ -134,9 +134,9 @@ If you need to use Paddle OCR instead:
    export OCR_MODEL_NAME=paddle
    ```
 
-3. **Stop NeMo Retriever Library OCR if running**:
+3. **Stop Nemotron OCR if running**:
    ```bash
-   USERID=$(id -u) docker compose -f deploy/compose/nims.yaml down nemoretriever-ocr
+   USERID=$(id -u) docker compose -f deploy/compose/nims.yaml down nemotron-ocr
    ```
 
 4. **Deploy Paddle OCR Service**:
@@ -154,9 +154,9 @@ If you need to use Paddle OCR instead:
 
 ### NVIDIA-Hosted Deployment
 
-#### Using NeMo Retriever Library OCR (Default)
+#### Using Nemotron OCR (Default)
 
-Follow the standard [NVIDIA-hosted deployment guide](deploy-docker-nvidia-hosted.md) - NeMo Retriever Library OCR is the default configuration.
+Follow the standard [NVIDIA-hosted deployment guide](deploy-docker-nvidia-hosted.md) - Nemotron OCR is the default configuration.
 
 #### Using Paddle OCR with NVIDIA-Hosted Deployment
 
@@ -176,13 +176,13 @@ Follow the standard [NVIDIA-hosted deployment guide](deploy-docker-nvidia-hosted
 
 ### Helm Deployment
 
-#### Using NeMo Retriever Library OCR (Default)
+#### Using Nemotron OCR (Default)
 
-NeMo Retriever Library OCR is deployed by default with Helm installations. Follow the standard [Helm Deployment Guide](deploy-helm.md) - no additional OCR configuration is required.
+Nemotron OCR is deployed by default with Helm installations. Follow the standard [Helm Deployment Guide](deploy-helm.md) - no additional OCR configuration is required.
 
 #### Using Paddle OCR with Helm
 
-To use Paddle OCR instead of the default NeMo Retriever Library OCR:
+To use Paddle OCR instead of the default Nemotron OCR:
 
 Modify [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) to override the OCR service image:
 
@@ -190,7 +190,7 @@ Modify [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) to overr
 nv-ingest:
   nimOperator:
     # Override the OCR service to use PaddleOCR image
-    nemoretriever_ocr_v1:
+    ocr:
       enabled: true
       image:
         repository: nvcr.io/nim/baidu/paddleocr
@@ -202,7 +202,7 @@ nv-ingest:
 ```
 
 :::{note}
-The service endpoints (`OCR_GRPC_ENDPOINT` and `OCR_HTTP_ENDPOINT`) remain the same and do not need to be changed. The service name `nemoretriever-ocr-v1` is retained even when using the PaddleOCR image.
+The service endpoints (`OCR_GRPC_ENDPOINT` and `OCR_HTTP_ENDPOINT`) remain the same and do not need to be changed. The service name `nemotron-ocr-v1` is retained even when using the PaddleOCR image.
 :::
 
 After modifying [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml), apply the changes as described in [Change a Deployment](deploy-helm.md#change-a-deployment).
@@ -214,15 +214,15 @@ For detailed Helm deployment instructions, see [Helm Deployment Guide](deploy-he
 
 ### Environment Variables
 
-| Variable | Description | NeMo Retriever Library Default | Paddle Default | Required |
-|----------|-------------|------------------------|----------------|----------|
-| `OCR_GRPC_ENDPOINT` | gRPC endpoint for OCR service | `nemoretriever-ocr:8001` | `paddle:8001` | Yes (on-premises) |
-| `OCR_HTTP_ENDPOINT` | HTTP endpoint for OCR service | `http://nemoretriever-ocr:8000/v1/infer` | `http://paddle:8000/v1/infer` | Yes |
+| Variable | Description | Nemotron Default | Paddle Default | Required |
+|----------|-------------|------------------|----------------|----------|
+| `OCR_GRPC_ENDPOINT` | gRPC endpoint for OCR service | `nemotron-ocr:8001` | `paddle:8001` | Yes (on-premises) |
+| `OCR_HTTP_ENDPOINT` | HTTP endpoint for OCR service | `http://nemotron-ocr:8000/v1/infer` | `http://paddle:8000/v1/infer` | Yes |
 | `OCR_INFER_PROTOCOL` | Communication protocol | `grpc` | `grpc` | Yes |
-| `OCR_MODEL_NAME` | OCR model to use | `scene_text_ensemble` | `paddle` | Yes |
+| `OCR_MODEL_NAME` | OCR model to use | `pipeline` | `paddle` | Yes |
 | `OCR_MS_GPU_ID` | GPU device ID to use | `0` | `0` | No |
 | `OCR_CUDA_MEMORY_POOL_MB` | CUDA memory pool size | `8192` | `3072` | No |
-| `OCR_BATCH_SIZE` | Max batch size (NeMo only) | `32` | N/A | No |
+| `OCR_BATCH_SIZE` | Max batch size (Nemotron only) | `32` | N/A | No |
 | `OCR_OMP_NUM_THREADS` | OpenMP thread count | `8` | `8` | No |
 
 ### Advanced Configuration
@@ -238,26 +238,26 @@ Replace `workstation_ip` with the actual IP address of the machine running the O
 
 ## Switching Between OCR Services
 
-### Migrating from Paddle OCR to NeMo Retriever Library OCR
+### Migrating from Paddle OCR to Nemotron OCR
 
-To switch to the default NeMo Retriever Library OCR service:
+To switch to the default Nemotron OCR service:
 
 1. **Stop Paddle OCR**:
    ```bash
    USERID=$(id -u) docker compose -f deploy/compose/nims.yaml down paddle
    ```
 
-2. **Configure NeMo Retriever Library OCR environment variables**:
+2. **Configure Nemotron OCR environment variables**:
    ```bash
-   export OCR_GRPC_ENDPOINT=nemoretriever-ocr:8001
-   export OCR_HTTP_ENDPOINT=http://nemoretriever-ocr:8000/v1/infer
+   export OCR_GRPC_ENDPOINT=nemotron-ocr:8001
+   export OCR_HTTP_ENDPOINT=http://nemotron-ocr:8000/v1/infer
    export OCR_INFER_PROTOCOL=grpc
-   export OCR_MODEL_NAME=scene_text_ensemble
+   export OCR_MODEL_NAME=pipeline
    ```
 
-3. **Start NeMo Retriever Library OCR**:
+3. **Start Nemotron OCR**:
    ```bash
-   USERID=$(id -u) docker compose -f deploy/compose/nims.yaml up -d nemoretriever-ocr
+   USERID=$(id -u) docker compose -f deploy/compose/nims.yaml up -d nemotron-ocr
    ```
 
 4. **Restart Ingestor Server**:
@@ -265,15 +265,15 @@ To switch to the default NeMo Retriever Library OCR service:
    docker compose -f deploy/compose/docker-compose-ingestor-server.yaml up -d
    ```
 
-### Migrating from NeMo Retriever Library OCR to Paddle OCR
+### Migrating from Nemotron OCR to Paddle OCR
 
 Follow the steps in [Switching to Paddle OCR](#switching-to-paddle-ocr) above.
 
 
 ## Performance Comparison
 
-| Feature | NeMo Retriever Library OCR | Paddle OCR |
-|---------|-------------------|------------|
+| Feature | Nemotron OCR | Paddle OCR |
+|---------|--------------|------------|
 | **Performance** | 2x+ faster | Baseline |
 | **GPU Memory** | 8 GB (default) | 3 GB (default) |
 | **Batch Processing** | Up to 32 | Limited |
@@ -297,14 +297,14 @@ Follow the steps in [Switching to Paddle OCR](#switching-to-paddle-ocr) above.
 
 3. **Performance Issues**
    - Consider increasing `OCR_CUDA_MEMORY_POOL_MB`
-   - Adjust `OCR_BATCH_SIZE` for NeMo Retriever Library OCR
+   - Adjust `OCR_BATCH_SIZE` for Nemotron OCR
    - Verify GPU has sufficient memory
 
 ### Getting Logs
 
 ```bash
-# NeMo Retriever Library OCR logs
-docker logs nemoretriever-ocr
+# Nemotron OCR logs
+docker logs nemotron-ocr
 
 # Paddle OCR logs
 docker logs paddle
@@ -320,4 +320,3 @@ docker logs paddle
 - [Support Matrix](support-matrix.md)
 - [Troubleshoot](troubleshooting.md)
 - [Ingestion API Usage Notebook](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/ingestion_api_usage.ipynb)
-

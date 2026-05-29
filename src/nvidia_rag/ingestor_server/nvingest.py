@@ -24,14 +24,15 @@ import time
 from tarfile import tar_filter
 from typing import Any
 
+from nv_ingest_api.util.message_brokers.simple_message_broker import SimpleClient
 from nv_ingest_client.client import Ingestor, NvIngestClient
 
 from nvidia_rag.utils.common import sanitize_nim_url
 from nvidia_rag.utils.configuration import NvidiaRAGConfig
+from nvidia_rag.utils.llm import get_prompts
+from nvidia_rag.utils.object_store import DEFAULT_BUCKET_NAME
 from nvidia_rag.utils.observability.tracing import get_tracer, trace_function
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
-
-from nvidia_rag.utils.llm import get_prompts
 
 logger = logging.getLogger(__name__)
 TRACER = get_tracer("nvidia_rag.ingestor.nvingest")
@@ -39,8 +40,8 @@ TRACER = get_tracer("nvidia_rag.ingestor.nvingest")
 
 @trace_function("ingestor.nvingest.get_nv_ingest_client", tracer=TRACER)
 def get_nv_ingest_client(
-    config: NvidiaRAGConfig = None, 
-    get_lite_client: bool = False
+    config: NvidiaRAGConfig = None,
+    get_lite_client: bool = False,
 ) -> NvIngestClient:
     """
     Creates and returns NV-Ingest client
@@ -53,7 +54,6 @@ def get_nv_ingest_client(
         config = NvidiaRAGConfig()
 
     if get_lite_client:
-        from nv_ingest_api.util.message_brokers.simple_message_broker import SimpleClient
         logger.info("== Initializing NV-Ingest client instance for RAG Lite mode ...")
         client = NvIngestClient(
             message_client_allocator=SimpleClient,
@@ -83,23 +83,29 @@ def get_nv_ingest_ingestor(
     enable_pdf_split_processing: bool = False,
     pdf_split_processing_options: dict[str, Any] | None = None,
     prompts: dict | None = None,
+    store_images: bool = True,
 ):
     """
     Prepare NV-Ingest ingestor instance based on nv-ingest configuration
 
     Args:
-        nv_ingest_client_instance: NvIngestClient instance
-        filepaths: List of file paths to ingest
-        split_options: Options for splitting documents
-        vdb_op: VDB operator instance (None for shallow extraction without VDB operations)
-        remove_extract_method: Whether to remove extract_method from kwargs
-        extract_override: Optional dict to override extraction parameters.
+        - nv_ingest_client_instance: NvIngestClient instance
+        - filepaths: List of file paths to ingest
+        - split_options: Options for splitting documents
+        - vdb_op: VDB operator instance (None for shallow extraction without VDB operations)
+        - remove_extract_method: Whether to remove extract_method from kwargs
+        - extract_override: Optional dict to override extraction parameters.
                          If provided, these settings override config values.
                          Useful for text-only extraction for shallow summaries.
-        config: NvidiaRAGConfig instance. If None, creates a new one.
+        - config: NvidiaRAGConfig instance. If None, creates a new one.
+        - enable_pdf_split_processing: Whether PDF split processing is enabled
+        - pdf_split_processing_options: Options for PDF split processing
+        - prompts: Prompts dict for captioning (optional)
+        - store_images: When True and vdb_op is set, append NV-Ingest ``.store()`` for object storage
+            (citation assets). Set False for RAG Lite.
 
     Returns:
-        ingestor: Ingestor - NV-Ingest ingestor instance with configured tasks
+        - ingestor: Ingestor - NV-Ingest ingestor instance with configured tasks
     """
     if config is None:
         config = NvidiaRAGConfig()
@@ -152,16 +158,17 @@ def get_nv_ingest_ingestor(
         )
     ingestor = ingestor.extract(**extract_kwargs)
 
-    # Add splitting task (By default only works for text documents)
+    # Add splitting task.
+    # Split text/html/mp3 always; include paged docs (PDF/docx/pptx) only when
+    # enable_paged_doc_split is explicitly enabled.
     if split_options is not None:
-        split_source_types = ["text", "html", "mp3", "docx", "pptx"]
-        split_source_types = (
-            ["PDF"] + split_source_types
-            if config.nv_ingest.enable_pdf_splitter
-            else split_source_types
-        )
+        split_source_types = ["text", "html", "mp3"]
+        if config.nv_ingest.enable_paged_doc_split:
+            split_source_types.extend(["docx", "pptx", "PDF"])
         logger.info(
-            f"Post chunk split status: {config.nv_ingest.enable_pdf_splitter}. Splitting by: {split_source_types}"
+            "Post chunk split config: enable_paged_doc_split=%s. Splitting by: %s",
+            config.nv_ingest.enable_paged_doc_split,
+            split_source_types,
         )
         ingestor = ingestor.split(
             tokenizer=config.nv_ingest.tokenizer,
@@ -232,6 +239,37 @@ def get_nv_ingest_ingestor(
         ingestor = ingestor.save_to_disk(
             output_directory=output_directory,
             cleanup=not config.nv_ingest.save_to_disk,
+        )
+
+    # Add store task (object storage for citations / multimodal). Requires a collection
+    # prefix from vdb_op; skipped for shallow extraction (vdb_op=None) and RAG Lite.
+    if vdb_op is not None and store_images:
+        if config.object_store.backend == "filesystem":
+            storage_root = (
+                config.object_store.storage_root
+                / DEFAULT_BUCKET_NAME
+                / vdb_op.collection_name
+            )
+            storage_uri = storage_root.as_uri()
+            public_base_url = storage_uri
+            storage_options = {}
+        else:
+            storage_uri = f"s3://{DEFAULT_BUCKET_NAME}/{vdb_op.collection_name}"
+            public_base_url = f"s3://{DEFAULT_BUCKET_NAME}/{vdb_op.collection_name}"
+            storage_options = {
+                "key": config.object_store.access_key.get_secret_value(),
+                "secret": config.object_store.secret_key.get_secret_value(),
+                "client_kwargs": {
+                    "endpoint_url": config.object_store.nv_ingest_endpoint_url
+                },
+            }
+        logger.info("Storing extracted assets at storage URI: %s", storage_uri)
+        ingestor = ingestor.store(
+            structured=True,
+            images=True,
+            storage_uri=storage_uri,
+            storage_options=storage_options,
+            public_base_url=public_base_url,
         )
 
     # Add Vector-DB upload task (only when VDB operations are enabled)

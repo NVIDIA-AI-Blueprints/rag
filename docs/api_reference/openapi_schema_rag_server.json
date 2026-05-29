@@ -1,9 +1,9 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "APIs for NVIDIA RAG Server",
-    "description": "This API schema describes all the retriever endpoints exposed for NVIDIA RAG server Blueprint. Includes v1 APIs and v2 OpenAI-compatible APIs.",
-    "version": "2.0.0"
+    "title": "APIs for NVIDIA RAG Server (v1)",
+    "description": "This API schema describes all the retriever endpoints exposed for NVIDIA RAG server Blueprint",
+    "version": "1.0.0"
   },
   "paths": {
     "/v1/health": {
@@ -286,89 +286,6 @@
           }
         }
       }
-    },
-    "/v2/vector_stores/{vector_store_id}/search": {
-      "post": {
-        "tags": [
-          "Retrieval APIs"
-        ],
-        "summary": "Vector Store Search",
-        "description": "OpenAI-compatible vector store search endpoint (v2 only).\n\nThis is the primary OpenAI-compatible endpoint for vector store search.\nSearch within a vector store using natural language queries with full OpenAI API compatibility.\n\n**Note:** This endpoint is exclusive to the v2 API and is not available in v1.\n\nArgs:\n    request: FastAPI request object\n    vector_store_id: The ID of the vector store (collection name) to search\n    search_request: Search request parameters in OpenAI format\n\nReturns:\n    JSONResponse: Search results in OpenAI-compatible format",
-        "operationId": "vector_store_search_v2_vector_stores__vector_store_id__search_post",
-        "parameters": [
-          {
-            "name": "vector_store_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Vector Store Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/VectorStoreSearchRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/VectorStoreSearchResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "example": {
-                  "detail": "Invalid request parameters"
-                }
-              }
-            }
-          },
-          "499": {
-            "description": "Client Closed Request",
-            "content": {
-              "application/json": {
-                "example": {
-                  "detail": "The client cancelled the request"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal Server Error",
-            "content": {
-              "application/json": {
-                "example": {
-                  "detail": "Internal server error occurred"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
     }
   },
   "components": {
@@ -455,6 +372,30 @@
             ],
             "description": "Latency metrics associated with the request",
             "default": {}
+          },
+          "event_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Type",
+            "description": "Type of streaming chunk. None for non-streaming and for the regular (non-agentic) path's content chunks. Set for agentic-RAG streaming chunks; see ``nvidia_rag.rag_server.agentic_rag.streaming.EventType`` for the enumerated values (e.g. ``stage_start``, ``stage_end``, ``intermediate_reasoning``, ``intermediate_output``, ``final_reasoning``, ``final_answer``, ``agent_event``, ``error``)."
+          },
+          "stage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stage",
+            "description": "Name of the agentic-RAG graph node that produced this chunk (e.g. ``initial_retrieval``, ``plan``, ``execute``, ``synthesize``, ``verify``, ``verify_execute``). Pairs with ``event_type`` so clients can group reasoning by pipeline stage without parsing event_type. None for non-agentic responses."
           }
         },
         "type": "object",
@@ -661,7 +602,7 @@
             "type": "string",
             "title": "Vdb Endpoint",
             "description": "Endpoint url of the vector database server.",
-            "default": "http://milvus:19530"
+            "default": "http://elasticsearch:9200"
           },
           "collection_names": {
             "items": {
@@ -707,7 +648,7 @@
             "maxLength": 256,
             "title": "Embedding Model",
             "description": "Name of the embedding model used for vectorization.",
-            "default": "nvdev/nvidia/llama-nemotron-embed-1b-v2"
+            "default": "nvidia/llama-nemotron-embed-vl-1b-v2"
           },
           "embedding_endpoint": {
             "type": "string",
@@ -953,6 +894,18 @@
             "title": "Content",
             "description": "The input query/prompt to the pipeline. Can be a string for text-only messages, or an array of content objects for multimodal messages containing text and/or images.",
             "default": "Hello! What can you help me with?"
+          },
+          "reasoning_content": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reasoning Content",
+            "description": "Reasoning trace or intermediate output from the agentic RAG pipeline. Populated for streamed chunks whose ``event_type`` indicates a reasoning/intermediate event (stage announcements, intermediate-stage reasoning or output tokens, final-stage reasoning tokens). The user-facing answer is always streamed via ``content`` — this field is purely supplementary."
           }
         },
         "type": "object",
@@ -994,6 +947,18 @@
             "title": "Content",
             "description": "The input query/prompt to the pipeline. Can be a string for text-only messages, or an array of content objects for multimodal messages containing text and/or images.",
             "default": "Hello! What can you help me with?"
+          },
+          "reasoning_content": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reasoning Content",
+            "description": "Reasoning trace or intermediate output from the agentic RAG pipeline. Populated for streamed chunks whose ``event_type`` indicates a reasoning/intermediate event (stage announcements, intermediate-stage reasoning or output tokens, final-stage reasoning tokens). The user-facing answer is always streamed via ``content`` — this field is purely supplementary."
           }
         },
         "type": "object",
@@ -1203,19 +1168,33 @@
             "default": true
           },
           "temperature": {
-            "type": "number",
-            "maximum": 1,
-            "minimum": 0,
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1,
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Temperature",
-            "description": "The sampling temperature to use for text generation. The higher the temperature value is, the less deterministic the output text will be. It is not recommended to modify both temperature and top_p in the same call.",
+            "description": "The sampling temperature to use for text generation. The higher the temperature value is, the less deterministic the output text will be. If unset, the model/provider default is used. It is not recommended to modify both temperature and top_p in the same call.",
             "default": 0
           },
           "top_p": {
-            "type": "number",
-            "maximum": 1,
-            "minimum": 0.1,
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1,
+                "minimum": 0.1
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Top P",
-            "description": "The top-p sampling mass used for text generation. The top-p value determines the probability mass that is sampled at sampling time. For example, if top_p = 0.2, only the most likely tokens (summing to 0.2 cumulative probability) will be sampled. It is not recommended to modify both temperature and top_p in the same call.",
+            "description": "The top-p sampling mass used for text generation. The top-p value determines the probability mass that is sampled at sampling time. For example, if top_p = 0.2, only the most likely tokens (summing to 0.2 cumulative probability) will be sampled. If unset, the model/provider default is used. It is not recommended to modify both temperature and top_p in the same call.",
             "default": 1
           },
           "min_tokens": {
@@ -1237,7 +1216,7 @@
             "format": "int64",
             "title": "Max Tokens",
             "description": "The maximum number of tokens to generate in any given call. Note that the model is not aware of this value,  and generation will simply stop at the number of tokens specified.",
-            "default": 32768
+            "default": 16256
           },
           "min_thinking_tokens": {
             "type": "integer",
@@ -1273,7 +1252,7 @@
             "type": "string",
             "title": "Vdb Endpoint",
             "description": "Endpoint url of the vector database server.",
-            "default": "http://milvus:19530"
+            "default": "http://elasticsearch:9200"
           },
           "collection_names": {
             "items": {
@@ -1328,7 +1307,7 @@
             "pattern": "[\\s\\S]*",
             "title": "Model",
             "description": "Name of NIM LLM model to be used for inference.",
-            "default": "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+            "default": "nvidia/nemotron-3-super-120b-a12b"
           },
           "llm_endpoint": {
             "type": "string",
@@ -1342,7 +1321,7 @@
             "maxLength": 256,
             "title": "Embedding Model",
             "description": "Name of the embedding model used for vectorization.",
-            "default": "nvdev/nvidia/llama-nemotron-embed-1b-v2"
+            "default": "nvidia/llama-nemotron-embed-vl-1b-v2"
           },
           "embedding_endpoint": {
             "anyOf": [
@@ -1384,7 +1363,7 @@
             "maxLength": 256,
             "title": "Vlm Model",
             "description": "Name of the VLM model used for inference.",
-            "default": "nvidia/nemotron-nano-12b-v2-vl"
+            "default": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
           },
           "vlm_endpoint": {
             "anyOf": [
@@ -1469,6 +1448,25 @@
             "title": "Confidence Threshold",
             "description": "Minimum confidence score threshold for filtering chunks. Only chunks with relevance scores >= this threshold will be included. Range: 0.0 to 1.0. Default: 0.0 (no filtering). Note: Requires enable_reranker=True to generate relevance scores.",
             "default": 0
+          },
+          "agentic": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agentic",
+            "description": "Route this request through the agentic RAG pipeline (LangGraph plan-and-execute). When None (default), the server-level CONFIG.enable_agentic_rag config value is used. Explicitly passing True or False overrides the server default for this request.",
+            "default": false
+          },
+          "enable_streaming": {
+            "type": "boolean",
+            "title": "Enable Streaming",
+            "description": "Stream intermediate reasoning, stage announcements, and final-answer tokens as they are produced. Currently honored by the agentic RAG pipeline; the regular (non-agentic) pipeline always streams. When False on the agentic path, the graph runs to completion and the full answer is returned as a single SSE chunk (legacy behavior).",
+            "default": true
           }
         },
         "type": "object",
@@ -1516,12 +1514,26 @@
       "RagConfigurationDefaults": {
         "properties": {
           "temperature": {
-            "type": "number",
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Temperature",
             "description": "Default sampling temperature for generation"
           },
           "top_p": {
-            "type": "number",
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Top P",
             "description": "Default top-p sampling mass"
           },
@@ -1705,6 +1717,14 @@
             "title": "Score",
             "description": "Relevance score of the document",
             "default": 0
+          },
+          "stage": {
+            "type": "string",
+            "maxLength": 100,
+            "pattern": "[\\s\\S]*",
+            "title": "Stage",
+            "description": "Pipeline stage that produced this result (e.g. 'rag', 'initial_retrieval', 'execute', 'verify_execute')",
+            "default": "rag"
           },
           "metadata": {
             "$ref": "#/components/schemas/SourceMetadata"
@@ -1895,7 +1915,7 @@
           },
           "text": {
             "type": "string",
-            "maxLength": 131072,
+            "maxLength": 128000,
             "pattern": "[\\s\\S]*",
             "title": "Text",
             "description": "The text content"
@@ -1974,397 +1994,6 @@
           "type"
         ],
         "title": "ValidationError"
-      },
-      "ComparisonFilter": {
-        "properties": {
-          "key": {
-            "type": "string",
-            "title": "Key",
-            "description": "The key to compare against the value.",
-            "examples": [
-              "author",
-              "page_number",
-              "category"
-            ]
-          },
-          "type": {
-            "type": "string",
-            "title": "Type",
-            "description": "Specifies the comparison operator: eq (equals), ne (not equal), gt (greater than), gte (greater than or equal), lt (less than), lte (less than or equal), in, nin (not in).",
-            "examples": [
-              "eq",
-              "gt",
-              "in"
-            ]
-          },
-          "value": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "integer"
-              },
-              {
-                "type": "number"
-              },
-              {
-                "type": "boolean"
-              },
-              {
-                "items": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "integer"
-                    },
-                    {
-                      "type": "number"
-                    },
-                    {
-                      "type": "boolean"
-                    }
-                  ]
-                },
-                "type": "array"
-              }
-            ],
-            "title": "Value",
-            "description": "The value to compare against the attribute key; supports string, number, boolean, or array types.",
-            "examples": [
-              "John Doe",
-              5,
-              true,
-              [
-                "tech",
-                "science"
-              ]
-            ]
-          }
-        },
-        "type": "object",
-        "required": [
-          "key",
-          "type",
-          "value"
-        ],
-        "title": "ComparisonFilter",
-        "description": "A filter used to compare a specified attribute key to a given value using a defined comparison operation.",
-        "examples": [
-          {
-            "key": "<KEYNAME>",
-            "type": "eq",
-            "value": "John Doe"
-          }
-        ]
-      },
-      "CompoundFilter": {
-        "properties": {
-          "type": {
-            "type": "string",
-            "title": "Type",
-            "description": "Type of operation: 'and' or 'or'.",
-            "examples": [
-              "and",
-              "or"
-            ]
-          },
-          "filters": {
-            "items": {
-              "anyOf": [
-                {
-                  "$ref": "#/components/schemas/ComparisonFilter"
-                },
-                {
-                  "$ref": "#/components/schemas/CompoundFilter"
-                }
-              ]
-            },
-            "type": "array",
-            "title": "Filters",
-            "description": "Array of filters to combine. Items can be ComparisonFilter or CompoundFilter."
-          }
-        },
-        "type": "object",
-        "required": [
-          "type",
-          "filters"
-        ],
-        "title": "CompoundFilter",
-        "description": "Combine multiple filters using 'and' or 'or'.",
-        "examples": [
-          {
-            "filters": [
-              {
-                "key": "author",
-                "type": "eq",
-                "value": "John Doe"
-              },
-              {
-                "key": "page_number",
-                "type": "gte",
-                "value": 5
-              }
-            ],
-            "type": "and"
-          }
-        ]
-      },
-      "RankingOptions": {
-        "properties": {
-          "ranker": {
-            "type": "string",
-            "title": "Ranker",
-            "description": "Control re-ranking behavior. To enable: 'auto', 'true', 'on', 'enabled', 'yes', '1'. To disable (reduces latency): 'none', 'false', 'off', 'disabled', 'no', '0'. Case-insensitive.",
-            "default": "auto",
-            "examples": [
-              "auto",
-              "none",
-              "false"
-            ]
-          },
-          "score_threshold": {
-            "type": "number",
-            "maximum": 1,
-            "minimum": 0,
-            "title": "Score Threshold",
-            "description": "Minimum score threshold for filtering results. Only results with scores >= this value will be returned.",
-            "default": 0,
-            "examples": [
-              0,
-              0.5,
-              0.75
-            ]
-          }
-        },
-        "type": "object",
-        "title": "RankingOptions",
-        "description": "Ranking options for vector store search.",
-        "examples": [
-          {
-            "ranker": "auto",
-            "score_threshold": 0.5
-          }
-        ]
-      },
-      "VectorStoreSearchRequest": {
-        "properties": {
-          "query": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "items": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/TextContent"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ImageContent"
-                    }
-                  ]
-                },
-                "type": "array"
-              }
-            ],
-            "title": "Query",
-            "description": "A query string for a search or an array of content objects for multimodal queries.",
-            "examples": [
-              "What is the return policy?",
-              "Tell me about machine learning"
-            ]
-          },
-          "filters": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ComparisonFilter"
-              },
-              {
-                "$ref": "#/components/schemas/CompoundFilter"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Filters",
-            "description": "A filter to apply based on file attributes. Can be a comparison filter or compound filter."
-          },
-          "max_num_results": {
-            "type": "integer",
-            "maximum": 50,
-            "minimum": 1,
-            "title": "Max Num Results",
-            "description": "The maximum number of results to return. This number should be between 1 and 50 inclusive.",
-            "default": 10,
-            "examples": [
-              10,
-              5,
-              20
-            ]
-          },
-          "ranking_options": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/RankingOptions"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Ranking options for search."
-          },
-          "rewrite_query": {
-            "type": "boolean",
-            "title": "Rewrite Query",
-            "description": "Whether to rewrite the natural language query for vector search.",
-            "default": false,
-            "examples": [
-              false,
-              true
-            ]
-          }
-        },
-        "type": "object",
-        "required": [
-          "query"
-        ],
-        "title": "VectorStoreSearchRequest",
-        "description": "OpenAI-compatible vector store search request.",
-        "examples": [
-          {
-            "max_num_results": 10,
-            "query": "What is the return policy?",
-            "ranking_options": {
-              "ranker": "auto",
-              "score_threshold": 0.5
-            },
-            "rewrite_query": false
-          },
-          {
-            "max_num_results": 5,
-            "query": "machine learning basics",
-            "ranking_options": {
-              "ranker": "none",
-              "score_threshold": 0
-            },
-            "rewrite_query": true
-          }
-        ]
-      },
-      "VectorStoreSearchResponse": {
-        "properties": {
-          "object": {
-            "type": "string",
-            "title": "Object",
-            "description": "Object type identifier",
-            "default": "vector_store.search_results.page"
-          },
-          "search_query": {
-            "type": "string",
-            "title": "Search Query",
-            "description": "The search query that was executed"
-          },
-          "data": {
-            "items": {
-              "$ref": "#/components/schemas/VectorStoreSearchResultItem"
-            },
-            "type": "array",
-            "title": "Data",
-            "description": "List of search results"
-          },
-          "has_more": {
-            "type": "boolean",
-            "title": "Has More",
-            "description": "Whether there are more results available",
-            "default": false
-          },
-          "next_page": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Next Page",
-            "description": "Token for retrieving the next page of results"
-          }
-        },
-        "type": "object",
-        "required": [
-          "search_query",
-          "data"
-        ],
-        "title": "VectorStoreSearchResponse",
-        "description": "OpenAI-compatible vector store search response."
-      },
-      "VectorStoreSearchResultContent": {
-        "properties": {
-          "type": {
-            "type": "string",
-            "title": "Type",
-            "description": "Type of content (e.g., 'text')"
-          },
-          "text": {
-            "type": "string",
-            "title": "Text",
-            "description": "Text content"
-          }
-        },
-        "type": "object",
-        "required": [
-          "type",
-          "text"
-        ],
-        "title": "VectorStoreSearchResultContent",
-        "description": "Content object in search result."
-      },
-      "VectorStoreSearchResultItem": {
-        "properties": {
-          "file_id": {
-            "type": "string",
-            "title": "File Id",
-            "description": "Identifier for the file"
-          },
-          "filename": {
-            "type": "string",
-            "title": "Filename",
-            "description": "Name of the file"
-          },
-          "score": {
-            "type": "number",
-            "title": "Score",
-            "description": "Relevance score"
-          },
-          "attributes": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Attributes",
-            "description": "File attributes/metadata"
-          },
-          "content": {
-            "items": {
-              "$ref": "#/components/schemas/VectorStoreSearchResultContent"
-            },
-            "type": "array",
-            "title": "Content",
-            "description": "Content chunks from the file"
-          }
-        },
-        "type": "object",
-        "required": [
-          "file_id",
-          "filename",
-          "score",
-          "attributes",
-          "content"
-        ],
-        "title": "VectorStoreSearchResultItem",
-        "description": "Single search result item in OpenAI format."
       }
     }
   },

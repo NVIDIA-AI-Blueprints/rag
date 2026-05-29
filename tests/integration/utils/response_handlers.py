@@ -64,6 +64,7 @@ async def handle_streaming_response(
         # Parse streaming response and extract text content
         response_text = ""
         first_chunk_with_citations = None
+        last_usage: dict[str, Any] | None = None
 
         # Split by lines and process each chunk
         lines = raw_text.strip().split("\n")
@@ -85,6 +86,10 @@ async def handle_streaming_response(
             except json.JSONDecodeError:
                 logger.debug(f"Failed to parse JSON from line: {line}")
                 continue
+
+            usage = data.get("usage")
+            if isinstance(usage, dict) and usage:
+                last_usage = usage
 
             choices = data.get("choices", [])
             if not choices:
@@ -126,6 +131,9 @@ async def handle_streaming_response(
                 f"Citations found: {len(citations.get('results', []))} results"
             )
             result["citations"] = citations
+
+        if last_usage is not None:
+            result["usage"] = last_usage
 
         return result
 

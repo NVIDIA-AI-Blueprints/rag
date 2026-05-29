@@ -24,6 +24,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from nvidia_rag.ingestor_server.main import Mode, NvidiaRAGIngestor
+from nvidia_rag.utils.configuration import NvidiaRAGConfig
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
 
 
@@ -48,6 +49,69 @@ class TestNvidiaRAGIngestorInit:
             ValueError, match="Invalid mode: invalid_mode. Supported modes are:"
         ):
             NvidiaRAGIngestor(mode="invalid_mode")
+
+    def test_init_with_lancedb_and_non_nrl_backend_raises(self):
+        """LanceDB is only supported when INGESTOR_BACKEND is set to nrl."""
+        config = NvidiaRAGConfig.from_dict(
+            {"vector_store": {"name": "lancedb"}, "nv_ingest": {"backend": "nv_ingest"}}
+        )
+
+        with pytest.raises(
+            ValueError, match="LanceDB is supported only with the NRL ingestion backend"
+        ):
+            NvidiaRAGIngestor(config=config)
+
+    def test_init_lite_mode_overrides_non_milvus_backend(self, caplog):
+        """Regression for bug 6180805: lite mode must force vector_store.name='milvus'
+        even when the underlying config (e.g. notebooks/config.yaml) defaults to a
+        different backend like 'elasticsearch'. Without this override, create_collection
+        instantiates the wrong VDB backend with a milvus-lite.db file URL."""
+        config = NvidiaRAGConfig.from_dict(
+            {"vector_store": {"name": "elasticsearch", "url": "./milvus-lite.db"}}
+        )
+
+        with (
+            patch("nvidia_rag.ingestor_server.main.get_nv_ingest_client"),
+            caplog.at_level("WARNING", logger="nvidia_rag.ingestor_server.main"),
+        ):
+            ingestor = NvidiaRAGIngestor(config=config, mode=Mode.LITE)
+
+        assert ingestor.config.vector_store.name == "milvus"
+        assert any(
+            "Lite mode requires the Milvus backend" in rec.message
+            for rec in caplog.records
+        )
+
+    def test_init_lite_mode_keeps_milvus_backend_silently(self, caplog):
+        """When the caller already set vector_store.name='milvus', lite mode should
+        leave it alone and not emit an override warning."""
+        config = NvidiaRAGConfig.from_dict(
+            {"vector_store": {"name": "milvus", "url": "./milvus-lite.db"}}
+        )
+
+        with (
+            patch("nvidia_rag.ingestor_server.main.get_nv_ingest_client"),
+            caplog.at_level("WARNING", logger="nvidia_rag.ingestor_server.main"),
+        ):
+            ingestor = NvidiaRAGIngestor(config=config, mode=Mode.LITE)
+
+        assert ingestor.config.vector_store.name == "milvus"
+        assert not any(
+            "Lite mode requires the Milvus backend" in rec.message
+            for rec in caplog.records
+        )
+
+    def test_init_library_mode_preserves_non_milvus_backend(self):
+        """Non-lite modes must not touch vector_store.name — the override is
+        scoped to Mode.LITE only."""
+        config = NvidiaRAGConfig.from_dict(
+            {"vector_store": {"name": "elasticsearch"}}
+        )
+
+        with patch("nvidia_rag.ingestor_server.main.get_nv_ingest_client"):
+            ingestor = NvidiaRAGIngestor(config=config, mode=Mode.LIBRARY)
+
+        assert ingestor.config.vector_store.name == "elasticsearch"
 
     def test_init_with_valid_vdb_op(self):
         """Test initialization with valid VDBRag instance."""
@@ -239,6 +303,7 @@ class TestNvidiaRAGIngestorPrepareVDBOp:
     def test_prepare_vdb_op_without_vdb_op_with_collection_name(self, mock_get_vdb):
         """Test __prepare_vdb_op without vdb_op but with collection_name."""
         mock_vdb_op = Mock(spec=VDBRag)
+        mock_vdb_op.collection_name = "test_collection"
         mock_get_vdb.return_value = mock_vdb_op
 
         ingestor = NvidiaRAGIngestor()
@@ -251,9 +316,29 @@ class TestNvidiaRAGIngestorPrepareVDBOp:
         mock_get_vdb.assert_called_once()
 
     @patch("nvidia_rag.ingestor_server.main._get_vdb_op")
+    def test_prepare_vdb_op_returns_backend_canonicalized_name(self, mock_get_vdb):
+        """Backends that normalize (e.g. Elasticsearch lowercases index names) must
+        have their canonical name flow back to the caller so downstream summary
+        keys in Redis and object storage align with what GET /collections reports.
+        Regression guard for bug 6206269.
+        """
+        mock_vdb_op = Mock(spec=VDBRag)
+        mock_vdb_op.collection_name = "mycollection"
+        mock_get_vdb.return_value = mock_vdb_op
+
+        ingestor = NvidiaRAGIngestor()
+
+        result = ingestor._NvidiaRAGIngestor__prepare_vdb_op_and_collection_name(
+            collection_name="MyCollection"
+        )
+
+        assert result == (mock_vdb_op, "mycollection")
+
+    @patch("nvidia_rag.ingestor_server.main._get_vdb_op")
     def test_prepare_vdb_op_bypass_validation(self, mock_get_vdb):
         """Test __prepare_vdb_op with bypass_validation=True."""
         mock_vdb_op = Mock(spec=VDBRag)
+        mock_vdb_op.collection_name = None
         mock_get_vdb.return_value = mock_vdb_op
 
         ingestor = NvidiaRAGIngestor()
@@ -322,53 +407,3 @@ class TestNvidiaRAGIngestorLogResultInfo:
 
             # Should not raise any exception
             mock_logger.info.assert_called()
-
-
-class TestNvidiaRAGIngestorPutContentToMinio:
-    """Test cases for NvidiaRAGIngestor __put_content_to_minio method."""
-
-    def test_put_content_to_minio_success(self):
-        """Test putting content to MinIO successfully."""
-        ingestor = NvidiaRAGIngestor()
-
-        results = [[{"content": "test content", "metadata": {"source": "file.pdf"}}]]
-        collection_name = "test_collection"
-
-        # Set config and mock minio_operator on instance
-        ingestor.config.enable_citations = True
-        mock_minio = Mock()
-        mock_minio.put_content.return_value = "minio_url"
-        ingestor.minio_operator = mock_minio
-
-        # Should not raise any exception
-        ingestor._NvidiaRAGIngestor__put_content_to_minio(results, collection_name)
-
-    def test_put_content_to_minio_citations_disabled(self):
-        """Test putting content to MinIO when citations are disabled."""
-        ingestor = NvidiaRAGIngestor()
-
-        results = [[{"content": "test content", "metadata": {"source": "file.pdf"}}]]
-        collection_name = "test_collection"
-
-        # Set config on instance
-        ingestor.config.enable_citations = False
-
-        with patch("nvidia_rag.ingestor_server.main.logger") as mock_logger:
-            # Should not raise any exception and should log skip message
-            ingestor._NvidiaRAGIngestor__put_content_to_minio(results, collection_name)
-            mock_logger.info.assert_called()
-
-    def test_put_content_to_minio_empty_results(self):
-        """Test putting content to MinIO with empty results."""
-        ingestor = NvidiaRAGIngestor()
-
-        results = []
-        collection_name = "test_collection"
-
-        # Set config on instance
-        ingestor.config.enable_citations = True
-        mock_minio = Mock()
-        ingestor.minio_operator = mock_minio
-
-        # Should not raise any exception with empty results
-        ingestor._NvidiaRAGIngestor__put_content_to_minio(results, collection_name)

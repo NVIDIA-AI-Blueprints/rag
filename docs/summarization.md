@@ -300,7 +300,7 @@ Summary generation status is tracked using Redis to enable cross-service visibil
 
 **Status Tracking Behavior:**
 - Status information is stored in Redis with a 24-hour TTL (automatically cleaned up)
-- If Redis is unavailable, the system gracefully degrades: summaries will still be generated and stored in MinIO, but real-time status tracking will not be available
+- If Redis is unavailable, the system gracefully degrades: summaries will still be generated and stored in the configured object store, but real-time status tracking will not be available
 - Status values include: `PENDING`, `IN_PROGRESS` (with chunk progress), `SUCCESS`, `FAILED`, and `NOT_FOUND`
 - Redis semaphore counter is automatically reset when ingestor server starts, preventing stale values from crashed processes
 
@@ -316,7 +316,7 @@ For more details on customizing these prompts, see [Prompt Customization Guide](
 
 **Environment Variables:**
 
-- **SUMMARY_LLM**: The model name to use for summarization (default: `nvidia/llama-3.3-nemotron-super-49b-v1.5`)
+- **SUMMARY_LLM**: The model name to use for summarization (default: `nvidia/nemotron-3-super-120b-a12b`)
 - **SUMMARY_LLM_SERVERURL**: The server URL hosting the summarization model (default: empty, uses NVIDIA hosted API)
 - **SUMMARY_LLM_MAX_CHUNK_LENGTH**: Maximum chunk size in **tokens** for document processing (default: `9000`)
 - **SUMMARY_CHUNK_OVERLAP**: Overlap between chunks for summarization in **tokens** (default: `400`)
@@ -327,7 +327,7 @@ For more details on customizing these prompts, see [Prompt Customization Guide](
 ### Example Configuration
 
 ```bash
-export SUMMARY_LLM="nvidia/llama-3.3-nemotron-super-49b-v1.5"
+export SUMMARY_LLM="nvidia/nemotron-3-super-120b-a12b"
 export SUMMARY_LLM_SERVERURL=""
 export SUMMARY_LLM_MAX_CHUNK_LENGTH=9000
 export SUMMARY_CHUNK_OVERLAP=400
@@ -384,7 +384,7 @@ This approach ensures that even very large documents can be summarized effective
 - Summarization is only available if `generate_summary` was set to `true` during document upload.
 - If you request a summary for a document that was not ingested with summarization enabled, you'll receive a `NOT_FOUND` status.
 - Use the `blocking` parameter to control whether your request waits for summary generation or returns immediately with the current status.
-- The summary is pre-generated and stored in MinIO; repeated requests for the same document will return the same summary unless the document is re-uploaded or updated.
+- The summary is pre-generated and stored in the configured object store; repeated requests for the same document will return the same summary unless the document is re-uploaded or updated.
 - **Status Tracking**: Monitor summary generation progress in real-time using the `GET /summary` endpoint. The `IN_PROGRESS` status includes chunk-level progress (e.g., "Processing chunk 3/5").
 - **Redis Requirement**: For status tracking and global rate limiting to work across services, ensure Redis is configured and accessible to both ingestor and RAG servers. Without Redis, summaries will still be generated but status tracking and rate limiting will be unavailable.
 - **Timeout Handling**: When using `blocking=true`, set an appropriate timeout based on your document size. Large documents may take several minutes to summarize.

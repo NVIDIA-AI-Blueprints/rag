@@ -1,7 +1,7 @@
 # Models, Vector DB & Service API Keys
 
 ## When to Use
-User wants to change LLM, embedding, or ranking models; switch vector DB (Milvus/Elasticsearch); configure Milvus auth, GPU mode, or custom endpoints; set service-specific API keys; or build a custom VDB operator.
+User wants to change LLM, embedding, or ranking models; switch vector DB (Elasticsearch/Milvus); configure Elasticsearch or Milvus auth, GPU mode, or custom endpoints; set service-specific API keys; or build a custom VDB operator.
 
 ## Process
 
@@ -15,11 +15,12 @@ Detect the deployment mode before making changes. Docker: edit the active env fi
 5. Restart affected services (RAG server + ingestor for embedding changes)
 6. Verify via health endpoint
 
-### Switch Vector DB (Milvus to Elasticsearch)
+### Switch Vector DB
 1. Read `docs/change-vectordb.md` for full setup (Docker and Helm)
 2. Key env vars: `APP_VECTORSTORE_URL`, `APP_VECTORSTORE_NAME`
 3. Data is not migrated — re-ingest all documents after switching
-4. Elasticsearch requires port 9200; check for conflicts
+4. Elasticsearch is the default backend and uses `rag-vol-elasticsearch` in Docker Compose
+5. Elasticsearch requires port 9200; check for conflicts
 
 ### Milvus Configuration
 1. Read `docs/milvus-configuration.md` for indexing, GPU, auth, and tuning
@@ -39,7 +40,8 @@ Detect the deployment mode before making changes. Docker: edit the active env fi
 | Change LLM | `docs/change-model.md` | Set `APP_LLM_MODELNAME`, restart RAG server |
 | Change embedding | `docs/change-model.md` | Set `APP_EMBEDDINGS_MODELNAME` + `APP_EMBEDDINGS_DIMENSIONS`, re-ingest |
 | Change reranker | `docs/change-model.md` | Set `APP_RANKING_MODELNAME`, restart RAG server |
-| Switch to Elasticsearch | `docs/change-vectordb.md` | Create data dir, start ES profile, set env vars, re-ingest |
+| Use/default Elasticsearch | `docs/change-vectordb.md` | Start `vectordb.yaml`; data lives in `rag-vol-elasticsearch`; re-ingest when switching backends |
+| Switch to Milvus | `docs/change-vectordb.md` | Start `vectordb.yaml --profile milvus`, set env vars, re-ingest |
 | Milvus auth | `docs/milvus-configuration.md` | Download config, enable auth, mount volume |
 | Milvus CPU mode | `docs/milvus-configuration.md` | Change image, disable GPU env vars |
 | Custom VDB | `docs/change-vectordb.md` | Implement `VDBRag`, register in `__init__.py` |
@@ -49,10 +51,11 @@ Detect the deployment mode before making changes. Docker: edit the active env fi
 
 ## Agent-Specific Notes
 
+- Current default model family uses `nvidia/nemotron-3-super-120b-a12b`, `nvidia/llama-nemotron-embed-vl-1b-v2`, and `nvidia/llama-nemotron-rerank-1b-v2`.
 - Nemotron-3-Nano naming: `nvidia/nemotron-3-nano-30b-a3b` (NVIDIA-hosted) vs `nvidia/nemotron-3-nano` (self-hosted NIM) — same model, different names
 - Helm model changes go in `values.yaml` under `nimOperator` and `envVars` sections
 - Custom VDB operator requires implementing `VDBRag` base class — see `docs/change-vectordb.md` "Custom Vector Database Operator" section
-- VDB auth tokens can be passed per-request via `Authorization: Bearer <token>` header
+- VDB auth tokens can be passed per-request via `Authorization: Bearer <token>` header; Elasticsearch runtime auth supports API keys
 - Milvus password persists in etcd volume — to change after deployment, must delete volumes (destroys data)
 
 ## Notebooks

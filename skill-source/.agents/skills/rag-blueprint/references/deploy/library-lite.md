@@ -18,7 +18,7 @@
 4. Run the lite notebook: `jupyter lab notebooks/rag_library_lite_usage.ipynb`
 
 ## Agent-Specific Notes
-- `NVIDIA_API_KEY` (used by `nvidia_rag` package) must be set from `NGC_API_KEY`: `os.environ["NVIDIA_API_KEY"] = os.environ.get("NGC_API_KEY", "")`
+- `NVIDIA_API_KEY` (used by `nvidia_rag` package) must be set from `NGC_API_KEY`. In the notebook, copy the NGC key into the NVIDIA key variable: `NVIDIA_API_KEY` = value of `NGC_API_KEY` (falling back to empty string if unset)
 - Lite config lives in `notebooks/config.yaml`; override `server_url` for embeddings to the NVIDIA API Catalog endpoint (see `docs/python-client.md` for current URL), and set LLM/ranking URLs to empty string for cloud defaults
 - Milvus Lite runs embedded (no container), NV-Ingest runs as subprocess (no container)
 - Also install `python-dotenv jupyterlab` for notebook support

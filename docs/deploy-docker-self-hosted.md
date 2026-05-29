@@ -27,6 +27,8 @@ This deployment requires at least 200GB of free disk space to download and cache
 
 2. Install Docker Engine. For more information, see [Ubuntu](https://docs.docker.com/engine/install/ubuntu/).
 
+   a. Use Docker Engine 24.0 or later. Docker Engine 29.5.x is not supported for this release because it can fail to pull required NGC images.
+
 3. Install Docker Compose. For more information, see [install the Compose plugin](https://docs.docker.com/compose/install/linux/).
 
    a. Ensure the Docker Compose plugin version is 2.29.1 or later.
@@ -125,19 +127,21 @@ Use the following procedure to start all containers needed for this blueprint.
         compose-graphic-elements-1    Up 4 minutes
         compose-page-elements-1       Up 4 minutes
         nemotron-embedding-ms    Up 4 minutes (healthy)
-        compose-nemoretriever-ocr-1   Up 4 minutes
+        compose-nemotron-ocr-1   Up 4 minutes
         compose-table-structure-1     Up 4 minutes
      ```
 
 
-6. Start the vector db containers from the repo root.
+6. Persistent data (Elasticsearch, SeaweedFS, Milvus/etcd, LanceDB, and the ingestor-server scratch dir) is stored in dedicated `rag-vol-*` Docker named volumes, which Docker Compose creates automatically the first time you bring the stack up. For inspection, backup, and reset commands — and for migrating data from the legacy `deploy/compose/volumes/` host directory — see [Manage Persistent Data Volumes](troubleshooting.md#manage-persistent-data-volumes) in the troubleshooting guide.
+
+7. Start the vector db containers from the repo root.
 
    ```bash
    docker compose -f deploy/compose/vectordb.yaml up -d
    ```
 
 
-7. Start the ingestion containers from the repo root. This pulls the prebuilt containers from NGC and deploys them on your system.
+8. Start the ingestion containers from the repo root. This pulls the prebuilt containers from NGC and deploys them on your system.
 
    ```bash
    docker compose -f deploy/compose/docker-compose-ingestor-server.yaml up -d
@@ -190,7 +194,7 @@ Use the following procedure to start all containers needed for this blueprint.
     ```
 
 
-8. Start the RAG containers from the repo root. This pulls the prebuilt containers from NGC and deploys them on your system.
+9. Start the RAG containers from the repo root. This pulls the prebuilt containers from NGC and deploys them on your system.
 
     ```bash
     docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d
@@ -234,7 +238,7 @@ Use the following procedure to start all containers needed for this blueprint.
     ```
 
 
-9. Check the status of the deployment by running the following code.
+10. Check the status of the deployment by running the following code.
 
     ```bash
     docker ps --format "table {{.ID}}\t{{.Names}}\t{{.Status}}"
@@ -249,15 +253,14 @@ Use the following procedure to start all containers needed for this blueprint.
     03ff43bd4f53   compose-nv-ingest-ms-runtime-1   Up 2 minutes (healthy)
     fcc703631b71   ingestor-server                  Up 2 minutes
     77f64a4a5146   compose-redis-1                  Up 2 minutes
-    902445432dde   milvus-standalone                Up 3 minutes (healthy)
-    340bc8210a0d   milvus-minio                     Up 3 minutes (healthy)
-    0be702b87ad6   milvus-etcd                      Up 3 minutes (healthy)
+    902445432dde   elasticsearch                    Up 3 minutes (healthy)
+    340bc8210a0d   seaweedfs                        Up 3 minutes (healthy)
     62eabf1d9f65   nim-llm-ms                       Up 10 minutes (healthy)
     fe2751bfa734   nemotron-ranking-ms         Up 10 minutes (healthy)
     7b5ddabf8be7   compose-graphic-elements-1       Up 10 minutes
     ecfaa5190302   compose-page-elements-1          Up 10 minutes
     ea8c7fdf20d1   nemotron-embedding-ms       Up 10 minutes (healthy)
-    6d62008a9b42   compose-nemoretriever-ocr-1      Up 10 minutes
+    6d62008a9b42   compose-nemotron-ocr-1      Up 10 minutes
     969b9f5c987c   compose-table-structure-1        Up 10 minutes
     ```
 
@@ -324,7 +327,7 @@ After the first time you deploy the RAG Blueprint successfully, you can consider
    docker compose -f deploy/compose/docker-compose-*-server.yaml up -d --build
    ```
 
-- By default, GPU accelerated Milvus DB is deployed. You can choose the GPU ID to allocate by using the below env variable. For all service port mappings and GPU assignments, see [Service Port and GPU Reference](service-port-gpu-reference.md).
+By default, Elasticsearch is deployed as the vector database (`vectordb.yaml` with the default profile). Milvus is optional. You can start Milvus with `docker compose -f deploy/compose/vectordb.yaml --profile milvus up -d` and set `APP_VECTORSTORE_NAME` / `APP_VECTORSTORE_URL` for Milvus (see [Vector database configuration](change-vectordb.md)). When you use the Milvus profile, Milvus can run as GPU-accelerated. Choose the GPU ID using the following variables. For all service port mappings and GPU assignments, refer to [Service Port and GPU Reference](service-port-gpu-reference.md).
 
    ```bash
    VECTORSTORE_GPU_DEVICE_ID=0
@@ -333,7 +336,7 @@ After the first time you deploy the RAG Blueprint successfully, you can consider
 - For improved accuracy, consider enabling reasoning mode. For details, refer to [Enable thinking](./enable-nemotron-thinking.md).
 
 
-- NeMo Retriever Library OCR is now the default OCR service. To use legacy Paddle OCR instead, refer to [OCR Configuration Guide](nemoretriever-ocr.md).
+- Nemotron OCR is now the default OCR service. To use legacy Paddle OCR instead, refer to [OCR Configuration Guide](nemoretriever-ocr.md).
 
 - For advanced users who need direct filesystem access to extraction results, refer to [Ingestor Server Volume Mounting](mount-ingestor-volume.md).
 

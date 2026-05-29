@@ -19,6 +19,7 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
+from langchain_core.messages import AIMessageChunk
 from pydantic import ValidationError
 from pymilvus.exceptions import MilvusException, MilvusUnavailableException
 
@@ -37,6 +38,7 @@ from nvidia_rag.rag_server.response_generator import (
     TextContent,
     Usage,
     _is_empty_content,
+    configure_object_store_operator,
     error_response_generator,
     error_response_generator_async,
     escape_json_content,
@@ -380,30 +382,31 @@ class TestPrepareCitations:
         mock_doc1 = Mock()
         mock_doc1.page_content = "Test content 1"
         mock_doc1.metadata = {
-            "source": "test1.pdf",  # Use string source to trigger first if block
+            "source": {
+                "source_id": "test1.pdf",
+                "source_location": "s3://bucket/artifacts/img1.png",
+            },
             "content_metadata": {"page_number": 1, "type": "image", "location": []},
             "relevance_score": 0.8,
         }
         mock_doc2 = Mock()
         mock_doc2.page_content = "Test content 2"
         mock_doc2.metadata = {
-            "source": "test2.pdf",  # Use string source to trigger first if block
+            "source": {
+                "source_id": "test2.pdf",
+                "source_location": "s3://bucket/artifacts/img2.png",
+            },
             "content_metadata": {"page_number": 2, "type": "image", "location": []},
             "relevance_score": 0.9,
         }
         contexts = [mock_doc1, mock_doc2]
 
-        with (
-            patch(
-                "nvidia_rag.rag_server.response_generator.MINIO_OPERATOR"
-            ) as mock_minio,
-            patch(
-                "nvidia_rag.rag_server.response_generator.get_unique_thumbnail_id_from_result"
-            ) as mock_get_thumbnail,
-        ):
-            # Mock the MinIO operator methods to handle collection_name parameter
-            mock_minio.get_payload.return_value = {"content": "base64_thumbnail"}
-            mock_get_thumbnail.return_value = "test_thumbnail_id"
+        with patch(
+            "nvidia_rag.rag_server.response_generator.get_object_store_operator_instance"
+        ) as mock_get_object_store:
+            mock_op = Mock()
+            mock_op.get_object_from_uri.return_value = b"thumbnail-bytes"
+            mock_get_object_store.return_value = mock_op
 
             result = prepare_citations(contexts, enable_citations=True)
 
@@ -415,28 +418,27 @@ class TestPrepareCitations:
             assert result.results[1].document_name == "test2.pdf"
             assert result.results[1].metadata.page_number == 2
 
-    def test_prepare_citations_with_minio_thumbnails(self):
-        """Test prepare_citations with MinIO thumbnails"""
+    def test_prepare_citations_with_object_store_thumbnails(self):
+        """Test prepare_citations with object-store thumbnails."""
         mock_doc = Mock()
         mock_doc.page_content = "Test content"
         mock_doc.metadata = {
-            "source": {"source_id": "test.pdf"},
+            "source": {
+                "source_id": "test.pdf",
+                "source_location": "s3://bucket/artifacts/page.png",
+            },
             "content_metadata": {"page_number": 1, "type": "image", "location": []},
             "collection_name": "test_collection",
             "relevance_score": 0.8,
         }
         contexts = [mock_doc]
 
-        with (
-            patch(
-                "nvidia_rag.rag_server.response_generator.MINIO_OPERATOR"
-            ) as mock_minio,
-            patch(
-                "nvidia_rag.rag_server.response_generator.get_unique_thumbnail_id_from_result"
-            ) as mock_get_thumbnail,
-        ):
-            mock_minio.get_payload.return_value = {"content": "base64_thumbnail"}
-            mock_get_thumbnail.return_value = "test_thumbnail_id"
+        with patch(
+            "nvidia_rag.rag_server.response_generator.get_object_store_operator_instance"
+        ) as mock_get_object_store:
+            mock_op = Mock()
+            mock_op.get_object_from_uri.return_value = b"base64_thumbnail"
+            mock_get_object_store.return_value = mock_op
 
             result = prepare_citations(contexts, enable_citations=True)
 
@@ -444,6 +446,68 @@ class TestPrepareCitations:
             assert result.total_results == 1
             assert len(result.results) == 1
             assert result.results[0].document_name == "test.pdf"
+
+    def test_prepare_citations_with_filesystem_uri(self):
+        """Test prepare_citations with file-backed object-store artifacts."""
+        mock_doc = Mock()
+        mock_doc.page_content = "Filesystem content"
+        mock_doc.metadata = {
+            "source": {
+                "source_id": "test.pdf",
+                "source_location": "file:///tmp/object-store/default-bucket/artifacts/page.png",
+            },
+            "content_metadata": {"page_number": 1, "type": "image", "location": []},
+            "collection_name": "test_collection",
+            "relevance_score": 0.8,
+        }
+
+        with patch(
+            "nvidia_rag.rag_server.response_generator.get_object_store_operator_instance"
+        ) as mock_get_object_store:
+            mock_op = Mock()
+            mock_op.get_object_from_uri.return_value = b"filesystem-thumbnail"
+            mock_get_object_store.return_value = mock_op
+
+            result = prepare_citations([mock_doc], enable_citations=True)
+
+            assert isinstance(result, Citations)
+            assert result.total_results == 1
+            mock_op.get_object_from_uri.assert_called_once_with(
+                "file:///tmp/object-store/default-bucket/artifacts/page.png"
+            )
+
+    def test_object_store_operator_uses_configured_filesystem_backend(self, tmp_path):
+        """Test object-store singleton honors the configured filesystem backend."""
+        from nvidia_rag.rag_server import (
+            response_generator as response_generator_module,
+        )
+        from nvidia_rag.utils.configuration import NvidiaRAGConfig, ObjectStoreConfig
+
+        config = NvidiaRAGConfig(
+            object_store=ObjectStoreConfig(
+                backend="filesystem",
+                local_path=str(tmp_path / "object-store"),
+            )
+        )
+        configure_object_store_operator(config)
+        response_generator_module.OBJECT_STORE_OPERATOR = None
+
+        with patch(
+            "nvidia_rag.rag_server.response_generator.get_object_store_operator"
+        ) as mock_get_object_store_operator:
+            mock_operator = Mock()
+            mock_get_object_store_operator.return_value = mock_operator
+
+            operator = response_generator_module.get_object_store_operator_instance()
+
+            assert operator is mock_operator
+            mock_get_object_store_operator.assert_called_once()
+            call_config = mock_get_object_store_operator.call_args.kwargs["config"]
+            assert call_config.object_store.backend == "filesystem"
+            assert (
+                call_config.object_store.storage_root
+                == (tmp_path / "object-store").resolve()
+            )
 
 
 class TestErrorResponseGenerator:
@@ -697,13 +761,13 @@ class TestRetrieveSummary:
         """Test retrieve_summary with successful retrieval"""
         with (
             patch(
-                "nvidia_rag.rag_server.response_generator.MINIO_OPERATOR"
-            ) as mock_minio,
+                "nvidia_rag.rag_server.response_generator.OBJECT_STORE_OPERATOR"
+            ) as mock_object_store,
             patch(
                 "nvidia_rag.rag_server.response_generator.get_unique_thumbnail_id"
             ) as mock_get_thumbnail,
         ):
-            mock_minio.get_payload.return_value = {
+            mock_object_store.get_payload.return_value = {
                 "summary": "Test summary",
                 "file_name": "test.pdf",
             }
@@ -721,13 +785,13 @@ class TestRetrieveSummary:
         """Test retrieve_summary with exception"""
         with (
             patch(
-                "nvidia_rag.rag_server.response_generator.MINIO_OPERATOR"
-            ) as mock_minio,
+                "nvidia_rag.rag_server.response_generator.OBJECT_STORE_OPERATOR"
+            ) as mock_object_store,
             patch(
                 "nvidia_rag.rag_server.response_generator.get_unique_thumbnail_id"
             ) as mock_get_thumbnail,
         ):
-            mock_minio.get_payload.side_effect = Exception("Summary error")
+            mock_object_store.get_payload.side_effect = Exception("Summary error")
             mock_get_thumbnail.return_value = "test_thumbnail_id"
 
             result = await retrieve_summary(
@@ -768,6 +832,36 @@ class TestGenerateAnswerAsync:
         for chunk in result:
             assert chunk.startswith("data: ")
             assert chunk.endswith("\n\n")
+
+    @pytest.mark.asyncio
+    async def test_generate_answer_async_streams_reasoning_content(self):
+        """Reasoning chunks are serialized in delta.reasoning_content."""
+
+        async def mock_generator():
+            yield AIMessageChunk(
+                content="",
+                additional_kwargs={"reasoning_content": "thinking"},
+            )
+            yield AIMessageChunk(content="answer")
+
+        result = []
+        async for chunk in generate_answer_async(
+            generator=mock_generator(),
+            contexts=[],
+            model="test-model",
+        ):
+            result.append(json.loads(chunk.removeprefix("data: ")))
+
+        token_chunks = [
+            item for item in result if item["choices"][0].get("finish_reason") is None
+        ]
+        assert token_chunks[0]["choices"][0]["delta"]["content"] == ""
+        assert (
+            token_chunks[0]["choices"][0]["delta"]["reasoning_content"]
+            == "thinking"
+        )
+        assert token_chunks[1]["choices"][0]["delta"]["content"] == "answer"
+        assert token_chunks[1]["choices"][0]["delta"]["reasoning_content"] is None
 
     @pytest.mark.asyncio
     async def test_generate_answer_async_no_generator(self):
@@ -1011,12 +1105,15 @@ class TestErrorResponseGeneratorAsync:
 class TestPrepareCitationsErrorHandling:
     """Test prepare_citations error handling"""
 
-    def test_prepare_citations_minio_exception(self):
-        """Test prepare_citations with MinIO exception"""
+    def test_prepare_citations_object_store_exception(self):
+        """Test prepare_citations with object-store exception"""
         mock_doc = Mock()
         mock_doc.page_content = "Test content"
         mock_doc.metadata = {
-            "source": {"source_id": "test.pdf"},
+            "source": {
+                "source_id": "test.pdf",
+                "source_location": "s3://bucket/artifacts/page.png",
+            },
             "content_metadata": {
                 "type": "image",
                 "subtype": "image",
@@ -1026,23 +1123,19 @@ class TestPrepareCitationsErrorHandling:
             "collection_name": "test_collection",
         }
 
-        with (
-            patch(
-                "nvidia_rag.rag_server.response_generator.get_unique_thumbnail_id_from_result"
-            ) as mock_get_thumbnail,
-            patch(
-                "nvidia_rag.rag_server.response_generator.get_minio_operator_instance"
-            ) as mock_minio_getter,
-        ):
-            mock_get_thumbnail.return_value = "test_thumbnail_id"
-            mock_minio = Mock()
-            mock_minio.get_payload.side_effect = Exception("MinIO error")
-            mock_minio_getter.return_value = mock_minio
+        with patch(
+            "nvidia_rag.rag_server.response_generator.get_object_store_operator_instance"
+        ) as mock_object_store_getter:
+            mock_object_store = Mock()
+            mock_object_store.get_object_from_uri.side_effect = Exception(
+                "Object-store error"
+            )
+            mock_object_store_getter.return_value = mock_object_store
 
             result = prepare_citations([mock_doc], enable_citations=True)
 
             assert isinstance(result, Citations)
-            # When MinIO fails, content is empty, so citation is not added (content check fails)
+            # When object-store fetch fails, content is empty, so citation is not added
             assert result.total_results == 0
 
     def test_prepare_citations_with_document_type_audio(self):
@@ -1069,15 +1162,15 @@ class TestRetrieveSummaryEdgeCases:
         """Test retrieve_summary when not found and wait=False"""
         with (
             patch(
-                "nvidia_rag.rag_server.response_generator.get_minio_operator_instance"
-            ) as mock_minio_getter,
+                "nvidia_rag.rag_server.response_generator.get_object_store_operator_instance"
+            ) as mock_object_store_getter,
             patch(
                 "nvidia_rag.rag_server.response_generator.get_unique_thumbnail_id"
             ) as mock_get_thumbnail,
         ):
-            mock_minio = Mock()
-            mock_minio.get_payload.return_value = None
-            mock_minio_getter.return_value = mock_minio
+            mock_object_store = Mock()
+            mock_object_store.get_payload.return_value = None
+            mock_object_store_getter.return_value = mock_object_store
             mock_get_thumbnail.return_value = "test_thumbnail_id"
 
             result = await retrieve_summary(
@@ -1094,8 +1187,8 @@ class TestRetrieveSummaryEdgeCases:
         """Test retrieve_summary with timeout"""
         with (
             patch(
-                "nvidia_rag.rag_server.response_generator.get_minio_operator_instance"
-            ) as mock_minio_getter,
+                "nvidia_rag.rag_server.response_generator.get_object_store_operator_instance"
+            ) as mock_object_store_getter,
             patch(
                 "nvidia_rag.rag_server.response_generator.get_unique_thumbnail_id"
             ) as mock_get_thumbnail,
@@ -1104,9 +1197,9 @@ class TestRetrieveSummaryEdgeCases:
             ) as mock_handler,
             patch("asyncio.sleep", new_callable=AsyncMock),
         ):
-            mock_minio = Mock()
-            mock_minio.get_payload.return_value = None
-            mock_minio_getter.return_value = mock_minio
+            mock_object_store = Mock()
+            mock_object_store.get_payload.return_value = None
+            mock_object_store_getter.return_value = mock_object_store
             mock_get_thumbnail.return_value = "test_thumbnail_id"
             mock_handler.is_available.return_value = True
             mock_handler.get_status.return_value = None
@@ -1126,8 +1219,8 @@ class TestRetrieveSummaryEdgeCases:
         """Test retrieve_summary with Redis unavailable fallback"""
         with (
             patch(
-                "nvidia_rag.rag_server.response_generator.get_minio_operator_instance"
-            ) as mock_minio_getter,
+                "nvidia_rag.rag_server.response_generator.get_object_store_operator_instance"
+            ) as mock_object_store_getter,
             patch(
                 "nvidia_rag.rag_server.response_generator.get_unique_thumbnail_id"
             ) as mock_get_thumbnail,
@@ -1136,9 +1229,9 @@ class TestRetrieveSummaryEdgeCases:
             ) as mock_handler,
             patch("asyncio.sleep", new_callable=AsyncMock),
         ):
-            mock_minio = Mock()
-            mock_minio.get_payload.return_value = {"summary": "Test summary"}
-            mock_minio_getter.return_value = mock_minio
+            mock_object_store = Mock()
+            mock_object_store.get_payload.return_value = {"summary": "Test summary"}
+            mock_object_store_getter.return_value = mock_object_store
             mock_get_thumbnail.return_value = "test_thumbnail_id"
             mock_handler.is_available.return_value = False
 
@@ -1157,8 +1250,8 @@ class TestRetrieveSummaryEdgeCases:
         """Test retrieve_summary when status is SUCCESS but no content"""
         with (
             patch(
-                "nvidia_rag.rag_server.response_generator.get_minio_operator_instance"
-            ) as mock_minio_getter,
+                "nvidia_rag.rag_server.response_generator.get_object_store_operator_instance"
+            ) as mock_object_store_getter,
             patch(
                 "nvidia_rag.rag_server.response_generator.get_unique_thumbnail_id"
             ) as mock_get_thumbnail,
@@ -1167,9 +1260,9 @@ class TestRetrieveSummaryEdgeCases:
             ) as mock_handler,
             patch("asyncio.sleep", new_callable=AsyncMock),
         ):
-            mock_minio = Mock()
-            mock_minio.get_payload.return_value = None
-            mock_minio_getter.return_value = mock_minio
+            mock_object_store = Mock()
+            mock_object_store.get_payload.return_value = None
+            mock_object_store_getter.return_value = mock_object_store
             mock_get_thumbnail.return_value = "test_thumbnail_id"
             mock_handler.is_available.return_value = True
             mock_handler.get_status.return_value = {"status": "SUCCESS"}
@@ -1189,8 +1282,8 @@ class TestRetrieveSummaryEdgeCases:
         """Test retrieve_summary when status is FAILED"""
         with (
             patch(
-                "nvidia_rag.rag_server.response_generator.get_minio_operator_instance"
-            ) as mock_minio_getter,
+                "nvidia_rag.rag_server.response_generator.get_object_store_operator_instance"
+            ) as mock_object_store_getter,
             patch(
                 "nvidia_rag.rag_server.response_generator.get_unique_thumbnail_id"
             ) as mock_get_thumbnail,
@@ -1199,8 +1292,8 @@ class TestRetrieveSummaryEdgeCases:
             ) as mock_handler,
             patch("asyncio.sleep", new_callable=AsyncMock),
         ):
-            mock_minio = Mock()
-            mock_minio_getter.return_value = mock_minio
+            mock_object_store = Mock()
+            mock_object_store_getter.return_value = mock_object_store
             mock_get_thumbnail.return_value = "test_thumbnail_id"
             mock_handler.is_available.return_value = True
             mock_handler.get_status.return_value = {

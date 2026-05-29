@@ -1,4 +1,5 @@
-# Copyright (c) 2025-%Y, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,9 +25,9 @@ import os
 import sys
 
 project = " NVIDIA RAG blueprint"
-copyright = "2025-%Y, NVIDIA Corporation"
-author = "NVIDIA Corporation"
-release = "2.5.1"
+copyright = "2025, NVIDIA CORPORATION & AFFILIATES"
+author = "NVIDIA CORPORATION & AFFILIATES"
+release = "2.6.0"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration

@@ -25,8 +25,8 @@ if [ -n "$ARTIFACTORY_VERSION" ]; then
     echo "Using custom Artifactory version: $ARTIFACTORY_VERSION"
     ARTIFACTORY_VERSION_FINAL=$ARTIFACTORY_VERSION
 else
-    echo "Using default Artifactory version: 2.5.1"
-    ARTIFACTORY_VERSION_FINAL="2.5.1"
+    echo "Using default Artifactory version: 2.6.0.rc1"
+    ARTIFACTORY_VERSION_FINAL="2.6.0.rc1"
 fi
 
 # Build first wheel for GitLab Package Registry

@@ -1,17 +1,21 @@
 services:
   nim-llm:
     container_name: nim-llm-ms
-    image: nvcr.io/nim/nvidia/llama-3.3-nemotron-super-49b-v1.5:1.14.0
+    image: nvcr.io/nim/nvidia/nemotron-3-super-120b-a12b:1.8.0
     shm_size: 16GB
     volumes:
     - ${MODEL_DIRECTORY:-./}:/opt/nim/.cache
-    user: "${USERID}"
+    # TODO: Change user to "${USERID}" when fix is available in the image.
+    user: "0"
     ports:
     - "8999:8000"
     expose:
     - "8000"
     environment:
       NGC_API_KEY: ${NGC_API_KEY}
+      NIM_ENABLE_CHUNKED_PREFILL: "1"
+      NCCL_NVLS_ENABLE: "0"
+      VLLM_USE_FLASHINFER_MOE_FP8: "0"
     ulimits:
       nofile:
         soft: 65536
@@ -22,7 +26,7 @@ services:
           devices:
             - driver: nvidia
               #count: ${INFERENCE_GPU_COUNT:-all}
-              device_ids: ['${LLM_MS_GPU_ID:-1}']
+              device_ids: ['${LLM_MS_GPU_ID:-1}', '${LLM_MS_GPU_ID2:-2}']
               capabilities: [gpu]
     healthcheck:
       test: ["CMD", "python3", "-c", "import requests; requests.get('http://localhost:8000/v1/health/ready')"]
@@ -59,7 +63,7 @@ services:
       timeout: 20s
       retries: 3
       start_period: 10m
-    profiles: ["", "rag", "ingest", "text-embed", "vlm-generation"]
+    profiles: ["text-embed"]
 
   nemotron-vlm-embedding-ms:
     container_name: nemotron-vlm-embedding-ms
@@ -89,7 +93,7 @@ services:
       timeout: 20s
       retries: 3
       start_period: 10m
-    profiles: ["vlm-embed", "vlm-ingest"]
+    profiles: ["", "rag", "ingest", "vlm-embed", "vlm-rag", "vlm-generation"]
 
   nemotron-ranking-ms:
     container_name: nemotron-ranking-ms
@@ -119,6 +123,35 @@ services:
               capabilities: [gpu]
     profiles: ["", "rag", "vlm-generation"]
 
+  nemotron-ranking-vl-ms:
+    container_name: nemotron-ranking-vl-ms
+    image: nvcr.io/nim/nvidia/llama-nemotron-rerank-vl-1b-v2:1.11.0
+    volumes:
+    - ${MODEL_DIRECTORY:-./}:/opt/nim/.cache
+    ports:
+    - "1978:8000"
+    expose:
+    - "8000"
+    environment:
+      NGC_API_KEY: ${NGC_API_KEY}
+    user: "${USERID}"
+    shm_size: 16GB
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              # count: ${INFERENCE_GPU_COUNT:-all}
+              device_ids: ['${RANKING_VL_MS_GPU_ID:-0}']
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/v1/health/ready"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+      start_period: 10m
+    profiles: ["vlm-rerank", "vlm-rag"]
+
   page-elements:
     image: ${YOLOX_IMAGE:-nvcr.io/nim/nvidia/nemotron-page-elements-v3}:${YOLOX_TAG:-1.8.0}
     shm_size: 16gb
@@ -130,11 +163,8 @@ services:
     environment:
       - NIM_HTTP_API_PORT=8000
       - NIM_TRITON_LOG_VERBOSE=1
-      - NIM_TRITON_RATE_LIMIT=3
       - NGC_API_KEY=${NIM_NGC_API_KEY:-${NGC_API_KEY:-ngcapikey}}
-      - CUDA_VISIBLE_DEVICES=0
       - NIM_TRITON_MAX_BATCH_SIZE=${PAGE_ELEMENTS_BATCH_SIZE:-32}
-      - NIM_TRITON_CUDA_MEMORY_POOL_MB=${PAGE_ELEMENTS_CUDA_MEMORY_POOL_MB:-2048}
       - NIM_TRITON_CPU_THREADS_PRE_PROCESSOR=${PAGE_ELEMENTS_CPU_THREADS_PRE_PROCESSOR:-2}
       - NIM_TRITON_CPU_THREADS_POST_PROCESSOR=${PAGE_ELEMENTS_CPU_THREADS_POST_PROCESSOR:-1}
       - OMP_NUM_THREADS=2
@@ -155,7 +185,7 @@ services:
             - driver: nvidia
               device_ids: ['${YOLOX_MS_GPU_ID:-0}']
               capabilities: [gpu]
-    profiles: ["", "ingest", "vlm-ingest"]
+    profiles: ["", "ingest"]
 
   graphic-elements:
     image: ${YOLOX_GRAPHIC_ELEMENTS_IMAGE:-nvcr.io/nim/nvidia/nemotron-graphic-elements-v1}:${YOLOX_GRAPHIC_ELEMENTS_TAG:-1.8.0}
@@ -170,7 +200,6 @@ services:
       - NIM_TRITON_LOG_VERBOSE=1
       - NIM_TRITON_RATE_LIMIT=3
       - NGC_API_KEY=${NIM_NGC_API_KEY:-${NGC_API_KEY:-ngcapikey}}
-      - CUDA_VISIBLE_DEVICES=0
       - NIM_TRITON_MAX_BATCH_SIZE=${GRAPHIC_ELEMENTS_BATCH_SIZE:-32}
       - NIM_TRITON_CUDA_MEMORY_POOL_MB=${GRAPHIC_ELEMENTS_CUDA_MEMORY_POOL_MB:-2048}
       - OMP_NUM_THREADS=1
@@ -181,7 +210,7 @@ services:
             - driver: nvidia
               device_ids: ['${YOLOX_GRAPHICS_MS_GPU_ID:-0}']
               capabilities: [gpu]
-    profiles: ["", "ingest", "vlm-ingest"]
+    profiles: ["", "ingest"]
 
   table-structure:
     image: ${YOLOX_TABLE_STRUCTURE_IMAGE:-nvcr.io/nim/nvidia/nemotron-table-structure-v1}:${YOLOX_TABLE_STRUCTURE_TAG:-1.8.0}
@@ -196,7 +225,6 @@ services:
       - NIM_TRITON_LOG_VERBOSE=1
       - NIM_TRITON_RATE_LIMIT=3
       - NGC_API_KEY=${NIM_NGC_API_KEY:-${NGC_API_KEY:-ngcapikey}}
-      - CUDA_VISIBLE_DEVICES=0
       - NIM_TRITON_MAX_BATCH_SIZE=${TABLE_STRUCTURE_BATCH_SIZE:-32}
       - NIM_TRITON_CUDA_MEMORY_POOL_MB=${TABLE_STRUCTURE_CUDA_MEMORY_POOL_MB:-2048}
       - OMP_NUM_THREADS=1
@@ -207,7 +235,7 @@ services:
             - driver: nvidia
               device_ids:  ['${YOLOX_TABLE_MS_GPU_ID:-0}']
               capabilities: [gpu]
-    profiles: ["", "ingest", "vlm-ingest"]
+    profiles: ["", "ingest"]
 
   paddle:
     image: ${PADDLE_IMAGE:-nvcr.io/nim/baidu/paddleocr}:${PADDLE_TAG:-1.5.0}
@@ -234,8 +262,8 @@ services:
               capabilities: [gpu]
     profiles: ["paddle"]
 
-  nemoretriever-ocr:
-    image: ${NEMORETRIEVER_OCR_IMAGE:-nvcr.io/nim/nvidia/nemoretriever-ocr-v1}:${NEMORETRIEVER_OCR_TAG:-1.2.1}
+  nemotron-ocr:
+    image: ${NEMOTRON_OCR_IMAGE:-nvcr.io/nim/nvidia/nemotron-ocr-v1}:${NEMOTRON_OCR_TAG:-1.3.0}
     shm_size: 16gb
     ports:
       - "8012:8000"
@@ -247,9 +275,7 @@ services:
       - NIM_HTTP_API_PORT=8000
       - NIM_TRITON_LOG_VERBOSE=1
       - NGC_API_KEY=${NIM_NGC_API_KEY:-${NGC_API_KEY:-ngcapikey}}
-      - CUDA_VISIBLE_DEVICES=0
       - NIM_TRITON_MAX_BATCH_SIZE=${OCR_BATCH_SIZE:-32}
-      - NIM_TRITON_ENABLE_MODEL_CONTROL=1
     deploy:
       resources:
         reservations:
@@ -257,7 +283,7 @@ services:
             - driver: nvidia
               device_ids: ["${OCR_MS_GPU_ID:-${PADDLE_MS_GPU_ID:-0}}"]
               capabilities: [gpu]
-    profiles: ["", "ingest", "vlm-ingest", "nemoretriever-ocr"]
+    profiles: ["", "ingest"]
 
   # Optional NIM microservices
   nemotron-parse:
@@ -273,7 +299,6 @@ services:
       - NIM_TRITON_LOG_VERBOSE=1
       - NVIDIA_API_KEY=${NGC_API_KEY:-nvidiaapikey}
       - NGC_API_KEY=${NGC_API_KEY:-nvidiaapikey}
-      - CUDA_VISIBLE_DEVICES=0
     deploy:
       resources:
         reservations:
@@ -304,6 +329,7 @@ services:
               capabilities: [gpu]
     profiles: ["audio"]
 
+  # Nemotron Omni — used for generation.
   vlm-ms:
     container_name: nemotron-3-nano-omni-30b-a3b-reasoning
     image: nvcr.io/nim/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:1.7.0-variant
@@ -318,7 +344,7 @@ services:
       NIM_HTTP_API_PORT: 8000
       NIM_TRITON_LOG_VERBOSE: 1
       CUDA_VISIBLE_DEVICES: 0
-    user: "${USERID}"
+    user: "0"
     healthcheck:
       test: ["CMD", "python3", "-c", "import requests; requests.get('http://localhost:8000/v1/health/ready')"]
       interval: 10s
@@ -333,7 +359,38 @@ services:
               # count: ${INFERENCE_GPU_COUNT:-all}
               device_ids: ['${VLM_MS_GPU_ID:-5}']
               capabilities: [gpu]
-    profiles: ["vlm-only", "vlm-generation"]
+    profiles: ["vlm-only", "vlm-generation", "vlm-rag"]
+
+  # Nemotron Nano 12B — used for image captioning.
+  vlm-captioning-ms:
+    container_name: nemotron-nano-12b-v2-vl
+    image: nvcr.io/nim/nvidia/nemotron-nano-12b-v2-vl:${VLM_CAPTIONING_TAG:-1.6.0}
+    volumes:
+    - ${MODEL_DIRECTORY:-./}:/opt/nim/.cache
+    ports:
+    - "1978:8000"
+    expose:
+    - "8000"
+    environment:
+      NGC_API_KEY: ${NGC_API_KEY}
+      NIM_HTTP_API_PORT: 8000
+      NIM_TRITON_LOG_VERBOSE: 1
+      CUDA_VISIBLE_DEVICES: 0
+    user: "0"
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import requests; requests.get('http://localhost:8000/v1/health/ready')"]
+      interval: 10s
+      timeout: 20s
+      retries: 100
+    shm_size: 32GB
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ['${VLM_CAPTIONING_MS_GPU_ID:-6}']
+              capabilities: [gpu]
+    profiles: ["ingest", "vlm-rag", "vlm-generation"]
 
 networks:
   default:

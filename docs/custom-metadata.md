@@ -22,7 +22,7 @@ The [NVIDIA RAG Blueprint](readme.md) features **advanced metadata filtering wit
 config = {
     "filter_expression_generator": {
         "enable_filter_generator": True,
-        "model_name": "nvidia/llama-3.3-nemotron-super-49b-v1.5",
+        "model_name": "nvidia/nemotron-3-super-120b-a12b",
         "temperature": 0.1,
         "max_tokens": 1024
     }
@@ -100,10 +100,9 @@ This notebook demonstrates:
 ## Important Notes
 
 ### 🎯 **Vector Database Support**
-- **Milvus**: Full support for natural language filter generation and complex expressions
-- **Elasticsearch**: Limited to basic filter validation only (no natural language generation)
-- **Natural Language Generation**: Only works with Milvus vector database
-- **Filter Expression Types**: Milvus uses string expressions, Elasticsearch uses list of dictionaries
+- **Milvus**: Full support for natural language filter generation using a string boolean expression DSL.
+- **Elasticsearch**: Full support for natural language filter generation; the LLM emits Elasticsearch Query DSL clauses (a JSON array of `term`, `terms`, `range`, `bool`, etc.) which are validated against the collection's metadata schema.
+- **Filter Expression Types**: Milvus uses string expressions; Elasticsearch uses a list of clause dictionaries.
 
 ### 🚨 **Key Limitations**
 - **IS NULL/IS NOT NULL operations**: Not supported
@@ -116,7 +115,7 @@ This notebook demonstrates:
 
 | Feature | Milvus | Elasticsearch |
 |---------|--------|---------------|
-| **Natural Language Filter Generation** | ✅ Fully automated with LLM integration | 🔧 Advanced users can leverage native Elasticsearch Query DSL for sophisticated queries |
+| **Natural Language Filter Generation** | ✅ Fully automated with LLM integration (string DSL) | ✅ Fully automated with LLM integration (Elasticsearch Query DSL clauses) |
 | **Filter Expression Complexity** | ✅ String-based syntax with validation | 🚀 Full Elasticsearch Query DSL support - Boolean, range, nested, geo, and aggregation queries |
 | **Schema Validation** | ✅ Comprehensive metadata schema validation | 🔧 Flexible schema-less design with dynamic mapping capabilities |
 | **Array Operations** | ✅ Built-in functions: `array_contains`, `array_length`, etc. | 🚀 Native nested object support with powerful array querying capabilities |
@@ -200,6 +199,36 @@ The system gracefully handles filter generation failures:
 - **Invalid Generation**: Returns None, continues without filtering
 - **Schema Mismatch**: Logs warning, skips incompatible collections
 - **Processing Errors**: Returns original query, maintains functionality
+
+### Elasticsearch Filter Generation
+
+When `APP_VECTORSTORE_NAME=elasticsearch`, filter generation produces a JSON array of Elasticsearch Query DSL clauses instead of a Milvus boolean string. The same `enable_filter_generator` flag and metadata schema mechanism apply.
+
+**Field path convention**
+
+User-defined metadata is indexed at `metadata.content_metadata.<field>`. For exact-match clauses (`term`, `terms`, `prefix`) on string fields, the `.keyword` sub-field is used (e.g. `metadata.content_metadata.status.keyword`). The validator auto-normalizes paths produced by the LLM, so user-supplied filters that omit `.keyword` are still accepted.
+
+**Supported clause types**
+
+`term`, `terms`, `range`, `match`, `match_phrase`, `wildcard`, `prefix`, `exists`, and `bool` (with `must`, `should`, `must_not`, `filter`).
+
+**Example queries and generated filters**
+
+| Your Question | Generated Filter |
+|---------------|------------------|
+| "Show me approved AI reports from 2024" | `[{"bool": {"must": [{"term": {"metadata.content_metadata.status.keyword": "approved"}}, {"term": {"metadata.content_metadata.category.keyword": "AI"}}, {"range": {"metadata.content_metadata.year": {"gte": 2024, "lt": 2025}}}]}}]` |
+| "Public documents tagged engineering" | `[{"bool": {"must": [{"term": {"metadata.content_metadata.is_public": true}}, {"term": {"metadata.content_metadata.tags.keyword": "engineering"}}]}}]` |
+| "High-rated docs from January 2024" | `[{"bool": {"must": [{"range": {"metadata.content_metadata.rating": {"gt": 4.0}}}, {"range": {"metadata.content_metadata.created_at": {"gte": "2024-01-01T00:00:00", "lt": "2024-02-01T00:00:00"}}}]}}]` |
+
+**Validation**
+
+Each generated clause is checked against the collection's metadata schema:
+
+- Field must exist in the schema (or be a system-managed field with `support_dynamic_filtering=true`).
+- Clause type must match the field's declared type (e.g. `range` only on numeric/datetime fields).
+- `range` bounds on `datetime` fields must be valid ISO 8601 strings.
+
+If validation fails for an LLM-generated filter, the system falls back to no filter (the request still succeeds). For user-supplied filters via the API, validation errors are surfaced explicitly.
 
 ## Metadata Schema Definition
 
@@ -462,8 +491,10 @@ For Elasticsearch, filters must be provided as a list of dictionaries using Elas
 
 ```python
 # Elasticsearch filter example
+# `.keyword` is appended only for exact-match clauses on string fields;
+# numeric/datetime/boolean fields and `range` clauses use the bare path.
 filter_expr = [
-    {"term": {"metadata.content_metadata.category": "AI"}},
+    {"term": {"metadata.content_metadata.category.keyword": "AI"}},
     {"range": {"metadata.content_metadata.priority": {"gt": 5}}}
 ]
 ```
@@ -493,7 +524,7 @@ Elasticsearch filters use the `metadata.content_metadata.field_name` format and 
 # Configuration file (config.yaml)
 filter_expression_generator:
   enable_filter_generator: true  # Set to true to enable filter generation (default is false)
-  model_name: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+  model_name: "nvidia/nemotron-3-super-120b-a12b"
   server_url: ""  # Leave empty for default endpoint
   temperature: 0.1  # Low temperature for consistent results
   top_p: 0.9
@@ -517,7 +548,7 @@ metadata:
 export ENABLE_FILTER_GENERATOR=true
 
 # LLM configuration
-export APP_FILTEREXPRESSIONGENERATOR_MODELNAME="nvidia/llama-3.3-nemotron-super-49b-v1.5"
+export APP_FILTEREXPRESSIONGENERATOR_MODELNAME="nvidia/nemotron-3-super-120b-a12b"
 export APP_FILTEREXPRESSIONGENERATOR_SERVERURL=""
 
 # Note: Metadata configuration is not currently exposed via environment variables
@@ -538,7 +569,7 @@ export APP_FILTEREXPRESSIONGENERATOR_SERVERURL=""
 
 ## Customizing Filter Expression Generator Prompt
 
-The `filter_expression_generator_prompt` determines how natural language queries are converted into metadata filter expressions. Customizing this prompt is essential for domain-specific applications where industry terminology needs accurate mapping to your metadata fields.
+The filter generator prompts (`filter_expression_generator_prompt_milvus` and `filter_expression_generator_prompt_elasticsearch`) determine how natural language queries are converted into metadata filter expressions. The active prompt is selected automatically based on the configured vector store (`APP_VECTORSTORE_NAME`). Customizing the relevant prompt is essential for domain-specific applications where industry terminology needs accurate mapping to your metadata fields.
 
 ### When to Customize
 
@@ -567,7 +598,7 @@ For an automotive documentation system with this schema:
 Create `automotive_filter_prompt.yaml`:
 
 ```yaml
-filter_expression_generator_prompt:
+filter_expression_generator_prompt_milvus:
   system: |
     /no_think
   
@@ -642,7 +673,7 @@ docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d
 ```
 
 **Helm:**
-Edit `deploy/helm/nvidia-blueprint-rag/files/prompt.yaml` and update the `filter_expression_generator_prompt` section.
+Edit `deploy/helm/nvidia-blueprint-rag/files/prompt.yaml` and update the `filter_expression_generator_prompt_milvus` or `filter_expression_generator_prompt_elasticsearch` section depending on your vector store.
 
 ### Results
 

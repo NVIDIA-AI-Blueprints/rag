@@ -8,7 +8,7 @@ You can enable text-only ingestion for the [NVIDIA RAG Blueprint](readme.md). Fo
 
 1. Follow the [deployment guide](deploy-docker-self-hosted.md) up to and including the step labelled "Start all required NIMs."
 
-2. Set the environment variables to enable text-only extraction mode:
+2. Set the environment variables to enable text-only extraction mode. `COMPONENTS_TO_READY_CHECK` must be set to an empty string so the nv-ingest readiness probe does not wait for the disabled extraction NIMs (the compose default in [docker-compose-ingestor-server.yaml](../deploy/compose/docker-compose-ingestor-server.yaml) is `ALL`):
 
    ```bash
    export APP_NVINGEST_EXTRACTTEXT=True
@@ -17,10 +17,6 @@ You can enable text-only ingestion for the [NVIDIA RAG Blueprint](readme.md). Fo
    export APP_NVINGEST_EXTRACTCHARTS=False
    export COMPONENTS_TO_READY_CHECK=""
    ```
-
-   :::{important}
-   When disabling NeMo Retriever Library dependent services, you must set `COMPONENTS_TO_READY_CHECK=""` to ensure the NeMo Retriever Library container reaches ready state. Without this setting, the NeMo Retriever Library container will wait indefinitely for the disabled components.
-   :::
 
    Then deploy the ingestor-server:
 
@@ -53,7 +49,7 @@ You can enable text-only ingestion for the [NVIDIA RAG Blueprint](readme.md). Fo
 5. Once the ingestion and rag servers are deployed, open the [ingestion notebook](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/ingestion_api_usage.ipynb) and follow the steps. While trying out the `Upload Document Endpoint` set the payload to below.
    ```bash
        data = {
-        "vdb_endpoint": "http://milvus:19530",
+        "vdb_endpoint": "http://elasticsearch:9200",
         "collection_name": collection_name,
         "split_options": {
             "chunk_size": 1024,
@@ -81,66 +77,69 @@ In case you are [interacting with cloud hosted models](deploy-docker-nvidia-host
 To ingest text-only files, you do not need to deploy the complete pipeline with all NIMs connected.
 If your scenario requires only text extraction from files, use the following steps to deploy only the necessary components using Helm.
 
-When you install the Helm chart, enable only the following services that are required for text ingestion:
+In the v2.6.0 chart, the **VLM embedder** (`nvidia-nim-llama-nemotron-embed-vl-1b-v2`) is enabled by default and the **text embedder** (`nvidia-nim-llama-nemotron-embed-1b-v2`) is disabled. For text-only ingestion, flip the two flags and repoint the embedding env vars at the text endpoint. Keep the following enabled:
 
 - `rag-server`
 - `ingestor-server`
 - `nv-ingest`
-- `nvidia-nim-llama-32-nv-embedqa-1b-v2`
-- `text-reranking-nim`
+- `nvidia-nim-llama-nemotron-embed-1b-v2` (text embedder)
+- `nvidia-nim-llama-nemotron-rerank-1b-v2` (text reranker)
 - `nim-llm`
-- `milvus`
-- `minio`
+- `eck-elasticsearch`
+- `seaweedfs`
 
-Additionally, ensure that **table extraction**, **chart extraction**, and **image extraction** are disabled.
+Additionally, disable **table extraction**, **chart extraction**, and **image extraction**.
 
-1. First, modify the environment variables in [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) to enable text-only extraction:
+1. Modify [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) to (a) swap the embedder NIMs, (b) repoint embedding env vars at the text endpoint, and (c) turn off image/table/chart extraction:
 
-   In the `nv-ingest.envVars` section, set the following values:
-   
    ```yaml
+   nimOperator:
+     # Disable VLM embedder, enable text embedder
+     nvidia-nim-llama-nemotron-embed-vl-1b-v2:
+       enabled: false
+     nvidia-nim-llama-nemotron-embed-1b-v2:
+       enabled: true
+
+   # rag-server: point at the text embedder
+   envVars:
+     APP_EMBEDDINGS_MODELNAME: "nvidia/llama-nemotron-embed-1b-v2"
+     APP_EMBEDDINGS_SERVERURL: "nemotron-embedding-ms:8000/v1"
+
+   ingestor-server:
+     envVars:
+       APP_EMBEDDINGS_MODELNAME: "nvidia/llama-nemotron-embed-1b-v2"
+       APP_EMBEDDINGS_SERVERURL: "nemotron-embedding-ms:8000/v1"
+
    nv-ingest:
      envVars:
-       # ... existing configurations ...
-       
-       # === Text-Only Extraction Mode ===
+       # Embedding target for the nv-ingest runtime
+       EMBEDDING_NIM_ENDPOINT: "http://nemotron-embedding-ms:8000/v1"
+       EMBEDDING_NIM_MODEL_NAME: "nvidia/llama-nemotron-embed-1b-v2"
+
+       # Text-only extraction mode
        APP_NVINGEST_EXTRACTTEXT: "True"
        APP_NVINGEST_EXTRACTINFOGRAPHICS: "False"
        APP_NVINGEST_EXTRACTTABLES: "False"
        APP_NVINGEST_EXTRACTCHARTS: "False"
+
+       # Health check: skip readiness on disabled extraction NIMs.
+       # The chart default in values.yaml is "ALL"; with table / chart / image
+       # extraction turned off, nv-ingest readiness would otherwise wait
+       # indefinitely for NIMs that are not deployed.
+       COMPONENTS_TO_READY_CHECK: ""
    ```
 
-2. Then use the modified [`values.yaml`](../deploy/helm/nvidia-blueprint-rag/values.yaml) file in your Helm upgrade command:
+2. Apply the chart with the modified values, disabling the nv-ingest CV NIMs you no longer need:
 
-```bash
-helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.5.1.tgz \
-  --username '$oauthtoken' \
-  --password "${NGC_API_KEY}" \
-  --values deploy/helm/nvidia-blueprint-rag/values.yaml \
-  --set nimOperator.nim-llm.enabled=true \
-  --set nimOperator.nvidia-nim-llama-32-nv-embedqa-1b-v2.enabled=true \
-  --set nimOperator.nvidia-nim-llama-32-nv-rerankqa-1b-v2.enabled=true \
-  --set ingestor-server.enabled=true \
-  --set nv-ingest.enabled=true \
-  --set nv-ingest.nimOperator.page_elements.enabled=false \
-  --set nv-ingest.nimOperator.graphic_elements.enabled=false \
-  --set nv-ingest.nimOperator.table_structure.enabled=false \
-  --set nv-ingest.nimOperator.nemoretriever_ocr_v1.enabled=false \
-  --set imagePullSecret.password=$NGC_API_KEY \
-  --set ngcApiSecret.password=$NGC_API_KEY
-```
-
-:::{important}
-**Disabling NeMo Retriever Library Components for GPU Resource Management:**
-
-If you disable any NeMo Retriever Library dependent services (such as `table_structure`, `graphic_elements`, `nemoretriever_ocr_v1`, etc.) to free up GPU resources for customization, you must set the `COMPONENTS_TO_READY_CHECK` parameter to an empty string in the `nv-ingest.envVars` section of your [values.yaml](../deploy/helm/nvidia-blueprint-rag/values.yaml) file:
-
-```yaml
-nv-ingest:
-  envVars:
-    COMPONENTS_TO_READY_CHECK: ""
-```
-
-This ensures the NeMo Retriever Library pod reaches ready state even when some dependent components are disabled. Without this setting, the NeMo Retriever Library pod will wait indefinitely for the disabled components to become ready.
-
-:::
+   ```bash
+   helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.6.0.tgz \
+     --username '$oauthtoken' \
+     --password "${NGC_API_KEY}" \
+     --values deploy/helm/nvidia-blueprint-rag/values.yaml \
+     --set nv-ingest.nimOperator.page_elements.enabled=false \
+     --set nv-ingest.nimOperator.graphic_elements.enabled=false \
+     --set nv-ingest.nimOperator.table_structure.enabled=false \
+     --set nv-ingest.nimOperator.ocr.enabled=false \
+     --set imagePullSecret.password=$NGC_API_KEY \
+     --set ngcApiSecret.password=$NGC_API_KEY
+   ```

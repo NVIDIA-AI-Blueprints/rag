@@ -60,7 +60,12 @@ class ConcreteVDBRag(VDBRag):
         """Delete collections."""
         pass
 
-    def get_documents(self, collection_name: str) -> list[dict[str, Any]]:
+    def get_documents(
+        self,
+        collection_name: str,
+        *,
+        force_get_metadata: bool = False,
+    ) -> list[dict[str, Any]]:
         """Get documents."""
         return []
 

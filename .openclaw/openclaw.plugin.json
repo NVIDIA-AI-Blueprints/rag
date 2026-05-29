@@ -1,0 +1,11 @@
+{
+  "id": "openclaw-rag",
+  "name": "RAG Claw",
+  "description": "NVIDIA RAG Blueprint agent — deploy, configure, evaluate, and operate retrieval-augmented generation pipelines. Requires Node >= 22.19.0, OpenClaw >= 2026.5.17; run npm run build, then openclaw plugins install --link /path/to/rag/.openclaw/ from a repo checkout.",
+  "skills": ["./skills"],
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}

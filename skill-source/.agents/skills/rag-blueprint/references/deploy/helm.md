@@ -30,16 +30,17 @@ If an existing Helm release is detected: warn "Existing RAG Helm release found. 
 
 ## Phase 2: Route to Reference
 
-Auto-detect the GPU variant from cluster nodes (not the local machine):
+Auto-detect the GPU variant and cluster flavor from cluster nodes (not the local machine):
 
 ```bash
-echo "=== GPU_LABELS ===" && kubectl get nodes -o json 2>/dev/null | grep -oE '"nvidia.com/gpu.product":\s*"[^"]*"' | sort -u || echo "NO_GPU_LABELS"; echo "=== MIG ===" && kubectl get nodes -o json 2>/dev/null | grep -oE '"nvidia.com/mig.strategy":\s*"[^"]*"' || echo "NO_MIG"
+echo "=== GPU_LABELS ===" && kubectl get nodes -o json 2>/dev/null | grep -oE '"nvidia.com/gpu.product":\s*"[^"]*"' | sort -u || echo "NO_GPU_LABELS"; echo "=== MIG ===" && kubectl get nodes -o json 2>/dev/null | grep -oE '"nvidia.com/mig.strategy":\s*"[^"]*"' || echo "NO_MIG"; echo "=== OPENSHIFT ===" && (kubectl get clusterversion 2>/dev/null | grep -q . && echo "OPENSHIFT_DETECTED") || (kubectl api-resources 2>/dev/null | grep -qi "route.openshift.io" && echo "OPENSHIFT_DETECTED") || echo "NOT_OPENSHIFT"
 ```
 
-Determine variant from node GPU labels:
+Determine variant from node GPU labels and cluster flavor:
 
 Route based on detection:
 
+- **OpenShift / OKD** (`clusterversion` resource present, or `route.openshift.io` API available, or user mentions OpenShift / RHEL OpenShift) → read and follow `helm-openshift.md`
 - **MIG enabled** → read and follow `helm-mig.md`
 - **RTX PRO 6000** → read and follow `helm-standard.md` (use the RTX values.yaml variant described there)
 - **Standard (everything else)** → read and follow `helm-standard.md`
@@ -101,3 +102,4 @@ Tell the user:
 - `docs/support-matrix.md` — Kubernetes/Helm version requirements, GPU compatibility
 - `docs/deploy-helm.md` — standard Helm deployment from NGC
 - `docs/deploy-helm-from-repo.md` — Helm deployment from local repo
+- `docs/deploy-helm-openshift.md` — Red Hat OpenShift deployment with Routes, SCC, and the `values-openshift.yaml` overlay

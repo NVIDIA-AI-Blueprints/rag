@@ -8,6 +8,36 @@ This documentation contains the release notes for [NVIDIA RAG Blueprint](readme.
 
 
 
+## Release 2.6.0 (TBD)
+
+This release adds [Agentic RAG](./agentic-rag.md) support with plan-and-execute pipelines, streaming responses, and UI integration; changes the default vector database to Elasticsearch and the default object store to SeaweedFS; adds [Red Hat OpenShift](./deploy-helm-openshift.md) support for Helm-based deployment; and introduces new [agent skills](../skill-source/README.md) for deployment, evaluation, and performance tooling.
+
+### Highlights
+
+This release includes the following key updates:
+
+- [Added Agentic RAG support](./agentic-rag.md), including the plan-and-execute pipeline, streaming responses, and RAG UI integration.
+- Changed the default vector database to Elasticsearch.
+  - [GPU accelerated support needs enterprise access](./elasticsearch-configuration.md) and is disabled by default.
+  - [Milvus](./change-vectordb.md) remains available as an optional vector database backend.
+- Changed the default object store to SeaweedFS from MinIO.
+- Updated the default LLM to `nvidia/nemotron-3-super-120b-a12b` and enabled Nemotron reasoning by default in deployment configurations.
+- Promoted `nvidia/llama-nemotron-embed-vl-1b-v2` as the default embedding model. The text embedding model `nvidia/llama-nemotron-embed-1b-v2` remains available as [an optional configuration](./change-model.md#switch-from-the-vlm-embedder-to-the-text-only-embedder).
+- Added [VLM reranker support](./change-model.md#switch-to-the-vlm-reranker) as an opt-in.
+- Added dynamic filter expression generation for Elasticsearch.
+- Published [RAG performance tooling](../scripts/rag-perf/) and [skills](../skill-source/README.md) to use it easily.
+- Published the [RAG evaluation framework](../scripts/eval/README.md) and [skills](../skill-source/README.md) to use it easily.
+- Updated NV-Ingest to version 26.3.0.
+- Updated OCR NIM naming from `nemoretriever-ocr-v1` to `nemotron-ocr-v1`.
+- Added OpenClaw plugin for agent-driven deploy/configure/eval workflows.
+- Added [Red Hat OpenShift and OKD support](./deploy-helm-openshift.md) for Helm deployments.
+
+### Fixed Known Issues
+
+The following known issues have been resolved in this release:
+
+- Fixed default LLM sampling parameter handling for non-NVIDIA providers.
+
 ## Release 2.5.1 (2026-04-29)
 
 This release adds opt-in support for [`nvidia/nemotron-3-nano-omni-30b-a3b-reasoning`](https://build.nvidia.com/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning/modelcard) as the Vision-Language Model and ships first-class support for VLM reasoning streams. Defaults are unchanged from 2.5.0 (text-only embedder, VLM inference disabled); the new VLM is opt-in via `ENABLE_VLM_INFERENCE=True`. Tracked under [BCS-445](https://jirasw.nvidia.com/browse/BCS-445).
@@ -32,7 +62,7 @@ This release introduces support for the Nemotron-super-3 model, updates NIMs to 
 This release includes the following key updates:
 
 - **Nemotron-super-3 model support.** You can now integrate the Nemotron-super-3 model by following the steps outlined in [Change the Inference or Embedding Model](change-model.md).
-- **NIMs updated to latest versions.** 
+- **NIMs updated to latest versions.**
   The following model updates are included:
   - `nvidia/llama-3.2-nv-embedqa-1b-v2` → `nvidia/llama-nemotron-embed-1b-v2`
   - `nvidia/llama-3.2-nv-rerankqa-1b-v2` → `nvidia/llama-nemotron-rerank-1b-v2`
@@ -60,7 +90,7 @@ The following known issues have been resolved in this release:
 
 This release adds new features to the RAG pipeline for supporting agent workflows and enhances generations with VLMs augmenting multimodal input.
 
-### Highlights 
+### Highlights
 
 This release contains the following key changes:
 

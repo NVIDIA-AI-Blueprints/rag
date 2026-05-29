@@ -44,12 +44,31 @@ spec:
           - "{{ .Values.server.workers }}"
           ports:
             - containerPort: 8081
+          {{- $eckCfg := index .Values "eck-elasticsearch" }}
+          {{- $vectorUser := index .Values.envVars "APP_VECTORSTORE_USERNAME" }}
+          {{- $vectorPass := index .Values.envVars "APP_VECTORSTORE_PASSWORD" }}
+          {{- $vectorApiKey := index .Values.envVars "APP_VECTORSTORE_APIKEY" }}
+          {{- $vectorApiKeyId := index .Values.envVars "APP_VECTORSTORE_APIKEY_ID" }}
+          {{- $vectorApiKeySecret := index .Values.envVars "APP_VECTORSTORE_APIKEY_SECRET" }}
+          {{- $useElasticUserSecret := and $eckCfg.enabled (not $vectorUser) (not $vectorPass) (not $vectorApiKey) (not $vectorApiKeyId) (not $vectorApiKeySecret) }}
           env:
           {{- if .Values.envVars }}
           {{- range $k, $v := .Values.envVars }}
+          {{- if and $useElasticUserSecret (or (eq $k "APP_VECTORSTORE_USERNAME") (eq $k "APP_VECTORSTORE_PASSWORD")) }}
+          {{- else }}
             - name: "{{ $k }}"
               value: "{{ $v }}"
           {{- end }}
+          {{- end }}
+          {{- end }}
+          {{- if $useElasticUserSecret }}
+            - name: APP_VECTORSTORE_USERNAME
+              value: "elastic"
+            - name: APP_VECTORSTORE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "nvidia-blueprint-rag.elasticsearchUserSecretName" . }}
+                  key: elastic
           {{- end }}
             - name: NVIDIA_API_KEY
               valueFrom:
@@ -57,7 +76,7 @@ spec:
                   name: {{ .Values.ngcApiSecret.name }}
                   key: NVIDIA_API_KEY
           {{- $apiKeysSecretName := include "apiKeysSecretName" . }}
-          {{- $hasAnyKey := or .Values.apiKeysSecret.llmApiKey .Values.apiKeysSecret.embeddingsApiKey .Values.apiKeysSecret.rankingApiKey .Values.apiKeysSecret.queryRewriterApiKey .Values.apiKeysSecret.filterExpressionGeneratorApiKey .Values.apiKeysSecret.vlmApiKey .Values.apiKeysSecret.summaryLlmApiKey .Values.apiKeysSecret.reflectionLlmApiKey }}
+          {{- $hasAnyKey := or .Values.apiKeysSecret.llmApiKey .Values.apiKeysSecret.embeddingsApiKey .Values.apiKeysSecret.rankingApiKey .Values.apiKeysSecret.queryRewriterApiKey .Values.apiKeysSecret.filterExpressionGeneratorApiKey .Values.apiKeysSecret.vlmApiKey .Values.apiKeysSecret.summaryLlmApiKey .Values.apiKeysSecret.reflectionLlmApiKey .Values.apiKeysSecret.agenticPlannerLlmApiKey .Values.apiKeysSecret.agenticTaskLlmApiKey .Values.apiKeysSecret.agenticSeedGenLlmApiKey .Values.apiKeysSecret.agenticSynthesisLlmApiKey }}
           {{- $shouldCreateSecret := and .Values.apiKeysSecret.create (not .Values.apiKeysSecret.existingSecret) $hasAnyKey }}
           {{- $useExistingSecret := .Values.apiKeysSecret.existingSecret }}
           {{- if or $shouldCreateSecret $useExistingSecret }}
@@ -116,6 +135,34 @@ spec:
                 secretKeyRef:
                   name: {{ $apiKeysSecretName }}
                   key: REFLECTION_LLM_APIKEY
+          {{- end }}
+          {{- if or $useExistingSecret .Values.apiKeysSecret.agenticPlannerLlmApiKey }}
+            - name: AGENTIC_PLANNER_LLM_APIKEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $apiKeysSecretName }}
+                  key: AGENTIC_PLANNER_LLM_APIKEY
+          {{- end }}
+          {{- if or $useExistingSecret .Values.apiKeysSecret.agenticTaskLlmApiKey }}
+            - name: AGENTIC_TASK_LLM_APIKEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $apiKeysSecretName }}
+                  key: AGENTIC_TASK_LLM_APIKEY
+          {{- end }}
+          {{- if or $useExistingSecret .Values.apiKeysSecret.agenticSeedGenLlmApiKey }}
+            - name: AGENTIC_SEED_GEN_LLM_APIKEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $apiKeysSecretName }}
+                  key: AGENTIC_SEED_GEN_LLM_APIKEY
+          {{- end }}
+          {{- if or $useExistingSecret .Values.apiKeysSecret.agenticSynthesisLlmApiKey }}
+            - name: AGENTIC_SYNTHESIS_LLM_APIKEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $apiKeysSecretName }}
+                  key: AGENTIC_SYNTHESIS_LLM_APIKEY
           {{- end }}
           {{- end }}
           {{- if .Values.livenessProbe }}

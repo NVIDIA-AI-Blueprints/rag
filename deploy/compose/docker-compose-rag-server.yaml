@@ -3,7 +3,7 @@ services:
   # Main orchestrator server which stiches together all calls to different services to fulfill the user request
   rag-server:
     container_name: rag-server
-    image: nvcr.io/nvidia/blueprint/rag-server:${TAG:-2.5.1}
+    image: nvcr.io/nvidia/blueprint/rag-server:${TAG:-2.6.0}
     build:
       # Set context to repo's root directory
       context: ../../
@@ -15,6 +15,9 @@ services:
     volumes:
       # Mount the prompt.yaml file to the container, path should be absolute
       - ${PROMPT_CONFIG_FILE}:${PROMPT_CONFIG_FILE}
+      # LanceDB data is shared with the ingestor-server via the `rag-vol-lancedb`
+      # named Docker volume (auto-created on first `docker compose up`).
+      - rag-vol-lancedb:/volumes/lancedb
     # Common customizations to the pipeline can be controlled using env variables
     environment:
       # Path to example directory relative to root
@@ -23,18 +26,18 @@ services:
       # Absolute path to custom prompt.yaml file
       PROMPT_CONFIG_FILE: ${PROMPT_CONFIG_FILE:-/prompt.yaml}
 
-      ##===MINIO specific configurations which is used to store the multimodal base64 content===
-      MINIO_ENDPOINT: "minio:9010"
-      MINIO_ACCESSKEY: "minioadmin"
-      MINIO_SECRETKEY: "minioadmin"
+      ##===Object-store configurations used to store multimodal base64 content===
+      OBJECTSTORE_ENDPOINT: ${OBJECTSTORE_ENDPOINT:-seaweedfs:9010}
+      OBJECTSTORE_ACCESSKEY: ${OBJECTSTORE_ACCESSKEY:-seaweedfsadmin}
+      OBJECTSTORE_SECRETKEY: ${OBJECTSTORE_SECRETKEY:-seaweedfsadmin}
 
       ##===Vector DB specific configurations===
       # URL on which vectorstore is hosted
-      # For custom operators, point to your service (e.g., http://your-custom-vdb:1234)
-      APP_VECTORSTORE_URL: ${APP_VECTORSTORE_URL:-http://milvus:19530}
-      # Type of vectordb used to store embedding. Supported built-ins: "milvus", "elasticsearch".
+      # For custom operators, point to your service (e.g., http://your-custom-vdb:1234 or /volumes/lancedb/lancedb - for lancedb)
+      APP_VECTORSTORE_URL: ${APP_VECTORSTORE_URL:-http://elasticsearch:9200}
+      # Type of vectordb used to store embedding. Supported built-ins: "elasticsearch"[default], "milvus", "lancedb".
       # You can also provide your custom value (e.g., "your_custom_vdb") when you register it in `_get_vdb_op`.
-      APP_VECTORSTORE_NAME: ${APP_VECTORSTORE_NAME:-"milvus"}
+      APP_VECTORSTORE_NAME: ${APP_VECTORSTORE_NAME:-"elasticsearch"}
       # Type of index to be used for vectorstore
       APP_VECTORSTORE_INDEXTYPE: ${APP_VECTORSTORE_INDEXTYPE:-"GPU_CAGRA"}
       
@@ -47,8 +50,8 @@ services:
       # Weight for sparse vector search in case of "weighted" Hybrid Search
       APP_VECTORSTORE_SPARSE_WEIGHT: ${APP_VECTORSTORE_SPARSE_WEIGHT:-0.5}
       
-      # Boolean to control GPU search for milvus vectorstore specific to rag-server
-      APP_VECTORSTORE_ENABLEGPUSEARCH: ${APP_VECTORSTORE_ENABLEGPUSEARCH:-True}
+      # Enable GPU search. Milvus only — GPU search is not supported by Elasticsearch.
+      APP_VECTORSTORE_ENABLEGPUSEARCH: ${APP_VECTORSTORE_ENABLEGPUSEARCH:-False}
       # ef: Parameter controlling query time/accuracy trade-off. Higher ef leads to more accurate but slower search.
       APP_VECTORSTORE_EF: ${APP_VECTORSTORE_EF:-100} # Must be greater or equal to VECTOR_DB_TOPK
       # Username for vector store 
@@ -67,26 +70,26 @@ services:
       VECTOR_DB_TOPK: ${VECTOR_DB_TOPK:-100}
 
       ##===LLM Model specific configurations===
-      APP_LLM_MODELNAME: ${APP_LLM_MODELNAME:-"nvidia/llama-3.3-nemotron-super-49b-v1.5"}
+      APP_LLM_MODELNAME: ${APP_LLM_MODELNAME:-"nvidia/nemotron-3-super-120b-a12b"}
       # url on which llm model is hosted. If "", Nvidia hosted API is used
       APP_LLM_SERVERURL: ${APP_LLM_SERVERURL-"nim-llm:8000"}
       # LLM model parameters
-      LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-32768}
+      LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-16256}
       LLM_TEMPERATURE: ${LLM_TEMPERATURE:-0}
       LLM_TOP_P: ${LLM_TOP_P:-1.0}
 
-      # Reasoning configuration (supported by Nemotron 3 and other reasoning models)
-      LLM_ENABLE_THINKING: ${LLM_ENABLE_THINKING:-false}
-      LLM_REASONING_BUDGET: ${LLM_REASONING_BUDGET:-0}
-      LLM_LOW_EFFORT: ${LLM_LOW_EFFORT:-false}
+      # Reasoning configuration (enabled by default for Nemotron 3 Super)
+      LLM_ENABLE_THINKING: ${LLM_ENABLE_THINKING:-true}
+      LLM_REASONING_BUDGET: ${LLM_REASONING_BUDGET:-256}
+      LLM_LOW_EFFORT: ${LLM_LOW_EFFORT:-true}
 
       ##===Query Rewriter Model specific configurations===
-      APP_QUERYREWRITER_MODELNAME: ${APP_QUERYREWRITER_MODELNAME:-"nvidia/llama-3.3-nemotron-super-49b-v1.5"}
+      APP_QUERYREWRITER_MODELNAME: ${APP_QUERYREWRITER_MODELNAME:-"nvidia/nemotron-3-super-120b-a12b"}
       # url on which query rewriter model is hosted. If "", Nvidia hosted API is used
       APP_QUERYREWRITER_SERVERURL: ${APP_QUERYREWRITER_SERVERURL-"nim-llm:8000"}
 
       ##===Filter Expression Generator Model specific configurations===
-      APP_FILTEREXPRESSIONGENERATOR_MODELNAME: ${APP_FILTEREXPRESSIONGENERATOR_MODELNAME:-"nvidia/llama-3.3-nemotron-super-49b-v1.5"}
+      APP_FILTEREXPRESSIONGENERATOR_MODELNAME: ${APP_FILTEREXPRESSIONGENERATOR_MODELNAME:-"nvidia/nemotron-3-super-120b-a12b"}
       # url on which filter expression generator model is hosted. If "", Nvidia hosted API is used
       APP_FILTEREXPRESSIONGENERATOR_SERVERURL: ${APP_FILTEREXPRESSIONGENERATOR_SERVERURL-"nim-llm:8000"}
       # enable filter expression generator for natural language to filter expression conversion
@@ -94,20 +97,23 @@ services:
 
       ##===Embedding Model specific configurations===
       # url on which embedding model is hosted. If "", Nvidia hosted API is used
-      APP_EMBEDDINGS_SERVERURL: ${APP_EMBEDDINGS_SERVERURL-"nemotron-embedding-ms:8000/v1"}
-      APP_EMBEDDINGS_MODELNAME: ${APP_EMBEDDINGS_MODELNAME:-nvidia/llama-nemotron-embed-1b-v2}
+      APP_EMBEDDINGS_SERVERURL: ${APP_EMBEDDINGS_SERVERURL-"nemotron-vlm-embedding-ms:8000/v1"}
+      APP_EMBEDDINGS_MODELNAME: ${APP_EMBEDDINGS_MODELNAME:-nvidia/llama-nemotron-embed-vl-1b-v2}
+      # APP_EMBEDDINGS_SERVERURL: ${APP_EMBEDDINGS_SERVERURL-"nemotron-embedding-ms:8000/v1"}
+      # APP_EMBEDDINGS_MODELNAME: ${APP_EMBEDDINGS_MODELNAME:-nvidia/llama-nemotron-embed-1b-v2}
       APP_EMBEDDINGS_DIMENSIONS: ${APP_EMBEDDINGS_DIMENSIONS:-2048}
-      # For VLM Embedding Model (llama-nemotron-embed-vl-1b-v2)
-      # APP_EMBEDDINGS_SERVERURL: ${APP_EMBEDDINGS_SERVERURL-"nemotron-vlm-embedding-ms:8000/v1"}
-      # APP_EMBEDDINGS_MODELNAME: ${APP_EMBEDDINGS_MODELNAME:-nvidia/llama-nemotron-embed-vl-1b-v2}
 
       ##===Reranking Model specific configurations===
       # url on which ranking model is hosted. If "", Nvidia hosted API is used
       APP_RANKING_SERVERURL: ${APP_RANKING_SERVERURL-"nemotron-ranking-ms:8000"}
       APP_RANKING_MODELNAME: ${APP_RANKING_MODELNAME:-"nvidia/llama-nemotron-rerank-1b-v2"}
+      # APP_RANKING_SERVERURL: ${APP_RANKING_SERVERURL-"nemotron-ranking-vl-ms:8000"}
+      # APP_RANKING_MODELNAME: ${APP_RANKING_MODELNAME:-"nvidia/llama-nemotron-rerank-vl-1b-v2"}
       ENABLE_RERANKER: ${ENABLE_RERANKER:-True}
       # Default score threshold for filtering documents by reranker relevance (0.0 to 1.0)
       RERANKER_SCORE_THRESHOLD: ${RERANKER_SCORE_THRESHOLD:-${RERANKER_CONFIDENCE_THRESHOLD:-0.0}}
+      # When True, images from retrieved citations are included in VLM reranker passages
+      ENABLE_VLM_RERANKER_IMAGE_INPUT: ${ENABLE_VLM_RERANKER_IMAGE_INPUT:-False}
 
       ##===VLM Model specific configurations===
       ENABLE_VLM_INFERENCE: ${ENABLE_VLM_INFERENCE:-False}
@@ -121,7 +127,7 @@ services:
       # Enable reasoning mode for Nemotron 3 nano omni reasoning model
       APP_VLM_ENABLE_THINKING: ${APP_VLM_ENABLE_THINKING:-true}
       # Max reasoning tokens for VLM (0 = no cap); only applied when enable_thinking is true
-      APP_VLM_THINKING_TOKEN_BUDGET: ${APP_VLM_THINKING_TOKEN_BUDGET:-0}
+      APP_VLM_THINKING_TOKEN_BUDGET: ${APP_VLM_THINKING_TOKEN_BUDGET:-16384}
       # VLM generation parameters
       APP_VLM_MAX_TOKENS: ${APP_VLM_MAX_TOKENS:-32768}
       APP_VLM_TEMPERATURE: ${APP_VLM_TEMPERATURE:-0.6}
@@ -145,6 +151,10 @@ services:
       APP_VLM_APIKEY: ${APP_VLM_APIKEY:-""}
       SUMMARY_LLM_APIKEY: ${SUMMARY_LLM_APIKEY:-""}
       REFLECTION_LLM_APIKEY: ${REFLECTION_LLM_APIKEY:-""}
+      AGENTIC_PLANNER_LLM_APIKEY: ${AGENTIC_PLANNER_LLM_APIKEY:-${APP_LLM_APIKEY:-""}}
+      AGENTIC_TASK_LLM_APIKEY: ${AGENTIC_TASK_LLM_APIKEY:-${APP_LLM_APIKEY:-""}}
+      AGENTIC_SEED_GEN_LLM_APIKEY: ${AGENTIC_SEED_GEN_LLM_APIKEY:-${APP_LLM_APIKEY:-""}}
+      AGENTIC_SYNTHESIS_LLM_APIKEY: ${AGENTIC_SYNTHESIS_LLM_APIKEY:-${APP_LLM_APIKEY:-""}}
 
       # Number of document chunks to insert in LLM prompt, used only when ENABLE_RERANKER is set to True
       APP_RETRIEVER_TOPK: ${APP_RETRIEVER_TOPK:-10}
@@ -195,7 +205,7 @@ services:
       # Minimum groundedness score threshold (0-2)
       RESPONSE_GROUNDEDNESS_THRESHOLD: ${RESPONSE_GROUNDEDNESS_THRESHOLD:-1}
       # reflection llm
-      REFLECTION_LLM: ${REFLECTION_LLM:-"nvidia/llama-3.3-nemotron-super-49b-v1.5"}
+      REFLECTION_LLM: ${REFLECTION_LLM:-"nvidia/nemotron-3-super-120b-a12b"}
       # reflection llm server url. If "", Nvidia hosted API is used
       REFLECTION_LLM_SERVERURL: ${REFLECTION_LLM_SERVERURL-"nim-llm:8000"}
       # enable iterative query decomposition
@@ -208,6 +218,38 @@ services:
       REDIS_PORT: ${REDIS_PORT:-6379}
       REDIS_DB: ${REDIS_DB:-0}
 
+      # === Agentic RAG (LangGraph plan-and-execute pipeline) ===
+      ENABLE_AGENTIC_RAG: ${ENABLE_AGENTIC_RAG:-false}
+
+      # Per-role agentic LLM envs fall back through APP_LLM_* so a single
+      # APP_LLM_MODELNAME / APP_LLM_SERVERURL override propagates to all four
+      # roles unless a role-specific value is set. Runtime model / llm_endpoint
+      # in the /generate request overrides everything below.
+      ##===Agentic Planner LLM configurations===
+      AGENTIC_PLANNER_LLM_SERVERURL: ${AGENTIC_PLANNER_LLM_SERVERURL-${APP_LLM_SERVERURL-"nim-llm:8000"}}
+      AGENTIC_PLANNER_LLM_MODEL: ${AGENTIC_PLANNER_LLM_MODEL:-${APP_LLM_MODELNAME:-"nvidia/nemotron-3-super-120b-a12b"}}
+
+      ##===Agentic Task LLM configurations===
+      AGENTIC_TASK_LLM_SERVERURL: ${AGENTIC_TASK_LLM_SERVERURL-${APP_LLM_SERVERURL-"nim-llm:8000"}}
+      AGENTIC_TASK_LLM_MODEL: ${AGENTIC_TASK_LLM_MODEL:-${APP_LLM_MODELNAME:-"nvidia/nemotron-3-super-120b-a12b"}}
+
+      ##===Agentic Seed Gen LLM configurations===
+      AGENTIC_SEED_GEN_LLM_SERVERURL: ${AGENTIC_SEED_GEN_LLM_SERVERURL-${APP_LLM_SERVERURL-"nim-llm:8000"}}
+      AGENTIC_SEED_GEN_LLM_MODEL: ${AGENTIC_SEED_GEN_LLM_MODEL:-${APP_LLM_MODELNAME:-"nvidia/nemotron-3-super-120b-a12b"}}
+
+      ##===Agentic Synthesis LLM configurations===
+      AGENTIC_SYNTHESIS_LLM_SERVERURL: ${AGENTIC_SYNTHESIS_LLM_SERVERURL-${APP_LLM_SERVERURL-"nim-llm:8000"}}
+      AGENTIC_SYNTHESIS_LLM_MODEL: ${AGENTIC_SYNTHESIS_LLM_MODEL:-${APP_LLM_MODELNAME:-"nvidia/nemotron-3-super-120b-a12b"}}
+
+      # Agent behaviour tuning
+      AGENTIC_LOG_LEVEL: ${AGENTIC_LOG_LEVEL:-INFO}
+
+      # Verification pass (disabled by default)
+      AGENTIC_VERIFICATION_ENABLED: ${AGENTIC_VERIFICATION_ENABLED:-false}
+
+      # Context window budget for retrieved chunks
+      AGENTIC_CONTEXT_MAX_TOKENS: ${AGENTIC_CONTEXT_MAX_TOKENS:-100000}
+
     ports:
       - "8081:8081"
     expose:
@@ -217,7 +259,7 @@ services:
   # Sample UI container which interacts with APIs exposed by rag-server container
   rag-frontend:
     container_name: rag-frontend
-    image: nvcr.io/nvidia/blueprint/rag-frontend:${TAG:-2.5.0}
+    image: nvcr.io/nvidia/blueprint/rag-frontend:${TAG:-2.6.0}
     build:
       # Set context to repo's root directory
       context: ../../frontend
@@ -226,7 +268,6 @@ services:
         # Environment variables for Vite build
         VITE_API_CHAT_URL: ${VITE_API_CHAT_URL:-http://rag-server:8081/v1}
         VITE_API_VDB_URL: ${VITE_API_VDB_URL:-http://ingestor-server:8082/v1}
-        VITE_MILVUS_URL: http://milvus:19530
         DOWNLOAD_LEGAL_COMPLIANCE: ${DOWNLOAD_LEGAL_COMPLIANCE:-false}
     ports:
       - "8090:3000"
@@ -236,9 +277,15 @@ services:
       # Runtime environment variables for Vite
       VITE_API_CHAT_URL: ${VITE_API_CHAT_URL:-http://rag-server:8081/v1}
       VITE_API_VDB_URL: ${VITE_API_VDB_URL:-http://ingestor-server:8082/v1}
-      VITE_MILVUS_URL: http://milvus:19530
     depends_on:
       - rag-server
+
+# Shared LanceDB volume — the same physical Docker volume mounted by
+# docker-compose-ingestor-server.yaml. Explicit `name:` bypasses the compose
+# project prefix so both files resolve to the same volume on the host.
+volumes:
+  rag-vol-lancedb:
+    name: rag-vol-lancedb
 
 networks:
   default:

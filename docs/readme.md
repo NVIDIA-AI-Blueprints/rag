@@ -70,6 +70,7 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
 - Common configurations
 
     - [Best Practices for Common Settings](accuracy_perf.md)
+    - [Agentic RAG](agentic-rag.md)
     - [Change the LLM or Embedding Model](change-model.md)
     - [Customize LLM Parameters at Runtime](llm-params.md)
     - [Customize Prompts](prompt-customization.md)
@@ -86,7 +87,7 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
     - [Audio Ingestion Support](audio_ingestion.md)
     - [Custom Metadata Support](custom-metadata.md)
     - [File System Access to Extraction Results](mount-ingestor-volume.md)
-    - [Multimodal Embedding Support (Early Access)](vlm-embed.md)
+    - [Multimodal Retriever — VLM Embedding & VLM Reranker (Early Access)](multimodal-retriever.md)
     - [OCR Configuration Guide](nemoretriever-ocr.md)
     - [Enhanced PDF Extraction](nemotron-parse-extraction.md)
     - [Text-Only Ingestion](text_only_ingest.md)
@@ -100,6 +101,7 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
     - [Change the Vector Database](change-vectordb.md)
     - [Hybrid Search](hybrid_search.md)
     - [Milvus Configuration](milvus-configuration.md)
+    - [Elasticsearch Configuration](elasticsearch-configuration.md)
     - [Query Decomposition](query_decomposition.md)
 
 

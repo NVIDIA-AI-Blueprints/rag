@@ -24,18 +24,18 @@ Examples
 
 - Generate with a specific collection:
   python scripts/retriever_api_usage.py \
-    --payload-json '{"collection_names":["my_collection"]}' \
+    --collection-name my_collection \
     "What is RAG?"
 
 - Search with a specific collection:
   python scripts/retriever_api_usage.py \
     --mode search \
-    --payload-json '{"collection_names":["my_collection"]}' \
+    --collection-name my_collection \
     "Tell me about robert frost's poems"
 
 - Generate using a raw JSON payload string:
   python scripts/retriever_api_usage.py \
-    --payload-json '{"messages":[{"role":"user","content":"Your query here"}],"use_knowledge_base":true,"temperature":0.2,"top_p":0.7,"max_tokens":1024,"reranker_top_k":2,"vdb_top_k":10,"vdb_endpoint":"http://milvus:19530","collection_names":["multimodal_data"],"enable_query_rewriting":true,"enable_reranker":true,"enable_citations":true,"stop":[],"filter_expr":""}'
+    --payload-json '{"messages":[{"role":"user","content":"Your query here"}],"use_knowledge_base":true,"temperature":0.2,"top_p":0.7,"max_tokens":1024,"reranker_top_k":2,"vdb_top_k":10,"collection_names":["my_collection"],"enable_query_rewriting":true,"enable_reranker":true,"enable_citations":true,"stop":[],"filter_expr":""}'
 
 - Search using a payload file and save output to JSON:
   python scripts/retriever_api_usage.py \
@@ -59,9 +59,16 @@ import json
 import logging
 import os
 import sys
+from datetime import datetime, timezone
 from typing import Any
 
-import aiohttp
+try:
+    import aiohttp
+except ModuleNotFoundError as exc:
+    raise SystemExit(
+        "Missing dependency 'aiohttp'. Install script dependencies with: "
+        "pip install -r scripts/requirements.txt"
+    ) from exc
 
 # -----------------------------------------------------------------------------
 # Constants
@@ -69,6 +76,7 @@ import aiohttp
 
 DEFAULT_HOST = "localhost"
 DEFAULT_PORT = "8081"
+DEFAULT_COLLECTION_NAME = os.getenv("COLLECTION_NAME") or "multimodal_data"
 
 
 class LogfmtFormatter(logging.Formatter):
@@ -76,9 +84,7 @@ class LogfmtFormatter(logging.Formatter):
         super().__init__()
 
     def formatTime(self, record, datefmt=None):
-        from datetime import datetime, timezone
-
-        dt = datetime.fromtimestamp(record.created, tz=timezone.utc)
+        dt = datetime.fromtimestamp(record.created, tz=timezone.utc)  # noqa: UP017
         return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
     def format(self, record: logging.LogRecord) -> str:
@@ -153,8 +159,7 @@ def build_generate_payload(query: str) -> dict[str, Any]:
         "max_tokens": 1024,
         "reranker_top_k": 2,
         "vdb_top_k": 10,
-        "vdb_endpoint": "http://milvus:19530",
-        "collection_names": ["multimodal_data"],
+        "collection_names": [DEFAULT_COLLECTION_NAME],
         "enable_query_rewriting": True,
         "enable_reranker": True,
         "enable_citations": True,
@@ -169,8 +174,7 @@ def build_search_payload(query: str) -> dict[str, Any]:
         "query": query,
         "reranker_top_k": 2,
         "vdb_top_k": 10,
-        "vdb_endpoint": "http://milvus:19530",
-        "collection_names": ["multimodal_data"],
+        "collection_names": [DEFAULT_COLLECTION_NAME],
         "messages": [],
         "enable_query_rewriting": False,
         "enable_reranker": True,
@@ -439,6 +443,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         dest="output_json",
         help="Path to save the response JSON. If omitted, prints to stdout.",
     )
+    parser.add_argument(
+        "--collection-name",
+        dest="collection_names",
+        action="append",
+        help="Collection to query. Repeat the option to query multiple collections.",
+    )
     return parser.parse_args(argv)
 
 
@@ -466,6 +476,11 @@ async def async_main() -> int:
         except json.JSONDecodeError as exc:
             logger.error("Invalid JSON in --payload-json: %s", exc)
             return 2
+
+    if args.collection_names:
+        payload = deep_merge_dicts(
+            payload or {}, {"collection_names": args.collection_names}
+        )
 
     if args.mode == "search":
         return await client.search(
