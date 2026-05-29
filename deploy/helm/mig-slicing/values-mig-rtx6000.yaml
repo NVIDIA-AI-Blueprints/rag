@@ -94,8 +94,6 @@ nimOperator:
       engine: vllm
       precision: "fp8"
       tensorParallelism: "2"
-      gpus:
-        - product: "rtx6000_blackwell_sv"
 
   # VLM Embedding (default) — uses 1g.24gb on GPU 3
   nvidia-nim-llama-nemotron-embed-vl-1b-v2:
