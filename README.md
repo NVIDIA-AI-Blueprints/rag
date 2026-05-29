@@ -18,6 +18,18 @@ to provide an enterprise-ready framework.
 With a pre-built reference UI, open-source code, and multiple deployment options — including local docker (with and without NVIDIA Hosted endpoints) and Kubernetes —
 it serves as a flexible starting point that developers can adapt and extend to their specific needs.
 
+> **Oracle AI Database 26ai branch.** This `partner/oracle` branch adds
+> [Oracle AI Database 26ai](https://www.oracle.com/database/ai/) as a pluggable
+> vector store backend for the blueprint. Embeddings, document chunks, and
+> metadata are stored in native Oracle `VECTOR` columns, retrieval combines
+> dense vector search with Oracle Text keyword search, and HNSW vector index
+> builds are offloaded to the [Oracle Private AI Services Container](https://docs.oracle.com/en/database/oracle/oracle-database/26/prvai/private-ai-services-container-vector-index-service.html)
+> where [NVIDIA cuVS](https://developer.nvidia.com/cuvs) builds the graph on a
+> GPU (up to 10x faster than CPU index builds). The rest of the blueprint —
+> ingestion, embedding, reranking, and generation — is unchanged. To get
+> started with the Oracle backend, see
+> [`examples/oracle/README.md`](examples/oracle/README.md).
+
 
 
 ## Key Features
@@ -35,8 +47,9 @@ it serves as a flexible starting point that developers can adapt and extend to t
         <li>Multi-collection searchability</li>
         <li>Hybrid search with dense and sparse search</li>
         <li>Reranking to further improve accuracy</li>
-        <li>GPU-accelerated Index creation and search</li>
-        <li>Pluggable vector database</li>
+        <li>GPU-accelerated index creation and search</li>
+        <li>Pluggable vector database — Milvus, Elasticsearch, or Oracle AI Database 26ai</li>
+        <li>Oracle 26ai backend: hybrid vector + Oracle Text retrieval with GPU-accelerated HNSW index builds via NVIDIA cuVS</li>
     </ul>
 </details>
 <details>
@@ -99,7 +112,8 @@ This modular design ensures efficient query processing, accurate retrieval of in
 
 - Response Generation (Inference)
 
-    - [NVIDIA NIM llama-3.3-nemotron-super-49b-v1.5](https://build.nvidia.com/nvidia/llama-3_3-nemotron-super-49b-v1_5)
+    - [NVIDIA NIM nemotron-3-super-120b-a12b](https://build.nvidia.com/nvidia/nemotron-3-super-120b) — default LLM on the Oracle branch (FP8, tensor-parallel 2, 2 GPUs)
+    - [NVIDIA NIM llama-3.3-nemotron-super-49b-v1.5](https://build.nvidia.com/nvidia/llama-3_3-nemotron-super-49b-v1_5) — smaller single-GPU alternative (see [Change Models](examples/oracle/helm/README.md#change-models))
 
 - Retriever and Extraction Models
 
@@ -124,7 +138,7 @@ This modular design ensures efficient query processing, accurate retrieval of in
 
 - **RAG Orchestrator Server** – Coordinates interactions between the user, retrievers, vector database, and inference models, ensuring multi-turn and context-aware query handling. This is [LangChain](https://www.langchain.com/)-based.
 
-- **Vector Database (accelerated with NVIDIA cuVS)** – Stores and searches embeddings at scale with GPU-accelerated indexing and retrieval for low-latency performance. You can use [Milvus Vector Database](https://milvus.io/) or [Elasticsearch](https://www.elastic.co/elasticsearch/vector-database).
+- **Vector Database (accelerated with NVIDIA cuVS)** – Stores and searches embeddings at scale with GPU-accelerated indexing and retrieval for low-latency performance. You can use [Milvus Vector Database](https://milvus.io/), [Elasticsearch](https://www.elastic.co/elasticsearch/vector-database), or [Oracle AI Database 26ai](https://www.oracle.com/database/ai/). With the Oracle backend, embeddings live in native `VECTOR` columns, retrieval fuses dense vector search with Oracle Text keyword search, and HNSW index builds are offloaded to the [Oracle Private AI Services Container](https://docs.oracle.com/en/database/oracle/oracle-database/26/prvai/private-ai-services-container-vector-index-service.html) where NVIDIA cuVS builds the graph on a GPU. See [`docs/oracle.md`](docs/oracle.md) for details.
 
 - **NeMo Retriever Extraction** – A high-performance ingestion microservice for parsing multimodal content. For more information about the ingestion pipeline, see [NeMo Retriever Extraction Overview](https://docs.nvidia.com/nemo/retriever/latest/extraction/overview/)
 
@@ -152,7 +166,7 @@ The following is a step-by-step explanation of the workflow from the end-user pe
 
 3. **Query Processing** – The query is processed by the Query Processing service, which may also leverage reflection (an optional LLM step) to improve query understanding or reformulation for better retrieval results.
 
-4. **Retrieval from Enterprise Data** – The processed query is converted into embeddings using NeMo Retriever Embedding and matched against enterprise data stored in a cuVS accelerated Vector Database (CuVS) and associated object store(minIO). Relevant results are identified based on similarity.
+4. **Retrieval from Enterprise Data** – The processed query is converted into embeddings using NeMo Retriever Embedding and matched against enterprise data stored in the configured vector database (Milvus, Elasticsearch, or Oracle AI Database 26ai) and associated object store (MinIO). With the Oracle backend, retrieval fuses dense vector search over native `VECTOR` columns with Oracle Text keyword search, and the HNSW vector index is built on a GPU with NVIDIA cuVS. Relevant results are identified based on similarity.
 
 5. **Reranking for Precision** – An optional NeMo Retriever Reranker reorders the retrieved passages, ensuring the most relevant chunks are selected to ground the response.
 
@@ -200,6 +214,85 @@ Refer to the [full documentation](docs/readme.md) to learn about the following:
 - Available Notebooks
 - Troubleshooting
 - Additional Resources
+
+### Get Started With the Oracle AI Database 26ai Backend
+
+The primary path for the Oracle branch is Helm on Oracle Kubernetes Engine
+(OKE). A single `helm install` provisions a fresh Oracle Autonomous AI Database
+26ai, bootstraps the `RAG_APP` schema, deploys the blueprint with **Nemotron 3
+Super 120B** as the default LLM, and deploys the Oracle Private AI Services
+Container so HNSW index builds run on the GPU through NVIDIA cuVS.
+
+**Prerequisites**
+
+- `kubectl` pointed at a GPU-enabled OKE cluster (NVIDIA GPU, compute capability ≥ 7.5)
+- `helm` ≥ 3.14 and OCI CLI configured
+- NGC API key, Oracle SSO email, and Oracle Container Registry (OCR) auth token
+  (accept the license at <https://container-registry.oracle.com> → Database → Private AI)
+
+**1. Create the OCI credentials secret and export tokens**
+
+```bash
+kubectl create secret generic oci-config \
+  --from-file=config=$HOME/.oci/config \
+  --from-file=oci_api_key.pem=$HOME/.oci/oci_api_key.pem
+
+export NGC_API_KEY=<your-ngc-api-key>
+export ORACLE_SSO_EMAIL=<your-oracle-sso-email>
+export ORACLE_OCR_TOKEN=<your-ocr-auth-token>
+```
+
+**2. Fetch chart dependencies** (gpu-operator, k8s-nim-operator, and the stock RAG sub-chart)
+
+```bash
+helm dependency update deploy/helm/nvidia-blueprint-rag
+helm dependency update examples/oracle/helm
+```
+
+**3. Install (creates a fresh Oracle ADB 26ai)**
+
+```bash
+helm install rag examples/oracle/helm \
+  -f examples/oracle/helm/values.create-adb.yaml \
+  --set imagePullSecret.password=$NGC_API_KEY \
+  --set ngcApiSecret.password=$NGC_API_KEY \
+  --set oracle.containerRegistry.username=$ORACLE_SSO_EMAIL \
+  --set oracle.containerRegistry.password=$ORACLE_OCR_TOKEN \
+  --timeout 60m
+```
+
+If your cluster already has `gpu-operator` and `k8s-nim-operator` installed, add
+`--set operators.gpu.enabled=false --set operators.nim.enabled=false`.
+
+**4. Watch it converge and get the frontend URL**
+
+```bash
+kubectl get pods -n default -w
+kubectl get svc rag-frontend -n default \
+  -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+# open http://<that-ip>:3000
+```
+
+The `rag-frontend` Service is an OCI LoadBalancer on port 3000; the
+`oracle-pai-gpu-index` cuVS Service is exposed on port 8443. The RAG API
+(`rag-server`, port 8081) and ingestion API (`ingestor-server`, port 8082) are
+ClusterIP-only.
+
+**Use an existing ADB** instead of provisioning one: create the `oracle-creds`
+secret and install with `-f examples/oracle/helm/values.existing-adb.yaml`. See
+the [Use Existing ADB](examples/oracle/helm/README.md#use-existing-adb) section.
+
+**Reference**
+
+- [`examples/oracle/README.md`](examples/oracle/README.md) — overview of Oracle deployment modes (create-ADB vs existing-ADB, Helm vs Docker).
+- [`examples/oracle/helm/README.md`](examples/oracle/helm/README.md) — full Kubernetes/OKE guide (networking, cross-region ADB, changing models, BYO collections, security).
+- [`examples/oracle/docker/README.md`](examples/oracle/docker/README.md) — local/dev path with Docker Compose.
+- [`docs/oracle.md`](docs/oracle.md) — Oracle vector store configuration reference (connection modes, hybrid search, index types).
+
+No custom images are required — stock NGC images are used, and the Oracle Python
+dependencies (`oracledb`, `langchain-oracledb`) are installed automatically at
+pod startup via init containers. `helm uninstall rag` does **not** delete the
+ADB, so enterprise data is preserved.
 
 
 
