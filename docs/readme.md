@@ -87,7 +87,7 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
     - [Audio Ingestion Support](audio_ingestion.md)
     - [Custom Metadata Support](custom-metadata.md)
     - [File System Access to Extraction Results](mount-ingestor-volume.md)
-    - [Multimodal Retriever — VLM Embedding & VLM Reranker (Early Access)](multimodal-retriever.md)
+    - [Multimodal Retriever — VLM Embedding & VLM Reranker](multimodal-retriever.md)
     - [OCR Configuration Guide](nemoretriever-ocr.md)
     - [Enhanced PDF Extraction](nemotron-parse-extraction.md)
     - [Text-Only Ingestion](text_only_ingest.md)
@@ -116,6 +116,7 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
 
     - [Evaluate Your NVIDIA RAG Blueprint System](evaluate.md)
     - [RAG Accuracy Benchmarks](accuracy-benchmarks.md)
+    - [Benchmark the Performance of Your RAG System](performance-benchmarking.md)
 
 
 - Governance

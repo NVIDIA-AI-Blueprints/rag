@@ -6,7 +6,7 @@
 
 The multimodal retriever has two independently switchable components that together let the [NVIDIA RAG Blueprint](readme.md) embed and re-rank documents with awareness of their visual content rather than text alone:
 
-1. **VLM Embedding for Ingestion** — replaces the text embedder with `nvidia/llama-nemotron-embed-vl-1b-v2` so PDF pages, tables, charts, and image elements are embedded by a multimodal model.
+1. **VLM Embedding for Ingestion** — uses the default `nvidia/llama-nemotron-embed-vl-1b-v2` embedder so text passages, PDF pages, tables, charts, and image elements can be embedded by a multimodal model.
 2. **VLM Reranker** — replaces the text reranker with `nvidia/llama-nemotron-rerank-vl-1b-v2` so retrieved passages are scored using both their text and the cited images.
 
 Both components plug into the same retrieval pipeline and can be enabled independently or together. Pair them with [VLM-based generation](vlm.md) for a fully multimodal RAG pipeline; see [Enabling Full VLM Multimodal RAG Pipeline](vlm.md#enabling-full-vlm-multimodal-rag-pipeline) for the end-to-end picture, and [Multimodal Query Support](multimodal-query.md) for the user-facing image+text query flow.
@@ -15,9 +15,9 @@ Requirements: an NVIDIA GPU per enabled component (H100/A100 recommended) and a 
 
 ---
 
-# Part 1 — VLM Embedding for Ingestion (Early Access)
+# Part 1 — VLM Embedding for Ingestion
 
-This part shows how to enable and use the multimodal embedding model `nvidia/llama-nemotron-embed-vl-1b-v2` in the ingestion pipeline.
+The multimodal embedding model `nvidia/llama-nemotron-embed-vl-1b-v2` is the default embedding model in v2.6.0. The setup steps in this section are useful when you need to start only the VLM embedding service, confirm the active endpoint, switch back from the optional text-only embedder, or enable image-modality ingestion.
 
 In this section you do the following:
 
@@ -26,17 +26,13 @@ In this section you do the following:
 - Point the ingestor to the VLM embedding service and model
 
 :::{note}
-**Early Access**: Currently, `nvidia/llama-nemotron-embed-vl-1b-v2` is in early access preview.
-:::
-
-:::{note}
-**PDF Support Only**: The VLM embedding feature is currently only supported for PDF documents. Other document formats (Word, PowerPoint, etc.) are not supported with VLM embedding.
+**Image-modality PDF support:** The default v2.6.0 configuration uses the VLM embedding service while keeping extracted text, tables, and charts in text modality. Advanced image-modality ingestion, such as embedding structured elements or whole pages as images, is currently supported for PDF workflows.
 :::
 
 ## Limitations
 
-- The VLM embedding feature is experimental and responses may not be accurate.
-- Summary generation doesn't work when this feature is enabled.
+- Advanced image-modality ingestion is experimental and responses may not be accurate.
+- Summary generation does not work with image-modality ingestion configurations such as whole-page image extraction.
 
 ## 1. Start the VLM Embedding NIM locally
 

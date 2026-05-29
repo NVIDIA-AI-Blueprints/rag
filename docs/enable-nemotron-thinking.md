@@ -30,13 +30,13 @@ Nemotron 3 models (such as `nvidia/nemotron-3-nano-30b-a3b`) use environment var
 Set the following environment variables on the RAG server container (via Docker Compose, Helm values, or shell export):
 
 **`LLM_ENABLE_THINKING`**
-: Enable or disable the reasoning phase. When `true`, the model emits reasoning tokens before the final answer. Default: `false`.
+: Enable or disable the reasoning phase. When `true`, the model emits reasoning tokens before the final answer. The v2.6.0 deployment files set this to `true` for Nemotron 3 Super. Library and custom deployments that do not set the environment variable use the application default, `false`.
 
 **`LLM_REASONING_BUDGET`**
-: Maximum number of tokens allocated for reasoning. Only used when `LLM_ENABLE_THINKING` is `true`. Default: `0`.
+: Maximum number of tokens allocated for reasoning. Only used when `LLM_ENABLE_THINKING` is `true`. The v2.6.0 deployment default is `256`; the application default is `0`.
 
 **`LLM_LOW_EFFORT`**
-: Low-effort reasoning mode for faster, cheaper responses with shorter reasoning. Only used when `LLM_ENABLE_THINKING` is `true`. Default: `false`.
+: Low-effort reasoning mode for faster, cheaper responses with shorter reasoning. Only used when `LLM_ENABLE_THINKING` is `true`. The v2.6.0 deployment default is `true`; the application default is `false`.
 
 **`FILTER_THINK_TOKENS`**
 : Filter reasoning out of the user-facing `content` stream. Reasoning emitted
