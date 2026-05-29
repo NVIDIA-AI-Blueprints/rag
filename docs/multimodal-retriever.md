@@ -260,7 +260,7 @@ The image-attachment behaviour is gated by the `ENABLE_VLM_RERANKER_IMAGE_INPUT`
 
 ## Enable VLM Reranker with Docker Compose
 
-The VLM reranker NIM is provided as the `nemotron-ranking-vl-ms` service in [`deploy/compose/nims.yaml`](../deploy/compose/nims.yaml) under the `vlm-rerank` and `vlm-rag` profiles. Image: `nvcr.io/nim/nvidia/llama-nemotron-rerank-vl-1b-v2:1.11.0`.
+The VLM reranker NIM is provided as the `nemotron-ranking-vl-ms` service in [`deploy/compose/nims.yaml`](../deploy/compose/nims.yaml) under the `vlm-rerank` and `vlm-rag` profiles. Image: `nvcr.io/nim/nvidia/llama-nemotron-rerank-vl-1b-v2:1.11.0`. Docker Compose publishes this service on host port `1979`; Docker-internal callers should continue to use `nemotron-ranking-vl-ms:8000`.
 
 1. Start the VLM reranker NIM (and disable the text reranker if it was running):
 

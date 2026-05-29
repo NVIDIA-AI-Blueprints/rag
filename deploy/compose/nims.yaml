@@ -129,7 +129,7 @@ services:
     volumes:
     - ${MODEL_DIRECTORY:-./}:/opt/nim/.cache
     ports:
-    - "1978:8000"
+    - "1979:8000"
     expose:
     - "8000"
     environment:
