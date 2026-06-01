@@ -8,7 +8,7 @@ This documentation contains the release notes for [NVIDIA RAG Blueprint](readme.
 
 
 
-## Release 2.6.0 (TBD)
+## Release 2.6.0 (2026-05-30)
 
 This release adds [Agentic RAG](./agentic-rag.md) support with plan-and-execute pipelines, streaming responses, and UI integration; changes the default vector database to Elasticsearch and the default object store to SeaweedFS; adds [Red Hat OpenShift](./deploy-helm-openshift.md) support for Helm-based deployment; and introduces new [agent skills](../skill-source/README.md) for deployment, evaluation, and performance tooling.
 
