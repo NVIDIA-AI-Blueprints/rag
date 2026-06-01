@@ -59,12 +59,14 @@ You can also modify the RAG Blueprint to use [NVIDIA-hosted](deploy-docker-nvidi
 
 ## Hardware Requirements (Kubernetes)
 
-To install the RAG Blueprint on Kubernetes, you need one of the following:
+To install the default RAG Blueprint Helm chart on Kubernetes, you need one of the following:
 
-- 9 x H100-80GB
-- 9 x B200
-- 9 x RTX PRO 6000
-- 3 x H100 (with [Multi-Instance GPU](./mig-deployment.md))
+- 8 x H100-80GB
+- 8 x B200
+- 8 x RTX PRO 6000
+- 5 x H100-80GB (with [Multi-Instance GPU](./mig-deployment.md))
+
+Optional GPU-backed services increase the requirement. Plan for one additional GPU for each optional service that you enable, such as VLM generation, VLM captioning, VLM reranking, Nemotron Parse, or audio processing, unless you use MIG slicing or another explicit sharing strategy.
 
 
 
@@ -74,8 +76,9 @@ The following are requirements and recommendations for the individual components
 
 - **Pipeline operation** – 1x L40 GPU or similar recommended. This is required if you use Milvus (optional) as the vector database with GPU acceleration. The default Elasticsearch VDB does not require a GPU. If you change the vector backend or enable optional GPU acceleration for Elasticsearch vector indexing, refer [Elasticsearch Configuration](elasticsearch-configuration.md) and confirm GPU requirements for that configuration.
 - **LLM NIM (nemotron-3-super-120b-a12b)** – Refer to the [Support Matrix](https://docs.nvidia.com/nim/large-language-models/latest/supported-models.html).
-- **Embedding NIM (llama-nemotron-embed-vl-1b-v2)** – Refer to the embedding model support matrix for your deployment target.
+- **Embedding NIM (llama-nemotron-embed-vl-1b-v2)** – Refer to the [Support Matrix](https://docs.nvidia.com/nim/nemo-retriever/text-embedding/latest/support-matrix.html) for your deployment target.
 - **Reranking NIM (llama-nemotron-rerank-1b-v2)**: Refer to the [Support Matrix](https://docs.nvidia.com/nim/nemo-retriever/text-reranking/latest/support-matrix.html).
+- **VLM Reranking NIM (llama-nemotron-rerank-vl-1b-v2, optional)**: Refer to the [Support Matrix](https://docs.nvidia.com/nim/nemo-retriever/text-reranking/latest/support-matrix.html).
 - **Nemotron OCR (Default)**: Refer to the [Support Matrix](https://docs.nvidia.com/nim/ingestion/image-ocr/1.3.0/support-matrix.html).
 - **NVIDIA NIMs for Object Detection**:
   - Nemotron Page Elements v3 [Support Matrix](https://docs.nvidia.com/nim/ingestion/object-detection/latest/support-matrix.html#nemo-retriever-page-elements-v3)
