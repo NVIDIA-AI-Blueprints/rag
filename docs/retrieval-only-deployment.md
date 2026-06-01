@@ -241,7 +241,7 @@ In the v2.6.0 chart, the embedding and reranking NIMs are enabled by default; th
 ### Option A: --set flag
 
 ```bash
-helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.6.0.tgz \
+helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.6.0.tgz \
   --username '$oauthtoken' \
   --password "${NGC_API_KEY}" \
   --set nimOperator.nim-llm.enabled=false \
@@ -290,7 +290,7 @@ nv-ingest:
 Apply the chart with the values override:
 
 ```bash
-helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.6.0.tgz \
+helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.6.0.tgz \
   --username '$oauthtoken' \
   --password "${NGC_API_KEY}" \
   --set imagePullSecret.password=$NGC_API_KEY \
