@@ -194,7 +194,7 @@ To deploy the RAG Blueprint on OpenShift, use the following procedure.
     # Pull and untar the chart from NGC. The NGC package ships with the
     # nv-ingest subchart already extracted under charts/nv-ingest/, so the
     # sed below can edit the template file in place.
-    helm pull https://helm.ngc.nvidia.com/nvstaging/blueprint/charts/nvidia-blueprint-rag-v2.6.0.tgz \
+    helm pull https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.6.0.tgz \
       --username '$oauthtoken' --password "$NGC_API_KEY" \
       --untar --untardir /tmp
 
