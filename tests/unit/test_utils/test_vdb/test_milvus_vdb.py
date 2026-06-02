@@ -18,6 +18,7 @@
 import os
 from contextlib import ExitStack
 from unittest.mock import MagicMock, Mock, patch
+from urllib.parse import urlparse
 
 import pytest
 import requests
@@ -44,6 +45,11 @@ def _make_dummy_milvus_vdb_for_delete():
     vdb = object.__new__(MilvusVDB)
     vdb.connection_alias = "milvus_dummy_test"
     vdb.vdb_endpoint = "http://localhost:19530"
+    # _compact_and_wait reads self.url.scheme to short-circuit on milvus-lite
+    # file URIs (which have no scheme); production __init__ sets this at line
+    # 179. Mirror it here so existing compact tests exercise the normal
+    # http://-endpoint code path instead of the lite early-return.
+    vdb.url = urlparse(vdb.vdb_endpoint)
     vdb._client = Mock()
     vdb._client.compact.return_value = 12345
     vdb._client.get_compaction_state.return_value = "Completed"
@@ -906,6 +912,43 @@ class TestMilvusVDB:
         assert result is True
         assert vdb._client.delete.call_count == 2
 
+    def test_delete_documents_milvus_lite_list_response(self):
+        """Regression test for NVBug 6222417: milvus-lite's MilvusClient.delete
+        returns a list of primary keys, not a {"delete_count": N} dict. The
+        lite-path branch in delete_documents must compute delete_count as
+        len(resp) so the result is reported under "deleted" rather than
+        falsely under "not_found".
+        """
+        vdb = _make_dummy_milvus_vdb_for_delete()
+        # Simulate milvus-lite delete return: a list of removed primary keys.
+        vdb._client.delete.return_value = [101, 102, 103]
+        result_dict: dict[str, list[str]] = {}
+
+        result = vdb.delete_documents(
+            "test_collection", ["data/file1.txt"], result_dict=result_dict
+        )
+
+        assert result is True
+        # The doc was actually deleted (3 PKs), so it must land in "deleted",
+        # not "not_found" (which was the user-visible bug pre-fix).
+        assert result_dict["deleted"] == ["file1.txt"]
+        assert result_dict["not_found"] == []
+
+    def test_delete_documents_milvus_lite_empty_list_response(self):
+        """Lite-path delete with no matching rows returns an empty list, which
+        must be classified as "not_found" (delete_count == 0)."""
+        vdb = _make_dummy_milvus_vdb_for_delete()
+        vdb._client.delete.return_value = []
+        result_dict: dict[str, list[str]] = {}
+
+        result = vdb.delete_documents(
+            "test_collection", ["data/missing.txt"], result_dict=result_dict
+        )
+
+        assert result is True
+        assert result_dict["deleted"] == []
+        assert result_dict["not_found"] == ["missing.txt"]
+
     def test_compact_and_wait_retries_until_completed(self):
         """_compact_and_wait should poll until the job reaches Completed."""
         vdb = _make_dummy_milvus_vdb_for_delete()
@@ -955,6 +998,25 @@ class TestMilvusVDB:
 
         # First sleep is the initial one before any poll
         mock_time.sleep.assert_called_with(0.5)
+
+    def test_compact_and_wait_skips_on_milvus_lite_endpoint(self):
+        """Regression test for NVBug 6222417: ManualCompaction is unimplemented
+        in milvus-lite, so _compact_and_wait must short-circuit when the endpoint
+        is a milvus-lite file URI (no URL scheme). Calling compact() on the lite
+        client surfaces a misleading error log even though the failure is benign.
+        """
+        vdb = _make_dummy_milvus_vdb_for_delete()
+        # milvus-lite endpoints are file paths with no URL scheme, e.g.
+        # "/tmp/nvidia-rag-lite-1234-abcd/milvus.db".
+        vdb.vdb_endpoint = "/tmp/repro/milvus.db"
+        vdb.url = urlparse(vdb.vdb_endpoint)
+        assert vdb.url.scheme == "", "test setup: lite endpoint must have no scheme"
+
+        vdb._compact_and_wait("test_collection", timeout=30.0)
+
+        # Must NOT touch the client at all -- short-circuits before compact()
+        vdb._client.compact.assert_not_called()
+        vdb._client.get_compaction_state.assert_not_called()
 
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.MilvusClient")
     @patch("nvidia_rag.utils.vdb.milvus.milvus_vdb.connections")
