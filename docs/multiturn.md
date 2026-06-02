@@ -247,7 +247,7 @@ Only on-prem deployment of the LLM is supported for Helm. The model must be depl
      # ... existing configurations ...
      
      # === Query Rewriter Model specific configurations ===
-     APP_QUERYREWRITER_MODELNAME: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+     APP_QUERYREWRITER_MODELNAME: "nvidia/nemotron-3-super-120b-a12b"
      APP_QUERYREWRITER_SERVERURL: "nim-llm:8000"  # Fully qualified service name
      ENABLE_QUERYREWRITER: "True"
      CONVERSATION_HISTORY: "5"

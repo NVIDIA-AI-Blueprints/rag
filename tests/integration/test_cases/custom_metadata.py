@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 """
 Integration tests for custom metadata support.
 
@@ -19,6 +21,7 @@ from pathlib import Path
 import aiohttp
 
 from tests.integration.base import BaseTestModule, TestStatus, test_case
+from tests.integration.utils.vector_store import is_elasticsearch_vector_store
 
 logger = logging.getLogger(__name__)
 
@@ -99,9 +102,15 @@ class CustomMetadataModule(BaseTestModule):
             {
                 "filename": "multimodal_test.pdf",
                 "metadata": {
-                    "title": "AI Policy Guidelines",
+                    # Title intentionally contains "tech" so the test stays robust
+                    # to LLM clause selection: a `term` on `category="tech"` and a
+                    # `wildcard` on `title="*tech*"` both match this document.
+                    "title": "AI Tech Policy Guidelines",
                     "category": "tech",
-                    "rating": 4.5,
+                    # 4.8 (not exactly 4.5) so test queries like "rating above 4.5"
+                    # and "high rating" produce non-empty matches under strict
+                    # comparison semantics (`gt: 4.5`) on either backend.
+                    "rating": 4.8,
                     "is_public": True,
                     "tags": ["urgent", "policy", "ai"],
                     "created_date": "2024-01-15T10:30:00Z",
@@ -444,7 +453,42 @@ class CustomMetadataModule(BaseTestModule):
             # Step 1: Search with filter expression for tech documents
             logger.info("Testing filter expression for tech documents...")
 
-            tech_filter = 'content_metadata["category"] == "tech"'
+            if is_elasticsearch_vector_store():
+                tech_filter = [
+                    {
+                        "term": {
+                            "metadata.content_metadata.category.keyword": "tech",
+                        },
+                    },
+                ]
+                rating_filter = [
+                    {
+                        "range": {
+                            "metadata.content_metadata.rating": {"gt": 4.0},
+                        },
+                    },
+                ]
+                complex_filter = [
+                    {
+                        "term": {
+                            "metadata.content_metadata.category.keyword": "tech",
+                        },
+                    },
+                    {
+                        "range": {
+                            "metadata.content_metadata.rating": {"gt": 4.0},
+                        },
+                    },
+                    {"term": {"metadata.content_metadata.is_public": True}},
+                ]
+            else:
+                tech_filter = 'content_metadata["category"] == "tech"'
+                rating_filter = 'content_metadata["rating"] > 4.0'
+                complex_filter = (
+                    'content_metadata["category"] == "tech" and '
+                    'content_metadata["rating"] > 4.0 and '
+                    'content_metadata["is_public"] == true'
+                )
 
             search_payload = {
                 "query": "policy guidelines",
@@ -477,7 +521,6 @@ class CustomMetadataModule(BaseTestModule):
             # Step 2: Search with filter expression for high-rated documents
             logger.info("Testing filter expression for high-rated documents...")
 
-            rating_filter = 'content_metadata["rating"] > 4.0'
             search_payload["filter_expr"] = rating_filter
 
             async with aiohttp.ClientSession() as session:
@@ -505,7 +548,6 @@ class CustomMetadataModule(BaseTestModule):
             # Step 3: Search with complex filter expression
             logger.info("Testing complex filter expression...")
 
-            complex_filter = 'content_metadata["category"] == "tech" and content_metadata["rating"] > 4.0 and content_metadata["is_public"] == true'
             search_payload["filter_expr"] = complex_filter
 
             async with aiohttp.ClientSession() as session:
@@ -566,9 +608,24 @@ class CustomMetadataModule(BaseTestModule):
 
     @test_case(38, "LLM Filter Generation Test")
     async def test_llm_filter_generation(self) -> bool:
-        """Test LLM-based filter generation from natural language"""
+        """Test LLM-based natural-language filter generation against the configured vector store.
+
+        Both Milvus and Elasticsearch are expected to convert a natural-language
+        query into a backend-appropriate metadata filter when
+        ``enable_filter_generator=true`` is set on ``/search`` or ``/generate``.
+        The four sub-tests below exercise the public API surface only (request
+        body fields, response shape, citation metadata) so the same assertions
+        apply regardless of the underlying backend or filter syntax produced
+        by the LLM. They verify observable behavior, not implementation
+        internals such as the generated expression's textual form.
+        """
         logger.info("\n=== Test 38: LLM Filter Generation Test ===")
         test_start = time.time()
+
+        description = (
+            "Test LLM-based filter generation end-to-end via /search and "
+            "/generate with enable_filter_generator=True; backend-agnostic."
+        )
 
         try:
             success = True
@@ -582,7 +639,7 @@ class CustomMetadataModule(BaseTestModule):
             self.add_test_result(
                 38,
                 "LLM Filter Generation Test",
-                "Test that LLM can generate filter expressions from natural language queries",
+                description,
                 ["POST /generate", "POST /search"],
                 ["messages", "collection_names", "enable_filter_generator", "query"],
                 test_time,
@@ -600,7 +657,7 @@ class CustomMetadataModule(BaseTestModule):
             self.add_test_result(
                 38,
                 "LLM Filter Generation Test",
-                "Test that LLM can generate filter expressions from natural language queries",
+                description,
                 ["POST /generate", "POST /search"],
                 ["messages", "collection_names", "enable_filter_generator", "query"],
                 test_time,
@@ -828,6 +885,7 @@ class CustomMetadataModule(BaseTestModule):
 
         # Test query that should generate a specific filter
         test_query = "Show me tech documents with rating above 4.5"
+        logger.info(f"   └─ Verification query: '{test_query}' (top_k=20)")
 
         # Test 1: With filter generation enabled
         search_payload_with_filter = {
@@ -848,6 +906,9 @@ class CustomMetadataModule(BaseTestModule):
 
                 result_with_filter = await response.json()
                 docs_with_filter = result_with_filter.get("results", [])
+                logger.info(
+                    f"   └─ With enable_filter_generator=True: {len(docs_with_filter)} results"
+                )
 
         # Test 2: Same query without filter generation
         search_payload_without_filter = {
@@ -868,6 +929,9 @@ class CustomMetadataModule(BaseTestModule):
 
                 result_without_filter = await response.json()
                 docs_without_filter = result_without_filter.get("results", [])
+                logger.info(
+                    f"   └─ With enable_filter_generator=False: {len(docs_without_filter)} results"
+                )
 
         # Verification 1: Results should be different if filter generation is working
         if len(docs_with_filter) == len(docs_without_filter):
@@ -877,7 +941,20 @@ class CustomMetadataModule(BaseTestModule):
 
             if with_filter_ids == without_filter_ids:
                 logger.error("❌ Filter generation verification FAILED: Results are identical with and without filter generation")
-                logger.error("   └─ This suggests filter generation is falling back to empty strings")
+                logger.error("   └─ This suggests filter generation is falling back to empty/no-op")
+                logger.error("   └─ Check rag-server logs for 'STAGE: Dynamic Filter Expression Generation' and the generated filter")
+                logger.error(
+                    "   └─ Also confirm ENABLE_FILTER_GENERATOR=true is set on the rag-server "
+                    "and APP_VECTORSTORE_NAME matches the active backend"
+                )
+                logger.error(
+                    "   └─ First 3 with-filter doc IDs: %s",
+                    [(d.get("document_name", ""), d.get("chunk_id", "")) for d in docs_with_filter[:3]],
+                )
+                logger.error(
+                    "   └─ First 3 without-filter doc IDs: %s",
+                    [(d.get("document_name", ""), d.get("chunk_id", "")) for d in docs_without_filter[:3]],
+                )
                 return False
 
         # Verification 2: Documents with filter should match the criteria better

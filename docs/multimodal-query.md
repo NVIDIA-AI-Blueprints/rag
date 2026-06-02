@@ -12,7 +12,7 @@ The multimodal query feature in the [NVIDIA RAG Blueprint](readme.md) enables yo
 
 This feature combines:
 - **VLM Embeddings**: `nvidia/llama-nemotron-embed-vl-1b-v2` for creating multimodal embeddings that understand both text and images
-- **Vision-Language Model**: `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning` for generating intelligent responses based on visual and textual context (with optional reasoning trace)
+- **Vision-Language Model**: `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning` for generating intelligent responses based on visual and textual context
 
 
 
@@ -38,9 +38,7 @@ Start the Milvus vector database service:
 docker compose -f deploy/compose/vectordb.yaml up -d
 ```
 
-### 2. Deploy the VLM and VLM Embedding NIMs
-
-Deploy the Vision-Language Model and multimodal embedding services.
+### 2. Deploy the Ingestion and VLM RAG NIMs
 
 Set your NGC API key (replace with your actual key):
 
@@ -59,8 +57,8 @@ export MODEL_DIRECTORY=~/.cache/model-cache
 # Use `nvidia-smi` to check available GPUs and set the desired GPU ID
 export VLM_MS_GPU_ID=1  # Default is GPU 5; change to use a different GPU
 
-# Deploy NIMs with VLM and VLM embedding profiles
-USERID=$(id -u) docker compose --profile vlm-ingest --profile vlm-only -f deploy/compose/nims.yaml up -d
+# Deploy ingestion NIMs plus the VLM RAG NIMs.
+USERID=$(id -u) docker compose --profile ingest --profile vlm-rag -f deploy/compose/nims.yaml up -d
 ```
 
 :::{warning}
@@ -85,6 +83,11 @@ export APP_VLM_MODELNAME="nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
 export APP_VLM_SERVERURL="http://vlm-ms:8000/v1"
 export APP_LLM_SERVERURL=""
 
+# Optional: use the same VLM for document summaries when no LLM NIM is running.
+# You can also point SUMMARY_LLM* to a separate LLM or NVIDIA-hosted endpoint.
+export SUMMARY_LLM="nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
+export SUMMARY_LLM_SERVERURL="http://vlm-ms:8000/v1"
+
 # Multimodal embedding model configuration
 export APP_EMBEDDINGS_MODELNAME="nvidia/llama-nemotron-embed-vl-1b-v2"
 export APP_EMBEDDINGS_SERVERURL="nemotron-vlm-embedding-ms:8000/v1"
@@ -102,7 +105,8 @@ export APP_NVINGEST_STRUCTURED_ELEMENTS_MODALITY=""
 export APP_NVINGEST_IMAGE_ELEMENTS_MODALITY="image"
 export APP_NVINGEST_EXTRACTIMAGES="True"
 
-# Disable reranker (not supported with multimodal queries)
+# Disable reranker for image-query requests. Image queries use the multimodal
+# vector retrieval path directly and bypass reranking.
 export ENABLE_RERANKER="false"
 export APP_RANKING_SERVERURL=""
 ```
@@ -170,8 +174,13 @@ Then set the VLM configuration:
 ```bash
 # VLM (Vision-Language Model) configuration - cloud hosted
 export APP_VLM_MODELNAME="nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
-export APP_VLM_SERVERURL="https://integrate.api.nvidia.com"
+export APP_VLM_SERVERURL="https://integrate.api.nvidia.com/v1"
 export APP_LLM_SERVERURL=""
+
+# Optional: use the same NVIDIA-hosted VLM for document summaries.
+# You can also leave SUMMARY_LLM* pointing at another supported summarizer.
+export SUMMARY_LLM="nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
+export SUMMARY_LLM_SERVERURL="https://integrate.api.nvidia.com/v1"
 
 # Multimodal embedding model configuration - cloud hosted
 export APP_EMBEDDINGS_MODELNAME="nvidia/llama-nemotron-embed-vl-1b-v2"
@@ -226,9 +235,8 @@ ingestor-server                         Up 5 minutes
 compose-redis-1                         Up 5 minutes
 rag-frontend                            Up 9 minutes
 rag-server                              Up 9 minutes
-milvus-standalone                       Up 36 minutes (healthy)
-milvus-minio                            Up 35 minutes (healthy)
-milvus-etcd                             Up 35 minutes (healthy)
+elasticsearch                           Up 36 minutes (healthy)
+seaweedfs                               Up 35 minutes (healthy)
 ```
 
 
@@ -262,12 +270,17 @@ nvidia-nim-llama-nemotron-embed-vl-1b-v2:
     tag: "1.12.0"
 
 # Optional: disable the default text embedding NIM
-nvidia-nim-llama-32-nv-embedqa-1b-v2:
+nvidia-nim-llama-nemotron-embed-1b-v2:
   enabled: false
 
 # Disable LLM NIM (VLM handles generation)
 nim-llm:
   enabled: false
+
+# Enable dedicated VLM captioning NIM (image-cap model changed after RC1)
+nimOperator:
+  nim-vlm-captioning:
+    enabled: true
 
 # Configure environment variables
 envVars:
@@ -291,6 +304,11 @@ ingestor-server:
     APP_NVINGEST_STRUCTURED_ELEMENTS_MODALITY: ""
     APP_NVINGEST_IMAGE_ELEMENTS_MODALITY: "image"
     APP_NVINGEST_EXTRACTIMAGES: "True"
+
+    # Summary generation settings.
+    # Required for generate_summary=true when nim-llm is disabled.
+    SUMMARY_LLM: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
+    SUMMARY_LLM_SERVERURL: "nim-vlm:8000"
 
     # VLM embedding settings for ingestor
     APP_EMBEDDINGS_SERVERURL: "nemotron-vlm-embedding-ms:8000/v1"
@@ -354,14 +372,30 @@ For details, see [User Interface for NVIDIA RAG Blueprint](user-interface.md).
 
 ### Python Client
 
-When using the Python client, always specify `collection_names` in your query:
+When using the Python client, pass image input using the OpenAI vision content
+format and always specify `collection_names` in your query:
 
 ```python
-# Example: Multimodal query with collection specified
+import base64
+from pathlib import Path
+
+image_b64 = base64.b64encode(Path("Creme_clutch_purse1-small.jpg").read_bytes()).decode()
+image_query = [
+    {"type": "text", "text": "What material is this made of?"},
+    {
+        "type": "image_url",
+        "image_url": {
+            "url": f"data:image/png;base64,{image_b64}",
+            "detail": "auto",
+        },
+    },
+]
+
 await rag.generate(
-    messages=[{"role": "user", "content": "What is this product?"}],
+    messages=[{"role": "user", "content": image_query}],
     use_knowledge_base=True,
-    collection_names=["your_collection_name"],  # Required: specify your collection
+    collection_names=["your_collection_name"],
+    enable_reranker=False,
 )
 ```
 
@@ -373,23 +407,19 @@ For a step-by-step guide with code examples covering collection creation, docume
 
 ## Limitations
 
-- **Reranker not supported**: The reranker must be disabled (`enable_reranker: False`) for multimodal queries.
+- **Image-query reranking is bypassed**: When the user query includes an image,
+  use `enable_reranker: False`. Image queries use the multimodal vector
+  retrieval path directly.
 - **Single-page retrieval for image queries**: When an image is included in the query, the retrieval results are constrained to content from a single page per document. Multi-page context retrieval is not supported for image-based queries.
-- **Summary generation not supported**: The multimodal query pipeline replaces the LLM with a VLM for response generation, and summary generation does not work with VLMs. If you need summary generation alongside multimodal queries, you must deploy a separate LLM dedicated to `summary generation. For details, see [Summarization](summarization.md).`
-- **Elasticsearch not supported**: Multimodal queries are only supported with Milvus as the vector database. Elasticsearch is not supported for multimodal query workflows.
-
-
-
 
 
 ## Related Topics
 
 - [Vision-Language Model (VLM) for Generation](vlm.md)
-- [VLM Embedding for Ingestion](vlm-embed.md)
+- [Multimodal Retriever (VLM Embedding & VLM Reranker)](multimodal-retriever.md)
 - [Image Captioning Support](image_captioning.md)
 - [Deploy with Docker (Self-Hosted Models)](deploy-docker-self-hosted.md)
 - [Deploy with Docker (NVIDIA-Hosted Models)](deploy-docker-nvidia-hosted.md)
 - [Deploy with Helm](deploy-helm.md)
 - [Troubleshoot](troubleshooting.md)
 - [Notebooks](notebooks.md)
-

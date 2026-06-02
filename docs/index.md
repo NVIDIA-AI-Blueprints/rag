@@ -52,6 +52,7 @@ For detailed requirements, refer to [Support Matrix](support-matrix.md).
 - [Deploy on Kubernetes with Helm](deploy-helm.md)
 - [Deploy on Kubernetes with Helm from the repository](deploy-helm-from-repo.md)
 - [Deploy on Kubernetes with Helm and MIG Support](mig-deployment.md)
+- [Deploy on OpenShift with Helm](deploy-helm-openshift.md)
 - [Deploy Retrieval-Only Mode](retrieval-only-deployment.md)
 
 
@@ -68,6 +69,7 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
 - Common configurations
 
     - [Best Practices for Common Settings](accuracy_perf.md)
+    - [Agentic RAG](agentic-rag.md)
     - [Change the LLM or Embedding Model](change-model.md)
     - [Customize LLM Parameters at Runtime](llm-params.md)
     - [Customize Prompts](prompt-customization.md)
@@ -85,7 +87,7 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
     - [Continuous Ingestion from Object Storage](continuous-ingestion-object-storage.md)
     - [Custom Metadata Support](custom-metadata.md)
     - [File System Access to Extraction Results](mount-ingestor-volume.md)
-    - [Multimodal Embedding Support (Early Access)](vlm-embed.md)
+    - [Multimodal Retriever — VLM Embedding & VLM Reranker](multimodal-retriever.md)
     - [OCR Configuration Guide](nemoretriever-ocr.md)
     - [Enhanced PDF Extraction](nemotron-parse-extraction.md)
     - [Text-Only Ingestion](text_only_ingest.md)
@@ -99,6 +101,7 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
     - [Change the Vector Database](change-vectordb.md)
     - [Hybrid Search](hybrid_search.md)
     - [Milvus Configuration](milvus-configuration.md)
+    - [Elasticsearch Configuration](elasticsearch-configuration.md)
     - [Query Decomposition](query_decomposition.md)
 
 
@@ -114,6 +117,7 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
     - [Evaluate Your NVIDIA RAG Blueprint System](evaluate.md)
     - [RAG Accuracy Benchmarks](accuracy-benchmarks.md)
     - [RAG Performance Benchmarks](perf-benchmarks.md)
+    - [Benchmark the Performance of Your RAG System](performance-benchmarking.md)
 
 - Governance
 
@@ -186,6 +190,7 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
    Deploy on Kubernetes with Helm <deploy-helm.md>
    Deploy on Kubernetes with Helm from the repository <deploy-helm-from-repo.md>
    Deploy on Kubernetes with Helm and MIG Support <mig-deployment.md>
+   Deploy on OpenShift with Helm <deploy-helm-openshift.md>
    Deploy Retrieval-Only Mode <retrieval-only-deployment.md>
 ```
 
@@ -197,6 +202,7 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
    :hidden:
 
    Best Practices for Common Settings <accuracy_perf.md>
+   Agentic RAG <agentic-rag.md>
    Change the Model <change-model.md>
    Customize Parameters <llm-params.md>
    Customize Prompts <prompt-customization.md>
@@ -220,7 +226,7 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
    Custom metadata Support <custom-metadata.md>
    Data Catalog for Collections and Documents <data-catalog.md>
    File System Access to Results <mount-ingestor-volume.md>
-   Multimodal Embedding Support (Early Access) <vlm-embed.md>
+   Multimodal Retriever — VLM Embedding & VLM Reranker <multimodal-retriever.md>
    OCR Configuration Guide <nemoretriever-ocr.md>
    Enhanced PDF Extraction <nemotron-parse-extraction.md>
    Standalone NeMo Retriever Library <nv-ingest-standalone.md>
@@ -238,6 +244,7 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
    Change the Vector Database <change-vectordb.md>
    Hybrid Search <hybrid_search.md>
    Milvus Configuration <milvus-configuration.md>
+   Elasticsearch Configuration <elasticsearch-configuration.md>
    Query Decomposition <query_decomposition.md>
 ```
 
@@ -263,6 +270,7 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
    Evaluate Your RAG System <evaluate.md>
    RAG Accuracy Benchmarks <accuracy-benchmarks.md>
    RAG Performance Benchmarks <perf-benchmarks.md>
+   Benchmark RAG Performance <performance-benchmarking.md>
 ```
 
 

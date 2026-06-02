@@ -14,7 +14,6 @@ The following are the core services that you install:
 
 - RAG server
 - Ingestor server
-- NeMo Retriever Library
 
 
 ## Prerequisites
@@ -34,6 +33,16 @@ The following are the core services that you install:
     ```
 
     For more details, see instructions [here](https://docs.nvidia.com/nim-operator/latest/install.html).
+
+4. Install the ECK (Elastic Cloud on Kubernetes) operator. Elasticsearch is the default vector database; the ECK operator manages Elasticsearch on Kubernetes.
+
+    ```sh
+    helm repo add elastic https://helm.elastic.co
+    helm repo update
+    helm install elastic-operator elastic/eck-operator -n elastic-system --create-namespace
+    ```
+
+    For verification and Elasticsearch-specific Helm settings, see [Vector database configuration](change-vectordb.md).
 
 :::{important}
 Consider the following before you deploy the RAG Blueprint:
@@ -70,6 +79,7 @@ If you are working directly with the source Helm chart, and you want to customiz
     helm repo add baidu-nim https://helm.ngc.nvidia.com/nim/baidu --username='$oauthtoken' --password=$NGC_API_KEY
     helm repo add bitnami https://charts.bitnami.com/bitnami
     helm repo add elastic https://helm.elastic.co
+    helm repo add seaweed https://seaweedfs.github.io/seaweedfs/helm
     helm repo add otel https://open-telemetry.github.io/opentelemetry-helm-charts
     helm repo add zipkin https://zipkin.io/zipkin-helm
     helm repo add prometheus https://prometheus-community.github.io/helm-charts
@@ -89,37 +99,14 @@ If you are working directly with the source Helm chart, and you want to customiz
     --set ngcApiSecret.password=$NGC_API_KEY
     ```
 
-   :::{important}
-   **For NVIDIA RTX6000 Pro Deployments:**
-   
-    If you are deploying on NVIDIA RTX6000 Pro GPUs (instead of H100 GPUs), you need to configure the NIM LLM model profile. The required configuration is already present but commented out in the [values.yaml](../deploy/helm/nvidia-blueprint-rag/values.yaml) file.
-   
-   Uncomment and modify the following section under `nimOperator.nim-llm.model` in the values.yaml:
-   ```yaml
-   model:
-     engine: tensorrt_llm
-     precision: "fp8"
-     qosProfile: "throughput"
-     tensorParallelism: "1"
-     gpus:
-       - product: "rtx6000_blackwell_sv"
-   ```
-   
-   Then install using the modified values.yaml:
-   ```sh
-   helm upgrade --install rag -n rag nvidia-blueprint-rag/ \
-     --set imagePullSecret.password=$NGC_API_KEY \
-     --set ngcApiSecret.password=$NGC_API_KEY \
-     -f nvidia-blueprint-rag/values.yaml
-   ```
-   :::
-
    :::{note}
    Refer to [NIM Model Profile Configuration](model-profiles.md) for using non-default NIM LLM profile.
    :::
 
+   For **RTX PRO 6000** hardware, see the [RTX PRO 6000 setup prerequisites](nemotron3-super-deployment.md#rtx-pro-6000-setup) in the Nemotron 3 Super deployment guide.
 
-6. Follow the remaining instructions in [Deploy on Kubernetes with Helm](./deploy-helm.md):
+
+6. Follow the remaining instructions in [Deploy on Kubernetes with Helm](./deploy-helm.md) (including verification examples that reflect the default Elasticsearch vector database; optional Milvus adds different pods and services—refer to [Vector database configuration](change-vectordb.md)) for more information.
 
     - [Verify a Deployment](deploy-helm.md#verify-a-deployment)
     - [Port-Forwarding to Access Web User Interface](deploy-helm.md#port-forwarding-to-access-web-user-interface)

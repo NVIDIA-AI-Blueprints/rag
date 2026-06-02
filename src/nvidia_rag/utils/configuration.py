@@ -15,15 +15,19 @@
 """Simple configuration for NVIDIA RAG."""
 
 import json
+import logging
 import os
 from enum import StrEnum
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 import yaml
 from pydantic import BaseModel, ConfigDict, SecretStr, field_validator, model_validator
 from pydantic import Field as PydanticField
 from pydantic.fields import FieldInfo
+
+logger = logging.getLogger(__name__)
 
 
 def Field(default=None, *, env: str = None, description: str = None, **kwargs):
@@ -36,7 +40,7 @@ def Field(default=None, *, env: str = None, description: str = None, **kwargs):
         **kwargs: Other Pydantic Field parameters
 
     Example:
-        name: str = Field(default="milvus", env="APP_VECTORSTORE_NAME", description="Vector store name")
+        name: str = Field(default="elasticsearch", env="APP_VECTORSTORE_NAME", description="Vector store name")
     """
     if env:
         if "json_schema_extra" not in kwargs:
@@ -120,14 +124,14 @@ class VectorStoreConfig(_ConfigBase):
     """
 
     name: str = Field(
-        default="milvus",
+        default="elasticsearch",
         env="APP_VECTORSTORE_NAME",
-        description="Name of the vector store backend (e.g., milvus, elasticsearch)",
+        description="Name of the vector store backend (e.g., milvus, elasticsearch, lancedb)",
     )
     url: str = Field(
-        default="http://localhost:19530",
+        default="http://localhost:9200",
         env="APP_VECTORSTORE_URL",
-        description="URL endpoint for the vector store service",
+        description="URL endpoint for the vector store service (or LanceDB directory path)",
     )
 
     @field_validator("name", "url", mode="before")
@@ -154,14 +158,14 @@ class VectorStoreConfig(_ConfigBase):
         description="Type of vector index (e.g., GPU_CAGRA, IVF_FLAT)",
     )
     enable_gpu_index: bool = Field(
-        default=True,
+        default=False,
         env="APP_VECTORSTORE_ENABLEGPUINDEX",
-        description="Enable GPU acceleration for index building",
+        description="Enable GPU acceleration for index building (Milvus and Elasticsearch)",
     )
     enable_gpu_search: bool = Field(
-        default=True,
+        default=False,
         env="APP_VECTORSTORE_ENABLEGPUSEARCH",
-        description="Enable GPU acceleration for search operations",
+        description="Enable GPU acceleration for search operations (Milvus only; not supported by Elasticsearch)",
     )
     search_type: SearchType = Field(
         default=SearchType.DENSE,
@@ -220,6 +224,21 @@ class VectorStoreConfig(_ConfigBase):
         env="APP_VECTORSTORE_APIKEY_SECRET",
         description="API key secret for vector store authentication",
     )
+
+    @model_validator(mode="after")
+    def default_lancedb_uri(self) -> "VectorStoreConfig":
+        """Point LanceDB at the ingestor-mounted data dir when URL was left at ES default.
+
+        In Docker Compose, ``./volumes/lancedb`` is mounted at ``/volumes/lancedb``;
+        the database directory defaults to ``/volumes/lancedb/lancedb``.  If
+        ``APP_VECTORSTORE_URL`` is set explicitly, it is respected.
+        """
+        if self.name.lower() != "lancedb":
+            return self
+        default_es_url = "http://localhost:9200"
+        if not self.url or self.url == default_es_url:
+            self.url = "/volumes/lancedb/lancedb"
+        return self
 
 
 class NvIngestConfig(_ConfigBase):
@@ -316,6 +335,30 @@ class NvIngestConfig(_ConfigBase):
             return None
         return v
 
+    page_elements_invoke_url: str | None = Field(
+        default="https://ai.api.nvidia.com/v1/cv/nvidia/nemotron-page-elements-v3",
+        env="APP_NVINGEST_PAGEELEMENTSURL",
+        description="Invoke URL for the page-elements NIM (e.g. https://ai.api.nvidia.com/v1/cv/nvidia/nemotron-page-elements-v3)",
+    )
+
+    graphic_elements_invoke_url: str | None = Field(
+        default="https://ai.api.nvidia.com/v1/cv/nvidia/nemotron-graphic-elements-v1",
+        env="APP_NVINGEST_GRAPHICELEMENTSURL",
+        description="Invoke URL for the graphic-elements NIM (e.g. https://ai.api.nvidia.com/v1/cv/nvidia/nemotron-graphic-elements-v1)",
+    )
+
+    ocr_invoke_url: str | None = Field(
+        default="https://ai.api.nvidia.com/v1/cv/nvidia/nemotron-ocr-v1",
+        env="APP_NVINGEST_OCRURL",
+        description="Invoke URL for the OCR NIM (e.g. https://ai.api.nvidia.com/v1/cv/nvidia/nemotron-ocr-v1)",
+    )
+
+    table_structure_invoke_url: str | None = Field(
+        default="https://ai.api.nvidia.com/v1/cv/nvidia/nemotron-table-structure-v1",
+        env="APP_NVINGEST_TABLESTRUCTUREURL",
+        description="Invoke URL for the table-structure NIM (e.g. https://ai.api.nvidia.com/v1/cv/nvidia/nemotron-table-structure-v1)",
+    )
+
     tokenizer: str = Field(
         default="intfloat/e5-large-unsupervised",
         env="APP_NVINGEST_TOKENIZER",
@@ -332,7 +375,7 @@ class NvIngestConfig(_ConfigBase):
         description="Number of overlapping tokens between chunks",
     )
     caption_model_name: str = Field(
-        default="nvidia/nemotron-nano-12b-v2-vl",
+        default="nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
         env="APP_NVINGEST_CAPTIONMODELNAME",
         description="Model name for generating image captions",
     )
@@ -360,10 +403,10 @@ class NvIngestConfig(_ConfigBase):
             )
         return self
 
-    enable_pdf_splitter: bool = Field(
-        default=True,
-        env="APP_NVINGEST_ENABLEPDFSPLITTER",
-        description="Enable PDF page splitting during ingestion",
+    enable_paged_doc_split: bool = Field(
+        default=False,
+        env="APP_NVINGEST_ENABLE_PAGED_DOC_SPLIT",
+        description="Enable splitting for paged documents (PDF/DOCX/PPTX) during ingestion",
     )
     segment_audio: bool = Field(
         default=False,
@@ -374,6 +417,11 @@ class NvIngestConfig(_ConfigBase):
         default=False,
         env="APP_NVINGEST_SAVETODISK",
         description="Save extracted content to disk for debugging",
+    )
+    object_store_bucket: str = Field(
+        default="nv-ingest",
+        env="NVINGEST_OBJECTSTORE_BUCKET",
+        description="Object-store bucket used by NV-Ingest and Milvus integrations",
     )
     # Batch processing configuration
     enable_batch_mode: bool = Field(
@@ -410,6 +458,22 @@ class NvIngestConfig(_ConfigBase):
         default=16,
         env="APP_NVINGEST_PAGES_PER_CHUNK",
         description="Number of pages per chunk for PDF split processing",
+    )
+    max_memory_budget_mb: int = Field(
+        default=2048,
+        env="INGESTION_MAX_MEMORY_BUDGET_MB",
+        description="Max memory budget (MB) for a single ingestion job; used for dynamic batch sizing",
+    )
+    # NRL (NeMo-Retriever Library) backend configuration — see NRL_INTEGRATION_PLAN.md §8
+    backend: str = Field(
+        default="nv_ingest",
+        env="INGESTOR_BACKEND",
+        description='Ingestion backend: "nv_ingest" (default, NV-Ingest microservice) or "nrl" (NeMo-Retriever Library in-process)',
+    )
+    nrl_run_mode: str = Field(
+        default="batch",
+        env="NRL_RUN_MODE",
+        description='NRL GraphIngestor run mode: "inprocess" (default, no Ray cluster) or "batch" (Ray cluster for production throughput)',
     )
 
 
@@ -456,27 +520,37 @@ class ModelParametersConfig(_ConfigBase):
         env="LLM_IGNORE_EOS",
         description="Ignore end-of-sequence token during generation",
     )
-    temperature: float = Field(
-        default=0.0,
+    temperature: float | None = Field(
+        default=None,
         env="LLM_TEMPERATURE",
-        description="Sampling temperature for controlling randomness (0.0 = deterministic)",
+        description="Sampling temperature for controlling randomness. If unset, the model/provider default is used.",
     )
-    top_p: float = Field(
-        default=1.0,
+    top_p: float | None = Field(
+        default=None,
         env="LLM_TOP_P",
-        description="Nucleus sampling threshold for token selection",
+        description="Nucleus sampling threshold for token selection. If unset, the model/provider default is used.",
     )
 
-    @field_validator("temperature")
+    @field_validator("temperature", mode="before")
     @classmethod
-    def validate_temperature(cls, v: float) -> float:
+    def validate_temperature(cls, v: Any) -> float | None:
+        if isinstance(v, str) and not v.strip():
+            return None
+        if v is None:
+            return v
+        v = float(v)
         if v < 0.0:
             raise ValueError("Temperature must be non-negative")
         return v
 
-    @field_validator("top_p")
+    @field_validator("top_p", mode="before")
     @classmethod
-    def validate_top_p(cls, v: float) -> float:
+    def validate_top_p(cls, v: Any) -> float | None:
+        if isinstance(v, str) and not v.strip():
+            return None
+        if v is None:
+            return v
+        v = float(v)
         if not (0.0 <= v <= 1.0):
             raise ValueError("top_p must be between 0.0 and 1.0")
         return v
@@ -491,7 +565,7 @@ class LLMConfig(_ConfigBase):
         description="URL endpoint for the LLM inference service",
     )
     model_name: str = Field(
-        default="nvidia/llama-3.3-nemotron-super-49b-v1.5",
+        default="nvidia/nemotron-3-super-120b-a12b",
         env="APP_LLM_MODELNAME",
         description="Name of the language model to use for generation",
     )
@@ -545,7 +619,7 @@ class QueryRewriterConfig(_ConfigBase):
     """Query Rewriter configuration."""
 
     model_name: str = Field(
-        default="nvidia/llama-3.3-nemotron-super-49b-v1.5",
+        default="nvidia/nemotron-3-super-120b-a12b",
         env="APP_QUERYREWRITER_MODELNAME",
         description="Model for rewriting user queries to improve retrieval",
     )
@@ -585,7 +659,7 @@ class FilterExpressionGeneratorConfig(_ConfigBase):
     """Filter Expression Generator configuration."""
 
     model_name: str = Field(
-        default="nvidia/llama-3.3-nemotron-super-49b-v1.5",
+        default="nvidia/nemotron-3-super-120b-a12b",
         env="APP_FILTEREXPRESSIONGENERATOR_MODELNAME",
         description="Model for generating metadata filter expressions from queries",
     )
@@ -663,9 +737,9 @@ class EmbeddingConfig(_ConfigBase):
     """Embedding configuration."""
 
     model_name: str = Field(
-        default="nvidia/llama-nemotron-embed-1b-v2",
+        default="nvidia/llama-nemotron-embed-vl-1b-v2",
         env="APP_EMBEDDINGS_MODELNAME",
-        description="Model for generating text embeddings",
+        description="Model for generating embeddings",
     )
     model_engine: str = Field(
         default="nvidia-ai-endpoints",
@@ -722,6 +796,11 @@ class RankingConfig(_ConfigBase):
         env="ENABLE_RERANKER",
         description="Enable reranking of retrieved documents before generation",
     )
+    enable_vlm_image_input: bool = Field(
+        default=False,
+        env="ENABLE_VLM_RERANKER_IMAGE_INPUT",
+        description="When True, include images from retrieved citations in VLM reranker passages",
+    )
     api_key: SecretStr | None = Field(
         default=None,
         env="APP_RANKING_APIKEY",
@@ -767,6 +846,18 @@ class RetrieverConfig(_ConfigBase):
         env="APP_RETRIEVER_NRPIPELINE",
         description="Retrieval pipeline to use (e.g., ranked_hybrid, dense, sparse)",
     )
+    fetch_full_page_context: bool = Field(
+        default=False,
+        env="APP_FETCH_FULL_PAGE_CONTEXT",
+        description="Fetch ALL chunks for retrieved pages and organize context by page. "
+        "When True, enables page-based grouping for LLM/VLM.",
+    )
+    fetch_neighboring_pages: int = Field(
+        default=0,
+        env="APP_FETCH_NEIGHBORING_PAGES",
+        description="N pages before/after each retrieved page (0=disabled, 1=+/-1 page). "
+        "Requires fetch_full_page_context=True.",
+    )
 
     @field_validator("nr_url", mode="before")
     @classmethod
@@ -788,6 +879,27 @@ class RetrieverConfig(_ConfigBase):
                 f"vdb_top_k must be greater than 0, got {v}. "
                 "Please provide a positive integer for the number of documents to retrieve from the vector database."
             )
+        if v > 400:
+            logger.warning(
+                "VECTOR_DB_TOPK=%s is outside the request limit of 1..400. "
+                "The server will start so the value can be corrected from the UI "
+                "or environment, but /v1/generate and /v1/search requests using "
+                "this value will be rejected.",
+                v,
+            )
+        return v
+
+    @field_validator("fetch_neighboring_pages")
+    @classmethod
+    def validate_fetch_neighboring_pages(cls, v: int) -> int:
+        if not isinstance(v, int) or isinstance(v, bool):
+            raise TypeError(
+                f"fetch_neighboring_pages must be an integer, got {type(v).__name__}"
+            )
+        if v < 0:
+            raise ValueError(f"fetch_neighboring_pages must be >= 0, got {v}")
+        if v > 10:
+            raise ValueError(f"fetch_neighboring_pages must be <= 10, got {v}")
         return v
 
     @model_validator(mode="after")
@@ -796,6 +908,14 @@ class RetrieverConfig(_ConfigBase):
             raise ValueError(
                 f"reranker_top_k ({self.top_k}) must be less than or equal to vdb_top_k ({self.vdb_top_k}). "
                 "Please check your settings and try again."
+            )
+        return self
+
+    @model_validator(mode="after")
+    def validate_page_context_options(self) -> "RetrieverConfig":
+        if self.fetch_neighboring_pages > 0 and not self.fetch_full_page_context:
+            raise ValueError(
+                "fetch_full_page_context must be True when fetch_neighboring_pages > 0."
             )
         return self
 
@@ -844,7 +964,7 @@ class VLMConfig(_ConfigBase):
         description="URL endpoint for Vision-Language Model service",
     )
     model_name: str = Field(
-        default="nvidia/nemotron-nano-12b-v2-vl",
+        default="nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
         env="APP_VLM_MODELNAME",
         description="Vision-Language Model for processing images and text",
     )
@@ -885,6 +1005,15 @@ class VLMConfig(_ConfigBase):
             "Only applied when enable_thinking is True."
         ),
     )
+    filter_think_tokens: bool = Field(
+        default=True,
+        env="VLM_FILTER_THINK_TOKENS",
+        description=(
+            "Controls legacy VLM reasoning filtering behavior. Reasoning tokens "
+            "are filtered out of the user-facing content stream and surfaced in "
+            "delta.reasoning_content when the model emits them."
+        ),
+    )
     api_key: SecretStr | None = Field(
         default=None,
         env="APP_VLM_APIKEY",
@@ -902,31 +1031,130 @@ class VLMConfig(_ConfigBase):
         return v
 
 
-class MinioConfig(_ConfigBase):
-    """Minio configuration."""
+class ObjectStoreConfig(_ConfigBase):
+    """Object-store configuration for S3-compatible backends."""
 
+    backend: str = Field(
+        default="s3",
+        env="OBJECTSTORE_BACKEND",
+        description='Object-store backend: "s3" or "filesystem"',
+    )
     endpoint: str = Field(
         default="localhost:9010",
-        env="MINIO_ENDPOINT",
-        description="MinIO object storage endpoint",
+        env="OBJECTSTORE_ENDPOINT",
+        description="Object-store endpoint in host:port form",
+    )
+    nv_ingest_endpoint: str | None = Field(
+        default=None,
+        env="NVINGEST_OBJECTSTORE_ENDPOINT",
+        description=(
+            "Object-store endpoint reachable from the NV-Ingest runtime. "
+            "Defaults to endpoint when unset."
+        ),
     )
     access_key: SecretStr = Field(
-        default=SecretStr("minioadmin"),
-        env="MINIO_ACCESSKEY",
-        description="MinIO access key for authentication",
+        default=SecretStr("seaweedfsadmin"),
+        env="OBJECTSTORE_ACCESSKEY",
+        description="Object-store access key for authentication",
     )
     secret_key: SecretStr = Field(
-        default=SecretStr("minioadmin"),
-        env="MINIO_SECRETKEY",
-        description="MinIO secret key for authentication",
+        default=SecretStr("seaweedfsadmin"),
+        env="OBJECTSTORE_SECRETKEY",
+        description="Object-store secret key for authentication",
     )
+    secure: bool = Field(
+        default=False,
+        description="Whether to use TLS when connecting to the object store",
+    )
+    nv_ingest_secure: bool | None = Field(
+        default=None,
+        description=(
+            "Whether the NV-Ingest runtime should use TLS for object-store access. "
+            "Defaults to secure when unset."
+        ),
+    )
+    local_path: str = Field(
+        default="/tmp/nvidia-rag-object-store",
+        env="OBJECTSTORE_LOCAL_PATH",
+        description="Root path for the filesystem-backed object store",
+    )
+
+    @field_validator("backend", mode="before")
+    @classmethod
+    def normalize_backend(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            normalized = value.strip().strip('"').strip("'").lower()
+            if normalized not in {"s3", "filesystem"}:
+                raise ValueError(
+                    f"Unsupported object-store backend: {value!r}. Supported backends: s3, filesystem"
+                )
+            return normalized
+        return value
+
+    @field_validator("local_path", mode="before")
+    @classmethod
+    def normalize_local_path(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            return value.strip().strip('"').strip("'")
+        return value
+
+    @classmethod
+    def _normalize_endpoint(cls, value: str) -> tuple[str, bool | None]:
+        normalized = value.strip().strip('"').strip("'")
+        if "://" not in normalized:
+            return normalized, None
+
+        parsed = urlparse(normalized)
+        return parsed.netloc or parsed.path, parsed.scheme == "https"
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_object_store_values(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+
+        normalized = dict(data)
+        endpoint = normalized.get("endpoint")
+        if isinstance(endpoint, str) and endpoint:
+            normalized_endpoint, secure = cls._normalize_endpoint(endpoint)
+            normalized["endpoint"] = normalized_endpoint
+            if secure is not None:
+                normalized.setdefault("secure", secure)
+
+        nv_ingest_endpoint = normalized.get("nv_ingest_endpoint")
+        if isinstance(nv_ingest_endpoint, str) and nv_ingest_endpoint:
+            normalized_endpoint, secure = cls._normalize_endpoint(nv_ingest_endpoint)
+            normalized["nv_ingest_endpoint"] = normalized_endpoint
+            if secure is not None:
+                normalized.setdefault("nv_ingest_secure", secure)
+
+        return normalized
+
+    @staticmethod
+    def _endpoint_url(endpoint: str, secure: bool) -> str:
+        scheme = "https" if secure else "http"
+        return f"{scheme}://{endpoint}"
+
+    @property
+    def endpoint_url(self) -> str:
+        return self._endpoint_url(self.endpoint, self.secure)
+
+    @property
+    def nv_ingest_endpoint_url(self) -> str:
+        endpoint = self.nv_ingest_endpoint or self.endpoint
+        secure = self.secure if self.nv_ingest_secure is None else self.nv_ingest_secure
+        return self._endpoint_url(endpoint, secure)
+
+    @property
+    def storage_root(self) -> Path:
+        return Path(self.local_path).expanduser().resolve()
 
 
 class SummarizerConfig(_ConfigBase):
     """Summarizer configuration."""
 
     model_name: str = Field(
-        default="nvidia/llama-3.3-nemotron-super-49b-v1.5",
+        default="nvidia/nemotron-3-super-120b-a12b",
         env="SUMMARY_LLM",
         description="Model for generating document summaries",
     )
@@ -1026,7 +1254,7 @@ class ReflectionConfig(_ConfigBase):
         description="Maximum number of reflection iterations",
     )
     model_name: str = Field(
-        default="nvidia/llama-3.3-nemotron-super-49b-v1.5",
+        default="nvidia/nemotron-3-super-120b-a12b",
         env="REFLECTION_LLM",
         description="Model for reflection and quality assessment",
     )
@@ -1062,6 +1290,12 @@ class ReflectionConfig(_ConfigBase):
         return v
 
 
+# Agentic RAG config classes live in a dedicated module to avoid bloating
+# this file.  Import must happen after _ConfigBase and Field are defined above
+# (Python partial-module resolution handles the deliberate circular reference).
+from nvidia_rag.utils.agentic_rag_config import AgenticRAGConfig  # noqa: E402
+
+
 class NvidiaRAGConfig(_ConfigBase):
     """Main NVIDIA RAG configuration.
 
@@ -1090,15 +1324,26 @@ class NvidiaRAGConfig(_ConfigBase):
     nv_ingest: NvIngestConfig = PydanticField(default_factory=NvIngestConfig)
     tracing: TracingConfig = PydanticField(default_factory=TracingConfig)
     vlm: VLMConfig = PydanticField(default_factory=VLMConfig)
-    minio: MinioConfig = PydanticField(default_factory=MinioConfig)
+    object_store: ObjectStoreConfig = PydanticField(default_factory=ObjectStoreConfig)
     summarizer: SummarizerConfig = PydanticField(default_factory=SummarizerConfig)
     metadata: MetadataConfig = PydanticField(default_factory=MetadataConfig)
     query_decomposition: QueryDecompositionConfig = PydanticField(
         default_factory=QueryDecompositionConfig
     )
     reflection: ReflectionConfig = PydanticField(default_factory=ReflectionConfig)
+    agentic_rag: AgenticRAGConfig = PydanticField(default_factory=AgenticRAGConfig)
 
     # Top-level flags
+    enable_agentic_rag: bool = Field(
+        default=False,
+        env="ENABLE_AGENTIC_RAG",
+        description=(
+            "Enable the agentic RAG pipeline for knowledge-base queries. "
+            "When True, requests with use_knowledge_base=True are routed through "
+            "the LangGraph plan-and-execute agent instead of the standard RAG chain. "
+            "Can be overridden per-request via the agentic parameter in the request body."
+        ),
+    )
     enable_guardrails: bool = Field(
         default=False,
         env="ENABLE_GUARDRAILS",

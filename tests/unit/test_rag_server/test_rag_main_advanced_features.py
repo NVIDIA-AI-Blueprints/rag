@@ -24,6 +24,7 @@ import pytest
 from nvidia_rag.rag_server.main import NvidiaRAG
 from nvidia_rag.rag_server.response_generator import APIError, Citations
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
+from nvidia_rag.utils.vdb.milvus.milvus_vdb import MilvusVDB
 
 
 @pytest.fixture(autouse=True)
@@ -344,6 +345,58 @@ class TestNvidiaRAGSearchCoverage:
                                                 )
 
                                                 assert isinstance(result, Citations)
+
+    @pytest.mark.asyncio
+    async def test_search_uses_retrieval_image_langchain_for_image_query(self):
+        """When query is multimodal with image, retrieval_image_langchain is used not retrieval_langchain."""
+        mock_vdb_op = Mock(spec=MilvusVDB)
+        mock_vdb_op.check_collection_exists.return_value = True
+        mock_vdb_op.get_metadata_schema.return_value = []
+        mock_vdb_op.get_langchain_vectorstore.return_value = Mock()
+        mock_vdb_op.retrieval_langchain.return_value = [
+            Mock(page_content="test content", metadata={})
+        ]
+        mock_vdb_op.retrieval_image_langchain.return_value = [
+            Mock(page_content="image content", metadata={})
+        ]
+        rag = NvidiaRAG(vdb_op=mock_vdb_op)
+
+        multimodal_query = [
+            {"type": "text", "text": "What is in this image?"},
+            {"type": "image_url", "image_url": {"url": "data:image/png;base64,x"}},
+        ]
+
+        with patch.object(rag, "_prepare_vdb_op") as mock_prepare:
+            with patch(
+                "nvidia_rag.rag_server.main.prepare_citations"
+            ) as mock_prepare_citations:
+                with patch(
+                    "nvidia_rag.rag_server.main.validate_filter_expr"
+                ) as mock_validate_filter:
+                    with patch(
+                        "nvidia_rag.rag_server.main.process_filter_expr"
+                    ) as mock_process_filter:
+                        mock_prepare.return_value = mock_vdb_op
+                        mock_prepare_citations.return_value = Citations(
+                            documents=[], sources=[]
+                        )
+                        mock_validate_filter.return_value = {
+                            "status": True,
+                            "validated_collections": ["test_collection"],
+                        }
+                        mock_process_filter.return_value = ""
+
+                        result = await rag.search(
+                            query=multimodal_query,
+                            messages=[],
+                            collection_names=["test_collection"],
+                            enable_reranker=False,
+                            filter_expr="",
+                        )
+
+                        assert isinstance(result, Citations)
+                        mock_vdb_op.retrieval_image_langchain.assert_called_once()
+                        mock_vdb_op.retrieval_langchain.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_search_with_filter_generator_enabled(self):
@@ -1199,7 +1252,7 @@ class TestNvidiaRAGPromptProcessingCoverage:
 
         with patch.dict(os.environ, {"ENABLE_NEMOTRON_THINKING": "true"}):
             result = rag._handle_prompt_processing(
-                chat_history, "llama-3.3-nemotron-super-49b-v1", "chat_template"
+                chat_history, "nemotron-3-super-120b-a12b", "chat_template"
             )
 
             assert len(result) == 3
@@ -1490,3 +1543,103 @@ class TestNvidiaRAGAPICoverage:
         assert error.message == "Test error message"
         assert error.status_code == 400
         assert str(error) == "Test error message"
+
+    @pytest.mark.asyncio
+    async def test_rag_chain_citations_use_retrieved_only_when_expansion_enabled(self):
+        """When fetch_full_page_context is True, citations are built from retrieved docs only, not expanded context."""
+        from langchain_core.documents import Document
+
+        retrieved_count = 2
+        expanded_count = 5
+        two_docs = [
+            Document(
+                page_content="chunk one",
+                metadata={
+                    "source": {"source_name": "/path/to/doc.pdf"},
+                    "content_metadata": {"page_number": 1},
+                    "collection_name": "col1",
+                },
+            ),
+            Document(
+                page_content="chunk two",
+                metadata={
+                    "source": {"source_name": "/path/to/doc.pdf"},
+                    "content_metadata": {"page_number": 2},
+                    "collection_name": "col1",
+                },
+            ),
+        ]
+        five_docs = two_docs + [
+            Document(
+                page_content=f"extra {i}",
+                metadata={
+                    "source": {"source_name": "/path/to/doc.pdf"},
+                    "content_metadata": {"page_number": 3},
+                    "collection_name": "col1",
+                },
+            )
+            for i in range(3)
+        ]
+        mock_vdb_op = Mock(spec=VDBRag)
+        mock_vdb_op.check_collection_exists.return_value = True
+        mock_vdb_op.get_langchain_vectorstore.return_value = Mock()
+        mock_vdb_op.retrieval_langchain.return_value = two_docs
+
+        rag = NvidiaRAG(vdb_op=mock_vdb_op)
+        captured_contexts = []
+
+        def capture_generate_answer_async(generator, contexts, **kwargs):
+            """Capture contexts at call time (sync); return async gen for response."""
+            captured_contexts.append(contexts)
+            return async_gen_from_list(["response"])
+
+        with patch.object(rag, "_prepare_vdb_op", return_value=mock_vdb_op):
+            with patch.object(
+                rag, "_expand_and_organize_context", return_value=five_docs
+            ):
+                with patch.object(rag, "_handle_prompt_processing") as mock_handle:
+                    with patch("nvidia_rag.rag_server.main.get_llm") as mock_get_llm:
+                        with patch(
+                            "nvidia_rag.rag_server.main.ChatPromptTemplate"
+                        ) as mock_prompt_template:
+                            with patch(
+                                "nvidia_rag.rag_server.main.generate_answer_async",
+                                side_effect=capture_generate_answer_async,
+                            ):
+                                mock_handle.return_value = (
+                                    [("system", "sys")],
+                                    [("user", "conv")],
+                                    [("user", "Query: {question}")],
+                                )
+                                mock_llm = Mock()
+                                mock_get_llm.return_value = mock_llm
+                                mock_chain = Mock()
+                                # Each astream() call must return a fresh async generator
+                                mock_chain.astream = Mock(
+                                    side_effect=lambda *a, **k: async_gen_from_list(
+                                        ["tok"]
+                                    )
+                                )
+                                mock_prompt = Mock()
+                                pipe_a = Mock()
+                                pipe_b = Mock()
+                                mock_prompt.__or__ = Mock(return_value=pipe_a)
+                                pipe_a.__or__ = Mock(return_value=pipe_b)
+                                pipe_b.__or__ = Mock(return_value=mock_chain)
+                                mock_prompt_template.from_messages.return_value = (
+                                    mock_prompt
+                                )
+                                await rag._rag_chain(
+                                    llm_settings={"model": "m"},
+                                    query="q",
+                                    chat_history=[],
+                                    model="m",
+                                    enable_citations=True,
+                                    enable_reranker=False,
+                                    fetch_full_page_context=True,
+                                    fetch_neighboring_pages=0,
+                                    collection_names=["col1"],
+                                    vdb_op=mock_vdb_op,
+                                )
+        assert len(captured_contexts) == 1
+        assert len(captured_contexts[0]) == retrieved_count

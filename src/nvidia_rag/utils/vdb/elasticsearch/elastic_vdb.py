@@ -48,8 +48,9 @@ Document Info Management:
 
 Retrieval Operations:
 19. retrieval_langchain: Perform semantic search and return top-k relevant documents
-20. _get_langchain_vectorstore: Get the vectorstore for a collection
-21. _add_collection_name_to_retreived_docs: Add the collection name to the retrieved documents
+20. retrieval_image_langchain: Perform image-based (multimodal) search and return top-k relevant documents
+21. _get_langchain_vectorstore: Get the vectorstore for a collection
+22. _add_collection_name_to_retreived_docs: Add the collection name to the retrieved documents
 """
 
 import logging
@@ -61,7 +62,8 @@ from typing import Any
 import pandas as pd
 import requests
 from elastic_transport import ConnectionError as ESConnectionError
-from elasticsearch import Elasticsearch, ConflictError
+from elasticsearch import ConflictError, Elasticsearch
+from elasticsearch.helpers import scan
 from elasticsearch.helpers.vectorstore import DenseVectorStrategy, VectorStore
 from langchain_core.documents import Document
 from langchain_core.runnables import RunnableAssign, RunnableLambda
@@ -72,17 +74,23 @@ from nvidia_rag.rag_server.response_generator import APIError, ErrorCodeMapping
 from nvidia_rag.utils.common import (
     get_current_timestamp,
     perform_document_info_aggregation,
+    release_nvidia_client_response,
 )
-from nvidia_rag.utils.configuration import NvidiaRAGConfig, SearchType, RankerType
+from nvidia_rag.utils.configuration import NvidiaRAGConfig, RankerType, SearchType
 from nvidia_rag.utils.health_models import ServiceStatus
 from nvidia_rag.utils.vdb import (
     DEFAULT_DOCUMENT_INFO_COLLECTION,
     DEFAULT_METADATA_SCHEMA_COLLECTION,
     SYSTEM_COLLECTIONS,
 )
+from nvidia_rag.utils.vdb.elasticsearch.es_dense_vector_strategy import (
+    DenseVectorStrategyWithIndexOptions,
+)
 from nvidia_rag.utils.vdb.elasticsearch.es_queries import (
     create_document_info_collection_mapping,
     create_metadata_collection_mapping,
+    get_all_document_info_query,
+    get_chunks_by_source_and_pages_query,
     get_collection_document_info_query,
     get_delete_docs_query,
     get_delete_document_info_query,
@@ -117,8 +125,15 @@ class ElasticVDB(VDBRagIngest):
         config: NvidiaRAGConfig | None = None,
         auth_token: str | None = None,
     ):
+        logging.getLogger("elastic_transport").setLevel(logging.WARNING)
+
         self.config = config or NvidiaRAGConfig()
-        self.index_name = index_name
+        # Elasticsearch rejects index names containing uppercase characters
+        # (invalid_index_name_exception, HTTP 400). Lowercase at construction
+        # so every downstream operation (existence checks, deletes, document
+        # listings, metadata / document-info writes) references the same
+        # canonical index name as the one actually created in ES.
+        self.index_name = self._normalize_index_name(index_name)
         self.es_url = es_url
         # Prefer Bearer token when provided; then API key; otherwise fall back to basic auth.
         resolved_api_key: str | tuple[str, str] | None = None
@@ -202,6 +217,39 @@ class ElasticVDB(VDBRagIngest):
             hybrid=self.hybrid,
         )
 
+        self._repair_stale_ingest_refresh_settings()
+
+    def close(self) -> None:
+        """Release HTTP and transport resources held by this VDB operator.
+
+        Closes the Elasticsearch transport (which drains the underlying
+        urllib3 connection pool) and best-effort clears the embedding model's
+        pinned last-response handle. Idempotent - safe to call multiple times.
+        Operator must not be used for further operations after close().
+        """
+        try:
+            self._es_connection.close()
+        except Exception:
+            logger.debug("Failed to close Elasticsearch connection", exc_info=True)
+
+        release_nvidia_client_response(self._embedding_model)
+
+    @staticmethod
+    def _normalize_index_name(name: str | None) -> str | None:
+        """Return the Elasticsearch-canonical (lowercase) form of an index name.
+
+        Elasticsearch rejects index names containing uppercase characters
+        with ``invalid_index_name_exception`` (HTTP 400). Routing every
+        entry point through this helper keeps the actual stored index,
+        sibling operations (existence checks, deletes, document listings)
+        and metadata / document-info keys in sync — even when callers
+        supply mixed case. ``None`` and the empty string are returned
+        unchanged so ``bypass_validation``-style paths behave as before.
+        """
+        if not name:
+            return name
+        return name.lower()
+
     @property
     def collection_name(self) -> str:
         """Get the collection name."""
@@ -210,7 +258,14 @@ class ElasticVDB(VDBRagIngest):
     @collection_name.setter
     def collection_name(self, collection_name: str) -> None:
         """Set the collection name."""
-        self.index_name = collection_name
+        self.index_name = self._normalize_index_name(collection_name)
+
+    def _get_retrieval_strategy(self, hybrid: bool = False) -> DenseVectorStrategy:
+        """Return the appropriate retrieval strategy based on GPU config."""
+        if self.config.vector_store.enable_gpu_index:
+            logger.debug("Elasticsearch GPU indexing enabled: using DenseVectorStrategyWithIndexOptions")
+            return DenseVectorStrategyWithIndexOptions(hybrid=hybrid)
+        return DenseVectorStrategy(hybrid=hybrid)
 
     def _get_es_store(
         self,
@@ -225,7 +280,7 @@ class ElasticVDB(VDBRagIngest):
             num_dimensions=dimensions,
             text_field="text",
             vector_field="vector",
-            retrieval_strategy=DenseVectorStrategy(hybrid=hybrid),
+            retrieval_strategy=self._get_retrieval_strategy(hybrid=hybrid),
         )
 
     # ----------------------------------------------------------------------------------------------
@@ -234,7 +289,45 @@ class ElasticVDB(VDBRagIngest):
         """
         Check if the index exists in Elasticsearch.
         """
-        return self._es_connection.indices.exists(index=index_name)
+        return self._es_connection.indices.exists(
+            index=self._normalize_index_name(index_name)
+        )
+
+    def _repair_stale_ingest_refresh_settings(self) -> None:
+        """
+        If a prior bulk ingest exited before restoring settings, refresh_interval may
+        remain -1. Reset to 1s so search visibility and cluster behavior are normal.
+        """
+        if not self.index_name or not self._check_index_exists(self.index_name):
+            return
+        try:
+            resp = self._es_connection.indices.get_settings(index=self.index_name)
+        except (ESConnectionError, ConnectionError, OSError) as e:
+            logger.warning(
+                "Could not read settings for Elasticsearch index %s: %s",
+                self.index_name,
+                e,
+            )
+            return
+        index_block = resp.get(self.index_name)
+        if index_block is None and resp:
+            index_block = next(iter(resp.values()))
+        if not index_block:
+            return
+        settings = index_block.get("settings", {})
+        index_settings = settings.get("index", {})
+        refresh = index_settings.get("refresh_interval")
+        if refresh in ("-1", "-1s"):
+            logger.warning(
+                "Index %s has refresh_interval=%s (stale after interrupted ingest); "
+                "resetting to 1s",
+                self.index_name,
+                refresh,
+            )
+            self._es_connection.indices.put_settings(
+                index=self.index_name,
+                body={"index": {"refresh_interval": "1s"}},
+            )
 
     def create_index(self):
         """
@@ -291,35 +384,45 @@ class ElasticVDB(VDBRagIngest):
             f"Commencing Elasticsearch ingestion process for {total_records} records..."
         )
 
-        # Process records in batches of batch_size
-        for i in range(0, total_records, batch_size):
-            end_idx = min(i + batch_size, total_records)
-            batch_texts = texts[i:end_idx]
-            batch_embeddings = embeddings[i:end_idx]
-            batch_metadatas = metadatas[i:end_idx]
+        self._es_connection.indices.put_settings(
+            index=self.index_name,
+            body={"index": {"refresh_interval": "-1"}},
+        )
+        try:
+            # Process records in batches of batch_size
+            for i in range(0, total_records, batch_size):
+                end_idx = min(i + batch_size, total_records)
+                batch_texts = texts[i:end_idx]
+                batch_embeddings = embeddings[i:end_idx]
+                batch_metadatas = metadatas[i:end_idx]
 
-            # Upload current batch to Elasticsearch
-            self.es_store.add_texts(
-                texts=batch_texts,
-                vectors=batch_embeddings,
-                metadatas=batch_metadatas,
-            )
-
-            uploaded_count += len(batch_texts)
-
-            # Log progress every 5 batches (5000 records)
-            if (
-                uploaded_count % (5 * batch_size) == 0
-                or uploaded_count == total_records
-            ):
-                logger.info(
-                    f"Successfully ingested {uploaded_count} records into Elasticsearch index {self.index_name}"
+                # Upload current batch to Elasticsearch
+                self.es_store.add_texts(
+                    texts=batch_texts,
+                    vectors=batch_embeddings,
+                    metadatas=batch_metadatas,
                 )
+
+                uploaded_count += len(batch_texts)
+
+                # Log progress every 5 batches (5000 records)
+                if (
+                    uploaded_count % (5 * batch_size) == 0
+                    or uploaded_count == total_records
+                ):
+                    logger.info(
+                        f"Successfully ingested {uploaded_count} records into Elasticsearch index {self.index_name}"
+                    )
+        finally:
+            self._es_connection.indices.put_settings(
+                index=self.index_name,
+                body={"index": {"refresh_interval": "1s"}},
+            )
+            self._es_connection.indices.refresh(index=self.index_name)
 
         logger.info(
             f"Elasticsearch ingestion completed. Total records processed: {uploaded_count}"
         )
-        self._es_connection.indices.refresh(index=self.index_name)
 
     def retrieval(self, queries: list, **kwargs) -> list[dict[str, Any]]:
         """
@@ -410,8 +513,17 @@ class ElasticVDB(VDBRagIngest):
         """
         Create a new collection in the Elasticsearch index.
         """
+        normalized_name = self._normalize_index_name(collection_name)
+        if normalized_name != collection_name:
+            logger.info(
+                "Normalizing collection name %r to lowercase %r for "
+                "Elasticsearch (uppercase letters are not permitted in index "
+                "names)",
+                collection_name,
+                normalized_name,
+            )
         es_store = self._get_es_store(
-            index_name=collection_name,
+            index_name=normalized_name,
             dimensions=dimension,
             hybrid=self.hybrid,
         )
@@ -419,14 +531,14 @@ class ElasticVDB(VDBRagIngest):
 
         # Wait for the index to be ready
         self._es_connection.cluster.health(
-            index=collection_name, wait_for_status="yellow", timeout="5s"
+            index=normalized_name, wait_for_status="yellow", timeout="5s"
         )
 
     def check_collection_exists(self, collection_name: str) -> bool:
         """
         Check if a collection exists in the Elasticsearch index.
         """
-        return self._check_index_exists(collection_name)
+        return self._check_index_exists(self._normalize_index_name(collection_name))
 
     def get_collection(self):
         """Get the list of collections in the Elasticsearch index."""
@@ -472,6 +584,9 @@ class ElasticVDB(VDBRagIngest):
         deleted_collections = []
         failed_collections = []
 
+        collection_names = [
+            self._normalize_index_name(name) for name in collection_names
+        ]
         for collection_name in collection_names:
             try:
                 # Check if collection exists before attempting deletion
@@ -534,16 +649,43 @@ class ElasticVDB(VDBRagIngest):
             "total_failed": len(failed_collections),
         }
 
-    def get_documents(self, collection_name: str) -> list[dict[str, Any]]:
+    def get_documents(
+        self,
+        collection_name: str,
+        *,
+        force_get_metadata: bool = False,
+    ) -> list[dict[str, Any]]:
         """
         Get the list of documents in a collection.
         """
+        collection_name = self._normalize_index_name(collection_name)
         metadata_schema = self.get_metadata_schema(collection_name)
-        response = self._es_connection.search(
-            index=collection_name, body=get_unique_sources_query()
-        )
+
+        # Paginate the composite aggregation via after_key so collections with
+        # more unique sources than the per-request bucket limit are fully listed.
+        all_buckets: list[dict[str, Any]] = []
+        after_key: dict | None = None
+        while True:
+            response = self._es_connection.search(
+                index=collection_name,
+                body=get_unique_sources_query(after_key=after_key),
+            )
+            agg = response["aggregations"]["unique_sources"]
+            buckets = agg.get("buckets", [])
+            if not buckets:
+                break
+            all_buckets.extend(buckets)
+            after_key = agg.get("after_key")
+            if after_key is None:
+                break
+
+        # Get all document info for the collection
+        all_document_info = self._get_all_document_info(collection_name)
+        all_document_info_map = {doc["document_name"]: doc["info_value"] for doc in all_document_info}
+
+        # Get the list of documents
         documents_list = []
-        for hit in response["aggregations"]["unique_sources"]["buckets"]:
+        for hit in all_buckets:
             source_name = hit["key"]["source_name"]
             metadata = (
                 hit["top_hit"]["hits"]["hits"][0]["_source"]
@@ -559,11 +701,7 @@ class ElasticVDB(VDBRagIngest):
                 {
                     "document_name": os.path.basename(source_name),
                     "metadata": metadata_dict,
-                    "document_info": self.get_document_info(
-                        info_type="document",
-                        collection_name=collection_name,
-                        document_name=os.path.basename(source_name),
-                    ),
+                    "document_info": all_document_info_map.get(os.path.basename(source_name), {}),
                 }
             )
         return documents_list
@@ -577,6 +715,7 @@ class ElasticVDB(VDBRagIngest):
         """
         Delete documents from a collection by source values.
         """
+        collection_name = self._normalize_index_name(collection_name)
         if result_dict is not None:
             result_dict["deleted"] = []
             result_dict["not_found"] = []
@@ -655,11 +794,23 @@ class ElasticVDB(VDBRagIngest):
         """
         Add metadata schema to a elasticsearch index.
         """
-        # Delete the metadata schema from the index
-        _ = self._es_connection.delete_by_query(
-            index=DEFAULT_METADATA_SCHEMA_COLLECTION,
-            body=get_delete_metadata_schema_query(collection_name),
-        )
+        collection_name = self._normalize_index_name(collection_name)
+        # Delete the metadata schema from the index.
+        # conflicts="proceed" skips docs whose seq_no/primary_term changed between the
+        # search and delete phases of delete_by_query, which races when two
+        # create_collection calls for the same collection run concurrently. Any stale
+        # doc left behind is harmless because get_metadata_schema reads the most
+        # recent write via _seq_no desc sort.
+        try:
+            _ = self._es_connection.delete_by_query(
+                index=DEFAULT_METADATA_SCHEMA_COLLECTION,
+                body=get_delete_metadata_schema_query(collection_name),
+                conflicts="proceed",
+            )
+        except ConflictError:
+            logger.info(
+                f"Metadata schema delete_by_query saw a version conflict for collection: {collection_name}; proceeding to re-index."
+            )
         # Add the metadata schema to the index
         data = {
             "collection_name": collection_name,
@@ -677,7 +828,14 @@ class ElasticVDB(VDBRagIngest):
         """
         Get the metadata schema for a collection in the Elasticsearch index.
         """
+        collection_name = self._normalize_index_name(collection_name)
+        # Sort by _seq_no desc and cap at 1 hit: in case duplicates exist from a
+        # delete-then-insert race in add_metadata_schema, we get the most recent
+        # write deterministically. _seq_no is an ES-maintained per-write counter
+        # — unlike _id, sorting it requires no special cluster setting.
         query = get_metadata_schema_query(collection_name)
+        query["sort"] = [{"_seq_no": {"order": "desc"}}]
+        query["size"] = 1
         response = self._es_connection.search(
             index=DEFAULT_METADATA_SCHEMA_COLLECTION, body=query
         )
@@ -723,13 +881,19 @@ class ElasticVDB(VDBRagIngest):
         Internal function to get the aggregated document info for a collection.
         """
         try:
-            # Get the aggregated document info for the collection
+            # Sort by _seq_no desc and cap at 1 hit: if stale duplicates exist from
+            # a delete-then-insert race in add_document_info, this picks the most
+            # recent write deterministically. _seq_no is an ES-maintained per-write
+            # counter — unlike _id, sorting it needs no special cluster setting.
+            query = get_collection_document_info_query(
+                info_type="collection",
+                collection_name=collection_name,
+            )
+            query["sort"] = [{"_seq_no": {"order": "desc"}}]
+            query["size"] = 1
             response = self._es_connection.search(
                 index=DEFAULT_DOCUMENT_INFO_COLLECTION,
-                body=get_collection_document_info_query(
-                    info_type="collection",
-                    collection_name=collection_name,
-                ),
+                body=query,
             )
             existing_info_value = response["hits"]["hits"][0]["_source"]["info_value"]
         except IndexError:
@@ -751,6 +915,7 @@ class ElasticVDB(VDBRagIngest):
         """
         Add document info to a collection.
         """
+        collection_name = self._normalize_index_name(collection_name)
         # Since collection may have pre-ingested documents, we need to get the aggregated document info
         if info_type == "collection":
             info_value = self._get_aggregated_document_info(
@@ -758,7 +923,9 @@ class ElasticVDB(VDBRagIngest):
                 info_value=info_value,
             )
 
-        # Delete the document info from the index
+        # Delete the document info from the index.
+        # conflicts="proceed" prevents the same delete_by_query race seen in
+        # add_metadata_schema from surfacing as a 409 to callers.
         try:
             _ = self._es_connection.delete_by_query(
                 index=DEFAULT_DOCUMENT_INFO_COLLECTION,
@@ -767,9 +934,10 @@ class ElasticVDB(VDBRagIngest):
                     document_name=document_name,
                     info_type=info_type,
                 ),
+                conflicts="proceed",
             )
-        except ConflictError as e:
-            logger.info(f"Document info not found for collection: {collection_name}, document: {document_name}, info type: {info_type}")
+        except ConflictError:
+            logger.info(f"Document info delete_by_query saw a version conflict for collection: {collection_name}, document: {document_name}, info type: {info_type}; proceeding to re-index.")
         # Add the document info to the index
         data = {
             "collection_name": collection_name,
@@ -778,7 +946,7 @@ class ElasticVDB(VDBRagIngest):
             "info_value": info_value,
         }
         self._es_connection.index(index=DEFAULT_DOCUMENT_INFO_COLLECTION, body=data)
-        logger.info(
+        logger.debug(
             f"Document info added to the ES index {DEFAULT_DOCUMENT_INFO_COLLECTION}. \
             Document info: {info_type}, {document_name}, {info_value}."
         )
@@ -790,17 +958,58 @@ class ElasticVDB(VDBRagIngest):
         document_name: str,
     ) -> dict[str, Any]:
         """Get document info from a Elasticsearch index."""
-        query = get_document_info_query(collection_name, document_name, info_type)
-        response = self._es_connection.search(
-            index=DEFAULT_DOCUMENT_INFO_COLLECTION, body=query
-        )
-        if len(response["hits"]["hits"]) > 0:
-            return response["hits"]["hits"][0]["_source"]["info_value"]
-        else:
-            logger.info(
-                f"No document info found for collection: {collection_name}, document: {document_name}, info type: {info_type}"
+        collection_name = self._normalize_index_name(collection_name)
+        try:
+            # Sort by _seq_no desc and cap at 1 hit: if duplicates exist for the
+            # same (info_type, collection_name, document_name) tuple from a delete-
+            # then-insert race, this picks the most recent write deterministically.
+            # _seq_no is ES-maintained — unlike _id, sorting it needs no special
+            # cluster setting.
+            query = get_document_info_query(collection_name, document_name, info_type)
+            query["sort"] = [{"_seq_no": {"order": "desc"}}]
+            query["size"] = 1
+            response = self._es_connection.search(
+                index=DEFAULT_DOCUMENT_INFO_COLLECTION, body=query
             )
+            if len(response["hits"]["hits"]) > 0:
+                return response["hits"]["hits"][0]["_source"]["info_value"]
+            else:
+                logger.info(
+                    f"No document info found for collection: {collection_name}, document: {document_name}, info type: {info_type}"
+                )
+                return {}
+        except Exception as e:
+            logger.error(f"Error getting document info for {info_type}, {collection_name}, {document_name}: {e}")
             return {}
+
+    def _get_all_document_info(self, collection_name: str) -> list[dict[str, Any]]:
+        """Get all document info for a collection.
+
+        Returns:
+            list[dict[str, Any]]: List of document info for the collection. (hit["_source"])
+        """
+        collection_name = self._normalize_index_name(collection_name)
+        try:
+            if not self._check_index_exists(index_name=DEFAULT_DOCUMENT_INFO_COLLECTION):
+                logger.warning(
+                    f"Document info collection {DEFAULT_DOCUMENT_INFO_COLLECTION} does not exist." \
+                    "Skipping document info retrieval."
+                    )
+                return []
+            # scan() pages through all matching hits, bypassing the 10-doc default size cap.
+            query = get_all_document_info_query(collection_name)
+            return [
+                hit["_source"]
+                for hit in scan(
+                    self._es_connection,
+                    index=DEFAULT_DOCUMENT_INFO_COLLECTION,
+                    query=query,
+                    preserve_order=False,
+                )
+            ]
+        except Exception as e:
+            logger.error(f"Error getting all document info for collection {collection_name}: {e}")
+            return []
 
     def get_catalog_metadata(self, collection_name: str) -> dict[str, Any]:
         """Get catalog metadata for a collection."""
@@ -877,6 +1086,7 @@ class ElasticVDB(VDBRagIngest):
         otel_ctx: Any | None = None,
     ) -> list[dict[str, Any]]:
         """Retrieve documents from a collection using langchain."""
+        collection_name = self._normalize_index_name(collection_name)
         logger.info(
             "Elasticsearch Retrieval: Retrieving documents from index: %s, search type: '%s'",
             collection_name,
@@ -936,17 +1146,128 @@ class ElasticVDB(VDBRagIngest):
 
             return self._add_collection_name_to_retreived_docs(docs, collection_name)
         except (requests.exceptions.ConnectionError, ConnectionError, OSError) as e:
+            embedding_client = getattr(self._embedding_model, "_client", None)
             embedding_url = (
-                self.embedding_model._client.base_url
-                if hasattr(self.embedding_model, "_client")
-                else "configured endpoint"
+                getattr(embedding_client, "base_url", None) or "configured endpoint"
             )
             error_msg = f"Embedding NIM unavailable at {embedding_url}. Please verify the service is running and accessible."
             logger.error("Connection error in retrieval_langchain: %s", e)
             raise APIError(error_msg, ErrorCodeMapping.SERVICE_UNAVAILABLE) from e
         finally:
+            release_nvidia_client_response(self._embedding_model)
             if token is not None:
                 otel_context.detach(token)
+
+    def retrieve_chunks_by_filter(
+        self,
+        collection_name: str,
+        source_name: str,
+        page_numbers: list[int],
+        limit: int = 1000,
+    ) -> list[Document]:
+        """Retrieve ALL chunks matching (source, page_numbers) via filter-only query.
+
+        No semantic search - used for page context expansion when
+        fetch_full_page_context is enabled.
+        """
+        if not page_numbers:
+            return []
+
+        collection_name = self._normalize_index_name(collection_name)
+        try:
+            query = get_chunks_by_source_and_pages_query(source_name, page_numbers)
+            query["size"] = min(limit, 10000)  # Elasticsearch default max
+            response = self._es_connection.search(
+                index=collection_name,
+                body=query,
+            )
+        except Exception as e:
+            logger.error("Error in retrieve_chunks_by_filter: %s", e)
+            return []
+
+        docs: list[Document] = []
+        for hit in response.get("hits", {}).get("hits", []):
+            source_data = hit.get("_source", {})
+            text = source_data.get("text", "")
+            metadata = source_data.get("metadata", {})
+            if metadata:
+                docs.append(
+                    Document(
+                        page_content=text,
+                        metadata={
+                            "source": metadata.get("source"),
+                            "content_metadata": metadata.get("content_metadata", {}),
+                        },
+                    )
+                )
+            elif text:
+                docs.append(Document(page_content=text, metadata={}))
+
+        return self._add_collection_name_to_retreived_docs(docs, collection_name)
+
+    def retrieval_image_langchain(
+        self,
+        query: str,
+        collection_name: str,
+        vectorstore: ElasticsearchStore | None = None,
+        top_k: int = 10,
+        reranker_top_k: int | None = None,
+    ) -> list[Document]:
+        """Retrieve documents from a collection using an image query.
+
+        Embeds the image query via the configured embedding model, performs a
+        vector similarity search to find the most relevant document page, then
+        returns all chunks from that page for multimodal context.
+
+        Args:
+            query: The image query (base64 encoded)
+            collection_name: Name of the collection to search
+            vectorstore: Optional pre-initialized ElasticsearchStore
+            top_k: Number of results for initial similarity search (VDB top_k)
+            reranker_top_k: Final number of documents to return. If None,
+                           defaults to top_k.
+
+        Note: Uses the embedding_model provided during initialization.
+        """
+        final_limit = reranker_top_k if reranker_top_k is not None else top_k
+        collection_name = self._normalize_index_name(collection_name)
+
+        if vectorstore is None:
+            vectorstore = self.get_langchain_vectorstore(collection_name)
+
+        try:
+            embedding = self._embedding_model.embed_documents([query])
+            scored = vectorstore.similarity_search_by_vector_with_relevance_scores(
+                embedding=embedding[0],
+                k=top_k,
+            )
+            results = [doc for doc, _ in scored]
+        except Exception as e:
+            logger.error(
+                "Error generating embeddings or performing similarity search: %s", e,
+                exc_info=True,
+            )
+            return []
+        finally:
+            release_nvidia_client_response(self._embedding_model)
+
+        if not results:
+            return []
+
+        try:
+            metadata = results[0].metadata
+            source_name = metadata["source"]["source_name"]
+            page_number = metadata["content_metadata"]["page_number"]
+        except (KeyError, IndexError, TypeError) as e:
+            logger.error("Error accessing metadata from search results: %s", e)
+            return []
+
+        return self.retrieve_chunks_by_filter(
+            collection_name=collection_name,
+            source_name=source_name,
+            page_numbers=[page_number],
+            limit=final_limit,
+        )
 
     def get_langchain_vectorstore(
         self,
@@ -956,11 +1277,12 @@ class ElasticVDB(VDBRagIngest):
         Get the vectorstore for a collection.
         Uses the same authentication priority: bearer token -> API key -> basic auth
         """
+        collection_name = self._normalize_index_name(collection_name)
         vectorstore_params: dict[str, Any] = {
             "index_name": collection_name,
             "es_url": self.es_url,
             "embedding": self._embedding_model,
-            "strategy": DenseVectorStrategy(
+            "strategy": self._get_retrieval_strategy(
                 hybrid=self.config.vector_store.search_type == SearchType.HYBRID
             ),
         }

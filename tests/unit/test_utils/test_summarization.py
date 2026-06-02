@@ -31,7 +31,7 @@ from nvidia_rag.utils.summarization import (
     _get_summary_llm,
     _prepare_single_document,
     _process_single_file_summary,
-    _store_summary_in_minio,
+    _store_summary_in_object_store,
     _summarize_hierarchical,
     _summarize_iterative,
     _summarize_single_pass,
@@ -887,12 +887,12 @@ class TestUpdateFileProgress:
             assert call_kwargs["progress"]["total"] == 10
 
 
-class TestStoreSummaryInMinio:
-    """Test _store_summary_in_minio function"""
+class TestStoreSummaryInObjectStore:
+    """Test _store_summary_in_object_store function."""
 
     @pytest.mark.asyncio
-    async def test_store_summary_in_minio_success(self):
-        """Test successful summary storage in MinIO"""
+    async def test_store_summary_in_object_store_success(self):
+        """Test successful summary storage in the object store."""
         document = Document(
             page_content="Content",
             metadata={
@@ -902,25 +902,25 @@ class TestStoreSummaryInMinio:
             },
         )
 
-        mock_minio = Mock()
-        mock_minio.put_payload = Mock()
+        mock_object_store = Mock()
+        mock_object_store.put_payload = Mock()
 
         with (
             patch(
-                "nvidia_rag.utils.summarization.get_minio_operator_instance"
-            ) as mock_get_minio,
+                "nvidia_rag.utils.summarization.get_object_store_operator_instance"
+            ) as mock_get_object_store,
             patch(
                 "nvidia_rag.utils.summarization.get_unique_thumbnail_id"
             ) as mock_get_id,
         ):
-            mock_get_minio.return_value = mock_minio
+            mock_get_object_store.return_value = mock_object_store
             mock_get_id.return_value = "test_id"
 
-            await _store_summary_in_minio(document)
+            await _store_summary_in_object_store(document)
 
             mock_get_id.assert_called_once()
-            mock_minio.put_payload.assert_called_once()
-            call_kwargs = mock_minio.put_payload.call_args[1]
+            mock_object_store.put_payload.assert_called_once()
+            call_kwargs = mock_object_store.put_payload.call_args[1]
             assert call_kwargs["payload"]["summary"] == "Test summary"
             assert call_kwargs["payload"]["file_name"] == "test.pdf"
 
@@ -959,7 +959,7 @@ class TestProcessSingleFileSummary:
             patch(
                 "nvidia_rag.utils.summarization._generate_single_document_summary"
             ) as mock_generate,
-            patch("nvidia_rag.utils.summarization._store_summary_in_minio"),
+            patch("nvidia_rag.utils.summarization._store_summary_in_object_store"),
             patch("nvidia_rag.utils.summarization.SUMMARY_STATUS_HANDLER"),
             patch("nvidia_rag.utils.summarization.release_global_summary_slot"),
         ):
@@ -1054,7 +1054,7 @@ class TestProcessSingleFileSummary:
             patch(
                 "nvidia_rag.utils.summarization._generate_single_document_summary"
             ) as mock_generate,
-            patch("nvidia_rag.utils.summarization._store_summary_in_minio"),
+            patch("nvidia_rag.utils.summarization._store_summary_in_object_store"),
             patch("nvidia_rag.utils.summarization.SUMMARY_STATUS_HANDLER"),
             patch("nvidia_rag.utils.summarization.release_global_summary_slot"),
             patch("asyncio.sleep") as mock_sleep,

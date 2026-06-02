@@ -37,7 +37,7 @@ export const FilterGenerationToggle: React.FC<FilterGenerationToggleProps> = ({
   const [tempConfig, setTempConfig] = useState<FilterGenerationConfig>(
     config || {
       enable_filter_generator: enabled,
-      model_name: "nvidia/llama-3.3-nemotron-super-49b-v1",
+      model_name: "nvidia/nemotron-3-super-120b-a12b",
       temperature: 0.1,
       top_p: 0.9,
       max_tokens: 500
@@ -139,7 +139,7 @@ export const FilterGenerationToggle: React.FC<FilterGenerationToggleProps> = ({
               <TextInput
                 value={tempConfig.model_name || ""}
                 onValueChange={(value) => handleConfigChange("model_name", value)}
-                placeholder="nvidia/llama-3.3-nemotron-super-49b-v1"
+                placeholder="nvidia/nemotron-3-super-120b-a12b"
               />
             </FormField>
 

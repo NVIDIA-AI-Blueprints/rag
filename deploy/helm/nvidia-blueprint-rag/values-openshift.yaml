@@ -1,0 +1,78 @@
+# OpenShift overlay for the NVIDIA RAG Blueprint Helm chart.
+# Usage:
+#   helm install rag . -f values.yaml -f values-openshift.yaml -n <namespace>
+
+openshift:
+  enabled: true
+  routes:
+    frontend:
+      enabled: true
+      tls:
+        termination: edge
+        insecureEdgeTerminationPolicy: Redirect
+    ragServer:
+      enabled: true
+      tls:
+        termination: edge
+        insecureEdgeTerminationPolicy: Redirect
+
+# Override default NodePort to ClusterIP — Routes handle external access.
+frontend:
+  service:
+    type: ClusterIP
+
+# Reduce rag-server uvicorn worker count for low-podPidsLimit clusters.
+# The base values.yaml ships with server.workers: 128, which spawns 128 Python
+# worker processes per replica. On clusters where kubelet enforces a low
+# podPidsLimit (default 4096 on OpenShift), this consumes most of the cgroup
+# PID budget before the application is even ready. 1 worker is sufficient for
+# the default 1-replica deployment; raise this only after the cluster admin
+# raises kubelet podPidsLimit (typically to 16384) via a KubeletConfig CR.
+server:
+  workers: 4
+
+# nv-ingest workaround for OpenShift's low kubelet podPidsLimit (default 4096):
+# On nodes that expose the full host cpuset to the pod (cpuset.cpus=0-N), Ray's
+# raylet auto-detects all N CPUs from psutil.cpu_count() and prestarts hundreds
+# of workers. Each worker spawns ~5-10 gRPC threads in static init before it
+# can register with the raylet, and the burst breaches the pod PID ceiling —
+# pthread_create returns EAGAIN, workers crash, raylet retries forever, the
+# pipeline driver hangs with no actors, and ingest jobs sit in Redis forever.
+#
+# This overlay mounts a sitecustomize.py that monkey-patches os.cpu_count,
+# os.sched_getaffinity, and psutil.cpu_count to return RAG_NV_INGEST_DETECTED_CPUS
+# so Ray prestarts that many workers. The chart ships sitecustomize.py at
+# files/sitecustomize.py and creates the ConfigMap when pyPatches.enabled=true.
+nv-ingest:
+  pyPatches:
+    enabled: true
+
+  # nv-ingest 26.3.0 ships only one Python runtime at /opt/nv_ingest_runtime/
+  # (no separate conda env), so a single mount at its site-packages is enough.
+  # Both the entrypoint and Ray-spawned workers run /opt/nv_ingest_runtime/bin/python
+  # and auto-import sitecustomize from this path on startup.
+  extraVolumes:
+    py-patches:
+      configMap:
+        name: rag-nv-ingest-py-patches
+  extraVolumeMounts:
+    py-patches:
+      mountPath: /opt/nv_ingest_runtime/lib/python3.12/site-packages/sitecustomize.py
+      subPath: sitecustomize.py
+      readOnly: true
+
+  envVars:
+    # Consumed by the mounted sitecustomize.py. 4 gives the pipeline enough
+    # parallelism to overlap stages while staying well under podPidsLimit=4096.
+    # Raise to 8 once 4 is confirmed working; only go higher after the kubelet
+    # podPidsLimit has been raised by cluster admin.
+    RAG_NV_INGEST_DETECTED_CPUS: "4"
+
+    # Caps Ray actor replicas per pipeline stage. The default of 16 (set in the
+    # base values.yaml) spawns 16 PDFExtract actors plus 6+6 Table/Chart actors,
+    # etc. Each actor is a Python process with ~50 threads. Multiplied across
+    # stages, baseline lands at ~4000 PIDs — right at the cgroup ceiling — and
+    # any runtime thread spawn (gRPC channel, asyncio.to_thread, threadpool grow)
+    # then fails with EAGAIN. Capping to 4 keeps steady-state PIDs well below
+    # the limit at the cost of slower per-document throughput.
+    MAX_INGEST_PROCESS_WORKERS: "4"

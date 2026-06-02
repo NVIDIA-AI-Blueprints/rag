@@ -12,39 +12,46 @@ You can mount a host directory to access extraction results from NeMo Retriever 
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `INGESTOR_SERVER_EXTERNAL_VOLUME_MOUNT` | `./volumes/ingestor-server` | Host filesystem path |
-| `INGESTOR_SERVER_DATA_DIR` | `/data/` | Container internal path |
+| `INGESTOR_SERVER_DATA_DIR` | `/data/` | Container internal path. Mapped to the `rag-vol-ingestor` Docker named volume. |
 | `APP_NVINGEST_SAVETODISK` | `False` | Enable disk persistence |
 
 ### Setup
 
-1. **Export environment variables:**
+1. **Enable disk persistence:**
    ```bash
    # Enable disk persistence
    export APP_NVINGEST_SAVETODISK=True
 
-   # Set host directory path (optional - customize as needed)
-   export INGESTOR_SERVER_EXTERNAL_VOLUME_MOUNT=./volumes/ingestor-server
-
-   # Set container internal path (optional - customize as needed)
+   # (Optional) Override container internal path
    export INGESTOR_SERVER_DATA_DIR=/data/
    ```
 
-## Troubleshooting
+   The ingestor-server compose file already mounts `rag-vol-ingestor` at `INGESTOR_SERVER_DATA_DIR`; nothing else needs to be configured to persist results.
 
-**Optional: Fix permissions issues**
-If you encounter permission errors when accessing the volume:
+## Accessing the Results from the Host
+
+Docker named volumes are owned by `root` on the host, so use one of the following patterns to read the files:
+
 ```bash
-sudo chown -R 1000:1000 ${INGESTOR_SERVER_EXTERNAL_VOLUME_MOUNT}
-sudo chmod -R 755 ${INGESTOR_SERVER_EXTERNAL_VOLUME_MOUNT}
+# Copy a single result file out of the volume:
+docker run --rm -v rag-vol-ingestor:/src:ro -v "$PWD":/dst alpine \
+  cp /src/nv-ingest-results/<collection>/<file>.results.jsonl /dst/
+
+# List the directory tree inside the volume:
+docker run --rm -v rag-vol-ingestor:/src:ro alpine ls -la /src/nv-ingest-results
+
+# Or copy directly from the running ingestor-server container:
+docker cp ingestor-server:/data/nv-ingest-results ./nv-ingest-results
 ```
+
+See [Manage Persistent Data Volumes](troubleshooting.md#manage-persistent-data-volumes) for backup, reset, and migration commands.
 
 ## Result Structure
 
 Results are saved as `.jsonl` files with naming convention: `{original_filename}.results.jsonl`
 
 ```
-${INGESTOR_SERVER_EXTERNAL_VOLUME_MOUNT}/
+rag-vol-ingestor:/
 └── nv-ingest-results/
     ├── collection_name1/
     │   ├── document1.pdf.results.jsonl

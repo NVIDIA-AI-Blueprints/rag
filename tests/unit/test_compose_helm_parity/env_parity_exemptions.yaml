@@ -3,19 +3,26 @@ envValueExemptions:
   perService:
     docker-compose-rag-server.yaml:
       rag-server:
+        - APP_VECTORSTORE_URL
         - NEMO_GUARDRAILS_URL
         - APP_TRACING_OTLPGRPCENDPOINT
         - APP_TRACING_OTLPHTTPENDPOINT
         - APP_VLM_SERVERURL
-        - MINIO_ENDPOINT
+        - OBJECTSTORE_ENDPOINT
         - REDIS_HOST
         - REDIS_PORT
         - REDIS_DB
     docker-compose-ingestor-server.yaml:
       ingestor-server:
+        - APP_VECTORSTORE_URL
         - APP_NVINGEST_CAPTIONENDPOINTURL
+        # Compose uses nims.yaml DNS names; Helm uses chart service names (same mismatch pattern as caption URL).
+        - APP_NVINGEST_PAGEELEMENTSURL
+        - APP_NVINGEST_GRAPHICELEMENTSURL
+        - APP_NVINGEST_OCRURL
+        - APP_NVINGEST_TABLESTRUCTUREURL
         - APP_NVINGEST_MESSAGECLIENTHOSTNAME
-        - MINIO_ENDPOINT
+        - OBJECTSTORE_ENDPOINT
         - REDIS_HOST
       nv-ingest-ms-runtime:
         - AUDIO_GRPC_ENDPOINT
@@ -47,7 +54,7 @@ imageParityExemptions:
     vectordb.yaml:
       milvus: true
       etcd: true
-      minio: true
+      seaweedfs: true
 
 ngcApiKeyPresenceExemptions:
   perService:
@@ -56,5 +63,4 @@ ngcApiKeyPresenceExemptions:
       nemotron-embedding-ms: true
       nemotron-ranking-ms: true
       vlm-ms: true
-
 

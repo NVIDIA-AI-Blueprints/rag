@@ -21,16 +21,71 @@ import { useCollectionsStore } from "../store/useCollectionsStore";
 import { useStreamingStore } from "../store/useStreamingStore";
 import { useImageAttachmentStore } from "../store/useImageAttachmentStore";
 import { useCollections } from "../api/useCollectionsApi";
+import { useHealthStatus } from "../api/useHealthApi";
 import { useUUID } from "./useUUID";
 import type { GenerateRequest } from "../types/requests";
 import type { ChatMessage, Filter, MessageContent, TextContent, ImageContent } from "../types/chat";
 import type { Collection } from "../types/collections";
+import {
+  buildFieldTypeMap,
+  compileElasticsearchFilter,
+  compileMilvusFilter,
+  vectorStoreFromHealthService,
+} from "../utils/filterExpression";
+
+/**
+ * Build the per-request `filter_expr` value in the wire format the
+ * configured backend expects (Milvus string vs. Elasticsearch list-of-dicts).
+ *
+ * The deployment is mono-store: we pick the backend from the first
+ * `/health.databases[].service` entry. If health hasn't loaded yet (or the
+ * label is unrecognized), we default to Milvus to preserve pre-existing
+ * behavior.
+ *
+ * Exported for direct unit testing of the wire-format contract.
+ */
+export function buildFilterExpression(
+  filters: Filter[],
+  selectedCollections: string[],
+  allCollections: Collection[],
+  healthServiceLabel: string | undefined
+): GenerateRequest["filter_expr"] {
+  if (!filters.length) return undefined;
+
+  const schemas = selectedCollections
+    .map(
+      (name) =>
+        allCollections.find((c) => c.collection_name === name)
+          ?.metadata_schema ?? []
+    )
+    .map((schema) =>
+      schema.map((field) => ({
+        name: field.name,
+        type: field.type as string,
+        array_type: field.array_type ?? undefined,
+      }))
+    );
+  const fieldTypes = buildFieldTypeMap(schemas);
+
+  const backend = vectorStoreFromHealthService(healthServiceLabel) ?? "milvus";
+  if (backend === "elasticsearch") {
+    // Pass `fieldTypes` so non-string-typed fields (integer / float /
+    // datetime / boolean) get the bare field path. Appending `.keyword`
+    // to those targets a non-existent ES sub-field and returns zero hits.
+    return compileElasticsearchFilter(filters, fieldTypes);
+  }
+  return compileMilvusFilter(filters, fieldTypes);
+}
 
 /**
  * Utility function to remove undefined, null, empty string, and empty array values from a request object.
  * This ensures we only send meaningful parameters to the API.
+ *
+ * Exported so the wire-format guarantees (notably: `agentic: false` must be
+ * preserved to override the server default, while `agentic: undefined` must
+ * be omitted) can be unit-tested in isolation.
  */
-function cleanRequestObject(obj: Partial<GenerateRequest>): GenerateRequest {
+export function cleanRequestObject(obj: Partial<GenerateRequest>): GenerateRequest {
   const cleaned: Partial<GenerateRequest> = {};
   
   for (const [key, value] of Object.entries(obj)) {
@@ -50,7 +105,11 @@ function cleanRequestObject(obj: Partial<GenerateRequest>): GenerateRequest {
         'enable_query_rewriting',
         'enable_guardrails',
         'enable_vlm_inference',
-        'enable_filter_generator'
+        'enable_filter_generator',
+        // `agentic: false` must reach the server to force the standard
+        // pipeline; otherwise it would be dropped and CONFIG.enable_agentic_rag
+        // (which may be true) would silently take over.
+        'agentic',
       ];
       if (value === true || alwaysInclude.includes(key)) {
         (cleaned as Record<string, unknown>)[key] = value;
@@ -86,11 +145,25 @@ export const useMessageSubmit = () => {
   const { selectedCollections } = useCollectionsStore();
   const { attachedImages, clearAllImages } = useImageAttachmentStore();
   const { data: allCollections = [] } = useCollections();
+  // The deployment is mono-store (Milvus or Elasticsearch). We pull the
+  // backend label from /health.databases[0].service and translate that
+  // into the wire format for filter_expr below.
+  const { data: health } = useHealthStatus();
   const settings = useSettingsStore();
   const { generateUUID } = useUUID();
   const { shouldDisableHealthFeatures, isHealthLoading } = useHealthDependentFeatures();
 
   const createRequest = useCallback((currentMessages: ChatMessage[]) => {
+    // Map the per-request agentic mode to the wire format:
+    //   "on"  -> true   (force agentic LangGraph pipeline)
+    //   "off" -> false  (force standard RAG pipeline)
+    // The previous "auto" mode (omit the field, let the server decide) was
+    // dropped per the #514 review — the FE now always pins the choice.
+    // `agentic: false` must still survive `cleanRequestObject` (see the
+    // `alwaysInclude` list there) so the user's "Standard" choice isn't
+    // silently overridden by the server's `CONFIG.enable_agentic_rag`.
+    const agentic = settings.agenticMode === "on";
+
     const rawRequest = {
       messages: currentMessages.map(({ role, content }) => ({ 
         role, 
@@ -120,80 +193,18 @@ export const useMessageSubmit = () => {
       vlm_endpoint: settings.vlmEndpoint,
       stop: settings.stopTokens,
       confidence_threshold: settings.confidenceScoreThreshold,
-      filter_expr: filters.length
-        ? filters
-            .map((f: Filter, index: number) => {
-              // Create a map of field names to their types and array_types from selected collections
-              const fieldTypeMap = new Map<string, string>();
-              const fieldArrayTypeMap = new Map<string, string>();
-              selectedCollections.forEach(collectionName => {
-                const collection = allCollections.find((col: Collection) => col.collection_name === collectionName);
-                if (collection?.metadata_schema) {
-                  collection.metadata_schema.forEach((field: { name: string; type: string; description: string; array_type?: string }) => {
-                    fieldTypeMap.set(field.name, field.type);
-                    if (field.array_type) {
-                      fieldArrayTypeMap.set(field.name, field.array_type);
-                    }
-                  });
-                }
-              });
-              
-              const isArrayField = fieldTypeMap.get(f.field) === 'array';
-              const arrayElementType = fieldArrayTypeMap.get(f.field);
-              
-              const formatValue = (value: string | number | boolean | (string | number | boolean)[], isArrayField = false): string => {
-                if (Array.isArray(value)) {
-                  // Handle array values for operators like "in", "not in", "=", "!="
-                  const formattedItems = value.map(item => {
-                    if (typeof item === 'boolean' || typeof item === 'number') {
-                      return String(item);
-                    }
-                    // For array fields, check the array_type to determine if we should quote string values
-                    if (isArrayField && arrayElementType) {
-                      // Don't quote if array elements are numeric or boolean types
-                      if (['integer', 'float', 'number', 'boolean'].includes(arrayElementType)) {
-                        return String(item);
-                      }
-                    }
-                    // Quote string values (default behavior)
-                    return `"${item}"`;
-                  }).join(', ');
-                  return `[${formattedItems}]`;
-                }
-                if (typeof value === 'boolean' || typeof value === 'number') {
-                  return String(value); // true/false/numbers without quotes
-                }
-                return `"${value}"`; // strings with quotes
-              };
-
-              let filterExpression = '';
-              // Handle special operators
-              switch (f.operator) {
-                case 'array_contains':
-                case 'array_contains_all':
-                case 'array_contains_any':
-                  // Use function call syntax: array_contains(field, value)
-                  filterExpression = `${f.operator}(content_metadata["${f.field}"], ${formatValue(f.value, isArrayField)})`;
-                  break;
-                default:
-                  filterExpression = `content_metadata["${f.field}"] ${f.operator} ${formatValue(f.value, isArrayField)}`;
-              }
-              
-              // Add logical operator prefix for all filters except the first one
-              if (index > 0) {
-                const logicalOp = f.logicalOperator || 'OR'; // Default to OR if not specified
-                return ` ${logicalOp.toLowerCase()} ${filterExpression}`;
-              }
-              
-              return filterExpression;
-            })
-            .join('')
-        : undefined
+      agentic,
+      filter_expr: buildFilterExpression(
+        filters,
+        selectedCollections,
+        allCollections,
+        health?.databases?.[0]?.service
+      ),
     };
     
     // Clean the request object to remove undefined/empty values
     return cleanRequestObject(rawRequest);
-  }, [selectedCollections, allCollections, settings, filters]);
+  }, [selectedCollections, allCollections, settings, filters, health?.databases]);
 
   const handleSubmit = useCallback(async () => {
     // Allow submit if there's text OR attached images

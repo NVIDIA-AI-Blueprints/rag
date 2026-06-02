@@ -42,6 +42,7 @@ class TestSystemManagedFieldsAutoAddition:
         """Create mock VDB operations"""
         mock = MagicMock()
         mock.create_metadata_schema_collection = MagicMock()
+        mock.check_collection_exists = MagicMock(return_value=False)
         mock.get_collection = MagicMock(return_value=[])
         mock.create_collection = MagicMock()
         mock.add_metadata_schema = MagicMock()
@@ -54,6 +55,7 @@ class TestSystemManagedFieldsAutoAddition:
         ) as mock_prepare:
             mock_vdb = MagicMock()
             mock_vdb.create_metadata_schema_collection = MagicMock()
+            mock_vdb.check_collection_exists = MagicMock(return_value=False)
             mock_vdb.get_collection = MagicMock(return_value=[])
             mock_vdb.create_collection = MagicMock()
             mock_vdb.add_metadata_schema = MagicMock()
@@ -83,6 +85,7 @@ class TestSystemManagedFieldsAutoAddition:
         ) as mock_prepare:
             mock_vdb = MagicMock()
             mock_vdb.create_metadata_schema_collection = MagicMock()
+            mock_vdb.check_collection_exists = MagicMock(return_value=False)
             mock_vdb.get_collection = MagicMock(return_value=[])
             mock_vdb.create_collection = MagicMock()
             mock_vdb.add_metadata_schema = MagicMock()
@@ -130,6 +133,7 @@ class TestSystemManagedFieldsAutoAddition:
         ) as mock_prepare:
             mock_vdb = MagicMock()
             mock_vdb.create_metadata_schema_collection = MagicMock()
+            mock_vdb.check_collection_exists = MagicMock(return_value=False)
             mock_vdb.get_collection = MagicMock(return_value=[])
             mock_vdb.create_collection = MagicMock()
             mock_vdb.add_metadata_schema = MagicMock()
@@ -338,6 +342,7 @@ class TestReservedFieldsFiltering:
         ) as mock_prepare:
             mock_vdb = MagicMock()
             mock_vdb.create_metadata_schema_collection = MagicMock()
+            mock_vdb.check_collection_exists = MagicMock(return_value=False)
             mock_vdb.get_collection = MagicMock(return_value=[])
             mock_vdb.create_collection = MagicMock()
             mock_vdb.add_metadata_schema = MagicMock()
@@ -414,6 +419,7 @@ class TestReservedFieldsFiltering:
         ) as mock_prepare:
             mock_vdb = MagicMock()
             mock_vdb.create_metadata_schema_collection = MagicMock()
+            mock_vdb.check_collection_exists = MagicMock(return_value=False)
             mock_vdb.get_collection = MagicMock(return_value=[])
             mock_vdb.create_collection = MagicMock()
             mock_vdb.add_metadata_schema = MagicMock()

@@ -1,5 +1,5 @@
 ARG BASE_IMAGE_URL=nvcr.io/nvidia/base/ubuntu
-ARG BASE_IMAGE_TAG=jammy-20251013
+ARG BASE_IMAGE_TAG=jammy-20260217
 ARG DOWNLOAD_LEGAL_COMPLIANCE=false
 
 # -------- Stage 1: Build Stage --------
@@ -119,9 +119,9 @@ ENV DEBIAN_FRONTEND noninteractive
 
 # Install ONLY the essential runtime libraries (no build tools, no Python installation process)
 # Update all packages to address CVE-2025-68973 (gpgv) and other security vulnerabilities
-RUN apt update && \
-    apt upgrade -y && \
-    apt install -y libexpat1 && \
+RUN apt update
+RUN apt upgrade -y
+RUN apt install -y libexpat1 && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
@@ -142,8 +142,8 @@ RUN --mount=from=python-env,source=/usr,target=/mnt/usr \
     find /mnt/usr -name "libpython3.13.so*" -exec cp -P {} /usr/lib/ \;
 
 # Create python3 symlink
-RUN ln -s /usr/bin/python3.13 /usr/bin/python3 && \
-    ln -s /usr/bin/python3.13 /usr/bin/python
+RUN ln -sf /usr/bin/python3.13 /usr/bin/python3 && \
+    ln -sf /usr/bin/python3.13 /usr/bin/python
 
 # Set up environment
 ENV PATH="/workspace/.venv/bin:$PATH"

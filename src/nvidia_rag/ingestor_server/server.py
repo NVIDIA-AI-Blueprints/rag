@@ -449,14 +449,22 @@ class IngestionTaskStatusResponse(BaseModel):
 
 
 class DocumentListResponse(BaseModel):
-    """Response model for uploading a document."""
+    """Response model for listing or deleting documents in the vector store."""
 
     message: str = Field(
         "", description="Message indicating the status of the request."
     )
-    total_documents: int = Field(0, description="Total number of documents uploaded.")
+    total_documents: int = Field(
+        0,
+        description=(
+            "For GET /documents: total number of documents in the collection (before "
+            "any `max_results` cap). For DELETE /documents: number of documents "
+            "affected as described in `message`. May differ from len(`documents`) "
+            "when the list is truncated."
+        ),
+    )
     documents: list[UploadedDocument] = Field(
-        [], description="List of uploaded documents."
+        [], description="Documents included in this response."
     )
 
 
@@ -861,6 +869,26 @@ async def get_documents(
     vdb_endpoint: str = Query(
         default=os.getenv("APP_VECTORSTORE_URL"), include_in_schema=False
     ),
+    force_get_metadata: bool = Query(
+        default=False,
+        description=(
+            "By default, each item includes per-document metadata from the vector "
+            "store. When the number of documents exceeds an internal threshold, the "
+            "server skips the expensive full scan: names and document_info are still "
+            "returned, but per-document metadata is omitted (empty). Set true to "
+            "force the full scan so metadata is populated regardless of collection "
+            "size (e.g. always use the Milvus iterator path)."
+        ),
+    ),
+    max_results: int = Query(
+        default=1000,
+        ge=1,
+        le=1_000_000,
+        description=(
+            "Maximum number of documents to return in this response "
+            "(caps payload size for large collections)."
+        ),
+    ),
 ) -> DocumentListResponse:
     """Get list of document ingested in vectorstore."""
     try:
@@ -870,6 +898,8 @@ async def get_documents(
             collection_name=collection_name,
             vdb_endpoint=vdb_endpoint,
             vdb_auth_token=vdb_auth_token,
+            force_get_metadata=force_get_metadata,
+            max_results=max_results,
         )
         return DocumentListResponse(**documents)
 

@@ -18,9 +18,13 @@ This module defines the VLM (Vision-Language Model) utilities for NVIDIA RAG pip
 
 Main functionalities:
 - Analyze images using a VLM given user messages and full chat/context.
-- Use an LLM to reason about the VLM's response and decide if it should be used.
+- Stream tokens from a VLM, including the reasoning trace emitted by
+  ``nvidia/nemotron-3-nano-omni-30b-a3b-reasoning`` when ``enable_thinking`` is set.
 
-Intended for use in NVIDIA's Retrieval-Augmented Generation (RAG) systems, compatible with LangChain and OpenAI-compatible VLM APIs.
+The implementation talks directly to OpenAI-compatible endpoints via the
+``openai`` Python SDK; there is no LangChain abstraction layer, so reasoning
+delta fields (``reasoning`` / ``reasoning_content``) are read straight off the
+streaming chunks.
 
 Class:
     VLM: Provides methods for image analysis via messages and VLM/LLM reasoning.
@@ -34,20 +38,21 @@ from collections.abc import AsyncGenerator
 from logging import getLogger
 from typing import Any
 
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
-from langchain_openai import ChatOpenAI
+from langchain_core.messages import AIMessageChunk
+from openai import AsyncOpenAI
 from PIL import Image as PILImage
 
 from nvidia_rag.rag_server.response_generator import APIError, ErrorCodeMapping
 from nvidia_rag.utils.common import NVIDIA_API_DEFAULT_HEADERS
 from nvidia_rag.utils.configuration import NvidiaRAGConfig
 from nvidia_rag.utils.llm import get_prompts
-from nvidia_rag.utils.minio_operator import (
-    get_minio_operator,
-    get_unique_thumbnail_id,
-)
+from nvidia_rag.utils.object_store import get_object_store_operator
+from nvidia_rag.utils.observability.tracing import trace_function, traced_span
 
 logger = getLogger(__name__)
+
+# OpenAI Chat Completions message dict: {"role": str, "content": str | list[dict]}.
+MessageDict = dict[str, Any]
 
 
 class VLM:
@@ -68,9 +73,6 @@ class VLM:
     - ``0``: prevents **additional** images from being added from retrieved
       documents; user-supplied images already present in the messages are
       passed through unchanged.
-
-    The limit is applied when assembling the LangChain messages, after
-    normalizing incoming messages and skipping non-image document types.
 
     Methods
     -------
@@ -100,20 +102,6 @@ class VLM:
             prompts:
                 Optional prompts dictionary.
 
-        Image budget semantics
-        ----------------------
-        The image budget is read from ``config.vlm.max_total_images`` and
-        interpreted as:
-
-        - ``None``: no explicit limit applied by this helper.
-        - Integer ``N > 0``: at most ``N`` images (combined from user messages
-          and retrieved context) are included in the VLM prompt.
-        - ``0``: no **additional** images are taken from retrieved documents;
-          any images already present in user/chat messages are left intact.
-
-        This limit is enforced while building the prompt messages, after
-        normalizing message content and skipping non-image document types.
-
         Raises
         ------
         EnvironmentError
@@ -140,51 +128,47 @@ class VLM:
         logger.info(f"VLM Server URL: {self.invoke_url}")
 
     @staticmethod
-    def init_model(
-        model: str,
+    def _create_async_client(
         endpoint: str,
         api_key: str | None = None,
-        enable_thinking: bool = True,
-        thinking_token_budget: int = 0,
-        **kwargs: Any,
-    ) -> ChatOpenAI:
-        """
-        Initialize and return the VLM ChatOpenAI model instance.
+    ) -> AsyncOpenAI:
+        """Build an OpenAI-compatible async client targeting the VLM endpoint."""
+        return AsyncOpenAI(
+            base_url=endpoint,
+            # OpenAI SDK requires a non-empty api_key string even for self-hosted NIMs.
+            api_key=api_key or "not-required",
+            default_headers=NVIDIA_API_DEFAULT_HEADERS,
+        )
+
+    @staticmethod
+    def _build_extra_body(
+        enable_thinking: bool,
+        thinking_token_budget: int,
+    ) -> dict[str, Any]:
+        """Build the ``extra_body`` payload for Nemotron Omni reasoning controls.
 
         For ``nvidia/nemotron-3-nano-omni-30b-a3b-reasoning``, reasoning is
         controlled via ``chat_template_kwargs`` in the request body.  When
         ``enable_thinking=True`` the model separates chain-of-thought into a
-        ``reasoning`` delta field and the final answer into ``content``.
-        An optional ``thinking_token_budget`` caps the reasoning trace length.
-
-        Note
-        ----
-        This helper does **not** apply any image-count limits itself; those
-        limits are enforced earlier when assembling the messages that will be
-        sent to the model.
+        ``reasoning`` (or ``reasoning_content``) delta and the final answer
+        into ``content``. An optional ``thinking_token_budget`` caps the
+        reasoning trace length.
         """
         extra_body: dict[str, Any] = {
             "chat_template_kwargs": {"enable_thinking": enable_thinking},
         }
         if enable_thinking and thinking_token_budget > 0:
             extra_body["thinking_token_budget"] = thinking_token_budget
-
-        return ChatOpenAI(
-            model=model,
-            openai_api_key=api_key,
-            openai_api_base=endpoint,
-            default_headers=NVIDIA_API_DEFAULT_HEADERS,
-            model_kwargs={"extra_body": extra_body},
-            **kwargs,
-        )
+        return extra_body
 
     @staticmethod
+    @trace_function("vlm.normalize_messages")
     def _normalize_messages(
         raw_messages: list[dict[str, Any]],
-    ) -> tuple[list[HumanMessage | AIMessage | SystemMessage], int, str]:
-        """Normalize raw messages; return (messages_without_system, last_human_idx, incoming_system_text)."""
-        lc_messages: list[HumanMessage | AIMessage | SystemMessage] = []
-        last_human_idx: int | None = None
+    ) -> tuple[list[MessageDict], int, str]:
+        """Normalize raw messages; return (messages_without_system, last_user_idx, incoming_system_text)."""
+        normalized_messages: list[MessageDict] = []
+        last_user_idx: int | None = None
         system_accum_text: str = ""
 
         def ensure_list_content(raw_content: Any) -> list[dict[str, Any]]:
@@ -239,7 +223,7 @@ class VLM:
                 if system_text:
                     system_accum_text = (system_accum_text + " " + system_text).strip()
             elif role == "assistant":
-                # Assistant content should be a plain string
+                # Assistant content should be a plain string per OpenAI Chat schema.
                 assistant_text = "".join(
                     [
                         (
@@ -250,18 +234,23 @@ class VLM:
                         for part in content
                     ]
                 )
-                lc_messages.append(AIMessage(content=assistant_text))
+                normalized_messages.append(
+                    {"role": "assistant", "content": assistant_text}
+                )
             else:
                 # User content can be multimodal list
-                lc_messages.append(HumanMessage(content=content))
-                last_human_idx = len(lc_messages) - 1
+                normalized_messages.append({"role": "user", "content": content})
+                last_user_idx = len(normalized_messages) - 1
 
-        if last_human_idx is None:
-            lc_messages.append(HumanMessage(content=[{"type": "text", "text": ""}]))
-            last_human_idx = len(lc_messages) - 1
+        if last_user_idx is None:
+            normalized_messages.append(
+                {"role": "user", "content": [{"type": "text", "text": ""}]}
+            )
+            last_user_idx = len(normalized_messages) - 1
 
-        return lc_messages, last_human_idx, system_accum_text
+        return normalized_messages, last_user_idx, system_accum_text
 
+    @trace_function("vlm.extract_and_process_messages")
     def extract_and_process_messages(
         self,
         vlm_template: dict[str, Any],
@@ -270,13 +259,15 @@ class VLM:
         context_text: str | None,
         question_text: str | None,
         max_total_images: int | None = None,
-    ) -> tuple[
-        SystemMessage, HumanMessage, list[HumanMessage | AIMessage | SystemMessage]
-    ]:
+        organize_by_page: bool = False,
+        nrl_mode: bool = False,
+    ) -> tuple[MessageDict, MessageDict, list[MessageDict]]:
         """
         Build system and user messages from template, normalize chat history, and
-        extract any query/context images to be attached to the last human message.
-        Returns: (system_message, chat_history_messages, user_message, last_human_idx, query_images, context_images)
+        extract any query/context images to be attached to the last user message.
+        When organize_by_page=True, interleaves text and images per page.
+        When nrl_mode=True, uses NRL metadata layout (stored_image_uri) instead of
+        nv-ingest nested content_metadata.
         """
         textual_context = (
             context_text if context_text is not None else self._format_docs_text(docs)
@@ -291,24 +282,13 @@ class VLM:
         system_text = (vlm_template.get("system") or "").strip()
         if incoming_system_text:
             system_text = (system_text + " " + incoming_system_text).strip()
-        human_template = vlm_template.get("human") or "{context}\n\n{question}"
-        formatted_human = human_template.format(
-            context=textual_context or "",
-            question=(question_text or "").strip(),
-        )
-        # System must be plain string, not list content
-        system_message = SystemMessage(content=system_text)
-
-        # Build citations_instruct_user_message as multimodal: text + citation images from MinIO (if any)
-        content_parts: list[dict[str, Any]] = [
-            {"type": "text", "text": formatted_human}
-        ]
+        system_message: MessageDict = {"role": "system", "content": system_text}
 
         # Count images already present in chat history to respect overall image budget
         existing_image_count = 0
         try:
             for msg in chat_history_messages:
-                parts = msg.content if isinstance(msg.content, list) else []
+                parts = msg["content"] if isinstance(msg.get("content"), list) else []
                 for p in parts:
                     if isinstance(p, dict) and p.get("type") == "image_url":
                         existing_image_count += 1
@@ -319,114 +299,334 @@ class VLM:
         if isinstance(max_total_images, int) and max_total_images >= 0:
             remaining_image_budget = max(0, max_total_images - existing_image_count)
 
-        try:
-            for doc in docs or []:
-                metadata = getattr(doc, "metadata", {}) or {}
-                content_md = metadata.get("content_metadata", {}) or {}
-                doc_type = content_md.get("type")
-                if doc_type not in ["image", "structured"]:
-                    continue
-
-                if remaining_image_budget is not None and remaining_image_budget <= 0:
-                    break
-
-                # Inputs for unique thumbnail id
-                collection_name = metadata.get("collection_name") or ""
-                source_meta = metadata.get("source", {}) or {}
-                source_id = (
-                    source_meta.get("source_id", "")
-                    if isinstance(source_meta, dict)
-                    else ""
+        if organize_by_page and docs:
+            content_parts = self._build_content_parts_by_page(
+                vlm_template,
+                textual_context,
+                question_text,
+                docs,
+                remaining_image_budget,
+                nrl_mode=nrl_mode,
+            )
+        else:
+            human_template = vlm_template.get("human") or "{context}\n\n{question}"
+            formatted_human = human_template.format(
+                context=textual_context or "",
+                question=(question_text or "").strip(),
+            )
+            content_parts = [{"type": "text", "text": formatted_human}]
+            if nrl_mode:
+                content_parts.extend(
+                    self._extract_images_from_docs_nrl(docs, remaining_image_budget)
                 )
-                file_name = os.path.basename(source_id) if source_id else ""
-                page_number = content_md.get("page_number")
-                location = content_md.get("location")
+            else:
+                content_parts.extend(
+                    self._extract_images_from_docs(docs, remaining_image_budget)
+                )
 
-                if not (
-                    collection_name
-                    and file_name
-                    and page_number is not None
-                    and location is not None
-                ):
-                    continue
-
-                try:
-                    unique_thumbnail_id = get_unique_thumbnail_id(
-                        collection_name=collection_name,
-                        file_name=file_name,
-                        page_number=page_number,
-                        location=location,
-                    )
-                    payload = get_minio_operator().get_payload(
-                        object_name=unique_thumbnail_id
-                    )
-                    content_b64 = (payload or {}).get("content", "")
-                    if not content_b64:
-                        continue
-                    png_b64 = VLM._convert_image_url_to_png_b64(content_b64)
-                    content_parts.append(
-                        {
-                            "type": "image_url",
-                            "image_url": {"url": f"data:image/png;base64,{png_b64}"},
-                        }
-                    )
-                    if remaining_image_budget is not None:
-                        remaining_image_budget -= 1
-                except Exception:
-                    # best-effort: skip if anything fails per document
-                    continue
-        except Exception:
-            # best-effort overall
-            pass
-
-        citations_instruct_user_message = HumanMessage(content=content_parts)
-
-        # Return citations_instruct_user_message as second element by contract
+        citations_instruct_user_message: MessageDict = {
+            "role": "user",
+            "content": content_parts,
+        }
         return (system_message, citations_instruct_user_message, chat_history_messages)
 
     @staticmethod
+    def _log_content_parts_structure(
+        content_parts: list[dict[str, Any]],
+        snippet_chars: int = 50,
+    ) -> None:
+        """Log VLM content_parts with text lengths, [img], and a short snippet per text block."""
+        if not content_parts:
+            logger.info("  [VLM prompt structure] (empty)")
+            return
+        for i, p in enumerate(content_parts[:15]):  # cap parts to avoid flood
+            if not isinstance(p, dict):
+                continue
+            t = p.get("type")
+            if t == "text":
+                text = p.get("text", "")
+                n = len(text)
+                # First line or first N chars, single line, for comparison
+                one_line = " ".join(text.split())[:snippet_chars]
+                if len(" ".join(text.split())) > snippet_chars:
+                    one_line += "…"
+                snippet = one_line.replace('"', "'") if one_line else "(empty)"
+                logger.info(
+                    '  [VLM prompt structure] part %d: text(%d chars) "%s"',
+                    i + 1,
+                    n,
+                    snippet,
+                )
+            elif t == "image_url":
+                logger.info("  [VLM prompt structure] part %d: [img]", i + 1)
+            else:
+                logger.info("  [VLM prompt structure] part %d: ?", i + 1)
+
+    @trace_function("vlm.extract_images_from_docs")
+    def _extract_images_from_docs(
+        self,
+        docs: list[Any],
+        remaining_image_budget: int | None,
+    ) -> list[dict[str, Any]]:
+        """Extract image parts from docs for object-store thumbnails."""
+        parts: list[dict[str, Any]] = []
+        for doc in docs or []:
+            if remaining_image_budget is not None and remaining_image_budget <= 0:
+                break
+            metadata = getattr(doc, "metadata", {}) or {}
+            content_md = metadata.get("content_metadata", {}) or {}
+            doc_type = content_md.get("type")
+            if doc_type not in ["image", "structured"]:
+                continue
+            collection_name = metadata.get("collection_name") or ""
+            source_meta = metadata.get("source", {}) or {}
+            source_id = (
+                source_meta.get("source_id", "")
+                or (
+                    source_meta.get("source_name", "")
+                    if isinstance(source_meta, dict)
+                    else ""
+                )
+                if isinstance(source_meta, dict)
+                else ""
+            )
+            file_name = os.path.basename(str(source_id)) if source_id else ""
+            page_number = content_md.get("page_number")
+            location = content_md.get("location")
+            if not (
+                collection_name
+                and file_name
+                and page_number is not None
+                and location is not None
+            ):
+                continue
+            try:
+                source_location = doc.metadata.get("source").get("source_location")
+                if source_location:
+                    raw_content = get_object_store_operator().get_object_from_uri(
+                        source_location
+                    )
+                    content_b64 = base64.b64encode(raw_content).decode("ascii")
+                else:
+                    content_b64 = ""
+                if not content_b64:
+                    continue
+                png_b64 = VLM._convert_image_url_to_png_b64(content_b64)
+                parts.append(
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": f"data:image/png;base64,{png_b64}"},
+                    }
+                )
+                if remaining_image_budget is not None:
+                    remaining_image_budget -= 1
+            except Exception:
+                continue
+        return parts
+
+    @trace_function("vlm.extract_images_from_docs_nrl")
+    def _extract_images_from_docs_nrl(
+        self,
+        docs: list[Any],
+        remaining_image_budget: int | None,
+    ) -> list[dict[str, Any]]:
+        """Extract image parts from NRL docs using stored_image_uri.
+
+        In NRL mode every chunk (including text chunks) may carry a page image
+        URI in ``stored_image_uri``.  This method fetches those images and
+        returns them as base64-PNG image_url parts for VLM consumption.
+        """
+        parts: list[dict[str, Any]] = []
+        for doc in docs or []:
+            if remaining_image_budget is not None and remaining_image_budget <= 0:
+                break
+            metadata = getattr(doc, "metadata", {}) or {}
+            stored_image_uri: str = metadata.get("stored_image_uri") or ""
+            if not stored_image_uri:
+                continue
+            try:
+                raw_content = get_object_store_operator().get_object_from_uri(
+                    stored_image_uri
+                )
+                content_b64 = base64.b64encode(raw_content).decode("ascii")
+                if not content_b64:
+                    continue
+                png_b64 = VLM._convert_image_url_to_png_b64(content_b64)
+                parts.append(
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": f"data:image/png;base64,{png_b64}"},
+                    }
+                )
+                if remaining_image_budget is not None:
+                    remaining_image_budget -= 1
+            except Exception:
+                continue
+        return parts
+
+    def _build_content_parts_by_page(
+        self,
+        vlm_template: dict[str, Any],
+        textual_context: str,
+        question_text: str | None,
+        docs: list[Any],
+        remaining_image_budget: int | None,
+        nrl_mode: bool = False,
+    ) -> list[dict[str, Any]]:
+        """Build content_parts with text and images interleaved per page.
+
+        When nrl_mode=True, uses flat NRL metadata fields (page_number,
+        filename/path/source, stored_image_uri) instead of the nested
+        nv-ingest content_metadata structure.  In NRL mode a single chunk may
+        carry both text content (page_content) *and* a page image
+        (stored_image_uri), so both are included.
+        """
+        human_template = vlm_template.get("human") or "{context}\n\n{question}"
+        intro = human_template.format(context="", question="").rstrip()
+        if intro.endswith("Context:"):
+            intro = intro + "\n"
+        content_parts: list[dict[str, Any]] = [{"type": "text", "text": intro}]
+
+        has_page: list[tuple[str, int, Any]] = []
+        no_page: list[Any] = []
+        for doc in docs or []:
+            meta = getattr(doc, "metadata", {}) or {}
+            if nrl_mode:
+                raw_page = meta.get("page_number")
+                if raw_page is not None:
+                    try:
+                        page_num: int | None = int(raw_page)
+                    except (TypeError, ValueError):
+                        page_num = None
+                else:
+                    page_num = None
+                raw_source = (
+                    meta.get("path") or meta.get("filename") or meta.get("source") or ""
+                )
+                source_key = str(raw_source) if raw_source else ""
+            else:
+                content_md = meta.get("content_metadata", {}) or {}
+                page_num = content_md.get("page_number")
+                source = meta.get("source", {})
+                source_path = (
+                    source.get("source_name", "")
+                    if isinstance(source, dict)
+                    else source
+                )
+                source_key = str(source_path) if source_path else ""
+
+            if page_num is not None:
+                has_page.append((source_key, int(page_num), doc))
+            else:
+                no_page.append(doc)
+
+        grouped: dict[tuple[str, int], list[Any]] = {}
+        for source_key, page_num, doc in has_page:
+            k = (source_key, page_num)
+            if k not in grouped:
+                grouped[k] = []
+            grouped[k].append(doc)
+
+        for source_key, page_num in sorted(grouped.keys(), key=lambda x: (x[0], x[1])):
+            doc_list = grouped[(source_key, page_num)]
+            text_parts: list[str] = []
+            image_docs: list[Any] = []
+            for d in doc_list:
+                if nrl_mode:
+                    # In NRL mode a chunk can contribute text AND a page image.
+                    text_content = getattr(d, "page_content", "") or ""
+                    if text_content:
+                        text_parts.append(text_content)
+                    d_meta = getattr(d, "metadata", {}) or {}
+                    if d_meta.get("stored_image_uri"):
+                        image_docs.append(d)
+                else:
+                    content_md = (getattr(d, "metadata", {}) or {}).get(
+                        "content_metadata", {}
+                    ) or {}
+                    if content_md.get("type") in ["image", "structured"]:
+                        image_docs.append(d)
+                    else:
+                        text_parts.append(getattr(d, "page_content", "") or "")
+
+            filename = (
+                os.path.splitext(os.path.basename(source_key))[0]
+                if source_key
+                else "unknown"
+            )
+            page_text = f"=== Page {page_num} ({filename}) ===\n" + "\n\n".join(
+                p for p in text_parts if p
+            )
+            if page_text.strip():
+                content_parts.append({"type": "text", "text": page_text})
+            for img_doc in image_docs:
+                if remaining_image_budget is not None and remaining_image_budget <= 0:
+                    break
+                if nrl_mode:
+                    img_parts = self._extract_images_from_docs_nrl(
+                        [img_doc], remaining_image_budget
+                    )
+                else:
+                    img_parts = self._extract_images_from_docs(
+                        [img_doc], remaining_image_budget
+                    )
+                content_parts.extend(img_parts)
+                if remaining_image_budget is not None and img_parts:
+                    remaining_image_budget -= len(img_parts)
+
+        if no_page:
+            add_text = self._format_docs_text(no_page)
+            if add_text.strip():
+                content_parts.append(
+                    {
+                        "type": "text",
+                        "text": "=== Additional context ===\n" + add_text,
+                    }
+                )
+
+        content_parts.append(
+            {
+                "type": "text",
+                "text": "\n\nUser Question:\n" + (question_text or "").strip(),
+            }
+        )
+        return content_parts
+
+    @staticmethod
     def assemble_messages(
-        system_message: SystemMessage,
-        citations_instruct_user_message: HumanMessage,
-        chat_history_messages: list[HumanMessage | AIMessage | SystemMessage],
-    ) -> list[HumanMessage | AIMessage | SystemMessage]:
+        system_message: MessageDict,
+        citations_instruct_user_message: MessageDict,
+        chat_history_messages: list[MessageDict],
+    ) -> list[MessageDict]:
         """Assemble final message list as [system] + [citations user] + chat history."""
         return [system_message, citations_instruct_user_message, *chat_history_messages]
 
     @staticmethod
+    @trace_function("vlm.invoke_model_async")
     async def invoke_model_async(
-        model: ChatOpenAI,
-        messages: list[HumanMessage | AIMessage | SystemMessage],
+        client: AsyncOpenAI,
+        model: str,
+        messages: list[MessageDict],
         *,
         temperature: float,
         top_p: float,
         max_tokens: int,
+        extra_body: dict[str, Any] | None = None,
     ) -> str:
         """Invoke the VLM model asynchronously and return the complete response string."""
         logger.info(
             f"Invoking VLM async with temperature={temperature}, top_p={top_p}, max_tokens={max_tokens}"
         )
-        result = await model.ainvoke(
-            messages, temperature=temperature, top_p=top_p, max_tokens=max_tokens
+        response = await client.chat.completions.create(
+            model=model,
+            messages=messages,
+            temperature=temperature,
+            top_p=top_p,
+            max_tokens=max_tokens,
+            extra_body=extra_body,
         )
-        return result.content.strip()
-
-    @staticmethod
-    def invoke_model(
-        model: ChatOpenAI,
-        messages: list[HumanMessage | AIMessage | SystemMessage],
-        *,
-        temperature: float,
-        top_p: float,
-        max_tokens: int,
-    ):
-        """Invoke the VLM model and return the complete response string."""
-        logger.info(
-            f"Invoking VLM with temperature={temperature}, top_p={top_p}, max_tokens={max_tokens}"
-        )
-        return model.invoke(
-            messages, temperature=temperature, top_p=top_p, max_tokens=max_tokens
-        ).content.strip()
+        content = response.choices[0].message.content if response.choices else ""
+        return (content or "").strip()
 
     @staticmethod
     def _convert_image_url_to_png_b64(image_url: str) -> str:
@@ -477,7 +677,7 @@ class VLM:
             return image_url
 
     def _redact_messages_for_logging(
-        self, messages: list[HumanMessage | AIMessage | SystemMessage]
+        self, messages: list[MessageDict]
     ) -> list[dict[str, Any]]:
         """
         Create a redacted, log-safe representation of the messages where any
@@ -485,18 +685,17 @@ class VLM:
         """
         safe: list[dict[str, Any]] = []
         for m in messages:
-            if isinstance(m, SystemMessage):
-                role = "system"
-            elif isinstance(m, AIMessage):
-                role = "assistant"
-            else:
-                role = "user"
-
-            raw_content = m.content
+            role = m.get("role", "user")
+            raw_content = m.get("content")
             parts = (
                 raw_content
                 if isinstance(raw_content, list)
-                else [{"type": "text", "text": str(raw_content)}]
+                else [
+                    {
+                        "type": "text",
+                        "text": str(raw_content) if raw_content is not None else "",
+                    }
+                ]
             )
 
             safe_parts: list[dict[str, Any]] = []
@@ -566,6 +765,7 @@ class VLM:
                     parts.append(content)
         return "\n\n".join(parts)
 
+    @trace_function("vlm.analyze_with_messages")
     async def analyze_with_messages(
         self,
         docs: list[Any],
@@ -577,27 +777,14 @@ class VLM:
         top_p: float | None = None,
         max_tokens: int | None = None,
         max_total_images: int | None = None,
+        organize_by_page: bool = False,
+        nrl_mode: bool = False,
         **_: Any,
     ) -> str:
         """
         Send the full conversation messages to the VLM asynchronously, appending any relevant images
         from user messages and retrieved context. Ensures images are provided as
         base64 PNG data URLs.
-
-        Parameters
-        ----------
-        docs : List[Any]
-            Retrieved documents that may contain image thumbnails in storage.
-            Each item is expected to behave like a LangChain ``Document``
-            (i.e., exposing ``page_content`` and ``metadata`` attributes).
-        messages : List[dict]
-            Full conversation messages with roles and content. Content can be
-            a string or multimodal list with items of shape {type: text|image_url}.
-
-        Returns
-        -------
-        str
-            The VLM's response as a string, or an empty string on error.
         """
         if not isinstance(messages, list) or len(messages) == 0:
             logger.warning("No messages provided for VLM analysis.")
@@ -611,12 +798,13 @@ class VLM:
             max_total_images if max_total_images is not None else self.max_total_images
         )
 
-        vlm = self.init_model(
-            self.model_name,
+        client = self._create_async_client(
             self.invoke_url,
             api_key=self.config.vlm.get_api_key(),
-            enable_thinking=self.config.vlm.enable_thinking,
-            thinking_token_budget=self.config.vlm.thinking_token_budget,
+        )
+        extra_body = self._build_extra_body(
+            self.config.vlm.enable_thinking,
+            self.config.vlm.thinking_token_budget,
         )
 
         (
@@ -630,23 +818,27 @@ class VLM:
             context_text,
             question_text,
             max_total_images=eff_max_total_images,
+            organize_by_page=organize_by_page,
+            nrl_mode=nrl_mode,
         )
 
-        lc_messages = self.assemble_messages(
+        all_messages = self.assemble_messages(
             system_message, citations_instruct_user_message, chat_history_messages
         )
 
         # Log final prompt with images redacted
-        safe_prompt = self._redact_messages_for_logging(lc_messages)
+        safe_prompt = self._redact_messages_for_logging(all_messages)
         logger.info("VLM final prompt (images redacted): %s", safe_prompt)
 
         try:
             vlm_response = await self.invoke_model_async(
-                vlm,
-                lc_messages,
+                client,
+                self.model_name,
+                all_messages,
                 temperature=eff_temperature,
                 top_p=eff_top_p,
                 max_tokens=eff_max_tokens,
+                extra_body=extra_body,
             )
             logger.info(f"VLM Response: {vlm_response}")
             return str(vlm_response or "")
@@ -677,121 +869,182 @@ class VLM:
         top_p: float | None = None,
         max_tokens: int | None = None,
         max_total_images: int | None = None,
+        organize_by_page: bool = False,
+        nrl_mode: bool = False,
+        token_usage: dict[str, Any] | None = None,
+        enable_thinking: bool | None = None,
+        thinking_token_budget: int | None = None,
+        filter_think_tokens: bool | None = None,
         **_: Any,
-    ) -> AsyncGenerator[str, None]:
+    ) -> AsyncGenerator[AIMessageChunk, None]:
         """
         Stream tokens from the VLM asynchronously given full conversation and retrieved context.
         Yields incremental text chunks as they arrive.
+
+        For ``nvidia/nemotron-3-nano-omni-30b-a3b-reasoning`` with
+        ``enable_thinking=True``, each streaming delta carries either a
+        ``reasoning`` / ``reasoning_content`` field (chain-of-thought) and/or a
+        ``content`` field (final answer). ``VLM_FILTER_THINK_TOKENS`` controls
+        what reaches the client:
+
+        Reasoning tokens are filtered out of the user-facing ``content`` stream
+        and forwarded as ``reasoning_content`` metadata chunks. Answer tokens are
+        forwarded as ``content`` chunks.
         """
         if not isinstance(messages, list) or len(messages) == 0:
             logger.warning("No messages provided for VLM streaming.")
             return
 
-        try:
-            # Resolve effective settings (function overrides > instance defaults)
-            eff_temperature = (
-                temperature if temperature is not None else self.temperature
-            )
-            eff_top_p = top_p if top_p is not None else self.top_p
-            eff_max_tokens = max_tokens if max_tokens is not None else self.max_tokens
-            eff_max_total_images = (
-                max_total_images
-                if max_total_images is not None
-                else self.max_total_images
-            )
+        # Wrap the entire streaming lifecycle in a single span; the `with`
+        # block stays open across `yield` points until the async generator is
+        # exhausted or closed by the caller.
+        with traced_span("vlm.stream_with_messages"):
+            try:
+                # Resolve effective settings (function overrides > instance defaults)
+                eff_temperature = (
+                    temperature if temperature is not None else self.temperature
+                )
+                eff_top_p = top_p if top_p is not None else self.top_p
+                eff_max_tokens = (
+                    max_tokens if max_tokens is not None else self.max_tokens
+                )
+                eff_max_total_images = (
+                    max_total_images
+                    if max_total_images is not None
+                    else self.max_total_images
+                )
 
-            vlm = self.init_model(
-                self.model_name,
-                self.invoke_url,
-                api_key=self.config.vlm.get_api_key(),
-                enable_thinking=self.config.vlm.enable_thinking,
-                thinking_token_budget=self.config.vlm.thinking_token_budget,
-            )
+                client = self._create_async_client(
+                    self.invoke_url,
+                    api_key=self.config.vlm.get_api_key(),
+                )
+                # Resolve reasoning controls: per-request override > config default.
+                eff_enable_thinking = (
+                    enable_thinking
+                    if enable_thinking is not None
+                    else self.config.vlm.enable_thinking
+                )
+                eff_thinking_token_budget = (
+                    thinking_token_budget
+                    if thinking_token_budget is not None
+                    else self.config.vlm.thinking_token_budget
+                )
+                eff_filter_think_tokens = (
+                    filter_think_tokens
+                    if filter_think_tokens is not None
+                    else self.config.vlm.filter_think_tokens
+                )
+                extra_body = self._build_extra_body(
+                    eff_enable_thinking,
+                    eff_thinking_token_budget,
+                )
 
-            (
-                system_message,
-                citations_instruct_user_message,
-                chat_history_messages,
-            ) = self.extract_and_process_messages(
-                self.vlm_template,
-                docs,
-                messages,
-                context_text,
-                question_text,
-                max_total_images=eff_max_total_images,
-            )
+                (
+                    system_message,
+                    citations_instruct_user_message,
+                    chat_history_messages,
+                ) = self.extract_and_process_messages(
+                    self.vlm_template,
+                    docs,
+                    messages,
+                    context_text,
+                    question_text,
+                    max_total_images=eff_max_total_images,
+                    organize_by_page=organize_by_page,
+                    nrl_mode=nrl_mode,
+                )
 
-            lc_messages = self.assemble_messages(
-                system_message, citations_instruct_user_message, chat_history_messages
-            )
+                all_messages = self.assemble_messages(
+                    system_message,
+                    citations_instruct_user_message,
+                    chat_history_messages,
+                )
 
-            # Log final prompt with images redacted
-            safe_prompt = self._redact_messages_for_logging(lc_messages)
-            logger.info("VLM final streaming prompt (images redacted): %s", safe_prompt)
+                # Log compact structure of what we send to VLM (no full text/images)
+                user_content = citations_instruct_user_message.get("content")
+                if isinstance(user_content, list):
+                    self._log_content_parts_structure(user_content)
+                # Log final prompt with images redacted
+                safe_prompt = self._redact_messages_for_logging(all_messages)
+                logger.info(
+                    "VLM final streaming prompt (images redacted): %s", safe_prompt
+                )
 
-            # Stream response chunks.
-            #
-            # nvidia/nemotron-3-nano-omni-30b-a3b-reasoning separates its output
-            # into two delta fields per chunk:
-            #   • chunk.additional_kwargs["reasoning"] — chain-of-thought tokens
-            #   • chunk.content                        — final answer tokens
-            #
-            # VLM_FILTER_THINK_TOKENS controls what reaches the client:
-            #   true  → forward only content (reasoning hidden, default)
-            #   false → forward reasoning first, then content (both visible)
-            filter_enabled = os.getenv("VLM_FILTER_THINK_TOKENS", "true").lower() == "true"
-            logger.info(
-                "VLM reasoning streaming: enable_thinking=%s filter=%s",
-                self.config.vlm.enable_thinking,
-                filter_enabled,
-            )
+                logger.info(
+                    "VLM reasoning streaming: enable_thinking=%s filter=%s",
+                    eff_enable_thinking,
+                    eff_filter_think_tokens,
+                )
 
-            chunk_count = 0
-            async for chunk in vlm.astream(
-                lc_messages,
-                temperature=eff_temperature,
-                top_p=eff_top_p,
-                max_tokens=eff_max_tokens,
-            ):
-                try:
-                    reasoning: str = (
-                        getattr(chunk, "additional_kwargs", {}).get("reasoning", "") or ""
-                    )
-                    content: str = getattr(chunk, "content", "") or ""
+                stream = await client.chat.completions.create(
+                    model=self.model_name,
+                    messages=all_messages,
+                    temperature=eff_temperature,
+                    top_p=eff_top_p,
+                    max_tokens=eff_max_tokens,
+                    stream=True,
+                    stream_options={"include_usage": True},
+                    extra_body=extra_body,
+                )
 
-                    if filter_enabled:
-                        # Only the final answer reaches the client
-                        if content:
-                            yield content
-                    else:
-                        # Both reasoning trace and final answer reach the client
+                chunk_count = 0
+                async for chunk in stream:
+                    try:
+                        # OpenAI emits a final chunk with empty choices and a populated `usage`
+                        # field when stream_options.include_usage=True. Capture it once we see it.
+                        chunk_usage = getattr(chunk, "usage", None)
+                        if chunk_usage is not None and token_usage is not None:
+                            token_usage["prompt_tokens"] = getattr(chunk_usage, "prompt_tokens", 0) or 0
+                            token_usage["completion_tokens"] = getattr(chunk_usage, "completion_tokens", 0) or 0
+                            token_usage["total_tokens"] = getattr(chunk_usage, "total_tokens", 0) or 0
+                        if not chunk.choices:
+                            chunk_count += 1
+                            continue
+                        delta = chunk.choices[0].delta
+                        # Different OpenAI-compatible reasoning models emit the
+                        # chain-of-thought under different keys. Read both.
+                        reasoning: str = (
+                            getattr(delta, "reasoning", None)
+                            or getattr(delta, "reasoning_content", None)
+                            or ""
+                        )
+                        content: str = getattr(delta, "content", None) or ""
+
                         if reasoning:
-                            yield reasoning
+                            yield AIMessageChunk(
+                                content="",
+                                additional_kwargs={
+                                    "reasoning_content": reasoning,
+                                },
+                            )
                         if content:
-                            yield content
-                except Exception as e:
-                    logger.debug(
-                        "Skipping malformed VLM stream chunk at index %s: %r; error: %s",
-                        chunk_count,
-                        chunk,
-                        e,
-                        exc_info=True,
-                    )
-                chunk_count += 1
+                            yield AIMessageChunk(content=content)
+                    except Exception as e:
+                        logger.debug(
+                            "Skipping malformed VLM stream chunk at index %s: %r; error: %s",
+                            chunk_count,
+                            chunk,
+                            e,
+                            exc_info=True,
+                        )
+                    chunk_count += 1
 
-            logger.info("VLM streaming processed %d chunks", chunk_count)
-        except Exception as e:
-            error_type = type(e).__name__
-            if (
-                "Connection" in error_type
-                or "Connect" in error_type
-                or isinstance(e, ConnectionError | OSError)
-            ):
-                vlm_url = self.invoke_url or "VLM service"
-                error_msg = f"VLM NIM unavailable at {vlm_url}. Please verify the service is running and accessible."
-                logger.exception("Connection error in VLM streaming: %s", e)
-                raise APIError(error_msg, ErrorCodeMapping.SERVICE_UNAVAILABLE) from e
-            logger.warning(
-                f"Exception during VLM streaming call with messages: {e}", exc_info=True
-            )
-            return
+                logger.info("VLM streaming processed %d chunks", chunk_count)
+            except Exception as e:
+                error_type = type(e).__name__
+                if (
+                    "Connection" in error_type
+                    or "Connect" in error_type
+                    or isinstance(e, ConnectionError | OSError)
+                ):
+                    vlm_url = self.invoke_url or "VLM service"
+                    error_msg = f"VLM NIM unavailable at {vlm_url}. Please verify the service is running and accessible."
+                    logger.exception("Connection error in VLM streaming: %s", e)
+                    raise APIError(
+                        error_msg, ErrorCodeMapping.SERVICE_UNAVAILABLE
+                    ) from e
+                logger.warning(
+                    f"Exception during VLM streaming call with messages: {e}",
+                    exc_info=True,
+                )
+                return

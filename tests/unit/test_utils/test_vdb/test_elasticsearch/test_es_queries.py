@@ -30,14 +30,23 @@ class TestGetUniqueSourcesQuery:
         assert query["size"] == 0
         assert "aggs" in query
         assert "unique_sources" in query["aggs"]
-        assert query["aggs"]["unique_sources"]["composite"]["size"] == 1000
+        composite = query["aggs"]["unique_sources"]["composite"]
+        assert composite["size"] == 1000
+        assert "after" not in composite
         assert "top_hit" in query["aggs"]["unique_sources"]["aggs"]
         assert (
-            query["aggs"]["unique_sources"]["composite"]["sources"][0]["source_name"][
-                "terms"
-            ]["field"]
+            composite["sources"][0]["source_name"]["terms"]["field"]
             == "metadata.source.source_name.keyword"
         )
+
+    def test_get_unique_sources_query_with_after_key(self):
+        """Test that after_key is forwarded into the composite agg for pagination."""
+        after = {"source_name": "/path/to/doc42.pdf"}
+        query = es_queries.get_unique_sources_query(after_key=after, page_size=500)
+
+        composite = query["aggs"]["unique_sources"]["composite"]
+        assert composite["size"] == 500
+        assert composite["after"] == after
 
 
 class TestGetDeleteMetadataSchemaQuery:
@@ -49,13 +58,13 @@ class TestGetDeleteMetadataSchemaQuery:
         query = es_queries.get_delete_metadata_schema_query(collection_name)
 
         assert "query" in query
-        assert query["query"]["term"]["collection_name.keyword"] == collection_name
+        assert query["query"]["term"]["collection_name"] == collection_name
 
     def test_get_delete_metadata_schema_query_empty_name(self):
         """Test get_delete_metadata_schema_query with empty collection name."""
         query = es_queries.get_delete_metadata_schema_query("")
 
-        assert query["query"]["term"]["collection_name.keyword"] == ""
+        assert query["query"]["term"]["collection_name"] == ""
 
 
 class TestGetMetadataSchemaQuery:

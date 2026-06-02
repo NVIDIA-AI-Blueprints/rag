@@ -57,7 +57,7 @@ class TestGetNvIngestClient:
             with pytest.raises(Exception, match="Config error"):
                 get_nv_ingest_client()
 
-    @patch("nv_ingest_api.util.message_brokers.simple_message_broker.SimpleClient")
+    @patch("nvidia_rag.ingestor_server.nvingest.SimpleClient")
     @patch("nvidia_rag.ingestor_server.nvingest.NvIngestClient")
     def test_get_nv_ingest_client_lite_mode(self, mock_nv_ingest_client, mock_simple_client):
         """Test get_nv_ingest_client creates lite client with correct parameters"""
@@ -78,7 +78,7 @@ class TestGetNvIngestClient:
             message_client_hostname="test-host",
         )
 
-    @patch("nv_ingest_api.util.message_brokers.simple_message_broker.SimpleClient")
+    @patch("nvidia_rag.ingestor_server.nvingest.SimpleClient")
     @patch("nvidia_rag.ingestor_server.nvingest.NvIngestClient")
     def test_get_nv_ingest_client_lite_mode_no_api_version(self, mock_nv_ingest_client, mock_simple_client):
         """Test get_nv_ingest_client lite mode does not pass api_version"""
@@ -90,7 +90,7 @@ class TestGetNvIngestClient:
         mock_client = Mock()
         mock_nv_ingest_client.return_value = mock_client
 
-        result = get_nv_ingest_client(mock_config, get_lite_client=True)
+        get_nv_ingest_client(mock_config, get_lite_client=True)
 
         # Verify api_version is not in the call kwargs
         call_kwargs = mock_nv_ingest_client.call_args[1]
@@ -100,7 +100,7 @@ class TestGetNvIngestClient:
         assert call_kwargs["message_client_port"] == 8080
 
     @patch("nvidia_rag.ingestor_server.nvingest.NvidiaRAGConfig")
-    @patch("nv_ingest_api.util.message_brokers.simple_message_broker.SimpleClient")
+    @patch("nvidia_rag.ingestor_server.nvingest.SimpleClient")
     @patch("nvidia_rag.ingestor_server.nvingest.NvIngestClient")
     def test_get_nv_ingest_client_lite_mode_default_config(
         self, mock_nv_ingest_client, mock_simple_client, mock_config_class
@@ -124,7 +124,7 @@ class TestGetNvIngestClient:
             message_client_hostname="default-host",
         )
 
-    @patch("nv_ingest_api.util.message_brokers.simple_message_broker.SimpleClient")
+    @patch("nvidia_rag.ingestor_server.nvingest.SimpleClient")
     @patch("nvidia_rag.ingestor_server.nvingest.NvIngestClient")
     def test_get_nv_ingest_client_standard_vs_lite_mode(
         self, mock_nv_ingest_client, mock_simple_client
@@ -184,6 +184,7 @@ class TestGetNvIngestIngestor:
         mock_ingestor_instance.extract.return_value = mock_ingestor_instance
         mock_ingestor_instance.split.return_value = mock_ingestor_instance
         mock_ingestor_instance.embed.return_value = mock_ingestor_instance
+        mock_ingestor_instance.store.return_value = mock_ingestor_instance
         mock_ingestor_instance.vdb_upload.return_value = mock_ingestor_instance
 
         result = get_nv_ingest_ingestor(
@@ -196,6 +197,12 @@ class TestGetNvIngestIngestor:
         assert result == mock_ingestor_instance
         mock_ingestor_class.assert_called_once_with(client=self.mock_client)
         mock_ingestor_instance.files.assert_called_once_with(self.filepaths)
+        mock_ingestor_instance.store.assert_called_once()
+        store_kwargs = mock_ingestor_instance.store.call_args[1]
+        assert (
+            store_kwargs["storage_options"]["client_kwargs"]["endpoint_url"]
+            == "http://seaweedfs:9010"
+        )
 
     @patch("nvidia_rag.ingestor_server.nvingest.sanitize_nim_url")
     @patch("nvidia_rag.ingestor_server.nvingest.Ingestor")
@@ -212,6 +219,7 @@ class TestGetNvIngestIngestor:
         mock_ingestor_instance.extract.return_value = mock_ingestor_instance
         mock_ingestor_instance.split.return_value = mock_ingestor_instance
         mock_ingestor_instance.embed.return_value = mock_ingestor_instance
+        mock_ingestor_instance.store.return_value = mock_ingestor_instance
         mock_ingestor_instance.vdb_upload.return_value = mock_ingestor_instance
 
         custom_split_options = {"chunk_size": 1000, "chunk_overlap": 200}
@@ -233,6 +241,40 @@ class TestGetNvIngestIngestor:
 
     @patch("nvidia_rag.ingestor_server.nvingest.sanitize_nim_url")
     @patch("nvidia_rag.ingestor_server.nvingest.Ingestor")
+    def test_get_nv_ingest_ingestor_with_filesystem_object_store(
+        self, mock_ingestor_class, mock_sanitize_url, tmp_path
+    ):
+        mock_config = self._create_mock_config()
+        mock_config.object_store.backend = "filesystem"
+        mock_config.object_store.storage_root = (tmp_path / "object-store").resolve()
+        mock_sanitize_url.return_value = "http://test-embedding-url"
+
+        mock_ingestor_instance = Mock()
+        mock_ingestor_class.return_value = mock_ingestor_instance
+        mock_ingestor_instance.files.return_value = mock_ingestor_instance
+        mock_ingestor_instance.extract.return_value = mock_ingestor_instance
+        mock_ingestor_instance.split.return_value = mock_ingestor_instance
+        mock_ingestor_instance.embed.return_value = mock_ingestor_instance
+        mock_ingestor_instance.store.return_value = mock_ingestor_instance
+        mock_ingestor_instance.vdb_upload.return_value = mock_ingestor_instance
+
+        get_nv_ingest_ingestor(
+            self.mock_client,
+            self.filepaths,
+            vdb_op=self.mock_vdb_op,
+            config=mock_config,
+        )
+
+        call_kwargs = mock_ingestor_instance.store.call_args[1]
+        expected_uri = (
+            tmp_path / "object-store" / "default-bucket" / "test_collection"
+        ).resolve().as_uri()
+        assert call_kwargs["storage_uri"] == expected_uri
+        assert call_kwargs["public_base_url"] == expected_uri
+        assert call_kwargs["storage_options"] == {}
+
+    @patch("nvidia_rag.ingestor_server.nvingest.sanitize_nim_url")
+    @patch("nvidia_rag.ingestor_server.nvingest.Ingestor")
     def test_get_nv_ingest_ingestor_with_images_enabled(
         self, mock_ingestor_class, mock_sanitize_url
     ):
@@ -250,6 +292,7 @@ class TestGetNvIngestIngestor:
         mock_ingestor_instance.split.return_value = mock_ingestor_instance
         mock_ingestor_instance.caption.return_value = mock_ingestor_instance
         mock_ingestor_instance.embed.return_value = mock_ingestor_instance
+        mock_ingestor_instance.store.return_value = mock_ingestor_instance
         mock_ingestor_instance.vdb_upload.return_value = mock_ingestor_instance
 
         result = get_nv_ingest_ingestor(
@@ -279,6 +322,7 @@ class TestGetNvIngestIngestor:
         mock_ingestor_instance.extract.return_value = mock_ingestor_instance
         mock_ingestor_instance.split.return_value = mock_ingestor_instance
         mock_ingestor_instance.embed.return_value = mock_ingestor_instance
+        mock_ingestor_instance.store.return_value = mock_ingestor_instance
         mock_ingestor_instance.vdb_upload.return_value = mock_ingestor_instance
 
         result = get_nv_ingest_ingestor(
@@ -313,6 +357,7 @@ class TestGetNvIngestIngestor:
         mock_ingestor_instance.extract.return_value = mock_ingestor_instance
         mock_ingestor_instance.split.return_value = mock_ingestor_instance
         mock_ingestor_instance.embed.return_value = mock_ingestor_instance
+        mock_ingestor_instance.store.return_value = mock_ingestor_instance
         mock_ingestor_instance.vdb_upload.return_value = mock_ingestor_instance
 
         result = get_nv_ingest_ingestor(
@@ -353,6 +398,7 @@ class TestGetNvIngestIngestor:
             mock_ingestor_instance.split.return_value = mock_ingestor_instance
             mock_ingestor_instance.embed.return_value = mock_ingestor_instance
             mock_ingestor_instance.save_to_disk.return_value = mock_ingestor_instance
+            mock_ingestor_instance.store.return_value = mock_ingestor_instance
             mock_ingestor_instance.vdb_upload.return_value = mock_ingestor_instance
 
             result = get_nv_ingest_ingestor(
@@ -450,6 +496,7 @@ class TestGetNvIngestIngestor:
         # Test 2: Verify VDB-related methods were NOT called when vdb_op=None
         mock_ingestor_instance.embed.assert_not_called()
         mock_ingestor_instance.vdb_upload.assert_not_called()
+        mock_ingestor_instance.store.assert_not_called()
 
         # Test 3: extract_override with different custom parameters
         mock_ingestor_instance.extract.reset_mock()
@@ -482,6 +529,7 @@ class TestGetNvIngestIngestor:
         assert call_kwargs["table_output_format"] == "markdown"
         assert call_kwargs["extract_audio_params"] == {"segment_audio": True}
         assert call_kwargs["extract_page_as_image"] is True
+        mock_ingestor_instance.store.assert_not_called()
 
     @patch("nvidia_rag.ingestor_server.nvingest.sanitize_nim_url")
     @patch("nvidia_rag.ingestor_server.nvingest.Ingestor")
@@ -514,6 +562,7 @@ class TestGetNvIngestIngestor:
         mock_ingestor_instance.split.assert_not_called()
         # Verify extract was still called
         mock_ingestor_instance.extract.assert_called_once()
+        mock_ingestor_instance.store.assert_not_called()
 
     @patch("nvidia_rag.ingestor_server.nvingest.sanitize_nim_url")
     @patch("nvidia_rag.ingestor_server.nvingest.Ingestor")
@@ -547,6 +596,7 @@ class TestGetNvIngestIngestor:
         call_kwargs = mock_ingestor_instance.split.call_args[1]
         assert call_kwargs["chunk_size"] == 1000  # from mock config
         assert call_kwargs["chunk_overlap"] == 200  # from mock config
+        mock_ingestor_instance.store.assert_not_called()
 
     def _create_mock_config(self):
         """Create a mock config object with default values"""
@@ -563,7 +613,7 @@ class TestGetNvIngestIngestor:
         mock_config.nv_ingest.text_depth = 1
         mock_config.nv_ingest.segment_audio = True
         mock_config.nv_ingest.extract_page_as_image = True
-        mock_config.nv_ingest.enable_pdf_splitter = True
+        mock_config.nv_ingest.enable_paged_doc_split = True
         mock_config.nv_ingest.tokenizer = "test_tokenizer"
         mock_config.nv_ingest.chunk_size = 1000
         mock_config.nv_ingest.chunk_overlap = 200
@@ -577,5 +627,18 @@ class TestGetNvIngestIngestor:
         mock_config.embeddings.server_url = "http://test-embedding-server"
         mock_config.embeddings.model_name = "test-embedding-model"
         mock_config.embeddings.dimensions = 768
+
+        mock_config.object_store = Mock()
+        mock_config.object_store.backend = "s3"
+        mock_config.object_store.endpoint = "localhost:9000"
+        mock_config.object_store.endpoint_url = "http://localhost:9000"
+        mock_config.object_store.nv_ingest_endpoint_url = "http://seaweedfs:9010"
+        mock_config.object_store.storage_root = None
+        mock_ak = Mock()
+        mock_ak.get_secret_value.return_value = "test-access"
+        mock_sk = Mock()
+        mock_sk.get_secret_value.return_value = "test-secret"
+        mock_config.object_store.access_key = mock_ak
+        mock_config.object_store.secret_key = mock_sk
 
         return mock_config

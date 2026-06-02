@@ -75,7 +75,7 @@ async def test_retry_score_generation(mocker):
     )
     # Configure deterministic LLM parameters to match production reflection settings
     llm_params = {
-        "model": "nvidia/llama-3.3-nemotron-super-49b-v1",
+        "model": "nvidia/nemotron-3-super-120b-a12b",
         "temperature": 0,  # Deterministic sampling for reproducible test results
         "top_p": 0.1,  # Low top_p for focused, consistent responses
         "max_tokens": 32768,  # Large context window for comprehensive analysis

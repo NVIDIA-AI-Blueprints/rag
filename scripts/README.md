@@ -104,13 +104,13 @@ Pass a collection name with your query (overrides the default `multimodal_data`)
 ```bash
 # Generate
 python scripts/retriever_api_usage.py \
-  --payload-json '{"collection_names":["my_collection"]}' \
+  --collection-name my_collection \
   "What is lion doing?"
 
 # Search
 python scripts/retriever_api_usage.py \
   --mode search \
-  --payload-json '{"collection_names":["my_collection"]}' \
+  --collection-name my_collection \
   "Tell me about Robert Frost's poems"
 ```
 

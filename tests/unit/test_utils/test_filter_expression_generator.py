@@ -23,6 +23,7 @@ import json
 import pytest
 
 from nvidia_rag.utils.filter_expression_generator import (
+    _extract_filter_expression_from_response,
     _format_metadata_schema_for_prompt,
 )
 
@@ -275,6 +276,88 @@ class TestFormatMetadataSchemaForPrompt:
         # Should use compact format (no spaces after separators)
         assert ", " not in result  # No space after comma
         assert ": " not in result  # No space after colon
+
+
+class TestExtractFilterExpressionStringFormat:
+    """Default Milvus string-output behavior."""
+
+    def test_returns_string_for_milvus(self):
+        result = _extract_filter_expression_from_response(
+            'content_metadata["x"] == "y"'
+        )
+        assert result == 'content_metadata["x"] == "y"'
+
+    def test_no_filter_returns_none(self):
+        assert _extract_filter_expression_from_response("NO_FILTER") is None
+
+    def test_unsupported_returns_none(self):
+        assert _extract_filter_expression_from_response("UNSUPPORTED") is None
+
+    def test_strips_thinking_tokens(self):
+        raw = '<think>reasoning</think>content_metadata["x"] == 1'
+        assert (
+            _extract_filter_expression_from_response(raw)
+            == 'content_metadata["x"] == 1'
+        )
+
+
+class TestExtractFilterExpressionJsonFormat:
+    """Elasticsearch JSON-output behavior."""
+
+    def test_parses_json_array(self):
+        raw = '[{"term": {"metadata.content_metadata.year": 2024}}]'
+        result = _extract_filter_expression_from_response(raw, output_format="json")
+        assert result == [{"term": {"metadata.content_metadata.year": 2024}}]
+
+    def test_parses_json_with_thinking_tokens(self):
+        raw = (
+            "<think>plan a filter</think>"
+            '[{"term": {"metadata.content_metadata.status.keyword": "approved"}}]'
+        )
+        result = _extract_filter_expression_from_response(raw, output_format="json")
+        assert result == [
+            {"term": {"metadata.content_metadata.status.keyword": "approved"}}
+        ]
+
+    def test_parses_json_inside_code_fence(self):
+        raw = '```json\n[{"term": {"metadata.content_metadata.year": 2024}}]\n```'
+        result = _extract_filter_expression_from_response(raw, output_format="json")
+        assert result == [{"term": {"metadata.content_metadata.year": 2024}}]
+
+    def test_no_filter_returns_none_for_json(self):
+        assert (
+            _extract_filter_expression_from_response("NO_FILTER", output_format="json")
+            is None
+        )
+
+    def test_unsupported_returns_none_for_json(self):
+        assert (
+            _extract_filter_expression_from_response(
+                "UNSUPPORTED", output_format="json"
+            )
+            is None
+        )
+
+    def test_malformed_json_returns_none(self):
+        assert (
+            _extract_filter_expression_from_response(
+                "[{not valid json", output_format="json"
+            )
+            is None
+        )
+
+    def test_non_array_json_returns_none(self):
+        assert (
+            _extract_filter_expression_from_response(
+                '{"term": {"x": 1}}', output_format="json"
+            )
+            is None
+        )
+
+    def test_empty_array_returns_none(self):
+        assert (
+            _extract_filter_expression_from_response("[]", output_format="json") is None
+        )
 
 
 if __name__ == "__main__":

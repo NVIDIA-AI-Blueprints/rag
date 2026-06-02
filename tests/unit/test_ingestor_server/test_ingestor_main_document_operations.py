@@ -26,6 +26,7 @@ from unittest.mock import MagicMock, Mock, mock_open, patch
 import pytest
 
 from nvidia_rag.ingestor_server.main import Mode, NvidiaRAGIngestor
+from nvidia_rag.utils.object_store import DEFAULT_BUCKET_NAME
 from nvidia_rag.utils.vdb.milvus.milvus_vdb import MilvusClient
 from nvidia_rag.utils.vdb.vdb_base import VDBRag
 from nvidia_rag.utils.vdb.vdb_ingest_base import VDBRagIngest
@@ -305,6 +306,9 @@ class TestNvidiaRAGIngestorCoverageImprovement:
         mock_vdb_op.create_collection.return_value = {"status": "success"}
         mock_vdb_op.get_metadata_schema.return_value = []
         mock_vdb_op.create_metadata_schema_collection.return_value = None
+        # check_collection_exists is the dedup chokepoint; return False so
+        # the request hits the create branch instead of short-circuiting.
+        mock_vdb_op.check_collection_exists.return_value = False
         mock_vdb_op.get_collection.return_value = []
         mock_vdb_op.add_metadata_schema.return_value = None
 
@@ -333,6 +337,9 @@ class TestNvidiaRAGIngestorCoverageImprovement:
         mock_vdb_op.create_collection.side_effect = Exception("Test error")
         mock_vdb_op.get_metadata_schema.return_value = []
         mock_vdb_op.create_metadata_schema_collection.return_value = None
+        # The error path requires reaching create_collection — make sure the
+        # dedup short-circuit (check_collection_exists) does not fire first.
+        mock_vdb_op.check_collection_exists.return_value = False
         mock_vdb_op.get_collection.return_value = []
 
         ingestor = NvidiaRAGIngestor(mode=Mode.LIBRARY)
@@ -391,22 +398,20 @@ class TestNvidiaRAGIngestorCoverageImprovement:
             "_NvidiaRAGIngestor__prepare_vdb_op_and_collection_name",
             return_value=(mock_vdb_op, "test_collection"),
         ):
+            ingestor.object_store_operator = Mock()
+            ingestor.object_store_operator.list_payloads.return_value = []
             with patch(
                 "nvidia_rag.ingestor_server.main.get_unique_thumbnail_id_collection_prefix",
                 return_value="test_prefix",
             ):
-                with patch(
-                    "nvidia_rag.ingestor_server.main.get_minio_operator",
-                    return_value=Mock(),
-                ):
-                    result = ingestor.delete_collections(
-                        collection_names=["col1", "col2"],
-                        vdb_endpoint="http://test.com",
-                    )
+                result = ingestor.delete_collections(
+                    collection_names=["col1", "col2"],
+                    vdb_endpoint="http://test.com",
+                )
 
-                    # Verify collections were deleted
-                    assert mock_vdb_op.delete_collections.call_count == 1
-                    assert result == {"status": "success"}
+                # Verify collections were deleted
+                assert mock_vdb_op.delete_collections.call_count == 1
+                assert result == {"status": "success"}
 
     def test_get_collections_success(self):
         """Test get_collections success path."""
@@ -453,6 +458,34 @@ class TestNvidiaRAGIngestorCoverageImprovement:
             mock_vdb_op.get_documents.assert_called_once()
             assert "documents" in result
 
+    def test_get_documents_respects_max_results(self):
+        """When max_results is set, the response list is capped."""
+        mock_vdb_op = Mock(spec=VDBRag)
+        mock_vdb_op.get_documents.return_value = [
+            {"id": "1", "content": "a", "document_name": "a.txt"},
+            {"id": "2", "content": "b", "document_name": "b.txt"},
+            {"id": "3", "content": "c", "document_name": "c.txt"},
+        ]
+        mock_vdb_op.get_metadata_schema.return_value = []
+
+        ingestor = NvidiaRAGIngestor(mode=Mode.LIBRARY)
+
+        with patch.object(
+            ingestor,
+            "_NvidiaRAGIngestor__prepare_vdb_op_and_collection_name",
+            return_value=(mock_vdb_op, "test_collection"),
+        ):
+            result = ingestor.get_documents(
+                collection_name="test_collection",
+                vdb_endpoint="http://test.com",
+                max_results=2,
+            )
+
+            assert len(result["documents"]) == 2
+            assert result["total_documents"] == 3
+            assert result["documents"][0]["document_name"] == "a.txt"
+            assert result["documents"][1]["document_name"] == "b.txt"
+
     def test_delete_documents_success(self):
         """Test delete_documents success path."""
         mock_vdb_op = Mock(spec=VDBRag)
@@ -478,12 +511,12 @@ class TestNvidiaRAGIngestorCoverageImprovement:
 
         ingestor = NvidiaRAGIngestor(mode=Mode.LIBRARY)
 
-        mock_minio = Mock()
-        mock_minio.list_payloads.return_value = []
-        mock_minio.delete_payloads.return_value = None
+        mock_object_store = Mock()
+        mock_object_store.list_payloads.return_value = []
+        mock_object_store.delete_payloads.return_value = None
 
-        # Patch the instance's minio_operator directly
-        ingestor.minio_operator = mock_minio
+        # Patch the instance's object_store_operator directly
+        ingestor.object_store_operator = mock_object_store
 
         with patch.object(
             ingestor,
@@ -517,6 +550,7 @@ class TestNvidiaRAGIngestorCoverageImprovement:
         # Test __prepare_vdb_op_and_collection_name
         with patch("nvidia_rag.ingestor_server.main._get_vdb_op") as mock_get_vdb:
             mock_vdb_instance = Mock(spec=VDBRag)
+            mock_vdb_instance.collection_name = "test_collection"
             mock_get_vdb.return_value = mock_vdb_instance
 
             vdb_op, collection_name = (
@@ -551,8 +585,8 @@ class TestNvidiaRAGIngestorCoverageImprovement:
             with open(test_file2, "w") as f:
                 f.write("Test content 2")
 
-            # Patch the instance's minio_operator directly
-            ingestor.minio_operator = Mock()
+            # Patch the instance's object_store_operator directly
+            ingestor.object_store_operator = Mock()
 
             # Create proper mock result structure for both files
             mock_results = [
@@ -623,11 +657,19 @@ class TestNvidiaRAGIngestorCoverageImprovement:
     @pytest.mark.asyncio
     async def test_upload_documents_async_path(self):
         """Test upload_documents async path (lines 239-240)."""
+        from unittest.mock import AsyncMock
+
         mock_vdb_op = Mock(spec=VDBRag)
         mock_vdb_op.check_collection_exists.return_value = True
         mock_vdb_op.get_metadata_schema.return_value = []
 
         ingestor = NvidiaRAGIngestor(mode=Mode.LIBRARY)
+
+        # Mock INGESTION_TASK_HANDLER.submit_task so it returns a task_id
+        # immediately without ever calling asyncio.create_task().  This
+        # prevents any real background coroutine from being scheduled and
+        # reaching the NV-Ingest HTTP client (unavailable in CI).
+        mock_task_id = "test-task-id-async-path"
 
         with patch.object(
             ingestor,
@@ -637,25 +679,32 @@ class TestNvidiaRAGIngestorCoverageImprovement:
             with patch.object(
                 ingestor, "_validate_custom_metadata", return_value=(True, [])
             ):
-                with tempfile.NamedTemporaryFile(
-                    mode="w", suffix=".txt", delete=False
-                ) as temp_file:
-                    temp_file.write("Test content")
-                    temp_file_path = temp_file.name
+                with patch(
+                    "nvidia_rag.ingestor_server.main.INGESTION_TASK_HANDLER"
+                ) as mock_handler:
+                    mock_handler.submit_task = AsyncMock(return_value=mock_task_id)
+                    mock_handler.set_task_state_dict = AsyncMock()
+                    mock_handler.set_task_status_and_result = AsyncMock()
 
-                try:
-                    result = await ingestor.upload_documents(
-                        filepaths=[temp_file_path],
-                        collection_name="test_collection",
-                        blocking=False,
-                    )
+                    with tempfile.NamedTemporaryFile(
+                        mode="w", suffix=".txt", delete=False
+                    ) as temp_file:
+                        temp_file.write("Test content")
+                        temp_file_path = temp_file.name
 
-                    # Verify async response
-                    assert "task_id" in result
-                    assert result["message"] == "Ingestion started in background"
+                    try:
+                        result = await ingestor.upload_documents(
+                            filepaths=[temp_file_path],
+                            collection_name="test_collection",
+                            blocking=False,
+                        )
 
-                finally:
-                    os.unlink(temp_file_path)
+                        # Verify async response
+                        assert "task_id" in result
+                        assert result["message"] == "Ingestion started in background"
+
+                    finally:
+                        os.unlink(temp_file_path)
 
     def test_error_handling_in_collection_operations(self):
         """Test error handling in collection operations."""
@@ -663,6 +712,8 @@ class TestNvidiaRAGIngestorCoverageImprovement:
         mock_vdb_op.create_collection.side_effect = Exception("Database error")
         mock_vdb_op.get_metadata_schema.return_value = []
         mock_vdb_op.create_metadata_schema_collection.return_value = None
+        # Avoid the dedup short-circuit so create_collection is invoked.
+        mock_vdb_op.check_collection_exists.return_value = False
         mock_vdb_op.get_collection.return_value = []
 
         ingestor = NvidiaRAGIngestor(mode=Mode.LIBRARY)
@@ -772,10 +823,10 @@ class TestNvidiaRAGIngestorCoverageImprovement:
 
         ingestor = NvidiaRAGIngestor(mode=Mode.LIBRARY)
 
-        mock_minio = Mock()
-        mock_minio.list_payloads.return_value = []
-        mock_minio.delete_payloads.return_value = None
-        ingestor.minio_operator = mock_minio
+        mock_object_store = Mock()
+        mock_object_store.list_payloads.return_value = []
+        mock_object_store.delete_payloads.return_value = None
+        ingestor.object_store_operator = mock_object_store
 
         with patch.object(
             ingestor,
@@ -803,8 +854,8 @@ class TestNvidiaRAGIngestorCoverageImprovement:
                     assert result["total_documents"] == 1
                     assert mock_vdb_op.get_documents.call_count == 2
 
-    def test_delete_documents_minio_unavailable(self):
-        """Test delete_documents when MinIO is unavailable."""
+    def test_delete_documents_object_store_unavailable(self):
+        """Test delete_documents when the object store is unavailable."""
         mock_vdb_op = Mock(spec=VDBRag)
 
         def mock_delete_documents(_collection_name, _source_values, result_dict=None):
@@ -824,7 +875,7 @@ class TestNvidiaRAGIngestorCoverageImprovement:
         mock_vdb_op.config = mock_config
 
         ingestor = NvidiaRAGIngestor(mode=Mode.LIBRARY)
-        ingestor.minio_operator = None
+        ingestor.object_store_operator = None
 
         with patch.object(
             ingestor,
@@ -847,17 +898,34 @@ class TestNvidiaRAGIngestorCoverageImprovement:
                 assert result["message"] == "Files deleted successfully"
                 assert result["total_documents"] == 1
 
-    def test_minio_initialization_error_handling(self):
-        """Test that MinIO initialization errors are handled gracefully."""
+    def test_object_store_initialization_error_handling(self):
+        """Test that object-store initialization errors are handled gracefully."""
         with patch(
-            "nvidia_rag.ingestor_server.main.get_minio_operator"
-        ) as mock_get_minio:
-            mock_get_minio.side_effect = Exception("MinIO connection failed")
+            "nvidia_rag.ingestor_server.main.get_object_store_operator"
+        ) as mock_get_object_store_operator:
+            mock_get_object_store_operator.side_effect = Exception(
+                "Object store connection failed"
+            )
 
             ingestor = NvidiaRAGIngestor(mode=Mode.LIBRARY)
 
-            assert ingestor.minio_operator is None
-            mock_get_minio.assert_called_once()
+            assert ingestor.object_store_operator is None
+            mock_get_object_store_operator.assert_called_once()
+
+    def test_object_store_initialization_ensures_default_bucket(self):
+        """Test ingestor startup ensures the shared default object-store bucket."""
+        mock_operator = Mock()
+
+        with patch(
+            "nvidia_rag.ingestor_server.main.get_object_store_operator",
+            return_value=mock_operator,
+        ):
+            ingestor = NvidiaRAGIngestor(mode=Mode.LIBRARY)
+
+        assert ingestor.object_store_operator is mock_operator
+        mock_operator._make_bucket.assert_called_once_with(
+            bucket_name=DEFAULT_BUCKET_NAME
+        )
 
 
 class TestGetDocumentTypeCounts:
@@ -983,12 +1051,185 @@ class TestGetDocumentTypeCounts:
     def test_empty_results(self):
         """Test handling of empty results."""
         ingestor = NvidiaRAGIngestor(mode=Mode.LIBRARY)
-        
+
         results = []
-        
+
         doc_type_counts, total_docs, total_elements, raw_text_size = ingestor._get_document_type_counts(results)
-        
+
         assert len(doc_type_counts) == 0
         assert total_docs == 0
         assert total_elements == 0
         assert raw_text_size == 0
+
+
+class TestUpdateDocumentsFileRestore:
+    """Tests for the file snapshot/restore protection in update_documents.
+
+    compact_and_wait_async releases the asyncio event loop (via asyncio.to_thread)
+    for up to 30 seconds.  A concurrent PATCH for the same file can save its own
+    copy to the same path during that window, and when that prior task's cleanup
+    runs it deletes the path — leaving the current task's file missing when
+    upload_documents tries to validate it.  update_documents guards against this
+    by snapshotting the bytes before compaction and restoring them afterwards if
+    the file is gone.
+    """
+
+    @pytest.mark.asyncio
+    async def test_file_restored_after_concurrent_cleanup(self):
+        """File deleted during compact_and_wait is restored from the temp copy."""
+        ingestor = NvidiaRAGIngestor(mode=Mode.SERVER)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            filepath = os.path.join(tmpdir, "test.pdf")
+            content = b"PDF content for test"
+            with open(filepath, "wb") as f:
+                f.write(content)
+
+            mock_vdb_op = Mock()
+            mock_vdb_op.check_collection_exists.return_value = True
+
+            async def fake_compact_and_wait(collection_name, timeout=30.0):
+                # Simulate concurrent cleanup deleting the file during compaction.
+                os.remove(filepath)
+
+            mock_vdb_op.compact_and_wait_async = fake_compact_and_wait
+
+            upload_called_with = {}
+
+            async def fake_upload_documents(**kwargs):
+                upload_called_with["filepaths"] = kwargs.get("filepaths", [])
+                for fp in upload_called_with["filepaths"]:
+                    upload_called_with["file_existed"] = os.path.exists(fp)
+                return {"task_id": "t1", "message": "ok"}
+
+            with patch.object(
+                ingestor,
+                "_NvidiaRAGIngestor__prepare_vdb_op_and_collection_name",
+                return_value=(mock_vdb_op, "col"),
+            ):
+                with patch.object(ingestor, "delete_documents") as mock_del:
+                    mock_del.return_value = {"total_documents": 1}
+                    with patch.object(ingestor, "upload_documents", side_effect=fake_upload_documents):
+                        await ingestor.update_documents(
+                            filepaths=[filepath],
+                            collection_name="col",
+                            blocking=False,
+                        )
+
+            # upload_documents was called with the file present (restored from temp copy).
+            assert upload_called_with.get("file_existed") is True
+            # Restored file has the original content.
+            assert os.path.exists(filepath)
+            with open(filepath, "rb") as f:
+                assert f.read() == content
+            # Temp copy was cleaned up (no hidden files left).
+            hidden = [f for f in os.listdir(tmpdir) if f.startswith(".")]
+            assert hidden == []
+
+    @pytest.mark.asyncio
+    async def test_no_restore_needed_when_file_still_present(self):
+        """Temp copy is removed and original remains untouched when not deleted."""
+        from unittest.mock import AsyncMock
+
+        ingestor = NvidiaRAGIngestor(mode=Mode.SERVER)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            filepath = os.path.join(tmpdir, "test.pdf")
+            content = b"Original content"
+            with open(filepath, "wb") as f:
+                f.write(content)
+
+            mock_vdb_op = Mock()
+            mock_vdb_op.check_collection_exists.return_value = True
+            mock_vdb_op.compact_and_wait_async = AsyncMock()  # file untouched
+
+            async def fake_upload_documents(**kwargs):
+                return {"task_id": "t1", "message": "ok"}
+
+            with patch.object(
+                ingestor,
+                "_NvidiaRAGIngestor__prepare_vdb_op_and_collection_name",
+                return_value=(mock_vdb_op, "col"),
+            ):
+                with patch.object(ingestor, "delete_documents") as mock_del:
+                    mock_del.return_value = {"total_documents": 1}
+                    with patch.object(ingestor, "upload_documents", side_effect=fake_upload_documents):
+                        await ingestor.update_documents(
+                            filepaths=[filepath],
+                            collection_name="col",
+                            blocking=False,
+                        )
+
+            # Original still present with original content.
+            assert os.path.exists(filepath)
+            with open(filepath, "rb") as f:
+                assert f.read() == content
+            # Temp copy was cleaned up.
+            hidden = [f for f in os.listdir(tmpdir) if f.startswith(".")]
+            assert hidden == []
+
+    @pytest.mark.asyncio
+    async def test_library_mode_skips_temp_copy(self):
+        """In LIBRARY mode no temp copy is made — caller owns its files."""
+        ingestor = NvidiaRAGIngestor(mode=Mode.LIBRARY)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            filepath = os.path.join(tmpdir, "doc.pdf")
+            with open(filepath, "wb") as f:
+                f.write(b"lib content")
+
+            mock_vdb_op = Mock()
+            mock_vdb_op.check_collection_exists.return_value = True
+
+            async def fake_compact_and_wait(collection_name, timeout=30.0):
+                os.remove(filepath)
+
+            mock_vdb_op.compact_and_wait_async = fake_compact_and_wait
+
+            async def fake_upload_documents(**kwargs):
+                return {"task_id": "t1", "message": "ok"}
+
+            with patch.object(
+                ingestor,
+                "_NvidiaRAGIngestor__prepare_vdb_op_and_collection_name",
+                return_value=(mock_vdb_op, "col"),
+            ):
+                with patch.object(ingestor, "delete_documents") as mock_del:
+                    mock_del.return_value = {"total_documents": 1}
+                    with patch.object(ingestor, "upload_documents", side_effect=fake_upload_documents):
+                        await ingestor.update_documents(
+                            filepaths=[filepath],
+                            collection_name="col",
+                            blocking=False,
+                        )
+
+            # In LIBRARY mode the file is NOT restored — it stays deleted.
+            assert not os.path.exists(filepath)
+
+    @pytest.mark.asyncio
+    async def test_temp_copy_deleted_even_when_exception_raised(self):
+        """Temp copy is always cleaned up even if delete_documents or compaction raises."""
+        ingestor = NvidiaRAGIngestor(mode=Mode.SERVER)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            filepath = os.path.join(tmpdir, "test.pdf")
+            with open(filepath, "wb") as f:
+                f.write(b"some content")
+
+            with patch.object(
+                ingestor,
+                "_NvidiaRAGIngestor__prepare_vdb_op_and_collection_name",
+            ):
+                with patch.object(
+                    ingestor, "delete_documents", side_effect=RuntimeError("db error")
+                ):
+                    with pytest.raises(RuntimeError):
+                        await ingestor.update_documents(
+                            filepaths=[filepath],
+                            collection_name="col",
+                            blocking=False,
+                        )
+
+            # No hidden temp files left on disk despite the exception.
+            hidden = [f for f in os.listdir(tmpdir) if f.startswith(".")]
+            assert hidden == []

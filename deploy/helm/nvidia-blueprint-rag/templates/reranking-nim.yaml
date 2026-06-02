@@ -1,4 +1,4 @@
-{{- $nimModel := index .Values.nimOperator "nvidia-nim-llama-32-nv-rerankqa-1b-v2" -}}
+{{- $nimModel := index .Values.nimOperator "nvidia-nim-llama-nemotron-rerank-1b-v2" -}}
 {{- if and (.Capabilities.APIVersions.Has "apps.nvidia.com/v1alpha1") (eq $nimModel.enabled true) }}
 apiVersion: apps.nvidia.com/v1alpha1
 kind: NIMCache
@@ -12,6 +12,10 @@ spec:
       modelPuller: "{{ $nimModel.image.repository }}:{{ $nimModel.image.tag }}"
       pullSecret: {{ .Values.imagePullSecret.name }}
       authSecret: {{ .Values.ngcApiSecret.name }}
+  {{- with $nimModel.tolerations }}
+  tolerations:
+{{ toYaml . | nindent 4 }}
+  {{- end }}
   storage:
     pvc:
       create: {{ $nimModel.storage.pvc.create | default true }}
@@ -37,6 +41,10 @@ spec:
     nimCache:
       name: {{ $nimModel.service.name }}-cache
   replicas: {{ $nimModel.replicas | default 1 }}
+  {{- with $nimModel.podAnnotations }}
+  podAnnotations:
+{{ toYaml . | nindent 4 }}
+  {{- end }}
   {{- with $nimModel.nodeSelector }}
   nodeSelector:
 {{ toYaml . | nindent 4 }}

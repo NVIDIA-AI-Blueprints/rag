@@ -43,12 +43,11 @@ For details, see [NVIDIA NIM for LLMs Software](https://docs.nvidia.com/nim/larg
 
 ## Hardware Requirements (Docker)
 
-By default, the RAG Blueprint deploys the NIM microservices locally ([self-hosted](deploy-docker-self-hosted.md)). You need one of the following:
+By default, the RAG Blueprint deploys the NIM microservices locally ([self-hosted](deploy-docker-self-hosted.md)). The default LLM (nemotron-3-super-120b-a12b) requires 2 GPUs (FP8 TP2). You need one of the following:
 
- - 2 x H100
- - 2 x B200
- - 3 x A100 SXM
- - 2 x RTX PRO 6000
+ - 3 x H100
+ - 3 x B200
+ - 3 x RTX PRO 6000
 
 :::{tip}
 You can also modify the RAG Blueprint to use [NVIDIA-hosted](deploy-docker-nvidia-hosted.md) NIM microservices.
@@ -60,13 +59,14 @@ You can also modify the RAG Blueprint to use [NVIDIA-hosted](deploy-docker-nvidi
 
 ## Hardware Requirements (Kubernetes)
 
-To install the RAG Blueprint on Kubernetes, you need one of the following:
+To install the default RAG Blueprint Helm chart on Kubernetes, you need one of the following:
 
 - 8 x H100-80GB
 - 8 x B200
-- 9 x A100-80GB SXM
 - 8 x RTX PRO 6000
-- 3 x H100 (with [Multi-Instance GPU](./mig-deployment.md))
+- 5 x H100-80GB (with [Multi-Instance GPU](./mig-deployment.md))
+
+Optional GPU-backed services increase the requirement. Plan for one additional GPU for each optional service that you enable, such as VLM generation, VLM captioning, VLM reranking, Nemotron Parse, or audio processing, unless you use MIG slicing or another explicit sharing strategy.
 
 
 
@@ -74,19 +74,19 @@ To install the RAG Blueprint on Kubernetes, you need one of the following:
 
 The following are requirements and recommendations for the individual components of the RAG Blueprint:
 
-- **Pipeline operation** – 1x L40 GPU or similar recommended. This is needed for the Milvus vector database, as GPU acceleration is enabled by default.
-- **LLM NIM (llama-3.3-nemotron-super-49b-v1.5)** – Refer to the [Support Matrix](https://docs.nvidia.com/nim/large-language-models/latest/supported-models.html#llama-3-3-nemotron-super-49b-v1-5).
-- **Embedding NIM (Llama-3.2-NV-EmbedQA-1B-v2 )** – Refer to the [Support Matrix](https://docs.nvidia.com/nim/nemo-retriever/text-embedding/latest/support-matrix.html#llama-3-2-nv-embedqa-1b-v2).
-- **Reranking NIM (llama-3_2-nv-rerankqa-1b-v2 )**: Refer to the [Support Matrix](https://docs.nvidia.com/nim/nemo-retriever/text-reranking/latest/support-matrix.html#llama-3-2-nv-rerankqa-1b-v2).
-- **NVIDIA NIM for Image OCR (baidu/paddleocr)**: Refer to the [Support Matrix](https://docs.nvidia.com/nemo/retriever/latest/extraction/support-matrix/).
-**NeMo Retriever OCR**: Refer to the [Support Matrix](https://docs.nvidia.com/nemo/retriever/latest/extraction/support-matrix/)
+- **Pipeline operation** – 1x L40 GPU or similar recommended. This is required if you use Milvus (optional) as the vector database with GPU acceleration. The default Elasticsearch VDB does not require a GPU. If you change the vector backend or enable optional GPU acceleration for Elasticsearch vector indexing, refer [Elasticsearch Configuration](elasticsearch-configuration.md) and confirm GPU requirements for that configuration.
+- **LLM NIM (nemotron-3-super-120b-a12b)** – Refer to the [Support Matrix](https://docs.nvidia.com/nim/large-language-models/latest/supported-models.html).
+- **Embedding NIM (llama-nemotron-embed-vl-1b-v2)** – Refer to the [Support Matrix](https://docs.nvidia.com/nim/nemo-retriever/text-embedding/latest/support-matrix.html) for your deployment target.
+- **Reranking NIM (llama-nemotron-rerank-1b-v2)**: Refer to the [Support Matrix](https://docs.nvidia.com/nim/nemo-retriever/text-reranking/latest/support-matrix.html).
+- **VLM Reranking NIM (llama-nemotron-rerank-vl-1b-v2, optional)**: Refer to the [Support Matrix](https://docs.nvidia.com/nim/nemo-retriever/text-reranking/latest/support-matrix.html).
+- **Nemotron OCR (Default)**: Refer to the [Support Matrix](https://docs.nvidia.com/nim/ingestion/image-ocr/1.3.0/support-matrix.html).
 - **NVIDIA NIMs for Object Detection**:
-  - NeMo Retriever Page Elements v3 [Support Matrix](https://docs.nvidia.com/nim/ingestion/object-detection/latest/support-matrix.html#nemo-retriever-page-elements-v3)
-  - NeMo Retriever Graphic Elements v1 [Support Matrix](https://docs.nvidia.com/nim/ingestion/object-detection/latest/support-matrix.html#nemo-retriever-graphic-elements-v1)
-  - NeMo Retriever Table Structure v1 [Support Matrix](https://docs.nvidia.com/nim/ingestion/object-detection/latest/support-matrix.html#nemo-retriever-table-structure-v1)
+  - Nemotron Page Elements v3 [Support Matrix](https://docs.nvidia.com/nim/ingestion/object-detection/latest/support-matrix.html#nemo-retriever-page-elements-v3)
+  - Nemotron Graphic Elements v1 [Support Matrix](https://docs.nvidia.com/nim/ingestion/object-detection/latest/support-matrix.html#nemo-retriever-graphic-elements-v1)
+  - Nemotron Table Structure v1 [Support Matrix](https://docs.nvidia.com/nim/ingestion/object-detection/latest/support-matrix.html#nemo-retriever-table-structure-v1)
 
 :::{tip}
-NeMo Retriever OCR is now the default OCR service. To use the legacy Paddle OCR instead, see [OCR Configuration Guide](nemoretriever-ocr.md).
+Nemotron OCR is now the default OCR service. To use the legacy Paddle OCR instead, see [OCR Configuration Guide](nemoretriever-ocr.md).
 :::
 
 

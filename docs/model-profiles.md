@@ -26,7 +26,7 @@ To see all available profiles for your specific hardware configuration, run the 
 ```bash
 USERID=$(id -u) docker run --rm --gpus all \
   -v ~/.cache/model-cache:/opt/nim/.cache \
-  nvcr.io/nim/nvidia/llama-3.3-nemotron-super-49b-v1.5:1.14.0 \
+  nvcr.io/nim/nvidia/nemotron-3-super-120b-a12b:1.8.0 \
   list-model-profiles
 ```
 
@@ -54,7 +54,7 @@ To set a specific model profile in Docker Compose, add the `NIM_MODEL_PROFILE` e
 ```yaml
   nim-llm:
     container_name: nim-llm-ms
-    image: nvcr.io/nim/nvidia/llama-3.3-nemotron-super-49b-v1.5:1.14.0
+    image: nvcr.io/nim/nvidia/nemotron-3-super-120b-a12b:1.8.0
     # ... other configuration ...
     environment:
       NGC_API_KEY: ${NGC_API_KEY}
@@ -80,19 +80,18 @@ nimOperator:
     service:
       name: "nim-llm"
     image:
-      repository: nvcr.io/nim/nvidia/llama-3.3-nemotron-super-49b-v1.5
+      repository: nvcr.io/nim/nvidia/nemotron-3-super-120b-a12b
       pullPolicy: IfNotPresent
-      tag: "1.14.0"
+      tag: "1.8.0"
     resources:
       limits:
-        nvidia.com/gpu: 1
+        nvidia.com/gpu: 2
       requests:
-        nvidia.com/gpu: 1
+        nvidia.com/gpu: 2
     model:
-      engine: tensorrt_llm
+      engine: vllm
       precision: "fp8"
-      qosProfile: "throughput"
-      tensorParallelism: "1"
+      tensorParallelism: "2"
       gpus:
         - product: "rtx6000_blackwell_sv"  # Change based on your GPU
     storage:
@@ -108,7 +107,7 @@ nimOperator:
       - name: NIM_TRITON_LOG_VERBOSE
         value: "1"
       - name: NIM_SERVED_MODEL_NAME
-        value: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+        value: "nvidia/nemotron-3-super-120b-a12b"
 ```
 
 **Key profile parameters:**

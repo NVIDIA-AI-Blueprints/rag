@@ -1,0 +1,65 @@
+{{- $nimVlmCaptioning := index .Values.nimOperator "nim-vlm-captioning" -}}
+{{- if and (.Capabilities.APIVersions.Has "apps.nvidia.com/v1alpha1") (eq $nimVlmCaptioning.enabled true) }}
+apiVersion: apps.nvidia.com/v1alpha1
+kind: NIMCache
+metadata:
+  name: {{ $nimVlmCaptioning.service.name }}-cache
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  source:
+    ngc:
+      modelPuller: "{{ $nimVlmCaptioning.image.repository }}:{{ $nimVlmCaptioning.image.tag }}"
+      pullSecret: {{ .Values.imagePullSecret.name }}
+      authSecret: {{ .Values.ngcApiSecret.name }}
+  storage:
+    pvc:
+      create: {{ $nimVlmCaptioning.storage.pvc.create | default true }}
+      {{- if $nimVlmCaptioning.storage.pvc.storageClass }}
+      storageClass: {{ $nimVlmCaptioning.storage.pvc.storageClass }}
+      {{- end }}
+      size: {{ $nimVlmCaptioning.storage.pvc.size | default "50Gi" }}
+      volumeAccessMode: {{ $nimVlmCaptioning.storage.pvc.volumeAccessMode | default "ReadWriteMany" }}
+  resources: {}
+---
+apiVersion: apps.nvidia.com/v1alpha1
+kind: NIMService
+metadata:
+  name: {{ $nimVlmCaptioning.service.name }}
+spec:
+  image:
+    repository: {{ $nimVlmCaptioning.image.repository }}
+    tag: {{ $nimVlmCaptioning.image.tag }}
+    pullPolicy: {{ $nimVlmCaptioning.image.pullPolicy | default "IfNotPresent" }}
+    pullSecrets:
+      - {{ .Values.imagePullSecret.name }}
+  authSecret: {{ .Values.ngcApiSecret.name }}
+  storage:
+    nimCache:
+      name: {{ $nimVlmCaptioning.service.name }}-cache
+  env:
+{{ toYaml $nimVlmCaptioning.env | nindent 4 }}
+  replicas: {{ $nimVlmCaptioning.replicas | default 1 }}
+  {{- with $nimVlmCaptioning.podAnnotations }}
+  podAnnotations:
+{{ toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $nimVlmCaptioning.nodeSelector }}
+  nodeSelector:
+{{ toYaml . | nindent 4 }}
+  {{- end }}
+{{- if .Values.nimOperator.draResources.enabled }}
+  draResources:
+{{ toYaml $nimVlmCaptioning.draResources | nindent 4 }}
+{{- end }}
+{{- if not .Values.nimOperator.draResources.enabled }}
+  resources:
+{{ toYaml $nimVlmCaptioning.resources | nindent 4 }}
+{{- end }}
+  {{- with $nimVlmCaptioning.tolerations }}
+  tolerations:
+{{ toYaml . | nindent 4 }}
+  {{- end }}
+  expose:
+{{ toYaml $nimVlmCaptioning.expose | nindent 4 }}
+{{- end }}

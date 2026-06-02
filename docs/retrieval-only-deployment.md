@@ -44,7 +44,7 @@ For monitoring deployment progress, refer to [Deploy on Kubernetes with Helm](./
 
 1. [Get an API Key](api-key.md).
 
-2. Install Docker Engine and Docker Compose. Ensure Docker Compose version is 2.29.1 or later.
+2. Install Docker Engine 24.0 or later and Docker Compose version 2.29.1 or later. Docker Engine 29.5.x is not supported for this release because it can fail to pull required NGC images.
 
 3. Authenticate Docker with NGC:
 
@@ -85,14 +85,14 @@ Choose one of the following options based on your deployment preference.
 
 #### Option A: Self-Hosted NIMs
 
-Instead of starting all NIMs, use the `text-embed` profile to start only the embedding and reranking services:
+Instead of starting all NIMs, start only the VLM embedding and reranking services:
 
 ```bash
-USERID=$(id -u) docker compose -f deploy/compose/nims.yaml up -d nemotron-ranking-ms nemotron-embedding-ms
+USERID=$(id -u) docker compose -f deploy/compose/nims.yaml up -d nemotron-ranking-ms nemotron-vlm-embedding-ms
 ```
 
 :::{note}
-The `text-embed` profile starts only `nemotron-embedding-ms` and `nemotron-ranking-ms `, which is sufficient for retrieval operations. The LLM NIM (`nim-llm-ms`) is not started, saving significant GPU memory.
+The RAG server defaults to `nvidia/llama-nemotron-embed-vl-1b-v2` at `nemotron-vlm-embedding-ms:8000/v1`, so retrieval-only deployments should start `nemotron-vlm-embedding-ms` with `nemotron-ranking-ms`. The LLM NIM (`nim-llm-ms`) is not started, saving significant GPU memory.
 :::
 
 Wait for the services to become healthy:
@@ -106,7 +106,7 @@ Expected output:
 ```output
 NAMES                          STATUS
 nemotron-ranking-ms       Up 5 minutes (healthy)
-nemotron-embedding-ms     Up 5 minutes (healthy)
+nemotron-vlm-embedding-ms Up 5 minutes (healthy)
 ```
 
 #### Option B: NVIDIA-Hosted NIMs
@@ -115,12 +115,13 @@ For an even lighter deployment, use [NVIDIA-hosted NIMs](deploy-docker-nvidia-ho
 
 ```bash
 # Configure to use NVIDIA-hosted endpoints
-export APP_EMBEDDINGS_SERVERURL=""
-export APP_RANKING_SERVERURL=""
+export APP_EMBEDDINGS_SERVERURL="https://integrate.api.nvidia.com/v1"
+export APP_RANKING_SERVERURL="https://integrate.api.nvidia.com/v1"
+export APP_LLM_SERVERURL="https://integrate.api.nvidia.com/v1"
 ```
 
 :::{note}
-When `APP_EMBEDDINGS_SERVERURL` and `APP_RANKING_SERVERURL` are empty, the RAG server uses NVIDIA-hosted API endpoints (requires valid `NGC_API_KEY`).
+For NVIDIA-hosted endpoints, use the explicit API Catalog base URL. The LLM URL is set to the hosted endpoint so retrieval-only health checks do not try to connect to a local LLM container that is intentionally not deployed.
 :::
 
 ### Step 3: Start the Vector Database
@@ -130,6 +131,12 @@ docker compose -f deploy/compose/vectordb.yaml up -d
 ```
 
 ### Step 4: Start the RAG Server
+
+For self-hosted retrieval-only deployments, set the LLM endpoint to the hosted API Catalog URL before starting the RAG server so dependency health checks do not try to connect to `nim-llm:8000`:
+
+```bash
+export APP_LLM_SERVERURL="https://integrate.api.nvidia.com/v1"
+```
 
 ```bash
 docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d rag-server
@@ -198,13 +205,17 @@ payload = {
 You can also use the provided CLI script for search operations:
 
 ```bash
+# Install CLI dependencies once
+pip install -r scripts/requirements.txt
+
 # Basic search
 python scripts/retriever_api_usage.py --mode search "Tell me about the product features"
 
 # Search with specific collection
 python scripts/retriever_api_usage.py \
     --mode search \
-    --payload-json '{"collection_names":["my_collection"], "reranker_top_k": 5}' \
+    --collection-name my_collection \
+    --payload-json '{"reranker_top_k": 5}' \
     "What is the return policy?"
 
 # Save results to file
@@ -216,32 +227,75 @@ python scripts/retriever_api_usage.py \
 
 ## Deploy with Helm (Kubernetes)
 
-For Kubernetes deployments, configure the Helm chart to disable the LLM NIM:
+Use the same cluster prerequisites as a full Helm deployment, including the ECK operator for the default Elasticsearch vector database—refer to [Deploy on Kubernetes with Helm](deploy-helm.md#prerequisites).
+
+In the v2.6.0 chart, the embedding and reranking NIMs are enabled by default; the LLM NIM (`nim-llm`) is also enabled by default and must be disabled for retrieval-only mode. The VLM generation (`nim-vlm`) and VLM captioning (`nim-vlm-captioning`) services are disabled by default and require no action.
+
+| Component | v2.6.0 default | Retrieval-only |
+|-----------|----------------|----------------|
+| `nim-llm` (LLM) | enabled | **set to `false`** |
+| `nvidia-nim-llama-nemotron-embed-vl-1b-v2` (VLM embedder) | enabled | leave enabled |
+| `nvidia-nim-llama-nemotron-rerank-1b-v2` (text reranker) | enabled | leave enabled |
+| `nim-vlm`, `nim-vlm-captioning` | disabled | leave disabled |
+
+### Option A: --set flag
 
 ```bash
-helm upgrade --install rag nvidia-blueprint-rag \
-  --namespace rag \
+helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.6.0.tgz \
+  --username '$oauthtoken' \
+  --password "${NGC_API_KEY}" \
   --set nimOperator.nim-llm.enabled=false \
-  --set nimOperator.nvidia-nim-llama-32-nv-embedqa-1b-v2.enabled=true \
-  --set nimOperator.nvidia-nim-llama-32-nv-rerankqa-1b-v2.enabled=true \
   --set imagePullSecret.password=$NGC_API_KEY \
   --set ngcApiSecret.password=$NGC_API_KEY
 ```
 
-Or modify `values.yaml`:
+### Option B: values.yaml override
 
 ```yaml
-# Disable LLM NIM for retrieval-only deployment
+# Disable LLM NIM for retrieval-only deployment.
+# VLM embedder + text reranker stay on chart defaults (enabled).
 nimOperator:
   nim-llm:
     enabled: false
+```
 
-  # Keep embedding and reranking NIMs enabled
-  nvidia-nim-llama-32-nv-embedqa-1b-v2:
+### (Optional) Use the text embedder instead of the VLM embedder
+
+If you don't want to pull the VLM embedding NIM, switch to the text embedder by flipping the two embedder enable flags and pointing the embedding env vars at the text NIM:
+
+```yaml
+nimOperator:
+  nim-llm:
+    enabled: false
+  nvidia-nim-llama-nemotron-embed-vl-1b-v2:
+    enabled: false
+  nvidia-nim-llama-nemotron-embed-1b-v2:
     enabled: true
 
-  nvidia-nim-llama-32-nv-rerankqa-1b-v2:
-    enabled: true
+envVars:
+  APP_EMBEDDINGS_MODELNAME: "nvidia/llama-nemotron-embed-1b-v2"
+  APP_EMBEDDINGS_SERVERURL: "nemotron-embedding-ms:8000/v1"
+
+ingestor-server:
+  envVars:
+    APP_EMBEDDINGS_MODELNAME: "nvidia/llama-nemotron-embed-1b-v2"
+    APP_EMBEDDINGS_SERVERURL: "nemotron-embedding-ms:8000/v1"
+
+nv-ingest:
+  envVars:
+    EMBEDDING_NIM_ENDPOINT: "http://nemotron-embedding-ms:8000/v1"
+    EMBEDDING_NIM_MODEL_NAME: "nvidia/llama-nemotron-embed-1b-v2"
+```
+
+Apply the chart with the values override:
+
+```bash
+helm upgrade --install rag -n rag https://helm.ngc.nvidia.com/nvidia/blueprint/charts/nvidia-blueprint-rag-v2.6.0.tgz \
+  --username '$oauthtoken' \
+  --password "${NGC_API_KEY}" \
+  --set imagePullSecret.password=$NGC_API_KEY \
+  --set ngcApiSecret.password=$NGC_API_KEY \
+  -f values.yaml
 ```
 
 
@@ -299,16 +353,29 @@ GPU requirements depend on the specific embedding and reranking models used. The
 
 ## Troubleshooting
 
-### Generate endpoint returns error
+### Generate endpoint behavior
 
-This is expected behavior in retrieval-only mode. The `/generate` endpoint requires an LLM, which is not deployed. Use the `/search` endpoint instead.
+Retrieval-only mode is intended for the `/search` endpoint. The `/generate` endpoint requires an LLM endpoint; if you do not configure one, use `/search` instead.
+
+### Health check reports missing LLM
+
+Retrieval-only mode does not start `nim-llm-ms`. If dependency health checks report `Cannot connect to host nim-llm:8000`, set the LLM endpoint to the hosted API Catalog URL and recreate the RAG server container:
+
+```bash
+export APP_LLM_SERVERURL="https://integrate.api.nvidia.com/v1"
+docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d --force-recreate rag-server
+```
+
+### Collection does not exist
+
+Starting the ingestor server does not create a collection by itself. Create or ingest into the target collection first, or pass the name of an existing collection with `--collection-name`.
 
 ### Embedding service not healthy
 
 Check the embedding NIM logs:
 
 ```bash
-docker logs nemotron-embedding-ms
+docker logs nemotron-vlm-embedding-ms
 ```
 
 Ensure the model cache directory has proper permissions:

@@ -385,20 +385,22 @@ class Prompt(BaseModel):
     use_knowledge_base: bool = Field(
         default=True, description="Whether to use a knowledge base"
     )
-    temperature: float = Field(
+    temperature: float | None = Field(
         default_temperature,
         description="The sampling temperature to use for text generation. "
         "The higher the temperature value is, the less deterministic the output text will be. "
+        "If unset, the model/provider default is used. "
         "It is not recommended to modify both temperature and top_p in the same call.",
         ge=0.0,
         le=1.0,
     )
-    top_p: float = Field(
+    top_p: float | None = Field(
         default_top_p,
         description="The top-p sampling mass used for text generation. "
         "The top-p value determines the probability mass that is sampled at sampling time. "
         "For example, if top_p = 0.2, only the most likely tokens "
-        "(summing to 0.2 cumulative probability) will be sampled. "
+        "(summing to 0.2 cumulative probability) will be sampled. If unset, "
+        "the model/provider default is used. "
         "It is not recommended to modify both temperature and top_p in the same call.",
         ge=0.1,
         le=1.0,
@@ -437,14 +439,14 @@ class Prompt(BaseModel):
     reranker_top_k: int = Field(
         description="The maximum number of documents to return in the response.",
         default=CONFIG.retriever.top_k,
-        ge=0,
+        ge=1,
         le=25,
         format="int64",
     )
     vdb_top_k: int = Field(
         description="Number of top results to retrieve from the vector database.",
         default=CONFIG.retriever.vdb_top_k,
-        ge=0,
+        ge=1,
         le=400,
         format="int64",
     )
@@ -485,15 +487,30 @@ class Prompt(BaseModel):
         description="Enable or disable automatic filter expression generation from natural language.",
         default=CONFIG.filter_expression_generator.enable_filter_generator,
     )
-    model: str = Field(
-        description="Name of NIM LLM model to be used for inference.",
-        default=CONFIG.llm.model_name.strip('"'),
+    model: str | None = Field(
+        description=(
+            "Name of NIM LLM model to be used for inference. "
+            "When omitted, the server-side default is used (APP_LLM_MODELNAME "
+            "for the standard RAG path, or the AGENTIC_*_LLM_MODEL per-role envs "
+            "for agentic RAG)."
+        ),
+        default=None,
+        # Swagger UI uses the first example as its request-body sample. Without
+        # this, the regex `[\s\S]*` causes Swagger's generator to emit random
+        # characters; with it, users see the currently-configured default.
+        examples=[CONFIG.llm.model_name.strip('"')],
         max_length=4096,
         pattern=r"[\s\S]*",
     )
-    llm_endpoint: str = Field(
-        description="Endpoint URL for the llm model server.",
-        default=CONFIG.llm.server_url.strip('"'),
+    llm_endpoint: str | None = Field(
+        description=(
+            "Endpoint URL for the llm model server. "
+            "When omitted, the server-side default is used (APP_LLM_SERVERURL "
+            "for the standard RAG path, or the AGENTIC_*_LLM_SERVERURL per-role envs "
+            "for agentic RAG)."
+        ),
+        default=None,
+        examples=[CONFIG.llm.server_url.strip('"')],
         max_length=2048,  # URLs can be long, but 4096 is excessive
     )
     embedding_model: str = Field(
@@ -552,6 +569,35 @@ class Prompt(BaseModel):
         le=64,
         format="int64",
     )
+    vlm_enable_thinking: bool | None = Field(
+        default=None,
+        description=(
+            "Enable VLM chain-of-thought reasoning for this request. "
+            "When omitted, falls back to the server-side default "
+            "(APP_VLM_ENABLE_THINKING). Independent of the LLM-side "
+            "thinking knobs (min_thinking_tokens / max_thinking_tokens)."
+        ),
+    )
+    vlm_thinking_token_budget: int | None = Field(
+        default=None,
+        description=(
+            "Maximum tokens the VLM may spend on reasoning (0 = unbounded). "
+            "Only applied when vlm_enable_thinking is True. When omitted, "
+            "falls back to the server-side default (APP_VLM_THINKING_TOKEN_BUDGET)."
+        ),
+        ge=0,
+        le=65536,
+        format="int64",
+    )
+    vlm_filter_thinking_tokens: bool | None = Field(
+        default=None,
+        description=(
+            "Controls legacy VLM reasoning filtering behavior. Reasoning tokens "
+            "are filtered out of the user-facing content stream and surfaced in "
+            "delta.reasoning_content when the model emits them. When omitted, "
+            "falls back to the server-side default (VLM_FILTER_THINK_TOKENS)."
+        ),
+    )
 
     # seed: int = Field(42, description="If specified, our system will make a best effort to sample deterministically,
     #       such that repeated requests with the same seed and parameters should return the same result.")
@@ -579,6 +625,24 @@ class Prompt(BaseModel):
         "Note: Requires enable_reranker=True to generate relevance scores.",
         ge=0.0,
         le=1.0,
+    )
+    agentic: bool | None = Field(
+        default=CONFIG.enable_agentic_rag,
+        description=(
+            "Route this request through the agentic RAG pipeline (LangGraph plan-and-execute). "
+            "When None (default), the server-level CONFIG.enable_agentic_rag config value is used. "
+            "Explicitly passing True or False overrides the server default for this request."
+        ),
+    )
+    enable_streaming: bool = Field(
+        default=True,
+        description=(
+            "Stream intermediate reasoning, stage announcements, and final-answer tokens as "
+            "they are produced. Currently honored by the agentic RAG pipeline; the regular "
+            "(non-agentic) pipeline always streams. When False on the agentic path, the graph "
+            "runs to completion and the full answer is returned as a single SSE chunk "
+            "(legacy behavior)."
+        ),
     )
 
     @model_validator(mode="after")
@@ -615,14 +679,14 @@ class DocumentSearch(BaseModel):
     reranker_top_k: int = Field(
         description="Number of document chunks to retrieve.",
         default=int(CONFIG.retriever.top_k),
-        ge=0,
+        ge=1,
         le=25,
         format="int64",
     )
     vdb_top_k: int = Field(
         description="Number of top results to retrieve from the vector database.",
         default=CONFIG.retriever.vdb_top_k,
-        ge=0,
+        ge=1,
         le=400,
         format="int64",
     )
@@ -799,10 +863,10 @@ class SummaryResponse(BaseModel):
 class RagConfigurationDefaults(BaseModel):
     """Default values for RAG configuration parameters."""
 
-    temperature: float = Field(
+    temperature: float | None = Field(
         description="Default sampling temperature for generation"
     )
-    top_p: float = Field(description="Default top-p sampling mass")
+    top_p: float | None = Field(description="Default top-p sampling mass")
     max_tokens: int = Field(description="Default maximum tokens to generate")
     vdb_top_k: int = Field(
         description="Default number of documents to retrieve from vector DB"
@@ -1396,9 +1460,13 @@ async def generate_answer(request: Request, prompt: Prompt) -> StreamingResponse
         "vlm_temperature": prompt.vlm_temperature,
         "vlm_top_p": prompt.vlm_top_p,
         "vlm_max_tokens": prompt.vlm_max_tokens,
+        "vlm_enable_thinking": prompt.vlm_enable_thinking,
+        "vlm_thinking_token_budget": prompt.vlm_thinking_token_budget,
+        "vlm_filter_thinking_tokens": prompt.vlm_filter_thinking_tokens,
         "vlm_max_total_images": prompt.vlm_max_total_images,
         "filter_expr": prompt.filter_expr,
         "confidence_threshold": prompt.confidence_threshold,
+        "agentic": prompt.agentic,
     }
     logger.info(
         f"📥 Incoming request to /generate endpoint:\n{json.dumps(request_data, indent=2)}"
@@ -1478,9 +1546,14 @@ async def generate_answer(request: Request, prompt: Prompt) -> StreamingResponse
             vlm_temperature=prompt.vlm_temperature,
             vlm_top_p=prompt.vlm_top_p,
             vlm_max_tokens=prompt.vlm_max_tokens,
+            vlm_enable_thinking=prompt.vlm_enable_thinking,
+            vlm_thinking_token_budget=prompt.vlm_thinking_token_budget,
+            vlm_filter_thinking_tokens=prompt.vlm_filter_thinking_tokens,
             vlm_max_total_images=prompt.vlm_max_total_images,
             filter_expr=prompt.filter_expr,
             confidence_threshold=prompt.confidence_threshold,
+            agentic=prompt.agentic,
+            enable_streaming=prompt.enable_streaming,
             rag_start_time_sec=generate_start_time,
             metrics=metrics,
         )
@@ -1693,6 +1766,12 @@ async def document_search(
         return JSONResponse(
             content={"message": "Request was cancelled by the client."},
             status_code=ErrorCodeMapping.CLIENT_CLOSED_REQUEST,
+        )
+    except ValueError as e:
+        logger.warning("Validation error in /search endpoint: %s", e)
+        return JSONResponse(
+            content={"message": str(e)},
+            status_code=ErrorCodeMapping.BAD_REQUEST,
         )
     except APIError as e:
         status_code = getattr(e, "status_code", ErrorCodeMapping.INTERNAL_SERVER_ERROR)
@@ -2087,7 +2166,8 @@ async def vector_store_search(
             "content": {
                 "application/json": {
                     "example": {
-                        "message": "Invalid timeout value. Timeout must be a non-negative integer.",
+                        "message": "Invalid timeout value. Timeout must be a positive integer.",
+                        "status": "FAILED",
                         "error": "Provided timeout value: -1",
                     }
                 }
@@ -2145,14 +2225,16 @@ async def get_summary(
 ) -> JSONResponse:
     "Retrieve document summary from the collection. Fetches pre-generated summaries with support for both blocking and non-blocking modes."
 
-    # Convert float timeout to int and validate to avoid negative values
+    from nvidia_rag.rag_server.validation import (
+        invalid_summary_timeout_response,
+        is_invalid_summary_timeout,
+    )
+
+    # Convert float timeout to int and validate positive values
     timeout = int(timeout)
-    if timeout < 0:
+    if is_invalid_summary_timeout(timeout):
         return JSONResponse(
-            content={
-                "message": "Invalid timeout value. Timeout must be a non-negative integer.",
-                "error": f"Provided timeout value: {timeout}",
-            },
+            content=invalid_summary_timeout_response(timeout),
             status_code=ErrorCodeMapping.BAD_REQUEST,
         )
 
