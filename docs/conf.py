@@ -22,12 +22,71 @@
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 import os
-import sys
+import shutil
+from pathlib import Path
+
+_DOCS_DIR = Path(__file__).resolve().parent
+_VERSIONS_JSON = _DOCS_DIR / "versions1.json"
+
+
+def _copy_versions_json(outdir: Path) -> Path | None:
+    """Copy the shared switcher manifest beside the version output folder.
+
+    Published and local preview layouts look like::
+
+        _build/
+          versions1.json      <- one shared file (not copied into each release)
+          2.6.0/              <- HTML for the current release (sphinx outdir)
+          2.5.0/              <- prior release builds (from earlier publishes)
+          2.4.0/
+          2.3.0/
+
+    The theme loads ``../versions1.json`` from pages under ``2.6.0/``, so the
+    JSON must live in ``_build/``, not inside each release folder.
+    """
+    if not _VERSIONS_JSON.is_file():
+        return None
+    dest = outdir.parent / "versions1.json"
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    # copyfile (not copy2) so the destination mtime reflects the build time.
+    # copy2 preserved the source timestamp and made the output look stale.
+    shutil.copyfile(_VERSIONS_JSON, dest)
+    return dest
+
+
+def setup(app):
+    def _on_builder_inited(_app) -> None:
+        _copy_versions_json(Path(_app.outdir))
+
+    def _on_build_finished(_app, exc) -> None:
+        if exc is not None:
+            return
+        dest = _copy_versions_json(Path(_app.outdir))
+        if dest is not None:
+            print(
+                f"\nVersion switcher manifest: {dest}\n"
+                f"  Upload this file to the docs site root (e.g. rag/versions1.json).\n"
+                f"  It is intentionally NOT inside {_app.outdir}.\n"
+            )
+
+    app.connect("builder-inited", _on_builder_inited)
+    app.connect("build-finished", _on_build_finished)
+    return {"version": "1.0", "parallel_read_safe": True}
+
 
 project = " NVIDIA RAG blueprint"
 copyright = "2025, NVIDIA CORPORATION & AFFILIATES"
 author = "NVIDIA CORPORATION & AFFILIATES"
 release = "2.6.0"
+
+# Sphinx outdir should be ``_build/<release>/`` (for example ``_build/2.6.0/``).
+# See documentation.md for the version-switcher layout.
+DOCS_HTML_OUTDIR = f"_build/{release}"
+
+# Shared parent-level manifest for the PyData/NVIDIA version switcher.
+# Override with DOCS_SWITCHER_JSON=versions1.json when using sphinx-autobuild,
+# which serves only the outdir and cannot reach ../versions1.json.
+_switcher_json_url = os.environ.get("DOCS_SWITCHER_JSON", "../versions1.json")
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
@@ -75,7 +134,7 @@ html_theme_options = {
             "icon": "fa-brands fa-github",
         }
     ],
-    "switcher": {"json_url": "../versions1.json", "version_match": release},
+    "switcher": {"json_url": _switcher_json_url, "version_match": release},
     "extra_head": {
         """
     <script src="https://assets.adobedtm.com/5d4962a43b79/c1061d2c5e7b/launch-191c2462b890.min.js" ></script>
@@ -96,4 +155,4 @@ html_css_files = ["swagger-nvidia.css"]
 html_static_path = ['css']
 
 # Include these files in the root of the built documentation
-html_extra_path = ["project.json", "versions1.json"]
+html_extra_path = ["project.json"]
