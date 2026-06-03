@@ -43,22 +43,24 @@ Full evaluation pipeline: [evaluation_01_ragas.ipynb](https://github.com/NVIDIA-
 - Metric: Accuracy, defined as the degree to which generated responses align with the ground truth answers.
 - Pipeline configuration: All experiments were run using the default configuration.
 - Generation models:
-  - LLM: nvidia/llama-3.3-nemotron-super-49b-v1.5
-  - VLM: nvidia/nemotron-nano-vl-12b-v2
+  - LLM: nvidia/llama-3.3-nemotron-super-49b-v1.5 (reasoning off and on)
+  - LLM: nvidia/nemotron-3-super-120b-a12b with controlled reasoning — low-effort mode capped at a 256-token reasoning budget (current default LLM)
+  - VLM: nvidia/nemotron-nano-vl-12b-v2 (reasoning off and on)
+  - Agentic RAG pipeline driven by nvidia/nemotron-3-super-120b-a12b
 - Judge model: mistralai/Mixtral-8x22B-Instruct-v0.1
 
 ## Configuration and Accuracy Results
 
-We tested four main configurations to evaluate how ["Reasoning" (Think On)](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/docs/enable-nemotron-thinking.md) and ["Vision Language Model" (VLM)](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/docs/vlm.md) features influence accuracy. In the VLM-based generation pipeline, image captioning was enabled during data ingestion. For text-only datasets, we excluded the VLM-based generation setup from evaluation.
+We evaluated six configurations to show how reasoning, vision, and agentic orchestration influence accuracy. These span the previous-default `nemotron-super-49b-v1.5` LLM with ["Reasoning" (Think On)](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/docs/enable-nemotron-thinking.md) off and on, the current-default `nemotron-3-super` LLM with controlled reasoning, the `nemotron-VLM-12B` ["Vision Language Model" (VLM)](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/docs/vlm.md) with reasoning off and on, and the [Agentic RAG](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/docs/agentic-rag.md) pipeline driven by `nemotron-3-super`. In the VLM-based generation pipeline, image captioning was enabled during data ingestion. For text-only datasets, we excluded the VLM-based generation setup from evaluation.
 
-| Dataset | LLM (Reasoning Off) | LLM (Reasoning On) | VLM (Reasoning Off) | VLM (Reasoning On) |
-|---|---|---|---|---|
-| FinanceBench | 0.612 | 0.668 | 0.622 | 0.697 |
-| KG-RAG | 0.569 | 0.593 | 0.596 | 0.643 |
-| RAGBattle | 0.812 | 0.818 | 0.867 | 0.842 |
-| DC767 | 0.906 | 0.899 | 0.907 | 0.897 |
-| Hotpotqa | 0.672 | 0.676 | n/a | n/a |
-| Google Frames | 0.486 | 0.597 | n/a | n/a |
+| Dataset | nemotron-super-49b-v1.5 (reasoning off) | nemotron-super-49b-v1.5 (reasoning on) | nemotron-3-super (controlled reasoning) | nemotron-VLM-12B (reasoning off) | nemotron-VLM-12B (reasoning on) | agentic-rag (nemotron-3-super) |
+|---|---|---|---|---|---|---|
+| FinanceBench | 0.612 | 0.668 | 0.668 | 0.622 | 0.697 | 0.710 |
+| KG-RAG | 0.569 | 0.593 | 0.590 | 0.596 | 0.643 | 66.6 (TBD) |
+| RAGBattle | 0.812 | 0.818 | 0.829 | 0.867 | 0.842 | 0.782 |
+| DC767 | 0.906 | 0.899 | TBD | 0.907 | 0.897 | TBD |
+| Hotpotqa | 0.672 | 0.676 | 0.678 | n/a | n/a | 0.773 |
+| Google Frames | 0.486 | 0.597 | TBD | n/a | n/a | 0.705 |
 
 The table in the following section summarizes the accuracy scores for each dataset across our experimental configurations.
 
@@ -66,16 +68,16 @@ The table in the following section summarizes the accuracy scores for each datas
 
 For the Vidore-v3 evaluation, we combined all domains into a single collection and then performed domain-specific evaluations.
 
-| Dataset subsets | LLM (Reasoning Off) | LLM (Reasoning On) | VLM (Reasoning Off) | VLM (Reasoning On) |
-|---|---|---|---|---|
-| Computer Science | 0.894 | 0.882 | 0.927 | 0.931 |
-| Energy | 0.751 | 0.765 | 0.802 | 0.824 |
-| Finance EN | 0.699 | 0.718 | 0.758 | 0.766 |
-| Pharmaceuticals | 0.759 | 0.775 | 0.849 | 0.858 |
-| HR | 0.726 | 0.735 | 0.767 | 0.804 |
-| Industrial | 0.677 | 0.674 | 0.733 | 0.758 |
-| Physics | 0.840 | 0.806 | 0.903 | 0.910 |
-| Finance FR | 0.639 | 0.647 | 0.683 | 0.687 |
+| Dataset subsets | nemotron-super-49b-v1.5 (reasoning off) | nemotron-super-49b-v1.5 (reasoning on) | nemotron-3-super (controlled reasoning) | nemotron-VLM-12B (reasoning off) | nemotron-VLM-12B (reasoning on) | agentic-rag (nemotron-3-super) |
+|---|---|---|---|---|---|---|
+| Computer Science | 0.894 | 0.882 | 0.885 | 0.927 | 0.931 | 0.927 (TBD) |
+| Energy | 0.751 | 0.765 | 0.795 | 0.802 | 0.824 |  0.778 (TDB) |
+| Finance EN | 0.699 | 0.718 | 0.763 | 0.758 | 0.766 | 0.79 (TDB) |
+| Pharmaceuticals | 0.759 | 0.775 | 0.806 | 0.849 | 0.858 | 0.804 (TDB) |
+| HR | 0.726 | 0.735 | 0.747 | 0.767 | 0.804 | 0.794 (TDB) |
+| Industrial | 0.677 | 0.674 | 0.698 | 0.733 | 0.758 | 0.756 (TDB) |
+| Physics | 0.840 | 0.806 | 0.887 | 0.903 | 0.910 | 0.848 (TDB) |
+| Finance FR | 0.639 | 0.647 | 0.658 | 0.683 | 0.687 | 0.695 (TDB) |
 
 
 ## Key Results
@@ -117,10 +119,21 @@ Why it makes sense
 
 Google Frames targets complex queries that require synthesizing facts across multiple documents while tracking overlapping constraints. A standard LLM often struggles to keep all these parameters in mind in a single pass. Turning on reasoning enables the model to systematically decompose multi-step logic and verify dependencies, which is essential for accurate factual extraction.
 
+### Agentic Orchestration on Multi-Hop and Cross-Document Queries
+
+Enabling the [Agentic RAG](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/docs/agentic-rag.md) pipeline with `nemotron-3-super` improved accuracy most on multi-hop and table-heavy queries, where a single retrieve-then-generate pass tends to miss dependencies. The clearest gains were on Google Frames (0.705, up from 0.597 single-pass), HotPotQA (0.773, up from 0.678), and FinanceBench (0.710, up from 0.668). Agentic RAG also lifted most Vidore-V3 visual-document domains.
+
+Why it makes sense
+
+Agentic RAG treats the query as something to reason about rather than a single retrieval call. A two-phase planner first runs scope-discovery tasks to learn what the corpus holds for ambiguous queries, then builds targeted answer tasks. Each task is a mini-agent that retrieves, answers, and—when the answer is only partial—uses a seed-query generator to reformulate the search and retry, so missing line items or supporting facts are pulled in on a follow-up pass. Independent tasks run in parallel, and an optional verification gate re-checks the synthesized answer for coverage gaps, wrong-subject drift, and silent omissions before finalizing. This decomposition is exactly what multi-hop benchmarks like Google Frames and table-centric benchmarks like FinanceBench and KG-RAG need, where a single retrieve-then-generate pass tends to miss dependencies or stop at the first partial match.
+
+The added accuracy comes at a cost. Each query uses 2–6 LLM calls across the datasets, because complex queries trigger full planning, retries, and verification. Simple queries stay fast: when initial retrieval already answers the question, the planner emits an empty plan and the pipeline skips straight to synthesis. Agentic RAG therefore defaults to off; enable it per request or per deployment for multi-hop, ambiguous, cross-document, and numeric-extraction workloads.
+
 ## Related Topics
 
 - [Evaluate Your NVIDIA RAG Blueprint System](evaluate.md)
 - [Enable Reasoning in Nemotron LLM Models](enable-nemotron-thinking.md)
+- [Agentic RAG for NVIDIA RAG Blueprint](agentic-rag.md)
 - [VLM-Based Inferencing in RAG](vlm.md)
 - [Image Captioning Support](image_captioning.md)
 - [Best Practices for Common Settings](accuracy_perf.md)
