@@ -89,8 +89,8 @@ For any operational task, use the `rag-blueprint` skill (`.agents/skills/rag-blu
 
 Filesystem benchmarks (`corpus/` + `train.json` + `scripts/eval/evaluate_rag.py`)
 
-- **Skill:** `skill-source/.agents/skills/rag-eval/SKILL.md` — routing, prerequisites, gotchas (repo root, ingestor base URL without `/v1`, stale collections).
-- **References** (under `skill-source/.agents/skills/rag-eval/references/`): `dataset-and-conversion.md`, `benchmark-execution.md` (runs, quality flags, errors, `NVIDIA_API_KEY` hygiene), `evaluate-rag-cli.md`, `result-analysis.md`. Latency/throughput: **rag-perf** skill.
+- **Skill:** `skills/rag-eval/SKILL.md` — routing, prerequisites, gotchas (repo root, ingestor base URL without `/v1`, stale collections).
+- **References** (under `skills/rag-eval/references/`): `dataset-and-conversion.md`, `benchmark-execution.md` (runs, quality flags, errors, `NVIDIA_API_KEY` hygiene), `evaluate-rag-cli.md`, `result-analysis.md`. Latency/throughput: **rag-perf** skill.
 - **Install:** `uv sync --project scripts/eval` — deps live in `scripts/eval/pyproject.toml`.
 - **Run** (from repo root): `uv run --project scripts/eval python scripts/eval/evaluate_rag.py --dataset-paths … --host … --port …`. Export **`NVIDIA_API_KEY`** for RAGAS; optional **`RAG_EVAL_JUDGE_MODEL`** (default `mistralai/mixtral-8x22b-instruct-v0.1`).
 - **Docs:** dataset contract and README examples — `scripts/eval/README.md`; methodology and notebooks — `docs/evaluate.md`, `notebooks/evaluation_*.ipynb`.

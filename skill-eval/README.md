@@ -8,9 +8,9 @@ Replicated from the VSS team's `skill-eval/` framework — same adapter / spec /
 
 ## What it tests
 
-The `rag-blueprint` skill (`../skill-source/.agents/skills/rag-blueprint/`) — verifying that the skill, driving an agent end-to-end, can complete a deployment scenario and that the resulting system passes a list of natural-language checks.
+The `rag-blueprint` skill (`../skills/rag-blueprint/`) — verifying that the skill, driving an agent end-to-end, can complete a deployment scenario and that the resulting system passes a list of natural-language checks.
 
-Each eval is one JSON spec under `../skill-source/.agents/skills/rag-blueprint/eval/<name>.json`. A spec describes:
+Each eval is one JSON spec under `../skills/rag-blueprint/eval/<name>.json`. A spec describes:
 - the host environment the agent runs against (prose),
 - one or more **tasks** (`expects[]`) the agent must perform in order, and
 - per-task **checks** the LLM-as-judge will grade after the agent finishes.
@@ -57,7 +57,7 @@ cd skill-eval
 # Generate per-step task directories from the spec
 python3 adapters/rag-blueprint/generate.py \
   --output-dir datasets/nvidia-hosted \
-  --skill-dir ../skill-source/.agents/skills/rag-blueprint
+  --skill-dir ../skills/rag-blueprint
 
 # Run both steps
 uvx harbor run \
@@ -109,7 +109,7 @@ skill-eval/
         ├── solution/solve.sh          ← oracle stub
         └── skills/rag-blueprint/      ← skill copy (allowed-tools: stripped)
 
-../skill-source/.agents/skills/rag-blueprint/
+../skills/rag-blueprint/
 ├── SKILL.md                           ← the skill itself
 ├── references/                        ← skill reference docs
 └── eval/                              ← eval specs — add new ones here!
@@ -147,7 +147,7 @@ The adapter is the **only** skill-specific piece. The environment (`local_env.py
 
 Each spec produces its own dataset and runs independently. To add a new eval (e.g. Helm deploy):
 
-1. **Write the spec** at `../skill-source/.agents/skills/rag-blueprint/eval/<name>.json`. Required shape:
+1. **Write the spec** at `../skills/rag-blueprint/eval/<name>.json`. Required shape:
 
    ```json
    {
@@ -175,8 +175,8 @@ Each spec produces its own dataset and runs independently. To add a new eval (e.
    ```bash
    python3 adapters/rag-blueprint/generate.py \
      --output-dir datasets/<eval-name> \
-     --skill-dir ../skill-source/.agents/skills/rag-blueprint \
-     --spec ../skill-source/.agents/skills/rag-blueprint/eval/<name>.json
+     --skill-dir ../skills/rag-blueprint \
+     --spec ../skills/rag-blueprint/eval/<name>.json
    ```
 
    The eval-name in task names is auto-derived from the spec filename
@@ -217,7 +217,7 @@ The framework is structured so adding a new skill is a copy-and-edit of the adap
    DEFAULT_SPEC = "<default>.json"             # default spec when --spec is omitted
    ```
 
-3. Add specs at `<your-skill-source>/eval/<name>.json` and run `generate.py` the same way.
+3. Add specs at `<your-skill-dir>/eval/<name>.json` and run `generate.py` the same way.
 
 `envs/local_env.py` and `verifiers/generic_judge.py` work unchanged — they're skill-agnostic.
 
