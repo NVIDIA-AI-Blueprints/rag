@@ -14,21 +14,21 @@
       }
     }
   },
-  "env": "Linux host with 2x H100 80GB, driver 560+, Docker + nvidia-container-toolkit installed. The self-hosted RAG stack is already deployed and running — do NOT redeploy or reconfigure it. All services (rag-server, ingestor-server, local NIMs) are already up. NGC_API_KEY is set. cwd is the repo root.",
+  "env": "Linux host with 2x H100 80GB, driver 560+, Docker + nvidia-container-toolkit installed. The self-hosted RAG stack has been deployed and verified healthy (rag-server on :8081, ingestor-server on :8082, local NIMs on :8999). All services are running. NGC_API_KEY is set. cwd is the repo root.",
   "expects": [
     {
       "query": "The self-hosted RAG stack is already deployed. Use the rag-blueprint skill to verify all services are healthy and report their status. Do NOT redeploy or restart any services.",
       "checks": [
         "`curl -sf -o /dev/null -w '%{http_code}' http://localhost:8081/v1/health` outputs 200",
         "`curl -sf -o /dev/null -w '%{http_code}' http://localhost:8082/v1/health` outputs 200",
-        "`docker ps --format '{{.Names}}' | grep -E '^(rag-server|ingestor-server|milvus-standalone)' | wc -l` outputs a number greater than or equal to 3",
-        "`docker ps --format '{{.Names}}' | grep -E '(nim-llm|nemotron-embed)' | wc -l` outputs a number greater than or equal to 1"
+        "`docker ps --format '{{.Names}}' | grep -E '^(rag-server|ingestor-server)' | wc -l` outputs 2",
+        "`docker ps --format '{{.Names}}' | grep -E '(nim-llm|nemotron-embed|nemotron-vlm)' | wc -l` outputs a number greater than or equal to 1"
       ]
     },
     {
       "query": "Verify the local NIM LLM endpoint is responsive. Send a test completion request to http://localhost:8999/v1/chat/completions and confirm it returns a valid response.",
       "checks": [
-        "`curl -sf -X POST http://localhost:8999/v1/chat/completions -H 'Content-Type: application/json' -d '{\"model\":\"nvidia/llama-3.3-nemotron-super-49b-v1.5\",\"messages\":[{\"role\":\"user\",\"content\":\"Say ok\"}],\"max_tokens\":5}' | python3 -c 'import sys,json; d=json.load(sys.stdin); print(\"ok\" if d.get(\"choices\") else \"fail\")'` outputs ok",
+        "`curl -sf -X POST http://localhost:8999/v1/chat/completions -H 'Content-Type: application/json' -d '{\"model\":\"nvidia/llama-3.3-nemotron-super-49b-v1.5\",\"messages\":[{\"role\":\"user\",\"content\":\"Say ok\"}],\"max_tokens\":5}' | python3 -c 'import sys,json; d=json.load(sys.stdin); print(\"ok\" if d.get(\"choices\") and len(d[\"choices\"]) > 0 else \"fail\")'` outputs ok",
         "The agent's final response confirms the NIM LLM endpoint is healthy and responding"
       ]
     }

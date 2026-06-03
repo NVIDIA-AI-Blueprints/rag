@@ -189,8 +189,11 @@ mkdir -p /tmp/skill-eval/datasets /tmp/skill-eval/results
    (complete failure) — partial scores (0 < reward < 1) still run next steps.
 
    **TaskOutput timeout**: if waiting for a Harbor trial via TaskOutput for
-   more than 90 minutes with no completion signal, stop waiting, mark that
-   step as timed out, and move to the next step. Do NOT wait indefinitely.
+   more than 90 minutes with no completion signal, stop waiting, treat the
+   step as `reward = 0` (complete failure), record it as "⏱️ Timed out (90min)"
+   in the results comment, and move to the next step. Since reward = 0, the
+   skip-on-prior-fail logic will skip all subsequent steps for that spec.
+   Do NOT wait indefinitely.
 
 6. **Post ONE results comment per `(PR, spec)` batch** after all steps
    complete. Format per § Result comment format. Use:
