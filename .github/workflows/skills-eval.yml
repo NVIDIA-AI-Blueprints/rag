@@ -72,7 +72,7 @@ jobs:
         # prior runs block git clean. Docker alpine removes them without sudo.
         run: |
           WORKSPACE="${GITHUB_WORKSPACE:-/home/ubuntu/actions-runner/_work/rag/rag}"
-          for vol_dir in deploy/compose/volumes ci/volumes; do
+          for vol_dir in deploy/compose/volumes ci/volumes ci/deploy/compose; do
             TARGET="$WORKSPACE/$vol_dir"
             if [ -d "$TARGET" ]; then
               echo "Cleaning $TARGET"
@@ -109,8 +109,8 @@ jobs:
           filters: |
             skills:
               - 'skills/**'
-              - 'skill-source/**'
             harness:
+              - 'scripts/validate_skill_versions.py'
               - '.github/skill-eval/**'
               - '.github/workflows/skills-eval.yml'
               - 'ci/run_skill_eval.sh'

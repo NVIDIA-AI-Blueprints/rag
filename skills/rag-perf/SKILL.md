@@ -57,7 +57,7 @@ Drive a deployed NVIDIA RAG Blueprint server with a YAML config, run a server-si
 
 ## Instructions
 
-1. **Pick a preset.** The three under [`scripts/rag-perf/configs/`](../../../../scripts/rag-perf/configs) are:
+1. **Pick a preset.** The three under [`scripts/rag-perf/configs/`](../../scripts/rag-perf/configs) are:
    - `quick_profile.yaml` — profile-only, ~30 s. Skips load test. For fast iteration on retrieval / reranker tuning.
    - `single_run.yaml` — one concurrency level, profiling + aiperf, ~2 min. Regression checks.
    - `sweep.yaml` — multi-axis sweep. `load.concurrency`, `rag.vdb_top_k`, `rag.reranker_top_k` are all `int | list[int]`; any of them as a list becomes a sweep axis (Cartesian product).
@@ -76,7 +76,7 @@ Drive a deployed NVIDIA RAG Blueprint server with a YAML config, run a server-si
 
 6. **Summarise for the user.** When reporting back, follow the playbook in [`references/output-and-analysis.md#summarising-results-to-the-user`](references/output-and-analysis.md#summarising-results-to-the-user): pick the canonical result file for the run shape, build a headline table (concurrency × top-k axes × TTFT × throughput × bottleneck × citation quality), compute scaling efficiency on sweeps, **always flag** zero citations / non-zero error rate / suspect `llm_ttft_ms` / small-sample p99, and propose a concrete next-experiment YAML.
 
-7. **Tune.** Schema is fully documented in [`docs/performance-benchmarking.md`](../../../../docs/performance-benchmarking.md) and the deeper-dive references below. Common knobs: turn `aiperf.enabled: false` for profile-only mode, increase `load.iterations` for variance estimation, set `load.sleep_between_points_s: 60` for overnight Cartesian sweeps.
+7. **Tune.** Schema is fully documented in [`docs/performance-benchmarking.md`](../../docs/performance-benchmarking.md) and the deeper-dive references below. Common knobs: turn `aiperf.enabled: false` for profile-only mode, increase `load.iterations` for variance estimation, set `load.sleep_between_points_s: 60` for overnight Cartesian sweeps.
 
 ## Examples
 
@@ -155,14 +155,14 @@ uv run --project scripts/rag-perf python -m pytest tests/unit/test_rag_perf/
 
 | Piece | Location |
 |---|---|
-| Driver | [`scripts/rag-perf/rag_perf/cli.py`](../../../../scripts/rag-perf/rag_perf/cli.py) (`main` is the single Click command) |
-| Schema | [`scripts/rag-perf/rag_perf/config.py`](../../../../scripts/rag-perf/rag_perf/config.py) (`RunConfig` and sub-models) |
-| Orchestrator | [`scripts/rag-perf/rag_perf/runner.py`](../../../../scripts/rag-perf/rag_perf/runner.py) (`BenchmarkRunner.run`, `RagProfiler`, `AiperfRunner`) |
-| aiperf plugin | [`scripts/rag-perf/rag_perf/plugin/nvidia_rag.py`](../../../../scripts/rag-perf/rag_perf/plugin/nvidia_rag.py) |
-| User-facing doc | [`docs/performance-benchmarking.md`](../../../../docs/performance-benchmarking.md) |
-| Presets | [`scripts/rag-perf/configs/{quick_profile,single_run,sweep}.yaml`](../../../../scripts/rag-perf/configs/) |
-| Sample queries | [`scripts/rag-perf/examples/queries.jsonl`](../../../../scripts/rag-perf/examples/queries.jsonl) |
-| Synthetic prompts | [`scripts/rag-perf/prompts/default_prompts.yaml`](../../../../scripts/rag-perf/prompts/default_prompts.yaml) |
+| Driver | [`scripts/rag-perf/rag_perf/cli.py`](../../scripts/rag-perf/rag_perf/cli.py) (`main` is the single Click command) |
+| Schema | [`scripts/rag-perf/rag_perf/config.py`](../../scripts/rag-perf/rag_perf/config.py) (`RunConfig` and sub-models) |
+| Orchestrator | [`scripts/rag-perf/rag_perf/runner.py`](../../scripts/rag-perf/rag_perf/runner.py) (`BenchmarkRunner.run`, `RagProfiler`, `AiperfRunner`) |
+| aiperf plugin | [`scripts/rag-perf/rag_perf/plugin/nvidia_rag.py`](../../scripts/rag-perf/rag_perf/plugin/nvidia_rag.py) |
+| User-facing doc | [`docs/performance-benchmarking.md`](../../docs/performance-benchmarking.md) |
+| Presets | [`scripts/rag-perf/configs/{quick_profile,single_run,sweep}.yaml`](../../scripts/rag-perf/configs/) |
+| Sample queries | [`scripts/rag-perf/examples/queries.jsonl`](../../scripts/rag-perf/examples/queries.jsonl) |
+| Synthetic prompts | [`scripts/rag-perf/prompts/default_prompts.yaml`](../../scripts/rag-perf/prompts/default_prompts.yaml) |
 | Config schema details | [`references/config-schema.md`](references/config-schema.md) |
 | Synthetic-query generation | [`references/synthetic-generation.md`](references/synthetic-generation.md) |
 | Output layout & metric semantics | [`references/output-and-analysis.md`](references/output-and-analysis.md) |
