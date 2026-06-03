@@ -12,18 +12,18 @@ Agentic RAG treats the query as something to reason about, not a single retrieva
 
 The [NVIDIA RAG Blueprint](readme.md) implements Agentic RAG as a LangGraph plan-and-execute pipeline next to the standard RAG chain. It includes:
 
-- **Two-phase planning**—an initial scope-discovery phase learns what the corpus holds for ambiguous queries, then a targeted answer-planning phase yields concrete retrieval tasks.
-- **Mini-agent task execution**—each task runs a small retrieve-answer-retry loop; a seed-query generator LLM reformulates search when the partial answer shows missing information.
-- **Synthesis**—task sub-answers and initial retrieval context merge into one final answer.
-- **Optional verification**—after synthesis, a quality gate flags coverage gaps, vague claims, and wrong-subject drift, then re-retrieves to close them.
+- **Two-phase planning**: an initial scope-discovery phase learns what the corpus holds for ambiguous queries, then a targeted answer-planning phase yields concrete retrieval tasks.
+- **Mini-agent task execution**: each task runs a small retrieve-answer-retry loop; a seed-query generator LLM reformulates search when the partial answer shows missing information.
+- **Synthesis**: task sub-answers and initial retrieval context merge into one final answer.
+- **Optional verification**: after synthesis, a quality gate flags coverage gaps, vague claims, and wrong-subject drift, then re-retrieves to close them.
 
-The pipeline defaults to off because Agentic RAG trades latency and extra LLM calls for accuracy. Use it for multi-hop questions, ambiguity, cross-document queries, and numeric pulls from tables or charts. Enable it for a whole deployment or per request—see [Enable Agentic RAG](#enable-agentic-rag).
+The pipeline defaults to off because Agentic RAG trades latency and extra LLM calls for accuracy. Use it for multi-hop questions, ambiguity, cross-document queries, and numeric pulls from tables or charts. Enable it for a whole deployment or per request. See [Enable Agentic RAG](#enable-agentic-rag).
 
 ## Key Benefits
 
-- **No dataset-specific configuration.** Scope discovery adapts to any collection; you don't need per-corpus rules.
-- **Handles ambiguous queries.** Scope discovery probes the vector database before planning, so under-specified questions align with what's actually in the corpus.
-- **Adaptive cost.** Simple queries use the initial retrieval only (few LLM calls); complex queries get full planning, retries, and verification.
+- **No dataset-specific configuration.** Scope discovery adapts to any collection; you do not need per-corpus rules.
+- **Handles ambiguous queries.** Scope discovery probes the vector database before planning, so under-specified questions align with what is actually in the corpus.
+- **Adaptive cost.** Basic queries use the initial retrieval only (few LLM calls); complex queries get full planning, retries, and verification.
 - **Parallel tasks.** Independent plan tasks run together to reduce wall time.
 - **Verification gate.** Post-synthesis checks catch incomplete coverage, vague answers, false negatives, and wrong-subject drift, then re-retrieve to fill gaps.
 
@@ -31,8 +31,8 @@ The pipeline defaults to off because Agentic RAG trades latency and extra LLM ca
 
 - Latency and LLM-call count exceed the standard chain. Prefer the per-request override ([Enable per request](#enable-per-request)) over a global default on latency-sensitive paths.
 - The agentic path does not use NeMo Guardrails, Self-Reflection, Query Decomposition, or VLM Inference. Query rewriting, multi-turn history, multi-collection retrieval, citations, filter generation, and reranking are supported.
-- Verification runs once; there's no nested verification loop.
-- Tasks in a plan run at one parallel level; there's no DAG or depends-on construct.
+- Verification runs once; there is no nested verification loop.
+- Tasks in a plan run at one parallel level; there is no DAG or depends-on construct.
 - Response metadata that is specific to the Standard RAG single-pass pipeline can be omitted or returned empty for Agentic RAG when it does not map cleanly to the multi-step agentic flow.
 
 ## Observability
@@ -45,14 +45,14 @@ Use `deploy/config/agentic-rag-metrics-dashboard.json` to view these metrics in 
 
 The pipeline is a LangGraph state machine with five parts:
 
-1. **Initial Retrieval**—runs the user query through the standard `/search` path (vector DB and reranker to top-k chunks) so planning reflects what's in the corpus.
+1. **Initial Retrieval**: runs the user query through the standard `/search` path (vector DB and reranker to top-k chunks) so planning reflects what is in the corpus.
 2. **Planner (two-phase).** One LLM picks among three plan shapes:
-   - *Scope discovery plan*—two or three discovery tasks probe the corpus when the query is ambiguous; the planner runs again with those results.
-   - *Answer plan*—answer tasks tied to what turned up.
-   - *Empty plan*—no tasks; initial retrieval is enough and synthesis follows directly (the low-cost path for simple queries).
-3. **Task Execute**—each task is a mini-agent: retrieve, answer, and if the answer is partial, the seed-query generator issues a follow-up query for what's missing, then retries. Tasks in a plan run concurrently.
-4. **Synthesis**—merges task sub-answers, initial retrieval context, and the resolved query into one answer. If every task returns `[NO DATA]`, it falls back to the initial context.
-5. **Verification (optional)**—checks the answer for gaps. On `pass`, you're done. On `fail`, follow-up tasks use the same execute engine and synthesis runs again with the gap data.
+   - *Scope discovery plan*: two or three discovery tasks probe the corpus when the query is ambiguous; the planner runs again with those results.
+   - *Answer plan*: answer tasks tied to what turned up.
+   - *Empty plan*: no tasks; initial retrieval is enough and synthesis follows directly (the low-cost path for basic queries).
+3. **Task Execute**: each task is a mini-agent: retrieve, answer, and if the answer is partial, the seed-query generator issues a follow-up query for what is missing, then retries. Tasks in a plan run concurrently.
+4. **Synthesis**: merges task sub-answers, initial retrieval context, and the resolved query into one answer. If every task returns `[NO DATA]`, it falls back to the initial context.
+5. **Verification (optional)**: checks the answer for gaps. On `pass`, you are done. On `fail`, follow-up tasks use the same execute engine and synthesis runs again with the gap data.
 
 The diagram below shows how the stages connect, including the scope-replan loop back into the planner and the verify-replan loop back into task execution.
 
@@ -63,12 +63,13 @@ Agentic RAG pipeline — initial retrieval feeds the planner, which emits an emp
 
 ## Enable Agentic RAG
 
+(enable-per-request)=
 ### Enable per request (API) (recommended)
 
 Prefer enabling Agentic RAG per request with the `agentic` field in the `/v1/generate` body.
 The server `ENABLE_AGENTIC_RAG` env var only sets the default when `agentic` is omitted.
 
-```jsonc
+```json
 {
   "messages": [{"role": "user", "content": "..."}],
   "use_knowledge_base": true,
@@ -79,7 +80,7 @@ The server `ENABLE_AGENTIC_RAG` env var only sets the default when `agentic` is 
 
 When `agentic` is omitted or `null`, the server uses `ENABLE_AGENTIC_RAG`. Agentic RAG applies only if `use_knowledge_base=true`. The agentic path respects `enable_streaming`: when `true` (default), it streams stage events and final tokens as Server-Sent Events; when `false`, the graph finishes and returns the full answer in one chunk. The standard RAG chain always streams.
 
-With streaming on (the default), the RAG UI surfaces each stage as the graph runs—initial retrieval, the plan, per-task execution, and synthesis stream in before the final answer.
+With streaming on (the default), the RAG UI surfaces each stage as the graph runs: initial retrieval, the plan, per-task execution, and synthesis stream in before the final answer.
 
 ```{image} assets/ui-agentic-rag-streaming.png
 :width: 750px
@@ -87,7 +88,7 @@ With streaming on (the default), the RAG UI surfaces each stage as the graph run
 
 ### Change the deployment default (environment variable)
 
-Use this to change the default for requests that don't set `agentic`.
+Use this to change the default for requests that do not set `agentic`.
 
 ### Docker Deployment
 

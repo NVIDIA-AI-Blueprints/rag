@@ -10,7 +10,7 @@ This documentation contains the release notes for [NVIDIA RAG Blueprint](readme.
 
 ## Release 2.6.0 (2026-05-30)
 
-This release adds [Agentic RAG](./agentic-rag.md) support with plan-and-execute pipelines, streaming responses, and UI integration; changes the default vector database to Elasticsearch and the default object store to SeaweedFS; adds [Red Hat OpenShift](./deploy-helm-openshift.md) support for Helm-based deployment; and introduces new [agent skills](../skill-source/README.md) for deployment, evaluation, and performance tooling.
+This release adds [Agentic RAG](./agentic-rag.md) support with plan-and-execute pipelines, streaming responses, and UI integration; changes the default vector database to Elasticsearch and the default object store to SeaweedFS; adds [Red Hat OpenShift](./deploy-helm-openshift.md) support for Helm-based deployment; and introduces new [agent skills](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/skill-source/README.md) for deployment, evaluation, and performance tooling.
 
 ### Highlights
 
@@ -25,8 +25,8 @@ This release includes the following key updates:
 - Promoted `nvidia/llama-nemotron-embed-vl-1b-v2` as the default embedding model. The text embedding model `nvidia/llama-nemotron-embed-1b-v2` remains available as [an optional configuration](./change-model.md#switch-from-the-vlm-embedder-to-the-text-only-embedder).
 - Added [VLM reranker support](./change-model.md#switch-to-the-vlm-reranker) as an opt-in.
 - Added dynamic filter expression generation for Elasticsearch.
-- Published [RAG performance tooling](../scripts/rag-perf/) and [skills](../skill-source/README.md) to use it easily.
-- Published the [RAG evaluation framework](../scripts/eval/README.md) and [skills](../skill-source/README.md) to use it easily.
+- Published [RAG performance tooling](https://github.com/NVIDIA-AI-Blueprints/rag/tree/main/scripts/rag-perf) and [skills](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/skill-source/README.md) with the bundled skills.
+- Published the [RAG evaluation framework](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/scripts/eval/README.md) and [skills](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/skill-source/README.md) with the bundled skills.
 - Updated NV-Ingest to version 26.3.0.
 - Updated OCR NIM naming from `nemoretriever-ocr-v1` to `nemotron-ocr-v1`.
 - Added OpenClaw plugin for agent-driven deploy/configure/eval workflows.
@@ -60,7 +60,7 @@ This release includes the following key updates:
 - **Added MIG support for RTX 6000.** For details, refer to [MIG Deployment](mig-deployment.md) and use `values-mig-rtx6000.yaml` and `mig-config-rtx6000.yaml`.
 - Added documentation for the experimental Nemotron-parse-only ingestion pipeline. This configuration allows you to perform extraction using only Nemotron Parse through NV-Ingest, without relying on OCR, page-elements, graphic-elements, or table-structure NIMs. For more information, refer to [nemotron-parse-extraction.md](nemotron-parse-extraction.md#experimental-nemotron-parse-only-extraction).
 - Several bug fixes, including frontend CVE resolutions, improved multimodal content concatenation for VLM embeddings, enhanced VDB serialization for high-concurrency parallel ingestion, and updates to observability and NeMo Guardrails configurations.
-- Added agentic skills support: the `rag-blueprint` skill enables AI coding assistants (Claude Code, Cursor, Codex, etc.) to deploy, configure, troubleshoot, and manage the RAG Blueprint autonomously. For details, refer to [RAG Blueprint Agent Skill](../skill-source/README.md).
+- Added agentic skills support: the `rag-blueprint` skill enables AI coding assistants (Claude Code, Cursor, Codex, and so on) to deploy, configure, troubleshoot, and manage the RAG Blueprint autonomously. For details, refer to [RAG Blueprint Agent Skill](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/skill-source/README.md).
 - Added [accuracy benchmark results](accuracy-benchmarks.md) across seven public datasets (RagBattlepacket, KG-RAG, Financebench, DC767, HotPotQA, Google Frames, and Vidore), comparing LLM and VLM configurations with reasoning on/off. Benchmarks use the NVIDIA Answer Accuracy metric from RAGAS.
 
 ### Fixed Known Issues
@@ -101,7 +101,7 @@ This release contains the following key changes:
   - Compatibility with the [NVIDIA NeMo Agent Toolkit (NAT)](https://github.com/NVIDIA/NeMo-Agent-Toolkit)
 - Summarization enhancements including the following. For details, refer to [Document Summarization Customization Guide](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/summarization.ipynb).
   - Shallow summarization support
-  - Easy model switches and dedicated configurations
+  - Direct model switches and dedicated configurations
   - Ease of prompt changes
 - Reserved field names `type`, `subtype`, and `location` for NeMo Retriever Library exclusive use in metadata schemas.
 - Added support for [rag_library_lite_usage.ipynb](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/rag_library_lite_usage.ipynb) which demonstrates containerless deployment of the NVIDIA RAG Python package in lite mode.
@@ -141,7 +141,7 @@ The following are the known issues for the NVIDIA RAG Blueprint:
 - Currently, Helm-based deployment is not supported for [NeMo Guardrails](nemo-guardrails.md).
 - The Blueprint responses can have significant latency when using [NVIDIA API Catalog cloud hosted models](deploy-docker-nvidia-hosted.md).
 - The accuracy of the pipeline is optimized for certain file types like `.pdf`, `.txt`, `.docx`. The accuracy may be poor for other file types supported by NeMo Retriever Library, since image captioning is disabled by default.
-- When updating model configurations in Kubernetes `values.yaml` (for example, changing from 70B to 8B models), the RAG UI automatically detects and displays the new model configuration from the backend. No container rebuilds are required - simply redeploy the Helm chart with updated values and refresh the UI to see the new model settings in the Settings panel.
+- When updating model configurations in Kubernetes `values.yaml` (for example, changing from 70B to 8B models), the RAG UI automatically detects and displays the new model configuration from the backend. No container rebuilds are required - redeploy the Helm chart with updated values and refresh the UI to see the new model settings in the Settings panel.
 - The NeMo LLM microservice can take 5-6 minutes to start for every deployment.
 - B200 GPUs are not supported for the following advanced features. For these features, use H100 or A100 GPUs instead.
   - Image captioning support for ingested documents
