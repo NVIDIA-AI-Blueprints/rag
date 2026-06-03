@@ -585,6 +585,17 @@ class MilvusVDB(VDBRagIngest):
         This is a blocking (non-async) method. Callers in an async context must
         dispatch it via asyncio.to_thread to avoid blocking the event loop.
         """
+        # milvus-lite does not implement ManualCompaction (the RPC returns
+        # UNIMPLEMENTED). Calling it surfaces a pymilvus error log and our own
+        # warning even though the failure is benign. Lite endpoints are file
+        # URIs with no URL scheme, so skip the call up front.
+        if not self.url.scheme:
+            logger.debug(
+                "Skipping compaction on milvus-lite endpoint %s; ManualCompaction "
+                "is unimplemented in lite mode.",
+                self.vdb_endpoint,
+            )
+            return
         try:
             job_id = self._client.compact(collection_name)
             logger.debug(
@@ -856,11 +867,16 @@ class MilvusVDB(VDBRagIngest):
                 )
 
             if result_dict is not None:
-                delete_count = (
-                    resp.get("delete_count", 0)
-                    if isinstance(resp, dict)
-                    else getattr(resp, "delete_count", 0)
-                )
+                # MilvusClient.delete returns either a dict {"delete_count": N, ...}
+                # or, against older Milvus cores (including milvus-lite), the list
+                # of primary keys that were removed. Handle both so the lite path
+                # doesn't falsely report a successful delete as "not found".
+                if isinstance(resp, dict):
+                    delete_count = resp.get("delete_count", 0)
+                elif isinstance(resp, list):
+                    delete_count = len(resp)
+                else:
+                    delete_count = getattr(resp, "delete_count", 0)
                 if delete_count == 0:
                     logger.info(f"File {doc_name} does not exist in the vectorstore")
                     result_dict["not_found"].append(doc_name)
