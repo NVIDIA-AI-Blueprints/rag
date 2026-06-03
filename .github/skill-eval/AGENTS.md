@@ -162,15 +162,35 @@ mkdir -p /tmp/skill-eval/datasets /tmp/skill-eval/results
    done
    ```
 
-   If `RAG_RUNNING=false` and `rag-blueprint/eval/h100.json` exists in
-   the repo, run it first to deploy the self-hosted RAG stack. This
-   happens automatically regardless of which skills are in the PR diff —
-   skill authors do NOT need to declare this dependency in their specs.
-   Once deployed, all subsequent H100 specs reuse the running stack.
+   If `RAG_RUNNING=false`, deploy the RAG stack **directly via brev exec**
+   (do NOT use Harbor for deployment — Harbor is for evaluation only):
 
-   Use the canonical Harbor invocation from § Harbor invocation below.
-   One step at a time, in order. Skip remaining steps if a step's
-   reward < 1.0 (skip-on-prior-fail).
+   ```bash
+   brev exec "$BREV_INSTANCE" -- \
+     "cd /home/nvidia/rag && TAG=latest docker compose \
+       -f deploy/compose/docker-compose-rag-server.yaml \
+       -f deploy/compose/docker-compose-ingestor-server.yaml \
+       -f deploy/compose/vectordb.yaml \
+       -f deploy/compose/nims.yaml \
+       --env-file deploy/compose/.env \
+       up -d --remove-orphans" 2>&1 | tail -10
+
+   # Wait for rag-server health (up to 15 min)
+   DEADLINE=$(( $(date +%s) + 900 ))
+   while [ "$(date +%s)" -lt "$DEADLINE" ]; do
+     brev exec "$BREV_INSTANCE" -- \
+       "curl -sf http://localhost:8081/v1/health" 2>/dev/null && break
+     sleep 30
+   done
+   ```
+
+   Once the stack is healthy, run Harbor trials for the actual skill specs.
+   One step at a time, in order. Skip remaining steps only if reward == 0
+   (complete failure) — partial scores (0 < reward < 1) still run next steps.
+
+   **TaskOutput timeout**: if waiting for a Harbor trial via TaskOutput for
+   more than 90 minutes with no completion signal, stop waiting, mark that
+   step as timed out, and move to the next step. Do NOT wait indefinitely.
 
 6. **Post ONE results comment per `(PR, spec)` batch** after all steps
    complete. Format per § Result comment format. Use:
@@ -290,9 +310,9 @@ uvx --with boto3 harbor run \
   --ak api_base="$ANTHROPIC_BASE_URL/v1" \
   --ae CLAUDE_CODE_DISABLE_THINKING=1 \
   --ae TAG=latest \
-  --environment-build-timeout-multiplier 3.0 \
-  --agent-timeout-multiplier 3.0 \
-  --verifier-timeout-multiplier 3.0 \
+  --environment-build-timeout-multiplier 1.5 \
+  --agent-timeout-multiplier 1.5 \
+  --verifier-timeout-multiplier 1.5 \
   --max-retries 0 -n 1 --yes \
   -o /tmp/skill-eval/results/"$GITHUB_RUN_ID"
 ```
