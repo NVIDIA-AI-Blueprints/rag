@@ -18,10 +18,21 @@ to provide an enterprise-ready framework.
 With a pre-built reference UI, open-source code, and multiple deployment options — including local docker (with and without NVIDIA Hosted endpoints) and Kubernetes —
 it serves as a flexible starting point that developers can adapt and extend to their specific needs.
 
+For complex, multi-hop, or ambiguous questions, [**Agentic RAG**](docs/agentic-rag.md) adds a LangGraph plan-and-execute pipeline alongside the standard retrieve-then-generate chain — with scope discovery, parallel sub-tasks, synthesis, optional verification, and streaming stage events in the UI and API.
+
 
 
 ## Key Features
 
+<details>
+    <summary>Agentic RAG</summary>
+    <ul>
+        <li>LangGraph plan-and-execute pipeline for multi-hop, ambiguous, and cross-document queries</li>
+        <li>Scope discovery, parallel task execution, synthesis, and optional verification</li>
+        <li>Enable per request (<code>agentic: true</code> on <code>/v1/generate</code>) or deployment-wide (<code>ENABLE_AGENTIC_RAG</code>); select <strong>Pipeline → Agentic</strong> in the reference UI</li>
+        <li>Streaming stage events and reasoning traces — see <a href="docs/agentic-rag.md">Agentic RAG documentation</a></li>
+    </ul>
+</details>
 <details>
     <summary>Data Ingestion</summary>
     <ul>
@@ -32,6 +43,7 @@ it serves as a flexible starting point that developers can adapt and extend to t
 <details>
     <summary>Search and Retrieval</summary>
     <ul>
+        <li><a href="docs/agentic-rag.md">Agentic RAG pipeline</a> — plan-and-execute retrieval with scope discovery, parallel sub-task search, retries, and optional verification for multi-hop and cross-document queries</li>
         <li>Multi-collection searchability</li>
         <li>Hybrid search with dense and sparse search</li>
         <li>Reranking to further improve accuracy</li>
@@ -195,6 +207,7 @@ For details, refer to [Get Started](docs/deploy-docker-self-hosted.md).
 
 Refer to the [full documentation](docs/readme.md) to learn about the following:
 
+- [Agentic RAG](docs/agentic-rag.md) — plan-and-execute pipeline, API and UI usage, configuration, and limitations
 - Minimum Requirements
 - Deployment Options
 - Configuration Settings
