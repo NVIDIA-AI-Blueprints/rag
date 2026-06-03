@@ -28,7 +28,7 @@
     {
       "query": "Verify the local NIM LLM endpoint is responsive. Send a test completion request to http://localhost:8999/v1/chat/completions and confirm it returns a valid response.",
       "checks": [
-        "`curl -sf -X POST http://localhost:8999/v1/chat/completions -H 'Content-Type: application/json' -d '{\"model\":\"nvidia/llama-3.3-nemotron-super-49b-v1.5\",\"messages\":[{\"role\":\"user\",\"content\":\"Say ok\"}],\"max_tokens\":5}' | python3 -c 'import sys,json; d=json.load(sys.stdin); print(\"ok\" if d.get(\"choices\") and len(d[\"choices\"]) > 0 else \"fail\")'` outputs ok",
+        "`MODEL=$(curl -sf http://localhost:8999/v1/models | python3 -c 'import sys,json; print(json.load(sys.stdin)[\"data\"][0][\"id\"])' 2>/dev/null) && curl -sf -X POST http://localhost:8999/v1/chat/completions -H 'Content-Type: application/json' -d \"{\\\"model\\\":\\\"$MODEL\\\",\\\"messages\\\":[{\\\"role\\\":\\\"user\\\",\\\"content\\\":\\\"Say ok\\\"}],\\\"max_tokens\\\":5}\" | python3 -c 'import sys,json; d=json.load(sys.stdin); print(\"ok\" if d.get(\"choices\") and len(d[\"choices\"]) > 0 else \"fail\")'` outputs ok",
         "The agent's final response confirms the NIM LLM endpoint is healthy and responding"
       ]
     }
