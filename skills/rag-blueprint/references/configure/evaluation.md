@@ -11,7 +11,7 @@
 1. Read `docs/evaluate.md` for full evaluation methodology and setup.
 2. Choose the path:
    - `Notebooks` — interactive RAGAS workflows against a running stack.
-   - `CLI benchmark` — on-disk datasets and `evaluate_rag.py`; follow skill `rag-eval` (`skill-source/.agents/skills/rag-eval/SKILL.md`), `scripts/eval/README.md`, and the skill’s `references/` for conversion, flags, runs, and result parsing.
+   - `CLI benchmark` — on-disk datasets and `evaluate_rag.py`; follow skill `rag-eval` (`skills/rag-eval/SKILL.md`), `scripts/eval/README.md`, and the skill’s `references/` for conversion, flags, runs, and result parsing.
 3. Run evaluation against the deployed RAG pipeline.
 
 When building a CLI eval bundle from a public benchmark, materialize `corpus/` as PDF when you can (multimodal content keeps images embedded; matches default `--file-type pdf`). If the source only provides web links or no file extension, default to PDF rather than plain text. Details: `rag-eval` → [`references/dataset-and-conversion.md`](../../../rag-eval/references/dataset-and-conversion.md) and `scripts/eval/README.md`.
@@ -34,11 +34,11 @@ When building a CLI eval bundle from a public benchmark, materialize `corpus/` a
 | `scripts/eval/evaluate_rag.py` | End-to-end ingest + generate + RAGAS scoring for one or more dataset roots |
 | `scripts/eval/pyproject.toml` | Dependencies for the CLI only; sync with `uv sync --project scripts/eval` |
 | `scripts/eval/README.md` | Dataset contract, flags, outputs |
-| `skill-source/.agents/skills/rag-eval/SKILL.md` | Router: layout, `train.json`, run/triage playbook |
-| `skill-source/.agents/skills/rag-eval/references/dataset-and-conversion.md` | External → `corpus/` + `train.json` |
-| `skill-source/.agents/skills/rag-eval/references/benchmark-execution.md` | Command examples, quality flags, errors, credential hygiene |
-| `skill-source/.agents/skills/rag-eval/references/evaluate-rag-cli.md` | Flag-level CLI detail |
-| `skill-source/.agents/skills/rag-eval/references/result-analysis.md` | Parsing summaries and metrics JSON |
+| `skills/rag-eval/SKILL.md` | Router: layout, `train.json`, run/triage playbook |
+| `skills/rag-eval/references/dataset-and-conversion.md` | External → `corpus/` + `train.json` |
+| `skills/rag-eval/references/benchmark-execution.md` | Command examples, quality flags, errors, credential hygiene |
+| `skills/rag-eval/references/evaluate-rag-cli.md` | Flag-level CLI detail |
+| `skills/rag-eval/references/result-analysis.md` | Parsing summaries and metrics JSON |
 
 ## Source Documentation
 - `docs/evaluate.md` — full evaluation guide and metric definitions

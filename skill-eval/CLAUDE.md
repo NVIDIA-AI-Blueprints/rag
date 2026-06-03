@@ -36,13 +36,13 @@ and used in task names + your chosen output directory:
 # Default eval (nvidia_hosted.json → datasets/nvidia-hosted/):
 python3 adapters/rag-blueprint/generate.py \
   --output-dir datasets/nvidia-hosted \
-  --skill-dir ../skill-source/.agents/skills/rag-blueprint
+  --skill-dir ../skills/rag-blueprint
 
-# Add a new eval — drop a spec under skill-source/.../eval/ and:
+# Add a new eval — drop a spec under skills/<skill>/eval/ and:
 python3 adapters/rag-blueprint/generate.py \
   --output-dir datasets/helm-deploy \
-  --skill-dir ../skill-source/.agents/skills/rag-blueprint \
-  --spec ../skill-source/.agents/skills/rag-blueprint/eval/helm_deploy.json
+  --skill-dir ../skills/rag-blueprint \
+  --spec ../skills/rag-blueprint/eval/helm_deploy.json
 
 ```
 

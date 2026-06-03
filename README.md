@@ -164,7 +164,7 @@ The following is a step-by-step explanation of the workflow from the end-user pe
 
 ## AI Agent Skill
 
-Agent skills in [`skill-source/`](skill-source/) let coding assistants (Claude Code, Cursor, Codex, etc.) operate this blueprint from natural language.
+Agent skills in [`skills/`](skills/) let coding assistants (Claude Code, Cursor, Codex, etc.) operate this blueprint from natural language.
 
 ### Install
 
@@ -172,7 +172,7 @@ Agent skills in [`skill-source/`](skill-source/) let coding assistants (Claude C
 npx skills add .
 ```
 
-Installs all skills below from `skill-source/.agents/skills/`.
+This installs the skills below from `skills/`.
 
 | Skill | Use for | Example prompts |
 |-------|---------|-----------------|
@@ -184,7 +184,7 @@ Pick the skill that matches the task: operations → **rag-blueprint**; answer q
 
 > **Note:** If routing is unclear, invoke explicitly: `/rag-blueprint`, `/rag-eval`, or `/rag-perf` plus your request.
 
-More detail: [`skill-source/README.md`](skill-source/README.md). OpenClaw plugin: [`.openclaw/README.md`](.openclaw/README.md).
+For skill architecture details, see [`skills/README.md`](skills/README.md). Skill content lives under [`skills/`](skills/) at the repo root (canonical path per the [agentskills.io](https://agentskills.io/specification) spec).
 
 
 ## Get Started With NVIDIA RAG Blueprint
