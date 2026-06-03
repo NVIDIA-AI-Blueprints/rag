@@ -78,7 +78,7 @@ pnpm run test:run                    # Tests
 
 ## Operations — `rag-blueprint` skill
 
-For any operational task — deploying, configuring, troubleshooting, or shutting down the RAG Blueprint — read and follow the repo skill at `skill-source/.agents/skills/rag-blueprint/SKILL.md`. If the skills have been installed into the working tree, `.agents/skills/rag-blueprint/SKILL.md` is also valid, but this checkout keeps the source copy under `skill-source/`.
+For any operational task — deploying, configuring, troubleshooting, or shutting down the RAG Blueprint — read and follow the repo skill at `skills/rag-blueprint/SKILL.md` (canonical path per the agentskills.io spec).
 
 The skill handles:
 

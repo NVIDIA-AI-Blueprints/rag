@@ -1,6 +1,6 @@
 # Config schema reference
 
-Load this when the user is authoring a new YAML, debugging a `Configuration errors` message, or asking which knob controls a behaviour. Schema is defined in [`scripts/rag-perf/rag_perf/config.py`](../../../../../scripts/rag-perf/rag_perf/config.py) (`RunConfig` + sub-models, Pydantic v2). User-facing prose is in [`docs/performance-benchmarking.md`](../../../../../docs/performance-benchmarking.md).
+Load this when the user is authoring a new YAML, debugging a `Configuration errors` message, or asking which knob controls a behaviour. Schema is defined in [`scripts/rag-perf/rag_perf/config.py`](../../../scripts/rag-perf/rag_perf/config.py) (`RunConfig` + sub-models, Pydantic v2). User-facing prose is in [`docs/performance-benchmarking.md`](../../../docs/performance-benchmarking.md).
 
 ## Top-level shape
 
@@ -74,7 +74,7 @@ Forwarded verbatim into the `/v1/generate` request body. **Per-query overrides**
 | `ignore_eos` | `false` | Set `true` alongside `min_tokens` to suppress early EOS — pins fixed output length irrespective of content. |
 | `temperature` | `0.0` | Sampling temperature passed to the RAG server's LLM. |
 
-> **`min_tokens: null` handling.** rag-perf strips None-valued generation fields before merging into the request body — the server's `Prompt.min_tokens: int` rejects an explicit null (would be a 422). This is in [`QueryLoader._build_request`](../../../../../scripts/rag-perf/rag_perf/query.py).
+> **`min_tokens: null` handling.** rag-perf strips None-valued generation fields before merging into the request body — the server's `Prompt.min_tokens: int` rejects an explicit null (would be a 422). This is in [`QueryLoader._build_request`](../../../scripts/rag-perf/rag_perf/query.py).
 
 ## `input`
 
@@ -110,7 +110,7 @@ Three fields are scalar-or-list:
 - `rag.vdb_top_k`
 - `rag.reranker_top_k`
 
-The full grid is the Cartesian product across whichever are lists. Each point yields a fresh `RunConfig` with all three resolved to scalars (see `BenchmarkRunner._iter_grid_points` in [`runner.py`](../../../../../scripts/rag-perf/rag_perf/runner.py)). Run shape:
+The full grid is the Cartesian product across whichever are lists. Each point yields a fresh `RunConfig` with all three resolved to scalars (see `BenchmarkRunner._iter_grid_points` in [`runner.py`](../../../scripts/rag-perf/rag_perf/runner.py)). Run shape:
 
 | Resolved grid | `iterations` | Output layout |
 |---|---|---|

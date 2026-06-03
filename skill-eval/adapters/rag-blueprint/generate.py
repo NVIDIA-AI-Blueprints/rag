@@ -5,18 +5,17 @@
 
 This adapter is named after the skill it serves (`rag-blueprint`). It is
 not tied to one eval — it accepts any spec under
-`skill-source/.agents/skills/rag-blueprint/eval/<name>.json` and derives
-the eval name (used in task names, dataset dir, and print output) from
-the spec filename.
+`skills/rag-blueprint/eval/<name>.json` and derives the eval name (used
+in task names, dataset dir, and print output) from the spec filename.
 
 Adding a new eval for the rag-blueprint skill:
     1. Drop a new spec, e.g. `helm_deploy.json`, into
-       `skill-source/.agents/skills/rag-blueprint/eval/`
+       `skills/rag-blueprint/eval/`
     2. Run:
          python3 generate.py \\
              --output-dir ../../datasets/helm-deploy \\
-             --skill-dir ../../../skill-source/.agents/skills/rag-blueprint \\
-             --spec ../../../skill-source/.agents/skills/rag-blueprint/eval/helm_deploy.json
+             --skill-dir ../../../skills/rag-blueprint \\
+             --spec ../../../skills/rag-blueprint/eval/helm_deploy.json
     3. Run Harbor against `datasets/helm-deploy/step-{1,N}` as usual.
 
 Adding evaluations for a different rag-* skill (e.g. rag-enable-vlm):
@@ -381,8 +380,7 @@ def main() -> None:
                              f"{DEFAULT_SKILL_NAME}.")
     parser.add_argument("--skill-dir", required=True,
                         help="Path to the source skill folder containing "
-                             "SKILL.md (e.g. skill-source/.agents/skills/"
-                             "<skill-name>).")
+                             "SKILL.md (e.g. skills/<skill-name>).")
     parser.add_argument("--spec", default=None,
                         help=f"Path to eval spec JSON "
                              f"(default: <skill-dir>/eval/{DEFAULT_SPEC})")

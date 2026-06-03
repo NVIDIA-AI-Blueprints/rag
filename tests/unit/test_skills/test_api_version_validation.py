@@ -23,8 +23,8 @@ from pathlib import Path
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-VALIDATOR_PATH = REPO_ROOT / "skill-source" / "validate_skill_api_versions.py"
-SKILLS_DIR = REPO_ROOT / "skill-source" / ".agents" / "skills"
+VALIDATOR_PATH = REPO_ROOT / "scripts" / "validate_skill_versions.py"
+SKILLS_DIR = REPO_ROOT / "skills"
 
 NVBASE_TOP_LEVEL_FIELDS = {
     "allowed-tools",
