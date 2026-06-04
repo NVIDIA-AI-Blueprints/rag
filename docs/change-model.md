@@ -50,6 +50,47 @@ Both names refer to the same underlying model. Use the appropriate name based on
 
 `nvidia/nemotron-3-super-120b-a12b` is the default LLM for this blueprint. For hardware requirements and RTX PRO 6000-specific setup, see the [Nemotron 3 Super deployment guide](nemotron3-super-deployment.md).
 
+##### Nemotron 3 Ultra
+
+`nvidia/nemotron-3-ultra-550b-a55b` is NVIDIA's largest open Nemotron 3 model — a hybrid Mamba-Transformer mixture-of-experts (MoE) with 550B total parameters (55B active per token) and up to a 1M-token context window, designed for the highest reasoning accuracy on complex agentic tasks.
+
+Choose the path that matches how you run the LLM:
+
+| Deployment path | When to use |
+|-----------------|-------------|
+| **On-premises (self-hosted NIM)** | You deploy and serve the model on your own GPUs |
+| **NVIDIA-hosted (API catalog)** | You call the model through [build.nvidia.com](https://build.nvidia.com/) — no local LLM NIM required |
+
+Use the model name `nvidia/nemotron-3-ultra-550b-a55b` in both paths.
+
+**On-premises (self-hosted NIM)**
+
+Nemotron 3 Ultra is a large model. Confirm your hardware meets the [NIM support matrix](https://docs.nvidia.com/nim/large-language-models/latest/reference/support-matrix.html#nemotron-3-ultra-550b-a55b) before you deploy.
+
+1. Configure the LLM NIM image in [`deploy/compose/nims.yaml`](../deploy/compose/nims.yaml) (update the `nim-llm` service). Use the [Nemotron 3 Ultra NIM on NGC](https://catalog.ngc.nvidia.com/orgs/nim/teams/nvidia/containers/nemotron-3-ultra-550b-a55b?version=2.0.5-variant) and follow the [self-hosted deployment guide on build.nvidia.com](https://build.nvidia.com/nvidia/nemotron-3-ultra-550b-a55b?nim=self-hosted) for image-specific setup.
+2. Set the model name so the RAG server matches the NIM:
+
+   ```bash
+   export APP_LLM_MODELNAME='nvidia/nemotron-3-ultra-550b-a55b'
+   ```
+
+3. Deploy or restart the stack:
+   - **Docker Compose:** [Deploy with Docker (Self-Hosted Models)](deploy-docker-self-hosted.md). For environment-variable details, see [For Self-Hosted On Premises Microservices](#for-self-hosted-on-premises-microservices).
+   - **Kubernetes (Helm):** [Deploy with Helm](deploy-helm.md). For `values.yaml` settings, see [For Helm Deployments](#for-helm-deployments).
+
+**NVIDIA-hosted (API catalog)**
+
+Point the RAG server at the NVIDIA-hosted endpoint. See [Deploy with Docker (NVIDIA-Hosted Models)](deploy-docker-nvidia-hosted.md).
+
+Set the model when you start the RAG server:
+
+```bash
+export APP_LLM_MODELNAME='nvidia/nemotron-3-ultra-550b-a55b'
+docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d
+```
+
+For reasoning budget tuning, low-effort mode, and streaming behavior, see [Enable Reasoning](enable-nemotron-thinking.md).
+
 
 ### Change the Embedding Model
 
