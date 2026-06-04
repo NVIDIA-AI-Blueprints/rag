@@ -62,14 +62,6 @@ The VLM feature uses predefined prompts that can be customized in [`src/nvidia_r
 - `VLM_FILTER_THINK_TOKENS` is retained as a compatibility setting; streamed
   reasoning is not wrapped or concatenated into `content`.
 
-**What reaches the streaming client** is structured by field:
-
-- Reasoning is filtered out of user-facing `content` and surfaced in
-  `reasoning_content` when the model emits it.
-- The final answer streams through `content`.
-- `VLM_FILTER_THINK_TOKENS` is retained as a compatibility setting; streamed
-  reasoning is not wrapped or concatenated into `content`.
-
 Set these parameters using environment variables in your deployment configuration (for example in `docker-compose-rag-server.yaml` or Helm `values.yaml`).
 
 ## Enable VLM with Docker Compose
