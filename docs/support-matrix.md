@@ -59,7 +59,7 @@ You can also modify the RAG Blueprint to use [NVIDIA-hosted](deploy-docker-nvidi
 
 ## Hardware Requirements (Kubernetes)
 
-To install the RAG Blueprint on Kubernetes, you need one of the following:
+To install the default RAG Blueprint Helm chart on Kubernetes, you need one of the following:
 
 - 9 x H100-80GB
 - 9 x B200

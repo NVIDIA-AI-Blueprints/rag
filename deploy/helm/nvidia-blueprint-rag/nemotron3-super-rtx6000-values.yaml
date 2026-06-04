@@ -1,0 +1,25 @@
+# Override values for Nemotron 3 Super on RTX 6000 Pro only.
+# Use after nemotron3-super-values.yaml:
+#   -f deploy/helm/nvidia-blueprint-rag/values.yaml \
+#   -f deploy/helm/nvidia-blueprint-rag/nemotron3-super-values.yaml \
+#   -f deploy/helm/nvidia-blueprint-rag/nemotron3-super-rtx6000-values.yaml
+# See docs/nemotron3-super-deployment.md. Requires host GRUB/reboot for RTX 6000 Pro.
+
+envVars:
+  LLM_MAX_TOKENS: "16256"  # use "1024" for non-reasoning mode
+
+nimOperator:
+  nim-llm:
+    env:
+      - name: NIM_HTTP_API_PORT
+        value: "8000"
+      - name: NIM_TRITON_LOG_VERBOSE
+        value: "1"
+      - name: NIM_SERVED_MODEL_NAME
+        value: "nvidia/nemotron-3-super-120b-a12b"
+      - name: NIM_MAX_MODEL_LEN
+        value: "32768"
+      - name: NCCL_P2P_DISABLE
+        value: "1"
+      - name: NIM_KVCACHE_PERCENT
+        value: "0.9"

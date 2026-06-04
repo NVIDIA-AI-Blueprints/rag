@@ -74,7 +74,7 @@ The following known issues have been resolved in this release:
 
 This release adds new features to the RAG pipeline for supporting agent workflows and enhances generations with VLMs augmenting multimodal input.
 
-### Highlights 
+### Highlights
 
 This release contains the following key changes:
 
@@ -100,7 +100,7 @@ This release contains the following key changes:
   - Compatibility with the [NVIDIA NeMo Agent Toolkit (NAT)](https://github.com/NVIDIA/NeMo-Agent-Toolkit)
 - Summarization enhancements including the following. For details, refer to [Document Summarization Customization Guide](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/summarization.ipynb).
   - Shallow summarization support
-  - Easy model switches and dedicated configurations
+  - Direct model switches and dedicated configurations
   - Ease of prompt changes
 - Reserved field names `type`, `subtype`, and `location` for NeMo Retriever Library exclusive use in metadata schemas.
 - Added support for [rag_library_lite_usage.ipynb](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/notebooks/rag_library_lite_usage.ipynb) which demonstrates containerless deployment of the NVIDIA RAG Python package in lite mode.

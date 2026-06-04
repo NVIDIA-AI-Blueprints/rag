@@ -71,6 +71,7 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
     - [Best Practices for Common Settings](accuracy_perf.md)
     - [Agentic RAG](agentic-rag.md)
     - [Change the LLM or Embedding Model](change-model.md)
+    - [Nemotron 3 Super Deployment](nemotron3-super-deployment.md)
     - [Customize LLM Parameters at Runtime](llm-params.md)
     - [Customize Prompts](prompt-customization.md)
     - [Model Profiles for Hardware Configurations](model-profiles.md)
@@ -203,6 +204,7 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
    Best Practices for Common Settings <accuracy_perf.md>
    Agentic RAG <agentic-rag.md>
    Change the Model <change-model.md>
+   Nemotron 3 Super Deployment <nemotron3-super-deployment.md>
    Customize Parameters <llm-params.md>
    Customize Prompts <prompt-customization.md>
    Model Profiles <model-profiles.md>

@@ -1,0 +1,6 @@
+apiVersion: v2
+name: gcnv-data-ingestor
+description: Public Helm chart for the GCNV data ingestor deployment
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

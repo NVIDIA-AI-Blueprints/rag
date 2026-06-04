@@ -344,6 +344,7 @@ By default, Elasticsearch is deployed as the vector database (`vectordb.yaml` wi
 
    ```bash
    EMBEDDING_MS_GPU_ID=0
+   VLM_EMBEDDING_MS_GPU_ID=0
    RANKING_MS_GPU_ID=0
    YOLOX_MS_GPU_ID=0
    YOLOX_GRAPHICS_MS_GPU_ID=0

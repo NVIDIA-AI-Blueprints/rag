@@ -1,0 +1,35 @@
+{{- if and .Values.appData.create (not .Values.appData.existingClaim) }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "gcnv-data-ingestor.appPvcName" . }}
+  labels:
+    {{- include "gcnv-data-ingestor.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    {{- toYaml .Values.appData.accessModes | nindent 4 }}
+  resources:
+    requests:
+      storage: {{ .Values.appData.size }}
+  {{- with .Values.appData.storageClassName }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+{{- end }}
+{{- if and .Values.sourceData.create (not .Values.sourceData.existingClaim) }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "gcnv-data-ingestor.sourcePvcName" . }}
+  labels:
+    {{- include "gcnv-data-ingestor.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    {{- toYaml .Values.sourceData.accessModes | nindent 4 }}
+  resources:
+    requests:
+      storage: {{ .Values.sourceData.size }}
+  {{- with .Values.sourceData.storageClassName }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+{{- end }}
