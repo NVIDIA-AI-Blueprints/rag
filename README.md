@@ -130,6 +130,8 @@ This modular design ensures efficient query processing, accurate retrieval of in
     - [Nemotron Parse NIM](https://build.nvidia.com/nvidia/nemotron-parse)
     - [PaddleOCR NIM](https://build.nvidia.com/baidu/paddleocr)
     - [llama-nemotron-embed-vl-1b-v2](https://build.nvidia.com/nvidia/llama-nemotron-embed-vl-1b-v2)
+    - [llama-nemotron-rerank-vl-1b-v2](https://build.nvidia.com/nvidia/llama-nemotron-rerank-vl-1b-v2)
+    - [NVIDIA Riva ASR NIM](https://docs.nvidia.com/nim/riva/asr/latest/overview.html)
 
 
  ### Integration and orchestration layer
@@ -253,8 +255,8 @@ Use of the models in this blueprint is governed by the [NVIDIA AI Foundation Mod
 
 ## Terms of Use
 This blueprint is governed by the [NVIDIA Agreements | Enterprise Software | NVIDIA Software License Agreement](https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-software-license-agreement/) and the [NVIDIA Agreements | Enterprise Software | Product Specific Terms for AI Product](https://www.nvidia.com/en-us/agreements/enterprise-software/product-specific-terms-for-ai-products/). The models are governed by the [NVIDIA Agreements | Enterprise Software | NVIDIA Community Model License](https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-community-models-license/) and the [NVIDIA RAG dataset](./data/multimodal/) which is governed by the [NVIDIA Asset License Agreement](https://github.com/NVIDIA-AI-Blueprints/rag/blob/main/data/LICENSE.DATA).
-The following models that are built with Llama are governed by the Llama 3.2 Community License Agreement: nvidia/llama-nemotron-embed-1b-v2, nvidia/llama-nemotron-rerank-1b-v2, and nvidia/llama-nemotron-embed-vl-1b-v2.
+The following models that are built with Llama are governed by the Llama 3.2 Community License Agreement: nvidia/llama-nemotron-embed-1b-v2, nvidia/llama-nemotron-rerank-1b-v2, nvidia/llama-nemotron-embed-vl-1b-v2, and nvidia/llama-nemotron-rerank-vl-1b-v2.
 
 ## Additional Information
 
-The [Llama 3.1 Community License Agreement](https://www.llama.com/llama3_1/license/) for the llama-3.1-nemoguard-8b-content-safety and llama-3.1-nemoguard-8b-topic-control models. The [Llama 3.2 Community License Agreement](https://www.llama.com/llama3_2/license/) for the nvidia/llama-nemotron-embed-1b-v2, nvidia/llama-nemotron-rerank-1b-v2 and nvidia/llama-nemotron-embed-vl-1b-v2 models. Built with Llama. Apache 2.0 for NVIDIA Ingest and for the nemotron-page-elements-v3, nemotron-table-structure-v1, nemotron-graphic-elements-v1, nemotron-parse, paddleocr and nemotron-ocr-v1 models.
+The [Llama 3.1 Community License Agreement](https://www.llama.com/llama3_1/license/) for the llama-3.1-nemoguard-8b-content-safety and llama-3.1-nemoguard-8b-topic-control models. The [Llama 3.2 Community License Agreement](https://www.llama.com/llama3_2/license/) for the nvidia/llama-nemotron-embed-1b-v2, nvidia/llama-nemotron-rerank-1b-v2, nvidia/llama-nemotron-embed-vl-1b-v2, and nvidia/llama-nemotron-rerank-vl-1b-v2 models. Built with Llama. Apache 2.0 for NVIDIA Ingest and for the nemotron-page-elements-v3, nemotron-table-structure-v1, nemotron-graphic-elements-v1, nemotron-parse, paddleocr and nemotron-ocr-v1 models.
