@@ -63,6 +63,7 @@ Agentic RAG pipeline — initial retrieval feeds the planner, which emits an emp
 
 ## Enable Agentic RAG
 
+(enable-per-request)=
 ### Enable per request (API) (recommended)
 
 Prefer enabling Agentic RAG per request with the `agentic` field in the `/v1/generate` body.

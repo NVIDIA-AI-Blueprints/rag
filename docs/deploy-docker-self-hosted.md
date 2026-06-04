@@ -112,7 +112,7 @@ Use the following procedure to start all containers needed for this blueprint.
    USERID=$(id -u) docker compose -f deploy/compose/nims.yaml up -d
    ```
 
-5. Check the status of the deployment by running the following code. Wait until all services are up and the `nemotron-ranking-ms`, `nemotron-embedding-ms` and `nim-llm-ms`  NIMs are in healthy state before proceeding further.
+5. Check the status of the deployment by running the following code. Wait until all services are up and the `nemotron-ranking-ms`, `nemotron-vlm-embedding-ms`, and `nim-llm-ms` NIMs are in healthy state before proceeding further.
 
      ```bash
      watch -n 2 'docker ps --format "table {{.Names}}\t{{.Status}}"'
@@ -126,7 +126,7 @@ Use the following procedure to start all containers needed for this blueprint.
         nemotron-ranking-ms      Up 4 minutes (healthy)
         compose-graphic-elements-1    Up 4 minutes
         compose-page-elements-1       Up 4 minutes
-        nemotron-embedding-ms    Up 4 minutes (healthy)
+        nemotron-vlm-embedding-ms Up 4 minutes (healthy)
         compose-nemotron-ocr-1   Up 4 minutes
         compose-table-structure-1     Up 4 minutes
      ```
@@ -259,7 +259,7 @@ Use the following procedure to start all containers needed for this blueprint.
     fe2751bfa734   nemotron-ranking-ms         Up 10 minutes (healthy)
     7b5ddabf8be7   compose-graphic-elements-1       Up 10 minutes
     ecfaa5190302   compose-page-elements-1          Up 10 minutes
-    ea8c7fdf20d1   nemotron-embedding-ms       Up 10 minutes (healthy)
+    ea8c7fdf20d1   nemotron-vlm-embedding-ms   Up 10 minutes (healthy)
     6d62008a9b42   compose-nemotron-ocr-1      Up 10 minutes
     969b9f5c987c   compose-table-structure-1        Up 10 minutes
     ```
@@ -340,10 +340,11 @@ By default, Elasticsearch is deployed as the vector database (`vectordb.yaml` wi
 
 - For advanced users who need direct filesystem access to extraction results, refer to [Ingestor Server Volume Mounting](mount-ingestor-volume.md).
 
-- A single NVIDIA A100-80GB or H100-80GB, B200 GPU can be used to start non-LLM NIMs (nemotron-embedding-ms, nemotron-ranking-ms, and ingestion services like page-elements, ocr, graphic-elements, and table-structure) for ingestion and RAG workflows. You can control which GPU is used for each service by setting these environment variables in `deploy/compose/.env` file before launching. For a complete list of all services and their default GPU assignments, see [Service Port and GPU Reference](service-port-gpu-reference.md).
+- A single NVIDIA A100-80GB or H100-80GB, B200 GPU can be used to start non-LLM NIMs (nemotron-vlm-embedding-ms, nemotron-ranking-ms, and ingestion services like page-elements, ocr, graphic-elements, and table-structure) for ingestion and RAG workflows. You can control which GPU is used for each service by setting these environment variables in `deploy/compose/.env` file before launching. For a complete list of all services and their default GPU assignments, see [Service Port and GPU Reference](service-port-gpu-reference.md).
 
    ```bash
    EMBEDDING_MS_GPU_ID=0
+   VLM_EMBEDDING_MS_GPU_ID=0
    RANKING_MS_GPU_ID=0
    YOLOX_MS_GPU_ID=0
    YOLOX_GRAPHICS_MS_GPU_ID=0

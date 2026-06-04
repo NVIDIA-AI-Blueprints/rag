@@ -1,0 +1,90 @@
+nameOverride: ""
+fullnameOverride: gcnv-data-ingestor
+
+namespace:
+  # Helm charts cannot reliably create their own target namespace during install.
+  # Use `helm install --create-namespace` instead.
+  create: false
+
+selectorLabels:
+  name: nvidia-gcnv-rag-manager
+  instance: netapp-volumes-rag-ingestor
+
+replicaCount: 1
+
+strategy:
+  type: Recreate
+
+image:
+  repository: ""
+  tag: ""
+  pullPolicy: IfNotPresent
+  pullSecrets: []
+
+serviceAccount:
+  create: true
+  name: gcnv-data-ingestor-sa
+  automount: true
+  annotations: {}
+
+service:
+  type: NodePort
+  port: 8000
+  annotations: {}
+
+appData:
+  create: true
+  existingClaim: ""
+  name: gcnv-ingestor-config-data
+  accessModes:
+    - ReadWriteOnce
+  size: 50Gi
+  storageClassName: ""
+  mountPath: /data
+
+sourceData:
+  create: true
+  existingClaim: ""
+  name: gcnv-data-for-rag
+  accessModes:
+    - ReadWriteOnce
+  size: 200Gi
+  storageClassName: ""
+  mountPath: /source
+  readOnly: true
+
+env:
+  scanOutputRoot: /data/scans
+  appDbPath: /data/state/app.db
+  defaultIncrementalSchedulerMins: "0"
+  nvIngestMode: ingestor
+  nvIngestEndpoint: ""
+  extra: []
+
+probes:
+  liveness:
+    path: /healthz
+    initialDelaySeconds: 20
+    periodSeconds: 15
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readiness:
+    path: /healthz
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 1Gi
+  limits:
+    cpu: "2"
+    memory: 4Gi
+
+podAnnotations: {}
+podLabels: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}

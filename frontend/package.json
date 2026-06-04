@@ -57,7 +57,8 @@
       "rollup": ">=4.59.0",
       "minimatch@3.1.2": "3.1.4",
       "minimatch@9.0.5": "9.0.7",
-      "picomatch": ">=4.0.4"
+      "picomatch": ">=4.0.4",
+      "flatted": ">=3.4.2"
     }
   }
 }
