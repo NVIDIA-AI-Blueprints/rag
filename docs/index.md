@@ -88,7 +88,7 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
     - [Continuous Ingestion from Object Storage](continuous-ingestion-object-storage.md)
     - [Custom Metadata Support](custom-metadata.md)
     - [File System Access to Extraction Results](mount-ingestor-volume.md)
-    - [Multimodal Retriever — VLM Embedding & VLM Reranker (Early Access)](multimodal-retriever.md)
+    - [Multimodal Retriever: VLM Embedding & VLM Reranker](multimodal-retriever.md)
     - [OCR Configuration Guide](nemoretriever-ocr.md)
     - [Enhanced PDF Extraction](nemotron-parse-extraction.md)
     - [Text-Only Ingestion](text_only_ingest.md)
@@ -117,6 +117,7 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
 
     - [Evaluate Your NVIDIA RAG Blueprint System](evaluate.md)
     - [RAG Accuracy Benchmarks](accuracy-benchmarks.md)
+    - [RAG Performance Benchmarks](perf-benchmarks.md)
     - [Benchmark the Performance of Your RAG System](performance-benchmarking.md)
 
 - Governance
@@ -227,7 +228,7 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
    Custom metadata Support <custom-metadata.md>
    Data Catalog for Collections and Documents <data-catalog.md>
    File System Access to Results <mount-ingestor-volume.md>
-   Multimodal Retriever — VLM Embedding & VLM Reranker (Early Access) <multimodal-retriever.md>
+   Multimodal Retriever — VLM Embedding & VLM Reranker <multimodal-retriever.md>
    OCR Configuration Guide <nemoretriever-ocr.md>
    Enhanced PDF Extraction <nemotron-parse-extraction.md>
    Standalone NeMo Retriever Library <nv-ingest-standalone.md>
@@ -270,7 +271,8 @@ After you deploy the RAG blueprint, you can customize it for your use cases.
 
    Evaluate Your RAG System <evaluate.md>
    RAG Accuracy Benchmarks <accuracy-benchmarks.md>
-   RAG Performance Benchmarks <performance-benchmarking.md>
+   RAG Performance Benchmarks <perf-benchmarks.md>
+   Benchmark RAG Performance <performance-benchmarking.md>
 ```
 
 

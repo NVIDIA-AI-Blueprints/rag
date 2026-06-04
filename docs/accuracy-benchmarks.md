@@ -20,7 +20,7 @@ Our analysis centered on seven major public datasets encompassing a broad range 
 | [HotPotQA](https://huggingface.co/datasets/hotpotqa/hotpot_qa) | Wikipedia-based question-answer pairs | English | Text | 2,673 (txt files) | 979 |
 | [Google Frames](https://huggingface.co/datasets/google/frames-benchmark) | History, Sports, Science, Animals, Health | English | Text | 31,708 | 824 |
 
-### [Vidore Dataset](https://huggingface.co/blog/QuentinJG/introducing-vidore-v3#public-datasets)
+### [Vidore-V3 Dataset](https://huggingface.co/blog/QuentinJG/introducing-vidore-v3#public-datasets)
 
 | Dataset | Domain | Corpus Language | Main Modalities | # Pages | # Queries (with translations) |
 |---|---|---|---|---|---|

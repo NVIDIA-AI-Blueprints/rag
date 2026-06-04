@@ -178,7 +178,7 @@ The following is a step-by-step explanation of the workflow from the end-user pe
 
 ## AI Agent Skill
 
-An agent skill is included that enables AI coding assistants (Claude Code, Cursor, etc.) to deploy, configure, troubleshoot, and manage the RAG Blueprint autonomously.
+Agent skills in [`skills/`](skills/) let coding assistants (Claude Code, Cursor, Codex, etc.) operate this blueprint from natural language.
 
 ### Install
 
@@ -186,15 +186,17 @@ An agent skill is included that enables AI coding assistants (Claude Code, Curso
 npx skills add .
 ```
 
-This installs the `rag-blueprint` skill from `skills/`. After installation, the agent handles requests like:
+This installs the skills below from `skills/`.
 
-- *"Deploy RAG on Docker with NVIDIA-hosted models"*
-- *"Enable VLM image captioning and restart the ingestor"*
-- *"Ingestion failed for 3 files, can you check why?"*
-- *"Switch from Docker to library mode"*
-- *"Shut down all RAG services"*
+| Skill | Use for | Example prompts |
+|-------|---------|-----------------|
+| **`rag-blueprint`** | Deploy, configure, troubleshoot, shutdown; REST API usage (`/v1/generate`, ingestor upload) | *"Deploy RAG with self-hosted NIMs"*, *"Enable guardrails"*, *"Wide-net search then high-precision on my collection"* |
+| **`rag-eval`** | RAGAS quality benchmarks with `corpus/` + `train.json` and `scripts/eval/evaluate_rag.py` | *"Run RAGAS eval on my dataset"*, *"Compare reranker on vs off"* |
+| **`rag-perf`** | Latency/throughput benchmarks via `scripts/rag-perf` (profiling + aiperf) | *"Profile retrieval bottlenecks"*, *"Run a concurrency sweep"* |
 
-> **Note:** If the agent doesn't pick up the skill automatically (e.g., for short or ambiguous queries), invoke it explicitly with `/rag-blueprint <your request>`.
+Pick the skill that matches the task: operations → **rag-blueprint**; answer quality → **rag-eval**; performance → **rag-perf**.
+
+> **Note:** If routing is unclear, invoke explicitly: `/rag-blueprint`, `/rag-eval`, or `/rag-perf` plus your request.
 
 For skill architecture details, see [`skills/README.md`](skills/README.md). Skill content lives under [`skills/`](skills/) at the repo root (canonical path per the [agentskills.io](https://agentskills.io/specification) spec).
 
