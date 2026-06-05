@@ -38,19 +38,26 @@ Object.defineProperty(window, 'matchMedia', {
 });
 
 // Mock window.ResizeObserver
-global.ResizeObserver = vi.fn().mockImplementation(() => ({
-  observe: vi.fn(),
-  unobserve: vi.fn(),
-  disconnect: vi.fn(),
-}));
+// Use a function expression (not an arrow fn) so it is constructable: vitest 4
+// invokes mock implementations with `new`, and arrow functions throw
+// "is not a constructor" (e.g. via @radix-ui/react-use-size).
+global.ResizeObserver = vi.fn().mockImplementation(function () {
+  return {
+    observe: vi.fn(),
+    unobserve: vi.fn(),
+    disconnect: vi.fn(),
+  };
+});
 
 // Mock window.IntersectionObserver
-global.IntersectionObserver = vi.fn().mockImplementation(() => ({
-  observe: vi.fn(),
-  unobserve: vi.fn(),
-  disconnect: vi.fn(),
-  takeRecords: vi.fn(),
-}));
+global.IntersectionObserver = vi.fn().mockImplementation(function () {
+  return {
+    observe: vi.fn(),
+    unobserve: vi.fn(),
+    disconnect: vi.fn(),
+    takeRecords: vi.fn(),
+  };
+});
 
 // Mock import.meta.env for Vite environment variables
 vi.stubEnv('VITE_API_VDB_URL', 'http://localhost:8000');
