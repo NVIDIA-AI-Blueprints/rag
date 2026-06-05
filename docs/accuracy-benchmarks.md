@@ -55,12 +55,12 @@ We evaluated six configurations to show how reasoning, vision, and agentic orche
 
 | Dataset | nemotron-super-49b-v1.5 (reasoning off) | nemotron-super-49b-v1.5 (reasoning on) | nemotron-3-super (controlled reasoning) | nemotron-VLM-12B (reasoning off) | nemotron-VLM-12B (reasoning on) | agentic-rag (nemotron-3-super) |
 |---|---|---|---|---|---|---|
-| FinanceBench | 0.612 | 0.668 | 0.668 | 0.622 | 0.697 | 0.710 |
+| FinanceBench | 0.612 | 0.668 | 0.668 | 0.622 | 0.697 | 0.770 |
 | KG-RAG | 0.569 | 0.593 | 0.590 | 0.596 | 0.643 | 66.6 (TBD) |
-| RAGBattle | 0.812 | 0.818 | 0.829 | 0.867 | 0.842 | 0.782 |
+| RAGBattle | 0.812 | 0.818 | 0.829 | 0.867 | 0.842 | TBD |
 | DC767 | 0.906 | 0.899 | TBD | 0.907 | 0.897 | TBD |
-| Hotpotqa | 0.672 | 0.676 | 0.678 | n/a | n/a | 0.773 |
-| Google Frames | 0.486 | 0.597 | TBD | n/a | n/a | 0.705 |
+| Hotpotqa | 0.672 | 0.676 | 0.678 | n/a | n/a | 0.808 |
+| Google Frames | 0.486 | 0.597 | TBD | n/a | n/a | 0.763 |
 
 The table in the following section summarizes the accuracy scores for each dataset across our experimental configurations.
 
