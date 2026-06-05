@@ -20,7 +20,7 @@ B200 GPUs are not supported for VLM based inferencing in RAG. For this feature, 
 
 **Key benefits of VLM**
 
-- **Seamless multimodal experience** – Users don't need to manually upload images; visual content is automatically discovered and analyzed from images embedded in documents.
+- **Integrated multimodal experience** – Users do not need to manually upload images; visual content is automatically discovered and analyzed from images embedded in documents.
 - **Improved accuracy** – Enhanced response quality for documents containing images, charts, diagrams, and visual data.
 - **Quality assurance** – Internal reasoning ensures only relevant visual insights are used.
 - **Contextual understanding** – Visual analysis is performed in the context of the user's specific question.
@@ -34,11 +34,11 @@ Enabling VLM inference increases response latency from additional image processi
 
 When VLM inference is enabled, the **VLM replaces the traditional LLM** in the RAG pipeline for generation tasks.
 
-1. **Automatic Image Discovery**: When a user query is processed, the RAG system retrieves relevant documents from the vector database. If any of these documents contain images (charts, diagrams, photos, etc.), they are automatically identified.
+1. **Automatic Image Discovery**: When a user query is processed, the RAG system retrieves relevant documents from the vector database. If any of these documents contain images (charts, diagrams, photos, and so on), they are automatically identified.
 2. **Image Captioning at Ingestion**: During ingestion, images are extracted and captioned so they can be indexed and later cited for question answering.
 3. **VLM Answer Generation**: At query time, the RAG server sends the user question, conversation history, and cited images to a Vision-Language Model. The VLM directly generates the final answer for the user, taking the place of the traditional LLM.
 
-**What users experience**: Users interact with the system normally—the VLM processing happens transparently:
+**What users experience**: Users interact with the system normally. The VLM processing happens transparently:
 
 1. User asks a question about content that may have visual elements.
 2. System retrieves relevant documents including any images.
@@ -62,7 +62,7 @@ The VLM feature uses predefined prompts that can be customized in [`src/nvidia_r
 - `VLM_FILTER_THINK_TOKENS` is retained as a compatibility setting; streamed
   reasoning is not wrapped or concatenated into `content`.
 
-Set these parameters via environment variables in your deployment configuration (for example in `docker-compose-rag-server.yaml` or Helm `values.yaml`).
+Set these parameters using environment variables in your deployment configuration (for example in `docker-compose-rag-server.yaml` or Helm `values.yaml`).
 
 ## Enable VLM with Docker Compose
 
@@ -187,7 +187,7 @@ Continue with [Deploy with Docker (NVIDIA-Hosted Models)](deploy-docker-nvidia-h
 
 ## Configuration
 
-- **Image limits**: `APP_VLM_MAX_TOTAL_IMAGES` (default: 5) is the maximum total images (from query, history, and context) included in the VLM prompt. Set via environment variables and restart the rag-server to apply.
+- **Image limits**: `APP_VLM_MAX_TOTAL_IMAGES` (default: 5) is the maximum total images (from query, history, and context) included in the VLM prompt. Set using environment variables and restart the rag-server to apply.
 
    Example (Docker Compose):
 
@@ -309,7 +309,7 @@ By default, with VLM enabled, the RAG server uses VLM for all generation tasks. 
 - **Default (no fallback)**: `VLM_TO_LLM_FALLBACK="false"`. The VLM handles all queries. Recommended for the 2xH100 setup.
 - **Enable fallback**: `VLM_TO_LLM_FALLBACK="true"`. Text-only queries use a traditional LLM. You must deploy an LLM service alongside the VLM.
 
-**GPU requirements for fallback**: Minimum **3xH100 GPUs**—GPU 0: Embedding and Reranker; GPU 1: VLM; GPU 2: LLM.
+**GPU requirements for fallback**: Minimum **3xH100 GPUs**: GPU 0: Embedding and Reranker; GPU 1: VLM; GPU 2: LLM.
 
 **Docker Compose with fallback**: Start both VLM and LLM (do not use the `vlm-generation` profile):
 
@@ -355,7 +355,7 @@ The pipeline has three independently switchable components, each with its own de
 
 The default embedder is **`nvidia/llama-nemotron-embed-vl-1b-v2`**, so PDF pages, tables, charts, and image elements are embedded by a multimodal model. The same model embeds text + image queries at retrieval time, so no extra rag-server config is needed beyond pointing `APP_EMBEDDINGS_*` at the VLM embedding NIM.
 
-Setup, modality switches (text-only, structured-as-image, page-as-image), and Docker/Helm flows: see [Multimodal Retriever — Part 1: VLM Embedding for Ingestion](multimodal-retriever.md#part-1--vlm-embedding-for-ingestion-early-access).
+Setup, modality switches (text-only, structured-as-image, page-as-image), and Docker/Helm flows: see [Multimodal Retriever — Part 1: VLM Embedding for Ingestion](multimodal-retriever.md#part-1--vlm-embedding-for-ingestion).
 
 ### 2. VLM Reranker (image-aware reranking)
 

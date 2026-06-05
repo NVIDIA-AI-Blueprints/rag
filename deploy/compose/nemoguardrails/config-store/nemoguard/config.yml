@@ -17,5 +17,7 @@ rails:
       - content safety check input $model=content_safety
       - topic safety check input $model=topic_control
   output:
+    streaming:
+      enabled: true
     flows:
       - content safety check output $model=content_safety

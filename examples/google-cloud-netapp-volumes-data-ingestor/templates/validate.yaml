@@ -1,0 +1,15 @@
+{{- if .Values.namespace.create }}
+{{- fail "namespace.create is not supported by this chart. Create the namespace outside the chart with --create-namespace or kubectl create namespace." }}
+{{- end }}
+
+{{- if and (not .Values.appData.create) (not .Values.appData.existingClaim) }}
+{{- fail "appData.existingClaim is required when appData.create=false." }}
+{{- end }}
+
+{{- if and (not .Values.sourceData.create) (not .Values.sourceData.existingClaim) }}
+{{- fail "sourceData.existingClaim is required when sourceData.create=false." }}
+{{- end }}
+
+{{- if and (not .Values.serviceAccount.create) (not .Values.serviceAccount.name) }}
+{{- fail "serviceAccount.name is required when serviceAccount.create=false." }}
+{{- end }}

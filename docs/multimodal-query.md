@@ -277,6 +277,11 @@ nvidia-nim-llama-nemotron-embed-1b-v2:
 nim-llm:
   enabled: false
 
+# Enable dedicated VLM captioning NIM (image-cap model changed after RC1)
+nimOperator:
+  nim-vlm-captioning:
+    enabled: true
+
 # Configure environment variables
 envVars:
   # VLM inference settings

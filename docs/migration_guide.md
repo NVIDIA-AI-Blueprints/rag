@@ -8,6 +8,27 @@ This documentation contains the information to upgrade [NVIDIA RAG Blueprint](re
 
 :::{tip}
 To navigate this page more easily, click the outline button at the top of the page. [outline-button](assets/outline-button.png)
+:::
+
+
+## Migration Guide: v2.5.1 to v2.6.0
+
+This guide summarizes the default changes and new capabilities introduced in [NVIDIA RAG Blueprint](readme.md) v2.6.0. Review these items before upgrading an existing deployment.
+
+### Default Deployment Changes
+
+- **Vector database:** Elasticsearch is now the default vector database. Milvus remains available as an optional backend. If you need to keep using Milvus, set `APP_VECTORSTORE_NAME=milvus`, point `APP_VECTORSTORE_URL` to Milvus in both RAG and ingestor services, and follow [Vector Database Configuration](change-vectordb.md).
+- **Object store:** SeaweedFS is now the default S3-compatible object store. Docker Compose deployments use named `rag-vol-*` volumes for persistent data. If you are upgrading from a deployment that used host-mounted data under `deploy/compose/volumes/`, follow [Manage Persistent Data Volumes](troubleshooting.md#manage-persistent-data-volumes).
+- **LLM:** The default LLM is now `nvidia/nemotron-3-super-120b-a12b`. The v2.6.0 deployment files enable low-effort reasoning by default with `LLM_ENABLE_THINKING=true`, `LLM_REASONING_BUDGET=256`, and `LLM_LOW_EFFORT=true`. For latency-sensitive deployments, see [Enable Reasoning](enable-nemotron-thinking.md) for how to disable or tune reasoning.
+- **Embedding model:** The default embedding model is now `nvidia/llama-nemotron-embed-vl-1b-v2`. The text-only `nvidia/llama-nemotron-embed-1b-v2` model remains available as an optional configuration. If you switch embedding models or dimensions, re-ingest your documents so the stored vectors match the retrieval embedder.
+- **OCR naming:** OCR endpoint names now use `nemotron-ocr-v1` instead of `nemoretriever-ocr-v1`.
+
+### New Optional Features
+
+- **Agentic RAG:** v2.6.0 adds an Agentic RAG plan-and-execute pipeline. It is disabled by default and can be enabled per request with the `agentic` field or by setting `ENABLE_AGENTIC_RAG=true`. For details, see [Agentic RAG](agentic-rag.md).
+- **VLM reranker:** `nvidia/llama-nemotron-rerank-vl-1b-v2` is available as an opt-in reranker for image-heavy corpora. For details, see [Change the LLM or Embedding Model](change-model.md#switch-to-the-vlm-reranker).
+- **OpenShift Helm deployment:** Red Hat OpenShift and OKD deployment is now documented for Helm. For details, see [Deploy on OpenShift with Helm](deploy-helm-openshift.md).
+- **Evaluation and performance tooling:** v2.6.0 adds the filesystem evaluation CLI under `scripts/eval/` and the `rag-perf` performance benchmarking CLI under `scripts/rag-perf/`. For details, see [Evaluate Your NVIDIA RAG Blueprint System](evaluate.md) and [Benchmark the Performance of Your RAG System](performance-benchmarking.md).
 
 
 ## Migration Guide: v2.2.0 to v2.3.0

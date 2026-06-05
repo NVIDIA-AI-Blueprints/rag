@@ -107,6 +107,7 @@ services:
       # url on which ranking model is hosted. If "", Nvidia hosted API is used
       APP_RANKING_SERVERURL: ${APP_RANKING_SERVERURL-"nemotron-ranking-ms:8000"}
       APP_RANKING_MODELNAME: ${APP_RANKING_MODELNAME:-"nvidia/llama-nemotron-rerank-1b-v2"}
+      # VLM reranker host port is 1979; use service port 8000 inside Docker.
       # APP_RANKING_SERVERURL: ${APP_RANKING_SERVERURL-"nemotron-ranking-vl-ms:8000"}
       # APP_RANKING_MODELNAME: ${APP_RANKING_MODELNAME:-"nvidia/llama-nemotron-rerank-vl-1b-v2"}
       ENABLE_RERANKER: ${ENABLE_RERANKER:-True}
