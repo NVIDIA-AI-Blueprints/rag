@@ -115,6 +115,27 @@ jobs:
               - '.github/workflows/skills-eval.yml'
               - 'ci/run_skill_eval.sh'
 
+      - name: Authenticate Brev CLI (long-lived API key)
+        # Mints fresh Brev auth at the start of every run so the workflow
+        # does not depend on persistent ~/.brev/credentials.json state on
+        # the self-hosted runner. Fails loudly upfront if the secret is
+        # missing or wrong — instead of failing 4h later at cleanup.
+        if: github.event_name != 'push' || steps.changes.outputs.skills == 'true'
+        env:
+          BREV_API_KEY: ${{ secrets.BREV_API_KEY }}
+          BREV_ORG_ID: org-2wW9qP0o1LFbMHyE2UnAFPIil8H
+        run: |
+          if [ -z "$BREV_API_KEY" ]; then
+            echo "::error::BREV_API_KEY secret not set"
+            exit 1
+          fi
+          brev login --api-key "$BREV_API_KEY" --org-id "$BREV_ORG_ID"
+          if ! brev ls >/dev/null 2>&1; then
+            echo "::error::Brev auth failed: brev ls returned non-zero after login"
+            exit 1
+          fi
+          echo "Brev auth OK"
+
       - name: Run skills eval agent
         id: agent
         if: github.event_name != 'push' || steps.changes.outputs.skills == 'true'
@@ -176,8 +197,11 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-      - name: Delete GPU Brev VMs on success
-        if: success() && (github.event_name != 'push' || steps.changes.outputs.skills == 'true')
+      - name: Delete GPU Brev VMs
+        # Run on success AND failure — agent crashes are exactly when GPU
+        # cleanup is most needed. Process substitution (not pipe-to-while)
+        # so FAILED=1 inside the loop is visible after the loop exits.
+        if: always() && (github.event_name != 'push' || steps.changes.outputs.skills == 'true')
         run: |
           RECORD="/tmp/brev/started-by-${{ github.run_id }}.txt"
           if [ ! -f "$RECORD" ]; then
@@ -186,11 +210,18 @@ jobs:
           fi
           echo "Waiting 5 min cooldown before deleting VMs..."
           sleep 300
-          sort -u "$RECORD" | while read -r INSTANCE; do
+          FAILED=0
+          while read -r INSTANCE; do
             [ -z "$INSTANCE" ] && continue
             echo "Deleting Brev VM: $INSTANCE"
-            brev delete "$INSTANCE" 2>/dev/null && echo "Deleted $INSTANCE" || echo "Could not delete $INSTANCE (may already be gone)"
-          done
+            if brev delete "$INSTANCE"; then
+              echo "OK Deleted $INSTANCE"
+            else
+              echo "::error::Failed to delete $INSTANCE (exit $?)"
+              FAILED=1
+            fi
+          done < <(sort -u "$RECORD")
+          exit $FAILED
 
       - name: Skip note when no skills/ changes
         if: github.event_name == 'push' && steps.changes.outputs.skills != 'true'
