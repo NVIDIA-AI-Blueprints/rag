@@ -5,19 +5,18 @@ Goal: have the `blueprint-pipeline` eval harness present and an installed Python
 
 ## 2.1 Locate (or clone) the blueprint-pipeline repo
 
-The repo path is **configurable**. Default:
-
-```
-/home/smasurekar/Desktop/Swapnil/gitlab_repos/blueprint-pipeline
-```
+The convention is simple: **`blueprint-pipeline` lives next to this `rag` repo, in the same parent
+folder.** Derive the path from the rag repo root rather than hardcoding it — no machine-specific paths.
 
 Resolve it in this order:
 1. A path the user provides this run.
-2. The default above, if it exists.
-3. Otherwise **clone it** (branch `develop`) from GitLab:
+2. The sibling default `<parent-of-rag-repo>/blueprint-pipeline`, if it exists.
+3. Otherwise **clone it** (branch `develop`) from GitLab into that sibling location.
 
 ```bash
-EVAL_REPO="/home/smasurekar/Desktop/Swapnil/gitlab_repos/blueprint-pipeline"   # or user-provided
+# Anchor on the rag repo root, then default to its sibling.
+RAG_REPO="$(git rev-parse --show-toplevel)"
+EVAL_REPO="${EVAL_REPO:-$(dirname "$RAG_REPO")/blueprint-pipeline}"   # or user-provided
 if [ ! -d "$EVAL_REPO/evaluation/rag-eval/scripts" ]; then
   git clone --branch develop \
     ssh://git@gitlab-master.nvidia.com:12051/nim-blueprints/nim-blueprint-benchmarking/blueprint-pipeline.git \

@@ -72,6 +72,60 @@ If services are still initializing, automatically poll every 30 seconds:
 
 Show progress to the user during polling.
 
+## Update Env Vars on a Running Deployment (keep existing env intact)
+
+To change one (or a few) env vars on an already-running deployment **without disturbing any other
+config or other services**, edit the active env file and recreate only the affected service. Never
+hand-edit a live container or re-run a full `up` for the whole stack just to flip one var.
+
+1. **Edit the active env file** — `deploy/compose/.env` (self-hosted) or `deploy/compose/nvdev.env`
+   (nvidia-hosted). Add or update only the target line; leave everything else untouched. These files use
+   `export VAR=value` syntax (they are *sourced*, then Compose interpolates `${VAR}`). Example:
+   ```bash
+   echo 'export AGENTIC_VERIFICATION_ENABLED=true' >> deploy/compose/.env   # or edit in place
+   ```
+
+2. **Recreate only the changed service**, reproducing the original deploy context. Two gotchas that
+   otherwise silently change *other* env vars or fail interpolation:
+   - **`.env` sets `export NVIDIA_API_KEY=${NGC_API_KEY}`** — sourcing it blanks `NVIDIA_API_KEY` unless
+     `NGC_API_KEY` is exported **first**. Compose also hard-requires `NGC_API_KEY`
+     (`${NGC_API_KEY:?...}`). So set the key before sourcing.
+   - **`.env` uses `${PWD}`** (e.g. `PROMPT_CONFIG_FILE`) — run from the **repo root** so paths resolve to
+     the same values as the original deploy.
+   ```bash
+   cd <repo-root>
+   export NGC_API_KEY="$NVIDIA_API_KEY"            # if NGC_API_KEY isn't already set; must precede source
+   set -a; source deploy/compose/.env; set +a      # re-applies all exports (now incl. the changed one)
+   docker compose -f deploy/compose/docker-compose-rag-server.yaml up -d rag-server
+   ```
+   Compose recreates **only** `rag-server` (new env), leaving all other containers running. A
+   `Found orphan containers ...` warning is **expected and harmless** when targeting one compose file —
+   do **NOT** pass `--remove-orphans` (it would tear down the other services).
+
+3. **Verify the change is intact** — confirm exactly the intended var changed and nothing else did:
+   ```bash
+   # diff the container env before/after (capture BEFORE you recreate):
+   #   docker exec rag-server printenv | sort > /tmp/env_before.txt
+   docker exec rag-server printenv | sort > /tmp/env_after.txt
+   diff /tmp/env_before.txt /tmp/env_after.txt   # should show ONLY your var (+ HOSTNAME, a new container id)
+   docker exec rag-server printenv AGENTIC_VERIFICATION_ENABLED   # spot-check the new value
+   ```
+
+4. **Curl verification — confirm the deployment is healthy and the change is live:**
+   ```bash
+   # a) health (poll until 200):
+   until [ "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8081/v1/health)" = "200" ]; do sleep 2; done; echo "rag-server healthy (200)"
+   curl -s http://localhost:8082/v1/health?check_dependencies=true >/dev/null && echo "ingestor healthy"
+   # b) functional check that the changed behavior is active (agentic verification example):
+   curl -s -X POST http://localhost:8081/v1/generate -H "Content-Type: application/json" \
+     -d '{"messages":[{"role":"user","content":"ping"}],"collection_names":["<collection>"],"agentic":true,"use_knowledge_base":true}' \
+     --max-time 180 -o /dev/null -w "generate HTTP %{http_code}\n"
+   docker logs rag-server --since 3m 2>&1 | grep -iE "verif" | tail -5   # expect: [AGENTIC_RAG] Verification started / PASSED
+   ```
+
+For Helm, the equivalent is editing `values.yaml` and `helm upgrade` (the release reconciles only the
+changed pods) — see `helm.md`.
+
 ## On Success
 
 Tell the user:
