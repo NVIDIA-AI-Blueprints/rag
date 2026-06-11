@@ -38,6 +38,7 @@ from nvidia_rag.rag_server.response_generator import (
     TextContent,
     Usage,
     _is_empty_content,
+    _is_guardrails_refusal,
     configure_object_store_operator,
     error_response_generator,
     error_response_generator_async,
@@ -751,6 +752,179 @@ class TestGenerateAnswer:
         )
         # Should have multiple chunks (at least the initial Hello + error chunks)
         assert len(result) >= 2
+
+    # ------------------------------------------------------------------
+    # Bug 6268068 regression coverage — sync `generate_answer` must clear
+    # `contexts` (and therefore citations) when NeMo Guardrails refuses the
+    # query, including for benign refusal phrasing drift across guardrails
+    # container versions. The async counterpart is tracked in clone 6301657.
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _first_chunk_citations_total(result):
+        """Parse the first streamed `data: …` chunk and return its citation count.
+
+        ``generate_answer`` builds `chain_response.citations` exactly once on the
+        first chunk (immediately after the refusal check), so the first chunk's
+        ``citations.total_results`` is the deterministic signal for whether
+        ``contexts`` was cleared in time.
+        """
+        assert result, "generate_answer produced no chunks"
+        payload = json.loads(result[0].replace("data: ", "", 1).strip())
+        return payload["citations"]["total_results"]
+
+    @pytest.mark.asyncio
+    async def test_generate_answer_clears_contexts_on_canonical_refusal(self):
+        """Regression: the canonical refusal phrase clears contexts (citations empty)."""
+
+        def mock_generator():
+            yield "I'm sorry, I can't respond to that."
+
+        mock_doc = Mock()
+        mock_doc.page_content = "Test content"
+        mock_doc.metadata = {"source": "test.pdf", "content_metadata": {"type": "text"}}
+        contexts = [mock_doc]
+
+        result = list(
+            generate_answer(
+                generator=mock_generator(),
+                contexts=contexts,
+                model="test-model",
+                enable_citations=True,
+            )
+        )
+
+        assert self._first_chunk_citations_total(result) == 0
+
+    @pytest.mark.asyncio
+    async def test_generate_answer_clears_contexts_on_drifted_refusal_period(self):
+        """Bug 6268068: period-form drift (docs example) still clears contexts."""
+
+        def mock_generator():
+            # docs/nemo-guardrails.md quotes this phrasing variant; the original
+            # strict `==` check did not match and contexts leaked.
+            yield "I'm sorry. I can't respond to that."
+
+        mock_doc = Mock()
+        mock_doc.page_content = "Test content"
+        mock_doc.metadata = {"source": "test.pdf", "content_metadata": {"type": "text"}}
+        contexts = [mock_doc]
+
+        result = list(
+            generate_answer(
+                generator=mock_generator(),
+                contexts=contexts,
+                model="test-model",
+                enable_citations=True,
+            )
+        )
+
+        assert self._first_chunk_citations_total(result) == 0
+
+    @pytest.mark.asyncio
+    async def test_generate_answer_clears_contexts_on_drifted_refusal_cannot(self):
+        """Bug 6268068: the "cannot" word-variant still clears contexts."""
+
+        def mock_generator():
+            yield "I'm sorry, I cannot respond to that."
+
+        mock_doc = Mock()
+        mock_doc.page_content = "Test content"
+        mock_doc.metadata = {"source": "test.pdf", "content_metadata": {"type": "text"}}
+        contexts = [mock_doc]
+
+        result = list(
+            generate_answer(
+                generator=mock_generator(),
+                contexts=contexts,
+                model="test-model",
+                enable_citations=True,
+            )
+        )
+
+        assert self._first_chunk_citations_total(result) == 0
+
+    @pytest.mark.asyncio
+    async def test_generate_answer_preserves_contexts_on_normal_response(self):
+        """False-positive guard: an ordinary LLM answer must NOT clear contexts."""
+
+        def mock_generator():
+            yield "The capital of France is Paris."
+
+        mock_doc = Mock()
+        mock_doc.page_content = "Test content"
+        mock_doc.metadata = {"source": "test.pdf", "content_metadata": {"type": "text"}}
+        contexts = [mock_doc]
+
+        result = list(
+            generate_answer(
+                generator=mock_generator(),
+                contexts=contexts,
+                model="test-model",
+                enable_citations=True,
+            )
+        )
+
+        assert self._first_chunk_citations_total(result) == 1
+
+
+class TestIsGuardrailsRefusal:
+    """Unit tests for `_is_guardrails_refusal` (bug 6268068).
+
+    The helper normalizes case, punctuation, and whitespace before checking
+    against a small allow-list. These tests document the boundary between
+    benign refusal drift (must match) and non-refusal LLM output (must not
+    match).
+    """
+
+    @pytest.mark.parametrize(
+        "chunk",
+        [
+            # The canonical NeMo Guardrails default refusal — must always match.
+            "I'm sorry, I can't respond to that.",
+            # Punctuation drift (period vs. comma; matches the phrasing quoted
+            # in docs/nemo-guardrails.md).
+            "I'm sorry. I can't respond to that.",
+            # Word-variant drift.
+            "I'm sorry, I cannot respond to that.",
+            "I'm sorry. I cannot respond to that.",
+            # Capitalization drift.
+            "i'm sorry, i can't respond to that.",
+            "I'M SORRY, I CAN'T RESPOND TO THAT.",
+            # Whitespace drift (leading/trailing/internal).
+            "  I'm sorry, I can't respond to that.  ",
+            "I'm sorry,  I can't  respond to that.",
+            # "I am" expansion (defensive — not emitted by the library default,
+            # but cheap to absorb and avoids a future regression if the
+            # phrasing changes upstream).
+            "I am sorry, I can't respond to that.",
+            "I am sorry, I cannot respond to that.",
+        ],
+    )
+    def test_recognizes_canonical_and_drifted_refusals(self, chunk):
+        assert _is_guardrails_refusal(chunk) is True
+
+    @pytest.mark.parametrize(
+        "chunk",
+        [
+            # Empty / falsy inputs must not match.
+            "",
+            None,
+            # Ordinary LLM responses that happen to contain "sorry" or
+            # "respond" must NOT be treated as refusals.
+            "I'm sorry, can you rephrase the question?",
+            "Sorry, that is not in the documents.",
+            "I cannot find the answer in the provided context.",
+            "The capital of France is Paris.",
+            # Truncated / partial refusals must not match — only the full
+            # normalized phrase is accepted.
+            "I'm sorry,",
+            "I can't respond to that.",
+            "respond to that",
+        ],
+    )
+    def test_rejects_non_refusal_chunks(self, chunk):
+        assert _is_guardrails_refusal(chunk) is False
 
 
 class TestRetrieveSummary:
