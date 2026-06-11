@@ -302,7 +302,8 @@ def _make_role_llm(
       2. fallback_cfg (planner LLM config)
       3. rag_config.llm (main RAG LLM config)
 
-    Resolution order for temperature / top_p / max_tokens (per-field):
+    Resolution order for temperature / top_p / max_tokens / enable_thinking /
+    reasoning_budget / low_effort (per-field):
       1. role_cfg (if the field is non-None)
       2. fallback_cfg (planner LLM config) (if non-None)
       3. rag_config.llm.parameters (main RAG LLM parameters)
@@ -324,14 +325,27 @@ def _make_role_llm(
     max_tokens = _resolve_role_generation_param(
         role_cfg, fallback_cfg, rag_config, "max_tokens"
     )
+    enable_thinking = _resolve_role_generation_param(
+        role_cfg, fallback_cfg, rag_config, "enable_thinking"
+    )
+    reasoning_budget = _resolve_role_generation_param(
+        role_cfg, fallback_cfg, rag_config, "reasoning_budget"
+    )
+    low_effort = _resolve_role_generation_param(
+        role_cfg, fallback_cfg, rag_config, "low_effort"
+    )
 
     logger.debug(
-        "Creating agentic LLM: model=%s, url=%s, temperature=%s, top_p=%s, max_tokens=%s",
+        "Creating agentic LLM: model=%s, url=%s, temperature=%s, top_p=%s, "
+        "max_tokens=%s, enable_thinking=%s, reasoning_budget=%s, low_effort=%s",
         model_name,
         server_url or "(api-catalog)",
         temperature,
         top_p,
         max_tokens,
+        enable_thinking,
+        reasoning_budget,
+        low_effort,
     )
 
     return get_llm(
@@ -342,6 +356,9 @@ def _make_role_llm(
         temperature=temperature,
         top_p=top_p,
         max_tokens=max_tokens,
+        enable_thinking=enable_thinking,
+        reasoning_budget=reasoning_budget,
+        low_effort=low_effort,
     )
 
 

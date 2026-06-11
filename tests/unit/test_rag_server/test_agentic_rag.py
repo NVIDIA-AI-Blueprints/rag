@@ -1477,3 +1477,265 @@ class TestAgenticRuntimeGenerationParamOverrides:
         assert kw["temperature"] == 0.9
         assert kw["top_p"] == 0.95
         assert kw["max_tokens"] == 5000
+
+    def test_thinking_params_resolved_from_role_config_when_override_path_triggered(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """When a temperature override triggers the _resolve_role_llm override path,
+        enable_thinking / reasoning_budget / low_effort must come from the per-role
+        agentic config — NOT from the global LLM_ENABLE_THINKING config.
+
+        Regression test for the bug where the override path called get_llm() without
+        passing thinking params, causing it to fall back to the global config.
+        """
+        from nvidia_rag.utils.configuration import NvidiaRAGConfig
+
+        calls: list[dict] = []
+
+        def fake_get_llm(**kwargs):
+            calls.append(kwargs)
+            return MagicMock()
+
+        monkeypatch.setattr("nvidia_rag.utils.llm.get_llm", fake_get_llm)
+
+        cfg = NvidiaRAGConfig()
+        cfg.llm.parameters.enable_thinking = True
+        cfg.llm.parameters.reasoning_budget = 256
+        cfg.llm.parameters.low_effort = True
+        cfg.agentic_rag.planner_llm.model_name = "planner/m"
+        # Task role explicitly disables thinking (the defaults).
+        cfg.agentic_rag.task_llm.model_name = "task/m"
+        cfg.agentic_rag.task_llm.enable_thinking = False
+        cfg.agentic_rag.task_llm.reasoning_budget = 0
+        cfg.agentic_rag.task_llm.low_effort = False
+
+        agent = AgenticRag(
+            planner_llm=MagicMock(),
+            task_llm=MagicMock(),
+            seed_gen_llm=MagicMock(),
+            synthesis_llm=MagicMock(),
+            retriever_fn=AsyncMock(return_value=None),
+            log_level="WARNING",
+            concurrency_limit=2,
+            rag_config=cfg,
+        )
+
+        # A temperature override triggers the override path.
+        token = _agentic_llm_overrides.set(AgenticLLMOverrides(temperature=0.5))
+        try:
+            _ = agent.task_llm
+        finally:
+            _agentic_llm_overrides.reset(token)
+
+        task_calls = [c for c in calls if c.get("model") == "task/m"]
+        assert task_calls, "expected get_llm call with task/m model"
+        kw = task_calls[0]
+        # Thinking params must come from task role config, NOT global config.
+        assert kw["enable_thinking"] is False, "task role thinking must be False even when global is True"
+        assert kw["reasoning_budget"] == 0, "task role budget must be 0 even when global is 256"
+        assert kw["low_effort"] is False, "task role low_effort must be False even when global is True"
+
+
+class TestAgenticRoleThinkingParamFallback:
+    """Per-role thinking-param fallback in builder._make_role_llm.
+
+    Covers enable_thinking / reasoning_budget / low_effort resolved via
+        role_cfg → planner_cfg → rag_config.llm.parameters.
+    Default for all role thinking fields is None (inherit from main config).
+    """
+
+    def _build_rag_config(
+        self,
+        *,
+        main_enable_thinking: bool = False,
+        main_reasoning_budget: int = 0,
+        main_low_effort: bool = False,
+        planner_overrides: dict | None = None,
+        task_overrides: dict | None = None,
+        synthesis_overrides: dict | None = None,
+    ):
+        from nvidia_rag.utils.configuration import NvidiaRAGConfig
+
+        cfg = NvidiaRAGConfig()
+        cfg.llm.parameters.enable_thinking = main_enable_thinking
+        cfg.llm.parameters.reasoning_budget = main_reasoning_budget
+        cfg.llm.parameters.low_effort = main_low_effort
+        cfg.agentic_rag.planner_llm.model_name = "planner/model"
+
+        for field_name, value in (planner_overrides or {}).items():
+            setattr(cfg.agentic_rag.planner_llm, field_name, value)
+        for field_name, value in (task_overrides or {}).items():
+            setattr(cfg.agentic_rag.task_llm, field_name, value)
+        for field_name, value in (synthesis_overrides or {}).items():
+            setattr(cfg.agentic_rag.synthesis_llm, field_name, value)
+        return cfg
+
+    def test_thinking_defaults_are_false(self) -> None:
+        """All four role configs default thinking to off (false/0/false), independent of LLM_ENABLE_THINKING."""
+        from nvidia_rag.utils.configuration import NvidiaRAGConfig
+
+        cfg = NvidiaRAGConfig()
+        for role_name in ("planner_llm", "task_llm", "seed_gen_llm", "synthesis_llm"):
+            role_cfg = getattr(cfg.agentic_rag, role_name)
+            assert role_cfg.enable_thinking is False, f"{role_name}.enable_thinking should default to False"
+            assert role_cfg.reasoning_budget == 0, f"{role_name}.reasoning_budget should default to 0"
+            assert role_cfg.low_effort is False, f"{role_name}.low_effort should default to False"
+
+    def test_thinking_off_by_default_regardless_of_main_config(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Agentic roles default to thinking=false even when LLM_ENABLE_THINKING=true in main config."""
+        calls: list[dict] = []
+
+        def fake_get_llm(**kwargs):
+            calls.append(kwargs)
+            return MagicMock()
+
+        monkeypatch.setattr("nvidia_rag.utils.llm.get_llm", fake_get_llm)
+        from nvidia_rag.rag_server.agentic_rag.builder import _make_role_llm
+
+        cfg = self._build_rag_config(
+            main_enable_thinking=True,
+            main_reasoning_budget=4096,
+            main_low_effort=True,
+        )
+
+        # Default role thinking fields are False/0/False, so they short-circuit
+        # before reaching main config — thinking stays off.
+        _make_role_llm(cfg.agentic_rag.task_llm, cfg.agentic_rag.planner_llm, cfg)
+        kw = calls[-1]
+        assert kw["enable_thinking"] is False
+        assert kw["reasoning_budget"] == 0
+        assert kw["low_effort"] is False
+
+    def test_role_thinking_value_wins_over_main_config(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Role-specific thinking params override main config values."""
+        calls: list[dict] = []
+
+        def fake_get_llm(**kwargs):
+            calls.append(kwargs)
+            return MagicMock()
+
+        monkeypatch.setattr("nvidia_rag.utils.llm.get_llm", fake_get_llm)
+        from nvidia_rag.rag_server.agentic_rag.builder import _make_role_llm
+
+        cfg = self._build_rag_config(
+            main_enable_thinking=True,
+            main_reasoning_budget=4096,
+            main_low_effort=True,
+            task_overrides={
+                "model_name": "task/model",
+                "enable_thinking": False,
+                "reasoning_budget": 512,
+                "low_effort": False,
+            },
+        )
+
+        _make_role_llm(cfg.agentic_rag.task_llm, cfg.agentic_rag.planner_llm, cfg)
+        kw = calls[-1]
+        assert kw["enable_thinking"] is False
+        assert kw["reasoning_budget"] == 512
+        assert kw["low_effort"] is False
+
+    def test_planner_thinking_value_used_as_fallback_when_role_thinking_explicitly_none(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Planner thinking params propagate to other roles only when those roles
+        explicitly set their thinking fields to None (opt-in fallback)."""
+        calls: list[dict] = []
+
+        def fake_get_llm(**kwargs):
+            calls.append(kwargs)
+            return MagicMock()
+
+        monkeypatch.setattr("nvidia_rag.utils.llm.get_llm", fake_get_llm)
+        from nvidia_rag.rag_server.agentic_rag.builder import _make_role_llm
+
+        cfg = self._build_rag_config(
+            main_enable_thinking=False,
+            main_reasoning_budget=0,
+            planner_overrides={
+                "enable_thinking": True,
+                "reasoning_budget": 2048,
+                "low_effort": True,
+            },
+        )
+
+        # Explicitly set task thinking fields to None to opt into fallback.
+        cfg.agentic_rag.task_llm.enable_thinking = None
+        cfg.agentic_rag.task_llm.reasoning_budget = None
+        cfg.agentic_rag.task_llm.low_effort = None
+
+        _make_role_llm(cfg.agentic_rag.task_llm, cfg.agentic_rag.planner_llm, cfg)
+        kw = calls[-1]
+        assert kw["enable_thinking"] is True
+        assert kw["reasoning_budget"] == 2048
+        assert kw["low_effort"] is True
+
+    def test_role_thinking_default_false_does_not_inherit_planner(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Roles with default thinking (False) do NOT inherit from planner even when planner has thinking enabled."""
+        calls: list[dict] = []
+
+        def fake_get_llm(**kwargs):
+            calls.append(kwargs)
+            return MagicMock()
+
+        monkeypatch.setattr("nvidia_rag.utils.llm.get_llm", fake_get_llm)
+        from nvidia_rag.rag_server.agentic_rag.builder import _make_role_llm
+
+        cfg = self._build_rag_config(
+            planner_overrides={
+                "enable_thinking": True,
+                "reasoning_budget": 2048,
+            },
+        )
+
+        # task uses default enable_thinking=False, which short-circuits the fallback.
+        _make_role_llm(cfg.agentic_rag.task_llm, cfg.agentic_rag.planner_llm, cfg)
+        kw = calls[-1]
+        assert kw["enable_thinking"] is False
+        assert kw["reasoning_budget"] == 0
+
+    def test_per_role_thinking_independence(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Different roles can have independent thinking configurations."""
+        calls: list[dict] = []
+
+        def fake_get_llm(**kwargs):
+            calls.append(kwargs)
+            return MagicMock()
+
+        monkeypatch.setattr("nvidia_rag.utils.llm.get_llm", fake_get_llm)
+        from nvidia_rag.rag_server.agentic_rag.builder import _make_role_llm
+
+        cfg = self._build_rag_config(
+            main_enable_thinking=False,
+            planner_overrides={
+                "reasoning_budget": 256,
+                "enable_thinking": True,
+            },
+            synthesis_overrides={
+                "model_name": "synthesis/model",
+                "reasoning_budget": 8192,
+                "enable_thinking": True,
+                "low_effort": False,
+            },
+        )
+
+        calls.clear()
+        _make_role_llm(cfg.agentic_rag.planner_llm, cfg.agentic_rag.planner_llm, cfg)
+        planner_kw = calls[-1]
+
+        calls.clear()
+        _make_role_llm(cfg.agentic_rag.synthesis_llm, cfg.agentic_rag.planner_llm, cfg)
+        synthesis_kw = calls[-1]
+
+        assert planner_kw["reasoning_budget"] == 256
+        assert synthesis_kw["reasoning_budget"] == 8192
+        assert planner_kw["enable_thinking"] is True
+        assert synthesis_kw["enable_thinking"] is True

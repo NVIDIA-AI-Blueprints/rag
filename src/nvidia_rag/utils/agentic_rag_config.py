@@ -179,12 +179,48 @@ def _validate_role_max_tokens(v: Any) -> int | None:
     return v
 
 
+def _validate_role_enable_thinking(v: Any) -> bool | None:
+    """Coerce empty strings / None to None; coerce strings to bool."""
+    if isinstance(v, str) and not v.strip():
+        return None
+    if v is None:
+        return None
+    if isinstance(v, str):
+        return v.lower() in ("true", "1", "yes")
+    return bool(v)
+
+
+def _validate_role_low_effort(v: Any) -> bool | None:
+    """Coerce empty strings / None to None; coerce strings to bool."""
+    if isinstance(v, str) and not v.strip():
+        return None
+    if v is None:
+        return None
+    if isinstance(v, str):
+        return v.lower() in ("true", "1", "yes")
+    return bool(v)
+
+
+def _validate_role_reasoning_budget(v: Any) -> int | None:
+    """Coerce empty strings / None to None; validate non-negative integer."""
+    if isinstance(v, str) and not v.strip():
+        return None
+    if v is None:
+        return None
+    v = int(v)
+    if v < 0:
+        raise ValueError("reasoning_budget must be non-negative")
+    return v
+
+
 class AgenticPlannerLLMConfig(_ConfigBase):
     """LLM config for the planner role (scope resolution + task creation).
 
     Env vars: AGENTIC_PLANNER_LLM_SERVERURL, AGENTIC_PLANNER_LLM_MODEL,
               AGENTIC_PLANNER_LLM_APIKEY, AGENTIC_PLANNER_LLM_TEMPERATURE,
-              AGENTIC_PLANNER_LLM_TOP_P, AGENTIC_PLANNER_LLM_MAX_TOKENS
+              AGENTIC_PLANNER_LLM_TOP_P, AGENTIC_PLANNER_LLM_MAX_TOKENS,
+              AGENTIC_PLANNER_LLM_ENABLE_THINKING, AGENTIC_PLANNER_LLM_REASONING_BUDGET,
+              AGENTIC_PLANNER_LLM_LOW_EFFORT
     """
 
     server_url: str = Field(
@@ -220,6 +256,21 @@ class AgenticPlannerLLMConfig(_ConfigBase):
         env="AGENTIC_PLANNER_LLM_MAX_TOKENS",
         description="Max generated tokens for the planner LLM. Default 32768.",
     )
+    enable_thinking: bool | None = Field(
+        default=False,
+        env="AGENTIC_PLANNER_LLM_ENABLE_THINKING",
+        description="Enable thinking/reasoning for the planner role. Default false (independent of LLM_ENABLE_THINKING).",
+    )
+    reasoning_budget: int | None = Field(
+        default=0,
+        env="AGENTIC_PLANNER_LLM_REASONING_BUDGET",
+        description="Token budget for reasoning for the planner role (0 = model decides). Only used when enable_thinking is true.",
+    )
+    low_effort: bool | None = Field(
+        default=False,
+        env="AGENTIC_PLANNER_LLM_LOW_EFFORT",
+        description="Low-effort reasoning mode for the planner role. Only used when enable_thinking is true.",
+    )
 
     @field_validator("server_url", mode="before")
     @classmethod
@@ -241,13 +292,30 @@ class AgenticPlannerLLMConfig(_ConfigBase):
     def _validate_max_tokens(cls, v: Any) -> int | None:
         return _validate_role_max_tokens(v)
 
+    @field_validator("enable_thinking", mode="before")
+    @classmethod
+    def _validate_enable_thinking(cls, v: Any) -> bool | None:
+        return _validate_role_enable_thinking(v)
+
+    @field_validator("reasoning_budget", mode="before")
+    @classmethod
+    def _validate_reasoning_budget(cls, v: Any) -> int | None:
+        return _validate_role_reasoning_budget(v)
+
+    @field_validator("low_effort", mode="before")
+    @classmethod
+    def _validate_low_effort(cls, v: Any) -> bool | None:
+        return _validate_role_low_effort(v)
+
 
 class AgenticTaskLLMConfig(_ConfigBase):
     """LLM config for the task role (answering individual sub-questions).
 
     Env vars: AGENTIC_TASK_LLM_SERVERURL, AGENTIC_TASK_LLM_MODEL,
               AGENTIC_TASK_LLM_APIKEY, AGENTIC_TASK_LLM_TEMPERATURE,
-              AGENTIC_TASK_LLM_TOP_P, AGENTIC_TASK_LLM_MAX_TOKENS
+              AGENTIC_TASK_LLM_TOP_P, AGENTIC_TASK_LLM_MAX_TOKENS,
+              AGENTIC_TASK_LLM_ENABLE_THINKING, AGENTIC_TASK_LLM_REASONING_BUDGET,
+              AGENTIC_TASK_LLM_LOW_EFFORT
     """
 
     server_url: str = Field(
@@ -280,6 +348,21 @@ class AgenticTaskLLMConfig(_ConfigBase):
         env="AGENTIC_TASK_LLM_MAX_TOKENS",
         description="Max generated tokens for the task LLM. Default 32768.",
     )
+    enable_thinking: bool | None = Field(
+        default=False,
+        env="AGENTIC_TASK_LLM_ENABLE_THINKING",
+        description="Enable thinking/reasoning for the task role. Default false (independent of LLM_ENABLE_THINKING).",
+    )
+    reasoning_budget: int | None = Field(
+        default=0,
+        env="AGENTIC_TASK_LLM_REASONING_BUDGET",
+        description="Token budget for reasoning for the task role (0 = model decides). Only used when enable_thinking is true.",
+    )
+    low_effort: bool | None = Field(
+        default=False,
+        env="AGENTIC_TASK_LLM_LOW_EFFORT",
+        description="Low-effort reasoning mode for the task role. Only used when enable_thinking is true.",
+    )
 
     @field_validator("server_url", mode="before")
     @classmethod
@@ -301,13 +384,30 @@ class AgenticTaskLLMConfig(_ConfigBase):
     def _validate_max_tokens(cls, v: Any) -> int | None:
         return _validate_role_max_tokens(v)
 
+    @field_validator("enable_thinking", mode="before")
+    @classmethod
+    def _validate_enable_thinking(cls, v: Any) -> bool | None:
+        return _validate_role_enable_thinking(v)
+
+    @field_validator("reasoning_budget", mode="before")
+    @classmethod
+    def _validate_reasoning_budget(cls, v: Any) -> int | None:
+        return _validate_role_reasoning_budget(v)
+
+    @field_validator("low_effort", mode="before")
+    @classmethod
+    def _validate_low_effort(cls, v: Any) -> bool | None:
+        return _validate_role_low_effort(v)
+
 
 class AgenticSeedGenLLMConfig(_ConfigBase):
     """LLM config for the seed-gen role (retry seed query generation).
 
     Env vars: AGENTIC_SEED_GEN_LLM_SERVERURL, AGENTIC_SEED_GEN_LLM_MODEL,
               AGENTIC_SEED_GEN_LLM_APIKEY, AGENTIC_SEED_GEN_LLM_TEMPERATURE,
-              AGENTIC_SEED_GEN_LLM_TOP_P, AGENTIC_SEED_GEN_LLM_MAX_TOKENS
+              AGENTIC_SEED_GEN_LLM_TOP_P, AGENTIC_SEED_GEN_LLM_MAX_TOKENS,
+              AGENTIC_SEED_GEN_LLM_ENABLE_THINKING, AGENTIC_SEED_GEN_LLM_REASONING_BUDGET,
+              AGENTIC_SEED_GEN_LLM_LOW_EFFORT
     """
 
     server_url: str = Field(
@@ -343,6 +443,21 @@ class AgenticSeedGenLLMConfig(_ConfigBase):
         env="AGENTIC_SEED_GEN_LLM_MAX_TOKENS",
         description="Max generated tokens for the seed-gen LLM. Default 32768.",
     )
+    enable_thinking: bool | None = Field(
+        default=False,
+        env="AGENTIC_SEED_GEN_LLM_ENABLE_THINKING",
+        description="Enable thinking/reasoning for the seed-gen role. Default false (independent of LLM_ENABLE_THINKING).",
+    )
+    reasoning_budget: int | None = Field(
+        default=0,
+        env="AGENTIC_SEED_GEN_LLM_REASONING_BUDGET",
+        description="Token budget for reasoning for the seed-gen role (0 = model decides). Only used when enable_thinking is true.",
+    )
+    low_effort: bool | None = Field(
+        default=False,
+        env="AGENTIC_SEED_GEN_LLM_LOW_EFFORT",
+        description="Low-effort reasoning mode for the seed-gen role. Only used when enable_thinking is true.",
+    )
 
     @field_validator("server_url", mode="before")
     @classmethod
@@ -364,13 +479,30 @@ class AgenticSeedGenLLMConfig(_ConfigBase):
     def _validate_max_tokens(cls, v: Any) -> int | None:
         return _validate_role_max_tokens(v)
 
+    @field_validator("enable_thinking", mode="before")
+    @classmethod
+    def _validate_enable_thinking(cls, v: Any) -> bool | None:
+        return _validate_role_enable_thinking(v)
+
+    @field_validator("reasoning_budget", mode="before")
+    @classmethod
+    def _validate_reasoning_budget(cls, v: Any) -> int | None:
+        return _validate_role_reasoning_budget(v)
+
+    @field_validator("low_effort", mode="before")
+    @classmethod
+    def _validate_low_effort(cls, v: Any) -> bool | None:
+        return _validate_role_low_effort(v)
+
 
 class AgenticSynthesisLLMConfig(_ConfigBase):
     """LLM config for the synthesis role (final answer generation).
 
     Env vars: AGENTIC_SYNTHESIS_LLM_SERVERURL, AGENTIC_SYNTHESIS_LLM_MODEL,
               AGENTIC_SYNTHESIS_LLM_APIKEY, AGENTIC_SYNTHESIS_LLM_TEMPERATURE,
-              AGENTIC_SYNTHESIS_LLM_TOP_P, AGENTIC_SYNTHESIS_LLM_MAX_TOKENS
+              AGENTIC_SYNTHESIS_LLM_TOP_P, AGENTIC_SYNTHESIS_LLM_MAX_TOKENS,
+              AGENTIC_SYNTHESIS_LLM_ENABLE_THINKING, AGENTIC_SYNTHESIS_LLM_REASONING_BUDGET,
+              AGENTIC_SYNTHESIS_LLM_LOW_EFFORT
     """
 
     server_url: str = Field(
@@ -403,6 +535,21 @@ class AgenticSynthesisLLMConfig(_ConfigBase):
         env="AGENTIC_SYNTHESIS_LLM_MAX_TOKENS",
         description="Max generated tokens for the synthesis LLM. Default 32768.",
     )
+    enable_thinking: bool | None = Field(
+        default=False,
+        env="AGENTIC_SYNTHESIS_LLM_ENABLE_THINKING",
+        description="Enable thinking/reasoning for the synthesis role. Default false (independent of LLM_ENABLE_THINKING).",
+    )
+    reasoning_budget: int | None = Field(
+        default=0,
+        env="AGENTIC_SYNTHESIS_LLM_REASONING_BUDGET",
+        description="Token budget for reasoning for the synthesis role (0 = model decides). Only used when enable_thinking is true.",
+    )
+    low_effort: bool | None = Field(
+        default=False,
+        env="AGENTIC_SYNTHESIS_LLM_LOW_EFFORT",
+        description="Low-effort reasoning mode for the synthesis role. Only used when enable_thinking is true.",
+    )
 
     @field_validator("server_url", mode="before")
     @classmethod
@@ -423,6 +570,21 @@ class AgenticSynthesisLLMConfig(_ConfigBase):
     @classmethod
     def _validate_max_tokens(cls, v: Any) -> int | None:
         return _validate_role_max_tokens(v)
+
+    @field_validator("enable_thinking", mode="before")
+    @classmethod
+    def _validate_enable_thinking(cls, v: Any) -> bool | None:
+        return _validate_role_enable_thinking(v)
+
+    @field_validator("reasoning_budget", mode="before")
+    @classmethod
+    def _validate_reasoning_budget(cls, v: Any) -> int | None:
+        return _validate_role_reasoning_budget(v)
+
+    @field_validator("low_effort", mode="before")
+    @classmethod
+    def _validate_low_effort(cls, v: Any) -> bool | None:
+        return _validate_role_low_effort(v)
 
 
 # Union type used for type hints in builder.py.

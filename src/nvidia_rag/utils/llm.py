@@ -266,8 +266,17 @@ def _bind_reasoning_config(
     model = kwargs.get("model", "")
     enable_thinking = _resolve_enable_thinking(config=config, **kwargs)
     params = config.llm.parameters if config is not None else None
-    reasoning_budget = kwargs.get("reasoning_budget") or (params.reasoning_budget if params else 0)
-    low_effort = kwargs.get("low_effort") or (params.low_effort if params else False)
+    # Use explicit None-check so that a caller passing reasoning_budget=0 or
+    # low_effort=False is NOT silently overridden by the global LLM_* config.
+    # The old `or` pattern caused `False or True = True` and `0 or 256 = 256`.
+    reasoning_budget = (
+        kwargs["reasoning_budget"] if "reasoning_budget" in kwargs
+        else (params.reasoning_budget if params else 0)
+    )
+    low_effort = (
+        kwargs["low_effort"] if "low_effort" in kwargs
+        else (params.low_effort if params else False)
+    )
     min_think = kwargs.get("min_thinking_tokens") or (params.min_thinking_tokens if params else 0) or 0
     max_think = kwargs.get("max_thinking_tokens") or (params.max_thinking_tokens if params else 0) or 0
 

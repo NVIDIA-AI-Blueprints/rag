@@ -1043,3 +1043,71 @@ class TestBindReasoningConfigNemotronNano9B:
 
         mock_llm.bind.assert_not_called()
         assert bound_llm is mock_llm
+
+
+class TestBindReasoningConfigKwargsOverride:
+    """Regression tests for the or-based fallback bug.
+
+    Before the fix, `_bind_reasoning_config` used:
+        low_effort = kwargs.get("low_effort") or (params.low_effort if params else False)
+    This caused `False or True = True`, silently promoting the global
+    LLM_LOW_EFFORT=true onto every agentic role even when the role explicitly
+    set low_effort=False.  Same bug applied to reasoning_budget (0 or 256 = 256).
+    """
+
+    def test_role_low_effort_false_not_overridden_by_global_true(self):
+        """Explicit low_effort=False from a role kwarg must NOT be overridden by global True."""
+        from nvidia_rag.utils.llm import _bind_reasoning_config
+
+        mock_llm = Mock()
+        mock_llm.bind.return_value = mock_llm
+        config = Mock()
+        config.llm.parameters.enable_thinking = True
+        config.llm.parameters.reasoning_budget = 256
+        config.llm.parameters.low_effort = True   # global = True
+        config.llm.parameters.min_thinking_tokens = 0
+        config.llm.parameters.max_thinking_tokens = 0
+
+        _bind_reasoning_config(
+            mock_llm,
+            config=config,
+            model="nvidia/nemotron-3-super-120b-a12b",
+            enable_thinking=True,
+            reasoning_budget=64,
+            low_effort=False,   # role-level override
+        )
+
+        call_kwargs = mock_llm.bind.call_args[1]
+        template = call_kwargs.get("chat_template_kwargs", {})
+        assert template.get("low_effort") is not True, (
+            "low_effort=False (role kwarg) must not be overridden by global low_effort=True"
+        )
+
+    def test_role_reasoning_budget_zero_not_overridden_by_global_nonzero(self):
+        """Explicit reasoning_budget=0 from a role kwarg must NOT be overridden by global 256."""
+        from nvidia_rag.utils.llm import _bind_reasoning_config
+
+        mock_llm = Mock()
+        mock_llm.bind.return_value = mock_llm
+        config = Mock()
+        config.llm.parameters.enable_thinking = True
+        config.llm.parameters.reasoning_budget = 256  # global = 256
+        config.llm.parameters.low_effort = False
+        config.llm.parameters.min_thinking_tokens = 0
+        config.llm.parameters.max_thinking_tokens = 0
+
+        _bind_reasoning_config(
+            mock_llm,
+            config=config,
+            model="nvidia/nemotron-3-super-120b-a12b",
+            enable_thinking=True,
+            reasoning_budget=0,   # role-level: no budget
+            low_effort=False,
+        )
+
+        call_kwargs = mock_llm.bind.call_args[1]
+        template = call_kwargs.get("chat_template_kwargs", {})
+        assert "reasoning_budget" not in template, (
+            "reasoning_budget=0 (role kwarg) must not be overridden by global 256 — "
+            "budget should be absent when explicitly set to 0"
+        )

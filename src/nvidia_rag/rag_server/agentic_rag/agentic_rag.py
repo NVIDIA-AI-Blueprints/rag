@@ -356,10 +356,17 @@ class AgenticRag:
         temperature = _resolve_gen("temperature", overrides.temperature)
         top_p = _resolve_gen("top_p", overrides.top_p)
         max_tokens = _resolve_gen("max_tokens", overrides.max_tokens)
+        # Thinking params are never overridden by the per-request API; always
+        # resolved from the per-role agentic config so that AGENTIC_*_LLM_ENABLE_THINKING
+        # is respected even when temperature/top_p/max_tokens cause this override path.
+        enable_thinking = _resolve_gen("enable_thinking", None)
+        reasoning_budget = _resolve_gen("reasoning_budget", None)
+        low_effort = _resolve_gen("low_effort", None)
 
         logger.info(
             "Creating override agentic LLM (cache_key=%s, role=%s): "
-            "model=%s, url=%s, temperature=%s, top_p=%s, max_tokens=%s",
+            "model=%s, url=%s, temperature=%s, top_p=%s, max_tokens=%s, "
+            "enable_thinking=%s, reasoning_budget=%s, low_effort=%s",
             cache_key,
             role_name,
             model,
@@ -367,6 +374,9 @@ class AgenticRag:
             temperature,
             top_p,
             max_tokens,
+            enable_thinking,
+            reasoning_budget,
+            low_effort,
         )
 
         from nvidia_rag.utils.llm import get_llm
@@ -379,6 +389,9 @@ class AgenticRag:
             temperature=temperature,
             top_p=top_p,
             max_tokens=max_tokens,
+            enable_thinking=enable_thinking,
+            reasoning_budget=reasoning_budget,
+            low_effort=low_effort,
         )
         cache[cache_key] = built
         return built
