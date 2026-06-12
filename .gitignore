@@ -6,6 +6,8 @@ dist/*
 
 # Helm Exclusions
 **/helm-charts/*.tgz
+# Helm subchart bundles produced by `helm dependency build`
+deploy/helm/nvidia-blueprint-rag/charts/*.tgz
 
 # Docker Compose exclusions
 deploy/compose/volumes

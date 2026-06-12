@@ -15,12 +15,13 @@
 
 """Prompts for the Graph-Based Agentic RAG Agent.
 
-Five prompts:
+Six prompts:
   1. planner_prompt              — query + scope → retrieval plan (task graph)
   2. task_answer_prompt          — sub-question + docs → direct partial answer
   3. seed_gen_prompt             — failed retrieval → new query or stop
   4. synthesis_prompt            — sub-answers → final coherent answer
   5. verification_prompt         — check answer quality, identify gaps
+  6. vlm_task_system_prompt      — VLM system prompt for image/chart task answering
 
 Prompts that reference configurable limits use ``{placeholder}`` markers
 (e.g., {max_plan_tasks}).  Call ``build_prompts(...)`` at init time to inject
@@ -295,6 +296,21 @@ Tasks Already Executed:
 {task_summary}
 
 Check the answer quality and identify any retrieval gaps:"""
+
+
+# =============================================================================
+# 6. VLM TASK PROMPT
+# Used in AgenticRag._call_vlm_for_task when document_type is "image" or "chart".
+# Unlike the text task prompt, no JSON output is required — the VLM answers
+# directly in plain text and the caller wraps it in a completeness dict.
+# =============================================================================
+
+VLM_TASK_SYSTEM_PROMPT = """You are an expert at reading charts, diagrams, tables, and images.
+You are given an image and a specific question about its content.
+Answer the question directly and precisely based only on what is visually present in the image.
+Report numbers, labels, and values exactly as they appear — do not round or reformat.
+If the image does not contain sufficient information to answer the question, say so explicitly.
+Start directly with the answer. No preamble."""
 
 
 # =============================================================================

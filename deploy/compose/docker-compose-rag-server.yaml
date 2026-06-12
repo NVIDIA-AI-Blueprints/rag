@@ -251,6 +251,14 @@ services:
       # Context window budget for retrieved chunks
       AGENTIC_CONTEXT_MAX_TOKENS: ${AGENTIC_CONTEXT_MAX_TOKENS:-100000}
 
+      # Agentic VLM — multimodal support for image/chart chunks in execute + verify_execute
+      AGENTIC_VLM_ENABLED: ${AGENTIC_VLM_ENABLED:-false}
+      AGENTIC_VLM_SERVERURL: ${AGENTIC_VLM_SERVERURL:-${APP_VLM_SERVERURL:-""}}
+      AGENTIC_VLM_MODEL: ${AGENTIC_VLM_MODEL:-${APP_VLM_MODELNAME:-""}}
+      AGENTIC_VLM_APIKEY: ${AGENTIC_VLM_APIKEY:-${APP_VLM_APIKEY:-""}}
+      AGENTIC_VLM_MAX_TOKENS: ${AGENTIC_VLM_MAX_TOKENS:-1024}
+      AGENTIC_VLM_ENABLE_VISUAL_VERIFY: ${AGENTIC_VLM_ENABLE_VISUAL_VERIFY:-false}
+
     ports:
       - "8081:8081"
     expose:

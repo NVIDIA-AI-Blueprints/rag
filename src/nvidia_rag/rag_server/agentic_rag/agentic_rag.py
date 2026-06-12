@@ -100,6 +100,12 @@ class _ContextConfig:
     max_tokens: int = 100000
 
 
+@dataclass
+class _VLMConfig:
+    enabled: bool = False
+    enable_visual_verify: bool = False
+
+
 # =============================================================================
 # STATE
 # =============================================================================
@@ -136,6 +142,7 @@ class AgenticRag:
     """
 
     _TEXT_DOCUMENT_TYPES = frozenset({"text", "audio"})
+    _IMAGE_DOCUMENT_TYPES = frozenset({"image", "chart"})
     _CHARS_PER_TOKEN_ESTIMATE = 2.5
 
     @staticmethod
@@ -167,6 +174,8 @@ class AgenticRag:
         verification_config=None,
         context_config=None,
         rag_config=None,
+        vlm_client: BaseChatModel | None = None,
+        vlm_config=None,
     ):
         # Cached default LLM clients (one per role) built at agent construction
         # time from the AGENTIC_*_LLM_MODEL / _SERVERURL env-based config. These
@@ -193,6 +202,8 @@ class AgenticRag:
         self.llm_cfg = llm_config or _LLMTransportConfig()
         self.verification_cfg = verification_config or _VerificationConfig()
         self.context_cfg = context_config or _ContextConfig()
+        self.vlm_cfg = vlm_config or _VLMConfig()
+        self._vlm_client = vlm_client
 
         self._tokenizer = None
         self._semaphore = asyncio.Semaphore(concurrency_limit)
@@ -727,6 +738,118 @@ class AgenticRag:
             return description
         return ""
 
+    @staticmethod
+    def _extract_visual_chunks(raw_context: Any) -> list[dict]:
+        """Extract image/chart chunks from raw retrieval results, preserving base64 content.
+
+        Unlike _extract_chunks (which converts images to their text descriptions),
+        this method returns the raw base64 ``content`` so a VLM can process the
+        actual pixels.  Only chunks whose ``document_type`` is in
+        ``_IMAGE_DOCUMENT_TYPES`` and that carry non-empty raw content are returned.
+        """
+        visual: list[dict] = []
+        items = raw_context if isinstance(raw_context, list) else [raw_context]
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            for doc in item.get("results", [item]):
+                doc_type = doc.get("document_type", "text")
+                if doc_type not in AgenticRag._IMAGE_DOCUMENT_TYPES:
+                    continue
+                content = doc.get("content", "").strip()
+                if not content:
+                    continue
+                visual.append(
+                    {
+                        "doc_name": doc.get("document_name", "Unknown"),
+                        "content": content,
+                        "score": doc.get("score", 0.0),
+                        "document_type": doc_type,
+                    }
+                )
+        return visual
+
+    @staticmethod
+    def _get_image_data_url(chunk: dict) -> str | None:
+        """Return an OpenAI-compatible data URL from a visual chunk's content field."""
+        content = chunk.get("content", "").strip()
+        if not content:
+            return None
+        if content.startswith("data:image"):
+            return content
+        return f"data:image/png;base64,{content}"
+
+    async def _call_vlm_for_task(self, image_url: str, question: str) -> dict:
+        """Call the VLM with a single image and task question.
+
+        Returns a task-answer-compatible dict with keys
+        ``completeness``, ``answer``, and ``missing`` — identical in shape to
+        what ``_parse_task_answer`` returns, so the two paths can be merged by
+        ``_merge_task_answers`` without special-casing.
+        """
+        from langchain_core.messages import HumanMessage, SystemMessage
+
+        from nvidia_rag.rag_server.agentic_rag.prompt import VLM_TASK_SYSTEM_PROMPT
+
+        messages = [
+            SystemMessage(content=VLM_TASK_SYSTEM_PROMPT),
+            HumanMessage(
+                content=[
+                    {"type": "image_url", "image_url": {"url": image_url}},
+                    {"type": "text", "text": f"Question: {question}"},
+                ]
+            ),
+        ]
+        try:
+            response = await self._vlm_client.ainvoke(messages)
+            answer = str(response.content).strip()
+            if not answer:
+                return {"completeness": "none", "answer": "[NO DATA]", "missing": ""}
+            return {"completeness": "complete", "answer": answer, "missing": ""}
+        except Exception as ex:
+            logger.warning("%s VLM task call failed: %s", _P, ex)
+            return {"completeness": "none", "answer": "[NO DATA]", "missing": ""}
+
+    @staticmethod
+    def _merge_task_answers(text_parsed: dict, vlm_answers: list[dict]) -> dict:
+        """Merge a text-LLM answer with zero or more VLM answers.
+
+        Priority: complete > partial > none.
+        All complete answers are concatenated; if none are complete, all partial
+        answers are concatenated.
+        """
+        all_answers = [text_parsed] + (vlm_answers or [])
+
+        complete = [
+            a
+            for a in all_answers
+            if a.get("completeness") == "complete"
+            and a.get("answer")
+            and a["answer"] != "[NO DATA]"
+        ]
+        if complete:
+            return {
+                "completeness": "complete",
+                "answer": " ".join(a["answer"] for a in complete),
+                "missing": "",
+            }
+
+        partial = [
+            a
+            for a in all_answers
+            if a.get("completeness") == "partial" and a.get("answer")
+        ]
+        if partial:
+            return {
+                "completeness": "partial",
+                "answer": " ".join(a["answer"] for a in partial),
+                "missing": "; ".join(
+                    a.get("missing", "") for a in partial if a.get("missing")
+                ),
+            }
+
+        return {"completeness": "none", "answer": "[NO DATA]", "missing": ""}
+
     def _extract_chunks(self, raw_context: Any) -> list[dict[str, str]]:
         """Flatten raw retrieval results into a list of text chunks."""
         chunks = []
@@ -989,19 +1112,35 @@ class AgenticRag:
                         time.perf_counter() - retrieval_start
                     ) * 1000
 
-                chunks = self._extract_chunks(
+                raw_list = (
                     raw_context if isinstance(raw_context, list) else [raw_context]
                 )
+                chunks = self._extract_chunks(raw_list)
+                # VLM: extract image/chart chunks with raw base64 intact so the
+                # VLM can read actual pixel content rather than ingest-time captions.
+                visual_chunks = (
+                    self._extract_visual_chunks(raw_list)
+                    if self.vlm_cfg.enabled and self._vlm_client
+                    else []
+                )
+                if self.vlm_cfg.enabled and self._vlm_client:
+                    logger.info(
+                        "%s Task %s — VLM enabled, found %d visual chunk(s) (text chunks: %d)",
+                        _P,
+                        tid,
+                        len(visual_chunks),
+                        len(chunks),
+                    )
                 trace = get_current_trace()
                 if trace:
                     trace.record_retrieval_call(
                         stage,
-                        len(chunks),
+                        len(chunks) + len(visual_chunks),
                         duration_ms=retrieval_duration_ms,
                         error=retrieval_error,
                     )
 
-                if not chunks:
+                if not chunks and not visual_chunks:
                     logger.debug(
                         "%s Task %s attempt %d — no chunks returned",
                         _P,
@@ -1023,8 +1162,7 @@ class AgenticRag:
                     )
                     return _finish_task(result)
 
-                n_chunks = len(chunks)
-                docs_str = self._format_chunks_for_prompt(chunks)
+                n_chunks = len(chunks) + len(visual_chunks)
 
                 task_question = question
                 if accumulated_answer:
@@ -1036,15 +1174,40 @@ class AgenticRag:
                         f"that merges the prior data with any new data you find in these documents."
                     )
 
-                raw_answer = await self._call_llm(
-                    self.task_llm,
-                    self.task_answer_prompt,
-                    {"question": task_question, "documents": docs_str},
-                    step_name=f"Task {tid} answer (attempt {attempt + 1})",
-                    # config intentionally omitted — see method docstring.
-                    json_mode=False,
-                )
-                parsed = self._parse_task_answer(raw_answer)
+                # Text path: task LLM answers from text/audio/table chunks.
+                if chunks:
+                    docs_str = self._format_chunks_for_prompt(chunks)
+                    raw_answer = await self._call_llm(
+                        self.task_llm,
+                        self.task_answer_prompt,
+                        {"question": task_question, "documents": docs_str},
+                        step_name=f"Task {tid} answer (attempt {attempt + 1})",
+                        # config intentionally omitted — see method docstring.
+                        json_mode=False,
+                    )
+                    text_parsed = self._parse_task_answer(raw_answer)
+                else:
+                    text_parsed = {"completeness": "none", "answer": "", "missing": ""}
+
+                # VLM path: answer image/chart chunks directly (parallel per chunk).
+                vlm_answers: list[dict] = []
+                if visual_chunks:
+                    vlm_coros = [
+                        self._call_vlm_for_task(self._get_image_data_url(c), question)
+                        for c in visual_chunks
+                        if self._get_image_data_url(c)
+                    ]
+                    if vlm_coros:
+                        vlm_answers = list(await asyncio.gather(*vlm_coros))
+                        logger.info(
+                            "%s Task %s — VLM answered %d image chunk(s): completeness=%s",
+                            _P,
+                            tid,
+                            len(vlm_answers),
+                            [a.get("completeness") for a in vlm_answers],
+                        )
+
+                parsed = self._merge_task_answers(text_parsed, vlm_answers)
 
                 if parsed["completeness"] == "complete":
                     logger.debug("%s Task %s — complete answer found", _P, tid)

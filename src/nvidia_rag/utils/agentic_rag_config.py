@@ -32,14 +32,13 @@ from __future__ import annotations
 
 from typing import Any, Union
 
-from pydantic import SecretStr, field_validator
 from pydantic import Field as PydanticField
+from pydantic import SecretStr, field_validator
 
 # _ConfigBase and Field are imported from configuration.py.
 # This works because configuration.py places its import of this module
 # after _ConfigBase and Field are already defined.
-from nvidia_rag.utils.configuration import _ConfigBase, Field
-
+from nvidia_rag.utils.configuration import Field, _ConfigBase
 
 # =============================================================================
 # AGENT BEHAVIOUR SUB-CONFIGS
@@ -119,6 +118,67 @@ class AgenticContextConfig(_ConfigBase):
         env="AGENTIC_CONTEXT_MAX_TOKENS",
         description="Token budget for chunk context in prompts.",
     )
+
+
+class AgenticVLMConfig(_ConfigBase):
+    """VLM sub-config for agentic RAG multimodal support.
+
+    When ``enabled=True``, image and chart chunks retrieved during task
+    execution are answered directly by a Vision Language Model instead of
+    relying on the pre-generated text descriptions produced at ingest time.
+    The same VLM routing applies to verify_execute tasks.
+
+    Env vars:
+        AGENTIC_VLM_ENABLED              — master switch (default: false)
+        AGENTIC_VLM_SERVERURL            — VLM endpoint URL
+        AGENTIC_VLM_MODEL                — VLM model name
+        AGENTIC_VLM_APIKEY               — optional API key override
+        AGENTIC_VLM_MAX_TOKENS           — max tokens per VLM response (default: 1024)
+        AGENTIC_VLM_ENABLE_VISUAL_VERIFY — reserved for future visual fact-checking
+                                           in the verify node (default: false)
+    """
+
+    enabled: bool = Field(
+        default=False,
+        env="AGENTIC_VLM_ENABLED",
+        description=(
+            "Enable VLM processing for image/chart chunks in execute and "
+            "verify_execute. Requires AGENTIC_VLM_SERVERURL and AGENTIC_VLM_MODEL."
+        ),
+    )
+    server_url: str = Field(
+        default="",
+        env="AGENTIC_VLM_SERVERURL",
+        description="VLM endpoint URL (e.g. http://vlm-service:8000/v1).",
+    )
+    model_name: str = Field(
+        default="",
+        env="AGENTIC_VLM_MODEL",
+        description="VLM model name (e.g. nvidia/llama-3.2-90b-vision-instruct).",
+    )
+    api_key: SecretStr | None = Field(
+        default=None,
+        env="AGENTIC_VLM_APIKEY",
+        description="API key for the VLM endpoint. Falls back to NVIDIA_API_KEY if unset.",
+    )
+    max_tokens: int = Field(
+        default=1024,
+        env="AGENTIC_VLM_MAX_TOKENS",
+        description="Max generated tokens for VLM responses.",
+    )
+    enable_visual_verify: bool = Field(
+        default=False,
+        env="AGENTIC_VLM_ENABLE_VISUAL_VERIFY",
+        description=(
+            "Reserved: parallel VLM visual fact-checking inside the verify node. "
+            "Not active in the current release."
+        ),
+    )
+
+    @field_validator("server_url", mode="before")
+    @classmethod
+    def normalize_url(cls, v: Any) -> Any:
+        return _normalize_role_url(v)
 
 
 # =============================================================================
@@ -517,3 +577,7 @@ class AgenticRAGConfig(_ConfigBase):
         default_factory=AgenticVerificationConfig
     )
     context: AgenticContextConfig = PydanticField(default_factory=AgenticContextConfig)
+    vlm: AgenticVLMConfig = PydanticField(
+        default_factory=AgenticVLMConfig,
+        description="VLM config for multimodal image/chart support in execute and verify_execute.",
+    )

@@ -346,6 +346,36 @@ def _make_role_llm(
 
 
 # =============================================================================
+# VLM CLIENT FACTORY
+# =============================================================================
+
+
+def _make_vlm_client(vlm_cfg: Any, rag_config: Any) -> Any:
+    """Build a LangChain LLM client for the VLM endpoint.
+
+    Uses the same ``get_llm`` factory as the text LLM roles — the VLM endpoint
+    accepts the same OpenAI-compatible chat API and LangChain forwards
+    multimodal ``HumanMessage`` content items (image_url blocks) transparently.
+    """
+    from nvidia_rag.utils.llm import get_llm
+
+    api_key = vlm_cfg.get_api_key() or rag_config.llm.get_api_key()
+    logger.debug(
+        "Creating agentic VLM client: model=%s, url=%s, max_tokens=%s",
+        vlm_cfg.model_name,
+        vlm_cfg.server_url or "(api-catalog)",
+        vlm_cfg.max_tokens,
+    )
+    return get_llm(
+        config=rag_config,
+        model=vlm_cfg.model_name,
+        llm_endpoint=vlm_cfg.server_url,
+        api_key=api_key,
+        max_tokens=vlm_cfg.max_tokens,
+    )
+
+
+# =============================================================================
 # AGENT BUILDER
 # =============================================================================
 
@@ -380,6 +410,16 @@ async def build_agentic_rag_agent(
     seed_gen_llm = _make_role_llm(cfg.seed_gen_llm, cfg.planner_llm, rag_config)
     synthesis_llm = _make_role_llm(cfg.synthesis_llm, cfg.planner_llm, rag_config)
 
+    vlm_client = None
+    if cfg.vlm.enabled:
+        if cfg.vlm.server_url and cfg.vlm.model_name:
+            vlm_client = _make_vlm_client(cfg.vlm, rag_config)
+        else:
+            logger.warning(
+                "AGENTIC_VLM_ENABLED=true but AGENTIC_VLM_SERVERURL or "
+                "AGENTIC_VLM_MODEL is not set — VLM disabled for this agent."
+            )
+
     default_reranker_top_k = rag_config.retriever.top_k
     retriever_fn = make_retriever_fn(nvidia_rag, default_reranker_top_k)
 
@@ -397,6 +437,8 @@ async def build_agentic_rag_agent(
         verification_config=cfg.verification,
         context_config=cfg.context,
         rag_config=rag_config,
+        vlm_client=vlm_client,
+        vlm_config=cfg.vlm,
     )
 
     graph = await agent.build_graph()
