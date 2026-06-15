@@ -69,16 +69,23 @@ jobs:
     steps:
       - name: Pre-checkout cleanup — remove root-owned Docker volumes
         # Must run BEFORE checkout. Root-owned Milvus/MinIO/etcd files from
-        # prior runs block git clean. Docker alpine removes them without sudo.
+        # prior runs block git clean. Docker (running as root inside the
+        # container) removes them. We mount the PARENT dir and `rm` the
+        # target by name — this works even when both the target AND its
+        # parent are root-owned (e.g. when a trial agent's compose file
+        # with a relative bind mount caused Docker to mkdir -p the chain
+        # as root, leaving an empty root-owned dir that the ubuntu runner
+        # can't rmdir because it lacks write on the root-owned parent).
         run: |
           WORKSPACE="${GITHUB_WORKSPACE:-/home/ubuntu/actions-runner/_work/rag/rag}"
-          for vol_dir in deploy/compose/volumes ci/volumes ci/deploy/compose; do
+          for vol_dir in deploy/compose/volumes ci/volumes ci/deploy/compose ci/deploy; do
             TARGET="$WORKSPACE/$vol_dir"
-            if [ -d "$TARGET" ]; then
+            if [ -e "$TARGET" ]; then
+              PARENT="$(dirname "$TARGET")"
+              NAME="$(basename "$TARGET")"
               echo "Cleaning $TARGET"
-              docker run --rm -v "$TARGET:/target" alpine \
-                sh -c "rm -rf /target/* /target/.??* 2>/dev/null; exit 0" || true
-              rm -rf "$TARGET" 2>/dev/null || true
+              docker run --rm -v "$PARENT:/parent" alpine \
+                sh -c "rm -rf \"/parent/$NAME\""
             fi
           done
 
@@ -169,18 +176,26 @@ jobs:
           python3 .github/skill-eval/skills_eval_agent.py
 
       - name: Collect results for artifact
+        # Tar ONLY this run's subdir (/tmp/skill-eval/results/<run_id>/), not the whole
+        # results tree. The runner's disk persists between jobs, so /tmp/skill-eval/results/
+        # may also contain leftover subdirs from prior runs. Archiving all of them would
+        # re-upload stale data labeled as the current run — exactly how 06-03's results
+        # ended up in every nightly artifact for 9 days. If the agent didn't write a
+        # subdir for this run_id, there's nothing fresh to upload, so we exit cleanly.
         if: always() && (github.event_name != 'push' || steps.changes.outputs.skills == 'true')
         run: |
-          if [ ! -d /tmp/skill-eval/results ]; then
-            echo "no results dir — agent blocked before running trials"
+          RUN_DIR="/tmp/skill-eval/results/${{ github.run_id }}"
+          if [ ! -d "$RUN_DIR" ]; then
+            echo "no results subdir for this run (${{ github.run_id }}) — nothing to archive"
             exit 0
           fi
-          RESULTS=$(find /tmp/skill-eval/results -maxdepth 3 -name "result.json" 2>/dev/null | head -50 || true)
+          RESULTS=$(find "$RUN_DIR" -maxdepth 3 -name "result.json" 2>/dev/null | head -50 || true)
           if [ -n "$RESULTS" ]; then
-            tar czf /tmp/skills-eval-results.tar.gz -C /tmp/skill-eval results
-            echo "archived $(echo "$RESULTS" | wc -l) result.json files"
+            tar czf /tmp/skills-eval-results.tar.gz \
+              -C /tmp/skill-eval/results "${{ github.run_id }}"
+            echo "archived $(echo "$RESULTS" | wc -l) result.json files for run ${{ github.run_id }}"
           else
-            echo "results dir exists but empty — nothing to archive"
+            echo "results dir exists for this run but no result.json files — nothing to archive"
           fi
 
       - name: Upload results artifact
