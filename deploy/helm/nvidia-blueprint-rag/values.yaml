@@ -1167,7 +1167,6 @@ nv-ingest:
     MINIO_BUCKET: "nv-ingest"
     MINIO_ACCESS_KEY: "seaweedfsadmin"
     MINIO_SECRET_KEY: "seaweedfsadmin"
-    OTEL_EXPORTER_OTLP_ENDPOINT: "otel-collector:4317"
     MODEL_PREDOWNLOAD_PATH: "/workspace/models/"
     INSTALL_AUDIO_EXTRACTION_DEPS: "true"
     COMPONENTS_TO_READY_CHECK: "ALL"
@@ -1205,6 +1204,13 @@ nv-ingest:
     # Audio service
     AUDIO_GRPC_ENDPOINT: nv-ingest-riva-nim:50051
     AUDIO_INFER_PROTOCOL: grpc
+
+  # OTel endpoint must be routed through otelEnvVars (not envVars). The nv-ingest subchart's
+  # OTel fallback guard only inspects otelEnvVars; supplying the key via envVars instead made
+  # the guard fire as well, rendering OTEL_EXPORTER_OTLP_ENDPOINT twice and breaking server-side
+  # apply / Rancher Fleet / strict admission. See issue #687.
+  otelEnvVars:
+    OTEL_EXPORTER_OTLP_ENDPOINT: "otel-collector:4317"
 
   # NV-Ingest uses SeaweedFS via MINIO_* env vars for S3-compatible artifact storage.
   milvusDeployed: false

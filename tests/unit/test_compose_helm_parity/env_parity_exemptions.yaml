@@ -47,6 +47,9 @@ envMissingKeyExemptions:
         - NGC_API_KEY
         - NVIDIA_API_KEY
         - NVIDIA_BUILD_API_KEY
+        # Routed through Helm nv-ingest.otelEnvVars (not envVars) to avoid a duplicate
+        # OTEL_EXPORTER_OTLP_ENDPOINT render in the nv-ingest subchart. See issue #687.
+        - OTEL_EXPORTER_OTLP_ENDPOINT
 
 # Image parity exemptions allow skipping image repo/tag parity for selected services
 imageParityExemptions:
