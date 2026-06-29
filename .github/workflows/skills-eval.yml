@@ -32,16 +32,9 @@ on:
         type: choice
         options:
           - "*"
-          - rag-deploy-blueprint
-          - rag-ingest-documents
-          - rag-query-knowledge
-          - rag-configure-infrastructure
-          - rag-configure-retrieval
-          - rag-evaluate-quality
-          - rag-manage-mcp
-          - rag-troubleshoot-blueprint
-          - rag-enable-vlm
-          - rag-enable-guardrails
+          - rag-blueprint
+          - rag-eval
+          - rag-perf
 
 permissions:
   contents: write
@@ -169,9 +162,11 @@ jobs:
           export GITHUB_RUN_ID="${{ github.run_id }}"
           # PYTHONPATH lets uvx harbor resolve envs.*:*Environment from skill-eval/
           export PYTHONPATH="${GITHUB_WORKSPACE}/skill-eval:${PYTHONPATH:-}"
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "${{ github.event_name }}" = "schedule" ]; then
+            # Schedule events never populate `inputs`, so INPUT_SKILLS is empty
+            # there — default to "*" so the agent enumerates all skills.
             export MANUAL_FULL_SWEEP=1
-            export MANUAL_SKILLS_FILTER="${INPUT_SKILLS}"
+            export MANUAL_SKILLS_FILTER="${INPUT_SKILLS:-*}"
           fi
           python3 .github/skill-eval/skills_eval_agent.py
 
