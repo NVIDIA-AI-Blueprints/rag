@@ -14,7 +14,7 @@ authors = [
 requires-python = ">=3.11,<3.14"
 
 dependencies = [
-    "bleach>=6.2,<7.0",
+    "bleach>=6.4.0,<7.0",
     "dataclass-wizard>=0.27,<1.0",
     "fastapi>=0.115.5,<1.0",
     "anyio>=4.12.0",
@@ -119,7 +119,7 @@ override-dependencies = [
     "pillow>=12.2.0",
     "cryptography>=46.0.6",
     "urllib3>=2.7.0",
-    "aiohttp>=3.13.4",
+    "aiohttp>=3.14.1",
     "orjson>=3.11.6",
     "langsmith>=0.8.0",
     "langchain-classic>=1.0.7",

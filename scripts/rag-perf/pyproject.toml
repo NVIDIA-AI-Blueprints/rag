@@ -84,6 +84,11 @@ python_version = "3.11"
 strict = false
 ignore_missing_imports = true
 
+[tool.uv]
+override-dependencies = [
+    "aiohttp>=3.14.1",
+]
+
 # Unit tests live at <repo>/tests/unit/test_rag_perf/ alongside the rest of the
 # rag repo's test suite — see ``tests/unit/test_rag_perf/conftest.py`` for the
 # sys.path bridge that makes ``rag_perf`` importable from there.
